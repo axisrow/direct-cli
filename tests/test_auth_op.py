@@ -106,9 +106,14 @@ class TestCLIOpOptions:
         assert "--op-token-ref" in result.output
         assert "--op-login-ref" in result.output
 
-    def test_op_token_ref_stored_in_ctx(self):
+    @patch("direct_cli.auth.load_env_file")
+    @patch("direct_cli.auth.op_read", return_value="resolved-op-token")
+    def test_op_token_ref_resolves_via_cli_flag(self, mock_op_read, mock_load, monkeypatch):
+        monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
+        monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
         runner = CliRunner()
         result = runner.invoke(
-            cli, ["--op-token-ref", "op://vault/item/token", "--help"]
+            cli, ["--op-token-ref", "op://vault/item/token", "campaigns", "get", "--help"]
         )
         assert result.exit_code == 0
+        mock_op_read.assert_called_once_with("op://vault/item/token")

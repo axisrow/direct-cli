@@ -6,6 +6,8 @@ Direct CLI - Command-line interface for Yandex Direct API
 import click
 from dotenv import load_dotenv
 
+from .auth import get_credentials
+
 from .commands.campaigns import campaigns
 from .commands.adgroups import adgroups
 from .commands.ads import ads
@@ -56,11 +58,23 @@ load_dotenv()
 def cli(ctx, token, login, sandbox, op_token_ref, op_login_ref):
     """Command-line interface for Yandex Direct API"""
     ctx.ensure_object(dict)
-    ctx.obj["token"] = token
-    ctx.obj["login"] = login
     ctx.obj["sandbox"] = sandbox
-    ctx.obj["op_token_ref"] = op_token_ref
-    ctx.obj["op_login_ref"] = op_login_ref
+    # Resolve credentials early so all subcommands get the final values
+    if token or login or op_token_ref or op_login_ref:
+        try:
+            resolved_token, resolved_login = get_credentials(
+                token=token, login=login,
+                op_token_ref=op_token_ref, op_login_ref=op_login_ref,
+            )
+            ctx.obj["token"] = resolved_token
+            ctx.obj["login"] = resolved_login
+        except ValueError:
+            # Let subcommands fail naturally if no token
+            ctx.obj["token"] = token
+            ctx.obj["login"] = login
+    else:
+        ctx.obj["token"] = token
+        ctx.obj["login"] = login
 
 
 # Register all commands
