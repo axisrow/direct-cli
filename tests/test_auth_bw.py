@@ -88,6 +88,7 @@ class TestGetCredentialsBw:
         monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_OP_TOKEN_REF", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_OP_LOGIN_REF", raising=False)
+        monkeypatch.delenv("YANDEX_DIRECT_BW_LOGIN_REF", raising=False)
         monkeypatch.setenv("YANDEX_DIRECT_BW_TOKEN_REF", "yandex-direct-item")
 
         token, login = get_credentials()
@@ -128,7 +129,9 @@ class TestGetCredentialsBw:
         monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_BW_TOKEN_REF", raising=False)
+        monkeypatch.delenv("YANDEX_DIRECT_BW_LOGIN_REF", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_OP_TOKEN_REF", raising=False)
+        monkeypatch.delenv("YANDEX_DIRECT_OP_LOGIN_REF", raising=False)
 
         token, login = get_credentials(bw_token_ref="yandex-direct-item")
         assert token == "bw-token-value"

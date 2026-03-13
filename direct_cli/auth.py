@@ -50,7 +50,7 @@ def bw_read(item: str, field: str = "password") -> str:
 
     Args:
         item: Bitwarden item name or ID
-        field: Field to read (password, username, notes)
+        field: Field to read (password, username)
 
     Returns:
         The secret value
@@ -129,7 +129,7 @@ def get_credentials(
     # Load .env file first
     load_env_file(env_path)
 
-    # Priority: arguments > env vars > 1Password > Bitwarden
+    # Priority: arguments > env vars/.env > 1Password > Bitwarden
     final_token = token or os.getenv("YANDEX_DIRECT_TOKEN")
     final_login = login or os.getenv("YANDEX_DIRECT_LOGIN")
 
