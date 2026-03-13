@@ -11,7 +11,6 @@ from ..output import format_output, print_error
 @click.group()
 def keywordsresearch():
     """Keyword research tools"""
-    pass
 
 
 @keywordsresearch.command()

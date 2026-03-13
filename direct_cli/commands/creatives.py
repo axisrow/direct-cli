@@ -12,7 +12,6 @@ from ..utils import parse_ids
 @click.group()
 def creatives():
     """Manage creatives"""
-    pass
 
 
 @creatives.command()

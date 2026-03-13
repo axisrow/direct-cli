@@ -13,7 +13,6 @@ from ..utils import parse_ids
 @click.group()
 def turbopages():
     """Manage Turbo Pages"""
-    pass
 
 
 @turbopages.command()

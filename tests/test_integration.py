@@ -123,9 +123,14 @@ class TestReadOnlyAdGroups(unittest.TestCase):
         if not self.campaign_id:
             self.skipTest("No campaigns found in account")
         result = invoke_get(
-            "adgroups", "get",
-            "--campaign-ids", str(self.campaign_id),
-            "--limit", "1", "--format", "json",
+            "adgroups",
+            "get",
+            "--campaign-ids",
+            str(self.campaign_id),
+            "--limit",
+            "1",
+            "--format",
+            "json",
         )
         assert_success(result, "adgroups get")
 
@@ -141,9 +146,14 @@ class TestReadOnlyAds(unittest.TestCase):
         if not self.campaign_id:
             self.skipTest("No campaigns found in account")
         result = invoke_get(
-            "ads", "get",
-            "--campaign-ids", str(self.campaign_id),
-            "--limit", "1", "--format", "json",
+            "ads",
+            "get",
+            "--campaign-ids",
+            str(self.campaign_id),
+            "--limit",
+            "1",
+            "--format",
+            "json",
         )
         assert_success(result, "ads get")
 
@@ -159,9 +169,14 @@ class TestReadOnlyKeywords(unittest.TestCase):
         if not self.campaign_id:
             self.skipTest("No campaigns found in account")
         result = invoke_get(
-            "keywords", "get",
-            "--campaign-ids", str(self.campaign_id),
-            "--limit", "1", "--format", "json",
+            "keywords",
+            "get",
+            "--campaign-ids",
+            str(self.campaign_id),
+            "--limit",
+            "1",
+            "--format",
+            "json",
         )
         assert_success(result, "keywords get")
 
@@ -171,9 +186,12 @@ class TestReadOnlyKeywords(unittest.TestCase):
 class TestReadOnlyClients(unittest.TestCase):
     def test_get_clients(self):
         result = invoke_get(
-            "clients", "get",
-            "--fields", "ClientId,Login,Currency,CountryId",
-            "--format", "json",
+            "clients",
+            "get",
+            "--fields",
+            "ClientId,Login,Currency,CountryId",
+            "--format",
+            "json",
         )
         assert_success(result, "clients get")
 
@@ -191,9 +209,14 @@ class TestReadOnlyAdExtensions(unittest.TestCase):
 class TestReadOnlyAdImages(unittest.TestCase):
     def test_get_adimages(self):
         result = invoke_get(
-            "adimages", "get",
-            "--fields", "AdImageHash,Name",
-            "--limit", "1", "--format", "json",
+            "adimages",
+            "get",
+            "--fields",
+            "AdImageHash,Name",
+            "--limit",
+            "1",
+            "--format",
+            "json",
         )
         assert_success(result, "adimages get")
 
@@ -203,9 +226,14 @@ class TestReadOnlyAdImages(unittest.TestCase):
 class TestReadOnlyCreatives(unittest.TestCase):
     def test_get_creatives(self):
         result = invoke_get(
-            "creatives", "get",
-            "--fields", "Id,Name,Type",
-            "--limit", "1", "--format", "json",
+            "creatives",
+            "get",
+            "--fields",
+            "Id,Name,Type",
+            "--limit",
+            "1",
+            "--format",
+            "json",
         )
         assert_success(result, "creatives get")
 
@@ -236,4 +264,3 @@ class TestReadOnlyDictionaries(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

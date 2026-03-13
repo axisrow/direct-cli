@@ -53,10 +53,10 @@ class TestAuth(unittest.TestCase):
         """Test error when token is missing"""
         from direct_cli.auth import get_credentials
 
-        with patch.dict(os.environ, {}, clear=True), \
-             patch("direct_cli.auth.load_env_file"):
-            with self.assertRaises(ValueError) as context:
-                get_credentials(token=None, login=None)
+        with patch.dict(os.environ, {}, clear=True):
+            with patch("direct_cli.auth.load_env_file"):
+                with self.assertRaises(ValueError) as context:
+                    get_credentials(token=None, login=None)
 
         self.assertIn("API token required", str(context.exception))
 

@@ -51,9 +51,7 @@ class TestBwRead:
     @patch("direct_cli.auth.subprocess.run")
     @patch("direct_cli.auth.shutil.which", return_value="/usr/local/bin/bw")
     def test_bw_read_fails(self, mock_which, mock_run):
-        mock_run.return_value = MagicMock(
-            returncode=1, stdout="", stderr="Not found."
-        )
+        mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="Not found.")
         with pytest.raises(RuntimeError, match="Not found."):
             bw_read("yandex-direct-item")
 
@@ -63,9 +61,7 @@ class TestBwRead:
         mock_run.return_value = MagicMock(
             returncode=1, stdout="", stderr="Vault is locked."
         )
-        with pytest.raises(
-            RuntimeError, match=r"eval \$\(bw unlock\)"
-        ):
+        with pytest.raises(RuntimeError, match=r"eval \$\(bw unlock\)"):
             bw_read("yandex-direct-item")
 
     @patch("direct_cli.auth.subprocess.run")
@@ -81,9 +77,7 @@ class TestGetCredentialsBw:
 
     @patch("direct_cli.auth.load_env_file")
     @patch("direct_cli.auth.bw_read", return_value="bw-token-value")
-    def test_get_credentials_bw_fallback(
-        self, mock_bw_read, mock_load, monkeypatch
-    ):
+    def test_get_credentials_bw_fallback(self, mock_bw_read, mock_load, monkeypatch):
         monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_OP_TOKEN_REF", raising=False)
@@ -147,12 +141,8 @@ class TestGetCredentialsBw:
         monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_OP_LOGIN_REF", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_BW_LOGIN_REF", raising=False)
-        monkeypatch.setenv(
-            "YANDEX_DIRECT_OP_TOKEN_REF", "op://vault/item/token"
-        )
-        monkeypatch.setenv(
-            "YANDEX_DIRECT_BW_TOKEN_REF", "yandex-direct-item"
-        )
+        monkeypatch.setenv("YANDEX_DIRECT_OP_TOKEN_REF", "op://vault/item/token")
+        monkeypatch.setenv("YANDEX_DIRECT_BW_TOKEN_REF", "yandex-direct-item")
 
         token, login = get_credentials()
         assert token == "op-token-value"

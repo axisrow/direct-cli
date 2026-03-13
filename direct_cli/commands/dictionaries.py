@@ -7,7 +7,6 @@ import click
 from ..api import create_client
 from ..output import format_output, print_error
 
-
 DICTIONARY_NAMES = [
     "Currencies",
     "MetroStations",
@@ -25,7 +24,6 @@ DICTIONARY_NAMES = [
 @click.group()
 def dictionaries():
     """Get reference dictionaries"""
-    pass
 
 
 @dictionaries.command()

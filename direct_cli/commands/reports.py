@@ -2,13 +2,10 @@
 Reports commands
 """
 
-import json
 import click
-from datetime import datetime
 
 from ..api import create_client
 from ..output import format_output, print_error
-
 
 REPORT_TYPES = [
     "CAMPAIGN_PERFORMANCE_REPORT",
@@ -24,7 +21,6 @@ REPORT_TYPES = [
 @click.group()
 def reports():
     """Generate and manage reports"""
-    pass
 
 
 @reports.command()

@@ -45,6 +45,7 @@ class TestOpRead:
     @patch("direct_cli.auth.shutil.which", return_value="/usr/local/bin/op")
     def test_op_read_timeout(self, mock_which, mock_run):
         import subprocess
+
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="op", timeout=10)
         with pytest.raises(RuntimeError, match="timed out"):
             op_read("op://vault/item/token")
@@ -66,7 +67,9 @@ class TestGetCredentialsOp:
 
     @patch("direct_cli.auth.load_env_file")
     @patch("direct_cli.auth.op_read")
-    def test_get_credentials_env_takes_priority_over_op(self, mock_op_read, mock_load, monkeypatch):
+    def test_get_credentials_env_takes_priority_over_op(
+        self, mock_op_read, mock_load, monkeypatch
+    ):
         monkeypatch.setenv("YANDEX_DIRECT_TOKEN", "env-token")
         monkeypatch.setenv("YANDEX_DIRECT_OP_TOKEN_REF", "op://vault/item/token")
 
@@ -76,7 +79,9 @@ class TestGetCredentialsOp:
 
     @patch("direct_cli.auth.load_env_file")
     @patch("direct_cli.auth.op_read", return_value="op-login-value")
-    def test_get_credentials_op_login_fallback(self, mock_op_read, mock_load, monkeypatch):
+    def test_get_credentials_op_login_fallback(
+        self, mock_op_read, mock_load, monkeypatch
+    ):
         monkeypatch.setenv("YANDEX_DIRECT_TOKEN", "some-token")
         monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
         monkeypatch.setenv("YANDEX_DIRECT_OP_LOGIN_REF", "op://vault/item/login")
@@ -87,7 +92,9 @@ class TestGetCredentialsOp:
 
     @patch("direct_cli.auth.load_env_file")
     @patch("direct_cli.auth.op_read", return_value="op-token-value")
-    def test_get_credentials_explicit_op_ref_param(self, mock_op_read, mock_load, monkeypatch):
+    def test_get_credentials_explicit_op_ref_param(
+        self, mock_op_read, mock_load, monkeypatch
+    ):
         monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_OP_TOKEN_REF", raising=False)
@@ -108,19 +115,27 @@ class TestCLIOpOptions:
 
     @patch("direct_cli.auth.load_env_file")
     @patch("direct_cli.auth.op_read", return_value="resolved-op-token")
-    def test_op_token_ref_resolves_via_cli_flag(self, mock_op_read, mock_load, monkeypatch):
+    def test_op_token_ref_resolves_via_cli_flag(
+        self, mock_op_read, mock_load, monkeypatch
+    ):
         monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
         runner = CliRunner()
         result = runner.invoke(
-            cli, ["--op-token-ref", "op://vault/item/token", "campaigns", "get", "--help"]
+            cli,
+            ["--op-token-ref", "op://vault/item/token", "campaigns", "get", "--help"],
         )
         assert result.exit_code == 0
         mock_op_read.assert_called_once_with("op://vault/item/token")
 
     @patch("direct_cli.auth.load_env_file")
-    @patch("direct_cli.auth.op_read", side_effect=RuntimeError("1Password CLI (op) not found"))
-    def test_op_token_ref_error_surfaces_cleanly(self, mock_op_read, mock_load, monkeypatch):
+    @patch(
+        "direct_cli.auth.op_read",
+        side_effect=RuntimeError("1Password CLI (op) not found"),
+    )
+    def test_op_token_ref_error_surfaces_cleanly(
+        self, mock_op_read, mock_load, monkeypatch
+    ):
         monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
         runner = CliRunner()

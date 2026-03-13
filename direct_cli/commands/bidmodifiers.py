@@ -13,7 +13,6 @@ from ..utils import parse_ids
 @click.group()
 def bidmodifiers():
     """Manage bid modifiers"""
-    pass
 
 
 @bidmodifiers.command()

@@ -12,7 +12,6 @@ from ..utils import parse_ids
 @click.group()
 def leads():
     """Manage leads"""
-    pass
 
 
 @leads.command()

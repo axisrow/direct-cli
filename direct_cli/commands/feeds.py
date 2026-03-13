@@ -13,7 +13,6 @@ from ..utils import parse_ids
 @click.group()
 def feeds():
     """Manage feeds"""
-    pass
 
 
 @feeds.command()

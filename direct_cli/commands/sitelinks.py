@@ -13,7 +13,6 @@ from ..utils import parse_ids
 @click.group()
 def sitelinks():
     """Manage sitelinks"""
-    pass
 
 
 @sitelinks.command()

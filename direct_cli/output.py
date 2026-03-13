@@ -5,7 +5,7 @@ Output formatting module for Direct CLI
 import json
 import csv
 import sys
-from typing import Any, List, Dict, Optional
+from typing import Any, List, Optional
 from io import StringIO
 
 try:

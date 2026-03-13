@@ -13,7 +13,6 @@ from ..utils import parse_ids
 @click.group()
 def adextensions():
     """Manage ad extensions"""
-    pass
 
 
 @adextensions.command()
