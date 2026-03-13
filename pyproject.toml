@@ -51,6 +51,7 @@ Repository = "https://github.com/pavelmaksimov/direct-cli"
 
 [tool.setuptools_scm]
 write_to = "direct_cli/_version.py"
+fallback_version = "0.1.0"
 
 [tool.setuptools.packages.find]
 where = ["."]
