@@ -12,7 +12,6 @@ from ..utils import parse_ids
 @click.group()
 def adimages():
     """Manage ad images"""
-    pass
 
 
 @adimages.command()

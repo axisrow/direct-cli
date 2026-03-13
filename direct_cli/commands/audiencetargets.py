@@ -13,7 +13,6 @@ from ..utils import parse_ids
 @click.group()
 def audiencetargets():
     """Manage audience targets"""
-    pass
 
 
 @audiencetargets.command()

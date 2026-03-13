@@ -12,7 +12,6 @@ from ..utils import parse_ids
 @click.group()
 def businesses():
     """Manage businesses"""
-    pass
 
 
 @businesses.command()

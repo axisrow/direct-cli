@@ -12,7 +12,6 @@ from ..utils import parse_ids, get_default_fields
 @click.group()
 def agencyclients():
     """Manage agency clients"""
-    pass
 
 
 @agencyclients.command()

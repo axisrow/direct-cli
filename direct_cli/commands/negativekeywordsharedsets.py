@@ -2,7 +2,6 @@
 NegativeKeywordSharedSets commands
 """
 
-import json
 import click
 
 from ..api import create_client
@@ -13,7 +12,6 @@ from ..utils import parse_ids
 @click.group()
 def negativekeywordsharedsets():
     """Manage negative keyword shared sets"""
-    pass
 
 
 @negativekeywordsharedsets.command()

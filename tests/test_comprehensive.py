@@ -66,9 +66,7 @@ class TestCommandsRegistered(unittest.TestCase):
     def test_all_expected_commands_registered(self):
         """Every expected command must be present"""
         missing = [cmd for cmd in self.EXPECTED_COMMANDS if cmd not in cli.commands]
-        self.assertEqual(
-            missing, [], f"Missing commands: {missing}"
-        )
+        self.assertEqual(missing, [], f"Missing commands: {missing}")
 
     def test_no_unexpected_commands(self):
         """No command should exist that is not in the expected list"""
@@ -149,10 +147,12 @@ class TestAuth(unittest.TestCase):
 
     def test_missing_token_raises(self):
         """Raises ValueError when no token is available anywhere"""
-        with patch.dict(os.environ, {}, clear=True), \
-             patch("direct_cli.auth.load_env_file"):
-            with self.assertRaises(ValueError) as ctx:
-                auth.get_credentials(token=None, login=None)
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch("direct_cli.auth.load_env_file"),
+            self.assertRaises(ValueError) as ctx,
+        ):
+            auth.get_credentials(token=None, login=None)
         self.assertIn("API token required", str(ctx.exception))
 
     def test_token_from_argument(self):
@@ -161,8 +161,10 @@ class TestAuth(unittest.TestCase):
         self.assertEqual(login, "test_login")
 
     def test_token_from_env(self):
-        with patch.dict(os.environ, {"YANDEX_DIRECT_TOKEN": "env_token"}, clear=True), \
-             patch("direct_cli.auth.load_env_file"):
+        with (
+            patch.dict(os.environ, {"YANDEX_DIRECT_TOKEN": "env_token"}, clear=True),
+            patch("direct_cli.auth.load_env_file"),
+        ):
             token, login = auth.get_credentials(token=None, login=None)
         self.assertEqual(token, "env_token")
 

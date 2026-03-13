@@ -4,7 +4,6 @@ Campaigns commands
 
 import json
 import click
-from typing import Optional, List
 
 from ..api import create_client
 from ..output import format_output, print_error
@@ -19,7 +18,6 @@ from ..utils import (
 @click.group()
 def campaigns():
     """Manage campaigns"""
-    pass
 
 
 @campaigns.command()

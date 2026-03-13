@@ -12,7 +12,6 @@ from ..utils import parse_ids
 @click.group()
 def changes():
     """Check for changes"""
-    pass
 
 
 @changes.command()

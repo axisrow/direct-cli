@@ -13,7 +13,6 @@ from ..utils import parse_ids
 @click.group()
 def smartadtargets():
     """Manage smart ad targets"""
-    pass
 
 
 @smartadtargets.command()

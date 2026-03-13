@@ -10,7 +10,9 @@ from typing import Optional, Tuple
 try:
     from dotenv import load_dotenv
 except ImportError:
-    load_dotenv = lambda: None
+
+    def load_dotenv():
+        return None
 
 
 def op_read(ref: str) -> str:

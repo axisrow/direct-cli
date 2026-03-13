@@ -66,17 +66,21 @@ load_dotenv()
 )
 @click.pass_context
 def cli(
-    ctx, token, login, sandbox,
-    op_token_ref, op_login_ref,
-    bw_token_ref, bw_login_ref,
+    ctx,
+    token,
+    login,
+    sandbox,
+    op_token_ref,
+    op_login_ref,
+    bw_token_ref,
+    bw_login_ref,
 ):
     """Command-line interface for Yandex Direct API"""
     ctx.ensure_object(dict)
     ctx.obj["sandbox"] = sandbox
     # Resolve credentials early so all subcommands get the final values
     has_refs = (
-        token or login or op_token_ref or
-        op_login_ref or bw_token_ref or bw_login_ref
+        token or login or op_token_ref or op_login_ref or bw_token_ref or bw_login_ref
     )
     if has_refs:
         try:

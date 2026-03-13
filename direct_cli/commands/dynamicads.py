@@ -13,7 +13,6 @@ from ..utils import parse_ids
 @click.group()
 def dynamicads():
     """Manage dynamic ad targets"""
-    pass
 
 
 @dynamicads.command()
