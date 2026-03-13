@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "direct-cli"
-version = "0.1.0"
+version = "0.1.1"
 description = "Command-line interface for Yandex Direct API"
 readme = "README.md"
 license = {text = "MIT"}
-requires-python = ">=3.6"
+requires-python = ">=3.9"
 authors = [
-    {name = "Pavel Maksimov", email = "vur21@ya.ru"}
+    {name = "axisrow"}
 ]
 keywords = ["yandex", "direct", "cli", "api", "advertising"]
 classifiers = [
@@ -18,12 +18,11 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.6",
-    "Programming Language :: Python :: 3.7",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
     "tapi-yandex-direct>=2021.5.29",
@@ -46,8 +45,8 @@ dev = [
 direct-cli = "direct_cli.cli:cli"
 
 [project.urls]
-Homepage = "https://github.com/pavelmaksimov/direct-cli"
-Repository = "https://github.com/pavelmaksimov/direct-cli"
+Homepage = "https://github.com/axisrow/direct-cli"
+Repository = "https://github.com/axisrow/direct-cli"
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -55,7 +54,7 @@ include = ["direct_cli*"]
 
 [tool.black]
 line-length = 88
-target-version = ['py36']
+target-version = ['py39']
 include = '\.pyi?$'
 exclude = '''
 /(

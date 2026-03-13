@@ -174,6 +174,36 @@ Use `--dry-run` on `add` / `update` commands to preview the API request before s
 direct-cli campaigns add --name "Test" --start-date 2024-01-01 --dry-run
 ```
 
+### Release Process
+
+Build, validate and upload to PyPI:
+
+```bash
+pip install -e ".[dev]"
+scripts/release_pypi.sh testpypi   # upload to TestPyPI
+scripts/release_pypi.sh pypi       # upload to PyPI
+scripts/release_pypi.sh all        # both
+```
+
+The script reads credentials from `.env`:
+
+```dotenv
+TWINE_USERNAME=__token__
+TEST_PYPI_TOKEN=pypi-...
+PYPI_TOKEN=pypi-...
+```
+
+#### PyPI Token Scoping
+
+PyPI API tokens can be **account-wide** or **project-scoped**:
+
+- **Project-scoped** tokens only allow uploads to the specific project they were created for. A token scoped to `telethon-cli` cannot upload `direct-cli` — you will get **403 Forbidden**.
+- **Account-wide** tokens allow uploads to any project under your account.
+- For the **first publication** of a new project, you **must** use an account-wide token (project-scoped tokens cannot be created until the project exists on PyPI).
+- After the first successful upload, create a project-scoped token at https://pypi.org/manage/account/token/ and replace the account-wide token in `.env`.
+
+Bump `version` in `pyproject.toml` before each release — PyPI rejects duplicate versions.
+
 ### License
 
 MIT
@@ -349,6 +379,36 @@ direct-cli campaigns get --fetch-all   # все страницы
 ```bash
 direct-cli campaigns add --name "Тест" --start-date 2024-01-01 --dry-run
 ```
+
+### Публикация на PyPI
+
+Сборка, проверка и загрузка на PyPI:
+
+```bash
+pip install -e ".[dev]"
+scripts/release_pypi.sh testpypi   # загрузить на TestPyPI
+scripts/release_pypi.sh pypi       # загрузить на PyPI
+scripts/release_pypi.sh all        # оба
+```
+
+Скрипт читает credentials из `.env`:
+
+```dotenv
+TWINE_USERNAME=__token__
+TEST_PYPI_TOKEN=pypi-...
+PYPI_TOKEN=pypi-...
+```
+
+#### Области действия токенов PyPI
+
+API-токены PyPI могут быть **account-wide** (на весь аккаунт) или **project-scoped** (на конкретный проект):
+
+- **Project-scoped** токены работают только для конкретного проекта. Токен от `telethon-cli` не может загрузить `direct-cli` — будет **403 Forbidden**.
+- **Account-wide** токены позволяют загружать в любой проект аккаунта.
+- Для **первой публикации** нового проекта **необходим** account-wide токен (project-scoped нельзя создать, пока проект не зарегистрирован на PyPI).
+- После первой успешной загрузки создайте project-scoped токен на https://pypi.org/manage/account/token/ и замените account-wide токен в `.env`.
+
+Перед каждым релизом обновите `version` в `pyproject.toml` — PyPI отклоняет дубли версий.
 
 ### Лицензия
 
