@@ -3,8 +3,6 @@
 Direct CLI - Command-line interface for Yandex Direct API
 """
 
-import os
-
 import click
 from dotenv import load_dotenv
 
@@ -46,10 +44,12 @@ load_dotenv()
 @click.option("--sandbox", is_flag=True, help="Use sandbox API")
 @click.option(
     "--op-token-ref",
+    envvar="YANDEX_DIRECT_OP_TOKEN_REF",
     help="1Password secret reference for token (e.g. op://vault/item/token)",
 )
 @click.option(
     "--op-login-ref",
+    envvar="YANDEX_DIRECT_OP_LOGIN_REF",
     help="1Password secret reference for login",
 )
 @click.pass_context
@@ -59,10 +59,8 @@ def cli(ctx, token, login, sandbox, op_token_ref, op_login_ref):
     ctx.obj["token"] = token
     ctx.obj["login"] = login
     ctx.obj["sandbox"] = sandbox
-    if op_token_ref:
-        os.environ["YANDEX_DIRECT_OP_TOKEN_REF"] = op_token_ref
-    if op_login_ref:
-        os.environ["YANDEX_DIRECT_OP_LOGIN_REF"] = op_login_ref
+    ctx.obj["op_token_ref"] = op_token_ref
+    ctx.obj["op_login_ref"] = op_login_ref
 
 
 # Register all commands
