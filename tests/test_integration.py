@@ -6,6 +6,45 @@ if YANDEX_DIRECT_TOKEN is not set in the environment or .env file.
 
 Run with:
     pytest -m integration -v
+
+=============================================================================
+COMMANDS INTENTIONALLY EXCLUDED FROM AUTOMATED TESTING
+=============================================================================
+
+🔴 IRREVERSIBLE — permanently destroy data, never auto-test:
+    campaigns delete
+    adgroups delete
+    ads delete
+    keywords delete
+    audiencetargets delete
+
+🟠 FINANCIAL IMPACT — change bids/spending, never auto-test:
+    bids set
+    keywordbids set
+    bidmodifiers set
+
+🟡 REVERSIBLE but affect live traffic, excluded:
+    campaigns / ads / keywords: suspend, resume, archive, unarchive
+    audiencetargets: suspend, resume
+
+🟡 ACCOUNT-WIDE MUTATIONS, excluded:
+    clients update
+
+🟡 CONTENT CREATION — hard to bulk-clean, excluded from live tests:
+    add / update on: campaigns, adgroups, ads, keywords, feeds, retargeting,
+    sitelinks, turbopages, vcards, adextensions, negativekeywordsharedsets,
+    smartadtargets, dynamicads, audiencetargets
+
+    ➜ These can be tested safely via --dry-run (no API call is made):
+      result = runner.invoke(cli, ["campaigns", "add", "--name", "x",
+                                   "--start-date", "2024-01-01", "--dry-run"])
+      # exit_code == 0, output is the JSON request body
+
+⚠️  BORDERLINE, excluded for safety:
+    ads moderate  (submits ad for review — side effect on moderation queue)
+    agencyclients get  (requires agency account permissions)
+    sitelinks get / feeds get  (require explicit --ids, no list endpoint)
+=============================================================================
 """
 
 import json
