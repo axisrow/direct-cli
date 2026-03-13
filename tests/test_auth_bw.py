@@ -174,6 +174,8 @@ class TestCLIBwOptions:
         monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_OP_TOKEN_REF", raising=False)
+        monkeypatch.delenv("YANDEX_DIRECT_OP_LOGIN_REF", raising=False)
+        monkeypatch.delenv("YANDEX_DIRECT_BW_LOGIN_REF", raising=False)
         runner = CliRunner()
         result = runner.invoke(
             cli,
@@ -199,6 +201,8 @@ class TestCLIBwOptions:
         monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_OP_TOKEN_REF", raising=False)
+        monkeypatch.delenv("YANDEX_DIRECT_OP_LOGIN_REF", raising=False)
+        monkeypatch.delenv("YANDEX_DIRECT_BW_LOGIN_REF", raising=False)
         runner = CliRunner()
         result = runner.invoke(
             cli, ["--bw-token-ref", "yandex-direct-item", "campaigns", "get"]
