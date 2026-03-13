@@ -75,7 +75,7 @@ build_artifacts() {
   echo "Building package"
   (
     cd "${ROOT_DIR}"
-    python3 -m build
+    python3 -m build --no-isolation
   )
 
   echo "Checking artifacts with twine"
