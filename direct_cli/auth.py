@@ -74,7 +74,14 @@ def bw_read(item: str, field: str = "password") -> str:
     except subprocess.TimeoutExpired:
         raise RuntimeError("Bitwarden CLI timed out after 10 seconds")
     if result.returncode != 0:
-        raise RuntimeError(f"Bitwarden CLI error: {result.stderr.strip()}")
+        stderr = result.stderr.strip()
+        if "locked" in stderr.lower():
+            raise RuntimeError(
+                f"Bitwarden CLI error: {stderr}. "
+                "Ensure your vault is unlocked: "
+                "eval $(bw unlock)"
+            )
+        raise RuntimeError(f"Bitwarden CLI error: {stderr}")
     return result.stdout.strip()
 
 

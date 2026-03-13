@@ -1,5 +1,6 @@
 """Tests for Bitwarden integration in auth module"""
 
+import subprocess
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -58,9 +59,18 @@ class TestBwRead:
 
     @patch("direct_cli.auth.subprocess.run")
     @patch("direct_cli.auth.shutil.which", return_value="/usr/local/bin/bw")
-    def test_bw_read_timeout(self, mock_which, mock_run):
-        import subprocess
+    def test_bw_read_vault_locked(self, mock_which, mock_run):
+        mock_run.return_value = MagicMock(
+            returncode=1, stdout="", stderr="Vault is locked."
+        )
+        with pytest.raises(
+            RuntimeError, match=r"eval \$\(bw unlock\)"
+        ):
+            bw_read("yandex-direct-item")
 
+    @patch("direct_cli.auth.subprocess.run")
+    @patch("direct_cli.auth.shutil.which", return_value="/usr/local/bin/bw")
+    def test_bw_read_timeout(self, mock_which, mock_run):
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="bw", timeout=10)
         with pytest.raises(RuntimeError, match="timed out"):
             bw_read("yandex-direct-item")
@@ -77,6 +87,7 @@ class TestGetCredentialsBw:
         monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_OP_TOKEN_REF", raising=False)
+        monkeypatch.delenv("YANDEX_DIRECT_OP_LOGIN_REF", raising=False)
         monkeypatch.setenv("YANDEX_DIRECT_BW_TOKEN_REF", "yandex-direct-item")
 
         token, login = get_credentials()
