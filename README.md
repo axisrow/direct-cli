@@ -152,6 +152,28 @@ direct-cli campaigns get --limit 10        # first 10 results
 direct-cli campaigns get --fetch-all       # all pages
 ```
 
+### ⚠️ Destructive Commands
+
+The following commands make **irreversible changes** — use with caution:
+
+| Command | Effect |
+|---------|--------|
+| `campaigns delete --id` | Permanently deletes a campaign and all its contents |
+| `adgroups delete --id` | Permanently deletes an ad group |
+| `ads delete --id` | Permanently deletes an ad |
+| `keywords delete --id` | Permanently deletes a keyword |
+| `audiencetargets delete --id` | Permanently deletes an audience target |
+
+Commands that affect live ad delivery: `suspend`, `resume`, `archive`, `unarchive` (available on `campaigns`, `ads`, `keywords`).
+
+Commands that affect bids and spending: `bids set`, `keywordbids set`, `bidmodifiers set`.
+
+Use `--dry-run` on `add` / `update` commands to preview the API request before sending:
+
+```bash
+direct-cli campaigns add --name "Test" --start-date 2024-01-01 --dry-run
+```
+
 ### License
 
 MIT
@@ -304,6 +326,28 @@ direct-cli campaigns get --format csv --output campaigns.csv
 ```bash
 direct-cli campaigns get --limit 10    # первые 10 результатов
 direct-cli campaigns get --fetch-all   # все страницы
+```
+
+### ⚠️ Опасные команды
+
+Следующие команды вносят **необратимые изменения** — используйте осторожно:
+
+| Команда | Эффект |
+|---------|--------|
+| `campaigns delete --id` | Безвозвратно удаляет кампанию и весь её контент |
+| `adgroups delete --id` | Безвозвратно удаляет группу объявлений |
+| `ads delete --id` | Безвозвратно удаляет объявление |
+| `keywords delete --id` | Безвозвратно удаляет ключевое слово |
+| `audiencetargets delete --id` | Безвозвратно удаляет условие подбора аудитории |
+
+Команды, влияющие на показ рекламы: `suspend`, `resume`, `archive`, `unarchive` (доступны для `campaigns`, `ads`, `keywords`).
+
+Команды, влияющие на ставки и расходы: `bids set`, `keywordbids set`, `bidmodifiers set`.
+
+Используйте `--dry-run` в командах `add` / `update`, чтобы увидеть тело запроса до отправки:
+
+```bash
+direct-cli campaigns add --name "Тест" --start-date 2024-01-01 --dry-run
 ```
 
 ### Лицензия

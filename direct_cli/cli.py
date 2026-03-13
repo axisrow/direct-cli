@@ -6,6 +6,8 @@ Direct CLI - Command-line interface for Yandex Direct API
 import click
 from dotenv import load_dotenv
 
+from .auth import get_credentials
+
 from .commands.campaigns import campaigns
 from .commands.adgroups import adgroups
 from .commands.ads import ads
@@ -42,13 +44,39 @@ load_dotenv()
 @click.option("--token", envvar="YANDEX_DIRECT_TOKEN", help="API access token")
 @click.option("--login", envvar="YANDEX_DIRECT_LOGIN", help="Client login")
 @click.option("--sandbox", is_flag=True, help="Use sandbox API")
+@click.option(
+    "--op-token-ref",
+    envvar="YANDEX_DIRECT_OP_TOKEN_REF",
+    help="1Password secret reference for token (e.g. op://vault/item/token)",
+)
+@click.option(
+    "--op-login-ref",
+    envvar="YANDEX_DIRECT_OP_LOGIN_REF",
+    help="1Password secret reference for login",
+)
 @click.pass_context
-def cli(ctx, token, login, sandbox):
+def cli(ctx, token, login, sandbox, op_token_ref, op_login_ref):
     """Command-line interface for Yandex Direct API"""
     ctx.ensure_object(dict)
-    ctx.obj["token"] = token
-    ctx.obj["login"] = login
     ctx.obj["sandbox"] = sandbox
+    # Resolve credentials early so all subcommands get the final values
+    if token or login or op_token_ref or op_login_ref:
+        try:
+            resolved_token, resolved_login = get_credentials(
+                token=token, login=login,
+                op_token_ref=op_token_ref, op_login_ref=op_login_ref,
+            )
+            ctx.obj["token"] = resolved_token
+            ctx.obj["login"] = resolved_login
+        except RuntimeError as e:
+            raise click.ClickException(str(e))
+        except ValueError:
+            # No token provided — let subcommands fail naturally
+            ctx.obj["token"] = token
+            ctx.obj["login"] = login
+    else:
+        ctx.obj["token"] = token
+        ctx.obj["login"] = login
 
 
 # Register all commands

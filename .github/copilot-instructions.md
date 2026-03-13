@@ -55,3 +55,37 @@ Request flow: `cli.py` → `auth.py` (resolves token/login) → `api.py` (`creat
 - Integration tests (`tests/test_integration.py`, `@pytest.mark.integration`) — require `.env` with `YANDEX_DIRECT_TOKEN` and `YANDEX_DIRECT_LOGIN`. Auto-skip if token is absent.
 
 **Credentials:** `.env` in the project root. `YANDEX_DIRECT_LOGIN` is the Yandex advertiser login (required). `load_dotenv()` is called at `cli.py` module import, so it is loaded before any Click invocation.
+
+## Dangerous Commands — Do Not Auto-Test
+
+Never invoke these commands in automated tests against a real account.
+
+### 🔴 Irreversible — permanently destroy data
+| Command | Risk |
+|---------|------|
+| `campaigns delete` | Permanently deletes a campaign and all its content |
+| `adgroups delete` | Permanently deletes an ad group and its ads/keywords |
+| `ads delete` | Permanently deletes an ad |
+| `keywords delete` | Permanently deletes a keyword |
+| `audiencetargets delete` | Permanently deletes an audience target |
+
+### 🟠 Financial impact — change bids or spending
+| Command | Risk |
+|---------|------|
+| `bids set` | Changes search/network bids on campaigns — direct cost impact |
+| `keywordbids set` | Changes per-keyword bids |
+| `bidmodifiers set` | Changes bid multipliers (device, region, time, etc.) |
+
+### 🟡 Reversible but affect live traffic
+`campaigns suspend/resume/archive/unarchive`, `ads suspend/resume/archive/unarchive`, `keywords suspend/resume/archive/unarchive`, `audiencetargets suspend/resume`
+
+### 🟡 Account-wide mutations
+`clients update` — modifies account-level settings.
+
+### 🟡 Content creation (hard to clean up in bulk)
+All `add` and `update` subcommands across: `campaigns`, `adgroups`, `ads`, `keywords`, `feeds`, `retargeting`, `sitelinks`, `turbopages`, `vcards`, `adextensions`, `negativekeywordsharedsets`, `smartadtargets`, `dynamicads`, `audiencetargets`.
+
+These can be safely tested using `--dry-run` (outputs the request body as JSON without sending it).
+
+### ✅ Safe to auto-test (read-only, no side effects)
+All `get` subcommands, plus: `changes check*`, `dictionaries list-names`, `keywordsresearch has-search-volume`, `reports list-types`.
