@@ -68,8 +68,10 @@ def cli(ctx, token, login, sandbox, op_token_ref, op_login_ref):
             )
             ctx.obj["token"] = resolved_token
             ctx.obj["login"] = resolved_login
+        except RuntimeError as e:
+            raise click.ClickException(str(e))
         except ValueError:
-            # Let subcommands fail naturally if no token
+            # No token provided — let subcommands fail naturally
             ctx.obj["token"] = token
             ctx.obj["login"] = login
     else:

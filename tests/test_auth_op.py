@@ -117,3 +117,15 @@ class TestCLIOpOptions:
         )
         assert result.exit_code == 0
         mock_op_read.assert_called_once_with("op://vault/item/token")
+
+    @patch("direct_cli.auth.load_env_file")
+    @patch("direct_cli.auth.op_read", side_effect=RuntimeError("1Password CLI (op) not found"))
+    def test_op_token_ref_error_surfaces_cleanly(self, mock_op_read, mock_load, monkeypatch):
+        monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
+        monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["--op-token-ref", "op://vault/item/token", "campaigns", "get"]
+        )
+        assert result.exit_code != 0
+        assert "1Password CLI (op) not found" in result.output
