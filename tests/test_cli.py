@@ -2,7 +2,9 @@
 Tests for Direct CLI
 """
 
+import os
 import unittest
+from unittest.mock import patch
 from click.testing import CliRunner
 from direct_cli.cli import cli
 
@@ -51,10 +53,12 @@ class TestAuth(unittest.TestCase):
         """Test error when token is missing"""
         from direct_cli.auth import get_credentials
 
-        with self.assertRaises(ValueError) as context:
-            get_credentials(token=None, login=None)
+        with patch.dict(os.environ, {}, clear=True), \
+             patch("direct_cli.auth.load_env_file"):
+            with self.assertRaises(ValueError) as context:
+                get_credentials(token=None, login=None)
 
-        self.assertIn("Token required", str(context.exception))
+        self.assertIn("API token required", str(context.exception))
 
 
 if __name__ == "__main__":

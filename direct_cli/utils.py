@@ -11,7 +11,14 @@ def parse_ids(ids_str: Optional[str]) -> Optional[List[int]]:
     """Parse comma-separated IDs"""
     if not ids_str:
         return None
-    return [int(x.strip()) for x in ids_str.split(",")]
+    result = []
+    for x in ids_str.split(","):
+        x = x.strip()
+        try:
+            result.append(int(x))
+        except ValueError:
+            raise ValueError(f"Invalid ID: '{x}'. IDs must be integers.")
+    return result
 
 
 def parse_json(json_str: Optional[str]) -> Optional[Dict[str, Any]]:
@@ -93,9 +100,9 @@ COMMON_FIELDS = {
         "Bid",
         "ContextBid",
     ],
-    "clients": ["ClientId", "Login", "CountryId", "Currency", "Status"],
-    "creatives": ["Id", "Name", "Type", "Status"],
-    "adimages": ["Id", "Name", "Status", "AdImageHash"],
+    "clients": ["ClientId", "Login", "CountryId", "Currency"],
+    "creatives": ["Id", "Name", "Type"],
+    "adimages": ["AdImageHash", "Name"],
     "adextensions": ["Id", "Type", "Status"],
     "sitelinks": ["Id", "Sitelinks"],
     "vcards": ["Id", "CampaignId", "Country", "City", "CompanyName"],
