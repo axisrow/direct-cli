@@ -54,17 +54,39 @@ load_dotenv()
     envvar="YANDEX_DIRECT_OP_LOGIN_REF",
     help="1Password secret reference for login",
 )
+@click.option(
+    "--bw-token-ref",
+    envvar="YANDEX_DIRECT_BW_TOKEN_REF",
+    help="Bitwarden item name/ID for token (reads password field)",
+)
+@click.option(
+    "--bw-login-ref",
+    envvar="YANDEX_DIRECT_BW_LOGIN_REF",
+    help="Bitwarden item name/ID for login (reads username field)",
+)
 @click.pass_context
-def cli(ctx, token, login, sandbox, op_token_ref, op_login_ref):
+def cli(
+    ctx, token, login, sandbox,
+    op_token_ref, op_login_ref,
+    bw_token_ref, bw_login_ref,
+):
     """Command-line interface for Yandex Direct API"""
     ctx.ensure_object(dict)
     ctx.obj["sandbox"] = sandbox
     # Resolve credentials early so all subcommands get the final values
-    if token or login or op_token_ref or op_login_ref:
+    has_refs = (
+        token or login or op_token_ref or
+        op_login_ref or bw_token_ref or bw_login_ref
+    )
+    if has_refs:
         try:
             resolved_token, resolved_login = get_credentials(
-                token=token, login=login,
-                op_token_ref=op_token_ref, op_login_ref=op_login_ref,
+                token=token,
+                login=login,
+                op_token_ref=op_token_ref,
+                op_login_ref=op_login_ref,
+                bw_token_ref=bw_token_ref,
+                bw_login_ref=bw_login_ref,
             )
             ctx.obj["token"] = resolved_token
             ctx.obj["login"] = resolved_login
