@@ -101,3 +101,72 @@ def add(ctx, adgroup_id, target_type, extra_json, dry_run):
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
+
+
+@smartadtargets.command()
+@click.option("--id", "target_id", required=True, type=int, help="Target ID")
+@click.option("--type", "target_type", help="Target type")
+@click.option("--json", "extra_json", help="Additional JSON parameters")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@click.pass_context
+def update(ctx, target_id, target_type, extra_json, dry_run):
+    """Update smart ad target"""
+    try:
+        target_data = {"Id": target_id}
+
+        if target_type:
+            target_data["Type"] = target_type
+        if extra_json:
+            extra = json.loads(extra_json)
+            target_data.update(extra)
+        if len(target_data) == 1:
+            raise click.ClickException(
+                "Provide at least one of --type or --json for update"
+            )
+
+        body = {"method": "update", "params": {"SmartAdTargets": [target_data]}}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+
+        result = client.smartadtargets().post(data=body)
+        format_output(result().extract(), "json", None)
+
+    except Exception as e:
+        print_error(str(e))
+        raise click.Abort()
+
+
+@smartadtargets.command()
+@click.option("--id", "target_id", required=True, type=int, help="Target ID")
+@click.pass_context
+def delete(ctx, target_id):
+    """Delete smart ad target"""
+    try:
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+
+        body = {
+            "method": "delete",
+            "params": {"SelectionCriteria": {"Ids": [target_id]}},
+        }
+
+        result = client.smartadtargets().post(data=body)
+        format_output(result().extract(), "json", None)
+
+    except Exception as e:
+        print_error(str(e))
+        raise click.Abort()
+
+
+smartadtargets.add_command(get, name="list")

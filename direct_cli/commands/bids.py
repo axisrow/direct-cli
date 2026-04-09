@@ -105,3 +105,6 @@ def set(ctx, campaign_id, bid, extra_json, dry_run):
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
+
+
+bids.add_command(get, name="list")

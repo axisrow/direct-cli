@@ -184,3 +184,6 @@ def resume(ctx, target_id):
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
+
+
+audiencetargets.add_command(get, name="list")

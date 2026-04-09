@@ -2,6 +2,7 @@
 AgencyClients commands
 """
 
+import json
 import click
 
 from ..api import create_client
@@ -61,3 +62,58 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
+
+
+@agencyclients.command()
+@click.option("--json", "client_json", required=True, help="Agency client data in JSON")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@click.pass_context
+def add(ctx, client_json, dry_run):
+    """Add agency client"""
+    try:
+        body = {"method": "add", "params": {"Clients": [json.loads(client_json)]}}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+
+        result = client.agencyclients().post(data=body)
+        format_output(result().extract(), "json", None)
+
+    except Exception as e:
+        print_error(str(e))
+        raise click.Abort()
+
+
+@agencyclients.command()
+@click.option("--id", "client_id", required=True, type=int, help="Client ID")
+@click.pass_context
+def delete(ctx, client_id):
+    """Delete agency client"""
+    try:
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+
+        body = {
+            "method": "delete",
+            "params": {"SelectionCriteria": {"ClientIds": [client_id]}},
+        }
+
+        result = client.agencyclients().post(data=body)
+        format_output(result().extract(), "json", None)
+
+    except Exception as e:
+        print_error(str(e))
+        raise click.Abort()
+
+
+agencyclients.add_command(get, name="list")

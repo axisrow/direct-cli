@@ -89,3 +89,28 @@ def add(ctx, links, dry_run):
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
+
+
+@sitelinks.command()
+@click.option("--id", "set_id", required=True, type=int, help="Sitelinks set ID")
+@click.pass_context
+def delete(ctx, set_id):
+    """Delete sitelinks set"""
+    try:
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+
+        body = {"method": "delete", "params": {"SelectionCriteria": {"Ids": [set_id]}}}
+
+        result = client.sitelinks().post(data=body)
+        format_output(result().extract(), "json", None)
+
+    except Exception as e:
+        print_error(str(e))
+        raise click.Abort()
+
+
+sitelinks.add_command(get, name="list")

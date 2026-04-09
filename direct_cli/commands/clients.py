@@ -95,3 +95,6 @@ def update(ctx, client_id, extra_json, dry_run):
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
+
+
+clients.add_command(get, name="list")
