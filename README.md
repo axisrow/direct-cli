@@ -26,8 +26,10 @@ YANDEX_DIRECT_LOGIN=your_yandex_login
 Or pass credentials directly per command:
 
 ```bash
-direct-cli --token YOUR_TOKEN --login YOUR_LOGIN campaigns get
+direct --token YOUR_TOKEN --login YOUR_LOGIN campaigns get
 ```
+
+Install with `pip install direct-cli`, then run commands with `direct`.
 
 ### Global Options
 
@@ -39,63 +41,63 @@ direct-cli --token YOUR_TOKEN --login YOUR_LOGIN campaigns get
 
 ### Usage
 
-All commands follow the pattern: `direct-cli <resource> <action> [options]`
+All commands follow the pattern: `direct <resource> <action> [options]`
 
 #### Campaigns
 
 ```bash
 # Get campaigns
-direct-cli campaigns get
-direct-cli campaigns get --status ACTIVE
-direct-cli campaigns get --ids 1,2,3 --format table
-direct-cli campaigns get --fetch-all --format csv --output campaigns.csv
+direct campaigns get
+direct campaigns get --status ACTIVE
+direct campaigns get --ids 1,2,3 --format table
+direct campaigns get --fetch-all --format csv --output campaigns.csv
 
 # Create (use --dry-run to preview the request)
-direct-cli campaigns add --name "My Campaign" --start-date 2024-02-01 --type TEXT_CAMPAIGN --budget 1000
-direct-cli campaigns add --name "My Campaign" --start-date 2024-02-01 --dry-run
+direct campaigns add --name "My Campaign" --start-date 2024-02-01 --type TEXT_CAMPAIGN --budget 1000
+direct campaigns add --name "My Campaign" --start-date 2024-02-01 --dry-run
 
 # Update / lifecycle
-direct-cli campaigns update --id 12345 --name "New Name"
-direct-cli campaigns suspend --id 12345
-direct-cli campaigns resume  --id 12345
-direct-cli campaigns archive --id 12345
-direct-cli campaigns unarchive --id 12345
-direct-cli campaigns delete  --id 12345
+direct campaigns update --id 12345 --name "New Name"
+direct campaigns suspend --id 12345
+direct campaigns resume  --id 12345
+direct campaigns archive --id 12345
+direct campaigns unarchive --id 12345
+direct campaigns delete  --id 12345
 ```
 
 #### Ad Groups
 
 ```bash
-direct-cli adgroups get --campaign-ids 1,2,3 --limit 50
-direct-cli adgroups add --name "Group 1" --campaign-id 12345 --dry-run
-direct-cli adgroups update --id 67890 --name "New Name"
-direct-cli adgroups delete --id 67890
+direct adgroups get --campaign-ids 1,2,3 --limit 50
+direct adgroups add --name "Group 1" --campaign-id 12345 --dry-run
+direct adgroups update --id 67890 --name "New Name"
+direct adgroups delete --id 67890
 ```
 
 #### Ads
 
 ```bash
-direct-cli ads get --campaign-ids 1,2,3
-direct-cli ads get --adgroup-ids 45678 --format table
-direct-cli ads add --adgroup-id 12345 --type TEXT_AD --title "Title" --text "Ad text" --href "https://example.com" --dry-run
-direct-cli ads update --id 99999 --status PAUSED
-direct-cli ads delete --id 99999
+direct ads get --campaign-ids 1,2,3
+direct ads get --adgroup-ids 45678 --format table
+direct ads add --adgroup-id 12345 --type TEXT_AD --title "Title" --text "Ad text" --href "https://example.com" --dry-run
+direct ads update --id 99999 --status PAUSED
+direct ads delete --id 99999
 ```
 
 #### Keywords
 
 ```bash
-direct-cli keywords get --campaign-ids 1,2,3
-direct-cli keywords add --adgroup-id 12345 --keyword "buy laptop" --bid 10.50 --dry-run
-direct-cli keywords update --id 88888 --bid 15.00
-direct-cli keywords delete --id 88888
+direct keywords get --campaign-ids 1,2,3
+direct keywords add --adgroup-id 12345 --keyword "buy laptop" --bid 10.50 --dry-run
+direct keywords update --id 88888 --bid 15.00
+direct keywords delete --id 88888
 ```
 
 #### Reports
 
 ```bash
 # Get a report (saved to file)
-direct-cli reports get \
+direct reports get \
   --type CAMPAIGN_PERFORMANCE_REPORT \
   --from 2024-01-01 --to 2024-01-31 \
   --name "January Report" \
@@ -103,7 +105,7 @@ direct-cli reports get \
   --format csv --output report.csv
 
 # List available report types
-direct-cli reports list-types
+direct reports list-types
 ```
 
 Available report types: `CAMPAIGN_PERFORMANCE_REPORT`, `ADGROUP_PERFORMANCE_REPORT`, `AD_PERFORMANCE_REPORT`, `CRITERIA_PERFORMANCE_REPORT`, `CUSTOM_REPORT`, `REACH_AND_FREQUENCY_CAMPAIGN_REPORT`, `SEARCH_QUERY_PERFORMANCE_REPORT`
@@ -112,21 +114,21 @@ Available report types: `CAMPAIGN_PERFORMANCE_REPORT`, `ADGROUP_PERFORMANCE_REPO
 
 ```bash
 # Reference dictionaries
-direct-cli dictionaries get --names Currencies,GeoRegions
+direct dictionaries get --names Currencies,GeoRegions
 
 # Client info
-direct-cli clients get --fields ClientId,Login,Currency
+direct clients get --fields ClientId,Login,Currency
 
 # Changes feed
-direct-cli changes get --campaign-ids 1,2,3
+direct changes get --campaign-ids 1,2,3
 
 # Retargeting lists
-direct-cli retargeting get --limit 10
+direct retargeting get --limit 10
 
 # Ad extensions, sitelinks, vCards, images, creatives, feeds, bids, etc.
-direct-cli adextensions get
-direct-cli sitelinks get --ids 1,2,3
-direct-cli bids get --campaign-ids 1,2,3
+direct adextensions get
+direct sitelinks get --ids 1,2,3
+direct bids get --campaign-ids 1,2,3
 ```
 
 ### Output Formats
@@ -141,15 +143,15 @@ All `get` commands support `--format`:
 | `tsv` | TSV |
 
 ```bash
-direct-cli campaigns get --format table
-direct-cli campaigns get --format csv --output campaigns.csv
+direct campaigns get --format table
+direct campaigns get --format csv --output campaigns.csv
 ```
 
 ### Pagination
 
 ```bash
-direct-cli campaigns get --limit 10        # first 10 results
-direct-cli campaigns get --fetch-all       # all pages
+direct campaigns get --limit 10        # first 10 results
+direct campaigns get --fetch-all       # all pages
 ```
 
 ### ⚠️ Destructive Commands
@@ -171,7 +173,7 @@ Commands that affect bids and spending: `bids set`, `keywordbids set`, `bidmodif
 Use `--dry-run` on `add` / `update` commands to preview the API request before sending:
 
 ```bash
-direct-cli campaigns add --name "Test" --start-date 2024-01-01 --dry-run
+direct campaigns add --name "Test" --start-date 2024-01-01 --dry-run
 ```
 
 ### Release Process
@@ -232,8 +234,10 @@ YANDEX_DIRECT_LOGIN=ваш_логин_на_яндексе
 Или передавайте credentials напрямую в команду:
 
 ```bash
-direct-cli --token ВАШ_ТОКЕН --login ВАШ_ЛОГИН campaigns get
+direct --token ВАШ_ТОКЕН --login ВАШ_ЛОГИН campaigns get
 ```
+
+Установка остаётся через `pip install direct-cli`, а запуск команд теперь идет через `direct`.
 
 ### Глобальные опции
 
@@ -245,63 +249,63 @@ direct-cli --token ВАШ_ТОКЕН --login ВАШ_ЛОГИН campaigns get
 
 ### Использование
 
-Все команды следуют шаблону: `direct-cli <ресурс> <действие> [опции]`
+Все команды следуют шаблону: `direct <ресурс> <действие> [опции]`
 
 #### Кампании
 
 ```bash
 # Получить кампании
-direct-cli campaigns get
-direct-cli campaigns get --status ACTIVE
-direct-cli campaigns get --ids 1,2,3 --format table
-direct-cli campaigns get --fetch-all --format csv --output campaigns.csv
+direct campaigns get
+direct campaigns get --status ACTIVE
+direct campaigns get --ids 1,2,3 --format table
+direct campaigns get --fetch-all --format csv --output campaigns.csv
 
 # Создать (--dry-run покажет запрос без отправки)
-direct-cli campaigns add --name "Моя кампания" --start-date 2024-02-01 --type TEXT_CAMPAIGN --budget 1000
-direct-cli campaigns add --name "Моя кампания" --start-date 2024-02-01 --dry-run
+direct campaigns add --name "Моя кампания" --start-date 2024-02-01 --type TEXT_CAMPAIGN --budget 1000
+direct campaigns add --name "Моя кампания" --start-date 2024-02-01 --dry-run
 
 # Обновление и управление статусом
-direct-cli campaigns update   --id 12345 --name "Новое название"
-direct-cli campaigns suspend  --id 12345
-direct-cli campaigns resume   --id 12345
-direct-cli campaigns archive  --id 12345
-direct-cli campaigns unarchive --id 12345
-direct-cli campaigns delete   --id 12345
+direct campaigns update   --id 12345 --name "Новое название"
+direct campaigns suspend  --id 12345
+direct campaigns resume   --id 12345
+direct campaigns archive  --id 12345
+direct campaigns unarchive --id 12345
+direct campaigns delete   --id 12345
 ```
 
 #### Группы объявлений
 
 ```bash
-direct-cli adgroups get --campaign-ids 1,2,3 --limit 50
-direct-cli adgroups add --name "Группа 1" --campaign-id 12345 --dry-run
-direct-cli adgroups update --id 67890 --name "Новое название"
-direct-cli adgroups delete --id 67890
+direct adgroups get --campaign-ids 1,2,3 --limit 50
+direct adgroups add --name "Группа 1" --campaign-id 12345 --dry-run
+direct adgroups update --id 67890 --name "Новое название"
+direct adgroups delete --id 67890
 ```
 
 #### Объявления
 
 ```bash
-direct-cli ads get --campaign-ids 1,2,3
-direct-cli ads get --adgroup-ids 45678 --format table
-direct-cli ads add --adgroup-id 12345 --type TEXT_AD --title "Заголовок" --text "Текст объявления" --href "https://example.com" --dry-run
-direct-cli ads update --id 99999 --status PAUSED
-direct-cli ads delete --id 99999
+direct ads get --campaign-ids 1,2,3
+direct ads get --adgroup-ids 45678 --format table
+direct ads add --adgroup-id 12345 --type TEXT_AD --title "Заголовок" --text "Текст объявления" --href "https://example.com" --dry-run
+direct ads update --id 99999 --status PAUSED
+direct ads delete --id 99999
 ```
 
 #### Ключевые слова
 
 ```bash
-direct-cli keywords get --campaign-ids 1,2,3
-direct-cli keywords add --adgroup-id 12345 --keyword "купить ноутбук" --bid 10.50 --dry-run
-direct-cli keywords update --id 88888 --bid 15.00
-direct-cli keywords delete --id 88888
+direct keywords get --campaign-ids 1,2,3
+direct keywords add --adgroup-id 12345 --keyword "купить ноутбук" --bid 10.50 --dry-run
+direct keywords update --id 88888 --bid 15.00
+direct keywords delete --id 88888
 ```
 
 #### Отчёты
 
 ```bash
 # Сформировать отчёт (сохраняется в файл)
-direct-cli reports get \
+direct reports get \
   --type CAMPAIGN_PERFORMANCE_REPORT \
   --from 2024-01-01 --to 2024-01-31 \
   --name "Отчёт за январь" \
@@ -309,7 +313,7 @@ direct-cli reports get \
   --format csv --output report.csv
 
 # Список доступных типов отчётов
-direct-cli reports list-types
+direct reports list-types
 ```
 
 Доступные типы: `CAMPAIGN_PERFORMANCE_REPORT`, `ADGROUP_PERFORMANCE_REPORT`, `AD_PERFORMANCE_REPORT`, `CRITERIA_PERFORMANCE_REPORT`, `CUSTOM_REPORT`, `REACH_AND_FREQUENCY_CAMPAIGN_REPORT`, `SEARCH_QUERY_PERFORMANCE_REPORT`
@@ -318,21 +322,21 @@ direct-cli reports list-types
 
 ```bash
 # Справочники
-direct-cli dictionaries get --names Currencies,GeoRegions
+direct dictionaries get --names Currencies,GeoRegions
 
 # Информация о клиенте
-direct-cli clients get --fields ClientId,Login,Currency
+direct clients get --fields ClientId,Login,Currency
 
 # Лента изменений
-direct-cli changes get --campaign-ids 1,2,3
+direct changes get --campaign-ids 1,2,3
 
 # Списки ретаргетинга
-direct-cli retargeting get --limit 10
+direct retargeting get --limit 10
 
 # Расширения объявлений, быстрые ссылки, визитки, изображения, ставки и т.д.
-direct-cli adextensions get
-direct-cli sitelinks get --ids 1,2,3
-direct-cli bids get --campaign-ids 1,2,3
+direct adextensions get
+direct sitelinks get --ids 1,2,3
+direct bids get --campaign-ids 1,2,3
 ```
 
 ### Форматы вывода
@@ -347,15 +351,15 @@ direct-cli bids get --campaign-ids 1,2,3
 | `tsv` | TSV |
 
 ```bash
-direct-cli campaigns get --format table
-direct-cli campaigns get --format csv --output campaigns.csv
+direct campaigns get --format table
+direct campaigns get --format csv --output campaigns.csv
 ```
 
 ### Пагинация
 
 ```bash
-direct-cli campaigns get --limit 10    # первые 10 результатов
-direct-cli campaigns get --fetch-all   # все страницы
+direct campaigns get --limit 10    # первые 10 результатов
+direct campaigns get --fetch-all   # все страницы
 ```
 
 ### ⚠️ Опасные команды
@@ -377,7 +381,7 @@ direct-cli campaigns get --fetch-all   # все страницы
 Используйте `--dry-run` в командах `add` / `update`, чтобы увидеть тело запроса до отправки:
 
 ```bash
-direct-cli campaigns add --name "Тест" --start-date 2024-01-01 --dry-run
+direct campaigns add --name "Тест" --start-date 2024-01-01 --dry-run
 ```
 
 ### Публикация на PyPI

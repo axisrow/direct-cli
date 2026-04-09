@@ -40,7 +40,7 @@ from .commands.dynamicads import dynamicads
 load_dotenv()
 
 
-@click.group()
+@click.group(name="direct")
 @click.option("--token", envvar="YANDEX_DIRECT_TOKEN", help="API access token")
 @click.option("--login", envvar="YANDEX_DIRECT_LOGIN", help="Client login")
 @click.option("--sandbox", is_flag=True, help="Use sandbox API")

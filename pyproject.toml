@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "direct-cli"
-version = "0.1.2"
+version = "0.2.0"
 description = "Command-line interface for Yandex Direct API"
 readme = "README.md"
 license = {text = "MIT"}
@@ -42,6 +42,7 @@ dev = [
 ]
 
 [project.scripts]
+direct = "direct_cli.cli:cli"
 direct-cli = "direct_cli.cli:cli"
 
 [project.urls]
