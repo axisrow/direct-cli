@@ -73,7 +73,7 @@ def add(ctx, name, keywords, dry_run):
     try:
         set_data = {
             "Name": name,
-            "NegativeKeywords": [{"Keyword": k.strip()} for k in keywords.split(",")],
+            "NegativeKeywords": [k.strip() for k in keywords.split(",")],
         }
 
         body = {"method": "add", "params": {"NegativeKeywordSharedSets": [set_data]}}
@@ -112,7 +112,7 @@ def update(ctx, set_id, name, keywords, extra_json, dry_run):
             set_data["Name"] = name
         if keywords:
             set_data["NegativeKeywords"] = [
-                {"Keyword": k.strip()} for k in keywords.split(",")
+                k.strip() for k in keywords.split(",")
             ]
         if extra_json:
             extra = json.loads(extra_json)
