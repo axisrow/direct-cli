@@ -7,7 +7,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids
+from ..utils import parse_ids, get_default_fields
 
 
 @click.group()
@@ -33,7 +33,7 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
         )
 
         field_names = (
-            fields.split(",") if fields else ["Id", "Name", "Status", "AdImageHash"]
+            fields.split(",") if fields else get_default_fields("adimages")
         )
 
         criteria = {}
@@ -91,9 +91,9 @@ def add(ctx, image_json, dry_run):
 
 
 @adimages.command()
-@click.option("--id", "image_id", required=True, type=int, help="Image ID")
+@click.option("--hash", "image_hash", required=True, help="Ad image hash")
 @click.pass_context
-def delete(ctx, image_id):
+def delete(ctx, image_hash):
     """Delete ad image"""
     try:
         client = create_client(
@@ -102,7 +102,10 @@ def delete(ctx, image_id):
             sandbox=ctx.obj.get("sandbox"),
         )
 
-        body = {"method": "delete", "params": {"SelectionCriteria": {"Ids": [image_id]}}}
+        body = {
+            "method": "delete",
+            "params": {"SelectionCriteria": {"AdImageHashes": [image_hash]}},
+        }
 
         result = client.adimages().post(data=body)
         format_output(result().extract(), "json", None)

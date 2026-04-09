@@ -95,25 +95,12 @@ def add(ctx, client_json, dry_run):
 @click.option("--id", "client_id", required=True, type=int, help="Client ID")
 @click.pass_context
 def delete(ctx, client_id):
-    """Delete agency client"""
-    try:
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
-
-        body = {
-            "method": "delete",
-            "params": {"SelectionCriteria": {"ClientIds": [client_id]}},
-        }
-
-        result = client.agencyclients().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    """Delete agency client (not supported by API)"""
+    print_error(
+        "Agency clients cannot be deleted via the Yandex Direct API. "
+        "The API only supports add, update, and get operations."
+    )
+    raise click.Abort()
 
 
 agencyclients.add_command(get, name="list")

@@ -123,7 +123,7 @@ def toggle(ctx, modifier_id, enabled, dry_run):
                 "BidModifiers": [
                     {
                         "Id": modifier_id,
-                        "Enabled": enabled,
+                        "Enabled": "YES" if enabled else "NO",
                     }
                 ]
             },
