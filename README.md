@@ -43,6 +43,10 @@ Install with `pip install direct-cli`, then run commands with `direct`.
 
 All commands follow the pattern: `direct <resource> <action> [options]`
 
+Plugin-compatible aliases are also available for integrations that expect
+canonical MCP-facing names: `dynamictargets`, `smarttargets`,
+`negativekeywords`, `list`, `checkcamp`, `checkdict`, and `has-volume`.
+
 #### Campaigns
 
 ```bash
@@ -248,6 +252,10 @@ direct --token ВАШ_ТОКЕН --login ВАШ_ЛОГИН campaigns get
 | `--sandbox` | Использовать тестовое API (песочница) |
 
 ### Использование
+
+Для интеграций доступны и alias-имена, совместимые с MCP-контрактом:
+`dynamictargets`, `smarttargets`, `negativekeywords`, `list`, `checkcamp`,
+`checkdict`, `has-volume`.
 
 Все команды следуют шаблону: `direct <ресурс> <действие> [опции]`
 

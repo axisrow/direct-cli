@@ -2,11 +2,12 @@
 AdImages commands
 """
 
+import json
 import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids
+from ..utils import parse_ids, get_default_fields
 
 
 @click.group()
@@ -32,7 +33,7 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
         )
 
         field_names = (
-            fields.split(",") if fields else ["Id", "Name", "Status", "AdImageHash"]
+            fields.split(",") if fields else get_default_fields("adimages")
         )
 
         criteria = {}
@@ -60,3 +61,58 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
+
+
+@adimages.command()
+@click.option("--json", "image_json", required=True, help="Ad image data in JSON")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@click.pass_context
+def add(ctx, image_json, dry_run):
+    """Add ad image"""
+    try:
+        body = {"method": "add", "params": {"AdImages": [json.loads(image_json)]}}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+
+        result = client.adimages().post(data=body)
+        format_output(result().extract(), "json", None)
+
+    except Exception as e:
+        print_error(str(e))
+        raise click.Abort()
+
+
+@adimages.command()
+@click.option("--hash", "image_hash", required=True, help="Ad image hash")
+@click.pass_context
+def delete(ctx, image_hash):
+    """Delete ad image"""
+    try:
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+
+        body = {
+            "method": "delete",
+            "params": {"SelectionCriteria": {"AdImageHashes": [image_hash]}},
+        }
+
+        result = client.adimages().post(data=body)
+        format_output(result().extract(), "json", None)
+
+    except Exception as e:
+        print_error(str(e))
+        raise click.Abort()
+
+
+adimages.add_command(get, name="list")

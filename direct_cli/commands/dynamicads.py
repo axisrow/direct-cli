@@ -34,7 +34,7 @@ def get(ctx, ids, adgroup_ids, limit, fetch_all, output_format, output, fields):
         )
 
         field_names = (
-            fields.split(",") if fields else ["Id", "AdGroupId", "Condition", "Bid"]
+            fields.split(",") if fields else ["Id", "AdGroupId", "Conditions", "Bid"]
         )
 
         criteria = {}
@@ -69,19 +69,18 @@ def get(ctx, ids, adgroup_ids, limit, fetch_all, output_format, output, fields):
 @dynamicads.command()
 @click.option("--adgroup-id", required=True, type=int, help="Ad group ID")
 @click.option(
-    "--condition", required=True, help='Target condition (e.g., "contains:product")'
+    "--json",
+    "target_json",
+    required=True,
+    help="Target data in JSON (must include Name and Conditions)",
 )
-@click.option("--json", "extra_json", help="Additional JSON parameters")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def add(ctx, adgroup_id, condition, extra_json, dry_run):
+def add(ctx, adgroup_id, target_json, dry_run):
     """Add dynamic ad target"""
     try:
-        target_data = {"AdGroupId": adgroup_id, "Condition": condition}
-
-        if extra_json:
-            extra = json.loads(extra_json)
-            target_data.update(extra)
+        target_data = json.loads(target_json)
+        target_data["AdGroupId"] = adgroup_id
 
         body = {"method": "add", "params": {"Webpages": [target_data]}}
 
@@ -101,3 +100,69 @@ def add(ctx, adgroup_id, condition, extra_json, dry_run):
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
+
+
+@dynamicads.command()
+@click.option("--id", "target_id", required=True, type=int, help="Target ID")
+@click.option("--json", "extra_json", help="Additional JSON parameters")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@click.pass_context
+def update(ctx, target_id, extra_json, dry_run):
+    """Update dynamic ad target"""
+    try:
+        target_data = {"Id": target_id}
+
+        if extra_json:
+            extra = json.loads(extra_json)
+            target_data.update(extra)
+        if len(target_data) == 1:
+            raise click.ClickException(
+                "Provide --json with fields to update"
+            )
+
+        body = {"method": "update", "params": {"Webpages": [target_data]}}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+
+        result = client.dynamicads().post(data=body)
+        format_output(result().extract(), "json", None)
+
+    except Exception as e:
+        print_error(str(e))
+        raise click.Abort()
+
+
+@dynamicads.command()
+@click.option("--id", "target_id", required=True, type=int, help="Target ID")
+@click.pass_context
+def delete(ctx, target_id):
+    """Delete dynamic ad target"""
+    try:
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+
+        body = {
+            "method": "delete",
+            "params": {"SelectionCriteria": {"Ids": [target_id]}},
+        }
+
+        result = client.dynamicads().post(data=body)
+        format_output(result().extract(), "json", None)
+
+    except Exception as e:
+        print_error(str(e))
+        raise click.Abort()
+
+
+dynamicads.add_command(get, name="list")

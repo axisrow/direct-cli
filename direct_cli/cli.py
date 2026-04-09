@@ -134,6 +134,11 @@ cli.add_command(businesses)
 cli.add_command(keywordsresearch)
 cli.add_command(dynamicads)
 
+# Canonical aliases expected by external integrations.
+cli.add_command(dynamicads, name="dynamictargets")
+cli.add_command(smartadtargets, name="smarttargets")
+cli.add_command(negativekeywordsharedsets, name="negativekeywords")
+
 
 if __name__ == "__main__":
     cli()

@@ -93,3 +93,31 @@ def add(ctx, ext_type, extra_json, dry_run):
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
+
+
+@adextensions.command()
+@click.option("--id", "extension_id", required=True, type=int, help="Extension ID")
+@click.pass_context
+def delete(ctx, extension_id):
+    """Delete ad extension"""
+    try:
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+
+        body = {
+            "method": "delete",
+            "params": {"SelectionCriteria": {"Ids": [extension_id]}},
+        }
+
+        result = client.adextensions().post(data=body)
+        format_output(result().extract(), "json", None)
+
+    except Exception as e:
+        print_error(str(e))
+        raise click.Abort()
+
+
+adextensions.add_command(get, name="list")

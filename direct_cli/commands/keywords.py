@@ -306,3 +306,6 @@ def resume(ctx, keyword_id):
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
+
+
+keywords.add_command(get, name="list")

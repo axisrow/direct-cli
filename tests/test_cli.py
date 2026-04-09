@@ -47,6 +47,55 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("Generate and manage reports", result.output)
 
+    def test_canonical_alias_groups_in_help(self):
+        """Test canonical plugin-compatible group aliases"""
+        result = self.runner.invoke(cli, ["--help"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("dynamictargets", result.output)
+        self.assertIn("smarttargets", result.output)
+        self.assertIn("negativekeywords", result.output)
+
+    def test_dynamic_targets_alias_help(self):
+        """Test dynamic targets alias help"""
+        result = self.runner.invoke(cli, ["dynamictargets", "--help"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("Manage dynamic ad targets", result.output)
+        self.assertIn("list", result.output)
+
+    def test_smart_targets_alias_help(self):
+        """Test smart targets alias help"""
+        result = self.runner.invoke(cli, ["smarttargets", "--help"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("Manage smart ad targets", result.output)
+        self.assertIn("list", result.output)
+
+    def test_negative_keywords_alias_help(self):
+        """Test negative keywords alias help"""
+        result = self.runner.invoke(cli, ["negativekeywords", "--help"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("Manage negative keyword shared sets", result.output)
+        self.assertIn("list", result.output)
+
+    def test_changes_short_aliases_help(self):
+        """Test changes short aliases"""
+        result = self.runner.invoke(cli, ["changes", "--help"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("checkcamp", result.output)
+        self.assertIn("checkdict", result.output)
+
+    def test_keywordsresearch_aliases_help(self):
+        """Test keywords research aliases"""
+        result = self.runner.invoke(cli, ["keywordsresearch", "--help"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("has-volume", result.output)
+        self.assertIn("deduplicate", result.output)
+
+    def test_list_alias_help(self):
+        """Test list alias on a resource command"""
+        result = self.runner.invoke(cli, ["adgroups", "list", "--help"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("Usage: direct adgroups list", result.output)
+
 
 class TestAuth(unittest.TestCase):
     """Test authentication"""

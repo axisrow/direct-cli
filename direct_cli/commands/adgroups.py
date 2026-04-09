@@ -186,3 +186,6 @@ def delete(ctx, adgroup_id):
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
+
+
+adgroups.add_command(get, name="list")

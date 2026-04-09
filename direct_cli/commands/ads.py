@@ -303,3 +303,6 @@ def moderate(ctx, ad_id):
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
+
+
+ads.add_command(get, name="list")

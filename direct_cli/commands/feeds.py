@@ -96,3 +96,72 @@ def add(ctx, name, url, extra_json, dry_run):
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
+
+
+@feeds.command()
+@click.option("--id", "feed_id", required=True, type=int, help="Feed ID")
+@click.option("--name", help="Feed name")
+@click.option("--url", help="Feed URL")
+@click.option("--json", "extra_json", help="Additional JSON parameters")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@click.pass_context
+def update(ctx, feed_id, name, url, extra_json, dry_run):
+    """Update feed"""
+    try:
+        feed_data = {"Id": feed_id}
+
+        if name:
+            feed_data["Name"] = name
+        if url:
+            feed_data["Source"] = url
+        if extra_json:
+            extra = json.loads(extra_json)
+            feed_data.update(extra)
+        if len(feed_data) == 1:
+            raise click.ClickException(
+                "Provide at least one of --name, --url, or --json for update"
+            )
+
+        body = {"method": "update", "params": {"Feeds": [feed_data]}}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+
+        result = client.feeds().post(data=body)
+        format_output(result().extract(), "json", None)
+
+    except Exception as e:
+        print_error(str(e))
+        raise click.Abort()
+
+
+@feeds.command()
+@click.option("--id", "feed_id", required=True, type=int, help="Feed ID")
+@click.pass_context
+def delete(ctx, feed_id):
+    """Delete feed"""
+    try:
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+
+        body = {"method": "delete", "params": {"SelectionCriteria": {"Ids": [feed_id]}}}
+
+        result = client.feeds().post(data=body)
+        format_output(result().extract(), "json", None)
+
+    except Exception as e:
+        print_error(str(e))
+        raise click.Abort()
+
+
+feeds.add_command(get, name="list")

@@ -2,6 +2,7 @@
 NegativeKeywordSharedSets commands
 """
 
+import json
 import click
 
 from ..api import create_client
@@ -72,7 +73,7 @@ def add(ctx, name, keywords, dry_run):
     try:
         set_data = {
             "Name": name,
-            "NegativeKeywords": [{"Keyword": k.strip()} for k in keywords.split(",")],
+            "NegativeKeywords": [k.strip() for k in keywords.split(",")],
         }
 
         body = {"method": "add", "params": {"NegativeKeywordSharedSets": [set_data]}}
@@ -93,3 +94,77 @@ def add(ctx, name, keywords, dry_run):
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
+
+
+@negativekeywordsharedsets.command()
+@click.option("--id", "set_id", required=True, type=int, help="Set ID")
+@click.option("--name", help="Set name")
+@click.option("--keywords", help="Comma-separated negative keywords")
+@click.option("--json", "extra_json", help="Additional JSON parameters")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@click.pass_context
+def update(ctx, set_id, name, keywords, extra_json, dry_run):
+    """Update negative keyword shared set"""
+    try:
+        set_data = {"Id": set_id}
+
+        if name:
+            set_data["Name"] = name
+        if keywords:
+            set_data["NegativeKeywords"] = [
+                k.strip() for k in keywords.split(",")
+            ]
+        if extra_json:
+            extra = json.loads(extra_json)
+            set_data.update(extra)
+        if len(set_data) == 1:
+            raise click.ClickException(
+                "Provide at least one of --name, --keywords, or --json for update"
+            )
+
+        body = {
+            "method": "update",
+            "params": {"NegativeKeywordSharedSets": [set_data]},
+        }
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+
+        result = client.negativekeywordsharedsets().post(data=body)
+        format_output(result().extract(), "json", None)
+
+    except Exception as e:
+        print_error(str(e))
+        raise click.Abort()
+
+
+@negativekeywordsharedsets.command()
+@click.option("--id", "set_id", required=True, type=int, help="Set ID")
+@click.pass_context
+def delete(ctx, set_id):
+    """Delete negative keyword shared set"""
+    try:
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+
+        body = {"method": "delete", "params": {"SelectionCriteria": {"Ids": [set_id]}}}
+
+        result = client.negativekeywordsharedsets().post(data=body)
+        format_output(result().extract(), "json", None)
+
+    except Exception as e:
+        print_error(str(e))
+        raise click.Abort()
+
+
+negativekeywordsharedsets.add_command(get, name="list")

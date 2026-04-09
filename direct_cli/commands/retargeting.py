@@ -101,3 +101,28 @@ def add(ctx, name, list_type, extra_json, dry_run):
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
+
+
+@retargeting.command()
+@click.option("--id", "list_id", required=True, type=int, help="Retargeting list ID")
+@click.pass_context
+def delete(ctx, list_id):
+    """Delete retargeting list"""
+    try:
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+
+        body = {"method": "delete", "params": {"SelectionCriteria": {"Ids": [list_id]}}}
+
+        result = client.retargeting().post(data=body)
+        format_output(result().extract(), "json", None)
+
+    except Exception as e:
+        print_error(str(e))
+        raise click.Abort()
+
+
+retargeting.add_command(get, name="list")
