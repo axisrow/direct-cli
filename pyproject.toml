@@ -42,7 +42,7 @@ dev = [
 ]
 
 [project.scripts]
-direct-cli = "direct_cli.cli:cli"
+direct = "direct_cli.cli:cli"
 
 [project.urls]
 Homepage = "https://github.com/axisrow/direct-cli"

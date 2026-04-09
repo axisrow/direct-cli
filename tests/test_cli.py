@@ -20,12 +20,14 @@ class TestCLI(unittest.TestCase):
         result = self.runner.invoke(cli, ["--help"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("Command-line interface for Yandex Direct API", result.output)
+        self.assertIn("Usage: direct", result.output)
 
     def test_campaigns_help(self):
         """Test campaigns help"""
         result = self.runner.invoke(cli, ["campaigns", "--help"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("Manage campaigns", result.output)
+        self.assertIn("Usage: direct campaigns", result.output)
 
     def test_adgroups_help(self):
         """Test adgroups help"""
