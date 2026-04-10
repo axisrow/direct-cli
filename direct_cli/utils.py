@@ -89,7 +89,7 @@ COMMON_FIELDS = {
         "ClientInfo",
     ],
     "adgroups": ["Id", "Name", "CampaignId", "Status", "Type", "RegionIds"],
-    "ads": ["Id", "CampaignId", "AdGroupId", "Status", "State", "Type"],
+    "ads": ["Id", "CampaignId", "AdGroupId", "Status", "State", "Type", "TextAd"],
     "keywords": [
         "Id",
         "Keyword",

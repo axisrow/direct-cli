@@ -24,7 +24,11 @@ def ads():
 @click.option("--fetch-all", is_flag=True, help="Fetch all pages")
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
-@click.option("--fields", help="Comma-separated field names")
+@click.option("--fields", help="Comma-separated top-level field names")
+@click.option(
+    "--text-ad-fields", help="Comma-separated TextAd field names (e.g. Title,Text,Href)"
+)
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def get(
     ctx,
@@ -37,6 +41,8 @@ def get(
     output_format,
     output,
     fields,
+    text_ad_fields,
+    dry_run,
 ):
     """Get ads"""
     try:
@@ -52,6 +58,12 @@ def get(
             else ["Id", "CampaignId", "AdGroupId", "Status", "State", "Type"]
         )
 
+        text_ad_field_names = (
+            text_ad_fields.split(",")
+            if text_ad_fields
+            else ["Title", "Title2", "Text", "Href"]
+        )
+
         criteria = {}
         if ids:
             criteria["Ids"] = parse_ids(ids)
@@ -62,12 +74,20 @@ def get(
         if status:
             criteria["Statuses"] = [status]
 
-        params = {"SelectionCriteria": criteria, "FieldNames": field_names}
+        params = {
+            "SelectionCriteria": criteria,
+            "FieldNames": field_names,
+            "TextAdFieldNames": text_ad_field_names,
+        }
 
         if limit:
             params["Page"] = {"Limit": limit}
 
         body = {"method": "get", "params": params}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
 
         result = client.ads().post(data=body)
 
