@@ -115,6 +115,50 @@ def test_ads_update_extra_json_merges_into_payload():
     assert ad["TextAd"] == {"Title": "Updated"}
 
 
+def test_ads_get_default_fieldnames():
+    """Default FieldNames includes basic top-level fields, plus TextAdFieldNames."""
+    body = _dry_run("ads", "get", "--campaign-ids", "12345")
+    assert body["method"] == "get"
+    assert body["params"]["FieldNames"] == [
+        "Id",
+        "CampaignId",
+        "AdGroupId",
+        "Status",
+        "State",
+        "Type",
+    ]
+    assert body["params"]["TextAdFieldNames"] == ["Title", "Title2", "Text", "Href"]
+
+
+def test_ads_get_with_fields_overrides_defaults():
+    """--fields and --text-ad-fields override the defaults."""
+    body = _dry_run(
+        "ads",
+        "get",
+        "--campaign-ids",
+        "12345",
+        "--fields",
+        "Id,State",
+        "--text-ad-fields",
+        "Title",
+    )
+    assert body["params"]["FieldNames"] == ["Id", "State"]
+    assert body["params"]["TextAdFieldNames"] == ["Title"]
+
+
+def test_ads_get_with_ids_and_status():
+    """Multiple selection criteria are combined correctly."""
+    body = _dry_run(
+        "ads", "get", "--ids", "1,2,3", "--status", "ACCEPTED", "--limit", "10"
+    )
+    assert body["params"]["SelectionCriteria"] == {
+        "Ids": [1, 2, 3],
+        "Statuses": ["ACCEPTED"],
+    }
+    assert body["params"]["Page"] == {"Limit": 10}
+    assert "TextAdFieldNames" in body["params"]
+
+
 # ----------------------------------------------------------------------
 # adgroups
 # ----------------------------------------------------------------------

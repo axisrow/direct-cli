@@ -157,6 +157,35 @@ class TestReadOnlyAds(unittest.TestCase):
         )
         assert_success(result, "ads get")
 
+    def test_get_ads_returns_textad(self):
+        """TEXT_AD ads must include TextAd with Title and Text."""
+        if not self.campaign_id:
+            self.skipTest("No campaigns found in account")
+        result = invoke_get(
+            "ads",
+            "get",
+            "--campaign-ids",
+            str(self.campaign_id),
+            "--limit",
+            "50",
+            "--format",
+            "json",
+        )
+        assert_success(result, "ads get (TextAd check)")
+        data = json.loads(result.output)
+        text_ads = [ad for ad in data if ad.get("Type") == "TEXT_AD"]
+        if not text_ads:
+            self.skipTest("No TEXT_AD ads found in first 50 results")
+        for ad in text_ads:
+            self.assertIn(
+                "TextAd",
+                ad,
+                f"TEXT_AD {ad['Id']} missing TextAd — "
+                "TextAdFieldNames may not be sent",
+            )
+            self.assertIn("Title", ad["TextAd"])
+            self.assertIn("Text", ad["TextAd"])
+
 
 @pytest.mark.integration
 @skip_if_no_token
