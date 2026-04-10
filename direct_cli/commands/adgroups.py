@@ -92,7 +92,16 @@ def get(
 def add(ctx, name, campaign_id, group_type, region_ids, extra_json, dry_run):
     """Add new ad group"""
     try:
-        adgroup_data = {"Name": name, "CampaignId": campaign_id, "Type": group_type}
+        # Yandex Direct API rejects an explicit top-level "Type" field on
+        # AdGroupAddItem — the group type is inferred from the presence of
+        # MobileAppAdGroup / DynamicTextAdGroup / SmartAdGroup / etc.
+        # sub-objects, exactly like Ads (see fix in commands/ads.py).
+        # The --type CLI option is preserved for backward compatibility but
+        # is no longer forwarded to the API; users wanting non-text group
+        # types must pass the matching sub-object via --json.
+        # Refs: https://yandex.ru/dev/direct/doc/ref-v5/adgroups/add.html
+        adgroup_data = {"Name": name, "CampaignId": campaign_id}
+        _ = group_type  # acknowledged-but-unused
 
         if region_ids:
             adgroup_data["RegionIds"] = parse_ids(region_ids)

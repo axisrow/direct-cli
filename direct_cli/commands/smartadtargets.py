@@ -77,7 +77,15 @@ def get(ctx, ids, adgroup_ids, limit, fetch_all, output_format, output, fields):
 def add(ctx, adgroup_id, target_type, extra_json, dry_run):
     """Add smart ad target"""
     try:
-        target_data = {"AdGroupId": adgroup_id, "Type": target_type}
+        # SmartAdTargetAddItem in the Yandex Direct API does NOT have a
+        # top-level "Type" field. Real fields are AdGroupId, TargetingId
+        # (e.g. "VIEWED_PRODUCT"), Bid, Priority. The legacy --type CLI
+        # option does not map cleanly onto the API, so we no longer
+        # forward it; callers should pass the full SmartAdTarget shape
+        # (TargetingId/Bid/Priority) via --json.
+        # Refs: SmartAdTargets service docs and tapi-yandex-direct mapping.
+        target_data = {"AdGroupId": adgroup_id}
+        _ = target_type  # acknowledged-but-unused
 
         if extra_json:
             extra = json.loads(extra_json)
@@ -114,15 +122,15 @@ def update(ctx, target_id, target_type, extra_json, dry_run):
     try:
         target_data = {"Id": target_id}
 
-        if target_type:
-            target_data["Type"] = target_type
+        # See note in `add` above — Type is not a real field on
+        # SmartAdTargetAddItem; the legacy --type CLI option is kept
+        # for backward compatibility but no longer forwarded.
+        _ = target_type  # acknowledged-but-unused
         if extra_json:
             extra = json.loads(extra_json)
             target_data.update(extra)
         if len(target_data) == 1:
-            raise click.ClickException(
-                "Provide at least one of --type or --json for update"
-            )
+            raise click.ClickException("Provide --json with fields to update")
 
         body = {"method": "update", "params": {"SmartAdTargets": [target_data]}}
 
