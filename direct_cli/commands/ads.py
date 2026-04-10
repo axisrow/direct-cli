@@ -97,7 +97,7 @@ def get(
 def add(ctx, adgroup_id, ad_type, title, text, href, extra_json, dry_run):
     """Add new ad"""
     try:
-        ad_data = {"AdGroupId": adgroup_id, "Type": ad_type}
+        ad_data = {"AdGroupId": adgroup_id}
 
         if ad_type == "TEXT_AD":
             ad_data["TextAd"] = {}
