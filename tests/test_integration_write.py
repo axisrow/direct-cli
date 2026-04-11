@@ -268,8 +268,6 @@ class TestWriteBidModifiers:
             "--disabled",
         )
         if r.exit_code == 0:
-            assert_success(r, "bidmodifiers toggle off")
-
             # toggle back on
             r = _invoke(
                 "bidmodifiers", "toggle",
@@ -277,6 +275,10 @@ class TestWriteBidModifiers:
                 "--enabled",
             )
             assert_success(r, "bidmodifiers toggle on")
+        else:
+            if _is_sandbox_error(r.output):
+                pytest.skip(f"bidmodifiers toggle not supported (sandbox): {r.output[:200]}")
+            pytest.fail(f"bidmodifiers toggle failed (CLI regression?): {r.output[:500]}")
 
 
 # ── feeds ────────────────────────────────────────────────────────────────
