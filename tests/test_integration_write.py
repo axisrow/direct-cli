@@ -485,7 +485,9 @@ class TestWriteDynamicAds:
             finally:
                 _invoke("dynamicads", "delete", "--id", str(wid))
         else:
-            pytest.skip(f"dynamicads add failed: {r.output[:200]}")
+            if _is_sandbox_error(r.output):
+                pytest.skip(f"dynamicads add not supported (sandbox): {r.output[:200]}")
+            pytest.fail(f"dynamicads add failed (CLI regression?): {r.output[:500]}")
 
 
 # ── smartadtargets ───────────────────────────────────────────────────────
@@ -526,7 +528,9 @@ class TestWriteSmartAdTargets:
             finally:
                 _invoke("smartadtargets", "delete", "--id", str(tid))
         else:
-            pytest.skip(f"smartadtargets add failed: {r.output[:200]}")
+            if _is_sandbox_error(r.output):
+                pytest.skip(f"smartadtargets add not supported (sandbox): {r.output[:200]}")
+            pytest.fail(f"smartadtargets add failed (CLI regression?): {r.output[:500]}")
 
 
 # ── negativekeywordsharedsets ────────────────────────────────────────────

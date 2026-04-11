@@ -105,6 +105,7 @@ _SANDBOX_ERROR_PATTERNS = (
     "Ad group not found",
     "not accessible",
     "unknown parameter",
+    "required field",
 )
 
 
@@ -221,27 +222,20 @@ def sandbox_keyword(sandbox_adgroup):
 
 @pytest.fixture
 def sandbox_retargeting_list(unique_suffix):
-    """Create a retargeting list in sandbox, yield its ID, delete on teardown.
-
-    Sandbox often cannot create retargeting lists (requires real
-    Yandex.Metrica goal IDs).  Skip downstream tests if creation fails.
-    """
-    try:
-        result = _fixture_invoke(
-            "retargeting", "add",
-            "--name", f"test-rtg-{unique_suffix}",
-            "--type", "RETARGETING",
-            "--json", json.dumps({
-                "Rules": [{
-                    "Operator": "ALL",
-                    "Arguments": [{"ExternalId": 12345}],
-                }]
-            }),
-            label="retargeting add",
-        )
-        rtg_id = _fixture_parse(result)
-    except BaseException:
-        pytest.skip("sandbox cannot create retargeting lists (requires Metrica goals)")
+    """Create a retargeting list in sandbox, yield its ID, delete on teardown."""
+    result = _fixture_invoke(
+        "retargeting", "add",
+        "--name", f"test-rtg-{unique_suffix}",
+        "--type", "RETARGETING",
+        "--json", json.dumps({
+            "Rules": [{
+                "Operator": "ALL",
+                "Arguments": [{"ExternalId": 12345}],
+            }]
+        }),
+        label="retargeting add",
+    )
+    rtg_id = _fixture_parse(result)
 
     yield rtg_id
 
