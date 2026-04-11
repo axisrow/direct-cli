@@ -345,6 +345,20 @@ def test_bidmodifiers_toggle_disable():
     assert modifier["Enabled"] == "NO"
 
 
+def test_bidmodifiers_add_mobile_uses_nested_object():
+    body = _dry_run(
+        "bidmodifiers", "add",
+        "--campaign-id", "1",
+        "--type", "MOBILE_ADJUSTMENT",
+        "--value", "120",
+    )
+    assert body["method"] == "add"
+    modifier = body["params"]["BidModifiers"][0]
+    assert "Type" not in modifier
+    assert modifier["CampaignId"] == 1
+    assert modifier["MobileAdjustment"] == {"BidModifier": 120}
+
+
 # ----------------------------------------------------------------------
 # feeds
 # ----------------------------------------------------------------------
@@ -380,7 +394,7 @@ def test_feeds_update_payload_changes_url():
         "https://example.com/feed-v2.xml",
     )
     feed = body["params"]["Feeds"][0]
-    assert feed == {"Id": 9, "Source": "https://example.com/feed-v2.xml"}
+    assert feed == {"Id": 9, "UrlFeed": {"Url": "https://example.com/feed-v2.xml"}}
 
 
 # ----------------------------------------------------------------------

@@ -124,7 +124,7 @@ def update(ctx, feed_id, name, url, extra_json, dry_run):
         if name:
             feed_data["Name"] = name
         if url:
-            feed_data["Source"] = url
+            feed_data["UrlFeed"] = {"Url": url}
         if extra_json:
             extra = json.loads(extra_json)
             feed_data.update(extra)

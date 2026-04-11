@@ -360,10 +360,9 @@ class TestWriteBidModifiersSet:
 @pytest.mark.vcr
 class TestWriteBidModifiers:
     @pytest.mark.skip(
-        reason="No bidmodifiers add subcommand exists; fresh sandbox campaigns "
-        "have zero modifiers, so bidmodifiers get always returns empty. "
-        "Cassette has no bidmodifiers interactions. Re-enable after adding "
-        "bidmodifiers add support."
+        reason="Fresh sandbox campaigns have zero modifiers to toggle; "
+        "test flow needs rewriting to first add a modifier via bidmodifiers add, "
+        "then get and toggle it. Tracked as follow-up."
     )
     def test_toggle_existing(self, sandbox_campaign):
         """Get existing modifier and toggle it."""
