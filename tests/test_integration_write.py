@@ -285,24 +285,58 @@ class TestWriteKeywordBids:
 
 @pytest.mark.integration_write
 @pytest.mark.vcr
+class TestWriteBidModifiersAdd:
+    """Lifecycle for the new ``bidmodifiers add`` subcommand.
+
+    Creates a mobile bid adjustment on the sandbox campaign via the
+    nested-object payload (``MobileAdjustment: {BidModifier: 120}``),
+    parses the resulting modifier ID from ``AddResults``, and deletes
+    it — a full add → delete round-trip against the live sandbox.
+    """
+
+    def test_add_delete_mobile(self, sandbox_campaign):
+        r = _invoke(
+            "bidmodifiers", "add",
+            "--campaign-id", str(sandbox_campaign),
+            "--type", "MOBILE_ADJUSTMENT",
+            "--value", "120",
+        )
+        if r.exit_code != 0:
+            if _is_sandbox_error(r.output):
+                pytest.skip(f"bidmodifiers add not supported (sandbox): {r.output[:200]}")
+            pytest.fail(f"bidmodifiers add failed (CLI regression?): {r.output[:500]}")
+
+        # ``bidmodifiers/add`` returns ``{"Ids": [<long>]}`` rather than
+        # the usual ``{"AddResults": [{"Id": <long>}]}`` wrapper.  Handle
+        # both shapes because tapi-yandex-direct may unwrap differently.
+        data = json.loads(r.output)
+        if isinstance(data, dict) and "Ids" in data:
+            ids = data["Ids"]
+        elif isinstance(data, list) and data and isinstance(data[0], dict) and "Ids" in data[0]:
+            ids = data[0]["Ids"]
+        else:
+            ids = None
+        assert ids, f"bidmodifiers add returned no Ids: {r.output[:500]}"
+        mid = ids[0]
+
+        r = _invoke("bidmodifiers", "delete", "--id", str(mid))
+        assert_success(r, "bidmodifiers delete")
+
+
+@pytest.mark.integration_write
+@pytest.mark.vcr
 class TestWriteBidModifiersSet:
-    """Document the broken state of ``bidmodifiers set``.
+    """Regression guard: ``bidmodifiers set`` without ``--id`` is rejected.
 
-    **Real finding from the cassette recording session:** the API's
-    ``set`` method requires each ``BidModifiers`` item to carry an ``Id``
-    of an EXISTING modifier — it cannot create new ones.  The CLI
-    (``direct_cli/commands/bidmodifiers.py:79``) builds a payload without
-    ``Id``, so ``bidmodifiers set`` without ``--json`` extras is broken
-    by design — the API replies with ``error_code=8000, error_detail=The
-    required field Id is omitted``.
+    The API's ``set`` method updates EXISTING modifiers only — it
+    requires the ``Id`` field.  The CLI's ``set`` subcommand builds a
+    payload without ``Id``, so the call is by-design rejected.  New
+    modifiers go through the ``bidmodifiers add`` subcommand instead
+    (covered by ``TestWriteBidModifiersAdd``).
 
-    Proper fix is to either (a) add a ``bidmodifiers add`` subcommand
-    that posts to the API's ``add`` method, or (b) change the CLI's
-    ``set`` to require ``--id``.  That's out of scope for this test PR,
-    so the test below just *freezes* the current broken behaviour via a
-    regression cassette: if the CLI ever stops sending this payload or
-    the API ever stops returning this specific error, the cassette miss
-    will flag it.
+    This test freezes the broken-by-design behaviour: if the CLI ever
+    starts including ``Id`` automatically, or the API stops returning
+    this specific error, the cassette miss will flag it.
     """
 
     def test_set_without_id_is_rejected(self, sandbox_campaign):
