@@ -1,0 +1,110 @@
+interactions:
+- request:
+    body: '{"method":"add","params":{"Campaigns":[{"Name":"claude-test-cassette","StartDate":"2030-01-15","TextCampaign":{"BiddingStrategy":{"Search":{"BiddingStrategyType":"HIGHEST_POSITION"},"Network":{"BiddingStrategyType":"SERVING_OFF"}},"Settings":[]}}]}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '249'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
+  response:
+    body:
+      string: '{"result":{"AddResults":[{"Id":700010747}]}}'
+    headers:
+      Content-Length:
+      - '44'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Sat, 11 Apr 2026 14:55:28 GMT
+      RequestId:
+      - '1909295666321747384'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 15/115316/160000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:1909295666321747384,cmd:direct.api5/campaigns.add,appcode:0
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[700010747]}}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '70'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
+  response:
+    body:
+      string: '{"result":{"DeleteResults":[{"Id":700010747}]}}'
+    headers:
+      Content-Length:
+      - '47'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Sat, 11 Apr 2026 14:55:31 GMT
+      RequestId:
+      - '1339727777050264083'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 12/115304/160000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:1339727777050264083,cmd:direct.api5/campaigns.delete,appcode:0
+    status:
+      code: 200
+      message: OK
+version: 1

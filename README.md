@@ -180,6 +180,51 @@ Use `--dry-run` on `add` / `update` commands to preview the API request before s
 direct campaigns add --name "Test" --start-date 2024-01-01 --dry-run
 ```
 
+### Testing
+
+Three tiers of tests live under `tests/`:
+
+| Tier | Marker | Network | Token required |
+|---|---|---|---|
+| Unit / CLI wiring / dry-run | *(none)* | No | No |
+| Read-only integration | `-m integration` | Yes (production API, read-only) | Yes |
+| Write integration | `-m integration_write` | No (replays VCR cassettes) | No |
+
+```bash
+pip install -e ".[dev]"
+pytest                              # fast tier — no token
+pytest -m integration -v            # read-only integration tests (needs token)
+pytest -m integration_write -v      # write cassette replay (no token needed)
+```
+
+#### Re-recording write cassettes
+
+The write tests replay HTTP traffic captured from the Yandex Direct **sandbox**
+(`--sandbox` is injected automatically).  Cassettes live under
+`tests/cassettes/test_integration_write/` and are checked into git.
+
+If you change the request payload of any write command (e.g. adding a field),
+the matching cassette stops replaying and the test fails with a body-mismatch
+error.  To regenerate:
+
+```bash
+set -a && source .env && set +a        # load YANDEX_DIRECT_TOKEN / LOGIN
+pytest -m integration_write -v --record-mode=rewrite
+```
+
+**The same OAuth token works for both production and the sandbox** — no
+separate sandbox token is needed.  After recording, **always audit the
+generated YAMLs for leaked secrets**:
+
+```bash
+grep -r "$YANDEX_DIRECT_TOKEN" tests/cassettes/   # must return nothing
+grep -r "$YANDEX_DIRECT_LOGIN" tests/cassettes/   # must return nothing
+```
+
+The VCR config in `tests/conftest.py` already strips `Authorization`,
+`Client-Login`, cookies and any response header containing the substring
+`login`, but manual verification is mandatory before committing.
+
 ### Release Process
 
 Build, validate and upload to PyPI:
@@ -391,6 +436,51 @@ direct campaigns get --fetch-all   # все страницы
 ```bash
 direct campaigns add --name "Тест" --start-date 2024-01-01 --dry-run
 ```
+
+### Тестирование
+
+В `tests/` три уровня тестов:
+
+| Уровень | Маркер | Сеть | Нужен токен |
+|---|---|---|---|
+| Юнит / CLI / dry-run | *(без маркера)* | Нет | Нет |
+| Read-only интеграция | `-m integration` | Да (prod API, только чтение) | Да |
+| Write интеграция | `-m integration_write` | Нет (replay VCR-кассет) | Нет |
+
+```bash
+pip install -e ".[dev]"
+pytest                              # быстрый уровень — без токена
+pytest -m integration -v            # read-only интеграция (нужен токен)
+pytest -m integration_write -v      # replay write-кассет (токен не нужен)
+```
+
+#### Перезапись write-кассет
+
+Write-тесты воспроизводят HTTP-трафик, записанный против **sandbox-окружения**
+Яндекс Директа (`--sandbox` подставляется автоматически). Кассеты лежат в
+`tests/cassettes/test_integration_write/` и закоммичены в git.
+
+Если меняется payload какой-то из write-команд (например, добавили поле),
+соответствующая кассета перестанет воспроизводиться, тест упадёт с
+body-mismatch. Перезапись:
+
+```bash
+set -a && source .env && set +a        # загрузить YANDEX_DIRECT_TOKEN / LOGIN
+pytest -m integration_write -v --record-mode=rewrite
+```
+
+**Один и тот же OAuth-токен работает и для продакшена, и для sandbox** —
+отдельный sandbox-токен не нужен. После перезаписи **обязательно проверьте
+YAML-ы на утечку секретов**:
+
+```bash
+grep -r "$YANDEX_DIRECT_TOKEN" tests/cassettes/   # должно быть пусто
+grep -r "$YANDEX_DIRECT_LOGIN" tests/cassettes/   # должно быть пусто
+```
+
+VCR-конфиг в `tests/conftest.py` уже стрипает `Authorization`, `Client-Login`,
+куки и любые response-заголовки с подстрокой `login`, но ручная проверка
+перед коммитом обязательна.
 
 ### Публикация на PyPI
 

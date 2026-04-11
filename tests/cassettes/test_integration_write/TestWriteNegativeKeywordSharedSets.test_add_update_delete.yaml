@@ -1,0 +1,164 @@
+interactions:
+- request:
+    body: "{\"method\":\"add\",\"params\":{\"NegativeKeywordSharedSets\":[{\"Name\":\"test-nk-cassette\",\"NegativeKeywords\":[\"\u0441\u043F\u0430\u043C\",\"\u0431\u043B\u043E\u043A\"]}]}}"
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '128'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api-sandbox.direct.yandex.com/json/v5/negativekeywordsharedsets
+  response:
+    body:
+      string: '{"result":{"AddResults":[{"Id":420295}]}}'
+    headers:
+      Content-Length:
+      - '41'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Sat, 11 Apr 2026 14:56:23 GMT
+      RequestId:
+      - '5516419696018457495'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 40/114626/160000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:5516419696018457495,cmd:direct.api5/negativekeywordsharedsets.add,appcode:0
+    status:
+      code: 200
+      message: OK
+- request:
+    body: "{\"method\":\"update\",\"params\":{\"NegativeKeywordSharedSets\":[{\"Id\":420295,\"NegativeKeywords\":[\"\u0441\u043F\u0430\u043C\",\"\u0431\u043B\u043E\u043A\",\"\u043C\u0443\u0441\u043E\u0440\"]}]}}"
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '130'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api-sandbox.direct.yandex.com/json/v5/negativekeywordsharedsets
+  response:
+    body:
+      string: '{"result":{"UpdateResults":[{"Id":420295}]}}'
+    headers:
+      Content-Length:
+      - '44'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Sat, 11 Apr 2026 14:56:26 GMT
+      RequestId:
+      - '7731743665137413675'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 40/114586/160000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:7731743665137413675,cmd:direct.api5/negativekeywordsharedsets.update,appcode:0
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[420295]}}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '67'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api-sandbox.direct.yandex.com/json/v5/negativekeywordsharedsets
+  response:
+    body:
+      string: '{"result":{"DeleteResults":[{"Id":420295}]}}'
+    headers:
+      Content-Length:
+      - '44'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Sat, 11 Apr 2026 14:56:29 GMT
+      RequestId:
+      - '6416315682629866834'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 10/114576/160000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:6416315682629866834,cmd:direct.api5/negativekeywordsharedsets.delete,appcode:0
+    status:
+      code: 200
+      message: OK
+version: 1

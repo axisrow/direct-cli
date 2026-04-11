@@ -1,23 +1,23 @@
 """
 Integration tests for Direct CLI — read-only commands.
 
-Requires a real Yandex Direct API token. Tests are automatically skipped
-if YANDEX_DIRECT_TOKEN is not set in the environment or .env file.
+Requires a real Yandex Direct API token.  Tests are automatically skipped
+if ``YANDEX_DIRECT_TOKEN`` is not set in the environment or ``.env`` file.
+Unlike the write test suite, these tests do NOT use recorded cassettes —
+each run hits the real API in read-only mode.
 
 Run with:
     pytest -m integration -v
 
 Write operations (add/update/delete/set) are tested separately in
-``test_integration_write.py`` against the sandbox API.  See that file
-for coverage details.
+``test_integration_write.py`` against the Yandex Direct sandbox, with
+VCR cassettes so CI can replay them offline.  See that file for coverage
+details.
 
-The commands below remain excluded from *both* test files (with rationale):
+Read-only commands that remain uncovered here:
 
-    ads moderate      — submits ad for review, side effect on moderation queue
-    agencyclients *   — requires agency account permissions
-    clients update    — account-wide mutation
-    sitelinks get     — requires explicit --ids, no list endpoint
-    feeds get         — requires explicit --ids, no list endpoint
+    sitelinks get  — requires explicit ``--ids``, no list endpoint
+    feeds get      — requires explicit ``--ids``, no list endpoint
 """
 
 import json

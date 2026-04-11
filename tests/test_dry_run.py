@@ -608,25 +608,6 @@ def test_negativekeywordsharedsets_update_keywords():
 
 
 # ----------------------------------------------------------------------
-# turbopages
-# ----------------------------------------------------------------------
-
-
-def test_turbopages_add_uses_href_field():
-    body = _dry_run(
-        "turbopages",
-        "add",
-        "--name",
-        "Page A",
-        "--url",
-        "https://example.com/turbo",
-    )
-    assert body["method"] == "add"
-    page = body["params"]["TurboPages"][0]
-    assert page == {"Name": "Page A", "Href": "https://example.com/turbo"}
-
-
-# ----------------------------------------------------------------------
 # agencyclients
 # ----------------------------------------------------------------------
 

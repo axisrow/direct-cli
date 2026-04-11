@@ -4,12 +4,19 @@ Shared fixtures for integration_write tests.
 Fixtures create sandbox resources (campaign → adgroup → ad/keyword) and
 tear them down automatically.  All calls go through ``--sandbox`` so they
 never touch production data.
+
+The write tests are wired to **pytest-recording / vcrpy**: each test has a
+YAML cassette committed under ``tests/cassettes/test_integration_write/``
+with the Yandex Direct sandbox responses captured from a real run.  By
+default (``--record-mode=none``, the CI mode) tests replay from cassettes
+without any network calls, so no token is required.  To re-record after
+CLI changes, run with ``--record-mode=rewrite`` and a valid
+``YANDEX_DIRECT_TOKEN``; review the generated YAMLs for leaked secrets
+before committing.
 """
 
 import json
 import os
-import uuid
-from datetime import date, timedelta
 
 import pytest
 from click.testing import CliRunner
@@ -19,19 +26,101 @@ from direct_cli.cli import cli
 
 load_dotenv()
 
-TOKEN = os.getenv("YANDEX_DIRECT_TOKEN")
+_REAL_TOKEN = os.getenv("YANDEX_DIRECT_TOKEN")
+_REAL_LOGIN = os.getenv("YANDEX_DIRECT_LOGIN")
+
+# A dummy token is fine in replay mode — VCR intercepts the request before
+# it touches the network.  In rewrite/record mode the real token from the
+# environment is used instead.
+TOKEN = _REAL_TOKEN or "REPLAY_DUMMY_TOKEN"
 
 skip_if_no_token = pytest.mark.skipif(
-    not TOKEN,
-    reason="YANDEX_DIRECT_TOKEN is not set — skipping integration_write tests",
+    not _REAL_TOKEN,
+    reason="YANDEX_DIRECT_TOKEN is not set — skipping integration tests",
 )
+
+
+# ── VCR configuration (pytest-recording) ────────────────────────────────
+
+
+_REDACTED = "REDACTED"
+
+
+def _scrub_login(text: str) -> str:
+    if _REAL_LOGIN and text:
+        return text.replace(_REAL_LOGIN, _REDACTED)
+    return text
+
+
+def _before_record_request(request):
+    """Strip sensitive headers before the request is stored in a cassette."""
+    for header in ("Authorization", "Client-Login", "authorization", "client-login"):
+        if header in request.headers:
+            request.headers[header] = _REDACTED
+    return request
+
+
+def _before_record_response(response):
+    """Strip login from response bodies, auth headers and login-echo headers."""
+    if _REAL_LOGIN:
+        body = response.get("body", {})
+        data = body.get("string")
+        if isinstance(data, bytes):
+            body["string"] = _scrub_login(data.decode("utf-8", errors="replace")).encode("utf-8")
+        elif isinstance(data, str):
+            body["string"] = _scrub_login(data)
+
+    headers = response.get("headers", {})
+    for key in list(headers.keys()):
+        low = key.lower()
+        if low in {"authorization", "client-login", "set-cookie"} or "login" in low:
+            headers[key] = [_REDACTED]
+            continue
+        if _REAL_LOGIN:
+            values = headers.get(key)
+            if isinstance(values, list):
+                headers[key] = [
+                    _scrub_login(v) if isinstance(v, str) else v for v in values
+                ]
+    return response
+
+
+@pytest.fixture(scope="module")
+def vcr_config():
+    """VCR config shared by every ``@pytest.mark.vcr`` test in this suite."""
+    return {
+        "filter_headers": [
+            ("authorization", _REDACTED),
+            ("client-login", _REDACTED),
+            ("cookie", _REDACTED),
+        ],
+        "before_record_request": _before_record_request,
+        "before_record_response": _before_record_response,
+        "decode_compressed_response": True,
+        # Match on HTTP verb, URL and request body.  Body matching is
+        # important: multiple sandbox commands hit the same endpoint and
+        # can only be distinguished by payload.
+        "match_on": ["method", "scheme", "host", "port", "path", "query", "body"],
+        # NOTE: intentionally no ``record_mode`` key.  pytest-recording's
+        # default is ``"none"`` (replay-only) when the CLI option
+        # ``--record-mode`` is not passed, which is exactly what we want
+        # in CI.  Setting it here would shadow the CLI option and block
+        # ``--record-mode=rewrite`` from taking effect.
+    }
 
 
 # ── helpers ──────────────────────────────────────────────────────────────
 
 
 def tomorrow() -> str:
-    return (date.today() + timedelta(days=1)).isoformat()
+    """Fixed far-future start date for VCR cassette determinism.
+
+    Using a fixed literal keeps request payloads stable across replays.
+    Before re-recording cassettes, make sure this date is still in the
+    future from the sandbox's perspective (it is accepted up to several
+    years ahead).  Bump the literal if Yandex starts rejecting it.
+    """
+    return "2030-01-15"
 
 
 def _invoke(*args: str):
@@ -94,8 +183,14 @@ def _safe_delete(*args):
 
 @pytest.fixture(scope="session")
 def unique_suffix() -> str:
-    """Deterministic suffix shared across all tests in a session."""
-    return f"{date.today().isoformat()}-{uuid.uuid4().hex[:6]}"
+    """Deterministic suffix shared across all tests in a session.
+
+    Fixed to a stable literal so that VCR cassette body matching stays
+    stable across replays.  Before re-recording cassettes with a fresh
+    sandbox, delete the campaigns that already carry this suffix or
+    bump the literal.
+    """
+    return "cassette"
 
 
 _SANDBOX_ERROR_PATTERNS = (
