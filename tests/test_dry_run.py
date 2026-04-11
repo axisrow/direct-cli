@@ -361,7 +361,7 @@ def test_feeds_add_payload_uses_source_field():
     )
     assert body["method"] == "add"
     feed = body["params"]["Feeds"][0]
-    assert feed == {"Name": "Feed A", "Source": "https://example.com/feed.xml"}
+    assert feed == {"Name": "Feed A", "Source": "https://example.com/feed.xml", "SourceType": "URL"}
 
 
 def test_feeds_update_payload_changes_url():

@@ -46,12 +46,6 @@ def get(
 ):
     """Get ads"""
     try:
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
-
         field_names = (
             fields.split(",")
             if fields
@@ -88,6 +82,12 @@ def get(
         if dry_run:
             format_output(body, "json", None)
             return
+
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
 
         result = client.ads().post(data=body)
 

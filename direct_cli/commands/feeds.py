@@ -72,7 +72,7 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
 def add(ctx, name, url, extra_json, dry_run):
     """Add feed"""
     try:
-        feed_data = {"Name": name, "Source": url}
+        feed_data = {"Name": name, "Source": url, "SourceType": "URL"}
 
         if extra_json:
             extra = json.loads(extra_json)
