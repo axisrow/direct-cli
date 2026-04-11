@@ -104,6 +104,7 @@ _SANDBOX_ERROR_PATTERNS = (
     "Campaign not found",
     "Ad group not found",
     "not accessible",
+    "unknown parameter",
 )
 
 

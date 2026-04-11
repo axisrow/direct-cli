@@ -292,7 +292,9 @@ class TestWriteFeeds:
             "--url", "https://example.com/feed.xml",
         )
         if r.exit_code != 0:
-            pytest.skip(f"feeds add failed (CLI may need SourceType): {r.output[:200]}")
+            if _is_sandbox_error(r.output):
+                pytest.skip(f"feeds add not supported in sandbox: {r.output[:200]}")
+            pytest.fail(f"feeds add failed (SourceType regression?): {r.output[:500]}")
 
         fid = parse_add_result(r)
         try:
@@ -462,7 +464,11 @@ class TestWriteDynamicAds:
             "--json", json.dumps(target),
         )
         if r.exit_code == 0:
-            first = parse_first_result(r)
+            data = json.loads(r.output)
+            if isinstance(data, list):
+                first = data[0]
+            else:
+                first = data.get("AddResults", [{}])[0]
             if "Errors" in first and first["Errors"]:
                 err_text = str(first["Errors"])
                 if _is_sandbox_error(err_text):
@@ -499,7 +505,11 @@ class TestWriteSmartAdTargets:
             "--json", payload,
         )
         if r.exit_code == 0:
-            first = parse_first_result(r)
+            data = json.loads(r.output)
+            if isinstance(data, list):
+                first = data[0]
+            else:
+                first = data.get("AddResults", [{}])[0]
             if "Errors" in first and first["Errors"]:
                 err_text = str(first["Errors"])
                 if _is_sandbox_error(err_text):
