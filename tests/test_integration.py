@@ -1,5 +1,5 @@
 """
-Integration tests for Direct CLI — read-only commands only.
+Integration tests for Direct CLI — read-only commands.
 
 Requires a real Yandex Direct API token. Tests are automatically skipped
 if YANDEX_DIRECT_TOKEN is not set in the environment or .env file.
@@ -7,44 +7,17 @@ if YANDEX_DIRECT_TOKEN is not set in the environment or .env file.
 Run with:
     pytest -m integration -v
 
-=============================================================================
-COMMANDS INTENTIONALLY EXCLUDED FROM AUTOMATED TESTING
-=============================================================================
+Write operations (add/update/delete/set) are tested separately in
+``test_integration_write.py`` against the sandbox API.  See that file
+for coverage details.
 
-🔴 IRREVERSIBLE — permanently destroy data, never auto-test:
-    campaigns delete
-    adgroups delete
-    ads delete
-    keywords delete
-    audiencetargets delete
+The commands below remain excluded from *both* test files (with rationale):
 
-🟠 FINANCIAL IMPACT — change bids/spending, never auto-test:
-    bids set
-    keywordbids set
-    bidmodifiers set
-
-🟡 REVERSIBLE but affect live traffic, excluded:
-    campaigns / ads / keywords: suspend, resume, archive, unarchive
-    audiencetargets: suspend, resume
-
-🟡 ACCOUNT-WIDE MUTATIONS, excluded:
-    clients update
-
-🟡 CONTENT CREATION — hard to bulk-clean, excluded from live tests:
-    add / update on: campaigns, adgroups, ads, keywords, feeds, retargeting,
-    sitelinks, turbopages, vcards, adextensions, negativekeywordsharedsets,
-    smartadtargets, dynamicads, audiencetargets
-
-    ➜ These can be tested safely via --dry-run (no API call is made):
-      result = runner.invoke(cli, ["campaigns", "add", "--name", "x",
-                                   "--start-date", "2024-01-01", "--dry-run"])
-      # exit_code == 0, output is the JSON request body
-
-⚠️  BORDERLINE, excluded for safety:
-    ads moderate  (submits ad for review — side effect on moderation queue)
-    agencyclients get  (requires agency account permissions)
-    sitelinks get / feeds get  (require explicit --ids, no list endpoint)
-=============================================================================
+    ads moderate      — submits ad for review, side effect on moderation queue
+    agencyclients *   — requires agency account permissions
+    clients update    — account-wide mutation
+    sitelinks get     — requires explicit --ids, no list endpoint
+    feeds get         — requires explicit --ids, no list endpoint
 """
 
 import json
