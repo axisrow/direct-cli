@@ -583,38 +583,38 @@ class TestWriteDynamicAds:
     def test_add_update_delete(self, sandbox_adgroup):
         target = {
             "Name": "Test Webpage",
-            "Conditions": [{"Operator": "CONTAINS", "Arguments": ["test"]}],
+            "Conditions": [
+                {"Operand": "URL", "Operator": "CONTAINS_ANY", "Arguments": ["test"]},
+            ],
         }
         r = _invoke(
             "dynamicads", "add",
             "--adgroup-id", str(sandbox_adgroup),
             "--json", json.dumps(target),
         )
-        if r.exit_code == 0:
-            data = json.loads(r.output)
-            if isinstance(data, list):
-                first = data[0]
-            else:
-                first = data.get("AddResults", [{}])[0]
-            if "Errors" in first and first["Errors"]:
-                err_text = str(first["Errors"])
-                if _is_sandbox_error(err_text, extra_patterns=("required field",)):
-                    pytest.skip(f"dynamicads add rejected (sandbox): {first['Errors']}")
-                pytest.fail(f"API rejected dynamicads add (CLI bug?): {first['Errors']}")
-            wid = first["Id"]
-            try:
-                r = _invoke(
-                    "dynamicads", "update",
-                    "--id", str(wid),
-                    "--json", json.dumps({"Name": "Updated Webpage"}),
-                )
-                assert_success(r, "dynamicads update")
-            finally:
-                _invoke("dynamicads", "delete", "--id", str(wid))
-        else:
-            if _is_sandbox_error(r.output, extra_patterns=("required field",)):
+        if r.exit_code != 0:
+            if _is_sandbox_error(r.output):
                 pytest.skip(f"dynamicads add not supported (sandbox): {r.output[:200]}")
             pytest.fail(f"dynamicads add failed (CLI regression?): {r.output[:500]}")
+
+        data = json.loads(r.output)
+        first = data[0] if isinstance(data, list) else data.get("AddResults", [{}])[0]
+        if "Errors" in first and first["Errors"]:
+            err_text = str(first["Errors"])
+            if _is_sandbox_error(err_text):
+                pytest.skip(f"dynamicads add rejected (sandbox): {first['Errors']}")
+            pytest.fail(f"API rejected dynamicads add (CLI bug?): {first['Errors']}")
+
+        wid = first["Id"]
+        try:
+            r = _invoke(
+                "dynamicads", "update",
+                "--id", str(wid),
+                "--json", json.dumps({"Name": "Updated Webpage"}),
+            )
+            assert_success(r, "dynamicads update")
+        finally:
+            _invoke("dynamicads", "delete", "--id", str(wid))
 
 
 # ── smartadtargets ───────────────────────────────────────────────────────
