@@ -10,7 +10,6 @@ import json
 import os
 import uuid
 from datetime import date, timedelta
-from typing import Optional
 
 import pytest
 from click.testing import CliRunner
@@ -101,12 +100,12 @@ def unique_suffix() -> str:
 
 _SANDBOX_ERROR_PATTERNS = (
     "Object not found",
-    "not found",
     "not supported",
     "Campaign not found",
     "Ad group not found",
     "not accessible",
-    "error_code",
+    "Invalid request",
+    "is omitted",
 )
 
 
@@ -138,7 +137,10 @@ def _fixture_parse(result):
         pytest.skip(f"No results in fixture response: {result.output[:200]}")
     first = items[0]
     if "Errors" in first and first["Errors"]:
-        pytest.skip(f"API rejected fixture resource: {first['Errors']}")
+        err_text = str(first["Errors"])
+        if _is_sandbox_error(err_text):
+            pytest.skip(f"API rejected fixture (sandbox): {first['Errors']}")
+        pytest.fail(f"API rejected fixture resource (CLI bug?): {first['Errors']}")
     if "Id" not in first:
         pytest.skip(f"No Id in fixture result: {first}")
     return first["Id"]

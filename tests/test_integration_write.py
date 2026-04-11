@@ -40,14 +40,6 @@ from conftest import (  # noqa: E402
 )
 
 
-def _skip_on_error(r, label):
-    """Skip test if sandbox rejects the operation."""
-    if r.exit_code == 0:
-        first = parse_first_result(r)
-        return first
-    pytest.skip(f"{label} failed in sandbox: {r.output[:200]}")
-
-
 # ── campaigns ────────────────────────────────────────────────────────────
 
 
