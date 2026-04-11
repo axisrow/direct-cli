@@ -512,14 +512,12 @@ class TestWriteVCards:
 @pytest.mark.integration_write
 @pytest.mark.vcr
 class TestWriteAdExtensions:
-    """
-    NOTE: The ``adextensions`` CLI group still sends an explicit ``Type``
-    field alongside the nested extension object.  Per the API, ``Type``
-    is inferred from the nested field (``Callout`` / ``Sitelink`` / …),
-    so sandbox sometimes rejects the duplicated hint as
-    ``unknown parameter``.  We skip only on that narrow error and
-    pytest.fail otherwise — matching the pattern used by other write
-    tests in this file.
+    """Live lifecycle for a Callout ad extension.
+
+    Exercises the fix that stopped the CLI from sending the extra
+    top-level ``Type`` field (the API derives the extension kind from
+    the nested object name).  The regenerated cassette freezes the
+    correct payload as a regression guard.
     """
 
     def test_add_delete(self):
@@ -530,9 +528,7 @@ class TestWriteAdExtensions:
             "--json", ext_json,
         )
         if r.exit_code != 0:
-            if _is_sandbox_error(
-                r.output, extra_patterns=("unknown parameter",)
-            ):
+            if _is_sandbox_error(r.output):
                 pytest.skip(f"adextensions add not supported (sandbox): {r.output[:200]}")
             pytest.fail(f"adextensions add failed (CLI regression?): {r.output[:500]}")
 

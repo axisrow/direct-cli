@@ -65,15 +65,32 @@ def get(ctx, ids, types, limit, fetch_all, output_format, output, fields):
 
 
 @adextensions.command()
-@click.option("--type", "ext_type", required=True, help="Extension type")
+@click.option(
+    "--type",
+    "ext_type",
+    required=True,
+    help=(
+        "Extension type (UX hint — Callout, Sitelinks, Vcard, …). "
+        "Not sent to the API; the API derives the type from the nested "
+        "field name inside --json."
+    ),
+)
 @click.option("--json", "extra_json", required=True, help="Extension data in JSON")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def add(ctx, ext_type, extra_json, dry_run):
-    """Add ad extension"""
+    """Add ad extension
+
+    The Yandex Direct API infers the extension type from the top-level
+    field of the payload (``Callout`` / ``Sitelinks`` / ``Vcard`` / …),
+    so the CLI does **not** forward ``--type`` into the request — it
+    is accepted only as a user-facing hint.  Previously direct-cli sent
+    ``{"Type": ext_type, ...}`` and the sandbox rejected the extra
+    key as ``unknown parameter Type``.
+    """
+    _ = ext_type  # consumed only for argument validation / UX clarity
     try:
-        ext_data = {"Type": ext_type}
-        ext_data.update(json.loads(extra_json))
+        ext_data = json.loads(extra_json)
 
         body = {"method": "add", "params": {"AdExtensions": [ext_data]}}
 
