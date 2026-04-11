@@ -1,8 +1,12 @@
 """
 TurboPages commands
+
+NOTE: The Yandex Direct API ``turbopages`` service is read-only — it only
+exposes ``get``.  Turbo pages themselves are created via the Yandex Direct
+web UI and can only be referenced from the API (e.g. via ``TurboPageId`` in
+sitelinks).  No ``add``/``update``/``delete`` methods exist on this service.
 """
 
-import json
 import click
 
 from ..api import create_client
@@ -55,41 +59,6 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
         else:
             data = result().extract()
             format_output(data, output_format, output)
-
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
-
-
-@turbopages.command()
-@click.option("--name", required=True, help="Page name")
-@click.option("--url", required=True, help="Page URL")
-@click.option("--json", "extra_json", help="Additional JSON parameters")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-def add(ctx, name, url, extra_json, dry_run):
-    """Add Turbo Page"""
-    try:
-        page_data = {"Name": name, "Href": url}
-
-        if extra_json:
-            extra = json.loads(extra_json)
-            page_data.update(extra)
-
-        body = {"method": "add", "params": {"TurboPages": [page_data]}}
-
-        if dry_run:
-            format_output(body, "json", None)
-            return
-
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
-
-        result = client.turbopages().post(data=body)
-        format_output(result().extract(), "json", None)
 
     except Exception as e:
         print_error(str(e))

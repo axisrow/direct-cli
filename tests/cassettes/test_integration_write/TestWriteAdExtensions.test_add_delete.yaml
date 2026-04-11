@@ -1,0 +1,59 @@
+interactions:
+- request:
+    body: '{"method":"add","params":{"AdExtensions":[{"Type":"CALLOUT","Callout":{"CalloutText":"Free
+      shipping"}}]}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '105'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api-sandbox.direct.yandex.com/json/v5/adextensions
+  response:
+    body:
+      string: '{"error":{"request_id":"8348162918304510641","error_code":8000,"error_detail":"An
+        item in the AdExtensions array contains the unknown parameter Type","error_string":"Invalid
+        request"}}'
+    headers:
+      Content-Length:
+      - '184'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Sat, 11 Apr 2026 15:03:46 GMT
+      RequestId:
+      - '8348162918304510641'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 50/114255/160000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:8348162918304510641,cmd:direct.api5/adextensions.add,appcode:8000
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -1,0 +1,67 @@
+interactions:
+- request:
+    body: '{"method":"add","params":{"AdImages":[{"Name":"test-image.png","ImageData":"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQABNl7BcQAAAABJRU5ErkJggg=="}]}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '173'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api-sandbox.direct.yandex.com/json/v5/adimages
+  response:
+    body:
+      string: '{"result":{"AddResults":[{"Errors":[{"Message":"Invalid format","Details":"Invalid
+        image file type, please use the GIF, JPEG or PNG formats","Code":5004}]}]}}'
+    headers:
+      Content-Security-Policy:
+      - default-src 'none'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Sat, 11 Apr 2026 14:55:58 GMT
+      RequestId:
+      - '6014529072524179154'
+      Set-Cookie:
+      - REDACTED
+      Transfer-Encoding:
+      - chunked
+      Units:
+      - 40/114961/160000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:6014529072524179154,cmd:direct.json-api/adimages.add,appcode:0
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+      content-length:
+      - '158'
+    status:
+      code: 200
+      message: OK
+version: 1
