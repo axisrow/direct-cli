@@ -345,12 +345,26 @@ def test_bidmodifiers_toggle_disable():
     assert modifier["Enabled"] == "NO"
 
 
+def test_bidmodifiers_add_mobile_uses_nested_object():
+    body = _dry_run(
+        "bidmodifiers", "add",
+        "--campaign-id", "1",
+        "--type", "MOBILE_ADJUSTMENT",
+        "--value", "120",
+    )
+    assert body["method"] == "add"
+    modifier = body["params"]["BidModifiers"][0]
+    assert "Type" not in modifier
+    assert modifier["CampaignId"] == 1
+    assert modifier["MobileAdjustment"] == {"BidModifier": 120}
+
+
 # ----------------------------------------------------------------------
 # feeds
 # ----------------------------------------------------------------------
 
 
-def test_feeds_add_payload_uses_source_field():
+def test_feeds_add_payload_uses_nested_urlfeed():
     body = _dry_run(
         "feeds",
         "add",
@@ -361,7 +375,13 @@ def test_feeds_add_payload_uses_source_field():
     )
     assert body["method"] == "add"
     feed = body["params"]["Feeds"][0]
-    assert feed == {"Name": "Feed A", "Source": "https://example.com/feed.xml", "SourceType": "URL"}
+    # The API requires both the SourceType discriminator and the nested
+    # UrlFeed/FileFeed/BusinessType object that carries the URL or data.
+    assert feed == {
+        "Name": "Feed A",
+        "SourceType": "URL",
+        "UrlFeed": {"Url": "https://example.com/feed.xml"},
+    }
 
 
 def test_feeds_update_payload_changes_url():
@@ -374,7 +394,7 @@ def test_feeds_update_payload_changes_url():
         "https://example.com/feed-v2.xml",
     )
     feed = body["params"]["Feeds"][0]
-    assert feed == {"Id": 9, "Source": "https://example.com/feed-v2.xml"}
+    assert feed == {"Id": 9, "UrlFeed": {"Url": "https://example.com/feed-v2.xml"}}
 
 
 # ----------------------------------------------------------------------
@@ -462,7 +482,7 @@ def test_vcards_add_passes_full_json_through():
 # ----------------------------------------------------------------------
 
 
-def test_adextensions_add_merges_type_and_json():
+def test_adextensions_add_does_not_send_type_field():
     body = _dry_run(
         "adextensions",
         "add",
@@ -473,10 +493,11 @@ def test_adextensions_add_merges_type_and_json():
     )
     assert body["method"] == "add"
     ext = body["params"]["AdExtensions"][0]
-    # NB: ad-extension Type *is* a real API field
-    # (CALLOUT / SITELINK / ...) — kept on purpose.
-    assert ext["Type"] == "CALLOUT"
-    assert ext["Callout"] == {"CalloutText": "Free shipping"}
+    # The API derives the extension type from the nested field name
+    # (Callout / Sitelinks / Vcard / ...).  The top-level --type CLI
+    # option is a UX hint and must NOT be forwarded to the request.
+    assert "Type" not in ext
+    assert ext == {"Callout": {"CalloutText": "Free shipping"}}
 
 
 # ----------------------------------------------------------------------

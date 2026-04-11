@@ -1,6 +1,6 @@
 interactions:
 - request:
-    body: '{"method":"add","params":{"RetargetingLists":[{"Name":"test-rtg-cassette","Type":"AUDIENCE_SEGMENT","Rules":[{"LowerBound":1,"UpperBound":365}]}]}}'
+    body: '{"method":"add","params":{"RetargetingLists":[{"Name":"test-rtg-cassette","Type":"RETARGETING","Rules":[{"Operator":"ANY","Arguments":[{"ExternalId":1234567890}]}]}]}}'
     headers:
       Accept:
       - '*/*'
@@ -9,7 +9,7 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '147'
+      - '167'
       Content-Type:
       - application/json
       User-Agent:
@@ -32,26 +32,79 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/retargetinglists
   response:
     body:
-      string: '{"error":{"request_id":"2785610748716819756","error_code":8000,"error_detail":"The
-        required field Arguments is omitted in an item in the RetargetingLists.Rules
-        array","error_string":"Invalid request"}}'
+      string: '{"result":{"AddResults":[{"Id":5251}]}}'
     headers:
       Content-Length:
-      - '201'
+      - '39'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sat, 11 Apr 2026 14:55:35 GMT
+      - Sat, 11 Apr 2026 16:09:59 GMT
       RequestId:
-      - '2785610748716819756'
+      - '952360424103178809'
       Set-Cookie:
       - REDACTED
       Units:
-      - 50/115204/160000
+      - 12/113822/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:2785610748716819756,cmd:direct.api5/retargetinglists.add,appcode:8000
+      - reqid:952360424103178809,cmd:direct.api5/retargetinglists.add,appcode:0
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[5251]}}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '65'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api-sandbox.direct.yandex.com/json/v5/retargetinglists
+  response:
+    body:
+      string: '{"result":{"DeleteResults":[{"Errors":[{"Code":8800,"Message":"Object
+        not found"}]}]}}'
+    headers:
+      Content-Length:
+      - '86'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Sat, 11 Apr 2026 16:10:01 GMT
+      RequestId:
+      - '1615846603505193771'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 30/113792/160000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:1615846603505193771,cmd:direct.api5/retargetinglists.delete,appcode:0
     status:
       code: 200
       message: OK

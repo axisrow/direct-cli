@@ -64,6 +64,113 @@ def get(ctx, campaign_ids, adgroup_ids, limit, fetch_all, output_format, output)
         raise click.Abort()
 
 
+# Map CLI --type values to the nested BidModifier object field name.
+# The API derives the adjustment type from the nested field name, not from
+# a top-level Type discriminator.
+_BIDMODIFIER_TYPE_TO_NESTED = {
+    "MOBILE_ADJUSTMENT": "MobileAdjustment",
+    "TABLET_ADJUSTMENT": "TabletAdjustment",
+    "DESKTOP_ADJUSTMENT": "DesktopAdjustment",
+    "DESKTOP_ONLY_ADJUSTMENT": "DesktopOnlyAdjustment",
+    "DEMOGRAPHICS_ADJUSTMENT": "DemographicsAdjustment",
+    "RETARGETING_ADJUSTMENT": "RetargetingAdjustment",
+    "REGIONAL_ADJUSTMENT": "RegionalAdjustment",
+    "VIDEO_ADJUSTMENT": "VideoAdjustment",
+    "SMART_AD_ADJUSTMENT": "SmartAdAdjustment",
+    "SERP_LAYOUT_ADJUSTMENT": "SerpLayoutAdjustment",
+    "INCOME_GRADE_ADJUSTMENT": "IncomeGradeAdjustment",
+    "AD_GROUP_ADJUSTMENT": "AdGroupAdjustment",
+}
+
+
+@bidmodifiers.command()
+@click.option(
+    "--campaign-id",
+    type=int,
+    help="Campaign ID (mutually exclusive with --adgroup-id)",
+)
+@click.option(
+    "--adgroup-id",
+    type=int,
+    help="Ad group ID (mutually exclusive with --campaign-id)",
+)
+@click.option(
+    "--type",
+    "modifier_type",
+    required=True,
+    type=click.Choice(sorted(_BIDMODIFIER_TYPE_TO_NESTED.keys()), case_sensitive=False),
+    help="Bid modifier type; determines the nested object name.",
+)
+@click.option(
+    "--value",
+    type=int,
+    required=True,
+    help="Bid modifier percentage (0-1300).",
+)
+@click.option(
+    "--json",
+    "extra_json",
+    help=(
+        "Extra fields merged into the nested adjustment object "
+        "(e.g. Gender/Age for DEMOGRAPHICS, RegionId for REGIONAL)."
+    ),
+)
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@click.pass_context
+def add(ctx, campaign_id, adgroup_id, modifier_type, value, extra_json, dry_run):
+    """Add a new bid modifier
+
+    Unlike ``set`` (which requires an existing ``Id`` and updates a
+    modifier), ``add`` creates a new bid modifier on the given campaign
+    or ad group.  The Yandex Direct API dispatches on the nested object
+    field name (e.g. ``MobileAdjustment``), so ``--type
+    MOBILE_ADJUSTMENT`` translates into::
+
+        {"CampaignId": ..., "MobileAdjustment": {"BidModifier": 120}}
+
+    For types with extra fields (``DemographicsAdjustment`` needs
+    ``Gender``/``Age``, ``RegionalAdjustment`` needs ``RegionId``,
+    ``RetargetingAdjustment`` needs ``RetargetingConditionId``, etc.)
+    pass the missing fields via ``--json``; they are merged into the
+    nested object.
+    """
+    try:
+        if (campaign_id is None) == (adgroup_id is None):
+            raise click.ClickException(
+                "Exactly one of --campaign-id or --adgroup-id is required"
+            )
+
+        nested_key = _BIDMODIFIER_TYPE_TO_NESTED[modifier_type.upper()]
+        nested = {"BidModifier": value}
+        if extra_json:
+            nested.update(json.loads(extra_json))
+
+        modifier_data = {nested_key: nested}
+        if campaign_id is not None:
+            modifier_data["CampaignId"] = campaign_id
+        else:
+            modifier_data["AdGroupId"] = adgroup_id
+
+        body = {"method": "add", "params": {"BidModifiers": [modifier_data]}}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+
+        result = client.bidmodifiers().post(data=body)
+        format_output(result().extract(), "json", None)
+
+    except Exception as e:
+        print_error(str(e))
+        raise click.Abort()
+
+
 @bidmodifiers.command()
 @click.option("--campaign-id", required=True, type=int, help="Campaign ID")
 @click.option(

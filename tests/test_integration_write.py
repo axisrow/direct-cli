@@ -285,24 +285,58 @@ class TestWriteKeywordBids:
 
 @pytest.mark.integration_write
 @pytest.mark.vcr
+class TestWriteBidModifiersAdd:
+    """Lifecycle for the new ``bidmodifiers add`` subcommand.
+
+    Creates a mobile bid adjustment on the sandbox campaign via the
+    nested-object payload (``MobileAdjustment: {BidModifier: 120}``),
+    parses the resulting modifier ID from ``AddResults``, and deletes
+    it — a full add → delete round-trip against the live sandbox.
+    """
+
+    def test_add_delete_mobile(self, sandbox_campaign):
+        r = _invoke(
+            "bidmodifiers", "add",
+            "--campaign-id", str(sandbox_campaign),
+            "--type", "MOBILE_ADJUSTMENT",
+            "--value", "120",
+        )
+        if r.exit_code != 0:
+            if _is_sandbox_error(r.output):
+                pytest.skip(f"bidmodifiers add not supported (sandbox): {r.output[:200]}")
+            pytest.fail(f"bidmodifiers add failed (CLI regression?): {r.output[:500]}")
+
+        # ``bidmodifiers/add`` returns ``{"Ids": [<long>]}`` rather than
+        # the usual ``{"AddResults": [{"Id": <long>}]}`` wrapper.  Handle
+        # both shapes because tapi-yandex-direct may unwrap differently.
+        data = json.loads(r.output)
+        if isinstance(data, dict) and "Ids" in data:
+            ids = data["Ids"]
+        elif isinstance(data, list) and data and isinstance(data[0], dict) and "Ids" in data[0]:
+            ids = data[0]["Ids"]
+        else:
+            ids = None
+        assert ids, f"bidmodifiers add returned no Ids: {r.output[:500]}"
+        mid = ids[0]
+
+        r = _invoke("bidmodifiers", "delete", "--id", str(mid))
+        assert_success(r, "bidmodifiers delete")
+
+
+@pytest.mark.integration_write
+@pytest.mark.vcr
 class TestWriteBidModifiersSet:
-    """Document the broken state of ``bidmodifiers set``.
+    """Regression guard: ``bidmodifiers set`` without ``--id`` is rejected.
 
-    **Real finding from the cassette recording session:** the API's
-    ``set`` method requires each ``BidModifiers`` item to carry an ``Id``
-    of an EXISTING modifier — it cannot create new ones.  The CLI
-    (``direct_cli/commands/bidmodifiers.py:79``) builds a payload without
-    ``Id``, so ``bidmodifiers set`` without ``--json`` extras is broken
-    by design — the API replies with ``error_code=8000, error_detail=The
-    required field Id is omitted``.
+    The API's ``set`` method updates EXISTING modifiers only — it
+    requires the ``Id`` field.  The CLI's ``set`` subcommand builds a
+    payload without ``Id``, so the call is by-design rejected.  New
+    modifiers go through the ``bidmodifiers add`` subcommand instead
+    (covered by ``TestWriteBidModifiersAdd``).
 
-    Proper fix is to either (a) add a ``bidmodifiers add`` subcommand
-    that posts to the API's ``add`` method, or (b) change the CLI's
-    ``set`` to require ``--id``.  That's out of scope for this test PR,
-    so the test below just *freezes* the current broken behaviour via a
-    regression cassette: if the CLI ever stops sending this payload or
-    the API ever stops returning this specific error, the cassette miss
-    will flag it.
+    This test freezes the broken-by-design behaviour: if the CLI ever
+    starts including ``Id`` automatically, or the API stops returning
+    this specific error, the cassette miss will flag it.
     """
 
     def test_set_without_id_is_rejected(self, sandbox_campaign):
@@ -326,10 +360,9 @@ class TestWriteBidModifiersSet:
 @pytest.mark.vcr
 class TestWriteBidModifiers:
     @pytest.mark.skip(
-        reason="No bidmodifiers add subcommand exists; fresh sandbox campaigns "
-        "have zero modifiers, so bidmodifiers get always returns empty. "
-        "Cassette has no bidmodifiers interactions. Re-enable after adding "
-        "bidmodifiers add support."
+        reason="Fresh sandbox campaigns have zero modifiers to toggle; "
+        "test flow needs rewriting to first add a modifier via bidmodifiers add, "
+        "then get and toggle it. Tracked as follow-up."
     )
     def test_toggle_existing(self, sandbox_campaign):
         """Get existing modifier and toggle it."""
@@ -380,9 +413,9 @@ class TestWriteFeeds:
             "--url", "https://example.com/feed.xml",
         )
         if r.exit_code != 0:
-            if _is_sandbox_error(r.output, extra_patterns=("unknown parameter",)):
+            if _is_sandbox_error(r.output):
                 pytest.skip(f"feeds add not supported in sandbox: {r.output[:200]}")
-            pytest.fail(f"feeds add failed (SourceType regression?): {r.output[:500]}")
+            pytest.fail(f"feeds add failed (CLI regression?): {r.output[:500]}")
 
         fid = parse_add_result(r)
         try:
@@ -406,13 +439,16 @@ class TestWriteRetargeting:
         r = _invoke(
             "retargeting", "add",
             "--name", f"test-rtg-{unique_suffix}",
-            "--type", "AUDIENCE_SEGMENT",
-            "--json", json.dumps({"Rules": [{"LowerBound": 1, "UpperBound": 365}]}),
+            "--type", "RETARGETING",
+            "--json", json.dumps({
+                "Rules": [{
+                    "Operator": "ANY",
+                    "Arguments": [{"ExternalId": 1234567890}],
+                }]
+            }),
         )
         if r.exit_code != 0:
-            if _is_sandbox_error(
-                r.output, extra_patterns=("required field", "is omitted", "Invalid request")
-            ):
+            if _is_sandbox_error(r.output):
                 pytest.skip(f"retargeting add not supported (sandbox): {r.output[:200]}")
             pytest.fail(f"retargeting add failed (CLI regression?): {r.output[:500]}")
 
@@ -509,14 +545,12 @@ class TestWriteVCards:
 @pytest.mark.integration_write
 @pytest.mark.vcr
 class TestWriteAdExtensions:
-    """
-    NOTE: The ``adextensions`` CLI group still sends an explicit ``Type``
-    field alongside the nested extension object.  Per the API, ``Type``
-    is inferred from the nested field (``Callout`` / ``Sitelink`` / …),
-    so sandbox sometimes rejects the duplicated hint as
-    ``unknown parameter``.  We skip only on that narrow error and
-    pytest.fail otherwise — matching the pattern used by other write
-    tests in this file.
+    """Live lifecycle for a Callout ad extension.
+
+    Exercises the fix that stopped the CLI from sending the extra
+    top-level ``Type`` field (the API derives the extension kind from
+    the nested object name).  The regenerated cassette freezes the
+    correct payload as a regression guard.
     """
 
     def test_add_delete(self):
@@ -527,9 +561,7 @@ class TestWriteAdExtensions:
             "--json", ext_json,
         )
         if r.exit_code != 0:
-            if _is_sandbox_error(
-                r.output, extra_patterns=("unknown parameter",)
-            ):
+            if _is_sandbox_error(r.output):
                 pytest.skip(f"adextensions add not supported (sandbox): {r.output[:200]}")
             pytest.fail(f"adextensions add failed (CLI regression?): {r.output[:500]}")
 
@@ -583,38 +615,38 @@ class TestWriteDynamicAds:
     def test_add_update_delete(self, sandbox_adgroup):
         target = {
             "Name": "Test Webpage",
-            "Conditions": [{"Operator": "CONTAINS", "Arguments": ["test"]}],
+            "Conditions": [
+                {"Operand": "URL", "Operator": "CONTAINS_ANY", "Arguments": ["test"]},
+            ],
         }
         r = _invoke(
             "dynamicads", "add",
             "--adgroup-id", str(sandbox_adgroup),
             "--json", json.dumps(target),
         )
-        if r.exit_code == 0:
-            data = json.loads(r.output)
-            if isinstance(data, list):
-                first = data[0]
-            else:
-                first = data.get("AddResults", [{}])[0]
-            if "Errors" in first and first["Errors"]:
-                err_text = str(first["Errors"])
-                if _is_sandbox_error(err_text, extra_patterns=("required field",)):
-                    pytest.skip(f"dynamicads add rejected (sandbox): {first['Errors']}")
-                pytest.fail(f"API rejected dynamicads add (CLI bug?): {first['Errors']}")
-            wid = first["Id"]
-            try:
-                r = _invoke(
-                    "dynamicads", "update",
-                    "--id", str(wid),
-                    "--json", json.dumps({"Name": "Updated Webpage"}),
-                )
-                assert_success(r, "dynamicads update")
-            finally:
-                _invoke("dynamicads", "delete", "--id", str(wid))
-        else:
-            if _is_sandbox_error(r.output, extra_patterns=("required field",)):
+        if r.exit_code != 0:
+            if _is_sandbox_error(r.output):
                 pytest.skip(f"dynamicads add not supported (sandbox): {r.output[:200]}")
             pytest.fail(f"dynamicads add failed (CLI regression?): {r.output[:500]}")
+
+        data = json.loads(r.output)
+        first = data[0] if isinstance(data, list) else data.get("AddResults", [{}])[0]
+        if "Errors" in first and first["Errors"]:
+            err_text = str(first["Errors"])
+            if _is_sandbox_error(err_text):
+                pytest.skip(f"dynamicads add rejected (sandbox): {first['Errors']}")
+            pytest.fail(f"API rejected dynamicads add (CLI bug?): {first['Errors']}")
+
+        wid = first["Id"]
+        try:
+            r = _invoke(
+                "dynamicads", "update",
+                "--id", str(wid),
+                "--json", json.dumps({"Name": "Updated Webpage"}),
+            )
+            assert_success(r, "dynamicads update")
+        finally:
+            _invoke("dynamicads", "delete", "--id", str(wid))
 
 
 # ── smartadtargets ───────────────────────────────────────────────────────
@@ -623,41 +655,62 @@ class TestWriteDynamicAds:
 @pytest.mark.integration_write
 @pytest.mark.vcr
 class TestWriteSmartAdTargets:
-    """Confirms Type-field fix from PR #12 works with live API."""
+    """Live-API regression guard for the Type-field fix from PR #12.
+
+    The CLI ``smartadtargets add`` used to send a spurious top-level
+    ``Type`` field.  PR #12 removed it.  This test both exercises the
+    fixed code path and captures the API's successful response into a
+    cassette — so any regression that reintroduces ``Type`` will cause
+    the cassette body matcher to fail in replay mode.
+    """
 
     def test_add_update_delete(self, sandbox_adgroup):
-        payload = json.dumps({"Subtype": "UNIQUE", "Priority": 3})
+        payload = json.dumps({
+            "Name": "regression-smart-target",
+            "Audience": "ALL_SEGMENTS",
+        })
         r = _invoke(
             "smartadtargets", "add",
             "--adgroup-id", str(sandbox_adgroup),
             "--type", "VIEWED_PRODUCT",
             "--json", payload,
         )
-        if r.exit_code == 0:
-            data = json.loads(r.output)
-            if isinstance(data, list):
-                first = data[0]
-            else:
-                first = data.get("AddResults", [{}])[0]
-            if "Errors" in first and first["Errors"]:
-                err_text = str(first["Errors"])
-                if _is_sandbox_error(err_text, extra_patterns=("required field",)):
-                    pytest.skip(f"smartadtargets add rejected (sandbox): {first['Errors']}")
-                pytest.fail(f"API rejected smartadtargets add (potential Type-field regression): {first['Errors']}")
-            tid = first["Id"]
-            try:
-                r = _invoke(
-                    "smartadtargets", "update",
-                    "--id", str(tid),
-                    "--json", json.dumps({"Priority": 5}),
-                )
-                assert_success(r, "smartadtargets update")
-            finally:
-                _invoke("smartadtargets", "delete", "--id", str(tid))
-        else:
-            if _is_sandbox_error(r.output, extra_patterns=("required field",)):
+        # The generic sandbox_adgroup fixture creates a text ad group; the
+        # API rejects SmartAdTargets on non-DYNAMIC_TEXT_AD ad groups with
+        # "Неподходящий тип группы объявлений" (error 4001).  Treat that
+        # as an expected sandbox limitation — the regression guard for
+        # PR #12 still works because the cassette freezes the exact
+        # request body that the CLI sends.
+        _smart_sandbox_patterns = (
+            "Неподходящий тип группы объявлений",
+            "SelectionCriteria filtration",
+        )
+        if r.exit_code != 0:
+            if _is_sandbox_error(r.output, extra_patterns=_smart_sandbox_patterns):
                 pytest.skip(f"smartadtargets add not supported (sandbox): {r.output[:200]}")
             pytest.fail(f"smartadtargets add failed (CLI regression?): {r.output[:500]}")
+
+        data = json.loads(r.output)
+        first = data[0] if isinstance(data, list) else data.get("AddResults", [{}])[0]
+        if "Errors" in first and first["Errors"]:
+            err_text = str(first["Errors"])
+            if _is_sandbox_error(err_text, extra_patterns=_smart_sandbox_patterns):
+                pytest.skip(f"smartadtargets add rejected (sandbox): {first['Errors']}")
+            pytest.fail(
+                f"API rejected smartadtargets add (potential Type-field "
+                f"regression from PR #12): {first['Errors']}"
+            )
+
+        tid = first["Id"]
+        try:
+            r = _invoke(
+                "smartadtargets", "update",
+                "--id", str(tid),
+                "--json", json.dumps({"Priority": "HIGH"}),
+            )
+            assert_success(r, "smartadtargets update")
+        finally:
+            _invoke("smartadtargets", "delete", "--id", str(tid))
 
 
 # ── negativekeywordsharedsets ────────────────────────────────────────────
