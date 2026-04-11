@@ -32,6 +32,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from conftest import (  # noqa: E402
     _invoke,
+    _is_sandbox_error,
     assert_success,
     parse_add_result,
     parse_first_result,
@@ -145,8 +146,10 @@ class TestWriteAds:
             first = data.get("AddResults", [{}])[0]
 
         if "Errors" in first and first["Errors"]:
-            # Sandbox didn't persist adgroup — not a CLI bug
-            pytest.skip(f"adgroup not persisted in sandbox: {first['Errors']}")
+            err_text = str(first["Errors"])
+            if _is_sandbox_error(err_text):
+                pytest.skip(f"adgroup not persisted in sandbox: {first['Errors']}")
+            pytest.fail(f"API rejected ads add (potential Type-field regression): {first['Errors']}")
 
         ad_id = first["Id"]
         try:
@@ -182,7 +185,10 @@ class TestWriteKeywords:
             first = data.get("AddResults", [{}])[0]
 
         if "Errors" in first and first["Errors"]:
-            pytest.skip(f"adgroup not persisted in sandbox: {first['Errors']}")
+            err_text = str(first["Errors"])
+            if _is_sandbox_error(err_text):
+                pytest.skip(f"adgroup not persisted in sandbox: {first['Errors']}")
+            pytest.fail(f"API rejected keywords add (CLI bug?): {first['Errors']}")
 
         kid = first["Id"]
         try:
@@ -426,7 +432,10 @@ class TestWriteAdImages:
             if isinstance(data, list) and data:
                 first = data[0]
                 if "Errors" in first and first["Errors"]:
-                    pytest.skip(f"adimages rejected (sandbox): {first['Errors']}")
+                    err_text = str(first["Errors"])
+                    if _is_sandbox_error(err_text) or "Invalid format" in err_text:
+                        pytest.skip(f"adimages rejected (sandbox): {first['Errors']}")
+                    pytest.fail(f"API rejected adimages add (CLI bug?): {first['Errors']}")
                 img_hash = first.get("AdImageHash") or first.get("Id")
                 if img_hash:
                     _invoke("adimages", "delete", "--hash", str(img_hash))
@@ -455,7 +464,10 @@ class TestWriteDynamicAds:
         if r.exit_code == 0:
             first = parse_first_result(r)
             if "Errors" in first and first["Errors"]:
-                pytest.skip(f"dynamicads add rejected (sandbox): {first['Errors']}")
+                err_text = str(first["Errors"])
+                if _is_sandbox_error(err_text):
+                    pytest.skip(f"dynamicads add rejected (sandbox): {first['Errors']}")
+                pytest.fail(f"API rejected dynamicads add (CLI bug?): {first['Errors']}")
             wid = first["Id"]
             try:
                 r = _invoke(
@@ -489,7 +501,10 @@ class TestWriteSmartAdTargets:
         if r.exit_code == 0:
             first = parse_first_result(r)
             if "Errors" in first and first["Errors"]:
-                pytest.skip(f"smartadtargets add rejected (sandbox): {first['Errors']}")
+                err_text = str(first["Errors"])
+                if _is_sandbox_error(err_text):
+                    pytest.skip(f"smartadtargets add rejected (sandbox): {first['Errors']}")
+                pytest.fail(f"API rejected smartadtargets add (potential Type-field regression): {first['Errors']}")
             tid = first["Id"]
             try:
                 r = _invoke(
