@@ -99,10 +99,12 @@ class TestWriteCampaigns:
             # archive
             r = _invoke("campaigns", "archive", "--id", str(cid))
             assert_success(r, "campaigns archive")
+            parse_first_result(r, key="ArchiveResults")
 
             # unarchive
             r = _invoke("campaigns", "unarchive", "--id", str(cid))
             assert_success(r, "campaigns unarchive")
+            parse_first_result(r, key="UnarchiveResults")
         finally:
             _invoke("campaigns", "delete", "--id", str(cid))
 
@@ -134,7 +136,9 @@ class TestWriteAdGroups:
                 "--name", "test-adgroup-renamed",
             )
             if r.exit_code != 0:
-                pytest.skip("adgroups not persisted in sandbox")
+                if _is_sandbox_error(r.output, extra_patterns=("Object not found",)):
+                    pytest.skip(f"adgroups not persisted in sandbox: {r.output[:200]}")
+                pytest.fail(f"adgroups update failed (CLI regression?): {r.output[:500]}")
             assert_success(r, "adgroups update")
         finally:
             _invoke("adgroups", "delete", "--id", str(gid))
@@ -308,7 +312,7 @@ class TestWriteBidModifiers:
         """Get existing modifier and toggle it."""
         cid = sandbox_campaign
 
-        r = _invoke("bidmodifiers", "get", "--campaign-id", str(cid))
+        r = _invoke("bidmodifiers", "get", "--campaign-ids", str(cid))
         if r.exit_code != 0:
             pytest.skip("bidmodifiers get failed in sandbox")
 

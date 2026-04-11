@@ -195,7 +195,7 @@ def unique_suffix() -> str:
 
 _SANDBOX_ERROR_PATTERNS = (
     "Object not found",
-    "not supported",
+    "not supported",  # sandbox returns "Operation not supported" for features unavailable in test env
     "Campaign not found",
     "Ad group not found",
     "not accessible",
