@@ -170,6 +170,26 @@ def parse_first_result(result, key: str = "AddResults") -> dict:
     return first
 
 
+def _has_result_errors(output: str, key: str) -> bool:
+    """Check whether an API result JSON contains embedded Errors."""
+    try:
+        data = json.loads(output)
+    except (json.JSONDecodeError, TypeError):
+        return False
+    if isinstance(data, list):
+        items = data
+    elif isinstance(data, dict):
+        # Walk into nested "result" if present
+        result = data.get("result", data)
+        items = result.get(key, [])
+    else:
+        return False
+    if not items:
+        return False
+    first = items[0] if isinstance(items, list) else items
+    return bool(first.get("Errors"))
+
+
 def _safe_delete(*args):
     """Best-effort delete — ignore errors (resource may already be gone)."""
     try:
@@ -195,7 +215,7 @@ def unique_suffix() -> str:
 
 _SANDBOX_ERROR_PATTERNS = (
     "Object not found",
-    "not supported",  # sandbox returns "Operation not supported" for features unavailable in test env
+    "Operation not supported",  # sandbox returns this for features unavailable in test env
     "Campaign not found",
     "Ad group not found",
     "not accessible",
