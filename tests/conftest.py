@@ -99,11 +99,31 @@ def unique_suffix() -> str:
     return f"{date.today().isoformat()}-{uuid.uuid4().hex[:6]}"
 
 
+_SANDBOX_ERROR_PATTERNS = (
+    "Object not found",
+    "not found",
+    "not supported",
+    "Campaign not found",
+    "Ad group not found",
+    "not accessible",
+    "error_code",
+)
+
+
+def _is_sandbox_error(output: str) -> bool:
+    """Check whether CLI failure is due to a known sandbox limitation."""
+    lower = output.lower()
+    return any(p.lower() in lower for p in _SANDBOX_ERROR_PATTERNS)
+
+
 def _fixture_invoke(*args, label="fixture"):
-    """Invoke CLI and skip test if sandbox rejects the operation."""
+    """Invoke CLI and skip only for known sandbox errors; fail on regressions."""
     result = _invoke(*args)
     if result.exit_code != 0:
-        pytest.skip(f"{label} failed in sandbox: {result.output[:200]}")
+        if _is_sandbox_error(result.output):
+            pytest.skip(f"{label} failed in sandbox: {result.output[:200]}")
+        else:
+            pytest.fail(f"{label} failed (not a sandbox error): {result.output[:500]}")
     return result
 
 
