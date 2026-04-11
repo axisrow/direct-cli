@@ -70,9 +70,20 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def add(ctx, name, url, extra_json, dry_run):
-    """Add feed"""
+    """Add feed
+
+    Creates a URL feed by default.  The Yandex Direct API requires both
+    the ``SourceType`` discriminator **and** the nested object matching
+    that type (``UrlFeed`` / ``FileFeed`` / ``BusinessType``).  The old
+    top-level ``Source`` field was invalid (the nested object holds the
+    URL).  Pass ``--json`` to override for file feeds or business feeds.
+    """
     try:
-        feed_data = {"Name": name, "Source": url, "SourceType": "URL"}
+        feed_data = {
+            "Name": name,
+            "SourceType": "URL",
+            "UrlFeed": {"Url": url},
+        }
 
         if extra_json:
             extra = json.loads(extra_json)

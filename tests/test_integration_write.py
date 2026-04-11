@@ -380,9 +380,9 @@ class TestWriteFeeds:
             "--url", "https://example.com/feed.xml",
         )
         if r.exit_code != 0:
-            if _is_sandbox_error(r.output, extra_patterns=("unknown parameter",)):
+            if _is_sandbox_error(r.output):
                 pytest.skip(f"feeds add not supported in sandbox: {r.output[:200]}")
-            pytest.fail(f"feeds add failed (SourceType regression?): {r.output[:500]}")
+            pytest.fail(f"feeds add failed (CLI regression?): {r.output[:500]}")
 
         fid = parse_add_result(r)
         try:
