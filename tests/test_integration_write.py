@@ -406,13 +406,16 @@ class TestWriteRetargeting:
         r = _invoke(
             "retargeting", "add",
             "--name", f"test-rtg-{unique_suffix}",
-            "--type", "AUDIENCE_SEGMENT",
-            "--json", json.dumps({"Rules": [{"LowerBound": 1, "UpperBound": 365}]}),
+            "--type", "RETARGETING",
+            "--json", json.dumps({
+                "Rules": [{
+                    "Operator": "ANY",
+                    "Arguments": [{"ExternalId": 1234567890}],
+                }]
+            }),
         )
         if r.exit_code != 0:
-            if _is_sandbox_error(
-                r.output, extra_patterns=("required field", "is omitted", "Invalid request")
-            ):
+            if _is_sandbox_error(r.output):
                 pytest.skip(f"retargeting add not supported (sandbox): {r.output[:200]}")
             pytest.fail(f"retargeting add failed (CLI regression?): {r.output[:500]}")
 
