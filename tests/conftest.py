@@ -104,15 +104,19 @@ _SANDBOX_ERROR_PATTERNS = (
     "Campaign not found",
     "Ad group not found",
     "not accessible",
-    "unknown parameter",
-    "required field",
 )
 
 
-def _is_sandbox_error(output: str) -> bool:
-    """Check whether CLI failure is due to a known sandbox limitation."""
+def _is_sandbox_error(output: str, extra_patterns: tuple = ()) -> bool:
+    """Check whether CLI failure is due to a known sandbox limitation.
+
+    extra_patterns: additional patterns for commands where the sandbox API
+    is stricter than production (e.g. requires fields, rejects parameters).
+    Used only in specific test inline checks, NOT in _fixture_invoke.
+    """
     lower = output.lower()
-    return any(p.lower() in lower for p in _SANDBOX_ERROR_PATTERNS)
+    patterns = _SANDBOX_ERROR_PATTERNS + extra_patterns
+    return any(p.lower() in lower for p in patterns)
 
 
 def _fixture_invoke(*args, label="fixture"):
@@ -223,7 +227,7 @@ def sandbox_keyword(sandbox_adgroup):
 @pytest.fixture
 def sandbox_retargeting_list(unique_suffix):
     """Create a retargeting list in sandbox, yield its ID, delete on teardown."""
-    result = _fixture_invoke(
+    result = _invoke(
         "retargeting", "add",
         "--name", f"test-rtg-{unique_suffix}",
         "--type", "RETARGETING",
@@ -233,9 +237,33 @@ def sandbox_retargeting_list(unique_suffix):
                 "Arguments": [{"ExternalId": 12345}],
             }]
         }),
-        label="retargeting add",
     )
-    rtg_id = _fixture_parse(result)
+    if result.exit_code != 0:
+        if _is_sandbox_error(
+            result.output,
+            extra_patterns=("required field", "is omitted", "Invalid request"),
+        ):
+            pytest.skip(f"retargeting add not supported (sandbox): {result.output[:200]}")
+        pytest.fail(f"retargeting add failed (CLI regression?): {result.output[:500]}")
+
+    # Parse response body — sandbox may return exit 0 with Errors
+    data = json.loads(result.output)
+    if isinstance(data, list):
+        first = data[0] if data else {}
+    else:
+        items = data.get("AddResults", [])
+        first = items[0] if items else {}
+    if "Errors" in first and first["Errors"]:
+        err_text = str(first["Errors"])
+        if _is_sandbox_error(
+            err_text,
+            extra_patterns=("required field", "is omitted", "Not specified"),
+        ):
+            pytest.skip(f"retargeting add rejected (sandbox): {first['Errors']}")
+        pytest.fail(f"API rejected retargeting add (CLI bug?): {first['Errors']}")
+    if "Id" not in first:
+        pytest.skip(f"retargeting add returned no ID (sandbox): {first}")
+    rtg_id = first["Id"]
 
     yield rtg_id
 

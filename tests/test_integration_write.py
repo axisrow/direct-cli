@@ -292,7 +292,7 @@ class TestWriteFeeds:
             "--url", "https://example.com/feed.xml",
         )
         if r.exit_code != 0:
-            if _is_sandbox_error(r.output):
+            if _is_sandbox_error(r.output, extra_patterns=("unknown parameter",)):
                 pytest.skip(f"feeds add not supported in sandbox: {r.output[:200]}")
             pytest.fail(f"feeds add failed (SourceType regression?): {r.output[:500]}")
 
@@ -471,7 +471,7 @@ class TestWriteDynamicAds:
                 first = data.get("AddResults", [{}])[0]
             if "Errors" in first and first["Errors"]:
                 err_text = str(first["Errors"])
-                if _is_sandbox_error(err_text):
+                if _is_sandbox_error(err_text, extra_patterns=("required field",)):
                     pytest.skip(f"dynamicads add rejected (sandbox): {first['Errors']}")
                 pytest.fail(f"API rejected dynamicads add (CLI bug?): {first['Errors']}")
             wid = first["Id"]
@@ -485,7 +485,7 @@ class TestWriteDynamicAds:
             finally:
                 _invoke("dynamicads", "delete", "--id", str(wid))
         else:
-            if _is_sandbox_error(r.output):
+            if _is_sandbox_error(r.output, extra_patterns=("required field",)):
                 pytest.skip(f"dynamicads add not supported (sandbox): {r.output[:200]}")
             pytest.fail(f"dynamicads add failed (CLI regression?): {r.output[:500]}")
 
@@ -514,7 +514,7 @@ class TestWriteSmartAdTargets:
                 first = data.get("AddResults", [{}])[0]
             if "Errors" in first and first["Errors"]:
                 err_text = str(first["Errors"])
-                if _is_sandbox_error(err_text):
+                if _is_sandbox_error(err_text, extra_patterns=("required field",)):
                     pytest.skip(f"smartadtargets add rejected (sandbox): {first['Errors']}")
                 pytest.fail(f"API rejected smartadtargets add (potential Type-field regression): {first['Errors']}")
             tid = first["Id"]
@@ -528,7 +528,7 @@ class TestWriteSmartAdTargets:
             finally:
                 _invoke("smartadtargets", "delete", "--id", str(tid))
         else:
-            if _is_sandbox_error(r.output):
+            if _is_sandbox_error(r.output, extra_patterns=("required field",)):
                 pytest.skip(f"smartadtargets add not supported (sandbox): {r.output[:200]}")
             pytest.fail(f"smartadtargets add failed (CLI regression?): {r.output[:500]}")
 
