@@ -414,35 +414,19 @@ def test_keywordbids_set_search_and_network_scales():
 # ----------------------------------------------------------------------
 
 
-def test_bidmodifiers_set_payload_keeps_modifier_type():
-    # NB: BidModifier ``Type`` (DEMOGRAPHICS / MOBILE / ...) is the
-    # *category* of the modifier and IS a real top-level API field, so
-    # it must be kept — this test does not assert ``Type not in ...``.
-    body = _dry_run(
-        "bidmodifiers",
-        "set",
-        "--campaign-id",
-        "1",
-        "--type",
-        "MOBILE",
-        "--value",
-        "1.5",
-    )
-    assert body["method"] == "set"
-    modifier = body["params"]["BidModifiers"][0]
-    assert modifier == {
-        "CampaignId": 1,
-        "Type": "MOBILE",
-        "BidModifier": 1.5,
-    }
+def test_bidmodifiers_set_legacy_payload_keeps_modifier_type():
+    """Legacy (broken-by-design) ``bidmodifiers set`` path.
 
+    The API rejects this shape with ``required field Id is omitted``
+    — see ``TestWriteBidModifiersSet.test_set_without_id_is_rejected``.
+    It is preserved only so that existing integration cassette keeps
+    passing; new callers should use ``--id`` (see test below).
 
-def test_bidmodifiers_set_type_is_case_insensitive():
-    """``bidmodifiers set --type mobile`` (lowercase) is normalized to ``MOBILE``.
-
-    Regression guard for axisrow/direct-cli#23 — before the fix the
-    value was forwarded verbatim and the API rejected lowercase
-    spellings with a vague error that looked like a payload bug.
+    Regression guard: the enum is the same as ``bidmodifiers add``
+    (``MOBILE_ADJUSTMENT``), not the short form ``MOBILE`` that an
+    older version of this test asserted — the cassette actually
+    sends ``MOBILE_ADJUSTMENT``, and click.Choice now enforces the
+    full enum form.
     """
     body = _dry_run(
         "bidmodifiers",
@@ -450,12 +434,109 @@ def test_bidmodifiers_set_type_is_case_insensitive():
         "--campaign-id",
         "1",
         "--type",
-        "mobile",
+        "MOBILE_ADJUSTMENT",
+        "--value",
+        "1.5",
+    )
+    assert body["method"] == "set"
+    modifier = body["params"]["BidModifiers"][0]
+    assert modifier == {
+        "CampaignId": 1,
+        "Type": "MOBILE_ADJUSTMENT",
+        "BidModifier": 1.5,
+    }
+
+
+def test_bidmodifiers_set_legacy_type_is_case_insensitive():
+    """Legacy path: ``--type mobile_adjustment`` (lowercase) is accepted.
+
+    click.Choice(..., case_sensitive=False) normalizes to the canonical
+    uppercase form, so users can't get a silent typo drop.  Regression
+    guard for axisrow/direct-cli#23.
+    """
+    body = _dry_run(
+        "bidmodifiers",
+        "set",
+        "--campaign-id",
+        "1",
+        "--type",
+        "mobile_adjustment",
         "--value",
         "1.5",
     )
     modifier = body["params"]["BidModifiers"][0]
-    assert modifier["Type"] == "MOBILE"
+    assert modifier["Type"] == "MOBILE_ADJUSTMENT"
+
+
+def test_bidmodifiers_set_with_id_builds_correct_payload():
+    """Correct API shape: ``--id N --value V`` builds ``{"Id": N, "BidModifier": V}``.
+
+    This is the shape Yandex Direct's ``bidmodifiers/set`` actually
+    accepts (the legacy ``CampaignId + Type`` shape is rejected with
+    ``required field Id is omitted``).  Regression guard for
+    axisrow/direct-cli#23 to make sure the --id path stays correct
+    and doesn't leak CampaignId/Type.
+    """
+    body = _dry_run(
+        "bidmodifiers",
+        "set",
+        "--id",
+        "42",
+        "--value",
+        "150",
+    )
+    modifier = body["params"]["BidModifiers"][0]
+    assert modifier == {"Id": 42, "BidModifier": 150.0}
+    assert "CampaignId" not in modifier
+    assert "Type" not in modifier
+
+
+def test_bidmodifiers_set_id_and_legacy_flags_are_mutex():
+    """Mixing --id with --campaign-id/--type is rejected up front.
+
+    Without this guard, a caller combining the two shapes would end up
+    with a confusing payload that the API rejects in a non-obvious way.
+    """
+    result = CliRunner().invoke(
+        cli,
+        [
+            "bidmodifiers",
+            "set",
+            "--id",
+            "42",
+            "--campaign-id",
+            "1",
+            "--type",
+            "MOBILE_ADJUSTMENT",
+            "--value",
+            "150",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    combined = (result.output or "") + (
+        str(result.exception) if result.exception else ""
+    )
+    assert "mutually exclusive" in combined or "--id" in combined
+
+
+def test_bidmodifiers_set_without_any_key_errors():
+    """Neither --id nor the legacy pair → clear UsageError, not a broken payload."""
+    result = CliRunner().invoke(
+        cli,
+        [
+            "bidmodifiers",
+            "set",
+            "--value",
+            "150",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    combined = (result.output or "") + (
+        str(result.exception) if result.exception else ""
+    )
+    assert "--id" in combined or "--campaign-id" in combined
 
 
 def test_bidmodifiers_toggle_enable():

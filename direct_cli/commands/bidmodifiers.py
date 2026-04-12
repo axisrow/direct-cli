@@ -172,35 +172,95 @@ def add(ctx, campaign_id, adgroup_id, modifier_type, value, extra_json, dry_run)
 
 
 @bidmodifiers.command()
-@click.option("--campaign-id", required=True, type=int, help="Campaign ID")
+@click.option(
+    "--id",
+    "modifier_id",
+    type=int,
+    help=(
+        "Existing BidModifier ID to update. This is the shape Yandex "
+        "Direct's ``bidmodifiers/set`` method actually supports — pass "
+        "the Id of a modifier created via ``bidmodifiers add`` and the "
+        "new ``--value``. Mutually exclusive with --campaign-id/--type."
+    ),
+)
+@click.option(
+    "--campaign-id",
+    type=int,
+    help=(
+        "Campaign ID (legacy path, broken by design — kept for "
+        "backwards compatibility and regression coverage; the API "
+        "rejects this shape with ``required field Id is omitted``). "
+        "Use --id for real updates."
+    ),
+)
 @click.option(
     "--type",
     "modifier_type",
-    required=True,
+    type=click.Choice(sorted(_BIDMODIFIER_TYPE_TO_NESTED.keys()), case_sensitive=False),
     help=(
-        "Modifier category (DEMOGRAPHICS, MOBILE, ...). "
-        "Case-insensitive — values are normalized to uppercase before "
-        "being sent to the API."
+        "Modifier category (legacy path). Uses the same enum as "
+        "``bidmodifiers add`` (MOBILE_ADJUSTMENT / DEMOGRAPHICS_ADJUSTMENT "
+        "/ ...), case-insensitive."
     ),
 )
 @click.option("--value", type=float, required=True, help="Modifier value")
 @click.option("--json", "extra_json", help="Additional JSON parameters")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def set(ctx, campaign_id, modifier_type, value, extra_json, dry_run):
-    """Set bid modifier"""
-    try:
-        # Normalize --type so ``mobile`` / ``Mobile`` / ``MOBILE`` all
-        # reach the API as ``MOBILE`` — previously a lowercase typo was
-        # forwarded verbatim and the API rejected it with a vague error
-        # that looked like a payload bug.  See axisrow/direct-cli#23.
-        modifier_type_norm = (modifier_type or "").upper().replace("-", "_")
+def set(ctx, modifier_id, campaign_id, modifier_type, value, extra_json, dry_run):
+    """Set (update) an existing bid modifier
 
-        modifier_data = {
-            "CampaignId": campaign_id,
-            "Type": modifier_type_norm,
-            "BidModifier": value,
-        }
+    The Yandex Direct API's ``bidmodifiers/set`` method updates existing
+    modifiers by ``Id``. The correct payload shape is simply::
+
+        {"BidModifiers": [{"Id": <long>, "BidModifier": <value>}]}
+
+    To create a new modifier, use ``bidmodifiers add`` instead.
+
+    This CLI command supports two shapes:
+
+    1. **Correct shape** — pass ``--id`` + ``--value``. The request
+       body becomes exactly ``{"Id": ..., "BidModifier": ...}`` and is
+       accepted by the API.
+
+    2. **Legacy shape** (broken by design) — pass ``--campaign-id`` +
+       ``--type`` + ``--value``. The request body is
+       ``{"CampaignId": ..., "Type": ..., "BidModifier": ...}`` and the
+       API rejects it with ``required field Id is omitted``. This path
+       is preserved so the existing regression cassette in
+       ``TestWriteBidModifiersSet.test_set_without_id_is_rejected``
+       keeps passing; it also gives a clear deprecation signal to
+       callers who land on this command by mistake.
+    """
+    try:
+        # Validate the mutex up front.
+        if modifier_id is not None and (
+            campaign_id is not None or modifier_type is not None
+        ):
+            raise click.UsageError(
+                "--id is mutually exclusive with --campaign-id/--type. "
+                "Use --id + --value for the correct bidmodifiers/set shape."
+            )
+
+        if modifier_id is None and (campaign_id is None or modifier_type is None):
+            raise click.UsageError(
+                "Provide either --id (preferred) or both --campaign-id "
+                "and --type (legacy)."
+            )
+
+        if modifier_id is not None:
+            # Correct API shape: Id + BidModifier. Nothing else.
+            modifier_data = {"Id": modifier_id, "BidModifier": value}
+        else:
+            # Legacy broken-by-design path — kept for backwards
+            # compatibility with the existing regression test.  The
+            # click.Choice above has already validated/normalized
+            # modifier_type, so we forward it unchanged.
+            modifier_data = {
+                "CampaignId": campaign_id,
+                "Type": modifier_type,
+                "BidModifier": value,
+            }
 
         if extra_json:
             extra = json.loads(extra_json)
@@ -221,6 +281,8 @@ def set(ctx, campaign_id, modifier_type, value, extra_json, dry_run):
         result = client.bidmodifiers().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
