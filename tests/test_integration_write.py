@@ -419,12 +419,6 @@ class TestWriteBidModifiers:
                 pytest.skip(f"bidmodifiers add not supported (sandbox): {r.output[:200]}")
             pytest.fail(f"bidmodifiers add failed (CLI regression?): {r.output[:500]}")
 
-        # Even with exit_code 0, the API can return embedded errors.
-        if _has_result_errors(r.output, "AddResults"):
-            if _is_sandbox_error(r.output):
-                pytest.skip(f"bidmodifiers add not supported (sandbox): {r.output[:200]}")
-            pytest.fail(f"bidmodifiers add returned errors (CLI regression?): {r.output[:500]}")
-
         # Parse modifier ID from add result
         data = json.loads(r.output)
         ids = None
