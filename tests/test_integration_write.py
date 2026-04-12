@@ -68,7 +68,6 @@ from conftest import (  # noqa: E402
     _ARCHIVE_PATTERNS,
     _CAMPAIGN_STATUS_PATTERNS,
     _IMAGE_PATTERNS,
-    _KEYWORD_PATTERNS,
     _SITELINK_PATTERNS,
     _SMART_AD_PATTERNS,
     _has_result_errors,
