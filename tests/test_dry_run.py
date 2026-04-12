@@ -1271,3 +1271,23 @@ def test_clients_update_merges_extra_json_with_client_id():
     assert body["method"] == "update"
     client = body["params"]["Clients"][0]
     assert client == {"ClientId": 999, "Phone": "+70000000000"}
+
+
+class TestAdvideosDryRun:
+    def test_add_by_url(self):
+        body = _dry_run(
+            "advideos", "add",
+            "--url", "https://example.com/video.mp4",
+            "--name", "Test Video",
+        )
+        assert body["method"] == "add"
+        item = body["params"]["AdVideos"][0]
+        assert item["Url"] == "https://example.com/video.mp4"
+        assert item["Name"] == "Test Video"
+        assert "Type" not in item
+
+    def test_add_requires_url_or_data(self):
+        from click.testing import CliRunner
+        from direct_cli.cli import cli
+        result = CliRunner().invoke(cli, ["advideos", "add", "--dry-run"])
+        assert result.exit_code != 0

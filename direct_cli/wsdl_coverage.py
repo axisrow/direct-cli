@@ -29,6 +29,7 @@ CLI_TO_API_SERVICE = {
     "retargeting": "retargetinglists",
     "creatives": "creatives",
     "adimages": "adimages",
+    "advideos": "advideos",
     "adextensions": "adextensions",
     "sitelinks": "sitelinks",
     "vcards": "vcards",
@@ -85,7 +86,7 @@ CANONICAL_API_SERVICES = sorted(
 )
 
 # API services known to be missing from the CLI entirely.
-KNOWN_MISSING_SERVICES = {"advideos"}
+KNOWN_MISSING_SERVICES = set()
 
 # CLI subcommand name -> API method name overrides.
 # Most subcommands map 1:1 (get->get, add->add).
