@@ -29,7 +29,7 @@ Top-level resource tests run without fixtures.
 
 **Coverage status (issue #20 / #28):**
 
-Covered (passing in replay):
+Passing in replay (10 tests, cassettes up to date):
   - campaigns lifecycle (add/update/suspend/resume/archive/unarchive/delete)
   - adgroups add-update-delete
   - bidmodifiers add/delete (mobile adjustment)
@@ -40,11 +40,13 @@ Covered (passing in replay):
   - vcards add-delete
   - adextensions add-delete
   - negativekeywordsharedsets add-update-delete
-  - bids set (uses --keyword-id, requires real keyword)
-  - adimages add/delete (uses 450x450 PNG)
-  - dynamicads add/update/delete (uses DYNAMIC_TEXT_AD_GROUP fixture)
-  - smartadtargets add/update/delete (uses SMART_AD_GROUP fixture)
-  - audiencetargets add/delete (retargeting fixture includes MembershipLifeSpan)
+
+Fixed but require cassette re-record (5 tests, payloads/fixtures corrected):
+  - bids set             — was missing keyword prerequisite; now uses --keyword-id
+  - adimages add/delete  — was using 1x1px PNG; now 450x450
+  - dynamicads           — was using TEXT_AD_GROUP; now DYNAMIC_TEXT_AD_GROUP fixture
+  - smartadtargets       — was using TEXT_AD_GROUP; now SMART_AD_GROUP fixture
+  - audiencetargets      — retargeting fixture was missing MembershipLifeSpan
 
 Possibly sandbox-limited (require cassette re-record to confirm):
   - ads add/update/delete         — sandbox may not persist adgroups across calls
