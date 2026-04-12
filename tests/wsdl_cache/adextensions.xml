@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+                  xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+                  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                  xmlns:general="http://api.direct.yandex.com/v5/general"
+                  xmlns:ns="http://api.direct.yandex.com/v5/adextensions"
+                  xmlns:ext="http://api.direct.yandex.com/v5/adextensiontypes"
+                  name="AdExtensions"
+                  targetNamespace="http://api.direct.yandex.com/v5/adextensions">
+    <wsdl:types>
+        <xsd:schema targetNamespace="http://api.direct.yandex.com/v5/adextensions">
+            <xsd:import namespace="http://api.direct.yandex.com/v5/general" schemaLocation="https://soap.direct.yandex.ru/v5/general.xsd"/>
+            <xsd:import namespace="http://api.direct.yandex.com/v5/adextensiontypes" schemaLocation="https://soap.direct.yandex.ru/v5/adextensiontypes.xsd"/>
+            <xsd:simpleType name="AdExtensionFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="Id"/>
+                    <xsd:enumeration value="Type"/>
+                    <xsd:enumeration value="State"/>
+                    <xsd:enumeration value="Status"/>
+                    <xsd:enumeration value="StatusClarification"/>
+                    <xsd:enumeration value="Associated"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="CalloutFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="CalloutText"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:complexType name="AdExtensionGetItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ext:AdExtensionBase">
+                        <xsd:sequence>
+                            <xsd:element name="Id" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                            <xsd:element name="Associated" type="general:YesNoEnum" minOccurs="0" maxOccurs="1"/>
+                        </xsd:sequence>
+                    </xsd:extension>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="AdExtensionAddItem">
+                <xsd:sequence>
+                    <xsd:element name="Callout" type="ext:Callout" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="AdExtensionsSelectionCriteria">
+                <xsd:sequence>
+                    <xsd:element name="Ids" type="xsd:long" minOccurs="0" maxOccurs="unbounded"/>
+                    <xsd:element name="Types" type="ext:AdExtensionTypeEnum" minOccurs="0" maxOccurs="unbounded"/>
+                    <xsd:element name="States" type="ext:AdExtensionStateSelectionEnum" minOccurs="0" maxOccurs="unbounded"/>
+                    <xsd:element name="Statuses" type="general:ExtensionStatusSelectionEnum" minOccurs="0" maxOccurs="unbounded"/>
+                    <xsd:element name="ModifiedSince" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:element name="GetRequest">
+                <xsd:complexType>
+                    <xsd:complexContent>
+                        <xsd:extension base="general:GetRequestGeneral">
+                            <xsd:sequence>
+                                <xsd:element name="SelectionCriteria" type="ns:AdExtensionsSelectionCriteria" minOccurs="1" maxOccurs="1"/>
+                                <xsd:element name="FieldNames" type="ns:AdExtensionFieldEnum" minOccurs="1" maxOccurs="unbounded"/>
+                                <xsd:element name="CalloutFieldNames" type="ns:CalloutFieldEnum" minOccurs="0" maxOccurs="unbounded"/>
+                            </xsd:sequence>
+                        </xsd:extension>
+                    </xsd:complexContent>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="GetResponse">
+                <xsd:complexType>
+                    <xsd:complexContent>
+                        <xsd:extension base="general:GetResponseGeneral">
+                            <xsd:sequence>
+                                <xsd:element name="AdExtensions" type="ns:AdExtensionGetItem" minOccurs="0" maxOccurs="unbounded"/>
+                            </xsd:sequence>
+                        </xsd:extension>
+                    </xsd:complexContent>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="AddRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="AdExtensions" type="ns:AdExtensionAddItem" minOccurs="1" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="AddResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="AddResults" type="general:ActionResult" minOccurs="0" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="DeleteRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="SelectionCriteria" type="general:IdsCriteria" minOccurs="1" maxOccurs="1"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="DeleteResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="DeleteResults" type="general:ActionResult" minOccurs="0" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+        </xsd:schema>
+    </wsdl:types>
+    <wsdl:message name="ApiException">
+        <wsdl:part element="general:FaultResponse" name="faultMessage"/>
+    </wsdl:message>
+    <wsdl:message name="AddOperationRequest">
+        <wsdl:part name="parameters" element="ns:AddRequest"/>
+    </wsdl:message>
+    <wsdl:message name="AddOperationResponse">
+        <wsdl:part name="parameters" element="ns:AddResponse"/>
+    </wsdl:message>
+    <wsdl:message name="GetOperationRequest">
+        <wsdl:part name="parameters" element="ns:GetRequest"/>
+    </wsdl:message>
+    <wsdl:message name="GetOperationResponse">
+        <wsdl:part name="parameters" element="ns:GetResponse"/>
+    </wsdl:message>
+    <wsdl:message name="DeleteOperationRequest">
+        <wsdl:part name="parameters" element="ns:DeleteRequest"/>
+    </wsdl:message>
+    <wsdl:message name="DeleteOperationResponse">
+        <wsdl:part name="parameters" element="ns:DeleteResponse"/>
+    </wsdl:message>
+    <wsdl:portType name="AdExtensionsPort">
+        <wsdl:operation name="add">
+            <wsdl:input name="addRequest" message="ns:AddOperationRequest"/>
+            <wsdl:output message="ns:AddOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="get">
+            <wsdl:input name="getRequest" message="ns:GetOperationRequest"/>
+            <wsdl:output message="ns:GetOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="delete">
+            <wsdl:input name="deleteRequest" message="ns:DeleteOperationRequest"/>
+            <wsdl:output message="ns:DeleteOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+    </wsdl:portType>
+    <wsdl:binding name="AdExtensionsSOAP" type="ns:AdExtensionsPort">
+        <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="add">
+            <soap:operation soapAction="https://api.direct.yandex.com/v5/adextensions/add"/>
+            <wsdl:input name="addRequest">
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="get">
+            <soap:operation soapAction="https://api.direct.yandex.com/v5/adextensions/get"/>
+            <wsdl:input name="getRequest">
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="delete">
+            <soap:operation soapAction="https://api.direct.yandex.com/v5/adextensions/delete"/>
+            <wsdl:input name="deleteRequest">
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+    </wsdl:binding>
+    <wsdl:service name="AdExtensions">
+        <wsdl:port name="AdExtensionsSOAP" binding="ns:AdExtensionsSOAP">
+            <soap:address location="https://soap.direct.yandex.ru/v5/adextensions/"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>

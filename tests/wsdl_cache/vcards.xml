@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+                  xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+                  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                  xmlns:general="http://api.direct.yandex.com/v5/general"
+                  xmlns:ns="http://api.direct.yandex.com/v5/vcards"
+                  name="VCards"
+                  targetNamespace="http://api.direct.yandex.com/v5/vcards">
+    <wsdl:types>
+        <xsd:schema targetNamespace="http://api.direct.yandex.com/v5/vcards">
+            <xsd:import namespace="http://api.direct.yandex.com/v5/general" schemaLocation="https://soap.direct.yandex.ru/v5/general.xsd" />
+            <xsd:simpleType name="VCardFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="Id"/>
+                    <xsd:enumeration value="Country"/>
+                    <xsd:enumeration value="City"/>
+                    <xsd:enumeration value="Street"/>
+                    <xsd:enumeration value="House"/>
+                    <xsd:enumeration value="Building"/>
+                    <xsd:enumeration value="Apartment"/>
+                    <xsd:enumeration value="CompanyName"/>
+                    <xsd:enumeration value="ExtraMessage"/>
+                    <xsd:enumeration value="ContactPerson"/>
+                    <xsd:enumeration value="ContactEmail"/>
+                    <xsd:enumeration value="MetroStationId"/>
+                    <xsd:enumeration value="CampaignId"/>
+                    <xsd:enumeration value="Ogrn"/>
+                    <xsd:enumeration value="WorkTime"/>
+                    <xsd:enumeration value="InstantMessenger"/>
+                    <xsd:enumeration value="Phone"/>
+                    <xsd:enumeration value="PointOnMap"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:complexType name="Phone">
+                <xsd:sequence>
+                    <xsd:element name="CountryCode" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="CityCode" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="PhoneNumber" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Extension" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="InstantMessenger">
+                <xsd:sequence>
+                    <xsd:element name="MessengerClient" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="MessengerLogin" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="MapPoint">
+                <xsd:sequence>
+                    <xsd:element name="X" type="xsd:decimal" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Y" type="xsd:decimal" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="X1" type="xsd:decimal" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Y1" type="xsd:decimal" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="X2" type="xsd:decimal" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Y2" type="xsd:decimal" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="VCardAddItem">
+                <xsd:sequence>
+                    <xsd:element name="CampaignId" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Country" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="City" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="CompanyName" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="WorkTime" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Phone" type="ns:Phone" minOccurs="1" maxOccurs="1"/>
+                    <!-- This part of parameters is not required for creation -->
+                    <xsd:element name="Street" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="House" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Building" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Apartment" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="InstantMessenger" type="ns:InstantMessenger" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="ExtraMessage" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="ContactEmail" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Ogrn" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="MetroStationId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="PointOnMap" type="ns:MapPoint" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="ContactPerson" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="VCardGetItem">
+                <xsd:sequence>
+                    <xsd:element name="Id" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="CampaignId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Country" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="City" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="WorkTime" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Phone" type="ns:Phone" minOccurs="0" maxOccurs="1"/>
+                    <!-- This part of parameters can be nillable and has no data-->
+                    <xsd:element name="Street" type="xsd:string" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="House" type="xsd:string" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="Building" type="xsd:string" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="Apartment" type="xsd:string" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="InstantMessenger" type="ns:InstantMessenger" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="CompanyName" type="xsd:string" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="ExtraMessage" type="xsd:string" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="ContactEmail" type="xsd:string" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="Ogrn" type="xsd:string" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="MetroStationId" type="xsd:long" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="PointOnMap" type="ns:MapPoint" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="ContactPerson" type="xsd:string" minOccurs="0" maxOccurs="1" nillable="true"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:element name="GetRequest">
+                <xsd:complexType>
+                    <xsd:complexContent>
+                        <xsd:extension base="general:GetRequestGeneral">
+                            <xsd:sequence>
+                                <xsd:element name="SelectionCriteria" type="general:IdsCriteria" minOccurs="0" maxOccurs="1"/>
+                                <xsd:element name="FieldNames" type="ns:VCardFieldEnum" minOccurs="1" maxOccurs="unbounded"/>
+                            </xsd:sequence>
+                        </xsd:extension>
+                    </xsd:complexContent>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="GetResponse">
+                <xsd:complexType>
+                    <xsd:complexContent>
+                        <xsd:extension base="general:GetResponseGeneral">
+                            <xsd:sequence>
+                                <xsd:element name="VCards" type="ns:VCardGetItem" minOccurs="0" maxOccurs="unbounded"/>
+                            </xsd:sequence>
+                        </xsd:extension>
+                    </xsd:complexContent>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="AddRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="VCards" type="ns:VCardAddItem" minOccurs="1" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="AddResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="AddResults" type="general:ActionResult" minOccurs="0" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="DeleteRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="SelectionCriteria" type="general:IdsCriteria" minOccurs="1" maxOccurs="1"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="DeleteResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="DeleteResults" type="general:ActionResult" minOccurs="0" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+        </xsd:schema>
+    </wsdl:types>
+    <wsdl:message name="ApiException">
+        <wsdl:part element="general:FaultResponse" name="faultMessage"/>
+    </wsdl:message>
+    <wsdl:message name="AddOperationRequest">
+        <wsdl:part name="parameters" element="ns:AddRequest"/>
+    </wsdl:message>
+    <wsdl:message name="AddOperationResponse">
+        <wsdl:part name="parameters" element="ns:AddResponse"/>
+    </wsdl:message>
+    <wsdl:message name="GetOperationRequest">
+        <wsdl:part name="parameters" element="ns:GetRequest"/>
+    </wsdl:message>
+    <wsdl:message name="GetOperationResponse">
+        <wsdl:part name="parameters" element="ns:GetResponse"/>
+    </wsdl:message>
+    <wsdl:message name="DeleteOperationRequest">
+        <wsdl:part name="parameters" element="ns:DeleteRequest"/>
+    </wsdl:message>
+    <wsdl:message name="DeleteOperationResponse">
+        <wsdl:part name="parameters" element="ns:DeleteResponse"/>
+    </wsdl:message>
+    <wsdl:portType name="VCardsPort">
+        <wsdl:operation name="add">
+            <wsdl:input name="addRequest" message="ns:AddOperationRequest"/>
+            <wsdl:output message="ns:AddOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="get">
+            <wsdl:input name="getRequest" message="ns:GetOperationRequest"/>
+            <wsdl:output message="ns:GetOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="delete">
+            <wsdl:input name="deleteRequest" message="ns:DeleteOperationRequest"/>
+            <wsdl:output message="ns:DeleteOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+    </wsdl:portType>
+    <wsdl:binding name="VCardsSOAP" type="ns:VCardsPort">
+        <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="add">
+            <soap:operation soapAction="https://api.direct.yandex.com/v5/vcards/add"/>
+            <wsdl:input name="addRequest">
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="get">
+            <soap:operation soapAction="https://api.direct.yandex.com/v5/vcards/get"/>
+            <wsdl:input name="getRequest">
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="delete">
+            <soap:operation soapAction="https://api.direct.yandex.com/v5/vcards/delete"/>
+            <wsdl:input name="deleteRequest">
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+    </wsdl:binding>
+    <wsdl:service name="VCards">
+        <wsdl:port name="VCardsSOAP" binding="ns:VCardsSOAP">
+            <soap:address location="https://soap.direct.yandex.ru/v5/vcards"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>

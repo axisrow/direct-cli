@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<wsdl:definitions xmlns:ns="http://api.direct.yandex.com/v5/keywordsresearch"
+                  xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+                  xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+                  xmlns:general="http://api.direct.yandex.com/v5/general"
+                  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                  name="KeywordsResearch"
+                  targetNamespace="http://api.direct.yandex.com/v5/keywordsresearch">
+    <wsdl:types>
+        <xsd:schema targetNamespace="http://api.direct.yandex.com/v5/keywordsresearch">
+            <xsd:import namespace="http://api.direct.yandex.com/v5/general" schemaLocation="https://soap.direct.yandex.ru/v5/general.xsd" />
+            <xsd:simpleType name="HasSearchVolumeFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="Keyword" />
+                    <xsd:enumeration value="RegionIds" />
+                    <xsd:enumeration value="AllDevices" />
+                    <xsd:enumeration value="MobilePhones" />
+                    <xsd:enumeration value="Tablets" />
+                    <xsd:enumeration value="Desktops" />
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:complexType name="HasSearchVolumeItem">
+                <xsd:sequence>
+                    <xsd:element name="Keyword" type="xsd:string" minOccurs="0" maxOccurs="1" />
+                    <xsd:element name="RegionIds" type="xsd:long" minOccurs="0" maxOccurs="unbounded" />
+                    <xsd:element name="AllDevices" type="general:YesNoEnum" minOccurs="0" maxOccurs="1" />
+                    <xsd:element name="MobilePhones" type="general:YesNoEnum" minOccurs="0" maxOccurs="1" />
+                    <xsd:element name="Tablets" type="general:YesNoEnum" minOccurs="0" maxOccurs="1" />
+                    <xsd:element name="Desktops" type="general:YesNoEnum" minOccurs="0" maxOccurs="1" />
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="HasSearchVolumeSelectionCriteria">
+                <xsd:sequence>
+                    <xsd:element name="RegionIds" type="xsd:long" minOccurs="1" maxOccurs="unbounded" />
+                    <xsd:element name="Keywords" type="xsd:string" minOccurs="1" maxOccurs="unbounded" />
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:element name="HasSearchVolumeRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="SelectionCriteria" type="ns:HasSearchVolumeSelectionCriteria"
+                                     minOccurs="1" maxOccurs="1" />
+                        <xsd:element name="FieldNames" type="ns:HasSearchVolumeFieldEnum"
+                                     minOccurs="1" maxOccurs="unbounded" />
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="HasSearchVolumeResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="HasSearchVolumeResults" type="ns:HasSearchVolumeItem"
+                                     minOccurs="1" maxOccurs="unbounded" />
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:complexType name="DeduplicateRequestItem">
+                <xsd:sequence>
+                    <xsd:element name="Id" type="xsd:long" minOccurs="0" maxOccurs="1" />
+                    <xsd:element name="Keyword" type="xsd:string" minOccurs="1" maxOccurs="1" />
+                    <xsd:element name="Weight" type="xsd:long" minOccurs="0" maxOccurs="1" />
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:simpleType name="DeduplicateOperationEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="MERGE_DUPLICATES" />
+                    <xsd:enumeration value="ELIMINATE_OVERLAPPING" />
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:element name="DeduplicateRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="Operation" type="ns:DeduplicateOperationEnum"
+                                     minOccurs="0" maxOccurs="unbounded" />
+                        <xsd:element name="Keywords" type="ns:DeduplicateRequestItem"
+                                     minOccurs="1" maxOccurs="unbounded" />
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:complexType name="DeduplicateErrorItem">
+                <xsd:complexContent>
+                    <xsd:extension base="general:ActionResult">
+                        <xsd:sequence>
+                            <xsd:element name="Position" type="xsd:long" minOccurs="1" maxOccurs="1" />
+                        </xsd:sequence>
+                    </xsd:extension>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="DeduplicateResponseAddItem">
+                <xsd:sequence>
+                    <xsd:element name="Keyword" type="xsd:string" minOccurs="1" maxOccurs="1" />
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="DeduplicateResponseUpdateItem">
+                <xsd:sequence>
+                    <xsd:element name="Id" type="xsd:long" minOccurs="1" maxOccurs="1" />
+                    <xsd:element name="Keyword" type="xsd:string" minOccurs="1" maxOccurs="1" />
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:element name="DeduplicateResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="Add" type="ns:DeduplicateResponseAddItem"
+                                     minOccurs="0" maxOccurs="unbounded" />
+                        <xsd:element name="Update" type="ns:DeduplicateResponseUpdateItem"
+                                     minOccurs="0" maxOccurs="unbounded" />
+                        <xsd:element name="Delete" type="general:IdsCriteria"
+                                     minOccurs="0" maxOccurs="1" />
+                        <xsd:element name="Failure" type="ns:DeduplicateErrorItem"
+                                     minOccurs="0" maxOccurs="unbounded" />
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+        </xsd:schema>
+    </wsdl:types>
+    <wsdl:message name="ApiException">
+        <wsdl:part element="general:FaultResponse" name="faultMessage" />
+    </wsdl:message>
+    <wsdl:message name="HasSearchVolumeOperationRequest">
+        <wsdl:part element="ns:HasSearchVolumeRequest" name="parameters" />
+    </wsdl:message>
+    <wsdl:message name="HasSearchVolumeOperationResponse">
+        <wsdl:part element="ns:HasSearchVolumeResponse" name="parameters" />
+    </wsdl:message>
+    <wsdl:message name="DeduplicateOperationRequest">
+        <wsdl:part element="ns:DeduplicateRequest" name="parameters" />
+    </wsdl:message>
+    <wsdl:message name="DeduplicateOperationResponse">
+        <wsdl:part element="ns:DeduplicateResponse" name="parameters" />
+    </wsdl:message>
+    <wsdl:portType name="KeywordsResearchPort">
+        <wsdl:operation name="hasSearchVolume">
+            <wsdl:input message="ns:HasSearchVolumeOperationRequest" />
+            <wsdl:output message="ns:HasSearchVolumeOperationResponse" />
+            <wsdl:fault  message="ns:ApiException" name="ApiException" />
+        </wsdl:operation>
+        <wsdl:operation name="deduplicate">
+            <wsdl:input message="ns:DeduplicateOperationRequest" />
+            <wsdl:output message="ns:DeduplicateOperationResponse" />
+            <wsdl:fault  message="ns:ApiException" name="ApiException" />
+        </wsdl:operation>
+    </wsdl:portType>
+    <wsdl:binding name="KeywordsResearchSOAP" type="ns:KeywordsResearchPort">
+        <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http" />
+        <wsdl:operation name="hasSearchVolume">
+            <soap:operation soapAction="https://api.direct.yandex.com/v5/keywordsresearch/hasSearchVolume" />
+            <wsdl:input>
+                <soap:body use="literal" />
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal" />
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal" />
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="deduplicate">
+            <soap:operation soapAction="https://api.direct.yandex.com/v5/keywordsresearch/deduplicate" />
+            <wsdl:input>
+                <soap:body use="literal" />
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal" />
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal" />
+            </wsdl:fault>
+        </wsdl:operation>
+    </wsdl:binding>
+    <wsdl:service name="KeywordsResearch">
+        <wsdl:port binding="ns:KeywordsResearchSOAP" name="KeywordsResearchSOAP">
+            <soap:address location="https://soap.direct.yandex.ru/v5/keywordsresearch" />
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>

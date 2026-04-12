@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+                  xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+                  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                  xmlns:general="http://api.direct.yandex.com/v5/general"
+                  xmlns:ns="http://api.direct.yandex.com/v5/turbopages"
+                  name="TurboPages"
+                  targetNamespace="http://api.direct.yandex.com/v5/turbopages">
+    <wsdl:types>
+        <xsd:schema targetNamespace="http://api.direct.yandex.com/v5/turbopages">
+            <xsd:import namespace="http://api.direct.yandex.com/v5/general" schemaLocation="https://soap.direct.yandex.ru/v5/general.xsd"/>
+            <xsd:simpleType name="TurboPageFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="Id"/>
+                    <xsd:enumeration value="Name"/>
+                    <xsd:enumeration value="Href"/>
+                    <xsd:enumeration value="PreviewHref"/>
+                    <xsd:enumeration value="TurboSiteHref"/>
+                    <xsd:enumeration value="BoundWithHref"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:complexType name="TurboPagesSelectionCriteria">
+                <xsd:sequence>
+                    <xsd:element name="Ids" type="xsd:long" minOccurs="0" maxOccurs="unbounded"/>
+                    <xsd:element name="BoundWithHrefs" type="xsd:string" minOccurs="0"
+                                 maxOccurs="unbounded"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="TurboPageGetItem">
+                <xsd:sequence>
+                    <xsd:element name="Id" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Name" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Href" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="PreviewHref" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="TurboSiteHref" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="BoundWithHref" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:element name="GetRequest">
+                <xsd:complexType>
+                    <xsd:complexContent>
+                        <xsd:extension base="general:GetRequestGeneral">
+                            <xsd:sequence>
+                                <xsd:element name="SelectionCriteria" type="ns:TurboPagesSelectionCriteria" minOccurs="0"
+                                             maxOccurs="1"/>
+                                <xsd:element name="FieldNames" type="ns:TurboPageFieldEnum" minOccurs="1"
+                                             maxOccurs="unbounded"/>
+                            </xsd:sequence>
+                        </xsd:extension>
+                    </xsd:complexContent>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="GetResponse">
+                <xsd:complexType>
+                    <xsd:complexContent>
+                        <xsd:extension base="general:GetResponseGeneral">
+                            <xsd:sequence>
+                                <xsd:element name="TurboPages" type="ns:TurboPageGetItem" minOccurs="0"
+                                             maxOccurs="unbounded"/>
+                            </xsd:sequence>
+                        </xsd:extension>
+                    </xsd:complexContent>
+                </xsd:complexType>
+            </xsd:element>
+        </xsd:schema>
+    </wsdl:types>
+    <wsdl:message name="ApiException">
+        <wsdl:part element="general:FaultResponse" name="faultMessage"/>
+    </wsdl:message>
+    <wsdl:message name="GetOperationRequest">
+        <wsdl:part name="parameters" element="ns:GetRequest"/>
+    </wsdl:message>
+    <wsdl:message name="GetOperationResponse">
+        <wsdl:part name="parameters" element="ns:GetResponse"/>
+    </wsdl:message>
+    <wsdl:portType name="TurboPagesPort">
+        <wsdl:operation name="get">
+            <wsdl:input name="getRequest" message="ns:GetOperationRequest"/>
+            <wsdl:output message="ns:GetOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+    </wsdl:portType>
+    <wsdl:binding name="TurboPagesSOAP" type="ns:TurboPagesPort">
+        <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="get">
+            <soap:operation soapAction="https://api.direct.yandex.com/v5/turbopages/get"/>
+            <wsdl:input name="getRequest">
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+    </wsdl:binding>
+    <wsdl:service name="TurboPages">
+        <wsdl:port name="TurboPagesSOAP" binding="ns:TurboPagesSOAP">
+            <soap:address location="https://soap.direct.yandex.ru/v5/turbopages/"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>

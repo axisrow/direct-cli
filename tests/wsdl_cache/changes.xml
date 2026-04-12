@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<wsdl:definitions xmlns:ns="http://api.direct.yandex.com/v5/changes"
+                  xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+                  xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+                  xmlns:general="http://api.direct.yandex.com/v5/general"
+                  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                  name="Changes" targetNamespace="http://api.direct.yandex.com/v5/changes">
+    <wsdl:types>
+        <xsd:schema targetNamespace="http://api.direct.yandex.com/v5/changes">
+            <xsd:import namespace="http://api.direct.yandex.com/v5/general" schemaLocation="https://soap.direct.yandex.ru/v5/general.xsd" />
+            <xsd:element name="CheckDictionariesRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="Timestamp" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="CheckDictionariesResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="TimeZonesChanged" type="general:YesNoEnum" minOccurs="0" maxOccurs="1"/>
+                        <xsd:element name="RegionsChanged" type="general:YesNoEnum" minOccurs="0" maxOccurs="1"/>
+                        <xsd:element name="InterestsChanged" type="general:YesNoEnum" minOccurs="0" maxOccurs="1"/>
+                        <xsd:element name="Timestamp" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="CheckCampaignsRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="Timestamp" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:complexType name="CampaignChangesItem">
+                <xsd:sequence>
+                    <xsd:element name="CampaignId" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="ChangesIn" type="ns:CampaignChangesInEnum" minOccurs="1" maxOccurs="unbounded"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:simpleType name="CampaignChangesInEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="SELF" />
+                    <xsd:enumeration value="CHILDREN" />
+                    <xsd:enumeration value="STAT" />
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:element name="CheckCampaignsResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="Campaigns" minOccurs="0" maxOccurs="unbounded" type="ns:CampaignChangesItem"/>
+                        <xsd:element name="Timestamp" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="CheckRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="CampaignIds" type="xsd:long" minOccurs="0" maxOccurs="unbounded"/>
+                        <xsd:element name="AdGroupIds" type="xsd:long" minOccurs="0" maxOccurs="unbounded"/>
+                        <xsd:element name="AdIds" type="xsd:long" minOccurs="0" maxOccurs="unbounded"/>
+                        <xsd:element name="Timestamp" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                        <xsd:element name="FieldNames" minOccurs="1" maxOccurs="unbounded" type="ns:CheckFieldEnum"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:simpleType name="CheckFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="CampaignIds" />
+                    <xsd:enumeration value="AdGroupIds" />
+                    <xsd:enumeration value="AdIds" />
+                    <xsd:enumeration value="CampaignsStat" />
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:element name="CheckResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="Modified" type="ns:CheckResponseModified" minOccurs="0" maxOccurs="1"/>
+                        <xsd:element name="NotFound" type="ns:CheckResponseIds" minOccurs="0" maxOccurs="1"/>
+                        <xsd:element name="Unprocessed" type="ns:CheckResponseIds" minOccurs="0" maxOccurs="1"/>
+                        <xsd:element name="Timestamp" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:complexType name="CheckResponseModified">
+                <xsd:sequence>
+                    <xsd:element name="CampaignIds" type="xsd:long" minOccurs="0" maxOccurs="unbounded"/>
+                    <xsd:element name="AdGroupIds" type="xsd:long" minOccurs="0" maxOccurs="unbounded"/>
+                    <xsd:element name="AdIds" type="xsd:long" minOccurs="0" maxOccurs="unbounded"/>
+                    <xsd:element name="CampaignsStat" type="ns:CampaignStatItem" minOccurs="0" maxOccurs="unbounded"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="CampaignStatItem">
+                <xsd:sequence>
+                    <xsd:element name="CampaignId" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="BorderDate" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="CheckResponseIds">
+                <xsd:sequence>
+                    <xsd:element name="CampaignIds" type="xsd:long" minOccurs="0" maxOccurs="unbounded"/>
+                    <xsd:element name="AdGroupIds" type="xsd:long" minOccurs="0" maxOccurs="unbounded"/>
+                    <xsd:element name="AdIds" type="xsd:long" minOccurs="0" maxOccurs="unbounded"/>
+                </xsd:sequence>
+            </xsd:complexType>
+        </xsd:schema>
+    </wsdl:types>
+    <wsdl:message name="ApiException">
+        <wsdl:part element="general:FaultResponse" name="faultMessage"/>
+    </wsdl:message>
+    <wsdl:message name="CheckDictionariesOperationRequest">
+        <wsdl:part element="ns:CheckDictionariesRequest" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="CheckDictionariesOperationResponse">
+        <wsdl:part element="ns:CheckDictionariesResponse" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="CheckCampaignsOperationRequest">
+        <wsdl:part element="ns:CheckCampaignsRequest" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="CheckCampaignsOperationResponse">
+        <wsdl:part element="ns:CheckCampaignsResponse" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="CheckOperationRequest">
+        <wsdl:part element="ns:CheckRequest" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="CheckOperationResponse">
+        <wsdl:part element="ns:CheckResponse" name="parameters"/>
+    </wsdl:message>
+    <wsdl:portType name="ChangesPort">
+        <wsdl:operation name="checkDictionaries">
+            <wsdl:input  message="ns:CheckDictionariesOperationRequest"/>
+            <wsdl:output message="ns:CheckDictionariesOperationResponse"/>
+            <wsdl:fault  message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="checkCampaigns">
+            <wsdl:input  message="ns:CheckCampaignsOperationRequest"/>
+            <wsdl:output message="ns:CheckCampaignsOperationResponse"/>
+            <wsdl:fault  message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="check">
+            <wsdl:input  message="ns:CheckOperationRequest"/>
+            <wsdl:output message="ns:CheckOperationResponse"/>
+            <wsdl:fault  message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+    </wsdl:portType>
+    <wsdl:binding name="ChangesSOAP" type="ns:ChangesPort">
+        <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="checkDictionaries">
+            <soap:operation soapAction="https://api.direct.yandex.com/v5/changes/checkDictionaries"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="checkCampaigns">
+            <soap:operation soapAction="https://api.direct.yandex.com/v5/changes/checkCampaigns"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="check">
+            <soap:operation soapAction="https://api.direct.yandex.com/v5/changes/check"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+    </wsdl:binding>
+    <wsdl:service name="Changes">
+        <wsdl:port binding="ns:ChangesSOAP" name="ChangesSOAP">
+            <soap:address location="https://soap.direct.yandex.ru/v5/changes"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>

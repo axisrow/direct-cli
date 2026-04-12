@@ -1,0 +1,262 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<wsdl:definitions xmlns:ns="http://api.direct.yandex.com/v5/bids"
+                  xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+                  xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+                  xmlns:general="http://api.direct.yandex.com/v5/general"
+                  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                  name="Bids"
+                  targetNamespace="http://api.direct.yandex.com/v5/bids">
+    <wsdl:types>
+        <xsd:schema targetNamespace="http://api.direct.yandex.com/v5/bids">
+            <xsd:import namespace="http://api.direct.yandex.com/v5/general" schemaLocation="https://soap.direct.yandex.ru/v5/general.xsd" />
+            <xsd:simpleType name="BidFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="KeywordId" />
+                    <xsd:enumeration value="AdGroupId" />
+                    <xsd:enumeration value="CampaignId" />
+                    <xsd:enumeration value="Bid" />
+                    <xsd:enumeration value="AutotargetingSearchBidIsAuto" />
+                    <xsd:enumeration value="ContextBid" />
+                    <xsd:enumeration value="StrategyPriority" />
+                    <xsd:enumeration value="CompetitorsBids" />
+                    <xsd:enumeration value="SearchPrices" />
+                    <xsd:enumeration value="ContextCoverage" />
+                    <xsd:enumeration value="MinSearchPrice" />
+                    <xsd:enumeration value="CurrentSearchPrice" />
+                    <xsd:enumeration value="AuctionBids" />
+                    <xsd:enumeration value="ServingStatus" />
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="CalculateByEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="VALUE"/>
+                    <xsd:enumeration value="DIFF"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:complexType name="BidsSelectionCriteria">
+                <xsd:sequence>
+                    <xsd:element name="CampaignIds" type="xsd:long" minOccurs="0" maxOccurs="unbounded"/>
+                    <xsd:element name="AdGroupIds" type="xsd:long" minOccurs="0" maxOccurs="unbounded"/>
+                    <xsd:element name="KeywordIds" type="xsd:long" minOccurs="0" maxOccurs="unbounded"/>
+                    <xsd:element name="ServingStatuses" type="general:ServingStatusEnum" minOccurs="0" maxOccurs="unbounded"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="SearchPrices">
+                <xsd:sequence>
+                    <xsd:element name="Position" type="general:PositionEnum" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Price" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="ContextCoverage">
+                <xsd:sequence>
+                    <xsd:element name="Items" type="ns:ContextCoverageItem" minOccurs="0" maxOccurs="unbounded"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="ContextCoverageItem">
+                <xsd:sequence>
+                    <xsd:element name="Probability" type="xsd:decimal" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Price" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="BidActionResult">
+                <xsd:complexContent>
+                    <xsd:extension base="general:ActionResultBase">
+                        <xsd:sequence>
+                            <xsd:element name="CampaignId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                            <xsd:element name="AdGroupId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                            <xsd:element name="KeywordId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                        </xsd:sequence>
+                    </xsd:extension>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="BidGetItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:BidActionResult">
+                        <xsd:sequence>
+                            <xsd:element name="Bid" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                            <xsd:element name="AutotargetingSearchBidIsAuto" type="general:YesNoEnum" minOccurs="0" maxOccurs="1"/>
+                            <xsd:element name="ContextBid" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                            <xsd:element name="StrategyPriority" type="general:PriorityEnum" minOccurs="0" maxOccurs="1" nillable="true"/>
+                            <xsd:element name="CompetitorsBids" type="xsd:long" minOccurs="0" maxOccurs="unbounded" />
+                            <xsd:element name="SearchPrices" type="ns:SearchPrices" minOccurs="0" maxOccurs="unbounded" />
+                            <xsd:element name="ContextCoverage" type="ns:ContextCoverage" minOccurs="0" maxOccurs="1" nillable="true"/>
+                            <xsd:element name="MinSearchPrice" type="xsd:long" minOccurs="0" maxOccurs="1" nillable="true"/>
+                            <xsd:element name="CurrentSearchPrice" type="xsd:long" minOccurs="0" maxOccurs="1" nillable="true"/>
+                            <xsd:element name="AuctionBids" type="ns:AuctionBidItem" minOccurs="0" maxOccurs="unbounded" />
+                            <xsd:element name="ServingStatus" type="general:ServingStatusEnum" minOccurs="0" maxOccurs="1"/>
+                        </xsd:sequence>
+                    </xsd:extension>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="AuctionBidItem">
+                <xsd:sequence>
+                    <xsd:element name="Position" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Bid" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Price" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="BidSetItem">
+                <xsd:sequence>
+                    <xsd:element name="CampaignId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AdGroupId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="KeywordId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Bid" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="ContextBid" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AutotargetingSearchBidIsAuto" type="general:YesNoEnum" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="StrategyPriority" type="general:PriorityEnum" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="BidSetAutoItem">
+                <xsd:sequence>
+                    <xsd:element name="CampaignId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AdGroupId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="KeywordId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="MaxBid" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Position" type="general:PositionEnum" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="IncreasePercent" type="xsd:int" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="CalculateBy" type="ns:CalculateByEnum" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="ContextCoverage" type="xsd:int" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Scope" type="general:ScopeEnum" minOccurs="1" maxOccurs="unbounded"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:element name="GetRequest">
+                <xsd:complexType>
+                    <xsd:complexContent>
+                        <xsd:extension base="general:GetRequestGeneral">
+                            <xsd:sequence>
+                                <xsd:element name="SelectionCriteria" type="ns:BidsSelectionCriteria" minOccurs="1"
+                                             maxOccurs="1"/>
+                                <xsd:element name="FieldNames" type="ns:BidFieldEnum" minOccurs="1" maxOccurs="unbounded"/>
+                            </xsd:sequence>
+                        </xsd:extension>
+                    </xsd:complexContent>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="GetResponse">
+                <xsd:complexType>
+                    <xsd:complexContent>
+                        <xsd:extension base="general:GetResponseGeneral">
+                            <xsd:sequence>
+                                <xsd:element name="Bids" type="ns:BidGetItem" minOccurs="0" maxOccurs="unbounded"/>
+                            </xsd:sequence>
+                        </xsd:extension>
+                    </xsd:complexContent>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="SetRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="Bids" type="ns:BidSetItem"
+                                     minOccurs="1" maxOccurs="unbounded" nillable="false"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="SetResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="SetResults" type="ns:BidActionResult"
+                                     minOccurs="0" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="SetAutoRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="Bids" type="ns:BidSetAutoItem"
+                                     minOccurs="1" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="SetAutoResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="SetAutoResults" type="ns:BidActionResult"
+                                     minOccurs="0" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+        </xsd:schema>
+    </wsdl:types>
+    <wsdl:message name="ApiException">
+        <wsdl:part element="general:FaultResponse" name="faultMessage"/>
+    </wsdl:message>
+    <wsdl:message name="GetOperationRequest">
+        <wsdl:part element="ns:GetRequest" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="GetOperationResponse">
+        <wsdl:part element="ns:GetResponse" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="SetOperationRequest">
+        <wsdl:part element="ns:SetRequest" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="SetOperationResponse">
+        <wsdl:part element="ns:SetResponse" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="SetAutoOperationRequest">
+        <wsdl:part element="ns:SetAutoRequest" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="SetAutoOperationResponse">
+        <wsdl:part element="ns:SetAutoResponse" name="parameters"/>
+    </wsdl:message>
+    <wsdl:portType name="BidsPort">
+        <wsdl:operation name="get">
+            <wsdl:input  message="ns:GetOperationRequest"/>
+            <wsdl:output message="ns:GetOperationResponse"/>
+            <wsdl:fault  message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="set">
+            <wsdl:input  message="ns:SetOperationRequest"/>
+            <wsdl:output message="ns:SetOperationResponse"/>
+            <wsdl:fault  message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="setAuto">
+            <wsdl:input  message="ns:SetAutoOperationRequest"/>
+            <wsdl:output message="ns:SetAutoOperationResponse"/>
+            <wsdl:fault  message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+    </wsdl:portType>
+    <wsdl:binding name="BidsSOAP" type="ns:BidsPort">
+        <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="get">
+            <soap:operation soapAction="https://api.direct.yandex.com/v5/bids/get"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="set">
+            <soap:operation soapAction="https://api.direct.yandex.com/v5/bids/set"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="setAuto">
+            <soap:operation soapAction="https://api.direct.yandex.com/v5/bids/setAuto"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+    </wsdl:binding>
+    <wsdl:service name="Bids">
+        <wsdl:port binding="ns:BidsSOAP" name="BidsSOAP">
+            <soap:address location="https://soap.direct.yandex.ru/v5/bids"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>

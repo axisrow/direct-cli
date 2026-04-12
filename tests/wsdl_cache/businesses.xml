@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+                  xmlns:ns="http://api.direct.yandex.com/v5/businesses"
+                  xmlns:general="http://api.direct.yandex.com/v5/general"
+                  xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+                  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                  name="Businesses"
+                  targetNamespace="http://api.direct.yandex.com/v5/businesses">
+    <wsdl:types>
+        <xsd:schema targetNamespace="http://api.direct.yandex.com/v5/businesses">
+            <xsd:import namespace="http://api.direct.yandex.com/v5/general" schemaLocation="https://soap.direct.yandex.ru/v5/general.xsd"/>
+            <xsd:simpleType name="BusinessFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="Id"/>
+                    <xsd:enumeration value="Name"/>
+                    <xsd:enumeration value="Address"/>
+                    <xsd:enumeration value="Phone"/>
+                    <xsd:enumeration value="ProfileUrl"/>
+                    <xsd:enumeration value="InternalUrl"/>
+                    <xsd:enumeration value="IsPublished"/>
+                    <xsd:enumeration value="MergedIds"/>
+                    <xsd:enumeration value="Rubric"/>
+                    <xsd:enumeration value="Urls"/>
+                    <xsd:enumeration value="HasOffice"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:complexType name="BusinessGetItem">
+                <xsd:sequence>
+                    <xsd:element name="Id" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Name" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Address" type="xsd:string" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="Phone" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="ProfileUrl" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="InternalUrl" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="IsPublished" type="general:YesNoEnum" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="MergedIds" type="general:ArrayOfLong" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="Rubric" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Urls" type="general:ArrayOfString" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="HasOffice" type="general:YesNoEnum" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:element name="GetRequest">
+                <xsd:complexType>
+                    <xsd:complexContent>
+                        <xsd:extension base="general:GetRequestGeneral">
+                            <xsd:sequence>
+                                <xsd:element name="SelectionCriteria" type="general:IdsCriteria" minOccurs="0"
+                                             maxOccurs="1"/>
+                                <xsd:element name="FieldNames" type="ns:BusinessFieldEnum" minOccurs="1"
+                                             maxOccurs="unbounded"/>
+                            </xsd:sequence>
+                        </xsd:extension>
+                    </xsd:complexContent>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="GetResponse">
+                <xsd:complexType>
+                    <xsd:complexContent>
+                        <xsd:extension base="general:GetResponseGeneral">
+                            <xsd:sequence>
+                                <xsd:element name="Businesses" type="ns:BusinessGetItem" minOccurs="0"
+                                             maxOccurs="unbounded"/>
+                            </xsd:sequence>
+                        </xsd:extension>
+                    </xsd:complexContent>
+                </xsd:complexType>
+            </xsd:element>
+        </xsd:schema>
+    </wsdl:types>
+    <wsdl:message name="GetOperationRequest">
+        <wsdl:part name="parameters" element="ns:GetRequest"/>
+    </wsdl:message>
+    <wsdl:message name="GetOperationResponse">
+        <wsdl:part name="parameters" element="ns:GetResponse"/>
+    </wsdl:message>
+    <wsdl:message name="ApiException">
+        <wsdl:part name="faultMessage" element="general:FaultResponse"/>
+    </wsdl:message>
+    <wsdl:portType name="BusinessesPort">
+        <wsdl:operation name="get">
+            <wsdl:input message="ns:GetOperationRequest" name="getRequest"/>
+            <wsdl:output message="ns:GetOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+    </wsdl:portType>
+    <wsdl:binding name="BusinessesSOAP" type="ns:BusinessesPort">
+        <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="get">
+            <soap:operation soapAction="http://api.direct.yandex.com/v5/businesses/get"/>
+            <wsdl:input name="getRequest">
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+    </wsdl:binding>
+    <wsdl:service name="Businesses">
+        <wsdl:port binding="ns:BusinessesSOAP" name="BusinessesSOAP">
+            <soap:address location="https://soap.direct.yandex.ru/v5/businesses"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>
