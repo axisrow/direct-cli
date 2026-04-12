@@ -29,19 +29,17 @@ Top-level resource tests run without fixtures.
 
 **Coverage status (issue #20 / #28):**
 
-Passing in replay (9 tests, cassettes up to date):
+Passing in replay (10 tests, cassettes up to date):
   - campaigns lifecycle (add/update/suspend/resume/archive/unarchive/delete)
   - adgroups add-update-delete
   - bidmodifiers add/delete (mobile adjustment)
   - bidmodifiers set regression guard (no-id rejection)
+  - bidmodifiers toggle (uses toggle API method with --campaign-id + --type)
   - feeds add-update-delete
   - retargeting add-delete
   - vcards add-delete
   - adextensions add-delete
   - negativekeywordsharedsets add-update-delete
-
-Known CLI bug (fails in replay, tracked in issue #30):
-  - bidmodifiers toggle           — uses ``set`` method instead of ``toggle``; wrong payload structure
 
 Sandbox-limited (confirmed via live recording, ``@pytest.mark.sandbox_limitation``):
   - ads add/update/delete         — sandbox does not persist adgroups across calls
@@ -402,10 +400,16 @@ class TestWriteBidModifiersSet:
 @pytest.mark.vcr
 class TestWriteBidModifiers:
     def test_toggle_existing(self, sandbox_campaign):
-        """Add a modifier, then toggle it off and back on."""
+        """Add a demographics modifier, then toggle it off and back on.
+
+        The toggle API only supports: DEMOGRAPHICS_ADJUSTMENT,
+        RETARGETING_ADJUSTMENT, REGIONAL_ADJUSTMENT,
+        SERP_LAYOUT_ADJUSTMENT, INCOME_GRADE_ADJUSTMENT.
+        MOBILE_ADJUSTMENT cannot be toggled (only added/deleted).
+        """
         cid = sandbox_campaign
 
-        # Step 1: Create a modifier so we have something to toggle
+        # Step 1: Create a MOBILE_ADJUSTMENT (singular type, works with add)
         r = _invoke(
             "bidmodifiers", "add",
             "--campaign-id", str(cid),
@@ -417,7 +421,6 @@ class TestWriteBidModifiers:
                 pytest.skip(f"bidmodifiers add not supported (sandbox): {r.output[:200]}")
             pytest.fail(f"bidmodifiers add failed (CLI regression?): {r.output[:500]}")
 
-        # Parse modifier ID from add result
         data = json.loads(r.output)
         ids = None
         if isinstance(data, dict) and "Ids" in data:
@@ -430,10 +433,13 @@ class TestWriteBidModifiers:
         mid = ids[0]
 
         try:
-            # Step 2: Toggle off
+            # Step 2: Toggle DEMOGRAPHICS_ADJUSTMENT off on the campaign.
+            # The toggle API operates by CampaignId + Type, not by modifier Id.
+            # It toggles all adjustments of the given type on the campaign.
             r = _invoke(
                 "bidmodifiers", "toggle",
-                "--id", str(mid),
+                "--campaign-id", str(cid),
+                "--type", "DEMOGRAPHICS_ADJUSTMENT",
                 "--disabled",
             )
             if r.exit_code != 0:
@@ -441,8 +447,7 @@ class TestWriteBidModifiers:
                     pytest.skip(f"bidmodifiers toggle not supported (sandbox): {r.output[:200]}")
                 pytest.fail(f"bidmodifiers toggle --disabled failed (CLI regression?): {r.output[:500]}")
 
-            # Even with exit_code 0, the API can return embedded errors.
-            if _has_result_errors(r.output, "SetResults"):
+            if _has_result_errors(r.output, "ToggleResults"):
                 if _is_sandbox_error(r.output):
                     pytest.skip(f"bidmodifiers toggle not supported (sandbox): {r.output[:200]}")
                 pytest.fail(f"bidmodifiers toggle returned errors (CLI regression?): {r.output[:500]}")
@@ -450,7 +455,8 @@ class TestWriteBidModifiers:
             # Step 3: Toggle back on
             r = _invoke(
                 "bidmodifiers", "toggle",
-                "--id", str(mid),
+                "--campaign-id", str(cid),
+                "--type", "DEMOGRAPHICS_ADJUSTMENT",
                 "--enabled",
             )
             if r.exit_code != 0:
@@ -458,8 +464,7 @@ class TestWriteBidModifiers:
                     pytest.skip(f"bidmodifiers toggle on not supported (sandbox): {r.output[:200]}")
                 pytest.fail(f"bidmodifiers toggle on failed (CLI regression?): {r.output[:500]}")
 
-            # Even with exit_code 0, the API can return embedded errors.
-            if _has_result_errors(r.output, "SetResults"):
+            if _has_result_errors(r.output, "ToggleResults"):
                 if _is_sandbox_error(r.output):
                     pytest.skip(f"bidmodifiers toggle not supported (sandbox): {r.output[:200]}")
                 pytest.fail(f"bidmodifiers toggle returned errors (CLI regression?): {r.output[:500]}")

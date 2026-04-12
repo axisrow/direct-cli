@@ -669,16 +669,26 @@ def test_bidmodifiers_set_without_any_key_errors():
 
 
 def test_bidmodifiers_toggle_enable():
-    body = _dry_run("bidmodifiers", "toggle", "--id", "777", "--enabled")
-    assert body["method"] == "set"
-    modifier = body["params"]["BidModifiers"][0]
-    assert modifier == {"Id": 777, "Enabled": "YES"}
+    body = _dry_run(
+        "bidmodifiers", "toggle",
+        "--campaign-id", "777",
+        "--type", "DEMOGRAPHICS_ADJUSTMENT",
+        "--enabled",
+    )
+    assert body["method"] == "toggle"
+    item = body["params"]["BidModifierToggleItems"][0]
+    assert item == {"CampaignId": 777, "Type": "DEMOGRAPHICS_ADJUSTMENT", "Enabled": "YES"}
 
 
 def test_bidmodifiers_toggle_disable():
-    body = _dry_run("bidmodifiers", "toggle", "--id", "777", "--disabled")
-    modifier = body["params"]["BidModifiers"][0]
-    assert modifier["Enabled"] == "NO"
+    body = _dry_run(
+        "bidmodifiers", "toggle",
+        "--campaign-id", "777",
+        "--type", "DEMOGRAPHICS_ADJUSTMENT",
+        "--disabled",
+    )
+    item = body["params"]["BidModifierToggleItems"][0]
+    assert item == {"CampaignId": 777, "Type": "DEMOGRAPHICS_ADJUSTMENT", "Enabled": "NO"}
 
 
 def test_bidmodifiers_add_mobile_uses_nested_object():
