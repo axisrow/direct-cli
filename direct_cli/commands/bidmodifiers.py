@@ -143,7 +143,13 @@ def add(ctx, campaign_id, adgroup_id, modifier_type, value, extra_json, dry_run)
         nested_key = _BIDMODIFIER_TYPE_TO_NESTED[modifier_type.upper()]
         nested = {"BidModifier": value}
         if extra_json:
-            nested.update(json.loads(extra_json))
+            extra = json.loads(extra_json)
+            if not isinstance(extra, dict):
+                raise click.UsageError(
+                    "--json must be a JSON object (dict), "
+                    f"got {type(extra).__name__}"
+                )
+            nested.update(extra)
 
         modifier_data = {nested_key: nested}
         if campaign_id is not None:
