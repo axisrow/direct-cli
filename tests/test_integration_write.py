@@ -29,17 +29,19 @@ Top-level resource tests run without fixtures.
 
 **Coverage status (issue #20 / #28):**
 
-Passing in replay (10 tests, cassettes up to date):
+Passing in replay (9 tests, cassettes up to date):
   - campaigns lifecycle (add/update/suspend/resume/archive/unarchive/delete)
   - adgroups add-update-delete
   - bidmodifiers add/delete (mobile adjustment)
   - bidmodifiers set regression guard (no-id rejection)
-  - bidmodifiers toggle (add → toggle disabled/enabled)
   - feeds add-update-delete
   - retargeting add-delete
   - vcards add-delete
   - adextensions add-delete
   - negativekeywordsharedsets add-update-delete
+
+Known CLI bug (fails in replay, tracked in issue #30):
+  - bidmodifiers toggle           — uses ``set`` method instead of ``toggle``; wrong payload structure
 
 Sandbox-limited (confirmed via live recording, ``@pytest.mark.sandbox_limitation``):
   - ads add/update/delete         — sandbox does not persist adgroups across calls
@@ -50,7 +52,7 @@ Sandbox-limited (confirmed via live recording, ``@pytest.mark.sandbox_limitation
   - adimages add/delete           — sandbox rejects valid 450x450 PNG uploads
   - dynamicads add/update/delete  — sandbox does not support DYNAMIC_TEXT_CAMPAIGN creation
   - audiencetargets add/delete    — sandbox does not persist adgroup/retargeting list
-  - smartadtargets                — requires cassette re-record (SmartCampaign strategy fixed)
+  - smartadtargets add            — sandbox does not support SMART_CAMPAIGN + SMART_AD_GROUP chain
 
 Part of axisrow/yandex-direct-mcp-plugin#61 (Etap 3).
 """
