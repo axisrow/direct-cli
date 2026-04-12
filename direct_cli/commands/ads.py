@@ -107,19 +107,46 @@ def get(
 
 @ads.command()
 @click.option("--adgroup-id", required=True, type=int, help="Ad group ID")
-@click.option("--type", "ad_type", default="TEXT_AD", help="Ad type")
-@click.option("--title", help="Ad title")
-@click.option("--text", help="Ad text")
-@click.option("--href", help="Ad URL")
+@click.option(
+    "--type",
+    "ad_type",
+    default="TEXT_AD",
+    help=(
+        "Ad type (case-insensitive). The convenience flags "
+        "--title/--text/--href only build a payload for TEXT_AD. "
+        "For other ad types (e.g. TEXT_IMAGE_AD, MOBILE_APP_AD) "
+        "pass the nested object via --json."
+    ),
+)
+@click.option("--title", help="Ad title (TEXT_AD only)")
+@click.option("--text", help="Ad text (TEXT_AD only)")
+@click.option("--href", help="Ad URL (TEXT_AD only)")
 @click.option("--json", "extra_json", help="Additional JSON parameters")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def add(ctx, adgroup_id, ad_type, title, text, href, extra_json, dry_run):
     """Add new ad"""
     try:
+        # Normalize --type so common typos (``text``, ``text_ad``,
+        # ``text-ad``) behave the same as ``TEXT_AD``.  Without this
+        # normalization, the previous implementation silently dropped
+        # --title/--text/--href for any value other than the exact
+        # string ``"TEXT_AD"`` and the API responded with the very
+        # misleading ``5008 None of the required fields were sent``
+        # error — see axisrow/direct-cli#21.
+        ad_type_norm = (ad_type or "TEXT_AD").upper().replace("-", "_")
+        has_convenience_flags = any([title, text, href])
+
+        if ad_type_norm != "TEXT_AD" and has_convenience_flags:
+            raise click.UsageError(
+                f"--type {ad_type} does not support --title/--text/--href "
+                f"(these convenience flags only build a TEXT_AD payload). "
+                f"Pass the nested ad object via --json, or use --type TEXT_AD."
+            )
+
         ad_data = {"AdGroupId": adgroup_id}
 
-        if ad_type == "TEXT_AD":
+        if ad_type_norm == "TEXT_AD" and has_convenience_flags:
             ad_data["TextAd"] = {}
             if title:
                 ad_data["TextAd"]["Title"] = title
@@ -147,6 +174,8 @@ def add(ctx, adgroup_id, ad_type, title, text, href, extra_json, dry_run):
         result = client.ads().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()

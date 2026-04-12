@@ -100,6 +100,116 @@ def test_ads_add_text_ad_payload_omits_type():
     }
 
 
+def test_ads_add_default_type_builds_textad():
+    """Without --type, convenience flags still build a TextAd payload."""
+    body = _dry_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--title",
+        "T",
+        "--text",
+        "Some text",
+        "--href",
+        "https://example.com",
+    )
+    ad = body["params"]["Ads"][0]
+    assert "Type" not in ad
+    assert ad["TextAd"] == {
+        "Title": "T",
+        "Text": "Some text",
+        "Href": "https://example.com",
+    }
+
+
+def test_ads_add_case_insensitive_type():
+    """--type is case-insensitive: ``text_ad`` and ``text-ad`` work too.
+
+    Regression guard for axisrow/direct-cli#21 — before the fix, only the
+    exact string ``TEXT_AD`` built a TextAd; any other value silently
+    dropped --title/--text/--href.
+    """
+    for variant in ("text_ad", "Text_Ad", "text-ad", "TEXT-AD"):
+        body = _dry_run(
+            "ads",
+            "add",
+            "--adgroup-id",
+            "1",
+            "--type",
+            variant,
+            "--title",
+            "T",
+            "--text",
+            "Body",
+            "--href",
+            "https://example.com",
+        )
+        ad = body["params"]["Ads"][0]
+        assert ad.get("TextAd") == {
+            "Title": "T",
+            "Text": "Body",
+            "Href": "https://example.com",
+        }, f"--type {variant!r} failed to build TextAd"
+
+
+def test_ads_add_unknown_type_with_title_errors():
+    """Non-TEXT_AD --type plus convenience flags fails loudly.
+
+    Regression guard for axisrow/direct-cli#21 — before the fix, passing
+    e.g. ``--type text`` (lowercase typo) silently dropped
+    --title/--text/--href, the API then responded with a very confusing
+    ``5008 None of the required fields were sent`` error, and users
+    debugged the payload instead of the flag.
+    """
+    result = CliRunner().invoke(
+        cli,
+        [
+            "ads",
+            "add",
+            "--adgroup-id",
+            "1",
+            "--type",
+            "TEXT_IMAGE_AD",
+            "--title",
+            "T",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    combined = (result.output or "") + (
+        str(result.exception) if result.exception else ""
+    )
+    assert "TEXT_IMAGE_AD" in combined or "--json" in combined or "TEXT_AD" in combined
+
+
+def test_ads_add_unknown_type_with_json_passes():
+    """Non-TEXT_AD --type works when the caller supplies the nested object via --json.
+
+    This keeps the escape hatch open for building e.g. TextImageAd,
+    MobileAppAd, etc., without the CLI having to know their schemas.
+    """
+    body = _dry_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "55",
+        "--type",
+        "TEXT_IMAGE_AD",
+        "--json",
+        json.dumps(
+            {"TextImageAd": {"AdImageHash": "abc", "Href": "https://example.com"}}
+        ),
+    )
+    ad = body["params"]["Ads"][0]
+    assert "Type" not in ad
+    assert ad["AdGroupId"] == 55
+    assert ad["TextImageAd"] == {
+        "AdImageHash": "abc",
+        "Href": "https://example.com",
+    }
+
+
 def test_ads_update_payload_status_only():
     body = _dry_run("ads", "update", "--id", "999", "--status", "SUSPENDED")
     assert body["method"] == "update"
@@ -347,10 +457,14 @@ def test_bidmodifiers_toggle_disable():
 
 def test_bidmodifiers_add_mobile_uses_nested_object():
     body = _dry_run(
-        "bidmodifiers", "add",
-        "--campaign-id", "1",
-        "--type", "MOBILE_ADJUSTMENT",
-        "--value", "120",
+        "bidmodifiers",
+        "add",
+        "--campaign-id",
+        "1",
+        "--type",
+        "MOBILE_ADJUSTMENT",
+        "--value",
+        "120",
     )
     assert body["method"] == "add"
     modifier = body["params"]["BidModifiers"][0]
