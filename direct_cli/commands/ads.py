@@ -127,7 +127,7 @@ def get(
 def add(ctx, adgroup_id, ad_type, title, text, href, extra_json, dry_run):
     """Add new ad"""
     try:
-        # Normalize --type so common typos (``text``, ``text_ad``,
+        # Normalize --type so case variants and hyphen forms (``text_ad``,
         # ``text-ad``) behave the same as ``TEXT_AD``.  Without this
         # normalization, the previous implementation silently dropped
         # --title/--text/--href for any value other than the exact

@@ -162,25 +162,28 @@ def test_ads_add_unknown_type_with_title_errors():
     ``5008 None of the required fields were sent`` error, and users
     debugged the payload instead of the flag.
     """
-    result = CliRunner().invoke(
-        cli,
-        [
-            "ads",
-            "add",
-            "--adgroup-id",
-            "1",
-            "--type",
-            "TEXT_IMAGE_AD",
-            "--title",
-            "T",
-            "--dry-run",
-        ],
-    )
-    assert result.exit_code != 0
-    combined = (result.output or "") + (
-        str(result.exception) if result.exception else ""
-    )
-    assert "TEXT_IMAGE_AD" in combined or "--json" in combined or "TEXT_AD" in combined
+    for bad_type in ("TEXT_IMAGE_AD", "text"):
+        result = CliRunner().invoke(
+            cli,
+            [
+                "ads",
+                "add",
+                "--adgroup-id",
+                "1",
+                "--type",
+                bad_type,
+                "--title",
+                "T",
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code != 0, f"--type {bad_type!r} should have errored"
+        combined = (result.output or "") + (
+            str(result.exception) if result.exception else ""
+        )
+        assert (
+            bad_type in combined or "--json" in combined or "TEXT_AD" in combined
+        ), f"--type {bad_type!r} error message missing expected content"
 
 
 def test_ads_add_unknown_type_with_json_passes():
