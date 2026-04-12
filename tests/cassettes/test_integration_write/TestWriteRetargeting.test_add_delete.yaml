@@ -32,29 +32,29 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/retargetinglists
   response:
     body:
-      string: '{"result":{"AddResults":[{"Id":5251}]}}'
+      string: '{"result":{"AddResults":[{"Id":5258}]}}'
     headers:
       Content-Length:
       - '39'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sat, 11 Apr 2026 16:09:59 GMT
+      - Sun, 12 Apr 2026 10:43:43 GMT
       RequestId:
-      - '952360424103178809'
+      - '5595842946038740013'
       Set-Cookie:
       - REDACTED
       Units:
-      - 12/113822/160000
+      - 12/149237/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:952360424103178809,cmd:direct.api5/retargetinglists.add,appcode:0
+      - reqid:5595842946038740013,cmd:direct.api5/retargetinglists.add,appcode:0
     status:
       code: 200
       message: OK
 - request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[5251]}}}'
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[5258]}}}'
     headers:
       Accept:
       - '*/*'
@@ -94,17 +94,17 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sat, 11 Apr 2026 16:10:01 GMT
+      - Sun, 12 Apr 2026 10:43:45 GMT
       RequestId:
-      - '1615846603505193771'
+      - '7172693712038995182'
       Set-Cookie:
       - REDACTED
       Units:
-      - 30/113792/160000
+      - 30/149207/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:1615846603505193771,cmd:direct.api5/retargetinglists.delete,appcode:0
+      - reqid:7172693712038995182,cmd:direct.api5/retargetinglists.delete,appcode:0
     status:
       code: 200
       message: OK

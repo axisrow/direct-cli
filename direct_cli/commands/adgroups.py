@@ -114,13 +114,11 @@ def add(ctx, name, campaign_id, group_type, region_ids, extra_json, dry_run):
         # Refs: https://yandex.ru/dev/direct/doc/ref-v5/adgroups/add.html
         group_type_norm = (group_type or "TEXT_AD_GROUP").upper().replace("-", "_")
 
-        if group_type_norm != "TEXT_AD_GROUP":
+        if group_type_norm != "TEXT_AD_GROUP" and not extra_json:
             raise click.UsageError(
-                f"--type {group_type} is not supported by this command; "
-                f"convenience flags only build a TEXT_AD_GROUP payload. "
-                f"Pass the matching nested object "
-                f"(MobileAppAdGroup / DynamicTextAdGroup / SmartAdGroup / "
-                f"...) via --json, or use --type TEXT_AD_GROUP."
+                f"--type {group_type} requires --json with the "
+                f"ad-group-type-specific nested object "
+                f"(e.g. DynamicTextAdGroup, SmartAdGroup, MobileAppAdGroup)."
             )
 
         adgroup_data = {"Name": name, "CampaignId": campaign_id}

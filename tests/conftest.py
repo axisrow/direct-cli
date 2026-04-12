@@ -216,10 +216,22 @@ def unique_suffix() -> str:
 _SANDBOX_ERROR_PATTERNS = (
     "Object not found",
     "Operation not supported",  # sandbox returns this for features unavailable in test env
+    "Not supported",            # sandbox returns this for unsupported campaign types
+    "не поддерживается",        # Russian variant of the above
     "Campaign not found",
     "Ad group not found",
     "not accessible",
 )
+
+# Named extra_patterns for per-resource sandbox quirks.
+# Import these in tests instead of repeating inline tuples.
+_CAMPAIGN_STATUS_PATTERNS = ("DRAFT", "has not been saved", "is draft", "Invalid object status")
+_ARCHIVE_PATTERNS = ("Cannot archive", "Cannot unarchive", "Invalid object status")
+_KEYWORD_PATTERNS = ("Keyword not found",)
+_SITELINK_PATTERNS = ("temporarily unavailable",)
+_IMAGE_PATTERNS = ("Invalid format",)
+_SMART_AD_PATTERNS = ("Неподходящий тип группы объявлений", "SelectionCriteria filtration")
+_RETARGETING_PATTERNS = ("required field", "is omitted", "Invalid request", "Not specified")
 
 
 def _is_sandbox_error(output: str, extra_patterns: tuple = ()) -> bool:
@@ -349,15 +361,12 @@ def sandbox_retargeting_list(unique_suffix):
         "--json", json.dumps({
             "Rules": [{
                 "Operator": "ALL",
-                "Arguments": [{"ExternalId": 12345}],
+                "Arguments": [{"ExternalId": 12345, "MembershipLifeSpan": 30}],
             }]
         }),
     )
     if result.exit_code != 0:
-        if _is_sandbox_error(
-            result.output,
-            extra_patterns=("required field", "is omitted", "Invalid request"),
-        ):
+        if _is_sandbox_error(result.output, extra_patterns=_RETARGETING_PATTERNS):
             pytest.skip(f"retargeting add not supported (sandbox): {result.output[:200]}")
         pytest.fail(f"retargeting add failed (CLI regression?): {result.output[:500]}")
 
@@ -370,10 +379,7 @@ def sandbox_retargeting_list(unique_suffix):
         first = items[0] if items else {}
     if "Errors" in first and first["Errors"]:
         err_text = str(first["Errors"])
-        if _is_sandbox_error(
-            err_text,
-            extra_patterns=("required field", "is omitted", "Not specified"),
-        ):
+        if _is_sandbox_error(err_text, extra_patterns=_RETARGETING_PATTERNS):
             pytest.skip(f"retargeting add rejected (sandbox): {first['Errors']}")
         pytest.fail(f"API rejected retargeting add (CLI bug?): {first['Errors']}")
     if "Id" not in first:
@@ -399,3 +405,98 @@ def sandbox_feed(unique_suffix):
     yield feed_id
 
     _safe_delete("feeds", "delete", "--id", str(feed_id))
+
+
+@pytest.fixture
+def sandbox_dynamic_adgroup(unique_suffix):
+    """Create a DYNAMIC_TEXT_CAMPAIGN + DYNAMIC_TEXT_AD_GROUP, yield adgroup ID.
+
+    DynamicTextAdTargets (dynamicads) require DYNAMIC_TEXT_AD_GROUP type.
+    The generic sandbox_adgroup fixture creates TEXT_AD_GROUP, which is wrong.
+    """
+    # Step 1: create DYNAMIC_TEXT_CAMPAIGN
+    campaign_result = _fixture_invoke(
+        "campaigns", "add",
+        "--name", f"claude-dynamic-{unique_suffix}",
+        "--start-date", tomorrow(),
+        "--type", "DYNAMIC_TEXT_CAMPAIGN",
+        "--json", json.dumps({
+            "DynamicTextCampaign": {
+                "BiddingStrategy": {
+                    "Search": {"BiddingStrategyType": "HIGHEST_POSITION"},
+                    "Network": {"BiddingStrategyType": "SERVING_OFF"},
+                },
+                "Settings": [{"Option": "ADD_METRICA_TAG", "Value": "NO"}],
+            },
+        }),
+        label="campaigns add (dynamic)",
+    )
+    campaign_id = _fixture_parse(campaign_result)
+
+    # Step 2: create DYNAMIC_TEXT_AD_GROUP
+    adgroup_result = _fixture_invoke(
+        "adgroups", "add",
+        "--name", "dynamic-test-group",
+        "--campaign-id", str(campaign_id),
+        "--region-ids", "1,225",
+        "--type", "DYNAMIC_TEXT_AD_GROUP",
+        "--json", json.dumps({
+            "DynamicTextAdGroup": {"DomainUrl": "example.com"},
+        }),
+        label="adgroups add (dynamic)",
+    )
+    adgroup_id = _fixture_parse(adgroup_result)
+
+    yield adgroup_id
+
+    _safe_delete("adgroups", "delete", "--id", str(adgroup_id))
+    _safe_delete("campaigns", "delete", "--id", str(campaign_id))
+
+
+@pytest.fixture
+def sandbox_smart_adgroup(unique_suffix, sandbox_feed):
+    """Create a SMART_CAMPAIGN + SMART_AD_GROUP, yield adgroup ID.
+
+    SmartAdTargets require SMART_AD_GROUP type.
+    SmartAdGroup requires FeedId (per API docs).
+    The generic sandbox_adgroup fixture creates TEXT_AD_GROUP, which is wrong.
+    """
+    # Step 1: create SMART_CAMPAIGN
+    campaign_result = _fixture_invoke(
+        "campaigns", "add",
+        "--name", f"claude-smart-{unique_suffix}",
+        "--start-date", tomorrow(),
+        "--type", "SMART_CAMPAIGN",
+        "--json", json.dumps({
+            "SmartCampaign": {
+                "BiddingStrategy": {
+                    "Search": {"BiddingStrategyType": "SERVING_OFF"},
+                    "Network": {
+                        "BiddingStrategyType": "AVERAGE_CPC_PER_FILTER",
+                        "AverageCpcPerFilter": {"FilterAverageCpc": 1000000},
+                    },
+                },
+            },
+        }),
+        label="campaigns add (smart)",
+    )
+    campaign_id = _fixture_parse(campaign_result)
+
+    # Step 2: create SMART_AD_GROUP (FeedId is required per API docs)
+    adgroup_result = _fixture_invoke(
+        "adgroups", "add",
+        "--name", "smart-test-group",
+        "--campaign-id", str(campaign_id),
+        "--region-ids", "1,225",
+        "--type", "SMART_AD_GROUP",
+        "--json", json.dumps({
+            "SmartAdGroup": {"FeedId": sandbox_feed},
+        }),
+        label="adgroups add (smart)",
+    )
+    adgroup_id = _fixture_parse(adgroup_result)
+
+    yield adgroup_id
+
+    _safe_delete("adgroups", "delete", "--id", str(adgroup_id))
+    _safe_delete("campaigns", "delete", "--id", str(campaign_id))

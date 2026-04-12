@@ -94,6 +94,7 @@ def test_ads_add_text_ad_payload_omits_type():
     assert "Type" not in ad
     assert ad["AdGroupId"] == 12345
     assert ad["TextAd"] == {
+        "Mobile": "NO",
         "Title": "T",
         "Text": "Some text",
         "Href": "https://example.com",
@@ -117,6 +118,7 @@ def test_ads_add_default_type_builds_textad():
     ad = body["params"]["Ads"][0]
     assert "Type" not in ad
     assert ad["TextAd"] == {
+        "Mobile": "NO",
         "Title": "T",
         "Text": "Some text",
         "Href": "https://example.com",
@@ -147,6 +149,7 @@ def test_ads_add_case_insensitive_type():
         )
         ad = body["params"]["Ads"][0]
         assert ad.get("TextAd") == {
+            "Mobile": "NO",
             "Title": "T",
             "Text": "Body",
             "Href": "https://example.com",
@@ -509,10 +512,10 @@ def test_keywords_update_payload_status_only():
 
 
 def test_bids_set_scales_to_micro_units():
-    body = _dry_run("bids", "set", "--campaign-id", "1", "--bid", "15")
+    body = _dry_run("bids", "set", "--keyword-id", "1", "--bid", "15")
     assert body["method"] == "set"
     bid = body["params"]["Bids"][0]
-    assert bid == {"CampaignId": 1, "Bid": 15_000_000}
+    assert bid == {"KeywordId": 1, "Bid": 15_000_000}
 
 
 def test_keywordbids_set_search_and_network_scales():
@@ -685,7 +688,7 @@ def test_bidmodifiers_toggle_disable():
         "--disabled",
     )
     item = body["params"]["BidModifierToggleItems"][0]
-    assert item["Enabled"] == "NO"
+    assert item == {"CampaignId": 777, "Type": "DEMOGRAPHICS_ADJUSTMENT", "Enabled": "NO"}
 
 
 def test_bidmodifiers_add_mobile_uses_nested_object():

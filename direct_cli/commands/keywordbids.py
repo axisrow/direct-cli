@@ -81,9 +81,9 @@ def set(ctx, keyword_id, search_bid, network_bid, extra_json, dry_run):
     try:
         bid_data = {"KeywordId": keyword_id}
 
-        if search_bid:
+        if search_bid is not None:
             bid_data["SearchBid"] = int(search_bid * 1000000)
-        if network_bid:
+        if network_bid is not None:
             bid_data["NetworkBid"] = int(network_bid * 1000000)
 
         if extra_json:

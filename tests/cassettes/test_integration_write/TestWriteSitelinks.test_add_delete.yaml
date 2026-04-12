@@ -32,7 +32,7 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/sitelinks
   response:
     body:
-      string: '{"error":{"request_id":"2670595652392871608","error_code":1000,"error_detail":"","error_string":"The
+      string: '{"error":{"request_id":"2339749184347197822","error_code":1000,"error_detail":"","error_string":"The
         service is temporarily unavailable"}}'
     headers:
       Content-Length:
@@ -40,17 +40,17 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sat, 11 Apr 2026 14:58:42 GMT
+      - Sun, 12 Apr 2026 10:43:59 GMT
       RequestId:
-      - '2670595652392871608'
+      - '2339749184347197822'
       Set-Cookie:
       - REDACTED
       Units:
-      - 0/114499/160000
+      - 0/149038/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:2670595652392871608,cmd:direct.api5/sitelinks.add,appcode:-1
+      - reqid:2339749184347197822,cmd:direct.api5/sitelinks.add,appcode:-1
     status:
       code: 200
       message: OK

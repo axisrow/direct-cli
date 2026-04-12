@@ -1,6 +1,6 @@
 interactions:
 - request:
-    body: '{"method":"add","params":{"AdImages":[{"Name":"test-image.png","ImageData":"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQABNl7BcQAAAABJRU5ErkJggg=="}]}}'
+    body: '{"method":"add","params":{"AdImages":[{"Name":"test-image.png","ImageData":"iVBORw0KGgoAAAANSUhEUgAAAcIAAAHCCAIAAADzel4SAAAGs0lEQVR4nO3OQQkAQRAEsfFv+s7DfpqCQATkvjsAnu0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGk/KWgbKQyncKAAAAAASUVORK5CYII="}]}}'
     headers:
       Accept:
       - '*/*'
@@ -9,7 +9,7 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '173'
+      - '2765'
       Content-Type:
       - application/json
       User-Agent:
@@ -32,27 +32,27 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/adimages
   response:
     body:
-      string: '{"result":{"AddResults":[{"Errors":[{"Message":"Invalid format","Details":"Invalid
-        image file type, please use the GIF, JPEG or PNG formats","Code":5004}]}]}}'
+      string: '{"result":{"AddResults":[{"Errors":[{"Message":"Invalid format","Code":5004,"Details":"Invalid
+        image file type, please use the GIF, JPEG or PNG formats"}]}]}}'
     headers:
       Content-Security-Policy:
       - default-src 'none'
       Content-Type:
       - application/json; charset=utf-8
       Date:
-      - Sat, 11 Apr 2026 14:55:58 GMT
+      - Sun, 12 Apr 2026 10:44:12 GMT
       RequestId:
-      - '6014529072524179154'
+      - '6179057854623148426'
       Set-Cookie:
       - REDACTED
       Transfer-Encoding:
       - chunked
       Units:
-      - 40/114961/160000
+      - 40/148904/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:6014529072524179154,cmd:direct.json-api/adimages.add,appcode:0
+      - reqid:6179057854623148426,cmd:direct.json-api/adimages.add,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:

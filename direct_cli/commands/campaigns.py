@@ -108,26 +108,22 @@ def add(ctx, name, start_date, campaign_type, budget, end_date, extra_json, dry_
             (campaign_type or "TEXT_CAMPAIGN").upper().replace("-", "_")
         )
 
-        if campaign_type_norm != "TEXT_CAMPAIGN":
-            raise click.UsageError(
-                f"--type {campaign_type} is not supported by this command; "
-                f"convenience flags only build a TEXT_CAMPAIGN payload. "
-                f"Pass the matching nested object "
-                f"(MobileAppCampaign / DynamicTextCampaign / ...) via --json, "
-                f"or use --type TEXT_CAMPAIGN."
-            )
+        campaign_data = {"Name": name, "StartDate": start_date}
 
-        campaign_data = {
-            "Name": name,
-            "StartDate": start_date,
-            "TextCampaign": {
+        if campaign_type_norm == "TEXT_CAMPAIGN":
+            campaign_data["TextCampaign"] = {
                 "BiddingStrategy": {
                     "Search": {"BiddingStrategyType": "HIGHEST_POSITION"},
                     "Network": {"BiddingStrategyType": "SERVING_OFF"},
                 },
                 "Settings": [],
-            },
-        }
+            }
+        elif not extra_json:
+            raise click.UsageError(
+                f"--type {campaign_type} requires --json with the "
+                f"campaign-type-specific nested object "
+                f"(e.g. DynamicTextCampaign, SmartCampaign, MobileAppCampaign)."
+            )
 
         if budget:
             campaign_data["DailyBudget"] = {

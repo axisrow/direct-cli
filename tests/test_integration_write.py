@@ -27,30 +27,30 @@ distinguish sandbox limitations from real CLI regressions.
 Fixtures (campaign → adgroup → ad/keyword) are defined in conftest.py.
 Top-level resource tests run without fixtures.
 
-**Coverage status (issue #20):**
+**Coverage status (issue #20 / #28):**
 
-Covered (10 tests, pass in replay):
+Passing in replay (10 tests, cassettes up to date):
   - campaigns lifecycle (add/update/suspend/resume/archive/unarchive/delete)
   - adgroups add-update-delete
   - bidmodifiers add/delete (mobile adjustment)
   - bidmodifiers set regression guard (no-id rejection)
-  - bidmodifiers toggle (add → toggle disabled/enabled)
+  - bidmodifiers toggle (uses toggle API method with --campaign-id + --type)
   - feeds add-update-delete
   - retargeting add-delete
   - vcards add-delete
   - adextensions add-delete
   - negativekeywordsharedsets add-update-delete
 
-Out of scope — sandbox limitations (9 tests, marked ``@pytest.mark.sandbox_limitation``):
-  - ads add/update/delete         — sandbox does not persist adgroups
-  - keywords add/update/delete    — sandbox does not persist adgroups
-  - keywordbids set               — sandbox does not persist adgroups (no keywords)
-  - bids set                      — sandbox returns "Keyword not found" (no keywords in campaign)
-  - audiencetargets add/delete    — sandbox lacks valid Yandex.Metrica goal IDs
-  - sitelinks add/delete          — sandbox service permanently unavailable
-  - adimages add/delete           — sandbox rejects valid image uploads
-  - dynamicads add/update/delete  — sandbox lacks DYNAMIC_TEXT_AD_GROUP support
-  - smartadtargets add/update/delete — sandbox lacks SMART_AD_GROUP support
+Sandbox-limited (confirmed via live recording, ``@pytest.mark.sandbox_limitation``):
+  - ads add/update/delete         — sandbox does not persist adgroups across calls
+  - keywords add/update/delete    — same
+  - bids set                      — depends on keyword persistence (sandbox_keyword fixture fails)
+  - keywordbids set               — same
+  - sitelinks add/delete          — sandbox service returns error 1000
+  - adimages add/delete           — sandbox rejects valid 450x450 PNG uploads
+  - dynamicads add/update/delete  — sandbox does not support DYNAMIC_TEXT_CAMPAIGN creation
+  - audiencetargets add/delete    — sandbox does not persist adgroup/retargeting list
+  - smartadtargets add            — sandbox does not support SMART_CAMPAIGN + SMART_AD_GROUP chain
 
 Part of axisrow/yandex-direct-mcp-plugin#61 (Etap 3).
 """
@@ -65,6 +65,11 @@ import os
 sys.path.insert(0, os.path.dirname(__file__))
 
 from conftest import (  # noqa: E402
+    _ARCHIVE_PATTERNS,
+    _CAMPAIGN_STATUS_PATTERNS,
+    _IMAGE_PATTERNS,
+    _SITELINK_PATTERNS,
+    _SMART_AD_PATTERNS,
     _has_result_errors,
     _invoke,
     _is_sandbox_error,
@@ -112,9 +117,7 @@ class TestWriteCampaigns:
             r = _invoke("campaigns", "suspend", "--id", str(cid))
             if r.exit_code != 0 or _has_result_errors(r.output, "SuspendResults"):
                 err = r.output
-                if _is_sandbox_error(
-                    err, extra_patterns=("DRAFT", "has not been saved", "is draft", "Invalid object status")
-                ):
+                if _is_sandbox_error(err, extra_patterns=_CAMPAIGN_STATUS_PATTERNS):
                     suspend_ok = False
                 else:
                     pytest.fail(f"campaigns suspend failed (CLI regression?): {err[:500]}")
@@ -124,16 +127,14 @@ class TestWriteCampaigns:
             if suspend_ok:
                 r = _invoke("campaigns", "resume", "--id", str(cid))
                 if r.exit_code != 0 or _has_result_errors(r.output, "ResumeResults"):
-                    if not _is_sandbox_error(r.output, extra_patterns=("Invalid object status",)):
+                    if not _is_sandbox_error(r.output, extra_patterns=_CAMPAIGN_STATUS_PATTERNS):
                         pytest.fail(f"campaigns resume failed (CLI regression?): {r.output[:500]}")
 
             # archive — sandbox DRAFT campaigns return embedded
             # ArchiveResults errors (Code 8303) with HTTP 200.
             r = _invoke("campaigns", "archive", "--id", str(cid))
             if r.exit_code != 0 or _has_result_errors(r.output, "ArchiveResults"):
-                if not _is_sandbox_error(
-                    r.output, extra_patterns=("Cannot archive", "Invalid object status")
-                ):
+                if not _is_sandbox_error(r.output, extra_patterns=_ARCHIVE_PATTERNS):
                     pytest.fail(f"campaigns archive failed (CLI regression?): {r.output[:500]}")
             else:
                 assert_success(r, "campaigns archive")
@@ -141,9 +142,7 @@ class TestWriteCampaigns:
             # unarchive
             r = _invoke("campaigns", "unarchive", "--id", str(cid))
             if r.exit_code != 0 or _has_result_errors(r.output, "UnarchiveResults"):
-                if not _is_sandbox_error(
-                    r.output, extra_patterns=("Cannot unarchive", "Invalid object status")
-                ):
+                if not _is_sandbox_error(r.output, extra_patterns=_ARCHIVE_PATTERNS):
                     pytest.fail(f"campaigns unarchive failed (CLI regression?): {r.output[:500]}")
             else:
                 assert_success(r, "campaigns unarchive")
@@ -178,7 +177,7 @@ class TestWriteAdGroups:
                 "--name", "test-adgroup-renamed",
             )
             if r.exit_code != 0:
-                if _is_sandbox_error(r.output, extra_patterns=("Object not found",)):
+                if _is_sandbox_error(r.output):
                     pytest.skip(f"adgroups not persisted in sandbox: {r.output[:200]}")
                 pytest.fail(f"adgroups update failed (CLI regression?): {r.output[:500]}")
             assert_success(r, "adgroups update")
@@ -279,15 +278,11 @@ class TestWriteKeywords:
 
 @pytest.mark.integration_write
 @pytest.mark.vcr
-@pytest.mark.sandbox_limitation(
-    reason="Sandbox does not persist adgroups/keywords; bids set returns "
-    "'Keyword not found' even when exit_code is 0"
-)
 class TestWriteBids:
-    def test_set_bid(self, sandbox_campaign):
+    def test_set_bid(self, sandbox_keyword):
         r = _invoke(
             "bids", "set",
-            "--campaign-id", str(sandbox_campaign),
+            "--keyword-id", str(sandbox_keyword),
             "--bid", "15",
         )
         if r.exit_code != 0:
@@ -297,8 +292,8 @@ class TestWriteBids:
 
         # Even with exit_code 0, the API can return embedded errors.
         if _has_result_errors(r.output, "SetResults"):
-            if _is_sandbox_error(r.output, extra_patterns=("Keyword not found",)):
-                pytest.skip(f"bids set rejected (sandbox, no keywords): {r.output[:200]}")
+            if _is_sandbox_error(r.output):
+                pytest.skip(f"bids set rejected (sandbox): {r.output[:200]}")
             pytest.fail(f"bids set returned errors (CLI regression?): {r.output[:500]}")
 
 
@@ -539,7 +534,7 @@ class TestWriteRetargeting:
 @pytest.mark.integration_write
 @pytest.mark.vcr
 @pytest.mark.sandbox_limitation(
-    reason="Sandbox lacks valid Yandex.Metrica goal ExternalIds for retargeting rules"
+    reason="Sandbox does not persist adgroup/retargeting list across API calls"
 )
 class TestWriteAudienceTargets:
     def test_add_delete(self, sandbox_adgroup, sandbox_retargeting_list):
@@ -553,7 +548,17 @@ class TestWriteAudienceTargets:
                 pytest.skip(f"audiencetargets add not supported (sandbox): {r.output[:200]}")
             pytest.fail(f"audiencetargets add failed (CLI regression?): {r.output[:500]}")
 
-        first = parse_first_result(r)
+        data = json.loads(r.output)
+        if isinstance(data, list):
+            first = data[0]
+        else:
+            first = data.get("AddResults", [{}])[0]
+        if "Errors" in first and first["Errors"]:
+            err_text = str(first["Errors"])
+            if _is_sandbox_error(err_text):
+                pytest.skip(f"audiencetargets add rejected (sandbox): {first['Errors']}")
+            pytest.fail(f"API rejected audiencetargets add (CLI bug?): {first['Errors']}")
+
         tid = first["Id"]
         r = _invoke("audiencetargets", "delete", "--id", str(tid))
         assert_success(r, "audiencetargets delete")
@@ -575,9 +580,7 @@ class TestWriteSitelinks:
         ])
         r = _invoke("sitelinks", "add", "--links", links)
         if r.exit_code != 0:
-            if _is_sandbox_error(
-                r.output, extra_patterns=("temporarily unavailable",)
-            ):
+            if _is_sandbox_error(r.output, extra_patterns=_SITELINK_PATTERNS):
                 pytest.skip(f"sitelinks add not available (sandbox): {r.output[:200]}")
             pytest.fail(f"sitelinks add failed (CLI regression?): {r.output[:500]}")
 
@@ -663,14 +666,54 @@ class TestWriteAdExtensions:
 )
 class TestWriteAdImages:
     def test_add_delete(self):
+        # 450x450 solid red PNG — meets Yandex Direct minimum image dimension
+        # requirements. The previous 1x1px image was rejected by the API (error 5004).
         png_b64 = (
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQAB"
-            "Nl7BcQAAAABJRU5ErkJggg=="
+            "iVBORw0KGgoAAAANSUhEUgAAAcIAAAHCCAIAAADzel4SAAAGs0lEQVR4nO3OQQkAQRAEsf"
+            "Fv+s7DfpqCQATkvjsAnu0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUD"
+            "afgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8A"
+            "pO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7"
+            "AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQ"
+            "th8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0H"
+            "AGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDa"
+            "fgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8A"
+            "pO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7"
+            "AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQ"
+            "th8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0H"
+            "AGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDa"
+            "fgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8A"
+            "pO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7"
+            "AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQ"
+            "th8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0H"
+            "AGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDa"
+            "fgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8A"
+            "pO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7"
+            "AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQ"
+            "th8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0H"
+            "AGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDa"
+            "fgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8A"
+            "pO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7"
+            "AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQ"
+            "th8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0H"
+            "AGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDa"
+            "fgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8A"
+            "pO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7"
+            "AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQ"
+            "th8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0H"
+            "AGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDa"
+            "fgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8A"
+            "pO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7"
+            "AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQ"
+            "th8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0H"
+            "AGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDa"
+            "fgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8A"
+            "pO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGk/"
+            "KWgbKQyncKAAAAAASUVORK5CYII="
         )
         image = json.dumps({"Name": "test-image.png", "ImageData": png_b64})
         r = _invoke("adimages", "add", "--json", image)
         if r.exit_code != 0:
-            if _is_sandbox_error(r.output, extra_patterns=("Invalid format",)):
+            if _is_sandbox_error(r.output, extra_patterns=_IMAGE_PATTERNS):
                 pytest.skip(f"adimages add not supported (sandbox): {r.output[:200]}")
             pytest.fail(f"adimages add failed (CLI regression?): {r.output[:500]}")
 
@@ -681,7 +724,7 @@ class TestWriteAdImages:
         first = data[0]
         if "Errors" in first and first["Errors"]:
             err_text = str(first["Errors"])
-            if _is_sandbox_error(err_text, extra_patterns=("Invalid format",)):
+            if _is_sandbox_error(err_text, extra_patterns=_IMAGE_PATTERNS):
                 pytest.skip(f"adimages rejected (sandbox): {first['Errors']}")
             pytest.fail(f"API rejected adimages add (CLI bug?): {first['Errors']}")
 
@@ -697,10 +740,10 @@ class TestWriteAdImages:
 @pytest.mark.integration_write
 @pytest.mark.vcr
 @pytest.mark.sandbox_limitation(
-    reason="Sandbox does not support DYNAMIC_TEXT_AD_GROUP type required by dynamic text ad targets"
+    reason="Sandbox does not support creating DYNAMIC_TEXT_CAMPAIGN type"
 )
 class TestWriteDynamicAds:
-    def test_add_update_delete(self, sandbox_adgroup):
+    def test_add_update_delete(self, sandbox_dynamic_adgroup):
         target = {
             "Name": "Test Webpage",
             "Conditions": [
@@ -709,7 +752,7 @@ class TestWriteDynamicAds:
         }
         r = _invoke(
             "dynamicads", "add",
-            "--adgroup-id", str(sandbox_adgroup),
+            "--adgroup-id", str(sandbox_dynamic_adgroup),
             "--json", json.dumps(target),
         )
         if r.exit_code != 0:
@@ -742,9 +785,6 @@ class TestWriteDynamicAds:
 
 @pytest.mark.integration_write
 @pytest.mark.vcr
-@pytest.mark.sandbox_limitation(
-    reason="Sandbox fixture creates TEXT_AD_GROUP; smartadtargets requires SMART_AD_GROUP"
-)
 class TestWriteSmartAdTargets:
     """Live-API regression guard for the Type-field fix from PR #12.
 
@@ -755,29 +795,19 @@ class TestWriteSmartAdTargets:
     the cassette body matcher to fail in replay mode.
     """
 
-    def test_add_update_delete(self, sandbox_adgroup):
+    def test_add_update_delete(self, sandbox_smart_adgroup):
         payload = json.dumps({
             "Name": "regression-smart-target",
             "Audience": "ALL_SEGMENTS",
         })
         r = _invoke(
             "smartadtargets", "add",
-            "--adgroup-id", str(sandbox_adgroup),
+            "--adgroup-id", str(sandbox_smart_adgroup),
             "--type", "VIEWED_PRODUCT",
             "--json", payload,
         )
-        # The generic sandbox_adgroup fixture creates a text ad group; the
-        # API rejects SmartAdTargets on non-DYNAMIC_TEXT_AD ad groups with
-        # "Неподходящий тип группы объявлений" (error 4001).  Treat that
-        # as an expected sandbox limitation — the regression guard for
-        # PR #12 still works because the cassette freezes the exact
-        # request body that the CLI sends.
-        _smart_sandbox_patterns = (
-            "Неподходящий тип группы объявлений",
-            "SelectionCriteria filtration",
-        )
         if r.exit_code != 0:
-            if _is_sandbox_error(r.output, extra_patterns=_smart_sandbox_patterns):
+            if _is_sandbox_error(r.output, extra_patterns=_SMART_AD_PATTERNS):
                 pytest.skip(f"smartadtargets add not supported (sandbox): {r.output[:200]}")
             pytest.fail(f"smartadtargets add failed (CLI regression?): {r.output[:500]}")
 
@@ -785,7 +815,7 @@ class TestWriteSmartAdTargets:
         first = data[0] if isinstance(data, list) else data.get("AddResults", [{}])[0]
         if "Errors" in first and first["Errors"]:
             err_text = str(first["Errors"])
-            if _is_sandbox_error(err_text, extra_patterns=_smart_sandbox_patterns):
+            if _is_sandbox_error(err_text, extra_patterns=_SMART_AD_PATTERNS):
                 pytest.skip(f"smartadtargets add rejected (sandbox): {first['Errors']}")
             pytest.fail(
                 f"API rejected smartadtargets add (potential Type-field "
