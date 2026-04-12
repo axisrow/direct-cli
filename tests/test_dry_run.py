@@ -605,7 +605,9 @@ def test_reports_get_type_is_case_insensitive():
     click.Choice(..., case_sensitive=False) on REPORT_TYPES normalizes
     the input — users can type ``campaign_performance_report``.
     """
-    result = CliRunner().invoke(
+    result = CliRunner(
+        env={"YANDEX_DIRECT_TOKEN": "", "YANDEX_DIRECT_LOGIN": ""},
+    ).invoke(
         cli,
         [
             "reports",
@@ -622,12 +624,12 @@ def test_reports_get_type_is_case_insensitive():
             "Date",
         ],
     )
-    # The command will still fail because it has no --dry-run and no
-    # token is available in the unit-test environment — what we care
-    # about is that Click's parameter parser did NOT reject the value.
-    # The error we expect is from create_client / API, not from
-    # click.Choice.
+    # Force a missing-token failure so this unit test cannot make a real
+    # reports request when a developer/CI environment has credentials set.
+    # What we care about is that Click's parameter parser did NOT reject
+    # the lowercase enum value.
     assert "Invalid value for '--type'" not in result.output
+    assert result.exit_code != 0
 
 
 def test_reports_get_mode_option_removed():
