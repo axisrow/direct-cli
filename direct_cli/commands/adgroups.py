@@ -84,7 +84,18 @@ def get(
 @adgroups.command()
 @click.option("--name", required=True, help="Ad group name")
 @click.option("--campaign-id", required=True, type=int, help="Campaign ID")
-@click.option("--type", "group_type", default="TEXT_AD_GROUP", help="Ad group type")
+@click.option(
+    "--type",
+    "group_type",
+    default="TEXT_AD_GROUP",
+    help=(
+        "Ad group type (case-insensitive). The Yandex Direct API derives "
+        "the group type from nested objects (MobileAppAdGroup / "
+        "DynamicTextAdGroup / SmartAdGroup / ...), not from a top-level "
+        "Type discriminator. Convenience flags only build a TEXT_AD_GROUP; "
+        "for other types pass the matching nested object via --json."
+    ),
+)
 @click.option("--region-ids", help="Comma-separated region IDs")
 @click.option("--json", "extra_json", help="Additional JSON parameters")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
@@ -96,12 +107,23 @@ def add(ctx, name, campaign_id, group_type, region_ids, extra_json, dry_run):
         # AdGroupAddItem — the group type is inferred from the presence of
         # MobileAppAdGroup / DynamicTextAdGroup / SmartAdGroup / etc.
         # sub-objects, exactly like Ads (see fix in commands/ads.py).
-        # The --type CLI option is preserved for backward compatibility but
-        # is no longer forwarded to the API; users wanting non-text group
-        # types must pass the matching sub-object via --json.
+        # Previously --type was accepted but silently discarded — users
+        # passing --type MOBILE_APP_AD_GROUP got a TEXT_AD_GROUP with no
+        # warning.  Now we normalize case and fail loudly if the caller
+        # asks for anything except TEXT_AD_GROUP.  See axisrow/direct-cli#23.
         # Refs: https://yandex.ru/dev/direct/doc/ref-v5/adgroups/add.html
+        group_type_norm = (group_type or "TEXT_AD_GROUP").upper().replace("-", "_")
+
+        if group_type_norm != "TEXT_AD_GROUP":
+            raise click.UsageError(
+                f"--type {group_type} is not supported by this command; "
+                f"convenience flags only build a TEXT_AD_GROUP payload. "
+                f"Pass the matching nested object "
+                f"(MobileAppAdGroup / DynamicTextAdGroup / SmartAdGroup / "
+                f"...) via --json, or use --type TEXT_AD_GROUP."
+            )
+
         adgroup_data = {"Name": name, "CampaignId": campaign_id}
-        _ = group_type  # acknowledged-but-unused
 
         if region_ids:
             adgroup_data["RegionIds"] = parse_ids(region_ids)
@@ -125,6 +147,8 @@ def add(ctx, name, campaign_id, group_type, region_ids, extra_json, dry_run):
         result = client.adgroups().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()

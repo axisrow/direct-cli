@@ -313,6 +313,60 @@ def test_adgroups_add_payload_omits_type():
     assert group["RegionIds"] == [1, 225]
 
 
+def test_adgroups_add_case_insensitive_default_type():
+    """``--type text_ad_group`` (lowercase) still builds a valid payload.
+
+    Regression guard for axisrow/direct-cli#23 — before the fix the CLI
+    accepted --type as a free-form string and silently discarded it,
+    so users typing the lowercase variant got the default text payload
+    without error. Normalization now makes lowercase an explicit
+    supported spelling.
+    """
+    body = _dry_run(
+        "adgroups",
+        "add",
+        "--name",
+        "Group A",
+        "--campaign-id",
+        "111",
+        "--type",
+        "text_ad_group",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert "Type" not in group
+    assert group["CampaignId"] == 111
+
+
+def test_adgroups_add_unsupported_type_errors():
+    """Non-TEXT_AD_GROUP --type fails loudly.
+
+    Regression guard for axisrow/direct-cli#23 — before the fix the CLI
+    silently discarded --type and built a TEXT_AD_GROUP regardless, so
+    a user asking for ``--type MOBILE_APP_AD_GROUP`` got a text ad group
+    with no warning. Now the CLI fails loudly with a UsageError that
+    points at --json as the escape hatch.
+    """
+    result = CliRunner().invoke(
+        cli,
+        [
+            "adgroups",
+            "add",
+            "--name",
+            "Group A",
+            "--campaign-id",
+            "111",
+            "--type",
+            "MOBILE_APP_AD_GROUP",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    combined = (result.output or "") + (
+        str(result.exception) if result.exception else ""
+    )
+    assert "MOBILE_APP_AD_GROUP" in combined or "--json" in combined
+
+
 def test_adgroups_update_payload_name_only():
     body = _dry_run("adgroups", "update", "--id", "222", "--name", "Renamed")
     assert body["method"] == "update"
@@ -364,6 +418,57 @@ def test_campaigns_update_with_budget_scales_to_micro_units():
     campaign = body["params"]["Campaigns"][0]
     assert campaign["Id"] == 555
     assert campaign["DailyBudget"] == {"Amount": 100_000_000, "Mode": "STANDARD"}
+
+
+def test_campaigns_add_case_insensitive_text_type():
+    """``--type text_campaign`` (lowercase/dashed) builds a TextCampaign.
+
+    Regression guard for axisrow/direct-cli#23 — before the fix --type
+    was silently ignored and the CLI always built a TextCampaign
+    anyway, which masked typos like ``--type text_campaing``.
+    """
+    body = _dry_run(
+        "campaigns",
+        "add",
+        "--name",
+        "C-case",
+        "--start-date",
+        "2026-04-10",
+        "--type",
+        "text-campaign",
+    )
+    campaign = body["params"]["Campaigns"][0]
+    assert "TextCampaign" in campaign
+    assert "Type" not in campaign
+
+
+def test_campaigns_add_unsupported_type_errors():
+    """Non-TEXT_CAMPAIGN --type fails loudly.
+
+    Regression guard for axisrow/direct-cli#23 — before the fix the CLI
+    silently dropped --type and always created a TextCampaign, so
+    ``--type MOBILE_APP_CAMPAIGN`` produced a text campaign with no
+    warning. Now it raises a UsageError pointing at --json.
+    """
+    result = CliRunner().invoke(
+        cli,
+        [
+            "campaigns",
+            "add",
+            "--name",
+            "C-bad",
+            "--start-date",
+            "2026-04-10",
+            "--type",
+            "MOBILE_APP_CAMPAIGN",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    combined = (result.output or "") + (
+        str(result.exception) if result.exception else ""
+    )
+    assert "MOBILE_APP_CAMPAIGN" in combined or "--json" in combined
 
 
 # ----------------------------------------------------------------------
@@ -435,17 +540,27 @@ def test_keywordbids_set_search_and_network_scales():
 # ----------------------------------------------------------------------
 
 
-def test_bidmodifiers_set_payload_keeps_modifier_type():
-    # NB: BidModifier ``Type`` (DEMOGRAPHICS / MOBILE / ...) is the
-    # *category* of the modifier and IS a real top-level API field, so
-    # it must be kept — this test does not assert ``Type not in ...``.
+def test_bidmodifiers_set_legacy_payload_keeps_modifier_type():
+    """Legacy (broken-by-design) ``bidmodifiers set`` path.
+
+    The API rejects this shape with ``required field Id is omitted``
+    — see ``TestWriteBidModifiersSet.test_set_without_id_is_rejected``.
+    It is preserved only so that existing integration cassette keeps
+    passing; new callers should use ``--id`` (see test below).
+
+    Regression guard: the enum is the same as ``bidmodifiers add``
+    (``MOBILE_ADJUSTMENT``), not the short form ``MOBILE`` that an
+    older version of this test asserted — the cassette actually
+    sends ``MOBILE_ADJUSTMENT``, and click.Choice now enforces the
+    full enum form.
+    """
     body = _dry_run(
         "bidmodifiers",
         "set",
         "--campaign-id",
         "1",
         "--type",
-        "MOBILE",
+        "MOBILE_ADJUSTMENT",
         "--value",
         "1.5",
     )
@@ -453,9 +568,101 @@ def test_bidmodifiers_set_payload_keeps_modifier_type():
     modifier = body["params"]["BidModifiers"][0]
     assert modifier == {
         "CampaignId": 1,
-        "Type": "MOBILE",
+        "Type": "MOBILE_ADJUSTMENT",
         "BidModifier": 1.5,
     }
+
+
+def test_bidmodifiers_set_legacy_type_is_case_insensitive():
+    """Legacy path: ``--type mobile_adjustment`` (lowercase) is accepted.
+
+    click.Choice(..., case_sensitive=False) normalizes to the canonical
+    uppercase form, so users can't get a silent typo drop.  Regression
+    guard for axisrow/direct-cli#23.
+    """
+    body = _dry_run(
+        "bidmodifiers",
+        "set",
+        "--campaign-id",
+        "1",
+        "--type",
+        "mobile_adjustment",
+        "--value",
+        "1.5",
+    )
+    modifier = body["params"]["BidModifiers"][0]
+    assert modifier["Type"] == "MOBILE_ADJUSTMENT"
+
+
+def test_bidmodifiers_set_with_id_builds_correct_payload():
+    """Correct API shape: ``--id N --value V`` builds ``{"Id": N, "BidModifier": V}``.
+
+    This is the shape Yandex Direct's ``bidmodifiers/set`` actually
+    accepts (the legacy ``CampaignId + Type`` shape is rejected with
+    ``required field Id is omitted``).  Regression guard for
+    axisrow/direct-cli#23 to make sure the --id path stays correct
+    and doesn't leak CampaignId/Type.
+    """
+    body = _dry_run(
+        "bidmodifiers",
+        "set",
+        "--id",
+        "42",
+        "--value",
+        "150",
+    )
+    modifier = body["params"]["BidModifiers"][0]
+    assert modifier == {"Id": 42, "BidModifier": 150.0}
+    assert "CampaignId" not in modifier
+    assert "Type" not in modifier
+
+
+def test_bidmodifiers_set_id_and_legacy_flags_are_mutex():
+    """Mixing --id with --campaign-id/--type is rejected up front.
+
+    Without this guard, a caller combining the two shapes would end up
+    with a confusing payload that the API rejects in a non-obvious way.
+    """
+    result = CliRunner().invoke(
+        cli,
+        [
+            "bidmodifiers",
+            "set",
+            "--id",
+            "42",
+            "--campaign-id",
+            "1",
+            "--type",
+            "MOBILE_ADJUSTMENT",
+            "--value",
+            "150",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    combined = (result.output or "") + (
+        str(result.exception) if result.exception else ""
+    )
+    assert "mutually exclusive" in combined or "--id" in combined
+
+
+def test_bidmodifiers_set_without_any_key_errors():
+    """Neither --id nor the legacy pair → clear UsageError, not a broken payload."""
+    result = CliRunner().invoke(
+        cli,
+        [
+            "bidmodifiers",
+            "set",
+            "--value",
+            "150",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    combined = (result.output or "") + (
+        str(result.exception) if result.exception else ""
+    )
+    assert "--id" in combined or "--campaign-id" in combined
 
 
 def test_bidmodifiers_toggle_enable():
@@ -525,6 +732,58 @@ def test_feeds_update_payload_changes_url():
     )
     feed = body["params"]["Feeds"][0]
     assert feed == {"Id": 9, "UrlFeed": {"Url": "https://example.com/feed-v2.xml"}}
+
+
+def test_feeds_add_url_and_json_urlfeed_conflict_errors():
+    """Passing both --url and --json '{"UrlFeed":{...}}' fails loudly.
+
+    Regression guard for axisrow/direct-cli#23 — before the fix
+    ``feed_data.update(extra)`` would silently replace the UrlFeed
+    object built from --url with the one from --json, so the --url
+    value vanished from the request with no warning.
+    """
+    result = CliRunner().invoke(
+        cli,
+        [
+            "feeds",
+            "add",
+            "--name",
+            "F-conflict",
+            "--url",
+            "https://a.example.com/feed.xml",
+            "--json",
+            json.dumps({"UrlFeed": {"Url": "https://b.example.com/feed.xml"}}),
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    combined = (result.output or "") + (
+        str(result.exception) if result.exception else ""
+    )
+    assert "exactly one" in combined or "UrlFeed" in combined
+
+
+def test_feeds_update_url_and_json_urlfeed_conflict_errors():
+    """Same collision check as ``feeds add`` — mirror for ``feeds update``."""
+    result = CliRunner().invoke(
+        cli,
+        [
+            "feeds",
+            "update",
+            "--id",
+            "9",
+            "--url",
+            "https://a.example.com/feed.xml",
+            "--json",
+            json.dumps({"UrlFeed": {"Url": "https://b.example.com/feed.xml"}}),
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    combined = (result.output or "") + (
+        str(result.exception) if result.exception else ""
+    )
+    assert "exactly one" in combined or "UrlFeed" in combined
 
 
 # ----------------------------------------------------------------------
@@ -721,6 +980,53 @@ def test_smartadtargets_update_omits_type():
     assert "Type" not in target
     assert target["Id"] == 66
     assert target["Bid"] == {"Deposit": 3_000_000, "Currency": "RUB"}
+
+
+def test_smartadtargets_add_type_is_now_optional():
+    """``--type`` is no longer ``required=True`` on ``smartadtargets add``.
+
+    Regression guard for axisrow/direct-cli#23 — before the fix
+    ``--type`` was both required and immediately discarded, which
+    forced every caller to pass a value that did nothing.  It is now
+    optional, so passing only --json is enough.
+    """
+    body = _dry_run(
+        "smartadtargets",
+        "add",
+        "--adgroup-id",
+        "55",
+        "--json",
+        json.dumps({"TargetingId": "VIEWED_PRODUCT"}),
+    )
+    target = body["params"]["SmartAdTargets"][0]
+    assert "Type" not in target
+    assert target["AdGroupId"] == 55
+    assert target["TargetingId"] == "VIEWED_PRODUCT"
+
+
+def test_smartadtargets_add_without_fields_errors():
+    """Without --json (or any real fields), ``add`` fails loudly.
+
+    Regression guard for axisrow/direct-cli#23 — before the fix the CLI
+    happily sent ``{"AdGroupId": N}`` to the API and the user saw an
+    opaque "required field missing" response.  The CLI now catches
+    this up front with a UsageError that names the missing fields.
+    """
+    result = CliRunner().invoke(
+        cli,
+        [
+            "smartadtargets",
+            "add",
+            "--adgroup-id",
+            "55",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    combined = (result.output or "") + (
+        str(result.exception) if result.exception else ""
+    )
+    assert "--json" in combined or "TargetingId" in combined
 
 
 # ----------------------------------------------------------------------
