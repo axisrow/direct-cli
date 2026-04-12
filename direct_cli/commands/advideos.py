@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids
+from ..utils import parse_ids, get_default_fields
 
 
 @click.group()
@@ -20,8 +20,9 @@ def advideos():
 @click.option("--fetch-all", is_flag=True, help="Fetch all pages")
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
+@click.option("--fields", help="Comma-separated field names")
 @click.pass_context
-def get(ctx, ids, limit, fetch_all, output_format, output):
+def get(ctx, ids, limit, fetch_all, output_format, output, fields):
     """Get ad videos"""
     try:
         client = create_client(
@@ -30,13 +31,15 @@ def get(ctx, ids, limit, fetch_all, output_format, output):
             sandbox=ctx.obj.get("sandbox"),
         )
 
+        field_names = fields.split(",") if fields else get_default_fields("advideos")
+
         criteria = {}
         if ids:
             criteria["Ids"] = parse_ids(ids)
 
         params = {
             "SelectionCriteria": criteria,
-            "FieldNames": ["Id", "Status"],
+            "FieldNames": field_names,
         }
 
         if limit:

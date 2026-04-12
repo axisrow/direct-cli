@@ -112,6 +112,7 @@ COMMON_FIELDS = {
     "smartadtargets": ["Id", "CampaignId", "AdGroupId", "Status", "ServingStatus"],
     "businesses": ["Id", "Name", "Url"],
     "retargetinglists": ["Id", "Name", "Type", "Scope"],
+    "advideos": ["Id", "Status"],
 }
 
 
