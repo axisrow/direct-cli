@@ -1291,3 +1291,57 @@ class TestAdvideosDryRun:
         from direct_cli.cli import cli
         result = CliRunner().invoke(cli, ["advideos", "add", "--dry-run"])
         assert result.exit_code != 0
+
+
+class TestBidModifiersAddPluralFields:
+    """WSDL BidModifierAddItem uses plural array fields for 5 adjustment types."""
+
+    def test_demographics_plural(self):
+        body = _dry_run(
+            "bidmodifiers", "add",
+            "--campaign-id", "123",
+            "--type", "DEMOGRAPHICS_ADJUSTMENT",
+            "--value", "150",
+            "--json", '{"Gender": "GENDER_MALE", "Age": "AGE_25_34"}',
+        )
+        item = body["params"]["BidModifiers"][0]
+        assert "DemographicsAdjustments" in item, f"got keys: {list(item.keys())}"
+        assert "DemographicsAdjustment" not in item
+        assert isinstance(item["DemographicsAdjustments"], list)
+        assert item["DemographicsAdjustments"][0]["BidModifier"] == 150
+
+    def test_retargeting_plural(self):
+        body = _dry_run(
+            "bidmodifiers", "add",
+            "--campaign-id", "123",
+            "--type", "RETARGETING_ADJUSTMENT",
+            "--value", "120",
+            "--json", '{"RetargetingConditionId": 456}',
+        )
+        item = body["params"]["BidModifiers"][0]
+        assert "RetargetingAdjustments" in item, f"got keys: {list(item.keys())}"
+        assert isinstance(item["RetargetingAdjustments"], list)
+
+    def test_regional_plural(self):
+        body = _dry_run(
+            "bidmodifiers", "add",
+            "--campaign-id", "123",
+            "--type", "REGIONAL_ADJUSTMENT",
+            "--value", "110",
+            "--json", '{"RegionId": 1}',
+        )
+        item = body["params"]["BidModifiers"][0]
+        assert "RegionalAdjustments" in item, f"got keys: {list(item.keys())}"
+        assert isinstance(item["RegionalAdjustments"], list)
+
+    def test_mobile_singular(self):
+        """MobileAdjustment stays singular — regression guard."""
+        body = _dry_run(
+            "bidmodifiers", "add",
+            "--campaign-id", "123",
+            "--type", "MOBILE_ADJUSTMENT",
+            "--value", "130",
+        )
+        item = body["params"]["BidModifiers"][0]
+        assert "MobileAdjustment" in item
+        assert isinstance(item["MobileAdjustment"], dict)

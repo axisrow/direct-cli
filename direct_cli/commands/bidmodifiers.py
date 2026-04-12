@@ -72,14 +72,23 @@ _BIDMODIFIER_TYPE_TO_NESTED = {
     "TABLET_ADJUSTMENT": "TabletAdjustment",
     "DESKTOP_ADJUSTMENT": "DesktopAdjustment",
     "DESKTOP_ONLY_ADJUSTMENT": "DesktopOnlyAdjustment",
-    "DEMOGRAPHICS_ADJUSTMENT": "DemographicsAdjustment",
-    "RETARGETING_ADJUSTMENT": "RetargetingAdjustment",
-    "REGIONAL_ADJUSTMENT": "RegionalAdjustment",
+    "DEMOGRAPHICS_ADJUSTMENT": "DemographicsAdjustments",   # plural per WSDL
+    "RETARGETING_ADJUSTMENT": "RetargetingAdjustments",     # plural per WSDL
+    "REGIONAL_ADJUSTMENT": "RegionalAdjustments",           # plural per WSDL
     "VIDEO_ADJUSTMENT": "VideoAdjustment",
     "SMART_AD_ADJUSTMENT": "SmartAdAdjustment",
-    "SERP_LAYOUT_ADJUSTMENT": "SerpLayoutAdjustment",
-    "INCOME_GRADE_ADJUSTMENT": "IncomeGradeAdjustment",
+    "SERP_LAYOUT_ADJUSTMENT": "SerpLayoutAdjustments",      # plural per WSDL
+    "INCOME_GRADE_ADJUSTMENT": "IncomeGradeAdjustments",    # plural per WSDL
     "AD_GROUP_ADJUSTMENT": "AdGroupAdjustment",
+}
+
+# Plural fields require a list value per WSDL BidModifierAddItem
+_PLURAL_NESTED_KEYS = {
+    "DemographicsAdjustments",
+    "RetargetingAdjustments",
+    "RegionalAdjustments",
+    "SerpLayoutAdjustments",
+    "IncomeGradeAdjustments",
 }
 
 
@@ -151,7 +160,11 @@ def add(ctx, campaign_id, adgroup_id, modifier_type, value, extra_json, dry_run)
                 )
             nested.update(extra)
 
-        modifier_data = {nested_key: nested}
+        # Plural fields expect a list per WSDL BidModifierAddItem
+        if nested_key in _PLURAL_NESTED_KEYS:
+            modifier_data = {nested_key: [nested]}
+        else:
+            modifier_data = {nested_key: nested}
         if campaign_id is not None:
             modifier_data["CampaignId"] = campaign_id
         else:
