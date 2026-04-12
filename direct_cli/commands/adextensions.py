@@ -68,11 +68,14 @@ def get(ctx, ids, types, limit, fetch_all, output_format, output, fields):
 @click.option(
     "--type",
     "ext_type",
-    required=True,
     help=(
-        "Extension type (UX hint — Callout, Sitelinks, Vcard, …). "
-        "Not sent to the API; the API derives the type from the nested "
-        "field name inside --json."
+        "Legacy UX hint; NOT forwarded to the API. The Yandex Direct "
+        "API derives the extension type from the nested field name "
+        "inside --json (Callout / Sitelinks / Vcard / ...), so the "
+        "only flag that actually matters is --json.  Previously this "
+        "option was required=True but silently discarded, which "
+        "forced every caller to pass a value that did nothing.  See "
+        "axisrow/direct-cli#25."
     ),
 )
 @click.option("--json", "extra_json", required=True, help="Extension data in JSON")
@@ -88,7 +91,7 @@ def add(ctx, ext_type, extra_json, dry_run):
     ``{"Type": ext_type, ...}`` and the sandbox rejected the extra
     key as ``unknown parameter Type``.
     """
-    _ = ext_type  # consumed only for argument validation / UX clarity
+    _ = ext_type  # intentionally unused — kept as UX hint only
     try:
         ext_data = json.loads(extra_json)
 

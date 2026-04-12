@@ -347,10 +347,14 @@ def test_bidmodifiers_toggle_disable():
 
 def test_bidmodifiers_add_mobile_uses_nested_object():
     body = _dry_run(
-        "bidmodifiers", "add",
-        "--campaign-id", "1",
-        "--type", "MOBILE_ADJUSTMENT",
-        "--value", "120",
+        "bidmodifiers",
+        "add",
+        "--campaign-id",
+        "1",
+        "--type",
+        "MOBILE_ADJUSTMENT",
+        "--value",
+        "120",
     )
     assert body["method"] == "add"
     modifier = body["params"]["BidModifiers"][0]
@@ -403,20 +407,63 @@ def test_feeds_update_payload_changes_url():
 
 
 def test_retargeting_add_keeps_list_type():
-    # NB: ``Type`` here is the *list category*
-    # (AUDIENCE_SEGMENT / PIXEL / ...), a real top-level API field —
-    # not the same kind of ``Type`` as in ads/adgroups/smartadtargets.
+    # NB: ``Type`` here is the *list category* and IS a real top-level
+    # API field, unlike the --type hint on ads/adgroups/smartadtargets.
+    # The only two valid values per Yandex Direct docs are ``RETARGETING``
+    # and ``AUDIENCE`` (verified against
+    # https://yandex.ru/dev/direct/doc/ref-v5/retargetinglists/add.html).
+    # This test previously asserted ``AUDIENCE_SEGMENT``, which is not
+    # a real enum value — the drift was fixed together with the
+    # click.Choice validation added in axisrow/direct-cli#25.
     body = _dry_run(
         "retargeting",
         "add",
         "--name",
         "List A",
         "--type",
-        "AUDIENCE_SEGMENT",
+        "AUDIENCE",
     )
     assert body["method"] == "add"
     rtg = body["params"]["RetargetingLists"][0]
-    assert rtg == {"Name": "List A", "Type": "AUDIENCE_SEGMENT"}
+    assert rtg == {"Name": "List A", "Type": "AUDIENCE"}
+
+
+def test_retargeting_add_default_type_is_retargeting():
+    """Without ``--type`` the CLI defaults to the API's default RETARGETING.
+
+    Regression guard for axisrow/direct-cli#25 — before the fix ``--type``
+    was required=True with no validation. Now it's optional and
+    defaults to the same value the API picks when Type is omitted.
+    """
+    body = _dry_run("retargeting", "add", "--name", "List B")
+    rtg = body["params"]["RetargetingLists"][0]
+    assert rtg["Type"] == "RETARGETING"
+
+
+def test_retargeting_add_unknown_type_is_rejected_by_choice():
+    """``click.Choice`` rejects typos / non-enum values up front.
+
+    Regression guard for axisrow/direct-cli#25 — before the fix a
+    typo like ``--type AUDIENCE_SEGMENT`` was forwarded verbatim to
+    the API, which rejected it with a vague error.
+    """
+    result = CliRunner().invoke(
+        cli,
+        [
+            "retargeting",
+            "add",
+            "--name",
+            "List bad",
+            "--type",
+            "AUDIENCE_SEGMENT",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    combined = (result.output or "") + (
+        str(result.exception) if result.exception else ""
+    )
+    assert "AUDIENCE_SEGMENT" in combined or "retargeting" in combined.lower()
 
 
 # ----------------------------------------------------------------------
@@ -498,6 +545,122 @@ def test_adextensions_add_does_not_send_type_field():
     # option is a UX hint and must NOT be forwarded to the request.
     assert "Type" not in ext
     assert ext == {"Callout": {"CalloutText": "Free shipping"}}
+
+
+def test_adextensions_add_type_is_now_optional():
+    """``--type`` is no longer ``required=True`` on ``adextensions add``.
+
+    Regression guard for axisrow/direct-cli#25 — before the fix ``--type``
+    was required but immediately discarded. Users should be able to
+    pass just ``--json`` (which carries the real payload and determines
+    the extension type via its nested field name).
+    """
+    body = _dry_run(
+        "adextensions",
+        "add",
+        "--json",
+        json.dumps({"Sitelinks": [{"Title": "T", "Href": "https://a"}]}),
+    )
+    ext = body["params"]["AdExtensions"][0]
+    assert "Type" not in ext
+    assert ext == {"Sitelinks": [{"Title": "T", "Href": "https://a"}]}
+
+
+# ----------------------------------------------------------------------
+# reports (no dry-run — test CLI-parser-level validation only)
+# ----------------------------------------------------------------------
+
+
+def test_reports_get_type_rejects_unknown_value():
+    """``reports get --type`` is validated by click.Choice against REPORT_TYPES.
+
+    Regression guard for axisrow/direct-cli#25 — previously ``REPORT_TYPES``
+    was defined at module level but never wired into the option, so
+    typos like ``CAMPAING_REPORT`` silently reached the API.
+    """
+    result = CliRunner().invoke(
+        cli,
+        [
+            "reports",
+            "get",
+            "--type",
+            "CAMPAING_REPORT",
+            "--from",
+            "2026-01-01",
+            "--to",
+            "2026-01-31",
+            "--name",
+            "X",
+            "--fields",
+            "Date",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "Invalid value for '--type'" in result.output
+
+
+def test_reports_get_type_is_case_insensitive():
+    """Valid enum spelling in lowercase is accepted.
+
+    click.Choice(..., case_sensitive=False) on REPORT_TYPES normalizes
+    the input — users can type ``campaign_performance_report``.
+    """
+    result = CliRunner().invoke(
+        cli,
+        [
+            "reports",
+            "get",
+            "--type",
+            "campaign_performance_report",
+            "--from",
+            "2026-01-01",
+            "--to",
+            "2026-01-31",
+            "--name",
+            "X",
+            "--fields",
+            "Date",
+        ],
+    )
+    # The command will still fail because it has no --dry-run and no
+    # token is available in the unit-test environment — what we care
+    # about is that Click's parameter parser did NOT reject the value.
+    # The error we expect is from create_client / API, not from
+    # click.Choice.
+    assert "Invalid value for '--type'" not in result.output
+
+
+def test_reports_get_mode_option_removed():
+    """The dead ``--mode`` option is no longer accepted.
+
+    Regression guard for axisrow/direct-cli#25 — previously ``--mode``
+    was declared with ``default="auto"`` and a helpful-looking help
+    string, but the function body never read it; the underlying
+    ``create_client`` hardcodes ``processing_mode="auto"``. Users
+    passing ``--mode offline`` got zero effect. The option was
+    removed so the dead code stops misleading callers.
+    """
+    result = CliRunner().invoke(
+        cli,
+        [
+            "reports",
+            "get",
+            "--type",
+            "CAMPAIGN_PERFORMANCE_REPORT",
+            "--from",
+            "2026-01-01",
+            "--to",
+            "2026-01-31",
+            "--name",
+            "X",
+            "--fields",
+            "Date",
+            "--mode",
+            "offline",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "no such option" in result.output.lower() or "--mode" in result.output
 
 
 # ----------------------------------------------------------------------
