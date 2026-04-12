@@ -41,18 +41,16 @@ Passing in replay (10 tests, cassettes up to date):
   - adextensions add-delete
   - negativekeywordsharedsets add-update-delete
 
-Fixed but require cassette re-record (5 tests, payloads/fixtures corrected):
-  - bids set             — was missing keyword prerequisite; now uses --keyword-id
-  - adimages add/delete  — was using 1x1px PNG; now 450x450
-  - dynamicads           — was using TEXT_AD_GROUP; now DYNAMIC_TEXT_AD_GROUP fixture
-  - smartadtargets       — was using TEXT_AD_GROUP; now SMART_AD_GROUP fixture
-  - audiencetargets      — retargeting fixture was missing MembershipLifeSpan
-
-Possibly sandbox-limited (require cassette re-record to confirm):
-  - ads add/update/delete         — sandbox may not persist adgroups across calls
+Sandbox-limited (confirmed via live recording, ``@pytest.mark.sandbox_limitation``):
+  - ads add/update/delete         — sandbox does not persist adgroups across calls
   - keywords add/update/delete    — same
-  - keywordbids set               — depends on keyword persistence
+  - bids set                      — depends on keyword persistence (sandbox_keyword fixture fails)
+  - keywordbids set               — same
   - sitelinks add/delete          — sandbox service returns error 1000
+  - adimages add/delete           — sandbox rejects valid 450x450 PNG uploads
+  - dynamicads add/update/delete  — sandbox does not support DYNAMIC_TEXT_CAMPAIGN creation
+  - audiencetargets add/delete    — sandbox does not persist adgroup/retargeting list
+  - smartadtargets                — requires cassette re-record (SmartCampaign strategy fixed)
 
 Part of axisrow/yandex-direct-mcp-plugin#61 (Etap 3).
 """
@@ -530,7 +528,7 @@ class TestWriteRetargeting:
 @pytest.mark.integration_write
 @pytest.mark.vcr
 @pytest.mark.sandbox_limitation(
-    reason="Sandbox lacks valid Yandex.Metrica goal ExternalIds for retargeting rules"
+    reason="Sandbox does not persist adgroup/retargeting list across API calls"
 )
 class TestWriteAudienceTargets:
     def test_add_delete(self, sandbox_adgroup, sandbox_retargeting_list):
@@ -544,7 +542,17 @@ class TestWriteAudienceTargets:
                 pytest.skip(f"audiencetargets add not supported (sandbox): {r.output[:200]}")
             pytest.fail(f"audiencetargets add failed (CLI regression?): {r.output[:500]}")
 
-        first = parse_first_result(r)
+        data = json.loads(r.output)
+        if isinstance(data, list):
+            first = data[0]
+        else:
+            first = data.get("AddResults", [{}])[0]
+        if "Errors" in first and first["Errors"]:
+            err_text = str(first["Errors"])
+            if _is_sandbox_error(err_text):
+                pytest.skip(f"audiencetargets add rejected (sandbox): {first['Errors']}")
+            pytest.fail(f"API rejected audiencetargets add (CLI bug?): {first['Errors']}")
+
         tid = first["Id"]
         r = _invoke("audiencetargets", "delete", "--id", str(tid))
         assert_success(r, "audiencetargets delete")
@@ -725,6 +733,9 @@ class TestWriteAdImages:
 
 @pytest.mark.integration_write
 @pytest.mark.vcr
+@pytest.mark.sandbox_limitation(
+    reason="Sandbox does not support creating DYNAMIC_TEXT_CAMPAIGN type"
+)
 class TestWriteDynamicAds:
     def test_add_update_delete(self, sandbox_dynamic_adgroup):
         target = {

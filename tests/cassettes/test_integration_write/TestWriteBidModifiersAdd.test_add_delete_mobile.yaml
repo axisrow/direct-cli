@@ -32,29 +32,29 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
   response:
     body:
-      string: '{"result":{"AddResults":[{"Id":700010764}]}}'
+      string: '{"result":{"AddResults":[{"Id":700010812}]}}'
     headers:
       Content-Length:
       - '44'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sat, 11 Apr 2026 16:30:52 GMT
+      - Sun, 12 Apr 2026 10:43:13 GMT
       RequestId:
-      - '5462934182483095942'
+      - '5406819834648180039'
       Set-Cookie:
       - REDACTED
       Units:
-      - 15/112989/160000
+      - 15/149587/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:5462934182483095942,cmd:direct.api5/campaigns.add,appcode:0
+      - reqid:5406819834648180039,cmd:direct.api5/campaigns.add,appcode:0
     status:
       code: 200
       message: OK
 - request:
-    body: '{"method":"add","params":{"BidModifiers":[{"MobileAdjustment":{"BidModifier":120},"CampaignId":700010764}]}}'
+    body: '{"method":"add","params":{"BidModifiers":[{"MobileAdjustment":{"BidModifier":120},"CampaignId":700010812}]}}'
     headers:
       Accept:
       - '*/*'
@@ -86,29 +86,29 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/bidmodifiers
   response:
     body:
-      string: '{"result":{"AddResults":[{"Ids":[10177148]}]}}'
+      string: '{"result":{"AddResults":[{"Ids":[10177155]}]}}'
     headers:
       Content-Length:
       - '46'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sat, 11 Apr 2026 16:30:55 GMT
+      - Sun, 12 Apr 2026 10:43:15 GMT
       RequestId:
-      - '6298118025639697086'
+      - '4183219813864538406'
       Set-Cookie:
       - REDACTED
       Units:
-      - 16/112973/160000
+      - 16/149571/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:6298118025639697086,cmd:direct.api5/bidmodifiers.add,appcode:0
+      - reqid:4183219813864538406,cmd:direct.api5/bidmodifiers.add,appcode:0
     status:
       code: 200
       message: OK
 - request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[10177148]}}}'
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[10177155]}}}'
     headers:
       Accept:
       - '*/*'
@@ -148,22 +148,22 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sat, 11 Apr 2026 16:30:56 GMT
+      - Sun, 12 Apr 2026 10:43:17 GMT
       RequestId:
-      - '3315030539474014496'
+      - '521988499558568148'
       Set-Cookie:
       - REDACTED
       Units:
-      - 15/112958/160000
+      - 15/149556/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:3315030539474014496,cmd:direct.api5/bidmodifiers.delete,appcode:0
+      - reqid:521988499558568148,cmd:direct.api5/bidmodifiers.delete,appcode:0
     status:
       code: 200
       message: OK
 - request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[700010764]}}}'
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[700010812]}}}'
     headers:
       Accept:
       - '*/*'
@@ -195,24 +195,24 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
   response:
     body:
-      string: '{"result":{"DeleteResults":[{"Id":700010764}]}}'
+      string: '{"result":{"DeleteResults":[{"Id":700010812}]}}'
     headers:
       Content-Length:
       - '47'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sat, 11 Apr 2026 16:30:58 GMT
+      - Sun, 12 Apr 2026 10:43:19 GMT
       RequestId:
-      - '994490295270853715'
+      - '893281100245124300'
       Set-Cookie:
       - REDACTED
       Units:
-      - 12/112946/160000
+      - 12/149544/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:994490295270853715,cmd:direct.api5/campaigns.delete,appcode:0
+      - reqid:893281100245124300,cmd:direct.api5/campaigns.delete,appcode:0
     status:
       code: 200
       message: OK

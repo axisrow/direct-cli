@@ -216,6 +216,8 @@ def unique_suffix() -> str:
 _SANDBOX_ERROR_PATTERNS = (
     "Object not found",
     "Operation not supported",  # sandbox returns this for features unavailable in test env
+    "Not supported",            # sandbox returns this for unsupported campaign types
+    "не поддерживается",        # Russian variant of the above
     "Campaign not found",
     "Ad group not found",
     "not accessible",
@@ -417,16 +419,12 @@ def sandbox_dynamic_adgroup(unique_suffix):
         "campaigns", "add",
         "--name", f"claude-dynamic-{unique_suffix}",
         "--start-date", tomorrow(),
+        "--type", "DYNAMIC_TEXT_CAMPAIGN",
         "--json", json.dumps({
-            "Type": "DYNAMIC_TEXT_CAMPAIGN",
             "DynamicTextCampaign": {
                 "BiddingStrategy": {
-                    "Search": {
-                        "BiddingStrategyType": "HIGHEST_POSITION",
-                    },
-                    "Network": {
-                        "BiddingStrategyType": "SERVING_OFF",
-                    },
+                    "Search": {"BiddingStrategyType": "HIGHEST_POSITION"},
+                    "Network": {"BiddingStrategyType": "SERVING_OFF"},
                 },
                 "Settings": [{"Option": "ADD_METRICA_TAG", "Value": "NO"}],
             },
@@ -441,8 +439,8 @@ def sandbox_dynamic_adgroup(unique_suffix):
         "--name", "dynamic-test-group",
         "--campaign-id", str(campaign_id),
         "--region-ids", "1,225",
+        "--type", "DYNAMIC_TEXT_AD_GROUP",
         "--json", json.dumps({
-            "Type": "DYNAMIC_TEXT_AD_GROUP",
             "DynamicTextAdGroup": {"DomainUrl": "example.com"},
         }),
         label="adgroups add (dynamic)",
@@ -456,10 +454,11 @@ def sandbox_dynamic_adgroup(unique_suffix):
 
 
 @pytest.fixture
-def sandbox_smart_adgroup(unique_suffix):
+def sandbox_smart_adgroup(unique_suffix, sandbox_feed):
     """Create a SMART_CAMPAIGN + SMART_AD_GROUP, yield adgroup ID.
 
     SmartAdTargets require SMART_AD_GROUP type.
+    SmartAdGroup requires FeedId (per API docs).
     The generic sandbox_adgroup fixture creates TEXT_AD_GROUP, which is wrong.
     """
     # Step 1: create SMART_CAMPAIGN
@@ -467,34 +466,31 @@ def sandbox_smart_adgroup(unique_suffix):
         "campaigns", "add",
         "--name", f"claude-smart-{unique_suffix}",
         "--start-date", tomorrow(),
+        "--type", "SMART_CAMPAIGN",
         "--json", json.dumps({
-            "Type": "SMART_CAMPAIGN",
             "SmartCampaign": {
                 "BiddingStrategy": {
-                    "Search": {
-                        "BiddingStrategyType": "SERVING_OFF",
-                    },
+                    "Search": {"BiddingStrategyType": "SERVING_OFF"},
                     "Network": {
-                        "BiddingStrategyType": "AVERAGE_CPC",
-                        "AverageCpc": {"AverageCpc": 1000000, "WeeklySpendLimit": 10000000},
+                        "BiddingStrategyType": "AVERAGE_CPC_PER_FILTER",
+                        "AverageCpcPerFilter": {"FilterAverageCpc": 1000000},
                     },
                 },
-                "Settings": [{"Option": "ADD_METRICA_TAG", "Value": "NO"}],
             },
         }),
         label="campaigns add (smart)",
     )
     campaign_id = _fixture_parse(campaign_result)
 
-    # Step 2: create SMART_AD_GROUP
+    # Step 2: create SMART_AD_GROUP (FeedId is required per API docs)
     adgroup_result = _fixture_invoke(
         "adgroups", "add",
         "--name", "smart-test-group",
         "--campaign-id", str(campaign_id),
         "--region-ids", "1,225",
+        "--type", "SMART_AD_GROUP",
         "--json", json.dumps({
-            "Type": "SMART_AD_GROUP",
-            "SmartAdGroup": {},
+            "SmartAdGroup": {"FeedId": sandbox_feed},
         }),
         label="adgroups add (smart)",
     )

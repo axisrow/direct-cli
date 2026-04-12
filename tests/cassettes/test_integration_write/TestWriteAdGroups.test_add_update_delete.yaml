@@ -32,29 +32,29 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
   response:
     body:
-      string: '{"result":{"AddResults":[{"Id":700010741}]}}'
+      string: '{"result":{"AddResults":[{"Id":700010807}]}}'
     headers:
       Content-Length:
       - '44'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sat, 11 Apr 2026 14:54:14 GMT
+      - Sun, 12 Apr 2026 10:42:10 GMT
       RequestId:
-      - '1093643032448042150'
+      - '4221467773424111040'
       Set-Cookie:
       - REDACTED
       Units:
-      - 15/116013/160000
+      - 15/150272/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:1093643032448042150,cmd:direct.api5/campaigns.add,appcode:0
+      - reqid:4221467773424111040,cmd:direct.api5/campaigns.add,appcode:0
     status:
       code: 200
       message: OK
 - request:
-    body: '{"method":"add","params":{"AdGroups":[{"Name":"test-adgroup","CampaignId":700010741,"RegionIds":[1,225]}]}}'
+    body: '{"method":"add","params":{"AdGroups":[{"Name":"test-adgroup","CampaignId":700010807,"RegionIds":[1,225]}]}}'
     headers:
       Accept:
       - '*/*'
@@ -86,29 +86,29 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/adgroups
   response:
     body:
-      string: '{"result":{"AddResults":[{"Id":4793714}]}}'
+      string: '{"result":{"AddResults":[{"Id":4793795}]}}'
     headers:
       Content-Length:
       - '42'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sat, 11 Apr 2026 14:54:17 GMT
+      - Sun, 12 Apr 2026 10:42:12 GMT
       RequestId:
-      - '2027752701914815023'
+      - '4819624040569088748'
       Set-Cookie:
       - REDACTED
       Units:
-      - 40/115973/160000
+      - 40/150232/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:2027752701914815023,cmd:direct.api5/adgroups.add,appcode:0
+      - reqid:4819624040569088748,cmd:direct.api5/adgroups.add,appcode:0
     status:
       code: 200
       message: OK
 - request:
-    body: '{"method":"update","params":{"AdGroups":[{"Id":4793714,"Name":"test-adgroup-renamed"}]}}'
+    body: '{"method":"update","params":{"AdGroups":[{"Id":4793795,"Name":"test-adgroup-renamed"}]}}'
     headers:
       Accept:
       - '*/*'
@@ -148,22 +148,22 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sat, 11 Apr 2026 14:54:18 GMT
+      - Sun, 12 Apr 2026 10:42:13 GMT
       RequestId:
-      - '6218020700963041217'
+      - '7429123871044937322'
       Set-Cookie:
       - REDACTED
       Units:
-      - 40/115933/160000
+      - 40/150192/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:6218020700963041217,cmd:direct.api5/adgroups.update,appcode:0
+      - reqid:7429123871044937322,cmd:direct.api5/adgroups.update,appcode:0
     status:
       code: 200
       message: OK
 - request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[4793714]}}}'
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[4793795]}}}'
     headers:
       Accept:
       - '*/*'
@@ -203,22 +203,22 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sat, 11 Apr 2026 14:54:20 GMT
+      - Sun, 12 Apr 2026 10:42:15 GMT
       RequestId:
-      - '1320025735853006321'
+      - '9058301287952976447'
       Set-Cookie:
       - REDACTED
       Units:
-      - 30/115903/160000
+      - 30/150162/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:1320025735853006321,cmd:direct.api5/adgroups.delete,appcode:0
+      - reqid:9058301287952976447,cmd:direct.api5/adgroups.delete,appcode:0
     status:
       code: 200
       message: OK
 - request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[700010741]}}}'
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[700010807]}}}'
     headers:
       Accept:
       - '*/*'
@@ -250,24 +250,24 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
   response:
     body:
-      string: '{"result":{"DeleteResults":[{"Id":700010741}]}}'
+      string: '{"result":{"DeleteResults":[{"Id":700010807}]}}'
     headers:
       Content-Length:
       - '47'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sat, 11 Apr 2026 14:54:23 GMT
+      - Sun, 12 Apr 2026 10:42:17 GMT
       RequestId:
-      - '1496970850591334749'
+      - '4619287295830840596'
       Set-Cookie:
       - REDACTED
       Units:
-      - 12/115891/160000
+      - 12/150150/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:1496970850591334749,cmd:direct.api5/campaigns.delete,appcode:0
+      - reqid:4619287295830840596,cmd:direct.api5/campaigns.delete,appcode:0
     status:
       code: 200
       message: OK
