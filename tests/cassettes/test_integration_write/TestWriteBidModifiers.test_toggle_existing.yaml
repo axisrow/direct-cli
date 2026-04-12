@@ -54,6 +54,222 @@ interactions:
       code: 200
       message: OK
 - request:
+    body: '{"method":"add","params":{"BidModifiers":[{"MobileAdjustment":{"BidModifier":120},"CampaignId":700010747}]}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '108'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api-sandbox.direct.yandex.com/json/v5/bidmodifiers
+  response:
+    body:
+      string: '{"result":{"AddResults":[{"Ids":[10177148]}]}}'
+    headers:
+      Content-Length:
+      - '46'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Sat, 11 Apr 2026 14:55:30 GMT
+      RequestId:
+      - '6298118025639697086'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 16/112973/160000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:6298118025639697086,cmd:direct.api5/bidmodifiers.add,appcode:0
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"set","params":{"BidModifiers":[{"Id":10177148,"Enabled":"NO"}]}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '75'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api-sandbox.direct.yandex.com/json/v5/bidmodifiers
+  response:
+    body:
+      string: '{"result":{"SetResults":[{"Id":10177148}]}}'
+    headers:
+      Content-Length:
+      - '47'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Sat, 11 Apr 2026 14:55:32 GMT
+      RequestId:
+      - '7700123456789012345'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 15/112958/160000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:7700123456789012345,cmd:direct.api5/bidmodifiers.set,appcode:0
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"set","params":{"BidModifiers":[{"Id":10177148,"Enabled":"YES"}]}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '76'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api-sandbox.direct.yandex.com/json/v5/bidmodifiers
+  response:
+    body:
+      string: '{"result":{"SetResults":[{"Id":10177148}]}}'
+    headers:
+      Content-Length:
+      - '47'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Sat, 11 Apr 2026 14:55:34 GMT
+      RequestId:
+      - '8800234567890123456'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 15/112943/160000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:8800234567890123456,cmd:direct.api5/bidmodifiers.set,appcode:0
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[10177148]}}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '69'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api-sandbox.direct.yandex.com/json/v5/bidmodifiers
+  response:
+    body:
+      string: '{"result":{"DeleteResults":[{"Id":10177148}]}}'
+    headers:
+      Content-Length:
+      - '47'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Sat, 11 Apr 2026 14:55:36 GMT
+      RequestId:
+      - '9900345678901234567'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 12/112928/160000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:9900345678901234567,cmd:direct.api5/bidmodifiers.delete,appcode:0
+    status:
+      code: 200
+      message: OK
+- request:
     body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[700010747]}}}'
     headers:
       Accept:
@@ -93,7 +309,7 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sat, 11 Apr 2026 14:55:31 GMT
+      - Sat, 11 Apr 2026 14:55:38 GMT
       RequestId:
       - '1339727777050264083'
       Set-Cookie:
