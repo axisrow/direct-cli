@@ -419,14 +419,23 @@ class TestWriteBidModifiers:
                 pytest.skip(f"bidmodifiers add not supported (sandbox): {r.output[:200]}")
             pytest.fail(f"bidmodifiers add failed (CLI regression?): {r.output[:500]}")
 
+        # Even with exit_code 0, the API can return embedded errors.
+        if _has_result_errors(r.output, "AddResults"):
+            if _is_sandbox_error(r.output):
+                pytest.skip(f"bidmodifiers add not supported (sandbox): {r.output[:200]}")
+            pytest.fail(f"bidmodifiers add returned errors (CLI regression?): {r.output[:500]}")
+
         # Parse modifier ID from add result
         data = json.loads(r.output)
+        ids = None
         if isinstance(data, dict) and "Ids" in data:
-            mid = data["Ids"][0]
+            ids = data["Ids"]
         elif isinstance(data, list) and data and isinstance(data[0], dict) and "Ids" in data[0]:
-            mid = data[0]["Ids"][0]
-        else:
-            pytest.skip(f"bidmodifiers add returned no Ids: {r.output[:200]}")
+            ids = data[0]["Ids"]
+
+        if not ids:
+            pytest.fail(f"bidmodifiers add returned no Ids (CLI regression?): {r.output[:200]}")
+        mid = ids[0]
 
         try:
             # Step 2: Toggle off
@@ -440,6 +449,12 @@ class TestWriteBidModifiers:
                     pytest.skip(f"bidmodifiers toggle not supported (sandbox): {r.output[:200]}")
                 pytest.fail(f"bidmodifiers toggle --disabled failed (CLI regression?): {r.output[:500]}")
 
+            # Even with exit_code 0, the API can return embedded errors.
+            if _has_result_errors(r.output, "SetResults"):
+                if _is_sandbox_error(r.output):
+                    pytest.skip(f"bidmodifiers toggle not supported (sandbox): {r.output[:200]}")
+                pytest.fail(f"bidmodifiers toggle returned errors (CLI regression?): {r.output[:500]}")
+
             # Step 3: Toggle back on
             r = _invoke(
                 "bidmodifiers", "toggle",
@@ -450,6 +465,12 @@ class TestWriteBidModifiers:
                 if _is_sandbox_error(r.output):
                     pytest.skip(f"bidmodifiers toggle on not supported (sandbox): {r.output[:200]}")
                 pytest.fail(f"bidmodifiers toggle on failed (CLI regression?): {r.output[:500]}")
+
+            # Even with exit_code 0, the API can return embedded errors.
+            if _has_result_errors(r.output, "SetResults"):
+                if _is_sandbox_error(r.output):
+                    pytest.skip(f"bidmodifiers toggle not supported (sandbox): {r.output[:200]}")
+                pytest.fail(f"bidmodifiers toggle returned errors (CLI regression?): {r.output[:500]}")
         finally:
             _invoke("bidmodifiers", "delete", "--id", str(mid))
 
