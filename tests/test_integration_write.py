@@ -27,6 +27,31 @@ distinguish sandbox limitations from real CLI regressions.
 Fixtures (campaign → adgroup → ad/keyword) are defined in conftest.py.
 Top-level resource tests run without fixtures.
 
+**Coverage status (issue #20):**
+
+Covered (10 tests, pass in replay):
+  - campaigns lifecycle (add/update/suspend/resume/archive/unarchive/delete)
+  - adgroups add-update-delete
+  - bidmodifiers add/delete (mobile adjustment)
+  - bidmodifiers set regression guard (no-id rejection)
+  - bidmodifiers toggle (add → toggle disabled/enabled)
+  - feeds add-update-delete
+  - retargeting add-delete
+  - vcards add-delete
+  - adextensions add-delete
+  - negativekeywordsharedsets add-update-delete
+
+Out of scope — sandbox limitations (9 tests, marked ``@pytest.mark.sandbox_limitation``):
+  - ads add/update/delete         — sandbox does not persist adgroups
+  - keywords add/update/delete    — sandbox does not persist adgroups
+  - keywordbids set               — sandbox does not persist adgroups (no keywords)
+  - bids set                      — sandbox returns "Keyword not found" (no keywords in campaign)
+  - audiencetargets add/delete    — sandbox lacks valid Yandex.Metrica goal IDs
+  - sitelinks add/delete          — sandbox service permanently unavailable
+  - adimages add/delete           — sandbox rejects valid image uploads
+  - dynamicads add/update/delete  — sandbox lacks DYNAMIC_TEXT_AD_GROUP support
+  - smartadtargets add/update/delete — sandbox lacks SMART_AD_GROUP support
+
 Part of axisrow/yandex-direct-mcp-plugin#61 (Etap 3).
 """
 
@@ -166,6 +191,9 @@ class TestWriteAdGroups:
 
 @pytest.mark.integration_write
 @pytest.mark.vcr
+@pytest.mark.sandbox_limitation(
+    reason="Sandbox does not persist adgroups; ads add always returns 'Ad group not found'"
+)
 class TestWriteAds:
     """Confirms the Type-field fix from PR #12 works with live API."""
 
@@ -209,6 +237,9 @@ class TestWriteAds:
 
 @pytest.mark.integration_write
 @pytest.mark.vcr
+@pytest.mark.sandbox_limitation(
+    reason="Sandbox does not persist adgroups; keywords add always returns 'Ad group not found'"
+)
 class TestWriteKeywords:
     def test_add_update_delete(self, sandbox_adgroup):
         adgroup_id = sandbox_adgroup
@@ -248,6 +279,10 @@ class TestWriteKeywords:
 
 @pytest.mark.integration_write
 @pytest.mark.vcr
+@pytest.mark.sandbox_limitation(
+    reason="Sandbox does not persist adgroups/keywords; bids set returns "
+    "'Keyword not found' even when exit_code is 0"
+)
 class TestWriteBids:
     def test_set_bid(self, sandbox_campaign):
         r = _invoke(
@@ -260,12 +295,21 @@ class TestWriteBids:
                 pytest.skip(f"bids set not supported (sandbox): {r.output[:200]}")
             pytest.fail(f"bids set failed (CLI regression?): {r.output[:500]}")
 
+        # Even with exit_code 0, the API can return embedded errors.
+        if _has_result_errors(r.output, "SetResults"):
+            if _is_sandbox_error(r.output, extra_patterns=("Keyword not found",)):
+                pytest.skip(f"bids set rejected (sandbox, no keywords): {r.output[:200]}")
+            pytest.fail(f"bids set returned errors (CLI regression?): {r.output[:500]}")
+
 
 # ── keywordbids ──────────────────────────────────────────────────────────
 
 
 @pytest.mark.integration_write
 @pytest.mark.vcr
+@pytest.mark.sandbox_limitation(
+    reason="Sandbox does not persist adgroups/keywords; no keywords to bid on"
+)
 class TestWriteKeywordBids:
     def test_set_keyword_bid(self, sandbox_keyword):
         r = _invoke(
@@ -359,45 +403,70 @@ class TestWriteBidModifiersSet:
 @pytest.mark.integration_write
 @pytest.mark.vcr
 class TestWriteBidModifiers:
-    @pytest.mark.skip(
-        reason="Fresh sandbox campaigns have zero modifiers to toggle; "
-        "test flow needs rewriting to first add a modifier via bidmodifiers add, "
-        "then get and toggle it. Tracked as follow-up."
-    )
     def test_toggle_existing(self, sandbox_campaign):
-        """Get existing modifier and toggle it."""
+        """Add a modifier, then toggle it off and back on."""
         cid = sandbox_campaign
 
-        r = _invoke("bidmodifiers", "get", "--campaign-ids", str(cid))
-        if r.exit_code != 0:
-            pytest.skip("bidmodifiers get failed in sandbox")
-
-        data = json.loads(r.output)
-        if isinstance(data, list) and data:
-            modifier_id = data[0].get("Id")
-            if not modifier_id:
-                pytest.skip("no bid modifier id found")
-        else:
-            pytest.skip("no bid modifiers in sandbox campaign")
-
-        # toggle off
+        # Step 1: Create a modifier so we have something to toggle
         r = _invoke(
-            "bidmodifiers", "toggle",
-            "--id", str(modifier_id),
-            "--disabled",
+            "bidmodifiers", "add",
+            "--campaign-id", str(cid),
+            "--type", "MOBILE_ADJUSTMENT",
+            "--value", "120",
         )
         if r.exit_code != 0:
             if _is_sandbox_error(r.output):
-                pytest.skip(f"bidmodifiers toggle not supported (sandbox): {r.output[:200]}")
-            pytest.fail(f"bidmodifiers toggle --disabled failed (CLI regression?): {r.output[:500]}")
+                pytest.skip(f"bidmodifiers add not supported (sandbox): {r.output[:200]}")
+            pytest.fail(f"bidmodifiers add failed (CLI regression?): {r.output[:500]}")
 
-        # toggle back on
-        r = _invoke(
-            "bidmodifiers", "toggle",
-            "--id", str(modifier_id),
-            "--enabled",
-        )
-        assert_success(r, "bidmodifiers toggle on")
+        # Parse modifier ID from add result
+        data = json.loads(r.output)
+        ids = None
+        if isinstance(data, dict) and "Ids" in data:
+            ids = data["Ids"]
+        elif isinstance(data, list) and data and isinstance(data[0], dict) and "Ids" in data[0]:
+            ids = data[0]["Ids"]
+
+        if not ids:
+            pytest.fail(f"bidmodifiers add returned no Ids (CLI regression?): {r.output[:200]}")
+        mid = ids[0]
+
+        try:
+            # Step 2: Toggle off
+            r = _invoke(
+                "bidmodifiers", "toggle",
+                "--id", str(mid),
+                "--disabled",
+            )
+            if r.exit_code != 0:
+                if _is_sandbox_error(r.output):
+                    pytest.skip(f"bidmodifiers toggle not supported (sandbox): {r.output[:200]}")
+                pytest.fail(f"bidmodifiers toggle --disabled failed (CLI regression?): {r.output[:500]}")
+
+            # Even with exit_code 0, the API can return embedded errors.
+            if _has_result_errors(r.output, "SetResults"):
+                if _is_sandbox_error(r.output):
+                    pytest.skip(f"bidmodifiers toggle not supported (sandbox): {r.output[:200]}")
+                pytest.fail(f"bidmodifiers toggle returned errors (CLI regression?): {r.output[:500]}")
+
+            # Step 3: Toggle back on
+            r = _invoke(
+                "bidmodifiers", "toggle",
+                "--id", str(mid),
+                "--enabled",
+            )
+            if r.exit_code != 0:
+                if _is_sandbox_error(r.output):
+                    pytest.skip(f"bidmodifiers toggle on not supported (sandbox): {r.output[:200]}")
+                pytest.fail(f"bidmodifiers toggle on failed (CLI regression?): {r.output[:500]}")
+
+            # Even with exit_code 0, the API can return embedded errors.
+            if _has_result_errors(r.output, "SetResults"):
+                if _is_sandbox_error(r.output):
+                    pytest.skip(f"bidmodifiers toggle not supported (sandbox): {r.output[:200]}")
+                pytest.fail(f"bidmodifiers toggle returned errors (CLI regression?): {r.output[:500]}")
+        finally:
+            _invoke("bidmodifiers", "delete", "--id", str(mid))
 
 
 # ── feeds ────────────────────────────────────────────────────────────────
@@ -462,6 +531,9 @@ class TestWriteRetargeting:
 
 @pytest.mark.integration_write
 @pytest.mark.vcr
+@pytest.mark.sandbox_limitation(
+    reason="Sandbox lacks valid Yandex.Metrica goal ExternalIds for retargeting rules"
+)
 class TestWriteAudienceTargets:
     def test_add_delete(self, sandbox_adgroup, sandbox_retargeting_list):
         r = _invoke(
@@ -485,6 +557,9 @@ class TestWriteAudienceTargets:
 
 @pytest.mark.integration_write
 @pytest.mark.vcr
+@pytest.mark.sandbox_limitation(
+    reason="Sandbox sitelinks service permanently unavailable (error 1000)"
+)
 class TestWriteSitelinks:
     def test_add_delete(self):
         links = json.dumps([
@@ -576,6 +651,9 @@ class TestWriteAdExtensions:
 
 @pytest.mark.integration_write
 @pytest.mark.vcr
+@pytest.mark.sandbox_limitation(
+    reason="Sandbox rejects valid base64-encoded PNG image uploads (error 5004)"
+)
 class TestWriteAdImages:
     def test_add_delete(self):
         png_b64 = (
@@ -611,6 +689,9 @@ class TestWriteAdImages:
 
 @pytest.mark.integration_write
 @pytest.mark.vcr
+@pytest.mark.sandbox_limitation(
+    reason="Sandbox does not support DYNAMIC_TEXT_AD_GROUP type required by dynamic text ad targets"
+)
 class TestWriteDynamicAds:
     def test_add_update_delete(self, sandbox_adgroup):
         target = {
@@ -654,6 +735,9 @@ class TestWriteDynamicAds:
 
 @pytest.mark.integration_write
 @pytest.mark.vcr
+@pytest.mark.sandbox_limitation(
+    reason="Sandbox fixture creates TEXT_AD_GROUP; smartadtargets requires SMART_AD_GROUP"
+)
 class TestWriteSmartAdTargets:
     """Live-API regression guard for the Type-field fix from PR #12.
 
