@@ -70,7 +70,16 @@ def get(ctx, ids, adgroup_ids, limit, fetch_all, output_format, output, fields):
 
 @smartadtargets.command()
 @click.option("--adgroup-id", required=True, type=int, help="Ad group ID")
-@click.option("--type", "target_type", required=True, help="Target type")
+@click.option(
+    "--type",
+    "target_type",
+    help=(
+        "Legacy UX hint; NOT forwarded to the API. SmartAdTargetAddItem "
+        "has no top-level Type field — pass real fields like "
+        "``TargetingId`` (e.g. 'VIEWED_PRODUCT'), ``Bid`` and "
+        "``Priority`` via --json instead."
+    ),
+)
 @click.option("--json", "extra_json", help="Additional JSON parameters")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
@@ -80,16 +89,24 @@ def add(ctx, adgroup_id, target_type, extra_json, dry_run):
         # SmartAdTargetAddItem in the Yandex Direct API does NOT have a
         # top-level "Type" field. Real fields are AdGroupId, TargetingId
         # (e.g. "VIEWED_PRODUCT"), Bid, Priority. The legacy --type CLI
-        # option does not map cleanly onto the API, so we no longer
-        # forward it; callers should pass the full SmartAdTarget shape
-        # (TargetingId/Bid/Priority) via --json.
-        # Refs: SmartAdTargets service docs and tapi-yandex-direct mapping.
+        # option was previously ``required=True`` but immediately discarded
+        # — actively hostile UX. It is now optional, documented as a
+        # legacy hint, and not forwarded. See axisrow/direct-cli#23.
         target_data = {"AdGroupId": adgroup_id}
-        _ = target_type  # acknowledged-but-unused
+        _ = target_type  # intentionally unused — kept as UX hint only
 
         if extra_json:
             extra = json.loads(extra_json)
             target_data.update(extra)
+
+        # Without real fields from --json the payload would only contain
+        # AdGroupId, which the API rejects with an opaque "required field
+        # missing" error.  Fail early and tell the user what's missing.
+        if len(target_data) == 1:
+            raise click.UsageError(
+                "Provide --json with SmartAdTargetAddItem fields "
+                '(e.g. \'{"TargetingId":"VIEWED_PRODUCT"}\').'
+            )
 
         body = {"method": "add", "params": {"SmartAdTargets": [target_data]}}
 
@@ -106,6 +123,8 @@ def add(ctx, adgroup_id, target_type, extra_json, dry_run):
         result = client.smartadtargets().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
@@ -113,7 +132,14 @@ def add(ctx, adgroup_id, target_type, extra_json, dry_run):
 
 @smartadtargets.command()
 @click.option("--id", "target_id", required=True, type=int, help="Target ID")
-@click.option("--type", "target_type", help="Target type")
+@click.option(
+    "--type",
+    "target_type",
+    help=(
+        "Legacy UX hint; NOT forwarded to the API. SmartAdTargetAddItem "
+        "has no top-level Type field — pass real fields via --json."
+    ),
+)
 @click.option("--json", "extra_json", help="Additional JSON parameters")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
@@ -125,12 +151,12 @@ def update(ctx, target_id, target_type, extra_json, dry_run):
         # See note in `add` above — Type is not a real field on
         # SmartAdTargetAddItem; the legacy --type CLI option is kept
         # for backward compatibility but no longer forwarded.
-        _ = target_type  # acknowledged-but-unused
+        _ = target_type  # intentionally unused — kept as UX hint only
         if extra_json:
             extra = json.loads(extra_json)
             target_data.update(extra)
         if len(target_data) == 1:
-            raise click.ClickException("Provide --json with fields to update")
+            raise click.UsageError("Provide --json with fields to update")
 
         body = {"method": "update", "params": {"SmartAdTargets": [target_data]}}
 
@@ -147,6 +173,8 @@ def update(ctx, target_id, target_type, extra_json, dry_run):
         result = client.smartadtargets().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()

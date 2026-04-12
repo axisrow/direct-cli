@@ -81,7 +81,17 @@ def get(ctx, ids, status, types, limit, fetch_all, output_format, output, fields
 @campaigns.command()
 @click.option("--name", required=True, help="Campaign name")
 @click.option("--start-date", required=True, help="Start date (YYYY-MM-DD)")
-@click.option("--type", "campaign_type", default="TEXT_CAMPAIGN", help="Campaign type")
+@click.option(
+    "--type",
+    "campaign_type",
+    default="TEXT_CAMPAIGN",
+    help=(
+        "Campaign type (case-insensitive). Convenience flags only build "
+        "a TEXT_CAMPAIGN payload; for other types "
+        "(MOBILE_APP_CAMPAIGN, DYNAMIC_TEXT_CAMPAIGN, ...) pass the "
+        "matching nested object via --json."
+    ),
+)
 @click.option("--budget", type=int, help="Daily budget in currency units")
 @click.option("--end-date", help="End date (YYYY-MM-DD)")
 @click.option("--json", "extra_json", help="Additional JSON parameters")
@@ -90,6 +100,23 @@ def get(ctx, ids, status, types, limit, fetch_all, output_format, output, fields
 def add(ctx, name, start_date, campaign_type, budget, end_date, extra_json, dry_run):
     """Add new campaign"""
     try:
+        # Normalize --type so ``text_campaign`` / ``text-campaign`` /
+        # ``TEXT-CAMPAIGN`` all map to ``TEXT_CAMPAIGN``.  Previously any
+        # non-default value was silently dropped and the CLI hard-coded
+        # ``TextCampaign`` regardless — see axisrow/direct-cli#23.
+        campaign_type_norm = (
+            (campaign_type or "TEXT_CAMPAIGN").upper().replace("-", "_")
+        )
+
+        if campaign_type_norm != "TEXT_CAMPAIGN":
+            raise click.UsageError(
+                f"--type {campaign_type} is not supported by this command; "
+                f"convenience flags only build a TEXT_CAMPAIGN payload. "
+                f"Pass the matching nested object "
+                f"(MobileAppCampaign / DynamicTextCampaign / ...) via --json, "
+                f"or use --type TEXT_CAMPAIGN."
+            )
+
         campaign_data = {
             "Name": name,
             "StartDate": start_date,
@@ -130,6 +157,8 @@ def add(ctx, name, start_date, campaign_type, budget, end_date, extra_json, dry_
         result = client.campaigns().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()

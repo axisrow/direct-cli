@@ -177,7 +177,11 @@ def add(ctx, campaign_id, adgroup_id, modifier_type, value, extra_json, dry_run)
     "--type",
     "modifier_type",
     required=True,
-    help="Modifier type (DEMOGRAPHICS, MOBILE, etc.)",
+    help=(
+        "Modifier category (DEMOGRAPHICS, MOBILE, ...). "
+        "Case-insensitive — values are normalized to uppercase before "
+        "being sent to the API."
+    ),
 )
 @click.option("--value", type=float, required=True, help="Modifier value")
 @click.option("--json", "extra_json", help="Additional JSON parameters")
@@ -186,9 +190,15 @@ def add(ctx, campaign_id, adgroup_id, modifier_type, value, extra_json, dry_run)
 def set(ctx, campaign_id, modifier_type, value, extra_json, dry_run):
     """Set bid modifier"""
     try:
+        # Normalize --type so ``mobile`` / ``Mobile`` / ``MOBILE`` all
+        # reach the API as ``MOBILE`` — previously a lowercase typo was
+        # forwarded verbatim and the API rejected it with a vague error
+        # that looked like a payload bug.  See axisrow/direct-cli#23.
+        modifier_type_norm = (modifier_type or "").upper().replace("-", "_")
+
         modifier_data = {
             "CampaignId": campaign_id,
-            "Type": modifier_type,
+            "Type": modifier_type_norm,
             "BidModifier": value,
         }
 

@@ -79,14 +79,25 @@ def add(ctx, name, url, extra_json, dry_run):
     URL).  Pass ``--json`` to override for file feeds or business feeds.
     """
     try:
+        # Detect the --url / --json UrlFeed collision up front.  Without
+        # this check, ``feed_data.update(extra)`` below would silently
+        # replace the ``UrlFeed`` object built from --url with whatever
+        # the caller passed in --json, and the --url value would vanish
+        # from the request — see axisrow/direct-cli#23.
+        extra = json.loads(extra_json) if extra_json else {}
+        if "UrlFeed" in extra:
+            raise click.UsageError(
+                "Pass the feed URL via exactly one of --url or "
+                "--json '{\"UrlFeed\":{...}}', not both."
+            )
+
         feed_data = {
             "Name": name,
             "SourceType": "URL",
             "UrlFeed": {"Url": url},
         }
 
-        if extra_json:
-            extra = json.loads(extra_json)
+        if extra:
             feed_data.update(extra)
 
         body = {"method": "add", "params": {"Feeds": [feed_data]}}
@@ -104,6 +115,8 @@ def add(ctx, name, url, extra_json, dry_run):
         result = client.feeds().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
@@ -119,17 +132,26 @@ def add(ctx, name, url, extra_json, dry_run):
 def update(ctx, feed_id, name, url, extra_json, dry_run):
     """Update feed"""
     try:
+        # Mirror of the --url / --json UrlFeed collision check in
+        # ``add`` — see axisrow/direct-cli#23.  Without it, --url would
+        # be silently replaced by a UrlFeed object in --json.
+        extra = json.loads(extra_json) if extra_json else {}
+        if url and "UrlFeed" in extra:
+            raise click.UsageError(
+                "Pass the feed URL via exactly one of --url or "
+                "--json '{\"UrlFeed\":{...}}', not both."
+            )
+
         feed_data = {"Id": feed_id}
 
         if name:
             feed_data["Name"] = name
         if url:
             feed_data["UrlFeed"] = {"Url": url}
-        if extra_json:
-            extra = json.loads(extra_json)
+        if extra:
             feed_data.update(extra)
         if len(feed_data) == 1:
-            raise click.ClickException(
+            raise click.UsageError(
                 "Provide at least one of --name, --url, or --json for update"
             )
 
@@ -148,6 +170,8 @@ def update(ctx, feed_id, name, url, extra_json, dry_run):
         result = client.feeds().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
