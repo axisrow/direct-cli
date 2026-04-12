@@ -188,7 +188,15 @@ def test_ads_add_unknown_type_with_json_passes():
 
     This keeps the escape hatch open for building e.g. TextImageAd,
     MobileAppAd, etc., without the CLI having to know their schemas.
+
+    Note on ``AdImageHash``: this is a format-plausible placeholder
+    (20 lowercase alphanumeric characters — the shape Yandex Direct
+    returns from ``adimages add``).  This is a dry-run test: the hash
+    is never sent to any API, so the concrete value is irrelevant; we
+    just pick something that looks like a real hash instead of
+    obvious filler text.
     """
+    image_hash = "ygqa6jmlkgsbz7vnewp0"
     body = _dry_run(
         "ads",
         "add",
@@ -198,14 +206,19 @@ def test_ads_add_unknown_type_with_json_passes():
         "TEXT_IMAGE_AD",
         "--json",
         json.dumps(
-            {"TextImageAd": {"AdImageHash": "abc", "Href": "https://example.com"}}
+            {
+                "TextImageAd": {
+                    "AdImageHash": image_hash,
+                    "Href": "https://example.com",
+                }
+            }
         ),
     )
     ad = body["params"]["Ads"][0]
     assert "Type" not in ad
     assert ad["AdGroupId"] == 55
     assert ad["TextImageAd"] == {
-        "AdImageHash": "abc",
+        "AdImageHash": image_hash,
         "Href": "https://example.com",
     }
 
