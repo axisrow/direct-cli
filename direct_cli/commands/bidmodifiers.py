@@ -82,13 +82,9 @@ _BIDMODIFIER_TYPE_TO_NESTED = {
     "AD_GROUP_ADJUSTMENT": "AdGroupAdjustment",
 }
 
-# Plural fields require a list value per WSDL BidModifierAddItem
+# Plural fields (derived from _BIDMODIFIER_TYPE_TO_NESTED) require a list value per WSDL
 _PLURAL_NESTED_KEYS = {
-    "DemographicsAdjustments",
-    "RetargetingAdjustments",
-    "RegionalAdjustments",
-    "SerpLayoutAdjustments",
-    "IncomeGradeAdjustments",
+    v for v in _BIDMODIFIER_TYPE_TO_NESTED.values() if v.endswith("Adjustments")
 }
 
 
