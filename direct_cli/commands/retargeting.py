@@ -66,10 +66,26 @@ def get(ctx, ids, types, limit, fetch_all, output_format, output, fields):
         raise click.Abort()
 
 
+#: Valid ``RetargetingListAddItem.Type`` values per Yandex Direct API docs
+#: (ref-v5/retargetinglists/add).  The API defaults to ``RETARGETING`` when
+#: ``Type`` is omitted, so the CLI follows the same default.
+_RETARGETING_LIST_TYPES = ["RETARGETING", "AUDIENCE"]
+
+
 @retargeting.command()
 @click.option("--name", required=True, help="List name")
 @click.option(
-    "--type", "list_type", required=True, help="List type (AUDIENCE_SEGMENT, etc.)"
+    "--type",
+    "list_type",
+    default="RETARGETING",
+    type=click.Choice(_RETARGETING_LIST_TYPES, case_sensitive=False),
+    help=(
+        "Retargeting list type (case-insensitive). Yandex Direct accepts "
+        "only RETARGETING (default — Metrica goals/segments + Audience "
+        "segments, usable in text & image / mobile-app campaigns) or "
+        "AUDIENCE (any goals/segments, usable in display campaigns). "
+        "See axisrow/direct-cli#25."
+    ),
 )
 @click.option("--json", "extra_json", help="Additional JSON parameters")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
@@ -77,6 +93,9 @@ def get(ctx, ids, types, limit, fetch_all, output_format, output, fields):
 def add(ctx, name, list_type, extra_json, dry_run):
     """Add new retargeting list"""
     try:
+        # click.Choice normalizes the case when case_sensitive=False but
+        # leaves the original casing of the canonical choice; pass it
+        # through unchanged.
         list_data = {"Name": name, "Type": list_type}
 
         if extra_json:

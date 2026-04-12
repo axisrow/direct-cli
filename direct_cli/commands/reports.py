@@ -28,7 +28,11 @@ def reports():
     "--type",
     "report_type",
     required=True,
-    help="Report type (CAMPAIGN_PERFORMANCE_REPORT, etc.)",
+    type=click.Choice(REPORT_TYPES, case_sensitive=False),
+    help=(
+        "Report type (case-insensitive). Validated against the official "
+        "Yandex Direct report-type enum — see axisrow/direct-cli#25."
+    ),
 )
 @click.option("--from", "date_from", required=True, help="Start date (YYYY-MM-DD)")
 @click.option("--to", "date_to", required=True, help="End date (YYYY-MM-DD)")
@@ -43,7 +47,6 @@ def reports():
     help="Output format (json/table/csv/tsv)",
 )
 @click.option("--output", help="Output file")
-@click.option("--mode", default="auto", help="Processing mode (online/offline/auto)")
 @click.pass_context
 def get(
     ctx,
@@ -56,9 +59,15 @@ def get(
     adgroup_ids,
     output_format,
     output,
-    mode,
 ):
-    """Get report"""
+    """Get report
+
+    The underlying ``create_client`` uses processing mode ``auto``
+    — previously the CLI also exposed a ``--mode`` option that was
+    declared but never read in the function body, silently dropping
+    any value the user passed.  That dead option was removed in
+    axisrow/direct-cli#25.
+    """
     try:
         client = create_client(
             token=ctx.obj.get("token"),
