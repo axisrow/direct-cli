@@ -85,6 +85,11 @@ def add(ctx, name, url, extra_json, dry_run):
         # the caller passed in --json, and the --url value would vanish
         # from the request — see axisrow/direct-cli#23.
         extra = json.loads(extra_json) if extra_json else {}
+        if not isinstance(extra, dict):
+            raise click.UsageError(
+                "--json must be a JSON object (dict), "
+                f"got {type(extra).__name__}"
+            )
         if "UrlFeed" in extra:
             raise click.UsageError(
                 "Pass the feed URL via exactly one of --url or "
@@ -136,6 +141,11 @@ def update(ctx, feed_id, name, url, extra_json, dry_run):
         # ``add`` — see axisrow/direct-cli#23.  Without it, --url would
         # be silently replaced by a UrlFeed object in --json.
         extra = json.loads(extra_json) if extra_json else {}
+        if not isinstance(extra, dict):
+            raise click.UsageError(
+                "--json must be a JSON object (dict), "
+                f"got {type(extra).__name__}"
+            )
         if url and "UrlFeed" in extra:
             raise click.UsageError(
                 "Pass the feed URL via exactly one of --url or "

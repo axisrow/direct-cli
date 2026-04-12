@@ -136,7 +136,7 @@ def add(ctx, campaign_id, adgroup_id, modifier_type, value, extra_json, dry_run)
     """
     try:
         if (campaign_id is None) == (adgroup_id is None):
-            raise click.ClickException(
+            raise click.UsageError(
                 "Exactly one of --campaign-id or --adgroup-id is required"
             )
 
@@ -166,6 +166,8 @@ def add(ctx, campaign_id, adgroup_id, modifier_type, value, extra_json, dry_run)
         result = client.bidmodifiers().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
