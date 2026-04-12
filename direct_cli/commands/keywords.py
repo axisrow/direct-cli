@@ -106,9 +106,9 @@ def add(
     try:
         keyword_data = {"AdGroupId": adgroup_id, "Keyword": keyword}
 
-        if bid:
+        if bid is not None:
             keyword_data["Bid"] = int(bid * 1000000)
-        if context_bid:
+        if context_bid is not None:
             keyword_data["ContextBid"] = int(context_bid * 1000000)
         if user_param_1:
             keyword_data["UserParam1"] = user_param_1

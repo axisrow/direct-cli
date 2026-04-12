@@ -70,17 +70,17 @@ def get(
 
 
 @bids.command()
-@click.option("--campaign-id", required=True, type=int, help="Campaign ID")
+@click.option("--keyword-id", required=True, type=int, help="Keyword ID")
 @click.option("--bid", type=float, help="Bid amount")
 @click.option("--json", "extra_json", help="Additional JSON parameters")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def set(ctx, campaign_id, bid, extra_json, dry_run):
+def set(ctx, keyword_id, bid, extra_json, dry_run):
     """Set bids"""
     try:
-        bid_data = {"CampaignId": campaign_id}
+        bid_data = {"KeywordId": keyword_id}
 
-        if bid:
+        if bid is not None:
             bid_data["Bid"] = int(bid * 1000000)
 
         if extra_json:

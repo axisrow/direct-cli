@@ -147,7 +147,7 @@ def add(ctx, adgroup_id, ad_type, title, text, href, extra_json, dry_run):
         ad_data = {"AdGroupId": adgroup_id}
 
         if ad_type_norm == "TEXT_AD" and has_convenience_flags:
-            ad_data["TextAd"] = {}
+            ad_data["TextAd"] = {"Mobile": "NO"}
             if title:
                 ad_data["TextAd"]["Title"] = title
             if text:

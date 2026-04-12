@@ -84,7 +84,7 @@ def add(ctx, adgroup_id, retargeting_list_id, bid, extra_json, dry_run):
             "RetargetingListId": retargeting_list_id,
         }
 
-        if bid:
+        if bid is not None:
             target_data["Bid"] = int(bid * 1000000)
 
         if extra_json:
