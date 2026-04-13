@@ -818,6 +818,138 @@ class TestApiCoverage:
         assert report["summary"]["unexpected_service_methods"] == 0
         assert sorted(report["canonical_services"]) == CANONICAL_API_SERVICES
 
+    def test_reports_get_cli_skip_report_summary_forwarded(self, monkeypatch):
+        """--skip-report-summary must reach create_client as skip_report_summary=True."""
+        captured = {}
+        reports_module = importlib.import_module("direct_cli.commands.reports")
+
+        class _FakeResponse:
+            columns = ["Date"]
+
+            def __call__(self):
+                return self
+
+            def to_dicts(self):
+                return [{"Date": "2026-01-01"}]
+
+            def to_values(self):
+                return [["2026-01-01"]]
+
+        class _FakeReports:
+            def post(self, data):
+                return _FakeResponse()
+
+        class _FakeClient:
+            def reports(self):
+                return _FakeReports()
+
+        def _fake_create_client(**kwargs):
+            captured["kwargs"] = kwargs
+            return _FakeClient()
+
+        monkeypatch.setattr(reports_module, "create_client", _fake_create_client)
+
+        result = CliRunner().invoke(
+            cli,
+            [
+                "reports", "get",
+                "--type", "campaign_performance_report",
+                "--from", "2026-01-01",
+                "--to", "2026-01-31",
+                "--name", "Test",
+                "--fields", "Date",
+                "--skip-report-summary",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert captured["kwargs"]["skip_report_summary"] is True
+
+    def test_reports_get_cli_include_vat_false_forwarded(self, monkeypatch):
+        """--no-include-vat must produce IncludeVAT=NO in request body."""
+        captured = {}
+        reports_module = importlib.import_module("direct_cli.commands.reports")
+
+        class _FakeResponse:
+            columns = ["Date"]
+
+            def __call__(self):
+                return self
+
+            def to_dicts(self):
+                return [{"Date": "2026-01-01"}]
+
+            def to_values(self):
+                return [["2026-01-01"]]
+
+        class _FakeReports:
+            def post(self, data):
+                captured["body"] = data
+                return _FakeResponse()
+
+        class _FakeClient:
+            def reports(self):
+                return _FakeReports()
+
+        monkeypatch.setattr(reports_module, "create_client", lambda **_: _FakeClient())
+
+        result = CliRunner().invoke(
+            cli,
+            [
+                "reports", "get",
+                "--type", "campaign_performance_report",
+                "--from", "2026-01-01",
+                "--to", "2026-01-31",
+                "--name", "Test",
+                "--fields", "Date",
+                "--no-include-vat",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert captured["body"]["params"]["IncludeVAT"] == "NO"
+
+    def test_reports_get_cli_include_discount_false_forwarded(self, monkeypatch):
+        """--no-include-discount must produce IncludeDiscount=NO in request body."""
+        captured = {}
+        reports_module = importlib.import_module("direct_cli.commands.reports")
+
+        class _FakeResponse:
+            columns = ["Date"]
+
+            def __call__(self):
+                return self
+
+            def to_dicts(self):
+                return [{"Date": "2026-01-01"}]
+
+            def to_values(self):
+                return [["2026-01-01"]]
+
+        class _FakeReports:
+            def post(self, data):
+                captured["body"] = data
+                return _FakeResponse()
+
+        class _FakeClient:
+            def reports(self):
+                return _FakeReports()
+
+        monkeypatch.setattr(reports_module, "create_client", lambda **_: _FakeClient())
+
+        result = CliRunner().invoke(
+            cli,
+            [
+                "reports", "get",
+                "--type", "campaign_performance_report",
+                "--from", "2026-01-01",
+                "--to", "2026-01-31",
+                "--name", "Test",
+                "--fields", "Date",
+                "--no-include-discount",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert captured["body"]["params"]["IncludeDiscount"] == "NO"
+
 
 @pytest.mark.api_coverage
 class TestReportsCoverage:
@@ -899,3 +1031,146 @@ class TestReportsCoverage:
         assert "spec_snapshot" in policy
         assert "drift_script" in policy
         assert "refresh_script" in policy
+
+
+class TestReportsParseFilter:
+    """Unit tests for _parse_filter helper."""
+
+    def test_reports_parse_filter_basic(self):
+        from direct_cli.commands.reports import _parse_filter
+        result = _parse_filter("CampaignId:IN:1,2,3")
+        assert result == {
+            "Field": "CampaignId",
+            "Operator": "IN",
+            "Values": ["1", "2", "3"],
+        }
+
+    def test_reports_parse_filter_trims_whitespace(self):
+        from direct_cli.commands.reports import _parse_filter
+        result = _parse_filter("CampaignId : IN : 1 , 2 , 3")
+        assert result == {
+            "Field": "CampaignId",
+            "Operator": "IN",
+            "Values": ["1", "2", "3"],
+        }
+
+    def test_reports_parse_filter_single_value(self):
+        from direct_cli.commands.reports import _parse_filter
+        result = _parse_filter("Status:EQUALS:ENABLED")
+        assert result == {
+            "Field": "Status",
+            "Operator": "EQUALS",
+            "Values": ["ENABLED"],
+        }
+
+    def test_reports_parse_filter_invalid_format_raises(self):
+        from direct_cli.commands.reports import _parse_filter
+        with pytest.raises(ValueError, match="Field:Operator:Value"):
+            _parse_filter("BadFormat")
+
+
+class TestReportsParseOrderBy:
+    """Unit tests for _parse_order_by helper."""
+
+    def test_reports_parse_order_by_field_only(self):
+        from direct_cli.commands.reports import _parse_order_by
+        result = _parse_order_by("Clicks")
+        assert result == {"Field": "Clicks"}
+
+    def test_reports_parse_order_by_with_desc(self):
+        from direct_cli.commands.reports import _parse_order_by
+        result = _parse_order_by("Clicks:DESC")
+        assert result == {"Field": "Clicks", "SortOrder": "DESC"}
+
+    def test_reports_parse_order_by_case_insensitive(self):
+        from direct_cli.commands.reports import _parse_order_by
+        result = _parse_order_by("Clicks:desc")
+        assert result == {"Field": "Clicks", "SortOrder": "DESC"}
+
+
+class TestReportsBuildRequestExtra:
+    """build_report_request scenarios not covered by TestApiCoverage."""
+
+    def test_reports_request_builder_custom_filters(self):
+        result = build_report_request(
+            report_type="CAMPAIGN_PERFORMANCE_REPORT",
+            date_from="2026-01-01",
+            date_to="2026-01-31",
+            name="Filter Report",
+            fields="Date,CampaignId",
+            filters=("CampaignId:IN:1,2",),
+        )
+        assert result["params"]["SelectionCriteria"]["Filter"] == [
+            {"Field": "CampaignId", "Operator": "IN", "Values": ["1", "2"]}
+        ]
+
+    def test_reports_request_builder_filter_precedence_over_campaign_ids(self):
+        result = build_report_request(
+            report_type="CAMPAIGN_PERFORMANCE_REPORT",
+            date_from="2026-01-01",
+            date_to="2026-01-31",
+            name="Precedence Report",
+            fields="Date,CampaignId",
+            campaign_ids="99,100",
+            filters=("Status:EQUALS:ENABLED",),
+        )
+        # --filter wins; campaign_ids ignored
+        assert result["params"]["SelectionCriteria"]["Filter"] == [
+            {"Field": "Status", "Operator": "EQUALS", "Values": ["ENABLED"]}
+        ]
+
+    def test_reports_request_builder_with_order_by(self):
+        result = build_report_request(
+            report_type="CAMPAIGN_PERFORMANCE_REPORT",
+            date_from="2026-01-01",
+            date_to="2026-01-31",
+            name="OrderBy Report",
+            fields="Date,Clicks",
+            order_by=("Clicks:DESC",),
+        )
+        assert result["params"]["OrderBy"] == [{"Field": "Clicks", "SortOrder": "DESC"}]
+
+    def test_reports_request_builder_with_pagination(self):
+        result = build_report_request(
+            report_type="CAMPAIGN_PERFORMANCE_REPORT",
+            date_from="2026-01-01",
+            date_to="2026-01-31",
+            name="Paginated Report",
+            fields="Date,CampaignId",
+            page_limit=50,
+            page_offset=100,
+        )
+        assert result["params"]["Page"] == {"Limit": 50, "Offset": 100}
+
+    def test_reports_request_builder_no_include_vat(self):
+        result = build_report_request(
+            report_type="CAMPAIGN_PERFORMANCE_REPORT",
+            date_from="2026-01-01",
+            date_to="2026-01-31",
+            name="No VAT Report",
+            fields="Date,Cost",
+            include_vat=False,
+        )
+        assert result["params"]["IncludeVAT"] == "NO"
+
+    def test_reports_request_builder_no_include_discount(self):
+        result = build_report_request(
+            report_type="CAMPAIGN_PERFORMANCE_REPORT",
+            date_from="2026-01-01",
+            date_to="2026-01-31",
+            name="No Discount Report",
+            fields="Date,Cost",
+            include_discount=False,
+        )
+        assert result["params"]["IncludeDiscount"] == "NO"
+
+    def test_reports_request_builder_custom_date_range_type(self):
+        result = build_report_request(
+            report_type="CAMPAIGN_PERFORMANCE_REPORT",
+            date_from="2026-01-01",
+            date_to="2026-01-31",
+            name="Last 7 Days Report",
+            fields="Date,CampaignId",
+            date_range_type="LAST_7_DAYS",
+        )
+        assert result["params"]["DateRangeType"] == "LAST_7_DAYS"
