@@ -2,6 +2,8 @@
 Reports commands
 """
 
+import json
+
 import click
 
 from ..api import create_client
@@ -70,7 +72,6 @@ def build_report_request(
     fields,
     campaign_ids=None,
     adgroup_ids=None,
-    output_format="json",
     date_range_type="CUSTOM_DATE",
     include_vat=True,
     include_discount=True,
@@ -88,7 +89,6 @@ def build_report_request(
         fields: Comma-separated field names.
         campaign_ids: Optional comma-separated campaign IDs filter.
         adgroup_ids: Optional comma-separated ad group IDs filter.
-        output_format: CLI output format. Reports API itself still receives TSV.
         date_range_type: DateRangeType enum value (default CUSTOM_DATE).
         include_vat: Whether to include VAT (default True = "YES").
         include_discount: Whether to include discounts (default True = "YES").
@@ -133,12 +133,13 @@ def build_report_request(
         "IncludeDiscount": "YES" if include_discount else "NO",
     }
 
-    if page_limit is not None:
-        params["Page"] = {"Limit": page_limit}
+    if page_limit is not None or page_offset is not None:
+        params["Page"] = {}
+        if page_limit is not None:
+            params["Page"]["Limit"] = page_limit
         if page_offset is not None:
             params["Page"]["Offset"] = page_offset
 
-    _ = output_format
     return {"params": params}
 
 
@@ -265,7 +266,6 @@ def get(
             fields=fields,
             campaign_ids=campaign_ids,
             adgroup_ids=adgroup_ids,
-            output_format=output_format,
             date_range_type=date_range_type.upper(),
             include_vat=include_vat,
             include_discount=include_discount,
@@ -288,10 +288,8 @@ def get(
             request_headers["Accept-Language"] = language
 
         if dry_run:
-            import json as _json
-
             output_data = {"headers": request_headers, "body": body}
-            click.echo(_json.dumps(output_data, indent=2, ensure_ascii=False))
+            click.echo(json.dumps(output_data, indent=2, ensure_ascii=False))
             return
 
         client = create_client(

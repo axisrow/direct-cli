@@ -620,7 +620,6 @@ class TestApiCoverage:
             name="Coverage Report",
             fields="Date,CampaignId",
             campaign_ids="1,2",
-            output_format="csv",
         )
         assert request == {
             "params": {
@@ -653,7 +652,6 @@ class TestApiCoverage:
             name="Adgroup Coverage",
             fields=" Date , AdGroupId , Clicks ",
             adgroup_ids="10, 20 ,30",
-            output_format="json",
         )
         assert request["params"]["SelectionCriteria"]["Filter"] == [
             {
@@ -674,7 +672,6 @@ class TestApiCoverage:
             fields="Date,CampaignId,AdGroupId",
             campaign_ids="1,2",
             adgroup_ids="99,100",
-            output_format="table",
         )
         assert request["params"]["SelectionCriteria"]["Filter"] == [
             {
@@ -749,7 +746,6 @@ class TestApiCoverage:
             fields=" Date , CampaignId ",
             campaign_ids="1, 2",
             adgroup_ids="999",
-            output_format=output_format,
         )
 
     def test_api_coverage_report_script_matches_strict_parity_contract(self):
