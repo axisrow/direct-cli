@@ -254,7 +254,18 @@ def _collect_complex_type_fields(complex_types: dict, type_name: str) -> list[di
 
 
 def get_operation_request_schema(wsdl_xml: str, operation_name: str) -> dict:
-    """Return request schema metadata for a WSDL operation."""
+    """Return request schema metadata for a WSDL operation.
+
+    Known limitations (documented rather than silent):
+    - Types declared in imported XSD namespaces (``<xsd:import>``) are not
+      resolved: ``item_fields`` for any field whose type lives in another
+      namespace is ``[]``. Nested required-field validation therefore only
+      applies to locally-defined inline types.
+    - When a request element uses ``xsd:complexContent/xsd:extension``, only
+      fields from the extension's own ``xsd:sequence`` are returned; inherited
+      base-type fields are dropped. Safe today because no ``get*`` operation
+      (the typical extension user) is included in payload coverage tests.
+    """
     root = ET.fromstring(wsdl_xml)
     ns = {
         "wsdl": "http://schemas.xmlsoap.org/wsdl/",

@@ -434,6 +434,11 @@ def _dry_run(*args: str) -> dict:
 
 
 def _assert_body_matches_wsdl(body: dict, service: str, operation: str):
+    # Coverage note: this validator checks top-level param names, required flags,
+    # and one level of inline-type fields. Nested validation does NOT cover types
+    # declared via <xsd:import> or fields inherited through xsd:extension — see
+    # `get_operation_request_schema` docstring for details. For those shapes,
+    # only the CLI-level dry-run command test guards correctness.
     schema = get_operation_request_schema(fetch_wsdl(service), operation)
     expected_fields = {field["name"] for field in schema["fields"]}
     required_fields = {
