@@ -198,12 +198,18 @@ def refresh_reports_cache() -> dict[str, Exception]:
     except Exception as exc:
         return {"fetch": exc}
 
-    spec = parse_reports_spec(raw)
+    try:
+        spec = parse_reports_spec(raw)
+    except Exception as exc:
+        return {"parse": exc}
 
     spec_file = REPORTS_CACHE_DIR / "spec.json"
-    spec_file.write_text(
-        json.dumps(spec, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    try:
+        spec_file.write_text(
+            json.dumps(spec, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+    except Exception as exc:
+        return {"write": exc}
 
     return errors
 

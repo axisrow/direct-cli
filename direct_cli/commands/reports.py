@@ -129,9 +129,15 @@ def build_report_request(
     field_names = [field.strip() for field in fields.split(",") if field.strip()]
     selection_criteria = {"DateFrom": date_from, "DateTo": date_to}
 
-    # --filter takes precedence; --campaign-ids / --adgroup-ids are shorthand
+    # --filter takes precedence; --campaign-ids / --adgroup-ids are shorthand.
+    # When both --campaign-ids and --adgroup-ids are provided, --campaign-ids wins.
     if filters:
         selection_criteria["Filter"] = [_parse_filter(f) for f in filters]
+    elif campaign_ids and adgroup_ids:
+        raise ValueError(
+            "--campaign-ids and --adgroup-ids are mutually exclusive; "
+            "use --filter for complex selection criteria"
+        )
     elif campaign_ids:
         selection_criteria["Filter"] = [
             {

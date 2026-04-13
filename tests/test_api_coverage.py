@@ -663,24 +663,17 @@ class TestApiCoverage:
         assert request["params"]["FieldNames"] == ["Date", "AdGroupId", "Clicks"]
         assert request["params"]["Format"] == "TSV"
 
-    def test_reports_request_builder_campaign_filter_takes_precedence(self):
-        request = build_report_request(
-            report_type="CUSTOM_REPORT",
-            date_from="2026-03-01",
-            date_to="2026-03-31",
-            name="Precedence Coverage",
-            fields="Date,CampaignId,AdGroupId",
-            campaign_ids="1,2",
-            adgroup_ids="99,100",
-        )
-        assert request["params"]["SelectionCriteria"]["Filter"] == [
-            {
-                "Field": "CampaignId",
-                "Operator": "IN",
-                "Values": ["1", "2"],
-            }
-        ]
-        assert request["params"]["Format"] == "TSV"
+    def test_reports_request_builder_both_campaign_and_adgroup_ids_raises(self):
+        with pytest.raises(ValueError, match="mutually exclusive"):
+            build_report_request(
+                report_type="CUSTOM_REPORT",
+                date_from="2026-03-01",
+                date_to="2026-03-31",
+                name="Precedence Coverage",
+                fields="Date,CampaignId,AdGroupId",
+                campaign_ids="1,2",
+                adgroup_ids="99,100",
+            )
 
     @pytest.mark.parametrize("output_format", ["json", "table", "csv", "tsv"])
     def test_reports_get_cli_path_sends_expected_request_body(
@@ -730,8 +723,6 @@ class TestApiCoverage:
                 " Date , CampaignId ",
                 "--campaign-ids",
                 "1, 2",
-                "--adgroup-ids",
-                "999",
                 "--format",
                 output_format,
             ],
@@ -745,7 +736,6 @@ class TestApiCoverage:
             name="Coverage Report",
             fields=" Date , CampaignId ",
             campaign_ids="1, 2",
-            adgroup_ids="999",
         )
 
     def test_reports_get_cli_path_forwards_header_flags_to_create_client(
