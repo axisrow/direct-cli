@@ -1555,3 +1555,33 @@ def test_smartadtargets_delete_dry_run_payload():
         "method": "delete",
         "params": {"SelectionCriteria": {"Ids": [88]}},
     }
+
+
+def test_reports_get_dry_run_outputs_request():
+    """--dry-run prints headers + body with expected keys."""
+    result = CliRunner().invoke(
+        cli,
+        [
+            "reports", "get",
+            "--type", "campaign_performance_report",
+            "--from", "2026-01-01",
+            "--to", "2026-01-31",
+            "--name", "Dry Run Report",
+            "--fields", "Date,CampaignId",
+            "--processing-mode", "online",
+            "--skip-report-header",
+            "--skip-report-summary",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)
+    assert "headers" in data
+    assert "body" in data
+    assert data["headers"]["processingMode"] == "online"
+    assert data["headers"]["skipReportHeader"] == "true"
+    assert data["headers"]["skipReportSummary"] == "true"
+    body_params = data["body"]["params"]
+    assert body_params["ReportType"] == "CAMPAIGN_PERFORMANCE_REPORT"
+    assert body_params["DateRangeType"] == "CUSTOM_DATE"
+    assert "SelectionCriteria" in body_params
