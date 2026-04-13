@@ -764,3 +764,16 @@ class TestApiCoverage:
         assert report["summary"]["missing_service_methods"] == 0
         assert report["summary"]["unexpected_service_methods"] == 0
         assert sorted(report["canonical_services"]) == CANONICAL_API_SERVICES
+
+
+@pytest.mark.api_coverage
+class TestReportsCoverage:
+    """Tests for Reports API spec snapshot and CLI parity."""
+
+    def test_reports_cache_files_exist(self):
+        """All 4 raw HTML files and spec.json must be committed."""
+        from direct_cli.reports_coverage import REPORTS_CACHE_DIR
+        raw_dir = REPORTS_CACHE_DIR / "raw"
+        for fname in ["spec.html", "type.html", "fields-list.html", "headers.html"]:
+            assert (raw_dir / fname).exists(), f"Missing cache file: raw/{fname}"
+        assert (REPORTS_CACHE_DIR / "spec.json").exists(), "Missing spec.json"
