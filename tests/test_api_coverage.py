@@ -792,6 +792,8 @@ class TestApiCoverage:
                 "--skip-report-header",
                 "--skip-column-header",
                 "--return-money-in-micros",
+                "--language",
+                "ru",
             ],
         )
 
@@ -800,6 +802,7 @@ class TestApiCoverage:
         assert captured["kwargs"]["skip_report_header"] is True
         assert captured["kwargs"]["skip_column_header"] is True
         assert captured["kwargs"]["return_money_in_micros"] is True
+        assert captured["kwargs"]["language"] == "ru"
 
     def test_api_coverage_report_script_matches_strict_parity_contract(self):
         result = subprocess.run(

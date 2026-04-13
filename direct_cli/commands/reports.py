@@ -362,6 +362,7 @@ def get(
             skip_report_header=skip_report_header,
             skip_column_header=skip_column_header,
             skip_report_summary=skip_report_summary,
+            language=language,
         )
 
         result = client.reports().post(data=body)
@@ -374,8 +375,6 @@ def get(
             format_output(result().to_values(), "csv", output, headers=result.columns)
         elif output_format == "tsv":
             format_output(result().to_values(), "tsv", output, headers=result.columns)
-        else:
-            format_output(result.data, "json", output)
 
     except Exception as e:
         print_error(str(e))

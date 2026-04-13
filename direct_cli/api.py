@@ -19,6 +19,7 @@ def create_client(
     skip_report_header: bool = True,
     skip_column_header: bool = False,
     skip_report_summary: bool = True,
+    language: Optional[str] = None,
 ) -> YandexDirect:
     """
     Create YandexDirect client
@@ -34,6 +35,7 @@ def create_client(
         skip_report_header: Omit report header row
         skip_column_header: Omit column header row
         skip_report_summary: Omit report summary row
+        language: Accept-Language for report (ru/en)
 
     Returns:
         YandexDirect client instance
@@ -55,6 +57,7 @@ def create_client(
         skip_report_header=skip_report_header,
         skip_column_header=skip_column_header,
         skip_report_summary=skip_report_summary,
+        language=language,
     )
 
 
