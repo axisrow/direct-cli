@@ -10,6 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from direct_cli.reports_coverage import (  # noqa: E402
+    REPORTS_SPEC_URLS,
     fetch_reports_spec,
     load_cached_reports_spec,
     parse_reports_spec,
@@ -79,8 +80,20 @@ def compute_drift(cached: dict, live: dict) -> dict:
         )
     )
 
+    # Compare request_headers keys
+    cached_headers = set(cached.get("request_headers", {}).keys())
+    live_headers = set(live.get("request_headers", {}).keys())
+    added_headers = sorted(live_headers - cached_headers)
+    removed_headers = sorted(cached_headers - live_headers)
+    if added_headers or removed_headers:
+        drift.append({
+            "section": "request_headers",
+            "added": added_headers,
+            "removed": removed_headers,
+        })
+
     return {
-        "sources_checked": len(live),
+        "sources_checked": len(REPORTS_SPEC_URLS),
         "missing_cache_count": 0,
         "drift_count": len(drift),
         "drift": drift,

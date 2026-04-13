@@ -86,12 +86,9 @@ def parse_reports_spec(raw: dict[str, str]) -> dict:
         in_processing = False
         for tag in soup.find_all(["h2", "h3", "h4", "code", "td"]):
             text = tag.get_text(strip=True)
-            if "DateRangeType" in text:
-                in_date_range = True
-                in_processing = False
-            elif "ProcessingMode" in text:
-                in_processing = True
-                in_date_range = False
+            if tag.name in ("h2", "h3", "h4"):
+                in_date_range = "DateRangeType" in text
+                in_processing = "ProcessingMode" in text
             elif tag.name == "code" and in_date_range:
                 val = text.strip()
                 if val.isupper() and val and val not in spec["date_range_types"]:
@@ -113,6 +110,7 @@ def parse_reports_spec(raw: dict[str, str]) -> dict:
             "THIS_WEEK_MON_SUN",
             "LAST_WEEK",
             "LAST_BUSINESS_WEEK",
+            "LAST_7_DAYS",
             "LAST_14_DAYS",
             "LAST_30_DAYS",
             "LAST_3_MONTHS",
