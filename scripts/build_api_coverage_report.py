@@ -71,6 +71,36 @@ def main() -> int:
         and report["summary"]["unexpected_service_methods"] == 0
     )
 
+    # Reports section
+    from direct_cli.reports_coverage import get_reports_coverage_policy, load_cached_reports_spec
+    from direct_cli.commands.reports import _load_report_types
+    reports_policy = get_reports_coverage_policy()
+    try:
+        spec = load_cached_reports_spec()
+        cli_types = set(t.upper() for t in _load_report_types())
+        spec_types = set(t.upper() for t in spec.get("report_types", []))
+        cli_types_match = cli_types == spec_types
+        cli_headers_covered = bool(spec.get("request_headers"))
+    except Exception:
+        cli_types_match = False
+        cli_headers_covered = False
+
+    report["reports"] = {
+        "policy": reports_policy,
+        "summary": {
+            "report_types": reports_policy["summary"]["report_types"],
+            "fields": reports_policy["summary"]["fields"],
+            "headers": reports_policy["summary"]["headers"],
+            "cli_report_types_match": cli_types_match,
+            "cli_headers_covered": cli_headers_covered,
+        },
+    }
+    report["summary"]["strict_parity_ok"] = (
+        report["summary"]["strict_parity_ok"]
+        and cli_types_match
+        and cli_headers_covered
+    )
+
     print(json.dumps(report, indent=2, ensure_ascii=False))
     return 0
 

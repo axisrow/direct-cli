@@ -14,6 +14,12 @@ def create_client(
     sandbox: bool = False,
     op_token_ref: Optional[str] = None,
     op_login_ref: Optional[str] = None,
+    processing_mode: str = "auto",
+    return_money_in_micros: bool = False,
+    skip_report_header: bool = True,
+    skip_column_header: bool = False,
+    skip_report_summary: bool = True,
+    language: Optional[str] = None,
 ) -> YandexDirect:
     """
     Create YandexDirect client
@@ -24,6 +30,12 @@ def create_client(
         sandbox: Use sandbox API
         op_token_ref: 1Password secret reference for token
         op_login_ref: 1Password secret reference for login
+        processing_mode: Report processing mode (auto/online/offline)
+        return_money_in_micros: Return monetary values in micros
+        skip_report_header: Omit report header row
+        skip_column_header: Omit column header row
+        skip_report_summary: Omit report summary row
+        language: Accept-Language for report (ru/en)
 
     Returns:
         YandexDirect client instance
@@ -39,12 +51,13 @@ def create_client(
         retry_if_exceeded_limit=True,
         retries_if_server_error=5,
         # Report settings
-        processing_mode="auto",
+        processing_mode=processing_mode,
         wait_report=True,
-        return_money_in_micros=False,
-        skip_report_header=True,
-        skip_column_header=False,
-        skip_report_summary=True,
+        return_money_in_micros=return_money_in_micros,
+        skip_report_header=skip_report_header,
+        skip_column_header=skip_column_header,
+        skip_report_summary=skip_report_summary,
+        language=language,
     )
 
 
