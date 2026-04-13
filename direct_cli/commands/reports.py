@@ -64,6 +64,30 @@ def _load_date_range_types() -> list:
         ]
 
 
+def _parse_filter(filter_str):
+    """Parse 'Field:Operator:Value1,Value2' into a Reports API Filter entry."""
+    parts = filter_str.split(":", 2)
+    if len(parts) != 3:
+        raise ValueError(
+            f"--filter must be Field:Operator:Value1,Value2, got: {filter_str!r}"
+        )
+    field, operator, values_raw = parts
+    return {
+        "Field": field.strip(),
+        "Operator": operator.strip().upper(),
+        "Values": [v.strip() for v in values_raw.split(",") if v.strip()],
+    }
+
+
+def _parse_order_by(order_str):
+    """Parse 'Field[:ASC|DESC]' into a Reports API OrderBy entry."""
+    parts = order_str.split(":", 1)
+    entry = {"Field": parts[0].strip()}
+    if len(parts) == 2:
+        entry["SortOrder"] = parts[1].strip().upper()
+    return entry
+
+
 def build_report_request(
     report_type,
     date_from,
@@ -77,6 +101,8 @@ def build_report_request(
     include_discount=True,
     page_limit=None,
     page_offset=None,
+    filters=(),
+    order_by=(),
 ):
     """
     Build the Reports API request body from CLI arguments.
@@ -94,6 +120,8 @@ def build_report_request(
         include_discount: Whether to include discounts (default True = "YES").
         page_limit: Optional page limit for pagination.
         page_offset: Optional page offset for pagination.
+        filters: Sequence of 'Field:Operator:Values' strings.
+        order_by: Sequence of 'Field[:ASC|DESC]' strings.
 
     Returns:
         Reports API request body with CLI-normalized filters and field names.
@@ -101,7 +129,10 @@ def build_report_request(
     field_names = [field.strip() for field in fields.split(",") if field.strip()]
     selection_criteria = {"DateFrom": date_from, "DateTo": date_to}
 
-    if campaign_ids:
+    # --filter takes precedence; --campaign-ids / --adgroup-ids are shorthand
+    if filters:
+        selection_criteria["Filter"] = [_parse_filter(f) for f in filters]
+    elif campaign_ids:
         selection_criteria["Filter"] = [
             {
                 "Field": "CampaignId",
@@ -132,6 +163,9 @@ def build_report_request(
         "IncludeVAT": "YES" if include_vat else "NO",
         "IncludeDiscount": "YES" if include_discount else "NO",
     }
+
+    if order_by:
+        params["OrderBy"] = [_parse_order_by(o) for o in order_by]
 
     if page_limit is not None or page_offset is not None:
         params["Page"] = {}
@@ -226,6 +260,23 @@ def reports():
     "--page-offset", type=int, default=None, help="Page offset for pagination"
 )
 @click.option(
+    "--filter",
+    "filters",
+    multiple=True,
+    metavar="FIELD:OPERATOR:VALUES",
+    help=(
+        "Filter in Field:Operator:Value1,Value2 format (repeatable). "
+        "Takes precedence over --campaign-ids / --adgroup-ids."
+    ),
+)
+@click.option(
+    "--order-by",
+    "order_by",
+    multiple=True,
+    metavar="FIELD[:ASC|DESC]",
+    help="Order by field (repeatable), e.g. --order-by Clicks:DESC",
+)
+@click.option(
     "--dry-run",
     is_flag=True,
     default=False,
@@ -254,6 +305,8 @@ def get(
     include_discount,
     page_limit,
     page_offset,
+    filters,
+    order_by,
     dry_run,
 ):
     """Get report"""
@@ -271,6 +324,8 @@ def get(
             include_discount=include_discount,
             page_limit=page_limit,
             page_offset=page_offset,
+            filters=filters,
+            order_by=order_by,
         )
 
         request_headers = {}

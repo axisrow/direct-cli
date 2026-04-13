@@ -8,13 +8,15 @@ that the CLI implements all report types, fields, and headers.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
+# Real working URLs (yandex.ru, static HTML with content in page text)
 REPORTS_SPEC_URLS: dict[str, str] = {
-    "spec": "https://yandex.com/dev/direct/doc/en/reports/spec",
-    "type": "https://yandex.com/dev/direct/doc/en/reports/type",
-    "fields-list": "https://yandex.com/dev/direct/doc/en/reports/fields-list",
-    "headers": "https://yandex.com/dev/direct/doc/en/reports/headers",
+    "type": "https://yandex.ru/dev/direct/doc/reports/type.html",
+    "spec": "https://yandex.ru/dev/direct/doc/reports/period.html",
+    "fields-list": "https://yandex.ru/dev/direct/doc/reports/fields-list.html",
+    "headers": "https://yandex.ru/dev/direct/doc/reports/headers.html",
 }
 
 REPORTS_CACHE_DIR = Path(__file__).resolve().parent.parent / "tests" / "reports_cache"
@@ -27,20 +29,21 @@ def fetch_reports_spec(use_cache: bool = True) -> dict[str, str]:
         use_cache: If True, read from tests/reports_cache/raw/*.html when available.
 
     Returns:
-        Dict mapping source key (e.g. "spec", "type") to HTML string.
+        Dict mapping source key to HTML string.
     """
     import requests
 
     raw_dir = REPORTS_CACHE_DIR / "raw"
     result: dict[str, str] = {}
 
+    headers = {"User-Agent": "Mozilla/5.0"}
     for key, url in REPORTS_SPEC_URLS.items():
         cache_file = raw_dir / f"{key}.html"
         if use_cache and cache_file.exists():
             result[key] = cache_file.read_text(encoding="utf-8")
             continue
 
-        resp = requests.get(url, timeout=30)
+        resp = requests.get(url, timeout=30, headers=headers)
         resp.raise_for_status()
         html = resp.text
 
@@ -57,10 +60,19 @@ def load_cached_reports_spec() -> dict:
     return json.loads(spec_file.read_text(encoding="utf-8"))
 
 
-def parse_reports_spec(raw: dict[str, str]) -> dict:
-    """Parse raw HTML into a canonical spec snapshot."""
+def _extract_text(html: str) -> str:
+    """Strip HTML tags and return plain text."""
     from bs4 import BeautifulSoup
 
+    return BeautifulSoup(html, "lxml").get_text(" ", strip=True)
+
+
+def parse_reports_spec(raw: dict[str, str]) -> dict:
+    """Parse raw HTML into a canonical spec snapshot.
+
+    Raises:
+        ValueError: if required sections cannot be extracted from the HTML.
+    """
     spec: dict = {
         "report_types": [],
         "date_range_types": [],
@@ -70,61 +82,58 @@ def parse_reports_spec(raw: dict[str, str]) -> dict:
         "field_compatibility": {},
     }
 
-    # --- Parse report types from type.html ---
+    # --- Report types: regex on raw HTML ---
     if "type" in raw:
-        soup = BeautifulSoup(raw["type"], "lxml")
-        for code in soup.find_all("code"):
-            text = code.get_text(strip=True)
-            if text.isupper() and "_REPORT" in text:
-                if text not in spec["report_types"]:
-                    spec["report_types"].append(text)
+        found = re.findall(
+            r"\b([A-Z][A-Z_]{5,}(?:_REPORT|_PERFORMANCE_REPORT))\b",
+            raw["type"],
+        )
+        for t in found:
+            if t not in spec["report_types"]:
+                spec["report_types"].append(t)
 
-    # --- Parse date_range_types and processing_modes from spec.html ---
+    if not spec["report_types"]:
+        raise ValueError(
+            "parse_reports_spec: failed to extract report_types from type.html — "
+            "page structure may have changed"
+        )
+
+    # --- DateRangeType values: regex on page text ---
     if "spec" in raw:
-        soup = BeautifulSoup(raw["spec"], "lxml")
-        in_date_range = False
-        in_processing = False
-        for tag in soup.find_all(["h2", "h3", "h4", "code", "td"]):
-            text = tag.get_text(strip=True)
-            if tag.name in ("h2", "h3", "h4"):
-                in_date_range = "DateRangeType" in text
-                in_processing = "ProcessingMode" in text
-            elif tag.name == "code" and in_date_range:
-                val = text.strip()
-                if val.isupper() and val and val not in spec["date_range_types"]:
-                    spec["date_range_types"].append(val)
-            elif tag.name == "code" and in_processing:
-                val = text.strip().lower()
-                if (
-                    val in ("auto", "online", "offline")
-                    and val not in spec["processing_modes"]
-                ):
-                    spec["processing_modes"].append(val)
+        text = _extract_text(raw["spec"])
+        found = re.findall(
+            r"\b(TODAY|YESTERDAY|THIS_WEEK_MON_TODAY|THIS_WEEK_MON_SUN|"
+            r"LAST_WEEK|LAST_BUSINESS_WEEK|LAST_7_DAYS|LAST_14_DAYS|"
+            r"LAST_30_DAYS|LAST_3_MONTHS|LAST_5_YEARS|CUSTOM_DATE|ALL_TIME|AUTO)\b",
+            text,
+        )
+        for t in found:
+            if t not in spec["date_range_types"]:
+                spec["date_range_types"].append(t)
 
-    # Fallback: hardcoded canonical values if parse found nothing
     if not spec["date_range_types"]:
-        spec["date_range_types"] = [
-            "TODAY",
-            "YESTERDAY",
-            "THIS_WEEK_MON_TODAY",
-            "THIS_WEEK_MON_SUN",
-            "LAST_WEEK",
-            "LAST_BUSINESS_WEEK",
-            "LAST_7_DAYS",
-            "LAST_14_DAYS",
-            "LAST_30_DAYS",
-            "LAST_3_MONTHS",
-            "LAST_5_YEARS",
-            "CUSTOM_DATE",
-            "ALL_TIME",
-            "AUTO",
-        ]
-    if not spec["processing_modes"]:
-        spec["processing_modes"] = ["auto", "online", "offline"]
+        raise ValueError(
+            "parse_reports_spec: failed to extract date_range_types from spec.html — "
+            "page structure may have changed"
+        )
 
-    # --- Parse request_headers from headers.html ---
+    # --- Processing modes: regex on headers page text ---
     if "headers" in raw:
-        soup = BeautifulSoup(raw["headers"], "lxml")
+        text = _extract_text(raw["headers"])
+        for mode in ("auto", "online", "offline"):
+            if re.search(rf"\b{mode}\b", text, re.IGNORECASE):
+                if mode not in spec["processing_modes"]:
+                    spec["processing_modes"].append(mode)
+
+    if not spec["processing_modes"]:
+        raise ValueError(
+            "parse_reports_spec: failed to extract processing_modes from "
+            "headers.html — page structure may have changed"
+        )
+
+    # --- Request headers: scan headers.html text for known header names ---
+    if "headers" in raw:
+        text = _extract_text(raw["headers"])
         header_map = {
             "processingMode": {"required": True, "values": spec["processing_modes"]},
             "skipReportHeader": {"required": False, "values": ["true", "false"]},
@@ -133,39 +142,50 @@ def parse_reports_spec(raw: dict[str, str]) -> dict:
             "returnMoneyInMicros": {"required": False, "values": ["true", "false"]},
             "Accept-Language": {"required": False, "values": ["ru", "en"]},
         }
-        body_text = soup.get_text()
-        for key in list(header_map.keys()):
-            if key in body_text:
-                spec["request_headers"][key] = header_map[key]
-        if not spec["request_headers"]:
-            spec["request_headers"] = header_map
+        for key, meta in header_map.items():
+            if key in text:
+                spec["request_headers"][key] = meta
 
-    # --- Parse field_compatibility from fields-list.html ---
+    if not spec["request_headers"]:
+        raise ValueError(
+            "parse_reports_spec: failed to extract request_headers from headers.html — "
+            "page structure may have changed"
+        )
+
+    # --- Field compatibility: parse table from fields-list.html ---
     if "fields-list" in raw:
+        from bs4 import BeautifulSoup
+
         soup = BeautifulSoup(raw["fields-list"], "lxml")
         table = soup.find("table")
         if table:
-            headers_row = table.find("tr")
-            if headers_row:
-                cols = [
-                    th.get_text(strip=True) for th in headers_row.find_all(["th", "td"])
-                ]
+            rows = table.find_all("tr")
+            if rows:
+                header_cells = rows[0].find_all(["th", "td"])
+                cols = [c.get_text(strip=True) for c in header_cells]
                 report_type_cols = cols[1:]
-                for row in table.find_all("tr")[1:]:
+                for row in rows[1:]:
                     cells = row.find_all(["td", "th"])
                     if not cells:
                         continue
                     field_name = cells[0].get_text(strip=True)
-                    if not field_name:
+                    # Skip header rows and non-ASCII field names
+                    if not field_name or not field_name.isascii():
                         continue
                     entry: dict = {"report_types": {}}
                     for i, rt in enumerate(report_type_cols):
                         if i + 1 < len(cells):
                             role = cells[i + 1].get_text(strip=True).lower()
-                            if role and role != "—" and role != "-":
+                            if role and role not in ("—", "-", ""):
                                 entry["report_types"][rt] = role
                     if entry["report_types"]:
                         spec["field_compatibility"][field_name] = entry
+
+    if not spec["field_compatibility"]:
+        raise ValueError(
+            "parse_reports_spec: failed to extract field_compatibility from "
+            "fields-list.html — page structure may have changed"
+        )
 
     return spec
 

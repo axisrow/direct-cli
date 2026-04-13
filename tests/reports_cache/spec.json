@@ -1,28 +1,25 @@
 {
   "report_types": [
+    "SEARCH_QUERY_PERFORMANCE_REPORT",
+    "CUSTOM_REPORT",
     "ACCOUNT_PERFORMANCE_REPORT",
     "CAMPAIGN_PERFORMANCE_REPORT",
     "ADGROUP_PERFORMANCE_REPORT",
     "AD_PERFORMANCE_REPORT",
     "CRITERIA_PERFORMANCE_REPORT",
-    "CUSTOM_REPORT",
-    "REACH_AND_FREQUENCY_PERFORMANCE_REPORT",
-    "SEARCH_QUERY_PERFORMANCE_REPORT"
+    "REACH_AND_FREQUENCY_PERFORMANCE_REPORT"
   ],
   "date_range_types": [
     "TODAY",
     "YESTERDAY",
-    "CUSTOM_DATE",
-    "ALL_TIME",
-    "LAST_30_DAYS",
-    "LAST_14_DAYS",
     "LAST_7_DAYS",
+    "LAST_14_DAYS",
+    "LAST_30_DAYS",
     "THIS_WEEK_MON_TODAY",
-    "THIS_WEEK_MON_SUN",
     "LAST_WEEK",
     "LAST_BUSINESS_WEEK",
-    "LAST_3_MONTHS",
-    "LAST_5_YEARS",
+    "ALL_TIME",
+    "CUSTOM_DATE",
     "AUTO"
   ],
   "formats": [
@@ -79,28 +76,507 @@
     }
   },
   "field_compatibility": {
-    "Date": {
+    "AdFormat": {
       "report_types": {
-        "CAMPAIGN_PERFORMANCE_REPORT": "segment",
-        "AD_PERFORMANCE_REPORT": "segment"
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "AdGroupId": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "AdGroupName": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "–"
+      }
+    },
+    "AdId": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "AdNetworkType": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "Age": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "AudienceTargetId": {
+      "report_types": {
+        "Параметры": "–",
+        "Типы отчетов": "+"
+      }
+    },
+    "AvgClickPosition": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "AvgCpc": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "AvgCpm": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "AvgEffectiveBid": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "AvgImpressionFrequency": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "AvgImpressionPosition": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "AvgPageviews": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "AvgTrafficVolume": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "AvgVideoCompleteCost": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "BounceRate": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "Bounces": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "–"
       }
     },
     "CampaignId": {
       "report_types": {
-        "CAMPAIGN_PERFORMANCE_REPORT": "attribute",
-        "AD_PERFORMANCE_REPORT": "attribute"
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "CampaignName": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "–"
+      }
+    },
+    "CampaignUrlPath": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "–"
+      }
+    },
+    "CampaignType": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "CarrierType": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
       }
     },
     "Clicks": {
       "report_types": {
-        "CAMPAIGN_PERFORMANCE_REPORT": "metric",
-        "AD_PERFORMANCE_REPORT": "metric"
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "ClickType": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "ClientLogin": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "ConversionRate": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "Conversions": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "Cost": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "CostPerConversion": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "CPV": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "Criteria": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "–"
+      }
+    },
+    "CriteriaId": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "–"
+      }
+    },
+    "CriteriaType": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "Criterion": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "–"
+      }
+    },
+    "CriterionId": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "–"
+      }
+    },
+    "CriterionType": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "Ctr": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "Date": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "–"
+      }
+    },
+    "Device": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "DynamicTextAdTargetId": {
+      "report_types": {
+        "Параметры": "–",
+        "Типы отчетов": "+"
+      }
+    },
+    "ExternalNetworkName": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "Gender": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "GoalsRoi": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "ImpressionReach": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
       }
     },
     "Impressions": {
       "report_types": {
-        "CAMPAIGN_PERFORMANCE_REPORT": "metric",
-        "AD_PERFORMANCE_REPORT": "metric"
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "IncomeGrade": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "Keyword": {
+      "report_types": {
+        "Параметры": "–",
+        "Типы отчетов": "+"
+      }
+    },
+    "LocationOfPresenceId": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "LocationOfPresenceName": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "–"
+      }
+    },
+    "MatchedKeyword": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "MatchType": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "MobilePlatform": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "Month": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "–"
+      }
+    },
+    "Placement": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "Profit": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "PurchaseGoals": {
+      "report_types": {
+        "Типы отчетов": "+"
+      }
+    },
+    "PurchaseRevenue": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "PurchaseProfit": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "PurchaseGoalsRoi": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "Quarter": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "–"
+      }
+    },
+    "Query": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "Revenue": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "RlAdjustmentId": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "Sessions": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "–"
+      }
+    },
+    "Slot": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "SmartAdTargetId": {
+      "report_types": {
+        "Параметры": "–",
+        "Типы отчетов": "+"
+      }
+    },
+    "TargetingCategory": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "TargetingLocationId": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "TargetingLocationName": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "–"
+      }
+    },
+    "VideoComplete": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "VideoCompleteRate": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "VideoFirstQuartile": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "VideoFirstQuartileRate": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "VideoMidpoint": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "VideoMidpointRate": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "VideoThirdQuartile": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "VideoThirdQuartileRate": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "VideoViews": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "VideoViewsRate": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "Week": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "–"
+      }
+    },
+    "WeightedCtr": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "WeightedImpressions": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "+"
+      }
+    },
+    "Year": {
+      "report_types": {
+        "Параметры": "+",
+        "Типы отчетов": "–"
       }
     }
   }
