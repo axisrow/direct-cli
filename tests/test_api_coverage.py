@@ -748,6 +748,69 @@ class TestApiCoverage:
             adgroup_ids="999",
         )
 
+    def test_reports_get_cli_path_forwards_header_flags_to_create_client(
+        self, monkeypatch
+    ):
+        """--processing-mode, --skip-*, --return-money-in-micros must reach create_client."""
+        captured = {}
+        reports_module = importlib.import_module("direct_cli.commands.reports")
+
+        class _FakeResponse:
+            columns = ["Date"]
+            data = [["2026-01-01"]]
+
+            def __call__(self):
+                return self
+
+            def to_dicts(self):
+                return [{"Date": "2026-01-01"}]
+
+            def to_values(self):
+                return [["2026-01-01"]]
+
+        class _FakeReports:
+            def post(self, data):
+                return _FakeResponse()
+
+        class _FakeClient:
+            def reports(self):
+                return _FakeReports()
+
+        def _fake_create_client(**kwargs):
+            captured["kwargs"] = kwargs
+            return _FakeClient()
+
+        monkeypatch.setattr(reports_module, "create_client", _fake_create_client)
+
+        result = CliRunner().invoke(
+            cli,
+            [
+                "reports",
+                "get",
+                "--type",
+                "campaign_performance_report",
+                "--from",
+                "2026-01-01",
+                "--to",
+                "2026-01-31",
+                "--name",
+                "Test",
+                "--fields",
+                "Date",
+                "--processing-mode",
+                "online",
+                "--skip-report-header",
+                "--skip-column-header",
+                "--return-money-in-micros",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert captured["kwargs"]["processing_mode"] == "online"
+        assert captured["kwargs"]["skip_report_header"] is True
+        assert captured["kwargs"]["skip_column_header"] is True
+        assert captured["kwargs"]["return_money_in_micros"] is True
+
     def test_api_coverage_report_script_matches_strict_parity_contract(self):
         result = subprocess.run(
             [sys.executable, "scripts/build_api_coverage_report.py"],

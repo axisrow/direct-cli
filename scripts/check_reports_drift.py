@@ -64,7 +64,7 @@ def _diff_field_compatibility(cached: dict, live: dict) -> list:
     return drifts
 
 
-def compute_drift(cached: dict, live: dict) -> dict:
+def compute_drift(cached: dict, live: dict, missing_cache_count: int = 0) -> dict:
     """Compare two spec dicts and return a drift report."""
     drift = []
 
@@ -94,13 +94,27 @@ def compute_drift(cached: dict, live: dict) -> dict:
 
     return {
         "sources_checked": len(REPORTS_SPEC_URLS),
-        "missing_cache_count": 0,
+        "missing_cache_count": missing_cache_count,
         "drift_count": len(drift),
         "drift": drift,
     }
 
 
+def _count_missing_cache() -> int:
+    """Count how many raw HTML cache files are absent."""
+    from direct_cli.reports_coverage import REPORTS_CACHE_DIR
+
+    raw_dir = REPORTS_CACHE_DIR / "raw"
+    missing = 0
+    for key in REPORTS_SPEC_URLS:
+        if not (raw_dir / f"{key}.html").exists():
+            missing += 1
+    return missing
+
+
 def main() -> int:
+    missing_cache_count = _count_missing_cache()
+
     try:
         cached = _load_cached()
     except Exception as exc:
@@ -113,7 +127,7 @@ def main() -> int:
         print(json.dumps({"error": f"Cannot fetch live spec: {exc}"}, indent=2))
         return 1
 
-    report = compute_drift(cached, live)
+    report = compute_drift(cached, live, missing_cache_count=missing_cache_count)
     print(json.dumps(report, indent=2, ensure_ascii=False))
     return 1 if report["drift_count"] > 0 else 0
 

@@ -351,6 +351,11 @@ def get(
             token=ctx.obj.get("token"),
             login=ctx.obj.get("login"),
             sandbox=ctx.obj.get("sandbox"),
+            processing_mode=processing_mode or "auto",
+            return_money_in_micros=return_money_in_micros,
+            skip_report_header=skip_report_header,
+            skip_column_header=skip_column_header,
+            skip_report_summary=skip_report_summary,
         )
 
         result = client.reports().post(data=body)
