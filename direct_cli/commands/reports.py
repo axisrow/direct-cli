@@ -2,8 +2,6 @@
 Reports commands
 """
 
-from typing import Optional
-
 import click
 
 from ..api import create_client
@@ -14,6 +12,7 @@ def _load_report_types() -> list:
     """Load report type choices from the committed spec snapshot."""
     try:
         from ..reports_coverage import load_cached_reports_spec
+
         return load_cached_reports_spec()["report_types"]
     except Exception:
         return [
@@ -32,6 +31,7 @@ def _load_processing_modes() -> list:
     """Load processing mode choices from the committed spec snapshot."""
     try:
         from ..reports_coverage import load_cached_reports_spec
+
         return load_cached_reports_spec()["processing_modes"]
     except Exception:
         return ["auto", "online", "offline"]
@@ -41,14 +41,24 @@ def _load_date_range_types() -> list:
     """Load date range type choices from the committed spec snapshot."""
     try:
         from ..reports_coverage import load_cached_reports_spec
+
         return load_cached_reports_spec()["date_range_types"]
     except Exception:
         return [
-            "TODAY", "YESTERDAY", "CUSTOM_DATE", "ALL_TIME",
-            "LAST_30_DAYS", "LAST_14_DAYS", "LAST_7_DAYS",
-            "THIS_WEEK_MON_TODAY", "THIS_WEEK_MON_SUN",
-            "LAST_WEEK", "LAST_BUSINESS_WEEK",
-            "LAST_3_MONTHS", "LAST_5_YEARS", "AUTO",
+            "TODAY",
+            "YESTERDAY",
+            "CUSTOM_DATE",
+            "ALL_TIME",
+            "LAST_30_DAYS",
+            "LAST_14_DAYS",
+            "LAST_7_DAYS",
+            "THIS_WEEK_MON_TODAY",
+            "THIS_WEEK_MON_SUN",
+            "LAST_WEEK",
+            "LAST_BUSINESS_WEEK",
+            "LAST_3_MONTHS",
+            "LAST_5_YEARS",
+            "AUTO",
         ]
 
 
@@ -96,7 +106,9 @@ def build_report_request(
             {
                 "Field": "CampaignId",
                 "Operator": "IN",
-                "Values": [item.strip() for item in campaign_ids.split(",") if item.strip()],
+                "Values": [
+                    item.strip() for item in campaign_ids.split(",") if item.strip()
+                ],
             }
         ]
     elif adgroup_ids:
@@ -104,7 +116,9 @@ def build_report_request(
             {
                 "Field": "AdGroupId",
                 "Operator": "IN",
-                "Values": [item.strip() for item in adgroup_ids.split(",") if item.strip()],
+                "Values": [
+                    item.strip() for item in adgroup_ids.split(",") if item.strip()
+                ],
             }
         ]
 
@@ -207,7 +221,9 @@ def reports():
     help="Include discounts in report (default: yes)",
 )
 @click.option("--page-limit", type=int, default=None, help="Page limit for pagination")
-@click.option("--page-offset", type=int, default=None, help="Page offset for pagination")
+@click.option(
+    "--page-offset", type=int, default=None, help="Page offset for pagination"
+)
 @click.option(
     "--dry-run",
     is_flag=True,
@@ -273,6 +289,7 @@ def get(
 
         if dry_run:
             import json as _json
+
             output_data = {"headers": request_headers, "body": body}
             click.echo(_json.dumps(output_data, indent=2, ensure_ascii=False))
             return

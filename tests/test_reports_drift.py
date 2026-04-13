@@ -6,8 +6,6 @@ No network access — uses inline fixtures.
 import sys
 from pathlib import Path
 
-import pytest
-
 # Allow importing the script module
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
@@ -69,7 +67,9 @@ def test_no_drift_when_specs_match():
         "formats": ["TSV"],
         "processing_modes": ["auto"],
         "request_headers": {"processingMode": {"required": True, "values": ["auto"]}},
-        "field_compatibility": {"Clicks": {"report_types": {"CAMPAIGN_PERFORMANCE_REPORT": "metric"}}},
+        "field_compatibility": {
+            "Clicks": {"report_types": {"CAMPAIGN_PERFORMANCE_REPORT": "metric"}}
+        },
     }
     report = drift_module.compute_drift(spec, spec)
     assert report["drift_count"] == 0
@@ -98,7 +98,5 @@ def test_drift_detects_changed_field_role():
     }
     report = drift_module.compute_drift(cached_spec, live_spec)
     assert report["drift_count"] > 0
-    changed = next(
-        d for d in report["drift"] if "field_compatibility" in d["section"]
-    )
+    changed = next(d for d in report["drift"] if "field_compatibility" in d["section"])
     assert changed is not None

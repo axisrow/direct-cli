@@ -99,7 +99,9 @@ def add(ctx, client_json, dry_run):
 @click.option("--json", "extra_json", help="Additional JSON parameters")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def add_passport_organization(ctx, name, currency, notification_json, extra_json, dry_run):
+def add_passport_organization(
+    ctx, name, currency, notification_json, extra_json, dry_run
+):
     """Add passport organization agency client"""
     try:
         params = {
@@ -130,7 +132,9 @@ def add_passport_organization(ctx, name, currency, notification_json, extra_json
 
 
 @agencyclients.command(name="add-passport-organization-member")
-@click.option("--passport-organization-login", required=True, help="Passport organization login")
+@click.option(
+    "--passport-organization-login", required=True, help="Passport organization login"
+)
 @click.option("--role", required=True, help="Organization member role")
 @click.option("--send-invite-to-json", required=True, help="SendInviteTo object JSON")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")

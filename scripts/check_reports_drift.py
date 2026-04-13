@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from direct_cli.reports_coverage import (
+from direct_cli.reports_coverage import (  # noqa: E402
     fetch_reports_spec,
     load_cached_reports_spec,
     parse_reports_spec,
@@ -54,10 +54,12 @@ def _diff_field_compatibility(cached: dict, live: dict) -> list:
                 if c_role != l_role:
                     changed[rt] = {"cached": c_role, "live": l_role}
             if changed:
-                drifts.append({
-                    "section": f"field_compatibility.{field}",
-                    "changed": changed,
-                })
+                drifts.append(
+                    {
+                        "section": f"field_compatibility.{field}",
+                        "changed": changed,
+                    }
+                )
     return drifts
 
 
@@ -66,7 +68,9 @@ def compute_drift(cached: dict, live: dict) -> dict:
     drift = []
 
     for list_key in ("report_types", "date_range_types", "formats", "processing_modes"):
-        drift.extend(_diff_list(list_key, cached.get(list_key, []), live.get(list_key, [])))
+        drift.extend(
+            _diff_list(list_key, cached.get(list_key, []), live.get(list_key, []))
+        )
 
     drift.extend(
         _diff_field_compatibility(

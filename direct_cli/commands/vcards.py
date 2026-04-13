@@ -99,7 +99,10 @@ def add(ctx, vcard_json, dry_run):
 def delete(ctx, vcard_id, dry_run):
     """Delete vCard"""
     try:
-        body = {"method": "delete", "params": {"SelectionCriteria": {"Ids": [vcard_id]}}}
+        body = {
+            "method": "delete",
+            "params": {"SelectionCriteria": {"Ids": [vcard_id]}},
+        }
 
         if dry_run:
             format_output(body, "json", None)

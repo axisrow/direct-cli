@@ -322,7 +322,11 @@ def get_operation_request_schema(wsdl_xml: str, operation_name: str) -> dict:
         raise ValueError(f"Input element has no inline complex type: {element_name}")
 
     extension = complex_type.find("xsd:complexContent/xsd:extension", ns)
-    sequence = extension.find("xsd:sequence", ns) if extension is not None else complex_type.find("xsd:sequence", ns)
+    sequence = (
+        extension.find("xsd:sequence", ns)
+        if extension is not None
+        else complex_type.find("xsd:sequence", ns)
+    )
 
     fields = []
     if sequence is not None:
@@ -334,7 +338,9 @@ def get_operation_request_schema(wsdl_xml: str, operation_name: str) -> dict:
                     "type": type_name,
                     "min_occurs": int(child.get("minOccurs", "1")),
                     "max_occurs": child.get("maxOccurs", "1"),
-                    "item_fields": _collect_complex_type_fields(complex_types, type_name),
+                    "item_fields": _collect_complex_type_fields(
+                        complex_types, type_name
+                    ),
                 }
             )
 

@@ -65,7 +65,9 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
 
 @advideos.command()
 @click.option("--url", help="Video URL (mutually exclusive with --video-data)")
-@click.option("--video-data", help="Base64-encoded video binary (mutually exclusive with --url)")
+@click.option(
+    "--video-data", help="Base64-encoded video binary (mutually exclusive with --url)"
+)
 @click.option("--name", help="Video name")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
