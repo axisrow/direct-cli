@@ -20,6 +20,8 @@ Read-only commands that remain uncovered here:
     feeds get      — requires explicit ``--ids``, no list endpoint
 """
 
+from __future__ import annotations
+
 import json
 import os
 import unittest
