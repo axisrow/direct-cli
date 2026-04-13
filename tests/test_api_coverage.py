@@ -69,6 +69,7 @@ DRY_RUN_PAYLOAD_EXCLUSIONS = {
     "smartadtargets.resume": "Same simple Ids payload family as covered delete/set-bids actions.",
     "smartadtargets.suspend": "Same simple Ids payload family as covered delete/set-bids actions.",
     "vcards.add": "Requires large contact-card payload fixture not needed for generic schema smoke coverage.",
+    "reports.get": "Reports API uses a custom TSV endpoint; payload contract is covered by test_reports_request_builder_contract.",
 }
 
 PAYLOAD_CASES = [
@@ -788,3 +789,50 @@ class TestReportsCoverage:
         assert spec["processing_modes"], "processing_modes must not be empty"
         assert spec["request_headers"], "request_headers must not be empty"
         assert spec["field_compatibility"], "field_compatibility must not be empty"
+
+    def test_cli_report_types_match_spec(self):
+        """--type choices must match spec snapshot report_types."""
+        from direct_cli.reports_coverage import load_cached_reports_spec
+        from direct_cli.commands.reports import get as reports_get
+        spec = load_cached_reports_spec()
+        type_opt = next(
+            (p for p in reports_get.params if p.name == "report_type"), None
+        )
+        assert type_opt is not None, "--type option not found"
+        cli_choices = set(c.upper() for c in type_opt.type.choices)
+        spec_types = set(spec["report_types"])
+        assert cli_choices == spec_types, (
+            f"CLI choices differ from spec.\n"
+            f"CLI only: {sorted(cli_choices - spec_types)}\n"
+            f"Spec only: {sorted(spec_types - cli_choices)}"
+        )
+
+    def test_cli_dry_run_flag_exists(self):
+        """reports get must have --dry-run flag."""
+        from direct_cli.commands.reports import get as reports_get
+        names = {p.name for p in reports_get.params}
+        assert "dry_run" in names, "--dry-run flag missing from reports get"
+
+    def test_cli_processing_mode_flag_exists(self):
+        """reports get must have --processing-mode flag with spec choices."""
+        from direct_cli.reports_coverage import load_cached_reports_spec
+        from direct_cli.commands.reports import get as reports_get
+        spec = load_cached_reports_spec()
+        opt = next((p for p in reports_get.params if p.name == "processing_mode"), None)
+        assert opt is not None, "--processing-mode flag missing"
+        cli_choices = set(opt.type.choices)
+        spec_modes = set(spec["processing_modes"])
+        assert cli_choices == spec_modes, (
+            f"--processing-mode choices differ: CLI={cli_choices}, spec={spec_modes}"
+        )
+
+    def test_cli_request_headers_flags_exist(self):
+        """CLI must expose flags for each request header from spec."""
+        from direct_cli.commands.reports import get as reports_get
+        expected_params = {
+            "skip_report_header", "skip_column_header",
+            "skip_report_summary", "return_money_in_micros", "language",
+        }
+        names = {p.name for p in reports_get.params}
+        missing = expected_params - names
+        assert not missing, f"Missing CLI flags: {missing}"
