@@ -11,6 +11,10 @@ on:
 jobs:
   test-and-report:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11", "3.13"]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -18,7 +22,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install package with dev dependencies
         run: |
@@ -55,7 +59,7 @@ jobs:
       - name: Upload API coverage report
         uses: actions/upload-artifact@v4
         with:
-          name: api-coverage-report
+          name: api-coverage-report-py${{ matrix.python-version }}
           path: api_coverage_report.json
 
   monitor-live-wsdl:

@@ -5,6 +5,8 @@ Fetches and parses Yandex Direct API v5 WSDL definitions to verify
 that the CLI implements all available services and methods.
 """
 
+from __future__ import annotations
+
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
