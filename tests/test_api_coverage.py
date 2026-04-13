@@ -525,7 +525,7 @@ class TestApiCoverage:
             assert service_name in cli.commands, (
                 f"Non-WSDL service {service_name} is missing from the CLI"
             )
-            assert policy["coverage"] == "contract-tests", (
+            assert policy["coverage"] in ("contract-tests", "contract-tests+spec-snapshot"), (
                 f"Unexpected coverage policy for non-WSDL service {service_name}: {policy}"
             )
 
@@ -836,3 +836,14 @@ class TestReportsCoverage:
         names = {p.name for p in reports_get.params}
         missing = expected_params - names
         assert not missing, f"Missing CLI flags: {missing}"
+
+    def test_non_wsdl_reports_policy_updated(self):
+        """NON_WSDL_SERVICE_POLICIES['reports'] must use spec-snapshot coverage."""
+        from direct_cli.wsdl_coverage import NON_WSDL_SERVICE_POLICIES
+        policy = NON_WSDL_SERVICE_POLICIES["reports"]
+        assert policy["coverage"] == "contract-tests+spec-snapshot", (
+            "reports policy must use 'contract-tests+spec-snapshot' coverage type"
+        )
+        assert "spec_snapshot" in policy
+        assert "drift_script" in policy
+        assert "refresh_script" in policy
