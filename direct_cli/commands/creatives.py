@@ -35,7 +35,9 @@ def get(ctx, ids, campaign_ids, limit, fetch_all, output_format, output, fields)
         )
 
         field_names = (
-            fields.split(",") if fields else ["Id", "Name", "Type", "Status", "CampaignId"]
+            fields.split(",")
+            if fields
+            else ["Id", "Name", "Type", "Status", "CampaignId"]
         )
 
         criteria = {}

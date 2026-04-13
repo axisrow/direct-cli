@@ -98,15 +98,27 @@ def parse_reports_spec(raw: dict[str, str]) -> dict:
                     spec["date_range_types"].append(val)
             elif tag.name == "code" and in_processing:
                 val = text.strip().lower()
-                if val in ("auto", "online", "offline") and val not in spec["processing_modes"]:
+                if (
+                    val in ("auto", "online", "offline")
+                    and val not in spec["processing_modes"]
+                ):
                     spec["processing_modes"].append(val)
 
     # Fallback: hardcoded canonical values if parse found nothing
     if not spec["date_range_types"]:
         spec["date_range_types"] = [
-            "TODAY", "YESTERDAY", "THIS_WEEK_MON_TODAY", "THIS_WEEK_MON_SUN",
-            "LAST_WEEK", "LAST_BUSINESS_WEEK", "LAST_14_DAYS", "LAST_30_DAYS",
-            "LAST_3_MONTHS", "LAST_5_YEARS", "CUSTOM_DATE", "ALL_TIME",
+            "TODAY",
+            "YESTERDAY",
+            "THIS_WEEK_MON_TODAY",
+            "THIS_WEEK_MON_SUN",
+            "LAST_WEEK",
+            "LAST_BUSINESS_WEEK",
+            "LAST_14_DAYS",
+            "LAST_30_DAYS",
+            "LAST_3_MONTHS",
+            "LAST_5_YEARS",
+            "CUSTOM_DATE",
+            "ALL_TIME",
             "AUTO",
         ]
     if not spec["processing_modes"]:
@@ -137,7 +149,9 @@ def parse_reports_spec(raw: dict[str, str]) -> dict:
         if table:
             headers_row = table.find("tr")
             if headers_row:
-                cols = [th.get_text(strip=True) for th in headers_row.find_all(["th", "td"])]
+                cols = [
+                    th.get_text(strip=True) for th in headers_row.find_all(["th", "td"])
+                ]
                 report_type_cols = cols[1:]
                 for row in table.find_all("tr")[1:]:
                     cells = row.find_all(["td", "th"])
@@ -169,7 +183,9 @@ def refresh_reports_cache() -> dict[str, Exception]:
     spec = parse_reports_spec(raw)
 
     spec_file = REPORTS_CACHE_DIR / "spec.json"
-    spec_file.write_text(json.dumps(spec, indent=2, ensure_ascii=False), encoding="utf-8")
+    spec_file.write_text(
+        json.dumps(spec, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
 
     return errors
 

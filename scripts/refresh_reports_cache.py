@@ -17,7 +17,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from direct_cli.reports_coverage import REPORTS_SPEC_URLS, refresh_reports_cache
+from direct_cli.reports_coverage import (  # noqa: E402
+    REPORTS_SPEC_URLS,
+    refresh_reports_cache,
+)
 
 
 def main() -> int:
