@@ -76,9 +76,7 @@ def get(ctx, ids, adgroup_ids, campaign_ids, limit, fetch_all, output_format, ou
 
 @audiencetargets.command()
 @click.option("--adgroup-id", required=True, type=int, help="Ad group ID")
-@click.option(
-    "--retargeting-list-id", required=True, type=int, help="Retargeting list ID"
-)
+@click.option("--retargeting-list-id", required=True, type=int, help="Retargeting list ID")
 @click.option("--bid", type=float, help="Context bid")
 @click.option("--json", "extra_json", help="Additional JSON parameters")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
@@ -125,9 +123,7 @@ def add(ctx, adgroup_id, retargeting_list_id, bid, extra_json, dry_run):
 @click.option("--json", "extra_json", help="Additional JSON parameters")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def set_bids(
-    ctx, target_id, adgroup_id, campaign_id, context_bid, priority, extra_json, dry_run
-):
+def set_bids(ctx, target_id, adgroup_id, campaign_id, context_bid, priority, extra_json, dry_run):
     """Set audience target bids"""
     try:
         bid_data = {}
@@ -144,9 +140,7 @@ def set_bids(
         if extra_json:
             bid_data.update(json.loads(extra_json))
         if not bid_data:
-            raise click.UsageError(
-                "Provide target selection and bid fields for set-bids"
-            )
+            raise click.UsageError("Provide target selection and bid fields for set-bids")
 
         body = {"method": "setBids", "params": {"Bids": [bid_data]}}
 
@@ -176,10 +170,7 @@ def set_bids(
 def delete(ctx, target_id, dry_run):
     """Delete audience target"""
     try:
-        body = {
-            "method": "delete",
-            "params": {"SelectionCriteria": {"Ids": [target_id]}},
-        }
+        body = {"method": "delete", "params": {"SelectionCriteria": {"Ids": [target_id]}}}
 
         if dry_run:
             format_output(body, "json", None)
@@ -206,10 +197,7 @@ def delete(ctx, target_id, dry_run):
 def suspend(ctx, target_id, dry_run):
     """Suspend audience target"""
     try:
-        body = {
-            "method": "suspend",
-            "params": {"SelectionCriteria": {"Ids": [target_id]}},
-        }
+        body = {"method": "suspend", "params": {"SelectionCriteria": {"Ids": [target_id]}}}
 
         if dry_run:
             format_output(body, "json", None)
@@ -236,10 +224,7 @@ def suspend(ctx, target_id, dry_run):
 def resume(ctx, target_id, dry_run):
     """Resume audience target"""
     try:
-        body = {
-            "method": "resume",
-            "params": {"SelectionCriteria": {"Ids": [target_id]}},
-        }
+        body = {"method": "resume", "params": {"SelectionCriteria": {"Ids": [target_id]}}}
 
         if dry_run:
             format_output(body, "json", None)

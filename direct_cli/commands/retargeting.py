@@ -34,9 +34,7 @@ def get(ctx, ids, types, limit, fetch_all, output_format, output, fields):
             sandbox=ctx.obj.get("sandbox"),
         )
 
-        field_names = (
-            fields.split(",") if fields else get_default_fields("retargetinglists")
-        )
+        field_names = fields.split(",") if fields else get_default_fields("retargetinglists")
 
         criteria = {}
         if ids:
