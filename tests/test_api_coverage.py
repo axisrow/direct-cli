@@ -777,3 +777,14 @@ class TestReportsCoverage:
         for fname in ["spec.html", "type.html", "fields-list.html", "headers.html"]:
             assert (raw_dir / fname).exists(), f"Missing cache file: raw/{fname}"
         assert (REPORTS_CACHE_DIR / "spec.json").exists(), "Missing spec.json"
+
+    def test_reports_spec_parses_without_errors(self):
+        """parse_reports_spec on cached HTML returns non-empty required sections."""
+        from direct_cli.reports_coverage import fetch_reports_spec, parse_reports_spec
+        raw = fetch_reports_spec(use_cache=True)
+        spec = parse_reports_spec(raw)
+        assert spec["report_types"], "report_types must not be empty"
+        assert spec["date_range_types"], "date_range_types must not be empty"
+        assert spec["processing_modes"], "processing_modes must not be empty"
+        assert spec["request_headers"], "request_headers must not be empty"
+        assert spec["field_compatibility"], "field_compatibility must not be empty"
