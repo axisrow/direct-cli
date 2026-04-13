@@ -41,6 +41,7 @@ dev = [
     "vcrpy>=6.0",
     "black>=22.0",
     "flake8>=4.0",
+    "requests>=2.0",
 ]
 
 [project.scripts]
