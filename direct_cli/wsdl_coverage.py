@@ -64,8 +64,15 @@ CLI_ALIAS_GROUPS = {
 NON_WSDL_SERVICE_POLICIES = {
     "reports": {
         "kind": "json-api",
-        "coverage": "contract-tests",
-        "reason": "Yandex Direct reports use the JSON reporting API, not WSDL.",
+        "coverage": "contract-tests+spec-snapshot",
+        "spec_snapshot": "tests/reports_cache/spec.json",
+        "raw_sources": "tests/reports_cache/raw/",
+        "drift_script": "scripts/check_reports_drift.py",
+        "refresh_script": "scripts/refresh_reports_cache.py",
+        "reason": (
+            "Yandex Direct reports use the JSON reporting API. "
+            "Coverage mirrors WSDL parity via HTML-doc spec snapshot."
+        ),
     }
 }
 
