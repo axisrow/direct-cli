@@ -64,15 +64,8 @@ CLI_ALIAS_GROUPS = {
 NON_WSDL_SERVICE_POLICIES = {
     "reports": {
         "kind": "json-api",
-        "coverage": "contract-tests+spec-snapshot",
-        "spec_snapshot": "tests/reports_cache/spec.json",
-        "raw_sources": "tests/reports_cache/raw/",
-        "drift_script": "scripts/check_reports_drift.py",
-        "refresh_script": "scripts/refresh_reports_cache.py",
-        "reason": (
-            "Yandex Direct reports use the JSON reporting API. "
-            "Coverage mirrors WSDL parity via HTML-doc spec snapshot."
-        ),
+        "coverage": "contract-tests",
+        "reason": "Yandex Direct reports use the JSON reporting API, not WSDL.",
     }
 }
 
@@ -322,11 +315,7 @@ def get_operation_request_schema(wsdl_xml: str, operation_name: str) -> dict:
         raise ValueError(f"Input element has no inline complex type: {element_name}")
 
     extension = complex_type.find("xsd:complexContent/xsd:extension", ns)
-    sequence = (
-        extension.find("xsd:sequence", ns)
-        if extension is not None
-        else complex_type.find("xsd:sequence", ns)
-    )
+    sequence = extension.find("xsd:sequence", ns) if extension is not None else complex_type.find("xsd:sequence", ns)
 
     fields = []
     if sequence is not None:
@@ -338,9 +327,7 @@ def get_operation_request_schema(wsdl_xml: str, operation_name: str) -> dict:
                     "type": type_name,
                     "min_occurs": int(child.get("minOccurs", "1")),
                     "max_occurs": child.get("maxOccurs", "1"),
-                    "item_fields": _collect_complex_type_fields(
-                        complex_types, type_name
-                    ),
+                    "item_fields": _collect_complex_type_fields(complex_types, type_name),
                 }
             )
 

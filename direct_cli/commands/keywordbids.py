@@ -25,9 +25,7 @@ def keywordbids():
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.pass_context
-def get(
-    ctx, keyword_ids, adgroup_ids, campaign_ids, limit, fetch_all, output_format, output
-):
+def get(ctx, keyword_ids, adgroup_ids, campaign_ids, limit, fetch_all, output_format, output):
     """Get keyword bids"""
     try:
         client = create_client(
@@ -113,9 +111,7 @@ def set(ctx, keyword_id, search_bid, network_bid, extra_json, dry_run):
 @click.option("--campaign-id", type=int, help="Campaign ID")
 @click.option("--adgroup-id", type=int, help="Ad group ID")
 @click.option("--keyword-id", type=int, help="Keyword ID")
-@click.option(
-    "--json", "bidding_rule_json", required=True, help="BiddingRule object JSON"
-)
+@click.option("--json", "bidding_rule_json", required=True, help="BiddingRule object JSON")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def set_auto(ctx, campaign_id, adgroup_id, keyword_id, bidding_rule_json, dry_run):

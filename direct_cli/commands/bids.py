@@ -25,9 +25,7 @@ def bids():
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.pass_context
-def get(
-    ctx, campaign_ids, adgroup_ids, keyword_ids, limit, fetch_all, output_format, output
-):
+def get(ctx, campaign_ids, adgroup_ids, keyword_ids, limit, fetch_all, output_format, output):
     """Get bids"""
     try:
         client = create_client(

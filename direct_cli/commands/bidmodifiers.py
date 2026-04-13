@@ -72,13 +72,13 @@ _BIDMODIFIER_TYPE_TO_NESTED = {
     "TABLET_ADJUSTMENT": "TabletAdjustment",
     "DESKTOP_ADJUSTMENT": "DesktopAdjustment",
     "DESKTOP_ONLY_ADJUSTMENT": "DesktopOnlyAdjustment",
-    "DEMOGRAPHICS_ADJUSTMENT": "DemographicsAdjustments",  # plural per WSDL
-    "RETARGETING_ADJUSTMENT": "RetargetingAdjustments",  # plural per WSDL
-    "REGIONAL_ADJUSTMENT": "RegionalAdjustments",  # plural per WSDL
+    "DEMOGRAPHICS_ADJUSTMENT": "DemographicsAdjustments",   # plural per WSDL
+    "RETARGETING_ADJUSTMENT": "RetargetingAdjustments",     # plural per WSDL
+    "REGIONAL_ADJUSTMENT": "RegionalAdjustments",           # plural per WSDL
     "VIDEO_ADJUSTMENT": "VideoAdjustment",
     "SMART_AD_ADJUSTMENT": "SmartAdAdjustment",
-    "SERP_LAYOUT_ADJUSTMENT": "SerpLayoutAdjustments",  # plural per WSDL
-    "INCOME_GRADE_ADJUSTMENT": "IncomeGradeAdjustments",  # plural per WSDL
+    "SERP_LAYOUT_ADJUSTMENT": "SerpLayoutAdjustments",      # plural per WSDL
+    "INCOME_GRADE_ADJUSTMENT": "IncomeGradeAdjustments",    # plural per WSDL
     "AD_GROUP_ADJUSTMENT": "AdGroupAdjustment",
 }
 
@@ -306,26 +306,19 @@ def set(ctx, modifier_id, campaign_id, modifier_type, value, extra_json, dry_run
 
 
 @bidmodifiers.command()
-@click.option(
-    "--campaign-id", type=int, help="Campaign ID (mutually exclusive with --adgroup-id)"
-)
-@click.option(
-    "--adgroup-id", type=int, help="Ad group ID (mutually exclusive with --campaign-id)"
-)
+@click.option("--campaign-id", type=int, help="Campaign ID (mutually exclusive with --adgroup-id)")
+@click.option("--adgroup-id", type=int, help="Ad group ID (mutually exclusive with --campaign-id)")
 @click.option(
     "--type",
     "modifier_type",
     required=True,
-    type=click.Choice(
-        [
-            "DEMOGRAPHICS_ADJUSTMENT",
-            "RETARGETING_ADJUSTMENT",
-            "REGIONAL_ADJUSTMENT",
-            "SERP_LAYOUT_ADJUSTMENT",
-            "INCOME_GRADE_ADJUSTMENT",
-        ],
-        case_sensitive=False,
-    ),
+    type=click.Choice([
+        "DEMOGRAPHICS_ADJUSTMENT",
+        "RETARGETING_ADJUSTMENT",
+        "REGIONAL_ADJUSTMENT",
+        "SERP_LAYOUT_ADJUSTMENT",
+        "INCOME_GRADE_ADJUSTMENT",
+    ], case_sensitive=False),
     help="Adjustment type to toggle",
 )
 @click.option("--enabled/--disabled", "enabled", default=True, help="Enable or disable")
@@ -337,9 +330,7 @@ def toggle(ctx, campaign_id, adgroup_id, modifier_type, enabled, dry_run):
         if not campaign_id and not adgroup_id:
             raise click.UsageError("Either --campaign-id or --adgroup-id is required.")
         if campaign_id and adgroup_id:
-            raise click.UsageError(
-                "Use either --campaign-id or --adgroup-id, not both."
-            )
+            raise click.UsageError("Use either --campaign-id or --adgroup-id, not both.")
 
         item = {
             "Type": modifier_type.upper(),

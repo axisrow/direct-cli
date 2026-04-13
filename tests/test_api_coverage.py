@@ -69,7 +69,6 @@ DRY_RUN_PAYLOAD_EXCLUSIONS = {
     "smartadtargets.resume": "Same simple Ids payload family as covered delete/set-bids actions.",
     "smartadtargets.suspend": "Same simple Ids payload family as covered delete/set-bids actions.",
     "vcards.add": "Requires large contact-card payload fixture not needed for generic schema smoke coverage.",
-    "reports.get": "Reports API uses a custom TSV endpoint; payload contract is covered by test_reports_request_builder_contract.",
 }
 
 PAYLOAD_CASES = [
@@ -525,7 +524,7 @@ class TestApiCoverage:
             assert service_name in cli.commands, (
                 f"Non-WSDL service {service_name} is missing from the CLI"
             )
-            assert policy["coverage"] in ("contract-tests", "contract-tests+spec-snapshot"), (
+            assert policy["coverage"] == "contract-tests", (
                 f"Unexpected coverage policy for non-WSDL service {service_name}: {policy}"
             )
 
@@ -620,6 +619,7 @@ class TestApiCoverage:
             name="Coverage Report",
             fields="Date,CampaignId",
             campaign_ids="1,2",
+            output_format="csv",
         )
         assert request == {
             "params": {
@@ -652,6 +652,7 @@ class TestApiCoverage:
             name="Adgroup Coverage",
             fields=" Date , AdGroupId , Clicks ",
             adgroup_ids="10, 20 ,30",
+            output_format="json",
         )
         assert request["params"]["SelectionCriteria"]["Filter"] == [
             {
@@ -672,6 +673,7 @@ class TestApiCoverage:
             fields="Date,CampaignId,AdGroupId",
             campaign_ids="1,2",
             adgroup_ids="99,100",
+            output_format="table",
         )
         assert request["params"]["SelectionCriteria"]["Filter"] == [
             {
@@ -746,6 +748,7 @@ class TestApiCoverage:
             fields=" Date , CampaignId ",
             campaign_ids="1, 2",
             adgroup_ids="999",
+            output_format=output_format,
         )
 
     def test_api_coverage_report_script_matches_strict_parity_contract(self):
@@ -761,85 +764,3 @@ class TestApiCoverage:
         assert report["summary"]["missing_service_methods"] == 0
         assert report["summary"]["unexpected_service_methods"] == 0
         assert sorted(report["canonical_services"]) == CANONICAL_API_SERVICES
-
-
-@pytest.mark.api_coverage
-class TestReportsCoverage:
-    """Tests for Reports API spec snapshot and CLI parity."""
-
-    def test_reports_cache_files_exist(self):
-        """All 4 raw HTML files and spec.json must be committed."""
-        from direct_cli.reports_coverage import REPORTS_CACHE_DIR
-        raw_dir = REPORTS_CACHE_DIR / "raw"
-        for fname in ["spec.html", "type.html", "fields-list.html", "headers.html"]:
-            assert (raw_dir / fname).exists(), f"Missing cache file: raw/{fname}"
-        assert (REPORTS_CACHE_DIR / "spec.json").exists(), "Missing spec.json"
-
-    def test_reports_spec_parses_without_errors(self):
-        """parse_reports_spec on cached HTML returns non-empty required sections."""
-        from direct_cli.reports_coverage import fetch_reports_spec, parse_reports_spec
-        raw = fetch_reports_spec(use_cache=True)
-        spec = parse_reports_spec(raw)
-        assert spec["report_types"], "report_types must not be empty"
-        assert spec["date_range_types"], "date_range_types must not be empty"
-        assert spec["processing_modes"], "processing_modes must not be empty"
-        assert spec["request_headers"], "request_headers must not be empty"
-        assert spec["field_compatibility"], "field_compatibility must not be empty"
-
-    def test_cli_report_types_match_spec(self):
-        """--type choices must match spec snapshot report_types."""
-        from direct_cli.reports_coverage import load_cached_reports_spec
-        from direct_cli.commands.reports import get as reports_get
-        spec = load_cached_reports_spec()
-        type_opt = next(
-            (p for p in reports_get.params if p.name == "report_type"), None
-        )
-        assert type_opt is not None, "--type option not found"
-        cli_choices = set(c.upper() for c in type_opt.type.choices)
-        spec_types = set(spec["report_types"])
-        assert cli_choices == spec_types, (
-            f"CLI choices differ from spec.\n"
-            f"CLI only: {sorted(cli_choices - spec_types)}\n"
-            f"Spec only: {sorted(spec_types - cli_choices)}"
-        )
-
-    def test_cli_dry_run_flag_exists(self):
-        """reports get must have --dry-run flag."""
-        from direct_cli.commands.reports import get as reports_get
-        names = {p.name for p in reports_get.params}
-        assert "dry_run" in names, "--dry-run flag missing from reports get"
-
-    def test_cli_processing_mode_flag_exists(self):
-        """reports get must have --processing-mode flag with spec choices."""
-        from direct_cli.reports_coverage import load_cached_reports_spec
-        from direct_cli.commands.reports import get as reports_get
-        spec = load_cached_reports_spec()
-        opt = next((p for p in reports_get.params if p.name == "processing_mode"), None)
-        assert opt is not None, "--processing-mode flag missing"
-        cli_choices = set(opt.type.choices)
-        spec_modes = set(spec["processing_modes"])
-        assert cli_choices == spec_modes, (
-            f"--processing-mode choices differ: CLI={cli_choices}, spec={spec_modes}"
-        )
-
-    def test_cli_request_headers_flags_exist(self):
-        """CLI must expose flags for each request header from spec."""
-        from direct_cli.commands.reports import get as reports_get
-        expected_params = {
-            "skip_report_header", "skip_column_header",
-            "skip_report_summary", "return_money_in_micros", "language",
-        }
-        names = {p.name for p in reports_get.params}
-        missing = expected_params - names
-        assert not missing, f"Missing CLI flags: {missing}"
-
-    def test_non_wsdl_reports_policy_updated(self):
-        """NON_WSDL_SERVICE_POLICIES['reports'] must use spec-snapshot coverage."""
-        from direct_cli.wsdl_coverage import NON_WSDL_SERVICE_POLICIES
-        policy = NON_WSDL_SERVICE_POLICIES["reports"]
-        assert policy["coverage"] == "contract-tests+spec-snapshot", (
-            "reports policy must use 'contract-tests+spec-snapshot' coverage type"
-        )
-        assert "spec_snapshot" in policy
-        assert "drift_script" in policy
-        assert "refresh_script" in policy

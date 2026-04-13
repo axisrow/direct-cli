@@ -35,9 +35,7 @@ def get(ctx, ids, adgroup_ids, limit, fetch_all, output_format, output, fields):
         )
 
         field_names = (
-            fields.split(",")
-            if fields
-            else ["Id", "CampaignId", "AdGroupId", "Status", "ServingStatus"]
+            fields.split(",") if fields else ["Id", "CampaignId", "AdGroupId", "Status", "ServingStatus"]
         )
 
         criteria = {}
@@ -170,10 +168,7 @@ def update(ctx, target_id, target_type, extra_json, dry_run):
 def delete(ctx, target_id, dry_run):
     """Delete smart ad target"""
     try:
-        body = {
-            "method": "delete",
-            "params": {"SelectionCriteria": {"Ids": [target_id]}},
-        }
+        body = {"method": "delete", "params": {"SelectionCriteria": {"Ids": [target_id]}}}
 
         if dry_run:
             format_output(body, "json", None)
@@ -200,10 +195,7 @@ def delete(ctx, target_id, dry_run):
 def suspend(ctx, target_id, dry_run):
     """Suspend smart ad target"""
     try:
-        body = {
-            "method": "suspend",
-            "params": {"SelectionCriteria": {"Ids": [target_id]}},
-        }
+        body = {"method": "suspend", "params": {"SelectionCriteria": {"Ids": [target_id]}}}
 
         if dry_run:
             format_output(body, "json", None)
@@ -229,10 +221,7 @@ def suspend(ctx, target_id, dry_run):
 def resume(ctx, target_id, dry_run):
     """Resume smart ad target"""
     try:
-        body = {
-            "method": "resume",
-            "params": {"SelectionCriteria": {"Ids": [target_id]}},
-        }
+        body = {"method": "resume", "params": {"SelectionCriteria": {"Ids": [target_id]}}}
 
         if dry_run:
             format_output(body, "json", None)
@@ -290,9 +279,7 @@ def set_bids(
         if extra_json:
             bid_data.update(json.loads(extra_json))
         if not bid_data:
-            raise click.UsageError(
-                "Provide target selection and bid fields for set-bids"
-            )
+            raise click.UsageError("Provide target selection and bid fields for set-bids")
 
         body = {"method": "setBids", "params": {"Bids": [bid_data]}}
 
