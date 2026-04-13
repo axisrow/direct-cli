@@ -42,6 +42,8 @@ dev = [
     "black>=22.0",
     "flake8>=4.0",
     "requests>=2.0",
+    "beautifulsoup4>=4.12",
+    "lxml>=4.9",
 ]
 
 [project.scripts]
