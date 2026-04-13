@@ -266,5 +266,64 @@ class TestReadOnlyDictionaries(unittest.TestCase):
         assert_success(result, "dictionaries get --names GeoRegions")
 
 
+@pytest.mark.integration
+@skip_if_no_token
+class TestReadOnlyReports(unittest.TestCase):
+    def test_get_campaign_performance_report(self):
+        result = invoke_get(
+            "reports", "get",
+            "--type", "campaign_performance_report",
+            "--from", "2026-01-01",
+            "--to", "2026-01-31",
+            "--name", "Integration Test Report",
+            "--fields", "Date,CampaignId,Clicks,Impressions",
+            "--format", "json",
+        )
+        assert_success(result, "reports get campaign_performance_report")
+
+    def test_get_report_with_filter(self):
+        result = invoke_get(
+            "reports", "get",
+            "--type", "campaign_performance_report",
+            "--from", "2026-01-01",
+            "--to", "2026-01-31",
+            "--name", "Filtered Report",
+            "--fields", "Date,CampaignId,Clicks",
+            "--filter", "Clicks:GREATER_THAN:0",
+            "--format", "json",
+        )
+        assert_success(result, "reports get with --filter")
+
+    def test_get_report_with_order_by(self):
+        result = invoke_get(
+            "reports", "get",
+            "--type", "campaign_performance_report",
+            "--from", "2026-01-01",
+            "--to", "2026-01-31",
+            "--name", "Ordered Report",
+            "--fields", "Date,CampaignId,Clicks",
+            "--order-by", "Clicks",
+            "--format", "json",
+        )
+        assert_success(result, "reports get with --order-by Clicks")
+
+    def test_get_report_formats(self):
+        for output_format in ["json", "table", "csv", "tsv"]:
+            result = invoke_get(
+                "reports", "get",
+                "--type", "campaign_performance_report",
+                "--from", "2026-01-01",
+                "--to", "2026-01-31",
+                "--name", f"Format Test {output_format}",
+                "--fields", "Date,CampaignId",
+                "--format", output_format,
+            )
+            assert result.exit_code == 0, (
+                f"[reports get --format {output_format}] exit_code={result.exit_code}\n"
+                f"output: {result.output}\n"
+                f"exception: {result.exception}"
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
