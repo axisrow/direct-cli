@@ -1,0 +1,107 @@
+{
+  "report_types": [
+    "ACCOUNT_PERFORMANCE_REPORT",
+    "CAMPAIGN_PERFORMANCE_REPORT",
+    "ADGROUP_PERFORMANCE_REPORT",
+    "AD_PERFORMANCE_REPORT",
+    "CRITERIA_PERFORMANCE_REPORT",
+    "CUSTOM_REPORT",
+    "REACH_AND_FREQUENCY_PERFORMANCE_REPORT",
+    "SEARCH_QUERY_PERFORMANCE_REPORT"
+  ],
+  "date_range_types": [
+    "TODAY",
+    "YESTERDAY",
+    "CUSTOM_DATE",
+    "ALL_TIME",
+    "LAST_30_DAYS",
+    "LAST_14_DAYS",
+    "LAST_7_DAYS",
+    "THIS_WEEK_MON_TODAY",
+    "THIS_WEEK_MON_SUN",
+    "LAST_WEEK",
+    "LAST_BUSINESS_WEEK",
+    "LAST_3_MONTHS",
+    "LAST_5_YEARS",
+    "AUTO"
+  ],
+  "formats": [
+    "TSV"
+  ],
+  "processing_modes": [
+    "auto",
+    "online",
+    "offline"
+  ],
+  "request_headers": {
+    "processingMode": {
+      "required": true,
+      "values": [
+        "auto",
+        "online",
+        "offline"
+      ]
+    },
+    "skipReportHeader": {
+      "required": false,
+      "values": [
+        "true",
+        "false"
+      ]
+    },
+    "skipColumnHeader": {
+      "required": false,
+      "values": [
+        "true",
+        "false"
+      ]
+    },
+    "skipReportSummary": {
+      "required": false,
+      "values": [
+        "true",
+        "false"
+      ]
+    },
+    "returnMoneyInMicros": {
+      "required": false,
+      "values": [
+        "true",
+        "false"
+      ]
+    },
+    "Accept-Language": {
+      "required": false,
+      "values": [
+        "ru",
+        "en"
+      ]
+    }
+  },
+  "field_compatibility": {
+    "Date": {
+      "report_types": {
+        "CAMPAIGN_PERFORMANCE_REPORT": "segment",
+        "AD_PERFORMANCE_REPORT": "segment"
+      }
+    },
+    "CampaignId": {
+      "report_types": {
+        "CAMPAIGN_PERFORMANCE_REPORT": "attribute",
+        "AD_PERFORMANCE_REPORT": "attribute"
+      }
+    },
+    "Clicks": {
+      "report_types": {
+        "CAMPAIGN_PERFORMANCE_REPORT": "metric",
+        "AD_PERFORMANCE_REPORT": "metric"
+      }
+    },
+    "Impressions": {
+      "report_types": {
+        "CAMPAIGN_PERFORMANCE_REPORT": "metric",
+        "AD_PERFORMANCE_REPORT": "metric"
+      }
+    }
+  }
+}
