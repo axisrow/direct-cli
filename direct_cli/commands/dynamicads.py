@@ -3,6 +3,7 @@ DynamicAds (Webpages) commands
 """
 
 import json
+
 import click
 
 from ..api import create_client
@@ -33,9 +34,7 @@ def get(ctx, ids, adgroup_ids, limit, fetch_all, output_format, output, fields):
             sandbox=ctx.obj.get("sandbox"),
         )
 
-        field_names = (
-            fields.split(",") if fields else ["Id", "AdGroupId", "Conditions", "Bid"]
-        )
+        field_names = fields.split(",") if fields else ["Id", "AdGroupId", "Conditions", "Bid"]
 
         criteria = {}
         if ids:
@@ -93,7 +92,6 @@ def add(ctx, adgroup_id, target_json, dry_run):
             login=ctx.obj.get("login"),
             sandbox=ctx.obj.get("sandbox"),
         )
-
         result = client.dynamicads().post(data=body)
         format_output(result().extract(), "json", None)
 
@@ -104,23 +102,12 @@ def add(ctx, adgroup_id, target_json, dry_run):
 
 @dynamicads.command()
 @click.option("--id", "target_id", required=True, type=int, help="Target ID")
-@click.option("--json", "extra_json", help="Additional JSON parameters")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def update(ctx, target_id, extra_json, dry_run):
-    """Update dynamic ad target"""
+def delete(ctx, target_id, dry_run):
+    """Delete dynamic ad target"""
     try:
-        target_data = {"Id": target_id}
-
-        if extra_json:
-            extra = json.loads(extra_json)
-            target_data.update(extra)
-        if len(target_data) == 1:
-            raise click.ClickException(
-                "Provide --json with fields to update"
-            )
-
-        body = {"method": "update", "params": {"Webpages": [target_data]}}
+        body = {"method": "delete", "params": {"SelectionCriteria": {"Ids": [target_id]}}}
 
         if dry_run:
             format_output(body, "json", None)
@@ -142,24 +129,103 @@ def update(ctx, target_id, extra_json, dry_run):
 
 @dynamicads.command()
 @click.option("--id", "target_id", required=True, type=int, help="Target ID")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def delete(ctx, target_id):
-    """Delete dynamic ad target"""
+def suspend(ctx, target_id, dry_run):
+    """Suspend dynamic ad target"""
     try:
+        body = {"method": "suspend", "params": {"SelectionCriteria": {"Ids": [target_id]}}}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
         client = create_client(
             token=ctx.obj.get("token"),
             login=ctx.obj.get("login"),
             sandbox=ctx.obj.get("sandbox"),
         )
-
-        body = {
-            "method": "delete",
-            "params": {"SelectionCriteria": {"Ids": [target_id]}},
-        }
-
         result = client.dynamicads().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except Exception as e:
+        print_error(str(e))
+        raise click.Abort()
+
+
+@dynamicads.command()
+@click.option("--id", "target_id", required=True, type=int, help="Target ID")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@click.pass_context
+def resume(ctx, target_id, dry_run):
+    """Resume dynamic ad target"""
+    try:
+        body = {"method": "resume", "params": {"SelectionCriteria": {"Ids": [target_id]}}}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+        result = client.dynamicads().post(data=body)
+        format_output(result().extract(), "json", None)
+
+    except Exception as e:
+        print_error(str(e))
+        raise click.Abort()
+
+
+@dynamicads.command(name="set-bids")
+@click.option("--id", "target_id", type=int, help="Target ID")
+@click.option("--adgroup-id", type=int, help="Ad group ID")
+@click.option("--campaign-id", type=int, help="Campaign ID")
+@click.option("--bid", type=float, help="Search bid")
+@click.option("--context-bid", type=float, help="Context bid")
+@click.option("--priority", help="Strategy priority")
+@click.option("--json", "extra_json", help="Additional JSON parameters")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@click.pass_context
+def set_bids(ctx, target_id, adgroup_id, campaign_id, bid, context_bid, priority, extra_json, dry_run):
+    """Set dynamic ad target bids"""
+    try:
+        bid_data = {}
+        if target_id is not None:
+            bid_data["Id"] = target_id
+        if adgroup_id is not None:
+            bid_data["AdGroupId"] = adgroup_id
+        if campaign_id is not None:
+            bid_data["CampaignId"] = campaign_id
+        if bid is not None:
+            bid_data["Bid"] = int(bid * 1000000)
+        if context_bid is not None:
+            bid_data["ContextBid"] = int(context_bid * 1000000)
+        if priority:
+            bid_data["StrategyPriority"] = priority
+        if extra_json:
+            bid_data.update(json.loads(extra_json))
+        if not bid_data:
+            raise click.UsageError("Provide target selection and bid fields for set-bids")
+
+        body = {"method": "setBids", "params": {"Bids": [bid_data]}}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+        result = client.dynamicads().post(data=body)
+        format_output(result().extract(), "json", None)
+
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()

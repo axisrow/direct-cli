@@ -3,11 +3,12 @@ RetargetingLists commands
 """
 
 import json
+
 import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids, get_default_fields
+from ..utils import get_default_fields, parse_ids
 
 
 @click.group()
@@ -33,9 +34,7 @@ def get(ctx, ids, types, limit, fetch_all, output_format, output, fields):
             sandbox=ctx.obj.get("sandbox"),
         )
 
-        field_names = (
-            fields.split(",") if fields else get_default_fields("retargetinglists")
-        )
+        field_names = fields.split(",") if fields else get_default_fields("retargetinglists")
 
         criteria = {}
         if ids:
@@ -66,9 +65,6 @@ def get(ctx, ids, types, limit, fetch_all, output_format, output, fields):
         raise click.Abort()
 
 
-#: Valid ``RetargetingListAddItem.Type`` values per Yandex Direct API docs
-#: (ref-v5/retargetinglists/add).  The API defaults to ``RETARGETING`` when
-#: ``Type`` is omitted, so the CLI follows the same default.
 _RETARGETING_LIST_TYPES = ["RETARGETING", "AUDIENCE"]
 
 
@@ -93,14 +89,10 @@ _RETARGETING_LIST_TYPES = ["RETARGETING", "AUDIENCE"]
 def add(ctx, name, list_type, extra_json, dry_run):
     """Add new retargeting list"""
     try:
-        # click.Choice normalizes the case when case_sensitive=False but
-        # leaves the original casing of the canonical choice; pass it
-        # through unchanged.
         list_data = {"Name": name, "Type": list_type}
 
         if extra_json:
-            extra = json.loads(extra_json)
-            list_data.update(extra)
+            list_data.update(json.loads(extra_json))
 
         body = {"method": "add", "params": {"RetargetingLists": [list_data]}}
 
@@ -113,7 +105,6 @@ def add(ctx, name, list_type, extra_json, dry_run):
             login=ctx.obj.get("login"),
             sandbox=ctx.obj.get("sandbox"),
         )
-
         result = client.retargeting().post(data=body)
         format_output(result().extract(), "json", None)
 
@@ -124,17 +115,57 @@ def add(ctx, name, list_type, extra_json, dry_run):
 
 @retargeting.command()
 @click.option("--id", "list_id", required=True, type=int, help="Retargeting list ID")
+@click.option("--json", "extra_json", help="Additional JSON parameters")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def delete(ctx, list_id):
-    """Delete retargeting list"""
+def update(ctx, list_id, extra_json, dry_run):
+    """Update retargeting list"""
     try:
+        list_data = {"Id": list_id}
+        if extra_json:
+            list_data.update(json.loads(extra_json))
+        if len(list_data) == 1:
+            raise click.UsageError("Provide --json with fields to update")
+
+        body = {"method": "update", "params": {"RetargetingLists": [list_data]}}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
         client = create_client(
             token=ctx.obj.get("token"),
             login=ctx.obj.get("login"),
             sandbox=ctx.obj.get("sandbox"),
         )
+        result = client.retargeting().post(data=body)
+        format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
+    except Exception as e:
+        print_error(str(e))
+        raise click.Abort()
+
+
+@retargeting.command()
+@click.option("--id", "list_id", required=True, type=int, help="Retargeting list ID")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@click.pass_context
+def delete(ctx, list_id, dry_run):
+    """Delete retargeting list"""
+    try:
         body = {"method": "delete", "params": {"SelectionCriteria": {"Ids": [list_id]}}}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
 
         result = client.retargeting().post(data=body)
         format_output(result().extract(), "json", None)

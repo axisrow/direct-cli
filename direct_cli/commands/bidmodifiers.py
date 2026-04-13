@@ -368,20 +368,25 @@ def toggle(ctx, campaign_id, adgroup_id, modifier_type, enabled, dry_run):
 
 @bidmodifiers.command()
 @click.option("--id", "modifier_id", required=True, type=int, help="Modifier ID")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def delete(ctx, modifier_id):
+def delete(ctx, modifier_id, dry_run):
     """Delete bid modifier"""
     try:
+        body = {
+            "method": "delete",
+            "params": {"SelectionCriteria": {"Ids": [modifier_id]}},
+        }
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
         client = create_client(
             token=ctx.obj.get("token"),
             login=ctx.obj.get("login"),
             sandbox=ctx.obj.get("sandbox"),
         )
-
-        body = {
-            "method": "delete",
-            "params": {"SelectionCriteria": {"Ids": [modifier_id]}},
-        }
 
         result = client.bidmodifiers().post(data=body)
         format_output(result().extract(), "json", None)

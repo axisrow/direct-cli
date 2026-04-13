@@ -7,7 +7,9 @@ Usage:
 Fetches fresh WSDL XML from https://api.direct.yandex.com/v5/{service}?wsdl
 and overwrites files in tests/wsdl_cache/.
 
-Run periodically (e.g. monthly) or when suspecting the API has changed.
+Run manually when refreshing the committed cache after the scheduled
+WSDL drift monitor reports a live API change, or when intentionally
+updating the cached fixtures.
 """
 
 import sys

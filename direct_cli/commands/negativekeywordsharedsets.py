@@ -147,17 +147,22 @@ def update(ctx, set_id, name, keywords, extra_json, dry_run):
 
 @negativekeywordsharedsets.command()
 @click.option("--id", "set_id", required=True, type=int, help="Set ID")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def delete(ctx, set_id):
+def delete(ctx, set_id, dry_run):
     """Delete negative keyword shared set"""
     try:
+        body = {"method": "delete", "params": {"SelectionCriteria": {"Ids": [set_id]}}}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
         client = create_client(
             token=ctx.obj.get("token"),
             login=ctx.obj.get("login"),
             sandbox=ctx.obj.get("sandbox"),
         )
-
-        body = {"method": "delete", "params": {"SelectionCriteria": {"Ids": [set_id]}}}
 
         result = client.negativekeywordsharedsets().post(data=body)
         format_output(result().extract(), "json", None)

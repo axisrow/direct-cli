@@ -2,6 +2,8 @@
 Dictionaries commands
 """
 
+import json
+
 import click
 
 from ..api import create_client
@@ -47,6 +49,34 @@ def get(ctx, names, output_format, output):
         dictionary_names = [n.strip() for n in names.split(",")]
 
         body = {"method": "get", "params": {"DictionaryNames": dictionary_names}}
+
+        result = client.dictionaries().post(data=body)
+        format_output(result.data, output_format, output)
+
+    except Exception as e:
+        print_error(str(e))
+        raise click.Abort()
+
+
+@dictionaries.command(name="get-geo-regions")
+@click.option("--json", "criteria_json", help="GeoRegions selection criteria JSON")
+@click.option("--fields", required=True, help="Comma-separated field names")
+@click.option("--format", "output_format", default="json", help="Output format")
+@click.option("--output", help="Output file")
+@click.pass_context
+def get_geo_regions(ctx, criteria_json, fields, output_format, output):
+    """Get GeoRegions dictionary entries"""
+    try:
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+
+        params = {"FieldNames": [name.strip() for name in fields.split(",")]}
+        params["SelectionCriteria"] = json.loads(criteria_json) if criteria_json else {}
+
+        body = {"method": "getGeoRegions", "params": params}
 
         result = client.dictionaries().post(data=body)
         format_output(result.data, output_format, output)

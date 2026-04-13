@@ -189,17 +189,22 @@ def update(ctx, feed_id, name, url, extra_json, dry_run):
 
 @feeds.command()
 @click.option("--id", "feed_id", required=True, type=int, help="Feed ID")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def delete(ctx, feed_id):
+def delete(ctx, feed_id, dry_run):
     """Delete feed"""
     try:
+        body = {"method": "delete", "params": {"SelectionCriteria": {"Ids": [feed_id]}}}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
         client = create_client(
             token=ctx.obj.get("token"),
             login=ctx.obj.get("login"),
             sandbox=ctx.obj.get("sandbox"),
         )
-
-        body = {"method": "delete", "params": {"SelectionCriteria": {"Ids": [feed_id]}}}
 
         result = client.feeds().post(data=body)
         format_output(result().extract(), "json", None)

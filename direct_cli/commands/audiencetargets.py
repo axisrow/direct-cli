@@ -3,6 +3,7 @@ AudienceTargets commands
 """
 
 import json
+
 import click
 
 from ..api import create_client
@@ -43,7 +44,13 @@ def get(ctx, ids, adgroup_ids, campaign_ids, limit, fetch_all, output_format, ou
 
         params = {
             "SelectionCriteria": criteria,
-            "FieldNames": ["Id", "AdGroupId", "RetargetingListId", "State", "Bid"],
+            "FieldNames": [
+                "Id",
+                "AdGroupId",
+                "RetargetingListId",
+                "State",
+                "ContextBid",
+            ],
         }
 
         if limit:
@@ -69,10 +76,8 @@ def get(ctx, ids, adgroup_ids, campaign_ids, limit, fetch_all, output_format, ou
 
 @audiencetargets.command()
 @click.option("--adgroup-id", required=True, type=int, help="Ad group ID")
-@click.option(
-    "--retargeting-list-id", required=True, type=int, help="Retargeting list ID"
-)
-@click.option("--bid", type=float, help="Bid")
+@click.option("--retargeting-list-id", required=True, type=int, help="Retargeting list ID")
+@click.option("--bid", type=float, help="Context bid")
 @click.option("--json", "extra_json", help="Additional JSON parameters")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
@@ -85,13 +90,87 @@ def add(ctx, adgroup_id, retargeting_list_id, bid, extra_json, dry_run):
         }
 
         if bid is not None:
-            target_data["Bid"] = int(bid * 1000000)
+            target_data["ContextBid"] = int(bid * 1000000)
 
         if extra_json:
-            extra = json.loads(extra_json)
-            target_data.update(extra)
+            target_data.update(json.loads(extra_json))
 
         body = {"method": "add", "params": {"AudienceTargets": [target_data]}}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+        result = client.audiencetargets().post(data=body)
+        format_output(result().extract(), "json", None)
+
+    except Exception as e:
+        print_error(str(e))
+        raise click.Abort()
+
+
+@audiencetargets.command(name="set-bids")
+@click.option("--id", "target_id", type=int, help="Target ID")
+@click.option("--adgroup-id", type=int, help="Ad group ID")
+@click.option("--campaign-id", type=int, help="Campaign ID")
+@click.option("--context-bid", type=float, help="Context bid")
+@click.option("--priority", help="Strategy priority")
+@click.option("--json", "extra_json", help="Additional JSON parameters")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@click.pass_context
+def set_bids(ctx, target_id, adgroup_id, campaign_id, context_bid, priority, extra_json, dry_run):
+    """Set audience target bids"""
+    try:
+        bid_data = {}
+        if target_id is not None:
+            bid_data["Id"] = target_id
+        if adgroup_id is not None:
+            bid_data["AdGroupId"] = adgroup_id
+        if campaign_id is not None:
+            bid_data["CampaignId"] = campaign_id
+        if context_bid is not None:
+            bid_data["ContextBid"] = int(context_bid * 1000000)
+        if priority:
+            bid_data["StrategyPriority"] = priority
+        if extra_json:
+            bid_data.update(json.loads(extra_json))
+        if not bid_data:
+            raise click.UsageError("Provide target selection and bid fields for set-bids")
+
+        body = {"method": "setBids", "params": {"Bids": [bid_data]}}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+        result = client.audiencetargets().post(data=body)
+        format_output(result().extract(), "json", None)
+
+    except click.UsageError:
+        raise
+    except Exception as e:
+        print_error(str(e))
+        raise click.Abort()
+
+
+@audiencetargets.command()
+@click.option("--id", "target_id", required=True, type=int, help="Target ID")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@click.pass_context
+def delete(ctx, target_id, dry_run):
+    """Delete audience target"""
+    try:
+        body = {"method": "delete", "params": {"SelectionCriteria": {"Ids": [target_id]}}}
 
         if dry_run:
             format_output(body, "json", None)
@@ -113,45 +192,22 @@ def add(ctx, adgroup_id, retargeting_list_id, bid, extra_json, dry_run):
 
 @audiencetargets.command()
 @click.option("--id", "target_id", required=True, type=int, help="Target ID")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def delete(ctx, target_id):
-    """Delete audience target"""
-    try:
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
-
-        body = {
-            "method": "delete",
-            "params": {"SelectionCriteria": {"Ids": [target_id]}},
-        }
-
-        result = client.audiencetargets().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
-
-
-@audiencetargets.command()
-@click.option("--id", "target_id", required=True, type=int, help="Target ID")
-@click.pass_context
-def suspend(ctx, target_id):
+def suspend(ctx, target_id, dry_run):
     """Suspend audience target"""
     try:
+        body = {"method": "suspend", "params": {"SelectionCriteria": {"Ids": [target_id]}}}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
         client = create_client(
             token=ctx.obj.get("token"),
             login=ctx.obj.get("login"),
             sandbox=ctx.obj.get("sandbox"),
         )
-
-        body = {
-            "method": "suspend",
-            "params": {"SelectionCriteria": {"Ids": [target_id]}},
-        }
 
         result = client.audiencetargets().post(data=body)
         format_output(result().extract(), "json", None)
@@ -163,20 +219,22 @@ def suspend(ctx, target_id):
 
 @audiencetargets.command()
 @click.option("--id", "target_id", required=True, type=int, help="Target ID")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def resume(ctx, target_id):
+def resume(ctx, target_id, dry_run):
     """Resume audience target"""
     try:
+        body = {"method": "resume", "params": {"SelectionCriteria": {"Ids": [target_id]}}}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
         client = create_client(
             token=ctx.obj.get("token"),
             login=ctx.obj.get("login"),
             sandbox=ctx.obj.get("sandbox"),
         )
-
-        body = {
-            "method": "resume",
-            "params": {"SelectionCriteria": {"Ids": [target_id]}},
-        }
 
         result = client.audiencetargets().post(data=body)
         format_output(result().extract(), "json", None)

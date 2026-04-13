@@ -92,20 +92,25 @@ def add(ctx, image_json, dry_run):
 
 @adimages.command()
 @click.option("--hash", "image_hash", required=True, help="Ad image hash")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def delete(ctx, image_hash):
+def delete(ctx, image_hash, dry_run):
     """Delete ad image"""
     try:
+        body = {
+            "method": "delete",
+            "params": {"SelectionCriteria": {"AdImageHashes": [image_hash]}},
+        }
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
         client = create_client(
             token=ctx.obj.get("token"),
             login=ctx.obj.get("login"),
             sandbox=ctx.obj.get("sandbox"),
         )
-
-        body = {
-            "method": "delete",
-            "params": {"SelectionCriteria": {"AdImageHashes": [image_hash]}},
-        }
 
         result = client.adimages().post(data=body)
         format_output(result().extract(), "json", None)

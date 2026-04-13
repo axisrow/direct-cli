@@ -48,7 +48,7 @@ Sandbox-limited (confirmed via live recording, ``@pytest.mark.sandbox_limitation
   - keywordbids set               — same
   - sitelinks add/delete          — sandbox service returns error 1000
   - adimages add/delete           — sandbox rejects valid 450x450 PNG uploads
-  - dynamicads add/update/delete  — sandbox does not support DYNAMIC_TEXT_CAMPAIGN creation
+  - dynamicads add/delete         — sandbox does not support DYNAMIC_TEXT_CAMPAIGN creation
   - audiencetargets add/delete    — sandbox does not persist adgroup/retargeting list
   - smartadtargets add            — sandbox does not support SMART_CAMPAIGN + SMART_AD_GROUP chain
 
@@ -769,15 +769,8 @@ class TestWriteDynamicAds:
             pytest.fail(f"API rejected dynamicads add (CLI bug?): {first['Errors']}")
 
         wid = first["Id"]
-        try:
-            r = _invoke(
-                "dynamicads", "update",
-                "--id", str(wid),
-                "--json", json.dumps({"Name": "Updated Webpage"}),
-            )
-            assert_success(r, "dynamicads update")
-        finally:
-            _invoke("dynamicads", "delete", "--id", str(wid))
+        r = _invoke("dynamicads", "delete", "--id", str(wid))
+        assert_success(r, "dynamicads delete")
 
 
 # ── smartadtargets ───────────────────────────────────────────────────────
