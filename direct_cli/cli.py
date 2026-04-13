@@ -35,6 +35,7 @@ from .commands.smartadtargets import smartadtargets
 from .commands.businesses import businesses
 from .commands.keywordsresearch import keywordsresearch
 from .commands.dynamicads import dynamicads
+from .commands.advideos import advideos
 
 # Load .env file
 load_dotenv()
@@ -133,6 +134,7 @@ cli.add_command(smartadtargets)
 cli.add_command(businesses)
 cli.add_command(keywordsresearch)
 cli.add_command(dynamicads)
+cli.add_command(advideos)
 
 # Canonical aliases expected by external integrations.
 cli.add_command(dynamicads, name="dynamictargets")

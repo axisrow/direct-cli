@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<wsdl:definitions xmlns:ns="http://api.direct.yandex.com/v5/negativekeywordsharedsets"
+                  xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+                  xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+                  xmlns:general="http://api.direct.yandex.com/v5/general"
+                  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                  name="NegativeKeywordSharedSets"
+                  targetNamespace="http://api.direct.yandex.com/v5/negativekeywordsharedsets">
+    <wsdl:types>
+        <xsd:schema targetNamespace="http://api.direct.yandex.com/v5/negativekeywordsharedsets">
+            <xsd:import namespace="http://api.direct.yandex.com/v5/general" schemaLocation="https://soap.direct.yandex.ru/v5/general.xsd"/>
+            <xsd:simpleType name="NegativeKeywordSharedSetFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="Id"/>
+                    <xsd:enumeration value="Name"/>
+                    <xsd:enumeration value="NegativeKeywords"/>
+                    <xsd:enumeration value="Associated"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:complexType name="NegativeKeywordSharedSetBase">
+                <xsd:sequence>
+                    <xsd:element name="Name" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="NegativeKeywords" type="xsd:string" minOccurs="0" maxOccurs="unbounded"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="NegativeKeywordSharedSetGetItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:NegativeKeywordSharedSetBase">
+                        <xsd:sequence>
+                            <xsd:element name="Id" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                            <xsd:element name="Associated" type="general:YesNoEnum" minOccurs="0" maxOccurs="1"/>
+                        </xsd:sequence>
+                    </xsd:extension>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="NegativeKeywordSharedSetUpdateItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:NegativeKeywordSharedSetBase">
+                        <xsd:sequence>
+                            <xsd:element name="Id" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                        </xsd:sequence>
+                    </xsd:extension>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="NegativeKeywordSharedSetAddItem">
+                <xsd:sequence>
+                    <xsd:element name="Name" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="NegativeKeywords" type="xsd:string" minOccurs="1" maxOccurs="unbounded"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:element name="GetRequest">
+                <xsd:complexType>
+                    <xsd:complexContent>
+                        <xsd:extension base="general:GetRequestGeneral">
+                            <xsd:sequence>
+                                <xsd:element name="SelectionCriteria" type="general:IdsCriteria" minOccurs="0"
+                                             maxOccurs="1"/>
+                                <xsd:element name="FieldNames" type="ns:NegativeKeywordSharedSetFieldEnum" minOccurs="1"
+                                             maxOccurs="unbounded"/>
+                            </xsd:sequence>
+                        </xsd:extension>
+                    </xsd:complexContent>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="GetResponse">
+                <xsd:complexType>
+                    <xsd:complexContent>
+                        <xsd:extension base="general:GetResponseGeneral">
+                            <xsd:sequence>
+                                <xsd:element name="NegativeKeywordSharedSets" type="ns:NegativeKeywordSharedSetGetItem"
+                                             minOccurs="0" maxOccurs="unbounded"/>
+                            </xsd:sequence>
+                        </xsd:extension>
+                    </xsd:complexContent>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="AddRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="NegativeKeywordSharedSets" type="ns:NegativeKeywordSharedSetAddItem"
+                                     minOccurs="1" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="AddResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="AddResults" type="general:ActionResult"
+                                     minOccurs="1" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="UpdateRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="NegativeKeywordSharedSets" type="ns:NegativeKeywordSharedSetUpdateItem"
+                                     minOccurs="1" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="UpdateResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="UpdateResults" type="general:ActionResult"
+                                     minOccurs="1" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="DeleteRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="SelectionCriteria" type="general:IdsCriteria" minOccurs="1"
+                                     maxOccurs="1"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="DeleteResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="DeleteResults" type="general:ActionResult"
+                                     minOccurs="1" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+        </xsd:schema>
+    </wsdl:types>
+    <wsdl:message name="ApiException">
+        <wsdl:part element="general:FaultResponse" name="faultMessage"/>
+    </wsdl:message>
+    <wsdl:message name="GetOperationRequest">
+        <wsdl:part element="ns:GetRequest" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="GetOperationResponse">
+        <wsdl:part element="ns:GetResponse" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="AddOperationRequest">
+        <wsdl:part element="ns:AddRequest" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="AddOperationResponse">
+        <wsdl:part element="ns:AddResponse" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="UpdateOperationRequest">
+        <wsdl:part element="ns:UpdateRequest" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="UpdateOperationResponse">
+        <wsdl:part element="ns:UpdateResponse" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="DeleteOperationRequest">
+        <wsdl:part element="ns:DeleteRequest" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="DeleteOperationResponse">
+        <wsdl:part element="ns:DeleteResponse" name="parameters"/>
+    </wsdl:message>
+    <wsdl:portType name="NegativeKeywordSharedSetsPort">
+        <wsdl:operation name="get">
+            <wsdl:input message="ns:GetOperationRequest"/>
+            <wsdl:output message="ns:GetOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="add">
+            <wsdl:input message="ns:AddOperationRequest"/>
+            <wsdl:output message="ns:AddOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="update">
+            <wsdl:input message="ns:UpdateOperationRequest"/>
+            <wsdl:output message="ns:UpdateOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="delete">
+            <wsdl:input message="ns:DeleteOperationRequest"/>
+            <wsdl:output message="ns:DeleteOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+    </wsdl:portType>
+    <wsdl:binding name="NegativeKeywordSharedSetsSOAP" type="ns:NegativeKeywordSharedSetsPort">
+        <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="get">
+            <soap:operation soapAction="https://api.direct.yandex.com/v5/negativekeywordsharedsets/get"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="add">
+            <soap:operation soapAction="https://api.direct.yandex.com/v5/negativekeywordsharedsets/add"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="update">
+            <soap:operation soapAction="https://api.direct.yandex.com/v5/negativekeywordsharedsets/update"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="delete">
+            <soap:operation soapAction="https://api.direct.yandex.com/v5/negativekeywordsharedsets/delete"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+    </wsdl:binding>
+    <wsdl:service name="NegativeKeywordSharedSets">
+        <wsdl:port binding="ns:NegativeKeywordSharedSetsSOAP" name="NegativeKeywordSharedSetsSOAP">
+            <soap:address location="https://soap.direct.yandex.ru/v5/negativekeywordsharedsets"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>

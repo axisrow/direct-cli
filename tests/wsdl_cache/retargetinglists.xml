@@ -1,0 +1,283 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<wsdl:definitions xmlns:ns="http://api.direct.yandex.com/v5/retargetinglists"
+                  xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+                  xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+                  xmlns:general="http://api.direct.yandex.com/v5/general"
+                  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                  name="RetargetingLists"
+                  targetNamespace="http://api.direct.yandex.com/v5/retargetinglists">
+    <wsdl:types>
+        <xsd:schema targetNamespace="http://api.direct.yandex.com/v5/retargetinglists">
+            <xsd:import namespace="http://api.direct.yandex.com/v5/general" schemaLocation="https://soap.direct.yandex.ru/v5/general.xsd" />
+            <xsd:simpleType name="RetargetingListFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="Type" />
+                    <xsd:enumeration value="Id" />
+                    <xsd:enumeration value="Name" />
+                    <xsd:enumeration value="Description" />
+                    <xsd:enumeration value="Rules" />
+                    <xsd:enumeration value="IsAvailable" />
+                    <xsd:enumeration value="Scope" />
+                    <xsd:enumeration value="AvailableForTargetsInAdGroupTypes" />
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="RetargetingListScopeEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="FOR_TARGETS_AND_ADJUSTMENTS"/>
+                    <xsd:enumeration value="FOR_ADJUSTMENTS_ONLY"/>
+                    <xsd:enumeration value="FOR_TARGETS_ONLY"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="RetargetingListRuleOperatorEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="ALL"/>
+                    <xsd:enumeration value="ANY"/>
+                    <xsd:enumeration value="NONE" />
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="RetargetingListTypeEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="RETARGETING"/>
+                    <xsd:enumeration value="AUDIENCE"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:complexType name="AvailableForTargetsInAdGroupTypesArray">
+                <xsd:sequence>
+                    <xsd:element name="Items" type="general:AdGroupTypesEnum" minOccurs="1" maxOccurs="unbounded"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="RetargetingListSelectionCriteria">
+                <xsd:sequence>
+                    <xsd:element name="Types" type="ns:RetargetingListTypeEnum" minOccurs="0" maxOccurs="unbounded"/>
+                    <xsd:element name="Ids" type="xsd:long" minOccurs="0" maxOccurs="unbounded"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="RetargetingListRuleArgumentItem">
+                <xsd:sequence>
+                    <xsd:element name="MembershipLifeSpan" type="xsd:int" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="ExternalId" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="RetargetingListRuleItem">
+                <xsd:sequence>
+                    <xsd:element name="Arguments" type="ns:RetargetingListRuleArgumentItem" minOccurs="1" maxOccurs="unbounded"/>
+                    <xsd:element name="Operator" type="ns:RetargetingListRuleOperatorEnum" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="RetargetingListBase">
+                <xsd:sequence>
+                    <xsd:element name="Name" type="xsd:string" minOccurs="0" maxOccurs="1" />
+                    <xsd:element name="Description" type="xsd:string" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="Rules" type="ns:RetargetingListRuleItem" minOccurs="0" maxOccurs="unbounded" />
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="RetargetingListGetItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:RetargetingListBase">
+                        <xsd:sequence>
+                            <xsd:element name="Type" type="ns:RetargetingListTypeEnum" minOccurs="0" maxOccurs="1"/>
+                            <xsd:element name="Id" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                            <xsd:element name="IsAvailable" type="general:YesNoEnum" minOccurs="0" maxOccurs="1"/>
+                            <xsd:element name="Scope" type="ns:RetargetingListScopeEnum" minOccurs="0" maxOccurs="1"/>
+                            <xsd:element name="AvailableForTargetsInAdGroupTypes" type="ns:AvailableForTargetsInAdGroupTypesArray" minOccurs="0" maxOccurs="1" nillable="true"/>
+                        </xsd:sequence>
+                    </xsd:extension>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="RetargetingListUpdateItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:RetargetingListBase">
+                        <xsd:sequence>
+                            <xsd:element name="Id" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                        </xsd:sequence>
+                    </xsd:extension>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="RetargetingListAddItem">
+                <xsd:sequence>
+                    <xsd:element name="Type" type="ns:RetargetingListTypeEnum" minOccurs="0" maxOccurs="1" />
+                    <xsd:element name="Name" type="xsd:string" minOccurs="1" maxOccurs="1" />
+                    <xsd:element name="Description" type="xsd:string" minOccurs="0" maxOccurs="1" />
+                    <xsd:element name="Rules" type="ns:RetargetingListRuleItem" minOccurs="1" maxOccurs="unbounded" />
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:element name="GetRequest">
+                <xsd:complexType>
+                    <xsd:complexContent>
+                        <xsd:extension base="general:GetRequestGeneral">
+                            <xsd:sequence>
+                                <xsd:element name="SelectionCriteria" type="ns:RetargetingListSelectionCriteria" minOccurs="0"
+                                     maxOccurs="1"/>
+                                <xsd:element name="FieldNames" type="ns:RetargetingListFieldEnum" minOccurs="1" maxOccurs="unbounded"/>
+                            </xsd:sequence>
+                        </xsd:extension>
+                    </xsd:complexContent>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="GetResponse">
+                <xsd:complexType>
+                    <xsd:complexContent>
+                        <xsd:extension base="general:GetResponseGeneral">
+                            <xsd:sequence>
+                                <xsd:element name="RetargetingLists" type="ns:RetargetingListGetItem" minOccurs="0" maxOccurs="unbounded"/>
+                            </xsd:sequence>
+                        </xsd:extension>
+                    </xsd:complexContent>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="AddRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="RetargetingLists" type="ns:RetargetingListAddItem"
+                                     minOccurs="1" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="AddResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="AddResults" type="general:ActionResult"
+                                     minOccurs="1" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="UpdateRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="RetargetingLists" type="ns:RetargetingListUpdateItem"
+                                     minOccurs="1" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="UpdateResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="UpdateResults" type="general:ActionResult"
+                                     minOccurs="1" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="DeleteRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="SelectionCriteria" type="general:IdsCriteria" minOccurs="1"
+                                     maxOccurs="1"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="DeleteResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="DeleteResults" type="general:ActionResult"
+                                     minOccurs="1" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+        </xsd:schema>
+    </wsdl:types>
+    <wsdl:message name="ApiException">
+        <wsdl:part element="general:FaultResponse" name="faultMessage"/>
+    </wsdl:message>
+    <wsdl:message name="GetOperationRequest">
+        <wsdl:part element="ns:GetRequest" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="GetOperationResponse">
+        <wsdl:part element="ns:GetResponse" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="AddOperationRequest">
+        <wsdl:part element="ns:AddRequest" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="AddOperationResponse">
+        <wsdl:part element="ns:AddResponse" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="UpdateOperationRequest">
+        <wsdl:part element="ns:UpdateRequest" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="UpdateOperationResponse">
+        <wsdl:part element="ns:UpdateResponse" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="DeleteOperationRequest">
+        <wsdl:part element="ns:DeleteRequest" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="DeleteOperationResponse">
+        <wsdl:part element="ns:DeleteResponse" name="parameters"/>
+    </wsdl:message>
+    <wsdl:portType name="RetargetingListsPort">
+        <wsdl:operation name="get">
+            <wsdl:input  message="ns:GetOperationRequest"/>
+            <wsdl:output message="ns:GetOperationResponse"/>
+            <wsdl:fault  message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="add">
+            <wsdl:input  message="ns:AddOperationRequest"/>
+            <wsdl:output message="ns:AddOperationResponse"/>
+            <wsdl:fault  message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="update">
+            <wsdl:input  message="ns:UpdateOperationRequest"/>
+            <wsdl:output message="ns:UpdateOperationResponse"/>
+            <wsdl:fault  message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="delete">
+            <wsdl:input  message="ns:DeleteOperationRequest"/>
+            <wsdl:output message="ns:DeleteOperationResponse"/>
+            <wsdl:fault  message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+    </wsdl:portType>
+    <wsdl:binding name="RetargetingListsSOAP" type="ns:RetargetingListsPort">
+        <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="get">
+            <soap:operation soapAction="https://api.direct.yandex.com/v5/retargetinglists/get"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="add">
+            <soap:operation soapAction="https://api.direct.yandex.com/v5/retargetinglists/add"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="update">
+            <soap:operation soapAction="https://api.direct.yandex.com/v5/retargetinglists/update"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="delete">
+            <soap:operation soapAction="https://api.direct.yandex.com/v5/retargetinglists/delete"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+    </wsdl:binding>
+    <wsdl:service name="RetargetingLists">
+        <wsdl:port binding="ns:RetargetingListsSOAP" name="RetargetingListsSOAP">
+            <soap:address location="https://soap.direct.yandex.ru/v5/retargetinglists"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>

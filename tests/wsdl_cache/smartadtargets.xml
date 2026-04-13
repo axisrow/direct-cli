@@ -1,0 +1,395 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+                  xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+                  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                  xmlns:general="http://api.direct.yandex.com/v5/general"
+                  xmlns:ns="http://api.direct.yandex.com/v5/smartadtargets"
+                  name="SmartAdTargets"
+                  targetNamespace="http://api.direct.yandex.com/v5/smartadtargets">
+    <wsdl:types>
+        <xsd:schema targetNamespace="http://api.direct.yandex.com/v5/smartadtargets">
+            <xsd:import namespace="http://api.direct.yandex.com/v5/general"
+                        schemaLocation="https://soap.direct.yandex.ru/v5/general.xsd"/>
+            <xsd:simpleType name="SmartAdTargetFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="Id"/>
+                    <xsd:enumeration value="AdGroupId"/>
+                    <xsd:enumeration value="CampaignId"/>
+                    <xsd:enumeration value="Name"/>
+                    <xsd:enumeration value="AverageCpc"/>
+                    <xsd:enumeration value="AverageCpa"/>
+                    <xsd:enumeration value="StrategyPriority"/>
+                    <xsd:enumeration value="Conditions"/>
+                    <xsd:enumeration value="ConditionType"/>
+                    <xsd:enumeration value="State"/>
+                    <xsd:enumeration value="Audience"/>
+                    <xsd:enumeration value="AvailableItemsOnly"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="AudienceEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="INTERESTED_IN_SIMILAR_PRODUCTS"/>
+                    <xsd:enumeration value="VISITED_PRODUCT_PAGE"/>
+                    <xsd:enumeration value="ALL_SEGMENTS"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:complexType name="ConditionsArray">
+                <xsd:sequence>
+                    <xsd:element name="Items" type="ns:ConditionsItem" minOccurs="1" maxOccurs="unbounded"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="ConditionsItem">
+                <xsd:sequence>
+                    <xsd:element name="Operand" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Operator" type="general:StringConditionOperatorEnum" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Arguments" type="xsd:string" minOccurs="1" maxOccurs="unbounded"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="SmartAdTargetAddItem">
+                <xsd:sequence>
+                    <xsd:element name="Name" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="AdGroupId" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="AverageCpc" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AverageCpa" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="StrategyPriority" type="general:PriorityEnum" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Audience" type="ns:AudienceEnum" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Conditions" type="ns:ConditionsArray" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AvailableItemsOnly" type="general:YesNoEnum" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="SmartAdTargetGetItem">
+                <xsd:sequence>
+                    <xsd:element name="Id" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AdGroupId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="CampaignId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Name" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AverageCpc" type="xsd:long" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="AverageCpa" type="xsd:long" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="StrategyPriority" type="general:PriorityEnum" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                    <xsd:element name="State" type="general:StateEnum" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Audience" type="ns:AudienceEnum" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Conditions" type="ns:ConditionsArray" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                    <xsd:element name="ConditionType" type="general:ConditionTypeEnum" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AvailableItemsOnly" type="general:YesNoEnum" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="SmartAdTargetUpdateItem">
+                <xsd:sequence>
+                    <xsd:element name="Id" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Name" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AverageCpc" type="xsd:long" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="AverageCpa" type="xsd:long" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="StrategyPriority" type="general:PriorityEnum" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Audience" type="ns:AudienceEnum" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Conditions" type="ns:ConditionsArray" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AvailableItemsOnly" type="general:YesNoEnum" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="SetBidsItem">
+                <xsd:sequence>
+                    <xsd:element name="CampaignId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AdGroupId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Id" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AverageCpc" type="xsd:long" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="AverageCpa" type="xsd:long" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="StrategyPriority" type="general:PriorityEnum" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:element name="AddRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="SmartAdTargets" type="ns:SmartAdTargetAddItem" minOccurs="1"
+                                     maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="AddResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="AddResults" type="general:ActionResult" minOccurs="1" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="GetRequest">
+                <xsd:complexType>
+                    <xsd:complexContent>
+                        <xsd:extension base="general:GetRequestGeneral">
+                            <xsd:sequence>
+                                <xsd:element name="SelectionCriteria" type="general:AdTargetsSelectionCriteria"
+                                             minOccurs="1"
+                                             maxOccurs="1"/>
+                                <xsd:element name="FieldNames" type="ns:SmartAdTargetFieldEnum" minOccurs="1"
+                                             maxOccurs="unbounded"/>
+                            </xsd:sequence>
+                        </xsd:extension>
+                    </xsd:complexContent>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="GetResponse">
+                <xsd:complexType>
+                    <xsd:complexContent>
+                        <xsd:extension base="general:GetResponseGeneral">
+                            <xsd:sequence>
+                                <xsd:element name="SmartAdTargets" type="ns:SmartAdTargetGetItem" minOccurs="0"
+                                             maxOccurs="unbounded"/>
+                            </xsd:sequence>
+                        </xsd:extension>
+                    </xsd:complexContent>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="UpdateRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="SmartAdTargets" type="ns:SmartAdTargetUpdateItem" minOccurs="1"
+                                     maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="UpdateResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="UpdateResults" type="general:ActionResult" minOccurs="1"
+                                     maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="DeleteRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="SelectionCriteria" type="general:IdsCriteria" minOccurs="1" maxOccurs="1"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="DeleteResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="DeleteResults" type="general:ActionResult" minOccurs="1"
+                                     maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="SuspendRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="SelectionCriteria" type="general:IdsCriteria" minOccurs="1" maxOccurs="1"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="SuspendResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="SuspendResults" type="general:ActionResult" minOccurs="1"
+                                     maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="ResumeRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="SelectionCriteria" type="general:IdsCriteria" minOccurs="1" maxOccurs="1"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="ResumeResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="ResumeResults" type="general:ActionResult" minOccurs="1"
+                                     maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="SetBidsRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="Bids" type="ns:SetBidsItem" minOccurs="1" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="SetBidsResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="SetBidsResults" type="general:SetBidsActionResult" minOccurs="0"
+                                     maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+        </xsd:schema>
+    </wsdl:types>
+    <wsdl:message name="AddOperationRequest">
+        <wsdl:part element="ns:AddRequest" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="AddOperationResponse">
+        <wsdl:part element="ns:AddResponse" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="GetOperationRequest">
+        <wsdl:part element="ns:GetRequest" name="parameters"></wsdl:part>
+    </wsdl:message>
+    <wsdl:message name="GetOperationResponse">
+        <wsdl:part element="ns:GetResponse" name="parameters"></wsdl:part>
+    </wsdl:message>
+    <wsdl:message name="UpdateOperationRequest">
+        <wsdl:part element="ns:UpdateRequest" name="parameters"></wsdl:part>
+    </wsdl:message>
+    <wsdl:message name="UpdateOperationResponse">
+        <wsdl:part element="ns:UpdateResponse" name="parameters"></wsdl:part>
+    </wsdl:message>
+    <wsdl:message name="DeleteOperationRequest">
+        <wsdl:part element="ns:DeleteRequest" name="parameters"></wsdl:part>
+    </wsdl:message>
+    <wsdl:message name="DeleteOperationResponse">
+        <wsdl:part element="ns:DeleteResponse" name="parameters"></wsdl:part>
+    </wsdl:message>
+    <wsdl:message name="SuspendOperationRequest">
+        <wsdl:part element="ns:SuspendRequest" name="parameters"></wsdl:part>
+    </wsdl:message>
+    <wsdl:message name="SuspendOperationResponse">
+        <wsdl:part element="ns:SuspendResponse" name="parameters"></wsdl:part>
+    </wsdl:message>
+    <wsdl:message name="ResumeOperationRequest">
+        <wsdl:part element="ns:ResumeRequest" name="parameters"></wsdl:part>
+    </wsdl:message>
+    <wsdl:message name="ResumeOperationResponse">
+        <wsdl:part element="ns:ResumeResponse" name="parameters"></wsdl:part>
+    </wsdl:message>
+    <wsdl:message name="SetBidsOperationRequest">
+        <wsdl:part element="ns:SetBidsRequest" name="parameters"></wsdl:part>
+    </wsdl:message>
+    <wsdl:message name="SetBidsOperationResponse">
+        <wsdl:part element="ns:SetBidsResponse" name="parameters"></wsdl:part>
+    </wsdl:message>
+    <wsdl:message name="ApiException">
+        <wsdl:part element="general:FaultResponse" name="faultMessage"/>
+    </wsdl:message>
+    <wsdl:portType name="SmartAdTargetsPort">
+        <wsdl:operation name="add">
+            <wsdl:input message="ns:AddOperationRequest" name="addRequest"/>
+            <wsdl:output message="ns:AddOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="get">
+            <wsdl:input message="ns:GetOperationRequest" name="getRequest"/>
+            <wsdl:output message="ns:GetOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="update">
+            <wsdl:input message="ns:UpdateOperationRequest" name="updateRequest"/>
+            <wsdl:output message="ns:UpdateOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="delete">
+            <wsdl:input message="ns:DeleteOperationRequest" name="deleteRequest"/>
+            <wsdl:output message="ns:DeleteOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="suspend">
+            <wsdl:input message="ns:SuspendOperationRequest" name="suspendRequest"/>
+            <wsdl:output message="ns:SuspendOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="resume">
+            <wsdl:input message="ns:ResumeOperationRequest" name="resumeRequest"/>
+            <wsdl:output message="ns:ResumeOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="setBids">
+            <wsdl:input message="ns:SetBidsOperationRequest" name="setBidsRequest"/>
+            <wsdl:output message="ns:SetBidsOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+    </wsdl:portType>
+    <wsdl:binding name="SmartAdTargetsSOAP" type="ns:SmartAdTargetsPort">
+        <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="add">
+            <soap:operation soapAction="http://api.direct.yandex.com/v5/smartadtargets/add"/>
+            <wsdl:input name="addRequest">
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="get">
+            <soap:operation soapAction="http://api.direct.yandex.com/v5/smartadtargets/get"/>
+            <wsdl:input name="getRequest">
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="update">
+            <soap:operation soapAction="http://api.direct.yandex.com/v5/smartadtargets/update"/>
+            <wsdl:input name="updateRequest">
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="delete">
+            <soap:operation soapAction="http://api.direct.yandex.com/v5/smartadtargets/delete"/>
+            <wsdl:input name="deleteRequest">
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="suspend">
+            <soap:operation soapAction="http://api.direct.yandex.com/v5/smartadtargets/suspend"/>
+            <wsdl:input name="suspendRequest">
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="resume">
+            <soap:operation soapAction="http://api.direct.yandex.com/v5/smartadtargets/resume"/>
+            <wsdl:input name="resumeRequest">
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="setBids">
+            <soap:operation soapAction="http://api.direct.yandex.com/v5/smartadtargets/setBids"/>
+            <wsdl:input name="setBidsRequest">
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+    </wsdl:binding>
+    <wsdl:service name="SmartAdTargets">
+        <wsdl:port binding="ns:SmartAdTargetsSOAP" name="SmartAdTargetsSOAP">
+            <soap:address location="https://soap.direct.yandex.ru/v5/smartadtargets"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>

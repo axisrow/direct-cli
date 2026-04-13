@@ -41,6 +41,7 @@ dev = [
     "vcrpy>=6.0",
     "black>=22.0",
     "flake8>=4.0",
+    "requests>=2.0",
 ]
 
 [project.scripts]
@@ -83,4 +84,5 @@ markers = [
     "integration: marks tests as integration tests requiring a real API token (deselect with '-m \"not integration\"')",
     "integration_write: sandbox integration tests for write commands (replays VCR cassettes offline; --record-mode=rewrite needs YANDEX_DIRECT_TOKEN)",
     "sandbox_limitation: test skipped due to known Yandex Direct sandbox API limitation (not a CLI bug)",
+    "api_coverage: marks tests verifying CLI coverage against Yandex API WSDL (cached, no network required)",
 ]

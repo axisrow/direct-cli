@@ -2,6 +2,8 @@
 Reports commands
 """
 
+from typing import Optional
+
 import click
 
 from ..api import create_client
@@ -16,6 +18,69 @@ REPORT_TYPES = [
     "REACH_AND_FREQUENCY_CAMPAIGN_REPORT",
     "SEARCH_QUERY_PERFORMANCE_REPORT",
 ]
+
+
+def build_report_request(
+    report_type: str,
+    date_from: str,
+    date_to: str,
+    name: str,
+    fields: str,
+    campaign_ids: Optional[str] = None,
+    adgroup_ids: Optional[str] = None,
+    output_format: str = "json",
+) -> dict:
+    """
+    Build the Reports API request body from CLI arguments.
+
+    Args:
+        report_type: Yandex Direct report type enum value.
+        date_from: Start date in ``YYYY-MM-DD`` format.
+        date_to: End date in ``YYYY-MM-DD`` format.
+        name: User-facing report name.
+        fields: Comma-separated field names.
+        campaign_ids: Optional comma-separated campaign IDs filter.
+        adgroup_ids: Optional comma-separated ad group IDs filter.
+        output_format: CLI output format. Reports API itself still receives TSV.
+
+    Returns:
+        Reports API request body with CLI-normalized filters and field names.
+    """
+    field_names = [field.strip() for field in fields.split(",") if field.strip()]
+    selection_criteria = {"DateFrom": date_from, "DateTo": date_to}
+
+    if campaign_ids:
+        selection_criteria["Filter"] = [
+            {
+                "Field": "CampaignId",
+                "Operator": "IN",
+                "Values": [item.strip() for item in campaign_ids.split(",") if item.strip()],
+            }
+        ]
+    elif adgroup_ids:
+        selection_criteria["Filter"] = [
+            {
+                "Field": "AdGroupId",
+                "Operator": "IN",
+                "Values": [item.strip() for item in adgroup_ids.split(",") if item.strip()],
+            }
+        ]
+
+    # The reports endpoint returns tabular data. The CLI later reformats that
+    # response into json/table/csv/tsv, so the API-side format remains TSV.
+    _ = output_format
+    return {
+        "params": {
+            "SelectionCriteria": selection_criteria,
+            "FieldNames": field_names,
+            "ReportName": name,
+            "ReportType": report_type,
+            "DateRangeType": "CUSTOM_DATE",
+            "Format": "TSV",
+            "IncludeVAT": "YES",
+            "IncludeDiscount": "YES",
+        }
+    }
 
 
 @click.group()
@@ -75,39 +140,16 @@ def get(
             sandbox=ctx.obj.get("sandbox"),
         )
 
-        field_names = [f.strip() for f in fields.split(",")]
-
-        selection_criteria = {"DateFrom": date_from, "DateTo": date_to}
-
-        if campaign_ids:
-            selection_criteria["Filter"] = [
-                {
-                    "Field": "CampaignId",
-                    "Operator": "IN",
-                    "Values": campaign_ids.split(","),
-                }
-            ]
-        elif adgroup_ids:
-            selection_criteria["Filter"] = [
-                {
-                    "Field": "AdGroupId",
-                    "Operator": "IN",
-                    "Values": adgroup_ids.split(","),
-                }
-            ]
-
-        body = {
-            "params": {
-                "SelectionCriteria": selection_criteria,
-                "FieldNames": field_names,
-                "ReportName": name,
-                "ReportType": report_type,
-                "DateRangeType": "CUSTOM_DATE",
-                "Format": "TSV" if output_format in ["tsv", "csv"] else "TSV",
-                "IncludeVAT": "YES",
-                "IncludeDiscount": "YES",
-            }
-        }
+        body = build_report_request(
+            report_type=report_type,
+            date_from=date_from,
+            date_to=date_to,
+            name=name,
+            fields=fields,
+            campaign_ids=campaign_ids,
+            adgroup_ids=adgroup_ids,
+            output_format=output_format,
+        )
 
         result = client.reports().post(data=body)
 

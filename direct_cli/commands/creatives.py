@@ -2,6 +2,8 @@
 Creatives commands
 """
 
+import json
+
 import click
 
 from ..api import create_client
@@ -33,9 +35,7 @@ def get(ctx, ids, campaign_ids, limit, fetch_all, output_format, output, fields)
         )
 
         field_names = (
-            fields.split(",")
-            if fields
-            else ["Id", "Name", "Type", "Status", "CampaignId"]
+            fields.split(",") if fields else ["Id", "Name", "Type", "Status", "CampaignId"]
         )
 
         criteria = {}
@@ -61,6 +61,32 @@ def get(ctx, ids, campaign_ids, limit, fetch_all, output_format, output, fields)
         else:
             data = result().extract()
             format_output(data, output_format, output)
+
+    except Exception as e:
+        print_error(str(e))
+        raise click.Abort()
+
+
+@creatives.command()
+@click.option("--json", "creative_json", required=True, help="Creative data in JSON")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@click.pass_context
+def add(ctx, creative_json, dry_run):
+    """Add creative"""
+    try:
+        body = {"method": "add", "params": {"Creatives": [json.loads(creative_json)]}}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+        result = client.creatives().post(data=body)
+        format_output(result().extract(), "json", None)
 
     except Exception as e:
         print_error(str(e))

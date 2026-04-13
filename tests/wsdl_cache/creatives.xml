@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+                  xmlns:ns="http://api.direct.yandex.com/v5/creatives"
+                  xmlns:general="http://api.direct.yandex.com/v5/general"
+                  xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+                  xmlns:xsd="http://www.w3.org/2001/XMLSchema" name="Creatives"
+                  targetNamespace="http://api.direct.yandex.com/v5/creatives">
+    <wsdl:types>
+        <xsd:schema targetNamespace="http://api.direct.yandex.com/v5/creatives">
+	    <xsd:import namespace="http://api.direct.yandex.com/v5/general" schemaLocation="https://soap.direct.yandex.ru/v5/general.xsd" />
+            <xsd:simpleType name="CreativeTypeEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="IMAGE_CREATIVE"/>
+                    <xsd:enumeration value="HTML5_CREATIVE"/>
+                    <xsd:enumeration value="VIDEO_EXTENSION_CREATIVE"/>
+                    <xsd:enumeration value="CPC_VIDEO_CREATIVE"/>
+                    <xsd:enumeration value="CPM_VIDEO_CREATIVE"/>
+                    <xsd:enumeration value="SMART_CREATIVE"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="CreativeFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="Id"/>
+                    <xsd:enumeration value="Type"/>
+                    <xsd:enumeration value="Name"/>
+                    <xsd:enumeration value="PreviewUrl"/>
+                    <xsd:enumeration value="Width"/>
+                    <xsd:enumeration value="Height"/>
+                    <xsd:enumeration value="ThumbnailUrl"/>
+                    <xsd:enumeration value="Associated"/>
+                    <xsd:enumeration value="IsAdaptive"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="BusinessTypeEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="RETAIL"/>
+                    <xsd:enumeration value="HOTELS"/>
+                    <xsd:enumeration value="REALTY"/>
+                    <xsd:enumeration value="AUTOMOBILES"/>
+                    <xsd:enumeration value="FLIGHTS"/>
+                    <xsd:enumeration value="CLOTHES"/>
+                    <xsd:enumeration value="OTHER"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="VideoExtensionCreativeFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="Duration"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="CpcVideoCreativeFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="Duration"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="CpmVideoCreativeFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="Duration"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="SmartCreativeFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="CreativeGroupId"/>
+                    <xsd:enumeration value="CreativeGroupName"/>
+                    <xsd:enumeration value="BusinessType"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:complexType name="CreativesSelectionCriteria">
+                <xsd:sequence>
+                    <xsd:element name="Types" type="ns:CreativeTypeEnum" minOccurs="0" maxOccurs="unbounded"/>
+                    <xsd:element name="Ids" type="xsd:long" minOccurs="0" maxOccurs="unbounded"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="CreativeGetItem">
+                <xsd:sequence>
+                    <xsd:element name="Id" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Type" type="ns:CreativeTypeEnum" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Name" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="PreviewUrl" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Width" type="xsd:int" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Height" type="xsd:int" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="ThumbnailUrl" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Associated" type="general:YesNoEnum" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="IsAdaptive" type="general:YesNoEnum" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="VideoExtensionCreative" type="ns:VideoExtensionCreativeGet" minOccurs="0"
+                                 maxOccurs="1"/>
+                    <xsd:element name="CpcVideoCreative" type="ns:CpcVideoCreativeGet" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="CpmVideoCreative" type="ns:CpmVideoCreativeGet" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="SmartCreative" type="ns:SmartCreativeGet" minOccurs="0"
+                                 maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="VideoExtensionCreativeAddItem">
+                <xsd:sequence>
+                    <xsd:element name="VideoId" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="CreativeAddItem">
+                <xsd:sequence>
+                    <xsd:element name="VideoExtensionCreative" type="ns:VideoExtensionCreativeAddItem" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:element name="AddRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="Creatives" type="ns:CreativeAddItem" minOccurs="1" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="AddResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="AddResults" type="general:ActionResult" minOccurs="0" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:complexType name="VideoCreativeGetBase">
+                <xsd:sequence>
+                    <xsd:element name="Duration" type="xsd:int" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="VideoExtensionCreativeGet">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:VideoCreativeGetBase"/>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="CpcVideoCreativeGet">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:VideoCreativeGetBase"/>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="CpmVideoCreativeGet">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:VideoCreativeGetBase"/>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="SmartCreativeGet">
+                <xsd:sequence>
+                    <xsd:element name="CreativeGroupId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="CreativeGroupName" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="BusinessType" type="ns:BusinessTypeEnum" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:element name="GetRequest">
+                <xsd:complexType>
+                    <xsd:complexContent>
+                        <xsd:extension base="general:GetRequestGeneral">
+                            <xsd:sequence>
+                                <xsd:element name="SelectionCriteria" type="ns:CreativesSelectionCriteria"
+                                             minOccurs="1" maxOccurs="1"/>
+                                <xsd:element name="FieldNames" type="ns:CreativeFieldEnum" minOccurs="1"
+                                             maxOccurs="unbounded"/>
+                                <xsd:element name="VideoExtensionCreativeFieldNames"
+                                             type="ns:VideoExtensionCreativeFieldEnum" minOccurs="0"
+                                             maxOccurs="unbounded"/>
+                                <xsd:element name="CpcVideoCreativeFieldNames" type="ns:CpcVideoCreativeFieldEnum"
+                                             minOccurs="0" maxOccurs="unbounded"/>
+                                <xsd:element name="CpmVideoCreativeFieldNames" type="ns:CpmVideoCreativeFieldEnum"
+                                             minOccurs="0" maxOccurs="unbounded"/>
+                                <xsd:element name="SmartCreativeFieldNames" type="ns:SmartCreativeFieldEnum"
+                                             minOccurs="0" maxOccurs="unbounded"/>
+                            </xsd:sequence>
+                        </xsd:extension>
+                    </xsd:complexContent>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="GetResponse">
+                <xsd:complexType>
+                    <xsd:complexContent>
+                        <xsd:extension base="general:GetResponseGeneral">
+                            <xsd:sequence>
+                                <xsd:element name="Creatives" type="ns:CreativeGetItem" minOccurs="0"
+                                             maxOccurs="unbounded"/>
+                            </xsd:sequence>
+                        </xsd:extension>
+                    </xsd:complexContent>
+                </xsd:complexType>
+            </xsd:element>
+        </xsd:schema>
+    </wsdl:types>
+    <wsdl:message name="ApiException">
+        <wsdl:part element="general:FaultResponse" name="faultMessage"/>
+    </wsdl:message>
+    <wsdl:message name="AddOperationRequest">
+        <wsdl:part element="ns:AddRequest" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="AddOperationResponse">
+        <wsdl:part element="ns:AddResponse" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="GetOperationRequest">
+        <wsdl:part name="parameters" element="ns:GetRequest"/>
+    </wsdl:message>
+    <wsdl:message name="GetOperationResponse">
+        <wsdl:part name="parameters" element="ns:GetResponse"/>
+    </wsdl:message>
+    <wsdl:portType name="CreativesPort">
+        <wsdl:operation name="add">
+            <wsdl:input message="ns:AddOperationRequest" name="addRequest"/>
+            <wsdl:output message="ns:AddOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="get">
+            <wsdl:input message="ns:GetOperationRequest" name="getRequest"/>
+            <wsdl:output message="ns:GetOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+    </wsdl:portType>
+    <wsdl:binding name="CreativesSOAP" type="ns:CreativesPort">
+        <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="add">
+            <soap:operation soapAction="http://api.direct.yandex.com/v5/creatives/add"/>
+            <wsdl:input name="addRequest">
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="get">
+            <soap:operation soapAction="http://api.direct.yandex.com/v5/creatives/get"/>
+            <wsdl:input name="getRequest">
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+    </wsdl:binding>
+    <wsdl:service name="Creatives">
+        <wsdl:port binding="ns:CreativesSOAP" name="CreativesSOAP">
+            <soap:address location="https://soap.direct.yandex.ru/v5/creatives"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>

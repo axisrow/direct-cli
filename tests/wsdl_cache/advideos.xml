@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+                  xmlns:ns="http://api.direct.yandex.com/v5/advideos"
+                  xmlns:general="http://api.direct.yandex.com/v5/general"
+                  xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+                  xmlns:xsd="http://www.w3.org/2001/XMLSchema" name="AdVideos"
+                  targetNamespace="http://api.direct.yandex.com/v5/advideos">
+    <wsdl:types>
+        <xsd:schema targetNamespace="http://api.direct.yandex.com/v5/advideos">
+            <xsd:import namespace="http://api.direct.yandex.com/v5/general" schemaLocation="https://soap.direct.yandex.ru/v5/general.xsd"/>
+            <xsd:complexType name="AdVideoAddItem">
+                <xsd:sequence>
+                    <xsd:element name="Url" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="VideoData" type="xsd:base64Binary" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Name" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:element name="AddRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="AdVideos" type="ns:AdVideoAddItem" minOccurs="1" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:complexType name="VideoActionResult">
+                <xsd:complexContent>
+                    <xsd:extension base="general:ActionResultBase">
+                        <xsd:sequence>
+                            <xsd:element name="Id" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                        </xsd:sequence>
+                    </xsd:extension>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:element name="AddResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="AddResults" type="ns:VideoActionResult" minOccurs="0" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:complexType name="AdVideosSelectionCriteria">
+                <xsd:sequence>
+                    <xsd:element name="Ids" type="xsd:string" minOccurs="1" maxOccurs="unbounded"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:simpleType name="AdVideoFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="Id"/>
+                    <xsd:enumeration value="Status"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:element name="GetRequest">
+                <xsd:complexType>
+                    <xsd:complexContent>
+                        <xsd:extension base="general:GetRequestGeneral">
+                            <xsd:sequence>
+                                <xsd:element name="SelectionCriteria" type="ns:AdVideosSelectionCriteria" minOccurs="1"
+                                             maxOccurs="1"/>
+                                <xsd:element name="FieldNames" type="ns:AdVideoFieldEnum" minOccurs="1"
+                                             maxOccurs="unbounded"/>
+                            </xsd:sequence>
+                        </xsd:extension>
+                    </xsd:complexContent>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:simpleType name="StatusEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="READY"/>
+                    <xsd:enumeration value="ERROR"/>
+                    <xsd:enumeration value="CONVERTING"/>
+                    <xsd:enumeration value="NEW"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:complexType name="AdVideoGetItem">
+                <xsd:sequence>
+                    <xsd:element name="Id" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Status" type="ns:StatusEnum" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:element name="GetResponse">
+                <xsd:complexType>
+                    <xsd:complexContent>
+                        <xsd:extension base="general:GetResponseGeneral">
+                            <xsd:sequence>
+                                <xsd:element name="AdVideos" type="ns:AdVideoGetItem" minOccurs="0"
+                                             maxOccurs="unbounded"/>
+                            </xsd:sequence>
+                        </xsd:extension>
+                    </xsd:complexContent>
+                </xsd:complexType>
+            </xsd:element>
+        </xsd:schema>
+    </wsdl:types>
+    <wsdl:message name="ApiException">
+        <wsdl:part element="general:FaultResponse" name="faultMessage"/>
+    </wsdl:message>
+    <wsdl:message name="AddOperationRequest">
+        <wsdl:part element="ns:AddRequest" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="AddOperationResponse">
+        <wsdl:part element="ns:AddResponse" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="GetOperationRequest">
+        <wsdl:part name="parameters" element="ns:GetRequest"/>
+    </wsdl:message>
+    <wsdl:message name="GetOperationResponse">
+        <wsdl:part name="parameters" element="ns:GetResponse"/>
+    </wsdl:message>
+    <wsdl:portType name="AdVideosPort">
+        <wsdl:operation name="add">
+            <wsdl:input message="ns:AddOperationRequest" name="addRequest"/>
+            <wsdl:output message="ns:AddOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="get">
+            <wsdl:input message="ns:GetOperationRequest" name="getRequest"/>
+            <wsdl:output message="ns:GetOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+    </wsdl:portType>
+    <wsdl:binding name="AdVideosSOAP" type="ns:AdVideosPort">
+        <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="add">
+            <soap:operation soapAction="http://api.direct.yandex.com/v5/advideos/add"/>
+            <wsdl:input name="addRequest">
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="get">
+            <soap:operation soapAction="http://api.direct.yandex.com/v5/advideos/get"/>
+            <wsdl:input name="getRequest">
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+    </wsdl:binding>
+    <wsdl:service name="AdVideos">
+        <wsdl:port binding="ns:AdVideosSOAP" name="AdVideosSOAP">
+            <soap:address location="https://soap.direct.yandex.ru/v5/advideos"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>

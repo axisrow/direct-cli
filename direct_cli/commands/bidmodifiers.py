@@ -72,14 +72,19 @@ _BIDMODIFIER_TYPE_TO_NESTED = {
     "TABLET_ADJUSTMENT": "TabletAdjustment",
     "DESKTOP_ADJUSTMENT": "DesktopAdjustment",
     "DESKTOP_ONLY_ADJUSTMENT": "DesktopOnlyAdjustment",
-    "DEMOGRAPHICS_ADJUSTMENT": "DemographicsAdjustment",
-    "RETARGETING_ADJUSTMENT": "RetargetingAdjustment",
-    "REGIONAL_ADJUSTMENT": "RegionalAdjustment",
+    "DEMOGRAPHICS_ADJUSTMENT": "DemographicsAdjustments",   # plural per WSDL
+    "RETARGETING_ADJUSTMENT": "RetargetingAdjustments",     # plural per WSDL
+    "REGIONAL_ADJUSTMENT": "RegionalAdjustments",           # plural per WSDL
     "VIDEO_ADJUSTMENT": "VideoAdjustment",
     "SMART_AD_ADJUSTMENT": "SmartAdAdjustment",
-    "SERP_LAYOUT_ADJUSTMENT": "SerpLayoutAdjustment",
-    "INCOME_GRADE_ADJUSTMENT": "IncomeGradeAdjustment",
+    "SERP_LAYOUT_ADJUSTMENT": "SerpLayoutAdjustments",      # plural per WSDL
+    "INCOME_GRADE_ADJUSTMENT": "IncomeGradeAdjustments",    # plural per WSDL
     "AD_GROUP_ADJUSTMENT": "AdGroupAdjustment",
+}
+
+# Plural fields (derived from _BIDMODIFIER_TYPE_TO_NESTED) require a list value per WSDL
+_PLURAL_NESTED_KEYS = {
+    v for v in _BIDMODIFIER_TYPE_TO_NESTED.values() if v.endswith("Adjustments")
 }
 
 
@@ -151,7 +156,11 @@ def add(ctx, campaign_id, adgroup_id, modifier_type, value, extra_json, dry_run)
                 )
             nested.update(extra)
 
-        modifier_data = {nested_key: nested}
+        # Plural fields expect a list per WSDL BidModifierAddItem
+        if nested_key in _PLURAL_NESTED_KEYS:
+            modifier_data = {nested_key: [nested]}
+        else:
+            modifier_data = {nested_key: nested}
         if campaign_id is not None:
             modifier_data["CampaignId"] = campaign_id
         else:
@@ -359,20 +368,25 @@ def toggle(ctx, campaign_id, adgroup_id, modifier_type, enabled, dry_run):
 
 @bidmodifiers.command()
 @click.option("--id", "modifier_id", required=True, type=int, help="Modifier ID")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def delete(ctx, modifier_id):
+def delete(ctx, modifier_id, dry_run):
     """Delete bid modifier"""
     try:
+        body = {
+            "method": "delete",
+            "params": {"SelectionCriteria": {"Ids": [modifier_id]}},
+        }
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
         client = create_client(
             token=ctx.obj.get("token"),
             login=ctx.obj.get("login"),
             sandbox=ctx.obj.get("sandbox"),
         )
-
-        body = {
-            "method": "delete",
-            "params": {"SelectionCriteria": {"Ids": [modifier_id]}},
-        }
 
         result = client.bidmodifiers().post(data=body)
         format_output(result().extract(), "json", None)

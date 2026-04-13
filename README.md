@@ -197,6 +197,34 @@ pytest -m integration -v            # read-only integration tests (needs token)
 pytest -m integration_write -v      # write cassette replay (no token needed)
 ```
 
+### API Coverage And Drift Monitoring
+
+The project now distinguishes four surfaces:
+
+| Surface | Coverage strategy |
+|---|---|
+| Canonical WSDL-backed SOAP services | `tests/test_api_coverage.py` verifies strict service/method parity and dry-run request-schema coverage or explicit exclusions |
+| Non-WSDL services (`reports`) | Explicit contract tests |
+| Canonical CLI aliases | Checked as aliases, not counted as separate API surface |
+| Intentional CLI-only helpers | Explicitly allowlisted with reasons in `direct_cli/wsdl_coverage.py` |
+
+`100% coverage` in this project means full coverage of the supported
+**canonical API surface**. Alias groups and CLI-only helpers remain supported,
+but they are tracked outside the strict parity metric.
+
+Useful maintenance commands:
+
+```bash
+python scripts/build_api_coverage_report.py
+python scripts/refresh_wsdl_cache.py
+python scripts/check_wsdl_drift.py
+```
+
+CI runs a scheduled API coverage workflow that:
+- runs the fast coverage suites;
+- uploads a machine-readable API coverage report artifact;
+- checks the cached WSDL files against the live Yandex Direct API on schedule.
+
 #### Re-recording write cassettes
 
 The write tests replay HTTP traffic captured from the Yandex Direct **sandbox**

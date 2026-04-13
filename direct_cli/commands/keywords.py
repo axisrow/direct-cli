@@ -185,21 +185,26 @@ def update(ctx, keyword_id, bid, context_bid, status, extra_json, dry_run):
 
 @keywords.command()
 @click.option("--id", "keyword_id", required=True, type=int, help="Keyword ID")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def delete(ctx, keyword_id):
+def delete(ctx, keyword_id, dry_run):
     """Delete keyword"""
     try:
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
-
         body = {
             "method": "delete",
             "params": {"SelectionCriteria": {"Ids": [keyword_id]}},
         }
 
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+
         result = client.keywords().post(data=body)
         format_output(result().extract(), "json", None)
 
@@ -210,21 +215,26 @@ def delete(ctx, keyword_id):
 
 @keywords.command()
 @click.option("--id", "keyword_id", required=True, type=int, help="Keyword ID")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def archive(ctx, keyword_id):
+def archive(ctx, keyword_id, dry_run):
     """Archive keyword"""
     try:
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
-
         body = {
             "method": "archive",
             "params": {"SelectionCriteria": {"Ids": [keyword_id]}},
         }
 
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+
         result = client.keywords().post(data=body)
         format_output(result().extract(), "json", None)
 
@@ -235,21 +245,26 @@ def archive(ctx, keyword_id):
 
 @keywords.command()
 @click.option("--id", "keyword_id", required=True, type=int, help="Keyword ID")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def unarchive(ctx, keyword_id):
+def unarchive(ctx, keyword_id, dry_run):
     """Unarchive keyword"""
     try:
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
-
         body = {
             "method": "unarchive",
             "params": {"SelectionCriteria": {"Ids": [keyword_id]}},
         }
 
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+
         result = client.keywords().post(data=body)
         format_output(result().extract(), "json", None)
 
@@ -260,21 +275,26 @@ def unarchive(ctx, keyword_id):
 
 @keywords.command()
 @click.option("--id", "keyword_id", required=True, type=int, help="Keyword ID")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def suspend(ctx, keyword_id):
+def suspend(ctx, keyword_id, dry_run):
     """Suspend keyword"""
     try:
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
-
         body = {
             "method": "suspend",
             "params": {"SelectionCriteria": {"Ids": [keyword_id]}},
         }
 
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+
         result = client.keywords().post(data=body)
         format_output(result().extract(), "json", None)
 
@@ -285,20 +305,25 @@ def suspend(ctx, keyword_id):
 
 @keywords.command()
 @click.option("--id", "keyword_id", required=True, type=int, help="Keyword ID")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def resume(ctx, keyword_id):
+def resume(ctx, keyword_id, dry_run):
     """Resume keyword"""
     try:
+        body = {
+            "method": "resume",
+            "params": {"SelectionCriteria": {"Ids": [keyword_id]}},
+        }
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
         client = create_client(
             token=ctx.obj.get("token"),
             login=ctx.obj.get("login"),
             sandbox=ctx.obj.get("sandbox"),
         )
-
-        body = {
-            "method": "resume",
-            "params": {"SelectionCriteria": {"Ids": [keyword_id]}},
-        }
 
         result = client.keywords().post(data=body)
         format_output(result().extract(), "json", None)

@@ -196,20 +196,25 @@ def update(ctx, adgroup_id, name, status, extra_json, dry_run):
 
 @adgroups.command()
 @click.option("--id", "adgroup_id", required=True, type=int, help="Ad group ID")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def delete(ctx, adgroup_id):
+def delete(ctx, adgroup_id, dry_run):
     """Delete ad group"""
     try:
+        body = {
+            "method": "delete",
+            "params": {"SelectionCriteria": {"Ids": [adgroup_id]}},
+        }
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
         client = create_client(
             token=ctx.obj.get("token"),
             login=ctx.obj.get("login"),
             sandbox=ctx.obj.get("sandbox"),
         )
-
-        body = {
-            "method": "delete",
-            "params": {"SelectionCriteria": {"Ids": [adgroup_id]}},
-        }
 
         result = client.adgroups().post(data=body)
         format_output(result().extract(), "json", None)

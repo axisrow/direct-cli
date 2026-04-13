@@ -94,17 +94,22 @@ def add(ctx, vcard_json, dry_run):
 
 @vcards.command()
 @click.option("--id", "vcard_id", required=True, type=int, help="vCard ID")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def delete(ctx, vcard_id):
+def delete(ctx, vcard_id, dry_run):
     """Delete vCard"""
     try:
+        body = {"method": "delete", "params": {"SelectionCriteria": {"Ids": [vcard_id]}}}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
         client = create_client(
             token=ctx.obj.get("token"),
             login=ctx.obj.get("login"),
             sandbox=ctx.obj.get("sandbox"),
         )
-
-        body = {"method": "delete", "params": {"SelectionCriteria": {"Ids": [vcard_id]}}}
 
         result = client.vcards().post(data=body)
         format_output(result().extract(), "json", None)

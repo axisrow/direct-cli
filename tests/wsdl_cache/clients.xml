@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<wsdl:definitions xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                  xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+                  xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+                  xmlns:general="http://api.direct.yandex.com/v5/general"
+                  xmlns:gc="http://api.direct.yandex.com/v5/generalclients"
+                  xmlns:ns="http://api.direct.yandex.com/v5/clients"
+                  name="Clients" targetNamespace="http://api.direct.yandex.com/v5/clients">
+    <wsdl:types>
+        <xsd:schema targetNamespace="http://api.direct.yandex.com/v5/clients">
+            <xsd:import namespace="http://api.direct.yandex.com/v5/general" schemaLocation="https://soap.direct.yandex.ru/v5/general.xsd" />
+            <xsd:import namespace="http://api.direct.yandex.com/v5/generalclients" schemaLocation="https://soap.direct.yandex.ru/v5/generalclients.xsd" />
+            <xsd:simpleType name="ClientFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="AccountQuality"/>
+                    <xsd:enumeration value="Archived"/>
+                    <xsd:enumeration value="ClientId"/>
+                    <xsd:enumeration value="ClientInfo"/>
+                    <xsd:enumeration value="CountryId"/>
+                    <xsd:enumeration value="CreatedAt"/>
+                    <xsd:enumeration value="Currency"/>
+                    <xsd:enumeration value="Grants"/>
+                    <xsd:enumeration value="Bonuses"/>
+                    <xsd:enumeration value="Login"/>
+                    <xsd:enumeration value="Notification"/>
+                    <xsd:enumeration value="OverdraftSumAvailable"/>
+                    <xsd:enumeration value="Phone"/>
+                    <xsd:enumeration value="Representatives"/>
+                    <xsd:enumeration value="Restrictions"/>
+                    <xsd:enumeration value="Settings"/>
+                    <xsd:enumeration value="Type"/>
+                    <xsd:enumeration value="VatRate"/>
+                    <xsd:enumeration value="ForbiddenPlatform"/>
+                    <xsd:enumeration value="AvailableCampaignTypes"/>
+                    <xsd:enumeration value="AvailableAdGroupTypes"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:element name="GetRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="FieldNames" type="ns:ClientFieldEnum" minOccurs="1" maxOccurs="unbounded"/>
+                        <xsd:element name="TinInfoFieldNames" type="gc:TinInfoFieldEnum" minOccurs="0" maxOccurs="unbounded"/>
+                        <xsd:element name="OrganizationFieldNames" type="gc:OrgInfoFieldEnum" minOccurs="0" maxOccurs="unbounded"/>
+                        <xsd:element name="ContractFieldNames" type="gc:ContractInfoFieldEnum" minOccurs="0" maxOccurs="unbounded"/>
+                        <xsd:element name="ContragentFieldNames" type="gc:ContragentInfoFieldEnum" minOccurs="0" maxOccurs="unbounded"/>
+                        <xsd:element name="ContragentTinInfoFieldNames" type="gc:TinInfoFieldEnum" minOccurs="0" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="GetResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="Clients" type="gc:ClientGetItem" minOccurs="0" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="UpdateRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="Clients" type="gc:ClientUpdateItem" minOccurs="1" maxOccurs="unbounded" />
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="UpdateResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="UpdateResults" type="general:ClientsActionResult" minOccurs="1" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+        </xsd:schema>
+    </wsdl:types>
+    <wsdl:message name="GetOperationRequest">
+        <wsdl:part name="parameters" element="ns:GetRequest"/>
+    </wsdl:message>
+    <wsdl:message name="GetOperationResponse">
+        <wsdl:part name="parameters" element="ns:GetResponse"/>
+    </wsdl:message>
+    <wsdl:message name="ApiException">
+        <wsdl:part name="faultMessage" element="general:FaultResponse"/>
+    </wsdl:message>
+    <wsdl:message name="UpdateOperationRequest">
+        <wsdl:part name="parameters" element="ns:UpdateRequest"/>
+    </wsdl:message>
+    <wsdl:message name="UpdateOperationResponse">
+        <wsdl:part name="parameters" element="ns:UpdateResponse"/>
+    </wsdl:message>
+    <wsdl:portType name="ClientsPort">
+        <wsdl:operation name="get">
+            <wsdl:input  message="ns:GetOperationRequest"/>
+            <wsdl:output message="ns:GetOperationResponse"/>
+            <wsdl:fault  message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="update">
+            <wsdl:input  message="ns:UpdateOperationRequest"/>
+            <wsdl:output message="ns:UpdateOperationResponse"/>
+            <wsdl:fault  message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+    </wsdl:portType>
+    <wsdl:binding name="ClientsSOAP" type="ns:ClientsPort">
+        <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="get">
+            <soap:operation soapAction="https://api.direct.yandex.com/v5/clients/get"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="update">
+            <soap:operation soapAction="https://api.direct.yandex.com/v5/clients/update"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+    </wsdl:binding>
+    <wsdl:service name="Clients">
+        <wsdl:port binding="ns:ClientsSOAP" name="ClientsSOAP">
+            <soap:address location="https://soap.direct.yandex.ru/v5/clients"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>

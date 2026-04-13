@@ -211,21 +211,26 @@ def update(ctx, campaign_id, name, status, budget, extra_json, dry_run):
 
 @campaigns.command()
 @click.option("--id", "campaign_id", required=True, type=int, help="Campaign ID")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def delete(ctx, campaign_id):
+def delete(ctx, campaign_id, dry_run):
     """Delete campaign"""
     try:
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
-
         body = {
             "method": "delete",
             "params": {"SelectionCriteria": {"Ids": [campaign_id]}},
         }
 
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+
         result = client.campaigns().post(data=body)
         format_output(result().extract(), "json", None)
 
@@ -236,21 +241,26 @@ def delete(ctx, campaign_id):
 
 @campaigns.command()
 @click.option("--id", "campaign_id", required=True, type=int, help="Campaign ID")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def archive(ctx, campaign_id):
+def archive(ctx, campaign_id, dry_run):
     """Archive campaign"""
     try:
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
-
         body = {
             "method": "archive",
             "params": {"SelectionCriteria": {"Ids": [campaign_id]}},
         }
 
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+
         result = client.campaigns().post(data=body)
         format_output(result().extract(), "json", None)
 
@@ -261,20 +271,25 @@ def archive(ctx, campaign_id):
 
 @campaigns.command()
 @click.option("--id", "campaign_id", required=True, type=int, help="Campaign ID")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def unarchive(ctx, campaign_id):
+def unarchive(ctx, campaign_id, dry_run):
     """Unarchive campaign"""
     try:
+        body = {
+            "method": "unarchive",
+            "params": {"SelectionCriteria": {"Ids": [campaign_id]}},
+        }
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
         client = create_client(
             token=ctx.obj.get("token"),
             login=ctx.obj.get("login"),
             sandbox=ctx.obj.get("sandbox"),
         )
-
-        body = {
-            "method": "unarchive",
-            "params": {"SelectionCriteria": {"Ids": [campaign_id]}},
-        }
 
         result = client.campaigns().post(data=body)
         format_output(result().extract(), "json", None)
@@ -289,20 +304,25 @@ campaigns.add_command(get, name="list")
 
 @campaigns.command()
 @click.option("--id", "campaign_id", required=True, type=int, help="Campaign ID")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def suspend(ctx, campaign_id):
+def suspend(ctx, campaign_id, dry_run):
     """Suspend campaign"""
     try:
+        body = {
+            "method": "suspend",
+            "params": {"SelectionCriteria": {"Ids": [campaign_id]}},
+        }
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
         client = create_client(
             token=ctx.obj.get("token"),
             login=ctx.obj.get("login"),
             sandbox=ctx.obj.get("sandbox"),
         )
-
-        body = {
-            "method": "suspend",
-            "params": {"SelectionCriteria": {"Ids": [campaign_id]}},
-        }
 
         result = client.campaigns().post(data=body)
         format_output(result().extract(), "json", None)
@@ -314,20 +334,25 @@ def suspend(ctx, campaign_id):
 
 @campaigns.command()
 @click.option("--id", "campaign_id", required=True, type=int, help="Campaign ID")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def resume(ctx, campaign_id):
+def resume(ctx, campaign_id, dry_run):
     """Resume campaign"""
     try:
+        body = {
+            "method": "resume",
+            "params": {"SelectionCriteria": {"Ids": [campaign_id]}},
+        }
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
         client = create_client(
             token=ctx.obj.get("token"),
             login=ctx.obj.get("login"),
             sandbox=ctx.obj.get("sandbox"),
         )
-
-        body = {
-            "method": "resume",
-            "params": {"SelectionCriteria": {"Ids": [campaign_id]}},
-        }
 
         result = client.campaigns().post(data=body)
         format_output(result().extract(), "json", None)

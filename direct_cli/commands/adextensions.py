@@ -117,20 +117,25 @@ def add(ctx, ext_type, extra_json, dry_run):
 
 @adextensions.command()
 @click.option("--id", "extension_id", required=True, type=int, help="Extension ID")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def delete(ctx, extension_id):
+def delete(ctx, extension_id, dry_run):
     """Delete ad extension"""
     try:
+        body = {
+            "method": "delete",
+            "params": {"SelectionCriteria": {"Ids": [extension_id]}},
+        }
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
         client = create_client(
             token=ctx.obj.get("token"),
             login=ctx.obj.get("login"),
             sandbox=ctx.obj.get("sandbox"),
         )
-
-        body = {
-            "method": "delete",
-            "params": {"SelectionCriteria": {"Ids": [extension_id]}},
-        }
 
         result = client.adextensions().post(data=body)
         format_output(result().extract(), "json", None)

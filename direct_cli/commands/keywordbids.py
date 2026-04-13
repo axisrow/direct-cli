@@ -3,6 +3,7 @@ KeywordBids commands
 """
 
 import json
+
 import click
 
 from ..api import create_client
@@ -24,9 +25,7 @@ def keywordbids():
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.pass_context
-def get(
-    ctx, keyword_ids, adgroup_ids, campaign_ids, limit, fetch_all, output_format, output
-):
+def get(ctx, keyword_ids, adgroup_ids, campaign_ids, limit, fetch_all, output_format, output):
     """Get keyword bids"""
     try:
         client = create_client(
@@ -87,8 +86,7 @@ def set(ctx, keyword_id, search_bid, network_bid, extra_json, dry_run):
             bid_data["NetworkBid"] = int(network_bid * 1000000)
 
         if extra_json:
-            extra = json.loads(extra_json)
-            bid_data.update(extra)
+            bid_data.update(json.loads(extra_json))
 
         body = {"method": "set", "params": {"KeywordBids": [bid_data]}}
 
@@ -101,7 +99,43 @@ def set(ctx, keyword_id, search_bid, network_bid, extra_json, dry_run):
             login=ctx.obj.get("login"),
             sandbox=ctx.obj.get("sandbox"),
         )
+        result = client.keywordbids().post(data=body)
+        format_output(result().extract(), "json", None)
 
+    except Exception as e:
+        print_error(str(e))
+        raise click.Abort()
+
+
+@keywordbids.command(name="set-auto")
+@click.option("--campaign-id", type=int, help="Campaign ID")
+@click.option("--adgroup-id", type=int, help="Ad group ID")
+@click.option("--keyword-id", type=int, help="Keyword ID")
+@click.option("--json", "bidding_rule_json", required=True, help="BiddingRule object JSON")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@click.pass_context
+def set_auto(ctx, campaign_id, adgroup_id, keyword_id, bidding_rule_json, dry_run):
+    """Configure automatic keyword bidding"""
+    try:
+        bid_data = {"BiddingRule": json.loads(bidding_rule_json)}
+        if campaign_id is not None:
+            bid_data["CampaignId"] = campaign_id
+        if adgroup_id is not None:
+            bid_data["AdGroupId"] = adgroup_id
+        if keyword_id is not None:
+            bid_data["KeywordId"] = keyword_id
+
+        body = {"method": "setAuto", "params": {"KeywordBids": [bid_data]}}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
         result = client.keywordbids().post(data=body)
         format_output(result().extract(), "json", None)
 

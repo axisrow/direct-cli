@@ -1,0 +1,536 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+                  xmlns:ns="http://api.direct.yandex.com/v5/bidmodifiers"
+                  xmlns:general="http://api.direct.yandex.com/v5/general"
+                  xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+                  xmlns:xsd="http://www.w3.org/2001/XMLSchema" name="BidModifiers"
+                  targetNamespace="http://api.direct.yandex.com/v5/bidmodifiers">
+    <wsdl:types>
+        <xsd:schema targetNamespace="http://api.direct.yandex.com/v5/bidmodifiers">
+            <xsd:import namespace="http://api.direct.yandex.com/v5/general" schemaLocation="https://soap.direct.yandex.ru/v5/general.xsd" />
+            <xsd:simpleType name="BidModifierTypeEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="MOBILE_ADJUSTMENT"/>
+                    <xsd:enumeration value="DESKTOP_ADJUSTMENT"/>
+                    <xsd:enumeration value="SMART_TV_ADJUSTMENT"/>
+                    <xsd:enumeration value="TABLET_ADJUSTMENT"/>
+                    <xsd:enumeration value="DESKTOP_ONLY_ADJUSTMENT"/>
+                    <xsd:enumeration value="DEMOGRAPHICS_ADJUSTMENT"/>
+                    <xsd:enumeration value="RETARGETING_ADJUSTMENT"/>
+                    <xsd:enumeration value="REGIONAL_ADJUSTMENT"/>
+                    <xsd:enumeration value="VIDEO_ADJUSTMENT"/>
+                    <xsd:enumeration value="SMART_AD_ADJUSTMENT"/>
+                    <xsd:enumeration value="SERP_LAYOUT_ADJUSTMENT"/>
+                    <xsd:enumeration value="INCOME_GRADE_ADJUSTMENT"/>
+                    <xsd:enumeration value="AD_GROUP_ADJUSTMENT"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="BidModifierLevelEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="CAMPAIGN"/>
+                    <xsd:enumeration value="AD_GROUP"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="BidModifierFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="Id"/>
+                    <xsd:enumeration value="CampaignId"/>
+                    <xsd:enumeration value="AdGroupId"/>
+                    <xsd:enumeration value="Level"/>
+                    <xsd:enumeration value="Type"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="MobileAdjustmentFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="BidModifier"/>
+                    <xsd:enumeration value="OperatingSystemType"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="DesktopAdjustmentFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="BidModifier"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="SmartTvAdjustmentFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="BidModifier"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="TabletAdjustmentFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="BidModifier"/>
+                    <xsd:enumeration value="OperatingSystemType"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="DesktopOnlyAdjustmentFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="BidModifier"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="DemographicsAdjustmentFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="Gender"/>
+                    <xsd:enumeration value="Age"/>
+                    <xsd:enumeration value="BidModifier"/>
+                    <xsd:enumeration value="Enabled"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="RetargetingAdjustmentFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="RetargetingConditionId"/>
+                    <xsd:enumeration value="BidModifier"/>
+                    <xsd:enumeration value="Accessible"/>
+                    <xsd:enumeration value="Enabled"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="RegionalAdjustmentFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="RegionId"/>
+                    <xsd:enumeration value="BidModifier"/>
+                    <xsd:enumeration value="Enabled"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="VideoAdjustmentFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="BidModifier"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="SmartAdAdjustmentFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="BidModifier"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="SerpLayoutAdjustmentFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="SerpLayout"/>
+                    <xsd:enumeration value="BidModifier"/>
+                    <xsd:enumeration value="Enabled"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="OperatingSystemTypeEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="IOS"/>
+                    <xsd:enumeration value="ANDROID"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="IncomeGradeAdjustmentFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="Grade"/>
+                    <xsd:enumeration value="BidModifier"/>
+                    <xsd:enumeration value="Enabled"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="AdGroupAdjustmentFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="BidModifier"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:complexType name="BidModifiersSelectionCriteria">
+                <xsd:sequence>
+                    <xsd:element name="CampaignIds" type="xsd:long" minOccurs="0" maxOccurs="unbounded"/>
+                    <xsd:element name="AdGroupIds" type="xsd:long" minOccurs="0" maxOccurs="unbounded"/>
+                    <xsd:element name="Ids" type="xsd:long" minOccurs="0" maxOccurs="unbounded"/>
+                    <xsd:element name="Types" type="ns:BidModifierTypeEnum" minOccurs="0" maxOccurs="unbounded"/>
+                    <xsd:element name="Levels" type="ns:BidModifierLevelEnum" minOccurs="1" maxOccurs="unbounded"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="BidModifierGetItem">
+                <xsd:sequence>
+                    <xsd:element name="CampaignId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AdGroupId" type="xsd:long" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="Id" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Level" type="ns:BidModifierLevelEnum" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Type" type="ns:BidModifierTypeEnum" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="MobileAdjustment" type="ns:MobileAdjustmentGet" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="DesktopAdjustment" type="ns:DesktopAdjustmentGet" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="SmartTvAdjustment" type="ns:SmartTvAdjustmentGet" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="TabletAdjustment" type="ns:TabletAdjustmentGet" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="DesktopOnlyAdjustment" type="ns:DesktopOnlyAdjustmentGet" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="DemographicsAdjustment" type="ns:DemographicsAdjustmentGet" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="RetargetingAdjustment" type="ns:RetargetingAdjustmentGet" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="RegionalAdjustment" type="ns:RegionalAdjustmentGet" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="VideoAdjustment" type="ns:VideoAdjustmentGet" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="SmartAdAdjustment" type="ns:SmartAdAdjustmentGet" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="SerpLayoutAdjustment" type="ns:SerpLayoutAdjustmentGet" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="IncomeGradeAdjustment" type="ns:IncomeGradeAdjustmentGet" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AdGroupAdjustment" type="ns:AdGroupAdjustmentGet" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="MobileAdjustmentGet">
+                <xsd:sequence>
+                    <xsd:element name="BidModifier" type="xsd:int" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="OperatingSystemType" type="ns:OperatingSystemTypeEnum" minOccurs="0" maxOccurs="1" nillable="true"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="DesktopAdjustmentGet">
+                <xsd:sequence>
+                    <xsd:element name="BidModifier" type="xsd:int" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="SmartTvAdjustmentGet">
+                <xsd:sequence>
+                    <xsd:element name="BidModifier" type="xsd:int" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="TabletAdjustmentGet">
+                <xsd:sequence>
+                    <xsd:element name="BidModifier" type="xsd:int" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="OperatingSystemType" type="ns:OperatingSystemTypeEnum" minOccurs="0"
+                                 maxOccurs="1" nillable="true"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="DesktopOnlyAdjustmentGet">
+                <xsd:sequence>
+                    <xsd:element name="BidModifier" type="xsd:int" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="DemographicsAdjustmentGet">
+                <xsd:sequence>
+                    <xsd:element name="Gender" type="general:GenderEnum" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="Age" type="general:AgeRangeEnum" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="BidModifier" type="xsd:int" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Enabled" type="general:YesNoEnum" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="IncomeGradeAdjustmentGet">
+                <xsd:sequence>
+                    <xsd:element name="Grade" type="general:IncomeGradeEnum" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="BidModifier" type="xsd:int" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Enabled" type="general:YesNoEnum" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="RetargetingAdjustmentGet">
+                <xsd:sequence>
+                    <xsd:element name="RetargetingConditionId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="BidModifier" type="xsd:int" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Accessible" type="general:YesNoEnum" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Enabled" type="general:YesNoEnum" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="RegionalAdjustmentGet">
+                <xsd:sequence>
+                    <xsd:element name="RegionId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="BidModifier" type="xsd:int" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Enabled" type="general:YesNoEnum" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="VideoAdjustmentGet">
+                <xsd:sequence>
+                    <xsd:element name="BidModifier" type="xsd:int" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="SmartAdAdjustmentGet">
+                <xsd:sequence>
+                    <xsd:element name="BidModifier" type="xsd:int" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="SerpLayoutAdjustmentGet">
+                <xsd:sequence>
+                    <xsd:element name="SerpLayout" type="general:SerpLayoutEnum" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="BidModifier" type="xsd:int" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Enabled" type="general:YesNoEnum" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="AdGroupAdjustmentGet">
+                <xsd:sequence>
+                    <xsd:element name="BidModifier" type="xsd:int" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="BidModifierAddBase">
+                <xsd:sequence>
+                    <xsd:element name="CampaignId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AdGroupId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="MobileAdjustmentAdd">
+                <xsd:sequence>
+                    <xsd:element name="BidModifier" type="xsd:int" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="OperatingSystemType" type="ns:OperatingSystemTypeEnum" minOccurs="0"
+                                 maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="DesktopAdjustmentAdd">
+                <xsd:sequence>
+                    <xsd:element name="BidModifier" type="xsd:int" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="SmartTvAdjustmentAdd">
+                <xsd:sequence>
+                    <xsd:element name="BidModifier" type="xsd:int" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="TabletAdjustmentAdd">
+                <xsd:sequence>
+                    <xsd:element name="BidModifier" type="xsd:int" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="OperatingSystemType" type="ns:OperatingSystemTypeEnum" minOccurs="0"
+                                 maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="DesktopOnlyAdjustmentAdd">
+                <xsd:sequence>
+                    <xsd:element name="BidModifier" type="xsd:int" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="DemographicsAdjustmentAdd">
+                <xsd:sequence>
+                    <xsd:element name="Gender" type="general:GenderEnum" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Age" type="general:AgeRangeEnum" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="BidModifier" type="xsd:int" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="RetargetingAdjustmentAdd">
+                <xsd:sequence>
+                    <xsd:element name="RetargetingConditionId" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="BidModifier" type="xsd:int" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="RegionalAdjustmentAdd">
+                <xsd:sequence>
+                    <xsd:element name="RegionId" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="BidModifier" type="xsd:int" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="VideoAdjustmentAdd">
+                <xsd:sequence>
+                    <xsd:element name="BidModifier" type="xsd:int" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="SmartAdAdjustmentAdd">
+                <xsd:sequence>
+                    <xsd:element name="BidModifier" type="xsd:int" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="AdGroupAdjustmentAdd">
+                <xsd:sequence>
+                    <xsd:element name="BidModifier" type="xsd:int" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="SerpLayoutAdjustmentAdd">
+                <xsd:sequence>
+                    <xsd:element name="SerpLayout" type="general:SerpLayoutEnum" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="BidModifier" type="xsd:int" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="IncomeGradeAdjustmentAdd">
+                <xsd:sequence>
+                    <xsd:element name="Grade" type="general:IncomeGradeEnum" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="BidModifier" type="xsd:int" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="BidModifierAddItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:BidModifierAddBase">
+                        <xsd:sequence>
+                            <xsd:element name="MobileAdjustment" type="ns:MobileAdjustmentAdd" minOccurs="0" maxOccurs="1"/>
+                            <xsd:element name="DesktopAdjustment" type="ns:DesktopAdjustmentAdd" minOccurs="0" maxOccurs="1"/>
+                            <xsd:element name="SmartTvAdjustment" type="ns:SmartTvAdjustmentAdd" minOccurs="0" maxOccurs="1"/>
+                            <xsd:element name="TabletAdjustment" type="ns:TabletAdjustmentAdd" minOccurs="0"
+                                         maxOccurs="1"/>
+                            <xsd:element name="DesktopOnlyAdjustment" type="ns:DesktopOnlyAdjustmentAdd" minOccurs="0"
+                                         maxOccurs="1"/>
+                            <xsd:element name="DemographicsAdjustments" type="ns:DemographicsAdjustmentAdd" minOccurs="0" maxOccurs="unbounded"/>
+                            <xsd:element name="RetargetingAdjustments" type="ns:RetargetingAdjustmentAdd" minOccurs="0" maxOccurs="unbounded"/>
+                            <xsd:element name="RegionalAdjustments" type="ns:RegionalAdjustmentAdd" minOccurs="0" maxOccurs="unbounded"/>
+                            <xsd:element name="VideoAdjustment" type="ns:VideoAdjustmentAdd" minOccurs="0" maxOccurs="1"/>
+                            <xsd:element name="SmartAdAdjustment" type="ns:SmartAdAdjustmentAdd" minOccurs="0" maxOccurs="1"/>
+                            <xsd:element name="SerpLayoutAdjustments" type="ns:SerpLayoutAdjustmentAdd" minOccurs="0" maxOccurs="unbounded"/>
+                            <xsd:element name="IncomeGradeAdjustments" type="ns:IncomeGradeAdjustmentAdd" minOccurs="0" maxOccurs="unbounded"/>
+                            <xsd:element name="AdGroupAdjustment" type="ns:AdGroupAdjustmentAdd" minOccurs="0" maxOccurs="1"/>
+                        </xsd:sequence>
+                    </xsd:extension>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="BidModifierSetItem">
+                <xsd:sequence>
+                    <xsd:element name="Id" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="BidModifier" type="xsd:int" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:element name="GetRequest">
+                <xsd:complexType>
+                    <xsd:complexContent>
+                        <xsd:extension base="general:GetRequestGeneral">
+                            <xsd:sequence>
+                                <xsd:element name="SelectionCriteria" type="ns:BidModifiersSelectionCriteria" minOccurs="1" maxOccurs="1"/>
+                                <xsd:element name="FieldNames" type="ns:BidModifierFieldEnum" minOccurs="1" maxOccurs="unbounded"/>
+                                <xsd:element name="MobileAdjustmentFieldNames" type="ns:MobileAdjustmentFieldEnum" minOccurs="0" maxOccurs="unbounded"/>
+                                <xsd:element name="DesktopAdjustmentFieldNames" type="ns:DesktopAdjustmentFieldEnum" minOccurs="0" maxOccurs="unbounded"/>
+                                <xsd:element name="SmartTvAdjustmentFieldNames" type="ns:SmartTvAdjustmentFieldEnum" minOccurs="0" maxOccurs="unbounded"/>
+                                <xsd:element name="TabletAdjustmentFieldNames" type="ns:TabletAdjustmentFieldEnum" minOccurs="0" maxOccurs="unbounded"/>
+                                <xsd:element name="DesktopOnlyAdjustmentFieldNames" type="ns:DesktopOnlyAdjustmentFieldEnum"
+                                             minOccurs="0" maxOccurs="unbounded"/>
+                                <xsd:element name="DemographicsAdjustmentFieldNames" type="ns:DemographicsAdjustmentFieldEnum" minOccurs="0" maxOccurs="unbounded"/>
+                                <xsd:element name="RetargetingAdjustmentFieldNames" type="ns:RetargetingAdjustmentFieldEnum" minOccurs="0" maxOccurs="unbounded"/>
+                                <xsd:element name="RegionalAdjustmentFieldNames" type="ns:RegionalAdjustmentFieldEnum" minOccurs="0" maxOccurs="unbounded"/>
+                                <xsd:element name="VideoAdjustmentFieldNames" type="ns:VideoAdjustmentFieldEnum" minOccurs="0" maxOccurs="unbounded"/>
+                                <xsd:element name="SmartAdAdjustmentFieldNames" type="ns:SmartAdAdjustmentFieldEnum" minOccurs="0" maxOccurs="unbounded"/>
+                                <xsd:element name="SerpLayoutAdjustmentFieldNames" type="ns:SerpLayoutAdjustmentFieldEnum" minOccurs="0" maxOccurs="unbounded"/>
+                                <xsd:element name="IncomeGradeAdjustmentFieldNames" type="ns:IncomeGradeAdjustmentFieldEnum" minOccurs="0" maxOccurs="unbounded"/>
+                                <xsd:element name="AdGroupAdjustmentFieldNames" type="ns:AdGroupAdjustmentFieldEnum"
+                                             minOccurs="0" maxOccurs="unbounded"/>
+                            </xsd:sequence>
+                        </xsd:extension>
+                    </xsd:complexContent>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="GetResponse">
+                <xsd:complexType>
+                    <xsd:complexContent>
+                        <xsd:extension base="general:GetResponseGeneral">
+                            <xsd:sequence>
+                                <xsd:element name="BidModifiers" type="ns:BidModifierGetItem" minOccurs="0" maxOccurs="unbounded"/>
+                            </xsd:sequence>
+                        </xsd:extension>
+                    </xsd:complexContent>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="AddRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="BidModifiers" type="ns:BidModifierAddItem" minOccurs="1" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="AddResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="AddResults" type="general:MultiIdsActionResult" minOccurs="0" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="SetRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="BidModifiers" type="ns:BidModifierSetItem" minOccurs="1" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="SetResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="SetResults" type="general:ActionResult" minOccurs="0" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="DeleteRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="SelectionCriteria" type="general:IdsCriteria" minOccurs="1" maxOccurs="1"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="DeleteResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="DeleteResults" type="general:ActionResult" minOccurs="0" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+        </xsd:schema>
+    </wsdl:types>
+    <wsdl:message name="ApiException">
+        <wsdl:part element="general:FaultResponse" name="faultMessage"/>
+    </wsdl:message>
+    <wsdl:message name="GetOperationRequest">
+        <wsdl:part name="parameters" element="ns:GetRequest"/>
+    </wsdl:message>
+    <wsdl:message name="GetOperationResponse">
+        <wsdl:part name="parameters" element="ns:GetResponse"/>
+    </wsdl:message>
+    <wsdl:message name="AddOperationRequest">
+        <wsdl:part element="ns:AddRequest" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="AddOperationResponse">
+        <wsdl:part name="parameters" element="ns:AddResponse"/>
+    </wsdl:message>
+    <wsdl:message name="SetOperationRequest">
+        <wsdl:part name="parameters" element="ns:SetRequest"/>
+    </wsdl:message>
+    <wsdl:message name="SetOperationResponse">
+        <wsdl:part name="parameters" element="ns:SetResponse"/>
+    </wsdl:message>
+    <wsdl:message name="DeleteOperationRequest">
+        <wsdl:part name="parameters" element="ns:DeleteRequest"/>
+    </wsdl:message>
+    <wsdl:message name="DeleteOperationResponse">
+        <wsdl:part name="parameters" element="ns:DeleteResponse"/>
+    </wsdl:message>
+    <wsdl:portType name="BidModifiersPort">
+        <wsdl:operation name="get">
+            <wsdl:input message="ns:GetOperationRequest" name="getRequest"/>
+            <wsdl:output message="ns:GetOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="add">
+            <wsdl:input message="ns:AddOperationRequest" name="addRequest"/>
+            <wsdl:output message="ns:AddOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="set">
+            <wsdl:input message="ns:SetOperationRequest" name="setRequest"/>
+            <wsdl:output message="ns:SetOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="delete">
+            <wsdl:input message="ns:DeleteOperationRequest" name="deleteRequest"/>
+            <wsdl:output message="ns:DeleteOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+    </wsdl:portType>
+    <wsdl:binding name="BidModifiersSOAP" type="ns:BidModifiersPort">
+        <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="add">
+            <soap:operation soapAction="http://api.direct.yandex.com/v5/bidmodifiers/add"/>
+            <wsdl:input name="addRequest">
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="set">
+            <soap:operation soapAction="http://api.direct.yandex.com/v5/bidmodifiers/set"/>
+            <wsdl:input name="setRequest">
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="get">
+            <soap:operation soapAction="http://api.direct.yandex.com/v5/bidmodifiers/get"/>
+            <wsdl:input name="getRequest">
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="delete">
+            <soap:operation soapAction="http://api.direct.yandex.com/v5/bidmodifiers/delete"/>
+            <wsdl:input name="deleteRequest">
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+    </wsdl:binding>
+    <wsdl:service name="BidModifiers">
+        <wsdl:port binding="ns:BidModifiersSOAP" name="BidModifiersSOAP">
+            <soap:address location="https://soap.direct.yandex.ru/v5/bidmodifiers"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>

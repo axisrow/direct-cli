@@ -1,0 +1,327 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+                  xmlns:ns="http://api.direct.yandex.com/v5/dictionaries"
+                  xmlns:general="http://api.direct.yandex.com/v5/general"
+                  xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+                  xmlns:xsd="http://www.w3.org/2001/XMLSchema" name="Dictionaries"
+                  targetNamespace="http://api.direct.yandex.com/v5/dictionaries">
+    <wsdl:types>
+        <xsd:schema targetNamespace="http://api.direct.yandex.com/v5/dictionaries">
+            <xsd:import namespace="http://api.direct.yandex.com/v5/general" schemaLocation="https://soap.direct.yandex.ru/v5/general.xsd" />
+            <xsd:simpleType name="DictionaryNameEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="Currencies"/>
+                    <xsd:enumeration value="MetroStations"/>
+                    <xsd:enumeration value="GeoRegions"/>
+                    <xsd:enumeration value="GeoRegionNames"/>
+                    <xsd:enumeration value="TimeZones"/>
+                    <xsd:enumeration value="Constants"/>
+                    <xsd:enumeration value="AdCategories"/>
+                    <xsd:enumeration value="OperationSystemVersions"/>
+                    <xsd:enumeration value="ProductivityAssertions"/>
+                    <xsd:enumeration value="SupplySidePlatforms"/>
+                    <xsd:enumeration value="Interests"/>
+                    <xsd:enumeration value="AudienceCriteriaTypes"/>
+                    <xsd:enumeration value="AudienceDemographicProfiles"/>
+                    <xsd:enumeration value="AudienceInterests"/>
+                    <xsd:enumeration value="FilterSchemas"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:complexType name="GeoRegionsSelectionCriteria">
+                <xsd:sequence>
+                    <xsd:element name="Name" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="RegionIds" type="xsd:long" minOccurs="0"  maxOccurs="unbounded"/>
+                    <xsd:element name="ExactNames" type="xsd:string" minOccurs="0" maxOccurs="unbounded"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="CurrenciesItem">
+                <xsd:sequence>
+                    <xsd:element name="Currency" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Properties" type="ns:ConstantsItem" minOccurs="1" maxOccurs="unbounded"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="MetroStationsItem">
+                <xsd:sequence>
+                    <xsd:element name="GeoRegionId" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="MetroStationId" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="MetroStationName" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="GeoRegionsItem">
+                <xsd:sequence>
+                    <xsd:element name="GeoRegionId" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="GeoRegionName" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="GeoRegionType" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="ParentId" type="xsd:long" minOccurs="1" maxOccurs="1" nillable="true"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="GeoRegionNamesItem">
+                <xsd:sequence>
+                    <xsd:element name="GeoRegionId" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="GeoRegionName" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="GeoRegionType" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="TimeZonesItem">
+                <xsd:sequence>
+                    <xsd:element name="TimeZone" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="TimeZoneName" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="UtcOffset" type="xsd:int" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="ConstantsItem">
+                <xsd:sequence>
+                    <xsd:element name="Name" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Value" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="AdCategoriesItem">
+                <xsd:sequence>
+                    <xsd:element name="AdCategory" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Description" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Message" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="OperationSystemVersionsItem">
+                <xsd:sequence>
+                    <xsd:element name="OsName" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="OsVersion" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="ProductivityAssertionsItem">
+                <xsd:sequence>
+                    <xsd:element name="Reference" type="xsd:int" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Title" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Recommendation" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="SupplySidePlatformsItem">
+                <xsd:sequence>
+                    <xsd:element name="Title" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="InterestsItem">
+                <xsd:sequence>
+                    <xsd:element name="InterestId" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="ParentId" type="xsd:long" minOccurs="1" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="Name" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="IsTargetable" type="general:YesNoEnum" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:simpleType name="CanSelectEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="ALL"/>
+                    <xsd:enumeration value="EXCEPT_ALL"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="InterestTypeEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="SHORT_TERM"/>
+                    <xsd:enumeration value="LONG_TERM"/>
+                    <xsd:enumeration value="ANY"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="GeoRegionFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="GeoRegionId"/>
+                    <xsd:enumeration value="GeoRegionName"/>
+                    <xsd:enumeration value="ParentGeoRegionNames"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:complexType name="AudienceCriteriaTypesItem">
+                <xsd:sequence>
+                    <xsd:element name="Type" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="BlockElement" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Name" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Description" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="CanSelect" type="ns:CanSelectEnum" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="AudienceDemographicProfilesItem">
+                <xsd:sequence>
+                    <xsd:element name="Id" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Type" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Name" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Description" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="AudienceInterestsItem">
+                <xsd:sequence>
+                    <xsd:element name="InterestKey" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Id" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="ParentId" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Name" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Description" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="InterestType" type="ns:InterestTypeEnum" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="GeoRegionGetItem">
+                <xsd:sequence>
+                    <xsd:element name="GeoRegionId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="GeoRegionName" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="ParentGeoRegionNames" type="general:ArrayOfString" minOccurs="0" maxOccurs="1" nillable="true"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:simpleType name="FilterFieldType">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="Enum"/>
+                    <xsd:enumeration value="Number"/>
+                    <xsd:enumeration value="String"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:complexType name="EnumFilterFieldProps">
+                <xsd:sequence>
+                    <xsd:element name="Values" type="general:ArrayOfString" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="NumberFilterFieldProps">
+                <xsd:sequence>
+                    <xsd:element name="Min" type="xsd:decimal" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Max" type="xsd:decimal" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Precision" type="xsd:int" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StringFilterFieldProps">
+                <xsd:sequence>
+                    <xsd:element name="MaxLength" type="xsd:int" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="MinLength" type="xsd:int" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="FilterFieldOperator">
+                <xsd:sequence>
+                    <xsd:element name="MaxItems" type="xsd:int" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Type" type="general:StringConditionOperatorEnum" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="FilterFieldItem">
+                <xsd:sequence>
+                    <xsd:element name="Name" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Type" type="ns:FilterFieldType" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="EnumProps" type="ns:EnumFilterFieldProps" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="NumberProps" type="ns:NumberFilterFieldProps" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="StringProps" type="ns:StringFilterFieldProps" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Operators" type="ns:FilterFieldOperator" minOccurs="1" maxOccurs="unbounded"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="FilterSchemasItem">
+                <xsd:sequence>
+                    <xsd:element name="Name" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Fields" type="ns:FilterFieldItem" minOccurs="1" maxOccurs="unbounded"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:element name="GetRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="DictionaryNames" type="ns:DictionaryNameEnum" minOccurs="1" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="GetResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="Currencies" type="ns:CurrenciesItem" minOccurs="0" maxOccurs="unbounded"/>
+                        <xsd:element name="MetroStations" type="ns:MetroStationsItem" minOccurs="0" maxOccurs="unbounded"/>
+                        <xsd:element name="GeoRegions" type="ns:GeoRegionsItem" minOccurs="0" maxOccurs="unbounded"/>
+                        <xsd:element name="GeoRegionNames" type="ns:GeoRegionNamesItem" minOccurs="0" maxOccurs="unbounded"/>
+                        <xsd:element name="TimeZones" type="ns:TimeZonesItem" minOccurs="0" maxOccurs="unbounded"/>
+                        <xsd:element name="Constants" type="ns:ConstantsItem" minOccurs="0" maxOccurs="unbounded"/>
+                        <xsd:element name="AdCategories" type="ns:AdCategoriesItem" minOccurs="0" maxOccurs="unbounded"/>
+                        <xsd:element name="OperationSystemVersions" type="ns:OperationSystemVersionsItem" minOccurs="0" maxOccurs="unbounded"/>
+                        <xsd:element name="ProductivityAssertions" type="ns:ProductivityAssertionsItem" minOccurs="0" maxOccurs="unbounded"/>
+                        <xsd:element name="SupplySidePlatforms" type="ns:SupplySidePlatformsItem" minOccurs="0" maxOccurs="unbounded"/>
+                        <xsd:element name="Interests" type="ns:InterestsItem" minOccurs="0" maxOccurs="unbounded"/>
+                        <xsd:element name="AudienceCriteriaTypes" type="ns:AudienceCriteriaTypesItem" minOccurs="0" maxOccurs="unbounded"/>
+                        <xsd:element name="AudienceDemographicProfiles" type="ns:AudienceDemographicProfilesItem" minOccurs="0" maxOccurs="unbounded"/>
+                        <xsd:element name="AudienceInterests" type="ns:AudienceInterestsItem" minOccurs="0" maxOccurs="unbounded"/>
+                        <xsd:element name="FilterSchemas" type="ns:FilterSchemasItem" minOccurs="0" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="GetGeoRegionsRequest">
+                <xsd:complexType>
+                    <xsd:complexContent>
+                        <xsd:extension base="general:GetRequestGeneral">
+                            <xsd:sequence>
+                                <xsd:element name="SelectionCriteria" type="ns:GeoRegionsSelectionCriteria" minOccurs="1"
+                                             maxOccurs="1"/>
+                                <xsd:element name="FieldNames" type="ns:GeoRegionFieldEnum" minOccurs="1"
+                                             maxOccurs="unbounded"/>
+                            </xsd:sequence>
+                        </xsd:extension>
+                    </xsd:complexContent>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="GetGeoRegionsResponse">
+                <xsd:complexType>
+                    <xsd:complexContent>
+                        <xsd:extension base="general:GetResponseGeneral">
+                            <xsd:sequence>
+                                <xsd:element name="GeoRegions" type="ns:GeoRegionGetItem"
+                                             minOccurs="0" maxOccurs="unbounded"/>
+                            </xsd:sequence>
+                        </xsd:extension>
+                    </xsd:complexContent>
+                </xsd:complexType>
+            </xsd:element>
+        </xsd:schema>
+    </wsdl:types>
+    <wsdl:message name="ApiException">
+        <wsdl:part element="general:FaultResponse" name="faultMessage"/>
+    </wsdl:message>
+    <wsdl:message name="GetOperationRequest">
+        <wsdl:part name="parameters" element="ns:GetRequest"/>
+    </wsdl:message>
+    <wsdl:message name="GetOperationResponse">
+        <wsdl:part name="parameters" element="ns:GetResponse"/>
+    </wsdl:message>
+    <wsdl:message name="GetGeoRegionsOperationRequest">
+        <wsdl:part name="parameters" element="ns:GetGeoRegionsRequest"/>
+    </wsdl:message>
+    <wsdl:message name="GetGeoRegionsOperationResponse">
+        <wsdl:part name="parameters" element="ns:GetGeoRegionsResponse"/>
+    </wsdl:message>
+    <wsdl:portType name="DictionariesPort">
+        <wsdl:operation name="get">
+            <wsdl:input message="ns:GetOperationRequest" name="getRequest"/>
+            <wsdl:output message="ns:GetOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="getGeoRegions">
+            <wsdl:input message="ns:GetGeoRegionsOperationRequest" name="getGeoRegions"/>
+            <wsdl:output message="ns:GetGeoRegionsOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+    </wsdl:portType>
+    <wsdl:binding name="DictionariesSOAP" type="ns:DictionariesPort">
+        <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="get">
+            <soap:operation soapAction="http://api.direct.yandex.com/v5/dictionaries/get"/>
+            <wsdl:input name="getRequest">
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="getGeoRegions">
+            <soap:operation soapAction="http://api.direct.yandex.com/v5/dictionaries/getGeoRegions"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+    </wsdl:binding>
+    <wsdl:service name="Dictionaries">
+        <wsdl:port binding="ns:DictionariesSOAP" name="DictionariesSOAP">
+            <soap:address location="https://soap.direct.yandex.ru/v5/dictionaries"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>

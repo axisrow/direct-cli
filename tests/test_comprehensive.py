@@ -45,6 +45,7 @@ class TestCommandsRegistered(unittest.TestCase):
         "retargeting",
         "creatives",
         "adimages",
+        "advideos",
         "adextensions",
         "sitelinks",
         "vcards",

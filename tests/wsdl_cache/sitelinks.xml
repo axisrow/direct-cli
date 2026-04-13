@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+                  xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+                  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                  xmlns:general="http://api.direct.yandex.com/v5/general"
+                  xmlns:ns="http://api.direct.yandex.com/v5/sitelinks"
+                  name="Sitelinks"
+                  targetNamespace="http://api.direct.yandex.com/v5/sitelinks">
+    <wsdl:types>
+        <xsd:schema targetNamespace="http://api.direct.yandex.com/v5/sitelinks">
+            <xsd:import namespace="http://api.direct.yandex.com/v5/general" schemaLocation="https://soap.direct.yandex.ru/v5/general.xsd" />
+            <xsd:simpleType name="SitelinksSetFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="Id"/>
+                    <xsd:enumeration value="Sitelinks"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:complexType name="SitelinkAddItem">
+                <xsd:sequence>
+                    <xsd:element name="Title" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Href" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Description" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="TurboPageId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="SitelinkGetItem">
+                <xsd:sequence>
+                    <xsd:element name="Title" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Href" type="xsd:string" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="Description" type="xsd:string" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="TurboPageId" type="xsd:long" minOccurs="0" maxOccurs="1" nillable="true"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="SitelinksSetAddItem">
+                <xsd:sequence>
+                    <xsd:element name="Sitelinks" type="ns:SitelinkAddItem" minOccurs="1" maxOccurs="unbounded"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="SitelinksSetGetItem">
+                <xsd:sequence>
+                    <xsd:element name="Id" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Sitelinks" type="ns:SitelinkGetItem" minOccurs="0" maxOccurs="unbounded"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:element name="AddRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="SitelinksSets" type="ns:SitelinksSetAddItem" minOccurs="1" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="AddResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="AddResults" type="general:ActionResult" minOccurs="0" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:simpleType name="SitelinkFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="Title"/>
+                    <xsd:enumeration value="Href"/>
+                    <xsd:enumeration value="Description"/>
+                    <xsd:enumeration value="TurboPageId"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:element name="GetRequest">
+                <xsd:complexType>
+                    <xsd:complexContent>
+                        <xsd:extension base="general:GetRequestGeneral">
+                            <xsd:sequence>
+                                <xsd:element name="SelectionCriteria" type="general:IdsCriteria" minOccurs="0" maxOccurs="1"/>
+                                <xsd:element name="FieldNames" type="ns:SitelinksSetFieldEnum" minOccurs="0" maxOccurs="unbounded"/>
+                                <xsd:element name="SitelinkFieldNames" type="ns:SitelinkFieldEnum" minOccurs="0" maxOccurs="unbounded"/>
+                            </xsd:sequence>
+                        </xsd:extension>
+                    </xsd:complexContent>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="GetResponse">
+                <xsd:complexType>
+                    <xsd:complexContent>
+                        <xsd:extension base="general:GetResponseGeneral">
+                            <xsd:sequence>
+                                <xsd:element name="SitelinksSets" type="ns:SitelinksSetGetItem" minOccurs="0" maxOccurs="unbounded"/>
+                            </xsd:sequence>
+                        </xsd:extension>
+                    </xsd:complexContent>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="DeleteRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="SelectionCriteria" type="general:IdsCriteria" minOccurs="1" maxOccurs="1"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="DeleteResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="DeleteResults" type="general:ActionResult" minOccurs="0" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+        </xsd:schema>
+    </wsdl:types>
+    <wsdl:message name="ApiException">
+        <wsdl:part element="general:FaultResponse" name="faultMessage"/>
+    </wsdl:message>
+    <wsdl:message name="AddOperationRequest">
+        <wsdl:part name="parameters" element="ns:AddRequest"/>
+    </wsdl:message>
+    <wsdl:message name="AddOperationResponse">
+        <wsdl:part name="parameters" element="ns:AddResponse"/>
+    </wsdl:message>
+    <wsdl:message name="GetOperationRequest">
+        <wsdl:part name="parameters" element="ns:GetRequest"/>
+    </wsdl:message>
+    <wsdl:message name="GetOperationResponse">
+        <wsdl:part name="parameters" element="ns:GetResponse"/>
+    </wsdl:message>
+    <wsdl:message name="DeleteOperationRequest">
+        <wsdl:part name="parameters" element="ns:DeleteRequest"/>
+    </wsdl:message>
+    <wsdl:message name="DeleteOperationResponse">
+        <wsdl:part name="parameters" element="ns:DeleteResponse"/>
+    </wsdl:message>
+    <wsdl:portType name="SitelinksPort">
+        <wsdl:operation name="add">
+            <wsdl:input name="addRequest" message="ns:AddOperationRequest"/>
+            <wsdl:output message="ns:AddOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="get">
+            <wsdl:input name="getRequest" message="ns:GetOperationRequest"/>
+            <wsdl:output message="ns:GetOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="delete">
+            <wsdl:input name="deleteRequest" message="ns:DeleteOperationRequest"/>
+            <wsdl:output message="ns:DeleteOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+    </wsdl:portType>
+    <wsdl:binding name="SitelinksSOAP" type="ns:SitelinksPort">
+        <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="add">
+            <soap:operation soapAction="https://api.direct.yandex.com/v5/sitelinks/add"/>
+            <wsdl:input name="addRequest">
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="get">
+            <soap:operation soapAction="https://api.direct.yandex.com/v5/sitelinks/get"/>
+            <wsdl:input name="getRequest">
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="delete">
+            <soap:operation soapAction="https://api.direct.yandex.com/v5/sitelinks/delete"/>
+            <wsdl:input name="deleteRequest">
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+    </wsdl:binding>
+    <wsdl:service name="Sitelinks">
+        <wsdl:port name="SitelinksSOAP" binding="ns:SitelinksSOAP">
+            <soap:address location="https://soap.direct.yandex.ru/v5/sitelinks/"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>

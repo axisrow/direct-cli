@@ -3,11 +3,12 @@ AgencyClients commands
 """
 
 import json
+
 import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids, get_default_fields
+from ..utils import get_default_fields, parse_ids
 
 
 @click.group()
@@ -71,7 +72,7 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
 def add(ctx, client_json, dry_run):
     """Add agency client"""
     try:
-        body = {"method": "add", "params": {"Clients": [json.loads(client_json)]}}
+        body = {"method": "add", "params": json.loads(client_json)}
 
         if dry_run:
             format_output(body, "json", None)
@@ -86,6 +87,116 @@ def add(ctx, client_json, dry_run):
         result = client.agencyclients().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except Exception as e:
+        print_error(str(e))
+        raise click.Abort()
+
+
+@agencyclients.command(name="add-passport-organization")
+@click.option("--name", required=True, help="Organization name")
+@click.option("--currency", required=True, help="Account currency")
+@click.option("--notification-json", required=True, help="Notification object JSON")
+@click.option("--json", "extra_json", help="Additional JSON parameters")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@click.pass_context
+def add_passport_organization(ctx, name, currency, notification_json, extra_json, dry_run):
+    """Add passport organization agency client"""
+    try:
+        params = {
+            "Name": name,
+            "Currency": currency,
+            "Notification": json.loads(notification_json),
+        }
+        if extra_json:
+            params.update(json.loads(extra_json))
+
+        body = {"method": "addPassportOrganization", "params": params}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+        result = client.agencyclients().post(data=body)
+        format_output(result().extract(), "json", None)
+
+    except Exception as e:
+        print_error(str(e))
+        raise click.Abort()
+
+
+@agencyclients.command(name="add-passport-organization-member")
+@click.option("--passport-organization-login", required=True, help="Passport organization login")
+@click.option("--role", required=True, help="Organization member role")
+@click.option("--send-invite-to-json", required=True, help="SendInviteTo object JSON")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@click.pass_context
+def add_passport_organization_member(
+    ctx, passport_organization_login, role, send_invite_to_json, dry_run
+):
+    """Invite user to passport organization"""
+    try:
+        body = {
+            "method": "addPassportOrganizationMember",
+            "params": {
+                "PassportOrganizationLogin": passport_organization_login,
+                "Role": role,
+                "SendInviteTo": json.loads(send_invite_to_json),
+            },
+        }
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+        result = client.agencyclients().post(data=body)
+        format_output(result().extract(), "json", None)
+
+    except Exception as e:
+        print_error(str(e))
+        raise click.Abort()
+
+
+@agencyclients.command()
+@click.option("--client-id", required=True, type=int, help="Client ID")
+@click.option("--json", "extra_json", help="Additional JSON parameters")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@click.pass_context
+def update(ctx, client_id, extra_json, dry_run):
+    """Update agency client"""
+    try:
+        client_data = {"ClientId": client_id}
+
+        if extra_json:
+            client_data.update(json.loads(extra_json))
+        if len(client_data) == 1:
+            raise click.UsageError("Provide --json with fields to update")
+
+        body = {"method": "update", "params": {"Clients": [client_data]}}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
+
+        client = create_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+        result = client.agencyclients().post(data=body)
+        format_output(result().extract(), "json", None)
+
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
