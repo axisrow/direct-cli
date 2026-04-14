@@ -300,6 +300,3 @@ def set_bids(
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
-
-
-smartadtargets.add_command(get, name="list")

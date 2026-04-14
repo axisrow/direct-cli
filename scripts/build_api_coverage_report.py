@@ -29,7 +29,6 @@ def main() -> int:
             "strict_parity_ok": True,
         },
         "canonical_services": sorted(CLI_TO_API_SERVICE.values()),
-        "aliases": get_api_coverage_policy()["cli_alias_groups"],
         "non_wsdl_services": get_api_coverage_policy()["non_wsdl_services"],
         "cli_helpers": {
             f"{service}.{method}": reason

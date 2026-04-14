@@ -105,6 +105,3 @@ def add(ctx, url, video_data, name, dry_run):
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
-
-
-advideos.add_command(get, name="list")

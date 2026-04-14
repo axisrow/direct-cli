@@ -20,7 +20,6 @@ from direct_cli.wsdl_coverage import (
     CACHE_DIR,
     CLI_TO_API_SERVICE,
     CANONICAL_API_SERVICES,
-    CLI_ALIAS_GROUPS,
     INTENTIONAL_EXTRA_METHODS,
     KNOWN_MISSING_SERVICES,
     NON_WSDL_SERVICE_POLICIES,
@@ -40,7 +39,6 @@ DRY_RUN_PAYLOAD_EXCLUSIONS = {
     "ads.add": "Requires large heterogeneous ad payload variants; covered by focused dry-run tests.",
     "ads.archive": "Lifecycle alias of the same request shape family as campaigns/keywords lifecycle commands.",
     "ads.get": "Read path with rich field-selection options; payload contract differs from mutating coverage focus.",
-    "ads.list": "CLI alias of ads.get.",
     "ads.resume": "Lifecycle alias in the same request-shape family as covered resume/delete actions.",
     "ads.suspend": "Lifecycle alias in the same request-shape family as covered resume/delete actions.",
     "ads.unarchive": "Lifecycle alias in the same request-shape family as covered resume/delete actions.",
@@ -512,14 +510,6 @@ class TestApiCoverage:
             f"Unexpected cache files: {sorted(cached - expected)}"
         )
 
-    def test_alias_groups_resolve_to_real_cli_groups(self):
-        for alias, target in sorted(CLI_ALIAS_GROUPS.items()):
-            assert alias in cli.commands, f"Missing CLI alias group: {alias}"
-            assert target in cli.commands, f"Missing target CLI group for alias: {target}"
-            assert cli.commands[alias] is cli.commands[target], (
-                f"Alias group {alias} does not resolve to the same Click group as {target}"
-            )
-
     def test_non_wsdl_services_have_explicit_coverage_policy(self):
         for service_name, policy in sorted(NON_WSDL_SERVICE_POLICIES.items()):
             assert service_name in cli.commands, (
@@ -571,7 +561,7 @@ class TestApiCoverage:
     def test_all_canonical_dry_run_commands_have_payload_coverage_or_exclusion(self):
         actual = set()
         for group_name, group in sorted(cli.commands.items()):
-            if group_name in CLI_ALIAS_GROUPS or not hasattr(group, "commands"):
+            if not hasattr(group, "commands"):
                 continue
             for cmd_name, cmd in sorted(group.commands.items()):
                 if any(getattr(param, "name", None) == "dry_run" for param in cmd.params):

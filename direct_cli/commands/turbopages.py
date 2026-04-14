@@ -63,6 +63,3 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
-
-
-turbopages.add_command(get, name="list")

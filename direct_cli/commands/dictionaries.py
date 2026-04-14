@@ -90,6 +90,3 @@ def get_geo_regions(ctx, criteria_json, fields, output_format, output):
 def list_names():
     """List available dictionary names"""
     format_output(DICTIONARY_NAMES, "json", None)
-
-
-dictionaries.add_command(get, name="list")

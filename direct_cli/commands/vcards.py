@@ -117,6 +117,3 @@ def delete(ctx, vcard_id, dry_run):
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
-
-
-vcards.add_command(get, name="list")

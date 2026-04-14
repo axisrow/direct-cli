@@ -212,6 +212,3 @@ def delete(ctx, client_id):
         "The API only supports add, update, and get operations."
     )
     raise click.Abort()
-
-
-agencyclients.add_command(get, name="list")

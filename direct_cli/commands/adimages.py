@@ -118,6 +118,3 @@ def delete(ctx, image_hash, dry_run):
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
-
-
-adimages.add_command(get, name="list")

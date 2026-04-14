@@ -143,6 +143,3 @@ def delete(ctx, extension_id, dry_run):
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
-
-
-adextensions.add_command(get, name="list")

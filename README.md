@@ -41,11 +41,31 @@ Install with `pip install direct-cli`, then run commands with `direct`.
 
 ### Usage
 
-All commands follow the pattern: `direct <resource> <action> [options]`
+The canonical transport contract is:
 
-Plugin-compatible aliases are also available for integrations that expect
-canonical MCP-facing names: `dynamictargets`, `smarttargets`,
-`negativekeywords`, `list`, `checkcamp`, `checkdict`, and `has-volume`.
+```bash
+direct <group> <command> [flags]
+```
+
+Group naming rules:
+- lowercase ASCII only
+- no underscores
+- multiword groups are concatenated, e.g. `negativekeywordsharedsets`
+
+Command naming rules:
+- lowercase only
+- kebab-case for multiword actions, e.g. `check-campaigns`
+- canonical docs and examples use explicit names like `get`,
+  `check-dictionaries`, and `has-search-volume`
+
+direct-cli owns the public naming contract. `tapi-yandex-direct` can
+influence the internal transport shape, but it does not define which CLI names
+are canonical.
+
+The current policy is canonical-only. No historical aliases are retained in
+the runtime CLI by default. If a future compatibility alias is needed, it must
+be added as an explicit exception with a concrete legacy `tapi-yandex-direct`
+syntax to support.
 
 #### Campaigns
 
@@ -119,21 +139,39 @@ Available report types: `CAMPAIGN_PERFORMANCE_REPORT`, `ADGROUP_PERFORMANCE_REPO
 ```bash
 # Reference dictionaries
 direct dictionaries get --names Currencies,GeoRegions
+direct dictionaries get-geo-regions --ids 225 --format json
 
 # Client info
 direct clients get --fields ClientId,Login,Currency
 
 # Changes feed
 direct changes get --campaign-ids 1,2,3
+direct changes check-campaigns --timestamp 2026-04-14T00:00:00Z
+direct changes check-dictionaries
 
 # Retargeting lists
 direct retargeting get --limit 10
+
+# Keyword research
+direct keywordsresearch has-search-volume --keywords "buy laptop,buy desktop"
+
+# Canonical multiword groups
+direct negativekeywordsharedsets update --id 123 --keywords "foo,bar"
+direct smartadtargets update --id 456 --condition "{\"Keyword\":\"brand\"}"
+direct dynamicads set-bids --json "[{\"Id\":789,\"Bid\":12.5}]"
 
 # Ad extensions, sitelinks, vCards, images, creatives, feeds, bids, etc.
 direct adextensions get
 direct sitelinks get --ids 1,2,3
 direct bids get --campaign-ids 1,2,3
 ```
+
+### Known Transport Gap
+
+`dynamicads update` is still a transport gap. Downstream wrappers may assume
+that operation exists, but the current installed CLI help surface does not
+expose `dynamicads update`. Treat it as unsupported until a real command is
+added.
 
 ### Output Formats
 
@@ -205,7 +243,7 @@ The project now distinguishes four surfaces:
 |---|---|
 | Canonical WSDL-backed SOAP services | `tests/test_api_coverage.py` verifies strict service/method parity and dry-run request-schema coverage or explicit exclusions |
 | Non-WSDL services (`reports`) | Explicit contract tests |
-| Canonical CLI aliases | Checked as aliases, not counted as separate API surface |
+| Historical aliases retained by exception | None currently retained |
 | Intentional CLI-only helpers | Explicitly allowlisted with reasons in `direct_cli/wsdl_coverage.py` |
 
 `100% coverage` in this project means full coverage of the supported
@@ -326,11 +364,30 @@ direct --token ВАШ_ТОКЕН --login ВАШ_ЛОГИН campaigns get
 
 ### Использование
 
-Для интеграций доступны и alias-имена, совместимые с MCP-контрактом:
-`dynamictargets`, `smarttargets`, `negativekeywords`, `list`, `checkcamp`,
-`checkdict`, `has-volume`.
+Канонический transport-контракт выглядит так:
 
-Все команды следуют шаблону: `direct <ресурс> <действие> [опции]`
+```bash
+direct <group> <command> [flags]
+```
+
+Group naming rules:
+- только lowercase ASCII
+- без `_`
+- многословные группы склеиваются, например `negativekeywordsharedsets`
+
+Command naming rules:
+- только lowercase
+- kebab-case для многословных действий, например `check-campaigns`
+- в документации и примерах каноническими считаются `get`,
+  `check-dictionaries` и `has-search-volume`
+
+`direct-cli` владеет публичным naming contract. `tapi-yandex-direct` может
+влиять на внутренний transport layer, но не определяет канонические CLI-имена.
+
+Текущая политика — canonical-only. Исторические aliases по умолчанию не
+сохраняются в runtime CLI. Если совместимость когда-нибудь понадобится, alias
+должен быть добавлен как явное exception-правило с конкретным legacy syntax из
+`tapi-yandex-direct`, который действительно нужно поддержать.
 
 #### Кампании
 
@@ -404,21 +461,39 @@ direct reports list-types
 ```bash
 # Справочники
 direct dictionaries get --names Currencies,GeoRegions
+direct dictionaries get-geo-regions --ids 225 --format json
 
 # Информация о клиенте
 direct clients get --fields ClientId,Login,Currency
 
 # Лента изменений
 direct changes get --campaign-ids 1,2,3
+direct changes check-campaigns --timestamp 2026-04-14T00:00:00Z
+direct changes check-dictionaries
 
 # Списки ретаргетинга
 direct retargeting get --limit 10
+
+# Исследование ключевых слов
+direct keywordsresearch has-search-volume --keywords "купить ноутбук,купить компьютер"
+
+# Канонические многословные группы
+direct negativekeywordsharedsets update --id 123 --keywords "foo,bar"
+direct smartadtargets update --id 456 --condition "{\"Keyword\":\"brand\"}"
+direct dynamicads set-bids --json "[{\"Id\":789,\"Bid\":12.5}]"
 
 # Расширения объявлений, быстрые ссылки, визитки, изображения, ставки и т.д.
 direct adextensions get
 direct sitelinks get --ids 1,2,3
 direct bids get --campaign-ids 1,2,3
 ```
+
+### Известный Transport Gap
+
+`dynamicads update` пока остаётся transport gap. Downstream-обёртки могут
+ожидать эту операцию, но текущая help-поверхность установленного CLI не
+экспортирует `dynamicads update`. До появления реальной команды считайте её
+неподдерживаемой.
 
 ### Форматы вывода
 
