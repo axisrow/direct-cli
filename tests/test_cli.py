@@ -80,7 +80,7 @@ class TestCLI(unittest.TestCase):
         self.assertIn("deduplicate", result.output)
         self.assertNotIn("has-volume", result.output)
 
-    def test_list_alias_help(self):
+    def test_list_alias_is_removed(self):
         """Test legacy list alias is not registered"""
         result = self.runner.invoke(cli, ["adgroups", "list", "--help"])
         self.assertNotEqual(result.exit_code, 0)

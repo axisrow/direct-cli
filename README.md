@@ -67,6 +67,19 @@ the runtime CLI by default. If a future compatibility alias is needed, it must
 be added as an explicit exception with a concrete legacy `tapi-yandex-direct`
 syntax to support.
 
+`direct-cli` is a transport layer over the Yandex Direct API. Canonical CLI
+group names follow the normalized Python transport names used by
+`tapi-yandex-direct`, and canonical subcommand names are kebab-case projections
+of API operation names.
+
+Representative mappings:
+
+- API `dynamictextadtargets` -> Python `dynamicads` -> CLI `direct dynamicads`
+- API `retargetinglists` -> Python `retargeting` -> CLI `direct retargeting`
+- API `checkCampaigns` -> CLI `direct changes check-campaigns`
+- API `checkDictionaries` -> CLI `direct changes check-dictionaries`
+- API `hasSearchVolume` -> CLI `direct keywordsresearch has-search-volume`
+
 #### Campaigns
 
 ```bash
@@ -139,7 +152,7 @@ Available report types: `CAMPAIGN_PERFORMANCE_REPORT`, `ADGROUP_PERFORMANCE_REPO
 ```bash
 # Reference dictionaries
 direct dictionaries get --names Currencies,GeoRegions
-direct dictionaries get-geo-regions --ids 225 --format json
+direct dictionaries get-geo-regions --json '{"GeoRegionIds":[225]}' --fields Id,GeoRegionName --format json
 
 # Client info
 direct clients get --fields ClientId,Login,Currency
@@ -157,8 +170,8 @@ direct keywordsresearch has-search-volume --keywords "buy laptop,buy desktop"
 
 # Canonical multiword groups
 direct negativekeywordsharedsets update --id 123 --keywords "foo,bar"
-direct smartadtargets update --id 456 --condition "{\"Keyword\":\"brand\"}"
-direct dynamicads set-bids --json "[{\"Id\":789,\"Bid\":12.5}]"
+direct smartadtargets update --id 456 --json '{"Name":"Brand audience"}'
+direct dynamicads set-bids --id 789 --bid 12.5
 
 # Ad extensions, sitelinks, vCards, images, creatives, feeds, bids, etc.
 direct adextensions get
@@ -389,6 +402,18 @@ Command naming rules:
 должен быть добавлен как явное exception-правило с конкретным legacy syntax из
 `tapi-yandex-direct`, который действительно нужно поддержать.
 
+`direct-cli` — это транспортный слой над API Яндекс Директа. Канонические
+имена CLI-групп следуют нормализованным Python-именам из
+`tapi-yandex-direct`, а имена подкоманд — это kebab-case проекции API-методов.
+
+Базовые соответствия:
+
+- API `dynamictextadtargets` -> Python `dynamicads` -> CLI `direct dynamicads`
+- API `retargetinglists` -> Python `retargeting` -> CLI `direct retargeting`
+- API `checkCampaigns` -> CLI `direct changes check-campaigns`
+- API `checkDictionaries` -> CLI `direct changes check-dictionaries`
+- API `hasSearchVolume` -> CLI `direct keywordsresearch has-search-volume`
+
 #### Кампании
 
 ```bash
@@ -461,7 +486,7 @@ direct reports list-types
 ```bash
 # Справочники
 direct dictionaries get --names Currencies,GeoRegions
-direct dictionaries get-geo-regions --ids 225 --format json
+direct dictionaries get-geo-regions --json '{"GeoRegionIds":[225]}' --fields Id,GeoRegionName --format json
 
 # Информация о клиенте
 direct clients get --fields ClientId,Login,Currency
@@ -479,8 +504,8 @@ direct keywordsresearch has-search-volume --keywords "купить ноутбу�
 
 # Канонические многословные группы
 direct negativekeywordsharedsets update --id 123 --keywords "foo,bar"
-direct smartadtargets update --id 456 --condition "{\"Keyword\":\"brand\"}"
-direct dynamicads set-bids --json "[{\"Id\":789,\"Bid\":12.5}]"
+direct smartadtargets update --id 456 --json '{"Name":"Brand audience"}'
+direct dynamicads set-bids --id 789 --bid 12.5
 
 # Расширения объявлений, быстрые ссылки, визитки, изображения, ставки и т.д.
 direct adextensions get
