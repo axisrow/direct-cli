@@ -395,6 +395,7 @@ class TestWriteBidModifiersSet:
 
 
 @pytest.mark.integration_write
+@pytest.mark.vcr
 @pytest.mark.skip(
     reason=(
         "No stable VCR cassette for bidmodifiers toggle. "
