@@ -51,7 +51,6 @@ jobs:
           print(f"- Missing methods: {summary['missing_service_methods']}")
           print(f"- Unexpected methods: {summary['unexpected_service_methods']}")
           print(f"- Strict parity OK: {summary['strict_parity_ok']}")
-          print(f"- Alias groups: {len(report['aliases'])}")
           print(f"- Non-WSDL services: {len(report['non_wsdl_services'])}")
           print(f"- CLI helpers: {len(report['cli_helpers'])}")
           PY
