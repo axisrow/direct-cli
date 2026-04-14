@@ -299,7 +299,6 @@ def unarchive(ctx, campaign_id, dry_run):
         raise click.Abort()
 
 
-campaigns.add_command(get, name="list")
 
 
 @campaigns.command()

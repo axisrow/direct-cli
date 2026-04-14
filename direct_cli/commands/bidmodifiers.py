@@ -395,5 +395,3 @@ def delete(ctx, modifier_id, dry_run):
         print_error(str(e))
         raise click.Abort()
 
-
-bidmodifiers.add_command(get, name="list")

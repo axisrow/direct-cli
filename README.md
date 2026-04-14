@@ -43,9 +43,18 @@ Install with `pip install direct-cli`, then run commands with `direct`.
 
 All commands follow the pattern: `direct <resource> <action> [options]`
 
-Plugin-compatible aliases are also available for integrations that expect
-canonical MCP-facing names: `dynamictargets`, `smarttargets`,
-`negativekeywords`, `list`, `checkcamp`, `checkdict`, and `has-volume`.
+`direct-cli` is a transport layer over the Yandex Direct API. Canonical CLI
+group names follow the normalized Python transport names used by
+`tapi-yandex-direct`, and canonical subcommand names are kebab-case projections
+of API operation names.
+
+Representative mappings:
+
+- API `dynamictextadtargets` -> Python `dynamicads` -> CLI `direct dynamicads`
+- API `retargetinglists` -> Python `retargeting` -> CLI `direct retargeting`
+- API `checkCampaigns` -> CLI `direct changes check-campaigns`
+- API `checkDictionaries` -> CLI `direct changes check-dictionaries`
+- API `hasSearchVolume` -> CLI `direct keywordsresearch has-search-volume`
 
 #### Campaigns
 
@@ -326,11 +335,19 @@ direct --token ВАШ_ТОКЕН --login ВАШ_ЛОГИН campaigns get
 
 ### Использование
 
-Для интеграций доступны и alias-имена, совместимые с MCP-контрактом:
-`dynamictargets`, `smarttargets`, `negativekeywords`, `list`, `checkcamp`,
-`checkdict`, `has-volume`.
-
 Все команды следуют шаблону: `direct <ресурс> <действие> [опции]`
+
+`direct-cli` — это транспортный слой над API Яндекс Директа. Канонические
+имена CLI-групп следуют нормализованным Python-именам из
+`tapi-yandex-direct`, а имена подкоманд — это kebab-case проекции API-методов.
+
+Базовые соответствия:
+
+- API `dynamictextadtargets` -> Python `dynamicads` -> CLI `direct dynamicads`
+- API `retargetinglists` -> Python `retargeting` -> CLI `direct retargeting`
+- API `checkCampaigns` -> CLI `direct changes check-campaigns`
+- API `checkDictionaries` -> CLI `direct changes check-dictionaries`
+- API `hasSearchVolume` -> CLI `direct keywordsresearch has-search-volume`
 
 #### Кампании
 

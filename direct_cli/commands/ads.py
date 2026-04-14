@@ -383,5 +383,3 @@ def moderate(ctx, ad_id, dry_run):
         print_error(str(e))
         raise click.Abort()
 
-
-ads.add_command(get, name="list")

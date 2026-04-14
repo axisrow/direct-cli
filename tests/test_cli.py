@@ -47,54 +47,43 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("Generate and manage reports", result.output)
 
-    def test_canonical_alias_groups_in_help(self):
-        """Test canonical plugin-compatible group aliases"""
+    def test_canonical_groups_in_help(self):
+        """Test canonical transport groups"""
         result = self.runner.invoke(cli, ["--help"])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("dynamictargets", result.output)
-        self.assertIn("smarttargets", result.output)
-        self.assertIn("negativekeywords", result.output)
+        self.assertIn("dynamicads", result.output)
+        self.assertIn("smartadtargets", result.output)
+        self.assertIn("negativekeywordsharedsets", result.output)
 
-    def test_dynamic_targets_alias_help(self):
-        """Test dynamic targets alias help"""
-        result = self.runner.invoke(cli, ["dynamictargets", "--help"])
-        self.assertEqual(result.exit_code, 0)
-        self.assertIn("Manage dynamic ad targets", result.output)
-        self.assertIn("list", result.output)
+    def test_legacy_group_aliases_are_removed(self):
+        """Test legacy group aliases are not registered"""
+        for command in ["dynamictargets", "smarttargets", "negativekeywords"]:
+            result = self.runner.invoke(cli, [command, "--help"])
+            self.assertNotEqual(result.exit_code, 0)
+            self.assertIn("No such command", result.output)
 
-    def test_smart_targets_alias_help(self):
-        """Test smart targets alias help"""
-        result = self.runner.invoke(cli, ["smarttargets", "--help"])
-        self.assertEqual(result.exit_code, 0)
-        self.assertIn("Manage smart ad targets", result.output)
-        self.assertIn("list", result.output)
-
-    def test_negative_keywords_alias_help(self):
-        """Test negative keywords alias help"""
-        result = self.runner.invoke(cli, ["negativekeywords", "--help"])
-        self.assertEqual(result.exit_code, 0)
-        self.assertIn("Manage negative keyword shared sets", result.output)
-        self.assertIn("list", result.output)
-
-    def test_changes_short_aliases_help(self):
-        """Test changes short aliases"""
+    def test_changes_help_uses_canonical_names(self):
+        """Test changes help only exposes canonical command names"""
         result = self.runner.invoke(cli, ["changes", "--help"])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("checkcamp", result.output)
-        self.assertIn("checkdict", result.output)
+        self.assertIn("check-campaigns", result.output)
+        self.assertIn("check-dictionaries", result.output)
+        self.assertNotIn("checkcamp", result.output)
+        self.assertNotIn("checkdict", result.output)
 
-    def test_keywordsresearch_aliases_help(self):
-        """Test keywords research aliases"""
+    def test_keywordsresearch_help_uses_canonical_names(self):
+        """Test keywords research help only exposes canonical command names"""
         result = self.runner.invoke(cli, ["keywordsresearch", "--help"])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("has-volume", result.output)
+        self.assertIn("has-search-volume", result.output)
         self.assertIn("deduplicate", result.output)
+        self.assertNotIn("has-volume", result.output)
 
-    def test_list_alias_help(self):
-        """Test list alias on a resource command"""
+    def test_list_alias_is_removed(self):
+        """Test legacy list alias is not registered"""
         result = self.runner.invoke(cli, ["adgroups", "list", "--help"])
-        self.assertEqual(result.exit_code, 0)
-        self.assertIn("Usage: direct adgroups list", result.output)
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("No such command", result.output)
 
 
 class TestAuth(unittest.TestCase):

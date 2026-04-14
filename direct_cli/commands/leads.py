@@ -63,5 +63,3 @@ def get(ctx, campaign_ids, limit, fetch_all, output_format, output, fields):
         print_error(str(e))
         raise click.Abort()
 
-
-leads.add_command(get, name="list")
