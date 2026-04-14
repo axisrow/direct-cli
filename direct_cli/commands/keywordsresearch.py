@@ -65,4 +65,3 @@ def deduplicate(ctx, keywords, output_format, output):
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
-

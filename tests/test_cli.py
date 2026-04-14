@@ -4,6 +4,7 @@ Tests for Direct CLI
 
 import os
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 from click.testing import CliRunner
 from direct_cli.cli import cli
@@ -99,6 +100,41 @@ class TestAuth(unittest.TestCase):
                     get_credentials(token=None, login=None)
 
         self.assertIn("API token required", str(context.exception))
+
+
+class TestReadmeContract(unittest.TestCase):
+    """Test README documents the canonical CLI contract."""
+
+    def setUp(self):
+        self.readme = Path(__file__).resolve().parent.parent / "README.md"
+        self.content = self.readme.read_text(encoding="utf-8")
+
+    def test_readme_describes_canonical_only_policy(self):
+        """README must describe the canonical-only policy and alias exceptions."""
+        self.assertIn("canonical-only", self.content)
+        self.assertIn("explicit exception", self.content)
+        self.assertNotIn("canonical MCP-facing names", self.content)
+
+    def test_readme_contains_canonical_naming_rules(self):
+        """README must define the canonical group/command naming contract."""
+        self.assertIn("direct <group> <command> [flags]", self.content)
+        self.assertIn("Group naming rules", self.content)
+        self.assertIn("Command naming rules", self.content)
+        self.assertIn("direct-cli owns the public naming contract", self.content)
+
+    def test_readme_contains_canonical_command_examples(self):
+        """README must include canonical examples for renamed commands."""
+        self.assertIn("direct changes check-campaigns", self.content)
+        self.assertIn("direct changes check-dictionaries", self.content)
+        self.assertIn("direct keywordsresearch has-search-volume", self.content)
+        self.assertIn("direct negativekeywordsharedsets update", self.content)
+        self.assertIn("direct smartadtargets update", self.content)
+        self.assertIn("direct dynamicads set-bids", self.content)
+
+    def test_readme_tracks_dynamicads_update_gap(self):
+        """README must document the missing dynamicads update transport gap."""
+        self.assertIn("dynamicads update", self.content)
+        self.assertIn("transport gap", self.content)
 
 
 if __name__ == "__main__":

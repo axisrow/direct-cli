@@ -178,4 +178,3 @@ def set_auto(
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
-

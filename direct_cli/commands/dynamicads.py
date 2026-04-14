@@ -229,4 +229,3 @@ def set_bids(ctx, target_id, adgroup_id, campaign_id, bid, context_bid, priority
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
-
