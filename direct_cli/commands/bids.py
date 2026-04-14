@@ -179,5 +179,3 @@ def set_auto(
         print_error(str(e))
         raise click.Abort()
 
-
-bids.add_command(get, name="list")

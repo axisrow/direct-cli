@@ -50,14 +50,6 @@ CLI_TO_API_SERVICE = {
 
 NON_WSDL_SERVICES = {"reports"}
 
-# Canonical CLI alias groups exposed for integrations. These are intentional
-# aliases of real CLI groups and should not count as extra API surface.
-CLI_ALIAS_GROUPS = {
-    "dynamictargets": "dynamicads",
-    "smarttargets": "smartadtargets",
-    "negativekeywords": "negativekeywordsharedsets",
-}
-
 # Non-WSDL service coverage policies. These services still belong to the
 # supported API surface, but they require bespoke contract checks rather than
 # SOAP/WSDL parity tests.
@@ -132,13 +124,9 @@ METHOD_NAME_OVERRIDES = {
     "add-passport-organization": "addPassportOrganization",
     "add-passport-organization-member": "addPassportOrganizationMember",
     "check-campaigns": "checkCampaigns",
-    "checkcamp": "checkCampaigns",
     "check-dictionaries": "checkDictionaries",
-    "checkdict": "checkDictionaries",
     "get-geo-regions": "getGeoRegions",
     "has-search-volume": "hasSearchVolume",
-    "has-volume": "hasSearchVolume",
-    "list": "get",
     "list-names": "get",
     "list-types": "get",
     "set-auto": "setAuto",
@@ -215,7 +203,6 @@ def get_api_coverage_policy() -> dict:
         "wsdl_services": dict(sorted(CLI_TO_API_SERVICE.items())),
         "canonical_api_services": list(CANONICAL_API_SERVICES),
         "non_wsdl_services": NON_WSDL_SERVICE_POLICIES,
-        "cli_alias_groups": dict(sorted(CLI_ALIAS_GROUPS.items())),
         "intentional_extra_methods": {
             f"{service}.{method}": reason
             for (service, method), reason in sorted(INTENTIONAL_EXTRA_METHODS.items())

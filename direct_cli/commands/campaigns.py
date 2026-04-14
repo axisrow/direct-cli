@@ -298,10 +298,6 @@ def unarchive(ctx, campaign_id, dry_run):
         print_error(str(e))
         raise click.Abort()
 
-
-campaigns.add_command(get, name="list")
-
-
 @campaigns.command()
 @click.option("--id", "campaign_id", required=True, type=int, help="Campaign ID")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")

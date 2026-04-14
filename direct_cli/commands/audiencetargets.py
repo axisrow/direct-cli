@@ -243,5 +243,3 @@ def resume(ctx, target_id, dry_run):
         print_error(str(e))
         raise click.Abort()
 
-
-audiencetargets.add_command(get, name="list")

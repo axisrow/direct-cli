@@ -174,5 +174,3 @@ def delete(ctx, list_id, dry_run):
         print_error(str(e))
         raise click.Abort()
 
-
-retargeting.add_command(get, name="list")

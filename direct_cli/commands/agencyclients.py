@@ -213,5 +213,3 @@ def delete(ctx, client_id):
     )
     raise click.Abort()
 
-
-agencyclients.add_command(get, name="list")

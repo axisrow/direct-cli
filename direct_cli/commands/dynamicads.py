@@ -230,5 +230,3 @@ def set_bids(ctx, target_id, adgroup_id, campaign_id, bid, context_bid, priority
         print_error(str(e))
         raise click.Abort()
 
-
-dynamicads.add_command(get, name="list")

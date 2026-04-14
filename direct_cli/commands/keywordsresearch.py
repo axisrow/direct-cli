@@ -66,5 +66,3 @@ def deduplicate(ctx, keywords, output_format, output):
         print_error(str(e))
         raise click.Abort()
 
-
-keywordsresearch.add_command(has_search_volume, name="has-volume")

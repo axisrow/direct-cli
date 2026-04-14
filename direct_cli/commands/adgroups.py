@@ -223,5 +223,3 @@ def delete(ctx, adgroup_id, dry_run):
         print_error(str(e))
         raise click.Abort()
 
-
-adgroups.add_command(get, name="list")

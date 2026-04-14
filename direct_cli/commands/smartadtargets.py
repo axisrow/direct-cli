@@ -301,5 +301,3 @@ def set_bids(
         print_error(str(e))
         raise click.Abort()
 
-
-smartadtargets.add_command(get, name="list")

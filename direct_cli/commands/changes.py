@@ -95,6 +95,3 @@ def check_dictionaries(ctx, output_format, output):
         print_error(str(e))
         raise click.Abort()
 
-
-changes.add_command(check_campaigns, name="checkcamp")
-changes.add_command(check_dictionaries, name="checkdict")

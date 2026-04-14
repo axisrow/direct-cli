@@ -91,5 +91,3 @@ def list_names():
     """List available dictionary names"""
     format_output(DICTIONARY_NAMES, "json", None)
 
-
-dictionaries.add_command(get, name="list")

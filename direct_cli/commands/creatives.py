@@ -92,5 +92,3 @@ def add(ctx, creative_json, dry_run):
         print_error(str(e))
         raise click.Abort()
 
-
-creatives.add_command(get, name="list")
