@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids, get_default_fields
+from ..utils import parse_ids, get_default_fields, to_micros
 
 
 @click.group()
@@ -104,9 +104,9 @@ def add(
         keyword_data = {"AdGroupId": adgroup_id, "Keyword": keyword}
 
         if bid is not None:
-            keyword_data["Bid"] = int(bid * 1000000)
+            keyword_data["Bid"] = to_micros(bid)
         if context_bid is not None:
-            keyword_data["ContextBid"] = int(context_bid * 1000000)
+            keyword_data["ContextBid"] = to_micros(context_bid)
         if user_param_1:
             keyword_data["UserParam1"] = user_param_1
         if user_param_2:
@@ -145,9 +145,9 @@ def update(ctx, keyword_id, bid, context_bid, status, dry_run):
         keyword_data = {"Id": keyword_id}
 
         if bid:
-            keyword_data["Bid"] = int(bid * 1000000)
+            keyword_data["Bid"] = to_micros(bid)
         if context_bid:
-            keyword_data["ContextBid"] = int(context_bid * 1000000)
+            keyword_data["ContextBid"] = to_micros(context_bid)
         if status:
             keyword_data["Status"] = status
 
