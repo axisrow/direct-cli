@@ -623,14 +623,14 @@ def test_bidmodifiers_set_legacy_payload_keeps_modifier_type():
         "--type",
         "MOBILE_ADJUSTMENT",
         "--value",
-        "1.5",
+        "150",
     )
     assert body["method"] == "set"
     modifier = body["params"]["BidModifiers"][0]
     assert modifier == {
         "CampaignId": 1,
         "Type": "MOBILE_ADJUSTMENT",
-        "BidModifier": 1.5,
+        "BidModifier": 150,
     }
 
 
@@ -649,7 +649,7 @@ def test_bidmodifiers_set_legacy_type_is_case_insensitive():
         "--type",
         "mobile_adjustment",
         "--value",
-        "1.5",
+        "150",
     )
     modifier = body["params"]["BidModifiers"][0]
     assert modifier["Type"] == "MOBILE_ADJUSTMENT"
@@ -673,7 +673,7 @@ def test_bidmodifiers_set_with_id_builds_correct_payload():
         "150",
     )
     modifier = body["params"]["BidModifiers"][0]
-    assert modifier == {"Id": 42, "BidModifier": 150.0}
+    assert modifier == {"Id": 42, "BidModifier": 150}
     assert "CampaignId" not in modifier
     assert "Type" not in modifier
 

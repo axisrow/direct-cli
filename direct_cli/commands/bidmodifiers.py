@@ -257,7 +257,7 @@ def add(
         "/ ...), case-insensitive."
     ),
 )
-@click.option("--value", type=float, required=True, help="Modifier value")
+@click.option("--value", type=int, required=True, help="Modifier value")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def set(ctx, modifier_id, campaign_id, modifier_type, value, dry_run):
