@@ -2,12 +2,11 @@
 Ad Groups commands
 """
 
-import json
 import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids, get_default_fields
+from ..utils import get_default_fields, parse_ids
 
 
 @click.group()
@@ -88,47 +87,61 @@ def get(
     "--type",
     "group_type",
     default="TEXT_AD_GROUP",
-    help=(
-        "Ad group type (case-insensitive). The Yandex Direct API derives "
-        "the group type from nested objects (MobileAppAdGroup / "
-        "DynamicTextAdGroup / SmartAdGroup / ...), not from a top-level "
-        "Type discriminator. Convenience flags only build a TEXT_AD_GROUP; "
-        "for other types pass the matching nested object via --json."
-    ),
+    help="Ad group type",
 )
 @click.option("--region-ids", help="Comma-separated region IDs")
-@click.option("--json", "extra_json", help="Additional JSON parameters")
+@click.option("--domain-url", help="Dynamic text ad group domain URL")
+@click.option("--feed-id", type=int, help="Smart ad group feed ID")
+@click.option("--ad-title-source", help="Smart ad group title source")
+@click.option("--ad-body-source", help="Smart ad group body source")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def add(ctx, name, campaign_id, group_type, region_ids, extra_json, dry_run):
+def add(
+    ctx,
+    name,
+    campaign_id,
+    group_type,
+    region_ids,
+    domain_url,
+    feed_id,
+    ad_title_source,
+    ad_body_source,
+    dry_run,
+):
     """Add new ad group"""
     try:
-        # Yandex Direct API rejects an explicit top-level "Type" field on
-        # AdGroupAddItem — the group type is inferred from the presence of
-        # MobileAppAdGroup / DynamicTextAdGroup / SmartAdGroup / etc.
-        # sub-objects, exactly like Ads (see fix in commands/ads.py).
-        # Previously --type was accepted but silently discarded — users
-        # passing --type MOBILE_APP_AD_GROUP got a TEXT_AD_GROUP with no
-        # warning.  Now we normalize case and fail loudly if the caller
-        # asks for anything except TEXT_AD_GROUP.  See axisrow/direct-cli#23.
-        # Refs: https://yandex.ru/dev/direct/doc/ref-v5/adgroups/add.html
         group_type_norm = (group_type or "TEXT_AD_GROUP").upper().replace("-", "_")
-
-        if group_type_norm != "TEXT_AD_GROUP" and not extra_json:
+        supported_types = {
+            "TEXT_AD_GROUP",
+            "DYNAMIC_TEXT_AD_GROUP",
+            "SMART_AD_GROUP",
+        }
+        if group_type_norm not in supported_types:
             raise click.UsageError(
-                f"--type {group_type} requires --json with the "
-                f"ad-group-type-specific nested object "
-                f"(e.g. DynamicTextAdGroup, SmartAdGroup, MobileAppAdGroup)."
+                "Invalid value for '--type': "
+                f"{group_type!r} is not one of "
+                "'TEXT_AD_GROUP', 'DYNAMIC_TEXT_AD_GROUP', 'SMART_AD_GROUP'."
             )
 
         adgroup_data = {"Name": name, "CampaignId": campaign_id}
 
         if region_ids:
             adgroup_data["RegionIds"] = parse_ids(region_ids)
-
-        if extra_json:
-            extra = json.loads(extra_json)
-            adgroup_data.update(extra)
+        if group_type_norm == "DYNAMIC_TEXT_AD_GROUP":
+            if not domain_url:
+                raise click.UsageError(
+                    "--domain-url is required for DYNAMIC_TEXT_AD_GROUP"
+                )
+            adgroup_data["DynamicTextAdGroup"] = {"DomainUrl": domain_url}
+        elif group_type_norm == "SMART_AD_GROUP":
+            if feed_id is None:
+                raise click.UsageError("--feed-id is required for SMART_AD_GROUP")
+            smart_ad_group = {"FeedId": feed_id}
+            if ad_title_source:
+                smart_ad_group["AdTitleSource"] = ad_title_source
+            if ad_body_source:
+                smart_ad_group["AdBodySource"] = ad_body_source
+            adgroup_data["SmartAdGroup"] = smart_ad_group
 
         body = {"method": "add", "params": {"AdGroups": [adgroup_data]}}
 
@@ -156,10 +169,10 @@ def add(ctx, name, campaign_id, group_type, region_ids, extra_json, dry_run):
 @click.option("--id", "adgroup_id", required=True, type=int, help="Ad group ID")
 @click.option("--name", help="New ad group name")
 @click.option("--status", help="New status")
-@click.option("--json", "extra_json", help="Additional JSON parameters")
+@click.option("--region-ids", help="Comma-separated region IDs")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def update(ctx, adgroup_id, name, status, extra_json, dry_run):
+def update(ctx, adgroup_id, name, status, region_ids, dry_run):
     """Update ad group"""
     try:
         adgroup_data = {"Id": adgroup_id}
@@ -169,10 +182,8 @@ def update(ctx, adgroup_id, name, status, extra_json, dry_run):
 
         if status:
             adgroup_data["Status"] = status
-
-        if extra_json:
-            extra = json.loads(extra_json)
-            adgroup_data.update(extra)
+        if region_ids:
+            adgroup_data["RegionIds"] = parse_ids(region_ids)
 
         body = {"method": "update", "params": {"AdGroups": [adgroup_data]}}
 

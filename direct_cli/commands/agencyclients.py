@@ -2,13 +2,30 @@
 AgencyClients commands
 """
 
-import json
-
 import click
 
 from ..api import create_client
 from ..output import format_output, print_error
 from ..utils import get_default_fields, parse_ids
+
+
+def _build_notification(
+    notification_email,
+    notification_lang,
+    send_account_news,
+    send_warnings,
+):
+    """Build Notification object from typed flags."""
+    notification = {}
+    if notification_email:
+        notification["Email"] = notification_email
+    if notification_lang:
+        notification["Lang"] = notification_lang
+    if send_account_news is not None:
+        notification["SendAccountNews"] = "YES" if send_account_news else "NO"
+    if send_warnings is not None:
+        notification["SendWarnings"] = "YES" if send_warnings else "NO"
+    return notification
 
 
 @click.group()
@@ -66,13 +83,53 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
 
 
 @agencyclients.command()
-@click.option("--json", "client_json", required=True, help="Agency client data in JSON")
+@click.option("--login", required=True, help="Client login")
+@click.option("--first-name", required=True, help="First name")
+@click.option("--last-name", required=True, help="Last name")
+@click.option("--currency", required=True, help="Account currency")
+@click.option("--notification-email", help="Notification email")
+@click.option("--notification-lang", help="Notification language")
+@click.option(
+    "--send-account-news/--no-send-account-news",
+    default=None,
+    help="Enable or disable account news notifications",
+)
+@click.option(
+    "--send-warnings/--no-send-warnings",
+    default=None,
+    help="Enable or disable warning notifications",
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def add(ctx, client_json, dry_run):
+def add(
+    ctx,
+    login,
+    first_name,
+    last_name,
+    currency,
+    notification_email,
+    notification_lang,
+    send_account_news,
+    send_warnings,
+    dry_run,
+):
     """Add agency client"""
     try:
-        body = {"method": "add", "params": json.loads(client_json)}
+        body = {
+            "method": "add",
+            "params": {
+                "Login": login,
+                "FirstName": first_name,
+                "LastName": last_name,
+                "Currency": currency,
+                "Notification": _build_notification(
+                    notification_email,
+                    notification_lang,
+                    send_account_news,
+                    send_warnings,
+                ),
+            },
+        }
 
         if dry_run:
             format_output(body, "json", None)
@@ -95,20 +152,42 @@ def add(ctx, client_json, dry_run):
 @agencyclients.command(name="add-passport-organization")
 @click.option("--name", required=True, help="Organization name")
 @click.option("--currency", required=True, help="Account currency")
-@click.option("--notification-json", required=True, help="Notification object JSON")
-@click.option("--json", "extra_json", help="Additional JSON parameters")
+@click.option("--notification-email", help="Notification email")
+@click.option("--notification-lang", help="Notification language")
+@click.option(
+    "--send-account-news/--no-send-account-news",
+    default=None,
+    help="Enable or disable account news notifications",
+)
+@click.option(
+    "--send-warnings/--no-send-warnings",
+    default=None,
+    help="Enable or disable warning notifications",
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def add_passport_organization(ctx, name, currency, notification_json, extra_json, dry_run):
+def add_passport_organization(
+    ctx,
+    name,
+    currency,
+    notification_email,
+    notification_lang,
+    send_account_news,
+    send_warnings,
+    dry_run,
+):
     """Add passport organization agency client"""
     try:
         params = {
             "Name": name,
             "Currency": currency,
-            "Notification": json.loads(notification_json),
+            "Notification": _build_notification(
+                notification_email,
+                notification_lang,
+                send_account_news,
+                send_warnings,
+            ),
         }
-        if extra_json:
-            params.update(json.loads(extra_json))
 
         body = {"method": "addPassportOrganization", "params": params}
 
@@ -132,20 +211,32 @@ def add_passport_organization(ctx, name, currency, notification_json, extra_json
 @agencyclients.command(name="add-passport-organization-member")
 @click.option("--passport-organization-login", required=True, help="Passport organization login")
 @click.option("--role", required=True, help="Organization member role")
-@click.option("--send-invite-to-json", required=True, help="SendInviteTo object JSON")
+@click.option("--invite-email", help="Invitation email")
+@click.option("--invite-phone", help="Invitation phone")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def add_passport_organization_member(
-    ctx, passport_organization_login, role, send_invite_to_json, dry_run
+    ctx, passport_organization_login, role, invite_email, invite_phone, dry_run
 ):
     """Invite user to passport organization"""
     try:
+        if not invite_email and not invite_phone:
+            raise click.UsageError(
+                "Provide at least one of --invite-email or --invite-phone"
+            )
+
+        send_invite_to = {}
+        if invite_email:
+            send_invite_to["Email"] = invite_email
+        if invite_phone:
+            send_invite_to["Phone"] = invite_phone
+
         body = {
             "method": "addPassportOrganizationMember",
             "params": {
                 "PassportOrganizationLogin": passport_organization_login,
                 "Role": role,
-                "SendInviteTo": json.loads(send_invite_to_json),
+                "SendInviteTo": send_invite_to,
             },
         }
 
@@ -161,6 +252,8 @@ def add_passport_organization_member(
         result = client.agencyclients().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
@@ -168,18 +261,27 @@ def add_passport_organization_member(
 
 @agencyclients.command()
 @click.option("--client-id", required=True, type=int, help="Client ID")
-@click.option("--json", "extra_json", help="Additional JSON parameters")
+@click.option("--phone", help="Client phone")
+@click.option("--email", help="Client email")
+@click.option("--grant", "grants", multiple=True, help="Grant value")
+@click.option("--clear-grants", is_flag=True, help="Clear all grants")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def update(ctx, client_id, extra_json, dry_run):
+def update(ctx, client_id, phone, email, grants, clear_grants, dry_run):
     """Update agency client"""
     try:
         client_data = {"ClientId": client_id}
 
-        if extra_json:
-            client_data.update(json.loads(extra_json))
+        if phone:
+            client_data["Phone"] = phone
+        if email:
+            client_data["Email"] = email
+        if grants:
+            client_data["Grants"] = list(grants)
+        if clear_grants:
+            client_data["Grants"] = []
         if len(client_data) == 1:
-            raise click.UsageError("Provide --json with fields to update")
+            raise click.UsageError("Provide at least one field to update")
 
         body = {"method": "update", "params": {"Clients": [client_data]}}
 

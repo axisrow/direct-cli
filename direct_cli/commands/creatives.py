@@ -2,8 +2,6 @@
 Creatives commands
 """
 
-import json
-
 import click
 
 from ..api import create_client
@@ -68,13 +66,18 @@ def get(ctx, ids, campaign_ids, limit, fetch_all, output_format, output, fields)
 
 
 @creatives.command()
-@click.option("--json", "creative_json", required=True, help="Creative data in JSON")
+@click.option("--video-id", required=True, help="Video extension creative video ID")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def add(ctx, creative_json, dry_run):
+def add(ctx, video_id, dry_run):
     """Add creative"""
     try:
-        body = {"method": "add", "params": {"Creatives": [json.loads(creative_json)]}}
+        body = {
+            "method": "add",
+            "params": {
+                "Creatives": [{"VideoExtensionCreative": {"VideoId": video_id}}]
+            },
+        }
 
         if dry_run:
             format_output(body, "json", None)

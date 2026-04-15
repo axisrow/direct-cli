@@ -2,7 +2,6 @@
 Keywords commands
 """
 
-import json
 import click
 
 from ..api import create_client
@@ -88,7 +87,6 @@ def get(
 @click.option("--context-bid", type=float, help="Context bid")
 @click.option("--user-param-1", help="User parameter 1")
 @click.option("--user-param-2", help="User parameter 2")
-@click.option("--json", "extra_json", help="Additional JSON parameters")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def add(
@@ -99,7 +97,6 @@ def add(
     context_bid,
     user_param_1,
     user_param_2,
-    extra_json,
     dry_run,
 ):
     """Add new keyword"""
@@ -114,10 +111,6 @@ def add(
             keyword_data["UserParam1"] = user_param_1
         if user_param_2:
             keyword_data["UserParam2"] = user_param_2
-
-        if extra_json:
-            extra = json.loads(extra_json)
-            keyword_data.update(extra)
 
         body = {"method": "add", "params": {"Keywords": [keyword_data]}}
 
@@ -144,10 +137,9 @@ def add(
 @click.option("--bid", type=float, help="Search bid")
 @click.option("--context-bid", type=float, help="Context bid")
 @click.option("--status", help="New status")
-@click.option("--json", "extra_json", help="Additional JSON parameters")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def update(ctx, keyword_id, bid, context_bid, status, extra_json, dry_run):
+def update(ctx, keyword_id, bid, context_bid, status, dry_run):
     """Update keyword"""
     try:
         keyword_data = {"Id": keyword_id}
@@ -158,10 +150,6 @@ def update(ctx, keyword_id, bid, context_bid, status, extra_json, dry_run):
             keyword_data["ContextBid"] = int(context_bid * 1000000)
         if status:
             keyword_data["Status"] = status
-
-        if extra_json:
-            extra = json.loads(extra_json)
-            keyword_data.update(extra)
 
         body = {"method": "update", "params": {"Keywords": [keyword_data]}}
 

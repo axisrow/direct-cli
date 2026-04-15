@@ -2,13 +2,11 @@
 SmartAdTargets commands
 """
 
-import json
-
 import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids
+from ..utils import parse_condition_specs, parse_ids, to_micros
 
 
 @click.group()
@@ -69,32 +67,53 @@ def get(ctx, ids, adgroup_ids, limit, fetch_all, output_format, output, fields):
 
 @smartadtargets.command()
 @click.option("--adgroup-id", required=True, type=int, help="Ad group ID")
+@click.option("--name", required=True, help="Target name")
+@click.option("--audience", required=True, help="Audience value")
 @click.option(
-    "--type",
-    "target_type",
-    help=(
-        "Legacy UX hint; NOT forwarded to the API. SmartAdTargetAddItem "
-        "has no top-level Type field — pass real fields like "
-        "``Name``, ``Audience``, ``Conditions`` and bids via --json."
-    ),
+    "--condition",
+    "conditions",
+    multiple=True,
+    help="Condition spec: OPERAND:OPERATOR:ARG1|ARG2",
 )
-@click.option("--json", "extra_json", help="Additional JSON parameters")
+@click.option("--average-cpc", type=float, help="Average CPC")
+@click.option("--average-cpa", type=float, help="Average CPA")
+@click.option("--priority", help="Strategy priority")
+@click.option(
+    "--available-items-only",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="Whether only available items are targeted",
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def add(ctx, adgroup_id, target_type, extra_json, dry_run):
+def add(
+    ctx,
+    adgroup_id,
+    name,
+    audience,
+    conditions,
+    average_cpc,
+    average_cpa,
+    priority,
+    available_items_only,
+    dry_run,
+):
     """Add smart ad target"""
     try:
-        target_data = {"AdGroupId": adgroup_id}
-        _ = target_type
-
-        if extra_json:
-            target_data.update(json.loads(extra_json))
-
-        if len(target_data) == 1:
-            raise click.UsageError(
-                "Provide --json with SmartAdTargetAddItem fields "
-                '(e.g. {"Name":"Audience A","Audience":"ALL_SEGMENTS"}).'
-            )
+        target_data = {
+            "AdGroupId": adgroup_id,
+            "Name": name,
+            "Audience": audience,
+        }
+        if conditions:
+            target_data["Conditions"] = {"Items": parse_condition_specs(list(conditions))}
+        if average_cpc is not None:
+            target_data["AverageCpc"] = to_micros(average_cpc)
+        if average_cpa is not None:
+            target_data["AverageCpa"] = to_micros(average_cpa)
+        if priority:
+            target_data["StrategyPriority"] = priority
+        if available_items_only:
+            target_data["AvailableItemsOnly"] = available_items_only.upper()
 
         body = {"method": "add", "params": {"SmartAdTargets": [target_data]}}
 
@@ -119,26 +138,55 @@ def add(ctx, adgroup_id, target_type, extra_json, dry_run):
 
 @smartadtargets.command()
 @click.option("--id", "target_id", required=True, type=int, help="Target ID")
+@click.option("--name", help="Target name")
+@click.option("--audience", help="Audience value")
 @click.option(
-    "--type",
-    "target_type",
-    help=(
-        "Legacy UX hint; NOT forwarded to the API. SmartAdTargetAddItem "
-        "has no top-level Type field — pass real fields via --json."
-    ),
+    "--condition",
+    "conditions",
+    multiple=True,
+    help="Condition spec: OPERAND:OPERATOR:ARG1|ARG2",
 )
-@click.option("--json", "extra_json", help="Additional JSON parameters")
+@click.option("--average-cpc", type=float, help="Average CPC")
+@click.option("--average-cpa", type=float, help="Average CPA")
+@click.option("--priority", help="Strategy priority")
+@click.option(
+    "--available-items-only",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="Whether only available items are targeted",
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def update(ctx, target_id, target_type, extra_json, dry_run):
+def update(
+    ctx,
+    target_id,
+    name,
+    audience,
+    conditions,
+    average_cpc,
+    average_cpa,
+    priority,
+    available_items_only,
+    dry_run,
+):
     """Update smart ad target"""
     try:
         target_data = {"Id": target_id}
-        _ = target_type
-        if extra_json:
-            target_data.update(json.loads(extra_json))
+        if name:
+            target_data["Name"] = name
+        if audience:
+            target_data["Audience"] = audience
+        if conditions:
+            target_data["Conditions"] = {"Items": parse_condition_specs(list(conditions))}
+        if average_cpc is not None:
+            target_data["AverageCpc"] = to_micros(average_cpc)
+        if average_cpa is not None:
+            target_data["AverageCpa"] = to_micros(average_cpa)
+        if priority:
+            target_data["StrategyPriority"] = priority
+        if available_items_only:
+            target_data["AvailableItemsOnly"] = available_items_only.upper()
         if len(target_data) == 1:
-            raise click.UsageError("Provide --json with fields to update")
+            raise click.UsageError("Provide at least one field to update")
 
         body = {"method": "update", "params": {"SmartAdTargets": [target_data]}}
 
@@ -247,7 +295,6 @@ def resume(ctx, target_id, dry_run):
 @click.option("--average-cpc", type=float, help="Average CPC")
 @click.option("--average-cpa", type=float, help="Average CPA")
 @click.option("--priority", help="Strategy priority")
-@click.option("--json", "extra_json", help="Additional JSON parameters")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def set_bids(
@@ -258,7 +305,6 @@ def set_bids(
     average_cpc,
     average_cpa,
     priority,
-    extra_json,
     dry_run,
 ):
     """Set smart ad target bids"""
@@ -271,13 +317,11 @@ def set_bids(
         if campaign_id is not None:
             bid_data["CampaignId"] = campaign_id
         if average_cpc is not None:
-            bid_data["AverageCpc"] = int(average_cpc * 1000000)
+            bid_data["AverageCpc"] = to_micros(average_cpc)
         if average_cpa is not None:
-            bid_data["AverageCpa"] = int(average_cpa * 1000000)
+            bid_data["AverageCpa"] = to_micros(average_cpa)
         if priority:
             bid_data["StrategyPriority"] = priority
-        if extra_json:
-            bid_data.update(json.loads(extra_json))
         if not bid_data:
             raise click.UsageError("Provide target selection and bid fields for set-bids")
 

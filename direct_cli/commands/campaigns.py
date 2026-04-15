@@ -2,16 +2,17 @@
 Campaigns commands
 """
 
-import json
 import click
 
 from ..api import create_client
 from ..output import format_output, print_error
 from ..utils import (
-    parse_ids,
     build_selection_criteria,
     build_common_params,
     get_default_fields,
+    parse_ids,
+    parse_setting_specs,
+    to_micros,
 )
 
 
@@ -85,58 +86,124 @@ def get(ctx, ids, status, types, limit, fetch_all, output_format, output, fields
     "--type",
     "campaign_type",
     default="TEXT_CAMPAIGN",
-    help=(
-        "Campaign type (case-insensitive). Convenience flags only build "
-        "a TEXT_CAMPAIGN payload; for other types "
-        "(MOBILE_APP_CAMPAIGN, DYNAMIC_TEXT_CAMPAIGN, ...) pass the "
-        "matching nested object via --json."
-    ),
+    help="Campaign type",
 )
 @click.option("--budget", type=int, help="Daily budget in currency units")
 @click.option("--end-date", help="End date (YYYY-MM-DD)")
-@click.option("--json", "extra_json", help="Additional JSON parameters")
+@click.option(
+    "--setting",
+    "settings",
+    multiple=True,
+    help="Campaign setting spec: OPTION=VALUE",
+)
+@click.option("--search-strategy", help="Search bidding strategy type")
+@click.option("--network-strategy", help="Network bidding strategy type")
+@click.option(
+    "--filter-average-cpc",
+    type=float,
+    help="Smart campaign network filter average CPC",
+)
+@click.option("--counter-id", type=int, help="Smart campaign counter ID")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def add(ctx, name, start_date, campaign_type, budget, end_date, extra_json, dry_run):
+def add(
+    ctx,
+    name,
+    start_date,
+    campaign_type,
+    budget,
+    end_date,
+    settings,
+    search_strategy,
+    network_strategy,
+    filter_average_cpc,
+    counter_id,
+    dry_run,
+):
     """Add new campaign"""
     try:
-        # Normalize --type so ``text_campaign`` / ``text-campaign`` /
-        # ``TEXT-CAMPAIGN`` all map to ``TEXT_CAMPAIGN``.  Previously any
-        # non-default value was silently dropped and the CLI hard-coded
-        # ``TextCampaign`` regardless — see axisrow/direct-cli#23.
         campaign_type_norm = (
             (campaign_type or "TEXT_CAMPAIGN").upper().replace("-", "_")
         )
+        supported_types = {
+            "TEXT_CAMPAIGN",
+            "DYNAMIC_TEXT_CAMPAIGN",
+            "SMART_CAMPAIGN",
+        }
+        if campaign_type_norm not in supported_types:
+            raise click.UsageError(
+                "Invalid value for '--type': "
+                f"{campaign_type!r} is not one of "
+                "'TEXT_CAMPAIGN', 'DYNAMIC_TEXT_CAMPAIGN', 'SMART_CAMPAIGN'."
+            )
 
         campaign_data = {"Name": name, "StartDate": start_date}
-
+        parsed_settings = parse_setting_specs(list(settings))
         if campaign_type_norm == "TEXT_CAMPAIGN":
             campaign_data["TextCampaign"] = {
                 "BiddingStrategy": {
-                    "Search": {"BiddingStrategyType": "HIGHEST_POSITION"},
-                    "Network": {"BiddingStrategyType": "SERVING_OFF"},
+                    "Search": {
+                        "BiddingStrategyType": (
+                            search_strategy or "HIGHEST_POSITION"
+                        )
+                    },
+                    "Network": {
+                        "BiddingStrategyType": (
+                            network_strategy or "SERVING_OFF"
+                        )
+                    },
                 },
-                "Settings": [],
+                "Settings": parsed_settings or [],
             }
-        elif not extra_json:
-            raise click.UsageError(
-                f"--type {campaign_type} requires --json with the "
-                f"campaign-type-specific nested object "
-                f"(e.g. DynamicTextCampaign, SmartCampaign, MobileAppCampaign)."
-            )
+        elif campaign_type_norm == "DYNAMIC_TEXT_CAMPAIGN":
+            campaign_data["DynamicTextCampaign"] = {
+                "BiddingStrategy": {
+                    "Search": {
+                        "BiddingStrategyType": (
+                            search_strategy or "HIGHEST_POSITION"
+                        )
+                    },
+                    "Network": {
+                        "BiddingStrategyType": (
+                            network_strategy or "SERVING_OFF"
+                        )
+                    },
+                },
+                "Settings": parsed_settings or [],
+            }
+        elif campaign_type_norm == "SMART_CAMPAIGN":
+            network_strategy_type = network_strategy or "AVERAGE_CPC_PER_FILTER"
+            smart_campaign = {
+                "BiddingStrategy": {
+                    "Search": {
+                        "BiddingStrategyType": search_strategy or "SERVING_OFF"
+                    },
+                    "Network": {"BiddingStrategyType": network_strategy_type},
+                }
+            }
+            if network_strategy_type == "AVERAGE_CPC_PER_FILTER":
+                if filter_average_cpc is None:
+                    raise click.UsageError(
+                        "--filter-average-cpc is required for SMART_CAMPAIGN "
+                        "with AVERAGE_CPC_PER_FILTER network strategy"
+                    )
+                smart_campaign["BiddingStrategy"]["Network"][
+                    "AverageCpcPerFilter"
+                ] = {"FilterAverageCpc": to_micros(filter_average_cpc)}
+            if parsed_settings:
+                smart_campaign["Settings"] = parsed_settings
+            if counter_id is not None:
+                smart_campaign["CounterId"] = counter_id
+            campaign_data["SmartCampaign"] = smart_campaign
 
         if budget:
             campaign_data["DailyBudget"] = {
-                "Amount": budget * 1000000,
+                "Amount": to_micros(float(budget)),
                 "Mode": "STANDARD",
             }
 
         if end_date:
             campaign_data["EndDate"] = end_date
-
-        if extra_json:
-            extra = json.loads(extra_json)
-            campaign_data.update(extra)
 
         body = {"method": "add", "params": {"Campaigns": [campaign_data]}}
 
@@ -165,10 +232,11 @@ def add(ctx, name, start_date, campaign_type, budget, end_date, extra_json, dry_
 @click.option("--name", help="New campaign name")
 @click.option("--status", help="New status")
 @click.option("--budget", type=int, help="New daily budget")
-@click.option("--json", "extra_json", help="Additional JSON parameters")
+@click.option("--start-date", help="New start date (YYYY-MM-DD)")
+@click.option("--end-date", help="New end date (YYYY-MM-DD)")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def update(ctx, campaign_id, name, status, budget, extra_json, dry_run):
+def update(ctx, campaign_id, name, status, budget, start_date, end_date, dry_run):
     """Update campaign"""
     try:
         campaign_data = {"Id": campaign_id}
@@ -181,13 +249,13 @@ def update(ctx, campaign_id, name, status, budget, extra_json, dry_run):
 
         if budget:
             campaign_data["DailyBudget"] = {
-                "Amount": budget * 1000000,
+                "Amount": to_micros(float(budget)),
                 "Mode": "STANDARD",
             }
-
-        if extra_json:
-            extra = json.loads(extra_json)
-            campaign_data.update(extra)
+        if start_date:
+            campaign_data["StartDate"] = start_date
+        if end_date:
+            campaign_data["EndDate"] = end_date
 
         body = {"method": "update", "params": {"Campaigns": [campaign_data]}}
 

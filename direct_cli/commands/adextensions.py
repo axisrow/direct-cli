@@ -2,12 +2,11 @@
 AdExtensions commands
 """
 
-import json
 import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids
+from ..utils import parse_ids, parse_sitelink_specs
 
 
 @click.group()
@@ -68,20 +67,20 @@ def get(ctx, ids, types, limit, fetch_all, output_format, output, fields):
 @click.option(
     "--type",
     "ext_type",
-    help=(
-        "Legacy UX hint; NOT forwarded to the API. The Yandex Direct "
-        "API derives the extension type from the nested field name "
-        "inside --json (Callout / Sitelinks / Vcard / ...), so the "
-        "only flag that actually matters is --json.  Previously this "
-        "option was required=True but silently discarded, which "
-        "forced every caller to pass a value that did nothing.  See "
-        "axisrow/direct-cli#25."
-    ),
+    type=click.Choice(["CALLOUT", "SITELINKS", "VCARD"], case_sensitive=False),
+    help="Extension type hint",
 )
-@click.option("--json", "extra_json", required=True, help="Extension data in JSON")
+@click.option("--callout-text", help="Callout text")
+@click.option(
+    "--sitelink",
+    "sitelinks_specs",
+    multiple=True,
+    help="Sitelink spec: TITLE|HREF[|DESCRIPTION]",
+)
+@click.option("--vcard-id", type=int, help="Linked vCard ID")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def add(ctx, ext_type, extra_json, dry_run):
+def add(ctx, ext_type, callout_text, sitelinks_specs, vcard_id, dry_run):
     """Add ad extension
 
     The Yandex Direct API infers the extension type from the top-level
@@ -91,9 +90,19 @@ def add(ctx, ext_type, extra_json, dry_run):
     ``{"Type": ext_type, ...}`` and the sandbox rejected the extra
     key as ``unknown parameter Type``.
     """
-    _ = ext_type  # intentionally unused — kept as UX hint only
     try:
-        ext_data = json.loads(extra_json)
+        _ = ext_type
+        ext_data = {}
+        if callout_text:
+            ext_data["Callout"] = {"CalloutText": callout_text}
+        if sitelinks_specs:
+            ext_data["Sitelinks"] = parse_sitelink_specs(list(sitelinks_specs))
+        if vcard_id is not None:
+            ext_data["Vcard"] = {"VCardId": vcard_id}
+        if not ext_data:
+            raise click.UsageError(
+                "Provide one of --callout-text, --sitelink, or --vcard-id"
+            )
 
         body = {"method": "add", "params": {"AdExtensions": [ext_data]}}
 
@@ -110,6 +119,8 @@ def add(ctx, ext_type, extra_json, dry_run):
         result = client.adextensions().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()

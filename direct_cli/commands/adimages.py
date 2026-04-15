@@ -2,12 +2,11 @@
 AdImages commands
 """
 
-import json
 import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids, get_default_fields
+from ..utils import get_default_fields, load_base64_file, parse_ids
 
 
 @click.group()
@@ -64,13 +63,28 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
 
 
 @adimages.command()
-@click.option("--json", "image_json", required=True, help="Ad image data in JSON")
+@click.option("--name", required=True, help="Image name")
+@click.option("--image-data", help="Base64-encoded image data")
+@click.option("--image-file", help="Path to an image file to base64-encode")
+@click.option("--type", "image_type", help="Ad image type")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def add(ctx, image_json, dry_run):
+def add(ctx, name, image_data, image_file, image_type, dry_run):
     """Add ad image"""
     try:
-        body = {"method": "add", "params": {"AdImages": [json.loads(image_json)]}}
+        if bool(image_data) == bool(image_file):
+            raise click.UsageError(
+                "Provide exactly one of --image-data or --image-file"
+            )
+
+        payload = {
+            "Name": name,
+            "ImageData": image_data if image_data else load_base64_file(image_file),
+        }
+        if image_type:
+            payload["Type"] = image_type
+
+        body = {"method": "add", "params": {"AdImages": [payload]}}
 
         if dry_run:
             format_output(body, "json", None)
@@ -85,6 +99,8 @@ def add(ctx, image_json, dry_run):
         result = client.adimages().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()

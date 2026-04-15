@@ -2,12 +2,11 @@
 Clients commands
 """
 
-import json
 import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids, get_default_fields
+from ..utils import get_default_fields, parse_ids
 
 
 @click.group()
@@ -66,16 +65,26 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
 
 @clients.command()
 @click.option("--client-id", required=True, type=int, help="Client ID")
-@click.option("--json", "extra_json", required=True, help="JSON with updates")
+@click.option("--phone", help="Client phone")
+@click.option("--fax", help="Client fax")
+@click.option("--email", help="Client email")
+@click.option("--city", help="Client city")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def update(ctx, client_id, extra_json, dry_run):
+def update(ctx, client_id, phone, fax, email, city, dry_run):
     """Update client settings"""
     try:
         client_data = {"ClientId": client_id}
-
-        extra = json.loads(extra_json)
-        client_data.update(extra)
+        if phone:
+            client_data["Phone"] = phone
+        if fax:
+            client_data["Fax"] = fax
+        if email:
+            client_data["Email"] = email
+        if city:
+            client_data["City"] = city
+        if len(client_data) == 1:
+            raise click.UsageError("Provide at least one field to update")
 
         body = {"method": "update", "params": {"Clients": [client_data]}}
 
@@ -92,6 +101,8 @@ def update(ctx, client_id, extra_json, dry_run):
         result = client.clients().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()

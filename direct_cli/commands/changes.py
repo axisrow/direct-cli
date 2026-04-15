@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids
+from ..utils import parse_datetime, parse_ids
 
 
 @click.group()
@@ -16,7 +16,9 @@ def changes():
 
 @changes.command()
 @click.option("--campaign-ids", required=True, help="Comma-separated campaign IDs")
-@click.option("--timestamp", help="Timestamp for changes check (ISO format)")
+@click.option(
+    "--timestamp", help="Timestamp for changes check (YYYY-MM-DDTHH:MM:SS)"
+)
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.pass_context
@@ -32,7 +34,7 @@ def check(ctx, campaign_ids, timestamp, output_format, output):
         params = {"CampaignIds": parse_ids(campaign_ids)}
 
         if timestamp:
-            params["Timestamp"] = timestamp
+            params["Timestamp"] = parse_datetime(timestamp)
 
         body = {"method": "check", "params": params}
 
@@ -45,7 +47,9 @@ def check(ctx, campaign_ids, timestamp, output_format, output):
 
 
 @changes.command()
-@click.option("--timestamp", help="Timestamp for changes check (ISO format)")
+@click.option(
+    "--timestamp", help="Timestamp for changes check (YYYY-MM-DDTHH:MM:SS)"
+)
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.pass_context
@@ -61,7 +65,7 @@ def check_campaigns(ctx, timestamp, output_format, output):
         params = {}
 
         if timestamp:
-            params["Timestamp"] = timestamp
+            params["Timestamp"] = parse_datetime(timestamp)
 
         body = {"method": "checkCampaigns", "params": params}
 

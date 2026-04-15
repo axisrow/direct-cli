@@ -223,7 +223,7 @@ class TestWriteAds:
             r = _invoke(
                 "ads", "update",
                 "--id", str(ad_id),
-                "--json", json.dumps({"TextAd": {"Title": "Updated Title"}}),
+                "--title", "Updated Title",
             )
             assert_success(r, "ads update")
         finally:
@@ -497,16 +497,12 @@ class TestWriteFeeds:
 @pytest.mark.vcr
 class TestWriteRetargeting:
     def test_add_delete(self, unique_suffix):
+        # Typed --rule input must reproduce the historical cassette body.
         r = _invoke(
             "retargeting", "add",
             "--name", f"test-rtg-{unique_suffix}",
             "--type", "RETARGETING",
-            "--json", json.dumps({
-                "Rules": [{
-                    "Operator": "ANY",
-                    "Arguments": [{"ExternalId": 1234567890}],
-                }]
-            }),
+            "--rule", "ANY:1234567890",
         )
         if r.exit_code != 0:
             if _is_sandbox_error(r.output):
@@ -564,11 +560,11 @@ class TestWriteAudienceTargets:
 )
 class TestWriteSitelinks:
     def test_add_delete(self):
-        links = json.dumps([
-            {"Title": "About", "Href": "https://example.com/about"},
-            {"Title": "Contact", "Href": "https://example.com/contact"},
-        ])
-        r = _invoke("sitelinks", "add", "--links", links)
+        r = _invoke(
+            "sitelinks", "add",
+            "--sitelink", "About|https://example.com/about",
+            "--sitelink", "Contact|https://example.com/contact",
+        )
         if r.exit_code != 0:
             if _is_sandbox_error(r.output, extra_patterns=_SITELINK_PATTERNS):
                 pytest.skip(f"sitelinks add not available (sandbox): {r.output[:200]}")
@@ -590,19 +586,17 @@ class TestWriteVCards:
         # Recorded at 2026-04-11 against sandbox.
         # WorkTime format: ``<day_from>#<day_to>#<hh_from>#<mm_from>#<hh_to>#<mm_to>``
         # Here: Mon(1) — Fri(5), 09:00 — 18:00.
-        vcard = json.dumps({
-            "CampaignId": sandbox_campaign,
-            "Country": "Россия",
-            "City": "Москва",
-            "CompanyName": "Test Company",
-            "WorkTime": "1#5#9#0#18#0",
-            "Phone": {
-                "CountryCode": "+7",
-                "CityCode": "495",
-                "PhoneNumber": "1234567",
-            },
-        })
-        r = _invoke("vcards", "add", "--json", vcard)
+        r = _invoke(
+            "vcards", "add",
+            "--campaign-id", str(sandbox_campaign),
+            "--country", "Россия",
+            "--city", "Москва",
+            "--company-name", "Test Company",
+            "--work-time", "1#5#9#0#18#0",
+            "--phone-country-code", "+7",
+            "--phone-city-code", "495",
+            "--phone-number", "1234567",
+        )
         if r.exit_code != 0:
             if _is_sandbox_error(r.output):
                 pytest.skip(f"vcards add not supported (sandbox): {r.output[:200]}")
@@ -620,7 +614,7 @@ class TestWriteVCards:
 @pytest.mark.integration_write
 @pytest.mark.vcr
 class TestWriteAdExtensions:
-    """Live lifecycle for a Callout ad extension.
+    """Live lifecycle for a typed ``--callout-text`` ad extension.
 
     Exercises the fix that stopped the CLI from sending the extra
     top-level ``Type`` field (the API derives the extension kind from
@@ -629,11 +623,10 @@ class TestWriteAdExtensions:
     """
 
     def test_add_delete(self):
-        ext_json = json.dumps({"Callout": {"CalloutText": "Free shipping"}})
         r = _invoke(
             "adextensions", "add",
             "--type", "CALLOUT",
-            "--json", ext_json,
+            "--callout-text", "Free shipping",
         )
         if r.exit_code != 0:
             if _is_sandbox_error(r.output):
@@ -700,8 +693,11 @@ class TestWriteAdImages:
             "pO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGk/"
             "KWgbKQyncKAAAAAASUVORK5CYII="
         )
-        image = json.dumps({"Name": "test-image.png", "ImageData": png_b64})
-        r = _invoke("adimages", "add", "--json", image)
+        r = _invoke(
+            "adimages", "add",
+            "--name", "test-image.png",
+            "--image-data", png_b64,
+        )
         if r.exit_code != 0:
             if _is_sandbox_error(r.output, extra_patterns=_IMAGE_PATTERNS):
                 pytest.skip(f"adimages add not supported (sandbox): {r.output[:200]}")
@@ -734,16 +730,11 @@ class TestWriteAdImages:
 )
 class TestWriteDynamicAds:
     def test_add_update_delete(self, sandbox_dynamic_adgroup):
-        target = {
-            "Name": "Test Webpage",
-            "Conditions": [
-                {"Operand": "URL", "Operator": "CONTAINS_ANY", "Arguments": ["test"]},
-            ],
-        }
         r = _invoke(
             "dynamicads", "add",
             "--adgroup-id", str(sandbox_dynamic_adgroup),
-            "--json", json.dumps(target),
+            "--name", "Test Webpage",
+            "--condition", "URL:CONTAINS_ANY:test",
         )
         if r.exit_code != 0:
             if _is_sandbox_error(r.output):
@@ -769,25 +760,14 @@ class TestWriteDynamicAds:
 @pytest.mark.integration_write
 @pytest.mark.vcr
 class TestWriteSmartAdTargets:
-    """Live-API regression guard for the Type-field fix from PR #12.
-
-    The CLI ``smartadtargets add`` used to send a spurious top-level
-    ``Type`` field.  PR #12 removed it.  This test both exercises the
-    fixed code path and captures the API's successful response into a
-    cassette — so any regression that reintroduces ``Type`` will cause
-    the cassette body matcher to fail in replay mode.
-    """
+    """Live-API regression guard for typed smart ad target flags."""
 
     def test_add_update_delete(self, sandbox_smart_adgroup):
-        payload = json.dumps({
-            "Name": "regression-smart-target",
-            "Audience": "ALL_SEGMENTS",
-        })
         r = _invoke(
             "smartadtargets", "add",
             "--adgroup-id", str(sandbox_smart_adgroup),
-            "--type", "VIEWED_PRODUCT",
-            "--json", payload,
+            "--name", "regression-smart-target",
+            "--audience", "ALL_SEGMENTS",
         )
         if r.exit_code != 0:
             if _is_sandbox_error(r.output, extra_patterns=_SMART_AD_PATTERNS):
@@ -810,7 +790,7 @@ class TestWriteSmartAdTargets:
             r = _invoke(
                 "smartadtargets", "update",
                 "--id", str(tid),
-                "--json", json.dumps({"Priority": "HIGH"}),
+                "--priority", "HIGH",
             )
             assert_success(r, "smartadtargets update")
         finally:
