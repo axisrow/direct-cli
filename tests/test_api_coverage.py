@@ -32,7 +32,7 @@ from direct_cli.wsdl_coverage import (
 ALLOWED_EXTRA_METHODS = set(INTENTIONAL_EXTRA_METHODS)
 
 DRY_RUN_PAYLOAD_EXCLUSIONS = {
-    "adextensions.add": "Requires typed callout/sitelink/vCard variants already covered by command-level dry-run tests.",
+    "adextensions.add": "Callout-only add; covered by command-level dry-run tests.",
     "adgroups.add": "Requires group-type-specific typed payload fixtures; tracked separately from schema smoke coverage.",
     "adgroups.update": "Requires typed update payload fixtures; tracked separately from schema smoke coverage.",
     "adimages.add": "Requires image-data or image-file fixtures that are better covered by command tests.",

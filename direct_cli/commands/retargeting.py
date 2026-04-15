@@ -92,9 +92,13 @@ _RETARGETING_LIST_TYPES = ["RETARGETING", "AUDIENCE"]
 def add(ctx, name, list_type, rules, dry_run):
     """Add new retargeting list"""
     try:
-        list_data = {"Name": name, "Type": list_type}
-        if rules:
-            list_data["Rules"] = parse_retargeting_rule_specs(list(rules))
+        if not rules:
+            raise click.UsageError("Provide at least one --rule")
+        list_data = {
+            "Name": name,
+            "Type": list_type,
+            "Rules": parse_retargeting_rule_specs(list(rules)),
+        }
 
         body = {"method": "add", "params": {"RetargetingLists": [list_data]}}
 

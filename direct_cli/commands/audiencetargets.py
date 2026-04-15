@@ -152,8 +152,19 @@ def set_bids(ctx, target_id, adgroup_id, campaign_id, context_bid, priority, dry
             bid_data["ContextBid"] = to_micros(context_bid)
         if priority:
             bid_data["StrategyPriority"] = priority
+        bid_fields = {
+            k
+            for k in ("ContextBid", "StrategyPriority")
+            if k in bid_data
+        }
         if not bid_data:
-            raise click.UsageError("Provide target selection and bid fields for set-bids")
+            raise click.UsageError(
+                "Provide target selection and bid fields for set-bids"
+            )
+        if not bid_fields:
+            raise click.UsageError(
+                "Provide at least one bid field (--context-bid or --priority)"
+            )
 
         body = {"method": "setBids", "params": {"Bids": [bid_data]}}
 

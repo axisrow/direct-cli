@@ -625,7 +625,6 @@ class TestWriteAdExtensions:
     def test_add_delete(self):
         r = _invoke(
             "adextensions", "add",
-            "--type", "CALLOUT",
             "--callout-text", "Free shipping",
         )
         if r.exit_code != 0:

@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids, parse_sitelink_specs
+from ..utils import parse_ids
 
 
 @click.group()
@@ -64,45 +64,13 @@ def get(ctx, ids, types, limit, fetch_all, output_format, output, fields):
 
 
 @adextensions.command()
-@click.option(
-    "--type",
-    "ext_type",
-    type=click.Choice(["CALLOUT", "SITELINKS", "VCARD"], case_sensitive=False),
-    help="Extension type hint",
-)
-@click.option("--callout-text", help="Callout text")
-@click.option(
-    "--sitelink",
-    "sitelinks_specs",
-    multiple=True,
-    help="Sitelink spec: TITLE|HREF[|DESCRIPTION]",
-)
-@click.option("--vcard-id", type=int, help="Linked vCard ID")
+@click.option("--callout-text", required=True, help="Callout text")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def add(ctx, ext_type, callout_text, sitelinks_specs, vcard_id, dry_run):
-    """Add ad extension
-
-    The Yandex Direct API infers the extension type from the top-level
-    field of the payload (``Callout`` / ``Sitelinks`` / ``Vcard`` / …),
-    so the CLI does **not** forward ``--type`` into the request — it
-    is accepted only as a user-facing hint.  Previously direct-cli sent
-    ``{"Type": ext_type, ...}`` and the sandbox rejected the extra
-    key as ``unknown parameter Type``.
-    """
+def add(ctx, callout_text, dry_run):
+    """Add ad extension (callout)"""
     try:
-        _ = ext_type
-        ext_data = {}
-        if callout_text:
-            ext_data["Callout"] = {"CalloutText": callout_text}
-        if sitelinks_specs:
-            ext_data["Sitelinks"] = parse_sitelink_specs(list(sitelinks_specs))
-        if vcard_id is not None:
-            ext_data["Vcard"] = {"VCardId": vcard_id}
-        if not ext_data:
-            raise click.UsageError(
-                "Provide one of --callout-text, --sitelink, or --vcard-id"
-            )
+        ext_data = {"Callout": {"CalloutText": callout_text}}
 
         body = {"method": "add", "params": {"AdExtensions": [ext_data]}}
 

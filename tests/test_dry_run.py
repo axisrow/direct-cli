@@ -871,7 +871,7 @@ def test_retargeting_add_default_type_is_retargeting():
     was required=True with no validation. Now it's optional and
     defaults to the same value the API picks when Type is omitted.
     """
-    body = _dry_run("retargeting", "add", "--name", "List B")
+    body = _dry_run("retargeting", "add", "--name", "List B", "--rule", "ALL:12345")
     rtg = body["params"]["RetargetingLists"][0]
     assert rtg["Type"] == "RETARGETING"
 
@@ -1041,35 +1041,15 @@ def test_adextensions_add_does_not_send_type_field():
     body = _dry_run(
         "adextensions",
         "add",
-        "--type",
-        "CALLOUT",
         "--callout-text",
         "Free shipping",
     )
     assert body["method"] == "add"
     ext = body["params"]["AdExtensions"][0]
     # The API derives the extension type from the nested field name
-    # (Callout / Sitelinks / Vcard / ...).  The top-level --type CLI
-    # option is a UX hint and must NOT be forwarded to the request.
+    # (Callout).  AdExtensionAddItem only supports Callout per WSDL.
     assert "Type" not in ext
     assert ext == {"Callout": {"CalloutText": "Free shipping"}}
-
-
-def test_adextensions_add_type_is_now_optional():
-    body = _dry_run(
-        "adextensions",
-        "add",
-        "--sitelink",
-        "T|https://a",
-        "--vcard-id",
-        "22",
-    )
-    ext = body["params"]["AdExtensions"][0]
-    assert "Type" not in ext
-    assert ext == {
-        "Sitelinks": [{"Title": "T", "Href": "https://a"}],
-        "Vcard": {"VCardId": 22},
-    }
 
 
 # ----------------------------------------------------------------------

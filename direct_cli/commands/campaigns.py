@@ -257,6 +257,9 @@ def update(ctx, campaign_id, name, status, budget, start_date, end_date, dry_run
         if end_date:
             campaign_data["EndDate"] = end_date
 
+        if len(campaign_data) == 1:
+            raise click.UsageError("Provide at least one field to update")
+
         body = {"method": "update", "params": {"Campaigns": [campaign_data]}}
 
         if dry_run:

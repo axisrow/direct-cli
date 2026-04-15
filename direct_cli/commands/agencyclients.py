@@ -276,6 +276,8 @@ def update(ctx, client_id, phone, email, grants, clear_grants, dry_run):
             client_data["Phone"] = phone
         if email:
             client_data["Email"] = email
+        if grants and clear_grants:
+            raise click.UsageError("--grant and --clear-grants are mutually exclusive")
         if grants:
             client_data["Grants"] = list(grants)
         if clear_grants:

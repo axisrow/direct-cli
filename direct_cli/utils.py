@@ -103,7 +103,7 @@ def to_micros(value: Optional[float]) -> Optional[int]:
     """Convert a human-readable money/bid value to micros."""
     if value is None:
         return None
-    return int(value * 1000000)
+    return round(value * 1000000)
 
 
 def load_base64_file(file_path: str) -> str:
