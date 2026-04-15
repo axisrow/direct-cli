@@ -64,6 +64,15 @@ Naming rules:
   - multiword commands use kebab-case
   - examples: `get`, `set-bids`, `check-campaigns`, `has-search-volume`
 
+direct-cli owns the public naming contract. `tapi-yandex-direct` may
+influence the internal transport layer, but it does not define canonical CLI
+names.
+
+The current policy is canonical-only. Historical aliases are not preserved in
+the runtime CLI by default. If compatibility is ever needed, an alias must be
+added as an explicit exception with the concrete legacy syntax that still has to
+be supported.
+
 #### Input Rules
 
 - All user-facing input must be passed only through typed CLI flags.
@@ -74,7 +83,6 @@ Naming rules:
 - If the API requires a complex object, the CLI must expose explicit flags or subcommands instead of forwarding raw JSON.
 
 #### Command Formatting Rules
-
 - Every canonical CLI command must be written strictly on a single line.
 - Multi-line command formatting is not allowed.
 - Shell line continuation using `\` is forbidden in canonical documentation, help text, tests, and examples.
@@ -139,8 +147,8 @@ Valid canonical examples:
 direct campaigns get --ids 1,2,3
 direct changes check-campaigns --timestamp 2026-04-14T00:00:00
 direct keywordsresearch has-search-volume --keywords "buy laptop,buy desktop"
-direct dynamicads set-bids --id 789 --bid 12.5
-direct dictionaries get-geo-regions --region-ids 225 --fields GeoRegionId,GeoRegionName
+direct dynamicads set-bids --id 789 --bid 12.5 --context-bid 9 --priority HIGH
+direct dictionaries get-geo-regions --name Moscow --region-ids 225,187 --exact-names Москва,Санкт-Петербург --fields GeoRegionId,GeoRegionName
 ```
 
 Invalid examples:
@@ -165,24 +173,27 @@ direct campaigns get --ids 1,2,3 --format table
 direct campaigns get --fetch-all --format csv --output campaigns.csv
 
 # Create (use --dry-run to preview the request)
-direct campaigns add --name "My Campaign" --start-date 2024-02-01 --type TEXT_CAMPAIGN --budget 1000
-direct campaigns add --name "My Campaign" --start-date 2024-02-01 --dry-run
+direct campaigns add --name "My Campaign" --start-date 2024-02-01 --type TEXT_CAMPAIGN --budget 1000 --setting ADD_METRICA_TAG=YES --search-strategy HIGHEST_POSITION --network-strategy SERVING_OFF --dry-run
+direct campaigns add --name "Dynamic Campaign" --start-date 2024-02-01 --type DYNAMIC_TEXT_CAMPAIGN --setting ADD_METRICA_TAG=NO --search-strategy HIGHEST_POSITION --network-strategy SERVING_OFF --dry-run
+direct campaigns add --name "Smart Campaign" --start-date 2024-02-01 --type SMART_CAMPAIGN --network-strategy AVERAGE_CPC_PER_FILTER --filter-average-cpc 1 --counter-id 123 --dry-run
 
 # Update / lifecycle
-direct campaigns update --id 12345 --name "New Name"
+direct campaigns update --id 12345 --name "New Name" --status SUSPENDED --budget 100 --start-date 2024-02-10 --end-date 2024-03-01
 direct campaigns suspend --id 12345
-direct campaigns resume  --id 12345
+direct campaigns resume --id 12345
 direct campaigns archive --id 12345
 direct campaigns unarchive --id 12345
-direct campaigns delete  --id 12345
+direct campaigns delete --id 12345
 ```
 
 #### Ad Groups
 
 ```bash
 direct adgroups get --campaign-ids 1,2,3 --limit 50
-direct adgroups add --name "Group 1" --campaign-id 12345 --dry-run
-direct adgroups update --id 67890 --name "New Name"
+direct adgroups add --name "Group 1" --campaign-id 12345 --region-ids 1,225 --dry-run
+direct adgroups add --name "Dynamic Group" --campaign-id 12345 --type DYNAMIC_TEXT_AD_GROUP --region-ids 1,225 --domain-url example.com --dry-run
+direct adgroups add --name "Smart Group" --campaign-id 12345 --type SMART_AD_GROUP --region-ids 1,225 --feed-id 170 --ad-title-source FEED_NAME --ad-body-source FEED_NAME --dry-run
+direct adgroups update --id 67890 --name "New Name" --status SUSPENDED --region-ids 1,225
 direct adgroups delete --id 67890
 ```
 
@@ -192,7 +203,8 @@ direct adgroups delete --id 67890
 direct ads get --campaign-ids 1,2,3
 direct ads get --adgroup-ids 45678 --format table
 direct ads add --adgroup-id 12345 --type TEXT_AD --title "Title" --text "Ad text" --href "https://example.com" --dry-run
-direct ads update --id 99999 --status PAUSED
+direct ads add --adgroup-id 12345 --type TEXT_IMAGE_AD --image-hash abcdefghijklmnopqrst --href "https://example.com" --title "Banner" --text "Image ad" --dry-run
+direct ads update --id 99999 --status PAUSED --title "New Title" --text "New text" --href "https://example.com" --image-hash abcdefghijklmnopqrst
 direct ads delete --id 99999
 ```
 
@@ -200,8 +212,8 @@ direct ads delete --id 99999
 
 ```bash
 direct keywords get --campaign-ids 1,2,3
-direct keywords add --adgroup-id 12345 --keyword "buy laptop" --bid 10.50 --dry-run
-direct keywords update --id 88888 --bid 15.00
+direct keywords add --adgroup-id 12345 --keyword "buy laptop" --bid 10.50 --context-bid 5.25 --user-param-1 segment-a --user-param-2 segment-b --dry-run
+direct keywords update --id 88888 --bid 15.00 --context-bid 6.00 --status SUSPENDED
 direct keywords delete --id 88888
 ```
 
@@ -220,33 +232,50 @@ Available report types: `CAMPAIGN_PERFORMANCE_REPORT`, `ADGROUP_PERFORMANCE_REPO
 #### Other Resources
 
 ```bash
-# Reference dictionaries
+# Reference dictionaries and changes
 direct dictionaries get --names Currencies,GeoRegions
-direct dictionaries get-geo-regions --region-ids 225 --fields Id,GeoRegionName --format json
-
-# Client info
-direct clients get --fields ClientId,Login,Currency
-
-# Changes feed
-direct changes get --campaign-ids 1,2,3
+direct dictionaries get-geo-regions --name Moscow --region-ids 225,187 --exact-names Москва,Санкт-Петербург --fields GeoRegionId,GeoRegionName
+direct changes check --campaign-ids 1,2,3 --timestamp 2026-04-14T00:00:00
 direct changes check-campaigns --timestamp 2026-04-14T00:00:00
 direct changes check-dictionaries
+direct clients get --fields ClientId,Login,Currency
 
-# Retargeting lists
-direct retargeting get --limit 10
-
-# Keyword research
+# Keyword research and retargeting
 direct keywordsresearch has-search-volume --keywords "buy laptop,buy desktop"
+direct retargeting add --name "List A" --type AUDIENCE --rule "ALL:12345:30|67890:7" --dry-run
+direct retargeting update --id 55 --name "Renamed" --rule "ANY:12345:30" --dry-run
+
+# Bids and modifiers
+direct bids set --keyword-id 123 --bid 15
+direct bids set-auto --keyword-id 123 --max-bid 20 --position PREMIUMBLOCK --scope SEARCH --dry-run
+direct keywordbids set --keyword-id 321 --search-bid 8 --network-bid 3
+direct keywordbids set-auto --keyword-id 321 --target-traffic-volume 100 --increase-percent 10 --bid-ceiling 12.5 --dry-run
+direct bidmodifiers add --campaign-id 123 --type DEMOGRAPHICS_ADJUSTMENT --value 150 --gender GENDER_MALE --age AGE_25_34 --dry-run
+direct bidmodifiers set --id 99 --value 130 --dry-run
 
 # Canonical multiword groups
 direct negativekeywordsharedsets update --id 123 --keywords "foo,bar"
-direct smartadtargets set-bids --id 456 --average-cpc 10.5
-direct dynamicads set-bids --id 789 --bid 12.5
+direct audiencetargets add --adgroup-id 100 --retargeting-list-id 200 --bid 12 --priority HIGH --dry-run
+direct audiencetargets set-bids --id 101 --context-bid 7 --priority LOW --dry-run
+direct dynamicads add --adgroup-id 33 --name "Webpage A" --condition "URL:CONTAINS_ANY:test|shop" --condition "PAGE_CONTENT:CONTAINS:baz" --bid 3 --context-bid 2 --priority HIGH --dry-run
+direct smartadtargets add --adgroup-id 55 --name "Audience A" --audience ALL_SEGMENTS --condition "CATEGORY_ID:EQUALS:42" --average-cpc 3 --average-cpa 4 --priority HIGH --available-items-only YES --dry-run
+direct smartadtargets update --id 456 --priority HIGH
+direct smartadtargets set-bids --id 456 --average-cpc 10.5 --average-cpa 15 --priority HIGH
+direct dynamicads set-bids --id 789 --bid 12.5 --context-bid 9 --priority HIGH
 
-# Ad extensions, sitelinks, vCards, images, creatives, feeds, bids, etc.
-direct adextensions get
-direct sitelinks get --ids 1,2,3
-direct bids get --campaign-ids 1,2,3
+# Extensions, assets, feeds, and clients
+direct sitelinks add --sitelink "Docs|https://example.com/docs" --sitelink "Help|https://example.com/help|Desk" --dry-run
+direct vcards add --campaign-id 555 --country "Russia" --city "Moscow" --company-name "Acme" --work-time 1#5#9#0#18#0 --phone-country-code +7 --phone-city-code 495 --phone-number 1234567 --dry-run
+direct adextensions add --callout-text "Free shipping" --dry-run
+direct adimages add --name banner.png --image-data BASE64DATA --type ICON --dry-run
+direct creatives add --video-id video-id --dry-run
+direct feeds add --name "Feed A" --url "https://example.com/feed.xml" --dry-run
+direct feeds update --id 18 --name "Feed A v2" --url "https://example.com/feed-v2.xml" --dry-run
+direct clients update --client-id 999 --phone +70000000000 --fax +70000000001 --email user@example.com --city Moscow --dry-run
+direct agencyclients add --login client-login --first-name Alice --last-name Smith --currency RUB --notification-email ops@example.com --notification-lang RU --send-account-news --no-send-warnings --dry-run
+direct agencyclients add-passport-organization --name "Org" --currency RUB --notification-email ops@example.com --notification-lang EN --no-send-account-news --send-warnings --dry-run
+direct agencyclients add-passport-organization-member --passport-organization-login org-login --role CHIEF --invite-email user@example.com --dry-run
+direct agencyclients update --client-id 42 --phone +70000000000 --email user@example.com --grant EDIT_CAMPAIGNS --grant IMPORT_XLS --dry-run
 ```
 
 ### Known Transport Gap
@@ -509,6 +538,14 @@ Naming rules:
   - multiword commands use kebab-case
   - examples: `get`, `set-bids`, `check-campaigns`, `has-search-volume`
 
+`direct-cli` владеет публичным naming contract. `tapi-yandex-direct` может
+влиять на внутренний transport layer, но не определяет канонические CLI-имена.
+
+Текущая политика — canonical-only. Исторические aliases по умолчанию не
+сохраняются в runtime CLI. Если совместимость когда-нибудь понадобится, alias
+должен быть добавлен как явное explicit exception-правило с конкретным legacy
+syntax, который действительно нужно поддержать.
+
 #### Input Rules
 
 - All user-facing input must be passed only through typed CLI flags.
@@ -610,24 +647,27 @@ direct campaigns get --ids 1,2,3 --format table
 direct campaigns get --fetch-all --format csv --output campaigns.csv
 
 # Создать (--dry-run покажет запрос без отправки)
-direct campaigns add --name "Моя кампания" --start-date 2024-02-01 --type TEXT_CAMPAIGN --budget 1000
-direct campaigns add --name "Моя кампания" --start-date 2024-02-01 --dry-run
+direct campaigns add --name "Моя кампания" --start-date 2024-02-01 --type TEXT_CAMPAIGN --budget 1000 --setting ADD_METRICA_TAG=YES --search-strategy HIGHEST_POSITION --network-strategy SERVING_OFF --dry-run
+direct campaigns add --name "Динамическая кампания" --start-date 2024-02-01 --type DYNAMIC_TEXT_CAMPAIGN --setting ADD_METRICA_TAG=NO --search-strategy HIGHEST_POSITION --network-strategy SERVING_OFF --dry-run
+direct campaigns add --name "Смарт-кампания" --start-date 2024-02-01 --type SMART_CAMPAIGN --network-strategy AVERAGE_CPC_PER_FILTER --filter-average-cpc 1 --counter-id 123 --dry-run
 
 # Обновление и управление статусом
-direct campaigns update   --id 12345 --name "Новое название"
-direct campaigns suspend  --id 12345
-direct campaigns resume   --id 12345
-direct campaigns archive  --id 12345
+direct campaigns update --id 12345 --name "Новое название" --status SUSPENDED --budget 100 --start-date 2024-02-10 --end-date 2024-03-01
+direct campaigns suspend --id 12345
+direct campaigns resume --id 12345
+direct campaigns archive --id 12345
 direct campaigns unarchive --id 12345
-direct campaigns delete   --id 12345
+direct campaigns delete --id 12345
 ```
 
 #### Группы объявлений
 
 ```bash
 direct adgroups get --campaign-ids 1,2,3 --limit 50
-direct adgroups add --name "Группа 1" --campaign-id 12345 --dry-run
-direct adgroups update --id 67890 --name "Новое название"
+direct adgroups add --name "Группа 1" --campaign-id 12345 --region-ids 1,225 --dry-run
+direct adgroups add --name "Динамическая группа" --campaign-id 12345 --type DYNAMIC_TEXT_AD_GROUP --region-ids 1,225 --domain-url example.com --dry-run
+direct adgroups add --name "Смарт-группа" --campaign-id 12345 --type SMART_AD_GROUP --region-ids 1,225 --feed-id 170 --ad-title-source FEED_NAME --ad-body-source FEED_NAME --dry-run
+direct adgroups update --id 67890 --name "Новое название" --status SUSPENDED --region-ids 1,225
 direct adgroups delete --id 67890
 ```
 
@@ -637,7 +677,8 @@ direct adgroups delete --id 67890
 direct ads get --campaign-ids 1,2,3
 direct ads get --adgroup-ids 45678 --format table
 direct ads add --adgroup-id 12345 --type TEXT_AD --title "Заголовок" --text "Текст объявления" --href "https://example.com" --dry-run
-direct ads update --id 99999 --status PAUSED
+direct ads add --adgroup-id 12345 --type TEXT_IMAGE_AD --image-hash abcdefghijklmnopqrst --href "https://example.com" --title "Баннер" --text "Имиджевое объявление" --dry-run
+direct ads update --id 99999 --status PAUSED --title "Новый заголовок" --text "Новый текст" --href "https://example.com" --image-hash abcdefghijklmnopqrst
 direct ads delete --id 99999
 ```
 
@@ -645,8 +686,8 @@ direct ads delete --id 99999
 
 ```bash
 direct keywords get --campaign-ids 1,2,3
-direct keywords add --adgroup-id 12345 --keyword "купить ноутбук" --bid 10.50 --dry-run
-direct keywords update --id 88888 --bid 15.00
+direct keywords add --adgroup-id 12345 --keyword "купить ноутбук" --bid 10.50 --context-bid 5.25 --user-param-1 segment-a --user-param-2 segment-b --dry-run
+direct keywords update --id 88888 --bid 15.00 --context-bid 6.00 --status SUSPENDED
 direct keywords delete --id 88888
 ```
 
@@ -665,33 +706,50 @@ direct reports list-types
 #### Другие ресурсы
 
 ```bash
-# Справочники
+# Справочники и изменения
 direct dictionaries get --names Currencies,GeoRegions
-direct dictionaries get-geo-regions --region-ids 225 --fields Id,GeoRegionName --format json
-
-# Информация о клиенте
-direct clients get --fields ClientId,Login,Currency
-
-# Лента изменений
-direct changes get --campaign-ids 1,2,3
+direct dictionaries get-geo-regions --name Москва --region-ids 225,187 --exact-names Москва,Санкт-Петербург --fields GeoRegionId,GeoRegionName
+direct changes check --campaign-ids 1,2,3 --timestamp 2026-04-14T00:00:00
 direct changes check-campaigns --timestamp 2026-04-14T00:00:00
 direct changes check-dictionaries
+direct clients get --fields ClientId,Login,Currency
 
-# Списки ретаргетинга
-direct retargeting get --limit 10
-
-# Исследование ключевых слов
+# Исследование ключевых слов и ретаргетинг
 direct keywordsresearch has-search-volume --keywords "купить ноутбук,купить компьютер"
+direct retargeting add --name "Список A" --type AUDIENCE --rule "ALL:12345:30|67890:7" --dry-run
+direct retargeting update --id 55 --name "Переименованный список" --rule "ANY:12345:30" --dry-run
+
+# Ставки и модификаторы
+direct bids set --keyword-id 123 --bid 15
+direct bids set-auto --keyword-id 123 --max-bid 20 --position PREMIUMBLOCK --scope SEARCH --dry-run
+direct keywordbids set --keyword-id 321 --search-bid 8 --network-bid 3
+direct keywordbids set-auto --keyword-id 321 --target-traffic-volume 100 --increase-percent 10 --bid-ceiling 12.5 --dry-run
+direct bidmodifiers add --campaign-id 123 --type DEMOGRAPHICS_ADJUSTMENT --value 150 --gender GENDER_MALE --age AGE_25_34 --dry-run
+direct bidmodifiers set --id 99 --value 130 --dry-run
 
 # Канонические многословные группы
 direct negativekeywordsharedsets update --id 123 --keywords "foo,bar"
-direct smartadtargets set-bids --id 456 --average-cpc 10.5
-direct dynamicads set-bids --id 789 --bid 12.5
+direct audiencetargets add --adgroup-id 100 --retargeting-list-id 200 --bid 12 --priority HIGH --dry-run
+direct audiencetargets set-bids --id 101 --context-bid 7 --priority LOW --dry-run
+direct dynamicads add --adgroup-id 33 --name "Webpage A" --condition "URL:CONTAINS_ANY:test|shop" --condition "PAGE_CONTENT:CONTAINS:baz" --bid 3 --context-bid 2 --priority HIGH --dry-run
+direct smartadtargets add --adgroup-id 55 --name "Audience A" --audience ALL_SEGMENTS --condition "CATEGORY_ID:EQUALS:42" --average-cpc 3 --average-cpa 4 --priority HIGH --available-items-only YES --dry-run
+direct smartadtargets update --id 456 --priority HIGH
+direct smartadtargets set-bids --id 456 --average-cpc 10.5 --average-cpa 15 --priority HIGH
+direct dynamicads set-bids --id 789 --bid 12.5 --context-bid 9 --priority HIGH
 
-# Расширения объявлений, быстрые ссылки, визитки, изображения, ставки и т.д.
-direct adextensions get
-direct sitelinks get --ids 1,2,3
-direct bids get --campaign-ids 1,2,3
+# Расширения, ассеты, фиды и клиенты
+direct sitelinks add --sitelink "Docs|https://example.com/docs" --sitelink "Help|https://example.com/help|Desk" --dry-run
+direct vcards add --campaign-id 555 --country "Россия" --city "Москва" --company-name "Acme" --work-time 1#5#9#0#18#0 --phone-country-code +7 --phone-city-code 495 --phone-number 1234567 --dry-run
+direct adextensions add --callout-text "Free shipping" --dry-run
+direct adimages add --name banner.png --image-data BASE64DATA --type ICON --dry-run
+direct creatives add --video-id video-id --dry-run
+direct feeds add --name "Фид A" --url "https://example.com/feed.xml" --dry-run
+direct feeds update --id 18 --name "Фид A v2" --url "https://example.com/feed-v2.xml" --dry-run
+direct clients update --client-id 999 --phone +70000000000 --fax +70000000001 --email user@example.com --city Moscow --dry-run
+direct agencyclients add --login client-login --first-name Alice --last-name Smith --currency RUB --notification-email ops@example.com --notification-lang RU --send-account-news --no-send-warnings --dry-run
+direct agencyclients add-passport-organization --name "Org" --currency RUB --notification-email ops@example.com --notification-lang EN --no-send-account-news --send-warnings --dry-run
+direct agencyclients add-passport-organization-member --passport-organization-login org-login --role CHIEF --invite-email user@example.com --dry-run
+direct agencyclients update --client-id 42 --phone +70000000000 --email user@example.com --grant EDIT_CAMPAIGNS --grant IMPORT_XLS --dry-run
 ```
 
 ### Известный Transport Gap

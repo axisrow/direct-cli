@@ -2,13 +2,11 @@
 RetargetingLists commands
 """
 
-import json
-
 import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import get_default_fields, parse_ids
+from ..utils import get_default_fields, parse_ids, parse_retargeting_rule_specs
 
 
 @click.group()
@@ -83,16 +81,24 @@ _RETARGETING_LIST_TYPES = ["RETARGETING", "AUDIENCE"]
         "See axisrow/direct-cli#25."
     ),
 )
-@click.option("--json", "extra_json", help="Additional JSON parameters")
+@click.option(
+    "--rule",
+    "rules",
+    multiple=True,
+    help="Rule spec: OPERATOR:EXTERNAL_ID[:LIFESPAN][|EXTERNAL_ID[:LIFESPAN]]",
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def add(ctx, name, list_type, extra_json, dry_run):
+def add(ctx, name, list_type, rules, dry_run):
     """Add new retargeting list"""
     try:
-        list_data = {"Name": name, "Type": list_type}
-
-        if extra_json:
-            list_data.update(json.loads(extra_json))
+        if not rules:
+            raise click.UsageError("Provide at least one --rule")
+        list_data = {
+            "Name": name,
+            "Type": list_type,
+            "Rules": parse_retargeting_rule_specs(list(rules)),
+        }
 
         body = {"method": "add", "params": {"RetargetingLists": [list_data]}}
 
@@ -108,6 +114,8 @@ def add(ctx, name, list_type, extra_json, dry_run):
         result = client.retargeting().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
@@ -115,17 +123,33 @@ def add(ctx, name, list_type, extra_json, dry_run):
 
 @retargeting.command()
 @click.option("--id", "list_id", required=True, type=int, help="Retargeting list ID")
-@click.option("--json", "extra_json", help="Additional JSON parameters")
+@click.option("--name", help="List name")
+@click.option(
+    "--type",
+    "list_type",
+    type=click.Choice(_RETARGETING_LIST_TYPES, case_sensitive=False),
+    help="Retargeting list type",
+)
+@click.option(
+    "--rule",
+    "rules",
+    multiple=True,
+    help="Rule spec: OPERATOR:EXTERNAL_ID[:LIFESPAN][|EXTERNAL_ID[:LIFESPAN]]",
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def update(ctx, list_id, extra_json, dry_run):
+def update(ctx, list_id, name, list_type, rules, dry_run):
     """Update retargeting list"""
     try:
         list_data = {"Id": list_id}
-        if extra_json:
-            list_data.update(json.loads(extra_json))
+        if name:
+            list_data["Name"] = name
+        if list_type:
+            list_data["Type"] = list_type
+        if rules:
+            list_data["Rules"] = parse_retargeting_rule_specs(list(rules))
         if len(list_data) == 1:
-            raise click.UsageError("Provide --json with fields to update")
+            raise click.UsageError("Provide at least one field to update")
 
         body = {"method": "update", "params": {"RetargetingLists": [list_data]}}
 

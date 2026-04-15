@@ -2,7 +2,6 @@
 VCards commands
 """
 
-import json
 import click
 
 from ..api import create_client
@@ -66,13 +65,84 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
 
 
 @vcards.command()
-@click.option("--json", "vcard_json", required=True, help="vCard data in JSON")
+@click.option("--campaign-id", required=True, type=int, help="Campaign ID")
+@click.option("--country", required=True, help="Country")
+@click.option("--city", required=True, help="City")
+@click.option("--company-name", required=True, help="Company name")
+@click.option("--work-time", required=True, help="Work time string")
+@click.option("--phone-country-code", required=True, help="Phone country code")
+@click.option("--phone-city-code", required=True, help="Phone city code")
+@click.option("--phone-number", required=True, help="Phone number")
+@click.option("--phone-extension", help="Phone extension")
+@click.option("--street", help="Street")
+@click.option("--house", help="House")
+@click.option("--building", help="Building")
+@click.option("--apartment", help="Apartment")
+@click.option("--contact-person", help="Contact person")
+@click.option("--contact-email", help="Contact email")
+@click.option("--extra-message", help="Extra message")
+@click.option("--ogrn", help="OGRN")
+@click.option("--metro-station-id", type=int, help="Metro station ID")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def add(ctx, vcard_json, dry_run):
+def add(
+    ctx,
+    campaign_id,
+    country,
+    city,
+    company_name,
+    work_time,
+    phone_country_code,
+    phone_city_code,
+    phone_number,
+    phone_extension,
+    street,
+    house,
+    building,
+    apartment,
+    contact_person,
+    contact_email,
+    extra_message,
+    ogrn,
+    metro_station_id,
+    dry_run,
+):
     """Add vCard"""
     try:
-        body = {"method": "add", "params": {"VCards": [json.loads(vcard_json)]}}
+        vcard = {
+            "CampaignId": campaign_id,
+            "Country": country,
+            "City": city,
+            "CompanyName": company_name,
+            "WorkTime": work_time,
+            "Phone": {
+                "CountryCode": phone_country_code,
+                "CityCode": phone_city_code,
+                "PhoneNumber": phone_number,
+            },
+        }
+        if phone_extension:
+            vcard["Phone"]["Extension"] = phone_extension
+        if street:
+            vcard["Street"] = street
+        if house:
+            vcard["House"] = house
+        if building:
+            vcard["Building"] = building
+        if apartment:
+            vcard["Apartment"] = apartment
+        if contact_person:
+            vcard["ContactPerson"] = contact_person
+        if contact_email:
+            vcard["ContactEmail"] = contact_email
+        if extra_message:
+            vcard["ExtraMessage"] = extra_message
+        if ogrn:
+            vcard["Ogrn"] = ogrn
+        if metro_station_id is not None:
+            vcard["MetroStationId"] = metro_station_id
+
+        body = {"method": "add", "params": {"VCards": [vcard]}}
 
         if dry_run:
             format_output(body, "json", None)

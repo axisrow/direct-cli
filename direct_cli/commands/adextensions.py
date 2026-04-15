@@ -2,7 +2,6 @@
 AdExtensions commands
 """
 
-import json
 import click
 
 from ..api import create_client
@@ -65,35 +64,13 @@ def get(ctx, ids, types, limit, fetch_all, output_format, output, fields):
 
 
 @adextensions.command()
-@click.option(
-    "--type",
-    "ext_type",
-    help=(
-        "Legacy UX hint; NOT forwarded to the API. The Yandex Direct "
-        "API derives the extension type from the nested field name "
-        "inside --json (Callout / Sitelinks / Vcard / ...), so the "
-        "only flag that actually matters is --json.  Previously this "
-        "option was required=True but silently discarded, which "
-        "forced every caller to pass a value that did nothing.  See "
-        "axisrow/direct-cli#25."
-    ),
-)
-@click.option("--json", "extra_json", required=True, help="Extension data in JSON")
+@click.option("--callout-text", required=True, help="Callout text")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def add(ctx, ext_type, extra_json, dry_run):
-    """Add ad extension
-
-    The Yandex Direct API infers the extension type from the top-level
-    field of the payload (``Callout`` / ``Sitelinks`` / ``Vcard`` / …),
-    so the CLI does **not** forward ``--type`` into the request — it
-    is accepted only as a user-facing hint.  Previously direct-cli sent
-    ``{"Type": ext_type, ...}`` and the sandbox rejected the extra
-    key as ``unknown parameter Type``.
-    """
-    _ = ext_type  # intentionally unused — kept as UX hint only
+def add(ctx, callout_text, dry_run):
+    """Add ad extension (callout)"""
     try:
-        ext_data = json.loads(extra_json)
+        ext_data = {"Callout": {"CalloutText": callout_text}}
 
         body = {"method": "add", "params": {"AdExtensions": [ext_data]}}
 
@@ -110,6 +87,8 @@ def add(ctx, ext_type, extra_json, dry_run):
         result = client.adextensions().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()

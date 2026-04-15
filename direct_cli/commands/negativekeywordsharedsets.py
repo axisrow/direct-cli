@@ -2,7 +2,6 @@
 NegativeKeywordSharedSets commands
 """
 
-import json
 import click
 
 from ..api import create_client
@@ -100,10 +99,9 @@ def add(ctx, name, keywords, dry_run):
 @click.option("--id", "set_id", required=True, type=int, help="Set ID")
 @click.option("--name", help="Set name")
 @click.option("--keywords", help="Comma-separated negative keywords")
-@click.option("--json", "extra_json", help="Additional JSON parameters")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def update(ctx, set_id, name, keywords, extra_json, dry_run):
+def update(ctx, set_id, name, keywords, dry_run):
     """Update negative keyword shared set"""
     try:
         set_data = {"Id": set_id}
@@ -114,13 +112,8 @@ def update(ctx, set_id, name, keywords, extra_json, dry_run):
             set_data["NegativeKeywords"] = [
                 k.strip() for k in keywords.split(",")
             ]
-        if extra_json:
-            extra = json.loads(extra_json)
-            set_data.update(extra)
         if len(set_data) == 1:
-            raise click.ClickException(
-                "Provide at least one of --name, --keywords, or --json for update"
-            )
+            raise click.ClickException("Provide at least one of --name or --keywords")
 
         body = {
             "method": "update",

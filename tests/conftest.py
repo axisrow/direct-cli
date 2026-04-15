@@ -353,17 +353,12 @@ def sandbox_keyword(sandbox_adgroup):
 
 @pytest.fixture
 def sandbox_retargeting_list(unique_suffix):
-    """Create a retargeting list in sandbox, yield its ID, delete on teardown."""
+    """Create a retargeting list from typed ``--rule`` flags in sandbox."""
     result = _invoke(
         "retargeting", "add",
         "--name", f"test-rtg-{unique_suffix}",
         "--type", "RETARGETING",
-        "--json", json.dumps({
-            "Rules": [{
-                "Operator": "ALL",
-                "Arguments": [{"ExternalId": 12345, "MembershipLifeSpan": 30}],
-            }]
-        }),
+        "--rule", "ALL:12345:30",
     )
     if result.exit_code != 0:
         if _is_sandbox_error(result.output, extra_patterns=_RETARGETING_PATTERNS):
@@ -420,15 +415,9 @@ def sandbox_dynamic_adgroup(unique_suffix):
         "--name", f"claude-dynamic-{unique_suffix}",
         "--start-date", tomorrow(),
         "--type", "DYNAMIC_TEXT_CAMPAIGN",
-        "--json", json.dumps({
-            "DynamicTextCampaign": {
-                "BiddingStrategy": {
-                    "Search": {"BiddingStrategyType": "HIGHEST_POSITION"},
-                    "Network": {"BiddingStrategyType": "SERVING_OFF"},
-                },
-                "Settings": [{"Option": "ADD_METRICA_TAG", "Value": "NO"}],
-            },
-        }),
+        "--setting", "ADD_METRICA_TAG=NO",
+        "--search-strategy", "HIGHEST_POSITION",
+        "--network-strategy", "SERVING_OFF",
         label="campaigns add (dynamic)",
     )
     campaign_id = _fixture_parse(campaign_result)
@@ -440,9 +429,7 @@ def sandbox_dynamic_adgroup(unique_suffix):
         "--campaign-id", str(campaign_id),
         "--region-ids", "1,225",
         "--type", "DYNAMIC_TEXT_AD_GROUP",
-        "--json", json.dumps({
-            "DynamicTextAdGroup": {"DomainUrl": "example.com"},
-        }),
+        "--domain-url", "example.com",
         label="adgroups add (dynamic)",
     )
     adgroup_id = _fixture_parse(adgroup_result)
@@ -467,17 +454,8 @@ def sandbox_smart_adgroup(unique_suffix, sandbox_feed):
         "--name", f"claude-smart-{unique_suffix}",
         "--start-date", tomorrow(),
         "--type", "SMART_CAMPAIGN",
-        "--json", json.dumps({
-            "SmartCampaign": {
-                "BiddingStrategy": {
-                    "Search": {"BiddingStrategyType": "SERVING_OFF"},
-                    "Network": {
-                        "BiddingStrategyType": "AVERAGE_CPC_PER_FILTER",
-                        "AverageCpcPerFilter": {"FilterAverageCpc": 1000000},
-                    },
-                },
-            },
-        }),
+        "--network-strategy", "AVERAGE_CPC_PER_FILTER",
+        "--filter-average-cpc", "1",
         label="campaigns add (smart)",
     )
     campaign_id = _fixture_parse(campaign_result)
@@ -489,9 +467,7 @@ def sandbox_smart_adgroup(unique_suffix, sandbox_feed):
         "--campaign-id", str(campaign_id),
         "--region-ids", "1,225",
         "--type", "SMART_AD_GROUP",
-        "--json", json.dumps({
-            "SmartAdGroup": {"FeedId": sandbox_feed},
-        }),
+        "--feed-id", str(sandbox_feed),
         label="adgroups add (smart)",
     )
     adgroup_id = _fixture_parse(adgroup_result)

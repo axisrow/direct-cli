@@ -2,13 +2,11 @@
 KeywordBids commands
 """
 
-import json
-
 import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids
+from ..utils import parse_ids, to_micros
 
 
 @click.group()
@@ -72,21 +70,17 @@ def get(ctx, keyword_ids, adgroup_ids, campaign_ids, limit, fetch_all, output_fo
 @click.option("--keyword-id", required=True, type=int, help="Keyword ID")
 @click.option("--search-bid", type=float, help="Search bid")
 @click.option("--network-bid", type=float, help="Network bid")
-@click.option("--json", "extra_json", help="Additional JSON parameters")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def set(ctx, keyword_id, search_bid, network_bid, extra_json, dry_run):
+def set(ctx, keyword_id, search_bid, network_bid, dry_run):
     """Set keyword bids"""
     try:
         bid_data = {"KeywordId": keyword_id}
 
         if search_bid is not None:
-            bid_data["SearchBid"] = int(search_bid * 1000000)
+            bid_data["SearchBid"] = to_micros(search_bid)
         if network_bid is not None:
-            bid_data["NetworkBid"] = int(network_bid * 1000000)
-
-        if extra_json:
-            bid_data.update(json.loads(extra_json))
+            bid_data["NetworkBid"] = to_micros(network_bid)
 
         body = {"method": "set", "params": {"KeywordBids": [bid_data]}}
 
@@ -111,13 +105,63 @@ def set(ctx, keyword_id, search_bid, network_bid, extra_json, dry_run):
 @click.option("--campaign-id", type=int, help="Campaign ID")
 @click.option("--adgroup-id", type=int, help="Ad group ID")
 @click.option("--keyword-id", type=int, help="Keyword ID")
-@click.option("--json", "bidding_rule_json", required=True, help="BiddingRule object JSON")
+@click.option(
+    "--target-traffic-volume",
+    type=int,
+    help="SearchByTrafficVolume.TargetTrafficVolume value",
+)
+@click.option(
+    "--target-coverage",
+    type=int,
+    help="NetworkByCoverage.TargetCoverage value",
+)
+@click.option("--increase-percent", type=int, help="Bidding rule IncreasePercent")
+@click.option("--bid-ceiling", type=float, help="Bidding rule bid ceiling")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def set_auto(ctx, campaign_id, adgroup_id, keyword_id, bidding_rule_json, dry_run):
+def set_auto(
+    ctx,
+    campaign_id,
+    adgroup_id,
+    keyword_id,
+    target_traffic_volume,
+    target_coverage,
+    increase_percent,
+    bid_ceiling,
+    dry_run,
+):
     """Configure automatic keyword bidding"""
     try:
-        bid_data = {"BiddingRule": json.loads(bidding_rule_json)}
+        if (target_traffic_volume is None) == (target_coverage is None):
+            raise click.UsageError(
+                "Provide exactly one of --target-traffic-volume or --target-coverage"
+            )
+
+        bidding_rule = {}
+        if target_traffic_volume is not None:
+            bidding_rule["SearchByTrafficVolume"] = {
+                "TargetTrafficVolume": target_traffic_volume
+            }
+            if increase_percent is not None:
+                bidding_rule["SearchByTrafficVolume"]["IncreasePercent"] = (
+                    increase_percent
+                )
+            if bid_ceiling is not None:
+                bidding_rule["SearchByTrafficVolume"]["BidCeiling"] = to_micros(
+                    bid_ceiling
+                )
+        if target_coverage is not None:
+            bidding_rule["NetworkByCoverage"] = {"TargetCoverage": target_coverage}
+            if increase_percent is not None:
+                bidding_rule["NetworkByCoverage"]["IncreasePercent"] = (
+                    increase_percent
+                )
+            if bid_ceiling is not None:
+                bidding_rule["NetworkByCoverage"]["BidCeiling"] = to_micros(
+                    bid_ceiling
+                )
+
+        bid_data = {"BiddingRule": bidding_rule}
         if campaign_id is not None:
             bid_data["CampaignId"] = campaign_id
         if adgroup_id is not None:
@@ -139,6 +183,8 @@ def set_auto(ctx, campaign_id, adgroup_id, keyword_id, bidding_rule_json, dry_ru
         result = client.keywordbids().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()

@@ -125,13 +125,13 @@ def test_ads_add_default_type_builds_textad():
 
 
 def test_ads_add_case_insensitive_type():
-    """--type is case-insensitive: ``text_ad`` and ``text-ad`` work too.
+    """--type is case-insensitive for canonical enum spellings.
 
     Regression guard for axisrow/direct-cli#21 — before the fix, only the
     exact string ``TEXT_AD`` built a TextAd; any other value silently
     dropped --title/--text/--href.
     """
-    for variant in ("text_ad", "Text_Ad", "text-ad", "TEXT-AD"):
+    for variant in ("text_ad", "Text_Ad"):
         body = _dry_run(
             "ads",
             "add",
@@ -155,52 +155,30 @@ def test_ads_add_case_insensitive_type():
         }, f"--type {variant!r} failed to build TextAd"
 
 
-def test_ads_add_unknown_type_with_title_errors():
-    """Non-TEXT_AD --type plus convenience flags fails loudly.
-
-    Regression guard for axisrow/direct-cli#21 — before the fix, passing
-    e.g. ``--type text`` (lowercase typo) silently dropped
-    --title/--text/--href, the API then responded with a very confusing
-    ``5008 None of the required fields were sent`` error, and users
-    debugged the payload instead of the flag.
-    """
-    for bad_type in ("TEXT_IMAGE_AD", "text"):
-        result = CliRunner().invoke(
-            cli,
-            [
-                "ads",
-                "add",
-                "--adgroup-id",
-                "1",
-                "--type",
-                bad_type,
-                "--title",
-                "T",
-                "--dry-run",
-            ],
-        )
-        assert result.exit_code != 0, f"--type {bad_type!r} should have errored"
-        combined = (result.output or "") + (
-            str(result.exception) if result.exception else ""
-        )
-        assert (
-            bad_type in combined or "--json" in combined or "TEXT_AD" in combined
-        ), f"--type {bad_type!r} error message missing expected content"
+def test_ads_add_invalid_type_is_rejected_by_choice():
+    result = CliRunner().invoke(
+        cli,
+        [
+            "ads",
+            "add",
+            "--adgroup-id",
+            "1",
+            "--type",
+            "text",
+            "--title",
+            "T",
+            "--text",
+            "Body",
+            "--href",
+            "https://example.com",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "Invalid value for '--type'" in result.output
 
 
-def test_ads_add_unknown_type_with_json_passes():
-    """Non-TEXT_AD --type works when the caller supplies the nested object via --json.
-
-    This keeps the escape hatch open for building e.g. TextImageAd,
-    MobileAppAd, etc., without the CLI having to know their schemas.
-
-    Note on ``AdImageHash``: this is a format-plausible placeholder
-    (20 lowercase alphanumeric characters — the shape Yandex Direct
-    returns from ``adimages add``).  This is a dry-run test: the hash
-    is never sent to any API, so the concrete value is irrelevant; we
-    just pick something that looks like a real hash instead of
-    obvious filler text.
-    """
+def test_ads_add_text_image_uses_typed_flags():
     image_hash = "ygqa6jmlkgsbz7vnewp0"
     body = _dry_run(
         "ads",
@@ -209,15 +187,10 @@ def test_ads_add_unknown_type_with_json_passes():
         "55",
         "--type",
         "TEXT_IMAGE_AD",
-        "--json",
-        json.dumps(
-            {
-                "TextImageAd": {
-                    "AdImageHash": image_hash,
-                    "Href": "https://example.com",
-                }
-            }
-        ),
+        "--image-hash",
+        image_hash,
+        "--href",
+        "https://example.com",
     )
     ad = body["params"]["Ads"][0]
     assert "Type" not in ad
@@ -235,12 +208,29 @@ def test_ads_update_payload_status_only():
     assert ad == {"Id": 999, "Status": "SUSPENDED"}
 
 
-def test_ads_update_extra_json_merges_into_payload():
-    extra = {"TextAd": {"Title": "Updated"}}
-    body = _dry_run("ads", "update", "--id", "999", "--json", json.dumps(extra))
+def test_ads_update_typed_fields_build_nested_objects():
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--title",
+        "Updated",
+        "--text",
+        "Body",
+        "--href",
+        "https://example.com",
+        "--image-hash",
+        "ygqa6jmlkgsbz7vnewp0",
+    )
     ad = body["params"]["Ads"][0]
     assert ad["Id"] == 999
-    assert ad["TextAd"] == {"Title": "Updated"}
+    assert ad["TextAd"] == {
+        "Title": "Updated",
+        "Text": "Body",
+        "Href": "https://example.com",
+    }
+    assert ad["TextImageAd"] == {"AdImageHash": "ygqa6jmlkgsbz7vnewp0"}
 
 
 def test_ads_get_default_fieldnames():
@@ -339,34 +329,53 @@ def test_adgroups_add_case_insensitive_default_type():
     assert group["CampaignId"] == 111
 
 
-def test_adgroups_add_unsupported_type_errors():
-    """Non-TEXT_AD_GROUP --type fails loudly.
+def test_adgroups_add_dynamic_payload_omits_type():
+    body = _dry_run(
+        "adgroups",
+        "add",
+        "--name",
+        "Dynamic Group",
+        "--campaign-id",
+        "111",
+        "--type",
+        "DYNAMIC_TEXT_AD_GROUP",
+        "--region-ids",
+        "1,225",
+        "--domain-url",
+        "example.com",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert "Type" not in group
+    assert group["RegionIds"] == [1, 225]
+    assert group["DynamicTextAdGroup"] == {"DomainUrl": "example.com"}
 
-    Regression guard for axisrow/direct-cli#23 — before the fix the CLI
-    silently discarded --type and built a TEXT_AD_GROUP regardless, so
-    a user asking for ``--type MOBILE_APP_AD_GROUP`` got a text ad group
-    with no warning. Now the CLI fails loudly with a UsageError that
-    points at --json as the escape hatch.
-    """
-    result = CliRunner().invoke(
-        cli,
-        [
-            "adgroups",
-            "add",
-            "--name",
-            "Group A",
-            "--campaign-id",
-            "111",
-            "--type",
-            "MOBILE_APP_AD_GROUP",
-            "--dry-run",
-        ],
+
+def test_adgroups_add_smart_payload_omits_type():
+    body = _dry_run(
+        "adgroups",
+        "add",
+        "--name",
+        "Smart Group",
+        "--campaign-id",
+        "111",
+        "--type",
+        "SMART_AD_GROUP",
+        "--region-ids",
+        "1,225",
+        "--feed-id",
+        "77",
+        "--ad-title-source",
+        "FEED_NAME",
+        "--ad-body-source",
+        "FEED_NAME",
     )
-    assert result.exit_code != 0
-    combined = (result.output or "") + (
-        str(result.exception) if result.exception else ""
-    )
-    assert "MOBILE_APP_AD_GROUP" in combined or "--json" in combined
+    group = body["params"]["AdGroups"][0]
+    assert "Type" not in group
+    assert group["SmartAdGroup"] == {
+        "FeedId": 77,
+        "AdTitleSource": "FEED_NAME",
+        "AdBodySource": "FEED_NAME",
+    }
 
 
 def test_adgroups_update_payload_name_only():
@@ -423,7 +432,7 @@ def test_campaigns_update_with_budget_scales_to_micro_units():
 
 
 def test_campaigns_add_case_insensitive_text_type():
-    """``--type text_campaign`` (lowercase/dashed) builds a TextCampaign.
+    """``--type text_campaign`` (lowercase) builds a TextCampaign.
 
     Regression guard for axisrow/direct-cli#23 — before the fix --type
     was silently ignored and the CLI always built a TextCampaign
@@ -437,21 +446,71 @@ def test_campaigns_add_case_insensitive_text_type():
         "--start-date",
         "2026-04-10",
         "--type",
-        "text-campaign",
+        "text_campaign",
     )
     campaign = body["params"]["Campaigns"][0]
     assert "TextCampaign" in campaign
     assert "Type" not in campaign
 
 
-def test_campaigns_add_unsupported_type_errors():
-    """Non-TEXT_CAMPAIGN --type fails loudly.
+def test_campaigns_add_dynamic_payload():
+    body = _dry_run(
+        "campaigns",
+        "add",
+        "--name",
+        "C-dynamic",
+        "--start-date",
+        "2026-04-10",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--setting",
+        "ADD_METRICA_TAG=NO",
+        "--search-strategy",
+        "HIGHEST_POSITION",
+        "--network-strategy",
+        "SERVING_OFF",
+    )
+    campaign = body["params"]["Campaigns"][0]
+    assert campaign["DynamicTextCampaign"] == {
+        "BiddingStrategy": {
+            "Search": {"BiddingStrategyType": "HIGHEST_POSITION"},
+            "Network": {"BiddingStrategyType": "SERVING_OFF"},
+        },
+        "Settings": [{"Option": "ADD_METRICA_TAG", "Value": "NO"}],
+    }
 
-    Regression guard for axisrow/direct-cli#23 — before the fix the CLI
-    silently dropped --type and always created a TextCampaign, so
-    ``--type MOBILE_APP_CAMPAIGN`` produced a text campaign with no
-    warning. Now it raises a UsageError pointing at --json.
-    """
+
+def test_campaigns_add_smart_payload():
+    body = _dry_run(
+        "campaigns",
+        "add",
+        "--name",
+        "C-smart",
+        "--start-date",
+        "2026-04-10",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--network-strategy",
+        "AVERAGE_CPC_PER_FILTER",
+        "--filter-average-cpc",
+        "1",
+        "--counter-id",
+        "123",
+    )
+    campaign = body["params"]["Campaigns"][0]
+    assert campaign["SmartCampaign"] == {
+        "BiddingStrategy": {
+            "Search": {"BiddingStrategyType": "SERVING_OFF"},
+            "Network": {
+                "BiddingStrategyType": "AVERAGE_CPC_PER_FILTER",
+                "AverageCpcPerFilter": {"FilterAverageCpc": 1_000_000},
+            },
+        },
+        "CounterId": 123,
+    }
+
+
+def test_campaigns_add_smart_requires_filter_average_cpc():
     result = CliRunner().invoke(
         cli,
         [
@@ -462,7 +521,7 @@ def test_campaigns_add_unsupported_type_errors():
             "--start-date",
             "2026-04-10",
             "--type",
-            "MOBILE_APP_CAMPAIGN",
+            "SMART_CAMPAIGN",
             "--dry-run",
         ],
     )
@@ -470,7 +529,7 @@ def test_campaigns_add_unsupported_type_errors():
     combined = (result.output or "") + (
         str(result.exception) if result.exception else ""
     )
-    assert "MOBILE_APP_CAMPAIGN" in combined or "--json" in combined
+    assert "--filter-average-cpc" in combined or "AVERAGE_CPC_PER_FILTER" in combined
 
 
 # ----------------------------------------------------------------------
@@ -564,14 +623,14 @@ def test_bidmodifiers_set_legacy_payload_keeps_modifier_type():
         "--type",
         "MOBILE_ADJUSTMENT",
         "--value",
-        "1.5",
+        "150",
     )
     assert body["method"] == "set"
     modifier = body["params"]["BidModifiers"][0]
     assert modifier == {
         "CampaignId": 1,
         "Type": "MOBILE_ADJUSTMENT",
-        "BidModifier": 1.5,
+        "BidModifier": 150,
     }
 
 
@@ -590,7 +649,7 @@ def test_bidmodifiers_set_legacy_type_is_case_insensitive():
         "--type",
         "mobile_adjustment",
         "--value",
-        "1.5",
+        "150",
     )
     modifier = body["params"]["BidModifiers"][0]
     assert modifier["Type"] == "MOBILE_ADJUSTMENT"
@@ -614,7 +673,7 @@ def test_bidmodifiers_set_with_id_builds_correct_payload():
         "150",
     )
     modifier = body["params"]["BidModifiers"][0]
-    assert modifier == {"Id": 42, "BidModifier": 150.0}
+    assert modifier == {"Id": 42, "BidModifier": 150}
     assert "CampaignId" not in modifier
     assert "Type" not in modifier
 
@@ -746,37 +805,7 @@ def test_feeds_update_payload_changes_url():
     assert feed == {"Id": 9, "UrlFeed": {"Url": "https://example.com/feed-v2.xml"}}
 
 
-def test_feeds_add_url_and_json_urlfeed_conflict_errors():
-    """Passing both --url and --json '{"UrlFeed":{...}}' fails loudly.
-
-    Regression guard for axisrow/direct-cli#23 — before the fix
-    ``feed_data.update(extra)`` would silently replace the UrlFeed
-    object built from --url with the one from --json, so the --url
-    value vanished from the request with no warning.
-    """
-    result = CliRunner().invoke(
-        cli,
-        [
-            "feeds",
-            "add",
-            "--name",
-            "F-conflict",
-            "--url",
-            "https://a.example.com/feed.xml",
-            "--json",
-            json.dumps({"UrlFeed": {"Url": "https://b.example.com/feed.xml"}}),
-            "--dry-run",
-        ],
-    )
-    assert result.exit_code != 0
-    combined = (result.output or "") + (
-        str(result.exception) if result.exception else ""
-    )
-    assert "exactly one" in combined or "UrlFeed" in combined
-
-
-def test_feeds_update_url_and_json_urlfeed_conflict_errors():
-    """Same collision check as ``feeds add`` — mirror for ``feeds update``."""
+def test_feeds_update_without_fields_errors():
     result = CliRunner().invoke(
         cli,
         [
@@ -784,10 +813,6 @@ def test_feeds_update_url_and_json_urlfeed_conflict_errors():
             "update",
             "--id",
             "9",
-            "--url",
-            "https://a.example.com/feed.xml",
-            "--json",
-            json.dumps({"UrlFeed": {"Url": "https://b.example.com/feed.xml"}}),
             "--dry-run",
         ],
     )
@@ -795,7 +820,7 @@ def test_feeds_update_url_and_json_urlfeed_conflict_errors():
     combined = (result.output or "") + (
         str(result.exception) if result.exception else ""
     )
-    assert "exactly one" in combined or "UrlFeed" in combined
+    assert "--name" in combined or "--url" in combined
 
 
 # ----------------------------------------------------------------------
@@ -819,10 +844,24 @@ def test_retargeting_add_keeps_list_type():
         "List A",
         "--type",
         "AUDIENCE",
+        "--rule",
+        "ALL:12345:30|67890:7",
     )
     assert body["method"] == "add"
     rtg = body["params"]["RetargetingLists"][0]
-    assert rtg == {"Name": "List A", "Type": "AUDIENCE"}
+    assert rtg == {
+        "Name": "List A",
+        "Type": "AUDIENCE",
+        "Rules": [
+            {
+                "Operator": "ALL",
+                "Arguments": [
+                    {"ExternalId": 12345, "MembershipLifeSpan": 30},
+                    {"ExternalId": 67890, "MembershipLifeSpan": 7},
+                ],
+            }
+        ],
+    }
 
 
 def test_retargeting_add_default_type_is_retargeting():
@@ -832,7 +871,7 @@ def test_retargeting_add_default_type_is_retargeting():
     was required=True with no validation. Now it's optional and
     defaults to the same value the API picks when Type is omitted.
     """
-    body = _dry_run("retargeting", "add", "--name", "List B")
+    body = _dry_run("retargeting", "add", "--name", "List B", "--rule", "ALL:12345")
     rtg = body["params"]["RetargetingLists"][0]
     assert rtg["Type"] == "RETARGETING"
 
@@ -878,6 +917,8 @@ def test_audiencetargets_add_scales_context_bid_to_micro_units():
         "200",
         "--bid",
         "12",
+        "--priority",
+        "HIGH",
     )
     assert body["method"] == "add"
     target = body["params"]["AudienceTargets"][0]
@@ -885,6 +926,22 @@ def test_audiencetargets_add_scales_context_bid_to_micro_units():
         "AdGroupId": 100,
         "RetargetingListId": 200,
         "ContextBid": 12_000_000,
+        "StrategyPriority": "HIGH",
+    }
+
+
+def test_audiencetargets_add_accepts_interest_id():
+    body = _dry_run(
+        "audiencetargets",
+        "add",
+        "--adgroup-id",
+        "100",
+        "--interest-id",
+        "300",
+    )
+    assert body["params"]["AudienceTargets"][0] == {
+        "AdGroupId": 100,
+        "InterestId": 300,
     }
 
 
@@ -896,10 +953,16 @@ def test_audiencetargets_set_bids_uses_bids_array():
         "101",
         "--context-bid",
         "7",
+        "--priority",
+        "LOW",
     )
     assert body["method"] == "setBids"
     item = body["params"]["Bids"][0]
-    assert item == {"Id": 101, "ContextBid": 7_000_000}
+    assert item == {
+        "Id": 101,
+        "ContextBid": 7_000_000,
+        "StrategyPriority": "LOW",
+    }
 
 
 # ----------------------------------------------------------------------
@@ -908,14 +971,22 @@ def test_audiencetargets_set_bids_uses_bids_array():
 
 
 def test_sitelinks_add_parses_links_array():
-    links = [
-        {"Title": "About", "Href": "https://example.com/about"},
-        {"Title": "Contact", "Href": "https://example.com/contact"},
-    ]
-    body = _dry_run("sitelinks", "add", "--links", json.dumps(links))
+    body = _dry_run(
+        "sitelinks",
+        "add",
+        "--sitelink",
+        "About|https://example.com/about",
+        "--sitelink",
+        "Contact|https://example.com/contact",
+    )
     assert body["method"] == "add"
     sitelinks_set = body["params"]["SitelinksSets"][0]
-    assert sitelinks_set == {"Sitelinks": links}
+    assert sitelinks_set == {
+        "Sitelinks": [
+            {"Title": "About", "Href": "https://example.com/about"},
+            {"Title": "Contact", "Href": "https://example.com/contact"},
+        ]
+    }
 
 
 # ----------------------------------------------------------------------
@@ -923,16 +994,42 @@ def test_sitelinks_add_parses_links_array():
 # ----------------------------------------------------------------------
 
 
-def test_vcards_add_passes_full_json_through():
-    vcard = {
-        "CampaignId": 555,
-        "Country": "Россия",
-        "City": "Москва",
-        "CompanyName": "Acme",
-    }
-    body = _dry_run("vcards", "add", "--json", json.dumps(vcard))
+def test_vcards_add_uses_typed_flags():
+    body = _dry_run(
+        "vcards",
+        "add",
+        "--campaign-id",
+        "555",
+        "--country",
+        "Россия",
+        "--city",
+        "Москва",
+        "--company-name",
+        "Acme",
+        "--work-time",
+        "1#5#9#0#18#0",
+        "--phone-country-code",
+        "+7",
+        "--phone-city-code",
+        "495",
+        "--phone-number",
+        "1234567",
+    )
     assert body["method"] == "add"
-    assert body["params"]["VCards"] == [vcard]
+    assert body["params"]["VCards"] == [
+        {
+            "CampaignId": 555,
+            "Country": "Россия",
+            "City": "Москва",
+            "CompanyName": "Acme",
+            "WorkTime": "1#5#9#0#18#0",
+            "Phone": {
+                "CountryCode": "+7",
+                "CityCode": "495",
+                "PhoneNumber": "1234567",
+            },
+        }
+    ]
 
 
 # ----------------------------------------------------------------------
@@ -944,37 +1041,15 @@ def test_adextensions_add_does_not_send_type_field():
     body = _dry_run(
         "adextensions",
         "add",
-        "--type",
-        "CALLOUT",
-        "--json",
-        json.dumps({"Callout": {"CalloutText": "Free shipping"}}),
+        "--callout-text",
+        "Free shipping",
     )
     assert body["method"] == "add"
     ext = body["params"]["AdExtensions"][0]
     # The API derives the extension type from the nested field name
-    # (Callout / Sitelinks / Vcard / ...).  The top-level --type CLI
-    # option is a UX hint and must NOT be forwarded to the request.
+    # (Callout).  AdExtensionAddItem only supports Callout per WSDL.
     assert "Type" not in ext
     assert ext == {"Callout": {"CalloutText": "Free shipping"}}
-
-
-def test_adextensions_add_type_is_now_optional():
-    """``--type`` is no longer ``required=True`` on ``adextensions add``.
-
-    Regression guard for axisrow/direct-cli#25 — before the fix ``--type``
-    was required but immediately discarded. Users should be able to
-    pass just ``--json`` (which carries the real payload and determines
-    the extension type via its nested field name).
-    """
-    body = _dry_run(
-        "adextensions",
-        "add",
-        "--json",
-        json.dumps({"Sitelinks": [{"Title": "T", "Href": "https://a"}]}),
-    )
-    ext = body["params"]["AdExtensions"][0]
-    assert "Type" not in ext
-    assert ext == {"Sitelinks": [{"Title": "T", "Href": "https://a"}]}
 
 
 # ----------------------------------------------------------------------
@@ -1081,9 +1156,18 @@ def test_reports_get_mode_option_removed():
 # ----------------------------------------------------------------------
 
 
-def test_adimages_add_passes_full_json_through():
-    image = {"ImageData": "BASE64DATA", "Name": "banner.png"}
-    body = _dry_run("adimages", "add", "--json", json.dumps(image))
+def test_adimages_add_uses_typed_flags():
+    image = {"ImageData": "BASE64DATA", "Name": "banner.png", "Type": "ICON"}
+    body = _dry_run(
+        "adimages",
+        "add",
+        "--name",
+        "banner.png",
+        "--image-data",
+        "BASE64DATA",
+        "--type",
+        "ICON",
+    )
     assert body["method"] == "add"
     assert body["params"]["AdImages"] == [image]
 
@@ -1094,23 +1178,35 @@ def test_adimages_add_passes_full_json_through():
 
 
 def test_dynamicads_add_payload_uses_webpages_key():
-    target = {
-        "Name": "Webpage A",
-        "Conditions": [{"Operator": "CONTAINS", "Arguments": ["foo"]}],
-    }
     body = _dry_run(
         "dynamicads",
         "add",
         "--adgroup-id",
         "33",
-        "--json",
-        json.dumps(target),
+        "--name",
+        "Webpage A",
+        "--condition",
+        "URL:CONTAINS_ANY:foo|bar",
+        "--condition",
+        "PAGE_CONTENT:CONTAINS:baz",
+        "--bid",
+        "3",
+        "--context-bid",
+        "2",
+        "--priority",
+        "HIGH",
     )
     assert body["method"] == "add"
     webpage = body["params"]["Webpages"][0]
     assert webpage["AdGroupId"] == 33
     assert webpage["Name"] == "Webpage A"
-    assert webpage["Conditions"] == target["Conditions"]
+    assert webpage["Conditions"] == [
+        {"Operand": "URL", "Operator": "CONTAINS_ANY", "Arguments": ["foo", "bar"]},
+        {"Operand": "PAGE_CONTENT", "Operator": "CONTAINS", "Arguments": ["baz"]},
+    ]
+    assert webpage["Bid"] == 3_000_000
+    assert webpage["ContextBid"] == 2_000_000
+    assert webpage["StrategyPriority"] == "HIGH"
 
 
 def test_dynamicads_set_bids_uses_bids_array():
@@ -1123,10 +1219,17 @@ def test_dynamicads_set_bids_uses_bids_array():
         "3",
         "--context-bid",
         "2",
+        "--priority",
+        "LOW",
     )
     assert body["method"] == "setBids"
     item = body["params"]["Bids"][0]
-    assert item == {"Id": 44, "Bid": 3_000_000, "ContextBid": 2_000_000}
+    assert item == {
+        "Id": 44,
+        "Bid": 3_000_000,
+        "ContextBid": 2_000_000,
+        "StrategyPriority": "LOW",
+    }
 
 
 # ----------------------------------------------------------------------
@@ -1134,78 +1237,99 @@ def test_dynamicads_set_bids_uses_bids_array():
 # ----------------------------------------------------------------------
 
 
-def test_smartadtargets_add_payload_omits_type():
+def test_smartadtargets_add_uses_typed_flags():
     body = _dry_run(
         "smartadtargets",
         "add",
         "--adgroup-id",
         "55",
-        "--type",
-        "VIEWED_PRODUCT",
-        "--json",
-        json.dumps({"Name": "Audience A", "Audience": "ALL_SEGMENTS"}),
+        "--name",
+        "Audience A",
+        "--audience",
+        "ALL_SEGMENTS",
+        "--condition",
+        "CATEGORY_ID:EQUALS:42",
+        "--average-cpc",
+        "3",
+        "--average-cpa",
+        "4",
+        "--priority",
+        "HIGH",
+        "--available-items-only",
+        "YES",
     )
     assert body["method"] == "add"
     target = body["params"]["SmartAdTargets"][0]
-    assert "Type" not in target
-    assert target["AdGroupId"] == 55
-    assert target["Name"] == "Audience A"
-    assert target["Audience"] == "ALL_SEGMENTS"
+    assert target == {
+        "AdGroupId": 55,
+        "Name": "Audience A",
+        "Audience": "ALL_SEGMENTS",
+        "Conditions": {
+            "Items": [
+                {
+                    "Operand": "CATEGORY_ID",
+                    "Operator": "EQUALS",
+                    "Arguments": ["42"],
+                }
+            ]
+        },
+        "AverageCpc": 3_000_000,
+        "AverageCpa": 4_000_000,
+        "StrategyPriority": "HIGH",
+        "AvailableItemsOnly": "YES",
+    }
 
 
-def test_smartadtargets_update_omits_type():
+def test_smartadtargets_update_uses_typed_flags():
     body = _dry_run(
         "smartadtargets",
         "update",
         "--id",
         "66",
-        "--json",
-        json.dumps({"AverageCpc": 3_000_000}),
+        "--name",
+        "Audience B",
+        "--audience",
+        "ALL_SEGMENTS",
+        "--condition",
+        "CATEGORY_ID:EQUALS:42",
+        "--average-cpc",
+        "3",
+        "--average-cpa",
+        "4",
+        "--priority",
+        "HIGH",
+        "--available-items-only",
+        "NO",
     )
     target = body["params"]["SmartAdTargets"][0]
-    assert "Type" not in target
-    assert target["Id"] == 66
-    assert target["AverageCpc"] == 3_000_000
+    assert target == {
+        "Id": 66,
+        "Name": "Audience B",
+        "Audience": "ALL_SEGMENTS",
+        "Conditions": {
+            "Items": [
+                {
+                    "Operand": "CATEGORY_ID",
+                    "Operator": "EQUALS",
+                    "Arguments": ["42"],
+                }
+            ]
+        },
+        "AverageCpc": 3_000_000,
+        "AverageCpa": 4_000_000,
+        "StrategyPriority": "HIGH",
+        "AvailableItemsOnly": "NO",
+    }
 
 
-def test_smartadtargets_add_type_is_now_optional():
-    """``--type`` is no longer ``required=True`` on ``smartadtargets add``.
-
-    Regression guard for axisrow/direct-cli#23 — before the fix
-    ``--type`` was both required and immediately discarded, which
-    forced every caller to pass a value that did nothing.  It is now
-    optional, so passing only --json is enough.
-    """
-    body = _dry_run(
-        "smartadtargets",
-        "add",
-        "--adgroup-id",
-        "55",
-        "--json",
-        json.dumps({"Name": "Audience A", "Audience": "ALL_SEGMENTS"}),
-    )
-    target = body["params"]["SmartAdTargets"][0]
-    assert "Type" not in target
-    assert target["AdGroupId"] == 55
-    assert target["Name"] == "Audience A"
-    assert target["Audience"] == "ALL_SEGMENTS"
-
-
-def test_smartadtargets_add_without_fields_errors():
-    """Without --json (or any real fields), ``add`` fails loudly.
-
-    Regression guard for axisrow/direct-cli#23 — before the fix the CLI
-    happily sent ``{"AdGroupId": N}`` to the API and the user saw an
-    opaque "required field missing" response.  The CLI now catches
-    this up front with a UsageError that names the missing fields.
-    """
+def test_smartadtargets_update_without_fields_errors():
     result = CliRunner().invoke(
         cli,
         [
             "smartadtargets",
-            "add",
-            "--adgroup-id",
-            "55",
+            "update",
+            "--id",
+            "66",
             "--dry-run",
         ],
     )
@@ -1213,7 +1337,7 @@ def test_smartadtargets_add_without_fields_errors():
     combined = (result.output or "") + (
         str(result.exception) if result.exception else ""
     )
-    assert "--json" in combined or "Audience" in combined or "Name" in combined
+    assert "Provide at least one field to update" in combined
 
 
 # ----------------------------------------------------------------------
@@ -1256,16 +1380,37 @@ def test_negativekeywordsharedsets_update_keywords():
 # ----------------------------------------------------------------------
 
 
-def test_agencyclients_add_passes_full_json_through():
+def test_agencyclients_add_builds_notification_from_typed_flags():
     client_data = {
         "Login": "client-login",
         "FirstName": "Alice",
         "LastName": "Smith",
         "Currency": "RUB",
-        "Notification": {},
-        "Grants": [],
+        "Notification": {
+            "Email": "ops@example.com",
+            "Lang": "RU",
+            "SendAccountNews": "YES",
+            "SendWarnings": "NO",
+        },
     }
-    body = _dry_run("agencyclients", "add", "--json", json.dumps(client_data))
+    body = _dry_run(
+        "agencyclients",
+        "add",
+        "--login",
+        "client-login",
+        "--first-name",
+        "Alice",
+        "--last-name",
+        "Smith",
+        "--currency",
+        "RUB",
+        "--notification-email",
+        "ops@example.com",
+        "--notification-lang",
+        "RU",
+        "--send-account-news",
+        "--no-send-warnings",
+    )
     assert body["method"] == "add"
     assert body["params"] == client_data
 
@@ -1275,18 +1420,30 @@ def test_agencyclients_add_passes_full_json_through():
 # ----------------------------------------------------------------------
 
 
-def test_clients_update_merges_extra_json_with_client_id():
+def test_clients_update_uses_typed_flags():
     body = _dry_run(
         "clients",
         "update",
         "--client-id",
         "999",
-        "--json",
-        json.dumps({"Phone": "+70000000000"}),
+        "--phone",
+        "+70000000000",
+        "--fax",
+        "+70000000001",
+        "--email",
+        "user@example.com",
+        "--city",
+        "Moscow",
     )
     assert body["method"] == "update"
     client = body["params"]["Clients"][0]
-    assert client == {"ClientId": 999, "Phone": "+70000000000"}
+    assert client == {
+        "ClientId": 999,
+        "Phone": "+70000000000",
+        "Fax": "+70000000001",
+        "Email": "user@example.com",
+        "City": "Moscow",
+    }
 
 
 class TestAdvideosDryRun:
@@ -1318,7 +1475,8 @@ class TestBidModifiersAddPluralFields:
             "--campaign-id", "123",
             "--type", "DEMOGRAPHICS_ADJUSTMENT",
             "--value", "150",
-            "--json", '{"Gender": "GENDER_MALE", "Age": "AGE_25_34"}',
+            "--gender", "GENDER_MALE",
+            "--age", "AGE_25_34",
         )
         item = body["params"]["BidModifiers"][0]
         assert "DemographicsAdjustments" in item, f"got keys: {list(item.keys())}"
@@ -1332,7 +1490,7 @@ class TestBidModifiersAddPluralFields:
             "--campaign-id", "123",
             "--type", "RETARGETING_ADJUSTMENT",
             "--value", "120",
-            "--json", '{"RetargetingConditionId": 456}',
+            "--retargeting-condition-id", "456",
         )
         item = body["params"]["BidModifiers"][0]
         assert "RetargetingAdjustments" in item, f"got keys: {list(item.keys())}"
@@ -1344,11 +1502,39 @@ class TestBidModifiersAddPluralFields:
             "--campaign-id", "123",
             "--type", "REGIONAL_ADJUSTMENT",
             "--value", "110",
-            "--json", '{"RegionId": 1}',
+            "--region-id", "1",
         )
         item = body["params"]["BidModifiers"][0]
         assert "RegionalAdjustments" in item, f"got keys: {list(item.keys())}"
         assert isinstance(item["RegionalAdjustments"], list)
+
+    def test_serp_layout_plural(self):
+        body = _dry_run(
+            "bidmodifiers", "add",
+            "--campaign-id", "123",
+            "--type", "SERP_LAYOUT_ADJUSTMENT",
+            "--value", "105",
+            "--serp-layout", "PREMIUMBLOCK",
+        )
+        item = body["params"]["BidModifiers"][0]
+        assert "SerpLayoutAdjustments" in item, f"got keys: {list(item.keys())}"
+        assert item["SerpLayoutAdjustments"] == [
+            {"BidModifier": 105, "SerpLayout": "PREMIUMBLOCK"}
+        ]
+
+    def test_income_grade_plural(self):
+        body = _dry_run(
+            "bidmodifiers", "add",
+            "--campaign-id", "123",
+            "--type", "INCOME_GRADE_ADJUSTMENT",
+            "--value", "103",
+            "--income-grade", "VERY_HIGH",
+        )
+        item = body["params"]["BidModifiers"][0]
+        assert "IncomeGradeAdjustments" in item, f"got keys: {list(item.keys())}"
+        assert item["IncomeGradeAdjustments"] == [
+            {"BidModifier": 103, "IncomeGrade": "VERY_HIGH"}
+        ]
 
     def test_mobile_singular(self):
         """MobileAdjustment stays singular — regression guard."""
@@ -1372,8 +1558,14 @@ def test_agencyclients_add_payload_uses_top_level_fields():
     body = _dry_run(
         "agencyclients",
         "add",
-        "--json",
-        '{"Login":"client-login","FirstName":"Alice","LastName":"Smith","Currency":"RUB","Notification":{}}',
+        "--login",
+        "client-login",
+        "--first-name",
+        "Alice",
+        "--last-name",
+        "Smith",
+        "--currency",
+        "RUB",
     )
     assert body["method"] == "add"
     assert body["params"]["Login"] == "client-login"
@@ -1389,14 +1581,23 @@ def test_agencyclients_add_passport_organization_payload():
         "Org",
         "--currency",
         "RUB",
-        "--notification-json",
-        '{}',
+        "--notification-email",
+        "ops@example.com",
+        "--notification-lang",
+        "EN",
+        "--no-send-account-news",
+        "--send-warnings",
     )
     assert body["method"] == "addPassportOrganization"
     assert body["params"] == {
         "Name": "Org",
         "Currency": "RUB",
-        "Notification": {},
+        "Notification": {
+            "Email": "ops@example.com",
+            "Lang": "EN",
+            "SendAccountNews": "NO",
+            "SendWarnings": "YES",
+        },
     }
 
 
@@ -1408,8 +1609,8 @@ def test_agencyclients_add_passport_organization_member_payload():
         "org-login",
         "--role",
         "CHIEF",
-        "--send-invite-to-json",
-        '{"Email":"user@example.com"}',
+        "--invite-email",
+        "user@example.com",
     )
     assert body["method"] == "addPassportOrganizationMember"
     assert body["params"] == {
@@ -1425,11 +1626,22 @@ def test_agencyclients_update_payload_uses_clients_array():
         "update",
         "--client-id",
         "42",
-        "--json",
-        '{"Grants":[]}',
+        "--phone",
+        "+70000000000",
+        "--email",
+        "user@example.com",
+        "--grant",
+        "EDIT_CAMPAIGNS",
+        "--grant",
+        "IMPORT_XLS",
     )
     item = body["params"]["Clients"][0]
-    assert item == {"ClientId": 42, "Grants": []}
+    assert item == {
+        "ClientId": 42,
+        "Phone": "+70000000000",
+        "Email": "user@example.com",
+        "Grants": ["EDIT_CAMPAIGNS", "IMPORT_XLS"],
+    }
 
 
 def test_bids_set_auto_requires_scope():
@@ -1447,19 +1659,37 @@ def test_bids_set_auto_payload_uses_bids_array():
         "set-auto",
         "--keyword-id",
         "1",
+        "--max-bid",
+        "20",
+        "--position",
+        "PREMIUMBLOCK",
+        "--increase-percent",
+        "15",
+        "--calculate-by",
+        "POSITION",
+        "--context-coverage",
+        "50",
         "--scope",
         "SEARCH",
     )
     item = body["params"]["Bids"][0]
-    assert item == {"KeywordId": 1, "Scope": ["SEARCH"]}
+    assert item == {
+        "KeywordId": 1,
+        "MaxBid": 20_000_000,
+        "Position": "PREMIUMBLOCK",
+        "IncreasePercent": 15,
+        "CalculateBy": "POSITION",
+        "ContextCoverage": 50,
+        "Scope": ["SEARCH"],
+    }
 
 
 def test_creatives_add_payload_uses_creatives_array():
     body = _dry_run(
         "creatives",
         "add",
-        "--json",
-        '{"VideoExtensionCreative":{"VideoId":"video-id"}}',
+        "--video-id",
+        "video-id",
     )
     assert body["method"] == "add"
     assert body["params"]["Creatives"] == [
@@ -1473,13 +1703,38 @@ def test_keywordbids_set_auto_payload_uses_bidding_rule():
         "set-auto",
         "--keyword-id",
         "321",
-        "--json",
-        '{"SearchByTrafficVolume":{"TargetTrafficVolume":100}}',
+        "--target-traffic-volume",
+        "100",
+        "--increase-percent",
+        "10",
+        "--bid-ceiling",
+        "12.5",
     )
     item = body["params"]["KeywordBids"][0]
     assert item == {
         "KeywordId": 321,
-        "BiddingRule": {"SearchByTrafficVolume": {"TargetTrafficVolume": 100}},
+        "BiddingRule": {
+            "SearchByTrafficVolume": {
+                "TargetTrafficVolume": 100,
+                "IncreasePercent": 10,
+                "BidCeiling": 12_500_000,
+            }
+        },
+    }
+
+
+def test_keywordbids_set_auto_supports_target_coverage():
+    body = _dry_run(
+        "keywordbids",
+        "set-auto",
+        "--keyword-id",
+        "321",
+        "--target-coverage",
+        "50",
+    )
+    assert body["params"]["KeywordBids"][0] == {
+        "KeywordId": 321,
+        "BiddingRule": {"NetworkByCoverage": {"TargetCoverage": 50}},
     }
 
 
@@ -1489,11 +1744,22 @@ def test_retargeting_update_payload_uses_lists_array():
         "update",
         "--id",
         "55",
-        "--json",
-        '{"Name":"Renamed"}',
+        "--name",
+        "Renamed",
+        "--rule",
+        "ANY:12345:30",
     )
     assert body["method"] == "update"
-    assert body["params"]["RetargetingLists"][0] == {"Id": 55, "Name": "Renamed"}
+    assert body["params"]["RetargetingLists"][0] == {
+        "Id": 55,
+        "Name": "Renamed",
+        "Rules": [
+            {
+                "Operator": "ANY",
+                "Arguments": [{"ExternalId": 12345, "MembershipLifeSpan": 30}],
+            }
+        ],
+    }
 
 
 def test_smartadtargets_set_bids_payload_uses_average_cpc():
@@ -1504,9 +1770,18 @@ def test_smartadtargets_set_bids_payload_uses_average_cpc():
         "11",
         "--average-cpc",
         "1.5",
+        "--average-cpa",
+        "2.5",
+        "--priority",
+        "LOW",
     )
     assert body["method"] == "setBids"
-    assert body["params"]["Bids"][0] == {"Id": 11, "AverageCpc": 1_500_000}
+    assert body["params"]["Bids"][0] == {
+        "Id": 11,
+        "AverageCpc": 1_500_000,
+        "AverageCpa": 2_500_000,
+        "StrategyPriority": "LOW",
+    }
 
 
 def test_campaigns_delete_dry_run_payload():

@@ -2,7 +2,6 @@
 BidModifiers commands
 """
 
-import json
 import click
 
 from ..api import create_client
@@ -113,16 +112,31 @@ _PLURAL_NESTED_KEYS = {
     help="Bid modifier percentage (0-1300).",
 )
 @click.option(
-    "--json",
-    "extra_json",
-    help=(
-        "Extra fields merged into the nested adjustment object "
-        "(e.g. Gender/Age for DEMOGRAPHICS, RegionId for REGIONAL)."
-    ),
+    "--gender", help="Demographics adjustment gender value"
 )
+@click.option("--age", help="Demographics adjustment age value")
+@click.option(
+    "--retargeting-condition-id", type=int, help="Retargeting condition ID"
+)
+@click.option("--region-id", type=int, help="Regional adjustment region ID")
+@click.option("--serp-layout", help="SERP layout adjustment value")
+@click.option("--income-grade", help="Income grade adjustment value")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def add(ctx, campaign_id, adgroup_id, modifier_type, value, extra_json, dry_run):
+def add(
+    ctx,
+    campaign_id,
+    adgroup_id,
+    modifier_type,
+    value,
+    gender,
+    age,
+    retargeting_condition_id,
+    region_id,
+    serp_layout,
+    income_grade,
+    dry_run,
+):
     """Add a new bid modifier
 
     Unlike ``set`` (which requires an existing ``Id`` and updates a
@@ -133,11 +147,8 @@ def add(ctx, campaign_id, adgroup_id, modifier_type, value, extra_json, dry_run)
 
         {"CampaignId": ..., "MobileAdjustment": {"BidModifier": 120}}
 
-    For types with extra fields (``DemographicsAdjustment`` needs
-    ``Gender``/``Age``, ``RegionalAdjustment`` needs ``RegionId``,
-    ``RetargetingAdjustment`` needs ``RetargetingConditionId``, etc.)
-    pass the missing fields via ``--json``; they are merged into the
-    nested object.
+    For types with extra fields, use the corresponding typed flags
+    (for example ``--gender`` / ``--age`` for demographics).
     """
     try:
         if (campaign_id is None) == (adgroup_id is None):
@@ -147,14 +158,40 @@ def add(ctx, campaign_id, adgroup_id, modifier_type, value, extra_json, dry_run)
 
         nested_key = _BIDMODIFIER_TYPE_TO_NESTED[modifier_type.upper()]
         nested = {"BidModifier": value}
-        if extra_json:
-            extra = json.loads(extra_json)
-            if not isinstance(extra, dict):
+        modifier_type_upper = modifier_type.upper()
+        if modifier_type_upper == "DEMOGRAPHICS_ADJUSTMENT":
+            if gender:
+                nested["Gender"] = gender
+            if age:
+                nested["Age"] = age
+            if "Gender" not in nested and "Age" not in nested:
                 raise click.UsageError(
-                    "--json must be a JSON object (dict), "
-                    f"got {type(extra).__name__}"
+                    "DEMOGRAPHICS_ADJUSTMENT requires --gender and/or --age"
                 )
-            nested.update(extra)
+        elif modifier_type_upper == "RETARGETING_ADJUSTMENT":
+            if retargeting_condition_id is None:
+                raise click.UsageError(
+                    "RETARGETING_ADJUSTMENT requires --retargeting-condition-id"
+                )
+            nested["RetargetingConditionId"] = retargeting_condition_id
+        elif modifier_type_upper == "REGIONAL_ADJUSTMENT":
+            if region_id is None:
+                raise click.UsageError(
+                    "REGIONAL_ADJUSTMENT requires --region-id"
+                )
+            nested["RegionId"] = region_id
+        elif modifier_type_upper == "SERP_LAYOUT_ADJUSTMENT":
+            if not serp_layout:
+                raise click.UsageError(
+                    "SERP_LAYOUT_ADJUSTMENT requires --serp-layout"
+                )
+            nested["SerpLayout"] = serp_layout
+        elif modifier_type_upper == "INCOME_GRADE_ADJUSTMENT":
+            if not income_grade:
+                raise click.UsageError(
+                    "INCOME_GRADE_ADJUSTMENT requires --income-grade"
+                )
+            nested["IncomeGrade"] = income_grade
 
         # Plural fields expect a list per WSDL BidModifierAddItem
         if nested_key in _PLURAL_NESTED_KEYS:
@@ -220,11 +257,10 @@ def add(ctx, campaign_id, adgroup_id, modifier_type, value, extra_json, dry_run)
         "/ ...), case-insensitive."
     ),
 )
-@click.option("--value", type=float, required=True, help="Modifier value")
-@click.option("--json", "extra_json", help="Additional JSON parameters")
+@click.option("--value", type=int, required=True, help="Modifier value")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def set(ctx, modifier_id, campaign_id, modifier_type, value, extra_json, dry_run):
+def set(ctx, modifier_id, campaign_id, modifier_type, value, dry_run):
     """Set (update) an existing bid modifier
 
     The Yandex Direct API's ``bidmodifiers/set`` method updates existing
@@ -278,10 +314,6 @@ def set(ctx, modifier_id, campaign_id, modifier_type, value, extra_json, dry_run
                 "Type": modifier_type,
                 "BidModifier": value,
             }
-
-        if extra_json:
-            extra = json.loads(extra_json)
-            modifier_data.update(extra)
 
         body = {"method": "set", "params": {"BidModifiers": [modifier_data]}}
 

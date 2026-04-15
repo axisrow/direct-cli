@@ -2,13 +2,11 @@
 Bids commands
 """
 
-import json
-
 import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids
+from ..utils import parse_ids, to_micros
 
 
 @click.group()
@@ -71,19 +69,15 @@ def get(ctx, campaign_ids, adgroup_ids, keyword_ids, limit, fetch_all, output_fo
 @bids.command()
 @click.option("--keyword-id", required=True, type=int, help="Keyword ID")
 @click.option("--bid", type=float, help="Bid amount")
-@click.option("--json", "extra_json", help="Additional JSON parameters")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def set(ctx, keyword_id, bid, extra_json, dry_run):
+def set(ctx, keyword_id, bid, dry_run):
     """Set bids"""
     try:
         bid_data = {"KeywordId": keyword_id}
 
         if bid is not None:
-            bid_data["Bid"] = int(bid * 1000000)
-
-        if extra_json:
-            bid_data.update(json.loads(extra_json))
+            bid_data["Bid"] = to_micros(bid)
 
         body = {"method": "set", "params": {"Bids": [bid_data]}}
 
@@ -114,7 +108,6 @@ def set(ctx, keyword_id, bid, extra_json, dry_run):
 @click.option("--calculate-by", help="Calculate-by mode")
 @click.option("--context-coverage", type=int, help="Context coverage")
 @click.option("--scope", multiple=True, help="One or more scope values")
-@click.option("--json", "extra_json", help="Additional JSON parameters")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def set_auto(
@@ -128,7 +121,6 @@ def set_auto(
     calculate_by,
     context_coverage,
     scope,
-    extra_json,
     dry_run,
 ):
     """Configure automatic bidding"""
@@ -141,7 +133,7 @@ def set_auto(
         if keyword_id is not None:
             bid_data["KeywordId"] = keyword_id
         if max_bid is not None:
-            bid_data["MaxBid"] = int(max_bid * 1000000)
+            bid_data["MaxBid"] = to_micros(max_bid)
         if position:
             bid_data["Position"] = position
         if increase_percent is not None:
@@ -152,12 +144,8 @@ def set_auto(
             bid_data["ContextCoverage"] = context_coverage
         if scope:
             bid_data["Scope"] = list(scope)
-        if extra_json:
-            bid_data.update(json.loads(extra_json))
         if "Scope" not in bid_data:
-            raise click.UsageError(
-                "Provide at least one --scope or include Scope in --json"
-            )
+            raise click.UsageError("Provide at least one --scope")
 
         body = {"method": "setAuto", "params": {"Bids": [bid_data]}}
 

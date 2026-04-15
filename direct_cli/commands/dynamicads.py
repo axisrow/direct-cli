@@ -2,13 +2,11 @@
 DynamicAds (Webpages) commands
 """
 
-import json
-
 import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids
+from ..utils import parse_condition_specs, parse_ids, to_micros
 
 
 @click.group()
@@ -67,19 +65,35 @@ def get(ctx, ids, adgroup_ids, limit, fetch_all, output_format, output, fields):
 
 @dynamicads.command()
 @click.option("--adgroup-id", required=True, type=int, help="Ad group ID")
+@click.option("--name", required=True, help="Target name")
 @click.option(
-    "--json",
-    "target_json",
-    required=True,
-    help="Target data in JSON (must include Name and Conditions)",
+    "--condition",
+    "conditions",
+    multiple=True,
+    help="Condition spec: OPERAND:OPERATOR:ARG1|ARG2",
 )
+@click.option("--bid", type=float, help="Search bid")
+@click.option("--context-bid", type=float, help="Context bid")
+@click.option("--priority", help="Strategy priority")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def add(ctx, adgroup_id, target_json, dry_run):
+def add(ctx, adgroup_id, name, conditions, bid, context_bid, priority, dry_run):
     """Add dynamic ad target"""
     try:
-        target_data = json.loads(target_json)
-        target_data["AdGroupId"] = adgroup_id
+        if not conditions:
+            raise click.UsageError("Provide at least one --condition")
+
+        target_data = {
+            "AdGroupId": adgroup_id,
+            "Name": name,
+            "Conditions": parse_condition_specs(list(conditions)),
+        }
+        if bid is not None:
+            target_data["Bid"] = to_micros(bid)
+        if context_bid is not None:
+            target_data["ContextBid"] = to_micros(context_bid)
+        if priority:
+            target_data["StrategyPriority"] = priority
 
         body = {"method": "add", "params": {"Webpages": [target_data]}}
 
@@ -95,6 +109,8 @@ def add(ctx, adgroup_id, target_json, dry_run):
         result = client.dynamicads().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
@@ -186,10 +202,9 @@ def resume(ctx, target_id, dry_run):
 @click.option("--bid", type=float, help="Search bid")
 @click.option("--context-bid", type=float, help="Context bid")
 @click.option("--priority", help="Strategy priority")
-@click.option("--json", "extra_json", help="Additional JSON parameters")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def set_bids(ctx, target_id, adgroup_id, campaign_id, bid, context_bid, priority, extra_json, dry_run):
+def set_bids(ctx, target_id, adgroup_id, campaign_id, bid, context_bid, priority, dry_run):
     """Set dynamic ad target bids"""
     try:
         bid_data = {}
@@ -200,15 +215,25 @@ def set_bids(ctx, target_id, adgroup_id, campaign_id, bid, context_bid, priority
         if campaign_id is not None:
             bid_data["CampaignId"] = campaign_id
         if bid is not None:
-            bid_data["Bid"] = int(bid * 1000000)
+            bid_data["Bid"] = to_micros(bid)
         if context_bid is not None:
-            bid_data["ContextBid"] = int(context_bid * 1000000)
+            bid_data["ContextBid"] = to_micros(context_bid)
         if priority:
             bid_data["StrategyPriority"] = priority
-        if extra_json:
-            bid_data.update(json.loads(extra_json))
+        bid_fields = {
+            k
+            for k in ("Bid", "ContextBid", "StrategyPriority")
+            if k in bid_data
+        }
         if not bid_data:
-            raise click.UsageError("Provide target selection and bid fields for set-bids")
+            raise click.UsageError(
+                "Provide target selection and bid fields for set-bids"
+            )
+        if not bid_fields:
+            raise click.UsageError(
+                "Provide at least one bid field"
+                " (--bid, --context-bid, or --priority)"
+            )
 
         body = {"method": "setBids", "params": {"Bids": [bid_data]}}
 

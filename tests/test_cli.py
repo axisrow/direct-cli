@@ -72,6 +72,12 @@ class TestCLI(unittest.TestCase):
         self.assertNotIn("checkcamp", result.output)
         self.assertNotIn("checkdict", result.output)
 
+    def test_changes_help_uses_canonical_datetime_format(self):
+        result = self.runner.invoke(cli, ["changes", "check-campaigns", "--help"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("YYYY-MM-DDTHH:MM:SS", result.output)
+        self.assertNotIn("ISO format", result.output)
+
     def test_keywordsresearch_help_uses_canonical_names(self):
         """Test keywords research help only exposes canonical command names"""
         result = self.runner.invoke(cli, ["keywordsresearch", "--help"])
@@ -85,6 +91,26 @@ class TestCLI(unittest.TestCase):
         result = self.runner.invoke(cli, ["adgroups", "list", "--help"])
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("No such command", result.output)
+
+    def test_write_command_help_hides_blob_flags(self):
+        for command in [
+            ["campaigns", "add"],
+            ["campaigns", "update"],
+            ["adgroups", "add"],
+            ["ads", "add"],
+            ["dynamicads", "add"],
+            ["smartadtargets", "add"],
+            ["sitelinks", "add"],
+            ["vcards", "add"],
+            ["adimages", "add"],
+            ["agencyclients", "add"],
+        ]:
+            result = self.runner.invoke(cli, [*command, "--help"])
+            self.assertEqual(result.exit_code, 0)
+            self.assertNotIn("--json", result.output)
+            self.assertNotIn("--links", result.output)
+            self.assertNotIn("--notification-json", result.output)
+            self.assertNotIn("--send-invite-to-json", result.output)
 
 
 class TestAuth(unittest.TestCase):

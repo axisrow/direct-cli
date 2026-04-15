@@ -2,12 +2,11 @@
 Sitelinks commands
 """
 
-import json
 import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids
+from ..utils import parse_ids, parse_sitelink_specs
 
 
 @click.group()
@@ -62,15 +61,25 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
 
 
 @sitelinks.command()
-@click.option("--links", required=True, help="JSON array of sitelinks")
+@click.option(
+    "--sitelink",
+    "sitelinks_specs",
+    multiple=True,
+    required=True,
+    help="Sitelink spec: TITLE|HREF[|DESCRIPTION]",
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def add(ctx, links, dry_run):
+def add(ctx, sitelinks_specs, dry_run):
     """Add sitelinks set"""
     try:
         body = {
             "method": "add",
-            "params": {"SitelinksSets": [{"Sitelinks": json.loads(links)}]},
+            "params": {
+                "SitelinksSets": [
+                    {"Sitelinks": parse_sitelink_specs(list(sitelinks_specs))}
+                ]
+            },
         }
 
         if dry_run:

@@ -2,9 +2,10 @@
 Utilities for Direct CLI
 """
 
+import base64
 import json
-from typing import Any, Dict, List, Optional
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 
 def parse_ids(ids_str: Optional[str]) -> Optional[List[int]]:
@@ -29,6 +30,16 @@ def parse_json(json_str: Optional[str]) -> Optional[Dict[str, Any]]:
         return json.loads(json_str)
     except json.JSONDecodeError as e:
         raise ValueError(f"Invalid JSON: {e}")
+
+
+def parse_csv_strings(value: Optional[str]) -> Optional[List[str]]:
+    """Parse comma-separated strings, trimming whitespace."""
+    if not value:
+        return None
+
+    items = [item.strip() for item in value.split(",")]
+    result = [item for item in items if item]
+    return result or None
 
 
 def build_selection_criteria(
@@ -74,6 +85,140 @@ def parse_date(date_str: str) -> str:
         return date_str
     except ValueError:
         raise ValueError(f"Invalid date format: {date_str}. Expected: YYYY-MM-DD")
+
+
+def parse_datetime(datetime_str: str) -> str:
+    """Parse canonical CLI datetime and normalize it for the API."""
+    try:
+        datetime.strptime(datetime_str, "%Y-%m-%dT%H:%M:%S")
+        return f"{datetime_str}Z"
+    except ValueError:
+        raise ValueError(
+            "Invalid datetime format: "
+            f"{datetime_str}. Expected: YYYY-MM-DDTHH:MM:SS"
+        )
+
+
+def to_micros(value: Optional[float]) -> Optional[int]:
+    """Convert a human-readable money/bid value to micros."""
+    if value is None:
+        return None
+    return round(value * 1000000)
+
+
+def load_base64_file(file_path: str) -> str:
+    """Read a file and return its base64-encoded contents."""
+    with open(file_path, "rb") as file_obj:
+        return base64.b64encode(file_obj.read()).decode("ascii")
+
+
+def parse_setting_specs(specs: Optional[List[str]]) -> Optional[List[Dict[str, str]]]:
+    """Parse repeated OPTION=VALUE campaign setting specs."""
+    if not specs:
+        return None
+
+    settings = []
+    for spec in specs:
+        option, separator, value = spec.partition("=")
+        if not separator:
+            raise ValueError(
+                f"Invalid setting: '{spec}'. Expected format: OPTION=VALUE"
+            )
+        settings.append({"Option": option.strip(), "Value": value.strip()})
+    return settings
+
+
+def parse_condition_specs(specs: Optional[List[str]]) -> Optional[List[Dict[str, Any]]]:
+    """Parse repeated OPERAND:OPERATOR:ARG1|ARG2 condition specs."""
+    if not specs:
+        return None
+
+    conditions = []
+    for spec in specs:
+        parts = spec.split(":", 2)
+        if len(parts) != 3:
+            raise ValueError(
+                "Invalid condition: "
+                f"'{spec}'. Expected format: OPERAND:OPERATOR:ARG1|ARG2"
+            )
+
+        operand, operator, arguments = [part.strip() for part in parts]
+        parsed_arguments = [arg.strip() for arg in arguments.split("|") if arg.strip()]
+        if not parsed_arguments:
+            raise ValueError(
+                f"Invalid condition: '{spec}'. Provide at least one argument."
+            )
+
+        conditions.append(
+            {
+                "Operand": operand,
+                "Operator": operator,
+                "Arguments": parsed_arguments,
+            }
+        )
+    return conditions
+
+
+def parse_retargeting_rule_specs(
+    specs: Optional[List[str]],
+) -> Optional[List[Dict[str, Any]]]:
+    """Parse repeated OPERATOR:EXTERNAL_ID[:LIFESPAN][|...] rule specs."""
+    if not specs:
+        return None
+
+    rules = []
+    for spec in specs:
+        operator, separator, arguments_spec = spec.partition(":")
+        if not separator:
+            raise ValueError(
+                "Invalid rule: "
+                f"'{spec}'. Expected format: OPERATOR:EXTERNAL_ID[:LIFESPAN][|...]"
+            )
+
+        arguments = []
+        for argument_spec in arguments_spec.split("|"):
+            parts = [part.strip() for part in argument_spec.split(":") if part.strip()]
+            if not parts:
+                continue
+            if len(parts) > 2:
+                raise ValueError(
+                    "Invalid rule argument: "
+                    f"'{argument_spec}'. Expected EXTERNAL_ID[:LIFESPAN]"
+                )
+
+            argument = {"ExternalId": int(parts[0])}
+            if len(parts) == 2:
+                argument["MembershipLifeSpan"] = int(parts[1])
+            arguments.append(argument)
+
+        if not arguments:
+            raise ValueError(
+                f"Invalid rule: '{spec}'. Provide at least one rule argument."
+            )
+
+        rules.append({"Operator": operator.strip(), "Arguments": arguments})
+    return rules
+
+
+def parse_sitelink_specs(specs: Optional[List[str]]) -> Optional[List[Dict[str, str]]]:
+    """Parse repeated TITLE|HREF[|DESCRIPTION] sitelink specs."""
+    if not specs:
+        return None
+
+    sitelinks = []
+    for spec in specs:
+        parts = [part.strip() for part in spec.split("|")]
+        if len(parts) not in (2, 3):
+            raise ValueError(
+                "Invalid sitelink: "
+                f"'{spec}'. Expected format: TITLE|HREF[|DESCRIPTION]"
+            )
+
+        sitelink = {"Title": parts[0], "Href": parts[1]}
+        if len(parts) == 3 and parts[2]:
+            sitelink["Description"] = parts[2]
+        sitelinks.append(sitelink)
+    return sitelinks
 
 
 COMMON_FIELDS = {

@@ -2,12 +2,11 @@
 Dictionaries commands
 """
 
-import json
-
 import click
 
 from ..api import create_client
 from ..output import format_output, print_error
+from ..utils import parse_csv_strings, parse_ids
 
 DICTIONARY_NAMES = [
     "Currencies",
@@ -59,12 +58,16 @@ def get(ctx, names, output_format, output):
 
 
 @dictionaries.command(name="get-geo-regions")
-@click.option("--json", "criteria_json", help="GeoRegions selection criteria JSON")
+@click.option("--name", help="SelectionCriteria.Name value")
+@click.option("--region-ids", help="Comma-separated SelectionCriteria.RegionIds")
+@click.option(
+    "--exact-names", help="Comma-separated SelectionCriteria.ExactNames values"
+)
 @click.option("--fields", required=True, help="Comma-separated field names")
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.pass_context
-def get_geo_regions(ctx, criteria_json, fields, output_format, output):
+def get_geo_regions(ctx, name, region_ids, exact_names, fields, output_format, output):
     """Get GeoRegions dictionary entries"""
     try:
         client = create_client(
@@ -74,7 +77,15 @@ def get_geo_regions(ctx, criteria_json, fields, output_format, output):
         )
 
         params = {"FieldNames": [name.strip() for name in fields.split(",")]}
-        params["SelectionCriteria"] = json.loads(criteria_json) if criteria_json else {}
+        selection_criteria = {}
+        if name:
+            selection_criteria["Name"] = name
+        if region_ids:
+            selection_criteria["RegionIds"] = parse_ids(region_ids)
+        if exact_names:
+            selection_criteria["ExactNames"] = parse_csv_strings(exact_names)
+        if selection_criteria:
+            params["SelectionCriteria"] = selection_criteria
 
         body = {"method": "getGeoRegions", "params": params}
 

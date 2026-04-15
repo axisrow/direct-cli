@@ -2,13 +2,11 @@
 AudienceTargets commands
 """
 
-import json
-
 import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids
+from ..utils import parse_ids, to_micros
 
 
 @click.group()
@@ -76,24 +74,40 @@ def get(ctx, ids, adgroup_ids, campaign_ids, limit, fetch_all, output_format, ou
 
 @audiencetargets.command()
 @click.option("--adgroup-id", required=True, type=int, help="Ad group ID")
-@click.option("--retargeting-list-id", required=True, type=int, help="Retargeting list ID")
+@click.option("--retargeting-list-id", type=int, help="Retargeting list ID")
+@click.option("--interest-id", type=int, help="Interest ID")
 @click.option("--bid", type=float, help="Context bid")
-@click.option("--json", "extra_json", help="Additional JSON parameters")
+@click.option("--priority", help="Strategy priority")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def add(ctx, adgroup_id, retargeting_list_id, bid, extra_json, dry_run):
+def add(
+    ctx,
+    adgroup_id,
+    retargeting_list_id,
+    interest_id,
+    bid,
+    priority,
+    dry_run,
+):
     """Add audience target"""
     try:
+        if retargeting_list_id is None and interest_id is None:
+            raise click.UsageError(
+                "Provide at least one of --retargeting-list-id or --interest-id"
+            )
+
         target_data = {
             "AdGroupId": adgroup_id,
-            "RetargetingListId": retargeting_list_id,
         }
+        if retargeting_list_id is not None:
+            target_data["RetargetingListId"] = retargeting_list_id
+        if interest_id is not None:
+            target_data["InterestId"] = interest_id
 
         if bid is not None:
-            target_data["ContextBid"] = int(bid * 1000000)
-
-        if extra_json:
-            target_data.update(json.loads(extra_json))
+            target_data["ContextBid"] = to_micros(bid)
+        if priority:
+            target_data["StrategyPriority"] = priority
 
         body = {"method": "add", "params": {"AudienceTargets": [target_data]}}
 
@@ -109,6 +123,8 @@ def add(ctx, adgroup_id, retargeting_list_id, bid, extra_json, dry_run):
         result = client.audiencetargets().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
@@ -120,10 +136,9 @@ def add(ctx, adgroup_id, retargeting_list_id, bid, extra_json, dry_run):
 @click.option("--campaign-id", type=int, help="Campaign ID")
 @click.option("--context-bid", type=float, help="Context bid")
 @click.option("--priority", help="Strategy priority")
-@click.option("--json", "extra_json", help="Additional JSON parameters")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def set_bids(ctx, target_id, adgroup_id, campaign_id, context_bid, priority, extra_json, dry_run):
+def set_bids(ctx, target_id, adgroup_id, campaign_id, context_bid, priority, dry_run):
     """Set audience target bids"""
     try:
         bid_data = {}
@@ -134,13 +149,22 @@ def set_bids(ctx, target_id, adgroup_id, campaign_id, context_bid, priority, ext
         if campaign_id is not None:
             bid_data["CampaignId"] = campaign_id
         if context_bid is not None:
-            bid_data["ContextBid"] = int(context_bid * 1000000)
+            bid_data["ContextBid"] = to_micros(context_bid)
         if priority:
             bid_data["StrategyPriority"] = priority
-        if extra_json:
-            bid_data.update(json.loads(extra_json))
+        bid_fields = {
+            k
+            for k in ("ContextBid", "StrategyPriority")
+            if k in bid_data
+        }
         if not bid_data:
-            raise click.UsageError("Provide target selection and bid fields for set-bids")
+            raise click.UsageError(
+                "Provide target selection and bid fields for set-bids"
+            )
+        if not bid_fields:
+            raise click.UsageError(
+                "Provide at least one bid field (--context-bid or --priority)"
+            )
 
         body = {"method": "setBids", "params": {"Bids": [bid_data]}}
 
