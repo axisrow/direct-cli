@@ -106,7 +106,6 @@ Valid canonical examples:
 direct campaigns get --ids 1,2,3
 direct changes check-campaigns --timestamp 2026-04-14T00:00:00
 direct keywordsresearch has-search-volume --keywords "buy laptop,buy desktop"
-direct smartadtargets update --id 456 --priority HIGH
 direct dynamicads set-bids --id 789 --bid 12.5
 direct dictionaries get-geo-regions --region-ids 225 --fields GeoRegionId,GeoRegionName
 ```

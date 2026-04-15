@@ -83,7 +83,6 @@ be supported.
 - If the API requires a complex object, the CLI must expose explicit flags or subcommands instead of forwarding raw JSON.
 
 #### Command Formatting Rules
-
 - Every canonical CLI command must be written strictly on a single line.
 - Multi-line command formatting is not allowed.
 - Shell line continuation using `\` is forbidden in canonical documentation, help text, tests, and examples.
@@ -148,7 +147,6 @@ Valid canonical examples:
 direct campaigns get --ids 1,2,3
 direct changes check-campaigns --timestamp 2026-04-14T00:00:00
 direct keywordsresearch has-search-volume --keywords "buy laptop,buy desktop"
-direct smartadtargets update --id 456 --priority HIGH
 direct dynamicads set-bids --id 789 --bid 12.5 --context-bid 9 --priority HIGH
 direct dictionaries get-geo-regions --name Moscow --region-ids 225,187 --exact-names Москва,Санкт-Петербург --fields GeoRegionId,GeoRegionName
 ```
@@ -156,8 +154,10 @@ direct dictionaries get-geo-regions --name Moscow --region-ids 225,187 --exact-n
 Invalid examples:
 
 ```bash
-direct dictionaries get-geo-regions
-  --region-ids 225
+direct dictionaries get-geo-regions --json '{"GeoRegionIds":[225]}' --fields GeoRegionId,GeoRegionName
+direct dynamicads set-bids --id 789 --bid 12.5 --json '{"StrategyPriority":"HIGH"}'
+direct dictionaries get-geo-regions \
+  --region-ids 225 \
   --fields GeoRegionId,GeoRegionName
 direct changes check-campaigns --timestamp 2026-04-14T00:00:00Z
 direct changes check-campaigns --timestamp "2026-04-14 00:00:00"
@@ -238,6 +238,7 @@ direct dictionaries get-geo-regions --name Moscow --region-ids 225,187 --exact-n
 direct changes check --campaign-ids 1,2,3 --timestamp 2026-04-14T00:00:00
 direct changes check-campaigns --timestamp 2026-04-14T00:00:00
 direct changes check-dictionaries
+direct clients get --fields ClientId,Login,Currency
 
 # Keyword research and retargeting
 direct keywordsresearch has-search-volume --keywords "buy laptop,buy desktop"
@@ -512,6 +513,130 @@ Command naming rules:
 - API `checkDictionaries` -> CLI `direct changes check-dictionaries`
 - API `hasSearchVolume` -> CLI `direct keywordsresearch has-search-volume`
 
+### CLI Convention
+
+The current CLI convention is defined as follows.
+
+#### CLI Contract
+
+The canonical command shape is:
+
+```bash
+direct <group> <command> [flags]
+```
+
+Naming rules:
+
+- `group`:
+  - lowercase ASCII only
+  - no underscores
+  - multiword groups are concatenated
+  - examples: `dynamicads`, `smartadtargets`, `negativekeywordsharedsets`
+
+- `command`:
+  - lowercase only
+  - multiword commands use kebab-case
+  - examples: `get`, `set-bids`, `check-campaigns`, `has-search-volume`
+
+`direct-cli` владеет публичным naming contract. `tapi-yandex-direct` может
+влиять на внутренний transport layer, но не определяет канонические CLI-имена.
+
+Текущая политика — canonical-only. Исторические aliases по умолчанию не
+сохраняются в runtime CLI. Если совместимость когда-нибудь понадобится, alias
+должен быть добавлен как явное explicit exception-правило с конкретным legacy
+syntax, который действительно нужно поддержать.
+
+#### Input Rules
+
+- All user-facing input must be passed only through typed CLI flags.
+- `--json` is not part of the public CLI contract.
+- User-facing parameters must not be passed through `--json`.
+- The CLI must not accept `SelectionCriteria`, nested payloads, update payloads, bidding rules, or any other user-facing command input through `--json`.
+- Typed flags and JSON blobs must not be mixed as part of one public command contract.
+- If the API requires a complex object, the CLI must expose explicit flags or subcommands instead of forwarding raw JSON.
+
+#### Command Formatting Rules
+
+- Every canonical CLI command must be written strictly on a single line.
+- Multi-line command formatting is not allowed.
+- Shell line continuation using `\` is forbidden in canonical documentation, help text, tests, and examples.
+
+Allowed:
+
+```bash
+direct dictionaries get-geo-regions --region-ids 225,187 --fields GeoRegionId,GeoRegionName
+```
+
+Not allowed:
+
+```bash
+direct dictionaries get-geo-regions \
+  --region-ids 225,187 \
+  --fields GeoRegionId,GeoRegionName
+```
+
+#### Flag Design Rules
+
+- List inputs use comma-separated CLI syntax where appropriate.
+- Money and bid values stay human-readable in CLI input and are converted internally to the API wire format.
+- Selector fields remain explicit flags, for example:
+  - `--id`
+  - `--campaign-id`
+  - `--adgroup-id`
+- Nested API structures must be projected into typed flags instead of blob JSON.
+- Help text must not advertise JSON as an alternative input path.
+
+#### Datetime Rules
+
+- Datetime parameters must be passed in the format `YYYY-MM-DDTHH:MM:SS`.
+- Datetime values must be passed as a single shell token.
+- Canonical examples must not use timezone suffixes like `Z`.
+- Canonical examples must not use quoted space-separated datetime values.
+
+Use:
+
+```bash
+direct changes check-campaigns --timestamp 2026-04-14T00:00:00
+```
+
+Do not use:
+
+```bash
+direct changes check-campaigns --timestamp 2026-04-14T00:00:00Z
+direct changes check-campaigns --timestamp "2026-04-14 00:00:00"
+```
+
+#### Documentation Contract
+
+- `README` must use only canonical syntax.
+- `README` must use only single-line command examples.
+- Canonical examples must not contain `--json`.
+- Help output and tests must enforce the same contract.
+
+#### Examples
+
+Valid canonical examples:
+
+```bash
+direct campaigns get --ids 1,2,3
+direct changes check-campaigns --timestamp 2026-04-14T00:00:00
+direct keywordsresearch has-search-volume --keywords "buy laptop,buy desktop"
+direct dynamicads set-bids --id 789 --bid 12.5
+direct dictionaries get-geo-regions --region-ids 225 --fields GeoRegionId,GeoRegionName
+```
+
+Invalid examples:
+
+```bash
+direct dictionaries get-geo-regions --json '{"GeoRegionIds":[225]}' --fields GeoRegionId,GeoRegionName
+direct dynamicads set-bids --id 789 --bid 12.5 --json '{"StrategyPriority":"HIGH"}'
+direct dictionaries get-geo-regions \
+  --region-ids 225 \
+  --fields GeoRegionId,GeoRegionName
+direct changes check-campaigns --timestamp 2026-04-14T00:00:00Z
+direct changes check-campaigns --timestamp "2026-04-14 00:00:00"
+```
+
 #### Кампании
 
 ```bash
@@ -587,6 +712,7 @@ direct dictionaries get-geo-regions --name Москва --region-ids 225,187 --e
 direct changes check --campaign-ids 1,2,3 --timestamp 2026-04-14T00:00:00
 direct changes check-campaigns --timestamp 2026-04-14T00:00:00
 direct changes check-dictionaries
+direct clients get --fields ClientId,Login,Currency
 
 # Исследование ключевых слов и ретаргетинг
 direct keywordsresearch has-search-volume --keywords "купить ноутбук,купить компьютер"
