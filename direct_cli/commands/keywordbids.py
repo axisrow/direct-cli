@@ -183,6 +183,8 @@ def set_auto(
         result = client.keywordbids().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
