@@ -2,12 +2,14 @@
 Tests for Direct CLI
 """
 
+import io
 import os
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
 from unittest.mock import patch
 from click.testing import CliRunner
-from direct_cli.cli import cli
+from direct_cli.cli import DEPRECATED_ENTRYPOINT_MESSAGE, cli, deprecated_main
 
 
 class TestCLI(unittest.TestCase):
@@ -112,6 +114,14 @@ class TestCLI(unittest.TestCase):
             self.assertNotIn("--notification-json", result.output)
             self.assertNotIn("--send-invite-to-json", result.output)
 
+    def test_deprecated_direct_cli_entrypoint_exits_with_hint(self):
+        stderr = io.StringIO()
+        with self.assertRaises(SystemExit) as context:
+            with redirect_stderr(stderr):
+                deprecated_main()
+        self.assertEqual(context.exception.code, 2)
+        self.assertIn(DEPRECATED_ENTRYPOINT_MESSAGE, stderr.getvalue())
+
 
 class TestAuth(unittest.TestCase):
     """Test authentication"""
@@ -146,7 +156,8 @@ class TestReadmeContract(unittest.TestCase):
         self.assertIn("direct <group> <command> [flags]", self.content)
         self.assertIn("Group naming rules", self.content)
         self.assertIn("Command naming rules", self.content)
-        self.assertIn("direct-cli owns the public naming contract", self.content)
+        self.assertIn("The `direct` executable defines the public naming contract", self.content)
+        self.assertIn("use direct instead of direct-cli", self.content)
 
     def test_readme_contains_canonical_command_examples(self):
         """README must include canonical examples for renamed commands."""
