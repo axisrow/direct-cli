@@ -6,9 +6,12 @@ import io
 import os
 import unittest
 from contextlib import redirect_stderr
+from importlib.metadata import version
 from pathlib import Path
 from unittest.mock import patch
+
 from click.testing import CliRunner
+
 from direct_cli.cli import cli
 from direct_cli._deprecated import DEPRECATED_ENTRYPOINT_MESSAGE, deprecated_main
 
@@ -25,6 +28,13 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("Command-line interface for Yandex Direct API", result.output)
         self.assertIn("Usage: direct", result.output)
+
+    def test_cli_version(self):
+        """Test CLI version command"""
+        result = self.runner.invoke(cli, ["--version"])
+        self.assertEqual(result.exit_code, 0)
+        expected = f"direct, version {version('direct-cli')}"
+        self.assertEqual(result.output.strip(), expected)
 
     def test_campaigns_help(self):
         """Test campaigns help"""
