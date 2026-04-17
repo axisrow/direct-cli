@@ -83,6 +83,7 @@ be supported.
 - If the API requires a complex object, the CLI must expose explicit flags or subcommands instead of forwarding raw JSON.
 
 #### Command Formatting Rules
+
 - Every canonical CLI command must be written strictly on a single line.
 - Multi-line command formatting is not allowed.
 - Shell line continuation using `\` is forbidden in canonical documentation, help text, tests, and examples.
@@ -147,6 +148,7 @@ Valid canonical examples:
 direct campaigns get --ids 1,2,3
 direct changes check-campaigns --timestamp 2026-04-14T00:00:00
 direct keywordsresearch has-search-volume --keywords "buy laptop,buy desktop"
+direct smartadtargets update --id 456 --priority HIGH
 direct dynamicads set-bids --id 789 --bid 12.5 --context-bid 9 --priority HIGH
 direct dictionaries get-geo-regions --name Moscow --region-ids 225,187 --exact-names Москва,Санкт-Петербург --fields GeoRegionId,GeoRegionName
 ```
@@ -235,10 +237,14 @@ Available report types: `CAMPAIGN_PERFORMANCE_REPORT`, `ADGROUP_PERFORMANCE_REPO
 # Reference dictionaries and changes
 direct dictionaries get --names Currencies,GeoRegions
 direct dictionaries get-geo-regions --name Moscow --region-ids 225,187 --exact-names Москва,Санкт-Петербург --fields GeoRegionId,GeoRegionName
+
+# Client info
+direct clients get --fields ClientId,Login,Currency
+
+# Changes
 direct changes check --campaign-ids 1,2,3 --timestamp 2026-04-14T00:00:00
 direct changes check-campaigns --timestamp 2026-04-14T00:00:00
 direct changes check-dictionaries
-direct clients get --fields ClientId,Login,Currency
 
 # Keyword research and retargeting
 direct keywordsresearch has-search-volume --keywords "buy laptop,buy desktop"
@@ -709,10 +715,14 @@ direct reports list-types
 # Справочники и изменения
 direct dictionaries get --names Currencies,GeoRegions
 direct dictionaries get-geo-regions --name Москва --region-ids 225,187 --exact-names Москва,Санкт-Петербург --fields GeoRegionId,GeoRegionName
+
+# Информация о клиенте
+direct clients get --fields ClientId,Login,Currency
+
+# Изменения
 direct changes check --campaign-ids 1,2,3 --timestamp 2026-04-14T00:00:00
 direct changes check-campaigns --timestamp 2026-04-14T00:00:00
 direct changes check-dictionaries
-direct clients get --fields ClientId,Login,Currency
 
 # Исследование ключевых слов и ретаргетинг
 direct keywordsresearch has-search-volume --keywords "купить ноутбук,купить компьютер"
