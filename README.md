@@ -242,8 +242,7 @@ direct dictionaries get-geo-regions --name Moscow --region-ids 225,187 --exact-n
 # Client info
 direct clients get --fields ClientId,Login,Currency
 
-# Changes feed
-direct changes get --campaign-ids 1,2,3
+# Changes
 direct changes check --campaign-ids 1,2,3 --timestamp 2026-04-14T00:00:00
 direct changes check-campaigns --timestamp 2026-04-14T00:00:00
 direct changes check-dictionaries
@@ -713,8 +712,7 @@ direct dictionaries get-geo-regions --name Москва --region-ids 225,187 --e
 # Информация о клиенте
 direct clients get --fields ClientId,Login,Currency
 
-# Лента изменений
-direct changes get --campaign-ids 1,2,3
+# Изменения
 direct changes check --campaign-ids 1,2,3 --timestamp 2026-04-14T00:00:00
 direct changes check-campaigns --timestamp 2026-04-14T00:00:00
 direct changes check-dictionaries
