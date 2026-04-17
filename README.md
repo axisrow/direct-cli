@@ -84,7 +84,6 @@ be supported.
 
 #### Command Formatting Rules
 
-
 - Every canonical CLI command must be written strictly on a single line.
 - Multi-line command formatting is not allowed.
 - Shell line continuation using `\` is forbidden in canonical documentation, help text, tests, and examples.
@@ -544,6 +543,14 @@ Naming rules:
   - lowercase only
   - multiword commands use kebab-case
   - examples: `get`, `set-bids`, `check-campaigns`, `has-search-volume`
+
+`direct-cli` владеет публичным naming contract. `tapi-yandex-direct` может
+влиять на внутренний transport layer, но не определяет канонические CLI-имена.
+
+Текущая политика — canonical-only. Исторические aliases по умолчанию не
+сохраняются в runtime CLI. Если совместимость когда-нибудь понадобится, alias
+должен быть добавлен как явное explicit exception-правило с конкретным legacy
+syntax, который действительно нужно поддержать.
 
 #### Input Rules
 
