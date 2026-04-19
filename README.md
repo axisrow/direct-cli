@@ -30,6 +30,8 @@ direct --token YOUR_TOKEN --login YOUR_LOGIN campaigns get
 ```
 
 Install with `pip install direct-cli`, then run commands with `direct`.
+Invoking the deprecated `direct-cli` entrypoint exits with
+`use direct instead of direct-cli`.
 
 ### Global Options
 
@@ -64,9 +66,10 @@ Naming rules:
   - multiword commands use kebab-case
   - examples: `get`, `set-bids`, `check-campaigns`, `has-search-volume`
 
-direct-cli owns the public naming contract. `tapi-yandex-direct` may
-influence the internal transport layer, but it does not define canonical CLI
-names.
+The `direct` executable defines the public naming contract. The
+`direct-cli` package name and deprecated shim do not define canonical CLI
+names. `tapi-yandex-direct` may influence the internal transport layer, but it
+does not define canonical CLI names.
 
 The current policy is canonical-only. Historical aliases are not preserved in
 the runtime CLI by default. If compatibility is ever needed, an alias must be
@@ -470,7 +473,9 @@ YANDEX_DIRECT_LOGIN=ваш_логин_на_яндексе
 direct --token ВАШ_ТОКЕН --login ВАШ_ЛОГИН campaigns get
 ```
 
-Установка остаётся через `pip install direct-cli`, а запуск команд теперь идет через `direct`.
+Установка остаётся через `pip install direct-cli`, а запуск команд теперь идет
+через `direct`. Вызов deprecated entrypoint `direct-cli` завершается ошибкой с
+подсказкой `use direct instead of direct-cli`.
 
 ### Глобальные опции
 
@@ -499,17 +504,20 @@ Command naming rules:
 - в документации и примерах каноническими считаются `get`,
   `check-dictionaries` и `has-search-volume`
 
-`direct-cli` владеет публичным naming contract. `tapi-yandex-direct` может
-влиять на внутренний transport layer, но не определяет канонические CLI-имена.
+Публичный naming contract задаёт исполняемый файл `direct`. Имя пакета
+`direct-cli` и deprecated shim не определяют канонические CLI-имена.
+`tapi-yandex-direct` может влиять на внутренний transport layer, но не
+определяет канонические CLI-имена.
 
 Текущая политика — canonical-only. Исторические aliases по умолчанию не
 сохраняются в runtime CLI. Если совместимость когда-нибудь понадобится, alias
 должен быть добавлен как явное exception-правило с конкретным legacy syntax из
 `tapi-yandex-direct`, который действительно нужно поддержать.
 
-`direct-cli` — это транспортный слой над API Яндекс Директа. Канонические
-имена CLI-групп следуют нормализованным Python-именам из
-`tapi-yandex-direct`, а имена подкоманд — это kebab-case проекции API-методов.
+`direct` — это канонический transport entrypoint над API Яндекс Директа,
+устанавливаемый пакетом `direct-cli`. Канонические имена CLI-групп следуют
+нормализованным Python-именам из `tapi-yandex-direct`, а имена подкоманд —
+это kebab-case проекции API-методов.
 
 Базовые соответствия:
 
@@ -544,8 +552,10 @@ Naming rules:
   - multiword commands use kebab-case
   - examples: `get`, `set-bids`, `check-campaigns`, `has-search-volume`
 
-`direct-cli` владеет публичным naming contract. `tapi-yandex-direct` может
-влиять на внутренний transport layer, но не определяет канонические CLI-имена.
+Публичный naming contract задаёт исполняемый файл `direct`. Имя пакета
+`direct-cli` и deprecated shim не определяют канонические CLI-имена.
+`tapi-yandex-direct` может влиять на внутренний transport layer, но не
+определяет канонические CLI-имена.
 
 Текущая политика — canonical-only. Исторические aliases по умолчанию не
 сохраняются в runtime CLI. Если совместимость когда-нибудь понадобится, alias
