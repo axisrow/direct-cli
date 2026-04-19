@@ -413,8 +413,13 @@ def test_live_draft_adimages_add_get_delete() -> None:
         )
         _assert_success(r, "adimages get")
         data = json.loads(r.output)
+        if isinstance(data, list):
+            images = data
+        else:
+            result_data = data.get("result", data)
+            images = result_data.get("AdImages", [])
         hashes_in_response = {
-            img.get("AdImageHash") for img in (data if isinstance(data, list) else [])
+            img.get("AdImageHash") for img in images
         }
         assert (
             img_hash in hashes_in_response
