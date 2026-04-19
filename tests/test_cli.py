@@ -9,7 +9,8 @@ from contextlib import redirect_stderr
 from pathlib import Path
 from unittest.mock import patch
 from click.testing import CliRunner
-from direct_cli.cli import DEPRECATED_ENTRYPOINT_MESSAGE, cli, deprecated_main
+from direct_cli.cli import cli
+from direct_cli._deprecated import DEPRECATED_ENTRYPOINT_MESSAGE, deprecated_main
 
 
 class TestCLI(unittest.TestCase):
@@ -156,7 +157,10 @@ class TestReadmeContract(unittest.TestCase):
         self.assertIn("direct <group> <command> [flags]", self.content)
         self.assertIn("Group naming rules", self.content)
         self.assertIn("Command naming rules", self.content)
-        self.assertIn("The `direct` executable defines the public naming contract", self.content)
+        self.assertIn(
+            "The `direct` executable defines the public naming contract",
+            self.content,
+        )
         self.assertIn("use direct instead of direct-cli", self.content)
 
     def test_readme_contains_canonical_command_examples(self):

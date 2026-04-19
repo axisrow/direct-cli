@@ -40,10 +40,6 @@ from .commands.advideos import advideos
 # Load .env file
 load_dotenv()
 
-DEPRECATED_ENTRYPOINT_MESSAGE = (
-    "`direct-cli` is deprecated; use direct instead of direct-cli."
-)
-
 
 @click.group(name="direct")
 @click.option("--token", envvar="YANDEX_DIRECT_TOKEN", help="API access token")
@@ -108,12 +104,6 @@ def cli(
     else:
         ctx.obj["token"] = token
         ctx.obj["login"] = login
-
-
-def deprecated_main() -> None:
-    """Fail fast for the deprecated `direct-cli` entrypoint."""
-    click.echo(f"Error: {DEPRECATED_ENTRYPOINT_MESSAGE}", err=True)
-    raise SystemExit(2)
 
 
 # Register all commands
