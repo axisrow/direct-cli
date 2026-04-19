@@ -323,6 +323,13 @@ def test_live_draft_adimages_add_get_delete() -> None:
             "json",
         )
         _assert_success(r, "adimages get")
+        data = json.loads(r.output)
+        hashes_in_response = {
+            img.get("AdImageHash") for img in (data if isinstance(data, list) else [])
+        }
+        assert (
+            img_hash in hashes_in_response
+        ), f"Uploaded image hash {img_hash} not found in get response"
     finally:
         r = _invoke_live("adimages", "delete", "--hash", str(img_hash))
         if r.exit_code != 0:
