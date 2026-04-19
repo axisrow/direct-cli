@@ -214,7 +214,7 @@ class TestWriteCampaignDraftLifecycle:
             try:
                 cid = parse_add_result(r)
             except Exception:
-                pass  # Best-effort; finally will still attempt cleanup if id was set
+                pass  # ID unknown; cleanup in finally is skipped — manual recovery via campaign name
 
             r = _invoke(
                 "campaigns",

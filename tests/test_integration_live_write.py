@@ -154,7 +154,7 @@ def test_live_draft_campaign_create_get_delete() -> None:
         try:
             created_campaign_id = _extract_first_id(add_result.output)
         except Exception:
-            pass  # Best-effort; finally will still attempt cleanup if id was set
+            pass  # ID unknown; cleanup in finally is skipped — manual recovery via campaign name
 
         get_result = _invoke_live(
             "campaigns",
