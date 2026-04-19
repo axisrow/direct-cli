@@ -42,14 +42,18 @@ Passing in replay (10 tests, cassettes up to date):
   - negativekeywordsharedsets add-update-delete
 
 Sandbox-limited (confirmed via live recording, ``@pytest.mark.sandbox_limitation``):
-  - ads add/update/delete         — sandbox does not persist adgroups across calls
-  - keywords add/update/delete    — same
-  - bids set                      — depends on keyword persistence (sandbox_keyword fixture fails)
-  - keywordbids set               — same
-  - sitelinks add/delete          — sandbox service returns error 1000
-  - adimages add/delete           — sandbox rejects valid 450x450 PNG uploads
+
+  Category A — disabled in sandbox, supported in live API (codes 8800/1000/5004):
+  - ads add/update/delete         — sandbox does not persist adgroups across calls (code 8800)
+  - keywords add/update/delete    — same (code 8800)
+  - bids set                      — depends on keyword persistence, sandbox_keyword fixture fails (code 8800 chain)
+  - keywordbids set               — same (code 8800 chain)
+  - sitelinks add/delete          — sandbox service permanently unavailable (code 1000)
+  - adimages add/delete           — sandbox rejects valid 450x450 PNG uploads (code 5004)
+  - audiencetargets add/delete    — sandbox does not persist adgroup/retargeting list (code 8800)
+
+  Category B — unsupported resource type in sandbox (code 3500):
   - dynamicads add/delete         — sandbox does not support DYNAMIC_TEXT_CAMPAIGN creation
-  - audiencetargets add/delete    — sandbox does not persist adgroup/retargeting list
   - smartadtargets add/update/delete — sandbox does not support SMART_CAMPAIGN + SMART_AD_GROUP chain
 
 Part of axisrow/yandex-direct-mcp-plugin#61 (Etap 3).
@@ -307,7 +311,8 @@ class TestWriteAdGroups:
 @pytest.mark.integration_write
 @pytest.mark.vcr
 @pytest.mark.sandbox_limitation(
-    reason="Sandbox does not persist adgroups; ads add always returns 'Ad group not found'"
+    category="disabled",
+    reason="Sandbox does not persist adgroups; ads add always returns 'Ad group not found'",
 )
 class TestWriteAds:
     """Confirms the Type-field fix from PR #12 works with live API."""
@@ -363,7 +368,8 @@ class TestWriteAds:
 @pytest.mark.integration_write
 @pytest.mark.vcr
 @pytest.mark.sandbox_limitation(
-    reason="Sandbox does not persist adgroups; keywords add always returns 'Ad group not found'"
+    category="disabled",
+    reason="Sandbox does not persist adgroups; keywords add always returns 'Ad group not found'",
 )
 class TestWriteKeywords:
     def test_add_update_delete(self, sandbox_adgroup):
@@ -410,6 +416,10 @@ class TestWriteKeywords:
 
 @pytest.mark.integration_write
 @pytest.mark.vcr
+@pytest.mark.sandbox_limitation(
+    category="disabled",
+    reason="Sandbox does not persist adgroups/keywords (code 8800 chain); inline _is_sandbox_error provides runtime defense",
+)
 class TestWriteBids:
     def test_set_bid(self, sandbox_keyword):
         r = _invoke(
@@ -438,7 +448,8 @@ class TestWriteBids:
 @pytest.mark.integration_write
 @pytest.mark.vcr
 @pytest.mark.sandbox_limitation(
-    reason="Sandbox does not persist adgroups/keywords; no keywords to bid on"
+    category="disabled",
+    reason="Sandbox does not persist adgroups/keywords; no keywords to bid on",
 )
 class TestWriteKeywordBids:
     def test_set_keyword_bid(self, sandbox_keyword):
@@ -622,7 +633,8 @@ class TestWriteRetargeting:
 @pytest.mark.integration_write
 @pytest.mark.vcr
 @pytest.mark.sandbox_limitation(
-    reason="Sandbox does not persist adgroup/retargeting list across API calls"
+    category="disabled",
+    reason="Sandbox does not persist adgroup/retargeting list across API calls",
 )
 class TestWriteAudienceTargets:
     def test_add_delete(self, sandbox_adgroup, sandbox_retargeting_list):
@@ -669,7 +681,8 @@ class TestWriteAudienceTargets:
 @pytest.mark.integration_write
 @pytest.mark.vcr
 @pytest.mark.sandbox_limitation(
-    reason="Sandbox sitelinks service permanently unavailable (error 1000)"
+    category="disabled",
+    reason="Sandbox sitelinks service permanently unavailable (error 1000)",
 )
 class TestWriteSitelinks:
     def test_add_delete(self):
@@ -773,7 +786,8 @@ class TestWriteAdExtensions:
 @pytest.mark.integration_write
 @pytest.mark.vcr
 @pytest.mark.sandbox_limitation(
-    reason="Sandbox rejects valid base64-encoded PNG image uploads (error 5004)"
+    category="disabled",
+    reason="Sandbox rejects valid base64-encoded PNG image uploads (error 5004)",
 )
 class TestWriteAdImages:
     def test_add_delete(self):
@@ -857,7 +871,8 @@ class TestWriteAdImages:
 @pytest.mark.integration_write
 @pytest.mark.vcr
 @pytest.mark.sandbox_limitation(
-    reason="Sandbox does not support creating DYNAMIC_TEXT_CAMPAIGN type"
+    category="unsupported",
+    reason="Sandbox does not support creating DYNAMIC_TEXT_CAMPAIGN type",
 )
 class TestWriteDynamicAds:
     def test_add_update_delete(self, sandbox_dynamic_adgroup):
@@ -894,6 +909,10 @@ class TestWriteDynamicAds:
 
 @pytest.mark.integration_write
 @pytest.mark.vcr
+@pytest.mark.sandbox_limitation(
+    category="unsupported",
+    reason="Sandbox does not support creating SMART_CAMPAIGN (code 3500); sandbox_smart_adgroup fixture skips before the test body runs",
+)
 class TestWriteSmartAdTargets:
     """Live-API regression guard for typed smart ad target flags."""
 
