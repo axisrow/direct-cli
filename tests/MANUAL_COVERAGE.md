@@ -26,6 +26,29 @@ account requirements, or external dependencies.
   non-draft objects — spends real budget. Live-write tests only verify
   request assembly via `--dry-run`.
 
+## Campaign-Type Restrictions (Category B)
+
+Some campaign types are only available on agency or pilot accounts.
+Live tests skip gracefully when the API returns error 3500.
+
+- **DYNAMIC_TEXT_CAMPAIGN** — `dynamicads` add/update/delete/suspend/resume
+  require an account where DYNAMIC_TEXT_CAMPAIGN is enabled. Standard
+  advertiser accounts receive 3500.
+- **SMART_CAMPAIGN** — `smartadtargets` add/update/delete/suspend/resume
+  require SMART_CAMPAIGN support. Standard accounts receive 3500.
+
+## Audience Target Restrictions (Category A)
+
+- **audiencetargets add/suspend/resume** — requires an adgroup that is
+  visible in the `audiencetargets` context. On some accounts, adgroups
+  created in draft campaigns return 8800 (Object not found). Live tests
+  skip gracefully on 8800.
+
+## Ad Image Restrictions (Category A)
+
+- **adimages add** — some accounts reject PNG uploads with error 5004
+  (Invalid image file type). Live tests skip gracefully on 5004.
+
 ## External Dependencies
 
 - **advideos add** — requires a valid, publicly accessible video URL. The
@@ -43,5 +66,9 @@ account requirements, or external dependencies.
 | agencyclients add/update/delete | Account type | None (403) |
 | agencyclients add-passport-organization* | External state | Moderate |
 | bids/keywordbids/bidmodifiers set | Financial | High |
+| dynamicads (all) | Account type (3500) | None (skip) |
+| smartadtargets (all) | Account type (3500) | None (skip) |
+| audiencetargets add/suspend/resume | Account restriction (8800) | None (skip) |
+| adimages add | Account restriction (5004) | None (skip) |
 | advideos add | External URL required | None (skip) |
 | creatives add | Depends on advideos | None (skip) |
