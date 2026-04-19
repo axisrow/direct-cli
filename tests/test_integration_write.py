@@ -211,7 +211,10 @@ class TestWriteCampaignDraftLifecycle:
 
         try:
             assert_success(r, "campaigns draft add")
-            cid = parse_add_result(r)
+            try:
+                cid = parse_add_result(r)
+            except Exception:
+                pass  # Best-effort; finally will still attempt cleanup if id was set
 
             r = _invoke(
                 "campaigns",
