@@ -6,6 +6,12 @@ Safety contract:
 - tests never accept external resource IDs;
 - every mutating command targets only a draft resource created by this test;
 - cleanup fails loudly with the created ID if Yandex Direct refuses deletion.
+
+Coverage status (issue #59):
+
+  Phase 4 — non-standard campaign types (Category B):
+    - dynamicads add/delete (DYNAMIC_TEXT_CAMPAIGN)
+    - smartadtargets add/update/delete (SMART_CAMPAIGN)
 """
 
 import json
@@ -154,7 +160,7 @@ def test_live_draft_campaign_create_get_delete() -> None:
         try:
             created_campaign_id = _extract_first_id(add_result.output)
         except Exception:
-            pass  # ID unknown; cleanup in finally is skipped — manual recovery via campaign name
+            pass  # ID unknown; cleanup skipped — manual recovery via name
 
         get_result = _invoke_live(
             "campaigns",
@@ -197,3 +203,197 @@ def test_live_draft_campaign_create_get_delete() -> None:
     )
     _assert_success(verify_delete_result, "campaigns get after delete")
     assert _find_campaign(verify_delete_result.output, created_campaign_id) is None
+
+
+def _safe_delete_campaign(cid: int) -> None:
+    """Delete a draft campaign, failing the test if deletion is rejected."""
+    r = _invoke_live("campaigns", "delete", "--id", str(cid))
+    if r.exit_code != 0:
+        pytest.fail(
+            f"Failed to delete draft campaign {cid}. "
+            f"Manual cleanup required.\noutput: {r.output}"
+        )
+
+
+# ── Phase 4: non-standard campaign types (Category B) ─────────────────────
+
+
+@pytest.mark.vcr
+def test_live_draft_dynamicads_add_delete() -> None:
+    """Create DYNAMIC_TEXT_CAMPAIGN, add dynamic ad target, verify, delete."""
+    # Create DYNAMIC_TEXT_CAMPAIGN
+    r = _invoke_live(
+        "campaigns",
+        "add",
+        "--name",
+        f"{_campaign_name()}-dynamic",
+        "--start-date",
+        _future_start_date(),
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--setting",
+        "ADD_METRICA_TAG=NO",
+        "--search-strategy",
+        "HIGHEST_POSITION",
+        "--network-strategy",
+        "SERVING_OFF",
+    )
+    _assert_success(r, "campaigns add (DYNAMIC_TEXT_CAMPAIGN)")
+    cid = _extract_first_id(r.output)
+    gid: Optional[int] = None
+    did: Optional[int] = None
+
+    try:
+        # Create DYNAMIC_TEXT_AD_GROUP
+        r = _invoke_live(
+            "adgroups",
+            "add",
+            "--name",
+            "draft-dynamic-group",
+            "--campaign-id",
+            str(cid),
+            "--region-ids",
+            "1,225",
+            "--type",
+            "DYNAMIC_TEXT_AD_GROUP",
+            "--domain-url",
+            "example.com",
+        )
+        _assert_success(r, "adgroups add (DYNAMIC_TEXT_AD_GROUP)")
+        gid = _extract_first_id(r.output)
+
+        # Add dynamic ad target
+        r = _invoke_live(
+            "dynamicads",
+            "add",
+            "--adgroup-id",
+            str(gid),
+            "--name",
+            "Draft Dynamic Target",
+            "--condition",
+            "URL:CONTAINS_ANY:test",
+        )
+        _assert_success(r, "dynamicads add")
+        did = _extract_first_id(r.output)
+
+        # Verify via get
+        r = _invoke_live(
+            "dynamicads",
+            "get",
+            "--adgroup-ids",
+            str(gid),
+            "--format",
+            "json",
+        )
+        _assert_success(r, "dynamicads get")
+        data = json.loads(r.output)
+        targets = data if isinstance(data, list) else data.get("result", [])
+        assert any(
+            t.get("Id") == did for t in targets
+        ), f"Dynamic ad target {did} not found in get response"
+    finally:
+        if did is not None:
+            _invoke_live("dynamicads", "delete", "--id", str(did))
+        if gid is not None:
+            _invoke_live("adgroups", "delete", "--id", str(gid))
+        _safe_delete_campaign(cid)
+
+
+@pytest.mark.vcr
+def test_live_draft_smartadtargets_add_update_delete() -> None:
+    """Create SMART_CAMPAIGN, add smart ad target, update, verify, delete."""
+    # Create feed (SMART_AD_GROUP requires feed-id)
+    r = _invoke_live(
+        "feeds",
+        "add",
+        "--name",
+        "draft-smart-feed",
+        "--url",
+        "https://example.com/feed.xml",
+    )
+    _assert_success(r, "feeds add")
+    fid = _extract_first_id(r.output)
+    cid: Optional[int] = None
+    gid: Optional[int] = None
+    tid: Optional[int] = None
+
+    try:
+        # Create SMART_CAMPAIGN
+        r = _invoke_live(
+            "campaigns",
+            "add",
+            "--name",
+            f"{_campaign_name()}-smart",
+            "--start-date",
+            _future_start_date(),
+            "--type",
+            "SMART_CAMPAIGN",
+            "--network-strategy",
+            "AVERAGE_CPC_PER_FILTER",
+            "--filter-average-cpc",
+            "1",
+        )
+        _assert_success(r, "campaigns add (SMART_CAMPAIGN)")
+        cid = _extract_first_id(r.output)
+
+        # Create SMART_AD_GROUP
+        r = _invoke_live(
+            "adgroups",
+            "add",
+            "--name",
+            "draft-smart-group",
+            "--campaign-id",
+            str(cid),
+            "--region-ids",
+            "1,225",
+            "--type",
+            "SMART_AD_GROUP",
+            "--feed-id",
+            str(fid),
+        )
+        _assert_success(r, "adgroups add (SMART_AD_GROUP)")
+        gid = _extract_first_id(r.output)
+
+        # Add smart ad target
+        r = _invoke_live(
+            "smartadtargets",
+            "add",
+            "--adgroup-id",
+            str(gid),
+            "--name",
+            "draft-smart-target",
+            "--audience",
+            "ALL_SEGMENTS",
+        )
+        _assert_success(r, "smartadtargets add")
+        tid = _extract_first_id(r.output)
+
+        # Update smart ad target
+        r = _invoke_live(
+            "smartadtargets",
+            "update",
+            "--id",
+            str(tid),
+            "--priority",
+            "HIGH",
+        )
+        _assert_success(r, "smartadtargets update")
+
+        # Verify via get
+        r = _invoke_live(
+            "smartadtargets",
+            "get",
+            "--adgroup-ids",
+            str(gid),
+            "--format",
+            "json",
+        )
+        _assert_success(r, "smartadtargets get")
+    finally:
+        if tid is not None:
+            _invoke_live("smartadtargets", "delete", "--id", str(tid))
+        if gid is not None:
+            _invoke_live("adgroups", "delete", "--id", str(gid))
+        if cid is not None:
+            _safe_delete_campaign(cid)
+        _invoke_live("feeds", "delete", "--id", str(fid))
