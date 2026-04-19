@@ -12,14 +12,126 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from direct_cli.wsdl_coverage import (
     CLI_TO_API_SERVICE,
     INTENTIONAL_EXTRA_METHODS,
+    LIVE_DISCOVERED_API_SERVICES,
     get_api_coverage_policy,
     fetch_wsdl,
+    fetch_live_wsdl,
     get_cli_methods_for_service,
     parse_wsdl_operations,
 )
 
 
-def main() -> int:
+def _fetch_wsdl(fetch_func, service: str) -> str:
+    """Call WSDL fetchers with either service-only or fetch_wsdl-compatible APIs."""
+    try:
+        return fetch_func(service)
+    except TypeError:
+        return fetch_func(service, use_cache=True)
+
+
+def _build_model_gaps(report: dict, live_fetch_wsdl_func) -> dict:
+    """Compare the declared coverage model to the live-discovered API surface."""
+    api_to_cli = {
+        api_service: cli_name
+        for cli_name, api_service in sorted(CLI_TO_API_SERVICE.items())
+    }
+    declared_services = set(api_to_cli)
+    declared_methods = {
+        service["api_service"]: set(service["api_methods"])
+        for service in report["services"]
+    }
+
+    live_methods_by_service = {
+        api_service: set(methods)
+        for api_service, methods in sorted(declared_methods.items())
+    }
+    live_discovery_errors = []
+    for api_service in sorted(LIVE_DISCOVERED_API_SERVICES):
+        if api_service in declared_services:
+            continue
+        try:
+            live_methods_by_service[api_service] = set(
+                parse_wsdl_operations(_fetch_wsdl(live_fetch_wsdl_func, api_service))
+            )
+        except Exception as exc:
+            live_methods_by_service[api_service] = set()
+            live_discovery_errors.append(
+                {
+                    "api_service": api_service,
+                    "error": str(exc),
+                }
+            )
+
+    missing_services = []
+    missing_method_entries = []
+    for api_service, live_methods in sorted(live_methods_by_service.items()):
+        if api_service not in declared_services:
+            missing_services.append(
+                {
+                    "api_service": api_service,
+                    "api_methods": sorted(live_methods),
+                }
+            )
+            if live_methods:
+                missing_method_entries.append(
+                    {
+                        "api_service": api_service,
+                        "missing_methods": sorted(live_methods),
+                    }
+                )
+            continue
+
+        cli_name = api_to_cli[api_service]
+        cli_methods = set(get_cli_methods_for_service(cli_name))
+        missing_methods = sorted(live_methods - cli_methods)
+        if missing_methods:
+            missing_method_entries.append(
+                {
+                    "api_service": api_service,
+                    "cli_group": cli_name,
+                    "missing_methods": missing_methods,
+                }
+            )
+
+    declared_method_count = sum(len(methods) for methods in declared_methods.values())
+    live_method_count = sum(
+        len(methods) for methods in live_methods_by_service.values()
+    )
+    missing_method_count = sum(
+        len(entry["missing_methods"]) for entry in missing_method_entries
+    )
+
+    return {
+        "declared_wsdl_services_count": len(declared_services),
+        "declared_wsdl_methods_count": declared_method_count,
+        "live_discovered_services_count": len(LIVE_DISCOVERED_API_SERVICES),
+        "live_discovered_methods_count": live_method_count,
+        "live_discovered_missing_services": missing_services,
+        "live_discovered_missing_methods": missing_method_count,
+        "live_discovered_missing_method_entries": missing_method_entries,
+        "live_discovery_errors": live_discovery_errors,
+        "live_model_gap_count": len(missing_services)
+        + len(
+            [
+                entry
+                for entry in missing_method_entries
+                if entry["api_service"] in declared_services
+            ]
+        ),
+        "live_model_parity_ok": (
+            not missing_services
+            and not missing_method_entries
+            and not live_discovery_errors
+        ),
+    }
+
+
+def build_report(fetch_wsdl_func=fetch_wsdl, live_fetch_wsdl_func=None) -> dict:
+    if live_fetch_wsdl_func is None:
+        live_fetch_wsdl_func = (
+            fetch_live_wsdl if fetch_wsdl_func is fetch_wsdl else fetch_wsdl_func
+        )
+
     report = {
         "policy": get_api_coverage_policy(),
         "summary": {
@@ -27,6 +139,7 @@ def main() -> int:
             "missing_service_methods": 0,
             "unexpected_service_methods": 0,
             "strict_parity_ok": True,
+            "live_model_parity_ok": True,
         },
         "canonical_services": sorted(CLI_TO_API_SERVICE.values()),
         "non_wsdl_services": get_api_coverage_policy()["non_wsdl_services"],
@@ -38,7 +151,9 @@ def main() -> int:
     }
 
     for cli_name, api_service in sorted(CLI_TO_API_SERVICE.items()):
-        api_methods = sorted(parse_wsdl_operations(fetch_wsdl(api_service)))
+        api_methods = sorted(
+            parse_wsdl_operations(_fetch_wsdl(fetch_wsdl_func, api_service))
+        )
         cli_methods = sorted(get_cli_methods_for_service(cli_name))
         missing_methods = sorted(set(api_methods) - set(cli_methods))
         extra_methods = sorted(
@@ -71,8 +186,12 @@ def main() -> int:
     )
 
     # Reports section
-    from direct_cli.reports_coverage import get_reports_coverage_policy, load_cached_reports_spec
+    from direct_cli.reports_coverage import (
+        get_reports_coverage_policy,
+        load_cached_reports_spec,
+    )
     from direct_cli.commands.reports import _load_report_types
+
     reports_policy = get_reports_coverage_policy()
     try:
         spec = load_cached_reports_spec()
@@ -100,6 +219,16 @@ def main() -> int:
         and cli_headers_covered
     )
 
+    report["model_gaps"] = _build_model_gaps(report, live_fetch_wsdl_func)
+    report["summary"]["live_model_parity_ok"] = report["model_gaps"][
+        "live_model_parity_ok"
+    ]
+
+    return report
+
+
+def main() -> int:
+    report = build_report()
     print(json.dumps(report, indent=2, ensure_ascii=False))
     return 0
 

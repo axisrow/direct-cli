@@ -32,29 +32,29 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
   response:
     body:
-      string: '{"result":{"AddResults":[{"Id":700010818}]}}'
+      string: '{"result":{"AddResults":[{"Id":700011014}]}}'
     headers:
       Content-Length:
       - '44'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 12 Apr 2026 10:45:31 GMT
+      - Sun, 19 Apr 2026 06:28:46 GMT
       RequestId:
-      - '2219521895981958340'
+      - '2941715432670080265'
       Set-Cookie:
       - REDACTED
       Units:
-      - 15/148669/160000
+      - 15/148047/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:2219521895981958340,cmd:direct.api5/campaigns.add,appcode:0
+      - reqid:2941715432670080265,cmd:direct.api5/campaigns.add,appcode:0
     status:
       code: 200
       message: OK
 - request:
-    body: '{"method":"update","params":{"Campaigns":[{"Id":700010818,"Name":"lifecycle-cassette-renamed"}]}}'
+    body: '{"method":"update","params":{"Campaigns":[{"Id":700011014,"Name":"lifecycle-cassette-renamed"}]}}'
     headers:
       Accept:
       - '*/*'
@@ -86,29 +86,29 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
   response:
     body:
-      string: '{"result":{"UpdateResults":[{"Id":700010818}]}}'
+      string: '{"result":{"UpdateResults":[{"Id":700011014}]}}'
     headers:
       Content-Length:
       - '47'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 12 Apr 2026 10:45:33 GMT
+      - Sun, 19 Apr 2026 06:28:49 GMT
       RequestId:
-      - '4913883662998520170'
+      - '7126530251092685598'
       Set-Cookie:
       - REDACTED
       Units:
-      - 13/148656/160000
+      - 13/148034/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:4913883662998520170,cmd:direct.api5/campaigns.update,appcode:0
+      - reqid:7126530251092685598,cmd:direct.api5/campaigns.update,appcode:0
     status:
       code: 200
       message: OK
 - request:
-    body: '{"method":"suspend","params":{"SelectionCriteria":{"Ids":[700010818]}}}'
+    body: '{"method":"suspend","params":{"SelectionCriteria":{"Ids":[700011014]}}}'
     headers:
       Accept:
       - '*/*'
@@ -151,22 +151,22 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 12 Apr 2026 10:45:35 GMT
+      - Sun, 19 Apr 2026 06:28:51 GMT
       RequestId:
-      - '3931610542351551980'
+      - '8240975942913344167'
       Set-Cookie:
       - REDACTED
       Units:
-      - 30/148626/160000
+      - 30/148004/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:3931610542351551980,cmd:direct.api5/campaigns.suspend,appcode:0
+      - reqid:8240975942913344167,cmd:direct.api5/campaigns.suspend,appcode:0
     status:
       code: 200
       message: OK
 - request:
-    body: '{"method":"archive","params":{"SelectionCriteria":{"Ids":[700010818]}}}'
+    body: '{"method":"archive","params":{"SelectionCriteria":{"Ids":[700011014]}}}'
     headers:
       Accept:
       - '*/*'
@@ -209,22 +209,22 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 12 Apr 2026 10:45:37 GMT
+      - Sun, 19 Apr 2026 06:28:53 GMT
       RequestId:
-      - '1024917071074937609'
+      - '8664891712193788691'
       Set-Cookie:
       - REDACTED
       Units:
-      - 30/148596/160000
+      - 30/147974/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:1024917071074937609,cmd:direct.api5/campaigns.archive,appcode:0
+      - reqid:8664891712193788691,cmd:direct.api5/campaigns.archive,appcode:0
     status:
       code: 200
       message: OK
 - request:
-    body: '{"method":"unarchive","params":{"SelectionCriteria":{"Ids":[700010818]}}}'
+    body: '{"method":"unarchive","params":{"SelectionCriteria":{"Ids":[700011014]}}}'
     headers:
       Accept:
       - '*/*'
@@ -256,7 +256,7 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
   response:
     body:
-      string: '{"result":{"UnarchiveResults":[{"Id":700010818,"Warnings":[{"Code":10023,"Message":"Object
+      string: '{"result":{"UnarchiveResults":[{"Id":700011014,"Warnings":[{"Code":10023,"Message":"Object
         is not archived","Details":"Campaign is not archived"}]}]}}'
     headers:
       Content-Length:
@@ -264,22 +264,22 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 12 Apr 2026 10:45:39 GMT
+      - Sun, 19 Apr 2026 06:28:58 GMT
       RequestId:
-      - '6194979001453364580'
+      - '677908413749004393'
       Set-Cookie:
       - REDACTED
       Units:
-      - 15/148581/160000
+      - 15/147959/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:6194979001453364580,cmd:direct.api5/campaigns.unarchive,appcode:0
+      - reqid:677908413749004393,cmd:direct.api5/campaigns.unarchive,appcode:0
     status:
       code: 200
       message: OK
 - request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[700010818]}}}'
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[700011014]}}}'
     headers:
       Accept:
       - '*/*'
@@ -311,24 +311,24 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
   response:
     body:
-      string: '{"result":{"DeleteResults":[{"Id":700010818}]}}'
+      string: '{"result":{"DeleteResults":[{"Id":700011014}]}}'
     headers:
       Content-Length:
       - '47'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 12 Apr 2026 10:45:40 GMT
+      - Sun, 19 Apr 2026 06:29:00 GMT
       RequestId:
-      - '999555601382477328'
+      - '6084079096985489772'
       Set-Cookie:
       - REDACTED
       Units:
-      - 12/148569/160000
+      - 12/147947/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:999555601382477328,cmd:direct.api5/campaigns.delete,appcode:0
+      - reqid:6084079096985489772,cmd:direct.api5/campaigns.delete,appcode:0
     status:
       code: 200
       message: OK

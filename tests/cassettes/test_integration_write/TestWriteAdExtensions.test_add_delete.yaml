@@ -40,17 +40,17 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 12 Apr 2026 10:44:09 GMT
+      - Sun, 19 Apr 2026 06:31:37 GMT
       RequestId:
-      - '6199324373506803802'
+      - '7836758315026535192'
       Set-Cookie:
       - REDACTED
       Units:
-      - 6/148955/160000
+      - 6/146675/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:6199324373506803802,cmd:direct.api5/adextensions.add,appcode:0
+      - reqid:7836758315026535192,cmd:direct.api5/adextensions.add,appcode:0
     status:
       code: 200
       message: OK
@@ -94,17 +94,17 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 12 Apr 2026 10:44:11 GMT
+      - Sun, 19 Apr 2026 06:31:40 GMT
       RequestId:
-      - '8751667010948108886'
+      - '6974351251080542235'
       Set-Cookie:
       - REDACTED
       Units:
-      - 11/148944/160000
+      - 11/146664/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:8751667010948108886,cmd:direct.api5/adextensions.delete,appcode:0
+      - reqid:6974351251080542235,cmd:direct.api5/adextensions.delete,appcode:0
     status:
       code: 200
       message: OK

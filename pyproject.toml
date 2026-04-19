@@ -85,6 +85,7 @@ python_functions = "test_*"
 markers = [
     "integration: marks tests as integration tests requiring a real API token (deselect with '-m \"not integration\"')",
     "integration_write: sandbox integration tests for write commands (replays VCR cassettes offline; --record-mode=rewrite needs YANDEX_DIRECT_TOKEN)",
+    "integration_live_write: manual production API write tests limited to disposable draft resources (requires YANDEX_DIRECT_TOKEN and YANDEX_DIRECT_LIVE_WRITE=1)",
     "sandbox_limitation: test skipped due to known Yandex Direct sandbox API limitation (not a CLI bug)",
     "api_coverage: marks tests verifying CLI coverage against Yandex API WSDL (cached, no network required)",
 ]

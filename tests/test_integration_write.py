@@ -27,10 +27,11 @@ distinguish sandbox limitations from real CLI regressions.
 Fixtures (campaign → adgroup → ad/keyword) are defined in conftest.py.
 Top-level resource tests run without fixtures.
 
-**Coverage status (issue #20 / #28):**
+**Coverage status (issue #20 / #28 / #56):**
 
-Passing in replay (9 tests, cassettes up to date):
+Passing in replay (10 tests, cassettes up to date):
   - campaigns lifecycle (add/update/suspend/resume/archive/unarchive/delete)
+  - campaigns draft parity (add/get/delete/get, mirrors live draft tier)
   - adgroups add-update-delete
   - bidmodifiers add/delete (mobile adjustment)
   - bidmodifiers set regression guard (no-id rejection)
@@ -49,12 +50,13 @@ Sandbox-limited (confirmed via live recording, ``@pytest.mark.sandbox_limitation
   - adimages add/delete           — sandbox rejects valid 450x450 PNG uploads
   - dynamicads add/delete         — sandbox does not support DYNAMIC_TEXT_CAMPAIGN creation
   - audiencetargets add/delete    — sandbox does not persist adgroup/retargeting list
-  - smartadtargets add            — sandbox does not support SMART_CAMPAIGN + SMART_AD_GROUP chain
+  - smartadtargets add/update/delete — sandbox does not support SMART_CAMPAIGN + SMART_AD_GROUP chain
 
 Part of axisrow/yandex-direct-mcp-plugin#61 (Etap 3).
 """
 
 import json
+from typing import Any, Dict, List, Optional
 
 import pytest
 
@@ -79,6 +81,30 @@ from conftest import (  # noqa: E402
 )
 
 
+def _extract_campaigns(output: str) -> List[Dict[str, Any]]:
+    """Extract campaigns from common tapi-yandex-direct response shapes."""
+    data = json.loads(output)
+    if isinstance(data, list):
+        return data
+    if not isinstance(data, dict):
+        return []
+
+    result = data.get("result", data)
+    campaigns = result.get("Campaigns", [])
+    return campaigns if isinstance(campaigns, list) else []
+
+
+def _find_campaign(output: str, campaign_id: int) -> Optional[Dict[str, Any]]:
+    """Find a campaign by Id in a get response."""
+    for campaign in _extract_campaigns(output):
+        try:
+            if int(campaign.get("Id")) == campaign_id:
+                return campaign
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
 # ── campaigns ────────────────────────────────────────────────────────────
 
 
@@ -92,9 +118,12 @@ class TestWriteCampaigns:
 
         # add
         r = _invoke(
-            "campaigns", "add",
-            "--name", name,
-            "--start-date", tomorrow(),
+            "campaigns",
+            "add",
+            "--name",
+            name,
+            "--start-date",
+            tomorrow(),
         )
         assert_success(r, "campaigns add")
         cid = parse_add_result(r)
@@ -102,9 +131,12 @@ class TestWriteCampaigns:
         try:
             # update
             r = _invoke(
-                "campaigns", "update",
-                "--id", str(cid),
-                "--name", f"{name}-renamed",
+                "campaigns",
+                "update",
+                "--id",
+                str(cid),
+                "--name",
+                f"{name}-renamed",
             )
             assert_success(r, "campaigns update")
 
@@ -119,22 +151,30 @@ class TestWriteCampaigns:
                 if _is_sandbox_error(err, extra_patterns=_CAMPAIGN_STATUS_PATTERNS):
                     suspend_ok = False
                 else:
-                    pytest.fail(f"campaigns suspend failed (CLI regression?): {err[:500]}")
+                    pytest.fail(
+                        f"campaigns suspend failed (CLI regression?): {err[:500]}"
+                    )
             else:
                 suspend_ok = True
 
             if suspend_ok:
                 r = _invoke("campaigns", "resume", "--id", str(cid))
                 if r.exit_code != 0 or _has_result_errors(r.output, "ResumeResults"):
-                    if not _is_sandbox_error(r.output, extra_patterns=_CAMPAIGN_STATUS_PATTERNS):
-                        pytest.fail(f"campaigns resume failed (CLI regression?): {r.output[:500]}")
+                    if not _is_sandbox_error(
+                        r.output, extra_patterns=_CAMPAIGN_STATUS_PATTERNS
+                    ):
+                        pytest.fail(
+                            f"campaigns resume failed (CLI regression?): {r.output[:500]}"
+                        )
 
             # archive — sandbox DRAFT campaigns return embedded
             # ArchiveResults errors (Code 8303) with HTTP 200.
             r = _invoke("campaigns", "archive", "--id", str(cid))
             if r.exit_code != 0 or _has_result_errors(r.output, "ArchiveResults"):
                 if not _is_sandbox_error(r.output, extra_patterns=_ARCHIVE_PATTERNS):
-                    pytest.fail(f"campaigns archive failed (CLI regression?): {r.output[:500]}")
+                    pytest.fail(
+                        f"campaigns archive failed (CLI regression?): {r.output[:500]}"
+                    )
             else:
                 assert_success(r, "campaigns archive")
 
@@ -142,11 +182,71 @@ class TestWriteCampaigns:
             r = _invoke("campaigns", "unarchive", "--id", str(cid))
             if r.exit_code != 0 or _has_result_errors(r.output, "UnarchiveResults"):
                 if not _is_sandbox_error(r.output, extra_patterns=_ARCHIVE_PATTERNS):
-                    pytest.fail(f"campaigns unarchive failed (CLI regression?): {r.output[:500]}")
+                    pytest.fail(
+                        f"campaigns unarchive failed (CLI regression?): {r.output[:500]}"
+                    )
             else:
                 assert_success(r, "campaigns unarchive")
         finally:
             _invoke("campaigns", "delete", "--id", str(cid))
+
+
+@pytest.mark.integration_write
+@pytest.mark.vcr
+class TestWriteCampaignDraftLifecycle:
+    """Sandbox parity check for the guarded live draft create/delete flow."""
+
+    def test_draft_create_get_delete(self, unique_suffix):
+        name = f"draft-lifecycle-{unique_suffix}"
+        cid: Optional[int] = None
+
+        r = _invoke(
+            "campaigns",
+            "add",
+            "--name",
+            name,
+            "--start-date",
+            tomorrow(),
+        )
+        assert_success(r, "campaigns draft add")
+        cid = parse_add_result(r)
+
+        try:
+            r = _invoke(
+                "campaigns",
+                "get",
+                "--ids",
+                str(cid),
+                "--fields",
+                "Id,Name,Status,State",
+            )
+            assert_success(r, "campaigns draft get")
+            campaign = _find_campaign(r.output, cid)
+            assert campaign is not None, (
+                f"Created draft campaign {cid} not found in sandbox get response: "
+                f"{r.output[:500]}"
+            )
+            assert campaign.get("Name") == name
+            status = campaign.get("Status")
+            state = campaign.get("State")
+            assert status == "DRAFT" or state == "OFF", (
+                "Expected a non-serving sandbox draft/off campaign, got "
+                f"Status={status!r}, State={state!r}, campaign={campaign}"
+            )
+        finally:
+            if cid is not None:
+                _invoke("campaigns", "delete", "--id", str(cid))
+
+        r = _invoke(
+            "campaigns",
+            "get",
+            "--ids",
+            str(cid),
+            "--fields",
+            "Id,Name,Status,State",
+        )
+        assert_success(r, "campaigns draft get after delete")
+        assert _find_campaign(r.output, cid) is None
 
 
 # ── adgroups ─────────────────────────────────────────────────────────────
@@ -160,10 +260,14 @@ class TestWriteAdGroups:
 
         # add
         r = _invoke(
-            "adgroups", "add",
-            "--name", "test-adgroup",
-            "--campaign-id", str(campaign_id),
-            "--region-ids", "1,225",
+            "adgroups",
+            "add",
+            "--name",
+            "test-adgroup",
+            "--campaign-id",
+            str(campaign_id),
+            "--region-ids",
+            "1,225",
         )
         assert_success(r, "adgroups add")
         gid = parse_add_result(r)
@@ -171,14 +275,19 @@ class TestWriteAdGroups:
         try:
             # update — may fail if sandbox doesn't persist adgroups
             r = _invoke(
-                "adgroups", "update",
-                "--id", str(gid),
-                "--name", "test-adgroup-renamed",
+                "adgroups",
+                "update",
+                "--id",
+                str(gid),
+                "--name",
+                "test-adgroup-renamed",
             )
             if r.exit_code != 0:
                 if _is_sandbox_error(r.output):
                     pytest.skip(f"adgroups not persisted in sandbox: {r.output[:200]}")
-                pytest.fail(f"adgroups update failed (CLI regression?): {r.output[:500]}")
+                pytest.fail(
+                    f"adgroups update failed (CLI regression?): {r.output[:500]}"
+                )
             assert_success(r, "adgroups update")
         finally:
             _invoke("adgroups", "delete", "--id", str(gid))
@@ -199,11 +308,16 @@ class TestWriteAds:
         adgroup_id = sandbox_adgroup
 
         r = _invoke(
-            "ads", "add",
-            "--adgroup-id", str(adgroup_id),
-            "--title", "Test Ad",
-            "--text", "Test ad text body",
-            "--href", "https://example.com",
+            "ads",
+            "add",
+            "--adgroup-id",
+            str(adgroup_id),
+            "--title",
+            "Test Ad",
+            "--text",
+            "Test ad text body",
+            "--href",
+            "https://example.com",
         )
         assert_success(r, "ads add")
         data = json.loads(r.output)
@@ -216,14 +330,19 @@ class TestWriteAds:
             err_text = str(first["Errors"])
             if _is_sandbox_error(err_text):
                 pytest.skip(f"adgroup not persisted in sandbox: {first['Errors']}")
-            pytest.fail(f"API rejected ads add (potential Type-field regression): {first['Errors']}")
+            pytest.fail(
+                f"API rejected ads add (potential Type-field regression): {first['Errors']}"
+            )
 
         ad_id = first["Id"]
         try:
             r = _invoke(
-                "ads", "update",
-                "--id", str(ad_id),
-                "--title", "Updated Title",
+                "ads",
+                "update",
+                "--id",
+                str(ad_id),
+                "--title",
+                "Updated Title",
             )
             assert_success(r, "ads update")
         finally:
@@ -243,9 +362,12 @@ class TestWriteKeywords:
         adgroup_id = sandbox_adgroup
 
         r = _invoke(
-            "keywords", "add",
-            "--adgroup-id", str(adgroup_id),
-            "--keyword", "купить тест",
+            "keywords",
+            "add",
+            "--adgroup-id",
+            str(adgroup_id),
+            "--keyword",
+            "купить тест",
         )
         assert_success(r, "keywords add")
         data = json.loads(r.output)
@@ -263,9 +385,12 @@ class TestWriteKeywords:
         kid = first["Id"]
         try:
             r = _invoke(
-                "keywords", "update",
-                "--id", str(kid),
-                "--bid", "10",
+                "keywords",
+                "update",
+                "--id",
+                str(kid),
+                "--bid",
+                "10",
             )
             assert_success(r, "keywords update")
         finally:
@@ -280,9 +405,12 @@ class TestWriteKeywords:
 class TestWriteBids:
     def test_set_bid(self, sandbox_keyword):
         r = _invoke(
-            "bids", "set",
-            "--keyword-id", str(sandbox_keyword),
-            "--bid", "15",
+            "bids",
+            "set",
+            "--keyword-id",
+            str(sandbox_keyword),
+            "--bid",
+            "15",
         )
         if r.exit_code != 0:
             if _is_sandbox_error(r.output):
@@ -307,14 +435,20 @@ class TestWriteBids:
 class TestWriteKeywordBids:
     def test_set_keyword_bid(self, sandbox_keyword):
         r = _invoke(
-            "keywordbids", "set",
-            "--keyword-id", str(sandbox_keyword),
-            "--search-bid", "8",
-            "--network-bid", "3",
+            "keywordbids",
+            "set",
+            "--keyword-id",
+            str(sandbox_keyword),
+            "--search-bid",
+            "8",
+            "--network-bid",
+            "3",
         )
         if r.exit_code != 0:
             if _is_sandbox_error(r.output):
-                pytest.skip(f"keywordbids set not supported (sandbox): {r.output[:200]}")
+                pytest.skip(
+                    f"keywordbids set not supported (sandbox): {r.output[:200]}"
+                )
             pytest.fail(f"keywordbids set failed (CLI regression?): {r.output[:500]}")
 
 
@@ -334,14 +468,20 @@ class TestWriteBidModifiersAdd:
 
     def test_add_delete_mobile(self, sandbox_campaign):
         r = _invoke(
-            "bidmodifiers", "add",
-            "--campaign-id", str(sandbox_campaign),
-            "--type", "MOBILE_ADJUSTMENT",
-            "--value", "120",
+            "bidmodifiers",
+            "add",
+            "--campaign-id",
+            str(sandbox_campaign),
+            "--type",
+            "MOBILE_ADJUSTMENT",
+            "--value",
+            "120",
         )
         if r.exit_code != 0:
             if _is_sandbox_error(r.output):
-                pytest.skip(f"bidmodifiers add not supported (sandbox): {r.output[:200]}")
+                pytest.skip(
+                    f"bidmodifiers add not supported (sandbox): {r.output[:200]}"
+                )
             pytest.fail(f"bidmodifiers add failed (CLI regression?): {r.output[:500]}")
 
         # ``bidmodifiers/add`` returns ``{"Ids": [<long>]}`` rather than
@@ -350,7 +490,12 @@ class TestWriteBidModifiersAdd:
         data = json.loads(r.output)
         if isinstance(data, dict) and "Ids" in data:
             ids = data["Ids"]
-        elif isinstance(data, list) and data and isinstance(data[0], dict) and "Ids" in data[0]:
+        elif (
+            isinstance(data, list)
+            and data
+            and isinstance(data[0], dict)
+            and "Ids" in data[0]
+        ):
             ids = data[0]["Ids"]
         else:
             ids = None
@@ -379,19 +524,23 @@ class TestWriteBidModifiersSet:
 
     def test_set_without_id_is_rejected(self, sandbox_campaign):
         r = _invoke(
-            "bidmodifiers", "set",
-            "--campaign-id", str(sandbox_campaign),
-            "--type", "MOBILE_ADJUSTMENT",
-            "--value", "120",
+            "bidmodifiers",
+            "set",
+            "--campaign-id",
+            str(sandbox_campaign),
+            "--type",
+            "MOBILE_ADJUSTMENT",
+            "--value",
+            "120",
         )
         assert r.exit_code != 0, (
             "bidmodifiers set unexpectedly succeeded without --id; either the "
             "CLI was fixed to include Id, or the API now allows creating "
             "modifiers via set. Update this test accordingly."
         )
-        assert "The required field Id is omitted" in r.output, (
-            f"Unexpected failure mode from bidmodifiers set: {r.output[:500]}"
-        )
+        assert (
+            "The required field Id is omitted" in r.output
+        ), f"Unexpected failure mode from bidmodifiers set: {r.output[:500]}"
 
 
 # ── feeds ────────────────────────────────────────────────────────────────
@@ -402,9 +551,12 @@ class TestWriteBidModifiersSet:
 class TestWriteFeeds:
     def test_add_update_delete(self, unique_suffix):
         r = _invoke(
-            "feeds", "add",
-            "--name", f"test-feed-{unique_suffix}",
-            "--url", "https://example.com/feed.xml",
+            "feeds",
+            "add",
+            "--name",
+            f"test-feed-{unique_suffix}",
+            "--url",
+            "https://example.com/feed.xml",
         )
         if r.exit_code != 0:
             if _is_sandbox_error(r.output):
@@ -414,9 +566,12 @@ class TestWriteFeeds:
         fid = parse_add_result(r)
         try:
             r = _invoke(
-                "feeds", "update",
-                "--id", str(fid),
-                "--name", f"test-feed-{unique_suffix}-renamed",
+                "feeds",
+                "update",
+                "--id",
+                str(fid),
+                "--name",
+                f"test-feed-{unique_suffix}-renamed",
             )
             assert_success(r, "feeds update")
         finally:
@@ -432,14 +587,20 @@ class TestWriteRetargeting:
     def test_add_delete(self, unique_suffix):
         # Typed --rule input must reproduce the historical cassette body.
         r = _invoke(
-            "retargeting", "add",
-            "--name", f"test-rtg-{unique_suffix}",
-            "--type", "RETARGETING",
-            "--rule", "ANY:1234567890",
+            "retargeting",
+            "add",
+            "--name",
+            f"test-rtg-{unique_suffix}",
+            "--type",
+            "RETARGETING",
+            "--rule",
+            "ANY:1234567890",
         )
         if r.exit_code != 0:
             if _is_sandbox_error(r.output):
-                pytest.skip(f"retargeting add not supported (sandbox): {r.output[:200]}")
+                pytest.skip(
+                    f"retargeting add not supported (sandbox): {r.output[:200]}"
+                )
             pytest.fail(f"retargeting add failed (CLI regression?): {r.output[:500]}")
 
         rid = parse_add_result(r)
@@ -458,14 +619,21 @@ class TestWriteRetargeting:
 class TestWriteAudienceTargets:
     def test_add_delete(self, sandbox_adgroup, sandbox_retargeting_list):
         r = _invoke(
-            "audiencetargets", "add",
-            "--adgroup-id", str(sandbox_adgroup),
-            "--retargeting-list-id", str(sandbox_retargeting_list),
+            "audiencetargets",
+            "add",
+            "--adgroup-id",
+            str(sandbox_adgroup),
+            "--retargeting-list-id",
+            str(sandbox_retargeting_list),
         )
         if r.exit_code != 0:
             if _is_sandbox_error(r.output):
-                pytest.skip(f"audiencetargets add not supported (sandbox): {r.output[:200]}")
-            pytest.fail(f"audiencetargets add failed (CLI regression?): {r.output[:500]}")
+                pytest.skip(
+                    f"audiencetargets add not supported (sandbox): {r.output[:200]}"
+                )
+            pytest.fail(
+                f"audiencetargets add failed (CLI regression?): {r.output[:500]}"
+            )
 
         data = json.loads(r.output)
         if isinstance(data, list):
@@ -475,8 +643,12 @@ class TestWriteAudienceTargets:
         if "Errors" in first and first["Errors"]:
             err_text = str(first["Errors"])
             if _is_sandbox_error(err_text):
-                pytest.skip(f"audiencetargets add rejected (sandbox): {first['Errors']}")
-            pytest.fail(f"API rejected audiencetargets add (CLI bug?): {first['Errors']}")
+                pytest.skip(
+                    f"audiencetargets add rejected (sandbox): {first['Errors']}"
+                )
+            pytest.fail(
+                f"API rejected audiencetargets add (CLI bug?): {first['Errors']}"
+            )
 
         tid = first["Id"]
         r = _invoke("audiencetargets", "delete", "--id", str(tid))
@@ -494,9 +666,12 @@ class TestWriteAudienceTargets:
 class TestWriteSitelinks:
     def test_add_delete(self):
         r = _invoke(
-            "sitelinks", "add",
-            "--sitelink", "About|https://example.com/about",
-            "--sitelink", "Contact|https://example.com/contact",
+            "sitelinks",
+            "add",
+            "--sitelink",
+            "About|https://example.com/about",
+            "--sitelink",
+            "Contact|https://example.com/contact",
         )
         if r.exit_code != 0:
             if _is_sandbox_error(r.output, extra_patterns=_SITELINK_PATTERNS):
@@ -520,15 +695,24 @@ class TestWriteVCards:
         # WorkTime format: ``<day_from>#<day_to>#<hh_from>#<mm_from>#<hh_to>#<mm_to>``
         # Here: Mon(1) — Fri(5), 09:00 — 18:00.
         r = _invoke(
-            "vcards", "add",
-            "--campaign-id", str(sandbox_campaign),
-            "--country", "Россия",
-            "--city", "Москва",
-            "--company-name", "Test Company",
-            "--work-time", "1#5#9#0#18#0",
-            "--phone-country-code", "+7",
-            "--phone-city-code", "495",
-            "--phone-number", "1234567",
+            "vcards",
+            "add",
+            "--campaign-id",
+            str(sandbox_campaign),
+            "--country",
+            "Россия",
+            "--city",
+            "Москва",
+            "--company-name",
+            "Test Company",
+            "--work-time",
+            "1#5#9#0#18#0",
+            "--phone-country-code",
+            "+7",
+            "--phone-city-code",
+            "495",
+            "--phone-number",
+            "1234567",
         )
         if r.exit_code != 0:
             if _is_sandbox_error(r.output):
@@ -557,12 +741,16 @@ class TestWriteAdExtensions:
 
     def test_add_delete(self):
         r = _invoke(
-            "adextensions", "add",
-            "--callout-text", "Free shipping",
+            "adextensions",
+            "add",
+            "--callout-text",
+            "Free shipping",
         )
         if r.exit_code != 0:
             if _is_sandbox_error(r.output):
-                pytest.skip(f"adextensions add not supported (sandbox): {r.output[:200]}")
+                pytest.skip(
+                    f"adextensions add not supported (sandbox): {r.output[:200]}"
+                )
             pytest.fail(f"adextensions add failed (CLI regression?): {r.output[:500]}")
 
         first = parse_first_result(r)
@@ -626,9 +814,12 @@ class TestWriteAdImages:
             "KWgbKQyncKAAAAAASUVORK5CYII="
         )
         r = _invoke(
-            "adimages", "add",
-            "--name", "test-image.png",
-            "--image-data", png_b64,
+            "adimages",
+            "add",
+            "--name",
+            "test-image.png",
+            "--image-data",
+            png_b64,
         )
         if r.exit_code != 0:
             if _is_sandbox_error(r.output, extra_patterns=_IMAGE_PATTERNS):
@@ -636,9 +827,9 @@ class TestWriteAdImages:
             pytest.fail(f"adimages add failed (CLI regression?): {r.output[:500]}")
 
         data = json.loads(r.output)
-        assert isinstance(data, list) and data, (
-            f"adimages add returned empty result: {r.output[:200]}"
-        )
+        assert (
+            isinstance(data, list) and data
+        ), f"adimages add returned empty result: {r.output[:200]}"
         first = data[0]
         if "Errors" in first and first["Errors"]:
             err_text = str(first["Errors"])
@@ -663,10 +854,14 @@ class TestWriteAdImages:
 class TestWriteDynamicAds:
     def test_add_update_delete(self, sandbox_dynamic_adgroup):
         r = _invoke(
-            "dynamicads", "add",
-            "--adgroup-id", str(sandbox_dynamic_adgroup),
-            "--name", "Test Webpage",
-            "--condition", "URL:CONTAINS_ANY:test",
+            "dynamicads",
+            "add",
+            "--adgroup-id",
+            str(sandbox_dynamic_adgroup),
+            "--name",
+            "Test Webpage",
+            "--condition",
+            "URL:CONTAINS_ANY:test",
         )
         if r.exit_code != 0:
             if _is_sandbox_error(r.output):
@@ -696,15 +891,23 @@ class TestWriteSmartAdTargets:
 
     def test_add_update_delete(self, sandbox_smart_adgroup):
         r = _invoke(
-            "smartadtargets", "add",
-            "--adgroup-id", str(sandbox_smart_adgroup),
-            "--name", "regression-smart-target",
-            "--audience", "ALL_SEGMENTS",
+            "smartadtargets",
+            "add",
+            "--adgroup-id",
+            str(sandbox_smart_adgroup),
+            "--name",
+            "regression-smart-target",
+            "--audience",
+            "ALL_SEGMENTS",
         )
         if r.exit_code != 0:
             if _is_sandbox_error(r.output, extra_patterns=_SMART_AD_PATTERNS):
-                pytest.skip(f"smartadtargets add not supported (sandbox): {r.output[:200]}")
-            pytest.fail(f"smartadtargets add failed (CLI regression?): {r.output[:500]}")
+                pytest.skip(
+                    f"smartadtargets add not supported (sandbox): {r.output[:200]}"
+                )
+            pytest.fail(
+                f"smartadtargets add failed (CLI regression?): {r.output[:500]}"
+            )
 
         data = json.loads(r.output)
         first = data[0] if isinstance(data, list) else data.get("AddResults", [{}])[0]
@@ -720,9 +923,12 @@ class TestWriteSmartAdTargets:
         tid = first["Id"]
         try:
             r = _invoke(
-                "smartadtargets", "update",
-                "--id", str(tid),
-                "--priority", "HIGH",
+                "smartadtargets",
+                "update",
+                "--id",
+                str(tid),
+                "--priority",
+                "HIGH",
             )
             assert_success(r, "smartadtargets update")
         finally:
@@ -737,18 +943,24 @@ class TestWriteSmartAdTargets:
 class TestWriteNegativeKeywordSharedSets:
     def test_add_update_delete(self, unique_suffix):
         r = _invoke(
-            "negativekeywordsharedsets", "add",
-            "--name", f"test-nk-{unique_suffix}",
-            "--keywords", "спам,блок",
+            "negativekeywordsharedsets",
+            "add",
+            "--name",
+            f"test-nk-{unique_suffix}",
+            "--keywords",
+            "спам,блок",
         )
         assert_success(r, "negativekeywordsharedsets add")
         nid = parse_add_result(r)
 
         try:
             r = _invoke(
-                "negativekeywordsharedsets", "update",
-                "--id", str(nid),
-                "--keywords", "спам,блок,мусор",
+                "negativekeywordsharedsets",
+                "update",
+                "--id",
+                str(nid),
+                "--keywords",
+                "спам,блок,мусор",
             )
             assert_success(r, "negativekeywordsharedsets update")
         finally:

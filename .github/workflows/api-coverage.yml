@@ -45,12 +45,24 @@ jobs:
 
           report = json.loads(Path("api_coverage_report.json").read_text())
           summary = report["summary"]
+          model_gaps = report["model_gaps"]
           print("## API coverage summary")
           print()
           print(f"- Services checked: {summary['services_checked']}")
           print(f"- Missing methods: {summary['missing_service_methods']}")
           print(f"- Unexpected methods: {summary['unexpected_service_methods']}")
           print(f"- Strict parity OK: {summary['strict_parity_ok']}")
+          print(f"- Live model parity OK: {summary['live_model_parity_ok']}")
+          print(f"- Declared WSDL services: {model_gaps['declared_wsdl_services_count']}")
+          print(f"- Declared WSDL methods: {model_gaps['declared_wsdl_methods_count']}")
+          print(f"- Live-discovered services: {model_gaps['live_discovered_services_count']}")
+          print(f"- Live-discovered methods: {model_gaps['live_discovered_methods_count']}")
+          print(f"- Model gaps: {model_gaps['live_model_gap_count']}")
+          for item in model_gaps["live_discovered_missing_services"][:10]:
+              methods = ", ".join(item["api_methods"])
+              print(f"- Missing service: {item['api_service']} ({methods})")
+          for item in model_gaps["live_discovery_errors"][:10]:
+              print(f"- Live discovery error: {item['api_service']}: {item['error']}")
           print(f"- Non-WSDL services: {len(report['non_wsdl_services'])}")
           print(f"- CLI helpers: {len(report['cli_helpers'])}")
           PY

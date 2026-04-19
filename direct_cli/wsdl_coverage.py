@@ -100,6 +100,18 @@ CANONICAL_API_SERVICES = sorted(
     ]
 )
 
+# Explicit live-discovery surface used to catch services omitted from the
+# declared canonical coverage model. Keep this list conservative and sourced
+# from live WSDL/API reference audits so CI does not depend on brittle doc
+# navigation scraping.
+LIVE_DISCOVERED_API_SERVICES = sorted(
+    set(CANONICAL_API_SERVICES)
+    | {
+        "dynamicfeedadtargets",
+        "strategies",
+    }
+)
+
 KNOWN_MISSING_SERVICES = set()
 
 # Intentional CLI-only methods that are not 1:1 SOAP WSDL operations.
@@ -109,7 +121,7 @@ INTENTIONAL_EXTRA_METHODS = {
         "CLI guard command: the Yandex Direct API does not support deleting "
         "agency clients, so the command aborts with an explicit message."
     ),
-("keywords", "archive"): (
+    ("keywords", "archive"): (
         "Legacy lifecycle command preserved for compatibility with existing CLI users."
     ),
     ("keywords", "unarchive"): (
@@ -150,6 +162,16 @@ def fetch_wsdl(service_name: str, use_cache: bool = True) -> str:
     cache_file.write_text(xml_text, encoding="utf-8")
 
     return xml_text
+
+
+def fetch_live_wsdl(service_name: str) -> str:
+    """Fetch live WSDL XML without reading or writing the local cache."""
+    import requests
+
+    url = WSDL_BASE_URL.format(service=service_name)
+    resp = requests.get(url, timeout=30)
+    resp.raise_for_status()
+    return resp.text
 
 
 def parse_wsdl_operations(wsdl_xml: str) -> list:
@@ -199,6 +221,7 @@ def get_api_coverage_policy() -> dict:
         "wsdl_base_url": WSDL_BASE_URL,
         "wsdl_services": dict(sorted(CLI_TO_API_SERVICE.items())),
         "canonical_api_services": list(CANONICAL_API_SERVICES),
+        "live_discovered_api_services": list(LIVE_DISCOVERED_API_SERVICES),
         "non_wsdl_services": NON_WSDL_SERVICE_POLICIES,
         "intentional_extra_methods": {
             f"{service}.{method}": reason

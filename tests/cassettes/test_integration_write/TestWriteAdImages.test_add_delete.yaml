@@ -32,27 +32,27 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/adimages
   response:
     body:
-      string: '{"result":{"AddResults":[{"Errors":[{"Message":"Invalid format","Code":5004,"Details":"Invalid
-        image file type, please use the GIF, JPEG or PNG formats"}]}]}}'
+      string: '{"result":{"AddResults":[{"Errors":[{"Message":"Invalid format","Details":"Invalid
+        image file type, please use the GIF, JPEG or PNG formats","Code":5004}]}]}}'
     headers:
       Content-Security-Policy:
       - default-src 'none'
       Content-Type:
       - application/json; charset=utf-8
       Date:
-      - Sun, 12 Apr 2026 10:44:12 GMT
+      - Sun, 19 Apr 2026 06:31:43 GMT
       RequestId:
-      - '6179057854623148426'
+      - '5687808408528670206'
       Set-Cookie:
       - REDACTED
       Transfer-Encoding:
       - chunked
       Units:
-      - 40/148904/160000
+      - 40/146625/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:6179057854623148426,cmd:direct.json-api/adimages.add,appcode:0
+      - reqid:5687808408528670206,cmd:direct.json-api/adimages.add,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
