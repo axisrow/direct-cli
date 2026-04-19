@@ -39,7 +39,7 @@ Coverage scope
 --------------
 
 The suite covers both payload-building write commands (``add``,
-``update``, ``set``, ``toggle``) and the main single-action lifecycle
+``update``, ``set``) and the main single-action lifecycle
 commands that now expose ``--dry-run`` (``delete``, ``archive``,
 ``unarchive``, ``suspend``, ``resume``, ``moderate``) so that trivial
 ``SelectionCriteria`` regressions are also caught in CI.
@@ -724,29 +724,6 @@ def test_bidmodifiers_set_without_any_key_errors():
         str(result.exception) if result.exception else ""
     )
     assert "--id" in combined or "--campaign-id" in combined
-
-
-def test_bidmodifiers_toggle_enable():
-    body = _dry_run(
-        "bidmodifiers", "toggle",
-        "--campaign-id", "777",
-        "--type", "DEMOGRAPHICS_ADJUSTMENT",
-        "--enabled",
-    )
-    assert body["method"] == "toggle"
-    item = body["params"]["BidModifierToggleItems"][0]
-    assert item == {"CampaignId": 777, "Type": "DEMOGRAPHICS_ADJUSTMENT", "Enabled": "YES"}
-
-
-def test_bidmodifiers_toggle_disable():
-    body = _dry_run(
-        "bidmodifiers", "toggle",
-        "--campaign-id", "777",
-        "--type", "DEMOGRAPHICS_ADJUSTMENT",
-        "--disabled",
-    )
-    item = body["params"]["BidModifierToggleItems"][0]
-    assert item == {"CampaignId": 777, "Type": "DEMOGRAPHICS_ADJUSTMENT", "Enabled": "NO"}
 
 
 def test_bidmodifiers_add_mobile_uses_nested_object():

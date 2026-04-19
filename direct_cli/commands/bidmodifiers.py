@@ -338,67 +338,6 @@ def set(ctx, modifier_id, campaign_id, modifier_type, value, dry_run):
 
 
 @bidmodifiers.command()
-@click.option("--campaign-id", type=int, help="Campaign ID (mutually exclusive with --adgroup-id)")
-@click.option("--adgroup-id", type=int, help="Ad group ID (mutually exclusive with --campaign-id)")
-@click.option(
-    "--type",
-    "modifier_type",
-    required=True,
-    type=click.Choice([
-        "DEMOGRAPHICS_ADJUSTMENT",
-        "RETARGETING_ADJUSTMENT",
-        "REGIONAL_ADJUSTMENT",
-        "SERP_LAYOUT_ADJUSTMENT",
-        "INCOME_GRADE_ADJUSTMENT",
-    ], case_sensitive=False),
-    help="Adjustment type to toggle",
-)
-@click.option("--enabled/--disabled", "enabled", default=True, help="Enable or disable")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-def toggle(ctx, campaign_id, adgroup_id, modifier_type, enabled, dry_run):
-    """Toggle bid modifier state (enable/disable by type)"""
-    try:
-        if not campaign_id and not adgroup_id:
-            raise click.UsageError("Either --campaign-id or --adgroup-id is required.")
-        if campaign_id and adgroup_id:
-            raise click.UsageError("Use either --campaign-id or --adgroup-id, not both.")
-
-        item = {
-            "Type": modifier_type.upper(),
-            "Enabled": "YES" if enabled else "NO",
-        }
-        if campaign_id:
-            item["CampaignId"] = campaign_id
-        else:
-            item["AdGroupId"] = adgroup_id
-
-        body = {
-            "method": "toggle",
-            "params": {"BidModifierToggleItems": [item]},
-        }
-
-        if dry_run:
-            format_output(body, "json", None)
-            return
-
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
-
-        result = client.bidmodifiers().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
-
-
-@bidmodifiers.command()
 @click.option("--id", "modifier_id", required=True, type=int, help="Modifier ID")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
