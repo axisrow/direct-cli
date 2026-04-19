@@ -6,6 +6,16 @@ Safety contract:
 - tests never accept external resource IDs;
 - every mutating command targets only a draft resource created by this test;
 - cleanup fails loudly with the created ID if Yandex Direct refuses deletion.
+
+Coverage status (issue #59):
+
+  Phase 3 — nested inside draft campaign (Category A):
+    - adgroups add/update/delete
+    - ads add/update/delete (never moderate)
+    - keywords add/update/delete
+    - bids set
+    - keywordbids set
+    - audiencetargets add/delete
 """
 
 import json
@@ -134,6 +144,26 @@ def _assert_created_campaign_is_draft(
         assert state == "OFF"
 
 
+def _create_draft_campaign(suffix: str = "") -> int:
+    """Create a draft campaign and return its ID. Caller must delete."""
+    name = f"{_campaign_name()}-nested{suffix}"
+    r = _invoke_live(
+        "campaigns", "add", "--name", name, "--start-date", _future_start_date()
+    )
+    _assert_success(r, "campaigns add (draft)")
+    return _extract_first_id(r.output)
+
+
+def _safe_delete_campaign(cid: int) -> None:
+    """Delete a draft campaign, failing the test if deletion is rejected."""
+    r = _invoke_live("campaigns", "delete", "--id", str(cid))
+    if r.exit_code != 0:
+        pytest.fail(
+            f"Failed to delete draft campaign {cid}. "
+            f"Manual cleanup required.\noutput: {r.output}"
+        )
+
+
 @pytest.mark.vcr
 def test_live_draft_campaign_create_get_delete() -> None:
     """Create, verify and delete only the draft campaign created by this test."""
@@ -154,7 +184,7 @@ def test_live_draft_campaign_create_get_delete() -> None:
         try:
             created_campaign_id = _extract_first_id(add_result.output)
         except Exception:
-            pass  # ID unknown; cleanup in finally is skipped — manual recovery via campaign name
+            pass  # ID unknown; cleanup skipped — manual recovery via name
 
         get_result = _invoke_live(
             "campaigns",
@@ -197,3 +227,301 @@ def test_live_draft_campaign_create_get_delete() -> None:
     )
     _assert_success(verify_delete_result, "campaigns get after delete")
     assert _find_campaign(verify_delete_result.output, created_campaign_id) is None
+
+
+# ── Phase 3: nested inside draft campaign ─────────────────────────────────
+
+
+@pytest.mark.vcr
+def test_live_draft_adgroups_add_update_delete() -> None:
+    """Create draft campaign, add/update/get/delete adgroup."""
+    cid = _create_draft_campaign("-adgroups")
+    gid: Optional[int] = None
+
+    try:
+        r = _invoke_live(
+            "adgroups",
+            "add",
+            "--name",
+            "draft-test-group",
+            "--campaign-id",
+            str(cid),
+            "--region-ids",
+            "1,225",
+        )
+        _assert_success(r, "adgroups add")
+        gid = _extract_first_id(r.output)
+
+        r = _invoke_live(
+            "adgroups",
+            "update",
+            "--id",
+            str(gid),
+            "--name",
+            "draft-test-group-renamed",
+        )
+        _assert_success(r, "adgroups update")
+
+        r = _invoke_live("adgroups", "get", "--ids", str(gid), "--format", "json")
+        _assert_success(r, "adgroups get after update")
+    finally:
+        if gid is not None:
+            _invoke_live("adgroups", "delete", "--id", str(gid))
+        _safe_delete_campaign(cid)
+
+
+@pytest.mark.vcr
+def test_live_draft_ads_add_update_delete() -> None:
+    """Create draft campaign + adgroup, add/update/get/delete TEXT_AD."""
+    cid = _create_draft_campaign("-ads")
+    gid: Optional[int] = None
+    aid: Optional[int] = None
+
+    try:
+        r = _invoke_live(
+            "adgroups",
+            "add",
+            "--name",
+            "draft-ads-group",
+            "--campaign-id",
+            str(cid),
+            "--region-ids",
+            "1,225",
+        )
+        _assert_success(r, "adgroups add")
+        gid = _extract_first_id(r.output)
+
+        r = _invoke_live(
+            "ads",
+            "add",
+            "--adgroup-id",
+            str(gid),
+            "--title",
+            "Draft Test Ad",
+            "--text",
+            "Test ad text",
+            "--href",
+            "https://example.com",
+        )
+        _assert_success(r, "ads add")
+        aid = _extract_first_id(r.output)
+
+        r = _invoke_live(
+            "ads", "update", "--id", str(aid), "--title", "Updated Draft Ad"
+        )
+        _assert_success(r, "ads update")
+
+        r = _invoke_live("ads", "get", "--ids", str(aid), "--format", "json")
+        _assert_success(r, "ads get after update")
+    finally:
+        if aid is not None:
+            _invoke_live("ads", "delete", "--id", str(aid))
+        if gid is not None:
+            _invoke_live("adgroups", "delete", "--id", str(gid))
+        _safe_delete_campaign(cid)
+
+
+@pytest.mark.vcr
+def test_live_draft_keywords_add_update_delete() -> None:
+    """Create draft campaign + adgroup, add/update/get/delete keyword."""
+    cid = _create_draft_campaign("-keywords")
+    gid: Optional[int] = None
+    kid: Optional[int] = None
+
+    try:
+        r = _invoke_live(
+            "adgroups",
+            "add",
+            "--name",
+            "draft-kw-group",
+            "--campaign-id",
+            str(cid),
+            "--region-ids",
+            "1,225",
+        )
+        _assert_success(r, "adgroups add")
+        gid = _extract_first_id(r.output)
+
+        r = _invoke_live(
+            "keywords",
+            "add",
+            "--adgroup-id",
+            str(gid),
+            "--keyword",
+            "draft test keyword",
+        )
+        _assert_success(r, "keywords add")
+        kid = _extract_first_id(r.output)
+
+        r = _invoke_live("keywords", "update", "--id", str(kid), "--bid", "10")
+        _assert_success(r, "keywords update")
+
+        r = _invoke_live(
+            "keywords",
+            "get",
+            "--campaign-ids",
+            str(cid),
+            "--format",
+            "json",
+        )
+        _assert_success(r, "keywords get after update")
+    finally:
+        if kid is not None:
+            _invoke_live("keywords", "delete", "--id", str(kid))
+        if gid is not None:
+            _invoke_live("adgroups", "delete", "--id", str(gid))
+        _safe_delete_campaign(cid)
+
+
+@pytest.mark.vcr
+def test_live_draft_bids_set() -> None:
+    """Create draft campaign + adgroup + keyword, set bid."""
+    cid = _create_draft_campaign("-bids")
+    gid: Optional[int] = None
+    kid: Optional[int] = None
+
+    try:
+        r = _invoke_live(
+            "adgroups",
+            "add",
+            "--name",
+            "draft-bids-group",
+            "--campaign-id",
+            str(cid),
+            "--region-ids",
+            "1,225",
+        )
+        _assert_success(r, "adgroups add")
+        gid = _extract_first_id(r.output)
+
+        r = _invoke_live(
+            "keywords",
+            "add",
+            "--adgroup-id",
+            str(gid),
+            "--keyword",
+            "draft bids keyword",
+        )
+        _assert_success(r, "keywords add")
+        kid = _extract_first_id(r.output)
+
+        r = _invoke_live("bids", "set", "--keyword-id", str(kid), "--bid", "15")
+        _assert_success(r, "bids set")
+    finally:
+        if kid is not None:
+            _invoke_live("keywords", "delete", "--id", str(kid))
+        if gid is not None:
+            _invoke_live("adgroups", "delete", "--id", str(gid))
+        _safe_delete_campaign(cid)
+
+
+@pytest.mark.vcr
+def test_live_draft_keywordbids_set() -> None:
+    """Create draft campaign + adgroup + keyword, set keywordbid."""
+    cid = _create_draft_campaign("-keywordbids")
+    gid: Optional[int] = None
+    kid: Optional[int] = None
+
+    try:
+        r = _invoke_live(
+            "adgroups",
+            "add",
+            "--name",
+            "draft-kwbids-group",
+            "--campaign-id",
+            str(cid),
+            "--region-ids",
+            "1,225",
+        )
+        _assert_success(r, "adgroups add")
+        gid = _extract_first_id(r.output)
+
+        r = _invoke_live(
+            "keywords",
+            "add",
+            "--adgroup-id",
+            str(gid),
+            "--keyword",
+            "draft keywordbids keyword",
+        )
+        _assert_success(r, "keywords add")
+        kid = _extract_first_id(r.output)
+
+        r = _invoke_live(
+            "keywordbids",
+            "set",
+            "--keyword-id",
+            str(kid),
+            "--search-bid",
+            "8",
+            "--network-bid",
+            "3",
+        )
+        _assert_success(r, "keywordbids set")
+    finally:
+        if kid is not None:
+            _invoke_live("keywords", "delete", "--id", str(kid))
+        if gid is not None:
+            _invoke_live("adgroups", "delete", "--id", str(gid))
+        _safe_delete_campaign(cid)
+
+
+@pytest.mark.vcr
+def test_live_draft_audiencetargets_add_delete() -> None:
+    """Create draft campaign + adgroup + retargeting list, add/delete
+    audience target."""
+    cid = _create_draft_campaign("-audience")
+    gid: Optional[int] = None
+    rtg_id: Optional[int] = None
+    at_id: Optional[int] = None
+
+    try:
+        r = _invoke_live(
+            "adgroups",
+            "add",
+            "--name",
+            "draft-audience-group",
+            "--campaign-id",
+            str(cid),
+            "--region-ids",
+            "1,225",
+        )
+        _assert_success(r, "adgroups add")
+        gid = _extract_first_id(r.output)
+
+        r = _invoke_live(
+            "retargeting",
+            "add",
+            "--name",
+            "draft-rtg-test",
+            "--type",
+            "RETARGETING",
+            "--rule",
+            "ALL:12345:30",
+        )
+        _assert_success(r, "retargeting add")
+        rtg_id = _extract_first_id(r.output)
+
+        r = _invoke_live(
+            "audiencetargets",
+            "add",
+            "--adgroup-id",
+            str(gid),
+            "--retargeting-list-id",
+            str(rtg_id),
+        )
+        _assert_success(r, "audiencetargets add")
+        at_id = _extract_first_id(r.output)
+
+        r = _invoke_live(
+            "audiencetargets", "get", "--ids", str(at_id), "--format", "json"
+        )
+        _assert_success(r, "audiencetargets get")
+    finally:
+        if at_id is not None:
+            _invoke_live("audiencetargets", "delete", "--id", str(at_id))
+        if rtg_id is not None:
+            _invoke_live("retargeting", "delete", "--id", str(rtg_id))
+        if gid is not None:
+            _invoke_live("adgroups", "delete", "--id", str(gid))
+        _safe_delete_campaign(cid)
