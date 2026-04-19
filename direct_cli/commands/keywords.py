@@ -132,12 +132,16 @@ def add(
         raise click.Abort()
 
 
+_DEPRECATED_KEYWORDS_UPDATE_OPTIONS = {
+    "bid": "--bid is no longer accepted on 'keywords update'; use: direct bids set --keyword-id ID --bid VALUE",
+    "context_bid": "--context-bid is no longer accepted on 'keywords update'; use: direct bids set --keyword-id ID --network-bid VALUE",
+    "status": "--status is no longer accepted on 'keywords update'; status is not mutable via the keywords API",
+}
+
+
 def _deprecated_bid_option(ctx, param, value):
     if value is not None:
-        raise click.UsageError(
-            f"--{param.name} is no longer accepted on 'keywords update'; "
-            f"use: direct bids set --keyword-id ID --{param.name} VALUE"
-        )
+        raise click.UsageError(_DEPRECATED_KEYWORDS_UPDATE_OPTIONS[param.name])
 
 
 @keywords.command()
