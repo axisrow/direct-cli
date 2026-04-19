@@ -53,7 +53,8 @@ Live tests skip gracefully when the API returns error 3500.
 
 - **advideos add** — requires a valid, publicly accessible video URL. The
   Yandex API rejects placeholder URLs (e.g. `example.com`). A real video
-  must be hosted externally; this cannot be automated.
+  must be hosted externally; this cannot be automated. No cleanup possible
+  via CLI — `advideos` has no `delete` subcommand.
 - **creatives add** — depends on a valid `video_id` from `advideos add`,
   so it inherits the same limitation.
 

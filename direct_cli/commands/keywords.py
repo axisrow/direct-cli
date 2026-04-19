@@ -132,11 +132,31 @@ def add(
         raise click.Abort()
 
 
+def _deprecated_bid_option(ctx, param, value):
+    if value is not None:
+        raise click.UsageError(
+            f"--{param.name} is no longer accepted on 'keywords update'; "
+            f"use: direct bids set --keyword-id ID --{param.name} VALUE"
+        )
+
+
 @keywords.command()
 @click.option("--id", "keyword_id", required=True, type=int, help="Keyword ID")
 @click.option("--keyword", help="New keyword text")
 @click.option("--user-param-1", help="User parameter 1")
 @click.option("--user-param-2", help="User parameter 2")
+@click.option("--bid", default=None, expose_value=False,
+              callback=_deprecated_bid_option,
+              is_eager=True, hidden=True,
+              help="Removed: use 'bids set --keyword-id ID --bid VALUE'")
+@click.option("--context-bid", default=None, expose_value=False,
+              callback=_deprecated_bid_option,
+              is_eager=True, hidden=True,
+              help="Removed: use 'bids set --keyword-id ID --network-bid VALUE'")
+@click.option("--status", default=None, expose_value=False,
+              callback=_deprecated_bid_option,
+              is_eager=True, hidden=True,
+              help="Removed: status is not mutable via keywords update")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def update(ctx, keyword_id, keyword, user_param_1, user_param_2, dry_run):

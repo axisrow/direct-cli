@@ -95,10 +95,9 @@ _DRAFT_STATE_PATTERNS = (
     "Invalid object status",
     "is draft",
     "has not been saved",
-    "DRAFT",
     "cannot be suspended",
     "cannot be resumed",
-    "Operation is not available",
+    "Operation is not available for object",
 )
 
 
@@ -409,8 +408,6 @@ def test_live_draft_adimages_add_get_delete() -> None:
             "get",
             "--fields",
             "AdImageHash,Name",
-            "--limit",
-            "1",
             "--format",
             "json",
         )
