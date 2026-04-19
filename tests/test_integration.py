@@ -271,58 +271,119 @@ class TestReadOnlyDictionaries(unittest.TestCase):
 class TestReadOnlyReports(unittest.TestCase):
     def test_get_campaign_performance_report(self):
         result = invoke_get(
-            "reports", "get",
-            "--type", "campaign_performance_report",
-            "--from", "2026-01-01",
-            "--to", "2026-01-31",
-            "--name", "Integration Test Report",
-            "--fields", "Date,CampaignId,Clicks,Impressions",
-            "--format", "json",
+            "reports",
+            "get",
+            "--type",
+            "campaign_performance_report",
+            "--from",
+            "2026-01-01",
+            "--to",
+            "2026-01-31",
+            "--name",
+            "Integration Test Report",
+            "--fields",
+            "Date,CampaignId,Clicks,Impressions",
+            "--format",
+            "json",
         )
         assert_success(result, "reports get campaign_performance_report")
 
     def test_get_report_with_filter(self):
         result = invoke_get(
-            "reports", "get",
-            "--type", "campaign_performance_report",
-            "--from", "2026-01-01",
-            "--to", "2026-01-31",
-            "--name", "Filtered Report",
-            "--fields", "Date,CampaignId,Clicks",
-            "--filter", "Clicks:GREATER_THAN:0",
-            "--format", "json",
+            "reports",
+            "get",
+            "--type",
+            "campaign_performance_report",
+            "--from",
+            "2026-01-01",
+            "--to",
+            "2026-01-31",
+            "--name",
+            "Filtered Report",
+            "--fields",
+            "Date,CampaignId,Clicks",
+            "--filter",
+            "Clicks:GREATER_THAN:0",
+            "--format",
+            "json",
         )
         assert_success(result, "reports get with --filter")
 
     def test_get_report_with_order_by(self):
         result = invoke_get(
-            "reports", "get",
-            "--type", "campaign_performance_report",
-            "--from", "2026-01-01",
-            "--to", "2026-01-31",
-            "--name", "Ordered Report",
-            "--fields", "Date,CampaignId,Clicks",
-            "--order-by", "Clicks",
-            "--format", "json",
+            "reports",
+            "get",
+            "--type",
+            "campaign_performance_report",
+            "--from",
+            "2026-01-01",
+            "--to",
+            "2026-01-31",
+            "--name",
+            "Ordered Report",
+            "--fields",
+            "Date,CampaignId,Clicks",
+            "--order-by",
+            "Clicks",
+            "--format",
+            "json",
         )
         assert_success(result, "reports get with --order-by Clicks")
 
     def test_get_report_formats(self):
         for output_format in ["json", "table", "csv", "tsv"]:
             result = invoke_get(
-                "reports", "get",
-                "--type", "campaign_performance_report",
-                "--from", "2026-01-01",
-                "--to", "2026-01-31",
-                "--name", f"Format Test {output_format}",
-                "--fields", "Date,CampaignId",
-                "--format", output_format,
+                "reports",
+                "get",
+                "--type",
+                "campaign_performance_report",
+                "--from",
+                "2026-01-01",
+                "--to",
+                "2026-01-31",
+                "--name",
+                f"Format Test {output_format}",
+                "--fields",
+                "Date,CampaignId",
+                "--format",
+                output_format,
             )
             assert result.exit_code == 0, (
                 f"[reports get --format {output_format}] exit_code={result.exit_code}\n"
                 f"output: {result.output}\n"
                 f"exception: {result.exception}"
             )
+
+
+@pytest.mark.integration
+@skip_if_no_token
+class TestReadOnlyStrategies(unittest.TestCase):
+    def test_get_strategies(self):
+        result = invoke_get("strategies", "get", "--limit", "1", "--format", "json")
+        assert_success(result, "strategies get")
+
+
+@pytest.mark.integration
+@skip_if_no_token
+class TestReadOnlyDynamicFeedAdTargets(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.campaign_id = get_first_campaign_id()
+
+    def test_get_dynamic_feed_ad_targets(self):
+        if not self.campaign_id:
+            self.skipTest("No campaigns found in account")
+        result = invoke_get(
+            "dynamicfeedadtargets",
+            "get",
+            "--campaign-ids",
+            str(self.campaign_id),
+            "--limit",
+            "1",
+            "--format",
+            "json",
+        )
+        assert_success(result, "dynamicfeedadtargets get")
 
 
 if __name__ == "__main__":
