@@ -17,23 +17,18 @@ API model. It does not prove that the declared model includes every live
 Yandex Direct API service. Live service omissions are reported separately in
 `model_gaps`.
 
-## Current Live-Discovered Gaps
+## Current Coverage Metrics
 
-| API service | Missing CLI group | WSDL methods |
-|---|---|---|
-| `dynamicfeedadtargets` | `dynamicfeedadtargets` | `add`, `delete`, `get`, `resume`, `setBids`, `suspend` |
-| `strategies` | `strategies` | `add`, `archive`, `get`, `unarchive`, `update` |
-
-The current coverage report should therefore show:
+All previously live-discovered gaps (`dynamicfeedadtargets`, `strategies`) are
+now implemented and included in the canonical model. The expected coverage
+report values:
 
 | Metric | Expected current value |
 |---|---:|
-| Declared WSDL services | 27 |
-| Declared WSDL methods | 101 |
+| Declared WSDL services | 29 |
 | Live-discovered services | 29 |
-| Live-discovered methods | 112 |
-| Live-discovered missing services | 2 |
-| Live-discovered missing methods | 11 |
+| Live-discovered missing services | 0 |
+| Live-discovered missing methods | 0 |
 
 ## Maintenance Rules
 
@@ -78,14 +73,17 @@ Testing strategy: guarded live-write tier via `tests/test_integration_live_write
 ### Category B — unsupported (code 3500)
 
 Sandbox architecturally does not support these campaign/group types.
-Sandbox re-check is not useful — this is a design limitation, not a transient failure.
+Live API also rejects them on standard advertiser accounts — creation returns
+`3500 Not supported`. A dedicated agency or pilot account is required.
+Sandbox re-check is not useful — this is an account-tier limitation.
 
 | Scenario | Symptom | Error code | Test class |
 |---|---|---|---|
 | dynamicads | `DYNAMIC_TEXT_CAMPAIGN` creation rejected | 3500 | `TestWriteDynamicAds` |
 | smartadtargets | `SMART_CAMPAIGN` creation rejected | 3500 | `TestWriteSmartAdTargets` |
 
-Testing strategy: live-write tier is the only path to coverage for these resource types.
+Testing strategy: manual-only on an account where DYNAMIC_TEXT_CAMPAIGN and
+SMART_CAMPAIGN are enabled. See `tests/MANUAL_COVERAGE.md`.
 
 Originally classified in
 [#28 issuecomment-4275359621](https://github.com/axisrow/direct-cli/issues/28#issuecomment-4275359621)
