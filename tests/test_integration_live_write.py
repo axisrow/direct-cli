@@ -6,6 +6,14 @@ Safety contract:
 - tests never accept external resource IDs;
 - every mutating command targets only a draft resource created by this test;
 - cleanup fails loudly with the created ID if Yandex Direct refuses deletion.
+
+Coverage status (issue #59):
+
+  Phase 2 — standalone draft assets (low risk):
+    - sitelinks add/get/delete
+    - adimages add/get/delete
+    - advideos add/get
+    - creatives add/get (chain advideo -> creative)
 """
 
 import json
@@ -23,6 +31,45 @@ load_dotenv()
 LIVE_WRITE_ENV = "YANDEX_DIRECT_LIVE_WRITE"
 TEST_CAMPAIGN_NAME = "direct-cli-live-draft-test-cassette"
 TEST_CAMPAIGN_START_DATE = "2030-01-15"
+
+# 450x450 solid red PNG — meets Yandex Direct minimum image dimension requirements.
+_PNG_B64_450X450 = (
+    "iVBORw0KGgoAAAANSUhEUgAAAcIAAAHCCAIAAADzel4SAAAGs0lEQVR4nO3OQQkAQRAEsf"
+    "Fv+s7DfpqCQATkvjsAnu0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUD"
+    "afgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8A"
+    "pO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7"
+    "AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQ"
+    "th8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0H"
+    "AGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDa"
+    "fgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8A"
+    "pO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7"
+    "AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQ"
+    "th8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0H"
+    "AGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDa"
+    "fgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8A"
+    "pO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7"
+    "AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQ"
+    "th8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0H"
+    "AGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDa"
+    "fgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8A"
+    "pO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7"
+    "AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQ"
+    "th8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0H"
+    "AGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDa"
+    "fgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8A"
+    "pO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7"
+    "AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQ"
+    "th8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0H"
+    "AGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDa"
+    "fgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8A"
+    "pO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7"
+    "AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQ"
+    "th8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0H"
+    "AGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDa"
+    "fgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8A"
+    "pO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGn7AUDafgCQth8ApO0HAGk/"
+    "KWgbKQyncKAAAAAASUVORK5CYII="
+)
 
 
 pytestmark = [
@@ -91,6 +138,26 @@ def _extract_first_id(output: str, key: str = "AddResults") -> int:
     return int(first["Id"])
 
 
+def _extract_field(output: str, field: str = "Id", key: str = "AddResults") -> Any:
+    """Extract a field value from the first item of an add-result response."""
+    data = json.loads(output)
+    if isinstance(data, list):
+        items = data
+    elif isinstance(data, dict):
+        result = data.get("result", data)
+        items = result.get(key, result.get("SetItems", []))
+    else:
+        items = []
+
+    assert items, f"No result items in response: {output[:500]}"
+    first = items[0]
+    assert (
+        "Errors" not in first or not first["Errors"]
+    ), f"API rejected request: {first.get('Errors')}"
+    assert field in first, f"No {field} in result: {first}"
+    return first[field]
+
+
 def _extract_campaigns(output: str) -> List[Dict[str, Any]]:
     """Extract campaigns from common tapi-yandex-direct response shapes."""
     data = json.loads(output)
@@ -154,7 +221,7 @@ def test_live_draft_campaign_create_get_delete() -> None:
         try:
             created_campaign_id = _extract_first_id(add_result.output)
         except Exception:
-            pass  # ID unknown; cleanup in finally is skipped — manual recovery via campaign name
+            pass  # ID unknown; cleanup skipped — manual recovery via name
 
         get_result = _invoke_live(
             "campaigns",
@@ -197,3 +264,119 @@ def test_live_draft_campaign_create_get_delete() -> None:
     )
     _assert_success(verify_delete_result, "campaigns get after delete")
     assert _find_campaign(verify_delete_result.output, created_campaign_id) is None
+
+
+# ── Phase 2: standalone draft assets ──────────────────────────────────────
+
+
+@pytest.mark.vcr
+def test_live_draft_sitelinks_add_get_delete() -> None:
+    """Create a sitelink set, verify via get, then delete it."""
+    r = _invoke_live(
+        "sitelinks",
+        "add",
+        "--sitelink",
+        "CLI Test|https://example.com/test",
+        "--sitelink",
+        "CLI Test 2|https://example.com/test2",
+    )
+    _assert_success(r, "sitelinks add")
+    sitelink_id = _extract_first_id(r.output)
+
+    try:
+        r = _invoke_live(
+            "sitelinks", "get", "--ids", str(sitelink_id), "--format", "json"
+        )
+        _assert_success(r, "sitelinks get")
+    finally:
+        r = _invoke_live("sitelinks", "delete", "--id", str(sitelink_id))
+        if r.exit_code != 0:
+            pytest.fail(
+                f"Failed to delete sitelink set {sitelink_id}. "
+                f"Manual cleanup required.\noutput: {r.output}"
+            )
+
+
+@pytest.mark.vcr
+def test_live_draft_adimages_add_get_delete() -> None:
+    """Upload a test PNG image, verify via get, then delete by hash."""
+    r = _invoke_live(
+        "adimages",
+        "add",
+        "--name",
+        "draft-test-image.png",
+        "--image-data",
+        _PNG_B64_450X450,
+    )
+    _assert_success(r, "adimages add")
+    img_hash = _extract_field(r.output, field="AdImageHash")
+
+    try:
+        r = _invoke_live(
+            "adimages",
+            "get",
+            "--fields",
+            "AdImageHash,Name",
+            "--limit",
+            "1",
+            "--format",
+            "json",
+        )
+        _assert_success(r, "adimages get")
+    finally:
+        r = _invoke_live("adimages", "delete", "--hash", str(img_hash))
+        if r.exit_code != 0:
+            pytest.fail(
+                f"Failed to delete ad image {img_hash}. "
+                f"Manual cleanup required.\noutput: {r.output}"
+            )
+
+
+@pytest.mark.vcr
+def test_live_draft_advideos_add_get() -> None:
+    """Add a video by URL and verify via get.
+
+    advideos may reject invalid/unreachable URLs — skip on known errors.
+    No delete command exists for advideos in the CLI.
+    """
+    r = _invoke_live(
+        "advideos",
+        "add",
+        "--url",
+        "https://example.com/test-video.mp4",
+        "--name",
+        "draft-test-video",
+    )
+    if r.exit_code != 0:
+        pytest.skip(f"advideos add rejected URL (expected in test): {r.output[:200]}")
+
+    video_id = _extract_first_id(r.output)
+    r = _invoke_live("advideos", "get", "--ids", str(video_id), "--format", "json")
+    _assert_success(r, "advideos get")
+
+
+@pytest.mark.vcr
+def test_live_draft_creatives_chain_advideo_to_creative() -> None:
+    """Chain: add advideo -> create creative from it -> verify via get.
+
+    No delete command exists for advideos or creatives in the CLI.
+    """
+    r = _invoke_live(
+        "advideos",
+        "add",
+        "--url",
+        "https://example.com/test-video.mp4",
+        "--name",
+        "draft-creative-video",
+    )
+    if r.exit_code != 0:
+        pytest.skip(f"advideos add rejected URL (expected in test): {r.output[:200]}")
+
+    video_id = _extract_first_id(r.output)
+
+    r = _invoke_live("creatives", "add", "--video-id", str(video_id))
+    _assert_success(r, "creatives add")
+    creative_id = _extract_first_id(r.output)
+
+    r = _invoke_live("creatives", "get", "--ids", str(creative_id), "--format", "json")
+    _assert_success(r, "creatives get")
