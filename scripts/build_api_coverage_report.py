@@ -22,11 +22,8 @@ from direct_cli.wsdl_coverage import (
 
 
 def _fetch_wsdl(fetch_func, service: str) -> str:
-    """Call WSDL fetchers with either service-only or fetch_wsdl-compatible APIs."""
-    try:
-        return fetch_func(service)
-    except TypeError:
-        return fetch_func(service, use_cache=True)
+    """Fetch WSDL for a given service."""
+    return fetch_func(service)
 
 
 def _build_model_gaps(report: dict, live_fetch_wsdl_func) -> dict:

@@ -233,6 +233,10 @@ class TestWriteCampaignDraftLifecycle:
                 "Expected a non-serving sandbox draft/off campaign, got "
                 f"Status={status!r}, State={state!r}, campaign={campaign}"
             )
+            if status is not None:
+                assert status == "DRAFT"
+            if state is not None:
+                assert state == "OFF"
         finally:
             if cid is not None:
                 _invoke("campaigns", "delete", "--id", str(cid))
