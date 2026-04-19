@@ -49,6 +49,11 @@ def get(
         if campaign_ids:
             criteria["CampaignIds"] = parse_ids(campaign_ids)
 
+        if not criteria:
+            raise click.UsageError(
+                "Provide at least one filter: --ids, --adgroup-ids, or --campaign-ids"
+            )
+
         params = {"SelectionCriteria": criteria, "FieldNames": field_names}
 
         if limit:

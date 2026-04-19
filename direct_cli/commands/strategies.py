@@ -131,7 +131,10 @@ def add(
     try:
         strategy_data = {"Name": name, strategy_type: {}}
         if strategy_params:
-            strategy_data[strategy_type] = parse_json(strategy_params)
+            parsed = parse_json(strategy_params)
+            if not isinstance(parsed, dict):
+                raise click.UsageError("--params must be a JSON object, not an array or scalar")
+            strategy_data[strategy_type] = parsed
         if counter_ids:
             strategy_data["CounterIds"] = {
                 "Items": [int(x.strip()) for x in counter_ids.split(",")]
@@ -203,9 +206,13 @@ def update(
         if name:
             strategy_data["Name"] = name
         if strategy_type:
-            strategy_data[strategy_type] = (
-                parse_json(strategy_params) if strategy_params else {}
-            )
+            if strategy_params:
+                parsed = parse_json(strategy_params)
+                if not isinstance(parsed, dict):
+                    raise click.UsageError("--params must be a JSON object, not an array or scalar")
+                strategy_data[strategy_type] = parsed
+            else:
+                strategy_data[strategy_type] = {}
         if counter_ids:
             strategy_data["CounterIds"] = {
                 "Items": [int(x.strip()) for x in counter_ids.split(",")]
