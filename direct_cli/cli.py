@@ -6,6 +6,7 @@ Direct CLI - Command-line interface for Yandex Direct API
 import click
 from dotenv import load_dotenv
 
+from . import __version__
 from .auth import get_credentials
 
 from .commands.campaigns import campaigns
@@ -42,6 +43,7 @@ load_dotenv()
 
 
 @click.group(name="direct")
+@click.version_option(__version__, prog_name="direct")
 @click.option("--token", envvar="YANDEX_DIRECT_TOKEN", help="API access token")
 @click.option("--login", envvar="YANDEX_DIRECT_LOGIN", help="Client login")
 @click.option("--sandbox", is_flag=True, help="Use sandbox API")
