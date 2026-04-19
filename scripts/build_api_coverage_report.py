@@ -38,6 +38,8 @@ def _build_model_gaps(report: dict, live_fetch_wsdl_func) -> dict:
         for service in report["services"]
     }
 
+    # Seed with declared (cached WSDL) methods; only live-fetch undeclared services.
+    # Gap detection will NOT catch new methods added to already-declared services.
     live_methods_by_service = {
         api_service: set(methods)
         for api_service, methods in sorted(declared_methods.items())
@@ -102,7 +104,7 @@ def _build_model_gaps(report: dict, live_fetch_wsdl_func) -> dict:
         "declared_wsdl_services_count": len(declared_services),
         "declared_wsdl_methods_count": declared_method_count,
         "live_discovered_services_count": len(LIVE_DISCOVERED_API_SERVICES),
-        "live_discovered_methods_count": live_method_count,
+        "total_known_methods_count": live_method_count,
         "live_discovered_missing_services": missing_services,
         "live_discovered_missing_methods": missing_method_count,
         "live_discovered_missing_method_entries": missing_method_entries,

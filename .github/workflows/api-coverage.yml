@@ -56,7 +56,7 @@ jobs:
           print(f"- Declared WSDL services: {model_gaps['declared_wsdl_services_count']}")
           print(f"- Declared WSDL methods: {model_gaps['declared_wsdl_methods_count']}")
           print(f"- Live-discovered services: {model_gaps['live_discovered_services_count']}")
-          print(f"- Live-discovered methods: {model_gaps['live_discovered_methods_count']}")
+          print(f"- Total known methods: {model_gaps['total_known_methods_count']}")
           print(f"- Model gaps: {model_gaps['live_model_gap_count']}")
           for item in model_gaps["live_discovered_missing_services"][:10]:
               methods = ", ".join(item["api_methods"])

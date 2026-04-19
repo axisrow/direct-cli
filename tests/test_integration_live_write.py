@@ -148,10 +148,11 @@ def test_live_draft_campaign_create_get_delete() -> None:
         "--start-date",
         _future_start_date(),
     )
-    _assert_success(add_result, "campaigns add")
-    created_campaign_id = _extract_first_id(add_result.output)
 
     try:
+        _assert_success(add_result, "campaigns add")
+        created_campaign_id = _extract_first_id(add_result.output)
+
         get_result = _invoke_live(
             "campaigns",
             "get",

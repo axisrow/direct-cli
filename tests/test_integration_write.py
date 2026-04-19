@@ -208,10 +208,11 @@ class TestWriteCampaignDraftLifecycle:
             "--start-date",
             tomorrow(),
         )
-        assert_success(r, "campaigns draft add")
-        cid = parse_add_result(r)
 
         try:
+            assert_success(r, "campaigns draft add")
+            cid = parse_add_result(r)
+
             r = _invoke(
                 "campaigns",
                 "get",
