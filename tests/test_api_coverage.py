@@ -4,10 +4,14 @@ API coverage tests — verify CLI coverage against Yandex Direct API v5 WSDL.
 Phase 1: For each CLI service, check that all WSDL operations are covered.
 Phase 2: Detect new API services not yet covered by the CLI.
 Phase 3: Validate dry-run payload shape against cached WSDL request schemas.
+
+See tests/API_COVERAGE.md for the human-readable coverage matrix and the
+difference between declared strict parity and live-discovered model gaps.
 """
 
 import json
 import importlib
+import importlib.util
 import subprocess
 import sys
 
@@ -31,6 +35,32 @@ from direct_cli.wsdl_coverage import (
 
 ALLOWED_EXTRA_METHODS = set(INTENTIONAL_EXTRA_METHODS)
 
+
+def _load_coverage_report_script():
+    """Load the coverage report script as a module for direct unit tests."""
+    script_path = CACHE_DIR.parent.parent / "scripts" / "build_api_coverage_report.py"
+    spec = importlib.util.spec_from_file_location(
+        "build_api_coverage_report", script_path
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _wsdl_with_operations(*operations):
+    """Build a minimal WSDL document containing operation names."""
+    body = "\n".join(
+        f'        <wsdl:operation name="{operation}" />' for operation in operations
+    )
+    return (
+        '<wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/">\n'
+        "    <wsdl:portType>\n"
+        f"{body}\n"
+        "    </wsdl:portType>\n"
+        "</wsdl:definitions>\n"
+    )
+
+
 DRY_RUN_PAYLOAD_EXCLUSIONS = {
     "adextensions.add": "Callout-only add; covered by command-level dry-run tests.",
     "adgroups.add": "Requires group-type-specific typed payload fixtures; tracked separately from schema smoke coverage.",
@@ -49,7 +79,7 @@ DRY_RUN_PAYLOAD_EXCLUSIONS = {
     "bidmodifiers.add": "Requires modifier-type-specific typed flag fixtures.",
     "bidmodifiers.delete": "Helper/legacy surface; not part of strict WSDL parity claim.",
     "bidmodifiers.set": "Requires modifier-type-specific typed flag fixtures.",
-"campaigns.add": "Requires campaign-type-specific typed payload variants; covered by focused dry-run tests.",
+    "campaigns.add": "Requires campaign-type-specific typed payload variants; covered by focused dry-run tests.",
     "campaigns.suspend": "Same lifecycle payload family as covered campaigns.delete/archive/resume.",
     "campaigns.unarchive": "Same lifecycle payload family as covered campaigns.delete/archive/resume.",
     "campaigns.update": "Requires typed budget/date/status variants; covered by focused dry-run tests.",
@@ -511,9 +541,9 @@ def _assert_body_matches_wsdl(body: dict, service: str, operation: str):
             continue
         value = body["params"][field["name"]]
         if field["max_occurs"] == "unbounded":
-            assert isinstance(value, list), (
-                f"{service}.{operation}.{field['name']} must be a list"
-            )
+            assert isinstance(
+                value, list
+            ), f"{service}.{operation}.{field['name']} must be a list"
             if value and field["item_fields"]:
                 required = {
                     item["name"]
@@ -526,9 +556,7 @@ def _assert_body_matches_wsdl(body: dict, service: str, operation: str):
                 )
         elif field["item_fields"] and isinstance(value, dict):
             required = {
-                item["name"]
-                for item in field["item_fields"]
-                if item["min_occurs"] > 0
+                item["name"] for item in field["item_fields"] if item["min_occurs"] > 0
             }
             assert required <= set(value), (
                 f"{service}.{operation}.{field['name']} missing required keys: "
@@ -553,9 +581,7 @@ class TestApiCoverage:
         )
 
     def test_wsdl_cache_matches_canonical_service_list(self):
-        cached = {
-            path.stem for path in CACHE_DIR.glob("*.xml") if path.is_file()
-        }
+        cached = {path.stem for path in CACHE_DIR.glob("*.xml") if path.is_file()}
         expected = set(CANONICAL_API_SERVICES)
         assert cached == expected, (
             "WSDL cache drift detected.\n"
@@ -565,12 +591,13 @@ class TestApiCoverage:
 
     def test_non_wsdl_services_have_explicit_coverage_policy(self):
         for service_name, policy in sorted(NON_WSDL_SERVICE_POLICIES.items()):
-            assert service_name in cli.commands, (
-                f"Non-WSDL service {service_name} is missing from the CLI"
-            )
-            assert policy["coverage"] in ("contract-tests", "contract-tests+spec-snapshot"), (
-                f"Unexpected coverage policy for non-WSDL service {service_name}: {policy}"
-            )
+            assert (
+                service_name in cli.commands
+            ), f"Non-WSDL service {service_name} is missing from the CLI"
+            assert policy["coverage"] in (
+                "contract-tests",
+                "contract-tests+spec-snapshot",
+            ), f"Unexpected coverage policy for non-WSDL service {service_name}: {policy}"
 
     def test_service_method_coverage(self):
         failures = []
@@ -617,7 +644,9 @@ class TestApiCoverage:
             if not hasattr(group, "commands"):
                 continue
             for cmd_name, cmd in sorted(group.commands.items()):
-                if any(getattr(param, "name", None) == "dry_run" for param in cmd.params):
+                if any(
+                    getattr(param, "name", None) == "dry_run" for param in cmd.params
+                ):
                     actual.add(f"{group_name}.{cmd_name}")
 
         accounted = PAYLOAD_COVERED_COMMANDS | set(DRY_RUN_PAYLOAD_EXCLUSIONS)
@@ -857,9 +886,79 @@ class TestApiCoverage:
         )
         report = json.loads(result.stdout)
         assert report["summary"]["strict_parity_ok"] is True
+        assert report["summary"]["live_model_parity_ok"] is False
         assert report["summary"]["missing_service_methods"] == 0
         assert report["summary"]["unexpected_service_methods"] == 0
         assert sorted(report["canonical_services"]) == CANONICAL_API_SERVICES
+        assert report["model_gaps"]["live_model_gap_count"] == 2
+        assert {
+            item["api_service"]
+            for item in report["model_gaps"]["live_discovered_missing_services"]
+        } == {"dynamicfeedadtargets", "strategies"}
+
+    def test_api_coverage_report_exposes_live_model_gaps(self, monkeypatch):
+        """Report must distinguish declared parity from live-discovered gaps."""
+        report_script = _load_coverage_report_script()
+
+        monkeypatch.setattr(
+            report_script,
+            "CLI_TO_API_SERVICE",
+            {"campaigns": "campaigns"},
+        )
+        monkeypatch.setattr(
+            report_script,
+            "LIVE_DISCOVERED_API_SERVICES",
+            ["campaigns", "dynamicfeedadtargets", "strategies"],
+            raising=False,
+        )
+        monkeypatch.setattr(
+            report_script,
+            "get_cli_methods_for_service",
+            lambda cli_name: {"get"},
+        )
+
+        def fake_fetch_wsdl(service, use_cache=True):
+            return {
+                "campaigns": _wsdl_with_operations("get"),
+                "dynamicfeedadtargets": _wsdl_with_operations(
+                    "add", "delete", "get", "resume", "setBids", "suspend"
+                ),
+                "strategies": _wsdl_with_operations(
+                    "add", "archive", "get", "unarchive", "update"
+                ),
+            }[service]
+
+        report = report_script.build_report(fetch_wsdl_func=fake_fetch_wsdl)
+
+        assert report["summary"]["strict_parity_ok"] is True
+        assert report["summary"]["live_model_parity_ok"] is False
+        assert report["model_gaps"]["declared_wsdl_services_count"] == 1
+        assert report["model_gaps"]["live_discovered_services_count"] == 3
+        assert report["model_gaps"]["live_model_gap_count"] == 2
+        assert report["model_gaps"]["live_discovered_missing_services"] == [
+            {
+                "api_service": "dynamicfeedadtargets",
+                "api_methods": [
+                    "add",
+                    "delete",
+                    "get",
+                    "resume",
+                    "setBids",
+                    "suspend",
+                ],
+            },
+            {
+                "api_service": "strategies",
+                "api_methods": [
+                    "add",
+                    "archive",
+                    "get",
+                    "unarchive",
+                    "update",
+                ],
+            },
+        ]
+        assert report["model_gaps"]["live_discovered_missing_methods"] == 11
 
     def test_reports_get_cli_skip_report_summary_forwarded(self, monkeypatch):
         """--skip-report-summary must reach create_client as skip_report_summary=True."""
@@ -895,12 +994,18 @@ class TestApiCoverage:
         result = CliRunner().invoke(
             cli,
             [
-                "reports", "get",
-                "--type", "campaign_performance_report",
-                "--from", "2026-01-01",
-                "--to", "2026-01-31",
-                "--name", "Test",
-                "--fields", "Date",
+                "reports",
+                "get",
+                "--type",
+                "campaign_performance_report",
+                "--from",
+                "2026-01-01",
+                "--to",
+                "2026-01-31",
+                "--name",
+                "Test",
+                "--fields",
+                "Date",
                 "--skip-report-summary",
             ],
         )
@@ -938,12 +1043,18 @@ class TestApiCoverage:
         result = CliRunner().invoke(
             cli,
             [
-                "reports", "get",
-                "--type", "campaign_performance_report",
-                "--from", "2026-01-01",
-                "--to", "2026-01-31",
-                "--name", "Test",
-                "--fields", "Date",
+                "reports",
+                "get",
+                "--type",
+                "campaign_performance_report",
+                "--from",
+                "2026-01-01",
+                "--to",
+                "2026-01-31",
+                "--name",
+                "Test",
+                "--fields",
+                "Date",
                 "--no-include-vat",
             ],
         )
@@ -981,12 +1092,18 @@ class TestApiCoverage:
         result = CliRunner().invoke(
             cli,
             [
-                "reports", "get",
-                "--type", "campaign_performance_report",
-                "--from", "2026-01-01",
-                "--to", "2026-01-31",
-                "--name", "Test",
-                "--fields", "Date",
+                "reports",
+                "get",
+                "--type",
+                "campaign_performance_report",
+                "--from",
+                "2026-01-01",
+                "--to",
+                "2026-01-31",
+                "--name",
+                "Test",
+                "--fields",
+                "Date",
                 "--no-include-discount",
             ],
         )
@@ -1001,6 +1118,7 @@ class TestReportsCoverage:
     def test_reports_cache_files_exist(self):
         """All 4 raw HTML files and spec.json must be committed."""
         from direct_cli.reports_coverage import REPORTS_CACHE_DIR
+
         raw_dir = REPORTS_CACHE_DIR / "raw"
         for fname in ["spec.html", "type.html", "fields-list.html", "headers.html"]:
             assert (raw_dir / fname).exists(), f"Missing cache file: raw/{fname}"
@@ -1009,6 +1127,7 @@ class TestReportsCoverage:
     def test_reports_spec_parses_without_errors(self):
         """parse_reports_spec on cached HTML returns non-empty required sections."""
         from direct_cli.reports_coverage import fetch_reports_spec, parse_reports_spec
+
         raw = fetch_reports_spec(use_cache=True)
         spec = parse_reports_spec(raw)
         assert spec["report_types"], "report_types must not be empty"
@@ -1021,6 +1140,7 @@ class TestReportsCoverage:
         """--type choices must match spec snapshot report_types."""
         from direct_cli.reports_coverage import load_cached_reports_spec
         from direct_cli.commands.reports import get as reports_get
+
         spec = load_cached_reports_spec()
         type_opt = next(
             (p for p in reports_get.params if p.name == "report_type"), None
@@ -1037,6 +1157,7 @@ class TestReportsCoverage:
     def test_cli_dry_run_flag_exists(self):
         """reports get must have --dry-run flag."""
         from direct_cli.commands.reports import get as reports_get
+
         names = {p.name for p in reports_get.params}
         assert "dry_run" in names, "--dry-run flag missing from reports get"
 
@@ -1044,21 +1165,26 @@ class TestReportsCoverage:
         """reports get must have --processing-mode flag with spec choices."""
         from direct_cli.reports_coverage import load_cached_reports_spec
         from direct_cli.commands.reports import get as reports_get
+
         spec = load_cached_reports_spec()
         opt = next((p for p in reports_get.params if p.name == "processing_mode"), None)
         assert opt is not None, "--processing-mode flag missing"
         cli_choices = set(opt.type.choices)
         spec_modes = set(spec["processing_modes"])
-        assert cli_choices == spec_modes, (
-            f"--processing-mode choices differ: CLI={cli_choices}, spec={spec_modes}"
-        )
+        assert (
+            cli_choices == spec_modes
+        ), f"--processing-mode choices differ: CLI={cli_choices}, spec={spec_modes}"
 
     def test_cli_request_headers_flags_exist(self):
         """CLI must expose flags for each request header from spec."""
         from direct_cli.commands.reports import get as reports_get
+
         expected_params = {
-            "skip_report_header", "skip_column_header",
-            "skip_report_summary", "return_money_in_micros", "language",
+            "skip_report_header",
+            "skip_column_header",
+            "skip_report_summary",
+            "return_money_in_micros",
+            "language",
         }
         names = {p.name for p in reports_get.params}
         missing = expected_params - names
@@ -1067,10 +1193,11 @@ class TestReportsCoverage:
     def test_non_wsdl_reports_policy_updated(self):
         """NON_WSDL_SERVICE_POLICIES['reports'] must use spec-snapshot coverage."""
         from direct_cli.wsdl_coverage import NON_WSDL_SERVICE_POLICIES
+
         policy = NON_WSDL_SERVICE_POLICIES["reports"]
-        assert policy["coverage"] == "contract-tests+spec-snapshot", (
-            "reports policy must use 'contract-tests+spec-snapshot' coverage type"
-        )
+        assert (
+            policy["coverage"] == "contract-tests+spec-snapshot"
+        ), "reports policy must use 'contract-tests+spec-snapshot' coverage type"
         assert "spec_snapshot" in policy
         assert "drift_script" in policy
         assert "refresh_script" in policy
@@ -1081,6 +1208,7 @@ class TestReportsParseFilter:
 
     def test_reports_parse_filter_basic(self):
         from direct_cli.commands.reports import _parse_filter
+
         result = _parse_filter("CampaignId:IN:1,2,3")
         assert result == {
             "Field": "CampaignId",
@@ -1090,6 +1218,7 @@ class TestReportsParseFilter:
 
     def test_reports_parse_filter_trims_whitespace(self):
         from direct_cli.commands.reports import _parse_filter
+
         result = _parse_filter("CampaignId : IN : 1 , 2 , 3")
         assert result == {
             "Field": "CampaignId",
@@ -1099,6 +1228,7 @@ class TestReportsParseFilter:
 
     def test_reports_parse_filter_single_value(self):
         from direct_cli.commands.reports import _parse_filter
+
         result = _parse_filter("Status:EQUALS:ENABLED")
         assert result == {
             "Field": "Status",
@@ -1108,6 +1238,7 @@ class TestReportsParseFilter:
 
     def test_reports_parse_filter_invalid_format_raises(self):
         from direct_cli.commands.reports import _parse_filter
+
         with pytest.raises(ValueError, match="Field:Operator:Value"):
             _parse_filter("BadFormat")
 
@@ -1117,16 +1248,19 @@ class TestReportsParseOrderBy:
 
     def test_reports_parse_order_by_field_only(self):
         from direct_cli.commands.reports import _parse_order_by
+
         result = _parse_order_by("Clicks")
         assert result == {"Field": "Clicks"}
 
     def test_reports_parse_order_by_with_desc(self):
         from direct_cli.commands.reports import _parse_order_by
+
         result = _parse_order_by("Clicks:DESC")
         assert result == {"Field": "Clicks", "SortOrder": "DESC"}
 
     def test_reports_parse_order_by_case_insensitive(self):
         from direct_cli.commands.reports import _parse_order_by
+
         result = _parse_order_by("Clicks:desc")
         assert result == {"Field": "Clicks", "SortOrder": "DESC"}
 

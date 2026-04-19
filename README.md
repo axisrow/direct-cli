@@ -341,19 +341,22 @@ direct campaigns add --name "Test" --start-date 2024-01-01 --dry-run
 
 ### Testing
 
-Three tiers of tests live under `tests/`:
+Four tiers of tests live under `tests/`:
 
 | Tier | Marker | Network | Token required |
 |---|---|---|---|
 | Unit / CLI wiring / dry-run | *(none)* | No | No |
 | Read-only integration | `-m integration` | Yes (production API, read-only) | Yes |
 | Write integration | `-m integration_write` | No (replays VCR cassettes) | No |
+| Live draft write integration | `-m integration_live_write` | Yes when recording, otherwise VCR replay | Yes + `YANDEX_DIRECT_LIVE_WRITE=1` |
 
 ```bash
 pip install -e ".[dev]"
 pytest                              # fast tier — no token
 pytest -m integration -v            # read-only integration tests (needs token)
 pytest -m integration_write -v      # write cassette replay (no token needed)
+YANDEX_DIRECT_LIVE_WRITE=1 pytest -m integration_live_write -v  # live draft cassette replay
+YANDEX_DIRECT_LIVE_WRITE=1 pytest -m integration_live_write -v --record-mode=rewrite  # re-record live draft cassette
 ```
 
 ### API Coverage And Drift Monitoring
@@ -363,13 +366,16 @@ The project now distinguishes four surfaces:
 | Surface | Coverage strategy |
 |---|---|
 | Canonical WSDL-backed SOAP services | `tests/test_api_coverage.py` verifies strict service/method parity and dry-run request-schema coverage or explicit exclusions |
+| Live-discovered WSDL model gaps | `scripts/build_api_coverage_report.py` reports services seen in the audited live API surface but not yet declared in the CLI coverage model |
 | Non-WSDL services (`reports`) | Explicit contract tests |
 | Historical aliases retained by exception | None currently retained |
 | Intentional CLI-only helpers | Explicitly allowlisted with reasons in `direct_cli/wsdl_coverage.py` |
 
 `100% coverage` in this project means full coverage of the supported
-**canonical API surface**. Alias groups and CLI-only helpers remain supported,
-but they are tracked outside the strict parity metric.
+**declared canonical API surface**. The API coverage report also includes a
+`model_gaps` section for live-discovered Yandex Direct services that are not
+yet part of that declared model. Alias groups and CLI-only helpers remain
+supported, but they are tracked outside the strict parity metric.
 
 Useful maintenance commands:
 
@@ -381,7 +387,8 @@ python scripts/check_wsdl_drift.py
 
 CI runs a scheduled API coverage workflow that:
 - runs the fast coverage suites;
-- uploads a machine-readable API coverage report artifact;
+- uploads a machine-readable API coverage report artifact, including declared
+  parity and live-discovered model gap counts;
 - checks the cached WSDL files against the live Yandex Direct API on schedule.
 
 #### Re-recording write cassettes
@@ -411,6 +418,29 @@ grep -r "$YANDEX_DIRECT_LOGIN" tests/cassettes/   # must return nothing
 The VCR config in `tests/conftest.py` already strips `Authorization`,
 `Client-Login`, cookies and any response header containing the substring
 `login`, but manual verification is mandatory before committing.
+
+#### Live draft write tests
+
+The `integration_live_write` tier is manual-only and intentionally separate
+from sandbox cassette tests. In rewrite mode it runs against the production
+Yandex Direct API, but it may only create disposable draft resources and
+delete the exact IDs it created in the same test run. Current coverage is
+limited to a guarded campaign draft create -> get -> delete check.
+
+Replay the checked-in cassette:
+
+```bash
+YANDEX_DIRECT_LIVE_WRITE=1 pytest -m integration_live_write -v
+```
+
+Re-record it only when you intentionally want to verify live draft behavior:
+
+```bash
+YANDEX_DIRECT_LIVE_WRITE=1 pytest -m integration_live_write -v --record-mode=rewrite
+```
+
+Do not add tests to this tier that accept external IDs, resume/suspend/archive
+existing resources, mutate bids, or touch serving campaigns.
 
 ### Release Process
 
@@ -826,19 +856,22 @@ direct campaigns add --name "Тест" --start-date 2024-01-01 --dry-run
 
 ### Тестирование
 
-В `tests/` три уровня тестов:
+В `tests/` четыре уровня тестов:
 
 | Уровень | Маркер | Сеть | Нужен токен |
 |---|---|---|---|
 | Юнит / CLI / dry-run | *(без маркера)* | Нет | Нет |
 | Read-only интеграция | `-m integration` | Да (prod API, только чтение) | Да |
 | Write интеграция | `-m integration_write` | Нет (replay VCR-кассет) | Нет |
+| Live draft write интеграция | `-m integration_live_write` | Да при записи, иначе VCR replay | Да + `YANDEX_DIRECT_LIVE_WRITE=1` |
 
 ```bash
 pip install -e ".[dev]"
 pytest                              # быстрый уровень — без токена
 pytest -m integration -v            # read-only интеграция (нужен токен)
 pytest -m integration_write -v      # replay write-кассет (токен не нужен)
+YANDEX_DIRECT_LIVE_WRITE=1 pytest -m integration_live_write -v  # replay live draft-кассеты
+YANDEX_DIRECT_LIVE_WRITE=1 pytest -m integration_live_write -v --record-mode=rewrite  # перезапись live draft-кассеты
 ```
 
 #### Перезапись write-кассет
@@ -868,6 +901,30 @@ grep -r "$YANDEX_DIRECT_LOGIN" tests/cassettes/   # должно быть пус
 VCR-конфиг в `tests/conftest.py` уже стрипает `Authorization`, `Client-Login`,
 куки и любые response-заголовки с подстрокой `login`, но ручная проверка
 перед коммитом обязательна.
+
+#### Live write только на черновиках
+
+Уровень `integration_live_write` запускается только вручную и отделен от
+sandbox/VCR-тестов. В rewrite-режиме он ходит в production API Яндекс Директа,
+но может только создавать одноразовые черновики и удалять ровно те ID, которые
+были созданы в этом же тестовом прогоне. Текущее покрытие: guarded create ->
+get -> delete для draft-кампании.
+
+Replay закоммиченной кассеты:
+
+```bash
+YANDEX_DIRECT_LIVE_WRITE=1 pytest -m integration_live_write -v
+```
+
+Перезапись после явного решения проверить live draft-поведение:
+
+```bash
+YANDEX_DIRECT_LIVE_WRITE=1 pytest -m integration_live_write -v --record-mode=rewrite
+```
+
+В этот уровень нельзя добавлять тесты, которые принимают внешние ID,
+возобновляют/останавливают/архивируют существующие ресурсы, меняют ставки или
+трогают кампании, которые могут показываться.
 
 ### Публикация на PyPI
 

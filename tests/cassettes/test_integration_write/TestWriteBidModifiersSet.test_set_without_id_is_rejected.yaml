@@ -32,29 +32,29 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
   response:
     body:
-      string: '{"result":{"AddResults":[{"Id":700010813}]}}'
+      string: '{"result":{"AddResults":[{"Id":700011022}]}}'
     headers:
       Content-Length:
       - '44'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 12 Apr 2026 10:43:21 GMT
+      - Sun, 19 Apr 2026 06:30:39 GMT
       RequestId:
-      - '3700216375221741244'
+      - '7221678333535687670'
       Set-Cookie:
       - REDACTED
       Units:
-      - 15/149529/160000
+      - 15/147141/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:3700216375221741244,cmd:direct.api5/campaigns.add,appcode:0
+      - reqid:7221678333535687670,cmd:direct.api5/campaigns.add,appcode:0
     status:
       code: 200
       message: OK
 - request:
-    body: '{"method":"set","params":{"BidModifiers":[{"CampaignId":700010813,"Type":"MOBILE_ADJUSTMENT","BidModifier":120.0}]}}'
+    body: '{"method":"set","params":{"BidModifiers":[{"CampaignId":700011022,"Type":"MOBILE_ADJUSTMENT","BidModifier":120}]}}'
     headers:
       Accept:
       - '*/*'
@@ -63,7 +63,7 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '116'
+      - '114'
       Content-Type:
       - application/json
       User-Agent:
@@ -86,7 +86,7 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/bidmodifiers
   response:
     body:
-      string: '{"error":{"request_id":"6843302780734175933","error_code":8000,"error_detail":"The
+      string: '{"error":{"request_id":"2726106659050373240","error_code":8000,"error_detail":"The
         required field Id is omitted in an item in the BidModifiers array","error_string":"Invalid
         request"}}'
     headers:
@@ -95,22 +95,22 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 12 Apr 2026 10:43:23 GMT
+      - Sun, 19 Apr 2026 06:30:42 GMT
       RequestId:
-      - '6843302780734175933'
+      - '2726106659050373240'
       Set-Cookie:
       - REDACTED
       Units:
-      - 50/149479/160000
+      - 50/147091/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:6843302780734175933,cmd:direct.api5/bidmodifiers.set,appcode:8000
+      - reqid:2726106659050373240,cmd:direct.api5/bidmodifiers.set,appcode:8000
     status:
       code: 200
       message: OK
 - request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[700010813]}}}'
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[700011022]}}}'
     headers:
       Accept:
       - '*/*'
@@ -142,24 +142,24 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
   response:
     body:
-      string: '{"result":{"DeleteResults":[{"Id":700010813}]}}'
+      string: '{"result":{"DeleteResults":[{"Id":700011022}]}}'
     headers:
       Content-Length:
       - '47'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 12 Apr 2026 10:43:24 GMT
+      - Sun, 19 Apr 2026 06:30:43 GMT
       RequestId:
-      - '4248601700741238292'
+      - '5719501969992189435'
       Set-Cookie:
       - REDACTED
       Units:
-      - 12/149467/160000
+      - 12/147079/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:4248601700741238292,cmd:direct.api5/campaigns.delete,appcode:0
+      - reqid:5719501969992189435,cmd:direct.api5/campaigns.delete,appcode:0
     status:
       code: 200
       message: OK

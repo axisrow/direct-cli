@@ -1,6 +1,6 @@
 interactions:
 - request:
-    body: '{"method":"add","params":{"Campaigns":[{"Name":"claude-test-cassette","StartDate":"2030-01-15","TextCampaign":{"BiddingStrategy":{"Search":{"BiddingStrategyType":"HIGHEST_POSITION"},"Network":{"BiddingStrategyType":"SERVING_OFF"}},"Settings":[]}}]}}'
+    body: '{"method":"add","params":{"Campaigns":[{"Name":"draft-lifecycle-cassette","StartDate":"2030-01-15","TextCampaign":{"BiddingStrategy":{"Search":{"BiddingStrategyType":"HIGHEST_POSITION"},"Network":{"BiddingStrategyType":"SERVING_OFF"}},"Settings":[]}}]}}'
     headers:
       Accept:
       - '*/*'
@@ -9,7 +9,7 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '249'
+      - '253'
       Content-Type:
       - application/json
       User-Agent:
@@ -32,29 +32,29 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
   response:
     body:
-      string: '{"result":{"AddResults":[{"Id":700011016}]}}'
+      string: '{"result":{"AddResults":[{"Id":700011015}]}}'
     headers:
       Content-Length:
       - '44'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 06:29:15 GMT
+      - Sun, 19 Apr 2026 06:29:03 GMT
       RequestId:
-      - '6333318082650457698'
+      - '4122921155024206852'
       Set-Cookie:
       - REDACTED
       Units:
-      - 15/147884/160000
+      - 15/147932/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:6333318082650457698,cmd:direct.api5/campaigns.add,appcode:0
+      - reqid:4122921155024206852,cmd:direct.api5/campaigns.add,appcode:0
     status:
       code: 200
       message: OK
 - request:
-    body: '{"method":"add","params":{"AdGroups":[{"Name":"test-adgroup","CampaignId":700011016,"RegionIds":[1,225]}]}}'
+    body: '{"method":"get","params":{"SelectionCriteria":{"Ids":[700011015]},"FieldNames":["Id","Name","Status","State"]}}'
     headers:
       Accept:
       - '*/*'
@@ -63,7 +63,7 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '107'
+      - '111'
       Content-Type:
       - application/json
       User-Agent:
@@ -83,142 +83,32 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api-sandbox.direct.yandex.com/json/v5/adgroups
+    uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
   response:
     body:
-      string: '{"result":{"AddResults":[{"Id":4794478}]}}'
+      string: '{"result":{"Campaigns":[{"Id":700011015,"Name":"draft-lifecycle-cassette","Status":"DRAFT","State":"OFF"}]}}'
     headers:
       Content-Length:
-      - '42'
+      - '108'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 06:29:17 GMT
+      - Sun, 19 Apr 2026 06:29:08 GMT
       RequestId:
-      - '2058190034412303626'
+      - '6541465724834407063'
       Set-Cookie:
       - REDACTED
       Units:
-      - 40/147844/160000
+      - 11/147921/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:2058190034412303626,cmd:direct.api5/adgroups.add,appcode:0
+      - reqid:6541465724834407063,cmd:direct.api5/campaigns.get,appcode:0
     status:
       code: 200
       message: OK
 - request:
-    body: '{"method":"update","params":{"AdGroups":[{"Id":4794478,"Name":"test-adgroup-renamed"}]}}'
-    headers:
-      Accept:
-      - '*/*'
-      Accept-Encoding:
-      - gzip, deflate
-      Connection:
-      - keep-alive
-      Content-Length:
-      - '88'
-      Content-Type:
-      - application/json
-      User-Agent:
-      - python-requests/2.32.5
-      authorization:
-      - REDACTED
-      client-login:
-      - REDACTED
-      processingMode:
-      - auto
-      returnMoneyInMicros:
-      - 'false'
-      skipColumnHeader:
-      - 'false'
-      skipReportHeader:
-      - 'true'
-      skipReportSummary:
-      - 'true'
-    method: POST
-    uri: https://api-sandbox.direct.yandex.com/json/v5/adgroups
-  response:
-    body:
-      string: '{"result":{"UpdateResults":[{"Errors":[{"Code":8800,"Message":"Object
-        not found","Details":"Ad group not found"}]}]}}'
-    headers:
-      Content-Length:
-      - '117'
-      Content-Type:
-      - application/json;charset=utf-8
-      Date:
-      - Sun, 19 Apr 2026 06:29:20 GMT
-      RequestId:
-      - '2056936676448361034'
-      Set-Cookie:
-      - REDACTED
-      Units:
-      - 40/147804/160000
-      Units-Used-Login:
-      - REDACTED
-      X-Accel-Info:
-      - reqid:2056936676448361034,cmd:direct.api5/adgroups.update,appcode:0
-    status:
-      code: 200
-      message: OK
-- request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[4794478]}}}'
-    headers:
-      Accept:
-      - '*/*'
-      Accept-Encoding:
-      - gzip, deflate
-      Connection:
-      - keep-alive
-      Content-Length:
-      - '68'
-      Content-Type:
-      - application/json
-      User-Agent:
-      - python-requests/2.32.5
-      authorization:
-      - REDACTED
-      client-login:
-      - REDACTED
-      processingMode:
-      - auto
-      returnMoneyInMicros:
-      - 'false'
-      skipColumnHeader:
-      - 'false'
-      skipReportHeader:
-      - 'true'
-      skipReportSummary:
-      - 'true'
-    method: POST
-    uri: https://api-sandbox.direct.yandex.com/json/v5/adgroups
-  response:
-    body:
-      string: '{"result":{"DeleteResults":[{"Errors":[{"Code":8800,"Message":"Object
-        not found","Details":"Ad group not found"}]}]}}'
-    headers:
-      Content-Length:
-      - '117'
-      Content-Type:
-      - application/json;charset=utf-8
-      Date:
-      - Sun, 19 Apr 2026 06:29:26 GMT
-      RequestId:
-      - '3545746455622391797'
-      Set-Cookie:
-      - REDACTED
-      Units:
-      - 30/147774/160000
-      Units-Used-Login:
-      - REDACTED
-      X-Accel-Info:
-      - reqid:3545746455622391797,cmd:direct.api5/adgroups.delete,appcode:0
-    status:
-      code: 200
-      message: OK
-- request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[700011016]}}}'
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[700011015]}}}'
     headers:
       Accept:
       - '*/*'
@@ -250,24 +140,78 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
   response:
     body:
-      string: '{"result":{"DeleteResults":[{"Id":700011016}]}}'
+      string: '{"result":{"DeleteResults":[{"Id":700011015}]}}'
     headers:
       Content-Length:
       - '47'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 06:29:29 GMT
+      - Sun, 19 Apr 2026 06:29:10 GMT
       RequestId:
-      - '6248615124983423174'
+      - '1828395488783659529'
       Set-Cookie:
       - REDACTED
       Units:
-      - 12/147762/160000
+      - 12/147909/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:6248615124983423174,cmd:direct.api5/campaigns.delete,appcode:0
+      - reqid:1828395488783659529,cmd:direct.api5/campaigns.delete,appcode:0
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"get","params":{"SelectionCriteria":{"Ids":[700011015]},"FieldNames":["Id","Name","Status","State"]}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '111'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
+  response:
+    body:
+      string: '{"result":{"Campaigns":[]}}'
+    headers:
+      Content-Length:
+      - '27'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Sun, 19 Apr 2026 06:29:13 GMT
+      RequestId:
+      - '50565253789179739'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 10/147899/160000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:50565253789179739,cmd:direct.api5/campaigns.get,appcode:0
     status:
       code: 200
       message: OK

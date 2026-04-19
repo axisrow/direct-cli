@@ -42,17 +42,17 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 12 Apr 2026 10:44:14 GMT
+      - Sun, 19 Apr 2026 06:31:44 GMT
       RequestId:
-      - '6818650811819344778'
+      - '6536526280530954555'
       Set-Cookie:
       - REDACTED
       Units:
-      - 30/148874/160000
+      - 30/146594/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:6818650811819344778,cmd:direct.api5/campaigns.add,appcode:0
+      - reqid:6536526280530954555,cmd:direct.api5/campaigns.add,appcode:0
     status:
       code: 200
       message: OK
