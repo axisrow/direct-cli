@@ -1846,3 +1846,115 @@ def test_reports_get_dry_run_outputs_request():
     assert body_params["ReportType"] == "CAMPAIGN_PERFORMANCE_REPORT"
     assert body_params["DateRangeType"] == "CUSTOM_DATE"
     assert "SelectionCriteria" in body_params
+
+
+# ----------------------------------------------------------------------
+# dynamicfeedadtargets
+# ----------------------------------------------------------------------
+
+
+def test_dynamicfeedadtargets_add_payload():
+    body = _dry_run(
+        "dynamicfeedadtargets", "add",
+        "--adgroup-id", "123",
+        "--name", "Test Target",
+        "--bid", "1.5",
+    )
+    assert body["method"] == "add"
+    target = body["params"]["DynamicFeedAdTargets"][0]
+    assert target["AdGroupId"] == 123
+    assert target["Name"] == "Test Target"
+    assert target["Bid"] == 1_500_000
+
+
+def test_dynamicfeedadtargets_delete_payload():
+    body = _dry_run("dynamicfeedadtargets", "delete", "--id", "42")
+    assert body == {
+        "method": "delete",
+        "params": {"SelectionCriteria": {"Ids": [42]}},
+    }
+
+
+def test_dynamicfeedadtargets_suspend_payload():
+    body = _dry_run("dynamicfeedadtargets", "suspend", "--id", "42")
+    assert body == {
+        "method": "suspend",
+        "params": {"SelectionCriteria": {"Ids": [42]}},
+    }
+
+
+def test_dynamicfeedadtargets_resume_payload():
+    body = _dry_run("dynamicfeedadtargets", "resume", "--id", "42")
+    assert body == {
+        "method": "resume",
+        "params": {"SelectionCriteria": {"Ids": [42]}},
+    }
+
+
+def test_dynamicfeedadtargets_set_bids_payload():
+    body = _dry_run(
+        "dynamicfeedadtargets", "set-bids",
+        "--id", "55",
+        "--bid", "2.0",
+    )
+    assert body["method"] == "setBids"
+    bid = body["params"]["Bids"][0]
+    assert bid["Id"] == 55
+    assert bid["Bid"] == 2_000_000
+
+
+# ----------------------------------------------------------------------
+# strategies
+# ----------------------------------------------------------------------
+
+
+def test_strategies_add_payload():
+    body = _dry_run(
+        "strategies", "add",
+        "--name", "My Strategy",
+        "--type", "AverageCpc",
+        "--params", '{"AverageCpc": 1000000}',
+    )
+    assert body["method"] == "add"
+    s = body["params"]["Strategies"][0]
+    assert s["Name"] == "My Strategy"
+    assert "AverageCpc" in s
+
+
+def test_strategies_add_no_type_key_at_root():
+    body = _dry_run(
+        "strategies", "add",
+        "--name", "My Strategy",
+        "--type", "WbMaximumClicks",
+    )
+    s = body["params"]["Strategies"][0]
+    assert "Type" not in s
+    assert "WbMaximumClicks" in s
+
+
+def test_strategies_update_payload():
+    body = _dry_run(
+        "strategies", "update",
+        "--id", "77",
+        "--name", "Updated",
+    )
+    assert body["method"] == "update"
+    s = body["params"]["Strategies"][0]
+    assert s["Id"] == 77
+    assert s["Name"] == "Updated"
+
+
+def test_strategies_archive_payload():
+    body = _dry_run("strategies", "archive", "--id", "10")
+    assert body == {
+        "method": "archive",
+        "params": {"SelectionCriteria": {"Ids": [10]}},
+    }
+
+
+def test_strategies_unarchive_payload():
+    body = _dry_run("strategies", "unarchive", "--id", "10")
+    assert body == {
+        "method": "unarchive",
+        "params": {"SelectionCriteria": {"Ids": [10]}},
+    }

@@ -86,6 +86,15 @@ DRY_RUN_PAYLOAD_EXCLUSIONS = {
     "dynamicads.add": "Requires condition-spec payload fixtures with optional bid fields.",
     "dynamicads.resume": "Same simple Ids payload family as covered delete/set-bids actions.",
     "dynamicads.suspend": "Same simple Ids payload family as covered delete/set-bids actions.",
+    "dynamicfeedadtargets.add": "Covered by test_dry_run.py::test_dynamicfeedadtargets_add_payload.",
+    "dynamicfeedadtargets.delete": "Covered by test_dry_run.py::test_dynamicfeedadtargets_delete_payload.",
+    "dynamicfeedadtargets.resume": "Covered by test_dry_run.py::test_dynamicfeedadtargets_resume_payload.",
+    "dynamicfeedadtargets.set-bids": "Covered by test_dry_run.py::test_dynamicfeedadtargets_set_bids_payload.",
+    "dynamicfeedadtargets.suspend": "Covered by test_dry_run.py::test_dynamicfeedadtargets_suspend_payload.",
+    "strategies.add": "Covered by test_dry_run.py::test_strategies_add_payload.",
+    "strategies.archive": "Covered by test_dry_run.py::test_strategies_archive_payload.",
+    "strategies.unarchive": "Covered by test_dry_run.py::test_strategies_unarchive_payload.",
+    "strategies.update": "Covered by test_dry_run.py::test_strategies_update_payload.",
     "feeds.add": "Current WSDL schema parser treats feed source variants like required siblings; keep covered by command-level dry-run tests.",
     "keywords.add": "Requires keyword/addition payload variants; covered by focused dry-run tests.",
     "keywords.archive": "Legacy helper command preserved for compatibility.",
@@ -886,15 +895,12 @@ class TestApiCoverage:
         )
         report = json.loads(result.stdout)
         assert report["summary"]["strict_parity_ok"] is True
-        assert report["summary"]["live_model_parity_ok"] is False
+        assert report["summary"]["live_model_parity_ok"] is True
         assert report["summary"]["missing_service_methods"] == 0
         assert report["summary"]["unexpected_service_methods"] == 0
         assert sorted(report["canonical_services"]) == CANONICAL_API_SERVICES
-        assert report["model_gaps"]["live_model_gap_count"] == 2
-        assert {
-            item["api_service"]
-            for item in report["model_gaps"]["live_discovered_missing_services"]
-        } == {"dynamicfeedadtargets", "strategies"}
+        assert report["model_gaps"]["live_model_gap_count"] == 0
+        assert report["model_gaps"]["live_discovered_missing_services"] == []
 
     def test_api_coverage_report_exposes_live_model_gaps(self, monkeypatch):
         """Report must distinguish declared parity from live-discovered gaps."""

@@ -45,6 +45,8 @@ CLI_TO_API_SERVICE = {
     "businesses": "businesses",
     "keywordsresearch": "keywordsresearch",
     "dynamicads": "dynamictextadtargets",
+    "dynamicfeedadtargets": "dynamicfeedadtargets",
+    "strategies": "strategies",
     # reports excluded — uses JSON API, not WSDL
 }
 
@@ -85,6 +87,7 @@ CANONICAL_API_SERVICES = sorted(
         "clients",
         "creatives",
         "dictionaries",
+        "dynamicfeedadtargets",
         "dynamictextadtargets",
         "feeds",
         "keywordbids",
@@ -95,6 +98,7 @@ CANONICAL_API_SERVICES = sorted(
         "retargetinglists",
         "sitelinks",
         "smartadtargets",
+        "strategies",
         "turbopages",
         "vcards",
     ]
@@ -104,13 +108,7 @@ CANONICAL_API_SERVICES = sorted(
 # declared canonical coverage model. Keep this list conservative and sourced
 # from live WSDL/API reference audits so CI does not depend on brittle doc
 # navigation scraping.
-LIVE_DISCOVERED_API_SERVICES = sorted(
-    set(CANONICAL_API_SERVICES)
-    | {
-        "dynamicfeedadtargets",
-        "strategies",
-    }
-)
+LIVE_DISCOVERED_API_SERVICES = sorted(set(CANONICAL_API_SERVICES))
 
 KNOWN_MISSING_SERVICES = set()
 

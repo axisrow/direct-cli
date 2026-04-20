@@ -272,6 +272,17 @@ direct smartadtargets update --id 456 --priority HIGH
 direct smartadtargets set-bids --id 456 --average-cpc 10.5 --average-cpa 15 --priority HIGH
 direct dynamicads set-bids --id 789 --bid 12.5 --context-bid 9 --priority HIGH
 
+# Shared bidding strategies
+direct strategies get --limit 5
+direct strategies add --name "Shared Clicks" --type WbMaximumClicks --params '{"SpendLimit":1000000000,"AverageCpc":30000000}' --dry-run
+direct strategies update --id 42 --params '{"AverageCpc":35000000}' --dry-run
+direct strategies archive --id 42 --dry-run
+
+# Dynamic feed ad targets
+direct dynamicfeedadtargets get --adgroup-ids 123 --limit 5
+direct dynamicfeedadtargets add --adgroup-id 33 --name "Feed slice A" --condition "CATEGORY:EQUALS:shoes" --bid 5 --dry-run
+direct dynamicfeedadtargets set-bids --id 789 --bid 6.5 --context-bid 4 --dry-run
+
 # Extensions, assets, feeds, and clients
 direct sitelinks add --sitelink "Docs|https://example.com/docs" --sitelink "Help|https://example.com/help|Desk" --dry-run
 direct vcards add --campaign-id 555 --country "Russia" --city "Moscow" --company-name "Acme" --work-time 1#5#9#0#18#0 --phone-country-code +7 --phone-city-code 495 --phone-number 1234567 --dry-run
@@ -786,6 +797,17 @@ direct smartadtargets add --adgroup-id 55 --name "Audience A" --audience ALL_SEG
 direct smartadtargets update --id 456 --priority HIGH
 direct smartadtargets set-bids --id 456 --average-cpc 10.5 --average-cpa 15 --priority HIGH
 direct dynamicads set-bids --id 789 --bid 12.5 --context-bid 9 --priority HIGH
+
+# Общие стратегии ставок
+direct strategies get --limit 5
+direct strategies add --name "Общая стратегия" --type WbMaximumClicks --params '{"SpendLimit":1000000000,"AverageCpc":30000000}' --dry-run
+direct strategies update --id 42 --params '{"AverageCpc":35000000}' --dry-run
+direct strategies archive --id 42 --dry-run
+
+# Динамические таргеты по фиду
+direct dynamicfeedadtargets get --adgroup-ids 123 --limit 5
+direct dynamicfeedadtargets add --adgroup-id 33 --name "Срез фида А" --condition "CATEGORY:EQUALS:shoes" --bid 5 --dry-run
+direct dynamicfeedadtargets set-bids --id 789 --bid 6.5 --context-bid 4 --dry-run
 
 # Расширения, ассеты, фиды и клиенты
 direct sitelinks add --sitelink "Docs|https://example.com/docs" --sitelink "Help|https://example.com/help|Desk" --dry-run

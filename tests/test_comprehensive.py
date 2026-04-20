@@ -62,6 +62,8 @@ class TestCommandsRegistered(unittest.TestCase):
         "businesses",
         "keywordsresearch",
         "dynamicads",
+        "dynamicfeedadtargets",
+        "strategies",
     ]
 
     def test_all_expected_commands_registered(self):

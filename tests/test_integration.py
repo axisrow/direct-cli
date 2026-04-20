@@ -357,6 +357,37 @@ class TestReadOnlyReports(unittest.TestCase):
 
 @pytest.mark.integration
 @skip_if_no_token
+class TestReadOnlyStrategies(unittest.TestCase):
+    def test_get_strategies(self):
+        result = invoke_get("strategies", "get", "--limit", "1", "--format", "json")
+        assert_success(result, "strategies get")
+
+
+@pytest.mark.integration
+@skip_if_no_token
+class TestReadOnlyDynamicFeedAdTargets(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.campaign_id = get_first_campaign_id()
+
+    def test_get_dynamic_feed_ad_targets(self):
+        if not self.campaign_id:
+            self.skipTest("No campaigns found in account")
+        result = invoke_get(
+            "dynamicfeedadtargets",
+            "get",
+            "--campaign-ids",
+            str(self.campaign_id),
+            "--limit",
+            "1",
+            "--format",
+            "json",
+        )
+        assert_success(result, "dynamicfeedadtargets get")
+
+
+@pytest.mark.integration
+@skip_if_no_token
 class TestReadOnlyLeads(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -412,6 +443,7 @@ class TestReadOnlyAgencyClients(unittest.TestCase):
         ):
             self.skipTest("agencyclients returned 403 — not an agency account")
         assert_success(result, "agencyclients get")
+>>>>>>> main
 
 
 if __name__ == "__main__":

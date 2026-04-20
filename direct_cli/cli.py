@@ -37,6 +37,8 @@ from .commands.businesses import businesses
 from .commands.keywordsresearch import keywordsresearch
 from .commands.dynamicads import dynamicads
 from .commands.advideos import advideos
+from .commands.dynamicfeedadtargets import dynamicfeedadtargets
+from .commands.strategies import strategies
 
 # Load .env file
 load_dotenv()
@@ -137,6 +139,8 @@ cli.add_command(businesses)
 cli.add_command(keywordsresearch)
 cli.add_command(dynamicads)
 cli.add_command(advideos)
+cli.add_command(dynamicfeedadtargets)
+cli.add_command(strategies)
 
 
 if __name__ == "__main__":

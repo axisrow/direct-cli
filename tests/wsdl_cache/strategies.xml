@@ -1,0 +1,1100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions
+        xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+        xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+        xmlns:ns="http://api.direct.yandex.com/v5/strategies"
+        xmlns:general="http://api.direct.yandex.com/v5/general"
+        xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+        name="Strategies"
+        targetNamespace="http://api.direct.yandex.com/v5/strategies">
+    <wsdl:types>
+        <xsd:schema targetNamespace="http://api.direct.yandex.com/v5/strategies">
+            <xsd:import namespace="http://api.direct.yandex.com/v5/general" schemaLocation="https://soap.direct.yandex.ru/v5/general.xsd"/>
+            <xsd:simpleType name="StrategyFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="Id"/>
+                    <xsd:enumeration value="AttributionModel"/>
+                    <xsd:enumeration value="CounterIds"/>
+                    <xsd:enumeration value="PriorityGoals"/>
+                    <xsd:enumeration value="Type"/>
+                    <xsd:enumeration value="Name"/>
+                    <xsd:enumeration value="StatusArchived"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="StrategyMaximumClicksFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="WeeklySpendLimit"/>
+                    <xsd:enumeration value="CustomPeriodBudget"/>
+                    <xsd:enumeration value="BudgetType"/>
+                    <xsd:enumeration value="BidCeiling"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="StrategyMaximumConversionRateFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="WeeklySpendLimit"/>
+                    <xsd:enumeration value="CustomPeriodBudget"/>
+                    <xsd:enumeration value="BudgetType"/>
+                    <xsd:enumeration value="BidCeiling"/>
+                    <xsd:enumeration value="GoalId"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="StrategyAverageCpcFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="AverageCpc"/>
+                    <xsd:enumeration value="WeeklySpendLimit"/>
+                    <xsd:enumeration value="CustomPeriodBudget"/>
+                    <xsd:enumeration value="BudgetType"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="StrategyAverageCpaFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="AverageCpa"/>
+                    <xsd:enumeration value="GoalId"/>
+                    <xsd:enumeration value="WeeklySpendLimit"/>
+                    <xsd:enumeration value="CustomPeriodBudget"/>
+                    <xsd:enumeration value="BudgetType"/>
+                    <xsd:enumeration value="BidCeiling"/>
+                    <xsd:enumeration value="ExplorationBudget"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="StrategyMaxProfitFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="WeeklySpendLimit"/>
+                    <xsd:enumeration value="CustomPeriodBudget"/>
+                    <xsd:enumeration value="BudgetType"/>
+                    <xsd:enumeration value="ExplorationBudget"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="StrategyPayForConversionFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="Cpa"/>
+                    <xsd:enumeration value="GoalId"/>
+                    <xsd:enumeration value="WeeklySpendLimit"/>
+                    <xsd:enumeration value="CustomPeriodBudget"/>
+                    <xsd:enumeration value="BudgetType"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="StrategyAverageCpaPerCampaignFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="AverageCpa"/>
+                    <xsd:enumeration value="GoalId"/>
+                    <xsd:enumeration value="WeeklySpendLimit"/>
+                    <xsd:enumeration value="CustomPeriodBudget"/>
+                    <xsd:enumeration value="BudgetType"/>
+                    <xsd:enumeration value="BidCeiling"/>
+                    <xsd:enumeration value="ExplorationBudget"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="StrategyPayForConversionPerCampaignFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="Cpa"/>
+                    <xsd:enumeration value="GoalId"/>
+                    <xsd:enumeration value="WeeklySpendLimit"/>
+                    <xsd:enumeration value="CustomPeriodBudget"/>
+                    <xsd:enumeration value="BudgetType"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="StrategyPayForConversionPerFilterFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="Cpa"/>
+                    <xsd:enumeration value="GoalId"/>
+                    <xsd:enumeration value="WeeklySpendLimit"/>
+                    <xsd:enumeration value="CustomPeriodBudget"/>
+                    <xsd:enumeration value="BudgetType"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="StrategyAverageCpaPerFilterFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="FilterAverageCpa"/>
+                    <xsd:enumeration value="GoalId"/>
+                    <xsd:enumeration value="WeeklySpendLimit"/>
+                    <xsd:enumeration value="CustomPeriodBudget"/>
+                    <xsd:enumeration value="BudgetType"/>
+                    <xsd:enumeration value="BidCeiling"/>
+                    <xsd:enumeration value="ExplorationBudget"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="StrategyAverageCpcPerCampaignFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="AverageCpc"/>
+                    <xsd:enumeration value="WeeklySpendLimit"/>
+                    <xsd:enumeration value="CustomPeriodBudget"/>
+                    <xsd:enumeration value="BudgetType"/>
+                    <xsd:enumeration value="BidCeiling"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="StrategyAverageCpcPerFilterFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="FilterAverageCpc"/>
+                    <xsd:enumeration value="WeeklySpendLimit"/>
+                    <xsd:enumeration value="CustomPeriodBudget"/>
+                    <xsd:enumeration value="BudgetType"/>
+                    <xsd:enumeration value="BidCeiling"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="StrategyAverageCrrFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="Crr"/>
+                    <xsd:enumeration value="GoalId"/>
+                    <xsd:enumeration value="WeeklySpendLimit"/>
+                    <xsd:enumeration value="CustomPeriodBudget"/>
+                    <xsd:enumeration value="BudgetType"/>
+                    <xsd:enumeration value="ExplorationBudget"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="StrategyPayForConversionCrrFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="Crr"/>
+                    <xsd:enumeration value="GoalId"/>
+                    <xsd:enumeration value="WeeklySpendLimit"/>
+                    <xsd:enumeration value="CustomPeriodBudget"/>
+                    <xsd:enumeration value="BudgetType"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="StrategyAverageCpaMultipleGoalsFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="WeeklySpendLimit"/>
+                    <xsd:enumeration value="CustomPeriodBudget"/>
+                    <xsd:enumeration value="BudgetType"/>
+                    <xsd:enumeration value="ExplorationBudget"/>
+                    <xsd:enumeration value="BidCeiling"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="StrategyPayForConversionMultipleGoalsFieldEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="WeeklySpendLimit"/>
+                    <xsd:enumeration value="CustomPeriodBudget"/>
+                    <xsd:enumeration value="BudgetType"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="StrategyType">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="AVERAGE_CPC"/> <!--+-->
+                    <xsd:enumeration value="AVERAGE_CPA"/> <!--+-->
+                    <xsd:enumeration value="PAY_FOR_CONVERSION"/> <!--+-->
+                    <xsd:enumeration value="WB_MAXIMUM_CONVERSION_RATE"/> <!--+-->
+                    <xsd:enumeration value="WB_MAXIMUM_CLICKS"/> <!--+-->
+                    <xsd:enumeration value="AVERAGE_CRR"/> <!--+-->
+                    <xsd:enumeration value="PAY_FOR_CONVERSION_CRR"/> <!--+-->
+                    <xsd:enumeration value="AVERAGE_CPC_PER_CAMPAIGN"/> <!--+-->
+                    <xsd:enumeration value="AVERAGE_CPC_PER_FILTER"/> <!--+-->
+                    <xsd:enumeration value="AVERAGE_CPA_PER_CAMPAIGN"/> <!--+-->
+                    <xsd:enumeration value="AVERAGE_CPA_PER_FILTER"/> <!--+-->
+                    <xsd:enumeration value="PAY_FOR_CONVERSION_PER_CAMPAIGN"/> <!--+-->
+                    <xsd:enumeration value="PAY_FOR_CONVERSION_PER_FILTER"/> <!--+-->
+                    <xsd:enumeration value="MAX_PROFIT"/> <!--+-->
+                    <xsd:enumeration value="AVERAGE_CPA_MULTIPLE_GOALS"/> <!--+-->
+                    <xsd:enumeration value="PAY_FOR_CONVERSION_MULTIPLE_GOALS"/> <!--+-->
+                    <xsd:enumeration value="UNKNOWN"/> <!--+-->
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:simpleType name="BudgetTypeEnum">
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="WEEKLY_BUDGET"/>
+                    <xsd:enumeration value="CUSTOM_PERIOD_BUDGET"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+            <xsd:complexType name="ExplorationBudget">
+                <xsd:sequence>
+                    <xsd:element name="MinimumExplorationBudget" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="IsMinimumExplorationBudgetCustom" type="general:YesNoEnum" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="CustomPeriodBudget">
+                <xsd:sequence>
+                    <xsd:element name="SpendLimit" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="StartDate" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="EndDate" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="AutoContinue" type="general:YesNoEnum" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyMaximumClicksAddItem">
+                <xsd:sequence>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="CustomPeriodBudget" type="ns:CustomPeriodBudget" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="BidCeiling" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyMaximumConversionRateAddItem">
+                <xsd:sequence>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="CustomPeriodBudget" type="ns:CustomPeriodBudget" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="BidCeiling" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="GoalId" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAverageCpcAddItem">
+                <xsd:sequence>
+                    <xsd:element name="AverageCpc" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="CustomPeriodBudget" type="ns:CustomPeriodBudget" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAverageCpaAddItem">
+                <xsd:sequence>
+                    <xsd:element name="AverageCpa" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="GoalId" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="CustomPeriodBudget" type="ns:CustomPeriodBudget" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="BidCeiling" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="ExplorationBudget" type="ns:ExplorationBudget" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyMaxProfitAddItem">
+                <xsd:sequence>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="CustomPeriodBudget" type="ns:CustomPeriodBudget" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="ExplorationBudget" type="ns:ExplorationBudget" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyPayForConversionAddItem">
+                <xsd:sequence>
+                    <xsd:element name="Cpa" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="GoalId" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="CustomPeriodBudget" type="ns:CustomPeriodBudget" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAverageCpaPerCampaignAddItem">
+                <xsd:sequence>
+                    <xsd:element name="AverageCpa" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="GoalId" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="CustomPeriodBudget" type="ns:CustomPeriodBudget" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="BidCeiling" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="ExplorationBudget" type="ns:ExplorationBudget" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyPayForConversionPerCampaignAddItem">
+                <xsd:sequence>
+                    <xsd:element name="Cpa" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="GoalId" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="CustomPeriodBudget" type="ns:CustomPeriodBudget" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyPayForConversionPerFilterAddItem">
+                <xsd:sequence>
+                    <xsd:element name="Cpa" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="GoalId" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="CustomPeriodBudget" type="ns:CustomPeriodBudget" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAverageCpaPerFilterAddItem">
+                <xsd:sequence>
+                    <xsd:element name="FilterAverageCpa" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="GoalId" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="CustomPeriodBudget" type="ns:CustomPeriodBudget" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="BidCeiling" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="ExplorationBudget" type="ns:ExplorationBudget" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAverageCpcPerCampaignAddItem">
+                <xsd:sequence>
+                    <xsd:element name="AverageCpc" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="CustomPeriodBudget" type="ns:CustomPeriodBudget" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="BidCeiling" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAverageCpcPerFilterAddItem">
+                <xsd:sequence>
+                    <xsd:element name="FilterAverageCpc" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="CustomPeriodBudget" type="ns:CustomPeriodBudget" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="BidCeiling" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAverageCrrAddItem">
+                <xsd:sequence>
+                    <xsd:element name="Crr" type="xsd:int" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="GoalId" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="CustomPeriodBudget" type="ns:CustomPeriodBudget" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="ExplorationBudget" type="ns:ExplorationBudget" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyPayForConversionCrrAddItem">
+                <xsd:sequence>
+                    <xsd:element name="Crr" type="xsd:int" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="GoalId" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="CustomPeriodBudget" type="ns:CustomPeriodBudget" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAverageCpaMultipleGoalsAddItem">
+                <xsd:sequence>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="CustomPeriodBudget" type="ns:CustomPeriodBudget" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="ExplorationBudget" type="ns:ExplorationBudget" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="BidCeiling" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyPayForConversionMultipleGoalsAddItem">
+                <xsd:sequence>
+                    <xsd:element name="GoalId" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="CustomPeriodBudget" type="ns:CustomPeriodBudget" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyMaximumClicksBase">
+                <xsd:sequence>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                    <xsd:element name="CustomPeriodBudget" type="ns:CustomPeriodBudget" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                    <xsd:element name="BidCeiling" type="xsd:long" minOccurs="0" maxOccurs="1" nillable="true"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyMaximumConversionRateBase">
+                <xsd:sequence>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                    <xsd:element name="CustomPeriodBudget" type="ns:CustomPeriodBudget" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                    <xsd:element name="BidCeiling" type="xsd:long" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="GoalId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAverageCpcBase">
+                <xsd:sequence>
+                    <xsd:element name="AverageCpc" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                    <xsd:element name="CustomPeriodBudget" type="ns:CustomPeriodBudget" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAverageCpaBase">
+                <xsd:sequence>
+                    <xsd:element name="AverageCpa" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="GoalId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                    <xsd:element name="BidCeiling" type="xsd:long" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="ExplorationBudget" type="ns:ExplorationBudget" minOccurs="0" maxOccurs="1" nillable="true"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyMaxProfitBase">
+                <xsd:sequence>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                    <xsd:element name="CustomPeriodBudget" type="ns:CustomPeriodBudget" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                    <xsd:element name="ExplorationBudget" type="ns:ExplorationBudget" minOccurs="0" maxOccurs="1" nillable="true"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyPayForConversionBase">
+                <xsd:sequence>
+                    <xsd:element name="Cpa" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="GoalId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                    <xsd:element name="CustomPeriodBudget" type="ns:CustomPeriodBudget" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAverageCpaPerCampaignBase">
+                <xsd:sequence>
+                    <xsd:element name="AverageCpa" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="GoalId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                    <xsd:element name="CustomPeriodBudget" type="ns:CustomPeriodBudget" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                    <xsd:element name="BidCeiling" type="xsd:long" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="ExplorationBudget" type="ns:ExplorationBudget" minOccurs="0" maxOccurs="1" nillable="true"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyPayForConversionPerCampaignBase">
+                <xsd:sequence>
+                    <xsd:element name="Cpa" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="GoalId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                    <xsd:element name="CustomPeriodBudget" type="ns:CustomPeriodBudget" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyPayForConversionPerFilterBase">
+                <xsd:sequence>
+                    <xsd:element name="Cpa" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="GoalId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                    <xsd:element name="CustomPeriodBudget" type="ns:CustomPeriodBudget" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAverageCpaPerFilterBase">
+                <xsd:sequence>
+                    <xsd:element name="FilterAverageCpa" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="GoalId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                    <xsd:element name="CustomPeriodBudget" type="ns:CustomPeriodBudget" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                    <xsd:element name="BidCeiling" type="xsd:long" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="ExplorationBudget" type="ns:ExplorationBudget" minOccurs="0" maxOccurs="1" nillable="true"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAverageCpcPerCampaignBase">
+                <xsd:sequence>
+                    <xsd:element name="AverageCpc" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                    <xsd:element name="CustomPeriodBudget" type="ns:CustomPeriodBudget" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                    <xsd:element name="BidCeiling" type="xsd:long" minOccurs="0" maxOccurs="1" nillable="true"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAverageCpcPerFilterBase">
+                <xsd:sequence>
+                    <xsd:element name="FilterAverageCpc" type="xsd:long" nillable="true" minOccurs="0"
+                                 maxOccurs="1"/>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                    <xsd:element name="CustomPeriodBudget" type="ns:CustomPeriodBudget" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                    <xsd:element name="BidCeiling" type="xsd:long" minOccurs="0" maxOccurs="1" nillable="true"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAverageCrrBase">
+                <xsd:sequence>
+                    <xsd:element name="Crr" type="xsd:int" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="GoalId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                    <xsd:element name="CustomPeriodBudget" type="ns:CustomPeriodBudget" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                    <xsd:element name="ExplorationBudget" type="ns:ExplorationBudget" minOccurs="0" maxOccurs="1" nillable="true"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyPayForConversionCrrBase">
+                <xsd:sequence>
+                    <xsd:element name="Crr" type="xsd:int" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="GoalId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                    <xsd:element name="CustomPeriodBudget" type="ns:CustomPeriodBudget" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAverageCpaMultipleGoalsBase">
+                <xsd:sequence>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                    <xsd:element name="CustomPeriodBudget" type="ns:CustomPeriodBudget" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                    <xsd:element name="ExplorationBudget" type="ns:ExplorationBudget" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="BidCeiling" type="xsd:long" minOccurs="0" maxOccurs="1" nillable="true"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyPayForConversionMultipleGoalsBase">
+                <xsd:sequence>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                    <xsd:element name="CustomPeriodBudget" type="ns:CustomPeriodBudget" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="PriorityGoalsItem">
+                <xsd:sequence>
+                    <xsd:element name="GoalId" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="Value" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="IsMetrikaSourceOfValue" type="general:YesNoEnum" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="PriorityGoalsArray">
+                <xsd:sequence>
+                    <xsd:element name="Items" type="ns:PriorityGoalsItem" minOccurs="1" maxOccurs="unbounded"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAddItem">
+                <xsd:sequence>
+                    <xsd:element name="AttributionModel" type="general:AttributionModelEnum" minOccurs="0"
+                                 maxOccurs="1"/>
+                    <xsd:element name="Name" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="CounterIds" type="general:ArrayOfLong" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="PriorityGoals" type="ns:PriorityGoalsArray" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="WbMaximumClicks" type="ns:StrategyMaximumClicksAddItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="WbMaximumConversionRate" type="ns:StrategyMaximumConversionRateAddItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AverageCpc" type="ns:StrategyAverageCpcAddItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AverageCpa" type="ns:StrategyAverageCpaAddItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="MaxProfit" type="ns:StrategyMaxProfitAddItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="PayForConversion" type="ns:StrategyPayForConversionAddItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AverageCpaPerCampaign" type="ns:StrategyAverageCpaPerCampaignAddItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="PayForConversionPerCampaign" type="ns:StrategyPayForConversionPerCampaignAddItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="PayForConversionPerFilter" type="ns:StrategyPayForConversionPerFilterAddItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AverageCpaPerFilter" type="ns:StrategyAverageCpaPerFilterAddItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AverageCpcPerCampaign" type="ns:StrategyAverageCpcPerCampaignAddItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AverageCpcPerFilter" type="ns:StrategyAverageCpcPerFilterAddItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AverageCrr" type="ns:StrategyAverageCrrAddItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="PayForConversionCrr" type="ns:StrategyPayForConversionCrrAddItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AverageCpaMultipleGoals" type="ns:StrategyAverageCpaMultipleGoalsAddItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="PayForConversionMultipleGoals" type="ns:StrategyPayForConversionMultipleGoalsAddItem" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyMaximumClicksGetItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:StrategyMaximumClicksBase">
+                        <xsd:sequence>
+                            <xsd:element name="BudgetType" type="ns:BudgetTypeEnum" minOccurs="0" maxOccurs="1"/>
+                        </xsd:sequence>
+                    </xsd:extension>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyMaximumConversionRateGetItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:StrategyMaximumConversionRateBase">
+                        <xsd:sequence>
+                            <xsd:element name="BudgetType" type="ns:BudgetTypeEnum" minOccurs="0" maxOccurs="1"/>
+                        </xsd:sequence>
+                    </xsd:extension>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAverageCpcGetItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:StrategyAverageCpcBase">
+                        <xsd:sequence>
+                            <xsd:element name="BudgetType" type="ns:BudgetTypeEnum" minOccurs="0" maxOccurs="1"/>
+                        </xsd:sequence>
+                    </xsd:extension>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAverageCpaGetItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:StrategyAverageCpaBase">
+                        <xsd:sequence>
+                            <xsd:element name="BudgetType" type="ns:BudgetTypeEnum" minOccurs="0" maxOccurs="1"/>
+                        </xsd:sequence>
+                    </xsd:extension>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyMaxProfitGetItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:StrategyMaxProfitBase">
+                        <xsd:sequence>
+                            <xsd:element name="BudgetType" type="ns:BudgetTypeEnum" minOccurs="0" maxOccurs="1"/>
+                        </xsd:sequence>
+                    </xsd:extension>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyPayForConversionGetItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:StrategyPayForConversionBase">
+                        <xsd:sequence>
+                            <xsd:element name="BudgetType" type="ns:BudgetTypeEnum" minOccurs="0" maxOccurs="1"/>
+                        </xsd:sequence>
+                    </xsd:extension>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAverageCpaPerCampaignGetItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:StrategyAverageCpaPerCampaignBase">
+                        <xsd:sequence>
+                            <xsd:element name="BudgetType" type="ns:BudgetTypeEnum" minOccurs="0" maxOccurs="1"/>
+                        </xsd:sequence>
+                    </xsd:extension>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyPayForConversionPerCampaignGetItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:StrategyPayForConversionPerCampaignBase">
+                        <xsd:sequence>
+                            <xsd:element name="BudgetType" type="ns:BudgetTypeEnum" minOccurs="0" maxOccurs="1"/>
+                        </xsd:sequence>
+                    </xsd:extension>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyPayForConversionPerFilterGetItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:StrategyPayForConversionPerFilterBase">
+                        <xsd:sequence>
+                            <xsd:element name="BudgetType" type="ns:BudgetTypeEnum" minOccurs="0" maxOccurs="1"/>
+                        </xsd:sequence>
+                    </xsd:extension>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAverageCpaPerFilterGetItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:StrategyAverageCpaPerFilterBase">
+                        <xsd:sequence>
+                            <xsd:element name="BudgetType" type="ns:BudgetTypeEnum" minOccurs="0" maxOccurs="1"/>
+                        </xsd:sequence>
+                    </xsd:extension>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAverageCpcPerCampaignGetItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:StrategyAverageCpcPerCampaignBase">
+                        <xsd:sequence>
+                            <xsd:element name="BudgetType" type="ns:BudgetTypeEnum" minOccurs="0" maxOccurs="1"/>
+                        </xsd:sequence>
+                    </xsd:extension>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAverageCpcPerFilterGetItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:StrategyAverageCpcPerFilterBase">
+                        <xsd:sequence>
+                            <xsd:element name="BudgetType" type="ns:BudgetTypeEnum" minOccurs="0" maxOccurs="1"/>
+                        </xsd:sequence>
+                    </xsd:extension>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAverageCrrGetItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:StrategyAverageCrrBase">
+                        <xsd:sequence>
+                            <xsd:element name="BudgetType" type="ns:BudgetTypeEnum" minOccurs="0" maxOccurs="1"/>
+                        </xsd:sequence>
+                    </xsd:extension>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyPayForConversionCrrGetItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:StrategyPayForConversionCrrBase">
+                        <xsd:sequence>
+                            <xsd:element name="BudgetType" type="ns:BudgetTypeEnum" minOccurs="0" maxOccurs="1"/>
+                        </xsd:sequence>
+                    </xsd:extension>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAverageCpaMultipleGoalsGetItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:StrategyAverageCpaMultipleGoalsBase">
+                        <xsd:sequence>
+                            <xsd:element name="BudgetType" type="ns:BudgetTypeEnum" minOccurs="0" maxOccurs="1"/>
+                        </xsd:sequence>
+                    </xsd:extension>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyPayForConversionMultipleGoalsGetItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:StrategyPayForConversionMultipleGoalsBase">
+                        <xsd:sequence>
+                            <xsd:element name="BudgetType" type="ns:BudgetTypeEnum" minOccurs="0" maxOccurs="1"/>
+                        </xsd:sequence>
+                    </xsd:extension>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyGetItem">
+                <xsd:sequence>
+                    <xsd:element name="Id" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AttributionModel" type="general:AttributionModelEnum" minOccurs="0"
+                                 maxOccurs="1"/>
+                    <xsd:element name="Type" type="ns:StrategyType" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="PriorityGoals" type="ns:PriorityGoalsArray" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="CounterIds" type="general:ArrayOfLong" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="Name" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="StatusArchived" type="general:YesNoEnum" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="WbMaximumClicks" type="ns:StrategyMaximumClicksGetItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="WbMaximumConversionRate" type="ns:StrategyMaximumConversionRateGetItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AverageCpc" type="ns:StrategyAverageCpcGetItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AverageCpa" type="ns:StrategyAverageCpaGetItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="MaxProfit" type="ns:StrategyMaxProfitGetItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="PayForConversion" type="ns:StrategyPayForConversionGetItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AverageCpaPerCampaign" type="ns:StrategyAverageCpaPerCampaignGetItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="PayForConversionPerCampaign" type="ns:StrategyPayForConversionPerCampaignGetItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="PayForConversionPerFilter" type="ns:StrategyPayForConversionPerFilterGetItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AverageCpaPerFilter" type="ns:StrategyAverageCpaPerFilterGetItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AverageCpcPerCampaign" type="ns:StrategyAverageCpcPerCampaignGetItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AverageCpcPerFilter" type="ns:StrategyAverageCpcPerFilterGetItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AverageCrr" type="ns:StrategyAverageCrrGetItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="PayForConversionCrr" type="ns:StrategyPayForConversionCrrGetItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AverageCpaMultipleGoals" type="ns:StrategyAverageCpaMultipleGoalsGetItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="PayForConversionMultipleGoals" type="ns:StrategyPayForConversionMultipleGoalsGetItem" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategiesSelectionCriteria">
+                <xsd:sequence>
+                    <xsd:element name="Ids" type="xsd:long" minOccurs="0" maxOccurs="unbounded"/>
+                    <xsd:element name="Types" type="ns:StrategyType" minOccurs="0" maxOccurs="unbounded"/>
+                    <xsd:element name="IsArchived" type="general:YesNoEnum" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:element name="GetRequest">
+                <xsd:complexType>
+                    <xsd:complexContent>
+                        <xsd:extension base="general:GetRequestGeneral">
+                            <xsd:sequence>
+                                <xsd:element name="SelectionCriteria" type="ns:StrategiesSelectionCriteria"
+                                             minOccurs="1" maxOccurs="1"/>
+                                <xsd:element name="FieldNames" type="ns:StrategyFieldEnum" minOccurs="1"
+                                             maxOccurs="unbounded"/>
+                                <xsd:element name="StrategyMaximumClicksFieldNames"
+                                             type="ns:StrategyMaximumClicksFieldEnum" minOccurs="0"
+                                             maxOccurs="unbounded"/>
+                                <xsd:element name="StrategyMaximumConversionRateFieldNames"
+                                             type="ns:StrategyMaximumConversionRateFieldEnum" minOccurs="0"
+                                             maxOccurs="unbounded"/>
+                                <xsd:element name="StrategyAverageCpcFieldNames" type="ns:StrategyAverageCpcFieldEnum"
+                                             minOccurs="0" maxOccurs="unbounded"/>
+                                <xsd:element name="StrategyAverageCpaFieldNames" type="ns:StrategyAverageCpaFieldEnum"
+                                             minOccurs="0" maxOccurs="unbounded"/>
+                                <xsd:element name="StrategyMaxProfitFieldNames" type="ns:StrategyMaxProfitFieldEnum"
+                                             minOccurs="0" maxOccurs="unbounded"/>
+                                <xsd:element name="StrategyPayForConversionFieldNames"
+                                             type="ns:StrategyPayForConversionFieldEnum" minOccurs="0"
+                                             maxOccurs="unbounded"/>
+                                <xsd:element name="StrategyAverageCpaPerCampaignFieldNames"
+                                             type="ns:StrategyAverageCpaPerCampaignFieldEnum" minOccurs="0"
+                                             maxOccurs="unbounded"/>
+                                <xsd:element name="StrategyPayForConversionPerCampaignFieldNames"
+                                             type="ns:StrategyPayForConversionPerCampaignFieldEnum" minOccurs="0"
+                                             maxOccurs="unbounded"/>
+                                <xsd:element name="StrategyPayForConversionPerFilterFieldNames"
+                                             type="ns:StrategyPayForConversionPerFilterFieldEnum" minOccurs="0"
+                                             maxOccurs="unbounded"/>
+                                <xsd:element name="StrategyAverageCpaPerFilterFieldNames"
+                                             type="ns:StrategyAverageCpaPerFilterFieldEnum" minOccurs="0"
+                                             maxOccurs="unbounded"/>
+                                <xsd:element name="StrategyAverageCpcPerCampaignFieldNames"
+                                             type="ns:StrategyAverageCpcPerCampaignFieldEnum" minOccurs="0"
+                                             maxOccurs="unbounded"/>
+                                <xsd:element name="StrategyAverageCpcPerFilterFieldNames"
+                                             type="ns:StrategyAverageCpcPerFilterFieldEnum" minOccurs="0"
+                                             maxOccurs="unbounded"/>
+                                <xsd:element name="StrategyAverageCrrFieldNames" type="ns:StrategyAverageCrrFieldEnum"
+                                             minOccurs="0" maxOccurs="unbounded"/>
+                                <xsd:element name="StrategyPayForConversionCrrFieldNames"
+                                             type="ns:StrategyPayForConversionCrrFieldEnum" minOccurs="0"
+                                             maxOccurs="unbounded"/>
+                                <xsd:element name="StrategyAverageCpaMultipleGoalsFieldNames" type="ns:StrategyAverageCpaMultipleGoalsFieldEnum"
+                                             minOccurs="0" maxOccurs="unbounded"/>
+                                <xsd:element name="StrategyPayForConversionMultipleGoalsFieldNames"
+                                             type="ns:StrategyPayForConversionMultipleGoalsFieldEnum" minOccurs="0"
+                                             maxOccurs="unbounded"/>
+                            </xsd:sequence>
+                        </xsd:extension>
+                    </xsd:complexContent>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:complexType name="StrategyMaximumClicksUpdateItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:StrategyMaximumClicksBase"/>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyMaximumConversionRateUpdateItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:StrategyMaximumConversionRateBase"/>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAverageCpcUpdateItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:StrategyAverageCpcBase"/>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAverageCpaUpdateItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:StrategyAverageCpaBase"/>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyMaxProfitUpdateItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:StrategyMaxProfitBase"/>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyPayForConversionUpdateItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:StrategyPayForConversionBase"/>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAverageCpaPerCampaignUpdateItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:StrategyAverageCpaPerCampaignBase"/>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyPayForConversionPerCampaignUpdateItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:StrategyPayForConversionPerCampaignBase"/>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyPayForConversionPerFilterUpdateItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:StrategyPayForConversionPerFilterBase"/>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAverageCpaPerFilterUpdateItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:StrategyAverageCpaPerFilterBase"/>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAverageCpcPerCampaignUpdateItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:StrategyAverageCpcPerCampaignBase"/>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAverageCpcPerFilterUpdateItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:StrategyAverageCpcPerFilterBase"/>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAverageCrrUpdateItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:StrategyAverageCrrBase"/>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyPayForConversionCrrUpdateItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:StrategyPayForConversionCrrBase"/>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyAverageCpaMultipleGoalsUpdateItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:StrategyAverageCpaMultipleGoalsBase"/>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyPayForConversionMultipleGoalsUpdateItem">
+                <xsd:complexContent>
+                    <xsd:extension base="ns:StrategyPayForConversionMultipleGoalsBase"/>
+                </xsd:complexContent>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyUpdateItem">
+                <xsd:sequence>
+                    <xsd:element name="Id" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="AttributionModel" type="general:AttributionModelEnum" minOccurs="0"
+                                 maxOccurs="1"/>
+                    <xsd:element name="Name" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="CounterIds" type="general:ArrayOfLong" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="PriorityGoals" type="ns:PriorityGoalsArray" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="WbMaximumClicks" type="ns:StrategyMaximumClicksUpdateItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="WbMaximumConversionRate" type="ns:StrategyMaximumConversionRateUpdateItem"
+                                 minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AverageCpc" type="ns:StrategyAverageCpcUpdateItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AverageCpa" type="ns:StrategyAverageCpaUpdateItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="MaxProfit" type="ns:StrategyMaxProfitUpdateItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="PayForConversion" type="ns:StrategyPayForConversionUpdateItem" minOccurs="0"
+                                 maxOccurs="1"/>
+                    <xsd:element name="AverageCpaPerCampaign" type="ns:StrategyAverageCpaPerCampaignUpdateItem"
+                                 minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="PayForConversionPerCampaign"
+                                 type="ns:StrategyPayForConversionPerCampaignUpdateItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="PayForConversionPerFilter" type="ns:StrategyPayForConversionPerFilterUpdateItem"
+                                 minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AverageCpaPerFilter" type="ns:StrategyAverageCpaPerFilterUpdateItem"
+                                 minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AverageCpcPerCampaign" type="ns:StrategyAverageCpcPerCampaignUpdateItem"
+                                 minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AverageCpcPerFilter" type="ns:StrategyAverageCpcPerFilterUpdateItem"
+                                 minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AverageCrr" type="ns:StrategyAverageCrrUpdateItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="PayForConversionCrr" type="ns:StrategyPayForConversionCrrUpdateItem"
+                                 minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AverageCpaMultipleGoals" type="ns:StrategyAverageCpaMultipleGoalsUpdateItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="PayForConversionMultipleGoals" type="ns:StrategyPayForConversionMultipleGoalsUpdateItem"
+                                 minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:element name="AddRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="Strategies" type="ns:StrategyAddItem" minOccurs="1" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="AddResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="AddResults" type="general:ActionResult" minOccurs="0" maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="GetResponse">
+                <xsd:complexType>
+                    <xsd:complexContent>
+                        <xsd:extension base="general:GetResponseGeneral">
+                            <xsd:sequence>
+                                <xsd:element name="Strategies" type="ns:StrategyGetItem" minOccurs="0"
+                                             maxOccurs="unbounded"/>
+                            </xsd:sequence>
+                        </xsd:extension>
+                    </xsd:complexContent>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="UpdateRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="Strategies" type="ns:StrategyUpdateItem" minOccurs="1"
+                                     maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="UpdateResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="UpdateResults" type="general:ActionResult" minOccurs="0"
+                                     maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="ArchiveRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="SelectionCriteria" type="general:IdsCriteria" minOccurs="1" maxOccurs="1"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="ArchiveResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="ArchiveResults" type="general:ActionResult" minOccurs="0"
+                                     maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="UnarchiveRequest">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="SelectionCriteria" type="general:IdsCriteria" minOccurs="1" maxOccurs="1"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="UnarchiveResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="UnarchiveResults" type="general:ActionResult" minOccurs="0"
+                                     maxOccurs="unbounded"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+        </xsd:schema>
+    </wsdl:types>
+    <wsdl:message name="ApiException">
+        <wsdl:part element="general:FaultResponse" name="faultMessage"/>
+    </wsdl:message>
+    <!-- ADD -->
+    <wsdl:message name="AddOperationRequest">
+        <wsdl:part element="ns:AddRequest" name="parameters"/>
+    </wsdl:message>
+    <wsdl:message name="AddOperationResponse">
+        <wsdl:part name="parameters" element="ns:AddResponse"/>
+    </wsdl:message>
+    <!-- UPDATE -->
+    <wsdl:message name="UpdateOperationRequest">
+        <wsdl:part name="parameters" element="ns:UpdateRequest"/>
+    </wsdl:message>
+    <wsdl:message name="UpdateOperationResponse">
+        <wsdl:part name="parameters" element="ns:UpdateResponse"/>
+    </wsdl:message>
+    <!-- GET -->
+    <wsdl:message name="GetOperationRequest">
+        <wsdl:part name="parameters" element="ns:GetRequest"/>
+    </wsdl:message>
+    <wsdl:message name="GetOperationResponse">
+        <wsdl:part name="parameters" element="ns:GetResponse"/>
+    </wsdl:message>
+    <!-- ARCHIVE -->
+    <wsdl:message name="ArchiveOperationRequest">
+        <wsdl:part name="parameters" element="ns:ArchiveRequest"/>
+    </wsdl:message>
+    <wsdl:message name="ArchiveOperationResponse">
+        <wsdl:part name="parameters" element="ns:ArchiveResponse"/>
+    </wsdl:message>
+    <!-- UNARCHIVE -->
+    <wsdl:message name="UnarchiveOperationRequest">
+        <wsdl:part name="parameters" element="ns:UnarchiveRequest"/>
+    </wsdl:message>
+    <wsdl:message name="UnarchiveOperationResponse">
+        <wsdl:part name="parameters" element="ns:UnarchiveResponse"/>
+    </wsdl:message>
+    <wsdl:portType name="StrategiesPort">
+        <wsdl:operation name="add">
+            <wsdl:input message="ns:AddOperationRequest" name="addRequest"/>
+            <wsdl:output message="ns:AddOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="update">
+            <wsdl:input message="ns:UpdateOperationRequest" name="updateRequest"/>
+            <wsdl:output message="ns:UpdateOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="get">
+            <wsdl:input message="ns:GetOperationRequest" name="getRequest"/>
+            <wsdl:output message="ns:GetOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="archive">
+            <wsdl:input message="ns:ArchiveOperationRequest" name="archiveRequest"/>
+            <wsdl:output message="ns:ArchiveOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+        <wsdl:operation name="unarchive">
+            <wsdl:input message="ns:UnarchiveOperationRequest" name="unarchiveRequest"/>
+            <wsdl:output message="ns:UnarchiveOperationResponse"/>
+            <wsdl:fault message="ns:ApiException" name="ApiException"/>
+        </wsdl:operation>
+    </wsdl:portType>
+    <wsdl:binding name="StrategiesSOAP" type="ns:StrategiesPort">
+        <soap:binding style="document"
+                      transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="add">
+            <soap:operation soapAction="http://api.direct.yandex.com/v5/strategies/add"/>
+            <wsdl:input name="addRequest">
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="update">
+            <soap:operation soapAction="http://api.direct.yandex.com/v5/strategies/update"/>
+            <wsdl:input name="updateRequest">
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="get">
+            <soap:operation soapAction="http://api.direct.yandex.com/v5/strategies/get"/>
+            <wsdl:input name="getRequest">
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="archive">
+            <soap:operation soapAction="http://api.direct.yandex.com/v5/strategies/archive"/>
+            <wsdl:input name="archiveRequest">
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+        <wsdl:operation name="unarchive">
+            <soap:operation soapAction="http://api.direct.yandex.com/v5/strategies/unarchive"/>
+            <wsdl:input name="unarchiveRequest">
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="ApiException">
+                <soap:fault name="ApiException" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+    </wsdl:binding>
+    <wsdl:service name="Strategies">
+        <wsdl:port binding="ns:StrategiesSOAP" name="StrategiesSOAP">
+            <soap:address location="https://soap.direct.yandex.ru/v5/strategies"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>
