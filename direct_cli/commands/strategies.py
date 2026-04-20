@@ -140,7 +140,10 @@ def add(
                 "Items": [int(x.strip()) for x in counter_ids.split(",")]
             }
         if priority_goals:
-            strategy_data["PriorityGoals"] = {"Items": parse_json(priority_goals)}
+            parsed_goals = parse_json(priority_goals)
+            if not isinstance(parsed_goals, list):
+                raise click.UsageError("--priority-goals must be a JSON array")
+            strategy_data["PriorityGoals"] = {"Items": parsed_goals}
         if attribution_model:
             strategy_data["AttributionModel"] = attribution_model
 
@@ -218,7 +221,10 @@ def update(
                 "Items": [int(x.strip()) for x in counter_ids.split(",")]
             }
         if priority_goals:
-            strategy_data["PriorityGoals"] = {"Items": parse_json(priority_goals)}
+            parsed_goals = parse_json(priority_goals)
+            if not isinstance(parsed_goals, list):
+                raise click.UsageError("--priority-goals must be a JSON array")
+            strategy_data["PriorityGoals"] = {"Items": parsed_goals}
         if attribution_model:
             strategy_data["AttributionModel"] = attribution_model
 
