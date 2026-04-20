@@ -132,24 +132,48 @@ def add(
         raise click.Abort()
 
 
+_DEPRECATED_KEYWORDS_UPDATE_OPTIONS = {
+    "bid": "--bid is no longer accepted on 'keywords update'; use: direct bids set --keyword-id ID --bid VALUE",
+    "context_bid": "--context-bid is no longer accepted on 'keywords update'; use: direct bids set --keyword-id ID --network-bid VALUE",
+    "status": "--status is no longer accepted on 'keywords update'; status is not mutable via the keywords API",
+}
+
+
+def _deprecated_bid_option(ctx, param, value):
+    if value is not None:
+        raise click.UsageError(_DEPRECATED_KEYWORDS_UPDATE_OPTIONS[param.name])
+
+
 @keywords.command()
 @click.option("--id", "keyword_id", required=True, type=int, help="Keyword ID")
-@click.option("--bid", type=float, help="Search bid")
-@click.option("--context-bid", type=float, help="Context bid")
-@click.option("--status", help="New status")
+@click.option("--keyword", help="New keyword text")
+@click.option("--user-param-1", help="User parameter 1")
+@click.option("--user-param-2", help="User parameter 2")
+@click.option("--bid", default=None, expose_value=False,
+              callback=_deprecated_bid_option,
+              is_eager=True, hidden=True,
+              help="Removed: use 'bids set --keyword-id ID --bid VALUE'")
+@click.option("--context-bid", default=None, expose_value=False,
+              callback=_deprecated_bid_option,
+              is_eager=True, hidden=True,
+              help="Removed: use 'bids set --keyword-id ID --network-bid VALUE'")
+@click.option("--status", default=None, expose_value=False,
+              callback=_deprecated_bid_option,
+              is_eager=True, hidden=True,
+              help="Removed: status is not mutable via keywords update")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def update(ctx, keyword_id, bid, context_bid, status, dry_run):
-    """Update keyword"""
+def update(ctx, keyword_id, keyword, user_param_1, user_param_2, dry_run):
+    """Update keyword text or user params (use 'bids set' for bid changes)"""
     try:
         keyword_data = {"Id": keyword_id}
 
-        if bid:
-            keyword_data["Bid"] = to_micros(bid)
-        if context_bid:
-            keyword_data["ContextBid"] = to_micros(context_bid)
-        if status:
-            keyword_data["Status"] = status
+        if keyword:
+            keyword_data["Keyword"] = keyword
+        if user_param_1 is not None:
+            keyword_data["UserParam1"] = user_param_1
+        if user_param_2 is not None:
+            keyword_data["UserParam2"] = user_param_2
 
         body = {"method": "update", "params": {"Keywords": [keyword_data]}}
 

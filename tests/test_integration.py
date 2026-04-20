@@ -386,5 +386,65 @@ class TestReadOnlyDynamicFeedAdTargets(unittest.TestCase):
         assert_success(result, "dynamicfeedadtargets get")
 
 
+@pytest.mark.integration
+@skip_if_no_token
+class TestReadOnlyLeads(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.campaign_id = get_first_campaign_id()
+
+    def test_get_leads(self):
+        if not self.campaign_id:
+            self.skipTest("No campaigns found in account")
+        result = invoke_get(
+            "leads",
+            "get",
+            "--campaign-ids",
+            str(self.campaign_id),
+            "--limit",
+            "1",
+            "--format",
+            "json",
+        )
+        assert_success(result, "leads get")
+
+
+@pytest.mark.integration
+@skip_if_no_token
+class TestReadOnlyTurbopages(unittest.TestCase):
+    def test_get_turbopages(self):
+        result = invoke_get("turbopages", "get", "--limit", "1", "--format", "json")
+        assert_success(result, "turbopages get")
+
+
+@pytest.mark.integration
+@skip_if_no_token
+class TestReadOnlyBusinesses(unittest.TestCase):
+    def test_get_businesses(self):
+        result = invoke_get("businesses", "get", "--limit", "1", "--format", "json")
+        assert_success(result, "businesses get")
+
+
+@pytest.mark.integration
+@skip_if_no_token
+class TestReadOnlyAdVideos(unittest.TestCase):
+    def test_get_advideos(self):
+        result = invoke_get("advideos", "get", "--limit", "1", "--format", "json")
+        assert_success(result, "advideos get")
+
+
+@pytest.mark.integration
+@skip_if_no_token
+class TestReadOnlyAgencyClients(unittest.TestCase):
+    def test_get_agencyclients(self):
+        result = invoke_get("agencyclients", "get", "--limit", "1", "--format", "json")
+        if result.exit_code != 0 and (
+            "403" in result.output or "Access denied" in result.output
+        ):
+            self.skipTest("agencyclients returned 403 — not an agency account")
+        assert_success(result, "agencyclients get")
+>>>>>>> main
+
+
 if __name__ == "__main__":
     unittest.main()

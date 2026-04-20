@@ -1,0 +1,439 @@
+interactions:
+- request:
+    body: '{"method":"add","params":{"Campaigns":[{"Name":"direct-cli-live-draft-test-cassette-nested-keywordbids","StartDate":"2030-01-15","TextCampaign":{"BiddingStrategy":{"Search":{"BiddingStrategyType":"HIGHEST_POSITION"},"Network":{"BiddingStrategyType":"SERVING_OFF"}},"Settings":[]}}]}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '283'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api.direct.yandex.com/json/v5/campaigns
+  response:
+    body:
+      string: '{"result":{"AddResults":[{"Id":709163171}]}}'
+    headers:
+      Content-Length:
+      - '44'
+      Content-Security-Policy:
+      - default-src 'none'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Sun, 19 Apr 2026 11:56:30 GMT
+      RequestId:
+      - '8176332493658577335'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 15/3298732/3310000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:8176332493658577335,cmd:direct.api5/campaigns.add,appcode:0
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"add","params":{"AdGroups":[{"Name":"draft-kwbids-group","CampaignId":709163171,"RegionIds":[1,225]}]}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '113'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api.direct.yandex.com/json/v5/adgroups
+  response:
+    body:
+      string: '{"result":{"AddResults":[{"Id":5743529277}]}}'
+    headers:
+      Content-Length:
+      - '45'
+      Content-Security-Policy:
+      - default-src 'none'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Sun, 19 Apr 2026 11:56:33 GMT
+      RequestId:
+      - '4202634560053806094'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 40/3298692/3310000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:4202634560053806094,cmd:direct.api5/adgroups.add,appcode:0
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"add","params":{"Keywords":[{"AdGroupId":5743529277,"Keyword":"draft
+      keywordbids keyword"}]}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '103'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api.direct.yandex.com/json/v5/keywords
+  response:
+    body:
+      string: '{"result":{"AddResults":[{"Id":57019292280}]}}'
+    headers:
+      Content-Length:
+      - '46'
+      Content-Security-Policy:
+      - default-src 'none'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Sun, 19 Apr 2026 11:56:37 GMT
+      RequestId:
+      - '6026694054357354140'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 22/3298670/3310000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:6026694054357354140,cmd:direct.api5/keywords.add,appcode:0
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"set","params":{"KeywordBids":[{"KeywordId":57019292280,"SearchBid":8000000,"NetworkBid":3000000}]}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '110'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api.direct.yandex.com/json/v5/keywordbids
+  response:
+    body:
+      string: '{"result":{"SetResults":[{"KeywordId":57019292280,"Warnings":[{"Code":10160,"Message":"Bid
+        won''t be applied","Details":"Network bids won''t be changed since network
+        impressions are disabled"}]}]}}'
+    headers:
+      Content-Length:
+      - '195'
+      Content-Security-Policy:
+      - default-src 'none'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Sun, 19 Apr 2026 11:56:39 GMT
+      RequestId:
+      - '7522250413914694482'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 25/3298645/3310000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:7522250413914694482,cmd:direct.api5/keywordbids.set,appcode:0
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[57019292280]}}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '72'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api.direct.yandex.com/json/v5/keywords
+  response:
+    body:
+      string: '{"result":{"DeleteResults":[{"Id":57019292280}]}}'
+    headers:
+      Content-Length:
+      - '49'
+      Content-Security-Policy:
+      - default-src 'none'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Sun, 19 Apr 2026 11:56:43 GMT
+      RequestId:
+      - '1314797570234276562'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 11/3298634/3310000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:1314797570234276562,cmd:direct.api5/keywords.delete,appcode:0
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[5743529277]}}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '71'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api.direct.yandex.com/json/v5/adgroups
+  response:
+    body:
+      string: '{"result":{"DeleteResults":[{"Id":5743529277}]}}'
+    headers:
+      Content-Length:
+      - '48'
+      Content-Security-Policy:
+      - default-src 'none'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Sun, 19 Apr 2026 11:56:46 GMT
+      RequestId:
+      - '1563251625115152314'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 10/3298624/3310000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:1563251625115152314,cmd:direct.api5/adgroups.delete,appcode:0
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[709163171]}}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '70'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api.direct.yandex.com/json/v5/campaigns
+  response:
+    body:
+      string: '{"result":{"DeleteResults":[{"Id":709163171}]}}'
+    headers:
+      Content-Length:
+      - '47'
+      Content-Security-Policy:
+      - default-src 'none'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Sun, 19 Apr 2026 11:56:49 GMT
+      RequestId:
+      - '6556831116408917082'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 12/3298612/3310000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:6556831116408917082,cmd:direct.api5/campaigns.delete,appcode:0
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+version: 1
