@@ -558,10 +558,19 @@ def test_keywords_add_payload_with_bids_scales_to_micro_units():
     assert keyword["ContextBid"] == 5_000_000
 
 
-def test_keywords_update_payload_status_only():
-    body = _dry_run("keywords", "update", "--id", "777", "--status", "SUSPENDED")
+def test_keywords_update_payload_keyword_text():
+    body = _dry_run("keywords", "update", "--id", "777", "--keyword", "new text")
     keyword = body["params"]["Keywords"][0]
-    assert keyword == {"Id": 777, "Status": "SUSPENDED"}
+    assert keyword == {"Id": 777, "Keyword": "new text"}
+
+
+def test_keywords_update_payload_user_params():
+    body = _dry_run(
+        "keywords", "update", "--id", "777",
+        "--user-param-1", "seg-a", "--user-param-2", "seg-b",
+    )
+    keyword = body["params"]["Keywords"][0]
+    assert keyword == {"Id": 777, "UserParam1": "seg-a", "UserParam2": "seg-b"}
 
 
 # ----------------------------------------------------------------------
