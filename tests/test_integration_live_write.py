@@ -861,7 +861,11 @@ def test_live_draft_dynamicads_add_delete() -> None:
         )
         _assert_success(r, "dynamicads get")
         data = json.loads(r.output)
-        targets = data if isinstance(data, list) else data.get("result", [])
+        if isinstance(data, list):
+            targets = data
+        else:
+            result_data = data.get("result", data)
+            targets = result_data.get("DynamicTextAdTargets", [])
         assert any(
             t.get("Id") == did for t in targets
         ), f"Dynamic ad target {did} not found in get response"
