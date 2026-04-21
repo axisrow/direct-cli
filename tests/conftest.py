@@ -59,14 +59,23 @@ def _before_record_request(request):
         if header in request.headers:
             request.headers[header] = _REDACTED
     body = getattr(request, "body", None)
+    redacted = False
     if body and "VideoData" in (body if isinstance(body, str) else ""):
         request.body = re.sub(
             r'"VideoData":"[^"]*"', '"VideoData":"<REDACTED>"', body
         )
+        redacted = True
     elif isinstance(body, bytes) and b"VideoData" in body:
         request.body = re.sub(
             rb'"VideoData":"[^"]*"', b'"VideoData":"<REDACTED>"', body
         )
+        redacted = True
+    if redacted:
+        new_body = request.body
+        new_len = str(len(new_body.encode("utf-8") if isinstance(new_body, str) else new_body))
+        for k in list(request.headers.keys()):
+            if k.lower() == "content-length":
+                request.headers[k] = new_len
     return request
 
 
@@ -85,6 +94,12 @@ def _before_record_response(response):
         low = key.lower()
         if low in {"authorization", "client-login", "set-cookie"} or "login" in low:
             headers[key] = [_REDACTED]
+            continue
+        if low == "x-accel-info":
+            headers[key] = [
+                re.sub(r"reqid:\d+", "reqid:0000000000000000000", v) if isinstance(v, str) else v
+                for v in headers[key]
+            ]
             continue
         if _REAL_LOGIN:
             values = headers.get(key)

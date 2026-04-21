@@ -51,7 +51,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:271218979497548931,cmd:direct.api5/feeds.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/feeds.add,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -116,7 +116,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:5456552869560930794,cmd:direct.api5/campaigns.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/campaigns.add,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -178,7 +178,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:2156966093305561392,cmd:direct.api5/feeds.delete,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/feeds.delete,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:

@@ -51,7 +51,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:6807089152559967345,cmd:direct.api5/campaigns.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/campaigns.add,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -113,7 +113,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:6343668003411928501,cmd:direct.api5/adgroups.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/adgroups.add,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -177,7 +177,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:8722324527507927458,cmd:direct.api5/ads.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/ads.add,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -240,7 +240,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:8778833480672578063,cmd:direct.api5/ads.suspend,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/ads.suspend,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -303,7 +303,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:6306501959217762673,cmd:direct.api5/ads.resume,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/ads.resume,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -366,7 +366,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:7786470310387809974,cmd:direct.api5/ads.archive,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/ads.archive,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -429,7 +429,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:6399986199033925120,cmd:direct.api5/ads.unarchive,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/ads.unarchive,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -491,7 +491,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:976571831808160644,cmd:direct.api5/ads.delete,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/ads.delete,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -553,7 +553,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:1048739671480686654,cmd:direct.api5/adgroups.delete,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/adgroups.delete,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -615,7 +615,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:5839403535323920148,cmd:direct.api5/campaigns.delete,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/campaigns.delete,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:

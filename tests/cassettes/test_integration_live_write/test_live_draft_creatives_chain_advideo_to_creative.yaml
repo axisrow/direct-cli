@@ -9,7 +9,7 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '355675'
+      - '97'
       Content-Type:
       - application/json
       User-Agent:
@@ -35,7 +35,7 @@ interactions:
       string: '{"result":{"AddResults":[{"Id":"aabbccdd1122334455667700002"}]}}'
     headers:
       Content-Length:
-      - '64'
+      - '97'
       Content-Security-Policy:
       - default-src 'none'
       Content-Type:
@@ -51,7 +51,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:6123797330537336162,cmd:direct.api5/advideos.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/advideos.add,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -113,7 +113,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:8568469822809273166,cmd:direct.api5/creatives.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/creatives.add,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -176,7 +176,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:7412883103023523879,cmd:direct.api5/creatives.get,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/creatives.get,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:

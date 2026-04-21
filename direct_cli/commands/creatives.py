@@ -16,14 +16,13 @@ def creatives():
 
 @creatives.command()
 @click.option("--ids", help="Comma-separated creative IDs")
-@click.option("--campaign-ids", help="Comma-separated campaign IDs")
 @click.option("--limit", type=int, help="Limit number of results")
 @click.option("--fetch-all", is_flag=True, help="Fetch all pages")
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.option("--fields", help="Comma-separated field names")
 @click.pass_context
-def get(ctx, ids, campaign_ids, limit, fetch_all, output_format, output, fields):
+def get(ctx, ids, limit, fetch_all, output_format, output, fields):
     """Get creatives"""
     try:
         client = create_client(
@@ -39,8 +38,6 @@ def get(ctx, ids, campaign_ids, limit, fetch_all, output_format, output, fields)
         criteria = {}
         if ids:
             criteria["Ids"] = parse_ids(ids)
-        if campaign_ids:
-            criteria["CampaignIds"] = parse_ids(campaign_ids)
 
         params = {"SelectionCriteria": criteria, "FieldNames": field_names}
 

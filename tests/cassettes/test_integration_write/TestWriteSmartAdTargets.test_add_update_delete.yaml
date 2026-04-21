@@ -49,7 +49,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:4600735400496992529,cmd:direct.api5/feeds.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/feeds.add,appcode:0
     status:
       code: 200
       message: OK
@@ -106,7 +106,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:404399309962680236,cmd:direct.api5/campaigns.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/campaigns.add,appcode:0
     status:
       code: 200
       message: OK
@@ -161,7 +161,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:8763834203834061532,cmd:direct.api5/feeds.delete,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/feeds.delete,appcode:0
     status:
       code: 200
       message: OK

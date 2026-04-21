@@ -53,7 +53,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:1318239741011881202,cmd:direct.json-api/adimages.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.json-api/adimages.add,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:

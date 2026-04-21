@@ -90,6 +90,9 @@ REPLACEMENTS = [
 
 REQUEST_ID_RE = re.compile(r"(- ')(\d{19})(')")
 DATE_RE = re.compile(r"(- (?:')?)(Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d{2} \w+ \d{4} \d{2}:\d{2}:\d{2} GMT('?)")
+XACCEL_REQID_RE = re.compile(r"(reqid:)\d+")
+# Matches Content-Length lines in request blocks that have <REDACTED> body
+CONTENT_LENGTH_RE = re.compile(r"(      Content-Length:\n      - ')(\d+)(')")
 
 
 def anonymize_file(path: str) -> int:
@@ -106,6 +109,38 @@ def anonymize_file(path: str) -> int:
 
     # Date в заголовках ответов
     content = DATE_RE.sub(r"\g<1>Mon, 01 Jan 2024 00:00:00 GMT\g<3>", content)
+
+    # reqid: в X-Accel-Info заголовках
+    content = XACCEL_REQID_RE.sub(r"\g<1>0000000000000000000", content)
+
+    # Content-Length в запросах с <REDACTED> телом — пересчитываем по фактической длине тела
+    def fix_content_length(m):
+        # Тело запроса после редактирования VideoData выглядит примерно как:
+        # '{"method":"add","params":{"AdVideos":[{"VideoData":"<REDACTED>","Name":"..."}]}}'
+        # Длина этой строки и должна быть Content-Length
+        # Ищем тело запроса в блоке перед этим Content-Length
+        return m.group(0)  # будет заменено ниже отдельной логикой
+
+    # Найти все блоки request и пересчитать Content-Length если тело содержит <REDACTED>
+    def fix_request_block(block_match):
+        block = block_match.group(0)
+        if "<REDACTED>" not in block:
+            return block
+        # Найти body строку
+        body_match = re.search(r"    body: '(.+)'", block)
+        if not body_match:
+            return block
+        body_str = body_match.group(1)
+        new_len = str(len(body_str.encode("utf-8")))
+        block = re.sub(r"(      Content-Length:\n      - ')\d+(')", rf"\g<1>{new_len}\2", block)
+        return block
+
+    content = re.sub(
+        r"- request:.*?(?=- request:|- response:)",
+        fix_request_block,
+        content,
+        flags=re.DOTALL,
+    )
 
 
     if content != original:

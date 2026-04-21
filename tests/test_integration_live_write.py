@@ -452,7 +452,8 @@ def test_live_draft_advideos_add_get() -> None:
         "draft-test-video",
     )
     _assert_success(r, "advideos add")
-
+    # advideos API does not expose a delete method — uploaded videos accumulate
+    # in the account and cannot be cleaned up programmatically.
     video_id = _extract_first_id(r.output)
     r = _invoke_live("advideos", "get", "--ids", str(video_id), "--format", "json")
     _assert_success(r, "advideos get")
@@ -473,7 +474,8 @@ def test_live_draft_creatives_chain_advideo_to_creative() -> None:
         "draft-creative-video",
     )
     _assert_success(r, "advideos add")
-
+    # advideos API does not expose a delete method — uploaded videos accumulate
+    # in the account and cannot be cleaned up programmatically.
     video_id = _extract_first_id(r.output)
 
     r = _invoke_live("creatives", "add", "--video-id", str(video_id))

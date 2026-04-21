@@ -52,7 +52,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:4549920624354706648,cmd:direct.api5/sitelinks.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/sitelinks.add,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -116,7 +116,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:2666638050766176083,cmd:direct.api5/sitelinks.get,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/sitelinks.get,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -178,7 +178,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:8782552956676437533,cmd:direct.api5/sitelinks.delete,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/sitelinks.delete,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:

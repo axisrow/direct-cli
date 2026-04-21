@@ -49,7 +49,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:5994182362962702552,cmd:direct.api5/campaigns.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/campaigns.add,appcode:0
     status:
       code: 200
       message: OK
@@ -104,7 +104,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:4392635169868073162,cmd:direct.api5/vcards.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/vcards.add,appcode:0
     status:
       code: 200
       message: OK
@@ -158,7 +158,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:806755746493842767,cmd:direct.api5/vcards.delete,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/vcards.delete,appcode:0
     status:
       code: 200
       message: OK
@@ -212,7 +212,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:3079336828642760954,cmd:direct.api5/campaigns.delete,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/campaigns.delete,appcode:0
     status:
       code: 200
       message: OK

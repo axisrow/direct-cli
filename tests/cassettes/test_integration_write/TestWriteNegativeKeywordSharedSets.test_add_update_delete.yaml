@@ -49,7 +49,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:2565780630887737653,cmd:direct.api5/negativekeywordsharedsets.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/negativekeywordsharedsets.add,appcode:0
     status:
       code: 200
       message: OK
@@ -103,7 +103,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:8596440801050868655,cmd:direct.api5/negativekeywordsharedsets.update,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/negativekeywordsharedsets.update,appcode:0
     status:
       code: 200
       message: OK
@@ -157,7 +157,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:7122829802623900875,cmd:direct.api5/negativekeywordsharedsets.delete,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/negativekeywordsharedsets.delete,appcode:0
     status:
       code: 200
       message: OK

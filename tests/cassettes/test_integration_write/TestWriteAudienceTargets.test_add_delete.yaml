@@ -49,7 +49,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:2851472410520922294,cmd:direct.api5/campaigns.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/campaigns.add,appcode:0
     status:
       code: 200
       message: OK
@@ -103,7 +103,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:1302984654120285969,cmd:direct.api5/adgroups.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/adgroups.add,appcode:0
     status:
       code: 200
       message: OK
@@ -157,7 +157,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:6377016643103860737,cmd:direct.api5/retargetinglists.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/retargetinglists.add,appcode:0
     status:
       code: 200
       message: OK
@@ -213,7 +213,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:67379179388637686,cmd:direct.api5/audiencetargets.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/audiencetargets.add,appcode:0
     status:
       code: 200
       message: OK
@@ -268,7 +268,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:2334335545823344036,cmd:direct.api5/retargetinglists.delete,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/retargetinglists.delete,appcode:0
     status:
       code: 200
       message: OK
@@ -323,7 +323,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:5871464584855316976,cmd:direct.api5/adgroups.delete,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/adgroups.delete,appcode:0
     status:
       code: 200
       message: OK
@@ -377,7 +377,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:9083219117638034929,cmd:direct.api5/campaigns.delete,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/campaigns.delete,appcode:0
     status:
       code: 200
       message: OK

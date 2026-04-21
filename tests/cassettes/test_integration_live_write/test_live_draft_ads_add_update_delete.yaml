@@ -51,7 +51,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:4295490712598204363,cmd:direct.api5/campaigns.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/campaigns.add,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -113,7 +113,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:7525936863758772077,cmd:direct.api5/adgroups.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/adgroups.add,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -177,7 +177,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:1783120852658046502,cmd:direct.api5/ads.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/ads.add,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -240,7 +240,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:3934838270363730044,cmd:direct.api5/ads.update,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/ads.update,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -303,7 +303,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:1615679150810919757,cmd:direct.api5/ads.get,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/ads.get,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -365,7 +365,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:2123630998656596560,cmd:direct.api5/ads.delete,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/ads.delete,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -427,7 +427,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:593114932089351967,cmd:direct.api5/adgroups.delete,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/adgroups.delete,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -489,7 +489,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:4888287551327842912,cmd:direct.api5/campaigns.delete,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/campaigns.delete,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:

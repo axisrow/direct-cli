@@ -50,7 +50,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:6414567394545914101,cmd:direct.api5/sitelinks.add,appcode:-1
+      - reqid:0000000000000000000,cmd:direct.api5/sitelinks.add,appcode:-1
     status:
       code: 200
       message: OK

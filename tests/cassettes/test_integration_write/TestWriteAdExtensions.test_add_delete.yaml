@@ -50,7 +50,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:7836758315026535192,cmd:direct.api5/adextensions.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/adextensions.add,appcode:0
     status:
       code: 200
       message: OK
@@ -104,7 +104,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:6974351251080542235,cmd:direct.api5/adextensions.delete,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/adextensions.delete,appcode:0
     status:
       code: 200
       message: OK
