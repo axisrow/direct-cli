@@ -113,14 +113,6 @@ def anonymize_file(path: str) -> int:
     # reqid: в X-Accel-Info заголовках
     content = XACCEL_REQID_RE.sub(r"\g<1>0000000000000000000", content)
 
-    # Content-Length в запросах с <REDACTED> телом — пересчитываем по фактической длине тела
-    def fix_content_length(m):
-        # Тело запроса после редактирования VideoData выглядит примерно как:
-        # '{"method":"add","params":{"AdVideos":[{"VideoData":"<REDACTED>","Name":"..."}]}}'
-        # Длина этой строки и должна быть Content-Length
-        # Ищем тело запроса в блоке перед этим Content-Length
-        return m.group(0)  # будет заменено ниже отдельной логикой
-
     # Найти все блоки request и пересчитать Content-Length если тело содержит <REDACTED>
     def fix_request_block(block_match):
         block = block_match.group(0)
