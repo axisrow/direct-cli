@@ -17,6 +17,7 @@ before committing.
 
 import json
 import os
+import re
 
 import pytest
 from click.testing import CliRunner
@@ -53,10 +54,19 @@ def _scrub_login(text: str) -> str:
 
 
 def _before_record_request(request):
-    """Strip sensitive headers before the request is stored in a cassette."""
+    """Strip sensitive headers and large binary payloads before storing."""
     for header in ("Authorization", "Client-Login", "authorization", "client-login"):
         if header in request.headers:
             request.headers[header] = _REDACTED
+    body = getattr(request, "body", None)
+    if body and "VideoData" in (body if isinstance(body, str) else ""):
+        request.body = re.sub(
+            r'"VideoData":"[^"]*"', '"VideoData":"<REDACTED>"', body
+        )
+    elif isinstance(body, bytes) and b"VideoData" in body:
+        request.body = re.sub(
+            rb'"VideoData":"[^"]*"', b'"VideoData":"<REDACTED>"', body
+        )
     return request
 
 

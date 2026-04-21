@@ -150,7 +150,7 @@ def _assert_success(result, cmd_label: str) -> None:
     )
 
 
-def _extract_first_id(output: str, key: str = "AddResults") -> int:
+def _extract_first_id(output: str, key: str = "AddResults") -> int | str:
     """Extract the first Id from an add-result JSON response."""
     data = json.loads(output)
     if isinstance(data, list):
@@ -167,7 +167,11 @@ def _extract_first_id(output: str, key: str = "AddResults") -> int:
         "Errors" not in first or not first["Errors"]
     ), f"API rejected add: {first.get('Errors')}"
     assert "Id" in first, f"No Id in add result: {first}"
-    return int(first["Id"])
+    raw = first["Id"]
+    try:
+        return int(raw)
+    except (ValueError, TypeError):
+        return raw
 
 
 def _extract_field(output: str, field: str = "Id", key: str = "AddResults") -> Any:
@@ -435,22 +439,19 @@ def test_live_draft_adimages_add_get_delete() -> None:
 
 @pytest.mark.vcr
 def test_live_draft_advideos_add_get() -> None:
-    """Add a video by URL and verify via get.
-
-    advideos requires a real, reachable video URL. example.com will be
-    rejected — this test documents the CLI payload assembly gap.
-    See tests/MANUAL_COVERAGE.md for details.
-    """
+    """Add a video from file and verify via get."""
+    video_file = os.path.join(
+        os.path.dirname(__file__), "fixtures", "test-video.mp4"
+    )
     r = _invoke_live(
         "advideos",
         "add",
-        "--url",
-        "https://example.com/test-video.mp4",
+        "--video-file",
+        video_file,
         "--name",
         "draft-test-video",
     )
-    if r.exit_code != 0:
-        pytest.skip(f"advideos add rejected URL (expected in test): {r.output[:200]}")
+    _assert_success(r, "advideos add")
 
     video_id = _extract_first_id(r.output)
     r = _invoke_live("advideos", "get", "--ids", str(video_id), "--format", "json")
@@ -459,20 +460,19 @@ def test_live_draft_advideos_add_get() -> None:
 
 @pytest.mark.vcr
 def test_live_draft_creatives_chain_advideo_to_creative() -> None:
-    """Chain: add advideo -> create creative from it -> verify via get.
-
-    Same URL limitation as test_live_draft_advideos_add_get.
-    """
+    """Chain: add advideo from file -> create creative from it -> verify via get."""
+    video_file = os.path.join(
+        os.path.dirname(__file__), "fixtures", "test-video.mp4"
+    )
     r = _invoke_live(
         "advideos",
         "add",
-        "--url",
-        "https://example.com/test-video.mp4",
+        "--video-file",
+        video_file,
         "--name",
         "draft-creative-video",
     )
-    if r.exit_code != 0:
-        pytest.skip(f"advideos add rejected URL (expected in test): {r.output[:200]}")
+    _assert_success(r, "advideos add")
 
     video_id = _extract_first_id(r.output)
 

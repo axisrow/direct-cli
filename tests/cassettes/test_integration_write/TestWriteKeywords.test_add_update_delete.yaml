@@ -32,16 +32,16 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
   response:
     body:
-      string: '{"result":{"AddResults":[{"Id":700011018}]}}'
+      string: '{"result":{"AddResults":[{"Id":100000005}]}}'
     headers:
       Content-Length:
       - '44'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 06:29:46 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '1996575694904737489'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -54,7 +54,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"add","params":{"AdGroups":[{"Name":"test-group","CampaignId":700011018,"RegionIds":[1,225]}]}}'
+    body: '{"method":"add","params":{"AdGroups":[{"Name":"test-group","CampaignId":100000005,"RegionIds":[1,225]}]}}'
     headers:
       Accept:
       - '*/*'
@@ -86,16 +86,16 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/adgroups
   response:
     body:
-      string: '{"result":{"AddResults":[{"Id":4794480}]}}'
+      string: '{"result":{"AddResults":[{"Id":2000003}]}}'
     headers:
       Content-Length:
       - '42'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 06:29:50 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '7372771286483148963'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -108,7 +108,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: "{\"method\":\"add\",\"params\":{\"Keywords\":[{\"AdGroupId\":4794480,\"Keyword\":\"\u043A\u0443\u043F\u0438\u0442\u044C
+    body: "{\"method\":\"add\",\"params\":{\"Keywords\":[{\"AdGroupId\":2000003,\"Keyword\":\"\u043A\u0443\u043F\u0438\u0442\u044C
       \u0442\u0435\u0441\u0442\"}]}}"
     headers:
       Accept:
@@ -149,9 +149,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 06:29:52 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '6909983659143031563'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -164,7 +164,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[4794480]}}}'
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[2000003]}}}'
     headers:
       Accept:
       - '*/*'
@@ -204,9 +204,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 06:29:54 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '8276373227136915603'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -219,7 +219,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[700011018]}}}'
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[100000005]}}}'
     headers:
       Accept:
       - '*/*'
@@ -251,16 +251,16 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
   response:
     body:
-      string: '{"result":{"DeleteResults":[{"Id":700011018}]}}'
+      string: '{"result":{"DeleteResults":[{"Id":100000005}]}}'
     headers:
       Content-Length:
       - '47'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 06:29:57 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '6943786110824421351'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:

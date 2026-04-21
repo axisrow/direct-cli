@@ -1,6 +1,6 @@
 interactions:
 - request:
-    body: '{"method":"add","params":{"Campaigns":[{"Name":"draft-lifecycle-cassette","StartDate":"2030-01-15","TextCampaign":{"BiddingStrategy":{"Search":{"BiddingStrategyType":"HIGHEST_POSITION"},"Network":{"BiddingStrategyType":"SERVING_OFF"}},"Settings":[]}}]}}'
+    body: '{"method":"add","params":{"AdVideos":[{"VideoData":"<REDACTED>","Name":"draft-creative-video"}]}}'
     headers:
       Accept:
       - '*/*'
@@ -9,7 +9,7 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '253'
+      - '355675'
       Content-Type:
       - application/json
       User-Agent:
@@ -29,13 +29,15 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
+    uri: https://api.direct.yandex.com/json/v5/advideos
   response:
     body:
-      string: '{"result":{"AddResults":[{"Id":100000002}]}}'
+      string: '{"result":{"AddResults":[{"Id":"aabbccdd1122334455667700002"}]}}'
     headers:
       Content-Length:
-      - '44'
+      - '64'
+      Content-Security-Policy:
+      - default-src 'none'
       Content-Type:
       - application/json;charset=utf-8
       Date:
@@ -45,16 +47,22 @@ interactions:
       Set-Cookie:
       - REDACTED
       Units:
-      - 15/147932/160000
+      - 60/3306986/3310000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:4122921155024206852,cmd:direct.api5/campaigns.add,appcode:0
+      - reqid:6123797330537336162,cmd:direct.api5/advideos.add,appcode:0
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
     status:
       code: 200
       message: OK
 - request:
-    body: '{"method":"get","params":{"SelectionCriteria":{"Ids":[100000002]},"FieldNames":["Id","Name","Status","State"]}}'
+    body: '{"method":"add","params":{"Creatives":[{"VideoExtensionCreative":{"VideoId":"aabbccdd1122334455667700002"}}]}}'
     headers:
       Accept:
       - '*/*'
@@ -63,7 +71,7 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '111'
+      - '110'
       Content-Type:
       - application/json
       User-Agent:
@@ -83,13 +91,15 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
+    uri: https://api.direct.yandex.com/json/v5/creatives
   response:
     body:
-      string: '{"result":{"Campaigns":[{"Id":100000002,"Name":"draft-lifecycle-cassette","Status":"DRAFT","State":"OFF"}]}}'
+      string: '{"result":{"AddResults":[{"Id":1000000001}]}}'
     headers:
       Content-Length:
-      - '108'
+      - '45'
+      Content-Security-Policy:
+      - default-src 'none'
       Content-Type:
       - application/json;charset=utf-8
       Date:
@@ -99,16 +109,22 @@ interactions:
       Set-Cookie:
       - REDACTED
       Units:
-      - 11/147921/160000
+      - 40/3306946/3310000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:6541465724834407063,cmd:direct.api5/campaigns.get,appcode:0
+      - reqid:8568469822809273166,cmd:direct.api5/creatives.add,appcode:0
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
     status:
       code: 200
       message: OK
 - request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[100000002]}}}'
+    body: '{"method":"get","params":{"SelectionCriteria":{"Ids":[1000000001]},"FieldNames":["Id","Name","Type"]}}'
     headers:
       Accept:
       - '*/*'
@@ -117,7 +133,7 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '70'
+      - '102'
       Content-Type:
       - application/json
       User-Agent:
@@ -137,13 +153,16 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
+    uri: https://api.direct.yandex.com/json/v5/creatives
   response:
     body:
-      string: '{"result":{"DeleteResults":[{"Id":100000002}]}}'
+      string: "{\"result\":{\"Creatives\":[{\"Id\":1000000001,\"Type\":\"VIDEO_EXTENSION_CREATIVE\",\"Name\":\"\u041D\u043E\u0432\u044B\u0439
+        \u0432\u0438\u0434\u0435\u043E\u043A\u0440\u0435\u0430\u0442\u0438\u0432\"}]}}"
     headers:
       Content-Length:
-      - '47'
+      - '123'
+      Content-Security-Policy:
+      - default-src 'none'
       Content-Type:
       - application/json;charset=utf-8
       Date:
@@ -153,65 +172,17 @@ interactions:
       Set-Cookie:
       - REDACTED
       Units:
-      - 12/147909/160000
+      - 16/3306930/3310000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:1828395488783659529,cmd:direct.api5/campaigns.delete,appcode:0
-    status:
-      code: 200
-      message: OK
-- request:
-    body: '{"method":"get","params":{"SelectionCriteria":{"Ids":[100000002]},"FieldNames":["Id","Name","Status","State"]}}'
-    headers:
-      Accept:
-      - '*/*'
-      Accept-Encoding:
-      - gzip, deflate
-      Connection:
-      - keep-alive
-      Content-Length:
-      - '111'
-      Content-Type:
-      - application/json
-      User-Agent:
-      - python-requests/2.32.5
-      authorization:
-      - REDACTED
-      client-login:
-      - REDACTED
-      processingMode:
-      - auto
-      returnMoneyInMicros:
-      - 'false'
-      skipColumnHeader:
-      - 'false'
-      skipReportHeader:
-      - 'true'
-      skipReportSummary:
-      - 'true'
-    method: POST
-    uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
-  response:
-    body:
-      string: '{"result":{"Campaigns":[]}}'
-    headers:
-      Content-Length:
-      - '27'
-      Content-Type:
-      - application/json;charset=utf-8
-      Date:
-      - Mon, 01 Jan 2024 00:00:00 GMT
-      RequestId:
-      - '50565253789179739'
-      Set-Cookie:
-      - REDACTED
-      Units:
-      - 10/147899/160000
-      Units-Used-Login:
-      - REDACTED
-      X-Accel-Info:
-      - reqid:50565253789179739,cmd:direct.api5/campaigns.get,appcode:0
+      - reqid:7412883103023523879,cmd:direct.api5/creatives.get,appcode:0
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
     status:
       code: 200
       message: OK

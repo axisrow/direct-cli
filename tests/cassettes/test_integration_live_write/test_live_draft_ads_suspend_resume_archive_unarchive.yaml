@@ -32,7 +32,7 @@ interactions:
     uri: https://api.direct.yandex.com/json/v5/campaigns
   response:
     body:
-      string: '{"result":{"AddResults":[{"Id":709163259}]}}'
+      string: '{"result":{"AddResults":[{"Id":100000018}]}}'
     headers:
       Content-Length:
       - '44'
@@ -41,9 +41,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 11:59:00 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '6807089152559967345'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -62,7 +62,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"add","params":{"AdGroups":[{"Name":"draft-group","CampaignId":709163259,"RegionIds":[1,225]}]}}'
+    body: '{"method":"add","params":{"AdGroups":[{"Name":"draft-group","CampaignId":100000018,"RegionIds":[1,225]}]}}'
     headers:
       Accept:
       - '*/*'
@@ -94,7 +94,7 @@ interactions:
     uri: https://api.direct.yandex.com/json/v5/adgroups
   response:
     body:
-      string: '{"result":{"AddResults":[{"Id":5743529462}]}}'
+      string: '{"result":{"AddResults":[{"Id":2000000006}]}}'
     headers:
       Content-Length:
       - '45'
@@ -103,9 +103,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 11:59:05 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '6343668003411928501'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -124,7 +124,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"add","params":{"Ads":[{"AdGroupId":5743529462,"TextAd":{"Mobile":"NO","Title":"SR
+    body: '{"method":"add","params":{"Ads":[{"AdGroupId":2000000006,"TextAd":{"Mobile":"NO","Title":"SR
       Draft Ad","Text":"Test ad","Href":"https://example.com"}}]}}'
     headers:
       Accept:
@@ -157,7 +157,7 @@ interactions:
     uri: https://api.direct.yandex.com/json/v5/ads
   response:
     body:
-      string: '{"result":{"AddResults":[{"Id":17692565308,"Warnings":[{"Code":10165,"Message":"Parameter
+      string: '{"result":{"AddResults":[{"Id":30000000002,"Warnings":[{"Code":10165,"Message":"Parameter
         will not be applied"}]}]}}'
     headers:
       Content-Length:
@@ -167,9 +167,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 11:59:08 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '8722324527507927458'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -188,7 +188,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"suspend","params":{"SelectionCriteria":{"Ids":[17692565308]}}}'
+    body: '{"method":"suspend","params":{"SelectionCriteria":{"Ids":[30000000002]}}}'
     headers:
       Accept:
       - '*/*'
@@ -230,9 +230,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 11:59:10 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '8778833480672578063'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -251,7 +251,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"resume","params":{"SelectionCriteria":{"Ids":[17692565308]}}}'
+    body: '{"method":"resume","params":{"SelectionCriteria":{"Ids":[30000000002]}}}'
     headers:
       Accept:
       - '*/*'
@@ -293,9 +293,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 11:59:12 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '6306501959217762673'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -314,7 +314,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"archive","params":{"SelectionCriteria":{"Ids":[17692565308]}}}'
+    body: '{"method":"archive","params":{"SelectionCriteria":{"Ids":[30000000002]}}}'
     headers:
       Accept:
       - '*/*'
@@ -356,9 +356,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 11:59:14 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '7786470310387809974'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -377,7 +377,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"unarchive","params":{"SelectionCriteria":{"Ids":[17692565308]}}}'
+    body: '{"method":"unarchive","params":{"SelectionCriteria":{"Ids":[30000000002]}}}'
     headers:
       Accept:
       - '*/*'
@@ -409,7 +409,7 @@ interactions:
     uri: https://api.direct.yandex.com/json/v5/ads
   response:
     body:
-      string: '{"result":{"UnarchiveResults":[{"Id":17692565308,"Warnings":[{"Code":10203,"Message":"Ad
+      string: '{"result":{"UnarchiveResults":[{"Id":30000000002,"Warnings":[{"Code":10203,"Message":"Ad
         is not archived"}]}]}}'
     headers:
       Content-Length:
@@ -419,9 +419,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 11:59:17 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '6399986199033925120'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -440,7 +440,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[17692565308]}}}'
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[30000000002]}}}'
     headers:
       Accept:
       - '*/*'
@@ -472,7 +472,7 @@ interactions:
     uri: https://api.direct.yandex.com/json/v5/ads
   response:
     body:
-      string: '{"result":{"DeleteResults":[{"Id":17692565308}]}}'
+      string: '{"result":{"DeleteResults":[{"Id":30000000002}]}}'
     headers:
       Content-Length:
       - '49'
@@ -481,7 +481,7 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 11:59:20 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
       - '976571831808160644'
       Set-Cookie:
@@ -502,7 +502,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[5743529462]}}}'
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[2000000006]}}}'
     headers:
       Accept:
       - '*/*'
@@ -534,7 +534,7 @@ interactions:
     uri: https://api.direct.yandex.com/json/v5/adgroups
   response:
     body:
-      string: '{"result":{"DeleteResults":[{"Id":5743529462}]}}'
+      string: '{"result":{"DeleteResults":[{"Id":2000000006}]}}'
     headers:
       Content-Length:
       - '48'
@@ -543,9 +543,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 11:59:23 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '1048739671480686654'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -564,7 +564,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[709163259]}}}'
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[100000018]}}}'
     headers:
       Accept:
       - '*/*'
@@ -596,7 +596,7 @@ interactions:
     uri: https://api.direct.yandex.com/json/v5/campaigns
   response:
     body:
-      string: '{"result":{"DeleteResults":[{"Id":709163259}]}}'
+      string: '{"result":{"DeleteResults":[{"Id":100000018}]}}'
     headers:
       Content-Length:
       - '47'
@@ -605,9 +605,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 11:59:26 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '5839403535323920148'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:

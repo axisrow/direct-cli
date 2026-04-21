@@ -1,6 +1,6 @@
 interactions:
 - request:
-    body: '{"method":"add","params":{"RetargetingLists":[{"Name":"test-rtg-cassette","Type":"RETARGETING","Rules":[{"Operator":"ANY","Arguments":[{"ExternalId":1234567890}]}]}]}}'
+    body: '{"method":"add","params":{"AdVideos":[{"VideoData":"<REDACTED>","Name":"draft-test-video"}]}}'
     headers:
       Accept:
       - '*/*'
@@ -9,7 +9,7 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '167'
+      - '355671'
       Content-Type:
       - application/json
       User-Agent:
@@ -29,13 +29,15 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api-sandbox.direct.yandex.com/json/v5/retargetinglists
+    uri: https://api.direct.yandex.com/json/v5/advideos
   response:
     body:
-      string: '{"result":{"AddResults":[{"Id":1001}]}}'
+      string: '{"result":{"AddResults":[{"Id":"aabbccdd1122334455667700001"}]}}'
     headers:
       Content-Length:
-      - '39'
+      - '64'
+      Content-Security-Policy:
+      - default-src 'none'
       Content-Type:
       - application/json;charset=utf-8
       Date:
@@ -45,16 +47,22 @@ interactions:
       Set-Cookie:
       - REDACTED
       Units:
-      - 12/146957/160000
+      - 60/3307057/3310000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:9166794516578554207,cmd:direct.api5/retargetinglists.add,appcode:0
+      - reqid:4746467954043220172,cmd:direct.api5/advideos.add,appcode:0
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
     status:
       code: 200
       message: OK
 - request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[1001]}}}'
+    body: '{"method":"get","params":{"SelectionCriteria":{"Ids":["aabbccdd1122334455667700001"]},"FieldNames":["Id","Status"]}}'
     headers:
       Accept:
       - '*/*'
@@ -63,7 +71,7 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '65'
+      - '116'
       Content-Type:
       - application/json
       User-Agent:
@@ -83,14 +91,15 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api-sandbox.direct.yandex.com/json/v5/retargetinglists
+    uri: https://api.direct.yandex.com/json/v5/advideos
   response:
     body:
-      string: '{"result":{"DeleteResults":[{"Errors":[{"Code":8800,"Message":"Object
-        not found"}]}]}}'
+      string: '{"result":{"AdVideos":[{"Id":"aabbccdd1122334455667700001","Status":"READY"}]}}'
     headers:
       Content-Length:
-      - '86'
+      - '79'
+      Content-Security-Policy:
+      - default-src 'none'
       Content-Type:
       - application/json;charset=utf-8
       Date:
@@ -100,11 +109,17 @@ interactions:
       Set-Cookie:
       - REDACTED
       Units:
-      - 30/146927/160000
+      - 11/3307046/3310000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:1135176297498595418,cmd:direct.api5/retargetinglists.delete,appcode:0
+      - reqid:2724554818578151811,cmd:direct.api5/advideos.get,appcode:0
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
     status:
       code: 200
       message: OK

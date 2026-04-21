@@ -10,7 +10,7 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '174'
+      - '102'
       Content-Type:
       - application/json
       User-Agent:
@@ -33,7 +33,7 @@ interactions:
     uri: https://api.direct.yandex.com/json/v5/sitelinks
   response:
     body:
-      string: '{"result":{"AddResults":[{"Id":1472003845}]}}'
+      string: '{"result":{"AddResults":[{"Id":1000000002}]}}'
     headers:
       Content-Length:
       - '45'
@@ -42,9 +42,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 11:54:24 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '4549920624354706648'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -63,7 +63,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"get","params":{"SelectionCriteria":{"Ids":[1472003845]},"FieldNames":["Id","Sitelinks"]}}'
+    body: '{"method":"get","params":{"SelectionCriteria":{"Ids":[1000000002]},"FieldNames":["Id","Sitelinks"]}}'
     headers:
       Accept:
       - '*/*'
@@ -95,7 +95,7 @@ interactions:
     uri: https://api.direct.yandex.com/json/v5/sitelinks
   response:
     body:
-      string: '{"result":{"SitelinksSets":[{"Id":1472003845,"Sitelinks":[{"Title":"CLI
+      string: '{"result":{"SitelinksSets":[{"Id":1000000002,"Sitelinks":[{"Title":"CLI
         Test","Href":"https://example.com/test","Description":null},{"Title":"CLI
         Test 2","Href":"https://example.com/test2","Description":null}]}]}}'
     headers:
@@ -104,9 +104,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 11:54:27 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '2666638050766176083'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Transfer-Encoding:
@@ -127,7 +127,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[1472003845]}}}'
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[1000000002]}}}'
     headers:
       Accept:
       - '*/*'
@@ -159,7 +159,7 @@ interactions:
     uri: https://api.direct.yandex.com/json/v5/sitelinks
   response:
     body:
-      string: '{"result":{"DeleteResults":[{"Id":1472003845}]}}'
+      string: '{"result":{"DeleteResults":[{"Id":1000000002}]}}'
     headers:
       Content-Length:
       - '48'
@@ -168,9 +168,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 11:54:29 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '8782552956676437533'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:

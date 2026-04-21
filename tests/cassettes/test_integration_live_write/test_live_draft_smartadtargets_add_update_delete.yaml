@@ -32,7 +32,7 @@ interactions:
     uri: https://api.direct.yandex.com/json/v5/feeds
   response:
     body:
-      string: '{"result":{"AddResults":[{"Id":3286108}]}}'
+      string: '{"result":{"AddResults":[{"Id":1000001}]}}'
     headers:
       Content-Length:
       - '42'
@@ -41,7 +41,7 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 13:08:56 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
       - '271218979497548931'
       Set-Cookie:
@@ -106,9 +106,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 13:09:00 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '5456552869560930794'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -127,7 +127,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[3286108]}}}'
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[1000001]}}}'
     headers:
       Accept:
       - '*/*'
@@ -159,7 +159,7 @@ interactions:
     uri: https://api.direct.yandex.com/json/v5/feeds
   response:
     body:
-      string: '{"result":{"DeleteResults":[{"Id":3286108}]}}'
+      string: '{"result":{"DeleteResults":[{"Id":1000001}]}}'
     headers:
       Content-Length:
       - '45'
@@ -168,9 +168,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 13:09:05 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '2156966093305561392'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:

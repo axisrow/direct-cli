@@ -32,16 +32,16 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
   response:
     body:
-      string: '{"result":{"AddResults":[{"Id":700011014}]}}'
+      string: '{"result":{"AddResults":[{"Id":100000001}]}}'
     headers:
       Content-Length:
       - '44'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 06:28:46 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '2941715432670080265'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -54,7 +54,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"update","params":{"Campaigns":[{"Id":700011014,"Name":"lifecycle-cassette-renamed"}]}}'
+    body: '{"method":"update","params":{"Campaigns":[{"Id":100000001,"Name":"lifecycle-cassette-renamed"}]}}'
     headers:
       Accept:
       - '*/*'
@@ -86,16 +86,16 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
   response:
     body:
-      string: '{"result":{"UpdateResults":[{"Id":700011014}]}}'
+      string: '{"result":{"UpdateResults":[{"Id":100000001}]}}'
     headers:
       Content-Length:
       - '47'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 06:28:49 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '7126530251092685598'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -108,7 +108,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"suspend","params":{"SelectionCriteria":{"Ids":[700011014]}}}'
+    body: '{"method":"suspend","params":{"SelectionCriteria":{"Ids":[100000001]}}}'
     headers:
       Accept:
       - '*/*'
@@ -151,9 +151,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 06:28:51 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '8240975942913344167'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -166,7 +166,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"archive","params":{"SelectionCriteria":{"Ids":[700011014]}}}'
+    body: '{"method":"archive","params":{"SelectionCriteria":{"Ids":[100000001]}}}'
     headers:
       Accept:
       - '*/*'
@@ -209,9 +209,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 06:28:53 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '8664891712193788691'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -224,7 +224,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"unarchive","params":{"SelectionCriteria":{"Ids":[700011014]}}}'
+    body: '{"method":"unarchive","params":{"SelectionCriteria":{"Ids":[100000001]}}}'
     headers:
       Accept:
       - '*/*'
@@ -256,7 +256,7 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
   response:
     body:
-      string: '{"result":{"UnarchiveResults":[{"Id":700011014,"Warnings":[{"Code":10023,"Message":"Object
+      string: '{"result":{"UnarchiveResults":[{"Id":100000001,"Warnings":[{"Code":10023,"Message":"Object
         is not archived","Details":"Campaign is not archived"}]}]}}'
     headers:
       Content-Length:
@@ -264,7 +264,7 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 06:28:58 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
       - '677908413749004393'
       Set-Cookie:
@@ -279,7 +279,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[700011014]}}}'
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[100000001]}}}'
     headers:
       Accept:
       - '*/*'
@@ -311,16 +311,16 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
   response:
     body:
-      string: '{"result":{"DeleteResults":[{"Id":700011014}]}}'
+      string: '{"result":{"DeleteResults":[{"Id":100000001}]}}'
     headers:
       Content-Length:
       - '47'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 06:29:00 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '6084079096985489772'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
