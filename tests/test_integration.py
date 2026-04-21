@@ -443,7 +443,6 @@ class TestReadOnlyAgencyClients(unittest.TestCase):
         ):
             self.skipTest("agencyclients returned 403 — not an agency account")
         assert_success(result, "agencyclients get")
->>>>>>> main
 
 
 if __name__ == "__main__":

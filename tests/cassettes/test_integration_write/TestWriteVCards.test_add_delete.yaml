@@ -32,16 +32,16 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
   response:
     body:
-      string: '{"result":{"AddResults":[{"Id":700011024}]}}'
+      string: '{"result":{"AddResults":[{"Id":100000011}]}}'
     headers:
       Content-Length:
       - '44'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 06:31:25 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '5994182362962702552'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -49,12 +49,12 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:5994182362962702552,cmd:direct.api5/campaigns.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/campaigns.add,appcode:0
     status:
       code: 200
       message: OK
 - request:
-    body: "{\"method\":\"add\",\"params\":{\"VCards\":[{\"CampaignId\":700011024,\"Country\":\"\u0420\u043E\u0441\u0441\u0438\u044F\",\"City\":\"\u041C\u043E\u0441\u043A\u0432\u0430\",\"CompanyName\":\"Test
+    body: "{\"method\":\"add\",\"params\":{\"VCards\":[{\"CampaignId\":100000011,\"Country\":\"\u0420\u043E\u0441\u0441\u0438\u044F\",\"City\":\"\u041C\u043E\u0441\u043A\u0432\u0430\",\"CompanyName\":\"Test
       Company\",\"WorkTime\":\"1#5#9#0#18#0\",\"Phone\":{\"CountryCode\":\"+7\",\"CityCode\":\"495\",\"PhoneNumber\":\"1234567\"}}]}}"
     headers:
       Accept:
@@ -87,16 +87,16 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/vcards
   response:
     body:
-      string: '{"result":{"AddResults":[{"Id":340674}]}}'
+      string: '{"result":{"AddResults":[{"Id":100001}]}}'
     headers:
       Content-Length:
       - '41'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 06:31:27 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '4392635169868073162'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -104,12 +104,12 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:4392635169868073162,cmd:direct.api5/vcards.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/vcards.add,appcode:0
     status:
       code: 200
       message: OK
 - request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[340674]}}}'
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[100001]}}}'
     headers:
       Accept:
       - '*/*'
@@ -141,14 +141,14 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/vcards
   response:
     body:
-      string: '{"result":{"DeleteResults":[{"Id":340674}]}}'
+      string: '{"result":{"DeleteResults":[{"Id":100001}]}}'
     headers:
       Content-Length:
       - '44'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 06:31:30 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
       - '806755746493842767'
       Set-Cookie:
@@ -158,12 +158,12 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:806755746493842767,cmd:direct.api5/vcards.delete,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/vcards.delete,appcode:0
     status:
       code: 200
       message: OK
 - request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[700011024]}}}'
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[100000011]}}}'
     headers:
       Accept:
       - '*/*'
@@ -195,16 +195,16 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
   response:
     body:
-      string: '{"result":{"DeleteResults":[{"Id":700011024}]}}'
+      string: '{"result":{"DeleteResults":[{"Id":100000011}]}}'
     headers:
       Content-Length:
       - '47'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 06:31:33 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '3079336828642760954'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -212,7 +212,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:3079336828642760954,cmd:direct.api5/campaigns.delete,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/campaigns.delete,appcode:0
     status:
       code: 200
       message: OK

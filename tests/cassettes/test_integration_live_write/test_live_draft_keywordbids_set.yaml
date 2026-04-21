@@ -32,7 +32,7 @@ interactions:
     uri: https://api.direct.yandex.com/json/v5/campaigns
   response:
     body:
-      string: '{"result":{"AddResults":[{"Id":709163171}]}}'
+      string: '{"result":{"AddResults":[{"Id":100000016}]}}'
     headers:
       Content-Length:
       - '44'
@@ -41,9 +41,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 11:56:30 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '8176332493658577335'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -51,7 +51,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:8176332493658577335,cmd:direct.api5/campaigns.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/campaigns.add,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -62,7 +62,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"add","params":{"AdGroups":[{"Name":"draft-kwbids-group","CampaignId":709163171,"RegionIds":[1,225]}]}}'
+    body: '{"method":"add","params":{"AdGroups":[{"Name":"draft-kwbids-group","CampaignId":100000016,"RegionIds":[1,225]}]}}'
     headers:
       Accept:
       - '*/*'
@@ -94,7 +94,7 @@ interactions:
     uri: https://api.direct.yandex.com/json/v5/adgroups
   response:
     body:
-      string: '{"result":{"AddResults":[{"Id":5743529277}]}}'
+      string: '{"result":{"AddResults":[{"Id":2000000004}]}}'
     headers:
       Content-Length:
       - '45'
@@ -103,9 +103,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 11:56:33 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '4202634560053806094'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -113,7 +113,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:4202634560053806094,cmd:direct.api5/adgroups.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/adgroups.add,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -124,7 +124,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"add","params":{"Keywords":[{"AdGroupId":5743529277,"Keyword":"draft
+    body: '{"method":"add","params":{"Keywords":[{"AdGroupId":2000000004,"Keyword":"draft
       keywordbids keyword"}]}}'
     headers:
       Accept:
@@ -157,7 +157,7 @@ interactions:
     uri: https://api.direct.yandex.com/json/v5/keywords
   response:
     body:
-      string: '{"result":{"AddResults":[{"Id":57019292280}]}}'
+      string: '{"result":{"AddResults":[{"Id":40000000002}]}}'
     headers:
       Content-Length:
       - '46'
@@ -166,9 +166,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 11:56:37 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '6026694054357354140'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -176,7 +176,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:6026694054357354140,cmd:direct.api5/keywords.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/keywords.add,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -187,7 +187,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"set","params":{"KeywordBids":[{"KeywordId":57019292280,"SearchBid":8000000,"NetworkBid":3000000}]}}'
+    body: '{"method":"set","params":{"KeywordBids":[{"KeywordId":40000000002,"SearchBid":8000000,"NetworkBid":3000000}]}}'
     headers:
       Accept:
       - '*/*'
@@ -219,7 +219,7 @@ interactions:
     uri: https://api.direct.yandex.com/json/v5/keywordbids
   response:
     body:
-      string: '{"result":{"SetResults":[{"KeywordId":57019292280,"Warnings":[{"Code":10160,"Message":"Bid
+      string: '{"result":{"SetResults":[{"KeywordId":40000000002,"Warnings":[{"Code":10160,"Message":"Bid
         won''t be applied","Details":"Network bids won''t be changed since network
         impressions are disabled"}]}]}}'
     headers:
@@ -230,9 +230,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 11:56:39 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '7522250413914694482'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -240,7 +240,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:7522250413914694482,cmd:direct.api5/keywordbids.set,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/keywordbids.set,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -251,7 +251,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[57019292280]}}}'
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[40000000002]}}}'
     headers:
       Accept:
       - '*/*'
@@ -283,7 +283,7 @@ interactions:
     uri: https://api.direct.yandex.com/json/v5/keywords
   response:
     body:
-      string: '{"result":{"DeleteResults":[{"Id":57019292280}]}}'
+      string: '{"result":{"DeleteResults":[{"Id":40000000002}]}}'
     headers:
       Content-Length:
       - '49'
@@ -292,9 +292,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 11:56:43 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '1314797570234276562'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -302,7 +302,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:1314797570234276562,cmd:direct.api5/keywords.delete,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/keywords.delete,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -313,7 +313,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[5743529277]}}}'
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[2000000004]}}}'
     headers:
       Accept:
       - '*/*'
@@ -345,7 +345,7 @@ interactions:
     uri: https://api.direct.yandex.com/json/v5/adgroups
   response:
     body:
-      string: '{"result":{"DeleteResults":[{"Id":5743529277}]}}'
+      string: '{"result":{"DeleteResults":[{"Id":2000000004}]}}'
     headers:
       Content-Length:
       - '48'
@@ -354,9 +354,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 11:56:46 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '1563251625115152314'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -364,7 +364,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:1563251625115152314,cmd:direct.api5/adgroups.delete,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/adgroups.delete,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -375,7 +375,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[709163171]}}}'
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[100000016]}}}'
     headers:
       Accept:
       - '*/*'
@@ -407,7 +407,7 @@ interactions:
     uri: https://api.direct.yandex.com/json/v5/campaigns
   response:
     body:
-      string: '{"result":{"DeleteResults":[{"Id":709163171}]}}'
+      string: '{"result":{"DeleteResults":[{"Id":100000016}]}}'
     headers:
       Content-Length:
       - '47'
@@ -416,9 +416,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 11:56:49 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '6556831116408917082'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -426,7 +426,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:6556831116408917082,cmd:direct.api5/campaigns.delete,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/campaigns.delete,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:

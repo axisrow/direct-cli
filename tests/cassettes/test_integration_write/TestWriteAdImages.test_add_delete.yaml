@@ -40,9 +40,9 @@ interactions:
       Content-Type:
       - application/json; charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 06:31:43 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '5687808408528670206'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Transfer-Encoding:
@@ -52,7 +52,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:5687808408528670206,cmd:direct.json-api/adimages.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.json-api/adimages.add,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:

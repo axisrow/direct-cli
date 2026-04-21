@@ -32,7 +32,7 @@ interactions:
     uri: https://api.direct.yandex.com/json/v5/campaigns
   response:
     body:
-      string: '{"result":{"AddResults":[{"Id":709163077}]}}'
+      string: '{"result":{"AddResults":[{"Id":100000013}]}}'
     headers:
       Content-Length:
       - '44'
@@ -41,7 +41,7 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 11:54:38 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
       - '747871763032903589'
       Set-Cookie:
@@ -51,7 +51,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:747871763032903589,cmd:direct.api5/campaigns.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/campaigns.add,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -62,7 +62,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"add","params":{"AdGroups":[{"Name":"draft-test-group","CampaignId":709163077,"RegionIds":[1,225]}]}}'
+    body: '{"method":"add","params":{"AdGroups":[{"Name":"draft-test-group","CampaignId":100000013,"RegionIds":[1,225]}]}}'
     headers:
       Accept:
       - '*/*'
@@ -94,7 +94,7 @@ interactions:
     uri: https://api.direct.yandex.com/json/v5/adgroups
   response:
     body:
-      string: '{"result":{"AddResults":[{"Id":5743529158}]}}'
+      string: '{"result":{"AddResults":[{"Id":2000000001}]}}'
     headers:
       Content-Length:
       - '45'
@@ -103,9 +103,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 11:54:42 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '2945150554326575720'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -113,7 +113,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:2945150554326575720,cmd:direct.api5/adgroups.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/adgroups.add,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -124,7 +124,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"update","params":{"AdGroups":[{"Id":5743529158,"Name":"draft-test-group-renamed"}]}}'
+    body: '{"method":"update","params":{"AdGroups":[{"Id":2000000001,"Name":"draft-test-group-renamed"}]}}'
     headers:
       Accept:
       - '*/*'
@@ -156,7 +156,7 @@ interactions:
     uri: https://api.direct.yandex.com/json/v5/adgroups
   response:
     body:
-      string: '{"result":{"UpdateResults":[{"Id":5743529158}]}}'
+      string: '{"result":{"UpdateResults":[{"Id":2000000001}]}}'
     headers:
       Content-Length:
       - '48'
@@ -165,9 +165,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 11:54:46 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '5774138180729564424'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -175,7 +175,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:5774138180729564424,cmd:direct.api5/adgroups.update,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/adgroups.update,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -186,7 +186,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"get","params":{"SelectionCriteria":{"Ids":[5743529158]},"FieldNames":["Id","Name","CampaignId","Status","Type","RegionIds"]}}'
+    body: '{"method":"get","params":{"SelectionCriteria":{"Ids":[2000000001]},"FieldNames":["Id","Name","CampaignId","Status","Type","RegionIds"]}}'
     headers:
       Accept:
       - '*/*'
@@ -218,7 +218,7 @@ interactions:
     uri: https://api.direct.yandex.com/json/v5/adgroups
   response:
     body:
-      string: '{"result":{"AdGroups":[{"Id":5743529158,"Name":"draft-test-group-renamed","CampaignId":709163077,"Status":"DRAFT","Type":"TEXT_AD_GROUP","RegionIds":[225]}]}}'
+      string: '{"result":{"AdGroups":[{"Id":2000000001,"Name":"draft-test-group-renamed","CampaignId":100000013,"Status":"DRAFT","Type":"TEXT_AD_GROUP","RegionIds":[225]}]}}'
     headers:
       Content-Length:
       - '158'
@@ -227,9 +227,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 11:54:48 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '8551720895351619292'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -237,7 +237,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:8551720895351619292,cmd:direct.api5/adgroups.get,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/adgroups.get,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -248,7 +248,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[5743529158]}}}'
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[2000000001]}}}'
     headers:
       Accept:
       - '*/*'
@@ -280,7 +280,7 @@ interactions:
     uri: https://api.direct.yandex.com/json/v5/adgroups
   response:
     body:
-      string: '{"result":{"DeleteResults":[{"Id":5743529158}]}}'
+      string: '{"result":{"DeleteResults":[{"Id":2000000001}]}}'
     headers:
       Content-Length:
       - '48'
@@ -289,9 +289,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 11:54:52 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '7736061622725192307'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -299,7 +299,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:7736061622725192307,cmd:direct.api5/adgroups.delete,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/adgroups.delete,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -310,7 +310,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[709163077]}}}'
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[100000013]}}}'
     headers:
       Accept:
       - '*/*'
@@ -342,7 +342,7 @@ interactions:
     uri: https://api.direct.yandex.com/json/v5/campaigns
   response:
     body:
-      string: '{"result":{"DeleteResults":[{"Id":709163077}]}}'
+      string: '{"result":{"DeleteResults":[{"Id":100000013}]}}'
     headers:
       Content-Length:
       - '47'
@@ -351,9 +351,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 11:54:56 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '1260944033190854405'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -361,7 +361,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:1260944033190854405,cmd:direct.api5/campaigns.delete,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/campaigns.delete,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:

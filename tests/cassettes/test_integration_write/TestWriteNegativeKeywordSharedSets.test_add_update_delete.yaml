@@ -32,16 +32,16 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/negativekeywordsharedsets
   response:
     body:
-      string: '{"result":{"AddResults":[{"Id":420556}]}}'
+      string: '{"result":{"AddResults":[{"Id":100002}]}}'
     headers:
       Content-Length:
       - '41'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 06:31:53 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '2565780630887737653'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -49,12 +49,12 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:2565780630887737653,cmd:direct.api5/negativekeywordsharedsets.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/negativekeywordsharedsets.add,appcode:0
     status:
       code: 200
       message: OK
 - request:
-    body: "{\"method\":\"update\",\"params\":{\"NegativeKeywordSharedSets\":[{\"Id\":420556,\"NegativeKeywords\":[\"\u0441\u043F\u0430\u043C\",\"\u0431\u043B\u043E\u043A\",\"\u043C\u0443\u0441\u043E\u0440\"]}]}}"
+    body: "{\"method\":\"update\",\"params\":{\"NegativeKeywordSharedSets\":[{\"Id\":100002,\"NegativeKeywords\":[\"\u0441\u043F\u0430\u043C\",\"\u0431\u043B\u043E\u043A\",\"\u043C\u0443\u0441\u043E\u0440\"]}]}}"
     headers:
       Accept:
       - '*/*'
@@ -86,16 +86,16 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/negativekeywordsharedsets
   response:
     body:
-      string: '{"result":{"UpdateResults":[{"Id":420556}]}}'
+      string: '{"result":{"UpdateResults":[{"Id":100002}]}}'
     headers:
       Content-Length:
       - '44'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 06:31:57 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '8596440801050868655'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -103,12 +103,12 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:8596440801050868655,cmd:direct.api5/negativekeywordsharedsets.update,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/negativekeywordsharedsets.update,appcode:0
     status:
       code: 200
       message: OK
 - request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[420556]}}}'
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[100002]}}}'
     headers:
       Accept:
       - '*/*'
@@ -140,16 +140,16 @@ interactions:
     uri: https://api-sandbox.direct.yandex.com/json/v5/negativekeywordsharedsets
   response:
     body:
-      string: '{"result":{"DeleteResults":[{"Id":420556}]}}'
+      string: '{"result":{"DeleteResults":[{"Id":100002}]}}'
     headers:
       Content-Length:
       - '44'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 06:32:04 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '7122829802623900875'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -157,7 +157,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:7122829802623900875,cmd:direct.api5/negativekeywordsharedsets.delete,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/negativekeywordsharedsets.delete,appcode:0
     status:
       code: 200
       message: OK

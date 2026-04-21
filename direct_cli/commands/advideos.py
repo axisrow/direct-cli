@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids, get_default_fields
+from ..utils import parse_ids, get_default_fields, load_base64_file
 
 
 @click.group()
@@ -35,7 +35,7 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
 
         criteria = {}
         if ids:
-            criteria["Ids"] = parse_ids(ids)
+            criteria["Ids"] = [x.strip() for x in ids.split(",")]
 
         params = {
             "SelectionCriteria": criteria,
@@ -64,24 +64,28 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
 
 
 @advideos.command()
-@click.option("--url", help="Video URL (mutually exclusive with --video-data)")
-@click.option("--video-data", help="Base64-encoded video binary (mutually exclusive with --url)")
+@click.option("--url", help="Video URL (mutually exclusive with --video-data/--video-file)")
+@click.option("--video-data", help="Base64-encoded video binary")
+@click.option("--video-file", help="Path to a video file to base64-encode")
 @click.option("--name", help="Video name")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def add(ctx, url, video_data, name, dry_run):
+def add(ctx, url, video_data, video_file, name, dry_run):
     """Add a new ad video (by URL or binary data)"""
     try:
-        if not url and not video_data:
-            raise click.UsageError("Either --url or --video-data is required.")
-        if url and video_data:
-            raise click.UsageError("Use either --url or --video-data, not both.")
+        sources = [s for s in (url, video_data, video_file) if s]
+        if len(sources) != 1:
+            raise click.UsageError(
+                "Provide exactly one of --url, --video-data, or --video-file."
+            )
 
         item = {}
         if url:
             item["Url"] = url
-        if video_data:
+        elif video_data:
             item["VideoData"] = video_data
+        else:
+            item["VideoData"] = load_base64_file(video_file)
         if name:
             item["Name"] = name
 

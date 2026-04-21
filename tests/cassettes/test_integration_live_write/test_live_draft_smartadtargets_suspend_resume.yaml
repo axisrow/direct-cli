@@ -32,7 +32,7 @@ interactions:
     uri: https://api.direct.yandex.com/json/v5/feeds
   response:
     body:
-      string: '{"result":{"AddResults":[{"Id":3286111}]}}'
+      string: '{"result":{"AddResults":[{"Id":1000002}]}}'
     headers:
       Content-Length:
       - '42'
@@ -41,9 +41,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 13:09:44 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '2136793041337238494'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -51,7 +51,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:2136793041337238494,cmd:direct.api5/feeds.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/feeds.add,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -106,9 +106,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 13:09:49 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '5285618490000253834'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -116,7 +116,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:5285618490000253834,cmd:direct.api5/campaigns.add,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/campaigns.add,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
@@ -127,7 +127,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[3286111]}}}'
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[1000002]}}}'
     headers:
       Accept:
       - '*/*'
@@ -159,7 +159,7 @@ interactions:
     uri: https://api.direct.yandex.com/json/v5/feeds
   response:
     body:
-      string: '{"result":{"DeleteResults":[{"Id":3286111}]}}'
+      string: '{"result":{"DeleteResults":[{"Id":1000002}]}}'
     headers:
       Content-Length:
       - '45'
@@ -168,9 +168,9 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Sun, 19 Apr 2026 13:09:55 GMT
+      - Mon, 01 Jan 2024 00:00:00 GMT
       RequestId:
-      - '1054768639356338084'
+      - '0000000000000000000'
       Set-Cookie:
       - REDACTED
       Units:
@@ -178,7 +178,7 @@ interactions:
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:1054768639356338084,cmd:direct.api5/feeds.delete,appcode:0
+      - reqid:0000000000000000000,cmd:direct.api5/feeds.delete,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
