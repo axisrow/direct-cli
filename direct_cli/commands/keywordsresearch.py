@@ -28,7 +28,7 @@ def has_search_volume(ctx, keywords, output_format, output):
         )
 
         body = {
-            "method": "HasSearchVolume",
+            "method": "hasSearchVolume",
             "params": {"Keywords": [k.strip() for k in keywords.split(",")]},
         }
 
@@ -55,7 +55,7 @@ def deduplicate(ctx, keywords, output_format, output):
         )
 
         body = {
-            "method": "Deduplicate",
+            "method": "deduplicate",
             "params": {"Keywords": [k.strip() for k in keywords.split(",")]},
         }
 
