@@ -25,7 +25,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "tapi-yandex-direct @ git+https://github.com/axisrow/tapi-yandex-direct.git@feature/advideos",
+    "tapi-yandex-direct @ git+https://github.com/axisrow/tapi-yandex-direct.git@ced2c9177a7e1488dea9da68a699c9a7ec3a1af8",
     "click>=8.0.0",
     "python-dotenv>=0.19.0",
     "tabulate>=0.8.0",

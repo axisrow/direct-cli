@@ -182,10 +182,11 @@ class TestReadmeContract(unittest.TestCase):
         self.assertIn("direct smartadtargets update", self.content)
         self.assertIn("direct dynamicads set-bids", self.content)
 
-    def test_readme_tracks_dynamicads_update_gap(self):
-        """README must document the missing dynamicads update transport gap."""
+    def test_readme_tracks_dynamicads_update_api_status(self):
+        """README must document that dynamicads update is unsupported by the API."""
         self.assertIn("dynamicads update", self.content)
-        self.assertIn("transport gap", self.content)
+        self.assertIn("unsupported by API", self.content)
+        self.assertNotIn("dynamicads update` is still a transport gap", self.content)
 
 
 if __name__ == "__main__":

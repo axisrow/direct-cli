@@ -298,12 +298,12 @@ direct agencyclients add-passport-organization-member --passport-organization-lo
 direct agencyclients update --client-id 42 --phone +70000000000 --email user@example.com --grant EDIT_CAMPAIGNS --grant IMPORT_XLS --dry-run
 ```
 
-### Known Transport Gap
+### Known Unsupported API Operation
 
-`dynamicads update` is still a transport gap. Downstream wrappers may assume
-that operation exists, but the current installed CLI help surface does not
-expose `dynamicads update`. Treat it as unsupported until a real command is
-added.
+`dynamicads update` is unsupported by API. The Yandex Direct
+`dynamictextadtargets` service exposes `add`, `get`, `delete`, `suspend`,
+`resume`, and `setBids`, but no `update` operation. Do not add or rely on
+`direct dynamicads update` unless Yandex exposes a real API method.
 
 ### Output Formats
 
@@ -824,12 +824,13 @@ direct agencyclients add-passport-organization-member --passport-organization-lo
 direct agencyclients update --client-id 42 --phone +70000000000 --email user@example.com --grant EDIT_CAMPAIGNS --grant IMPORT_XLS --dry-run
 ```
 
-### Известный Transport Gap
+### Известная неподдерживаемая API-операция
 
-`dynamicads update` пока остаётся transport gap. Downstream-обёртки могут
-ожидать эту операцию, но текущая help-поверхность установленного CLI не
-экспортирует `dynamicads update`. До появления реальной команды считайте её
-неподдерживаемой.
+`dynamicads update` unsupported by API. Сервис Яндекс Директа
+`dynamictextadtargets` экспортирует `add`, `get`, `delete`, `suspend`,
+`resume` и `setBids`, но не экспортирует `update`. Не добавляйте и не
+используйте `direct dynamicads update`, пока Яндекс не предоставит реальный
+API-метод.
 
 ### Форматы вывода
 
