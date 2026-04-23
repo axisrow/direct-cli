@@ -16,15 +16,23 @@ def leads():
 
 @leads.command()
 @click.option("--campaign-ids", help="Comma-separated campaign IDs")
+@click.option("--turbo-page-ids", help="Comma-separated turbo page IDs")
 @click.option("--limit", type=int, help="Limit number of results")
 @click.option("--fetch-all", is_flag=True, help="Fetch all pages")
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.option("--fields", help="Comma-separated field names")
 @click.pass_context
-def get(ctx, campaign_ids, limit, fetch_all, output_format, output, fields):
+def get(
+    ctx, campaign_ids, turbo_page_ids, limit, fetch_all, output_format, output, fields
+):
     """Get leads"""
     try:
+        if not campaign_ids and not turbo_page_ids:
+            raise click.UsageError(
+                "Provide at least one of --campaign-ids or --turbo-page-ids"
+            )
+
         client = create_client(
             token=ctx.obj.get("token"),
             login=ctx.obj.get("login"),
@@ -40,6 +48,8 @@ def get(ctx, campaign_ids, limit, fetch_all, output_format, output, fields):
         criteria = {}
         if campaign_ids:
             criteria["CampaignIds"] = parse_ids(campaign_ids)
+        if turbo_page_ids:
+            criteria["TurboPageIds"] = parse_ids(turbo_page_ids)
 
         params = {"SelectionCriteria": criteria, "FieldNames": field_names}
 
@@ -59,6 +69,8 @@ def get(ctx, campaign_ids, limit, fetch_all, output_format, output, fields):
             data = result().extract()
             format_output(data, output_format, output)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
