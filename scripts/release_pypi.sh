@@ -50,6 +50,9 @@ fi
 
 TWINE_USERNAME="${TWINE_USERNAME:-__token__}"
 
+echo "Checking vendor dependencies..."
+bash "${ROOT_DIR}/scripts/update_vendor.sh"
+
 require_var() {
   local name="$1"
   if [[ -z "${!name:-}" ]]; then

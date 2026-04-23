@@ -4,7 +4,7 @@ API client wrapper for Direct CLI
 
 from typing import Optional, Dict, Any, List
 
-from tapi_yandex_direct import YandexDirect
+from direct_cli._vendor.tapi_yandex_direct import YandexDirect
 from .auth import get_credentials
 
 
