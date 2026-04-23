@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids
+from ..utils import get_default_fields, parse_ids
 
 
 @click.group()
@@ -31,9 +31,7 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
             sandbox=ctx.obj.get("sandbox"),
         )
 
-        field_names = (
-            fields.split(",") if fields else ["Id", "Name", "Source", "Status"]
-        )
+        field_names = fields.split(",") if fields else get_default_fields("feeds")
 
         criteria = {}
         if ids:
@@ -68,8 +66,7 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def add(ctx, name, url, dry_run):
-    """Add feed
-    """
+    """Add feed"""
     try:
         feed_data = {
             "Name": name,

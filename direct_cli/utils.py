@@ -94,8 +94,7 @@ def parse_datetime(datetime_str: str) -> str:
         return f"{datetime_str}Z"
     except ValueError:
         raise ValueError(
-            "Invalid datetime format: "
-            f"{datetime_str}. Expected: YYYY-MM-DDTHH:MM:SS"
+            "Invalid datetime format: " f"{datetime_str}. Expected: YYYY-MM-DDTHH:MM:SS"
         )
 
 
@@ -253,7 +252,7 @@ COMMON_FIELDS = {
     "vcards": ["Id", "CampaignId", "Country", "City", "CompanyName"],
     "leads": ["Date", "LeadId", "CampaignId", "AdGroupId", "AdId"],
     "turbopages": ["Id", "Name", "Status", "Href"],
-    "feeds": ["Id", "Name", "Source", "Status"],
+    "feeds": ["Id", "Name", "BusinessType", "SourceType", "Status"],
     "smartadtargets": ["Id", "CampaignId", "AdGroupId", "Status", "ServingStatus"],
     "businesses": ["Id", "Name", "Url"],
     "retargetinglists": ["Id", "Name", "Type", "Scope"],
