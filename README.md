@@ -29,6 +29,35 @@ Or pass credentials directly per command:
 direct --token YOUR_TOKEN --login YOUR_LOGIN campaigns get
 ```
 
+Use profile-specific credentials from `.env`:
+
+```env
+YANDEX_DIRECT_TOKEN_AGENCY1=token-1
+YANDEX_DIRECT_LOGIN_AGENCY1=client-login-1
+YANDEX_DIRECT_TOKEN_AGENCY2=token-2
+YANDEX_DIRECT_LOGIN_AGENCY2=client-login-2
+```
+
+OAuth and profile commands:
+
+```bash
+direct auth login
+direct auth login --profile agency1
+direct auth login --code abc123 --profile agency1
+direct auth login --oauth-token y0_example --profile agency1
+direct auth list
+direct auth use --profile agency1
+direct auth status --profile agency1
+direct --profile agency1 campaigns get
+```
+
+Notes:
+- Legacy profile environment variable is not used.
+- Select credentials with `--profile`.
+- `--login` remains Direct client login.
+- Authorization is performed via `direct auth login`.
+- Alias `auth_login` is not supported.
+
 Install with `pip install direct-cli`, then run commands with `direct`.
 Invoking the deprecated `direct-cli` entrypoint exits with
 `use direct instead of direct-cli`.
@@ -38,7 +67,8 @@ Invoking the deprecated `direct-cli` entrypoint exits with
 | Option | Description |
 |--------|-------------|
 | `--token` | API access token |
-| `--login` | Yandex advertiser login |
+| `--login` | Direct client login |
+| `--profile` | Credential profile name |
 | `--sandbox` | Use sandbox API |
 
 ### CLI Convention
@@ -523,7 +553,7 @@ direct --token ВАШ_ТОКЕН --login ВАШ_ЛОГИН campaigns get
 | Опция | Описание |
 |-------|----------|
 | `--token` | OAuth-токен доступа к API |
-| `--login` | Логин рекламодателя на Яндексе |
+| `--login` | Direct client login |
 | `--sandbox` | Использовать тестовое API (песочница) |
 
 ### Использование

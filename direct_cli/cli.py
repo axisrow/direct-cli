@@ -7,7 +7,7 @@ import click
 from dotenv import load_dotenv
 
 from . import __version__
-from .auth import get_credentials
+from .auth import get_active_profile, get_credentials
 
 from .commands.campaigns import campaigns
 from .commands.adgroups import adgroups
@@ -39,6 +39,7 @@ from .commands.dynamicads import dynamicads
 from .commands.advideos import advideos
 from .commands.dynamicfeedadtargets import dynamicfeedadtargets
 from .commands.strategies import strategies
+from .commands.auth import auth
 
 # Load .env file
 load_dotenv()
@@ -48,6 +49,7 @@ load_dotenv()
 @click.version_option(__version__, prog_name="direct")
 @click.option("--token", envvar="YANDEX_DIRECT_TOKEN", help="API access token")
 @click.option("--login", envvar="YANDEX_DIRECT_LOGIN", help="Client login")
+@click.option("--profile", help="Credential profile name")
 @click.option("--sandbox", is_flag=True, help="Use sandbox API")
 @click.option(
     "--op-token-ref",
@@ -74,6 +76,7 @@ def cli(
     ctx,
     token,
     login,
+    profile,
     sandbox,
     op_token_ref,
     op_login_ref,
@@ -83,15 +86,28 @@ def cli(
     """Command-line interface for Yandex Direct API"""
     ctx.ensure_object(dict)
     ctx.obj["sandbox"] = sandbox
+    ctx.obj["profile"] = profile
+    active_profile = None
+    if ctx.invoked_subcommand != "auth":
+        active_profile = get_active_profile()
+
     # Resolve credentials early so all subcommands get the final values
     has_refs = (
-        token or login or op_token_ref or op_login_ref or bw_token_ref or bw_login_ref
+        token
+        or login
+        or profile
+        or active_profile
+        or op_token_ref
+        or op_login_ref
+        or bw_token_ref
+        or bw_login_ref
     )
     if has_refs:
         try:
             resolved_token, resolved_login = get_credentials(
                 token=token,
                 login=login,
+                profile=profile,
                 op_token_ref=op_token_ref,
                 op_login_ref=op_login_ref,
                 bw_token_ref=bw_token_ref,
@@ -101,8 +117,11 @@ def cli(
             ctx.obj["login"] = resolved_login
         except RuntimeError as e:
             raise click.ClickException(str(e))
-        except ValueError:
-            # No token provided — let subcommands fail naturally
+        except ValueError as e:
+            if profile or active_profile:
+                # Explicit profile selected but not found — surface the error
+                raise click.ClickException(str(e))
+            # No credential source at all — let subcommands fail naturally
             ctx.obj["token"] = token
             ctx.obj["login"] = login
     else:
@@ -141,6 +160,7 @@ cli.add_command(dynamicads)
 cli.add_command(advideos)
 cli.add_command(dynamicfeedadtargets)
 cli.add_command(strategies)
+cli.add_command(auth)
 
 
 if __name__ == "__main__":
