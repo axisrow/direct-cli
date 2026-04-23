@@ -51,6 +51,8 @@ def get(
                 "ServingStatus",
                 "StrategyPriority",
             ],
+            "SearchFieldNames": ["Bid"],
+            "NetworkFieldNames": ["Bid"],
         }
 
         if limit:
