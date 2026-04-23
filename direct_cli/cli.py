@@ -117,8 +117,11 @@ def cli(
             ctx.obj["login"] = resolved_login
         except RuntimeError as e:
             raise click.ClickException(str(e))
-        except ValueError:
-            # No token provided — let subcommands fail naturally
+        except ValueError as e:
+            if profile or active_profile:
+                # Explicit profile selected but not found — surface the error
+                raise click.ClickException(str(e))
+            # No credential source at all — let subcommands fail naturally
             ctx.obj["token"] = token
             ctx.obj["login"] = login
     else:
