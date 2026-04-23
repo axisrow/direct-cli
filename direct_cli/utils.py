@@ -250,7 +250,7 @@ COMMON_FIELDS = {
     "adextensions": ["Id", "Type", "Status"],
     "sitelinks": ["Id", "Sitelinks"],
     "vcards": ["Id", "CampaignId", "Country", "City", "CompanyName"],
-    "leads": ["Date", "LeadId", "CampaignId", "AdGroupId", "AdId"],
+    "leads": ["Id", "SubmittedAt", "TurboPageId", "TurboPageName"],
     "turbopages": ["Id", "Name", "Status", "Href"],
     "feeds": ["Id", "Name", "BusinessType", "SourceType", "Status"],
     "smartadtargets": ["Id", "CampaignId", "AdGroupId", "Status", "ServingStatus"],
