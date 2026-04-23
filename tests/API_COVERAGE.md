@@ -27,8 +27,28 @@ report values:
 |---|---:|
 | Declared WSDL services | 29 |
 | Live-discovered services | 29 |
+| Declared WSDL operations | 112 |
+| Non-WSDL API services | 1 |
+| Supported API services including Reports | 30 |
+| CLI top-level groups including auth | 31 |
+| CLI subcommands including auth | 122 |
+| API CLI subcommands excluding auth | 118 |
 | Live-discovered missing services | 0 |
 | Live-discovered missing methods | 0 |
+
+## Smoke Command Matrix
+
+Every registered Click subcommand is classified exactly once in
+`direct_cli/smoke_matrix.py`:
+
+| Category | Runner | Purpose |
+|---|---|---|
+| `SAFE` | `scripts/test_safe_commands.sh` | Production read-only smoke tests |
+| `WRITE_SANDBOX` | `scripts/test_sandbox_write.sh` | Live mutating sandbox smoke tests with per-command `PASS` / `FAIL` / `SANDBOX_LIMITATION` / `NOT_COVERED` report |
+| `DANGEROUS` | `scripts/test_dangerous_commands.sh` | Manual-only checklist; exits 1 by design |
+
+`tests/test_smoke_matrix.py` fails if a CLI command is missing from the matrix,
+appears in multiple categories, or if the current service/command counts drift.
 
 ## Maintenance Rules
 

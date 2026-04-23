@@ -106,6 +106,17 @@ the runtime CLI by default. If compatibility is ever needed, an alias must be
 added as an explicit exception with the concrete legacy syntax that still has to
 be supported.
 
+#### Removed Legacy Names
+
+| Legacy name                | Canonical name               |
+|----------------------------|------------------------------|
+| `dynamictargets`           | `dynamicads`                 |
+| `smarttargets`             | `smartadtargets`             |
+| `negativekeywords`         | `negativekeywordsharedsets`  |
+| `list`                     | `get`                        |
+| `checkcamp`                | `check-campaigns`            |
+| `checkdict`                | `check-dictionaries`         |
+
 #### Input Rules
 
 - All user-facing input must be passed only through typed CLI flags.
@@ -400,6 +411,27 @@ YANDEX_DIRECT_LIVE_WRITE=1 pytest -m integration_live_write -v  # live draft cas
 YANDEX_DIRECT_LIVE_WRITE=1 pytest -m integration_live_write -v --record-mode=rewrite  # re-record live draft cassette
 ```
 
+#### Smoke command scripts
+
+Every CLI subcommand is classified in `direct_cli/smoke_matrix.py`.
+
+| Category | Script | When to run |
+|---|---|---|
+| SAFE | `scripts/test_safe_commands.sh` | Production read-only smoke checks; requires `YANDEX_DIRECT_TOKEN` and `YANDEX_DIRECT_LOGIN` |
+| WRITE_SANDBOX | `scripts/test_sandbox_write.sh` | Live sandbox write smoke checks; requires `YANDEX_DIRECT_TOKEN` and `YANDEX_DIRECT_LOGIN`; reports `PASS`, `FAIL`, `SANDBOX_LIMITATION`, or `NOT_COVERED` for each command |
+| DANGEROUS | `scripts/test_dangerous_commands.sh` | Manual checklist only; exits with status 1 by design |
+
+Current command surface:
+
+| Metric | Count |
+|---|---:|
+| WSDL-backed API services | 29 |
+| Supported API services including Reports | 30 |
+| WSDL operations | 112 |
+| CLI groups including `auth` | 31 |
+| CLI subcommands including `auth` | 122 |
+| API CLI subcommands excluding `auth` | 118 |
+
 ### API Coverage And Drift Monitoring
 
 The project now distinguishes four surfaces:
@@ -432,24 +464,43 @@ CI runs a scheduled API coverage workflow that:
   parity and live-discovered model gap counts;
 - checks the cached WSDL files against the live Yandex Direct API on schedule.
 
+#### Live sandbox write smoke
+
+`WRITE_SANDBOX` smoke is a live check against the Yandex Direct **sandbox**.
+It does not replay stored HTTP traffic and it does not create new recordings.
+Run it only when you intentionally want to call `api-sandbox.direct.yandex.com`:
+
+```bash
+set -a && source .env && set +a
+scripts/test_sandbox_write.sh
+```
+
+The runner executes matrix commands through `direct --sandbox ...`, creates
+temporary sandbox prerequisites where possible, and cleans them up best-effort.
+The report contains one row per `WRITE_SANDBOX` command:
+
+- `PASS` means the command completed against the live sandbox API.
+- `SANDBOX_LIMITATION` means the request reached the API and hit a known
+  sandbox-only limitation such as codes `8800`, `1000`, `3500`, or `5004`.
+- `FAIL` means an unexpected CLI or API error.
+- `NOT_COVERED` means the runner does not yet know how to safely build the
+  prerequisites for that command.
+
+The same OAuth token works for both production and the sandbox; no separate
+sandbox token is needed.
+
 #### Re-recording write cassettes
 
-The write tests replay HTTP traffic captured from the Yandex Direct **sandbox**
-(`--sandbox` is injected automatically).  Cassettes live under
-`tests/cassettes/test_integration_write/` and are checked into git.
-
-If you change the request payload of any write command (e.g. adding a field),
-the matching cassette stops replaying and the test fails with a body-mismatch
-error.  To regenerate:
+The `integration_write` pytest tier still replays stored write-test traffic
+for regression coverage. If you change those tests or their payloads and
+intentionally need to refresh the fixtures, regenerate them separately:
 
 ```bash
 set -a && source .env && set +a        # load YANDEX_DIRECT_TOKEN / LOGIN
 pytest -m integration_write -v --record-mode=rewrite
 ```
 
-**The same OAuth token works for both production and the sandbox** — no
-separate sandbox token is needed.  After recording, **always audit the
-generated YAMLs for leaked secrets**:
+After recording, **always audit the generated YAMLs for leaked secrets**:
 
 ```bash
 grep -r "$YANDEX_DIRECT_TOKEN" tests/cassettes/   # must return nothing
@@ -584,6 +635,17 @@ Command naming rules:
 сохраняются в runtime CLI. Если совместимость когда-нибудь понадобится, alias
 должен быть добавлен как явное exception-правило с конкретным legacy syntax из
 `tapi-yandex-direct`, который действительно нужно поддержать.
+
+Удалённые исторические имена:
+
+| Историческое имя           | Каноническое имя             |
+|----------------------------|------------------------------|
+| `dynamictargets`           | `dynamicads`                 |
+| `smarttargets`             | `smartadtargets`             |
+| `negativekeywords`         | `negativekeywordsharedsets`  |
+| `list`                     | `get`                        |
+| `checkcamp`                | `check-campaigns`            |
+| `checkdict`                | `check-dictionaries`         |
 
 `direct` — это канонический transport entrypoint над API Яндекс Директа,
 устанавливаемый пакетом `direct-cli`. Канонические имена CLI-групп следуют
@@ -927,24 +989,64 @@ YANDEX_DIRECT_LIVE_WRITE=1 pytest -m integration_live_write -v  # replay live dr
 YANDEX_DIRECT_LIVE_WRITE=1 pytest -m integration_live_write -v --record-mode=rewrite  # перезапись live draft-кассеты
 ```
 
+#### Smoke-скрипты команд
+
+Каждая CLI-подкоманда классифицирована в `direct_cli/smoke_matrix.py`.
+
+| Категория | Скрипт | Когда запускать |
+|---|---|---|
+| SAFE | `scripts/test_safe_commands.sh` | Production smoke-проверки только на чтение; нужны `YANDEX_DIRECT_TOKEN` и `YANDEX_DIRECT_LOGIN` |
+| WRITE_SANDBOX | `scripts/test_sandbox_write.sh` | Live sandbox write-проверки; нужны `YANDEX_DIRECT_TOKEN` и `YANDEX_DIRECT_LOGIN`; отчёт печатает `PASS`, `FAIL`, `SANDBOX_LIMITATION` или `NOT_COVERED` для каждой команды |
+| DANGEROUS | `scripts/test_dangerous_commands.sh` | Только ручной checklist; специально завершается с кодом 1 |
+
+Текущая поверхность команд:
+
+| Метрика | Количество |
+|---|---:|
+| WSDL-backed API services | 29 |
+| API services с учётом Reports | 30 |
+| WSDL operations | 112 |
+| CLI groups с `auth` | 31 |
+| CLI subcommands с `auth` | 122 |
+| API CLI subcommands без `auth` | 118 |
+
+#### Live sandbox write smoke
+
+`WRITE_SANDBOX` smoke — это live-проверка против **sandbox-окружения**
+Яндекс Директа. Она не воспроизводит сохранённый HTTP-трафик и не создаёт
+новые записи. Запускайте её только когда намеренно хотите обратиться к
+`api-sandbox.direct.yandex.com`:
+
+```bash
+set -a && source .env && set +a
+scripts/test_sandbox_write.sh
+```
+
+Runner выполняет команды matrix через `direct --sandbox ...`, создаёт
+временные sandbox prerequisites там, где это безопасно, и удаляет их
+best-effort. Отчёт содержит одну строку на каждую команду `WRITE_SANDBOX`:
+
+- `PASS`: команда прошла против live sandbox API.
+- `SANDBOX_LIMITATION`: запрос дошёл до API и получил известное ограничение
+  sandbox, например коды `8800`, `1000`, `3500` или `5004`.
+- `FAIL`: неожиданный CLI/API error.
+- `NOT_COVERED`: runner пока не умеет безопасно построить prerequisites.
+
+Один и тот же OAuth-токен работает и для продакшена, и для sandbox; отдельный
+sandbox-токен не нужен.
+
 #### Перезапись write-кассет
 
-Write-тесты воспроизводят HTTP-трафик, записанный против **sandbox-окружения**
-Яндекс Директа (`--sandbox` подставляется автоматически). Кассеты лежат в
-`tests/cassettes/test_integration_write/` и закоммичены в git.
-
-Если меняется payload какой-то из write-команд (например, добавили поле),
-соответствующая кассета перестанет воспроизводиться, тест упадёт с
-body-mismatch. Перезапись:
+Уровень `integration_write` в pytest всё ещё воспроизводит сохранённый
+write-трафик для регрессионного покрытия. Если вы меняете эти тесты или их
+payload и намеренно хотите обновить fixtures, перезаписывайте их отдельно:
 
 ```bash
 set -a && source .env && set +a        # загрузить YANDEX_DIRECT_TOKEN / LOGIN
 pytest -m integration_write -v --record-mode=rewrite
 ```
 
-**Один и тот же OAuth-токен работает и для продакшена, и для sandbox** —
-отдельный sandbox-токен не нужен. После перезаписи **обязательно проверьте
-YAML-ы на утечку секретов**:
+После перезаписи **обязательно проверьте YAML-ы на утечку секретов**:
 
 ```bash
 grep -r "$YANDEX_DIRECT_TOKEN" tests/cassettes/   # должно быть пусто

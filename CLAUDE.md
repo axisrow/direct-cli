@@ -52,8 +52,17 @@ Click group-of-groups. Each Yandex Direct API resource = one file in `direct_cli
 
 ## Dangerous Commands — Never Auto-Test
 
-- **Irreversible (delete):** `campaigns/adgroups/ads/keywords/audiencetargets delete`
-- **Financial:** `bids set`, `keywordbids set`, `bidmodifiers set`
-- **Live traffic:** `suspend/resume/archive/unarchive` on campaigns, ads, keywords
-- **Mutations:** all `add`/`update` subcommands (test with `--dry-run`)
-- **Safe (read-only):** all `get` subcommands, `changes check*`, `dictionaries list-names`, `keywordsresearch has-search-volume`, `reports list-types`
+Smoke command safety is tracked in `direct_cli/smoke_matrix.py`. Every CLI
+subcommand belongs to exactly one category:
+
+- **SAFE:** production read-only smoke tests in `scripts/test_safe_commands.sh`.
+- **WRITE_SANDBOX:** live mutating smoke tests through
+  `scripts/test_sandbox_write.sh`; these must call only `direct --sandbox ...`
+  and must not touch production data.
+- **DANGEROUS:** manual-only checklist in `scripts/test_dangerous_commands.sh`;
+  the script exits with status 1 by design and must not be used as an
+  automated runner.
+
+Never auto-test production mutations: agency client changes, live bid changes,
+moderation, lifecycle operations, `clients update`, or any `delete` without
+`--sandbox`.

@@ -204,6 +204,15 @@ class TestReadmeContract(unittest.TestCase):
         self.assertIn("YANDEX_DIRECT_LOGIN_AGENCY1", self.content)
         self.assertNotIn("YANDEX_DIRECT_PROFILE", self.content)
 
+    def test_readme_documents_removed_legacy_names(self):
+        """README must include a table of removed legacy group/command names."""
+        for legacy in [
+            "dynamictargets",
+            "smarttargets",
+            "negativekeywords",
+        ]:
+            self.assertIn(legacy, self.content)
+
 
 if __name__ == "__main__":
     unittest.main()
