@@ -19,9 +19,9 @@ def bidmodifiers():
 @click.option("--adgroup-ids", help="Comma-separated ad group IDs")
 @click.option(
     "--levels",
-    type=click.Choice(["CAMPAIGN", "ADGROUP"], case_sensitive=False),
+    type=click.Choice(["CAMPAIGN", "AD_GROUP"], case_sensitive=False),
     multiple=True,
-    default=("CAMPAIGN", "ADGROUP"),
+    default=("CAMPAIGN", "AD_GROUP"),
     show_default=True,
     help="Bid modifier levels to retrieve",
 )
@@ -41,7 +41,7 @@ def get(
             sandbox=ctx.obj.get("sandbox"),
         )
 
-        criteria = {}
+        criteria = {"Levels": [lv.upper() for lv in levels]}
         if campaign_ids:
             criteria["CampaignIds"] = parse_ids(campaign_ids)
         if adgroup_ids:
@@ -49,8 +49,7 @@ def get(
 
         params = {
             "SelectionCriteria": criteria,
-            "Levels": [lv.upper() for lv in levels],
-            "FieldNames": ["Id", "CampaignId", "AdGroupId", "Type", "ModifierValue"],
+            "FieldNames": ["Id", "CampaignId", "AdGroupId", "Level", "Type"],
         }
 
         if limit:
