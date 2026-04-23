@@ -36,11 +36,21 @@ def patch_line(line: str, path: Path, line_number: int) -> str:
     """
     match = FROM_PACKAGE_RE.match(line)
     if match:
-        return f"from . import {match.group(1)}"
+        captured = match.group(1)
+        if captured.startswith("("):
+            raise ValueError(
+                f"{path}:{line_number}: multi-line import not supported: {line!r}"
+            )
+        return f"from . import {captured}"
 
     match = FROM_SUBMODULE_RE.match(line)
     if match:
-        return f"from .{match.group(1)} import {match.group(2)}"
+        captured = match.group(2)
+        if captured.startswith("("):
+            raise ValueError(
+                f"{path}:{line_number}: multi-line import not supported: {line!r}"
+            )
+        return f"from .{match.group(1)} import {captured}"
 
     if line.startswith("import tapi_yandex_direct"):
         raise ValueError(f"{path}:{line_number}: unsupported absolute import: {line}")
@@ -48,15 +58,18 @@ def patch_line(line: str, path: Path, line_number: int) -> str:
     return line
 
 
-def patch_file(path: Path) -> bool:
+def _compute_patch(path: Path) -> str | None:
     """
-    Patch all supported upstream absolute imports in a Python file.
+    Compute patched content for a file, without writing.
 
     Args:
         path: Python source file to patch.
 
     Returns:
-        True when the file content changed.
+        Patched content string, or None if no changes are needed.
+
+    Raises:
+        ValueError: If an unsupported import form is found.
     """
     original = path.read_text(encoding="utf-8")
     has_trailing_newline = original.endswith("\n")
@@ -69,15 +82,17 @@ def patch_file(path: Path) -> bool:
         patched += "\n"
 
     if patched == original:
-        return False
+        return None
 
-    path.write_text(patched, encoding="utf-8")
-    return True
+    return patched
 
 
 def patch_vendor_dir(vendor_dir: Path) -> int:
     """
     Patch all Python files under a vendored tapi_yandex_direct directory.
+
+    Computes all patches before writing any files so that a ValueError on
+    any file prevents partial (broken) writes.
 
     Args:
         vendor_dir: Path to the vendored package directory.
@@ -87,15 +102,21 @@ def patch_vendor_dir(vendor_dir: Path) -> int:
 
     Raises:
         FileNotFoundError: If the vendor directory does not exist.
+        ValueError: If an unsupported import form is found.
     """
     if not vendor_dir.is_dir():
         raise FileNotFoundError(f"Vendor directory not found: {vendor_dir}")
 
-    changed = 0
+    patches: dict[Path, str] = {}
     for path in sorted(vendor_dir.rglob("*.py")):
-        if patch_file(path):
-            changed += 1
-    return changed
+        patched = _compute_patch(path)
+        if patched is not None:
+            patches[path] = patched
+
+    for path, content in patches.items():
+        path.write_text(content, encoding="utf-8")
+
+    return len(patches)
 
 
 def main(argv: list[str] | None = None) -> int:
