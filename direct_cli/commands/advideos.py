@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids, get_default_fields, load_base64_file
+from ..utils import get_default_fields, load_base64_file
 
 
 @click.group()
