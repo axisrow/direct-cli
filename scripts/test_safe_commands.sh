@@ -40,6 +40,11 @@ fi
 echo -e "${BOLD}direct-cli safe commands test${RESET}"
 echo "Login: $YANDEX_DIRECT_LOGIN"
 echo "Token: ${YANDEX_DIRECT_TOKEN:0:8}..."
+python3 - <<'PY'
+from direct_cli.smoke_matrix import SAFE, commands_for_category
+
+print(f"SAFE matrix commands: {len(commands_for_category(SAFE))}")
+PY
 echo ""
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -136,6 +141,7 @@ fi
 # Commands with no required IDs
 run_test "retargeting get (env auth)"              direct retargeting get
 run_test "adimages get (env auth)"                 direct adimages get
+run_test "advideos get --ids (env auth)"           direct advideos get --ids 1
 run_test "adextensions get (env auth)"             direct adextensions get
 # sitelinks/vcards/feeds/negativekeywordsharedsets require --ids; pass a dummy to verify the API call works
 run_test "sitelinks get --ids (env auth)"          direct sitelinks get --ids 1
@@ -149,13 +155,16 @@ run_test "feeds get --ids (env auth)"          direct feeds get --ids 1
 run_test "creatives get (env auth)"                direct creatives get
 # businesses requires Ids/Name/Url in SelectionCriteria
 run_test "businesses get --ids (env auth)"         direct businesses get --ids 1 --fields Id,Name,Type
+run_test "strategies get (env auth)"               direct strategies get --limit 1 --fields Id,Name,Type,StatusArchived
 # turbopages and smartadtargets need correct field names
 run_test "turbopages get (env auth)"               direct turbopages get --fields Id,Name,Href
 run_test "negativekeywordsharedsets get (env)"     direct negativekeywordsharedsets get --ids 1
 run_test "smartadtargets get (env auth)"           direct smartadtargets get --fields Id,AdGroupId,CampaignId
+run_test "dynamicfeedadtargets get --ids (env)"    direct dynamicfeedadtargets get --ids 1
 run_test "dictionaries list-names (env auth)"      direct dictionaries list-names
 run_test "changes check-dictionaries (env auth)"   direct changes check-dictionaries
 run_test "reports list-types (env auth)"           direct reports list-types
+run_test "reports get (env auth)"                  direct reports get --type campaign_performance_report --from 2026-01-01 --to 2026-01-01 --name "Smoke Safe Report" --fields Date,CampaignId
 
 if [ -n "$CAMPAIGN_ID" ]; then
   run_test "changes check-campaigns (env auth)"    direct changes check-campaigns --timestamp 2026-04-23T00:00:00
@@ -165,6 +174,7 @@ else
 fi
 
 run_test "keywordsresearch has-search-volume (env auth)" direct keywordsresearch has-search-volume --keywords "купить велосипед" --region-ids 213
+run_test "keywordsresearch deduplicate (env auth)" direct keywordsresearch deduplicate --keywords "купить велосипед,купить велосипед"
 
 echo ""
 
