@@ -23,7 +23,9 @@ def keywordbids():
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.pass_context
-def get(ctx, keyword_ids, adgroup_ids, campaign_ids, limit, fetch_all, output_format, output):
+def get(
+    ctx, keyword_ids, adgroup_ids, campaign_ids, limit, fetch_all, output_format, output
+):
     """Get keyword bids"""
     try:
         client = create_client(
@@ -42,7 +44,15 @@ def get(ctx, keyword_ids, adgroup_ids, campaign_ids, limit, fetch_all, output_fo
 
         params = {
             "SelectionCriteria": criteria,
-            "FieldNames": ["KeywordId", "AdGroupId", "CampaignId", "Bid", "ContextBid"],
+            "FieldNames": [
+                "KeywordId",
+                "AdGroupId",
+                "CampaignId",
+                "ServingStatus",
+                "StrategyPriority",
+            ],
+            "SearchFieldNames": ["Bid"],
+            "NetworkFieldNames": ["Bid"],
         }
 
         if limit:
@@ -143,9 +153,9 @@ def set_auto(
                 "TargetTrafficVolume": target_traffic_volume
             }
             if increase_percent is not None:
-                bidding_rule["SearchByTrafficVolume"]["IncreasePercent"] = (
-                    increase_percent
-                )
+                bidding_rule["SearchByTrafficVolume"][
+                    "IncreasePercent"
+                ] = increase_percent
             if bid_ceiling is not None:
                 bidding_rule["SearchByTrafficVolume"]["BidCeiling"] = to_micros(
                     bid_ceiling
@@ -153,13 +163,9 @@ def set_auto(
         if target_coverage is not None:
             bidding_rule["NetworkByCoverage"] = {"TargetCoverage": target_coverage}
             if increase_percent is not None:
-                bidding_rule["NetworkByCoverage"]["IncreasePercent"] = (
-                    increase_percent
-                )
+                bidding_rule["NetworkByCoverage"]["IncreasePercent"] = increase_percent
             if bid_ceiling is not None:
-                bidding_rule["NetworkByCoverage"]["BidCeiling"] = to_micros(
-                    bid_ceiling
-                )
+                bidding_rule["NetworkByCoverage"]["BidCeiling"] = to_micros(bid_ceiling)
 
         bid_data = {"BiddingRule": bidding_rule}
         if campaign_id is not None:
