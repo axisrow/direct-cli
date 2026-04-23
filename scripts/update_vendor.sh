@@ -10,6 +10,13 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VENDOR_DIR="${ROOT_DIR}/direct_cli/_vendor/tapi_yandex_direct"
 VENDOR_INIT="${VENDOR_DIR}/__init__.py"
 
+smoke_vendor_import() {
+  (
+    cd "${ROOT_DIR}"
+    python3 -c "from direct_cli._vendor.tapi_yandex_direct import YandexDirect; YandexDirect(access_token='test-token')"
+  )
+}
+
 # --- Read current vendored version ---
 if [[ ! -f "${VENDOR_INIT}" ]]; then
   echo "ERROR: Vendor directory not found: ${VENDOR_DIR}"
@@ -31,6 +38,7 @@ echo "Fork version: ${FORK_VERSION}"
 # --- Compare ---
 if [[ "${CURRENT_VERSION}" == "${FORK_VERSION}" ]]; then
   echo "Vendor up to date (${CURRENT_VERSION}), nothing to do."
+  smoke_vendor_import
   exit 0
 fi
 
@@ -41,6 +49,9 @@ cp "${TMP_DIR}/fork/tapi_yandex_direct/__init__.py"        "${VENDOR_DIR}/"
 cp "${TMP_DIR}/fork/tapi_yandex_direct/tapi_yandex_direct.py" "${VENDOR_DIR}/"
 cp "${TMP_DIR}/fork/tapi_yandex_direct/resource_mapping.py" "${VENDOR_DIR}/"
 cp "${TMP_DIR}/fork/tapi_yandex_direct/exceptions.py"       "${VENDOR_DIR}/"
+
+python3 "${ROOT_DIR}/scripts/patch_vendor_imports.py" "${VENDOR_DIR}"
+smoke_vendor_import
 
 # --- Commit ---
 cd "${ROOT_DIR}"
