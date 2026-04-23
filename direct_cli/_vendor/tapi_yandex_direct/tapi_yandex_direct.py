@@ -8,8 +8,8 @@ from requests import Response
 from tapi2 import TapiAdapter, generate_wrapper_from_adapter, JSONAdapterMixin
 from tapi2.exceptions import ResponseProcessException, ClientError, TapiException
 
-from tapi_yandex_direct import exceptions
-from tapi_yandex_direct.resource_mapping import RESOURCE_MAPPING_V5
+from . import exceptions
+from .resource_mapping import RESOURCE_MAPPING_V5
 
 logger = logging.getLogger(__name__)
 
