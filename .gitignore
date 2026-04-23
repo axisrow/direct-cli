@@ -39,6 +39,7 @@ coverage.xml
 .venv
 
 # IDE
+.claude/
 .vscode/
 .idea/
 *.swp
