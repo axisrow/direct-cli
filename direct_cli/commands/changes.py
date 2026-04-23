@@ -16,9 +16,7 @@ def changes():
 
 @changes.command()
 @click.option("--campaign-ids", required=True, help="Comma-separated campaign IDs")
-@click.option(
-    "--timestamp", help="Timestamp for changes check (YYYY-MM-DDTHH:MM:SS)"
-)
+@click.option("--timestamp", help="Timestamp for changes check (YYYY-MM-DDTHH:MM:SS)")
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.pass_context
@@ -48,7 +46,9 @@ def check(ctx, campaign_ids, timestamp, output_format, output):
 
 @changes.command()
 @click.option(
-    "--timestamp", help="Timestamp for changes check (YYYY-MM-DDTHH:MM:SS)"
+    "--timestamp",
+    required=True,
+    help="Timestamp for changes check (YYYY-MM-DDTHH:MM:SS)",
 )
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
@@ -62,10 +62,7 @@ def check_campaigns(ctx, timestamp, output_format, output):
             sandbox=ctx.obj.get("sandbox"),
         )
 
-        params = {}
-
-        if timestamp:
-            params["Timestamp"] = parse_datetime(timestamp)
+        params = {"Timestamp": parse_datetime(timestamp)}
 
         body = {"method": "checkCampaigns", "params": params}
 
