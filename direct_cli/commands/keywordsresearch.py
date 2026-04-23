@@ -6,6 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
+from ..utils import parse_ids
 
 
 @click.group()
@@ -15,10 +16,16 @@ def keywordsresearch():
 
 @keywordsresearch.command()
 @click.option("--keywords", required=True, help="Comma-separated keywords")
+@click.option(
+    "--region-ids",
+    required=True,
+    help="Comma-separated region IDs (e.g. 213 for Moscow)",
+)
+@click.option("--fields", help="Comma-separated field names")
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.pass_context
-def has_search_volume(ctx, keywords, output_format, output):
+def has_search_volume(ctx, keywords, region_ids, fields, output_format, output):
     """Check if keywords have search volume"""
     try:
         client = create_client(
@@ -27,12 +34,20 @@ def has_search_volume(ctx, keywords, output_format, output):
             sandbox=ctx.obj.get("sandbox"),
         )
 
+        field_names = (
+            [f.strip() for f in fields.split(",")]
+            if fields
+            else ["Keyword", "AllDevices"]
+        )
+
         body = {
             "method": "hasSearchVolume",
             "params": {
                 "SelectionCriteria": {
-                    "Keywords": [k.strip() for k in keywords.split(",")]
-                }
+                    "RegionIds": parse_ids(region_ids),
+                    "Keywords": [k.strip() for k in keywords.split(",")],
+                },
+                "FieldNames": field_names,
             },
         }
 
@@ -61,9 +76,7 @@ def deduplicate(ctx, keywords, output_format, output):
         body = {
             "method": "deduplicate",
             "params": {
-                "SelectionCriteria": {
-                    "Keywords": [k.strip() for k in keywords.split(",")]
-                }
+                "Keywords": [{"Keyword": k.strip()} for k in keywords.split(",")]
             },
         }
 
