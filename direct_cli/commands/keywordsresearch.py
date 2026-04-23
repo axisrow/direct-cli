@@ -61,9 +61,7 @@ def deduplicate(ctx, keywords, output_format, output):
         body = {
             "method": "deduplicate",
             "params": {
-                "SelectionCriteria": {
-                    "Keywords": [k.strip() for k in keywords.split(",")]
-                }
+                "Keywords": [{"Keyword": k.strip()} for k in keywords.split(",")]
             },
         }
 
