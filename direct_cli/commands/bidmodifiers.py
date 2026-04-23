@@ -17,12 +17,22 @@ def bidmodifiers():
 @bidmodifiers.command()
 @click.option("--campaign-ids", help="Comma-separated campaign IDs")
 @click.option("--adgroup-ids", help="Comma-separated ad group IDs")
+@click.option(
+    "--levels",
+    type=click.Choice(["CAMPAIGN", "ADGROUP"], case_sensitive=False),
+    multiple=True,
+    default=("CAMPAIGN", "ADGROUP"),
+    show_default=True,
+    help="Bid modifier levels to retrieve",
+)
 @click.option("--limit", type=int, help="Limit number of results")
 @click.option("--fetch-all", is_flag=True, help="Fetch all pages")
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.pass_context
-def get(ctx, campaign_ids, adgroup_ids, limit, fetch_all, output_format, output):
+def get(
+    ctx, campaign_ids, adgroup_ids, levels, limit, fetch_all, output_format, output
+):
     """Get bid modifiers"""
     try:
         client = create_client(
@@ -39,6 +49,7 @@ def get(ctx, campaign_ids, adgroup_ids, limit, fetch_all, output_format, output)
 
         params = {
             "SelectionCriteria": criteria,
+            "Levels": [lv.upper() for lv in levels],
             "FieldNames": ["Id", "CampaignId", "AdGroupId", "Type", "ModifierValue"],
         }
 
@@ -71,13 +82,13 @@ _BIDMODIFIER_TYPE_TO_NESTED = {
     "TABLET_ADJUSTMENT": "TabletAdjustment",
     "DESKTOP_ADJUSTMENT": "DesktopAdjustment",
     "DESKTOP_ONLY_ADJUSTMENT": "DesktopOnlyAdjustment",
-    "DEMOGRAPHICS_ADJUSTMENT": "DemographicsAdjustments",   # plural per WSDL
-    "RETARGETING_ADJUSTMENT": "RetargetingAdjustments",     # plural per WSDL
-    "REGIONAL_ADJUSTMENT": "RegionalAdjustments",           # plural per WSDL
+    "DEMOGRAPHICS_ADJUSTMENT": "DemographicsAdjustments",  # plural per WSDL
+    "RETARGETING_ADJUSTMENT": "RetargetingAdjustments",  # plural per WSDL
+    "REGIONAL_ADJUSTMENT": "RegionalAdjustments",  # plural per WSDL
     "VIDEO_ADJUSTMENT": "VideoAdjustment",
     "SMART_AD_ADJUSTMENT": "SmartAdAdjustment",
-    "SERP_LAYOUT_ADJUSTMENT": "SerpLayoutAdjustments",      # plural per WSDL
-    "INCOME_GRADE_ADJUSTMENT": "IncomeGradeAdjustments",    # plural per WSDL
+    "SERP_LAYOUT_ADJUSTMENT": "SerpLayoutAdjustments",  # plural per WSDL
+    "INCOME_GRADE_ADJUSTMENT": "IncomeGradeAdjustments",  # plural per WSDL
     "AD_GROUP_ADJUSTMENT": "AdGroupAdjustment",
 }
 
@@ -111,13 +122,9 @@ _PLURAL_NESTED_KEYS = {
     required=True,
     help="Bid modifier percentage (0-1300).",
 )
-@click.option(
-    "--gender", help="Demographics adjustment gender value"
-)
+@click.option("--gender", help="Demographics adjustment gender value")
 @click.option("--age", help="Demographics adjustment age value")
-@click.option(
-    "--retargeting-condition-id", type=int, help="Retargeting condition ID"
-)
+@click.option("--retargeting-condition-id", type=int, help="Retargeting condition ID")
 @click.option("--region-id", type=int, help="Regional adjustment region ID")
 @click.option("--serp-layout", help="SERP layout adjustment value")
 @click.option("--income-grade", help="Income grade adjustment value")
@@ -176,15 +183,11 @@ def add(
             nested["RetargetingConditionId"] = retargeting_condition_id
         elif modifier_type_upper == "REGIONAL_ADJUSTMENT":
             if region_id is None:
-                raise click.UsageError(
-                    "REGIONAL_ADJUSTMENT requires --region-id"
-                )
+                raise click.UsageError("REGIONAL_ADJUSTMENT requires --region-id")
             nested["RegionId"] = region_id
         elif modifier_type_upper == "SERP_LAYOUT_ADJUSTMENT":
             if not serp_layout:
-                raise click.UsageError(
-                    "SERP_LAYOUT_ADJUSTMENT requires --serp-layout"
-                )
+                raise click.UsageError("SERP_LAYOUT_ADJUSTMENT requires --serp-layout")
             nested["SerpLayout"] = serp_layout
         elif modifier_type_upper == "INCOME_GRADE_ADJUSTMENT":
             if not income_grade:
