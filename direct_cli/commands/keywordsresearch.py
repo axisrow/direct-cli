@@ -29,7 +29,11 @@ def has_search_volume(ctx, keywords, output_format, output):
 
         body = {
             "method": "hasSearchVolume",
-            "params": {"Keywords": [k.strip() for k in keywords.split(",")]},
+            "params": {
+                "SelectionCriteria": {
+                    "Keywords": [k.strip() for k in keywords.split(",")]
+                }
+            },
         }
 
         result = client.keywordsresearch().post(data=body)
@@ -56,7 +60,11 @@ def deduplicate(ctx, keywords, output_format, output):
 
         body = {
             "method": "deduplicate",
-            "params": {"Keywords": [k.strip() for k in keywords.split(",")]},
+            "params": {
+                "SelectionCriteria": {
+                    "Keywords": [k.strip() for k in keywords.split(",")]
+                }
+            },
         }
 
         result = client.keywordsresearch().post(data=body)
