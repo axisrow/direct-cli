@@ -64,6 +64,7 @@ class TestCommandsRegistered(unittest.TestCase):
         "dynamicads",
         "dynamicfeedadtargets",
         "strategies",
+        "auth",
     ]
 
     def test_all_expected_commands_registered(self):

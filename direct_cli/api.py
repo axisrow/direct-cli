@@ -11,6 +11,7 @@ from .auth import get_credentials
 def create_client(
     token: Optional[str] = None,
     login: Optional[str] = None,
+    profile: Optional[str] = None,
     sandbox: bool = False,
     op_token_ref: Optional[str] = None,
     op_login_ref: Optional[str] = None,
@@ -27,6 +28,7 @@ def create_client(
     Args:
         token: API access token
         login: Client login (for agency accounts)
+        profile: Credential profile name
         sandbox: Use sandbox API
         op_token_ref: 1Password secret reference for token
         op_login_ref: 1Password secret reference for login
@@ -41,7 +43,11 @@ def create_client(
         YandexDirect client instance
     """
     final_token, final_login = get_credentials(
-        token, login, op_token_ref=op_token_ref, op_login_ref=op_login_ref
+        token,
+        login,
+        profile=profile,
+        op_token_ref=op_token_ref,
+        op_login_ref=op_login_ref,
     )
 
     return YandexDirect(

@@ -76,6 +76,12 @@ class TestCLI(unittest.TestCase):
             self.assertNotEqual(result.exit_code, 0)
             self.assertIn("No such command", result.output)
 
+    def test_auth_login_alias_is_not_registered(self):
+        """Test underscore auth alias is intentionally not registered."""
+        result = self.runner.invoke(cli, ["auth_login", "--help"])
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("No such command", result.output)
+
     def test_changes_help_uses_canonical_names(self):
         """Test changes help only exposes canonical command names"""
         result = self.runner.invoke(cli, ["changes", "--help"])
@@ -187,6 +193,16 @@ class TestReadmeContract(unittest.TestCase):
         self.assertIn("dynamicads update", self.content)
         self.assertIn("unsupported by API", self.content)
         self.assertNotIn("dynamicads update` is still a transport gap", self.content)
+
+    def test_readme_documents_auth_profile_contract(self):
+        """README must document profile auth flow and profile env variables."""
+        self.assertIn("direct auth login", self.content)
+        self.assertIn("direct auth list", self.content)
+        self.assertIn("direct auth use --profile agency1", self.content)
+        self.assertIn("direct --profile agency1", self.content)
+        self.assertIn("YANDEX_DIRECT_TOKEN_AGENCY1", self.content)
+        self.assertIn("YANDEX_DIRECT_LOGIN_AGENCY1", self.content)
+        self.assertNotIn("YANDEX_DIRECT_PROFILE", self.content)
 
 
 if __name__ == "__main__":
