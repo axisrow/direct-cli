@@ -19,6 +19,14 @@ FROM_SUBMODULE_RE = re.compile(
 )
 
 
+def _validate_captured(captured: str, path: Path, line_number: int, line: str) -> None:
+    """Raise ValueError if the captured import group indicates a multi-line form."""
+    if captured.startswith("(") or captured.rstrip() in ("\\", ""):
+        raise ValueError(
+            f"{path}:{line_number}: multi-line import not supported: {line!r}"
+        )
+
+
 def patch_line(line: str, path: Path, line_number: int) -> str:
     """
     Rewrite a single import line if it references the upstream package.
@@ -37,19 +45,13 @@ def patch_line(line: str, path: Path, line_number: int) -> str:
     match = FROM_PACKAGE_RE.match(line)
     if match:
         captured = match.group(1)
-        if captured.startswith("("):
-            raise ValueError(
-                f"{path}:{line_number}: multi-line import not supported: {line!r}"
-            )
+        _validate_captured(captured, path, line_number, line)
         return f"from . import {captured}"
 
     match = FROM_SUBMODULE_RE.match(line)
     if match:
         captured = match.group(2)
-        if captured.startswith("("):
-            raise ValueError(
-                f"{path}:{line_number}: multi-line import not supported: {line!r}"
-            )
+        _validate_captured(captured, path, line_number, line)
         return f"from .{match.group(1)} import {captured}"
 
     if line.startswith("import tapi_yandex_direct"):
