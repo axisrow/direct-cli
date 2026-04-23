@@ -34,7 +34,11 @@ def has_search_volume(ctx, keywords, region_ids, fields, output_format, output):
             sandbox=ctx.obj.get("sandbox"),
         )
 
-        field_names = fields.split(",") if fields else ["Keyword", "AllDevices"]
+        field_names = (
+            [f.strip() for f in fields.split(",")]
+            if fields
+            else ["Keyword", "AllDevices"]
+        )
 
         body = {
             "method": "hasSearchVolume",
