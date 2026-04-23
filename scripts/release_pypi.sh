@@ -99,7 +99,7 @@ upload_target() {
     cd "${ROOT_DIR}"
     TWINE_USERNAME="${TWINE_USERNAME}" \
     TWINE_PASSWORD="${!password_var}" \
-    python3 -m twine upload --non-interactive --repository "${repository}" dist/*
+    python3 -m twine upload --non-interactive --skip-existing --repository "${repository}" dist/*
   )
 }
 
