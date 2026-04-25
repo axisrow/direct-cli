@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_condition_specs, parse_ids, to_micros
+from ..utils import parse_condition_specs, parse_ids, MICRO_RUBLES
 
 
 @click.group()
@@ -75,8 +75,8 @@ def get(ctx, ids, adgroup_ids, limit, fetch_all, output_format, output, fields):
     multiple=True,
     help="Condition spec: OPERAND:OPERATOR:ARG1|ARG2",
 )
-@click.option("--average-cpc", type=float, help="Average CPC")
-@click.option("--average-cpa", type=float, help="Average CPA")
+@click.option("--average-cpc", type=MICRO_RUBLES, help="Average CPC in micro-rubles")
+@click.option("--average-cpa", type=MICRO_RUBLES, help="Average CPA in micro-rubles")
 @click.option("--priority", help="Strategy priority")
 @click.option(
     "--available-items-only",
@@ -107,9 +107,9 @@ def add(
         if conditions:
             target_data["Conditions"] = {"Items": parse_condition_specs(list(conditions))}
         if average_cpc is not None:
-            target_data["AverageCpc"] = to_micros(average_cpc)
+            target_data["AverageCpc"] = average_cpc
         if average_cpa is not None:
-            target_data["AverageCpa"] = to_micros(average_cpa)
+            target_data["AverageCpa"] = average_cpa
         if priority:
             target_data["StrategyPriority"] = priority
         if available_items_only:
@@ -146,8 +146,8 @@ def add(
     multiple=True,
     help="Condition spec: OPERAND:OPERATOR:ARG1|ARG2",
 )
-@click.option("--average-cpc", type=float, help="Average CPC")
-@click.option("--average-cpa", type=float, help="Average CPA")
+@click.option("--average-cpc", type=MICRO_RUBLES, help="Average CPC in micro-rubles")
+@click.option("--average-cpa", type=MICRO_RUBLES, help="Average CPA in micro-rubles")
 @click.option("--priority", help="Strategy priority")
 @click.option(
     "--available-items-only",
@@ -178,9 +178,9 @@ def update(
         if conditions:
             target_data["Conditions"] = {"Items": parse_condition_specs(list(conditions))}
         if average_cpc is not None:
-            target_data["AverageCpc"] = to_micros(average_cpc)
+            target_data["AverageCpc"] = average_cpc
         if average_cpa is not None:
-            target_data["AverageCpa"] = to_micros(average_cpa)
+            target_data["AverageCpa"] = average_cpa
         if priority:
             target_data["StrategyPriority"] = priority
         if available_items_only:
@@ -292,8 +292,8 @@ def resume(ctx, target_id, dry_run):
 @click.option("--id", "target_id", type=int, help="Target ID")
 @click.option("--adgroup-id", type=int, help="Ad group ID")
 @click.option("--campaign-id", type=int, help="Campaign ID")
-@click.option("--average-cpc", type=float, help="Average CPC")
-@click.option("--average-cpa", type=float, help="Average CPA")
+@click.option("--average-cpc", type=MICRO_RUBLES, help="Average CPC in micro-rubles")
+@click.option("--average-cpa", type=MICRO_RUBLES, help="Average CPA in micro-rubles")
 @click.option("--priority", help="Strategy priority")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
@@ -317,9 +317,9 @@ def set_bids(
         if campaign_id is not None:
             bid_data["CampaignId"] = campaign_id
         if average_cpc is not None:
-            bid_data["AverageCpc"] = to_micros(average_cpc)
+            bid_data["AverageCpc"] = average_cpc
         if average_cpa is not None:
-            bid_data["AverageCpa"] = to_micros(average_cpa)
+            bid_data["AverageCpa"] = average_cpa
         if priority:
             bid_data["StrategyPriority"] = priority
         bid_fields = {

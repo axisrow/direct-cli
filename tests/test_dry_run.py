@@ -411,7 +411,7 @@ def test_campaigns_add_default_text_campaign_payload():
     assert "Type" not in campaign
 
 
-def test_campaigns_add_with_budget_scales_to_micro_units():
+def test_campaigns_add_with_budget():
     body = _dry_run(
         "campaigns",
         "add",
@@ -420,17 +420,17 @@ def test_campaigns_add_with_budget_scales_to_micro_units():
         "--start-date",
         "2026-04-10",
         "--budget",
-        "500",
+        "500000000",
     )
     campaign = body["params"]["Campaigns"][0]
-    assert campaign["DailyBudget"] == {"Amount": 500_000_000, "Mode": "STANDARD"}
+    assert campaign["DailyBudget"] == {"Amount": 500000000, "Mode": "STANDARD"}
 
 
-def test_campaigns_update_with_budget_scales_to_micro_units():
-    body = _dry_run("campaigns", "update", "--id", "555", "--budget", "100")
+def test_campaigns_update_with_budget():
+    body = _dry_run("campaigns", "update", "--id", "555", "--budget", "100000000")
     campaign = body["params"]["Campaigns"][0]
     assert campaign["Id"] == 555
-    assert campaign["DailyBudget"] == {"Amount": 100_000_000, "Mode": "STANDARD"}
+    assert campaign["DailyBudget"] == {"Amount": 100000000, "Mode": "STANDARD"}
 
 
 def test_campaigns_add_case_insensitive_text_type():
@@ -495,7 +495,7 @@ def test_campaigns_add_smart_payload():
         "--network-strategy",
         "AVERAGE_CPC_PER_FILTER",
         "--filter-average-cpc",
-        "1",
+        "1000000",
         "--counter-id",
         "123",
     )
@@ -505,7 +505,7 @@ def test_campaigns_add_smart_payload():
             "Search": {"BiddingStrategyType": "SERVING_OFF"},
             "Network": {
                 "BiddingStrategyType": "AVERAGE_CPC_PER_FILTER",
-                "AverageCpcPerFilter": {"FilterAverageCpc": 1_000_000},
+                "AverageCpcPerFilter": {"FilterAverageCpc": 1000000},
             },
         },
         "CounterId": 123,
@@ -539,7 +539,7 @@ def test_campaigns_add_smart_requires_filter_average_cpc():
 # ----------------------------------------------------------------------
 
 
-def test_keywords_add_payload_with_bids_scales_to_micro_units():
+def test_keywords_add_payload_with_bids():
     body = _dry_run(
         "keywords",
         "add",
@@ -548,16 +548,16 @@ def test_keywords_add_payload_with_bids_scales_to_micro_units():
         "--keyword",
         "купить пиццу",
         "--bid",
-        "15",
+        "15000000",
         "--context-bid",
-        "5",
+        "5000000",
     )
     assert body["method"] == "add"
     keyword = body["params"]["Keywords"][0]
     assert keyword["AdGroupId"] == 12
     assert keyword["Keyword"] == "купить пиццу"
-    assert keyword["Bid"] == 15_000_000
-    assert keyword["ContextBid"] == 5_000_000
+    assert keyword["Bid"] == 15000000
+    assert keyword["ContextBid"] == 5000000
 
 
 def test_keywords_update_payload_keyword_text():
@@ -580,30 +580,30 @@ def test_keywords_update_payload_user_params():
 # ----------------------------------------------------------------------
 
 
-def test_bids_set_scales_to_micro_units():
-    body = _dry_run("bids", "set", "--keyword-id", "1", "--bid", "15")
+def test_bids_set_payload():
+    body = _dry_run("bids", "set", "--keyword-id", "1", "--bid", "15000000")
     assert body["method"] == "set"
     bid = body["params"]["Bids"][0]
-    assert bid == {"KeywordId": 1, "Bid": 15_000_000}
+    assert bid == {"KeywordId": 1, "Bid": 15000000}
 
 
-def test_keywordbids_set_search_and_network_scales():
+def test_keywordbids_set_search_and_network():
     body = _dry_run(
         "keywordbids",
         "set",
         "--keyword-id",
         "42",
         "--search-bid",
-        "8",
+        "8000000",
         "--network-bid",
-        "3",
+        "3000000",
     )
     assert body["method"] == "set"
     bid = body["params"]["KeywordBids"][0]
     assert bid == {
         "KeywordId": 42,
-        "SearchBid": 8_000_000,
-        "NetworkBid": 3_000_000,
+        "SearchBid": 8000000,
+        "NetworkBid": 3000000,
     }
 
 
@@ -895,7 +895,7 @@ def test_retargeting_add_unknown_type_is_rejected_by_choice():
 # ----------------------------------------------------------------------
 
 
-def test_audiencetargets_add_scales_context_bid_to_micro_units():
+def test_audiencetargets_add_context_bid():
     body = _dry_run(
         "audiencetargets",
         "add",
@@ -904,7 +904,7 @@ def test_audiencetargets_add_scales_context_bid_to_micro_units():
         "--retargeting-list-id",
         "200",
         "--bid",
-        "12",
+        "12000000",
         "--priority",
         "HIGH",
     )
@@ -913,7 +913,7 @@ def test_audiencetargets_add_scales_context_bid_to_micro_units():
     assert target == {
         "AdGroupId": 100,
         "RetargetingListId": 200,
-        "ContextBid": 12_000_000,
+        "ContextBid": 12000000,
         "StrategyPriority": "HIGH",
     }
 
@@ -940,7 +940,7 @@ def test_audiencetargets_set_bids_uses_bids_array():
         "--id",
         "101",
         "--context-bid",
-        "7",
+        "7000000",
         "--priority",
         "LOW",
     )
@@ -948,7 +948,7 @@ def test_audiencetargets_set_bids_uses_bids_array():
     item = body["params"]["Bids"][0]
     assert item == {
         "Id": 101,
-        "ContextBid": 7_000_000,
+        "ContextBid": 7000000,
         "StrategyPriority": "LOW",
     }
 
@@ -1179,9 +1179,9 @@ def test_dynamicads_add_payload_uses_webpages_key():
         "--condition",
         "PAGE_CONTENT:CONTAINS:baz",
         "--bid",
-        "3",
+        "3000000",
         "--context-bid",
-        "2",
+        "2000000",
         "--priority",
         "HIGH",
     )
@@ -1193,8 +1193,8 @@ def test_dynamicads_add_payload_uses_webpages_key():
         {"Operand": "URL", "Operator": "CONTAINS_ANY", "Arguments": ["foo", "bar"]},
         {"Operand": "PAGE_CONTENT", "Operator": "CONTAINS", "Arguments": ["baz"]},
     ]
-    assert webpage["Bid"] == 3_000_000
-    assert webpage["ContextBid"] == 2_000_000
+    assert webpage["Bid"] == 3000000
+    assert webpage["ContextBid"] == 2000000
     assert webpage["StrategyPriority"] == "HIGH"
 
 
@@ -1205,9 +1205,9 @@ def test_dynamicads_set_bids_uses_bids_array():
         "--id",
         "44",
         "--bid",
-        "3",
+        "3000000",
         "--context-bid",
-        "2",
+        "2000000",
         "--priority",
         "LOW",
     )
@@ -1215,8 +1215,8 @@ def test_dynamicads_set_bids_uses_bids_array():
     item = body["params"]["Bids"][0]
     assert item == {
         "Id": 44,
-        "Bid": 3_000_000,
-        "ContextBid": 2_000_000,
+        "Bid": 3000000,
+        "ContextBid": 2000000,
         "StrategyPriority": "LOW",
     }
 
@@ -1239,9 +1239,9 @@ def test_smartadtargets_add_uses_typed_flags():
         "--condition",
         "CATEGORY_ID:EQUALS:42",
         "--average-cpc",
-        "3",
+        "3000000",
         "--average-cpa",
-        "4",
+        "4000000",
         "--priority",
         "HIGH",
         "--available-items-only",
@@ -1262,8 +1262,8 @@ def test_smartadtargets_add_uses_typed_flags():
                 }
             ]
         },
-        "AverageCpc": 3_000_000,
-        "AverageCpa": 4_000_000,
+        "AverageCpc": 3000000,
+        "AverageCpa": 4000000,
         "StrategyPriority": "HIGH",
         "AvailableItemsOnly": "YES",
     }
@@ -1282,9 +1282,9 @@ def test_smartadtargets_update_uses_typed_flags():
         "--condition",
         "CATEGORY_ID:EQUALS:42",
         "--average-cpc",
-        "3",
+        "3000000",
         "--average-cpa",
-        "4",
+        "4000000",
         "--priority",
         "HIGH",
         "--available-items-only",
@@ -1304,8 +1304,8 @@ def test_smartadtargets_update_uses_typed_flags():
                 }
             ]
         },
-        "AverageCpc": 3_000_000,
-        "AverageCpa": 4_000_000,
+        "AverageCpc": 3000000,
+        "AverageCpa": 4000000,
         "StrategyPriority": "HIGH",
         "AvailableItemsOnly": "NO",
     }
@@ -1649,7 +1649,7 @@ def test_bids_set_auto_payload_uses_bids_array():
         "--keyword-id",
         "1",
         "--max-bid",
-        "20",
+        "20000000",
         "--position",
         "PREMIUMBLOCK",
         "--increase-percent",
@@ -1664,7 +1664,7 @@ def test_bids_set_auto_payload_uses_bids_array():
     item = body["params"]["Bids"][0]
     assert item == {
         "KeywordId": 1,
-        "MaxBid": 20_000_000,
+        "MaxBid": 20000000,
         "Position": "PREMIUMBLOCK",
         "IncreasePercent": 15,
         "CalculateBy": "POSITION",
@@ -1697,7 +1697,7 @@ def test_keywordbids_set_auto_payload_uses_bidding_rule():
         "--increase-percent",
         "10",
         "--bid-ceiling",
-        "12.5",
+        "12500000",
     )
     item = body["params"]["KeywordBids"][0]
     assert item == {
@@ -1706,7 +1706,7 @@ def test_keywordbids_set_auto_payload_uses_bidding_rule():
             "SearchByTrafficVolume": {
                 "TargetTrafficVolume": 100,
                 "IncreasePercent": 10,
-                "BidCeiling": 12_500_000,
+                "BidCeiling": 12500000,
             }
         },
     }
@@ -1758,17 +1758,17 @@ def test_smartadtargets_set_bids_payload_uses_average_cpc():
         "--id",
         "11",
         "--average-cpc",
-        "1.5",
+        "1500000",
         "--average-cpa",
-        "2.5",
+        "2500000",
         "--priority",
         "LOW",
     )
     assert body["method"] == "setBids"
     assert body["params"]["Bids"][0] == {
         "Id": 11,
-        "AverageCpc": 1_500_000,
-        "AverageCpa": 2_500_000,
+        "AverageCpc": 1500000,
+        "AverageCpa": 2500000,
         "StrategyPriority": "LOW",
     }
 
@@ -1861,13 +1861,13 @@ def test_dynamicfeedadtargets_add_payload():
         "dynamicfeedadtargets", "add",
         "--adgroup-id", "123",
         "--name", "Test Target",
-        "--bid", "1.5",
+        "--bid", "1500000",
     )
     assert body["method"] == "add"
     target = body["params"]["DynamicFeedAdTargets"][0]
     assert target["AdGroupId"] == 123
     assert target["Name"] == "Test Target"
-    assert target["Bid"] == 1_500_000
+    assert target["Bid"] == 1500000
 
 
 def test_dynamicfeedadtargets_delete_payload():
@@ -1898,12 +1898,12 @@ def test_dynamicfeedadtargets_set_bids_payload():
     body = _dry_run(
         "dynamicfeedadtargets", "set-bids",
         "--id", "55",
-        "--bid", "2.0",
+        "--bid", "2000000",
     )
     assert body["method"] == "setBids"
     bid = body["params"]["Bids"][0]
     assert bid["Id"] == 55
-    assert bid["Bid"] == 2_000_000
+    assert bid["Bid"] == 2000000
 
 
 # ----------------------------------------------------------------------
@@ -1961,3 +1961,30 @@ def test_strategies_unarchive_payload():
         "method": "unarchive",
         "params": {"SelectionCriteria": {"Ids": [10]}},
     }
+
+
+# ----------------------------------------------------------------------
+# MICRO_RUBLES validation
+# ----------------------------------------------------------------------
+
+
+def _failing_run(*args: str) -> "CliRunner.invoke result":
+    """Invoke a CLI command expected to fail, returning the result."""
+    return CliRunner().invoke(cli, list(args))
+
+
+def test_micro_rubles_rejects_small_value():
+    result = _failing_run("bids", "set", "--keyword-id", "1", "--bid", "15")
+    assert result.exit_code != 0
+    assert "seems too low for micro-rubles" in result.output
+    assert "Did you mean 15000000?" in result.output
+
+
+def test_micro_rubles_accepts_valid_value():
+    body = _dry_run("bids", "set", "--keyword-id", "1", "--bid", "15000000")
+    assert body["params"]["Bids"][0]["Bid"] == 15000000
+
+
+def test_micro_rubles_rejects_float():
+    result = _failing_run("bids", "set", "--keyword-id", "1", "--bid", "3.0")
+    assert result.exit_code != 0

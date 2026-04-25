@@ -10,9 +10,9 @@ from ..utils import (
     build_selection_criteria,
     build_common_params,
     get_default_fields,
+    MICRO_RUBLES,
     parse_ids,
     parse_setting_specs,
-    to_micros,
 )
 
 
@@ -88,7 +88,7 @@ def get(ctx, ids, status, types, limit, fetch_all, output_format, output, fields
     default="TEXT_CAMPAIGN",
     help="Campaign type",
 )
-@click.option("--budget", type=int, help="Daily budget in currency units")
+@click.option("--budget", type=MICRO_RUBLES, help="Daily budget in micro-rubles")
 @click.option("--end-date", help="End date (YYYY-MM-DD)")
 @click.option(
     "--setting",
@@ -100,8 +100,8 @@ def get(ctx, ids, status, types, limit, fetch_all, output_format, output, fields
 @click.option("--network-strategy", help="Network bidding strategy type")
 @click.option(
     "--filter-average-cpc",
-    type=float,
-    help="Smart campaign network filter average CPC",
+    type=MICRO_RUBLES,
+    help="Smart campaign filter average CPC in micro-rubles",
 )
 @click.option("--counter-id", type=int, help="Smart campaign counter ID")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
@@ -189,7 +189,7 @@ def add(
                     )
                 smart_campaign["BiddingStrategy"]["Network"][
                     "AverageCpcPerFilter"
-                ] = {"FilterAverageCpc": to_micros(filter_average_cpc)}
+                ] = {"FilterAverageCpc": filter_average_cpc}
             if parsed_settings:
                 smart_campaign["Settings"] = parsed_settings
             if counter_id is not None:
@@ -198,7 +198,7 @@ def add(
 
         if budget:
             campaign_data["DailyBudget"] = {
-                "Amount": to_micros(float(budget)),
+                "Amount": budget,
                 "Mode": "STANDARD",
             }
 
@@ -231,7 +231,7 @@ def add(
 @click.option("--id", "campaign_id", required=True, type=int, help="Campaign ID")
 @click.option("--name", help="New campaign name")
 @click.option("--status", help="New status")
-@click.option("--budget", type=int, help="New daily budget")
+@click.option("--budget", type=MICRO_RUBLES, help="New daily budget in micro-rubles")
 @click.option("--start-date", help="New start date (YYYY-MM-DD)")
 @click.option("--end-date", help="New end date (YYYY-MM-DD)")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
@@ -249,7 +249,7 @@ def update(ctx, campaign_id, name, status, budget, start_date, end_date, dry_run
 
         if budget:
             campaign_data["DailyBudget"] = {
-                "Amount": to_micros(float(budget)),
+                "Amount": budget,
                 "Mode": "STANDARD",
             }
         if start_date:

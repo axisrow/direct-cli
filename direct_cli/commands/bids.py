@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids, to_micros
+from ..utils import parse_ids, MICRO_RUBLES
 
 
 @click.group()
@@ -68,7 +68,7 @@ def get(ctx, campaign_ids, adgroup_ids, keyword_ids, limit, fetch_all, output_fo
 
 @bids.command()
 @click.option("--keyword-id", required=True, type=int, help="Keyword ID")
-@click.option("--bid", type=float, help="Bid amount")
+@click.option("--bid", type=MICRO_RUBLES, help="Bid in micro-rubles")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def set(ctx, keyword_id, bid, dry_run):
@@ -77,7 +77,7 @@ def set(ctx, keyword_id, bid, dry_run):
         bid_data = {"KeywordId": keyword_id}
 
         if bid is not None:
-            bid_data["Bid"] = to_micros(bid)
+            bid_data["Bid"] = bid
 
         body = {"method": "set", "params": {"Bids": [bid_data]}}
 
@@ -102,7 +102,7 @@ def set(ctx, keyword_id, bid, dry_run):
 @click.option("--campaign-id", type=int, help="Campaign ID")
 @click.option("--adgroup-id", type=int, help="Ad group ID")
 @click.option("--keyword-id", type=int, help="Keyword ID")
-@click.option("--max-bid", type=float, help="Maximum bid")
+@click.option("--max-bid", type=MICRO_RUBLES, help="Maximum bid in micro-rubles")
 @click.option("--position", help="Desired position")
 @click.option("--increase-percent", type=int, help="Increase percent")
 @click.option("--calculate-by", help="Calculate-by mode")
@@ -133,7 +133,7 @@ def set_auto(
         if keyword_id is not None:
             bid_data["KeywordId"] = keyword_id
         if max_bid is not None:
-            bid_data["MaxBid"] = to_micros(max_bid)
+            bid_data["MaxBid"] = max_bid
         if position:
             bid_data["Position"] = position
         if increase_percent is not None:

@@ -404,7 +404,7 @@ class TestWriteKeywords:
                 "--id",
                 str(kid),
                 "--bid",
-                "10",
+                "10000000",
             )
             assert_success(r, "keywords update")
         finally:
@@ -428,7 +428,7 @@ class TestWriteBids:
             "--keyword-id",
             str(sandbox_keyword),
             "--bid",
-            "15",
+            "15000000",
         )
         if r.exit_code != 0:
             if _is_sandbox_error(r.output):
@@ -459,9 +459,9 @@ class TestWriteKeywordBids:
             "--keyword-id",
             str(sandbox_keyword),
             "--search-bid",
-            "8",
+            "8000000",
             "--network-bid",
-            "3",
+            "3000000",
         )
         if r.exit_code != 0:
             if _is_sandbox_error(r.output):

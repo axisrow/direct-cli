@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids, to_micros
+from ..utils import parse_ids, MICRO_RUBLES
 
 
 @click.group()
@@ -76,7 +76,7 @@ def get(ctx, ids, adgroup_ids, campaign_ids, limit, fetch_all, output_format, ou
 @click.option("--adgroup-id", required=True, type=int, help="Ad group ID")
 @click.option("--retargeting-list-id", type=int, help="Retargeting list ID")
 @click.option("--interest-id", type=int, help="Interest ID")
-@click.option("--bid", type=float, help="Context bid")
+@click.option("--bid", type=MICRO_RUBLES, help="Context bid in micro-rubles")
 @click.option("--priority", help="Strategy priority")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
@@ -105,7 +105,7 @@ def add(
             target_data["InterestId"] = interest_id
 
         if bid is not None:
-            target_data["ContextBid"] = to_micros(bid)
+            target_data["ContextBid"] = bid
         if priority:
             target_data["StrategyPriority"] = priority
 
@@ -134,7 +134,7 @@ def add(
 @click.option("--id", "target_id", type=int, help="Target ID")
 @click.option("--adgroup-id", type=int, help="Ad group ID")
 @click.option("--campaign-id", type=int, help="Campaign ID")
-@click.option("--context-bid", type=float, help="Context bid")
+@click.option("--context-bid", type=MICRO_RUBLES, help="Context bid in micro-rubles")
 @click.option("--priority", help="Strategy priority")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
@@ -149,7 +149,7 @@ def set_bids(ctx, target_id, adgroup_id, campaign_id, context_bid, priority, dry
         if campaign_id is not None:
             bid_data["CampaignId"] = campaign_id
         if context_bid is not None:
-            bid_data["ContextBid"] = to_micros(context_bid)
+            bid_data["ContextBid"] = context_bid
         if priority:
             bid_data["StrategyPriority"] = priority
         bid_fields = {

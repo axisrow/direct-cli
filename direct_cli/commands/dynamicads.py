@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_condition_specs, parse_ids, to_micros
+from ..utils import parse_condition_specs, parse_ids, MICRO_RUBLES
 
 
 @click.group()
@@ -72,8 +72,8 @@ def get(ctx, ids, adgroup_ids, limit, fetch_all, output_format, output, fields):
     multiple=True,
     help="Condition spec: OPERAND:OPERATOR:ARG1|ARG2",
 )
-@click.option("--bid", type=float, help="Search bid")
-@click.option("--context-bid", type=float, help="Context bid")
+@click.option("--bid", type=MICRO_RUBLES, help="Search bid in micro-rubles")
+@click.option("--context-bid", type=MICRO_RUBLES, help="Context bid in micro-rubles")
 @click.option("--priority", help="Strategy priority")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
@@ -89,9 +89,9 @@ def add(ctx, adgroup_id, name, conditions, bid, context_bid, priority, dry_run):
             "Conditions": parse_condition_specs(list(conditions)),
         }
         if bid is not None:
-            target_data["Bid"] = to_micros(bid)
+            target_data["Bid"] = bid
         if context_bid is not None:
-            target_data["ContextBid"] = to_micros(context_bid)
+            target_data["ContextBid"] = context_bid
         if priority:
             target_data["StrategyPriority"] = priority
 
@@ -199,8 +199,8 @@ def resume(ctx, target_id, dry_run):
 @click.option("--id", "target_id", type=int, help="Target ID")
 @click.option("--adgroup-id", type=int, help="Ad group ID")
 @click.option("--campaign-id", type=int, help="Campaign ID")
-@click.option("--bid", type=float, help="Search bid")
-@click.option("--context-bid", type=float, help="Context bid")
+@click.option("--bid", type=MICRO_RUBLES, help="Search bid in micro-rubles")
+@click.option("--context-bid", type=MICRO_RUBLES, help="Context bid in micro-rubles")
 @click.option("--priority", help="Strategy priority")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
@@ -215,9 +215,9 @@ def set_bids(ctx, target_id, adgroup_id, campaign_id, bid, context_bid, priority
         if campaign_id is not None:
             bid_data["CampaignId"] = campaign_id
         if bid is not None:
-            bid_data["Bid"] = to_micros(bid)
+            bid_data["Bid"] = bid
         if context_bid is not None:
-            bid_data["ContextBid"] = to_micros(context_bid)
+            bid_data["ContextBid"] = context_bid
         if priority:
             bid_data["StrategyPriority"] = priority
         bid_fields = {

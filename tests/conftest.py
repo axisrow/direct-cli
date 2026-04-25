@@ -494,7 +494,7 @@ def sandbox_smart_adgroup(unique_suffix, sandbox_feed):
         "--start-date", tomorrow(),
         "--type", "SMART_CAMPAIGN",
         "--network-strategy", "AVERAGE_CPC_PER_FILTER",
-        "--filter-average-cpc", "1",
+        "--filter-average-cpc", "1000000",
         label="campaigns add (smart)",
     )
     campaign_id = _fixture_parse(campaign_result)

@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids, get_default_fields, to_micros
+from ..utils import parse_ids, get_default_fields, MICRO_RUBLES
 
 
 @click.group()
@@ -83,8 +83,8 @@ def get(
 @keywords.command()
 @click.option("--adgroup-id", required=True, type=int, help="Ad group ID")
 @click.option("--keyword", required=True, help="Keyword text")
-@click.option("--bid", type=float, help="Search bid")
-@click.option("--context-bid", type=float, help="Context bid")
+@click.option("--bid", type=MICRO_RUBLES, help="Search bid in micro-rubles")
+@click.option("--context-bid", type=MICRO_RUBLES, help="Context bid in micro-rubles")
 @click.option("--user-param-1", help="User parameter 1")
 @click.option("--user-param-2", help="User parameter 2")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
@@ -104,9 +104,9 @@ def add(
         keyword_data = {"AdGroupId": adgroup_id, "Keyword": keyword}
 
         if bid is not None:
-            keyword_data["Bid"] = to_micros(bid)
+            keyword_data["Bid"] = bid
         if context_bid is not None:
-            keyword_data["ContextBid"] = to_micros(context_bid)
+            keyword_data["ContextBid"] = context_bid
         if user_param_1:
             keyword_data["UserParam1"] = user_param_1
         if user_param_2:
