@@ -149,8 +149,9 @@ class TestAuth(unittest.TestCase):
 
         with patch.dict(os.environ, {}, clear=True):
             with patch("direct_cli.auth.load_env_file"):
-                with self.assertRaises(ValueError) as context:
-                    get_credentials(token=None, login=None)
+                with patch("direct_cli.auth.get_active_profile", return_value=None):
+                    with self.assertRaises(ValueError) as context:
+                        get_credentials(token=None, login=None)
 
         self.assertIn("API token required", str(context.exception))
 

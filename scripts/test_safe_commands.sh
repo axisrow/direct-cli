@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Test all read-only (safe) direct-cli commands against the real Yandex Direct API.
 # Usage: ./scripts/test_safe_commands.sh
-# Requires .env with YANDEX_DIRECT_TOKEN and YANDEX_DIRECT_LOGIN in project root.
+# Credentials: loads .env if present, otherwise uses auth profile from direct auth login.
 
 set -euo pipefail
 
@@ -23,23 +23,40 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 RESET='\033[0m'
 
-# ─── Load .env ────────────────────────────────────────────────────────────────
+# ─── Credentials ──────────────────────────────────────────────────────────────
+AUTH_SOURCE=""
+
 if [ -f "$ENV_FILE" ]; then
   set +u
   # shellcheck disable=SC2046
   export $(grep -v '^#' "$ENV_FILE" | grep -v '^$' | xargs)
   set -u
+  AUTH_SOURCE="env"
 fi
 
-if [ -z "${YANDEX_DIRECT_TOKEN:-}" ] || [ -z "${YANDEX_DIRECT_LOGIN:-}" ]; then
-  echo -e "${RED}ERROR:${RESET} YANDEX_DIRECT_TOKEN and YANDEX_DIRECT_LOGIN must be set."
-  echo "       Put them in .env or export them before running this script."
-  exit 1
+# Fallback: if .env didn't provide credentials, try auth profile
+if [ -z "${YANDEX_DIRECT_TOKEN:-}" ]; then
+  if direct auth status >/dev/null 2>&1; then
+    AUTH_SOURCE="profile"
+  else
+    echo -e "${RED}ERROR:${RESET} No credentials found."
+    echo "       Use 'direct auth login', put .env, or export YANDEX_DIRECT_TOKEN."
+    exit 1
+  fi
+fi
+
+if [ "$AUTH_SOURCE" = "profile" ]; then
+  AUTH_LOGIN=$(direct auth status 2>&1 | grep '^login=' | cut -d= -f2)
+  AUTH_TOKEN_HINT=$(direct auth status 2>&1 | head -1 | cut -d= -f2)
+else
+  AUTH_LOGIN="${YANDEX_DIRECT_LOGIN:-}"
+  AUTH_TOKEN_HINT="${YANDEX_DIRECT_TOKEN:0:8}..."
 fi
 
 echo -e "${BOLD}direct-cli safe commands test${RESET}"
-echo "Login: $YANDEX_DIRECT_LOGIN"
-echo "Token: ${YANDEX_DIRECT_TOKEN:0:8}..."
+echo "Source: $AUTH_SOURCE"
+echo "Login: $AUTH_LOGIN"
+echo "Token: $AUTH_TOKEN_HINT"
 python3 - <<'PY'
 from direct_cli.smoke_matrix import SAFE, commands_for_category
 
@@ -182,16 +199,20 @@ echo ""
 echo -e "${BOLD}=== B. Аутентификация через CLI-флаги ===${RESET}"
 echo ""
 
-T="$YANDEX_DIRECT_TOKEN"
-L="$YANDEX_DIRECT_LOGIN"
+if [ -n "${YANDEX_DIRECT_TOKEN:-}" ]; then
+  T="$YANDEX_DIRECT_TOKEN"
+  L="${YANDEX_DIRECT_LOGIN:-}"
 
-run_test "campaigns get (flag auth)"          direct --token "$T" --login "$L" campaigns get
-run_test "clients get (flag auth)"            direct --token "$T" --login "$L" clients get
-run_test "dictionaries list-names (flag auth)" direct --token "$T" --login "$L" dictionaries list-names
-run_test "reports list-types (flag auth)"     direct --token "$T" --login "$L" reports list-types
+  run_test "campaigns get (flag auth)"          direct --token "$T" --login "$L" campaigns get
+  run_test "clients get (flag auth)"            direct --token "$T" --login "$L" clients get
+  run_test "dictionaries list-names (flag auth)" direct --token "$T" --login "$L" dictionaries list-names
+  run_test "reports list-types (flag auth)"     direct --token "$T" --login "$L" reports list-types
 
-if [ -n "$CAMPAIGN_ID" ]; then
-  run_test "adgroups get (flag auth)"         direct --token "$T" --login "$L" adgroups get --campaign-ids "$CAMPAIGN_ID"
+  if [ -n "$CAMPAIGN_ID" ]; then
+    run_test "adgroups get (flag auth)"         direct --token "$T" --login "$L" adgroups get --campaign-ids "$CAMPAIGN_ID"
+  fi
+else
+  echo -e "  ${YELLOW}[SKIP]${RESET} Секция B — нет YANDEX_DIRECT_TOKEN в env (используется auth profile)"
 fi
 
 echo ""

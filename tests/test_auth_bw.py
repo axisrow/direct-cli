@@ -76,8 +76,9 @@ class TestGetCredentialsBw:
     """Tests for Bitwarden fallback in get_credentials"""
 
     @patch("direct_cli.auth.load_env_file")
+    @patch("direct_cli.auth.get_active_profile", return_value=None)
     @patch("direct_cli.auth.bw_read", return_value="bw-token-value")
-    def test_get_credentials_bw_fallback(self, mock_bw_read, mock_load, monkeypatch):
+    def test_get_credentials_bw_fallback(self, mock_bw_read, mock_profile, mock_load, monkeypatch):
         monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_OP_TOKEN_REF", raising=False)
@@ -90,9 +91,10 @@ class TestGetCredentialsBw:
         mock_bw_read.assert_called_once_with("yandex-direct-item", "password")
 
     @patch("direct_cli.auth.load_env_file")
+    @patch("direct_cli.auth.get_active_profile", return_value=None)
     @patch("direct_cli.auth.bw_read")
     def test_get_credentials_env_takes_priority_over_bw(
-        self, mock_bw_read, mock_load, monkeypatch
+        self, mock_bw_read, mock_profile, mock_load, monkeypatch
     ):
         monkeypatch.setenv("YANDEX_DIRECT_TOKEN", "env-token")
         monkeypatch.setenv("YANDEX_DIRECT_BW_TOKEN_REF", "yandex-direct-item")
@@ -102,9 +104,10 @@ class TestGetCredentialsBw:
         mock_bw_read.assert_not_called()
 
     @patch("direct_cli.auth.load_env_file")
+    @patch("direct_cli.auth.get_active_profile", return_value=None)
     @patch("direct_cli.auth.bw_read", return_value="bw-login-value")
     def test_get_credentials_bw_login_fallback(
-        self, mock_bw_read, mock_load, monkeypatch
+        self, mock_bw_read, mock_profile, mock_load, monkeypatch
     ):
         monkeypatch.setenv("YANDEX_DIRECT_TOKEN", "some-token")
         monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
@@ -116,9 +119,10 @@ class TestGetCredentialsBw:
         mock_bw_read.assert_called_once_with("yandex-direct-item", "username")
 
     @patch("direct_cli.auth.load_env_file")
+    @patch("direct_cli.auth.get_active_profile", return_value=None)
     @patch("direct_cli.auth.bw_read", return_value="bw-token-value")
     def test_get_credentials_explicit_bw_ref_param(
-        self, mock_bw_read, mock_load, monkeypatch
+        self, mock_bw_read, mock_profile, mock_load, monkeypatch
     ):
         monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
@@ -132,10 +136,11 @@ class TestGetCredentialsBw:
         mock_bw_read.assert_called_once_with("yandex-direct-item", "password")
 
     @patch("direct_cli.auth.load_env_file")
+    @patch("direct_cli.auth.get_active_profile", return_value=None)
     @patch("direct_cli.auth.op_read", return_value="op-token-value")
     @patch("direct_cli.auth.bw_read")
     def test_op_takes_priority_over_bw(
-        self, mock_bw_read, mock_op_read, mock_load, monkeypatch
+        self, mock_bw_read, mock_op_read, mock_profile, mock_load, monkeypatch
     ):
         monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
@@ -159,9 +164,10 @@ class TestCLIBwOptions:
         assert "--bw-login-ref" in result.output
 
     @patch("direct_cli.auth.load_env_file")
+    @patch("direct_cli.auth.get_active_profile", return_value=None)
     @patch("direct_cli.auth.bw_read", return_value="resolved-bw-token")
     def test_bw_token_ref_resolves_via_cli_flag(
-        self, mock_bw_read, mock_load, monkeypatch
+        self, mock_bw_read, mock_profile, mock_load, monkeypatch
     ):
         monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
@@ -183,12 +189,13 @@ class TestCLIBwOptions:
         mock_bw_read.assert_called_once_with("yandex-direct-item", "password")
 
     @patch("direct_cli.auth.load_env_file")
+    @patch("direct_cli.auth.get_active_profile", return_value=None)
     @patch(
         "direct_cli.auth.bw_read",
         side_effect=RuntimeError("Bitwarden CLI (bw) not found"),
     )
     def test_bw_token_ref_error_surfaces_cleanly(
-        self, mock_bw_read, mock_load, monkeypatch
+        self, mock_bw_read, mock_profile, mock_load, monkeypatch
     ):
         monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)

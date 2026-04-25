@@ -249,6 +249,7 @@ def list_profiles(path: Optional[Path] = None) -> List[Dict[str, Any]]:
             "source": "oauth",
             "has_token": True,
             "has_login": bool(login),
+            "login": login,
             "active": profile_name == active_profile,
         }
 
@@ -348,6 +349,20 @@ def exchange_oauth_code(
         raise RuntimeError("OAuth token response does not contain access_token")
     # TODO: Persist refresh_token/expires_in and refresh automatically.
     return access_token
+
+
+def resolve_login(token: str) -> Optional[str]:
+    """Resolve Yandex login from OAuth token via Passport API."""
+    request = urllib.request.Request(
+        "https://login.yandex.ru/info",
+        headers={"Authorization": f"OAuth {token}"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            data = json.loads(response.read().decode("utf-8"))
+            return data.get("login")
+    except Exception:
+        return None
 
 
 def get_credentials(
