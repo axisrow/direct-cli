@@ -23,13 +23,17 @@ Read-only commands that remain uncovered here:
 from __future__ import annotations
 
 import json
+import os
+import sys
 import unittest
 
 import pytest
 from click.testing import CliRunner
 
 from direct_cli.cli import cli
-from conftest import skip_if_no_token
+
+sys.path.insert(0, os.path.dirname(__file__))
+from conftest import skip_if_no_token  # noqa: E402
 
 
 def make_runner():
@@ -57,17 +61,6 @@ def assert_success(result, cmd_label: str):
 def get_first_campaign_id() -> int | None:
     """Return the first available campaign ID, or None if no campaigns exist."""
     result = invoke_get("campaigns", "get", "--limit", "1", "--format", "json")
-    if result.exit_code != 0:
-        return None
-    data = json.loads(result.output)
-    if isinstance(data, list) and data:
-        return data[0].get("Id")
-    return None
-
-
-def get_first_turbopage_id() -> int | None:
-    """Return the first available Turbo Page ID, or None."""
-    result = invoke_get("turbopages", "get", "--limit", "1", "--format", "json")
     if result.exit_code != 0:
         return None
     data = json.loads(result.output)
@@ -392,16 +385,16 @@ class TestReadOnlyDynamicFeedAdTargets(unittest.TestCase):
 class TestReadOnlyLeads(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.turbopage_id = get_first_turbopage_id()
+        cls.campaign_id = get_first_campaign_id()
 
     def test_get_leads(self):
-        if not self.turbopage_id:
-            self.skipTest("No Turbo Pages found in account")
+        if not self.campaign_id:
+            self.skipTest("No campaigns found in account")
         result = invoke_get(
             "leads",
             "get",
-            "--turbo-page-ids",
-            str(self.turbopage_id),
+            "--campaign-ids",
+            str(self.campaign_id),
             "--limit",
             "1",
             "--format",
@@ -419,17 +412,19 @@ class TestReadOnlyTurbopages(unittest.TestCase):
 
 
 @pytest.mark.integration
-@pytest.mark.skip(reason="businesses requires explicit --ids/--name filter (no list endpoint)")
+@skip_if_no_token
 class TestReadOnlyBusinesses(unittest.TestCase):
     def test_get_businesses(self):
-        ...
+        result = invoke_get("businesses", "get", "--limit", "1", "--format", "json")
+        assert_success(result, "businesses get")
 
 
 @pytest.mark.integration
-@pytest.mark.skip(reason="advideos requires explicit --ids (no list endpoint)")
+@skip_if_no_token
 class TestReadOnlyAdVideos(unittest.TestCase):
     def test_get_advideos(self):
-        ...
+        result = invoke_get("advideos", "get", "--limit", "1", "--format", "json")
+        assert_success(result, "advideos get")
 
 
 @pytest.mark.integration
@@ -438,12 +433,9 @@ class TestReadOnlyAgencyClients(unittest.TestCase):
     def test_get_agencyclients(self):
         result = invoke_get("agencyclients", "get", "--limit", "1", "--format", "json")
         if result.exit_code != 0 and (
-            "403" in result.output
-            or "Access denied" in result.output
-            or "error_code=54" in result.output
-            or "No rights to access" in result.output
+            "403" in result.output or "Access denied" in result.output
         ):
-            self.skipTest("agencyclients returned 403/54 — not an agency account")
+            self.skipTest("agencyclients returned 403 — not an agency account")
         assert_success(result, "agencyclients get")
 
 

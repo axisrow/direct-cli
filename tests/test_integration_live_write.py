@@ -36,13 +36,16 @@ Coverage status (issue #59):
 
 import json
 import os
+import sys
 from typing import Any, Dict, List, Optional
 
 import pytest
 from click.testing import CliRunner
 
 from direct_cli.cli import cli
-from conftest import _resolve_test_credentials
+
+sys.path.insert(0, os.path.dirname(__file__))
+from conftest import _resolve_test_credentials  # noqa: E402
 
 LIVE_WRITE_ENV = "YANDEX_DIRECT_LIVE_WRITE"
 TEST_CAMPAIGN_NAME = "direct-cli-live-draft-test-cassette"
@@ -119,12 +122,11 @@ pytestmark = [
 
 def _invoke_live(*args: str):
     """Invoke a CLI command against production API with live credentials."""
-    token, login = _resolve_test_credentials()
-    assert token, "API credentials required for live draft write tests"
+    assert _LIVE_TOKEN, "API credentials required for live draft write tests"
 
-    all_args = ["--token", token]
-    if login:
-        all_args.extend(["--login", login])
+    all_args = ["--token", _LIVE_TOKEN]
+    if _LIVE_LOGIN:
+        all_args.extend(["--login", _LIVE_LOGIN])
     all_args.extend(args)
 
     return CliRunner().invoke(cli, all_args)
