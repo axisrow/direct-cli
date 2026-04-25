@@ -24,22 +24,16 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import unittest
 
 import pytest
 from click.testing import CliRunner
-from dotenv import load_dotenv
 
 from direct_cli.cli import cli
 
-load_dotenv()
-
-TOKEN = os.getenv("YANDEX_DIRECT_TOKEN")
-
-skip_if_no_token = pytest.mark.skipif(
-    not TOKEN,
-    reason="YANDEX_DIRECT_TOKEN is not set — skipping integration tests",
-)
+sys.path.insert(0, os.path.dirname(__file__))
+from conftest import skip_if_no_token  # noqa: E402
 
 
 def make_runner():
