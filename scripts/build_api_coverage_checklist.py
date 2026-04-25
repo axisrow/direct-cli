@@ -9,7 +9,7 @@ Output goes to stdout (or the path passed as the first argument).
 
 Run from the repo root:
 
-    python3 scripts/build_issue55_body.py /tmp/issue-55-body.md
+    python3 scripts/build_api_coverage_checklist.py /tmp/api-coverage.md
 """
 
 from __future__ import annotations
@@ -427,7 +427,7 @@ Worked example: `bidmodifiers.toggle` is deprecated since 2025-11-13; live WSDL 
 - #96 — last live WRITE_SANDBOX smoke run; surfaced the schema-level bugs that motivated #108.
 - #54, #41, #35, #28, #42, #44 — phase-tracking issues.
 
-> Body regenerated on 2026-04-25 by `scripts/build_issue55_body.py`. Edit the script, not the body.
+> Body regenerated on 2026-04-25 by `scripts/build_api_coverage_checklist.py`. Edit the script, not the body.
 """
 
 
