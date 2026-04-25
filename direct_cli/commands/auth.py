@@ -118,6 +118,9 @@ def status(profile):
     if oauth_profile:
         source = "oauth"
         login_value = oauth_profile.get("login")
+        if not login_value and env_login:
+            login_value = env_login
+            source = "oauth+env"
     elif env_token:
         source = "env"
         login_value = env_login
