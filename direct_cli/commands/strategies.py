@@ -60,7 +60,7 @@ def get(ctx, ids, types, is_archived, limit, fetch_all, output_format, output, f
         )
 
         field_names = (
-            fields.split(",") if fields else ["Id", "Name", "Type", "IsArchived"]
+            fields.split(",") if fields else ["Id", "Name", "Type", "StatusArchived"]
         )
 
         criteria = {}

@@ -31,7 +31,7 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
             sandbox=ctx.obj.get("sandbox"),
         )
 
-        field_names = fields.split(",") if fields else ["Id", "Name", "Url"]
+        field_names = fields.split(",") if fields else ["Id", "Name", "Type", "Address", "Phone", "ProfileUrl"]
 
         criteria = {}
         if ids:
