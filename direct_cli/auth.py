@@ -10,6 +10,7 @@ import secrets
 import shutil
 import subprocess
 import tempfile
+import logging
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -249,6 +250,7 @@ def list_profiles(path: Optional[Path] = None) -> List[Dict[str, Any]]:
             "source": "oauth",
             "has_token": True,
             "has_login": bool(login),
+            "login": login,
             "active": profile_name == active_profile,
         }
 
@@ -266,12 +268,14 @@ def list_profiles(path: Optional[Path] = None) -> List[Dict[str, Any]]:
         if existing:
             existing["source"] = "oauth+env"
             existing["has_login"] = bool(existing["has_login"] or login)
+            existing["login"] = existing["login"] or login
             continue
         profiles[profile_name] = {
             "profile": profile_name,
             "source": "env",
             "has_token": True,
             "has_login": bool(login),
+            "login": login or None,
             "active": profile_name == active_profile,
         }
 
@@ -348,6 +352,21 @@ def exchange_oauth_code(
         raise RuntimeError("OAuth token response does not contain access_token")
     # TODO: Persist refresh_token/expires_in and refresh automatically.
     return access_token
+
+
+def resolve_login(token: str) -> Optional[str]:
+    """Resolve Yandex login from OAuth token via Passport API."""
+    request = urllib.request.Request(
+        "https://login.yandex.ru/info",
+        headers={"Authorization": f"OAuth {token}"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            data = json.loads(response.read().decode("utf-8"))
+            return data.get("login")
+    except (urllib.error.URLError, urllib.error.HTTPError, OSError, json.JSONDecodeError) as exc:
+        logging.debug("resolve_login failed: %s", exc)
+        return None
 
 
 def get_credentials(

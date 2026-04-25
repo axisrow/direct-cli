@@ -11,6 +11,7 @@ from ..auth import (
     get_env_profile,
     get_oauth_profile,
     list_profiles,
+    resolve_login,
     save_oauth_profile,
     set_active_profile,
 )
@@ -35,6 +36,8 @@ def login(profile, code, oauth_token, client_id, client_secret, login):
 
     token = oauth_token
     if token:
+        if not login:
+            login = resolve_login(token)
         save_oauth_profile(profile=profile, token=token, login=login)
         print_success(f"Profile '{profile}' is saved and active.")
         return
@@ -64,6 +67,8 @@ def login(profile, code, oauth_token, client_id, client_secret, login):
     except RuntimeError as error:
         raise click.ClickException(str(error))
 
+    if not login:
+        login = resolve_login(token)
     save_oauth_profile(profile=profile, token=token, login=login)
     print_success(f"Profile '{profile}' is saved and active.")
 
@@ -78,9 +83,9 @@ def list_command():
 
     for item in profiles:
         marker = "*" if item["active"] else " "
-        login_state = "yes" if item["has_login"] else "no"
+        login_display = item.get("login") or "(not set)"
         click.echo(
-            f"{marker} {item['profile']}  source={item['source']}  login={login_state}"
+            f"{marker} {item['profile']}  source={item['source']}  login={login_display}"
         )
 
 
@@ -112,14 +117,20 @@ def status(profile):
 
     if oauth_profile:
         source = "oauth"
-        has_login = bool(oauth_profile.get("login"))
+        login_value = oauth_profile.get("login")
+        if not login_value and env_login:
+            login_value = env_login
+            source = "oauth+env"
     elif env_token:
         source = "env"
-        has_login = bool(env_login)
+        login_value = env_login
     else:
         raise click.ClickException(f"Profile '{selected}' is not configured.")
 
     click.echo(f"profile={selected}")
     click.echo(f"source={source}")
     click.echo("has_token=yes")
-    click.echo(f"has_login={'yes' if has_login else 'no'}")
+    if login_value:
+        click.echo(f"login={login_value}")
+    else:
+        click.echo("login=(not set)")
