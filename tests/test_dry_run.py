@@ -40,14 +40,16 @@ Coverage scope
 
 The suite covers both payload-building write commands (``add``,
 ``update``, ``set``) and the main single-action lifecycle
-commands that now expose ``--dry-run`` (``delete``, ``archive``,
-``unarchive``, ``suspend``, ``resume``, ``moderate``) so that trivial
+commands that now expose ``--dry-run`` (``delete``,
+``suspend``, ``resume``, ``moderate``, ``archive``,
+``unarchive``) so that trivial
 ``SelectionCriteria`` regressions are also caught in CI.
 
 Part of axisrow/yandex-direct-mcp-plugin#61.
 """
 
 import json
+from unittest.mock import patch
 
 from click.testing import CliRunner
 
@@ -1077,25 +1079,26 @@ def test_reports_get_type_is_case_insensitive():
     click.Choice(..., case_sensitive=False) on REPORT_TYPES normalizes
     the input — users can type ``campaign_performance_report``.
     """
-    result = CliRunner(
-        env={"YANDEX_DIRECT_TOKEN": "", "YANDEX_DIRECT_LOGIN": ""},
-    ).invoke(
-        cli,
-        [
-            "reports",
-            "get",
-            "--type",
-            "campaign_performance_report",
-            "--from",
-            "2026-01-01",
-            "--to",
-            "2026-01-31",
-            "--name",
-            "X",
-            "--fields",
-            "Date",
-        ],
-    )
+    with patch("direct_cli.auth.get_active_profile", return_value=None):
+        result = CliRunner(
+            env={"YANDEX_DIRECT_TOKEN": "", "YANDEX_DIRECT_LOGIN": ""},
+        ).invoke(
+            cli,
+            [
+                "reports",
+                "get",
+                "--type",
+                "campaign_performance_report",
+                "--from",
+                "2026-01-01",
+                "--to",
+                "2026-01-31",
+                "--name",
+                "X",
+                "--fields",
+                "Date",
+            ],
+        )
     # Force a missing-token failure so this unit test cannot make a real
     # reports request when a developer/CI environment has credentials set.
     # What we care about is that Click's parameter parser did NOT reject

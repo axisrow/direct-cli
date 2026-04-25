@@ -119,12 +119,6 @@ INTENTIONAL_EXTRA_METHODS = {
         "CLI guard command: the Yandex Direct API does not support deleting "
         "agency clients, so the command aborts with an explicit message."
     ),
-    ("keywords", "archive"): (
-        "Legacy lifecycle command preserved for compatibility with existing CLI users."
-    ),
-    ("keywords", "unarchive"): (
-        "Legacy lifecycle command preserved for compatibility with existing CLI users."
-    ),
 }
 
 METHOD_NAME_OVERRIDES = {

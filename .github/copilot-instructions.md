@@ -77,7 +77,7 @@ Never invoke these commands in automated tests against a real account.
 | `bidmodifiers set` | Changes bid multipliers (device, region, time, etc.) |
 
 ### 🟡 Reversible but affect live traffic
-`campaigns suspend/resume/archive/unarchive`, `ads suspend/resume/archive/unarchive`, `keywords suspend/resume/archive/unarchive`, `audiencetargets suspend/resume`
+`campaigns suspend/resume/archive/unarchive`, `ads suspend/resume/archive/unarchive`, `keywords suspend/resume`, `audiencetargets suspend/resume`
 
 ### 🟡 Account-wide mutations
 `clients update` — modifies account-level settings.

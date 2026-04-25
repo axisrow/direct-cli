@@ -7,7 +7,7 @@ account requirements, or external dependencies.
 
 - **ads moderate** — submits ads for moderation; cannot be undone. A
   smoke-test would leave real ads in a moderation queue.
-- **campaigns/ads/keywords suspend/resume/archive/unarchive on ACCEPTED
+- **campaigns/ads suspend/resume/archive/unarchive on ACCEPTED
   objects** — changes live traffic. Live-write tests only exercise these
   on DRAFT-state objects (Sandbox Limitation category A).
 
