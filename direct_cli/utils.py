@@ -255,10 +255,10 @@ COMMON_FIELDS = {
     "sitelinks": ["Id", "Sitelinks"],
     "vcards": ["Id", "CampaignId", "Country", "City", "CompanyName"],
     "leads": ["Id", "SubmittedAt", "TurboPageId", "TurboPageName"],
-    "turbopages": ["Id", "Name", "Status", "Href"],
+    "turbopages": ["Id", "Name", "Href", "TurboSiteHref", "PreviewHref", "BoundWithHref"],
     "feeds": ["Id", "Name", "BusinessType", "SourceType", "Status"],
     "smartadtargets": ["Id", "CampaignId", "AdGroupId", "Status", "ServingStatus"],
-    "businesses": ["Id", "Name", "Url"],
+    "businesses": ["Id", "Name", "Type", "Address", "Phone", "ProfileUrl"],
     "retargetinglists": ["Id", "Name", "Type", "Scope"],
     "advideos": ["Id", "Status"],
 }

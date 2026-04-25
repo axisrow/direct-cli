@@ -36,7 +36,7 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
             sandbox=ctx.obj.get("sandbox"),
         )
 
-        field_names = fields.split(",") if fields else ["Id", "Name", "Status", "Href"]
+        field_names = fields.split(",") if fields else ["Id", "Name", "Href", "TurboSiteHref", "PreviewHref", "BoundWithHref"]
 
         criteria = {}
         if ids:
