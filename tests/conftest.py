@@ -16,7 +16,6 @@ before committing.
 """
 
 import json
-import os
 import re
 
 import pytest

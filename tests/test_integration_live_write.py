@@ -36,16 +36,13 @@ Coverage status (issue #59):
 
 import json
 import os
-import sys
 from typing import Any, Dict, List, Optional
 
 import pytest
 from click.testing import CliRunner
 
 from direct_cli.cli import cli
-
-sys.path.insert(0, os.path.dirname(__file__))
-from conftest import _resolve_test_credentials  # noqa: E402
+from conftest import _resolve_test_credentials
 
 LIVE_WRITE_ENV = "YANDEX_DIRECT_LIVE_WRITE"
 TEST_CAMPAIGN_NAME = "direct-cli-live-draft-test-cassette"

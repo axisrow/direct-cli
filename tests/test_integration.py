@@ -23,17 +23,13 @@ Read-only commands that remain uncovered here:
 from __future__ import annotations
 
 import json
-import os
-import sys
 import unittest
 
 import pytest
 from click.testing import CliRunner
 
 from direct_cli.cli import cli
-
-sys.path.insert(0, os.path.dirname(__file__))
-from conftest import skip_if_no_token  # noqa: E402
+from conftest import skip_if_no_token
 
 
 def make_runner():
@@ -423,19 +419,17 @@ class TestReadOnlyTurbopages(unittest.TestCase):
 
 
 @pytest.mark.integration
-@skip_if_no_token
+@pytest.mark.skip(reason="businesses requires explicit --ids/--name filter (no list endpoint)")
 class TestReadOnlyBusinesses(unittest.TestCase):
     def test_get_businesses(self):
-        # businesses has no list-all endpoint — requires Ids, Name, or Url filter
-        self.skipTest("businesses requires explicit --ids/--name filter (no list endpoint)")
+        ...
 
 
 @pytest.mark.integration
-@skip_if_no_token
+@pytest.mark.skip(reason="advideos requires explicit --ids (no list endpoint)")
 class TestReadOnlyAdVideos(unittest.TestCase):
     def test_get_advideos(self):
-        # advideos has no list-all endpoint — requires explicit --ids
-        self.skipTest("advideos requires explicit --ids (no list endpoint)")
+        ...
 
 
 @pytest.mark.integration
