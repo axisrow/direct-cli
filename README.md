@@ -149,7 +149,7 @@ direct dictionaries get-geo-regions \
 #### Flag Design Rules
 
 - List inputs use comma-separated CLI syntax where appropriate.
-- Money and bid values stay human-readable in CLI input and are converted internally to the API wire format.
+- Money and bid values are passed in micro-rubles (API-native format). Values below 100,000 trigger a validation hint suggesting the correct scale.
 - Selector fields remain explicit flags, for example:
   - `--id`
   - `--campaign-id`
@@ -193,7 +193,7 @@ direct campaigns get --ids 1,2,3
 direct changes check-campaigns --timestamp 2026-04-14T00:00:00
 direct keywordsresearch has-search-volume --keywords "buy laptop,buy desktop"
 direct smartadtargets update --id 456 --priority HIGH
-direct dynamicads set-bids --id 789 --bid 12.5 --context-bid 9 --priority HIGH
+direct dynamicads set-bids --id 789 --bid 12500000 --context-bid 9000000 --priority HIGH
 direct dictionaries get-geo-regions --name Moscow --region-ids 225,187 --exact-names Москва,Санкт-Петербург --fields GeoRegionId,GeoRegionName
 ```
 
@@ -201,7 +201,7 @@ Invalid examples:
 
 ```bash
 direct dictionaries get-geo-regions --json '{"GeoRegionIds":[225]}' --fields GeoRegionId,GeoRegionName
-direct dynamicads set-bids --id 789 --bid 12.5 --json '{"StrategyPriority":"HIGH"}'
+direct dynamicads set-bids --id 789 --bid 12500000 --json '{"StrategyPriority":"HIGH"}'
 direct dictionaries get-geo-regions \
   --region-ids 225 \
   --fields GeoRegionId,GeoRegionName
@@ -219,12 +219,12 @@ direct campaigns get --ids 1,2,3 --format table
 direct campaigns get --fetch-all --format csv --output campaigns.csv
 
 # Create (use --dry-run to preview the request)
-direct campaigns add --name "My Campaign" --start-date 2024-02-01 --type TEXT_CAMPAIGN --budget 1000 --setting ADD_METRICA_TAG=YES --search-strategy HIGHEST_POSITION --network-strategy SERVING_OFF --dry-run
+direct campaigns add --name "My Campaign" --start-date 2024-02-01 --type TEXT_CAMPAIGN --budget 1000000000 --setting ADD_METRICA_TAG=YES --search-strategy HIGHEST_POSITION --network-strategy SERVING_OFF --dry-run
 direct campaigns add --name "Dynamic Campaign" --start-date 2024-02-01 --type DYNAMIC_TEXT_CAMPAIGN --setting ADD_METRICA_TAG=NO --search-strategy HIGHEST_POSITION --network-strategy SERVING_OFF --dry-run
-direct campaigns add --name "Smart Campaign" --start-date 2024-02-01 --type SMART_CAMPAIGN --network-strategy AVERAGE_CPC_PER_FILTER --filter-average-cpc 1 --counter-id 123 --dry-run
+direct campaigns add --name "Smart Campaign" --start-date 2024-02-01 --type SMART_CAMPAIGN --network-strategy AVERAGE_CPC_PER_FILTER --filter-average-cpc 1000000 --counter-id 123 --dry-run
 
 # Update / lifecycle
-direct campaigns update --id 12345 --name "New Name" --status SUSPENDED --budget 100 --start-date 2024-02-10 --end-date 2024-03-01
+direct campaigns update --id 12345 --name "New Name" --status SUSPENDED --budget 100000000 --start-date 2024-02-10 --end-date 2024-03-01
 direct campaigns suspend --id 12345
 direct campaigns resume --id 12345
 direct campaigns archive --id 12345
@@ -258,7 +258,7 @@ direct ads delete --id 99999
 
 ```bash
 direct keywords get --campaign-ids 1,2,3
-direct keywords add --adgroup-id 12345 --keyword "buy laptop" --bid 10.50 --context-bid 5.25 --user-param-1 segment-a --user-param-2 segment-b --dry-run
+direct keywords add --adgroup-id 12345 --keyword "buy laptop" --bid 10500000 --context-bid 5250000 --user-param-1 segment-a --user-param-2 segment-b --dry-run
 direct keywords update --id 88888 --keyword "updated keyword text"
 direct keywords delete --id 88888
 ```
@@ -296,22 +296,22 @@ direct retargeting add --name "List A" --type AUDIENCE --rule "ALL:12345:30|6789
 direct retargeting update --id 55 --name "Renamed" --rule "ANY:12345:30" --dry-run
 
 # Bids and modifiers
-direct bids set --keyword-id 123 --bid 15
-direct bids set-auto --keyword-id 123 --max-bid 20 --position PREMIUMBLOCK --scope SEARCH --dry-run
-direct keywordbids set --keyword-id 321 --search-bid 8 --network-bid 3
-direct keywordbids set-auto --keyword-id 321 --target-traffic-volume 100 --increase-percent 10 --bid-ceiling 12.5 --dry-run
+direct bids set --keyword-id 123 --bid 15000000
+direct bids set-auto --keyword-id 123 --max-bid 20000000 --position PREMIUMBLOCK --scope SEARCH --dry-run
+direct keywordbids set --keyword-id 321 --search-bid 8000000 --network-bid 3000000
+direct keywordbids set-auto --keyword-id 321 --target-traffic-volume 100 --increase-percent 10 --bid-ceiling 12500000 --dry-run
 direct bidmodifiers add --campaign-id 123 --type DEMOGRAPHICS_ADJUSTMENT --value 150 --gender GENDER_MALE --age AGE_25_34 --dry-run
 direct bidmodifiers set --id 99 --value 130 --dry-run
 
 # Canonical multiword groups
 direct negativekeywordsharedsets update --id 123 --keywords "foo,bar"
-direct audiencetargets add --adgroup-id 100 --retargeting-list-id 200 --bid 12 --priority HIGH --dry-run
-direct audiencetargets set-bids --id 101 --context-bid 7 --priority LOW --dry-run
-direct dynamicads add --adgroup-id 33 --name "Webpage A" --condition "URL:CONTAINS_ANY:test|shop" --condition "PAGE_CONTENT:CONTAINS:baz" --bid 3 --context-bid 2 --priority HIGH --dry-run
-direct smartadtargets add --adgroup-id 55 --name "Audience A" --audience ALL_SEGMENTS --condition "CATEGORY_ID:EQUALS:42" --average-cpc 3 --average-cpa 4 --priority HIGH --available-items-only YES --dry-run
+direct audiencetargets add --adgroup-id 100 --retargeting-list-id 200 --bid 12000000 --priority HIGH --dry-run
+direct audiencetargets set-bids --id 101 --context-bid 7000000 --priority LOW --dry-run
+direct dynamicads add --adgroup-id 33 --name "Webpage A" --condition "URL:CONTAINS_ANY:test|shop" --condition "PAGE_CONTENT:CONTAINS:baz" --bid 3000000 --context-bid 2000000 --priority HIGH --dry-run
+direct smartadtargets add --adgroup-id 55 --name "Audience A" --audience ALL_SEGMENTS --condition "CATEGORY_ID:EQUALS:42" --average-cpc 3000000 --average-cpa 4000000 --priority HIGH --available-items-only YES --dry-run
 direct smartadtargets update --id 456 --priority HIGH
-direct smartadtargets set-bids --id 456 --average-cpc 10.5 --average-cpa 15 --priority HIGH
-direct dynamicads set-bids --id 789 --bid 12.5 --context-bid 9 --priority HIGH
+direct smartadtargets set-bids --id 456 --average-cpc 10500000 --average-cpa 15000000 --priority HIGH
+direct dynamicads set-bids --id 789 --bid 12500000 --context-bid 9000000 --priority HIGH
 
 # Shared bidding strategies
 direct strategies get --limit 5
@@ -321,8 +321,8 @@ direct strategies archive --id 42 --dry-run
 
 # Dynamic feed ad targets
 direct dynamicfeedadtargets get --adgroup-ids 123 --limit 5
-direct dynamicfeedadtargets add --adgroup-id 33 --name "Feed slice A" --condition "CATEGORY:EQUALS:shoes" --bid 5 --dry-run
-direct dynamicfeedadtargets set-bids --id 789 --bid 6.5 --context-bid 4 --dry-run
+direct dynamicfeedadtargets add --adgroup-id 33 --name "Feed slice A" --condition "CATEGORY:EQUALS:shoes" --bid 5000000 --dry-run
+direct dynamicfeedadtargets set-bids --id 789 --bid 6500000 --context-bid 4000000 --dry-run
 
 # Extensions, assets, feeds, and clients
 direct sitelinks add --sitelink "Docs|https://example.com/docs" --sitelink "Help|https://example.com/help|Desk" --dry-run
@@ -727,7 +727,7 @@ direct dictionaries get-geo-regions \
 #### Flag Design Rules
 
 - List inputs use comma-separated CLI syntax where appropriate.
-- Money and bid values stay human-readable in CLI input and are converted internally to the API wire format.
+- Money and bid values are passed in micro-rubles (API-native format). Values below 100,000 trigger a validation hint suggesting the correct scale.
 - Selector fields remain explicit flags, for example:
   - `--id`
   - `--campaign-id`
@@ -770,7 +770,7 @@ Valid canonical examples:
 direct campaigns get --ids 1,2,3
 direct changes check-campaigns --timestamp 2026-04-14T00:00:00
 direct keywordsresearch has-search-volume --keywords "buy laptop,buy desktop"
-direct dynamicads set-bids --id 789 --bid 12.5
+direct dynamicads set-bids --id 789 --bid 12500000
 direct dictionaries get-geo-regions --region-ids 225 --fields GeoRegionId,GeoRegionName
 ```
 
@@ -778,7 +778,7 @@ Invalid examples:
 
 ```bash
 direct dictionaries get-geo-regions --json '{"GeoRegionIds":[225]}' --fields GeoRegionId,GeoRegionName
-direct dynamicads set-bids --id 789 --bid 12.5 --json '{"StrategyPriority":"HIGH"}'
+direct dynamicads set-bids --id 789 --bid 12500000 --json '{"StrategyPriority":"HIGH"}'
 direct dictionaries get-geo-regions \
   --region-ids 225 \
   --fields GeoRegionId,GeoRegionName
@@ -796,12 +796,12 @@ direct campaigns get --ids 1,2,3 --format table
 direct campaigns get --fetch-all --format csv --output campaigns.csv
 
 # Создать (--dry-run покажет запрос без отправки)
-direct campaigns add --name "Моя кампания" --start-date 2024-02-01 --type TEXT_CAMPAIGN --budget 1000 --setting ADD_METRICA_TAG=YES --search-strategy HIGHEST_POSITION --network-strategy SERVING_OFF --dry-run
+direct campaigns add --name "Моя кампания" --start-date 2024-02-01 --type TEXT_CAMPAIGN --budget 1000000000 --setting ADD_METRICA_TAG=YES --search-strategy HIGHEST_POSITION --network-strategy SERVING_OFF --dry-run
 direct campaigns add --name "Динамическая кампания" --start-date 2024-02-01 --type DYNAMIC_TEXT_CAMPAIGN --setting ADD_METRICA_TAG=NO --search-strategy HIGHEST_POSITION --network-strategy SERVING_OFF --dry-run
-direct campaigns add --name "Смарт-кампания" --start-date 2024-02-01 --type SMART_CAMPAIGN --network-strategy AVERAGE_CPC_PER_FILTER --filter-average-cpc 1 --counter-id 123 --dry-run
+direct campaigns add --name "Смарт-кампания" --start-date 2024-02-01 --type SMART_CAMPAIGN --network-strategy AVERAGE_CPC_PER_FILTER --filter-average-cpc 1000000 --counter-id 123 --dry-run
 
 # Обновление и управление статусом
-direct campaigns update --id 12345 --name "Новое название" --status SUSPENDED --budget 100 --start-date 2024-02-10 --end-date 2024-03-01
+direct campaigns update --id 12345 --name "Новое название" --status SUSPENDED --budget 100000000 --start-date 2024-02-10 --end-date 2024-03-01
 direct campaigns suspend --id 12345
 direct campaigns resume --id 12345
 direct campaigns archive --id 12345
@@ -835,7 +835,7 @@ direct ads delete --id 99999
 
 ```bash
 direct keywords get --campaign-ids 1,2,3
-direct keywords add --adgroup-id 12345 --keyword "купить ноутбук" --bid 10.50 --context-bid 5.25 --user-param-1 segment-a --user-param-2 segment-b --dry-run
+direct keywords add --adgroup-id 12345 --keyword "купить ноутбук" --bid 10500000 --context-bid 5250000 --user-param-1 segment-a --user-param-2 segment-b --dry-run
 direct keywords update --id 88888 --keyword "updated keyword text"
 direct keywords delete --id 88888
 ```
@@ -873,22 +873,22 @@ direct retargeting add --name "Список A" --type AUDIENCE --rule "ALL:12345
 direct retargeting update --id 55 --name "Переименованный список" --rule "ANY:12345:30" --dry-run
 
 # Ставки и модификаторы
-direct bids set --keyword-id 123 --bid 15
-direct bids set-auto --keyword-id 123 --max-bid 20 --position PREMIUMBLOCK --scope SEARCH --dry-run
-direct keywordbids set --keyword-id 321 --search-bid 8 --network-bid 3
-direct keywordbids set-auto --keyword-id 321 --target-traffic-volume 100 --increase-percent 10 --bid-ceiling 12.5 --dry-run
+direct bids set --keyword-id 123 --bid 15000000
+direct bids set-auto --keyword-id 123 --max-bid 20000000 --position PREMIUMBLOCK --scope SEARCH --dry-run
+direct keywordbids set --keyword-id 321 --search-bid 8000000 --network-bid 3000000
+direct keywordbids set-auto --keyword-id 321 --target-traffic-volume 100 --increase-percent 10 --bid-ceiling 12500000 --dry-run
 direct bidmodifiers add --campaign-id 123 --type DEMOGRAPHICS_ADJUSTMENT --value 150 --gender GENDER_MALE --age AGE_25_34 --dry-run
 direct bidmodifiers set --id 99 --value 130 --dry-run
 
 # Канонические многословные группы
 direct negativekeywordsharedsets update --id 123 --keywords "foo,bar"
-direct audiencetargets add --adgroup-id 100 --retargeting-list-id 200 --bid 12 --priority HIGH --dry-run
-direct audiencetargets set-bids --id 101 --context-bid 7 --priority LOW --dry-run
-direct dynamicads add --adgroup-id 33 --name "Webpage A" --condition "URL:CONTAINS_ANY:test|shop" --condition "PAGE_CONTENT:CONTAINS:baz" --bid 3 --context-bid 2 --priority HIGH --dry-run
-direct smartadtargets add --adgroup-id 55 --name "Audience A" --audience ALL_SEGMENTS --condition "CATEGORY_ID:EQUALS:42" --average-cpc 3 --average-cpa 4 --priority HIGH --available-items-only YES --dry-run
+direct audiencetargets add --adgroup-id 100 --retargeting-list-id 200 --bid 12000000 --priority HIGH --dry-run
+direct audiencetargets set-bids --id 101 --context-bid 7000000 --priority LOW --dry-run
+direct dynamicads add --adgroup-id 33 --name "Webpage A" --condition "URL:CONTAINS_ANY:test|shop" --condition "PAGE_CONTENT:CONTAINS:baz" --bid 3000000 --context-bid 2000000 --priority HIGH --dry-run
+direct smartadtargets add --adgroup-id 55 --name "Audience A" --audience ALL_SEGMENTS --condition "CATEGORY_ID:EQUALS:42" --average-cpc 3000000 --average-cpa 4000000 --priority HIGH --available-items-only YES --dry-run
 direct smartadtargets update --id 456 --priority HIGH
-direct smartadtargets set-bids --id 456 --average-cpc 10.5 --average-cpa 15 --priority HIGH
-direct dynamicads set-bids --id 789 --bid 12.5 --context-bid 9 --priority HIGH
+direct smartadtargets set-bids --id 456 --average-cpc 10500000 --average-cpa 15000000 --priority HIGH
+direct dynamicads set-bids --id 789 --bid 12500000 --context-bid 9000000 --priority HIGH
 
 # Общие стратегии ставок
 direct strategies get --limit 5
@@ -898,8 +898,8 @@ direct strategies archive --id 42 --dry-run
 
 # Динамические таргеты по фиду
 direct dynamicfeedadtargets get --adgroup-ids 123 --limit 5
-direct dynamicfeedadtargets add --adgroup-id 33 --name "Срез фида А" --condition "CATEGORY:EQUALS:shoes" --bid 5 --dry-run
-direct dynamicfeedadtargets set-bids --id 789 --bid 6.5 --context-bid 4 --dry-run
+direct dynamicfeedadtargets add --adgroup-id 33 --name "Срез фида А" --condition "CATEGORY:EQUALS:shoes" --bid 5000000 --dry-run
+direct dynamicfeedadtargets set-bids --id 789 --bid 6500000 --context-bid 4000000 --dry-run
 
 # Расширения, ассеты, фиды и клиенты
 direct sitelinks add --sitelink "Docs|https://example.com/docs" --sitelink "Help|https://example.com/help|Desk" --dry-run
