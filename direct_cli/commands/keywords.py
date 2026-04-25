@@ -229,66 +229,6 @@ def delete(ctx, keyword_id, dry_run):
 @click.option("--id", "keyword_id", required=True, type=int, help="Keyword ID")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def archive(ctx, keyword_id, dry_run):
-    """Archive keyword"""
-    try:
-        body = {
-            "method": "archive",
-            "params": {"SelectionCriteria": {"Ids": [keyword_id]}},
-        }
-
-        if dry_run:
-            format_output(body, "json", None)
-            return
-
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
-
-        result = client.keywords().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
-
-
-@keywords.command()
-@click.option("--id", "keyword_id", required=True, type=int, help="Keyword ID")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-def unarchive(ctx, keyword_id, dry_run):
-    """Unarchive keyword"""
-    try:
-        body = {
-            "method": "unarchive",
-            "params": {"SelectionCriteria": {"Ids": [keyword_id]}},
-        }
-
-        if dry_run:
-            format_output(body, "json", None)
-            return
-
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
-
-        result = client.keywords().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
-
-
-@keywords.command()
-@click.option("--id", "keyword_id", required=True, type=int, help="Keyword ID")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
 def suspend(ctx, keyword_id, dry_run):
     """Suspend keyword"""
     try:

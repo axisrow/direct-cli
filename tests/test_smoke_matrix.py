@@ -58,8 +58,8 @@ def test_smoke_matrix_counts_match_current_cli_surface():
     summary = smoke_summary()
 
     assert summary["total_cli_groups"] == 31
-    assert summary["total_cli_subcommands"] == 122
-    assert summary["api_cli_subcommands"] == 118
+    assert summary["total_cli_subcommands"] == 120
+    assert summary["api_cli_subcommands"] == 116
     assert summary["wsdl_services"] == 29
     assert summary["non_wsdl_services"] == sorted(NON_WSDL_SERVICES)
     assert summary["api_services_total"] == 30
@@ -120,7 +120,7 @@ def test_sandbox_write_live_runner_covers_write_sandbox_matrix():
     )
     try:
         assert set(runner.handlers()) == set(SMOKE_MATRIX[WRITE_SANDBOX])
-        assert len(SMOKE_MATRIX[WRITE_SANDBOX]) == 77
+        assert len(SMOKE_MATRIX[WRITE_SANDBOX]) == 75
     finally:
         runner.close()
 

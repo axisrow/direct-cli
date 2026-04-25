@@ -40,8 +40,9 @@ Coverage scope
 
 The suite covers both payload-building write commands (``add``,
 ``update``, ``set``) and the main single-action lifecycle
-commands that now expose ``--dry-run`` (``delete``, ``archive``,
-``unarchive``, ``suspend``, ``resume``, ``moderate``) so that trivial
+commands that now expose ``--dry-run`` (``delete``,
+``suspend``, ``resume``, ``moderate``, ``archive``,
+``unarchive``) so that trivial
 ``SelectionCriteria`` regressions are also caught in CI.
 
 Part of axisrow/yandex-direct-mcp-plugin#61.

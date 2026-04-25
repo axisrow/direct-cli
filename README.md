@@ -381,7 +381,7 @@ The following commands make **irreversible changes** — use with caution:
 | `keywords delete --id` | Permanently deletes a keyword |
 | `audiencetargets delete --id` | Permanently deletes an audience target |
 
-Commands that affect live ad delivery: `suspend`, `resume`, `archive`, `unarchive` (available on `campaigns`, `ads`, `keywords`).
+Commands that affect live ad delivery: `suspend`, `resume`, `archive`, `unarchive` (available on `campaigns`, `ads`), `suspend`, `resume` (also on `keywords`).
 
 Commands that affect bids and spending: `bids set`, `keywordbids set`, `bidmodifiers set`.
 
@@ -959,7 +959,7 @@ direct campaigns get --fetch-all   # все страницы
 | `keywords delete --id` | Безвозвратно удаляет ключевое слово |
 | `audiencetargets delete --id` | Безвозвратно удаляет условие подбора аудитории |
 
-Команды, влияющие на показ рекламы: `suspend`, `resume`, `archive`, `unarchive` (доступны для `campaigns`, `ads`, `keywords`).
+Команды, влияющие на показ рекламы: `suspend`, `resume`, `archive`, `unarchive` (доступны для `campaigns`, `ads`), `suspend`, `resume` (также для `keywords`).
 
 Команды, влияющие на ставки и расходы: `bids set`, `keywordbids set`, `bidmodifiers set`.
 
