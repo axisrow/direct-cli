@@ -73,7 +73,10 @@ def emoji_for_method(cli_group: str, cli_name: str) -> str:
 
 
 def emoji_for_service(cli_group: str, methods: list[dict]) -> str:
-    statuses = {emoji_for_method(cli_group, m["cli_name"]) for m in methods}
+    statuses = {
+        "❌" if m["cli_name"] is None else emoji_for_method(cli_group, m["cli_name"])
+        for m in methods
+    }
     if "🟡" in statuses or "❌" in statuses:
         return "🟡"
     return "✅"
@@ -185,11 +188,15 @@ def render_method(cli_group: str, row: dict) -> str:
     issues = KNOWN_ISSUES.get((cli_group, cli_name), [])
     if (cli_group, cli_name) in KNOWN_ISSUES:
         # Mark FieldNames or selection unchecked depending on issue type
-        pass
+        joined = " ".join(issues)
+        if "FieldNames" in joined and is_get:
+            fieldnames_check = "[ ] ⚠️ Default FieldNames — known issue (see #108)"
+        if "SelectionCriteria" in joined:
+            selection_check = "[ ] ⚠️ SelectionCriteria — known issue (see #108)"
     issue_lines = "\n".join(f"  - ⚠️ {note}" for note in issues)
     cli_status = "[x]" if cli_name else "[ ]"
     integration_status = (
-        "[ ] Integration test passing (sandbox or prod)"
+        "[ ] ⚠️ Integration test — known issue (see above)"
         if (cli_group, cli_name) in KNOWN_ISSUES
         else "[ ] Integration test passing (sandbox or prod)"
     )
