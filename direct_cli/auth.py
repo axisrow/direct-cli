@@ -10,6 +10,7 @@ import secrets
 import shutil
 import subprocess
 import tempfile
+import logging
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -273,6 +274,7 @@ def list_profiles(path: Optional[Path] = None) -> List[Dict[str, Any]]:
             "source": "env",
             "has_token": True,
             "has_login": bool(login),
+            "login": login or None,
             "active": profile_name == active_profile,
         }
 
@@ -361,7 +363,8 @@ def resolve_login(token: str) -> Optional[str]:
         with urllib.request.urlopen(request, timeout=10) as response:
             data = json.loads(response.read().decode("utf-8"))
             return data.get("login")
-    except Exception:
+    except (urllib.error.URLError, urllib.error.HTTPError, OSError, json.JSONDecodeError) as exc:
+        logging.debug("resolve_login failed: %s", exc)
         return None
 
 

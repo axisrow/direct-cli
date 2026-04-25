@@ -47,7 +47,7 @@ fi
 
 if [ "$AUTH_SOURCE" = "profile" ]; then
   AUTH_LOGIN=$(direct auth status 2>&1 | grep '^login=' | cut -d= -f2)
-  AUTH_TOKEN_HINT=$(direct auth status 2>&1 | head -1 | cut -d= -f2)
+  AUTH_TOKEN_HINT="(auth profile)"
 else
   AUTH_LOGIN="${YANDEX_DIRECT_LOGIN:-}"
   AUTH_TOKEN_HINT="${YANDEX_DIRECT_TOKEN:0:8}..."
