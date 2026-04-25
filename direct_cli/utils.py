@@ -7,6 +7,10 @@ import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from direct_cli._vendor.tapi_yandex_direct.resource_mapping import (
+    RESOURCE_MAPPING_V5,
+)
+
 
 def parse_ids(ids_str: Optional[str]) -> Optional[List[int]]:
     """Parse comma-separated IDs"""
@@ -263,3 +267,9 @@ COMMON_FIELDS = {
 def get_default_fields(resource: str) -> List[str]:
     """Get default field names for resource"""
     return COMMON_FIELDS.get(resource, ["Id", "Name"])
+
+
+def get_docs_url(service: str) -> Optional[str]:
+    """Return documentation URL for a service from tapi resource mapping."""
+    entry = RESOURCE_MAPPING_V5.get(service)
+    return entry.get("docs") if entry else None
