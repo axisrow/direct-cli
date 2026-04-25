@@ -117,6 +117,9 @@ class MicroRublesParamType(click.ParamType):
             val = int(value)
         except (ValueError, TypeError):
             self.fail(f"Expected integer (micro-rubles), got '{value}'")
+            return  # unreachable; satisfies type checkers
+        if val < 0:
+            self.fail(f"Bid must be non-negative, got {val}")
         if 0 < val < MICRO_RUBLE_MIN:
             self.fail(
                 f"{val} seems too low for micro-rubles "

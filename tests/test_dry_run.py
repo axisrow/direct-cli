@@ -1988,3 +1988,9 @@ def test_micro_rubles_accepts_valid_value():
 def test_micro_rubles_rejects_float():
     result = _failing_run("bids", "set", "--keyword-id", "1", "--bid", "3.0")
     assert result.exit_code != 0
+
+
+def test_micro_rubles_rejects_negative():
+    result = _failing_run("bids", "set", "--keyword-id", "1", "--bid", "-1")
+    assert result.exit_code != 0
+    assert "non-negative" in result.output
