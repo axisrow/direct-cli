@@ -268,6 +268,7 @@ def list_profiles(path: Optional[Path] = None) -> List[Dict[str, Any]]:
         if existing:
             existing["source"] = "oauth+env"
             existing["has_login"] = bool(existing["has_login"] or login)
+            existing["login"] = existing["login"] or login
             continue
         profiles[profile_name] = {
             "profile": profile_name,
