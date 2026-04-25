@@ -122,12 +122,11 @@ pytestmark = [
 
 def _invoke_live(*args: str):
     """Invoke a CLI command against production API with live credentials."""
-    token, login = _resolve_test_credentials()
-    assert token, "API credentials required for live draft write tests"
+    assert _LIVE_TOKEN, "API credentials required for live draft write tests"
 
-    all_args = ["--token", token]
-    if login:
-        all_args.extend(["--login", login])
+    all_args = ["--token", _LIVE_TOKEN]
+    if _LIVE_LOGIN:
+        all_args.extend(["--login", _LIVE_LOGIN])
     all_args.extend(args)
 
     return CliRunner().invoke(cli, all_args)
