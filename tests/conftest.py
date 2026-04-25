@@ -27,8 +27,23 @@ from direct_cli.cli import cli
 
 load_dotenv()
 
-_REAL_TOKEN = os.getenv("YANDEX_DIRECT_TOKEN")
-_REAL_LOGIN = os.getenv("YANDEX_DIRECT_LOGIN")
+
+def _resolve_test_credentials():
+    """Resolve real API credentials using the full auth priority chain.
+
+    Walks the same resolution as the CLI: direct args → OAuth profile →
+    env vars → .env → 1Password → Bitwarden.  Returns (None, None) when
+    no credentials are available (e.g. CI with VCR replay only).
+    """
+    from direct_cli.auth import get_credentials
+
+    try:
+        return get_credentials()
+    except (ValueError, RuntimeError):
+        return None, None
+
+
+_REAL_TOKEN, _REAL_LOGIN = _resolve_test_credentials()
 
 # A dummy token is fine in replay mode — VCR intercepts the request before
 # it touches the network.  In rewrite/record mode the real token from the
@@ -37,7 +52,7 @@ TOKEN = _REAL_TOKEN or "REPLAY_DUMMY_TOKEN"
 
 skip_if_no_token = pytest.mark.skipif(
     not _REAL_TOKEN,
-    reason="YANDEX_DIRECT_TOKEN is not set — skipping integration tests",
+    reason="No API credentials found — skipping integration tests",
 )
 
 
