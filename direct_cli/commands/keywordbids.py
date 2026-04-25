@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids, to_micros
+from ..utils import parse_ids, MICRO_RUBLES
 
 
 @click.group()
@@ -78,8 +78,8 @@ def get(
 
 @keywordbids.command()
 @click.option("--keyword-id", required=True, type=int, help="Keyword ID")
-@click.option("--search-bid", type=float, help="Search bid")
-@click.option("--network-bid", type=float, help="Network bid")
+@click.option("--search-bid", type=MICRO_RUBLES, help="Search bid in micro-rubles")
+@click.option("--network-bid", type=MICRO_RUBLES, help="Network bid in micro-rubles")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def set(ctx, keyword_id, search_bid, network_bid, dry_run):
@@ -88,9 +88,9 @@ def set(ctx, keyword_id, search_bid, network_bid, dry_run):
         bid_data = {"KeywordId": keyword_id}
 
         if search_bid is not None:
-            bid_data["SearchBid"] = to_micros(search_bid)
+            bid_data["SearchBid"] = search_bid
         if network_bid is not None:
-            bid_data["NetworkBid"] = to_micros(network_bid)
+            bid_data["NetworkBid"] = network_bid
 
         body = {"method": "set", "params": {"KeywordBids": [bid_data]}}
 
@@ -126,7 +126,7 @@ def set(ctx, keyword_id, search_bid, network_bid, dry_run):
     help="NetworkByCoverage.TargetCoverage value",
 )
 @click.option("--increase-percent", type=int, help="Bidding rule IncreasePercent")
-@click.option("--bid-ceiling", type=float, help="Bidding rule bid ceiling")
+@click.option("--bid-ceiling", type=MICRO_RUBLES, help="Bidding rule bid ceiling in micro-rubles")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def set_auto(
@@ -157,15 +157,13 @@ def set_auto(
                     "IncreasePercent"
                 ] = increase_percent
             if bid_ceiling is not None:
-                bidding_rule["SearchByTrafficVolume"]["BidCeiling"] = to_micros(
-                    bid_ceiling
-                )
+                bidding_rule["SearchByTrafficVolume"]["BidCeiling"] = bid_ceiling
         if target_coverage is not None:
             bidding_rule["NetworkByCoverage"] = {"TargetCoverage": target_coverage}
             if increase_percent is not None:
                 bidding_rule["NetworkByCoverage"]["IncreasePercent"] = increase_percent
             if bid_ceiling is not None:
-                bidding_rule["NetworkByCoverage"]["BidCeiling"] = to_micros(bid_ceiling)
+                bidding_rule["NetworkByCoverage"]["BidCeiling"] = bid_ceiling
 
         bid_data = {"BiddingRule": bidding_rule}
         if campaign_id is not None:

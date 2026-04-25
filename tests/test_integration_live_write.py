@@ -665,7 +665,7 @@ def test_live_draft_bids_set() -> None:
         _assert_success(r, "keywords add")
         kid = _extract_first_id(r.output)
 
-        r = _invoke_live("bids", "set", "--keyword-id", str(kid), "--bid", "15")
+        r = _invoke_live("bids", "set", "--keyword-id", str(kid), "--bid", "15000000")
         _assert_success(r, "bids set")
     finally:
         if kid is not None:
@@ -713,9 +713,9 @@ def test_live_draft_keywordbids_set() -> None:
             "--keyword-id",
             str(kid),
             "--search-bid",
-            "8",
+            "8000000",
             "--network-bid",
-            "3",
+            "3000000",
         )
         _assert_success(r, "keywordbids set")
     finally:
@@ -910,7 +910,7 @@ def test_live_draft_smartadtargets_add_update_delete() -> None:
             "--network-strategy",
             "AVERAGE_CPC_PER_FILTER",
             "--filter-average-cpc",
-            "1",
+            "1000000",
         )
         # 3500 = campaign type not supported on this account (agency-only feature)
         # See API_COVERAGE.md Category B and MANUAL_COVERAGE.md.
@@ -1161,7 +1161,7 @@ def test_live_draft_smartadtargets_suspend_resume() -> None:
             "--network-strategy",
             "AVERAGE_CPC_PER_FILTER",
             "--filter-average-cpc",
-            "1",
+            "1000000",
         )
         if "3500" in r.output:
             pytest.skip("SMART_CAMPAIGN not supported on this account (3500)")

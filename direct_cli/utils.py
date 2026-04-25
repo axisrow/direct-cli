@@ -7,6 +7,8 @@ import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+import click
+
 from direct_cli._vendor.tapi_yandex_direct.resource_mapping import (
     RESOURCE_MAPPING_V5,
 )
@@ -102,11 +104,32 @@ def parse_datetime(datetime_str: str) -> str:
         )
 
 
-def to_micros(value: Optional[float]) -> Optional[int]:
-    """Convert a human-readable money/bid value to micros."""
-    if value is None:
-        return None
-    return round(value * 1000000)
+MICRO_RUBLE_MIN = 100_000  # 0.1 RUB — below this is almost certainly a mistake
+
+
+class MicroRublesParamType(click.ParamType):
+    """Click type that validates bid/budget values are in micro-rubles."""
+
+    name = "MICRO_RUBLES"
+
+    def convert(self, value, param, ctx):
+        try:
+            val = int(value)
+        except (ValueError, TypeError):
+            self.fail(f"Expected integer (micro-rubles), got '{value}'")
+            return  # unreachable; satisfies type checkers
+        if val < 0:
+            self.fail(f"Bid must be non-negative, got {val}")
+        if 0 < val < MICRO_RUBLE_MIN:
+            self.fail(
+                f"{val} seems too low for micro-rubles "
+                f"(min {MICRO_RUBLE_MIN} = 0.1 RUB). "
+                f"Did you mean {val * 1_000_000}?"
+            )
+        return val
+
+
+MICRO_RUBLES = MicroRublesParamType()
 
 
 def load_base64_file(file_path: str) -> str:
