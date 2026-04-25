@@ -52,7 +52,7 @@ KNOWN_ISSUES: dict[tuple[str, str], list[str]] = {
         "WSDL marks `Ids` as `minOccurs=1`; integration test currently omits it",
     ],
     ("agencyclients", "get"): [
-        "Live integration returns `error_code=54` for non-agency accounts; test must treat this as expected, not a failure",
+        "Integration test (`tests/test_integration.py::TestReadOnlyAgencyClients`) skips on HTTP 403 / `Access denied` for non-agency accounts; live coverage therefore depends on an agency token",
     ],
     ("bidmodifiers", "get"): [
         "WSDL requires `Levels` (e.g. `[\"CAMPAIGN\"]`) in SelectionCriteria",
@@ -162,6 +162,10 @@ def render_method(cli_group: str, row: dict) -> str:
         title = f"`{wsdl}` (CLI: `{cli_name}`)"
     else:
         title = f"`{wsdl}` (no CLI command)"
+    aliases = row.get("cli_aliases") or []
+    if aliases:
+        alias_list = ", ".join(f"`{a}`" for a in aliases)
+        title += f" · CLI helper aliases: {alias_list}"
 
     is_get = wsdl == "get"
     fieldnames_check = (
@@ -169,9 +173,13 @@ def render_method(cli_group: str, row: dict) -> str:
         if is_get
         else "[n/a] FieldNames validation"
     )
+    # SelectionCriteria check only applies where the WSDL request schema actually
+    # contains a SelectionCriteria element. `checkCampaigns` and `deduplicate`
+    # have top-level required inputs (Timestamp / Operation+Keywords) but no
+    # SelectionCriteria, so they get [n/a] for this row.
     selection_check = (
         "[ ] SelectionCriteria required params verified"
-        if is_get or wsdl in {"checkCampaigns", "hasSearchVolume", "deduplicate"}
+        if is_get or wsdl == "hasSearchVolume"
         else "[n/a] SelectionCriteria validation"
     )
     issues = KNOWN_ISSUES.get((cli_group, cli_name), [])
@@ -209,9 +217,9 @@ def render_service(api_service: str, idx: int, total: int) -> str:
     return f"{label}\n{sub}\n\n{methods_md}"
 
 
-def render_reports_section() -> str:
+def render_reports_section(idx: int, total: int) -> str:
     return (
-        "### 29/29. `reports` ✅\n"
+        f"### {idx}/{total}. `reports` ✅\n"
         "_API service: `reports` · CLI group: `reports` · JSON API (no WSDL)_\n\n"
         "Coverage policy: contract tests + spec snapshot. Source of truth: "
         "`tests/reports_cache/spec.json`, drift script: "
@@ -250,10 +258,12 @@ def render_summary() -> str:
 
 def render_body() -> str:
     summary = render_summary()
+    total = len(CANONICAL_API_SERVICES) + 1  # + reports
     services_md = "\n\n".join(
-        render_service(api, i + 1, len(CANONICAL_API_SERVICES) + 1)
+        render_service(api, i + 1, total)
         for i, api in enumerate(CANONICAL_API_SERVICES)
     )
+    reports_md = render_reports_section(total, total)
     return f"""# Roadmap: 0.3.0 command coverage must reach 100%
 
 ## Goal
@@ -300,7 +310,7 @@ Service-level emoji rollup:
 
 {services_md}
 
-{render_reports_section()}
+{reports_md}
 
 ---
 
