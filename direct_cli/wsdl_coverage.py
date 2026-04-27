@@ -178,6 +178,52 @@ def parse_wsdl_operations(wsdl_xml: str) -> list:
     return sorted(ops)
 
 
+def parse_wsdl_field_enums(wsdl_xml: str) -> dict[str, list[str]]:
+    """Return WSDL ``*FieldEnum`` simpleType values keyed by enum type name."""
+    root = ET.fromstring(wsdl_xml)
+    ns = {"xsd": "http://www.w3.org/2001/XMLSchema"}
+    enums = {}
+
+    for simple_type in root.findall(".//xsd:simpleType", ns):
+        type_name = simple_type.get("name")
+        if not type_name or not type_name.endswith("FieldEnum"):
+            continue
+
+        values = [
+            enum.get("value")
+            for enum in simple_type.findall(".//xsd:enumeration", ns)
+            if enum.get("value")
+        ]
+        enums[type_name] = values
+
+    return enums
+
+
+def get_operation_field_name_enums(
+    wsdl_xml: str, operation_name: str
+) -> dict[str, dict[str, object]]:
+    """Return request ``FieldNames`` params and their allowed enum values."""
+    field_enums = parse_wsdl_field_enums(wsdl_xml)
+    schema = get_operation_request_schema(wsdl_xml, operation_name)
+    result = {}
+
+    for field in schema["fields"]:
+        name = field["name"]
+        type_name = field["type"]
+        if not name or not type_name:
+            continue
+        if name != "FieldNames" and not name.endswith("FieldNames"):
+            continue
+        if type_name not in field_enums:
+            continue
+        result[name] = {
+            "enum_type": type_name,
+            "values": field_enums[type_name],
+        }
+
+    return result
+
+
 def get_cli_methods_for_service(cli_command_name: str) -> set:
     """Get the set of API method names that a CLI service implements."""
     from direct_cli.cli import cli

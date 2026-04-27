@@ -4,11 +4,15 @@
 from __future__ import annotations
 
 import json
+import importlib
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from click.testing import CliRunner
+
+from direct_cli.cli import cli
 from direct_cli.wsdl_coverage import (
     CLI_TO_API_SERVICE,
     INTENTIONAL_EXTRA_METHODS,
@@ -17,8 +21,14 @@ from direct_cli.wsdl_coverage import (
     fetch_wsdl,
     fetch_live_wsdl,
     get_cli_methods_for_service,
+    get_operation_field_name_enums,
     parse_wsdl_operations,
 )
+
+GET_CAPTURE_OPTION_FIXTURES = {
+    "dynamicfeedadtargets": ["--ids", "1"],
+    "leads": ["--turbo-page-ids", "1"],
+}
 
 
 def _fetch_wsdl(fetch_func, service: str) -> str:
@@ -125,6 +135,153 @@ def _build_model_gaps(report: dict, live_fetch_wsdl_func) -> dict:
     }
 
 
+class _CapturedResponse:
+    """Minimal tapi-like response object for CLI request capture."""
+
+    def __call__(self):
+        return self
+
+    def extract(self):
+        return {}
+
+    def iter_items(self):
+        return iter(())
+
+
+class _CapturedService:
+    """Fake service executor that records posted request bodies."""
+
+    def __init__(self, captured: dict):
+        self._captured = captured
+
+    def post(self, data):
+        self._captured["body"] = data
+        return _CapturedResponse()
+
+
+class _CapturedClient:
+    """Fake Direct client exposing any service requested by a command module."""
+
+    def __init__(self, captured: dict):
+        self._captured = captured
+
+    def __getattr__(self, name):
+        return lambda: _CapturedService(self._captured)
+
+
+def _command_supports_option(
+    group_name: str, command_name: str, param_name: str
+) -> bool:
+    """Return whether a Click command exposes a parameter by internal name."""
+    command = cli.commands[group_name].commands[command_name]
+    return any(getattr(param, "name", None) == param_name for param in command.params)
+
+
+def capture_cli_get_request_body(cli_group: str) -> dict:
+    """Invoke ``direct <group> get`` with a fake client and return the body."""
+    module = importlib.import_module(f"direct_cli.commands.{cli_group}")
+    original_create_client = module.create_client
+    captured = {}
+
+    try:
+        module.create_client = lambda **_: _CapturedClient(captured)
+        argv = [cli_group, "get"]
+        argv.extend(GET_CAPTURE_OPTION_FIXTURES.get(cli_group, []))
+        if _command_supports_option(cli_group, "get", "limit"):
+            argv.extend(["--limit", "1"])
+        if _command_supports_option(cli_group, "get", "output_format"):
+            argv.extend(["--format", "json"])
+
+        result = CliRunner().invoke(cli, argv)
+    finally:
+        module.create_client = original_create_client
+
+    if result.exit_code != 0:
+        raise RuntimeError(
+            f"direct {' '.join(argv)} failed with exit {result.exit_code}: "
+            f"{result.output.strip()}"
+        )
+    if "body" not in captured:
+        raise RuntimeError(f"direct {' '.join(argv)} did not send a request body")
+
+    return captured["body"]
+
+
+def build_schema_gate(fetch_wsdl_func=fetch_wsdl, capture_get_body_func=None) -> dict:
+    """Validate default CLI ``*FieldNames`` values against WSDL ``*FieldEnum``."""
+    if capture_get_body_func is None:
+        capture_get_body_func = capture_cli_get_request_body
+
+    mismatches = []
+    capture_errors = []
+
+    for cli_name, api_service in sorted(CLI_TO_API_SERVICE.items()):
+        if "get" not in get_cli_methods_for_service(cli_name):
+            continue
+
+        try:
+            wsdl_xml = _fetch_wsdl(fetch_wsdl_func, api_service)
+            field_specs = get_operation_field_name_enums(wsdl_xml, "get")
+        except Exception as exc:
+            capture_errors.append(
+                {
+                    "cli_group": cli_name,
+                    "api_service": api_service,
+                    "operation": "get",
+                    "error": str(exc),
+                }
+            )
+            continue
+
+        if not field_specs:
+            continue
+
+        try:
+            body = capture_get_body_func(cli_name)
+        except Exception as exc:
+            capture_errors.append(
+                {
+                    "cli_group": cli_name,
+                    "api_service": api_service,
+                    "operation": "get",
+                    "error": str(exc),
+                }
+            )
+            continue
+
+        params = body.get("params", {})
+        for request_field, spec in sorted(field_specs.items()):
+            if request_field not in params:
+                continue
+
+            actual_values = params[request_field]
+            if not isinstance(actual_values, list):
+                actual_values = [actual_values]
+
+            allowed_values = set(spec["values"])
+            invalid_values = sorted(
+                value for value in actual_values if value not in allowed_values
+            )
+            if invalid_values:
+                mismatches.append(
+                    {
+                        "cli_group": cli_name,
+                        "api_service": api_service,
+                        "operation": "get",
+                        "request_field": request_field,
+                        "enum_type": spec["enum_type"],
+                        "invalid_values": invalid_values,
+                        "actual_values": actual_values,
+                    }
+                )
+
+    return {
+        "field_name_mismatches": mismatches,
+        "capture_errors": capture_errors,
+        "schema_parity_ok": not mismatches and not capture_errors,
+    }
+
+
 def build_report(fetch_wsdl_func=fetch_wsdl, live_fetch_wsdl_func=None) -> dict:
     if live_fetch_wsdl_func is None:
         live_fetch_wsdl_func = (
@@ -139,6 +296,7 @@ def build_report(fetch_wsdl_func=fetch_wsdl, live_fetch_wsdl_func=None) -> dict:
             "unexpected_service_methods": 0,
             "strict_parity_ok": True,
             "live_model_parity_ok": True,
+            "schema_parity_ok": True,
         },
         "canonical_services": sorted(CLI_TO_API_SERVICE.values()),
         "non_wsdl_services": get_api_coverage_policy()["non_wsdl_services"],
@@ -222,6 +380,13 @@ def build_report(fetch_wsdl_func=fetch_wsdl, live_fetch_wsdl_func=None) -> dict:
     report["summary"]["live_model_parity_ok"] = report["model_gaps"][
         "live_model_parity_ok"
     ]
+
+    schema_gate = build_schema_gate(fetch_wsdl_func=fetch_wsdl_func)
+    report["schema"] = {
+        "field_name_mismatches": schema_gate["field_name_mismatches"],
+        "capture_errors": schema_gate["capture_errors"],
+    }
+    report["summary"]["schema_parity_ok"] = schema_gate["schema_parity_ok"]
 
     return report
 

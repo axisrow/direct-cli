@@ -30,6 +30,7 @@ from direct_cli.wsdl_coverage import (
     fetch_wsdl,
     get_cli_methods_for_service,
     get_operation_request_schema,
+    get_operation_field_name_enums,
     parse_wsdl_operations,
 )
 
@@ -57,6 +58,42 @@ def _wsdl_with_operations(*operations):
         "    <wsdl:portType>\n"
         f"{body}\n"
         "    </wsdl:portType>\n"
+        "</wsdl:definitions>\n"
+    )
+
+
+def _wsdl_with_get_field_enum(*values):
+    """Build a minimal WSDL get request with a FieldNames enum."""
+    enum_values = "\n".join(
+        f'                <xsd:enumeration value="{value}" />' for value in values
+    )
+    return (
+        '<wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" '
+        'xmlns:xsd="http://www.w3.org/2001/XMLSchema" '
+        'xmlns:tns="http://api.direct.yandex.com/v5/fake">\n'
+        '    <wsdl:message name="getRequest">\n'
+        '        <wsdl:part name="parameters" element="tns:get" />\n'
+        "    </wsdl:message>\n"
+        "    <wsdl:portType>\n"
+        '        <wsdl:operation name="get">\n'
+        '            <wsdl:input message="tns:getRequest" />\n'
+        "        </wsdl:operation>\n"
+        "    </wsdl:portType>\n"
+        '    <xsd:schema targetNamespace="http://api.direct.yandex.com/v5/fake">\n'
+        '        <xsd:simpleType name="FakeFieldEnum">\n'
+        '            <xsd:restriction base="xsd:string">\n'
+        f"{enum_values}\n"
+        "            </xsd:restriction>\n"
+        "        </xsd:simpleType>\n"
+        '        <xsd:element name="get">\n'
+        "            <xsd:complexType>\n"
+        "                <xsd:sequence>\n"
+        '                    <xsd:element name="FieldNames" '
+        'type="tns:FakeFieldEnum" minOccurs="1" maxOccurs="unbounded" />\n'
+        "                </xsd:sequence>\n"
+        "            </xsd:complexType>\n"
+        "        </xsd:element>\n"
+        "    </xsd:schema>\n"
         "</wsdl:definitions>\n"
     )
 
@@ -894,11 +931,78 @@ class TestApiCoverage:
         report = json.loads(result.stdout)
         assert report["summary"]["strict_parity_ok"] is True
         assert report["summary"]["live_model_parity_ok"] is True
+        assert report["summary"]["schema_parity_ok"] is True
         assert report["summary"]["missing_service_methods"] == 0
         assert report["summary"]["unexpected_service_methods"] == 0
         assert sorted(report["canonical_services"]) == CANONICAL_API_SERVICES
         assert report["model_gaps"]["live_model_gap_count"] == 0
         assert report["model_gaps"]["live_discovered_missing_services"] == []
+        assert report["schema"]["field_name_mismatches"] == []
+        assert report["schema"]["capture_errors"] == []
+
+    def test_real_wsdl_field_enum_parser_for_108_services(self):
+        expected = {
+            "smartadtargets": {"Id", "CampaignId", "AdGroupId", "State"},
+            "adextensions": {"Id", "Type", "State", "Status"},
+            "businesses": {"Id", "Name", "Address", "Phone", "ProfileUrl"},
+        }
+
+        for service, expected_values in expected.items():
+            fields = get_operation_field_name_enums(fetch_wsdl(service), "get")
+            assert "FieldNames" in fields
+            assert expected_values <= set(fields["FieldNames"]["values"])
+
+        smart_values = set(
+            get_operation_field_name_enums(fetch_wsdl("smartadtargets"), "get")[
+                "FieldNames"
+            ]["values"]
+        )
+        assert "Status" not in smart_values
+        assert "ServingStatus" not in smart_values
+        assert "Type" not in set(
+            get_operation_field_name_enums(fetch_wsdl("businesses"), "get")[
+                "FieldNames"
+            ]["values"]
+        )
+
+    def test_default_fieldnames_match_wsdl_enum(self):
+        report_script = _load_coverage_report_script()
+        schema_gate = report_script.build_schema_gate()
+
+        assert schema_gate["schema_parity_ok"] is True
+        assert schema_gate["field_name_mismatches"] == []
+        assert schema_gate["capture_errors"] == []
+
+    def test_schema_gate_reports_invalid_default_fieldname(self, monkeypatch):
+        report_script = _load_coverage_report_script()
+        monkeypatch.setattr(report_script, "CLI_TO_API_SERVICE", {"fake": "fake"})
+        monkeypatch.setattr(
+            report_script,
+            "get_cli_methods_for_service",
+            lambda cli_name: {"get"},
+        )
+
+        schema_gate = report_script.build_schema_gate(
+            fetch_wsdl_func=lambda service: _wsdl_with_get_field_enum("Id", "Name"),
+            capture_get_body_func=lambda cli_name: {
+                "method": "get",
+                "params": {"FieldNames": ["Id", "Bogus"]},
+            },
+        )
+
+        assert schema_gate["schema_parity_ok"] is False
+        assert schema_gate["capture_errors"] == []
+        assert schema_gate["field_name_mismatches"] == [
+            {
+                "cli_group": "fake",
+                "api_service": "fake",
+                "operation": "get",
+                "request_field": "FieldNames",
+                "enum_type": "FakeFieldEnum",
+                "invalid_values": ["Bogus"],
+                "actual_values": ["Id", "Bogus"],
+            }
+        ]
 
     def test_api_coverage_report_exposes_live_model_gaps(self, monkeypatch):
         """Report must distinguish declared parity from live-discovered gaps."""

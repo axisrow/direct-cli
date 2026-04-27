@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_condition_specs, parse_ids, MICRO_RUBLES
+from ..utils import get_default_fields, parse_condition_specs, parse_ids, MICRO_RUBLES
 
 
 @click.group()
@@ -33,7 +33,7 @@ def get(ctx, ids, adgroup_ids, limit, fetch_all, output_format, output, fields):
         )
 
         field_names = (
-            fields.split(",") if fields else ["Id", "CampaignId", "AdGroupId", "Status", "ServingStatus"]
+            fields.split(",") if fields else get_default_fields("smartadtargets")
         )
 
         criteria = {}
@@ -105,7 +105,9 @@ def add(
             "Audience": audience,
         }
         if conditions:
-            target_data["Conditions"] = {"Items": parse_condition_specs(list(conditions))}
+            target_data["Conditions"] = {
+                "Items": parse_condition_specs(list(conditions))
+            }
         if average_cpc is not None:
             target_data["AverageCpc"] = average_cpc
         if average_cpa is not None:
@@ -176,7 +178,9 @@ def update(
         if audience:
             target_data["Audience"] = audience
         if conditions:
-            target_data["Conditions"] = {"Items": parse_condition_specs(list(conditions))}
+            target_data["Conditions"] = {
+                "Items": parse_condition_specs(list(conditions))
+            }
         if average_cpc is not None:
             target_data["AverageCpc"] = average_cpc
         if average_cpa is not None:
@@ -216,7 +220,10 @@ def update(
 def delete(ctx, target_id, dry_run):
     """Delete smart ad target"""
     try:
-        body = {"method": "delete", "params": {"SelectionCriteria": {"Ids": [target_id]}}}
+        body = {
+            "method": "delete",
+            "params": {"SelectionCriteria": {"Ids": [target_id]}},
+        }
 
         if dry_run:
             format_output(body, "json", None)
@@ -243,7 +250,10 @@ def delete(ctx, target_id, dry_run):
 def suspend(ctx, target_id, dry_run):
     """Suspend smart ad target"""
     try:
-        body = {"method": "suspend", "params": {"SelectionCriteria": {"Ids": [target_id]}}}
+        body = {
+            "method": "suspend",
+            "params": {"SelectionCriteria": {"Ids": [target_id]}},
+        }
 
         if dry_run:
             format_output(body, "json", None)
@@ -269,7 +279,10 @@ def suspend(ctx, target_id, dry_run):
 def resume(ctx, target_id, dry_run):
     """Resume smart ad target"""
     try:
-        body = {"method": "resume", "params": {"SelectionCriteria": {"Ids": [target_id]}}}
+        body = {
+            "method": "resume",
+            "params": {"SelectionCriteria": {"Ids": [target_id]}},
+        }
 
         if dry_run:
             format_output(body, "json", None)
@@ -323,9 +336,7 @@ def set_bids(
         if priority:
             bid_data["StrategyPriority"] = priority
         bid_fields = {
-            k
-            for k in ("AverageCpc", "AverageCpa", "StrategyPriority")
-            if k in bid_data
+            k for k in ("AverageCpc", "AverageCpa", "StrategyPriority") if k in bid_data
         }
         if not bid_data:
             raise click.UsageError(
