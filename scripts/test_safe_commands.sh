@@ -11,7 +11,6 @@ ENV_FILE="$ROOT_DIR/.env"
 
 PASS=0
 FAIL=0
-KNOWN=0
 CAMPAIGN_ID=""
 ADGROUP_ID=""
 
@@ -19,7 +18,6 @@ ADGROUP_ID=""
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
 BOLD='\033[1m'
 RESET='\033[0m'
 
@@ -80,12 +78,38 @@ run_test() {
   fi
 }
 
-# Known-bug skip: prints [BUG #N] and counts separately, does not affect FAIL
-skip_bug() {
-  local issue="$1"
-  local name="$2"
-  echo -e "  ${CYAN}[BUG #$issue]${RESET} $name — см. github.com/axisrow/direct-cli/issues/$issue"
-  ((KNOWN++)) || true
+is_agency_access_denied() {
+  local output="$1"
+  grep -Eiq "403|error_code=54|Access denied|No rights to access the agency service" <<<"$output"
+}
+
+run_agencyclients_sandbox_get() {
+  local name="agencyclients get --sandbox"
+  local output exit_code
+  local args=(direct --sandbox)
+  local has_dedicated_token=0
+
+  if [ -n "${YANDEX_DIRECT_AGENCY_TOKEN:-}" ]; then
+    has_dedicated_token=1
+    args+=(--token "$YANDEX_DIRECT_AGENCY_TOKEN")
+    if [ -n "${YANDEX_DIRECT_AGENCY_LOGIN:-}" ]; then
+      args+=(--login "$YANDEX_DIRECT_AGENCY_LOGIN")
+    fi
+  fi
+
+  args+=(agencyclients get --archived NO --limit 1 --format json)
+  output=$("${args[@]}" 2>&1) && exit_code=0 || exit_code=$?
+
+  if [ "$exit_code" -eq 0 ]; then
+    echo -e "  ${GREEN}[PASS]${RESET} $name"
+    ((PASS++)) || true
+  elif [ "$has_dedicated_token" -eq 0 ] && is_agency_access_denied "$output"; then
+    echo -e "  ${YELLOW}[SKIP]${RESET} $name — no agency sandbox credentials"
+  else
+    echo -e "  ${RED}[FAIL]${RESET} $name"
+    echo "$output" | head -3 | sed 's/^/         /'
+    ((FAIL++)) || true
+  fi
 }
 
 # ─── Section A: Auth via env variables (no CLI flags) ────────────────────────
@@ -165,7 +189,7 @@ run_test "sitelinks get --ids (env auth)"          direct sitelinks get --ids 1
 run_test "vcards get --ids (env auth)"             direct vcards get --ids 1
 run_test "leads get --turbo-page-ids (env auth)" direct leads get --turbo-page-ids 1 --limit 1
 run_test "clients get (env auth)"                  direct clients get
-skip_bug 73 "agencyclients get — требует агентский аккаунт (sandbox)"
+run_agencyclients_sandbox_get
 run_test "feeds get --ids (env auth)"          direct feeds get --ids 1
 run_test "creatives get (env auth)"                direct creatives get
 # businesses requires Ids/Name/Url in SelectionCriteria
@@ -222,9 +246,6 @@ if [ "$FAIL" -eq 0 ]; then
   echo -e "${GREEN}Результаты: $PASS/$TOTAL PASS${RESET}"
 else
   echo -e "${RED}Результаты: $PASS PASS, $FAIL FAIL (из $TOTAL)${RESET}"
-fi
-if [ "$KNOWN" -gt 0 ]; then
-  echo -e "${CYAN}Пропущено (known bugs): $KNOWN${RESET}"
 fi
 echo -e "${BOLD}=========================================${RESET}"
 
