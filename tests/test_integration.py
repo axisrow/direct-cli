@@ -194,7 +194,8 @@ def get_first_advideo_probe_id() -> str | None:
             "--format",
             "json",
         )
-        if parse_json_output(probe_result) is not None:
+        probe_data = parse_json_output(probe_result)
+        if isinstance(probe_data, list) and probe_data:
             return str(candidate)
     return None
 
