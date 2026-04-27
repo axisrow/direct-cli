@@ -105,6 +105,20 @@ Sandbox re-check is not useful — this is an account-tier limitation.
 Testing strategy: manual-only on an account where DYNAMIC_TEXT_CAMPAIGN and
 SMART_CAMPAIGN are enabled. See `tests/MANUAL_COVERAGE.md`.
 
+### Category C — account-permission limited (code 3001)
+
+The endpoint is available, but the current sandbox agency account does not
+have rights to create agency clients. This differs from read-only
+`agencyclients get`, which is covered against sandbox.
+
+| Scenario | Symptom | Error code | Test class |
+|---|---|---|---|
+| agencyclients add-passport-organization | no rights to create clients | 3001 | manual-only |
+
+Testing strategy: keep `agencyclients get` in read-only integration coverage;
+keep agency-client creation manual-only unless a sandbox agency account with
+client-creation rights is available.
+
 Originally classified in
 [#28 issuecomment-4275359621](https://github.com/axisrow/direct-cli/issues/28#issuecomment-4275359621)
 and
