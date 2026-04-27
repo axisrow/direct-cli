@@ -15,6 +15,13 @@ from .utils import get_docs_pages
 
 
 _REPORTS_DOCS_PAGES = get_docs_pages("reports")
+_REQUIRED_DOCS_KEYS = ("type", "period", "fields-list", "headers")
+_missing_docs_keys = [k for k in _REQUIRED_DOCS_KEYS if k not in _REPORTS_DOCS_PAGES]
+if _missing_docs_keys:
+    raise RuntimeError(
+        "reports docs_pages mapping missing required keys "
+        f"{_missing_docs_keys}; vendored resource_mapping.py is out of sync"
+    )
 REPORTS_SPEC_URLS: dict[str, str] = {
     "type": _REPORTS_DOCS_PAGES["type"],
     "spec": _REPORTS_DOCS_PAGES["period"],
