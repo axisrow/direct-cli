@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 
 from . import __version__
 from .auth import get_active_profile, get_credentials
+from .utils import get_docs_url
 
 from .commands.campaigns import campaigns
 from .commands.adgroups import adgroups
@@ -129,38 +130,52 @@ def cli(
         ctx.obj["login"] = login
 
 
+def _register_command(command: click.Command) -> None:
+    """Register a command and append mapped documentation URL to group help."""
+    docs_url = get_docs_url(command.name or "")
+    if docs_url:
+        docs_line = f"\b\nDocumentation: {docs_url}"
+        command.epilog = (
+            f"{command.epilog}\n\n{docs_line}" if command.epilog else docs_line
+        )
+    cli.add_command(command)
+
+
 # Register all commands
-cli.add_command(campaigns)
-cli.add_command(adgroups)
-cli.add_command(ads)
-cli.add_command(keywords)
-cli.add_command(keywordbids)
-cli.add_command(bids)
-cli.add_command(bidmodifiers)
-cli.add_command(audiencetargets)
-cli.add_command(retargeting)
-cli.add_command(creatives)
-cli.add_command(adimages)
-cli.add_command(adextensions)
-cli.add_command(sitelinks)
-cli.add_command(vcards)
-cli.add_command(leads)
-cli.add_command(clients)
-cli.add_command(agencyclients)
-cli.add_command(dictionaries)
-cli.add_command(changes)
-cli.add_command(reports)
-cli.add_command(turbopages)
-cli.add_command(negativekeywordsharedsets)
-cli.add_command(feeds)
-cli.add_command(smartadtargets)
-cli.add_command(businesses)
-cli.add_command(keywordsresearch)
-cli.add_command(dynamicads)
-cli.add_command(advideos)
-cli.add_command(dynamicfeedadtargets)
-cli.add_command(strategies)
-cli.add_command(auth)
+for command in (
+    campaigns,
+    adgroups,
+    ads,
+    keywords,
+    keywordbids,
+    bids,
+    bidmodifiers,
+    audiencetargets,
+    retargeting,
+    creatives,
+    adimages,
+    adextensions,
+    sitelinks,
+    vcards,
+    leads,
+    clients,
+    agencyclients,
+    dictionaries,
+    changes,
+    reports,
+    turbopages,
+    negativekeywordsharedsets,
+    feeds,
+    smartadtargets,
+    businesses,
+    keywordsresearch,
+    dynamicads,
+    advideos,
+    dynamicfeedadtargets,
+    strategies,
+    auth,
+):
+    _register_command(command)
 
 
 if __name__ == "__main__":

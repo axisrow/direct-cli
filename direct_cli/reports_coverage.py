@@ -11,12 +11,22 @@ import json
 import re
 from pathlib import Path
 
-# Real working URLs (yandex.ru, static HTML with content in page text)
+from .utils import get_docs_pages
+
+
+_REPORTS_DOCS_PAGES = get_docs_pages("reports")
+_REQUIRED_DOCS_KEYS = ("type", "period", "fields-list", "headers")
+_missing_docs_keys = [k for k in _REQUIRED_DOCS_KEYS if k not in _REPORTS_DOCS_PAGES]
+if _missing_docs_keys:
+    raise RuntimeError(
+        "reports docs_pages mapping missing required keys "
+        f"{_missing_docs_keys}; vendored resource_mapping.py is out of sync"
+    )
 REPORTS_SPEC_URLS: dict[str, str] = {
-    "type": "https://yandex.ru/dev/direct/doc/reports/type.html",
-    "spec": "https://yandex.ru/dev/direct/doc/reports/period.html",
-    "fields-list": "https://yandex.ru/dev/direct/doc/reports/fields-list.html",
-    "headers": "https://yandex.ru/dev/direct/doc/reports/headers.html",
+    "type": _REPORTS_DOCS_PAGES["type"],
+    "spec": _REPORTS_DOCS_PAGES["period"],
+    "fields-list": _REPORTS_DOCS_PAGES["fields-list"],
+    "headers": _REPORTS_DOCS_PAGES["headers"],
 }
 
 REPORTS_CACHE_DIR = Path(__file__).resolve().parent.parent / "tests" / "reports_cache"

@@ -1119,6 +1119,22 @@ class TestApiCoverage:
 class TestReportsCoverage:
     """Tests for Reports API spec snapshot and CLI parity."""
 
+    def test_reports_spec_urls_come_from_resource_mapping(self):
+        """Reports docs URLs must be derived from the vendored resource mapping."""
+        from direct_cli._vendor.tapi_yandex_direct.resource_mapping import (
+            RESOURCE_MAPPING_V5,
+        )
+        from direct_cli.reports_coverage import REPORTS_SPEC_URLS
+
+        docs_pages = RESOURCE_MAPPING_V5["reports"]["docs_pages"]
+        assert REPORTS_SPEC_URLS == {
+            "type": docs_pages["type"],
+            "spec": docs_pages["period"],
+            "fields-list": docs_pages["fields-list"],
+            "headers": docs_pages["headers"],
+        }
+        assert all(not url.endswith(".html") for url in REPORTS_SPEC_URLS.values())
+
     def test_reports_cache_files_exist(self):
         """All 4 raw HTML files and spec.json must be committed."""
         from direct_cli.reports_coverage import REPORTS_CACHE_DIR
