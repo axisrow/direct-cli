@@ -88,17 +88,25 @@ run_agencyclients_sandbox_get() {
   local output exit_code
   local args=(direct --sandbox)
   local has_dedicated_token=0
+  local agency_login_provided=0
 
   if [ -n "${YANDEX_DIRECT_AGENCY_TOKEN:-}" ]; then
     has_dedicated_token=1
     args+=(--token "$YANDEX_DIRECT_AGENCY_TOKEN")
     if [ -n "${YANDEX_DIRECT_AGENCY_LOGIN:-}" ]; then
       args+=(--login "$YANDEX_DIRECT_AGENCY_LOGIN")
+      agency_login_provided=1
     fi
   fi
 
   args+=(agencyclients get --archived NO --limit 1 --format json)
-  output=$("${args[@]}" 2>&1) && exit_code=0 || exit_code=$?
+  if [ "$has_dedicated_token" -eq 1 ] && [ "$agency_login_provided" -eq 0 ]; then
+    # Prevent the agency token from inheriting the regular YANDEX_DIRECT_LOGIN
+    # from .env — that mismatch would trigger a real API error and a false FAIL.
+    output=$(env -u YANDEX_DIRECT_LOGIN "${args[@]}" 2>&1) && exit_code=0 || exit_code=$?
+  else
+    output=$("${args[@]}" 2>&1) && exit_code=0 || exit_code=$?
+  fi
 
   if [ "$exit_code" -eq 0 ]; then
     echo -e "  ${GREEN}[PASS]${RESET} $name"
