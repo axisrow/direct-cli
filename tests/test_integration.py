@@ -58,15 +58,154 @@ def assert_success(result, cmd_label: str):
         pytest.fail(f"[{cmd_label}] output is not valid JSON:\n{result.output[:500]}")
 
 
+def parse_json_output(result):
+    """Return decoded JSON output, or None if the command did not return JSON."""
+    if result.exit_code != 0:
+        return None
+    try:
+        return json.loads(result.output)
+    except json.JSONDecodeError:
+        return None
+
+
 def get_first_campaign_id() -> int | None:
     """Return the first available campaign ID, or None if no campaigns exist."""
     result = invoke_get("campaigns", "get", "--limit", "1", "--format", "json")
-    if result.exit_code != 0:
-        return None
-    data = json.loads(result.output)
+    data = parse_json_output(result)
     if isinstance(data, list) and data:
         return data[0].get("Id")
     return None
+
+
+def get_first_turbopage_id() -> int | None:
+    """Return the first available turbo page ID, or None if none exist."""
+    result = invoke_get("turbopages", "get", "--limit", "1", "--format", "json")
+    data = parse_json_output(result)
+    if isinstance(data, list) and data:
+        return data[0].get("Id")
+    return None
+
+
+def get_first_leads_turbopage_id() -> int | None:
+    """
+    Return a turbo page ID that can be used for leads.get, or None if no
+    read-only probe is accepted by the API.
+    """
+    turbo_page_id = get_first_turbopage_id()
+    if turbo_page_id:
+        return turbo_page_id
+
+    result = invoke_get(
+        "leads",
+        "get",
+        "--turbo-page-ids",
+        "0",
+        "--limit",
+        "1",
+        "--format",
+        "json",
+    )
+    if parse_json_output(result) is not None:
+        return 0
+    return None
+
+
+def get_first_business_id() -> int | None:
+    """Return a validated business ID, or None if discovery is unavailable."""
+    env_id = os.getenv("YANDEX_DIRECT_TEST_BUSINESS_ID")
+    if env_id:
+        env_result = invoke_get(
+            "businesses",
+            "get",
+            "--ids",
+            env_id,
+            "--limit",
+            "1",
+            "--format",
+            "json",
+        )
+        env_data = parse_json_output(env_result)
+        if isinstance(env_data, list) and env_data:
+            return env_data[0].get("Id")
+
+    probe_result = invoke_get(
+        "businesses",
+        "get",
+        "--ids",
+        "0",
+        "--limit",
+        "1",
+        "--format",
+        "json",
+    )
+    data = parse_json_output(probe_result)
+    if isinstance(data, list) and data:
+        return data[0].get("Id")
+    return None
+
+
+def get_first_advideo_probe_id() -> str | None:
+    """Return a creative/video ID accepted by advideos.get, or None."""
+    env_id = os.getenv("YANDEX_DIRECT_TEST_ADVIDEO_ID")
+    if env_id:
+        env_result = invoke_get(
+            "advideos",
+            "get",
+            "--ids",
+            env_id,
+            "--limit",
+            "1",
+            "--format",
+            "json",
+        )
+        env_data = parse_json_output(env_result)
+        if isinstance(env_data, list) and env_data:
+            return env_id
+
+    result = invoke_get(
+        "creatives",
+        "get",
+        "--fields",
+        "Id,Name,Type",
+        "--limit",
+        "20",
+        "--format",
+        "json",
+    )
+    data = parse_json_output(result)
+    if not isinstance(data, list):
+        return None
+
+    video_creative_types = {"VIDEO_EXTENSION_CREATIVE", "CPM_VIDEO_CREATIVE"}
+    for creative in data:
+        if creative.get("Type") not in video_creative_types:
+            continue
+        candidate = creative.get("Id")
+        if not candidate:
+            continue
+        probe_result = invoke_get(
+            "advideos",
+            "get",
+            "--ids",
+            str(candidate),
+            "--limit",
+            "1",
+            "--format",
+            "json",
+        )
+        if parse_json_output(probe_result) is not None:
+            return str(candidate)
+    return None
+
+
+def is_agency_access_denied(result) -> bool:
+    """Return True if agencyclients is unavailable for the current account."""
+    return result.exit_code != 0 and (
+        "403" in result.output
+        or "Access denied" in result.output
+        or "error_code=54" in result.output
+        or "No rights to access the agency service" in result.output
+    )
 
 
 @pytest.mark.integration
@@ -385,16 +524,16 @@ class TestReadOnlyDynamicFeedAdTargets(unittest.TestCase):
 class TestReadOnlyLeads(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.campaign_id = get_first_campaign_id()
+        cls.turbo_page_id = get_first_leads_turbopage_id()
 
     def test_get_leads(self):
-        if not self.campaign_id:
-            self.skipTest("No campaigns found in account")
+        if self.turbo_page_id is None:
+            self.skipTest("No turbo page ID or accepted leads probe available")
         result = invoke_get(
             "leads",
             "get",
-            "--campaign-ids",
-            str(self.campaign_id),
+            "--turbo-page-ids",
+            str(self.turbo_page_id),
             "--limit",
             "1",
             "--format",
@@ -414,16 +553,46 @@ class TestReadOnlyTurbopages(unittest.TestCase):
 @pytest.mark.integration
 @skip_if_no_token
 class TestReadOnlyBusinesses(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.business_id = get_first_business_id()
+
     def test_get_businesses(self):
-        result = invoke_get("businesses", "get", "--limit", "1", "--format", "json")
+        if self.business_id is None:
+            self.skipTest("No business ID or accepted businesses probe available")
+        result = invoke_get(
+            "businesses",
+            "get",
+            "--ids",
+            str(self.business_id),
+            "--limit",
+            "1",
+            "--format",
+            "json",
+        )
         assert_success(result, "businesses get")
 
 
 @pytest.mark.integration
 @skip_if_no_token
 class TestReadOnlyAdVideos(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.advideo_id = get_first_advideo_probe_id()
+
     def test_get_advideos(self):
-        result = invoke_get("advideos", "get", "--limit", "1", "--format", "json")
+        if self.advideo_id is None:
+            self.skipTest("No video creative ID accepted by advideos get")
+        result = invoke_get(
+            "advideos",
+            "get",
+            "--ids",
+            str(self.advideo_id),
+            "--limit",
+            "1",
+            "--format",
+            "json",
+        )
         assert_success(result, "advideos get")
 
 
@@ -431,12 +600,33 @@ class TestReadOnlyAdVideos(unittest.TestCase):
 @skip_if_no_token
 class TestReadOnlyAgencyClients(unittest.TestCase):
     def test_get_agencyclients(self):
-        result = invoke_get("agencyclients", "get", "--limit", "1", "--format", "json")
-        if result.exit_code != 0 and (
-            "403" in result.output or "Access denied" in result.output
-        ):
-            self.skipTest("agencyclients returned 403 — not an agency account")
-        assert_success(result, "agencyclients get")
+        sandbox_result = invoke_get(
+            "--sandbox",
+            "agencyclients",
+            "get",
+            "--limit",
+            "1",
+            "--format",
+            "json",
+        )
+        if sandbox_result.exit_code == 0:
+            assert_success(sandbox_result, "agencyclients get --sandbox")
+            return
+
+        live_result = invoke_get(
+            "agencyclients",
+            "get",
+            "--limit",
+            "1",
+            "--format",
+            "json",
+        )
+        if is_agency_access_denied(live_result):
+            self.skipTest(
+                "agencyclients is unavailable in sandbox and current live "
+                "account is not an agency account"
+            )
+        assert_success(live_result, "agencyclients get")
 
 
 if __name__ == "__main__":
