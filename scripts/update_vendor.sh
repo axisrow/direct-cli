@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Update vendored tapi-yandex-direct from axisrow fork if a new version is available.
 # Compares __version__ in the vendored copy vs. the fork's main branch.
-# If versions differ: clones, copies files, commits.
+# If versions differ: clones, copies the package, patches imports, commits.
 
 set -euo pipefail
 
@@ -44,11 +44,10 @@ fi
 
 echo "Updating vendor: ${CURRENT_VERSION} -> ${FORK_VERSION}"
 
-# --- Copy files ---
-cp "${TMP_DIR}/fork/tapi_yandex_direct/__init__.py"        "${VENDOR_DIR}/"
-cp "${TMP_DIR}/fork/tapi_yandex_direct/tapi_yandex_direct.py" "${VENDOR_DIR}/"
-cp "${TMP_DIR}/fork/tapi_yandex_direct/resource_mapping.py" "${VENDOR_DIR}/"
-cp "${TMP_DIR}/fork/tapi_yandex_direct/exceptions.py"       "${VENDOR_DIR}/"
+# --- Copy package ---
+rm -rf "${VENDOR_DIR}"
+mkdir -p "$(dirname "${VENDOR_DIR}")"
+cp -R "${TMP_DIR}/fork/tapi_yandex_direct" "${VENDOR_DIR}"
 
 python3 "${ROOT_DIR}/scripts/patch_vendor_imports.py" "${VENDOR_DIR}"
 smoke_vendor_import

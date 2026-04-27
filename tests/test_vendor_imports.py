@@ -71,23 +71,45 @@ def test_patch_vendor_imports_rejects_plain_absolute_import(tmp_path):
     assert "unsupported absolute import" in result.stderr
 
 
-def test_patch_vendor_imports_rejects_multiline_import(tmp_path):
+def test_patch_vendor_imports_rewrites_parenthesized_multiline_imports(tmp_path):
     vendor_dir = tmp_path / "tapi_yandex_direct"
-    vendor_dir.mkdir()
-    module = vendor_dir / "tapi_yandex_direct.py"
-    module.write_text("from tapi_yandex_direct import (\n", encoding="utf-8")
-
-    result = subprocess.run(
-        [sys.executable, str(PATCH_SCRIPT), str(vendor_dir)],
-        cwd=ROOT_DIR,
-        capture_output=True,
-        text=True,
+    subpackage = vendor_dir / "v4"
+    subpackage.mkdir(parents=True)
+    module = subpackage / "adapter.py"
+    module.write_text(
+        "\n".join(
+            [
+                "from tapi_yandex_direct import (",
+                "    exceptions,",
+                ")",
+                "from tapi_yandex_direct.v4.resource_mapping import (",
+                "    RESOURCE_MAPPING_V4_LIVE,",
+                "    SUPPORTED_V4_METHODS,",
+                ")",
+                "",
+            ]
+        ),
+        encoding="utf-8",
     )
 
-    assert result.returncode == 1
-    assert "multi-line import not supported" in result.stderr
-    # File must not be written (atomic patching)
-    assert module.read_text(encoding="utf-8") == "from tapi_yandex_direct import (\n"
+    subprocess.run(
+        [sys.executable, str(PATCH_SCRIPT), str(vendor_dir)],
+        check=True,
+        cwd=ROOT_DIR,
+    )
+
+    assert module.read_text(encoding="utf-8") == "\n".join(
+        [
+            "from .. import (",
+            "    exceptions,",
+            ")",
+            "from .resource_mapping import (",
+            "    RESOURCE_MAPPING_V4_LIVE,",
+            "    SUPPORTED_V4_METHODS,",
+            ")",
+            "",
+        ]
+    )
 
 
 def test_patch_vendor_imports_rejects_backslash_continuation(tmp_path):
@@ -104,7 +126,7 @@ def test_patch_vendor_imports_rejects_backslash_continuation(tmp_path):
     )
 
     assert result.returncode == 1
-    assert "multi-line import not supported" in result.stderr
+    assert "backslash import continuation not supported" in result.stderr
     # File must not be written (atomic patching)
     assert module.read_text(encoding="utf-8") == "from tapi_yandex_direct import \\\n"
 

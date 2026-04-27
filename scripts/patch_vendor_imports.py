@@ -20,14 +20,42 @@ FROM_SUBMODULE_RE = re.compile(
 
 
 def _validate_captured(captured: str, path: Path, line_number: int, line: str) -> None:
-    """Raise ValueError if the captured import group indicates a multi-line form."""
-    if captured.startswith("(") or captured.rstrip() in ("\\", ""):
+    """Raise ValueError if the captured import group is unsupported."""
+    if captured.rstrip() in ("\\", ""):
         raise ValueError(
-            f"{path}:{line_number}: multi-line import not supported: {line!r}"
+            f"{path}:{line_number}: backslash import continuation not supported: {line!r}"
         )
 
 
-def patch_line(line: str, path: Path, line_number: int) -> str:
+def _relative_from(vendor_dir: Path, path: Path, target_module: str | None) -> str:
+    """
+    Return the relative import module for an upstream absolute import.
+
+    Args:
+        vendor_dir: Root of the vendored ``tapi_yandex_direct`` package.
+        path: Python source file containing the import.
+        target_module: Module path after ``tapi_yandex_direct.``, or None for
+            ``from tapi_yandex_direct import ...``.
+
+    Returns:
+        Relative import prefix/module, such as ``.``, ``..``, or
+        ``.resource_mapping``.
+    """
+    current_parts = path.parent.relative_to(vendor_dir).parts
+    target_parts = tuple(target_module.split(".")) if target_module else ()
+
+    common = 0
+    for current_part, target_part in zip(current_parts, target_parts):
+        if current_part != target_part:
+            break
+        common += 1
+
+    dot_count = len(current_parts) - common + 1
+    remainder = target_parts[common:]
+    return "." * dot_count + ".".join(remainder)
+
+
+def patch_line(line: str, path: Path, line_number: int, vendor_dir: Path) -> str:
     """
     Rewrite a single import line if it references the upstream package.
 
@@ -46,13 +74,16 @@ def patch_line(line: str, path: Path, line_number: int) -> str:
     if match:
         captured = match.group(1)
         _validate_captured(captured, path, line_number, line)
-        return f"from . import {captured}"
+        return f"from {_relative_from(vendor_dir, path, None)} import {captured}"
 
     match = FROM_SUBMODULE_RE.match(line)
     if match:
         captured = match.group(2)
         _validate_captured(captured, path, line_number, line)
-        return f"from .{match.group(1)} import {captured}"
+        return (
+            f"from {_relative_from(vendor_dir, path, match.group(1))} "
+            f"import {captured}"
+        )
 
     if line.startswith("import tapi_yandex_direct"):
         raise ValueError(f"{path}:{line_number}: unsupported absolute import: {line}")
@@ -60,7 +91,7 @@ def patch_line(line: str, path: Path, line_number: int) -> str:
     return line
 
 
-def _compute_patch(path: Path) -> str | None:
+def _compute_patch(path: Path, vendor_dir: Path) -> str | None:
     """
     Compute patched content for a file, without writing.
 
@@ -76,7 +107,7 @@ def _compute_patch(path: Path) -> str | None:
     original = path.read_text(encoding="utf-8")
     has_trailing_newline = original.endswith("\n")
     patched_lines = [
-        patch_line(line, path, line_number)
+        patch_line(line, path, line_number, vendor_dir)
         for line_number, line in enumerate(original.splitlines(), 1)
     ]
     patched = "\n".join(patched_lines)
@@ -111,7 +142,7 @@ def patch_vendor_dir(vendor_dir: Path) -> int:
 
     patches: dict[Path, str] = {}
     for path in sorted(vendor_dir.rglob("*.py")):
-        patched = _compute_patch(path)
+        patched = _compute_patch(path, vendor_dir)
         if patched is not None:
             patches[path] = patched
 
