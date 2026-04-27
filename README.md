@@ -58,6 +58,23 @@ Notes:
 - Authorization is performed via `direct auth login`.
 - Alias `auth_login` is not supported.
 
+Credential resolution priority:
+
+| Priority | Source | Example |
+|----------|--------|---------|
+| 1 | Explicit CLI options | `direct --token TOKEN --login LOGIN campaigns get` |
+| 2 | OAuth profile storage | `direct --profile agency1 campaigns get` |
+| 3 | Profile-specific env vars | `YANDEX_DIRECT_TOKEN_AGENCY1`, `YANDEX_DIRECT_LOGIN_AGENCY1` |
+| 4 | Base env vars or project `.env` | `YANDEX_DIRECT_TOKEN`, `YANDEX_DIRECT_LOGIN` |
+| 5 | 1Password references | `--op-token-ref`, `YANDEX_DIRECT_OP_TOKEN_REF` |
+| 6 | Bitwarden references | `--bw-token-ref`, `YANDEX_DIRECT_BW_TOKEN_REF` |
+
+The project `.env` file is loaded automatically. If a profile is selected
+with `--profile` or `direct auth use --profile NAME`, Direct CLI does not
+fall back to base `YANDEX_DIRECT_LOGIN`; this prevents mixing a profile token
+with a login from the project `.env`. For multi-account setups, prefer OAuth
+profiles or profile-specific env vars instead of base credentials.
+
 Install with `pip install direct-cli`, then run commands with `direct`.
 Invoking the deprecated `direct-cli` entrypoint exits with
 `use direct instead of direct-cli`.
@@ -595,6 +612,45 @@ YANDEX_DIRECT_LOGIN=ваш_логин_на_яндексе
 direct --token ВАШ_ТОКЕН --login ВАШ_ЛОГИН campaigns get
 ```
 
+Используйте профильные credentials из `.env`:
+
+```env
+YANDEX_DIRECT_TOKEN_AGENCY1=token-1
+YANDEX_DIRECT_LOGIN_AGENCY1=client-login-1
+YANDEX_DIRECT_TOKEN_AGENCY2=token-2
+YANDEX_DIRECT_LOGIN_AGENCY2=client-login-2
+```
+
+OAuth и profile-команды:
+
+```bash
+direct auth login
+direct auth login --profile agency1
+direct auth login --code abc123 --profile agency1
+direct auth login --oauth-token y0_example --profile agency1
+direct auth list
+direct auth use --profile agency1
+direct auth status --profile agency1
+direct --profile agency1 campaigns get
+```
+
+Порядок выбора credentials:
+
+| Приоритет | Источник | Пример |
+|-----------|----------|--------|
+| 1 | Явные CLI-опции | `direct --token TOKEN --login LOGIN campaigns get` |
+| 2 | OAuth profile storage | `direct --profile agency1 campaigns get` |
+| 3 | Профильные env vars | `YANDEX_DIRECT_TOKEN_AGENCY1`, `YANDEX_DIRECT_LOGIN_AGENCY1` |
+| 4 | Базовые env vars или project `.env` | `YANDEX_DIRECT_TOKEN`, `YANDEX_DIRECT_LOGIN` |
+| 5 | 1Password references | `--op-token-ref`, `YANDEX_DIRECT_OP_TOKEN_REF` |
+| 6 | Bitwarden references | `--bw-token-ref`, `YANDEX_DIRECT_BW_TOKEN_REF` |
+
+Файл `.env` в проекте загружается автоматически. Если профиль выбран через
+`--profile` или `direct auth use --profile NAME`, Direct CLI не подставляет
+base `YANDEX_DIRECT_LOGIN`; это защищает от смешивания токена из профиля с
+логином из project `.env`. Для нескольких аккаунтов используйте OAuth profiles
+или профильные env vars, а не базовые credentials.
+
 Установка остаётся через `pip install direct-cli`, а запуск команд теперь идет
 через `direct`. Вызов deprecated entrypoint `direct-cli` завершается ошибкой с
 подсказкой `use direct instead of direct-cli`.
@@ -605,6 +661,7 @@ direct --token ВАШ_ТОКЕН --login ВАШ_ЛОГИН campaigns get
 |-------|----------|
 | `--token` | OAuth-токен доступа к API |
 | `--login` | Direct client login |
+| `--profile` | Имя credential profile |
 | `--sandbox` | Использовать тестовое API (песочница) |
 
 ### Использование
