@@ -65,6 +65,49 @@ class YandexDirectRequestsLimitError(YandexDirectClientError):
         super().__init__(*args, **kwargs)
 
 
+class V4LiveError(YandexDirectApiError):
+    """Base exception for v4 Live API errors (error_code != 0).
+
+    v4 Live error payload differs from v5: integer ``error_code``, ``error_str``
+    instead of ``error_string``, no ``request_id``. Errors are returned with
+    HTTP 200 — they are detected from the response body, not the status code.
+    """
+
+    def __init__(
+        self,
+        response: Response,
+        message: Union[str, dict],
+        client: TapiClient,
+        *args,
+        **kwargs,
+    ):
+        if isinstance(message, dict):
+            try:
+                self.error_code = int(message.get("error_code", 0))
+            except (TypeError, ValueError):
+                self.error_code = 0
+            self.error_str = message.get("error_str", "")
+            self.error_detail = message.get("error_detail", "")
+        else:
+            self.error_code = 0
+            self.error_str = str(message)
+            self.error_detail = ""
+        super().__init__(response, message, client, *args, **kwargs)
+
+    def __str__(self):
+        return "v4 Live error_code={}, error_str={}, error_detail={}".format(
+            self.error_code, self.error_str, self.error_detail
+        )
+
+
+class V4LiveTokenError(V4LiveError):
+    """v4 Live error_code=53 — invalid or missing OAuth token."""
+
+
+class V4LiveRequestsLimitError(V4LiveError):
+    """v4 Live error_code in (54, 55, 56) — rate / method limit exceeded."""
+
+
 class BackwardCompatibilityError(Exception):
     def __init__(self, name):
         self.name = name
