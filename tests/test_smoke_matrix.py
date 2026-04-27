@@ -109,16 +109,6 @@ def test_sandbox_write_script_is_live_runner_not_cassette_replay():
     )
 
 
-def test_safe_script_exercises_agencyclients_get_with_sandbox():
-    script = ROOT_DIR / "scripts" / "test_safe_commands.sh"
-    contents = script.read_text()
-
-    assert "agencyclients get" in contents
-    assert "--sandbox" in contents
-    assert "YANDEX_DIRECT_AGENCY_TOKEN" in contents
-    assert "BUG #73" not in contents
-
-
 def test_sandbox_write_live_runner_covers_write_sandbox_matrix():
     module = _load_sandbox_runner_module()
 

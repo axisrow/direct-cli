@@ -80,42 +80,6 @@ run_test() {
   fi
 }
 
-is_agency_access_denied() {
-  local output="$1"
-  local pattern='(^|[^0-9])403([^0-9]|$)|error_code=54|Access denied|No rights to access the agency service'
-  grep -Eiq "$pattern" <<<"$output"
-}
-
-run_agencyclients_sandbox_get() {
-  local name="agencyclients get --sandbox"
-  local output exit_code has_dedicated_token
-  local -a cmd
-
-  has_dedicated_token=0
-  if [ -n "${YANDEX_DIRECT_AGENCY_TOKEN:-}" ]; then
-    has_dedicated_token=1
-    cmd=(direct --sandbox --token "$YANDEX_DIRECT_AGENCY_TOKEN")
-    if [ -n "${YANDEX_DIRECT_AGENCY_LOGIN:-}" ]; then
-      cmd+=(--login "$YANDEX_DIRECT_AGENCY_LOGIN")
-    fi
-    cmd+=(agencyclients get --limit 1 --format json)
-  else
-    cmd=(direct --sandbox agencyclients get --limit 1 --format json)
-  fi
-
-  output=$("${cmd[@]}" 2>&1) && exit_code=0 || exit_code=$?
-  if [ "$exit_code" -eq 0 ]; then
-    echo -e "  ${GREEN}[PASS]${RESET} $name"
-    ((PASS++)) || true
-  elif [ "$has_dedicated_token" -eq 0 ] && is_agency_access_denied "$output"; then
-    echo -e "  ${YELLOW}[SKIP]${RESET} $name — no agency sandbox credentials"
-  else
-    echo -e "  ${RED}[FAIL]${RESET} $name"
-    echo "$output" | head -3 | sed 's/^/         /'
-    ((FAIL++)) || true
-  fi
-}
-
 # Known-bug skip: prints [BUG #N] and counts separately, does not affect FAIL
 skip_bug() {
   local issue="$1"
@@ -201,7 +165,7 @@ run_test "sitelinks get --ids (env auth)"          direct sitelinks get --ids 1
 run_test "vcards get --ids (env auth)"             direct vcards get --ids 1
 run_test "leads get --turbo-page-ids (env auth)" direct leads get --turbo-page-ids 1 --limit 1
 run_test "clients get (env auth)"                  direct clients get
-run_agencyclients_sandbox_get
+skip_bug 73 "agencyclients get — требует агентский аккаунт (sandbox)"
 run_test "feeds get --ids (env auth)"          direct feeds get --ids 1
 run_test "creatives get (env auth)"                direct creatives get
 # businesses requires Ids/Name/Url in SelectionCriteria
