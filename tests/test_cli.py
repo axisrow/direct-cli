@@ -12,8 +12,10 @@ from unittest.mock import patch
 
 from click.testing import CliRunner
 
-from direct_cli.cli import cli
+from direct_cli._vendor.tapi_yandex_direct.resource_mapping import RESOURCE_MAPPING_V5
 from direct_cli._deprecated import DEPRECATED_ENTRYPOINT_MESSAGE, deprecated_main
+from direct_cli.cli import cli
+from direct_cli.utils import get_docs_url
 
 
 class TestCLI(unittest.TestCase):
@@ -42,6 +44,7 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("Manage campaigns", result.output)
         self.assertIn("Usage: direct campaigns", result.output)
+        self.assertIn(f"Documentation: {get_docs_url('campaigns')}", result.output)
 
     def test_adgroups_help(self):
         """Test adgroups help"""
@@ -60,6 +63,26 @@ class TestCLI(unittest.TestCase):
         result = self.runner.invoke(cli, ["reports", "--help"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("Generate and manage reports", result.output)
+        self.assertIn(f"Documentation: {get_docs_url('reports')}", result.output)
+
+    def test_registered_mapped_groups_show_docs_url(self):
+        """Registered groups from resource mapping show their documentation URL."""
+        mapped_groups = sorted(set(cli.commands) & set(RESOURCE_MAPPING_V5))
+        self.assertTrue(mapped_groups)
+        for group in mapped_groups:
+            with self.subTest(group=group):
+                result = self.runner.invoke(cli, [group, "--help"])
+                self.assertEqual(result.exit_code, 0)
+                self.assertIn(
+                    f"Documentation: {get_docs_url(group)}",
+                    result.output,
+                )
+
+    def test_auth_help_has_no_docs_url(self):
+        """Auth is not a Yandex Direct API resource and has no docs epilog."""
+        result = self.runner.invoke(cli, ["auth", "--help"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertNotIn("Documentation:", result.output)
 
     def test_canonical_groups_in_help(self):
         """Test canonical transport groups"""

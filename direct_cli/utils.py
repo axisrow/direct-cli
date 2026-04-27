@@ -296,3 +296,10 @@ def get_docs_url(service: str) -> Optional[str]:
     """Return documentation URL for a service from tapi resource mapping."""
     entry = RESOURCE_MAPPING_V5.get(service)
     return entry.get("docs") if entry else None
+
+
+def get_docs_pages(service: str) -> Dict[str, str]:
+    """Return documentation page URLs for a service from tapi resource mapping."""
+    entry = RESOURCE_MAPPING_V5.get(service)
+    docs_pages = entry.get("docs_pages") if entry else None
+    return dict(docs_pages) if docs_pages else {}
