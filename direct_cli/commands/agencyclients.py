@@ -22,16 +22,23 @@ def _build_notification(
     if notification_lang:
         notification["Lang"] = notification_lang
     if notification_email:
-        notification["EmailSubscriptions"] = [
-            {
-                "Option": "RECEIVE_RECOMMENDATIONS",
-                "Value": "YES" if send_account_news else "NO",
-            },
-            {
-                "Option": "TRACK_POSITION_CHANGES",
-                "Value": "YES" if send_warnings else "NO",
-            },
-        ]
+        subscriptions = []
+        if send_account_news is not None:
+            subscriptions.append(
+                {
+                    "Option": "RECEIVE_RECOMMENDATIONS",
+                    "Value": "YES" if send_account_news else "NO",
+                }
+            )
+        if send_warnings is not None:
+            subscriptions.append(
+                {
+                    "Option": "TRACK_POSITION_CHANGES",
+                    "Value": "YES" if send_warnings else "NO",
+                }
+            )
+        if subscriptions:
+            notification["EmailSubscriptions"] = subscriptions
     return notification
 
 

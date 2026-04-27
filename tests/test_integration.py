@@ -105,7 +105,8 @@ def get_first_leads_turbopage_id() -> int | None:
         "--format",
         "json",
     )
-    if parse_json_output(result) is not None:
+    data = parse_json_output(result)
+    if isinstance(data, list) and data:
         return 0
     return None
 
