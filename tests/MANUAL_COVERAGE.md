@@ -14,9 +14,12 @@ account requirements, or external dependencies.
 ## Account-Scoped Operations
 
 - **agencyclients add/update/delete** — requires an agency-type account.
-  Non-agency accounts receive 403.
+  Non-agency accounts receive 403. The current sandbox agency account can
+  read agency clients, but creation returns error 3001: "No rights to create
+  clients".
 - **agencyclients add-passport-organization** — creates a real Passport
-  organization linked to the account.
+  organization linked to the account. The current sandbox agency account is
+  sandbox-limited for this operation with error 3001.
 - **agencyclients add-passport-organization-member** — sends an invitation
   email to an external user.
 
@@ -64,8 +67,8 @@ Live tests skip gracefully when the API returns error 3500.
 |---|---|---|
 | ads moderate | Irreversible | Moderate |
 | campaigns/ads suspend/resume (live) | Traffic impact | High |
-| agencyclients add/update/delete | Account type | None (403) |
-| agencyclients add-passport-organization* | External state | Moderate |
+| agencyclients add/update/delete | Account type / sandbox rights (403 or 3001) | None (skip) |
+| agencyclients add-passport-organization* | External state / sandbox rights (3001) | Moderate |
 | bids/keywordbids/bidmodifiers set | Financial | High |
 | dynamicads (all) | Account type (3500) | None (skip) |
 | smartadtargets (all) | Account type (3500) | None (skip) |

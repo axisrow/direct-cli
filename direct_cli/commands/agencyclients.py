@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import get_default_fields, parse_ids
+from ..utils import get_default_fields
 
 
 def _build_notification(
@@ -21,10 +21,24 @@ def _build_notification(
         notification["Email"] = notification_email
     if notification_lang:
         notification["Lang"] = notification_lang
-    if send_account_news is not None:
-        notification["SendAccountNews"] = "YES" if send_account_news else "NO"
-    if send_warnings is not None:
-        notification["SendWarnings"] = "YES" if send_warnings else "NO"
+    if notification_email:
+        subscriptions = []
+        if send_account_news is not None:
+            subscriptions.append(
+                {
+                    "Option": "RECEIVE_RECOMMENDATIONS",
+                    "Value": "YES" if send_account_news else "NO",
+                }
+            )
+        if send_warnings is not None:
+            subscriptions.append(
+                {
+                    "Option": "TRACK_POSITION_CHANGES",
+                    "Value": "YES" if send_warnings else "NO",
+                }
+            )
+        if subscriptions:
+            notification["EmailSubscriptions"] = subscriptions
     return notification
 
 
@@ -34,14 +48,21 @@ def agencyclients():
 
 
 @agencyclients.command()
-@click.option("--ids", help="Comma-separated client IDs")
+@click.option("--logins", help="Comma-separated client logins")
+@click.option(
+    "--archived",
+    type=click.Choice(["YES", "NO"]),
+    default="NO",
+    show_default=True,
+    help="Filter archived clients",
+)
 @click.option("--limit", type=int, help="Limit number of results")
 @click.option("--fetch-all", is_flag=True, help="Fetch all pages")
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.option("--fields", help="Comma-separated field names")
 @click.pass_context
-def get(ctx, ids, limit, fetch_all, output_format, output, fields):
+def get(ctx, logins, archived, limit, fetch_all, output_format, output, fields):
     """Get agency clients"""
     try:
         client = create_client(
@@ -52,14 +73,11 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
 
         field_names = fields.split(",") if fields else get_default_fields("clients")
 
-        criteria = {}
-        if ids:
-            criteria["ClientIds"] = parse_ids(ids)
+        criteria = {"Archived": archived}
+        if logins:
+            criteria["Logins"] = [login.strip() for login in logins.split(",")]
 
-        params = {"FieldNames": field_names}
-
-        if criteria:
-            params["SelectionCriteria"] = criteria
+        params = {"SelectionCriteria": criteria, "FieldNames": field_names}
 
         if limit:
             params["Page"] = {"Limit": limit}

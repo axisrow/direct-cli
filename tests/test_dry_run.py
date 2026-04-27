@@ -1378,8 +1378,10 @@ def test_agencyclients_add_builds_notification_from_typed_flags():
         "Notification": {
             "Email": "ops@example.com",
             "Lang": "RU",
-            "SendAccountNews": "YES",
-            "SendWarnings": "NO",
+            "EmailSubscriptions": [
+                {"Option": "RECEIVE_RECOMMENDATIONS", "Value": "YES"},
+                {"Option": "TRACK_POSITION_CHANGES", "Value": "NO"},
+            ],
         },
     }
     body = _dry_run(
@@ -1584,8 +1586,10 @@ def test_agencyclients_add_passport_organization_payload():
         "Notification": {
             "Email": "ops@example.com",
             "Lang": "EN",
-            "SendAccountNews": "NO",
-            "SendWarnings": "YES",
+            "EmailSubscriptions": [
+                {"Option": "RECEIVE_RECOMMENDATIONS", "Value": "NO"},
+                {"Option": "TRACK_POSITION_CHANGES", "Value": "YES"},
+            ],
         },
     }
 

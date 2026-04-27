@@ -56,6 +56,10 @@ Sandbox-limited (confirmed via live recording, ``@pytest.mark.sandbox_limitation
   - dynamicads add/delete         — sandbox does not support DYNAMIC_TEXT_CAMPAIGN creation
   - smartadtargets add/update/delete — sandbox does not support SMART_CAMPAIGN + SMART_AD_GROUP chain
 
+  Category C — account-permission limited in sandbox (code 3001):
+  - agencyclients add-passport-organization — current sandbox agency account can read
+    agency clients but cannot create them ("No rights to create clients")
+
 Part of axisrow/yandex-direct-mcp-plugin#61 (Etap 3).
 """
 
