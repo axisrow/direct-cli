@@ -83,11 +83,11 @@ def _common_default_field_params(
 def _field_name_operations(fetch_wsdl_func, api_service: str) -> dict[str, dict]:
     """Return WSDL operations that declare enum-backed ``*FieldNames``."""
     wsdl_xml = _fetch_wsdl(fetch_wsdl_func, api_service)
-    return {
+    enums_by_operation = {
         operation: get_operation_field_name_enums(wsdl_xml, operation)
         for operation in parse_wsdl_operations(wsdl_xml)
-        if get_operation_field_name_enums(wsdl_xml, operation)
     }
+    return {op: enums for op, enums in enums_by_operation.items() if enums}
 
 
 def _default_common_field_operation(field_operations: dict[str, dict]) -> Optional[str]:
