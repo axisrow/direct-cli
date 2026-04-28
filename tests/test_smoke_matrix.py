@@ -36,11 +36,14 @@ def _load_sandbox_runner_module():
 
 
 def _registered_cli_commands() -> set[str]:
-    return {
-        command_key(group_name, command_name)
-        for group_name, group in cli.commands.items()
-        for command_name in getattr(group, "commands", {})
-    }
+    registered = set()
+    for group_name, group in cli.commands.items():
+        if hasattr(group, "commands"):
+            for command_name in group.commands:
+                registered.add(command_key(group_name, command_name))
+        else:
+            registered.add(group_name)
+    return registered
 
 
 def test_smoke_matrix_covers_every_cli_subcommand_once():
@@ -57,9 +60,9 @@ def test_smoke_matrix_covers_every_cli_subcommand_once():
 def test_smoke_matrix_counts_match_current_cli_surface():
     summary = smoke_summary()
 
-    assert summary["total_cli_groups"] == 38
-    assert summary["total_cli_subcommands"] == 120
-    assert summary["api_cli_subcommands"] == 116
+    assert summary["total_cli_groups"] == 39
+    assert summary["total_cli_subcommands"] == 121
+    assert summary["api_cli_subcommands"] == 117
     assert summary["wsdl_services"] == 29
     assert summary["non_wsdl_services"] == sorted(NON_WSDL_SERVICES)
     assert summary["api_services_total"] == 30

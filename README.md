@@ -79,6 +79,18 @@ Install with `pip install direct-cli`, then run commands with `direct`.
 Invoking the deprecated `direct-cli` entrypoint exits with
 `use direct instead of direct-cli`.
 
+### Quick Start: Check Balance
+
+Yandex removed the legacy v4 `GetBalance` method. Direct CLI uses the v4 Live
+`AccountManagement` method with `Action=Get` for `direct balance`, returning
+money fields such as `Amount`, `AmountAvailableForTransfer`, and `Currency`.
+
+```bash
+direct balance
+direct balance --logins client-login,other-client --format table
+direct balance --logins client-login --dry-run
+```
+
 ### Global Options
 
 | Option | Description |
