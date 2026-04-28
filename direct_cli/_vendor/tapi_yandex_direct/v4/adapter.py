@@ -45,8 +45,8 @@ class V4LiveClientAdapter(JSONAdapterMixin, TapiAdapter):
 
         # Enrich the JSON body with token / locale. format_data_to_request does
         # not see api_params, so we do this after super() has serialised the
-        # user data. V4 Live login placement is method-specific, so callers
-        # must pass any method-level login value explicitly in the body.
+        # user data. Agency/client selection is transport-level
+        # (Client-Login header); method params must stay schema-shaped.
         raw = params.get("data")
         if raw:
             if isinstance(raw, (bytes, bytearray)):
@@ -71,6 +71,10 @@ class V4LiveClientAdapter(JSONAdapterMixin, TapiAdapter):
 
         if token:
             params["headers"]["Authorization"] = "Bearer {}".format(token)
+
+        login = api_params.get("login")
+        if login:
+            params["headers"]["Client-Login"] = login
 
         return params
 

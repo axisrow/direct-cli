@@ -85,7 +85,7 @@ def test_v4_call_helper_preserves_non_dict_params():
     assert result == [{"Login": "x", "UnitsRest": 1}]
 
 
-def test_v4_adapter_does_not_inject_param_login():
+def test_v4_adapter_sends_login_as_header_without_mutating_param():
     from direct_cli._vendor.tapi_yandex_direct.v4.adapter import V4LiveClientAdapter
 
     adapter = V4LiveClientAdapter()
@@ -105,6 +105,19 @@ def test_v4_adapter_does_not_inject_param_login():
     assert body["param"] == {"CampaignIDS": [123]}
     assert body["token"] == "token"
     assert body["locale"] == "en"
+    assert request["headers"]["Client-Login"] == "client-login"
+
+
+def test_v4_goal_contracts_keep_global_login_at_transport_level():
+    for method in ("GetStatGoals", "GetRetargetingGoals"):
+        contract = get_v4_contract(method)
+
+        assert "Client-Login header" in contract.login_placement
+        assert contract.example_param == {"CampaignIDS": [123]}
+        assert build_v4_body(method, contract.example_param) == {
+            "method": method,
+            "param": {"CampaignIDS": [123]},
+        }
 
 
 def test_v4_method_contract_decorator_attaches_known_contract():

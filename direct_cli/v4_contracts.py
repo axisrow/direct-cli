@@ -109,7 +109,10 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
         method="AccountManagement",
         group="shared_account",
         param_shape=PARAM_OBJECT,
-        login_placement="optional SelectionCriteria.Logins for agency/client selection",
+        login_placement=(
+            "param contains only documented method fields; global --login uses "
+            "Client-Login header"
+        ),
         safety=SAFETY_MIXED,
         source_status=SOURCE_CONFIRMED_LIVE,
         live_probe_allowed=True,
@@ -138,7 +141,10 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
         method="GetStatGoals",
         group="goals",
         param_shape=PARAM_OBJECT,
-        login_placement="optional param.login accepted; not injected by transport",
+        login_placement=(
+            "param contains only documented method fields; global --login uses "
+            "Client-Login header"
+        ),
         safety=SAFETY_READ,
         source_status=SOURCE_CONFIRMED_LIVE,
         live_probe_allowed=True,
@@ -149,7 +155,10 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
         method="GetRetargetingGoals",
         group="goals",
         param_shape=PARAM_OBJECT,
-        login_placement="CampaignIDS works; Logins also accepted by live API",
+        login_placement=(
+            "param contains only documented method fields; global --login uses "
+            "Client-Login header"
+        ),
         safety=SAFETY_READ,
         source_status=SOURCE_CONFIRMED_LIVE,
         live_probe_allowed=True,

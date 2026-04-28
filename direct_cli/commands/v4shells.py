@@ -21,11 +21,6 @@ def v4account():
 
 
 @click.group(epilog=V4_EPILOG)
-def v4goals():
-    """Yandex Direct v4 Live goals commands."""
-
-
-@click.group(epilog=V4_EPILOG)
 def v4events():
     """Yandex Direct v4 Live events commands."""
 
