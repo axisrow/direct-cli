@@ -350,7 +350,13 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
 
 def get_v4_contract(method: str) -> V4MethodContract:
     """Return the known contract for one v4 Live method."""
-    return V4_METHOD_CONTRACTS[method]
+    try:
+        return V4_METHOD_CONTRACTS[method]
+    except KeyError as exc:
+        valid_methods = ", ".join(sorted(V4_METHOD_CONTRACTS))
+        raise ValueError(
+            f"Unknown v4 Live method {method!r}. Valid methods: {valid_methods}"
+        ) from exc
 
 
 def v4_method_contract(method: str):

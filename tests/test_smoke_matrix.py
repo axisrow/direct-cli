@@ -122,6 +122,16 @@ def test_safe_smoke_script_runs_agencyclients_sandbox_get():
     assert "BUG #73" not in contents
 
 
+def test_safe_smoke_script_runs_v4_safe_commands():
+    script = ROOT_DIR / "scripts" / "test_safe_commands.sh"
+    contents = script.read_text()
+
+    assert 'run_test "balance (env auth)"' in contents
+    assert 'v4goals get-stat-goals --campaign-ids "$CAMPAIGN_ID"' in contents
+    assert 'v4goals get-retargeting-goals (env auth)"' in contents
+    assert 'v4goals get-retargeting-goals --campaign-ids "$CAMPAIGN_ID"' in contents
+
+
 def test_sandbox_write_live_runner_covers_write_sandbox_matrix():
     module = _load_sandbox_runner_module()
 

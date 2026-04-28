@@ -5,7 +5,6 @@ from direct_cli._vendor.tapi_yandex_direct.v4 import SUPPORTED_V4_METHODS
 from direct_cli.v4 import build_v4_body, call_v4
 from direct_cli.v4_contracts import (
     PARAM_UNDOCUMENTED,
-    SAFETY_READ,
     SOURCE_CONFIRMED_LIVE,
     V4_METHOD_CONTRACTS,
     get_v4_contract,
@@ -128,3 +127,15 @@ def test_v4_method_contract_decorator_attaches_known_contract():
     assert decorated is command
     assert command.v4_method == "GetClientsUnits"
     assert command.v4_contract == get_v4_contract("GetClientsUnits")
+
+
+def test_get_v4_contract_rejects_unknown_method_with_helpful_error():
+    try:
+        get_v4_contract("WrongMethod")
+    except ValueError as exc:
+        message = str(exc)
+    else:
+        raise AssertionError("Expected ValueError for unknown v4 method")
+
+    assert "Unknown v4 Live method 'WrongMethod'" in message
+    assert "GetClientsUnits" in message
