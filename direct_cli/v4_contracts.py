@@ -71,20 +71,43 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
     "TransferMoney": V4MethodContract(
         method="TransferMoney",
         group="finance",
-        param_shape=PARAM_UNDOCUMENTED,
-        login_placement="unknown",
+        param_shape=PARAM_OBJECT,
+        login_placement=(
+            "param contains FromCampaigns/ToCampaigns; finance_token and "
+            "operation_num are top-level v4 Live body fields"
+        ),
         safety=SAFETY_DANGEROUS,
-        source_status=SOURCE_UNDOCUMENTED,
+        source_status=SOURCE_DOCS,
         live_probe_allowed=False,
+        example_param={
+            "FromCampaigns": [{"CampaignID": 123, "Sum": 100.5}],
+            "ToCampaigns": [{"CampaignID": 456, "Sum": 100.5}],
+        },
+        notes=(
+            "Official v4 docs define campaign-to-campaign transfer. "
+            "This CLI exposes dry-run only; the method is not live-probed."
+        ),
     ),
     "PayCampaigns": V4MethodContract(
         method="PayCampaigns",
         group="finance",
-        param_shape=PARAM_UNDOCUMENTED,
-        login_placement="unknown",
+        param_shape=PARAM_OBJECT,
+        login_placement=(
+            "param contains Payments/ContractID/PayMethod; finance_token and "
+            "operation_num are top-level v4 Live body fields"
+        ),
         safety=SAFETY_DANGEROUS,
-        source_status=SOURCE_UNDOCUMENTED,
+        source_status=SOURCE_DOCS,
         live_probe_allowed=False,
+        example_param={
+            "Payments": [{"CampaignID": 123, "Sum": 100.5}],
+            "ContractID": "contract-id",
+            "PayMethod": "CREDIT",
+        },
+        notes=(
+            "Official v4 docs define agency credit-limit payment. "
+            "This CLI exposes dry-run only; the method is not live-probed."
+        ),
     ),
     "PayCampaignsByCard": V4MethodContract(
         method="PayCampaignsByCard",

@@ -151,6 +151,8 @@ SMOKE_MATRIX = {
         "agencyclients.update",
         "auth.login",
         "auth.use",
+        "v4finance.pay-campaigns",
+        "v4finance.transfer-money",
     ],
 }
 

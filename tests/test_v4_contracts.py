@@ -8,6 +8,7 @@ from direct_cli.v4_contracts import (
     PARAM_OBJECT,
     PARAM_UNDOCUMENTED,
     SOURCE_CONFIRMED_LIVE,
+    SOURCE_DOCS,
     V4_METHOD_CONTRACTS,
     get_v4_contract,
     v4_method_contract,
@@ -90,6 +91,34 @@ def test_get_credit_limits_contract_uses_login_array_and_finance_top_level():
     assert build_v4_body("GetCreditLimits", ["client-login"]) == {
         "method": "GetCreditLimits",
         "param": ["client-login"],
+    }
+
+
+def test_v4finance_money_contracts_are_docs_backed_dangerous_objects():
+    transfer = get_v4_contract("TransferMoney")
+    pay = get_v4_contract("PayCampaigns")
+
+    assert transfer.param_shape == PARAM_OBJECT
+    assert transfer.source_status == SOURCE_DOCS
+    assert "finance_token" in transfer.login_placement
+    assert build_v4_body("TransferMoney", transfer.example_param) == {
+        "method": "TransferMoney",
+        "param": {
+            "FromCampaigns": [{"CampaignID": 123, "Sum": 100.5}],
+            "ToCampaigns": [{"CampaignID": 456, "Sum": 100.5}],
+        },
+    }
+
+    assert pay.param_shape == PARAM_OBJECT
+    assert pay.source_status == SOURCE_DOCS
+    assert "finance_token" in pay.login_placement
+    assert build_v4_body("PayCampaigns", pay.example_param) == {
+        "method": "PayCampaigns",
+        "param": {
+            "Payments": [{"CampaignID": 123, "Sum": 100.5}],
+            "ContractID": "contract-id",
+            "PayMethod": "CREDIT",
+        },
     }
 
 

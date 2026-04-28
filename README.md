@@ -120,10 +120,14 @@ direct v4events get-events-log --from 2026-04-14T00:00:00 --to 2026-04-15T00:00:
 `get-credit-limits` requires a financial token and operation number. Pass them
 with `--finance-token` and `--operation-num`, or set
 `YANDEX_DIRECT_FINANCE_TOKEN` and `YANDEX_DIRECT_OPERATION_NUM`.
+Money mutation commands are dry-run-only in this release and always require
+`--dry-run`; dry-run output masks the financial token.
 
 ```bash
 direct v4finance get-credit-limits --logins client-login --finance-token FINANCE_TOKEN --operation-num 123
 direct v4finance get-credit-limits --logins client-login,other-client --format table
+direct v4finance transfer-money --from-campaign-id 123 --to-campaign-id 456 --amount 100.50 --finance-token FINANCE_TOKEN --operation-num 123 --dry-run
+direct v4finance pay-campaigns --campaign-id 123 --amount 100.50 --contract-id CONTRACT_ID --pay-method CREDIT --finance-token FINANCE_TOKEN --operation-num 123 --dry-run
 ```
 
 ### CLI Convention
@@ -488,9 +492,9 @@ Current command surface:
 | WSDL-backed API services | 29 |
 | Supported API services including Reports | 30 |
 | WSDL operations | 112 |
-| CLI groups including `auth` | 31 |
-| CLI subcommands including `auth` | 122 |
-| API CLI subcommands excluding `auth` | 118 |
+| CLI groups including `auth` | 39 |
+| CLI subcommands including `auth` | 127 |
+| API CLI subcommands excluding `auth` | 123 |
 
 ### API Coverage And Drift Monitoring
 
@@ -1111,9 +1115,9 @@ YANDEX_DIRECT_LIVE_WRITE=1 pytest -m integration_live_write -v --record-mode=rew
 | WSDL-backed API services | 29 |
 | API services с учётом Reports | 30 |
 | WSDL operations | 112 |
-| CLI groups с `auth` | 31 |
-| CLI subcommands с `auth` | 122 |
-| API CLI subcommands без `auth` | 118 |
+| CLI groups с `auth` | 39 |
+| CLI subcommands с `auth` | 127 |
+| API CLI subcommands без `auth` | 123 |
 
 #### Live sandbox write smoke
 

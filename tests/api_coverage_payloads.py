@@ -46,6 +46,8 @@ DRY_RUN_PAYLOAD_EXCLUSIONS = {
     "reports.get": "Reports API uses a custom TSV endpoint; payload contract is covered by test_reports_request_builder_contract.",
     "v4events.get-events-log": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
     "v4finance.get-credit-limits": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
+    "v4finance.pay-campaigns": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
+    "v4finance.transfer-money": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
     "v4goals.get-retargeting-goals": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
     "v4goals.get-stat-goals": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
 }
