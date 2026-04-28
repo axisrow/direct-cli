@@ -508,6 +508,7 @@ def build_schema_gate(fetch_wsdl_func=fetch_wsdl, capture_get_body_func=None) ->
                     "api_service": api_service,
                     "operation": "*",
                     "error": str(exc),
+                    "source": "wsdl_fetch",
                 }
             )
             continue
@@ -550,6 +551,7 @@ def build_schema_gate(fetch_wsdl_func=fetch_wsdl, capture_get_body_func=None) ->
                         "api_service": api_service,
                         "operation": operation,
                         "error": str(exc),
+                        "source": "wire_payload",
                     }
                 )
                 continue
