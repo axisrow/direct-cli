@@ -100,15 +100,14 @@ def get_first_leads_turbopage_id() -> int | None:
         "leads",
         "get",
         "--turbo-page-ids",
-        "0",
+        "1",
         "--limit",
         "1",
         "--format",
         "json",
     )
-    data = parse_json_output(result)
-    if isinstance(data, list) and data:
-        return 0
+    if result.exit_code == 0 and isinstance(parse_json_output(result), list):
+        return 1
     return None
 
 

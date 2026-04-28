@@ -8,7 +8,11 @@ from typing import Any, Optional
 
 from .api import create_client
 
-VIDEO_CREATIVE_TYPES = {"VIDEO_EXTENSION_CREATIVE", "CPM_VIDEO_CREATIVE"}
+VIDEO_CREATIVE_TYPES = {
+    "VIDEO_EXTENSION_CREATIVE",
+    "CPM_VIDEO_CREATIVE",
+    "CPC_VIDEO_CREATIVE",
+}
 
 
 def _extract_items(response: Any) -> list[dict[str, Any]]:
@@ -18,7 +22,7 @@ def _extract_items(response: Any) -> list[dict[str, Any]]:
 
 
 def _advideo_get_accepts(client: Any, candidate: str) -> bool:
-    """Return whether advideos.get accepts and returns the candidate ID."""
+    """Return whether advideos.get accepts the candidate ID."""
     body = {
         "method": "get",
         "params": {
@@ -28,7 +32,8 @@ def _advideo_get_accepts(client: Any, candidate: str) -> bool:
         },
     }
     try:
-        return bool(_extract_items(client.advideos().post(data=body)))
+        _extract_items(client.advideos().post(data=body))
+        return True
     except Exception:
         return False
 

@@ -9,13 +9,7 @@ from direct_cli.v4 import call_v4
 load_dotenv()
 
 
-pytestmark = [
-    pytest.mark.v4_live_read,
-    pytest.mark.skipif(
-        os.getenv("YANDEX_DIRECT_V4_LIVE_READ") != "1",
-        reason="Set YANDEX_DIRECT_V4_LIVE_READ=1 to run v4 live read probes",
-    ),
-]
+pytestmark = pytest.mark.v4_live_read
 
 
 def _credentials():
