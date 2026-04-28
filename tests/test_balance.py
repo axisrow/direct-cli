@@ -4,6 +4,7 @@ from unittest.mock import patch
 from click.testing import CliRunner
 
 from direct_cli.cli import cli
+from direct_cli.v4_contracts import get_v4_contract
 
 
 def test_balance_dry_run_with_logins_emits_v4_request_body():
@@ -94,3 +95,10 @@ def test_balance_help_contains_no_json_input_flag():
 
     assert result.exit_code == 0
     assert "--json" not in result.output
+
+
+def test_balance_command_declares_v4_contract():
+    command = cli.commands["balance"]
+
+    assert command.v4_method == "GetClientsUnits"
+    assert command.v4_contract == get_v4_contract("GetClientsUnits")

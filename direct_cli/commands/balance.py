@@ -6,8 +6,10 @@ from ..api import create_v4_client
 from ..output import format_output, print_error
 from ..utils import parse_csv_strings
 from ..v4 import build_v4_body, call_v4
+from ..v4_contracts import v4_method_contract
 
 
+@v4_method_contract("GetClientsUnits")
 @click.command()
 @click.option("--logins", help="Comma-separated client logins")
 @click.option(
