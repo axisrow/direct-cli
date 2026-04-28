@@ -303,7 +303,7 @@ direct dictionaries get-geo-regions --name Moscow --region-ids 225,187 --exact-n
 direct clients get --fields ClientId,Login,Currency
 
 # Changes
-direct changes check --campaign-ids 1,2,3 --timestamp 2026-04-14T00:00:00
+direct changes check --campaign-ids 1,2,3 --timestamp 2026-04-14T00:00:00 --fields CampaignIds,AdGroupIds,AdIds,CampaignsStat
 direct changes check-campaigns --timestamp 2026-04-14T00:00:00
 direct changes check-dictionaries
 
@@ -313,15 +313,18 @@ direct retargeting add --name "List A" --type AUDIENCE --rule "ALL:12345:30|6789
 direct retargeting update --id 55 --name "Renamed" --rule "ANY:12345:30" --dry-run
 
 # Bids and modifiers
+direct bids get --campaign-ids 123 --fields CampaignId,AdGroupId,KeywordId,Bid
 direct bids set --keyword-id 123 --bid 15000000
 direct bids set-auto --keyword-id 123 --max-bid 20000000 --position PREMIUMBLOCK --scope SEARCH --dry-run
 direct keywordbids set --keyword-id 321 --search-bid 8000000 --network-bid 3000000
 direct keywordbids set-auto --keyword-id 321 --target-traffic-volume 100 --increase-percent 10 --bid-ceiling 12500000 --dry-run
+direct bidmodifiers get --campaign-ids 123 --fields Id,CampaignId,AdGroupId,Level,Type
 direct bidmodifiers add --campaign-id 123 --type DEMOGRAPHICS_ADJUSTMENT --value 150 --gender GENDER_MALE --age AGE_25_34 --dry-run
 direct bidmodifiers set --id 99 --value 130 --dry-run
 
 # Canonical multiword groups
 direct negativekeywordsharedsets update --id 123 --keywords "foo,bar"
+direct audiencetargets get --campaign-ids 123 --fields Id,AdGroupId,RetargetingListId,State,ContextBid
 direct audiencetargets add --adgroup-id 100 --retargeting-list-id 200 --bid 12000000 --priority HIGH --dry-run
 direct audiencetargets set-bids --id 101 --context-bid 7000000 --priority LOW --dry-run
 direct dynamicads add --adgroup-id 33 --name "Webpage A" --condition "URL:CONTAINS_ANY:test|shop" --condition "PAGE_CONTENT:CONTAINS:baz" --bid 3000000 --context-bid 2000000 --priority HIGH --dry-run
@@ -920,7 +923,7 @@ direct dictionaries get-geo-regions --name Москва --region-ids 225,187 --e
 direct clients get --fields ClientId,Login,Currency
 
 # Изменения
-direct changes check --campaign-ids 1,2,3 --timestamp 2026-04-14T00:00:00
+direct changes check --campaign-ids 1,2,3 --timestamp 2026-04-14T00:00:00 --fields CampaignIds,AdGroupIds,AdIds,CampaignsStat
 direct changes check-campaigns --timestamp 2026-04-14T00:00:00
 direct changes check-dictionaries
 
@@ -930,15 +933,18 @@ direct retargeting add --name "Список A" --type AUDIENCE --rule "ALL:12345
 direct retargeting update --id 55 --name "Переименованный список" --rule "ANY:12345:30" --dry-run
 
 # Ставки и модификаторы
+direct bids get --campaign-ids 123 --fields CampaignId,AdGroupId,KeywordId,Bid
 direct bids set --keyword-id 123 --bid 15000000
 direct bids set-auto --keyword-id 123 --max-bid 20000000 --position PREMIUMBLOCK --scope SEARCH --dry-run
 direct keywordbids set --keyword-id 321 --search-bid 8000000 --network-bid 3000000
 direct keywordbids set-auto --keyword-id 321 --target-traffic-volume 100 --increase-percent 10 --bid-ceiling 12500000 --dry-run
+direct bidmodifiers get --campaign-ids 123 --fields Id,CampaignId,AdGroupId,Level,Type
 direct bidmodifiers add --campaign-id 123 --type DEMOGRAPHICS_ADJUSTMENT --value 150 --gender GENDER_MALE --age AGE_25_34 --dry-run
 direct bidmodifiers set --id 99 --value 130 --dry-run
 
 # Канонические многословные группы
 direct negativekeywordsharedsets update --id 123 --keywords "foo,bar"
+direct audiencetargets get --campaign-ids 123 --fields Id,AdGroupId,RetargetingListId,State,ContextBid
 direct audiencetargets add --adgroup-id 100 --retargeting-list-id 200 --bid 12000000 --priority HIGH --dry-run
 direct audiencetargets set-bids --id 101 --context-bid 7000000 --priority LOW --dry-run
 direct dynamicads add --adgroup-id 33 --name "Webpage A" --condition "URL:CONTAINS_ANY:test|shop" --condition "PAGE_CONTENT:CONTAINS:baz" --bid 3000000 --context-bid 2000000 --priority HIGH --dry-run

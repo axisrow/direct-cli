@@ -71,7 +71,9 @@ def get(ctx, logins, archived, limit, fetch_all, output_format, output, fields):
             sandbox=ctx.obj.get("sandbox"),
         )
 
-        field_names = fields.split(",") if fields else get_default_fields("clients")
+        field_names = (
+            fields.split(",") if fields else get_default_fields("agencyclients")
+        )
 
         criteria = {"Archived": archived}
         if logins:
@@ -227,7 +229,9 @@ def add_passport_organization(
 
 
 @agencyclients.command(name="add-passport-organization-member")
-@click.option("--passport-organization-login", required=True, help="Passport organization login")
+@click.option(
+    "--passport-organization-login", required=True, help="Passport organization login"
+)
 @click.option("--role", required=True, help="Organization member role")
 @click.option("--invite-email", help="Invitation email")
 @click.option("--invite-phone", help="Invitation phone")

@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids
+from ..utils import get_default_fields, parse_ids
 
 
 @click.group()
@@ -46,15 +46,13 @@ def get(
     """Get ads"""
     try:
         field_names = (
-            fields.split(",")
-            if fields
-            else ["Id", "CampaignId", "AdGroupId", "Status", "State", "Type"]
+            fields.split(",") if fields else get_default_fields("ads", "FieldNames")
         )
 
         text_ad_field_names = (
             text_ad_fields.split(",")
             if text_ad_fields
-            else ["Title", "Title2", "Text", "Href"]
+            else get_default_fields("ads", "TextAdFieldNames")
         )
 
         criteria = {}

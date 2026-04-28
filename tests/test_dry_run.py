@@ -54,6 +54,7 @@ from unittest.mock import patch
 from click.testing import CliRunner
 
 from direct_cli.cli import cli
+from direct_cli.utils import get_default_fields
 
 
 def _dry_run(*args: str) -> dict:
@@ -239,15 +240,10 @@ def test_ads_get_default_fieldnames():
     """Default FieldNames includes basic top-level fields, plus TextAdFieldNames."""
     body = _dry_run("ads", "get", "--campaign-ids", "12345")
     assert body["method"] == "get"
-    assert body["params"]["FieldNames"] == [
-        "Id",
-        "CampaignId",
-        "AdGroupId",
-        "Status",
-        "State",
-        "Type",
-    ]
-    assert body["params"]["TextAdFieldNames"] == ["Title", "Title2", "Text", "Href"]
+    assert body["params"]["FieldNames"] == get_default_fields("ads", "FieldNames")
+    assert body["params"]["TextAdFieldNames"] == get_default_fields(
+        "ads", "TextAdFieldNames"
+    )
 
 
 def test_ads_get_with_fields_overrides_defaults():

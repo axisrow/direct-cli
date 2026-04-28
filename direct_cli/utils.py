@@ -5,7 +5,7 @@ Utilities for Direct CLI
 import base64
 import json
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import click
 
@@ -247,7 +247,7 @@ def parse_sitelink_specs(specs: Optional[List[str]]) -> Optional[List[Dict[str, 
     return sitelinks
 
 
-COMMON_FIELDS = {
+COMMON_FIELDS: Dict[str, Union[List[str], Dict[str, List[str]]]] = {
     "campaigns": [
         "Id",
         "Name",
@@ -260,7 +260,10 @@ COMMON_FIELDS = {
         "ClientInfo",
     ],
     "adgroups": ["Id", "Name", "CampaignId", "Status", "Type", "RegionIds"],
-    "ads": ["Id", "CampaignId", "AdGroupId", "Status", "State", "Type", "TextAd"],
+    "ads": {
+        "FieldNames": ["Id", "CampaignId", "AdGroupId", "Status", "State", "Type"],
+        "TextAdFieldNames": ["Title", "Title2", "Text", "Href"],
+    },
     "keywords": [
         "Id",
         "Keyword",
@@ -272,9 +275,11 @@ COMMON_FIELDS = {
         "ContextBid",
     ],
     "clients": ["ClientId", "Login", "CountryId", "Currency"],
+    "agencyclients": ["ClientId", "Login", "CountryId", "Currency"],
     "creatives": ["Id", "Name", "Type"],
     "adimages": ["AdImageHash", "Name"],
     "adextensions": ["Id", "Type", "State", "Status"],
+    "negativekeywordsharedsets": ["Id", "Name", "NegativeKeywords"],
     "sitelinks": ["Id", "Sitelinks"],
     "vcards": ["Id", "CampaignId", "Country", "City", "CompanyName"],
     "leads": ["Id", "SubmittedAt", "TurboPageId", "TurboPageName"],
@@ -289,14 +294,60 @@ COMMON_FIELDS = {
     "feeds": ["Id", "Name", "BusinessType", "SourceType", "Status"],
     "smartadtargets": ["Id", "CampaignId", "AdGroupId", "State"],
     "businesses": ["Id", "Name", "Address", "Phone", "ProfileUrl"],
+    "changes": ["CampaignIds", "AdGroupIds", "AdIds", "CampaignsStat"],
     "retargetinglists": ["Id", "Name", "Type", "Scope"],
     "advideos": ["Id", "Status"],
+    "bids": ["CampaignId", "AdGroupId", "KeywordId", "Bid"],
+    "bidmodifiers": ["Id", "CampaignId", "AdGroupId", "Level", "Type"],
+    "audiencetargets": [
+        "Id",
+        "AdGroupId",
+        "RetargetingListId",
+        "State",
+        "ContextBid",
+    ],
+    "dynamicads": ["Id", "AdGroupId", "Conditions", "Bid"],
+    "strategies": ["Id", "Name", "Type", "StatusArchived"],
+    "dynamicfeedadtargets": [
+        "Id",
+        "AdGroupId",
+        "CampaignId",
+        "Name",
+        "Bid",
+        "ContextBid",
+    ],
+    # Multi-FieldNames resources: WSDL exposes more than one ``*FieldNames``
+    # request param (e.g. SearchFieldNames + NetworkFieldNames). Each key is
+    # the WSDL request-field name; values are the default enum-validated lists.
+    "keywordbids": {
+        "FieldNames": [
+            "KeywordId",
+            "AdGroupId",
+            "CampaignId",
+            "ServingStatus",
+            "StrategyPriority",
+        ],
+        "SearchFieldNames": ["Bid"],
+        "NetworkFieldNames": ["Bid"],
+    },
+    "keywordsresearch": ["Keyword", "AllDevices"],
 }
 
 
-def get_default_fields(resource: str) -> List[str]:
-    """Get default field names for resource"""
-    return COMMON_FIELDS.get(resource, ["Id", "Name"])
+def get_default_fields(resource: str, request_field: str = "FieldNames") -> List[str]:
+    """Return default field names for a resource's WSDL request param.
+
+    For single-FieldNames resources, ``COMMON_FIELDS[resource]`` is a list and
+    ``request_field`` is ignored. For multi-FieldNames resources (like
+    ``keywordbids`` with ``SearchFieldNames``/``NetworkFieldNames``), the
+    value is a dict keyed by request-field name.
+    """
+    entry = COMMON_FIELDS.get(resource)
+    if entry is None:
+        return ["Id", "Name"]
+    if isinstance(entry, dict):
+        return entry.get(request_field, ["Id", "Name"])
+    return entry
 
 
 def get_docs_url(service: str) -> Optional[str]:

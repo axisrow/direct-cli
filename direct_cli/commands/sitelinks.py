@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids, parse_sitelink_specs
+from ..utils import get_default_fields, parse_ids, parse_sitelink_specs
 
 
 @click.group()
@@ -31,7 +31,7 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
             sandbox=ctx.obj.get("sandbox"),
         )
 
-        field_names = fields.split(",") if fields else ["Id", "Sitelinks"]
+        field_names = fields.split(",") if fields else get_default_fields("sitelinks")
 
         criteria = {}
         if ids:

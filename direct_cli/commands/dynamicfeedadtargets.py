@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_condition_specs, parse_ids, MICRO_RUBLES
+from ..utils import get_default_fields, parse_condition_specs, parse_ids, MICRO_RUBLES
 
 
 @click.group()
@@ -36,9 +36,7 @@ def get(
         )
 
         field_names = (
-            fields.split(",")
-            if fields
-            else ["Id", "AdGroupId", "CampaignId", "Name", "Bid", "ContextBid"]
+            fields.split(",") if fields else get_default_fields("dynamicfeedadtargets")
         )
 
         criteria = {}

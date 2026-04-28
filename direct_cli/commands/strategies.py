@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids, parse_json
+from ..utils import get_default_fields, parse_ids, parse_json
 
 STRATEGY_TYPES = [
     "WbMaximumClicks",
@@ -59,9 +59,7 @@ def get(ctx, ids, types, is_archived, limit, fetch_all, output_format, output, f
             sandbox=ctx.obj.get("sandbox"),
         )
 
-        field_names = (
-            fields.split(",") if fields else ["Id", "Name", "Type", "StatusArchived"]
-        )
+        field_names = fields.split(",") if fields else get_default_fields("strategies")
 
         criteria = {}
         if ids:
@@ -133,7 +131,9 @@ def add(
         if strategy_params:
             parsed = parse_json(strategy_params)
             if not isinstance(parsed, dict):
-                raise click.UsageError("--params must be a JSON object, not an array or scalar")
+                raise click.UsageError(
+                    "--params must be a JSON object, not an array or scalar"
+                )
             strategy_data[strategy_type] = parsed
         if counter_ids:
             strategy_data["CounterIds"] = {
@@ -212,7 +212,9 @@ def update(
             if strategy_params:
                 parsed = parse_json(strategy_params)
                 if not isinstance(parsed, dict):
-                    raise click.UsageError("--params must be a JSON object, not an array or scalar")
+                    raise click.UsageError(
+                        "--params must be a JSON object, not an array or scalar"
+                    )
                 strategy_data[strategy_type] = parsed
             else:
                 strategy_data[strategy_type] = {}

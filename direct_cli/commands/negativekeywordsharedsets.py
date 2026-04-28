@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids
+from ..utils import get_default_fields, parse_ids
 
 
 @click.group()
@@ -32,7 +32,9 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
         )
 
         field_names = (
-            fields.split(",") if fields else ["Id", "Name", "NegativeKeywords"]
+            fields.split(",")
+            if fields
+            else get_default_fields("negativekeywordsharedsets")
         )
 
         criteria = {}

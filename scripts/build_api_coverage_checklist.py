@@ -17,7 +17,9 @@ from __future__ import annotations
 import sys
 from collections import defaultdict
 from pathlib import Path
+from typing import Optional
 
+from build_api_coverage_report import build_report
 from direct_cli.cli import cli
 from direct_cli.smoke_matrix import SMOKE_MATRIX
 from direct_cli.wsdl_coverage import (
@@ -31,20 +33,11 @@ from direct_cli.wsdl_coverage import (
 
 API_TO_CLI = {v: k for k, v in CLI_TO_API_SERVICE.items()}
 SMOKE_OF = {cmd: cat for cat, cmds in SMOKE_MATRIX.items() for cmd in cmds}
+_COVERAGE_REPORT: Optional[dict] = None
 
-# Known schema-level issues (FieldNames vs WSDL FieldEnum, SelectionCriteria
-# defaults, integration-test correctness). Source: issue #108 + audit on
-# 2026-04-25.
+# Known schema-level issues (SelectionCriteria defaults and integration-test
+# correctness). Source: API coverage audit on 2026-04-25.
 KNOWN_ISSUES: dict[tuple[str, str], list[str]] = {
-    ("smartadtargets", "get"): [
-        "FieldNames mismatch: shipping `Status`, `ServingStatus` — only `State` exists in WSDL FieldEnum (#108)",
-    ],
-    ("adextensions", "get"): [
-        "FieldNames mismatch: missing `State` (defined in WSDL FieldEnum, dropped from response) (#108)",
-    ],
-    ("businesses", "get"): [
-        "Default FieldNames may include `Type` which is not in WSDL FieldEnum (#108 audit pending)",
-    ],
     ("leads", "get"): [
         "SelectionCriteria requires `TurboPageIds`; integration test currently passes `--campaign-ids` (no such option) → exit_code=2",
     ],
@@ -55,7 +48,7 @@ KNOWN_ISSUES: dict[tuple[str, str], list[str]] = {
         "Integration test (`tests/test_integration.py::TestReadOnlyAgencyClients`) skips on HTTP 403 / `Access denied` for non-agency accounts; live coverage therefore depends on an agency token",
     ],
     ("bidmodifiers", "get"): [
-        "WSDL requires `Levels` (e.g. `[\"CAMPAIGN\"]`) in SelectionCriteria",
+        'WSDL requires `Levels` (e.g. `["CAMPAIGN"]`) in SelectionCriteria',
     ],
     ("keywordsresearch", "has-search-volume"): [
         "WSDL requires both `Keywords` and `RegionIds`",
@@ -64,6 +57,14 @@ KNOWN_ISSUES: dict[tuple[str, str], list[str]] = {
         "WSDL marks `Ids` as `minOccurs=1`",
     ],
 }
+
+
+def coverage_report() -> dict:
+    """Return the machine-readable coverage report once per checklist run."""
+    global _COVERAGE_REPORT
+    if _COVERAGE_REPORT is None:
+        _COVERAGE_REPORT = build_report()
+    return _COVERAGE_REPORT
 
 
 def emoji_for_method(cli_group: str, cli_name: str) -> str:
@@ -107,7 +108,9 @@ def build_method_rows(api_service: str) -> list[dict]:
         wsdl_to_cli[wsdl_op].append(cli_name)
 
     rows = []
-    for wsdl_op in sorted(parse_wsdl_operations(fetch_wsdl(api_service, use_cache=True))):
+    for wsdl_op in sorted(
+        parse_wsdl_operations(fetch_wsdl(api_service, use_cache=True))
+    ):
         cli_names = sorted(wsdl_to_cli.get(wsdl_op, []))
         # Pick the "primary" CLI name. Prefer exact match, otherwise first alpha.
         if wsdl_op in cli_names:
@@ -120,7 +123,9 @@ def build_method_rows(api_service: str) -> list[dict]:
             {
                 "wsdl_op": wsdl_op,
                 "cli_name": primary,
-                "cli_aliases": [c for c in cli_names if c != primary] if primary else [],
+                "cli_aliases": (
+                    [c for c in cli_names if c != primary] if primary else []
+                ),
                 "smoke": SMOKE_OF.get(f"{cli_group}.{primary}") if primary else None,
             }
         )
@@ -171,11 +176,14 @@ def render_method(cli_group: str, row: dict) -> str:
         title += f" · CLI helper aliases: {alias_list}"
 
     is_get = wsdl == "get"
+    schema_ok = coverage_report()["summary"]["schema_parity_ok"]
     fieldnames_check = (
-        "[ ] Default FieldNames validated against WSDL FieldEnum (#108)"
+        "[x] Default FieldNames validated against WSDL FieldEnum"
         if is_get
         else "[n/a] FieldNames validation"
     )
+    if is_get and not schema_ok:
+        fieldnames_check = "[ ] Default FieldNames validated against WSDL FieldEnum"
     # SelectionCriteria check only applies where the WSDL request schema actually
     # contains a SelectionCriteria element. `checkCampaigns` and `deduplicate`
     # have top-level required inputs (Timestamp / Operation+Keywords) but no
@@ -190,9 +198,9 @@ def render_method(cli_group: str, row: dict) -> str:
         # Mark FieldNames or selection unchecked depending on issue type
         joined = " ".join(issues)
         if "FieldNames" in joined and is_get:
-            fieldnames_check = "[ ] ⚠️ Default FieldNames — known issue (see #108)"
+            fieldnames_check = "[ ] ⚠️ Default FieldNames — known issue"
         if "SelectionCriteria" in joined:
-            selection_check = "[ ] ⚠️ SelectionCriteria — known issue (see #108)"
+            selection_check = "[ ] ⚠️ SelectionCriteria — known issue"
     issue_lines = "\n".join(f"  - ⚠️ {note}" for note in issues)
     cli_status = "[x]" if cli_name else "[ ]"
     integration_status = (
@@ -217,7 +225,9 @@ def render_service(api_service: str, idx: int, total: int) -> str:
     method_count = len([r for r in rows if r["wsdl_op"] is not None])
     extras = [r for r in rows if r["wsdl_op"] is None]
     extra_note = f" + {len(extras)} CLI-only guard" if extras else ""
-    svc_emoji = emoji_for_service(cli_group, [r for r in rows if r["wsdl_op"] is not None])
+    svc_emoji = emoji_for_service(
+        cli_group, [r for r in rows if r["wsdl_op"] is not None]
+    )
     label = f"### {idx}/{total}. `{api_service}` {svc_emoji}"
     sub = f"_API service: `{api_service}` · CLI group: `{cli_group}` · WSDL ops: {method_count}{extra_note}_"
     methods_md = "\n".join(render_method(cli_group, row) for row in rows)
@@ -243,6 +253,9 @@ def render_reports_section(idx: int, total: int) -> str:
 
 
 def render_summary() -> str:
+    report = coverage_report()
+    schema_ok = report["summary"]["schema_parity_ok"]
+    schema_status = "✅ `true`" if schema_ok else "🟡 `false`"
     total_wsdl_methods = sum(
         len(parse_wsdl_operations(fetch_wsdl(s, use_cache=True)))
         for s in CANONICAL_API_SERVICES
@@ -258,13 +271,16 @@ def render_summary() -> str:
         "- `summary.live_model_parity_ok`: ✅ `true`\n"
         "- `model_gaps.live_discovered_missing_services`: `[]`\n"
         "- `model_gaps.live_discovered_missing_methods`: `0`\n"
-        "- Schema-level validation gate (FieldNames + SelectionCriteria): "
-        "🟡 partial — see #108 and per-service status below"
+        f"- `summary.schema_parity_ok`: {schema_status}"
     )
 
 
 def render_body() -> str:
     summary = render_summary()
+    report = coverage_report()
+    schema_ok = report["summary"]["schema_parity_ok"]
+    schema_checkbox = "[x]" if schema_ok else "[ ]"
+    schema_status = "✅ `true`" if schema_ok else "🟡 `false`"
     total = len(CANONICAL_API_SERVICES) + 1  # + reports
     services_md = "\n\n".join(
         render_service(api, i + 1, total)
@@ -285,7 +301,7 @@ Version `0.3.0` cannot ship until command/API coverage is 100% across the suppor
 - `scripts/build_api_coverage_report.py` reports `summary.live_model_parity_ok == true` (✅ already true on `main`)
 - `model_gaps.live_discovered_missing_services == []` (✅)
 - `model_gaps.live_discovered_missing_methods == 0` (✅)
-- A new schema-level gate `summary.schema_parity_ok == true` (🟡 introduced by #108) — every `get`-method's default `FieldNames` is a subset of the corresponding WSDL `*FieldEnum`, and every `SelectionCriteria` default satisfies `minOccurs=1`
+- Schema-level gate `summary.schema_parity_ok == true` ({schema_status}) — every enum-backed default `*FieldNames` command declares defaults in `COMMON_FIELDS`, every default `FieldNames` payload and `COMMON_FIELDS` default is a subset of the corresponding WSDL `*FieldEnum`, and required default `*FieldNames` params are present
 - Every canonical CLI command in the per-service status below shows ✅ on all four checkboxes (or has a documented `n/a` rationale)
 - Every mutating command has dry-run payload coverage or a documented exclusion
 - Wire method names are validated wherever command aliases or kebab-case map to Yandex camelCase
@@ -321,19 +337,17 @@ Service-level emoji rollup:
 
 ---
 
-## Schema validation gate (driven by #108)
+## Schema validation gate
 
-Before this issue can be closed, #108 must be merged so that the `tests/test_api_coverage.py::test_default_fieldnames_match_wsdl_enum` test exists and passes for **all** services. The test parses every `*FieldEnum` from `tests/wsdl_cache/*.xml` and asserts that:
+Current gate status from `scripts/build_api_coverage_report.py`: `summary.schema_parity_ok == {str(schema_ok).lower()}`.
 
-1. Each default `FieldNames` value (from `direct_cli/utils.py:COMMON_FIELDS` and from any hard-coded value inside `direct_cli/commands/*.py`) is a member of the corresponding WSDL enum.
-2. Each `get`-method that has `minOccurs=1` `SelectionCriteria` fields in WSDL refuses to build a payload without them (no silent empty-`SelectionCriteria` requests).
+The gate parses every `*FieldEnum` from `tests/wsdl_cache/*.xml` and asserts that:
 
-Confirmed remaining schema-level work after #107 (driven by #108):
-
-- [ ] `smartadtargets` — drop `Status`, `ServingStatus` from default fields, add `State`.
-- [ ] `adextensions` — add `State` to default fields.
-- [ ] `businesses` — drop `Type` from `COMMON_FIELDS` (not in WSDL enum).
-- [ ] Add the `test_default_fieldnames_match_wsdl_enum` test in `tests/test_api_coverage.py`.
+1. Each default `*FieldNames` value from `direct_cli/utils.py:COMMON_FIELDS` is a member of the corresponding WSDL enum.
+2. Each captured default payload for WSDL operations with `*FieldNames` sends enum-valid `*FieldNames` values.
+3. Each multi-field default declared in `COMMON_FIELDS` sends all required default `*FieldNames` request params.
+4. Each enum-backed command with default `*FieldNames` has a `COMMON_FIELDS` entry as the single source of truth for defaults.
+5. New WSDL `*FieldNames` operations are either covered by the gate or explicitly waived with rationale.
 
 ---
 
@@ -402,7 +416,7 @@ Originally tracked the `dynamicfeedadtargets` (×6 methods) and `strategies` (×
 - [x] `python3 scripts/build_api_coverage_report.py` reports `live_model_parity_ok: true`
 - [x] `model_gaps.live_discovered_missing_services` is empty
 - [x] `model_gaps.live_discovered_missing_methods` is `0`
-- [ ] **NEW:** `summary.schema_parity_ok == true` after #108 merges
+- {schema_checkbox} `summary.schema_parity_ok == true`
 - [ ] Every WSDL service block above shows ✅ at the service-level rollup
 - [ ] `tests/API_COVERAGE.md` lists every canonical command with classification
 - [ ] README API coverage and CLI contract match the CLI surface
@@ -420,7 +434,7 @@ Worked example: `bidmodifiers.toggle` is deprecated since 2025-11-13; live WSDL 
 
 ## Related issues
 
-- #108 — driver of the schema validation gate (FieldNames vs WSDL FieldEnum).
+- #108 — implemented schema validation gate (FieldNames vs WSDL FieldEnum).
 - #107 — fixed default FieldNames for `strategies`, `turbopages`, `businesses`.
 - #102 — removed `keywords archive/unarchive` (API method does not exist).
 - #98 — auto-resolve login after OAuth, fix test isolation.
