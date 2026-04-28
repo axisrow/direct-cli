@@ -35,12 +35,25 @@ def test_balance_omitted_logins_uses_configured_login():
     }
 
 
-def test_balance_omitted_logins_without_login_fails_before_api_call():
+def test_balance_omitted_logins_without_login_uses_token_account():
+    with patch("direct_cli.cli.get_active_profile", return_value=None):
+        result = CliRunner(env={"YANDEX_DIRECT_LOGIN": ""}).invoke(
+            cli, ["--token", "token", "balance", "--dry-run"]
+        )
+
+    assert result.exit_code == 0
+    assert json.loads(result.output) == {
+        "method": "AccountManagement",
+        "param": {"Action": "Get"},
+    }
+
+
+def test_balance_omitted_logins_without_login_fails_for_sandbox_before_api_call():
     with patch("direct_cli.cli.get_active_profile", return_value=None):
         with patch("direct_cli.commands.balance.create_v4_client") as create_client:
-            result = CliRunner(
-                env={"YANDEX_DIRECT_TOKEN": "", "YANDEX_DIRECT_LOGIN": ""}
-            ).invoke(cli, ["balance"])
+            result = CliRunner(env={"YANDEX_DIRECT_LOGIN": ""}).invoke(
+                cli, ["--sandbox", "--token", "token", "balance"]
+            )
 
     assert result.exit_code != 0
     assert "Provide --logins or configure YANDEX_DIRECT_LOGIN" in result.output
@@ -68,9 +81,10 @@ def test_balance_formats_mocked_v4_response_as_json():
             )
 
     assert result.exit_code == 0
-    assert json.loads(result.output) == [
-        {"Login": "a", "Amount": "10.50", "Currency": "RUB"}
-    ]
+    assert json.loads(result.output) == {
+        "ActionsResult": [],
+        "Accounts": [{"Login": "a", "Amount": "10.50", "Currency": "RUB"}],
+    }
     create_client.assert_called_once()
     call.assert_called_once_with(
         create_client.return_value,

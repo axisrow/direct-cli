@@ -25,16 +25,18 @@ from ..v4_contracts import v4_method_contract
 def balance(ctx, logins, output_format, output, dry_run):
     """Check account money balance."""
     login_list = parse_csv_strings(logins)
-    if not login_list:
-        configured_login = ctx.obj.get("login")
-        if not configured_login:
-            raise click.UsageError("Provide --logins or configure YANDEX_DIRECT_LOGIN")
+    configured_login = ctx.obj.get("login")
+    if not login_list and configured_login:
         login_list = [configured_login]
 
     param = {
         "Action": "Get",
-        "SelectionCriteria": {"Logins": login_list},
     }
+    if login_list:
+        param["SelectionCriteria"] = {"Logins": login_list}
+    elif ctx.obj.get("sandbox"):
+        raise click.UsageError("Provide --logins or configure YANDEX_DIRECT_LOGIN")
+
     if dry_run:
         format_output(build_v4_body("AccountManagement", param), "json", None)
         return
@@ -47,7 +49,7 @@ def balance(ctx, logins, output_format, output, dry_run):
             sandbox=ctx.obj.get("sandbox"),
         )
         data = call_v4(client, "AccountManagement", param)
-        format_output(data.get("Accounts", data), output_format, output)
+        format_output(data, output_format, output)
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
