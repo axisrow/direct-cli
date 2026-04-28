@@ -5,7 +5,7 @@ Utilities for Direct CLI
 import base64
 import json
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Iterable, List, Optional, Union
 
 import click
 
@@ -168,6 +168,151 @@ def parse_setting_specs(specs: Optional[List[str]]) -> Optional[List[Dict[str, s
             )
         settings.append({"Option": option.strip(), "Value": value.strip()})
     return settings
+
+
+EMAIL_SUBSCRIPTION_OPTIONS = {
+    "RECEIVE_RECOMMENDATIONS",
+    "TRACK_MANAGED_CAMPAIGNS",
+    "TRACK_POSITION_CHANGES",
+}
+
+CLIENT_SETTING_OPTIONS = {
+    "CORRECT_TYPOS_AUTOMATICALLY",
+    "DISPLAY_STORE_RATING",
+}
+
+AGENCY_CLIENT_GRANT_OPTIONS = {
+    "EDIT_CAMPAIGNS",
+    "IMPORT_XLS",
+    "TRANSFER_MONEY",
+}
+
+TIN_TYPES = {
+    "PHYSICAL",
+    "FOREIGN_PHYSICAL",
+    "LEGAL",
+    "FOREIGN_LEGAL",
+    "INDIVIDUAL",
+}
+
+YES_NO_VALUES = {"YES", "NO"}
+
+
+def parse_yes_no_spec(
+    spec: str,
+    allowed_options: Iterable[str],
+    label: str,
+) -> Dict[str, str]:
+    """Parse and validate one OPTION=YES|NO update spec."""
+    option, separator, value = spec.partition("=")
+    if not separator:
+        raise click.UsageError(
+            f"Invalid {label}: '{spec}'. Expected format: OPTION=YES|NO"
+        )
+
+    option = option.strip()
+    value = value.strip()
+    allowed_options = set(allowed_options)
+    if option not in allowed_options:
+        allowed = ", ".join(sorted(allowed_options))
+        raise click.UsageError(
+            f"Invalid {label} option: '{option}'. Expected one of: {allowed}"
+        )
+    if value not in YES_NO_VALUES:
+        raise click.UsageError(f"Invalid {label} value: '{value}'. Expected YES or NO")
+
+    return {"Option": option, "Value": value}
+
+
+def parse_email_subscription_specs(
+    specs: Optional[List[str]],
+) -> Optional[List[Dict[str, str]]]:
+    """Parse repeated Notification.EmailSubscriptions OPTION=YES|NO specs."""
+    if not specs:
+        return None
+    return [
+        parse_yes_no_spec(spec, EMAIL_SUBSCRIPTION_OPTIONS, "email subscription")
+        for spec in specs
+    ]
+
+
+def parse_client_setting_specs(
+    specs: Optional[List[str]],
+) -> Optional[List[Dict[str, str]]]:
+    """Parse repeated client Settings OPTION=YES|NO specs."""
+    if not specs:
+        return None
+    return [
+        parse_yes_no_spec(spec, CLIENT_SETTING_OPTIONS, "client setting")
+        for spec in specs
+    ]
+
+
+def parse_grant_specs(specs: Optional[List[str]]) -> Optional[List[Dict[str, str]]]:
+    """Parse repeated agency client Grants PRIVILEGE=YES|NO specs."""
+    if not specs:
+        return None
+    grants = []
+    for spec in specs:
+        parsed = parse_yes_no_spec(spec, AGENCY_CLIENT_GRANT_OPTIONS, "grant")
+        grants.append({"Privilege": parsed["Option"], "Value": parsed["Value"]})
+    return grants
+
+
+def parse_tin_info(
+    tin_type: Optional[str],
+    tin: Optional[str],
+) -> Optional[Dict[str, str]]:
+    """Build TinInfo from typed flags."""
+    tin_info = {}
+    if tin_type:
+        if tin_type not in TIN_TYPES:
+            allowed = ", ".join(sorted(TIN_TYPES))
+            raise click.UsageError(
+                f"Invalid tin type: '{tin_type}'. Expected one of: {allowed}"
+            )
+        tin_info["TinType"] = tin_type
+    if tin:
+        tin_info["Tin"] = tin
+    return tin_info or None
+
+
+def build_notification_update(
+    email: Optional[str],
+    lang: Optional[str],
+    email_subscriptions: Optional[List[Dict[str, str]]],
+) -> Optional[Dict[str, Any]]:
+    """Build Notification update object from typed flags."""
+    notification = {}
+    if email:
+        notification["Email"] = email
+    if lang:
+        notification["Lang"] = lang
+    if email_subscriptions:
+        notification["EmailSubscriptions"] = email_subscriptions
+    return notification or None
+
+
+def build_client_update_item(
+    client_info: Optional[str],
+    phone: Optional[str],
+    notification: Optional[Dict[str, Any]],
+    settings: Optional[List[Dict[str, str]]],
+    tin_info: Optional[Dict[str, str]],
+) -> Dict[str, Any]:
+    """Build a generalclients ClientUpdateItem with WSDL-valid keys only."""
+    item = {}
+    if client_info:
+        item["ClientInfo"] = client_info
+    if phone:
+        item["Phone"] = phone
+    if notification:
+        item["Notification"] = notification
+    if settings:
+        item["Settings"] = settings
+    if tin_info:
+        item["TinInfo"] = tin_info
+    return item
 
 
 def parse_condition_specs(specs: Optional[List[str]]) -> Optional[List[Dict[str, Any]]]:

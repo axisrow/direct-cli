@@ -6,7 +6,16 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import assert_not_runtime_deprecated, get_default_fields
+from ..utils import (
+    assert_not_runtime_deprecated,
+    build_client_update_item,
+    build_notification_update,
+    get_default_fields,
+    parse_client_setting_specs,
+    parse_email_subscription_specs,
+    parse_grant_specs,
+    parse_tin_info,
+)
 
 
 def _build_notification(
@@ -287,25 +296,65 @@ def add_passport_organization_member(
 
 @agencyclients.command()
 @click.option("--client-id", required=True, type=int, help="Client ID")
+@click.option("--client-info", help="Client information")
 @click.option("--phone", help="Client phone")
-@click.option("--email", help="Client email")
-@click.option("--grant", "grants", multiple=True, help="Grant value")
+@click.option("--notification-email", help="Notification email")
+@click.option("--notification-lang", help="Notification language")
+@click.option(
+    "--email-subscription",
+    "email_subscriptions",
+    multiple=True,
+    help="Notification subscription as OPTION=YES|NO",
+)
+@click.option(
+    "--setting",
+    "settings",
+    multiple=True,
+    help="Client setting as OPTION=YES|NO",
+)
+@click.option("--tin-type", help="TIN type")
+@click.option("--tin", help="Taxpayer identification number")
+@click.option("--grant", "grants", multiple=True, help="Grant as PRIVILEGE=YES|NO")
 @click.option("--clear-grants", is_flag=True, help="Clear all grants")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def update(ctx, client_id, phone, email, grants, clear_grants, dry_run):
+def update(
+    ctx,
+    client_id,
+    client_info,
+    phone,
+    notification_email,
+    notification_lang,
+    email_subscriptions,
+    settings,
+    tin_type,
+    tin,
+    grants,
+    clear_grants,
+    dry_run,
+):
     """Update agency client"""
     try:
-        client_data = {"ClientId": client_id}
-
-        if phone:
-            client_data["Phone"] = phone
-        if email:
-            client_data["Email"] = email
         if grants and clear_grants:
             raise click.UsageError("--grant and --clear-grants are mutually exclusive")
+
+        notification = build_notification_update(
+            notification_email,
+            notification_lang,
+            parse_email_subscription_specs(list(email_subscriptions)),
+        )
+        client_data = {
+            "ClientId": client_id,
+            **build_client_update_item(
+                client_info,
+                phone,
+                notification,
+                parse_client_setting_specs(list(settings)),
+                parse_tin_info(tin_type, tin),
+            ),
+        }
         if grants:
-            client_data["Grants"] = list(grants)
+            client_data["Grants"] = parse_grant_specs(list(grants))
         if clear_grants:
             client_data["Grants"] = []
         if len(client_data) == 1:

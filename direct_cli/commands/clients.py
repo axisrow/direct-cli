@@ -6,7 +6,15 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import get_default_fields, parse_ids
+from ..utils import (
+    build_client_update_item,
+    build_notification_update,
+    get_default_fields,
+    parse_client_setting_specs,
+    parse_email_subscription_specs,
+    parse_ids,
+    parse_tin_info,
+)
 
 
 @click.group()
@@ -64,26 +72,53 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
 
 
 @clients.command()
-@click.option("--client-id", required=True, type=int, help="Client ID")
+@click.option("--client-info", help="Client information")
 @click.option("--phone", help="Client phone")
-@click.option("--fax", help="Client fax")
-@click.option("--email", help="Client email")
-@click.option("--city", help="Client city")
+@click.option("--notification-email", help="Notification email")
+@click.option("--notification-lang", help="Notification language")
+@click.option(
+    "--email-subscription",
+    "email_subscriptions",
+    multiple=True,
+    help="Notification subscription as OPTION=YES|NO",
+)
+@click.option(
+    "--setting",
+    "settings",
+    multiple=True,
+    help="Client setting as OPTION=YES|NO",
+)
+@click.option("--tin-type", help="TIN type")
+@click.option("--tin", help="Taxpayer identification number")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def update(ctx, client_id, phone, fax, email, city, dry_run):
+def update(
+    ctx,
+    client_info,
+    phone,
+    notification_email,
+    notification_lang,
+    email_subscriptions,
+    settings,
+    tin_type,
+    tin,
+    dry_run,
+):
     """Update client settings"""
     try:
-        client_data = {"ClientId": client_id}
-        if phone:
-            client_data["Phone"] = phone
-        if fax:
-            client_data["Fax"] = fax
-        if email:
-            client_data["Email"] = email
-        if city:
-            client_data["City"] = city
-        if len(client_data) == 1:
+        notification = build_notification_update(
+            notification_email,
+            notification_lang,
+            parse_email_subscription_specs(list(email_subscriptions)),
+        )
+        client_data = build_client_update_item(
+            client_info,
+            phone,
+            notification,
+            parse_client_setting_specs(list(settings)),
+            parse_tin_info(tin_type, tin),
+        )
+        if not client_data:
             raise click.UsageError("Provide at least one field to update")
 
         body = {"method": "update", "params": {"Clients": [client_data]}}

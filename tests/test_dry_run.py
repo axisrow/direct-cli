@@ -564,8 +564,14 @@ def test_keywords_update_payload_keyword_text():
 
 def test_keywords_update_payload_user_params():
     body = _dry_run(
-        "keywords", "update", "--id", "777",
-        "--user-param-1", "seg-a", "--user-param-2", "seg-b",
+        "keywords",
+        "update",
+        "--id",
+        "777",
+        "--user-param-1",
+        "seg-a",
+        "--user-param-2",
+        "seg-b",
     )
     keyword = body["params"]["Keywords"][0]
     assert keyword == {"Id": 777, "UserParam1": "seg-a", "UserParam2": "seg-b"}
@@ -1397,38 +1403,121 @@ def test_agencyclients_add_is_runtime_deprecated_even_for_dry_run():
 # ----------------------------------------------------------------------
 
 
-def test_clients_update_uses_typed_flags():
+def test_clients_update_payload_matches_wsdl_contract():
     body = _dry_run(
         "clients",
         "update",
-        "--client-id",
-        "999",
+        "--client-info",
+        "Important client",
         "--phone",
         "+70000000000",
-        "--fax",
-        "+70000000001",
-        "--email",
+        "--notification-email",
         "user@example.com",
-        "--city",
-        "Moscow",
+        "--notification-lang",
+        "EN",
+        "--email-subscription",
+        "RECEIVE_RECOMMENDATIONS=YES",
+        "--setting",
+        "DISPLAY_STORE_RATING=NO",
+        "--tin-type",
+        "LEGAL",
+        "--tin",
+        "1234567890",
     )
     assert body["method"] == "update"
     client = body["params"]["Clients"][0]
     assert client == {
-        "ClientId": 999,
+        "ClientInfo": "Important client",
         "Phone": "+70000000000",
-        "Fax": "+70000000001",
-        "Email": "user@example.com",
-        "City": "Moscow",
+        "Notification": {
+            "Email": "user@example.com",
+            "Lang": "EN",
+            "EmailSubscriptions": [
+                {"Option": "RECEIVE_RECOMMENDATIONS", "Value": "YES"}
+            ],
+        },
+        "Settings": [{"Option": "DISPLAY_STORE_RATING", "Value": "NO"}],
+        "TinInfo": {"TinType": "LEGAL", "Tin": "1234567890"},
     }
+    assert "ClientId" not in client
+    assert "Email" not in client
+    assert "Fax" not in client
+    assert "City" not in client
+
+
+def test_clients_update_rejects_legacy_flags():
+    for flag, value in (
+        ("--client-id", "999"),
+        ("--email", "user@example.com"),
+        ("--fax", "+70000000001"),
+        ("--city", "Moscow"),
+    ):
+        result = CliRunner().invoke(
+            cli,
+            ["clients", "update", flag, value, "--phone", "+70000000000", "--dry-run"],
+        )
+        assert result.exit_code != 0
+        assert f"No such option: {flag}" in result.output
+
+
+def test_clients_update_requires_at_least_one_field():
+    result = CliRunner().invoke(cli, ["clients", "update", "--dry-run"])
+    assert result.exit_code != 0
+    assert "Provide at least one field to update" in result.output
+
+
+def test_clients_update_notification_only_payload():
+    body = _dry_run(
+        "clients",
+        "update",
+        "--notification-email",
+        "user@example.com",
+        "--notification-lang",
+        "EN",
+        "--email-subscription",
+        "TRACK_POSITION_CHANGES=NO",
+    )
+    assert body["params"]["Clients"][0] == {
+        "Notification": {
+            "Email": "user@example.com",
+            "Lang": "EN",
+            "EmailSubscriptions": [{"Option": "TRACK_POSITION_CHANGES", "Value": "NO"}],
+        }
+    }
+
+
+def test_clients_update_rejects_invalid_subscription_or_setting():
+    invalid_cases = [
+        [
+            "clients",
+            "update",
+            "--email-subscription",
+            "UNKNOWN=YES",
+            "--dry-run",
+        ],
+        [
+            "clients",
+            "update",
+            "--setting",
+            "DISPLAY_STORE_RATING=yes",
+            "--dry-run",
+        ],
+    ]
+    for args in invalid_cases:
+        result = CliRunner().invoke(cli, args)
+        assert result.exit_code != 0
+        assert "Error:" in result.output
 
 
 class TestAdvideosDryRun:
     def test_add_by_url(self):
         body = _dry_run(
-            "advideos", "add",
-            "--url", "https://example.com/video.mp4",
-            "--name", "Test Video",
+            "advideos",
+            "add",
+            "--url",
+            "https://example.com/video.mp4",
+            "--name",
+            "Test Video",
         )
         assert body["method"] == "add"
         item = body["params"]["AdVideos"][0]
@@ -1439,6 +1528,7 @@ class TestAdvideosDryRun:
     def test_add_requires_url_or_data(self):
         from click.testing import CliRunner
         from direct_cli.cli import cli
+
         result = CliRunner().invoke(cli, ["advideos", "add", "--dry-run"])
         assert result.exit_code != 0
 
@@ -1448,12 +1538,18 @@ class TestBidModifiersAddPluralFields:
 
     def test_demographics_plural(self):
         body = _dry_run(
-            "bidmodifiers", "add",
-            "--campaign-id", "123",
-            "--type", "DEMOGRAPHICS_ADJUSTMENT",
-            "--value", "150",
-            "--gender", "GENDER_MALE",
-            "--age", "AGE_25_34",
+            "bidmodifiers",
+            "add",
+            "--campaign-id",
+            "123",
+            "--type",
+            "DEMOGRAPHICS_ADJUSTMENT",
+            "--value",
+            "150",
+            "--gender",
+            "GENDER_MALE",
+            "--age",
+            "AGE_25_34",
         )
         item = body["params"]["BidModifiers"][0]
         assert "DemographicsAdjustments" in item, f"got keys: {list(item.keys())}"
@@ -1463,11 +1559,16 @@ class TestBidModifiersAddPluralFields:
 
     def test_retargeting_plural(self):
         body = _dry_run(
-            "bidmodifiers", "add",
-            "--campaign-id", "123",
-            "--type", "RETARGETING_ADJUSTMENT",
-            "--value", "120",
-            "--retargeting-condition-id", "456",
+            "bidmodifiers",
+            "add",
+            "--campaign-id",
+            "123",
+            "--type",
+            "RETARGETING_ADJUSTMENT",
+            "--value",
+            "120",
+            "--retargeting-condition-id",
+            "456",
         )
         item = body["params"]["BidModifiers"][0]
         assert "RetargetingAdjustments" in item, f"got keys: {list(item.keys())}"
@@ -1475,11 +1576,16 @@ class TestBidModifiersAddPluralFields:
 
     def test_regional_plural(self):
         body = _dry_run(
-            "bidmodifiers", "add",
-            "--campaign-id", "123",
-            "--type", "REGIONAL_ADJUSTMENT",
-            "--value", "110",
-            "--region-id", "1",
+            "bidmodifiers",
+            "add",
+            "--campaign-id",
+            "123",
+            "--type",
+            "REGIONAL_ADJUSTMENT",
+            "--value",
+            "110",
+            "--region-id",
+            "1",
         )
         item = body["params"]["BidModifiers"][0]
         assert "RegionalAdjustments" in item, f"got keys: {list(item.keys())}"
@@ -1487,11 +1593,16 @@ class TestBidModifiersAddPluralFields:
 
     def test_serp_layout_plural(self):
         body = _dry_run(
-            "bidmodifiers", "add",
-            "--campaign-id", "123",
-            "--type", "SERP_LAYOUT_ADJUSTMENT",
-            "--value", "105",
-            "--serp-layout", "PREMIUMBLOCK",
+            "bidmodifiers",
+            "add",
+            "--campaign-id",
+            "123",
+            "--type",
+            "SERP_LAYOUT_ADJUSTMENT",
+            "--value",
+            "105",
+            "--serp-layout",
+            "PREMIUMBLOCK",
         )
         item = body["params"]["BidModifiers"][0]
         assert "SerpLayoutAdjustments" in item, f"got keys: {list(item.keys())}"
@@ -1501,11 +1612,16 @@ class TestBidModifiersAddPluralFields:
 
     def test_income_grade_plural(self):
         body = _dry_run(
-            "bidmodifiers", "add",
-            "--campaign-id", "123",
-            "--type", "INCOME_GRADE_ADJUSTMENT",
-            "--value", "103",
-            "--income-grade", "VERY_HIGH",
+            "bidmodifiers",
+            "add",
+            "--campaign-id",
+            "123",
+            "--type",
+            "INCOME_GRADE_ADJUSTMENT",
+            "--value",
+            "103",
+            "--income-grade",
+            "VERY_HIGH",
         )
         item = body["params"]["BidModifiers"][0]
         assert "IncomeGradeAdjustments" in item, f"got keys: {list(item.keys())}"
@@ -1516,10 +1632,14 @@ class TestBidModifiersAddPluralFields:
     def test_mobile_singular(self):
         """MobileAdjustment stays singular — regression guard."""
         body = _dry_run(
-            "bidmodifiers", "add",
-            "--campaign-id", "123",
-            "--type", "MOBILE_ADJUSTMENT",
-            "--value", "130",
+            "bidmodifiers",
+            "add",
+            "--campaign-id",
+            "123",
+            "--type",
+            "MOBILE_ADJUSTMENT",
+            "--value",
+            "130",
         )
         item = body["params"]["BidModifiers"][0]
         assert "MobileAdjustment" in item
@@ -1600,28 +1720,107 @@ def test_agencyclients_add_passport_organization_member_payload():
     }
 
 
-def test_agencyclients_update_payload_uses_clients_array():
+def test_agencyclients_update_payload_matches_wsdl_contract():
     body = _dry_run(
         "agencyclients",
         "update",
         "--client-id",
         "42",
+        "--client-info",
+        "Agency client",
         "--phone",
         "+70000000000",
-        "--email",
+        "--notification-email",
         "user@example.com",
+        "--notification-lang",
+        "EN",
+        "--email-subscription",
+        "TRACK_MANAGED_CAMPAIGNS=YES",
+        "--setting",
+        "CORRECT_TYPOS_AUTOMATICALLY=NO",
+        "--tin-type",
+        "INDIVIDUAL",
+        "--tin",
+        "1234567890",
         "--grant",
-        "EDIT_CAMPAIGNS",
+        "EDIT_CAMPAIGNS=YES",
         "--grant",
-        "IMPORT_XLS",
+        "IMPORT_XLS=NO",
     )
     item = body["params"]["Clients"][0]
     assert item == {
         "ClientId": 42,
+        "ClientInfo": "Agency client",
         "Phone": "+70000000000",
-        "Email": "user@example.com",
-        "Grants": ["EDIT_CAMPAIGNS", "IMPORT_XLS"],
+        "Notification": {
+            "Email": "user@example.com",
+            "Lang": "EN",
+            "EmailSubscriptions": [
+                {"Option": "TRACK_MANAGED_CAMPAIGNS", "Value": "YES"}
+            ],
+        },
+        "Settings": [{"Option": "CORRECT_TYPOS_AUTOMATICALLY", "Value": "NO"}],
+        "TinInfo": {"TinType": "INDIVIDUAL", "Tin": "1234567890"},
+        "Grants": [
+            {"Privilege": "EDIT_CAMPAIGNS", "Value": "YES"},
+            {"Privilege": "IMPORT_XLS", "Value": "NO"},
+        ],
     }
+    assert "Email" not in item
+
+
+def test_agencyclients_update_rejects_bare_grant():
+    result = CliRunner().invoke(
+        cli,
+        [
+            "agencyclients",
+            "update",
+            "--client-id",
+            "1",
+            "--grant",
+            "EDIT_CAMPAIGNS",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "Expected format: OPTION=YES|NO" in result.output
+
+
+def test_agencyclients_update_rejects_legacy_email_flag():
+    result = CliRunner().invoke(
+        cli,
+        [
+            "agencyclients",
+            "update",
+            "--client-id",
+            "1",
+            "--email",
+            "user@example.com",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "No such option: --email" in result.output
+
+
+def test_agencyclients_update_clear_grants_emits_empty_list():
+    body = _dry_run(
+        "agencyclients",
+        "update",
+        "--client-id",
+        "42",
+        "--clear-grants",
+    )
+    assert body["params"]["Clients"][0] == {"ClientId": 42, "Grants": []}
+
+
+def test_agencyclients_update_requires_at_least_one_update_field():
+    result = CliRunner().invoke(
+        cli,
+        ["agencyclients", "update", "--client-id", "1", "--dry-run"],
+    )
+    assert result.exit_code != 0
+    assert "Provide at least one field to update" in result.output
 
 
 def test_bids_set_auto_requires_scope():
@@ -1817,13 +2016,20 @@ def test_reports_get_dry_run_outputs_request():
     result = CliRunner().invoke(
         cli,
         [
-            "reports", "get",
-            "--type", "campaign_performance_report",
-            "--from", "2026-01-01",
-            "--to", "2026-01-31",
-            "--name", "Dry Run Report",
-            "--fields", "Date,CampaignId",
-            "--processing-mode", "online",
+            "reports",
+            "get",
+            "--type",
+            "campaign_performance_report",
+            "--from",
+            "2026-01-01",
+            "--to",
+            "2026-01-31",
+            "--name",
+            "Dry Run Report",
+            "--fields",
+            "Date,CampaignId",
+            "--processing-mode",
+            "online",
             "--skip-report-header",
             "--skip-report-summary",
             "--dry-run",
@@ -1849,10 +2055,14 @@ def test_reports_get_dry_run_outputs_request():
 
 def test_dynamicfeedadtargets_add_payload():
     body = _dry_run(
-        "dynamicfeedadtargets", "add",
-        "--adgroup-id", "123",
-        "--name", "Test Target",
-        "--bid", "1500000",
+        "dynamicfeedadtargets",
+        "add",
+        "--adgroup-id",
+        "123",
+        "--name",
+        "Test Target",
+        "--bid",
+        "1500000",
     )
     assert body["method"] == "add"
     target = body["params"]["DynamicFeedAdTargets"][0]
@@ -1887,9 +2097,12 @@ def test_dynamicfeedadtargets_resume_payload():
 
 def test_dynamicfeedadtargets_set_bids_payload():
     body = _dry_run(
-        "dynamicfeedadtargets", "set-bids",
-        "--id", "55",
-        "--bid", "2000000",
+        "dynamicfeedadtargets",
+        "set-bids",
+        "--id",
+        "55",
+        "--bid",
+        "2000000",
     )
     assert body["method"] == "setBids"
     bid = body["params"]["Bids"][0]
@@ -1904,10 +2117,14 @@ def test_dynamicfeedadtargets_set_bids_payload():
 
 def test_strategies_add_payload():
     body = _dry_run(
-        "strategies", "add",
-        "--name", "My Strategy",
-        "--type", "AverageCpc",
-        "--params", '{"AverageCpc": 1000000}',
+        "strategies",
+        "add",
+        "--name",
+        "My Strategy",
+        "--type",
+        "AverageCpc",
+        "--params",
+        '{"AverageCpc": 1000000}',
     )
     assert body["method"] == "add"
     s = body["params"]["Strategies"][0]
@@ -1917,9 +2134,12 @@ def test_strategies_add_payload():
 
 def test_strategies_add_no_type_key_at_root():
     body = _dry_run(
-        "strategies", "add",
-        "--name", "My Strategy",
-        "--type", "WbMaximumClicks",
+        "strategies",
+        "add",
+        "--name",
+        "My Strategy",
+        "--type",
+        "WbMaximumClicks",
     )
     s = body["params"]["Strategies"][0]
     assert "Type" not in s
@@ -1928,9 +2148,12 @@ def test_strategies_add_no_type_key_at_root():
 
 def test_strategies_update_payload():
     body = _dry_run(
-        "strategies", "update",
-        "--id", "77",
-        "--name", "Updated",
+        "strategies",
+        "update",
+        "--id",
+        "77",
+        "--name",
+        "Updated",
     )
     assert body["method"] == "update"
     s = body["params"]["Strategies"][0]

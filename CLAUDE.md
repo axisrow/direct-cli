@@ -72,3 +72,7 @@ subcommand belongs to exactly one category:
 Never auto-test production mutations: agency client changes, live bid changes,
 moderation, lifecycle operations, `clients update`, or any `delete` without
 `--sandbox`.
+
+Client update payloads (`clients update` and `agencyclients update`) must use
+the shared typed helpers in `direct_cli/utils.py`; do not expose raw JSON for
+general client update fields or nested client update payloads.
