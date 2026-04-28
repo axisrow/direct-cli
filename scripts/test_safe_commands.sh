@@ -261,7 +261,9 @@ run_test "changes check-dictionaries (env auth)"   direct changes check-dictiona
 run_test "reports list-types (env auth)"           direct reports list-types
 run_test "reports get (env auth)"                  direct reports get --type campaign_performance_report --from 2026-01-01 --to 2026-01-01 --name "Smoke Safe Report" --fields Date,CampaignId
 run_test "balance (env auth)"                      direct balance
-run_test "v4events get-events-log (env auth)"      direct v4events get-events-log --from 2026-04-14T00:00:00 --to 2026-04-15T00:00:00 --limit 1
+EVENTS_FROM=$(date -u -d 'yesterday' '+%Y-%m-%dT00:00:00' 2>/dev/null || date -u -v-1d '+%Y-%m-%dT00:00:00')
+EVENTS_TO=$(date -u '+%Y-%m-%dT00:00:00')
+run_test "v4events get-events-log (env auth)"      direct v4events get-events-log --from "$EVENTS_FROM" --to "$EVENTS_TO" --limit 1
 run_v4finance_get_credit_limits
 
 if [ -n "$CAMPAIGN_ID" ]; then
