@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids, MICRO_RUBLES
+from ..utils import get_default_fields, parse_ids, MICRO_RUBLES
 
 
 @click.group()
@@ -44,15 +44,9 @@ def get(
 
         params = {
             "SelectionCriteria": criteria,
-            "FieldNames": [
-                "KeywordId",
-                "AdGroupId",
-                "CampaignId",
-                "ServingStatus",
-                "StrategyPriority",
-            ],
-            "SearchFieldNames": ["Bid"],
-            "NetworkFieldNames": ["Bid"],
+            "FieldNames": get_default_fields("keywordbids", "FieldNames"),
+            "SearchFieldNames": get_default_fields("keywordbids", "SearchFieldNames"),
+            "NetworkFieldNames": get_default_fields("keywordbids", "NetworkFieldNames"),
         }
 
         if limit:
@@ -126,7 +120,9 @@ def set(ctx, keyword_id, search_bid, network_bid, dry_run):
     help="NetworkByCoverage.TargetCoverage value",
 )
 @click.option("--increase-percent", type=int, help="Bidding rule IncreasePercent")
-@click.option("--bid-ceiling", type=MICRO_RUBLES, help="Bidding rule bid ceiling in micro-rubles")
+@click.option(
+    "--bid-ceiling", type=MICRO_RUBLES, help="Bidding rule bid ceiling in micro-rubles"
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def set_auto(

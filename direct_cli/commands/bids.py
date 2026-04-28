@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids, MICRO_RUBLES
+from ..utils import get_default_fields, parse_ids, MICRO_RUBLES
 
 
 @click.group()
@@ -22,8 +22,19 @@ def bids():
 @click.option("--fetch-all", is_flag=True, help="Fetch all pages")
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
+@click.option("--fields", help="Comma-separated field names")
 @click.pass_context
-def get(ctx, campaign_ids, adgroup_ids, keyword_ids, limit, fetch_all, output_format, output):
+def get(
+    ctx,
+    campaign_ids,
+    adgroup_ids,
+    keyword_ids,
+    limit,
+    fetch_all,
+    output_format,
+    output,
+    fields,
+):
     """Get bids"""
     try:
         client = create_client(
@@ -40,9 +51,10 @@ def get(ctx, campaign_ids, adgroup_ids, keyword_ids, limit, fetch_all, output_fo
         if keyword_ids:
             criteria["KeywordIds"] = parse_ids(keyword_ids)
 
+        field_names = fields.split(",") if fields else get_default_fields("bids")
         params = {
             "SelectionCriteria": criteria,
-            "FieldNames": ["CampaignId", "AdGroupId", "KeywordId", "Bid"],
+            "FieldNames": field_names,
         }
 
         if limit:

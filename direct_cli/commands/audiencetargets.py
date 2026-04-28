@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids, MICRO_RUBLES
+from ..utils import get_default_fields, parse_ids, MICRO_RUBLES
 
 
 @click.group()
@@ -22,8 +22,19 @@ def audiencetargets():
 @click.option("--fetch-all", is_flag=True, help="Fetch all pages")
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
+@click.option("--fields", help="Comma-separated field names")
 @click.pass_context
-def get(ctx, ids, adgroup_ids, campaign_ids, limit, fetch_all, output_format, output):
+def get(
+    ctx,
+    ids,
+    adgroup_ids,
+    campaign_ids,
+    limit,
+    fetch_all,
+    output_format,
+    output,
+    fields,
+):
     """Get audience targets"""
     try:
         client = create_client(
@@ -40,15 +51,12 @@ def get(ctx, ids, adgroup_ids, campaign_ids, limit, fetch_all, output_format, ou
         if campaign_ids:
             criteria["CampaignIds"] = parse_ids(campaign_ids)
 
+        field_names = (
+            fields.split(",") if fields else get_default_fields("audiencetargets")
+        )
         params = {
             "SelectionCriteria": criteria,
-            "FieldNames": [
-                "Id",
-                "AdGroupId",
-                "RetargetingListId",
-                "State",
-                "ContextBid",
-            ],
+            "FieldNames": field_names,
         }
 
         if limit:
@@ -152,11 +160,7 @@ def set_bids(ctx, target_id, adgroup_id, campaign_id, context_bid, priority, dry
             bid_data["ContextBid"] = context_bid
         if priority:
             bid_data["StrategyPriority"] = priority
-        bid_fields = {
-            k
-            for k in ("ContextBid", "StrategyPriority")
-            if k in bid_data
-        }
+        bid_fields = {k for k in ("ContextBid", "StrategyPriority") if k in bid_data}
         if not bid_data:
             raise click.UsageError(
                 "Provide target selection and bid fields for set-bids"
@@ -194,7 +198,10 @@ def set_bids(ctx, target_id, adgroup_id, campaign_id, context_bid, priority, dry
 def delete(ctx, target_id, dry_run):
     """Delete audience target"""
     try:
-        body = {"method": "delete", "params": {"SelectionCriteria": {"Ids": [target_id]}}}
+        body = {
+            "method": "delete",
+            "params": {"SelectionCriteria": {"Ids": [target_id]}},
+        }
 
         if dry_run:
             format_output(body, "json", None)
@@ -221,7 +228,10 @@ def delete(ctx, target_id, dry_run):
 def suspend(ctx, target_id, dry_run):
     """Suspend audience target"""
     try:
-        body = {"method": "suspend", "params": {"SelectionCriteria": {"Ids": [target_id]}}}
+        body = {
+            "method": "suspend",
+            "params": {"SelectionCriteria": {"Ids": [target_id]}},
+        }
 
         if dry_run:
             format_output(body, "json", None)
@@ -248,7 +258,10 @@ def suspend(ctx, target_id, dry_run):
 def resume(ctx, target_id, dry_run):
     """Resume audience target"""
     try:
-        body = {"method": "resume", "params": {"SelectionCriteria": {"Ids": [target_id]}}}
+        body = {
+            "method": "resume",
+            "params": {"SelectionCriteria": {"Ids": [target_id]}},
+        }
 
         if dry_run:
             format_output(body, "json", None)
