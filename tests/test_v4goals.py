@@ -83,6 +83,37 @@ def test_get_stat_goals_formats_mocked_response_as_json():
     )
 
 
+def test_get_stat_goals_with_login_keeps_method_param_schema():
+    with patch("direct_cli.commands.v4goals.create_v4_client") as create_client:
+        with patch(
+            "direct_cli.commands.v4goals.call_v4",
+            return_value=[{"CampaignID": 1, "GoalID": 10, "Name": "Lead"}],
+        ) as call:
+            result = _invoke(
+                "--token",
+                "token",
+                "--login",
+                "client-login",
+                "v4goals",
+                "get-stat-goals",
+                "--campaign-ids",
+                "1",
+            )
+
+    assert result.exit_code == 0
+    create_client.assert_called_once_with(
+        token="token",
+        login="client-login",
+        profile=None,
+        sandbox=False,
+    )
+    call.assert_called_once_with(
+        create_client.return_value,
+        "GetStatGoals",
+        {"CampaignIDS": [1]},
+    )
+
+
 def test_get_retargeting_goals_formats_mocked_response_as_table():
     with patch("direct_cli.commands.v4goals.create_v4_client") as create_client:
         with patch(
