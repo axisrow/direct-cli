@@ -989,6 +989,7 @@ class TestApiCoverage:
         assert report["schema"]["capture_errors"] == []
         assert report["schema"]["missing_field_name_params"] == []
         assert report["schema"]["missing_common_fields"] == []
+        assert report["schema"]["orphan_common_fields"] == []
         assert report["schema"]["uncovered_get_groups"] == []
         assert report["schema"]["waiver_misuse"] == []
 
@@ -1026,6 +1027,7 @@ class TestApiCoverage:
         assert schema_gate["capture_errors"] == []
         assert schema_gate["missing_field_name_params"] == []
         assert schema_gate["missing_common_fields"] == []
+        assert schema_gate["orphan_common_fields"] == []
         assert schema_gate["uncovered_get_groups"] == []
         assert schema_gate["waiver_misuse"] == []
 
@@ -1149,6 +1151,7 @@ class TestApiCoverage:
             "get_cli_methods_for_service",
             lambda cli_name: {"get"},
         )
+        monkeypatch.setattr(report_script, "COMMON_FIELDS", {})
 
         # Without waiver → uncovered
         monkeypatch.setattr(report_script, "SCHEMA_GATE_WAIVERS", {})
@@ -1175,6 +1178,7 @@ class TestApiCoverage:
             "get_cli_methods_for_service",
             lambda cli_name: {"get"},
         )
+        monkeypatch.setattr(report_script, "COMMON_FIELDS", {})
         monkeypatch.setattr(report_script, "SCHEMA_GATE_WAIVERS", {"fake": "stale"})
 
         schema_gate = report_script.build_schema_gate(
@@ -1324,6 +1328,100 @@ class TestApiCoverage:
             }
         ]
 
+    def test_schema_gate_flags_orphan_common_fields_keys(self, monkeypatch):
+        """Typo in COMMON_FIELDS key fails the gate as orphan."""
+        report_script = _load_coverage_report_script()
+        monkeypatch.setattr(report_script, "CLI_TO_API_SERVICE", {"fake": "fake"})
+        monkeypatch.setattr(
+            report_script,
+            "get_cli_methods_for_service",
+            lambda cli_name: {"get"},
+        )
+        # 'fake' matches CLI group; 'typoed_resource' matches nothing.
+        monkeypatch.setattr(
+            report_script,
+            "COMMON_FIELDS",
+            {"fake": ["Id"], "typoed_resource": ["Whatever"]},
+        )
+
+        schema_gate = report_script.build_schema_gate(
+            fetch_wsdl_func=lambda service: _wsdl_with_get_field_enum("Id", "Name"),
+            capture_get_body_func=lambda cli_name, operation: {
+                "method": operation,
+                "params": {"FieldNames": ["Id"]},
+            },
+        )
+
+        assert schema_gate["schema_parity_ok"] is False
+        assert schema_gate["orphan_common_fields"] == ["typoed_resource"]
+        assert schema_gate["field_name_mismatches"] == []
+
+    def test_schema_gate_dedupes_common_fields_and_wire_payload_mismatches(
+        self, monkeypatch
+    ):
+        """Invalid value flagged in COMMON_FIELDS is not also reported from wire."""
+        report_script = _load_coverage_report_script()
+        monkeypatch.setattr(report_script, "CLI_TO_API_SERVICE", {"fake": "fake"})
+        monkeypatch.setattr(
+            report_script,
+            "get_cli_methods_for_service",
+            lambda cli_name: {"get"},
+        )
+        monkeypatch.setattr(
+            report_script,
+            "COMMON_FIELDS",
+            {"fake": ["Id", "Bogus"]},
+        )
+
+        schema_gate = report_script.build_schema_gate(
+            fetch_wsdl_func=lambda service: _wsdl_with_get_field_enum("Id", "Name"),
+            # Wire payload echoes the invalid COMMON_FIELDS value.
+            capture_get_body_func=lambda cli_name, operation: {
+                "method": operation,
+                "params": {"FieldNames": ["Id", "Bogus"]},
+            },
+        )
+
+        assert schema_gate["schema_parity_ok"] is False
+        assert len(schema_gate["field_name_mismatches"]) == 1
+        assert schema_gate["field_name_mismatches"][0]["source"] == "COMMON_FIELDS"
+        assert schema_gate["field_name_mismatches"][0]["invalid_values"] == ["Bogus"]
+
+    def test_capture_operation_body_does_not_swallow_internal_typeerror(self):
+        """Internal TypeError must surface, not be retried as arity mismatch."""
+        report_script = _load_coverage_report_script()
+        call_count = {"two_arg": 0, "one_arg": 0}
+
+        def bad_two_arg_capture(cli_name, operation):
+            call_count["two_arg"] += 1
+            raise TypeError("boom from inside")
+
+        def bad_one_arg_capture(cli_name):
+            call_count["one_arg"] += 1
+            raise TypeError("boom from inside one-arg")
+
+        # Two-arg signature → arity check passes, no fallback re-call.
+        with pytest.raises(TypeError, match="boom from inside"):
+            report_script._capture_operation_body(
+                bad_two_arg_capture, "fake", "get"
+            )
+        assert call_count["two_arg"] == 1  # exactly one call, no silent retry
+
+        # One-arg signature on non-get operation must raise, not silently fall
+        # back to one-arg call (which would lose the operation context).
+        with pytest.raises(TypeError):
+            report_script._capture_operation_body(
+                bad_one_arg_capture, "fake", "set"
+            )
+
+        # One-arg on get → falls back to single-arg call (legacy compat).
+        call_count["one_arg"] = 0
+        with pytest.raises(TypeError, match="one-arg"):
+            report_script._capture_operation_body(
+                bad_one_arg_capture, "fake", "get"
+            )
+        assert call_count["one_arg"] == 1
+
     def test_schema_gate_reports_invalid_default_fieldname(self, monkeypatch):
         report_script = _load_coverage_report_script()
         monkeypatch.setattr(report_script, "CLI_TO_API_SERVICE", {"fake": "fake"})
@@ -1332,6 +1430,7 @@ class TestApiCoverage:
             "get_cli_methods_for_service",
             lambda cli_name: {"get"},
         )
+        monkeypatch.setattr(report_script, "COMMON_FIELDS", {})
 
         schema_gate = report_script.build_schema_gate(
             fetch_wsdl_func=lambda service: _wsdl_with_get_field_enum("Id", "Name"),

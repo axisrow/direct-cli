@@ -18,6 +18,7 @@ def changes():
 @click.option("--campaign-ids", required=True, help="Comma-separated campaign IDs")
 @click.option(
     "--timestamp",
+    required=True,
     help="Timestamp for changes check (YYYY-MM-DDTHH:MM:SS)",
 )
 @click.option("--fields", help="Comma-separated field names")
@@ -36,10 +37,9 @@ def check(ctx, campaign_ids, timestamp, fields, output_format, output):
         field_names = fields.split(",") if fields else get_default_fields("changes")
         params = {
             "CampaignIds": parse_ids(campaign_ids),
+            "Timestamp": parse_datetime(timestamp),
             "FieldNames": field_names,
         }
-        if timestamp:
-            params["Timestamp"] = parse_datetime(timestamp)
 
         body = {"method": "check", "params": params}
 

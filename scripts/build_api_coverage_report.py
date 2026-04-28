@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 import importlib
 import sys
@@ -118,14 +119,37 @@ def _operation_requires_common_fields(cli_group: str, operation: str) -> bool:
     return not _command_option_is_required(cli_group, cli_command, "fields")
 
 
+def _capture_func_accepts_operation(capture_func) -> bool:
+    """Whether the capture callable accepts a second positional ``operation``."""
+    try:
+        signature = inspect.signature(capture_func)
+    except (TypeError, ValueError):
+        return True
+    positional = [
+        param
+        for param in signature.parameters.values()
+        if param.kind
+        in (
+            inspect.Parameter.POSITIONAL_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            inspect.Parameter.VAR_POSITIONAL,
+        )
+    ]
+    if any(p.kind is inspect.Parameter.VAR_POSITIONAL for p in positional):
+        return True
+    return len(positional) >= 2
+
+
 def _capture_operation_body(capture_func, cli_group: str, operation: str) -> dict:
     """Call a capture function that may accept either group or group+operation."""
-    try:
+    if _capture_func_accepts_operation(capture_func):
         return capture_func(cli_group, operation)
-    except TypeError:
-        if operation != "get":
-            raise
-        return capture_func(cli_group)
+    if operation != "get":
+        raise TypeError(
+            f"capture_func does not accept operation argument; "
+            f"cannot capture {cli_group}.{operation}"
+        )
+    return capture_func(cli_group)
 
 
 def _common_field_resource_targets() -> dict[str, tuple[str, str]]:
@@ -140,6 +164,16 @@ def _common_field_resource_targets() -> dict[str, tuple[str, str]]:
         elif resource in api_to_cli:
             targets[resource] = (api_to_cli[resource], resource)
     return targets
+
+
+def _orphan_common_fields_keys() -> list[str]:
+    """Return ``COMMON_FIELDS`` keys that match no CLI group or API service.
+
+    Catches typos like ``"dynamicfeedadtarget"`` (singular) — silently skipped
+    by ``_common_field_resource_targets`` and therefore never validated.
+    """
+    targets = _common_field_resource_targets()
+    return sorted(set(COMMON_FIELDS) - set(targets))
 
 
 def _validate_common_field_defaults(fetch_wsdl_func) -> tuple[list[dict], list[dict]]:
@@ -320,7 +354,8 @@ def _build_model_gaps(report: dict, live_fetch_wsdl_func) -> dict:
 class _CapturedResponse:
     """Minimal tapi-like response object for CLI request capture."""
 
-    data = {}
+    def __init__(self):
+        self.data = {}
 
     def __call__(self):
         return self
@@ -419,12 +454,13 @@ def capture_cli_get_request_body(cli_group: str) -> dict:
 def build_schema_gate(fetch_wsdl_func=fetch_wsdl, capture_get_body_func=None) -> dict:
     """Validate default CLI ``*FieldNames`` values against WSDL ``*FieldEnum``.
 
-    Returns a result dict with six failure modes that all flip
+    Returns a result dict with seven failure modes that all flip
     ``schema_parity_ok`` to ``False``:
 
     - ``field_name_mismatches`` — values sent by the CLI that are not in the
       corresponding WSDL ``*FieldEnum``, plus invalid values in
-      ``COMMON_FIELDS`` itself.
+      ``COMMON_FIELDS`` itself. Wire-payload entries that duplicate a
+      ``COMMON_FIELDS``-source mismatch for the same value are skipped.
     - ``capture_errors`` — wire-capture failed (missing required option, etc.).
     - ``uncovered_get_groups`` — CLI ``get`` commands whose WSDL has no
       enum-backed validation path and no ``SCHEMA_GATE_WAIVERS`` entry. This
@@ -434,11 +470,26 @@ def build_schema_gate(fetch_wsdl_func=fetch_wsdl, capture_get_body_func=None) ->
       ``*FieldNames`` request param, but the command default payload omits it.
     - ``missing_common_fields`` — enum-backed CLI ``get`` commands that do not
       declare default ``*FieldNames`` in ``COMMON_FIELDS``.
+    - ``orphan_common_fields`` — ``COMMON_FIELDS`` keys that match neither a
+      CLI group nor an API service (typically typos), so they would never be
+      validated against any WSDL enum.
     """
     if capture_get_body_func is None:
         capture_get_body_func = capture_cli_request_body
 
     mismatches, capture_errors = _validate_common_field_defaults(fetch_wsdl_func)
+    # Index COMMON_FIELDS-source mismatches by (cli_group, operation,
+    # request_field, invalid_value) so the wire-payload pass below can skip
+    # values already flagged at the COMMON_FIELDS layer. Without this dedup,
+    # any default that flows through both validators would yield duplicate
+    # entries in field_name_mismatches, breaking single-issue assertions.
+    common_fields_flagged = {
+        (m["cli_group"], m["operation"], m["request_field"], value)
+        for m in mismatches
+        if m["source"] == "COMMON_FIELDS"
+        for value in m["invalid_values"]
+    }
+    orphan_common_fields = _orphan_common_fields_keys()
     missing_field_name_params = []
     missing_common_fields = []
     validated_groups = set()
@@ -531,7 +582,11 @@ def build_schema_gate(fetch_wsdl_func=fetch_wsdl, capture_get_body_func=None) ->
 
                 allowed_values = set(spec["values"])
                 invalid_values = sorted(
-                    value for value in actual_values if value not in allowed_values
+                    value
+                    for value in actual_values
+                    if value not in allowed_values
+                    and (cli_name, operation, request_field, value)
+                    not in common_fields_flagged
                 )
                 if invalid_values:
                     mismatches.append(
@@ -574,6 +629,7 @@ def build_schema_gate(fetch_wsdl_func=fetch_wsdl, capture_get_body_func=None) ->
         "capture_errors": capture_errors,
         "missing_field_name_params": missing_field_name_params,
         "missing_common_fields": missing_common_fields,
+        "orphan_common_fields": orphan_common_fields,
         "uncovered_get_groups": uncovered_get_groups,
         "waiver_misuse": waiver_misuse,
         "schema_parity_ok": (
@@ -581,6 +637,7 @@ def build_schema_gate(fetch_wsdl_func=fetch_wsdl, capture_get_body_func=None) ->
             and not capture_errors
             and not missing_field_name_params
             and not missing_common_fields
+            and not orphan_common_fields
             and not uncovered_get_groups
             and not waiver_misuse
         ),
@@ -692,6 +749,7 @@ def build_report(fetch_wsdl_func=fetch_wsdl, live_fetch_wsdl_func=None) -> dict:
         "capture_errors": schema_gate["capture_errors"],
         "missing_field_name_params": schema_gate["missing_field_name_params"],
         "missing_common_fields": schema_gate["missing_common_fields"],
+        "orphan_common_fields": schema_gate["orphan_common_fields"],
         "uncovered_get_groups": schema_gate["uncovered_get_groups"],
         "waiver_misuse": schema_gate["waiver_misuse"],
     }
