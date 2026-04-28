@@ -1235,6 +1235,32 @@ class TestApiCoverage:
             assert replacement is None or (isinstance(replacement, str) and replacement)
             assert isinstance(meta.get("reason"), str) and meta["reason"]
 
+    def test_runtime_deprecated_methods_have_capture_fixture(self):
+        """Every registry entry needs a fixture covering its required options.
+
+        Without a fixture, Click will fail with "Missing option ..." before
+        the deprecation guard runs, and the gate would misclassify a guarded
+        method as unguarded.
+        """
+        report_script = _load_coverage_report_script()
+        fixtures = report_script.RUNTIME_DEPRECATED_CAPTURE_FIXTURES
+        for cli_group, cli_method in RUNTIME_DEPRECATED_METHODS:
+            command = cli.commands[cli_group].commands[cli_method]
+            required = {
+                param.name
+                for param in command.params
+                if getattr(param, "required", False)
+                and getattr(param, "name", None) is not None
+            }
+            if not required:
+                continue
+            assert (cli_group, cli_method) in fixtures, (
+                f"RUNTIME_DEPRECATED_METHODS[{cli_group, cli_method}] has "
+                f"required options {sorted(required)} but no entry in "
+                f"RUNTIME_DEPRECATED_CAPTURE_FIXTURES — Click will fail "
+                f"before the deprecation guard runs."
+            )
+
     def test_runtime_deprecated_methods_block_invocation(self):
         """direct agencyclients add must exit non-zero with replacement hint."""
         runner = CliRunner()

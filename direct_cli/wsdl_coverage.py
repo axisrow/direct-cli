@@ -13,6 +13,11 @@ from io import StringIO
 from pathlib import Path
 
 WSDL_BASE_URL = "https://api.direct.yandex.com/v5/{service}?wsdl"
+# Imported XSD schemas are served from a different host than the WSDL
+# endpoints. If Yandex changes either domain, refresh_all_caches() and
+# scripts/check_wsdl_drift.py would silently break — keep these as named
+# constants so the failure surface is grep-able.
+XSD_BASE_URL = "https://soap.direct.yandex.ru/v5/{filename}"
 CACHE_DIR = Path(__file__).resolve().parent.parent / "tests" / "wsdl_cache"
 IMPORTS_CACHE_DIR = CACHE_DIR / "imports"
 XSD_NS = {"xsd": "http://www.w3.org/2001/XMLSchema"}
@@ -342,7 +347,7 @@ def fetch_imported_xsd(namespace: str, use_cache: bool = True) -> str:
 
     import requests
 
-    url = f"https://soap.direct.yandex.ru/v5/{filename}"
+    url = XSD_BASE_URL.format(filename=filename)
     resp = requests.get(url, timeout=30)
     resp.raise_for_status()
     xml_text = resp.text
@@ -552,14 +557,14 @@ def find_nested_schema_violations(
         item_fields = expected[key].get("item_fields") or []
         if not item_fields:
             continue
-        nested_expected = {item["name"] for item in item_fields}
         nested_schema = {"fields": item_fields}
+        # The recursive call walks the same expected/unknown logic against
+        # ``nested_schema`` for each child, so we delegate unknown-key
+        # detection to it instead of inlining a parallel loop here. Inlining
+        # would double-report any unknown direct child.
         if isinstance(value, list):
             for index, entry in enumerate(value):
                 if isinstance(entry, dict):
-                    for nested_key in entry:
-                        if nested_key not in nested_expected:
-                            violations.append(f"{path}.{key}[{index}].{nested_key}")
                     violations.extend(
                         find_nested_schema_violations(
                             {"params": entry},
@@ -568,9 +573,6 @@ def find_nested_schema_violations(
                         )
                     )
         elif isinstance(value, dict):
-            for nested_key in value:
-                if nested_key not in nested_expected:
-                    violations.append(f"{path}.{key}.{nested_key}")
             violations.extend(
                 find_nested_schema_violations(
                     {"params": value}, nested_schema, path=f"{path}.{key}"

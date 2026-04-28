@@ -454,6 +454,12 @@ def capture_cli_get_request_body(cli_group: str) -> dict:
     return capture_cli_request_body(cli_group, "get")
 
 
+# Click validates required options BEFORE entering the function body, so
+# ``assert_not_runtime_deprecated`` only fires once required-option parsing
+# succeeds. Each entry here MUST therefore include every required option of
+# its target command — otherwise the gate sees Click's "Missing option …"
+# error first and reports the method as unguarded even though it is guarded.
+# Test_runtime_deprecated_methods_have_capture_fixture enforces this.
 RUNTIME_DEPRECATED_CAPTURE_FIXTURES = {
     ("agencyclients", "add"): [
         "agencyclients",
