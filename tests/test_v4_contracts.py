@@ -76,9 +76,46 @@ def test_account_management_get_contract_returns_money_balance():
     contract = get_v4_contract("AccountManagement")
 
     assert contract.example_param == {"Action": "Get"}
+    assert "docs-backed Update action" in contract.notes
     assert build_v4_body("AccountManagement", {"Action": "Get"}) == {
         "method": "AccountManagement",
         "param": {"Action": "Get"},
+    }
+
+
+def test_account_management_update_contract_uses_shared_account_objects():
+    param = {
+        "Action": "Update",
+        "Accounts": [
+            {
+                "AccountID": 1327944,
+                "SmsNotification": {
+                    "MoneyInSms": "Yes",
+                    "MoneyOutSms": "Yes",
+                },
+                "EmailNotification": {
+                    "Email": "agrom@yandex.ru",
+                    "MoneyWarningValue": 25,
+                },
+            }
+        ],
+    }
+
+    assert build_v4_body("AccountManagement", param) == {
+        "method": "AccountManagement",
+        "param": param,
+    }
+
+
+def test_enable_shared_account_contract_is_docs_backed_dangerous_object():
+    contract = get_v4_contract("EnableSharedAccount")
+
+    assert contract.param_shape == PARAM_OBJECT
+    assert contract.source_status == SOURCE_DOCS
+    assert contract.example_param == {"Login": "client-login"}
+    assert build_v4_body("EnableSharedAccount", contract.example_param) == {
+        "method": "EnableSharedAccount",
+        "param": {"Login": "client-login"},
     }
 
 

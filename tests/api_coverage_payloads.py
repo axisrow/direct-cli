@@ -44,6 +44,8 @@ DRY_RUN_PAYLOAD_EXCLUSIONS = {
     "smartadtargets.suspend": "Same simple Ids payload family as covered delete/set-bids actions.",
     "vcards.add": "Requires large contact-card payload fixture not needed for generic schema smoke coverage.",
     "reports.get": "Reports API uses a custom TSV endpoint; payload contract is covered by test_reports_request_builder_contract.",
+    "v4account.account-management": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
+    "v4account.enable-shared-account": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
     "v4events.get-events-log": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
     "v4finance.get-credit-limits": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
     "v4finance.pay-campaigns": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",

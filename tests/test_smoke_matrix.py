@@ -61,8 +61,8 @@ def test_smoke_matrix_counts_match_current_cli_surface():
     summary = smoke_summary()
 
     assert summary["total_cli_groups"] == 39
-    assert summary["total_cli_subcommands"] == 127
-    assert summary["api_cli_subcommands"] == 123
+    assert summary["total_cli_subcommands"] == 129
+    assert summary["api_cli_subcommands"] == 125
     assert summary["wsdl_services"] == 29
     assert summary["non_wsdl_services"] == sorted(NON_WSDL_SERVICES)
     assert summary["api_services_total"] == 30
@@ -129,7 +129,7 @@ def test_safe_smoke_script_runs_v4_safe_commands():
     assert 'run_test "balance (env auth)"' in contents
     assert "EVENTS_FROM=" in contents
     assert 'v4events get-events-log --from "$EVENTS_FROM" --to "$EVENTS_TO"' in contents
-    assert 'run_v4finance_get_credit_limits' in contents
+    assert "run_v4finance_get_credit_limits" in contents
     assert 'v4goals get-stat-goals --campaign-ids "$CAMPAIGN_ID"' in contents
     assert 'v4goals get-retargeting-goals (env auth)"' in contents
     assert 'v4goals get-retargeting-goals --campaign-ids "$CAMPAIGN_ID"' in contents

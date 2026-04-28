@@ -11,11 +11,6 @@ V4_EPILOG = (
 
 
 @click.group(epilog=V4_EPILOG)
-def v4account():
-    """Yandex Direct v4 Live account commands."""
-
-
-@click.group(epilog=V4_EPILOG)
 def v4wordstat():
     """Yandex Direct v4 Live wordstat commands."""
 
