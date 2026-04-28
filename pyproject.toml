@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "direct-cli"
-version = "0.3.1"
+version = "0.3.2"
 description = "Command-line interface for Yandex Direct API"
 readme = "README.md"
 license = {text = "MIT"}
@@ -91,7 +91,7 @@ markers = [
     "integration: marks tests as integration tests requiring a real API token (deselect with '-m \"not integration\"')",
     "integration_write: sandbox integration tests for write commands (replays VCR cassettes offline; --record-mode=rewrite needs YANDEX_DIRECT_TOKEN)",
     "integration_live_write: manual production API write tests limited to disposable draft resources (requires YANDEX_DIRECT_TOKEN and YANDEX_DIRECT_LIVE_WRITE=1)",
-    "v4_live_read: manual read-only v4 Live tests (requires YANDEX_DIRECT_TOKEN, YANDEX_DIRECT_LOGIN, and YANDEX_DIRECT_V4_LIVE_READ=1)",
+    "v4_live_read: manual read-only v4 Live tests (requires YANDEX_DIRECT_TOKEN and YANDEX_DIRECT_LOGIN)",
     "sandbox_limitation(reason, category): test skipped due to known Yandex Direct sandbox API limitation (not a CLI bug). category is optional: 'disabled' = supported in live but disabled/broken in sandbox (codes 8800/1000/5004); 'unsupported' = resource type architecturally missing from sandbox (code 3500)",
     "api_coverage: marks tests verifying CLI coverage against Yandex API WSDL (cached, no network required)",
 ]

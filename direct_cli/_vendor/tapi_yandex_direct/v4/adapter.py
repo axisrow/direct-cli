@@ -43,11 +43,14 @@ class V4LiveClientAdapter(JSONAdapterMixin, TapiAdapter):
         token = api_params.get("access_token")
         login = api_params.get("login")
         language = api_params.get("language", "en")
+        finance_token = api_params.get("finance_token")
+        operation_num = api_params.get("operation_num")
 
-        # Enrich the JSON body with token / locale. format_data_to_request does
-        # not see api_params, so we do this here, after super() has already
-        # serialised the user data. Agency/client selection is transport-level
-        # (Client-Login header); method params must stay schema-shaped.
+        # Enrich the JSON body with top-level v4 Live fields.
+        # format_data_to_request does not see api_params, so we do this here,
+        # after super() has already serialised the user data. Agency/client
+        # selection is transport-level (Client-Login header); method params
+        # must stay schema-shaped.
         raw = params.get("data")
         if raw:
             if isinstance(raw, (bytes, bytearray)):
@@ -67,6 +70,10 @@ class V4LiveClientAdapter(JSONAdapterMixin, TapiAdapter):
                 body.setdefault("token", token)
             if language:
                 body.setdefault("locale", language)
+            if finance_token:
+                body.setdefault("finance_token", finance_token)
+            if operation_num is not None:
+                body.setdefault("operation_num", operation_num)
 
             params["data"] = orjson.dumps(body)
 

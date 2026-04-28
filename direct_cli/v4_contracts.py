@@ -54,11 +54,19 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
     "GetCreditLimits": V4MethodContract(
         method="GetCreditLimits",
         group="finance",
-        param_shape=PARAM_UNDOCUMENTED,
-        login_placement="unknown",
+        param_shape=PARAM_ARRAY,
+        login_placement=(
+            "param is a list of client logins; finance_token and "
+            "operation_num are top-level v4 Live body fields"
+        ),
         safety=SAFETY_READ,
-        source_status=SOURCE_UNDOCUMENTED,
+        source_status=SOURCE_CONFIRMED_LIVE,
         live_probe_allowed=False,
+        example_param=["client-login"],
+        notes=(
+            "Requires finance_token and operation_num at the top level. "
+            "Live probe without them returns error_code=350."
+        ),
     ),
     "TransferMoney": V4MethodContract(
         method="TransferMoney",
@@ -131,11 +139,20 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
     "GetEventsLog": V4MethodContract(
         method="GetEventsLog",
         group="events",
-        param_shape=PARAM_UNDOCUMENTED,
-        login_placement="unknown",
+        param_shape=PARAM_OBJECT,
+        login_placement=(
+            "param contains timestamps, Currency, and optional Limit/Offset; "
+            "global --login uses Client-Login header"
+        ),
         safety=SAFETY_READ,
-        source_status=SOURCE_UNDOCUMENTED,
-        live_probe_allowed=False,
+        source_status=SOURCE_CONFIRMED_LIVE,
+        live_probe_allowed=True,
+        example_param={
+            "TimestampFrom": "2026-04-14T00:00:00",
+            "TimestampTo": "2026-04-14T01:00:00",
+            "Currency": "RUB",
+        },
+        notes="Currency is required by live API; omitting it returns error_code=245.",
     ),
     "GetStatGoals": V4MethodContract(
         method="GetStatGoals",

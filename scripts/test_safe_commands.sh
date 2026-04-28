@@ -15,6 +15,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 ENV_FILE="$ROOT_DIR/.env"
 
+export PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"
+
+direct() {
+  python3 -m direct_cli.cli "$@"
+}
+
 PASS=0
 FAIL=0
 CAMPAIGN_ID=""
@@ -147,6 +153,21 @@ run_advideos_probe_get() {
   fi
 }
 
+run_v4finance_get_credit_limits() {
+  local name="v4finance get-credit-limits (env auth)"
+
+  if [ -z "${YANDEX_DIRECT_FINANCE_TOKEN:-}" ] || [ -z "${YANDEX_DIRECT_OPERATION_NUM:-}" ]; then
+    echo -e "  ${YELLOW}[SKIP]${RESET} $name - no finance credentials"
+    return
+  fi
+  if [ -z "${AUTH_LOGIN:-}" ]; then
+    echo -e "  ${YELLOW}[SKIP]${RESET} $name - no login"
+    return
+  fi
+
+  run_test "$name" direct v4finance get-credit-limits --logins "$AUTH_LOGIN"
+}
+
 # ─── Section A: Auth via env variables (no CLI flags) ────────────────────────
 echo -e "${BOLD}=== A. Аутентификация через env-переменные ===${RESET}"
 echo ""
@@ -240,6 +261,8 @@ run_test "changes check-dictionaries (env auth)"   direct changes check-dictiona
 run_test "reports list-types (env auth)"           direct reports list-types
 run_test "reports get (env auth)"                  direct reports get --type campaign_performance_report --from 2026-01-01 --to 2026-01-01 --name "Smoke Safe Report" --fields Date,CampaignId
 run_test "balance (env auth)"                      direct balance
+run_test "v4events get-events-log (env auth)"      direct v4events get-events-log --from 2026-04-14T00:00:00 --to 2026-04-15T00:00:00 --limit 1
+run_v4finance_get_credit_limits
 
 if [ -n "$CAMPAIGN_ID" ]; then
   run_test "changes check-campaigns (env auth)"    direct changes check-campaigns --timestamp 2026-04-23T00:00:00
