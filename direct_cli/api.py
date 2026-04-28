@@ -5,6 +5,7 @@ API client wrapper for Direct CLI
 from typing import Optional, Dict, Any, List
 
 from direct_cli._vendor.tapi_yandex_direct import YandexDirect
+from direct_cli._vendor.tapi_yandex_direct.v4 import YandexDirectV4Live
 from .auth import get_credentials
 
 
@@ -64,6 +65,58 @@ def create_client(
         skip_column_header=skip_column_header,
         skip_report_summary=skip_report_summary,
         language=language,
+    )
+
+
+def create_v4_client(
+    token: Optional[str] = None,
+    login: Optional[str] = None,
+    profile: Optional[str] = None,
+    sandbox: bool = False,
+    op_token_ref: Optional[str] = None,
+    op_login_ref: Optional[str] = None,
+    bw_token_ref: Optional[str] = None,
+    bw_login_ref: Optional[str] = None,
+    language: Optional[str] = None,
+    retry_if_exceeded_limit: bool = True,
+    retries_if_server_error: int = 5,
+) -> YandexDirectV4Live:
+    """
+    Create YandexDirect v4 Live client.
+
+    Args:
+        token: API access token
+        login: Client login (for agency accounts)
+        profile: Credential profile name
+        sandbox: Use sandbox API
+        op_token_ref: 1Password secret reference for token
+        op_login_ref: 1Password secret reference for login
+        bw_token_ref: Bitwarden item name/ID for token
+        bw_login_ref: Bitwarden item name/ID for login
+        language: API locale
+        retry_if_exceeded_limit: Retry when the API limit is exceeded
+        retries_if_server_error: Number of retries for server errors
+
+    Returns:
+        YandexDirect v4 Live client instance
+    """
+    final_token, final_login = get_credentials(
+        token,
+        login,
+        profile=profile,
+        op_token_ref=op_token_ref,
+        op_login_ref=op_login_ref,
+        bw_token_ref=bw_token_ref,
+        bw_login_ref=bw_login_ref,
+    )
+
+    return YandexDirectV4Live(
+        access_token=final_token,
+        login=final_login,
+        is_sandbox=sandbox,
+        language=language or "en",
+        retry_if_exceeded_limit=retry_if_exceeded_limit,
+        retries_if_server_error=retries_if_server_error,
     )
 
 
