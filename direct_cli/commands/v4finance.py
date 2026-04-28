@@ -1,6 +1,6 @@
 """Yandex Direct v4 Live finance commands."""
 
-from typing import Optional
+from typing import Any, Optional
 
 import click
 
@@ -8,6 +8,7 @@ from ..api import create_v4_client
 from ..output import format_output, print_error
 from ..utils import parse_csv_strings
 from ..v4 import build_v4_body, call_v4
+from ..v4.money import parse_v4_money_sum
 from ..v4_contracts import v4_method_contract
 from .v4shells import V4_EPILOG
 
@@ -39,12 +40,26 @@ _FINANCE_CREDENTIALS_ERROR = (
 )
 
 
-def _masked_finance_body(method: str, param: list[str], operation_num: int) -> dict:
+def _masked_finance_body(method: str, param: Any, operation_num: int) -> dict:
     """Build a dry-run body without exposing the financial token."""
     body = build_v4_body(method, param)
     body["finance_token"] = FINANCE_TOKEN_MASK
     body["operation_num"] = operation_num
     return body
+
+
+def _require_dry_run(dry_run: bool) -> None:
+    """Reject v4 finance money mutations unless dry-run is explicit."""
+    if not dry_run:
+        raise click.UsageError("--dry-run is required for v4finance money commands")
+
+
+def _non_empty_option(value: str, option_name: str) -> str:
+    """Normalize a required string option."""
+    normalized = (value or "").strip()
+    if not normalized:
+        raise click.UsageError(f"{option_name} must not be empty")
+    return normalized
 
 
 @click.group(epilog=V4_EPILOG)
@@ -111,3 +126,117 @@ def get_credit_limits(
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
+
+
+@v4_method_contract("TransferMoney")
+@v4finance.command(name="transfer-money")
+@click.option(
+    "--from-campaign-id",
+    required=True,
+    type=click.IntRange(min=1),
+    help="Source campaign ID",
+)
+@click.option(
+    "--to-campaign-id",
+    required=True,
+    type=click.IntRange(min=1),
+    help="Destination campaign ID",
+)
+@click.option("--amount", required=True, help="Positive amount, for example 100.50")
+@click.option(
+    "--finance-token",
+    envvar="YANDEX_DIRECT_FINANCE_TOKEN",
+    help="Financial token",
+)
+@click.option(
+    "--operation-num",
+    type=click.IntRange(min=0),
+    envvar="YANDEX_DIRECT_OPERATION_NUM",
+    help="Financial operation number",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Show request without sending; required for this command",
+)
+def transfer_money(
+    from_campaign_id,
+    to_campaign_id,
+    amount,
+    finance_token,
+    operation_num,
+    dry_run,
+):
+    """Preview transferring funds between campaigns."""
+    _require_dry_run(dry_run)
+    _, operation_num = _finance_credentials(finance_token, operation_num)
+    parsed_amount = parse_v4_money_sum(amount)
+    param = {
+        "FromCampaigns": [
+            {"CampaignID": from_campaign_id, "Sum": parsed_amount},
+        ],
+        "ToCampaigns": [
+            {"CampaignID": to_campaign_id, "Sum": parsed_amount},
+        ],
+    }
+
+    format_output(
+        _masked_finance_body("TransferMoney", param, operation_num),
+        "json",
+        None,
+    )
+
+
+@v4_method_contract("PayCampaigns")
+@v4finance.command(name="pay-campaigns")
+@click.option(
+    "--campaign-id",
+    required=True,
+    type=click.IntRange(min=1),
+    help="Campaign ID to pay",
+)
+@click.option("--amount", required=True, help="Positive amount, for example 100.50")
+@click.option("--contract-id", required=True, help="Agency contract ID")
+@click.option("--pay-method", required=True, help="Payment method")
+@click.option(
+    "--finance-token",
+    envvar="YANDEX_DIRECT_FINANCE_TOKEN",
+    help="Financial token",
+)
+@click.option(
+    "--operation-num",
+    type=click.IntRange(min=0),
+    envvar="YANDEX_DIRECT_OPERATION_NUM",
+    help="Financial operation number",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Show request without sending; required for this command",
+)
+def pay_campaigns(
+    campaign_id,
+    amount,
+    contract_id,
+    pay_method,
+    finance_token,
+    operation_num,
+    dry_run,
+):
+    """Preview paying for a campaign from an agency credit limit."""
+    _require_dry_run(dry_run)
+    _, operation_num = _finance_credentials(finance_token, operation_num)
+    parsed_amount = parse_v4_money_sum(amount)
+    param = {
+        "Payments": [
+            {"CampaignID": campaign_id, "Sum": parsed_amount},
+        ],
+        "ContractID": _non_empty_option(contract_id, "--contract-id"),
+        "PayMethod": _non_empty_option(pay_method, "--pay-method"),
+    }
+
+    format_output(
+        _masked_finance_body("PayCampaigns", param, operation_num),
+        "json",
+        None,
+    )
