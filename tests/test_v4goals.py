@@ -4,6 +4,7 @@ from unittest.mock import patch
 from click.testing import CliRunner
 
 from direct_cli.cli import cli
+from direct_cli.v4_contracts import get_v4_contract
 
 
 def _invoke(*args: str):
@@ -119,3 +120,14 @@ def test_v4goals_help_contains_no_json_input_flag():
         result = _invoke(*args)
         assert result.exit_code == 0
         assert "--json" not in result.output
+
+
+def test_v4goals_commands_declare_v4_contracts():
+    commands = cli.commands["v4goals"].commands
+
+    assert commands["get-stat-goals"].v4_method == "GetStatGoals"
+    assert commands["get-stat-goals"].v4_contract == get_v4_contract("GetStatGoals")
+    assert commands["get-retargeting-goals"].v4_method == "GetRetargetingGoals"
+    assert commands["get-retargeting-goals"].v4_contract == get_v4_contract(
+        "GetRetargetingGoals"
+    )

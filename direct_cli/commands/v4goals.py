@@ -6,6 +6,7 @@ from ..api import create_v4_client
 from ..output import format_output, print_error
 from ..utils import parse_ids
 from ..v4 import build_v4_body, call_v4
+from ..v4_contracts import v4_method_contract
 from .v4shells import V4_EPILOG
 
 
@@ -50,6 +51,7 @@ def v4goals():
     """Yandex Direct v4 Live goals commands."""
 
 
+@v4_method_contract("GetStatGoals")
 @v4goals.command(name="get-stat-goals")
 @click.option("--campaign-ids", required=True, help="Comma-separated campaign IDs")
 @click.option(
@@ -74,6 +76,7 @@ def get_stat_goals(ctx, campaign_ids, output_format, output, dry_run):
     )
 
 
+@v4_method_contract("GetRetargetingGoals")
 @v4goals.command(name="get-retargeting-goals")
 @click.option("--campaign-ids", required=True, help="Comma-separated campaign IDs")
 @click.option(
