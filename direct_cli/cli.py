@@ -41,6 +41,7 @@ from .commands.advideos import advideos
 from .commands.dynamicfeedadtargets import dynamicfeedadtargets
 from .commands.strategies import strategies
 from .commands.auth import auth
+from .commands.balance import balance
 from .commands.v4shells import (
     v4account,
     v4events,
@@ -182,6 +183,7 @@ for command in (
     advideos,
     dynamicfeedadtargets,
     strategies,
+    balance,
     v4finance,
     v4account,
     v4goals,

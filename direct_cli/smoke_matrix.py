@@ -19,6 +19,7 @@ DANGEROUS = "DANGEROUS"
 
 SMOKE_MATRIX = {
     SAFE: [
+        "balance",
         "adextensions.get",
         "adgroups.get",
         "adimages.get",
@@ -190,11 +191,14 @@ def commands_for_category(category: str) -> list[str]:
 def _registered_cli_commands() -> set[str]:
     from direct_cli.cli import cli
 
-    return {
-        command_key(group_name, command_name)
-        for group_name, group in cli.commands.items()
-        for command_name in getattr(group, "commands", {})
-    }
+    registered = set()
+    for group_name, group in cli.commands.items():
+        if hasattr(group, "commands"):
+            for command_name in group.commands:
+                registered.add(command_key(group_name, command_name))
+        else:
+            registered.add(group_name)
+    return registered
 
 
 def _wsdl_operations_count() -> int:

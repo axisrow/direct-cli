@@ -64,6 +64,7 @@ class TestCommandsRegistered(unittest.TestCase):
         "dynamicads",
         "dynamicfeedadtargets",
         "strategies",
+        "balance",
         "v4finance",
         "v4account",
         "v4goals",
