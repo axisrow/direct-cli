@@ -508,10 +508,23 @@ def _validate_nested_schema_payloads(
         if excl_key in dry_run_payload_exclusions:
             continue
         result = CliRunner().invoke(cli, list(argv) + ["--dry-run"])
-        if result.exit_code != 0 or not result.output.strip():
+        # Try to parse the dry-run JSON body. If parsing fails or exit code
+        # is non-zero, classify as dry_run_failed (uniform across click
+        # versions: some flag missing-command as exit 2 with usage text in
+        # stdout, others surface a non-JSON error to output regardless).
+        body = None
+        json_error = None
+        if result.output.strip():
+            try:
+                body = json.loads(result.output)
+            except (json.JSONDecodeError, TypeError) as exc:
+                json_error = str(exc)
+        if result.exit_code != 0 or body is None:
             error = result.output.strip()
             if result.exception is not None:
                 error = f"{error}\n{result.exception}".strip()
+            if json_error and not error:
+                error = json_error
             violations.append(
                 {
                     "kind": "dry_run_failed",
@@ -519,19 +532,6 @@ def _validate_nested_schema_payloads(
                     "operation": operation,
                     "argv": list(argv),
                     "error": error or f"exit code {result.exit_code}",
-                }
-            )
-            continue
-        try:
-            body = json.loads(result.output)
-        except (json.JSONDecodeError, TypeError) as exc:
-            violations.append(
-                {
-                    "kind": "invalid_json",
-                    "service": service,
-                    "operation": operation,
-                    "argv": list(argv),
-                    "error": str(exc),
                 }
             )
             continue
