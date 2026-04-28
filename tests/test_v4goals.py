@@ -57,6 +57,32 @@ def test_get_retargeting_goals_missing_campaign_ids_fails_with_usage_error():
     assert "Missing option '--campaign-ids'" in result.output
 
 
+def test_get_stat_goals_empty_campaign_ids_fails_with_usage_error():
+    result = _invoke(
+        "v4goals",
+        "get-stat-goals",
+        "--campaign-ids",
+        "",
+        "--dry-run",
+    )
+
+    assert result.exit_code != 0
+    assert "--campaign-ids must not be empty" in result.output
+
+
+def test_get_retargeting_goals_empty_campaign_ids_fails_with_usage_error():
+    result = _invoke(
+        "v4goals",
+        "get-retargeting-goals",
+        "--campaign-ids",
+        "",
+        "--dry-run",
+    )
+
+    assert result.exit_code != 0
+    assert "--campaign-ids must not be empty" in result.output
+
+
 def test_get_stat_goals_formats_mocked_response_as_json():
     with patch("direct_cli.commands.v4goals.create_v4_client") as create_client:
         with patch(

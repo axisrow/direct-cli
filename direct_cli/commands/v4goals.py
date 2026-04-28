@@ -16,6 +16,8 @@ def _campaign_ids_param(campaign_ids: str) -> dict:
         ids = parse_ids(campaign_ids)
     except ValueError as exc:
         raise click.UsageError(str(exc))
+    if not ids:
+        raise click.UsageError("--campaign-ids must not be empty")
     return {"CampaignIDS": ids}
 
 
