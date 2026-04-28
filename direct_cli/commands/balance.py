@@ -1,4 +1,4 @@
-"""Balance command backed by Yandex Direct v4 Live."""
+"""Money balance command backed by Yandex Direct v4 Live."""
 
 import click
 
@@ -9,7 +9,7 @@ from ..v4 import build_v4_body, call_v4
 from ..v4_contracts import v4_method_contract
 
 
-@v4_method_contract("GetClientsUnits")
+@v4_method_contract("AccountManagement")
 @click.command()
 @click.option("--logins", help="Comma-separated client logins")
 @click.option(
@@ -23,7 +23,7 @@ from ..v4_contracts import v4_method_contract
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def balance(ctx, logins, output_format, output, dry_run):
-    """Check client units balance."""
+    """Check account money balance."""
     login_list = parse_csv_strings(logins)
     if not login_list:
         configured_login = ctx.obj.get("login")
@@ -31,9 +31,12 @@ def balance(ctx, logins, output_format, output, dry_run):
             raise click.UsageError("Provide --logins or configure YANDEX_DIRECT_LOGIN")
         login_list = [configured_login]
 
-    param = login_list
+    param = {
+        "Action": "Get",
+        "SelectionCriteria": {"Logins": login_list},
+    }
     if dry_run:
-        format_output(build_v4_body("GetClientsUnits", param), "json", None)
+        format_output(build_v4_body("AccountManagement", param), "json", None)
         return
 
     try:
@@ -43,8 +46,8 @@ def balance(ctx, logins, output_format, output, dry_run):
             profile=ctx.obj.get("profile"),
             sandbox=ctx.obj.get("sandbox"),
         )
-        data = call_v4(client, "GetClientsUnits", param)
-        format_output(data, output_format, output)
+        data = call_v4(client, "AccountManagement", param)
+        format_output(data.get("Accounts", data), output_format, output)
     except Exception as e:
         print_error(str(e))
         raise click.Abort()

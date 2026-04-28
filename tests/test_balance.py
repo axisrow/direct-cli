@@ -12,8 +12,11 @@ def test_balance_dry_run_with_logins_emits_v4_request_body():
 
     assert result.exit_code == 0
     assert json.loads(result.output) == {
-        "method": "GetClientsUnits",
-        "param": ["a", "b", "c"],
+        "method": "AccountManagement",
+        "param": {
+            "Action": "Get",
+            "SelectionCriteria": {"Logins": ["a", "b", "c"]},
+        },
     }
 
 
@@ -24,8 +27,11 @@ def test_balance_omitted_logins_uses_configured_login():
 
     assert result.exit_code == 0
     assert json.loads(result.output) == {
-        "method": "GetClientsUnits",
-        "param": ["client-login"],
+        "method": "AccountManagement",
+        "param": {
+            "Action": "Get",
+            "SelectionCriteria": {"Logins": ["client-login"]},
+        },
     }
 
 
@@ -45,7 +51,10 @@ def test_balance_formats_mocked_v4_response_as_json():
     with patch("direct_cli.commands.balance.create_v4_client") as create_client:
         with patch(
             "direct_cli.commands.balance.call_v4",
-            return_value=[{"Login": "a", "Units": 10}],
+            return_value={
+                "ActionsResult": [],
+                "Accounts": [{"Login": "a", "Amount": "10.50", "Currency": "RUB"}],
+            },
         ) as call:
             result = CliRunner().invoke(
                 cli,
@@ -59,16 +68,25 @@ def test_balance_formats_mocked_v4_response_as_json():
             )
 
     assert result.exit_code == 0
-    assert json.loads(result.output) == [{"Login": "a", "Units": 10}]
+    assert json.loads(result.output) == [
+        {"Login": "a", "Amount": "10.50", "Currency": "RUB"}
+    ]
     create_client.assert_called_once()
-    call.assert_called_once_with(create_client.return_value, "GetClientsUnits", ["a"])
+    call.assert_called_once_with(
+        create_client.return_value,
+        "AccountManagement",
+        {"Action": "Get", "SelectionCriteria": {"Logins": ["a"]}},
+    )
 
 
 def test_balance_formats_mocked_v4_response_as_table():
     with patch("direct_cli.commands.balance.create_v4_client") as create_client:
         with patch(
             "direct_cli.commands.balance.call_v4",
-            return_value=[{"Login": "a", "Units": 10}],
+            return_value={
+                "ActionsResult": [],
+                "Accounts": [{"Login": "a", "Amount": "10.50", "Currency": "RUB"}],
+            },
         ):
             result = CliRunner().invoke(
                 cli,
@@ -85,7 +103,8 @@ def test_balance_formats_mocked_v4_response_as_table():
 
     assert result.exit_code == 0
     assert "Login" in result.output
-    assert "Units" in result.output
+    assert "Amount" in result.output
+    assert "Currency" in result.output
     assert "a" in result.output
     create_client.assert_called_once()
 
@@ -100,5 +119,5 @@ def test_balance_help_contains_no_json_input_flag():
 def test_balance_command_declares_v4_contract():
     command = cli.commands["balance"]
 
-    assert command.v4_method == "GetClientsUnits"
-    assert command.v4_contract == get_v4_contract("GetClientsUnits")
+    assert command.v4_method == "AccountManagement"
+    assert command.v4_contract == get_v4_contract("AccountManagement")

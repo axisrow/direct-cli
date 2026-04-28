@@ -82,7 +82,8 @@ Invoking the deprecated `direct-cli` entrypoint exits with
 ### Quick Start: Check Balance
 
 Yandex removed the legacy v4 `GetBalance` method. Direct CLI uses the v4 Live
-`GetClientsUnits` method for `direct balance`.
+`AccountManagement` method with `Action=Get` for `direct balance`, returning
+money fields such as `Amount`, `AmountAvailableForTransfer`, and `Currency`.
 
 ```bash
 direct balance
