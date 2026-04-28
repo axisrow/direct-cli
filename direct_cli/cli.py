@@ -47,10 +47,10 @@ from .commands.v4shells import (
     v4events,
     v4finance,
     v4forecast,
-    v4goals,
     v4meta,
     v4wordstat,
 )
+from .commands.v4goals import v4goals
 
 # Load .env file
 load_dotenv()

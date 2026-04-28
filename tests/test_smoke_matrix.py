@@ -60,9 +60,9 @@ def test_smoke_matrix_covers_every_cli_subcommand_once():
 def test_smoke_matrix_counts_match_current_cli_surface():
     summary = smoke_summary()
 
-    assert summary["total_cli_groups"] == 39
-    assert summary["total_cli_subcommands"] == 121
-    assert summary["api_cli_subcommands"] == 117
+    assert summary["total_cli_groups"] == 40
+    assert summary["total_cli_subcommands"] == 123
+    assert summary["api_cli_subcommands"] == 119
     assert summary["wsdl_services"] == 29
     assert summary["non_wsdl_services"] == sorted(NON_WSDL_SERVICES)
     assert summary["api_services_total"] == 30

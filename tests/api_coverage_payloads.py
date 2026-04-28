@@ -44,6 +44,8 @@ DRY_RUN_PAYLOAD_EXCLUSIONS = {
     "smartadtargets.suspend": "Same simple Ids payload family as covered delete/set-bids actions.",
     "vcards.add": "Requires large contact-card payload fixture not needed for generic schema smoke coverage.",
     "reports.get": "Reports API uses a custom TSV endpoint; payload contract is covered by test_reports_request_builder_contract.",
+    "v4goals.get-retargeting-goals": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
+    "v4goals.get-stat-goals": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
 }
 
 PAYLOAD_CASES = [

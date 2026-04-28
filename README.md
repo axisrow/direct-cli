@@ -100,6 +100,14 @@ direct balance --logins client-login --dry-run
 | `--profile` | Credential profile name |
 | `--sandbox` | Use sandbox API |
 
+### V4 Live Goals
+
+```bash
+direct v4goals get-stat-goals --campaign-ids 123,456
+direct v4goals get-retargeting-goals --campaign-ids 123,456 --format table
+direct v4goals get-stat-goals --campaign-ids 123 --dry-run
+```
+
 ### CLI Convention
 
 The current CLI convention is defined as follows.

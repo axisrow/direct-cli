@@ -57,6 +57,8 @@ SMOKE_MATRIX = {
         "smartadtargets.get",
         "strategies.get",
         "turbopages.get",
+        "v4goals.get-retargeting-goals",
+        "v4goals.get-stat-goals",
         "vcards.get",
     ],
     WRITE_SANDBOX: [
