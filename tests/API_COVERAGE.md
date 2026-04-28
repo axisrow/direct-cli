@@ -11,6 +11,8 @@ This document is the human-readable companion to
 | Live-discovered model gaps | `direct_cli.wsdl_coverage.LIVE_DISCOVERED_API_SERVICES` compared with the declared model | `summary.live_model_parity_ok` |
 | Non-WSDL Reports API | `tests/reports_cache/spec.json` and `direct_cli.reports_coverage` | `reports.summary.*` |
 | Intentional CLI helpers | `direct_cli.wsdl_coverage.INTENTIONAL_EXTRA_METHODS` | `cli_helpers` |
+| Runtime-deprecated API methods | `direct_cli.wsdl_coverage.RUNTIME_DEPRECATED_METHODS` plus CLI guard fixtures | `schema.runtime_deprecated_unguarded` |
+| Imported XSD schemas | `tests/wsdl_cache/imports/*.xsd` registered by namespace in `IMPORTED_XSD_REGISTRY` | `schema.nested_schema_violations` |
 
 `strict_parity_ok` means the CLI fully covers the currently declared canonical
 API model. It does not prove that the declared model includes every live
@@ -60,7 +62,15 @@ appears in multiple categories, or if the current service/command counts drift.
 - Use `scripts/check_wsdl_drift.py` for method/schema drift in already declared
   services.
 - Use `scripts/build_api_coverage_report.py` for the machine-readable artifact
-  that combines declared parity, Reports coverage, CLI helpers, and model gaps.
+  that combines declared parity, Reports coverage, CLI helpers, model gaps,
+  imported-XSD nested payload validation, and runtime-deprecated guard checks.
+- When a WSDL import is needed for schema validation, add the XSD under
+  `tests/wsdl_cache/imports/` and register its namespace in
+  `IMPORTED_XSD_REGISTRY`; do not silently fall back to empty nested fields.
+- If Yandex exposes a method in WSDL but rejects it at runtime with a stable
+  deprecation/error response, add it to `RUNTIME_DEPRECATED_METHODS` and guard
+  the CLI before request construction. The schema report must keep
+  `runtime_deprecated_unguarded` empty.
 - Before treating an issue as a coverage blocker, check
   `tests/API_ISSUE_AUDIT.md`. Closed issues may contain official API-status
   evidence that supersedes an older implementation assumption.

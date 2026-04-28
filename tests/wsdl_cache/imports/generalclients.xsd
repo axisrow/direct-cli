@@ -1,0 +1,396 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema
+        xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+        xmlns:gc="http://api.direct.yandex.com/v5/generalclients"
+        xmlns:general="http://api.direct.yandex.com/v5/general"
+        targetNamespace="http://api.direct.yandex.com/v5/generalclients">
+    <xsd:import namespace="http://api.direct.yandex.com/v5/general" schemaLocation="https://soap.direct.yandex.ru/v5/general.xsd" />
+    <xsd:simpleType name="ClientRestrictionEnum">
+        <xsd:restriction base="xsd:string">
+            <xsd:enumeration value="ADGROUPS_TOTAL_PER_CAMPAIGN"/>
+            <xsd:enumeration value="ADS_TOTAL_PER_ADGROUP"/>
+            <xsd:enumeration value="API_POINTS"/>
+            <xsd:enumeration value="CAMPAIGNS_TOTAL_PER_CLIENT"/>
+            <xsd:enumeration value="CAMPAIGNS_UNARCHIVED_PER_CLIENT"/>
+            <xsd:enumeration value="FORECAST_REPORTS_TOTAL_IN_QUEUE"/>
+            <xsd:enumeration value="KEYWORDS_TOTAL_PER_ADGROUP"/>
+            <xsd:enumeration value="STAT_REPORTS_TOTAL_IN_QUEUE"/>
+            <xsd:enumeration value="WORDSTAT_REPORTS_TOTAL_IN_QUEUE"/>
+            <xsd:enumeration value="AD_EXTENSIONS_TOTAL"/>
+            <xsd:enumeration value="GENERAL_DOMAIN_BLACKLIST_SIZE"/>
+            <xsd:enumeration value="VIDEO_DOMAIN_BLACKLIST_SIZE"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+    <xsd:simpleType name="ClientSettingGetEnum">
+        <xsd:restriction base="xsd:string">
+            <xsd:enumeration value="CORRECT_TYPOS_AUTOMATICALLY"/>
+            <xsd:enumeration value="DISPLAY_STORE_RATING"/>
+            <xsd:enumeration value="SHARED_ACCOUNT_ENABLED"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+    <xsd:simpleType name="AvailableCampaignTypeEnum">
+        <xsd:restriction base="xsd:string">
+            <xsd:enumeration value="TEXT_CAMPAIGN"/>
+            <xsd:enumeration value="MOBILE_APP_CAMPAIGN"/>
+            <xsd:enumeration value="DYNAMIC_TEXT_CAMPAIGN"/>
+            <xsd:enumeration value="CPM_BANNER_CAMPAIGN"/>
+            <xsd:enumeration value="SMART_CAMPAIGN"/>
+            <xsd:enumeration value="CONTENT_PROMOTION"/>
+            <xsd:enumeration value="BILLING_AGGREGATE"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+    <xsd:simpleType name="AvailableAdGroupTypeEnum">
+        <xsd:restriction base="xsd:string">
+            <xsd:enumeration value="DYNAMIC_TEXT_AD_GROUP"/>
+            <xsd:enumeration value="MOBILE_APP_AD_GROUP"/>
+            <xsd:enumeration value="TEXT_AD_GROUP"/>
+            <xsd:enumeration value="CPM_BANNER_AD_GROUP"/>
+            <xsd:enumeration value="CPM_VIDEO_AD_GROUP"/>
+            <xsd:enumeration value="SMART_AD_GROUP"/>
+            <xsd:enumeration value="CONTENT_PROMOTION_AD_GROUP"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+    <xsd:simpleType name="ClientSettingAddEnum">
+        <xsd:restriction base="xsd:string">
+            <xsd:enumeration value="CORRECT_TYPOS_AUTOMATICALLY"/>
+            <xsd:enumeration value="DISPLAY_STORE_RATING"/>
+            <xsd:enumeration value="SHARED_ACCOUNT_ENABLED"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+    <xsd:simpleType name="ClientSettingUpdateEnum">
+        <xsd:restriction base="xsd:string">
+            <xsd:enumeration value="CORRECT_TYPOS_AUTOMATICALLY"/>
+            <xsd:enumeration value="DISPLAY_STORE_RATING"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+    <xsd:simpleType name="PrivilegeEnum">
+        <xsd:restriction base="xsd:string">
+            <xsd:enumeration value="EDIT_CAMPAIGNS"/>
+            <xsd:enumeration value="IMPORT_XLS"/>
+            <xsd:enumeration value="TRANSFER_MONEY"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+    <xsd:simpleType name="ForbiddenPlatformEnum">
+        <xsd:restriction base="xsd:string">
+            <xsd:enumeration value="SEARCH"/>
+            <xsd:enumeration value="NETWORK"/>
+            <xsd:enumeration value="NONE"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+    <xsd:simpleType name="TinTypeEnum">
+        <xsd:restriction base="xsd:string">
+            <xsd:enumeration value="PHYSICAL"/>
+            <xsd:enumeration value="FOREIGN_PHYSICAL"/>
+            <xsd:enumeration value="LEGAL"/>
+            <xsd:enumeration value="FOREIGN_LEGAL"/>
+            <xsd:enumeration value="INDIVIDUAL"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+    <xsd:simpleType name="TinInfoFieldEnum">
+        <xsd:restriction base="xsd:string">
+            <xsd:enumeration value="TinType"/>
+            <xsd:enumeration value="Tin"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+    <xsd:complexType name="TinInfoGet">
+        <xsd:sequence>
+            <xsd:element name="TinType" type="gc:TinTypeEnum" minOccurs="0" maxOccurs="1"/>
+            <xsd:element name="Tin" type="xsd:string" minOccurs="0" maxOccurs="1" nillable="true"/>
+        </xsd:sequence>
+    </xsd:complexType>
+    <xsd:complexType name="TinInfoAdd">
+        <xsd:sequence>
+            <xsd:element name="TinType" type="gc:TinTypeEnum" minOccurs="1" maxOccurs="1"/>
+            <xsd:element name="Tin" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+        </xsd:sequence>
+    </xsd:complexType>
+    <xsd:complexType name="TinInfoUpdate">
+        <xsd:sequence>
+            <xsd:element name="TinType" type="gc:TinTypeEnum" minOccurs="0" maxOccurs="1"/>
+            <xsd:element name="Tin" type="xsd:string" minOccurs="0" maxOccurs="1" nillable="true"/>
+        </xsd:sequence>
+    </xsd:complexType>
+    <xsd:simpleType name="OrgInfoFieldEnum">
+        <xsd:restriction base="xsd:string">
+            <xsd:enumeration value="Name"/>
+            <xsd:enumeration value="EpayNumber"/>
+            <xsd:enumeration value="RegNumber"/>
+            <xsd:enumeration value="OksmNumber"/>
+            <xsd:enumeration value="OkvedCode"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+    <xsd:simpleType name="ContragentInfoFieldEnum">
+        <xsd:restriction base="xsd:string">
+            <xsd:enumeration value="Name"/>
+            <xsd:enumeration value="Phone"/>
+            <xsd:enumeration value="EpayNumber"/>
+            <xsd:enumeration value="RegNumber"/>
+            <xsd:enumeration value="OksmNumber"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+    <xsd:simpleType name="ContractInfoFieldEnum">
+        <xsd:restriction base="xsd:string">
+            <xsd:enumeration value="Number"/>
+            <xsd:enumeration value="Date"/>
+            <xsd:enumeration value="Price"/>
+            <xsd:enumeration value="Type"/>
+            <xsd:enumeration value="ActionType"/>
+            <xsd:enumeration value="SubjectType"/>
+            <xsd:enumeration value="IsAgencyPayment"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+    <xsd:simpleType name="ContractTypeEnum">
+        <xsd:restriction base="xsd:string">
+            <xsd:enumeration value="CONTRACT"/>
+            <xsd:enumeration value="INTERMEDIARY_CONTRACT"/>
+            <xsd:enumeration value="ADDITIONAL_AGREEMENT"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+    <xsd:simpleType name="ContractActionTypeEnum">
+        <xsd:restriction base="xsd:string">
+            <xsd:enumeration value="COMMERCIAL"/>
+            <xsd:enumeration value="DISTRIBUTION"/>
+            <xsd:enumeration value="CONCLUDE"/>
+            <xsd:enumeration value="OTHER"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+    <xsd:simpleType name="ContractSubjectTypeEnum">
+        <xsd:restriction base="xsd:string">
+            <xsd:enumeration value="REPRESENTATION"/>
+            <xsd:enumeration value="MEDIATION"/>
+            <xsd:enumeration value="DISTRIBUTION"/>
+            <xsd:enumeration value="ORG_DISTRIBUTION"/>
+            <xsd:enumeration value="OTHER"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+    <xsd:complexType name="OrgInfo">
+        <xsd:sequence>
+            <xsd:element name="Name" type="xsd:string" minOccurs="0" maxOccurs="1" nillable="true"/>
+            <xsd:element name="EpayNumber" type="xsd:string" minOccurs="0" maxOccurs="1" nillable="true"/>
+            <xsd:element name="RegNumber" type="xsd:string" minOccurs="0" maxOccurs="1" nillable="true"/>
+            <xsd:element name="OksmNumber" type="xsd:string" minOccurs="0" maxOccurs="1" nillable="true"/>
+            <xsd:element name="OkvedCode" type="xsd:string" minOccurs="0" maxOccurs="1" nillable="true"/>
+        </xsd:sequence>
+    </xsd:complexType>
+    <xsd:complexType name="ContractBaseInfo">
+        <xsd:sequence>
+            <xsd:element name="Number" type="xsd:string" minOccurs="0" maxOccurs="1" nillable="true"/>
+            <xsd:element name="Date" type="xsd:string" minOccurs="0" maxOccurs="1" nillable="true"/>
+            <xsd:element name="Type" type="gc:ContractTypeEnum" minOccurs="0" maxOccurs="1" nillable="true"/>
+            <xsd:element name="ActionType" type="gc:ContractActionTypeEnum" minOccurs="0" maxOccurs="1" nillable="true"/>
+            <xsd:element name="SubjectType" type="gc:ContractSubjectTypeEnum" minOccurs="0" maxOccurs="1" nillable="true"/>
+            <xsd:element name="IsAgencyPayment" type="general:YesNoEnum" minOccurs="0" maxOccurs="1" nillable="true"/>
+        </xsd:sequence>
+    </xsd:complexType>
+    <xsd:complexType name="ContractInfoGet">
+        <xsd:complexContent>
+            <xsd:extension base="gc:ContractBaseInfo">
+                <xsd:sequence>
+                    <xsd:element name="Price" type="gc:ContractPrice" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:extension>
+        </xsd:complexContent>
+    </xsd:complexType>
+    <xsd:complexType name="ContractInfoUpdate">
+        <xsd:complexContent>
+            <xsd:extension base="gc:ContractBaseInfo">
+                <xsd:sequence>
+                    <xsd:element name="Price" type="gc:ContractPrice" minOccurs="0" maxOccurs="1" nillable="true"/>
+                </xsd:sequence>
+            </xsd:extension>
+        </xsd:complexContent>
+    </xsd:complexType>
+    <xsd:complexType name="ContractPrice">
+        <xsd:sequence>
+            <xsd:element name="Amount" type="xsd:decimal" minOccurs="1" maxOccurs="1"/>
+            <xsd:element name="IncludingVat" type="general:YesNoEnum" minOccurs="1" maxOccurs="1"/>
+        </xsd:sequence>
+    </xsd:complexType>
+    <xsd:complexType name="ContragentBaseInfo">
+        <xsd:sequence>
+            <xsd:element name="Name" type="xsd:string" minOccurs="0" maxOccurs="1" nillable="true"/>
+            <xsd:element name="Phone" type="xsd:string" minOccurs="0" maxOccurs="1" nillable="true"/>
+            <xsd:element name="EpayNumber" type="xsd:string" minOccurs="0" maxOccurs="1" nillable="true"/>
+            <xsd:element name="RegNumber" type="xsd:string" minOccurs="0" maxOccurs="1" nillable="true"/>
+            <xsd:element name="OksmNumber" type="xsd:string" minOccurs="0" maxOccurs="1" nillable="true"/>
+        </xsd:sequence>
+    </xsd:complexType>
+    <xsd:complexType name="ContragentInfoGet">
+        <xsd:complexContent>
+            <xsd:extension base="gc:ContragentBaseInfo">
+                <xsd:sequence>
+                    <xsd:element name="TinInfo" type="gc:TinInfoGet" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:extension>
+        </xsd:complexContent>
+    </xsd:complexType>
+    <xsd:complexType name="ContragentInfoUpdate">
+        <xsd:complexContent>
+            <xsd:extension base="gc:ContragentBaseInfo">
+                <xsd:sequence>
+                    <xsd:element name="TinInfo" type="gc:TinInfoUpdate" minOccurs="0" maxOccurs="1" nillable="true"/>
+                </xsd:sequence>
+            </xsd:extension>
+        </xsd:complexContent>
+    </xsd:complexType>
+    <xsd:complexType name="ErirAttributesGet">
+        <xsd:sequence>
+            <xsd:element name="Organization" type="gc:OrgInfo" minOccurs="0" maxOccurs="1"/>
+            <xsd:element name="Contract" type="gc:ContractInfoGet" minOccurs="0" maxOccurs="1"/>
+            <xsd:element name="Contragent" type="gc:ContragentInfoGet" minOccurs="0" maxOccurs="1"/>
+        </xsd:sequence>
+    </xsd:complexType>
+    <xsd:complexType name="ErirAttributesUpdate">
+        <xsd:sequence>
+            <xsd:element name="Organization" type="gc:OrgInfo" minOccurs="0" maxOccurs="1" nillable="true"/>
+            <xsd:element name="Contract" type="gc:ContractInfoUpdate" minOccurs="0" maxOccurs="1" nillable="true"/>
+            <xsd:element name="Contragent" type="gc:ContragentInfoUpdate" minOccurs="0" maxOccurs="1" nillable="true"/>
+        </xsd:sequence>
+    </xsd:complexType>
+    <xsd:simpleType name="EmailSubscriptionEnum">
+        <xsd:restriction base="xsd:string">
+            <xsd:enumeration value="RECEIVE_RECOMMENDATIONS"/>
+            <xsd:enumeration value="TRACK_MANAGED_CAMPAIGNS"/>
+            <xsd:enumeration value="TRACK_POSITION_CHANGES"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+    <xsd:complexType name="EmailSubscriptionItem">
+        <xsd:sequence>
+            <xsd:element name="Option" type="gc:EmailSubscriptionEnum" minOccurs="1" maxOccurs="1"/>
+            <xsd:element name="Value" type="general:YesNoEnum" minOccurs="1" maxOccurs="1"/>
+        </xsd:sequence>
+    </xsd:complexType>
+    <xsd:complexType name="Notification">
+        <xsd:sequence>
+            <xsd:element name="Email" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+            <xsd:element name="EmailSubscriptions" type="gc:EmailSubscriptionItem" minOccurs="1" maxOccurs="unbounded"/>
+            <xsd:element name="Lang" type="general:LangEnum" minOccurs="1" maxOccurs="1"/>
+        </xsd:sequence>
+    </xsd:complexType>
+    <xsd:complexType name="NotificationAdd">
+        <xsd:complexContent>
+            <xsd:extension base="gc:Notification">
+                <xsd:sequence>
+                </xsd:sequence>
+            </xsd:extension>
+        </xsd:complexContent>
+    </xsd:complexType>
+    <xsd:complexType name="NotificationUpdate">
+        <xsd:sequence>
+            <xsd:element name="Email" type="xsd:string" minOccurs="0" maxOccurs="1" />
+            <xsd:element name="EmailSubscriptions" type="gc:EmailSubscriptionItem" minOccurs="0" maxOccurs="unbounded" />
+            <xsd:element name="Lang" type="general:LangEnum" minOccurs="0" maxOccurs="1"/>
+        </xsd:sequence>
+    </xsd:complexType>
+    <xsd:complexType name="NotificationGet">
+        <xsd:complexContent>
+            <xsd:extension base="gc:Notification">
+                <xsd:sequence>
+                    <xsd:element name="SmsPhoneNumber" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:extension>
+        </xsd:complexContent>
+    </xsd:complexType>
+    <xsd:complexType name="ClientRestrictionItem">
+        <xsd:sequence>
+            <xsd:element name="Element" type="gc:ClientRestrictionEnum" minOccurs="1" maxOccurs="1"/>
+            <xsd:element name="Value" type="xsd:int" minOccurs="1" maxOccurs="1"/>
+        </xsd:sequence>
+    </xsd:complexType>
+    <xsd:complexType name="ClientSettingGetItem">
+        <xsd:sequence>
+            <xsd:element name="Option" type="gc:ClientSettingGetEnum" minOccurs="1" maxOccurs="1"/>
+            <xsd:element name="Value" type="general:YesNoEnum" minOccurs="1" maxOccurs="1"/>
+        </xsd:sequence>
+    </xsd:complexType>
+    <xsd:complexType name="ClientSettingAddItem">
+        <xsd:sequence>
+            <xsd:element name="Option" type="gc:ClientSettingAddEnum" minOccurs="1" maxOccurs="1"/>
+            <xsd:element name="Value" type="general:YesNoEnum" minOccurs="1" maxOccurs="1"/>
+        </xsd:sequence>
+    </xsd:complexType>
+    <xsd:complexType name="ClientSettingUpdateItem">
+        <xsd:sequence>
+            <xsd:element name="Option" type="gc:ClientSettingUpdateEnum" minOccurs="1" maxOccurs="1"/>
+            <xsd:element name="Value" type="general:YesNoEnum" minOccurs="1" maxOccurs="1"/>
+        </xsd:sequence>
+    </xsd:complexType>
+    <xsd:complexType name="GrantItem">
+        <xsd:sequence>
+            <xsd:element name="Privilege" type="gc:PrivilegeEnum" minOccurs="1" maxOccurs="1"/>
+            <xsd:element name="Value" type="general:YesNoEnum" minOccurs="1" maxOccurs="1"/>
+        </xsd:sequence>
+    </xsd:complexType>
+    <xsd:complexType name="GrantGetItem">
+        <xsd:complexContent>
+            <xsd:extension base="gc:GrantItem">
+                <xsd:sequence>
+                    <xsd:element name="Agency" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:extension>
+        </xsd:complexContent>
+    </xsd:complexType>
+    <xsd:complexType name="BonusesItem">
+        <xsd:sequence>
+            <xsd:element name="AwaitingBonus" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+            <xsd:element name="AwaitingBonusWithoutNds" type="xsd:long" minOccurs="1" maxOccurs="1"/>
+        </xsd:sequence>
+    </xsd:complexType>
+    <xsd:complexType name="Representative">
+        <xsd:sequence>
+            <xsd:element name="Email" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+            <xsd:element name="Login" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+            <xsd:element name="Role" type="general:RepresentativeRoleEnum" minOccurs="1" maxOccurs="1"/>
+        </xsd:sequence>
+    </xsd:complexType>
+    <xsd:complexType name="ClientBaseItem">
+        <xsd:sequence>
+            <xsd:element name="ClientInfo" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+            <xsd:element name="Phone" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+        </xsd:sequence>
+    </xsd:complexType>
+    <xsd:complexType name="ClientGetItem">
+        <xsd:complexContent>
+            <xsd:extension base="gc:ClientBaseItem">
+                <xsd:sequence>
+                    <xsd:element name="AccountQuality" type="xsd:decimal" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="Archived" type="general:YesNoEnum" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="ClientId" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="CountryId" type="xsd:int" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="CreatedAt" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Currency" type="general:CurrencyEnum" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Grants" type="gc:GrantGetItem" minOccurs="0" maxOccurs="unbounded"/>
+                    <xsd:element name="Bonuses" type="gc:BonusesItem" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Login" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Notification" type="gc:NotificationGet" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="OverdraftSumAvailable" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Representatives" type="gc:Representative" minOccurs="0" maxOccurs="unbounded"/>
+                    <xsd:element name="Restrictions" type="gc:ClientRestrictionItem" minOccurs="0"
+                                 maxOccurs="unbounded"/>
+                    <xsd:element name="Settings" type="gc:ClientSettingGetItem" minOccurs="0" maxOccurs="unbounded"/>
+                    <xsd:element name="Type" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="VatRate" type="xsd:decimal" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="TinInfo" type="gc:TinInfoGet" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="ErirAttributes" type="gc:ErirAttributesGet" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="ForbiddenPlatform" type="gc:ForbiddenPlatformEnum" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="AvailableCampaignTypes" type="gc:AvailableCampaignTypeEnum" minOccurs="0" maxOccurs="unbounded"/>
+                    <xsd:element name="AvailableAdGroupTypes" type="gc:AvailableAdGroupTypeEnum" minOccurs="0"
+                                 maxOccurs="unbounded"/>
+                </xsd:sequence>
+            </xsd:extension>
+        </xsd:complexContent>
+    </xsd:complexType>
+    <xsd:complexType name="ClientUpdateItem">
+        <xsd:complexContent>
+            <xsd:extension base="gc:ClientBaseItem">
+                <xsd:sequence>
+                    <xsd:element name="Notification" type="gc:NotificationUpdate" minOccurs="0" maxOccurs="1"/>
+                    <xsd:element name="Settings" type="gc:ClientSettingUpdateItem" minOccurs="0" maxOccurs="unbounded"/>
+                    <xsd:element name="TinInfo" type="gc:TinInfoUpdate" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="ErirAttributes" type="gc:ErirAttributesUpdate" minOccurs="0" maxOccurs="1"
+                                 nillable="true"/>
+                </xsd:sequence>
+            </xsd:extension>
+        </xsd:complexContent>
+    </xsd:complexType>
+</xsd:schema>

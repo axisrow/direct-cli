@@ -39,11 +39,17 @@ Click group-of-groups. Each Yandex Direct API resource = one file in `direct_cli
 
 **`--dry-run`:** `add`/`update` commands print request JSON without calling the API. Use as test seam.
 
+**Runtime-deprecated methods:** WSDL-visible methods that Yandex rejects at runtime belong in `RUNTIME_DEPRECATED_METHODS` (`direct_cli/wsdl_coverage.py`) and must fail with `click.UsageError` before request construction. `agencyclients add` is blocked this way; use `agencyclients add-passport-organization`.
+
 **SelectionCriteria:** Resources like `adgroups`, `ads`, `keywords` require at least one of `Ids`, `CampaignIds`, or `AdGroupIds` — otherwise API error 4001.
 
 **Error handling:** All commands wrap API calls in `try/except Exception` → `print_error(str(e))` + `raise click.Abort()`.
 
 **Default fields:** `COMMON_FIELDS` in `utils.py` maps resource names to default `*FieldNames`. Most entries are `list[str]`; multi-`*FieldNames` resources use `dict[str, list[str]]` keyed by WSDL request param (for example `FieldNames`, `TextAdFieldNames`, `SearchFieldNames`). Not all fields are valid for all resources (e.g., `adimages` uses `AdImageHash`, not `Id`).
+
+**WSDL imports:** Imported schemas used by request validation are cached in `tests/wsdl_cache/imports/` and registered in `IMPORTED_XSD_REGISTRY`. Keep imported nested types resolved; empty `item_fields` for registered imports is coverage drift.
+
+**Smoke probes:** Live ID discovery for safe-smoke and integration tests lives in `direct_cli/_smoke_probes.py`. Functions like `advideo_probe_id()` query the live API to find a real resource ID (env override `YANDEX_DIRECT_TEST_ADVIDEO_ID`, fallback through `creatives.get`) and return `None` on any failure — smoke scripts treat `None` as a benign skip, not a fatal error. CLI entry: `python3 -m direct_cli._smoke_probes advideo`.
 
 ## Tests
 

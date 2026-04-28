@@ -136,6 +136,9 @@ SMOKE_MATRIX = {
         "vcards.delete",
     ],
     DANGEROUS: [
+        # Runtime-deprecated by Yandex (error_code=3500). The CLI itself
+        # rejects this command via direct_cli.utils.assert_not_runtime_deprecated;
+        # registry: direct_cli.wsdl_coverage.RUNTIME_DEPRECATED_METHODS.
         "agencyclients.add",
         "agencyclients.add-passport-organization",
         "agencyclients.add-passport-organization-member",

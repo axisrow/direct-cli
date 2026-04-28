@@ -38,6 +38,22 @@ def parse_json(json_str: Optional[str]) -> Optional[Dict[str, Any]]:
         raise ValueError(f"Invalid JSON: {e}")
 
 
+def assert_not_runtime_deprecated(cli_group: str, method: str) -> None:
+    """Raise a stable usage error for methods known to fail at API runtime."""
+    from direct_cli.wsdl_coverage import RUNTIME_DEPRECATED_METHODS
+
+    policy = RUNTIME_DEPRECATED_METHODS.get((cli_group, method))
+    if not policy:
+        return
+
+    message = (
+        f"direct {cli_group} {method} is deprecated by the Yandex Direct API "
+        f"and fails at runtime with error_code={policy['error_code']}. "
+        f"Use {policy['replacement']}."
+    )
+    raise click.UsageError(message)
+
+
 def parse_csv_strings(value: Optional[str]) -> Optional[List[str]]:
     """Parse comma-separated strings, trimming whitespace."""
     if not value:

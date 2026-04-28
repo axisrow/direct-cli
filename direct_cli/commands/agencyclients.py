@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import get_default_fields
+from ..utils import assert_not_runtime_deprecated, get_default_fields
 
 
 def _build_notification(
@@ -135,6 +135,8 @@ def add(
 ):
     """Add agency client"""
     try:
+        assert_not_runtime_deprecated("agencyclients", "add")
+
         body = {
             "method": "add",
             "params": {
@@ -164,6 +166,8 @@ def add(
         result = client.agencyclients().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()

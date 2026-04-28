@@ -2,6 +2,12 @@
 # Test all read-only (safe) direct-cli commands against the real Yandex Direct API.
 # Usage: ./scripts/test_safe_commands.sh
 # Credentials: loads .env if present, otherwise uses auth profile from direct auth login.
+#
+# Resource-ID probes:
+#   YANDEX_DIRECT_TEST_ADVIDEO_ID — override the AdVideo ID used by the
+#     advideos.get probe (otherwise discovered via creatives.get; see
+#     direct_cli._smoke_probes.advideo_probe_id). When no probe ID is found,
+#     the advideos.get test is skipped, never falsely passed.
 
 set -euo pipefail
 
@@ -120,6 +126,27 @@ run_agencyclients_sandbox_get() {
   fi
 }
 
+run_advideos_probe_get() {
+  local name="advideos get --ids (env auth)"
+  local advideo_id output exit_code
+
+  advideo_id=$(python3 -m direct_cli._smoke_probes advideo 2>/dev/null) && exit_code=0 || exit_code=$?
+  if [ "$exit_code" -ne 0 ] || [ -z "$advideo_id" ]; then
+    echo -e "  ${YELLOW}[SKIP]${RESET} $name — no accepted video ID found"
+    return
+  fi
+
+  output=$(direct advideos get --ids "$advideo_id" 2>&1) && exit_code=0 || exit_code=$?
+  if [ "$exit_code" -eq 0 ]; then
+    echo -e "  ${GREEN}[PASS]${RESET} $name"
+    ((PASS++)) || true
+  else
+    echo -e "  ${RED}[FAIL]${RESET} $name"
+    echo "$output" | head -3 | sed 's/^/         /'
+    ((FAIL++)) || true
+  fi
+}
+
 # ─── Section A: Auth via env variables (no CLI flags) ────────────────────────
 echo -e "${BOLD}=== A. Аутентификация через env-переменные ===${RESET}"
 echo ""
@@ -190,7 +217,7 @@ fi
 # Commands with no required IDs
 run_test "retargeting get (env auth)"              direct retargeting get
 run_test "adimages get (env auth)"                 direct adimages get
-run_test "advideos get --ids (env auth)"           direct advideos get --ids 1
+run_advideos_probe_get
 run_test "adextensions get (env auth)"             direct adextensions get
 # sitelinks/vcards/feeds/negativekeywordsharedsets require --ids; pass a dummy to verify the API call works
 run_test "sitelinks get --ids (env auth)"          direct sitelinks get --ids 1

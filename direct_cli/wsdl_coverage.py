@@ -8,10 +8,25 @@ that the CLI implements all available services and methods.
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
+from functools import lru_cache
+from io import StringIO
 from pathlib import Path
 
 WSDL_BASE_URL = "https://api.direct.yandex.com/v5/{service}?wsdl"
+# Imported XSD schemas are served from a different host than the WSDL
+# endpoints. If Yandex changes either domain, refresh_all_caches() and
+# scripts/check_wsdl_drift.py would silently break — keep these as named
+# constants so the failure surface is grep-able.
+XSD_BASE_URL = "https://soap.direct.yandex.ru/v5/{filename}"
 CACHE_DIR = Path(__file__).resolve().parent.parent / "tests" / "wsdl_cache"
+IMPORTS_CACHE_DIR = CACHE_DIR / "imports"
+XSD_NS = {"xsd": "http://www.w3.org/2001/XMLSchema"}
+
+IMPORTED_XSD_REGISTRY = {
+    "http://api.direct.yandex.com/v5/adextensiontypes": "adextensiontypes.xsd",
+    "http://api.direct.yandex.com/v5/general": "general.xsd",
+    "http://api.direct.yandex.com/v5/generalclients": "generalclients.xsd",
+}
 
 # ---------------------------------------------------------------------------
 # Mappings
@@ -121,6 +136,17 @@ INTENTIONAL_EXTRA_METHODS = {
     ),
 }
 
+RUNTIME_DEPRECATED_METHODS = {
+    ("agencyclients", "add"): {
+        "error_code": 3500,
+        "replacement": "direct agencyclients add-passport-organization",
+        "reason": (
+            "Yandex rejects agencyclients.add at runtime; use passport "
+            "organization creation instead."
+        ),
+    },
+}
+
 METHOD_NAME_OVERRIDES = {
     "add-passport-organization": "addPassportOrganization",
     "add-passport-organization-member": "addPassportOrganizationMember",
@@ -180,21 +206,21 @@ def parse_wsdl_operations(wsdl_xml: str) -> list:
 
 def parse_wsdl_field_enums(wsdl_xml: str) -> dict[str, list[str]]:
     """Return WSDL ``*FieldEnum`` simpleType values keyed by enum type name."""
-    root = ET.fromstring(wsdl_xml)
-    ns = {"xsd": "http://www.w3.org/2001/XMLSchema"}
+    ns = XSD_NS
     enums = {}
 
-    for simple_type in root.findall(".//xsd:simpleType", ns):
-        type_name = simple_type.get("name")
-        if not type_name or not type_name.endswith("FieldEnum"):
-            continue
+    for context in _load_schema_contexts(wsdl_xml).values():
+        for simple_type in context["schema"].findall("xsd:simpleType", ns):
+            type_name = simple_type.get("name")
+            if not type_name or not type_name.endswith("FieldEnum"):
+                continue
 
-        values = [
-            enum.get("value")
-            for enum in simple_type.findall(".//xsd:enumeration", ns)
-            if enum.get("value")
-        ]
-        enums[type_name] = values
+            values = [
+                enum.get("value")
+                for enum in simple_type.findall(".//xsd:enumeration", ns)
+                if enum.get("value")
+            ]
+            enums[type_name] = values
 
     return enums
 
@@ -240,7 +266,7 @@ def get_cli_methods_for_service(cli_command_name: str) -> set:
 
 
 def refresh_all_caches() -> dict:
-    """Fetch fresh WSDLs for all known services and write to cache."""
+    """Fetch fresh WSDLs and imported XSDs for all known services."""
     all_services = set(CANONICAL_API_SERVICES) | set(CLI_TO_API_SERVICE.values())
     all_services -= NON_WSDL_SERVICES
 
@@ -250,6 +276,12 @@ def refresh_all_caches() -> dict:
             fetch_wsdl(service, use_cache=False)
         except Exception as exc:
             errors[service] = exc
+
+    for namespace in sorted(IMPORTED_XSD_REGISTRY):
+        try:
+            fetch_imported_xsd(namespace, use_cache=False)
+        except Exception as exc:
+            errors[f"xsd:{namespace}"] = exc
     return errors
 
 
@@ -265,6 +297,10 @@ def get_api_coverage_policy() -> dict:
             f"{service}.{method}": reason
             for (service, method), reason in sorted(INTENTIONAL_EXTRA_METHODS.items())
         },
+        "runtime_deprecated_methods": {
+            f"{service}.{method}": policy
+            for (service, method), policy in sorted(RUNTIME_DEPRECATED_METHODS.items())
+        },
     }
 
 
@@ -275,52 +311,169 @@ def _local_name(qname: str | None) -> str | None:
     return qname.split(":", 1)[1] if ":" in qname else qname
 
 
-def _collect_complex_type_fields(complex_types: dict, type_name: str) -> list[dict]:
-    """Collect fields from a local XSD complex type, following local inheritance."""
-    ns = {"xsd": "http://www.w3.org/2001/XMLSchema"}
-    complex_type = complex_types.get(type_name)
+def _namespace_prefixes(xml_text: str) -> dict[str, str]:
+    """Return namespace URI by XML prefix for an XML document."""
+    prefixes: dict[str, str] = {}
+    for _, item in ET.iterparse(StringIO(xml_text), events=("start-ns",)):
+        prefix, namespace = item
+        prefixes[prefix or ""] = namespace
+    return prefixes
+
+
+def _qname_parts(
+    qname: str | None, prefixes: dict[str, str], default_ns: str
+) -> tuple[str, str] | None:
+    """Resolve a QName-like string to ``(namespace, local_name)``."""
+    if qname is None:
+        return None
+    if qname.startswith("{"):
+        namespace, _, local = qname[1:].partition("}")
+        return namespace, local
+    if ":" in qname:
+        prefix, local = qname.split(":", 1)
+        return prefixes.get(prefix, ""), local
+    return default_ns, qname
+
+
+def fetch_imported_xsd(namespace: str, use_cache: bool = True) -> str:
+    """Fetch an imported XSD by namespace using the checked-in cache."""
+    filename = IMPORTED_XSD_REGISTRY.get(namespace)
+    if filename is None:
+        raise KeyError(f"Unsupported imported XSD namespace: {namespace}")
+
+    cache_file = IMPORTS_CACHE_DIR / filename
+    if use_cache and cache_file.exists():
+        return cache_file.read_text(encoding="utf-8")
+
+    import requests
+
+    url = XSD_BASE_URL.format(filename=filename)
+    resp = requests.get(url, timeout=30)
+    resp.raise_for_status()
+    xml_text = resp.text
+
+    IMPORTS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    cache_file.write_text(xml_text, encoding="utf-8")
+    return xml_text
+
+
+@lru_cache(maxsize=None)
+def _cached_imported_xsd(namespace: str) -> str:
+    """Return cached imported XSD XML for namespace."""
+    return fetch_imported_xsd(namespace, use_cache=True)
+
+
+def _load_schema_contexts(wsdl_xml: str) -> dict[str, dict]:
+    """Load local and registered imported XSD schemas keyed by namespace."""
+    ns = XSD_NS
+    root, prefixes = _parse_xml(wsdl_xml)
+    local_schema = root.find(".//xsd:schema", ns)
+    if local_schema is None:
+        raise ValueError("WSDL schema section not found")
+
+    contexts = {}
+
+    def add_schema(xml_text: str | None, schema_elem: ET.Element | None = None):
+        if schema_elem is None:
+            schema_root, schema_prefixes = _parse_xml(xml_text or "")
+        else:
+            schema_root = schema_elem
+            schema_prefixes = prefixes
+        target_ns = schema_root.get("targetNamespace", "")
+        if target_ns in contexts:
+            return
+        contexts[target_ns] = {
+            "schema": schema_root,
+            "prefixes": schema_prefixes,
+            "complex_types": {
+                ctype.get("name"): ctype
+                for ctype in schema_root.findall("xsd:complexType", ns)
+            },
+        }
+        for import_elem in schema_root.findall("xsd:import", ns):
+            import_ns = import_elem.get("namespace")
+            if import_ns in IMPORTED_XSD_REGISTRY and import_ns not in contexts:
+                add_schema(_cached_imported_xsd(import_ns))
+
+    add_schema(None, local_schema)
+    return contexts
+
+
+def _parse_xml(xml_text: str) -> tuple[ET.Element, dict[str, str]]:
+    """Parse XML and keep prefix-to-namespace declarations."""
+    return ET.fromstring(xml_text), _namespace_prefixes(xml_text)
+
+
+def _element_field(
+    child: ET.Element,
+    prefixes: dict[str, str],
+    default_ns: str,
+    contexts: dict[str, dict],
+) -> dict:
+    """Return schema metadata for an XSD element."""
+    type_ref = _qname_parts(child.get("type"), prefixes, default_ns)
+    type_namespace, type_name = type_ref if type_ref else (default_ns, None)
+    return {
+        "name": child.get("name"),
+        "type": type_name,
+        "type_namespace": type_namespace,
+        "min_occurs": int(child.get("minOccurs", "1")),
+        "max_occurs": child.get("maxOccurs", "1"),
+        "item_fields": _collect_complex_type_fields(
+            contexts, type_namespace, type_name
+        ),
+    }
+
+
+def _collect_complex_type_fields(
+    contexts: dict[str, dict],
+    type_namespace: str | None,
+    type_name: str | None,
+    seen: frozenset[tuple[str, str]] = frozenset(),
+) -> list[dict]:
+    """Collect fields from local/imported XSD complex types, following inheritance."""
+    if not type_namespace or not type_name:
+        return []
+    key = (type_namespace, type_name)
+    if key in seen:
+        return []
+    context = contexts.get(type_namespace)
+    if context is None:
+        return []
+    complex_type = context["complex_types"].get(type_name)
     if complex_type is None:
         return []
 
+    prefixes = context["prefixes"]
     fields = []
-    extension = complex_type.find("xsd:complexContent/xsd:extension", ns)
+    extension = complex_type.find("xsd:complexContent/xsd:extension", XSD_NS)
     if extension is not None:
-        base_type = _local_name(extension.get("base"))
-        if base_type and base_type in complex_types:
-            fields.extend(_collect_complex_type_fields(complex_types, base_type))
-        sequence = extension.find("xsd:sequence", ns)
+        base_ref = _qname_parts(extension.get("base"), prefixes, type_namespace)
+        if base_ref:
+            fields.extend(
+                _collect_complex_type_fields(
+                    contexts, base_ref[0], base_ref[1], seen | {key}
+                )
+            )
+        sequence = extension.find("xsd:sequence", XSD_NS)
     else:
-        sequence = complex_type.find("xsd:sequence", ns)
+        sequence = complex_type.find("xsd:sequence", XSD_NS)
 
     if sequence is None:
         return fields
 
-    for child in sequence.findall("xsd:element", ns):
-        fields.append(
-            {
-                "name": child.get("name"),
-                "type": _local_name(child.get("type")),
-                "min_occurs": int(child.get("minOccurs", "1")),
-                "max_occurs": child.get("maxOccurs", "1"),
-            }
-        )
+    for child in sequence.findall("xsd:element", XSD_NS):
+        fields.append(_element_field(child, prefixes, type_namespace, contexts))
     return fields
 
 
 def get_operation_request_schema(wsdl_xml: str, operation_name: str) -> dict:
     """Return request schema metadata for a WSDL operation.
 
-    Known limitations (documented rather than silent):
-    - Types declared in imported XSD namespaces (``<xsd:import>``) are not
-      resolved: ``item_fields`` for any field whose type lives in another
-      namespace is ``[]``. Nested required-field validation therefore only
-      applies to locally-defined inline types.
-    - When a request element uses ``xsd:complexContent/xsd:extension``, only
-      fields from the extension's own ``xsd:sequence`` are returned; inherited
-      base-type fields are dropped. Safe today because no ``get*`` operation
-      (the typical extension user) is included in payload coverage tests.
+    Imported XSDs registered in ``IMPORTED_XSD_REGISTRY`` are resolved from the
+    checked-in cache, and ``xsd:extension`` base fields are included.
     """
-    root = ET.fromstring(wsdl_xml)
+    root, prefixes = _parse_xml(wsdl_xml)
     ns = {
         "wsdl": "http://schemas.xmlsoap.org/wsdl/",
         "xsd": "http://www.w3.org/2001/XMLSchema",
@@ -354,9 +507,8 @@ def get_operation_request_schema(wsdl_xml: str, operation_name: str) -> dict:
         raise KeyError(f"Input element not found for operation: {operation_name}")
 
     elements = {elem.get("name"): elem for elem in schema.findall("xsd:element", ns)}
-    complex_types = {
-        ctype.get("name"): ctype for ctype in schema.findall("xsd:complexType", ns)
-    }
+    target_ns = schema.get("targetNamespace", "")
+    contexts = _load_schema_contexts(wsdl_xml)
 
     element = elements.get(element_name)
     if element is None:
@@ -376,17 +528,54 @@ def get_operation_request_schema(wsdl_xml: str, operation_name: str) -> dict:
     fields = []
     if sequence is not None:
         for child in sequence.findall("xsd:element", ns):
-            type_name = _local_name(child.get("type"))
-            fields.append(
-                {
-                    "name": child.get("name"),
-                    "type": type_name,
-                    "min_occurs": int(child.get("minOccurs", "1")),
-                    "max_occurs": child.get("maxOccurs", "1"),
-                    "item_fields": _collect_complex_type_fields(
-                        complex_types, type_name
-                    ),
-                }
-            )
+            fields.append(_element_field(child, prefixes, target_ns, contexts))
 
     return {"input_element": element_name, "fields": fields}
+
+
+def find_nested_schema_violations(
+    body: dict, schema: dict, *, path: str = "params"
+) -> list[str]:
+    """Return dotted paths of body keys not declared in the WSDL schema.
+
+    Walks the request body alongside ``schema["fields"]`` and recursively
+    checks list items / nested objects for unknown keys. Only flags fields
+    where the schema actually declares ``item_fields`` — fields whose nested
+    type cannot be resolved (no item_fields in schema) are skipped, because
+    we cannot tell which nested keys would be valid.
+    """
+    params = body.get("params", body)
+    if not isinstance(params, dict):
+        return []
+
+    expected = {field["name"]: field for field in schema.get("fields", [])}
+    violations: list[str] = []
+    for key, value in params.items():
+        if key not in expected:
+            violations.append(f"{path}.{key}")
+            continue
+        item_fields = expected[key].get("item_fields") or []
+        if not item_fields:
+            continue
+        nested_schema = {"fields": item_fields}
+        # The recursive call walks the same expected/unknown logic against
+        # ``nested_schema`` for each child, so we delegate unknown-key
+        # detection to it instead of inlining a parallel loop here. Inlining
+        # would double-report any unknown direct child.
+        if isinstance(value, list):
+            for index, entry in enumerate(value):
+                if isinstance(entry, dict):
+                    violations.extend(
+                        find_nested_schema_violations(
+                            {"params": entry},
+                            nested_schema,
+                            path=f"{path}.{key}[{index}]",
+                        )
+                    )
+        elif isinstance(value, dict):
+            violations.extend(
+                find_nested_schema_violations(
+                    {"params": value}, nested_schema, path=f"{path}.{key}"
+                )
+            )
+    return violations

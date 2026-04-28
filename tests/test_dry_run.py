@@ -1365,41 +1365,31 @@ def test_negativekeywordsharedsets_update_keywords():
 # ----------------------------------------------------------------------
 
 
-def test_agencyclients_add_builds_notification_from_typed_flags():
-    client_data = {
-        "Login": "client-login",
-        "FirstName": "Alice",
-        "LastName": "Smith",
-        "Currency": "RUB",
-        "Notification": {
-            "Email": "ops@example.com",
-            "Lang": "RU",
-            "EmailSubscriptions": [
-                {"Option": "RECEIVE_RECOMMENDATIONS", "Value": "YES"},
-                {"Option": "TRACK_POSITION_CHANGES", "Value": "NO"},
-            ],
-        },
-    }
-    body = _dry_run(
-        "agencyclients",
-        "add",
-        "--login",
-        "client-login",
-        "--first-name",
-        "Alice",
-        "--last-name",
-        "Smith",
-        "--currency",
-        "RUB",
-        "--notification-email",
-        "ops@example.com",
-        "--notification-lang",
-        "RU",
-        "--send-account-news",
-        "--no-send-warnings",
+def test_agencyclients_add_is_runtime_deprecated_even_for_dry_run():
+    result = CliRunner().invoke(
+        cli,
+        [
+            "agencyclients",
+            "add",
+            "--login",
+            "client-login",
+            "--first-name",
+            "Alice",
+            "--last-name",
+            "Smith",
+            "--currency",
+            "RUB",
+            "--notification-email",
+            "ops@example.com",
+            "--notification-lang",
+            "RU",
+            "--send-account-news",
+            "--no-send-warnings",
+            "--dry-run",
+        ],
     )
-    assert body["method"] == "add"
-    assert body["params"] == client_data
+    assert result.exit_code != 0
+    assert "add-passport-organization" in result.output
 
 
 # ----------------------------------------------------------------------
@@ -1541,23 +1531,24 @@ class TestBidModifiersAddPluralFields:
 # ----------------------------------------------------------------------
 
 
-def test_agencyclients_add_payload_uses_top_level_fields():
-    body = _dry_run(
-        "agencyclients",
-        "add",
-        "--login",
-        "client-login",
-        "--first-name",
-        "Alice",
-        "--last-name",
-        "Smith",
-        "--currency",
-        "RUB",
+def test_agencyclients_add_runtime_deprecated_without_dry_run():
+    result = CliRunner().invoke(
+        cli,
+        [
+            "agencyclients",
+            "add",
+            "--login",
+            "client-login",
+            "--first-name",
+            "Alice",
+            "--last-name",
+            "Smith",
+            "--currency",
+            "RUB",
+        ],
     )
-    assert body["method"] == "add"
-    assert body["params"]["Login"] == "client-login"
-    assert "Notification" in body["params"]
-    assert "Clients" not in body["params"]
+    assert result.exit_code != 0
+    assert "add-passport-organization" in result.output
 
 
 def test_agencyclients_add_passport_organization_payload():
