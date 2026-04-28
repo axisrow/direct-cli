@@ -4,6 +4,8 @@ from unittest.mock import Mock
 from direct_cli._vendor.tapi_yandex_direct.v4 import SUPPORTED_V4_METHODS
 from direct_cli.v4 import build_v4_body, call_v4
 from direct_cli.v4_contracts import (
+    PARAM_ARRAY,
+    PARAM_OBJECT,
     PARAM_UNDOCUMENTED,
     SOURCE_CONFIRMED_LIVE,
     V4_METHOD_CONTRACTS,
@@ -39,13 +41,24 @@ def test_confirmed_contracts_are_not_undocumented():
     assert {contract.method for contract in confirmed} == {
         "AccountManagement",
         "GetClientsUnits",
+        "GetCreditLimits",
+        "GetEventsLog",
         "GetStatGoals",
         "GetRetargetingGoals",
     }
     for contract in confirmed:
         assert contract.param_shape != PARAM_UNDOCUMENTED
-        assert contract.live_probe_allowed
         assert contract.example_param is not None
+
+    assert {
+        contract.method for contract in confirmed if contract.live_probe_allowed
+    } == {
+        "AccountManagement",
+        "GetClientsUnits",
+        "GetEventsLog",
+        "GetStatGoals",
+        "GetRetargetingGoals",
+    }
 
 
 def test_get_clients_units_contract_uses_array_param():
@@ -65,6 +78,33 @@ def test_account_management_get_contract_returns_money_balance():
     assert build_v4_body("AccountManagement", {"Action": "Get"}) == {
         "method": "AccountManagement",
         "param": {"Action": "Get"},
+    }
+
+
+def test_get_credit_limits_contract_uses_login_array_and_finance_top_level():
+    contract = get_v4_contract("GetCreditLimits")
+
+    assert contract.param_shape == PARAM_ARRAY
+    assert contract.example_param == ["client-login"]
+    assert "finance_token" in contract.login_placement
+    assert build_v4_body("GetCreditLimits", ["client-login"]) == {
+        "method": "GetCreditLimits",
+        "param": ["client-login"],
+    }
+
+
+def test_get_events_log_contract_uses_timestamp_object_with_currency():
+    contract = get_v4_contract("GetEventsLog")
+
+    assert contract.param_shape == PARAM_OBJECT
+    assert contract.example_param == {
+        "TimestampFrom": "2026-04-14T00:00:00",
+        "TimestampTo": "2026-04-14T01:00:00",
+        "Currency": "RUB",
+    }
+    assert build_v4_body("GetEventsLog", contract.example_param) == {
+        "method": "GetEventsLog",
+        "param": contract.example_param,
     }
 
 
@@ -105,6 +145,33 @@ def test_v4_adapter_sends_login_as_header_without_mutating_param():
     assert body["token"] == "token"
     assert body["locale"] == "en"
     assert request["headers"]["Client-Login"] == "client-login"
+
+
+def test_v4_adapter_sends_finance_credentials_as_top_level_body_fields():
+    from direct_cli._vendor.tapi_yandex_direct.v4.adapter import V4LiveClientAdapter
+
+    adapter = V4LiveClientAdapter()
+    api_params = {
+        "access_token": "token",
+        "login": "agency-login",
+        "language": "en",
+        "is_sandbox": False,
+        "finance_token": "finance-token",
+        "operation_num": 42,
+    }
+
+    request = adapter.get_request_kwargs(
+        api_params,
+        data={"method": "GetCreditLimits", "param": ["client-login"]},
+    )
+    body = json.loads(request["data"])
+
+    assert body["param"] == ["client-login"]
+    assert body["finance_token"] == "finance-token"
+    assert body["operation_num"] == 42
+    assert body["token"] == "token"
+    assert body["locale"] == "en"
+    assert request["headers"]["Client-Login"] == "agency-login"
 
 
 def test_v4_goal_contracts_keep_global_login_at_transport_level():

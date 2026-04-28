@@ -108,6 +108,24 @@ direct v4goals get-retargeting-goals --campaign-ids 123,456 --format table
 direct v4goals get-stat-goals --campaign-ids 123 --dry-run
 ```
 
+### V4 Live Events
+
+```bash
+direct v4events get-events-log --from 2026-04-14T00:00:00 --to 2026-04-15T00:00:00
+direct v4events get-events-log --from 2026-04-14T00:00:00 --to 2026-04-15T00:00:00 --currency RUB --limit 100 --offset 0 --format table
+```
+
+### V4 Live Finance
+
+`get-credit-limits` requires a financial token and operation number. Pass them
+with `--finance-token` and `--operation-num`, or set
+`YANDEX_DIRECT_FINANCE_TOKEN` and `YANDEX_DIRECT_OPERATION_NUM`.
+
+```bash
+direct v4finance get-credit-limits --logins client-login --finance-token FINANCE_TOKEN --operation-num 123
+direct v4finance get-credit-limits --logins client-login,other-client --format table
+```
+
 ### CLI Convention
 
 The current CLI convention is defined as follows.

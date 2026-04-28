@@ -49,6 +49,8 @@ class YandexDirectV4Live:
         language: str = "en",
         retry_if_exceeded_limit: bool = True,
         retries_if_server_error: int = 5,
+        finance_token: Optional[str] = None,
+        operation_num: Optional[int] = None,
     ) -> None: ...
 
     def v4live(self) -> V4LiveExecutor: ...

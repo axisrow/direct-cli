@@ -22,6 +22,8 @@ def test_create_v4_client_passes_resolved_credentials():
                 language="ru",
                 retry_if_exceeded_limit=False,
                 retries_if_server_error=2,
+                finance_token="finance-token",
+                operation_num=42,
             )
 
     client_class.assert_called_once_with(
@@ -31,6 +33,8 @@ def test_create_v4_client_passes_resolved_credentials():
         language="ru",
         retry_if_exceeded_limit=False,
         retries_if_server_error=2,
+        finance_token="finance-token",
+        operation_num=42,
     )
 
 

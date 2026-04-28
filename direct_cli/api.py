@@ -80,6 +80,8 @@ def create_v4_client(
     language: Optional[str] = None,
     retry_if_exceeded_limit: bool = True,
     retries_if_server_error: int = 5,
+    finance_token: Optional[str] = None,
+    operation_num: Optional[int] = None,
 ) -> YandexDirectV4Live:
     """
     Create YandexDirect v4 Live client.
@@ -96,6 +98,8 @@ def create_v4_client(
         language: API locale
         retry_if_exceeded_limit: Retry when the API limit is exceeded
         retries_if_server_error: Number of retries for server errors
+        finance_token: Financial token for v4 Live finance methods
+        operation_num: Financial operation number for v4 Live finance methods
 
     Returns:
         YandexDirect v4 Live client instance
@@ -117,6 +121,8 @@ def create_v4_client(
         language=language or "en",
         retry_if_exceeded_limit=retry_if_exceeded_limit,
         retries_if_server_error=retries_if_server_error,
+        finance_token=finance_token,
+        operation_num=operation_num,
     )
 
 

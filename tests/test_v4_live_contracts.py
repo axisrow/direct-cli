@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from dotenv import load_dotenv
@@ -34,6 +35,30 @@ def _campaign_id(token: str, login: str) -> int:
     if not campaigns:
         pytest.skip("No campaign available for v4 goals live probes")
     return campaigns[0]["Id"]
+
+
+def _finance_credentials():
+    finance_token = os.getenv("YANDEX_DIRECT_FINANCE_TOKEN")
+    operation_num = os.getenv("YANDEX_DIRECT_OPERATION_NUM")
+    if not finance_token or not operation_num:
+        pytest.skip(
+            "YANDEX_DIRECT_FINANCE_TOKEN and YANDEX_DIRECT_OPERATION_NUM are required"
+        )
+    try:
+        return finance_token, int(operation_num)
+    except ValueError:
+        pytest.skip("YANDEX_DIRECT_OPERATION_NUM must be an integer")
+
+
+def _events_window() -> tuple[str, str]:
+    timestamp_to = datetime.now(timezone.utc).replace(microsecond=0) - timedelta(
+        days=1
+    )
+    timestamp_from = timestamp_to - timedelta(hours=1)
+    return (
+        timestamp_from.strftime("%Y-%m-%dT%H:%M:%S"),
+        timestamp_to.strftime("%Y-%m-%dT%H:%M:%S"),
+    )
 
 
 def test_v4_live_get_clients_units_contract():
@@ -77,3 +102,37 @@ def test_v4_live_goals_contracts():
         assert {"CampaignID", "GoalID", "Name"} <= set(stat_goals[0])
     if retargeting_goals:
         assert {"GoalID", "Name"} <= set(retargeting_goals[0])
+
+
+def test_v4_live_get_events_log_contract():
+    token, login = _credentials()
+    timestamp_from, timestamp_to = _events_window()
+    client = create_v4_client(token=token, login=login)
+
+    data = call_v4(
+        client,
+        "GetEventsLog",
+        {
+            "TimestampFrom": timestamp_from,
+            "TimestampTo": timestamp_to,
+            "Currency": "RUB",
+            "Limit": 1,
+        },
+    )
+
+    assert data is not None
+
+
+def test_v4_live_get_credit_limits_contract():
+    token, login = _credentials()
+    finance_token, operation_num = _finance_credentials()
+    client = create_v4_client(
+        token=token,
+        login=login,
+        finance_token=finance_token,
+        operation_num=operation_num,
+    )
+
+    data = call_v4(client, "GetCreditLimits", [login])
+
+    assert data is not None

@@ -42,10 +42,10 @@ from .commands.dynamicfeedadtargets import dynamicfeedadtargets
 from .commands.strategies import strategies
 from .commands.auth import auth
 from .commands.balance import balance
+from .commands.v4events import v4events
+from .commands.v4finance import v4finance
 from .commands.v4shells import (
     v4account,
-    v4events,
-    v4finance,
     v4forecast,
     v4meta,
     v4wordstat,
