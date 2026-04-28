@@ -41,12 +41,12 @@ class V4LiveClientAdapter(JSONAdapterMixin, TapiAdapter):
         params = super().get_request_kwargs(api_params, *args, **kwargs)
 
         token = api_params.get("access_token")
-        login = api_params.get("login")
         language = api_params.get("language", "en")
 
-        # Enrich the JSON body with token / locale / login (param.login for
-        # agent calls). format_data_to_request does not see api_params, so we
-        # do this here, after super() has already serialised the user data.
+        # Enrich the JSON body with token / locale. format_data_to_request does
+        # not see api_params, so we do this after super() has serialised the
+        # user data. V4 Live login placement is method-specific, so callers
+        # must pass any method-level login value explicitly in the body.
         raw = params.get("data")
         if raw:
             if isinstance(raw, (bytes, bytearray)):
@@ -66,8 +66,6 @@ class V4LiveClientAdapter(JSONAdapterMixin, TapiAdapter):
                 body.setdefault("token", token)
             if language:
                 body.setdefault("locale", language)
-            if login and isinstance(body.get("param"), dict):
-                body["param"].setdefault("login", login)
 
             params["data"] = orjson.dumps(body)
 
@@ -98,7 +96,9 @@ class V4LiveClientAdapter(JSONAdapterMixin, TapiAdapter):
                 data = None
         return data
 
-    def process_response(self, response: Response, request_kwargs: dict, **kwargs) -> dict:
+    def process_response(
+        self, response: Response, request_kwargs: dict, **kwargs
+    ) -> dict:
         # Mirror the v5 behaviour: turn the serialised body back into a dict so
         # downstream hooks (extract, retry) can read it.
         if isinstance(request_kwargs.get("data"), (bytes, bytearray, str)):
@@ -178,8 +178,13 @@ class V4LiveClientAdapter(JSONAdapterMixin, TapiAdapter):
 
         return False
 
-    def extract(self, data, response: Optional[Response] = None,
-                request_kwargs: Optional[dict] = None, **kwargs):
+    def extract(
+        self,
+        data,
+        response: Optional[Response] = None,
+        request_kwargs: Optional[dict] = None,
+        **kwargs,
+    ):
         # v4 Live always nests payload under "data". For methods returning a
         # bare scalar (TransferMoney → 1), the scalar comes through unchanged.
         # response / request_kwargs are accepted but unused — they are kept

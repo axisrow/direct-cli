@@ -35,9 +35,9 @@ def test_create_v4_client_passes_resolved_credentials():
 
 
 def test_build_v4_body_with_param():
-    assert build_v4_body("GetClientsUnits", {"Logins": ["x"]}) == {
+    assert build_v4_body("GetClientsUnits", ["x"]) == {
         "method": "GetClientsUnits",
-        "param": {"Logins": ["x"]},
+        "param": ["x"],
     }
 
 
@@ -49,10 +49,10 @@ def test_call_v4_posts_body_and_returns_extracted_payload():
     client = Mock()
     client.v4live.return_value = resource
 
-    result = call_v4(client, "GetClientsUnits", {"Logins": ["x"]})
+    result = call_v4(client, "GetClientsUnits", ["x"])
 
     resource.post.assert_called_once_with(
-        data={"method": "GetClientsUnits", "param": {"Logins": ["x"]}}
+        data={"method": "GetClientsUnits", "param": ["x"]}
     )
     response.return_value.extract.assert_called_once_with()
     assert result == [{"Login": "x", "Units": 100}]
