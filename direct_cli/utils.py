@@ -275,6 +275,7 @@ COMMON_FIELDS: Dict[str, Union[List[str], Dict[str, List[str]]]] = {
         "ContextBid",
     ],
     "clients": ["ClientId", "Login", "CountryId", "Currency"],
+    "agencyclients": ["ClientId", "Login", "CountryId", "Currency"],
     "creatives": ["Id", "Name", "Type"],
     "adimages": ["AdImageHash", "Name"],
     "adextensions": ["Id", "Type", "State", "Status"],
@@ -293,6 +294,7 @@ COMMON_FIELDS: Dict[str, Union[List[str], Dict[str, List[str]]]] = {
     "feeds": ["Id", "Name", "BusinessType", "SourceType", "Status"],
     "smartadtargets": ["Id", "CampaignId", "AdGroupId", "State"],
     "businesses": ["Id", "Name", "Address", "Phone", "ProfileUrl"],
+    "changes": ["CampaignIds", "AdGroupIds", "AdIds", "CampaignsStat"],
     "retargetinglists": ["Id", "Name", "Type", "Scope"],
     "advideos": ["Id", "Status"],
     "bids": ["CampaignId", "AdGroupId", "KeywordId", "Bid"],
@@ -328,6 +330,7 @@ COMMON_FIELDS: Dict[str, Union[List[str], Dict[str, List[str]]]] = {
         "SearchFieldNames": ["Bid"],
         "NetworkFieldNames": ["Bid"],
     },
+    "keywordsresearch": ["Keyword", "AllDevices"],
 }
 
 

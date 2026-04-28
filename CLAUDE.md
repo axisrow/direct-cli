@@ -43,7 +43,7 @@ Click group-of-groups. Each Yandex Direct API resource = one file in `direct_cli
 
 **Error handling:** All commands wrap API calls in `try/except Exception` → `print_error(str(e))` + `raise click.Abort()`.
 
-**Default fields:** `COMMON_FIELDS` in `utils.py` maps resource names to `FieldNames`. Not all fields are valid for all resources (e.g., `adimages` uses `AdImageHash`, not `Id`).
+**Default fields:** `COMMON_FIELDS` in `utils.py` maps resource names to default `*FieldNames`. Most entries are `list[str]`; multi-`*FieldNames` resources use `dict[str, list[str]]` keyed by WSDL request param (for example `FieldNames`, `TextAdFieldNames`, `SearchFieldNames`). Not all fields are valid for all resources (e.g., `adimages` uses `AdImageHash`, not `Id`).
 
 ## Tests
 

@@ -301,7 +301,7 @@ Version `0.3.0` cannot ship until command/API coverage is 100% across the suppor
 - `scripts/build_api_coverage_report.py` reports `summary.live_model_parity_ok == true` (✅ already true on `main`)
 - `model_gaps.live_discovered_missing_services == []` (✅)
 - `model_gaps.live_discovered_missing_methods == 0` (✅)
-- Schema-level gate `summary.schema_parity_ok == true` ({schema_status}) — every `get` default `FieldNames` payload and `COMMON_FIELDS` default is a subset of the corresponding WSDL `*FieldEnum`, and required default `*FieldNames` params are present
+- Schema-level gate `summary.schema_parity_ok == true` ({schema_status}) — every enum-backed default `*FieldNames` command declares defaults in `COMMON_FIELDS`, every default `FieldNames` payload and `COMMON_FIELDS` default is a subset of the corresponding WSDL `*FieldEnum`, and required default `*FieldNames` params are present
 - Every canonical CLI command in the per-service status below shows ✅ on all four checkboxes (or has a documented `n/a` rationale)
 - Every mutating command has dry-run payload coverage or a documented exclusion
 - Wire method names are validated wherever command aliases or kebab-case map to Yandex camelCase
@@ -344,9 +344,10 @@ Current gate status from `scripts/build_api_coverage_report.py`: `summary.schema
 The gate parses every `*FieldEnum` from `tests/wsdl_cache/*.xml` and asserts that:
 
 1. Each default `*FieldNames` value from `direct_cli/utils.py:COMMON_FIELDS` is a member of the corresponding WSDL enum.
-2. Each captured default `get` payload sends enum-valid `*FieldNames` values.
+2. Each captured default payload for WSDL operations with `*FieldNames` sends enum-valid `*FieldNames` values.
 3. Each multi-field default declared in `COMMON_FIELDS` sends all required default `*FieldNames` request params.
-4. New `get` groups are either covered by the gate or explicitly waived with rationale.
+4. Each enum-backed command with default `*FieldNames` has a `COMMON_FIELDS` entry as the single source of truth for defaults.
+5. New WSDL `*FieldNames` operations are either covered by the gate or explicitly waived with rationale.
 
 ---
 

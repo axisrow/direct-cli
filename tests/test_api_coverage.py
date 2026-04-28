@@ -988,6 +988,7 @@ class TestApiCoverage:
         assert report["schema"]["field_name_mismatches"] == []
         assert report["schema"]["capture_errors"] == []
         assert report["schema"]["missing_field_name_params"] == []
+        assert report["schema"]["missing_common_fields"] == []
         assert report["schema"]["uncovered_get_groups"] == []
         assert report["schema"]["waiver_misuse"] == []
 
@@ -1024,13 +1025,18 @@ class TestApiCoverage:
         assert schema_gate["field_name_mismatches"] == []
         assert schema_gate["capture_errors"] == []
         assert schema_gate["missing_field_name_params"] == []
+        assert schema_gate["missing_common_fields"] == []
         assert schema_gate["uncovered_get_groups"] == []
         assert schema_gate["waiver_misuse"] == []
 
     def test_schema_gate_flags_uncovered_get_command(self, monkeypatch):
         """A new ``get`` command without coverage and without waiver fails."""
         report_script = _load_coverage_report_script()
-        monkeypatch.setattr(report_script, "CLI_TO_API_SERVICE", {"fake": "fake"})
+        monkeypatch.setattr(
+            report_script,
+            "CLI_TO_API_SERVICE",
+            {"fake": "fake"},
+        )
         monkeypatch.setattr(
             report_script,
             "get_cli_methods_for_service",
@@ -1050,6 +1056,86 @@ class TestApiCoverage:
         assert schema_gate["uncovered_get_groups"] == ["fake"]
         assert schema_gate["field_name_mismatches"] == []
         assert schema_gate["missing_field_name_params"] == []
+
+    def test_schema_gate_flags_missing_common_fields_for_valid_inline_payload(
+        self, monkeypatch
+    ):
+        """Enum-backed ``get`` commands must declare defaults in COMMON_FIELDS."""
+        report_script = _load_coverage_report_script()
+        monkeypatch.setattr(
+            report_script,
+            "CLI_TO_API_SERVICE",
+            {"fake": "fake"},
+        )
+        monkeypatch.setattr(
+            report_script,
+            "get_cli_methods_for_service",
+            lambda cli_name: {"get"},
+        )
+        monkeypatch.setattr(report_script, "COMMON_FIELDS", {})
+        monkeypatch.setattr(report_script, "SCHEMA_GATE_WAIVERS", {})
+
+        schema_gate = report_script.build_schema_gate(
+            fetch_wsdl_func=lambda service: _wsdl_with_get_field_enum("Id", "Name"),
+            capture_get_body_func=lambda cli_name: {
+                "method": "get",
+                "params": {"FieldNames": ["Id", "Name"]},
+            },
+        )
+
+        assert schema_gate["schema_parity_ok"] is False
+        assert schema_gate["field_name_mismatches"] == []
+        assert schema_gate["missing_field_name_params"] == []
+        assert schema_gate["uncovered_get_groups"] == []
+        assert schema_gate["missing_common_fields"] == [
+            {
+                "cli_group": "fake",
+                "api_service": "fake",
+                "operation": "get",
+                "expected_request_fields": ["FieldNames"],
+            }
+        ]
+
+    def test_schema_gate_validates_non_get_fieldname_operation(self, monkeypatch):
+        """FieldNames validation is not limited to ``get`` operations."""
+        report_script = _load_coverage_report_script()
+        monkeypatch.setattr(
+            report_script,
+            "CLI_TO_API_SERVICE",
+            {"keywordsresearch": "keywordsresearch"},
+        )
+        monkeypatch.setattr(
+            report_script,
+            "get_cli_methods_for_service",
+            lambda cli_name: {"hasSearchVolume"},
+        )
+        monkeypatch.setattr(
+            report_script,
+            "COMMON_FIELDS",
+            {"keywordsresearch": ["Keyword", "Bogus"]},
+        )
+
+        schema_gate = report_script.build_schema_gate(
+            capture_get_body_func=lambda cli_name, operation: {
+                "method": operation,
+                "params": {"FieldNames": ["Keyword"]},
+            },
+        )
+
+        assert schema_gate["schema_parity_ok"] is False
+        assert schema_gate["field_name_mismatches"] == [
+            {
+                "cli_group": "keywordsresearch",
+                "api_service": "keywordsresearch",
+                "operation": "hasSearchVolume",
+                "request_field": "FieldNames",
+                "enum_type": "HasSearchVolumeFieldEnum",
+                "invalid_values": ["Bogus"],
+                "actual_values": ["Keyword", "Bogus"],
+                "source": "COMMON_FIELDS",
+                "resource": "keywordsresearch",
+            }
+        ]
 
     def test_schema_gate_waiver_required_when_no_field_enum(self, monkeypatch):
         """Service with no FieldEnum in WSDL must be explicitly waived."""
@@ -1267,6 +1353,7 @@ class TestApiCoverage:
                 "invalid_values": ["Bogus"],
                 "actual_values": ["Id", "Bogus"],
                 "source": "wire_payload",
+                "resource": "fake",
             }
         ]
 

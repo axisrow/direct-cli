@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids
+from ..utils import get_default_fields, parse_ids
 
 
 @click.group()
@@ -37,7 +37,7 @@ def has_search_volume(ctx, keywords, region_ids, fields, output_format, output):
         field_names = (
             [f.strip() for f in fields.split(",")]
             if fields
-            else ["Keyword", "AllDevices"]
+            else get_default_fields("keywordsresearch")
         )
 
         body = {
