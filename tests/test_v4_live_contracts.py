@@ -53,6 +53,18 @@ def test_v4_live_get_clients_units_contract():
     assert {"Login", "UnitsRest"} <= set(data[0])
 
 
+def test_v4_live_account_management_get_contract():
+    token, login = _credentials()
+    client = create_v4_client(token=token, login=login, language="ru")
+
+    data = call_v4(client, "AccountManagement", {"Action": "Get"})
+
+    assert isinstance(data, dict)
+    assert isinstance(data.get("Accounts"), list)
+    assert data["Accounts"]
+    assert {"Login", "Amount", "Currency"} <= set(data["Accounts"][0])
+
+
 def test_v4_live_goals_contracts():
     token, login = _credentials()
     campaign_id = _campaign_id(token, login)

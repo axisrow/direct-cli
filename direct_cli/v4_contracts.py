@@ -17,6 +17,7 @@ SAFETY_READ = "read"
 SAFETY_WRITE = "write"
 SAFETY_DANGEROUS = "dangerous"
 SAFETY_ASYNC = "async"
+SAFETY_MIXED = "mixed"
 
 SOURCE_CONFIRMED_LIVE = "confirmed-live"
 SOURCE_DOCS = "docs"
@@ -107,11 +108,13 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
     "AccountManagement": V4MethodContract(
         method="AccountManagement",
         group="shared_account",
-        param_shape=PARAM_UNDOCUMENTED,
-        login_placement="unknown",
-        safety=SAFETY_WRITE,
-        source_status=SOURCE_UNDOCUMENTED,
-        live_probe_allowed=False,
+        param_shape=PARAM_OBJECT,
+        login_placement="optional SelectionCriteria.Logins for agency/client selection",
+        safety=SAFETY_MIXED,
+        source_status=SOURCE_CONFIRMED_LIVE,
+        live_probe_allowed=True,
+        example_param={"Action": "Get"},
+        notes="Action=Get is read-only and returns Accounts[].Amount/Currency.",
     ),
     "EnableSharedAccount": V4MethodContract(
         method="EnableSharedAccount",
@@ -373,7 +376,13 @@ def validate_v4_contract_registry() -> list[str]:
         PARAM_SCALAR,
         PARAM_UNDOCUMENTED,
     }
-    valid_safety = {SAFETY_READ, SAFETY_WRITE, SAFETY_DANGEROUS, SAFETY_ASYNC}
+    valid_safety = {
+        SAFETY_READ,
+        SAFETY_WRITE,
+        SAFETY_DANGEROUS,
+        SAFETY_ASYNC,
+        SAFETY_MIXED,
+    }
     valid_sources = {
         SOURCE_CONFIRMED_LIVE,
         SOURCE_DOCS,
@@ -398,8 +407,11 @@ def validate_v4_contract_registry() -> list[str]:
             )
         if not contract.login_placement:
             errors.append(f"{method} missing login_placement")
-        if contract.live_probe_allowed and contract.safety != SAFETY_READ:
-            errors.append(f"{method} live probe allowed for non-read safety")
+        if contract.live_probe_allowed and contract.safety not in {
+            SAFETY_READ,
+            SAFETY_MIXED,
+        }:
+            errors.append(f"{method} live probe allowed for unsafe safety")
         if contract.live_probe_allowed and contract.example_param is None:
             errors.append(f"{method} live probe missing example_param")
 

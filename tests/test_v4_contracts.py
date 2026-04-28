@@ -38,13 +38,13 @@ def test_confirmed_contracts_are_not_undocumented():
     ]
 
     assert {contract.method for contract in confirmed} == {
+        "AccountManagement",
         "GetClientsUnits",
         "GetStatGoals",
         "GetRetargetingGoals",
     }
     for contract in confirmed:
         assert contract.param_shape != PARAM_UNDOCUMENTED
-        assert contract.safety == SAFETY_READ
         assert contract.live_probe_allowed
         assert contract.example_param is not None
 
@@ -56,6 +56,16 @@ def test_get_clients_units_contract_uses_array_param():
     assert build_v4_body("GetClientsUnits", ["client-login"]) == {
         "method": "GetClientsUnits",
         "param": ["client-login"],
+    }
+
+
+def test_account_management_get_contract_returns_money_balance():
+    contract = get_v4_contract("AccountManagement")
+
+    assert contract.example_param == {"Action": "Get"}
+    assert build_v4_body("AccountManagement", {"Action": "Get"}) == {
+        "method": "AccountManagement",
+        "param": {"Action": "Get"},
     }
 
 
