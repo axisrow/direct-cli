@@ -24,14 +24,22 @@ from direct_cli.wsdl_coverage import (
     CACHE_DIR,
     CLI_TO_API_SERVICE,
     CANONICAL_API_SERVICES,
+    IMPORTED_XSD_REGISTRY,
     INTENTIONAL_EXTRA_METHODS,
     KNOWN_MISSING_SERVICES,
     NON_WSDL_SERVICE_POLICIES,
+    RUNTIME_DEPRECATED_METHODS,
     fetch_wsdl,
+    find_nested_schema_violations,
     get_cli_methods_for_service,
     get_operation_request_schema,
     get_operation_field_name_enums,
     parse_wsdl_operations,
+)
+from tests.api_coverage_payloads import (
+    DRY_RUN_PAYLOAD_EXCLUSIONS,
+    PAYLOAD_CASES,
+    PAYLOAD_COVERED_COMMANDS,
 )
 
 ALLOWED_EXTRA_METHODS = set(INTENTIONAL_EXTRA_METHODS)
@@ -146,457 +154,6 @@ def _wsdl_with_get_field_enums(field_values):
     )
 
 
-DRY_RUN_PAYLOAD_EXCLUSIONS = {
-    "adextensions.add": "Callout-only add; covered by command-level dry-run tests.",
-    "adgroups.add": "Requires group-type-specific typed payload fixtures; tracked separately from schema smoke coverage.",
-    "adgroups.update": "Requires typed update payload fixtures; tracked separately from schema smoke coverage.",
-    "adimages.add": "Requires image-data or image-file fixtures that are better covered by command tests.",
-    "ads.add": "Requires TEXT_AD and TEXT_IMAGE_AD payload variants; covered by focused dry-run tests.",
-    "ads.archive": "Lifecycle alias of the same request shape family as campaigns/keywords lifecycle commands.",
-    "ads.get": "Read path with rich field-selection options; payload contract differs from mutating coverage focus.",
-    "ads.resume": "Lifecycle alias in the same request-shape family as covered resume/delete actions.",
-    "ads.suspend": "Lifecycle alias in the same request-shape family as covered resume/delete actions.",
-    "ads.unarchive": "Lifecycle alias in the same request-shape family as covered resume/delete actions.",
-    "ads.update": "Requires large heterogeneous ad payload variants; covered by focused dry-run tests.",
-    "advideos.add": "Requires media payload fixture not worth duplicating in generic schema smoke coverage.",
-    "audiencetargets.resume": "Same simple Ids payload family as covered delete/set-bids actions.",
-    "audiencetargets.suspend": "Same simple Ids payload family as covered delete/set-bids actions.",
-    "bidmodifiers.add": "Requires modifier-type-specific typed flag fixtures.",
-    "bidmodifiers.delete": "Helper/legacy surface; not part of strict WSDL parity claim.",
-    "bidmodifiers.set": "Requires modifier-type-specific typed flag fixtures.",
-    "campaigns.add": "Requires campaign-type-specific typed payload variants; covered by focused dry-run tests.",
-    "campaigns.suspend": "Same lifecycle payload family as covered campaigns.delete/archive/resume.",
-    "campaigns.unarchive": "Same lifecycle payload family as covered campaigns.delete/archive/resume.",
-    "campaigns.update": "Requires typed budget/date/status variants; covered by focused dry-run tests.",
-    "dynamicads.add": "Requires condition-spec payload fixtures with optional bid fields.",
-    "dynamicads.resume": "Same simple Ids payload family as covered delete/set-bids actions.",
-    "dynamicads.suspend": "Same simple Ids payload family as covered delete/set-bids actions.",
-    "dynamicfeedadtargets.add": "Covered by test_dry_run.py::test_dynamicfeedadtargets_add_payload.",
-    "dynamicfeedadtargets.delete": "Covered by test_dry_run.py::test_dynamicfeedadtargets_delete_payload.",
-    "dynamicfeedadtargets.resume": "Covered by test_dry_run.py::test_dynamicfeedadtargets_resume_payload.",
-    "dynamicfeedadtargets.set-bids": "Covered by test_dry_run.py::test_dynamicfeedadtargets_set_bids_payload.",
-    "dynamicfeedadtargets.suspend": "Covered by test_dry_run.py::test_dynamicfeedadtargets_suspend_payload.",
-    "strategies.add": "Covered by test_dry_run.py::test_strategies_add_payload.",
-    "strategies.archive": "Covered by test_dry_run.py::test_strategies_archive_payload.",
-    "strategies.unarchive": "Covered by test_dry_run.py::test_strategies_unarchive_payload.",
-    "strategies.update": "Covered by test_dry_run.py::test_strategies_update_payload.",
-    "feeds.add": "Current WSDL schema parser treats feed source variants like required siblings; keep covered by command-level dry-run tests.",
-    "keywords.add": "Requires keyword/addition payload variants; covered by focused dry-run tests.",
-    "keywords.resume": "Same simple Ids payload family as covered keywords.delete/suspend.",
-    "keywords.update": "Requires keyword update payload variants; covered by focused dry-run tests.",
-    "retargeting.add": "Requires typed --rule payload fixtures.",
-    "smartadtargets.resume": "Same simple Ids payload family as covered delete/set-bids actions.",
-    "smartadtargets.suspend": "Same simple Ids payload family as covered delete/set-bids actions.",
-    "vcards.add": "Requires large contact-card payload fixture not needed for generic schema smoke coverage.",
-    "reports.get": "Reports API uses a custom TSV endpoint; payload contract is covered by test_reports_request_builder_contract.",
-}
-
-PAYLOAD_CASES = [
-    (
-        "agencyclients",
-        "add",
-        [
-            "agencyclients",
-            "add",
-            "--login",
-            "client-login",
-            "--first-name",
-            "Alice",
-            "--last-name",
-            "Smith",
-            "--currency",
-            "RUB",
-            "--notification-email",
-            "ops@example.com",
-            "--notification-lang",
-            "RU",
-            "--send-account-news",
-            "--no-send-warnings",
-        ],
-    ),
-    (
-        "agencyclients",
-        "addPassportOrganization",
-        [
-            "agencyclients",
-            "add-passport-organization",
-            "--name",
-            "Org",
-            "--currency",
-            "RUB",
-            "--notification-email",
-            "ops@example.com",
-            "--notification-lang",
-            "EN",
-            "--no-send-account-news",
-            "--send-warnings",
-        ],
-    ),
-    (
-        "agencyclients",
-        "addPassportOrganizationMember",
-        [
-            "agencyclients",
-            "add-passport-organization-member",
-            "--passport-organization-login",
-            "org-login",
-            "--role",
-            "CHIEF",
-            "--invite-email",
-            "user@example.com",
-        ],
-    ),
-    (
-        "agencyclients",
-        "update",
-        [
-            "agencyclients",
-            "update",
-            "--client-id",
-            "99",
-            "--phone",
-            "+70000000000",
-            "--email",
-            "user@example.com",
-            "--grant",
-            "EDIT_CAMPAIGNS",
-        ],
-    ),
-    (
-        "audiencetargets",
-        "add",
-        [
-            "audiencetargets",
-            "add",
-            "--adgroup-id",
-            "100",
-            "--retargeting-list-id",
-            "200",
-            "--bid",
-            "12000000",
-            "--priority",
-            "HIGH",
-        ],
-    ),
-    (
-        "audiencetargets",
-        "setBids",
-        [
-            "audiencetargets",
-            "set-bids",
-            "--id",
-            "10",
-            "--context-bid",
-            "5000000",
-            "--priority",
-            "LOW",
-        ],
-    ),
-    (
-        "bids",
-        "set",
-        [
-            "bids",
-            "set",
-            "--keyword-id",
-            "123",
-            "--bid",
-            "1500000",
-        ],
-    ),
-    (
-        "bids",
-        "setAuto",
-        [
-            "bids",
-            "set-auto",
-            "--keyword-id",
-            "123",
-            "--max-bid",
-            "20000000",
-            "--position",
-            "PREMIUMBLOCK",
-            "--scope",
-            "SEARCH",
-        ],
-    ),
-    (
-        "clients",
-        "update",
-        [
-            "clients",
-            "update",
-            "--client-id",
-            "501",
-            "--phone",
-            "+70000000000",
-            "--email",
-            "user@example.com",
-        ],
-    ),
-    (
-        "creatives",
-        "add",
-        [
-            "creatives",
-            "add",
-            "--video-id",
-            "video-id",
-        ],
-    ),
-    (
-        "feeds",
-        "update",
-        [
-            "feeds",
-            "update",
-            "--id",
-            "18",
-            "--name",
-            "Renamed feed",
-        ],
-    ),
-    (
-        "dynamictextadtargets",
-        "setBids",
-        [
-            "dynamicads",
-            "set-bids",
-            "--id",
-            "10",
-            "--bid",
-            "3000000",
-            "--context-bid",
-            "2000000",
-            "--priority",
-            "HIGH",
-        ],
-    ),
-    (
-        "keywordbids",
-        "set",
-        [
-            "keywordbids",
-            "set",
-            "--keyword-id",
-            "321",
-            "--search-bid",
-            "1100000",
-            "--network-bid",
-            "900000",
-        ],
-    ),
-    (
-        "keywordbids",
-        "setAuto",
-        [
-            "keywordbids",
-            "set-auto",
-            "--keyword-id",
-            "321",
-            "--target-traffic-volume",
-            "100",
-            "--increase-percent",
-            "10",
-            "--bid-ceiling",
-            "12500000",
-        ],
-    ),
-    (
-        "negativekeywordsharedsets",
-        "add",
-        [
-            "negativekeywordsharedsets",
-            "add",
-            "--name",
-            "Shared negatives",
-            "--keywords",
-            "cheap,free",
-        ],
-    ),
-    (
-        "negativekeywordsharedsets",
-        "update",
-        [
-            "negativekeywordsharedsets",
-            "update",
-            "--id",
-            "19",
-            "--keywords",
-            "cheap,free",
-        ],
-    ),
-    (
-        "retargetinglists",
-        "update",
-        [
-            "retargeting",
-            "update",
-            "--id",
-            "55",
-            "--name",
-            "Renamed",
-            "--rule",
-            "ANY:12345:30",
-        ],
-    ),
-    (
-        "sitelinks",
-        "add",
-        [
-            "sitelinks",
-            "add",
-            "--sitelink",
-            "Docs|https://example.com/docs|Desk",
-        ],
-    ),
-    (
-        "smartadtargets",
-        "add",
-        [
-            "smartadtargets",
-            "add",
-            "--adgroup-id",
-            "77",
-            "--name",
-            "Audience A",
-            "--audience",
-            "ALL_SEGMENTS",
-            "--condition",
-            "CATEGORY_ID:EQUALS:42",
-            "--average-cpc",
-            "3000000",
-            "--priority",
-            "HIGH",
-        ],
-    ),
-    (
-        "smartadtargets",
-        "update",
-        [
-            "smartadtargets",
-            "update",
-            "--id",
-            "66",
-            "--name",
-            "Audience B",
-            "--average-cpc",
-            "1000000",
-            "--priority",
-            "LOW",
-        ],
-    ),
-    (
-        "smartadtargets",
-        "setBids",
-        [
-            "smartadtargets",
-            "set-bids",
-            "--id",
-            "11",
-            "--average-cpc",
-            "1500000",
-            "--average-cpa",
-            "2500000",
-            "--priority",
-            "LOW",
-        ],
-    ),
-    (
-        "campaigns",
-        "delete",
-        ["campaigns", "delete", "--id", "12"],
-    ),
-    (
-        "campaigns",
-        "archive",
-        ["campaigns", "archive", "--id", "12"],
-    ),
-    (
-        "campaigns",
-        "resume",
-        ["campaigns", "resume", "--id", "12"],
-    ),
-    (
-        "ads",
-        "delete",
-        ["ads", "delete", "--id", "7"],
-    ),
-    (
-        "ads",
-        "moderate",
-        ["ads", "moderate", "--id", "7"],
-    ),
-    (
-        "keywords",
-        "delete",
-        ["keywords", "delete", "--id", "8"],
-    ),
-    (
-        "keywords",
-        "suspend",
-        ["keywords", "suspend", "--id", "8"],
-    ),
-    (
-        "adgroups",
-        "delete",
-        ["adgroups", "delete", "--id", "14"],
-    ),
-    (
-        "adextensions",
-        "delete",
-        ["adextensions", "delete", "--id", "15"],
-    ),
-    (
-        "adimages",
-        "delete",
-        ["adimages", "delete", "--hash", "image-hash"],
-    ),
-    (
-        "audiencetargets",
-        "delete",
-        ["audiencetargets", "delete", "--id", "16"],
-    ),
-    (
-        "dynamictextadtargets",
-        "delete",
-        ["dynamicads", "delete", "--id", "17"],
-    ),
-    (
-        "feeds",
-        "delete",
-        ["feeds", "delete", "--id", "18"],
-    ),
-    (
-        "negativekeywordsharedsets",
-        "delete",
-        ["negativekeywordsharedsets", "delete", "--id", "19"],
-    ),
-    (
-        "retargetinglists",
-        "delete",
-        ["retargeting", "delete", "--id", "20"],
-    ),
-    (
-        "sitelinks",
-        "delete",
-        ["sitelinks", "delete", "--id", "21"],
-    ),
-    (
-        "smartadtargets",
-        "delete",
-        ["smartadtargets", "delete", "--id", "22"],
-    ),
-    (
-        "vcards",
-        "delete",
-        ["vcards", "delete", "--id", "23"],
-    ),
-]
-
-PAYLOAD_COVERED_COMMANDS = {f"{argv[0]}.{argv[1]}" for _, _, argv in PAYLOAD_CASES}
-
-
 def _dry_run(*args: str) -> dict:
     result = CliRunner().invoke(cli, list(args) + ["--dry-run"])
     assert result.exit_code == 0, (
@@ -608,11 +165,9 @@ def _dry_run(*args: str) -> dict:
 
 
 def _assert_body_matches_wsdl(body: dict, service: str, operation: str):
-    # Coverage note: this validator checks top-level param names, required flags,
-    # and one level of inline-type fields. Nested validation does NOT cover types
-    # declared via <xsd:import> or fields inherited through xsd:extension — see
-    # `get_operation_request_schema` docstring for details. For those shapes,
-    # only the CLI-level dry-run command test guards correctness.
+    # Coverage note: get_operation_request_schema resolves registered imported
+    # XSD types and inherited xsd:extension fields, so nested item checks below
+    # cover those schemas as long as the import is in IMPORTED_XSD_REGISTRY.
     schema = get_operation_request_schema(fetch_wsdl(service), operation)
     expected_fields = {field["name"] for field in schema["fields"]}
     required_fields = {
@@ -992,6 +547,8 @@ class TestApiCoverage:
         assert report["schema"]["orphan_common_fields"] == []
         assert report["schema"]["uncovered_get_groups"] == []
         assert report["schema"]["waiver_misuse"] == []
+        assert report["schema"]["runtime_deprecated_unguarded"] == []
+        assert report["schema"]["nested_schema_violations"] == []
 
     def test_real_wsdl_field_enum_parser_for_108_services(self):
         expected = {
@@ -1030,6 +587,8 @@ class TestApiCoverage:
         assert schema_gate["orphan_common_fields"] == []
         assert schema_gate["uncovered_get_groups"] == []
         assert schema_gate["waiver_misuse"] == []
+        assert schema_gate["runtime_deprecated_unguarded"] == []
+        assert schema_gate["nested_schema_violations"] == []
 
     def test_schema_gate_flags_uncovered_get_command(self, monkeypatch):
         """A new ``get`` command without coverage and without waiver fails."""
@@ -1402,24 +961,18 @@ class TestApiCoverage:
 
         # Two-arg signature → arity check passes, no fallback re-call.
         with pytest.raises(TypeError, match="boom from inside"):
-            report_script._capture_operation_body(
-                bad_two_arg_capture, "fake", "get"
-            )
+            report_script._capture_operation_body(bad_two_arg_capture, "fake", "get")
         assert call_count["two_arg"] == 1  # exactly one call, no silent retry
 
         # One-arg signature on non-get operation must raise, not silently fall
         # back to one-arg call (which would lose the operation context).
         with pytest.raises(TypeError):
-            report_script._capture_operation_body(
-                bad_one_arg_capture, "fake", "set"
-            )
+            report_script._capture_operation_body(bad_one_arg_capture, "fake", "set")
 
         # One-arg on get → falls back to single-arg call (legacy compat).
         call_count["one_arg"] = 0
         with pytest.raises(TypeError, match="one-arg"):
-            report_script._capture_operation_body(
-                bad_one_arg_capture, "fake", "get"
-            )
+            report_script._capture_operation_body(bad_one_arg_capture, "fake", "get")
         assert call_count["one_arg"] == 1
 
     def test_schema_gate_reports_invalid_default_fieldname(self, monkeypatch):
@@ -1669,6 +1222,263 @@ class TestApiCoverage:
         )
         assert result.exit_code == 0, result.output
         assert captured["body"]["params"]["IncludeDiscount"] == "NO"
+
+    def test_runtime_deprecated_registry_shape(self):
+        """Each entry must declare error_code, replacement, reason."""
+        assert RUNTIME_DEPRECATED_METHODS, "registry must have at least one entry"
+        for (group, method), meta in RUNTIME_DEPRECATED_METHODS.items():
+            assert isinstance(group, str) and group
+            assert isinstance(method, str) and method
+            assert isinstance(meta, dict)
+            assert isinstance(meta.get("error_code"), int)
+            replacement = meta.get("replacement")
+            assert replacement is None or (isinstance(replacement, str) and replacement)
+            assert isinstance(meta.get("reason"), str) and meta["reason"]
+
+    def test_runtime_deprecated_methods_block_invocation(self):
+        """direct agencyclients add must exit non-zero with replacement hint."""
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "agencyclients",
+                "add",
+                "--login",
+                "x",
+                "--first-name",
+                "A",
+                "--last-name",
+                "B",
+                "--currency",
+                "RUB",
+            ],
+        )
+        assert result.exit_code != 0
+        combined = result.output + (str(result.exception) if result.exception else "")
+        assert "deprecated" in combined.lower() or "no longer" in combined.lower()
+        assert "add-passport-organization" in combined
+
+    def test_runtime_deprecated_methods_block_dry_run_too(self):
+        """--dry-run must also be blocked (assertion runs first)."""
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "agencyclients",
+                "add",
+                "--login",
+                "x",
+                "--first-name",
+                "A",
+                "--last-name",
+                "B",
+                "--currency",
+                "RUB",
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code != 0
+        combined = result.output + (str(result.exception) if result.exception else "")
+        assert "add-passport-organization" in combined
+
+    def test_schema_gate_flags_runtime_deprecated_without_cli_guard(self, monkeypatch):
+        """A registry entry without a guarded Click command must fail the gate."""
+        report_script = _load_coverage_report_script()
+        # Fake registry pointing at a nonexistent command.
+        fake_registry = {
+            ("__nonexistent_group__", "__nonexistent_method__"): {
+                "error_code": 9999,
+                "replacement": "direct nothing",
+                "reason": "test fixture",
+            }
+        }
+        monkeypatch.setattr(report_script, "RUNTIME_DEPRECATED_METHODS", fake_registry)
+
+        violations = report_script._validate_runtime_deprecated_methods(fake_registry)
+        assert violations, "fake unguarded entry should produce a violation"
+        assert violations[0]["cli_group"] == "__nonexistent_group__"
+        assert violations[0]["reason"] == "CLI command not found"
+
+    def test_schema_gate_flags_nested_payload_dry_run_failure(self, monkeypatch):
+        """A payload smoke case whose dry-run fails must fail schema parity."""
+        report_script = _load_coverage_report_script()
+        monkeypatch.setattr(report_script, "CLI_TO_API_SERVICE", {})
+        monkeypatch.setattr(report_script, "COMMON_FIELDS", {})
+        payload_cases = [
+            (
+                "fake",
+                "get",
+                ["__missing_group__", "get"],
+            )
+        ]
+
+        schema_gate = report_script.build_schema_gate(
+            fetch_wsdl_func=lambda _service: _wsdl_with_operations("get"),
+            nested_schema_payload_cases=payload_cases,
+            nested_schema_exclusions={},
+        )
+
+        violations = schema_gate["nested_schema_violations"]
+        assert violations
+        assert violations[0]["kind"] == "dry_run_failed"
+        assert schema_gate["schema_parity_ok"] is False
+
+    def test_nested_payload_validator_flags_schema_resolution_error(self):
+        """A schema resolver exception must be reported, not silently skipped."""
+        report_script = _load_coverage_report_script()
+        payload_cases = [
+            (
+                "bids",
+                "set",
+                [
+                    "bids",
+                    "set",
+                    "--keyword-id",
+                    "123",
+                    "--bid",
+                    "1500000",
+                ],
+            )
+        ]
+
+        def _raise_schema_error(_service):
+            raise RuntimeError("schema unavailable")
+
+        violations = report_script._validate_nested_schema_payloads(
+            fetch_wsdl_func=_raise_schema_error,
+            payload_cases=payload_cases,
+            dry_run_payload_exclusions={},
+        )
+
+        assert violations
+        assert violations[0]["kind"] == "schema_error"
+        assert "schema unavailable" in violations[0]["error"]
+
+    def test_runtime_deprecated_gate_rejects_parser_error_without_replacement(
+        self, monkeypatch
+    ):
+        """Parser UsageError is not enough unless it is our replacement guard."""
+        report_script = _load_coverage_report_script()
+        fake_registry = {
+            ("agencyclients", "add"): {
+                "error_code": 3500,
+                "replacement": "direct replacement-command",
+                "reason": "test fixture",
+            }
+        }
+        monkeypatch.setitem(
+            report_script.RUNTIME_DEPRECATED_CAPTURE_FIXTURES,
+            ("agencyclients", "add"),
+            ["agencyclients", "add", "--bogus"],
+        )
+
+        violations = report_script._validate_runtime_deprecated_methods(fake_registry)
+
+        assert violations
+        assert {violation["mode"] for violation in violations} == {
+            "normal",
+            "dry_run",
+        }
+        assert all(
+            violation["reason"] == "UsageError did not include replacement hint"
+            for violation in violations
+        )
+
+    def test_imported_xsd_cache_matches_registry(self):
+        """Every IMPORTED_XSD_REGISTRY namespace has a cached file (and vice versa)."""
+        cache_dir = CACHE_DIR / "imports"
+        assert cache_dir.is_dir(), f"imports cache directory missing: {cache_dir}"
+        cached_files = {p.name for p in cache_dir.glob("*.xsd")}
+        registered_files = set(IMPORTED_XSD_REGISTRY.values())
+        assert cached_files == registered_files, (
+            "Imported XSD cache drift detected.\n"
+            f"Missing files: {sorted(registered_files - cached_files)}\n"
+            f"Orphan files: {sorted(cached_files - registered_files)}"
+        )
+
+    def test_get_operation_request_schema_resolves_imports(self):
+        """agencyclients.add Notification (gc:NotificationAdd) must resolve nested fields."""
+        schema = get_operation_request_schema(fetch_wsdl("agencyclients"), "add")
+        notification = next(
+            (f for f in schema["fields"] if f["name"] == "Notification"), None
+        )
+        assert notification is not None, "Notification field missing"
+        nested_names = {item["name"] for item in notification["item_fields"]}
+        assert {
+            "Email",
+            "Lang",
+            "EmailSubscriptions",
+        } <= nested_names, (
+            f"Imported gc:NotificationAdd nested fields missing: {nested_names}"
+        )
+
+    def test_get_operation_request_schema_resolves_extension_base_fields(self):
+        """clients.update Clients[].* must include inherited base-type fields."""
+        schema = get_operation_request_schema(fetch_wsdl("clients"), "update")
+        clients_field = next(
+            (f for f in schema["fields"] if f["name"] == "Clients"), None
+        )
+        assert clients_field is not None, "Clients field missing in update schema"
+        base_field_names = {it["name"] for it in clients_field["item_fields"]}
+        # Notification + Settings come from gc:ClientUpdateItem extension; if
+        # the resolver fails to walk extension/@base, item_fields is small or
+        # empty and the gate would silently miss invalid keys.
+        assert {"Notification", "Settings"} <= base_field_names, (
+            f"Inherited extension/@base fields missing from item_fields: "
+            f"{base_field_names}"
+        )
+
+    def test_get_operation_request_schema_resolves_adextensiontypes_import(self):
+        """adextensions.add AdExtensions[].Callout resolves imported ext:Callout."""
+        schema = get_operation_request_schema(fetch_wsdl("adextensions"), "add")
+        adextensions = next(
+            (f for f in schema["fields"] if f["name"] == "AdExtensions"), None
+        )
+        assert adextensions is not None, "AdExtensions field missing"
+        callout = next(
+            (f for f in adextensions["item_fields"] if f["name"] == "Callout"),
+            None,
+        )
+        assert callout is not None, "AdExtensions[].Callout field missing"
+        callout_fields = {item["name"] for item in callout["item_fields"]}
+        assert "CalloutText" in callout_fields
+
+    def test_smoke_probes_advideo_returns_none_without_credentials(self, monkeypatch):
+        """advideo_probe_id must gracefully return None on auth/network failure."""
+        from direct_cli import _smoke_probes
+
+        # Force create_client to raise; advideo_probe_id should still return None.
+        def _raise(**_):
+            raise RuntimeError("no credentials")
+
+        monkeypatch.setattr(_smoke_probes, "create_client", _raise)
+        monkeypatch.delenv("YANDEX_DIRECT_TEST_ADVIDEO_ID", raising=False)
+
+        result = _smoke_probes.advideo_probe_id()
+        assert result is None
+
+    def test_payload_cases_validate_nested_imported_fields(self):
+        """find_nested_schema_violations flags unknown keys in imported nested types."""
+        schema = get_operation_request_schema(fetch_wsdl("agencyclients"), "add")
+        # Synthetic body: valid top-level params + bogus nested key inside
+        # the imported gc:NotificationAdd type.
+        bad_body = {
+            "params": {
+                "Login": "x",
+                "FirstName": "A",
+                "LastName": "B",
+                "Currency": "RUB",
+                "Notification": {
+                    "Email": "ops@example.com",
+                    "Lang": "RU",
+                    "BogusNestedKey": "should-be-flagged",
+                },
+            }
+        }
+        violations = find_nested_schema_violations(bad_body, schema)
+        assert any(
+            "BogusNestedKey" in v for v in violations
+        ), f"Expected BogusNestedKey to be flagged, got: {violations}"
 
 
 @pytest.mark.api_coverage

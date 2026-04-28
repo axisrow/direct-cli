@@ -353,11 +353,12 @@ direct creatives add --video-id video-id --dry-run
 direct feeds add --name "Feed A" --url "https://example.com/feed.xml" --dry-run
 direct feeds update --id 18 --name "Feed A v2" --url "https://example.com/feed-v2.xml" --dry-run
 direct clients update --client-id 999 --phone +70000000000 --fax +70000000001 --email user@example.com --city Moscow --dry-run
-direct agencyclients add --login client-login --first-name Alice --last-name Smith --currency RUB --notification-email ops@example.com --notification-lang RU --send-account-news --no-send-warnings --dry-run
 direct agencyclients add-passport-organization --name "Org" --currency RUB --notification-email ops@example.com --notification-lang EN --no-send-account-news --send-warnings --dry-run
 direct agencyclients add-passport-organization-member --passport-organization-login org-login --role CHIEF --invite-email user@example.com --dry-run
 direct agencyclients update --client-id 42 --phone +70000000000 --email user@example.com --grant EDIT_CAMPAIGNS --grant IMPORT_XLS --dry-run
 ```
+
+`direct agencyclients add` is runtime-deprecated by Yandex Direct and is blocked by the CLI. Use `direct agencyclients add-passport-organization` instead.
 
 ### Known Unsupported API Operation
 
@@ -973,11 +974,12 @@ direct creatives add --video-id video-id --dry-run
 direct feeds add --name "Фид A" --url "https://example.com/feed.xml" --dry-run
 direct feeds update --id 18 --name "Фид A v2" --url "https://example.com/feed-v2.xml" --dry-run
 direct clients update --client-id 999 --phone +70000000000 --fax +70000000001 --email user@example.com --city Moscow --dry-run
-direct agencyclients add --login client-login --first-name Alice --last-name Smith --currency RUB --notification-email ops@example.com --notification-lang RU --send-account-news --no-send-warnings --dry-run
 direct agencyclients add-passport-organization --name "Org" --currency RUB --notification-email ops@example.com --notification-lang EN --no-send-account-news --send-warnings --dry-run
 direct agencyclients add-passport-organization-member --passport-organization-login org-login --role CHIEF --invite-email user@example.com --dry-run
 direct agencyclients update --client-id 42 --phone +70000000000 --email user@example.com --grant EDIT_CAMPAIGNS --grant IMPORT_XLS --dry-run
 ```
+
+`direct agencyclients add` runtime-deprecated в Yandex Direct и блокируется CLI. Используйте `direct agencyclients add-passport-organization`.
 
 ### Известная неподдерживаемая API-операция
 

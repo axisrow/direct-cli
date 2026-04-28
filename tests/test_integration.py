@@ -31,6 +31,7 @@ import pytest
 from click.testing import CliRunner
 
 from direct_cli.cli import cli
+from direct_cli._smoke_probes import advideo_probe_id
 
 sys.path.insert(0, os.path.dirname(__file__))
 from conftest import skip_if_no_token  # noqa: E402
@@ -147,57 +148,7 @@ def get_first_business_id() -> int | None:
 
 def get_first_advideo_probe_id() -> str | None:
     """Return a creative/video ID accepted by advideos.get, or None."""
-    env_id = os.getenv("YANDEX_DIRECT_TEST_ADVIDEO_ID")
-    if env_id:
-        env_result = invoke_get(
-            "advideos",
-            "get",
-            "--ids",
-            env_id,
-            "--limit",
-            "1",
-            "--format",
-            "json",
-        )
-        env_data = parse_json_output(env_result)
-        if isinstance(env_data, list) and env_data:
-            return env_id
-
-    result = invoke_get(
-        "creatives",
-        "get",
-        "--fields",
-        "Id,Name,Type",
-        "--limit",
-        "20",
-        "--format",
-        "json",
-    )
-    data = parse_json_output(result)
-    if not isinstance(data, list):
-        return None
-
-    video_creative_types = {"VIDEO_EXTENSION_CREATIVE", "CPM_VIDEO_CREATIVE"}
-    for creative in data:
-        if creative.get("Type") not in video_creative_types:
-            continue
-        candidate = creative.get("Id")
-        if not candidate:
-            continue
-        probe_result = invoke_get(
-            "advideos",
-            "get",
-            "--ids",
-            str(candidate),
-            "--limit",
-            "1",
-            "--format",
-            "json",
-        )
-        probe_data = parse_json_output(probe_result)
-        if isinstance(probe_data, list) and probe_data:
-            return str(candidate)
-    return None
+    return advideo_probe_id()
 
 
 def is_agency_access_denied(result) -> bool:

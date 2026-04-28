@@ -21,11 +21,14 @@ from direct_cli.wsdl_coverage import (
     INTENTIONAL_EXTRA_METHODS,
     LIVE_DISCOVERED_API_SERVICES,
     METHOD_NAME_OVERRIDES,
+    RUNTIME_DEPRECATED_METHODS,
+    find_nested_schema_violations,
     get_api_coverage_policy,
     fetch_wsdl,
     fetch_live_wsdl,
     get_cli_methods_for_service,
     get_operation_field_name_enums,
+    get_operation_request_schema,
     parse_wsdl_operations,
 )
 
@@ -451,10 +454,246 @@ def capture_cli_get_request_body(cli_group: str) -> dict:
     return capture_cli_request_body(cli_group, "get")
 
 
-def build_schema_gate(fetch_wsdl_func=fetch_wsdl, capture_get_body_func=None) -> dict:
+RUNTIME_DEPRECATED_CAPTURE_FIXTURES = {
+    ("agencyclients", "add"): [
+        "agencyclients",
+        "add",
+        "--login",
+        "client-login",
+        "--first-name",
+        "Alice",
+        "--last-name",
+        "Smith",
+        "--currency",
+        "RUB",
+    ],
+}
+
+
+def _validate_nested_schema_payloads(
+    fetch_wsdl_func=fetch_wsdl,
+    payload_cases=None,
+    dry_run_payload_exclusions=None,
+) -> list[dict]:
+    """Run dry-run for each PAYLOAD_CASES entry and flag unknown nested keys.
+
+    Uses ``find_nested_schema_violations`` against
+    ``get_operation_request_schema`` (which now resolves imported XSD types).
+    Skips entries listed in ``DRY_RUN_PAYLOAD_EXCLUSIONS``.
+    """
+    if payload_cases is None or dry_run_payload_exclusions is None:
+        try:
+            from tests.api_coverage_payloads import (
+                DRY_RUN_PAYLOAD_EXCLUSIONS,
+                PAYLOAD_CASES,
+            )
+        except ImportError as exc:
+            return [
+                {
+                    "kind": "payload_cases_import_error",
+                    "service": None,
+                    "operation": None,
+                    "argv": [],
+                    "error": str(exc),
+                }
+            ]
+        if payload_cases is None:
+            payload_cases = PAYLOAD_CASES
+        if dry_run_payload_exclusions is None:
+            dry_run_payload_exclusions = DRY_RUN_PAYLOAD_EXCLUSIONS
+
+    violations: list[dict] = []
+    for service, operation, argv in payload_cases:
+        excl_key = f"{argv[0]}.{argv[1]}"
+        if excl_key in dry_run_payload_exclusions:
+            continue
+        result = CliRunner().invoke(cli, list(argv) + ["--dry-run"])
+        if result.exit_code != 0 or not result.output.strip():
+            error = result.output.strip()
+            if result.exception is not None:
+                error = f"{error}\n{result.exception}".strip()
+            violations.append(
+                {
+                    "kind": "dry_run_failed",
+                    "service": service,
+                    "operation": operation,
+                    "argv": list(argv),
+                    "error": error or f"exit code {result.exit_code}",
+                }
+            )
+            continue
+        try:
+            body = json.loads(result.output)
+        except (json.JSONDecodeError, TypeError) as exc:
+            violations.append(
+                {
+                    "kind": "invalid_json",
+                    "service": service,
+                    "operation": operation,
+                    "argv": list(argv),
+                    "error": str(exc),
+                }
+            )
+            continue
+        try:
+            schema = get_operation_request_schema(fetch_wsdl_func(service), operation)
+        except Exception as exc:
+            violations.append(
+                {
+                    "kind": "schema_error",
+                    "service": service,
+                    "operation": operation,
+                    "argv": list(argv),
+                    "error": str(exc),
+                }
+            )
+            continue
+        unknown = find_nested_schema_violations(body, schema)
+        if unknown:
+            violations.append(
+                {
+                    "kind": "unknown_nested_key",
+                    "service": service,
+                    "operation": operation,
+                    "argv": list(argv),
+                    "error": "",
+                    "unknown_paths": unknown,
+                }
+            )
+    return violations
+
+
+def _validate_runtime_deprecated_methods(deprecated_methods=None) -> list[dict]:
+    """Verify each deprecated method's CLI command rejects with UsageError.
+
+    For every entry the CLI command must:
+    1. Exist in the Click app (``cli.commands[group].commands[method]``).
+    2. Reject invocation with a non-zero exit code BEFORE reaching the API
+       client (we substitute a fake client; if the gate ever sees a captured
+       payload, the command is not actually guarded).
+    3. Raise the project's own ``click.UsageError`` and include the configured
+       replacement hint. Commands with ``--dry-run`` must reject in both modes.
+    """
+    import click
+
+    if deprecated_methods is None:
+        deprecated_methods = RUNTIME_DEPRECATED_METHODS
+
+    violations: list[dict] = []
+    for (cli_group, cli_method), meta in sorted(deprecated_methods.items()):
+        group = cli.commands.get(cli_group)
+        if group is None or cli_method not in getattr(group, "commands", {}):
+            violations.append(
+                {
+                    "cli_group": cli_group,
+                    "cli_method": cli_method,
+                    "mode": "normal",
+                    "reason": "CLI command not found",
+                    "metadata": meta,
+                }
+            )
+            continue
+
+        base_argv = RUNTIME_DEPRECATED_CAPTURE_FIXTURES.get(
+            (cli_group, cli_method), [cli_group, cli_method]
+        )
+        modes = [("normal", list(base_argv))]
+        if _command_supports_option(cli_group, cli_method, "dry_run"):
+            modes.append(("dry_run", list(base_argv) + ["--dry-run"]))
+
+        try:
+            module = importlib.import_module(f"direct_cli.commands.{cli_group}")
+        except ImportError as exc:
+            for mode, _argv in modes:
+                violations.append(
+                    {
+                        "cli_group": cli_group,
+                        "cli_method": cli_method,
+                        "mode": mode,
+                        "reason": f"CLI command module import failed: {exc}",
+                        "metadata": meta,
+                    }
+                )
+            continue
+
+        for mode, argv in modes:
+            original_create_client = getattr(module, "create_client", None)
+            captured: dict = {}
+            try:
+                if original_create_client is not None:
+                    module.create_client = lambda **_: _CapturedClient(
+                        captured
+                    )  # noqa: B023
+                result = CliRunner().invoke(cli, argv, standalone_mode=False)
+            finally:
+                if original_create_client is not None:
+                    module.create_client = original_create_client
+
+            if "body" in captured:
+                violations.append(
+                    {
+                        "cli_group": cli_group,
+                        "cli_method": cli_method,
+                        "mode": mode,
+                        "reason": "command sent a request body instead of failing",
+                        "metadata": meta,
+                    }
+                )
+                continue
+            if result.exit_code == 0:
+                violations.append(
+                    {
+                        "cli_group": cli_group,
+                        "cli_method": cli_method,
+                        "mode": mode,
+                        "reason": (
+                            f"command exited 0 (expected non-zero); "
+                            f"output: {result.output.strip()[:120]}"
+                        ),
+                        "metadata": meta,
+                    }
+                )
+                continue
+            if not isinstance(result.exception, click.UsageError):
+                exc_type = (
+                    type(result.exception).__name__ if result.exception else "None"
+                )
+                violations.append(
+                    {
+                        "cli_group": cli_group,
+                        "cli_method": cli_method,
+                        "mode": mode,
+                        "reason": (
+                            f"non-zero exit but exception type is {exc_type}, "
+                            "expected UsageError"
+                        ),
+                        "metadata": meta,
+                    }
+                )
+                continue
+            replacement = meta.get("replacement")
+            if replacement and replacement not in str(result.exception):
+                violations.append(
+                    {
+                        "cli_group": cli_group,
+                        "cli_method": cli_method,
+                        "mode": mode,
+                        "reason": "UsageError did not include replacement hint",
+                        "metadata": meta,
+                    }
+                )
+    return violations
+
+
+def build_schema_gate(
+    fetch_wsdl_func=fetch_wsdl,
+    capture_get_body_func=None,
+    nested_schema_payload_cases=None,
+    nested_schema_exclusions=None,
+) -> dict:
     """Validate default CLI ``*FieldNames`` values against WSDL ``*FieldEnum``.
 
-    Returns a result dict with seven failure modes that all flip
+    Returns a result dict with nine failure modes that all flip
     ``schema_parity_ok`` to ``False``:
 
     - ``field_name_mismatches`` — values sent by the CLI that are not in the
@@ -473,6 +712,14 @@ def build_schema_gate(fetch_wsdl_func=fetch_wsdl, capture_get_body_func=None) ->
     - ``orphan_common_fields`` — ``COMMON_FIELDS`` keys that match neither a
       CLI group nor an API service (typically typos), so they would never be
       validated against any WSDL enum.
+    - ``runtime_deprecated_unguarded`` — entries in
+      ``RUNTIME_DEPRECATED_METHODS`` whose CLI command does not actually
+      reject invocation with a UsageError (it would silently send the
+      request and let the user hit error_code=3500 at runtime).
+    - ``nested_schema_violations`` — dry-run payloads in ``PAYLOAD_CASES``
+      that contain top-level or nested keys not declared in the WSDL
+      request schema (with imported XSD types resolved). Catches typos and
+      stale-CLI-vs-WSDL drift below the top-level params.
     """
     if capture_get_body_func is None:
         capture_get_body_func = capture_cli_request_body
@@ -626,6 +873,13 @@ def build_schema_gate(fetch_wsdl_func=fetch_wsdl, capture_get_body_func=None) ->
         if cli_name not in waived_no_enum_groups
     )
 
+    runtime_deprecated_unguarded = _validate_runtime_deprecated_methods()
+    nested_schema_violations = _validate_nested_schema_payloads(
+        fetch_wsdl_func,
+        payload_cases=nested_schema_payload_cases,
+        dry_run_payload_exclusions=nested_schema_exclusions,
+    )
+
     return {
         "field_name_mismatches": mismatches,
         "capture_errors": capture_errors,
@@ -634,6 +888,8 @@ def build_schema_gate(fetch_wsdl_func=fetch_wsdl, capture_get_body_func=None) ->
         "orphan_common_fields": orphan_common_fields,
         "uncovered_get_groups": uncovered_get_groups,
         "waiver_misuse": waiver_misuse,
+        "runtime_deprecated_unguarded": runtime_deprecated_unguarded,
+        "nested_schema_violations": nested_schema_violations,
         "schema_parity_ok": (
             not mismatches
             and not capture_errors
@@ -642,6 +898,8 @@ def build_schema_gate(fetch_wsdl_func=fetch_wsdl, capture_get_body_func=None) ->
             and not orphan_common_fields
             and not uncovered_get_groups
             and not waiver_misuse
+            and not runtime_deprecated_unguarded
+            and not nested_schema_violations
         ),
     }
 
@@ -667,6 +925,10 @@ def build_report(fetch_wsdl_func=fetch_wsdl, live_fetch_wsdl_func=None) -> dict:
         "cli_helpers": {
             f"{service}.{method}": reason
             for (service, method), reason in sorted(INTENTIONAL_EXTRA_METHODS.items())
+        },
+        "runtime_deprecated_methods": {
+            f"{group}.{method}": dict(meta)
+            for (group, method), meta in sorted(RUNTIME_DEPRECATED_METHODS.items())
         },
         "services": [],
     }
@@ -754,6 +1016,8 @@ def build_report(fetch_wsdl_func=fetch_wsdl, live_fetch_wsdl_func=None) -> dict:
         "orphan_common_fields": schema_gate["orphan_common_fields"],
         "uncovered_get_groups": schema_gate["uncovered_get_groups"],
         "waiver_misuse": schema_gate["waiver_misuse"],
+        "runtime_deprecated_unguarded": schema_gate["runtime_deprecated_unguarded"],
+        "nested_schema_violations": schema_gate["nested_schema_violations"],
     }
     report["summary"]["schema_parity_ok"] = schema_gate["schema_parity_ok"]
 
