@@ -41,15 +41,16 @@ from .commands.advideos import advideos
 from .commands.dynamicfeedadtargets import dynamicfeedadtargets
 from .commands.strategies import strategies
 from .commands.auth import auth
+from .commands.balance import balance
 from .commands.v4shells import (
     v4account,
     v4events,
     v4finance,
     v4forecast,
-    v4goals,
     v4meta,
     v4wordstat,
 )
+from .commands.v4goals import v4goals
 
 # Load .env file
 load_dotenv()
@@ -182,6 +183,7 @@ for command in (
     advideos,
     dynamicfeedadtargets,
     strategies,
+    balance,
     v4finance,
     v4account,
     v4goals,

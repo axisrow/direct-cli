@@ -239,12 +239,15 @@ run_test "dictionaries list-names (env auth)"      direct dictionaries list-name
 run_test "changes check-dictionaries (env auth)"   direct changes check-dictionaries
 run_test "reports list-types (env auth)"           direct reports list-types
 run_test "reports get (env auth)"                  direct reports get --type campaign_performance_report --from 2026-01-01 --to 2026-01-01 --name "Smoke Safe Report" --fields Date,CampaignId
+run_test "balance (env auth)"                      direct balance
 
 if [ -n "$CAMPAIGN_ID" ]; then
   run_test "changes check-campaigns (env auth)"    direct changes check-campaigns --timestamp 2026-04-23T00:00:00
   run_test "dynamicads get (env auth)"             direct dynamicads get --adgroup-ids "${ADGROUP_ID:-0}"
+  run_test "v4goals get-stat-goals (env auth)"     direct v4goals get-stat-goals --campaign-ids "$CAMPAIGN_ID"
+  run_test "v4goals get-retargeting-goals (env auth)" direct v4goals get-retargeting-goals --campaign-ids "$CAMPAIGN_ID"
 else
-  echo -e "  ${YELLOW}[SKIP]${RESET} changes check-campaigns / dynamicads get — нет campaign ID"
+  echo -e "  ${YELLOW}[SKIP]${RESET} changes check-campaigns / dynamicads get / v4goals — нет campaign ID"
 fi
 
 run_test "keywordsresearch has-search-volume (env auth)" direct keywordsresearch has-search-volume --keywords "купить велосипед" --region-ids 213

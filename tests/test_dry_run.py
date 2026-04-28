@@ -51,7 +51,7 @@ Part of axisrow/yandex-direct-mcp-plugin#61.
 import json
 from unittest.mock import patch
 
-from click.testing import CliRunner
+from click.testing import CliRunner, Result
 
 from direct_cli.cli import cli
 from direct_cli.utils import get_default_fields
@@ -2182,7 +2182,7 @@ def test_strategies_unarchive_payload():
 # ----------------------------------------------------------------------
 
 
-def _failing_run(*args: str) -> "CliRunner.invoke result":
+def _failing_run(*args: str) -> Result:
     """Invoke a CLI command expected to fail, returning the result."""
     return CliRunner().invoke(cli, list(args))
 
