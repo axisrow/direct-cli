@@ -22,17 +22,21 @@ def _logins_param(logins: str) -> list[str]:
     return login_list
 
 
-def _require_finance_credentials(
+def _finance_credentials(
     finance_token: Optional[str],
     operation_num: Optional[int],
-) -> None:
-    """Validate finance credentials before any v4 Live API call."""
-    if finance_token and operation_num is not None:
-        return
-    raise click.UsageError(
-        "Provide --finance-token and --operation-num, or set "
-        "YANDEX_DIRECT_FINANCE_TOKEN and YANDEX_DIRECT_OPERATION_NUM"
-    )
+) -> tuple[str, int]:
+    """Validate and normalize finance credentials before any v4 Live API call."""
+    normalized_token = (finance_token or "").strip()
+    if normalized_token and operation_num is not None:
+        return normalized_token, operation_num
+    raise click.UsageError(_FINANCE_CREDENTIALS_ERROR)
+
+
+_FINANCE_CREDENTIALS_ERROR = (
+    "Provide --finance-token and --operation-num, or set "
+    "YANDEX_DIRECT_FINANCE_TOKEN and YANDEX_DIRECT_OPERATION_NUM"
+)
 
 
 def _masked_finance_body(method: str, param: list[str], operation_num: int) -> dict:
@@ -83,7 +87,7 @@ def get_credit_limits(
 ):
     """Get client credit limits."""
     login_list = _logins_param(logins)
-    _require_finance_credentials(finance_token, operation_num)
+    finance_token, operation_num = _finance_credentials(finance_token, operation_num)
 
     if dry_run:
         format_output(

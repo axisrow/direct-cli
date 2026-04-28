@@ -127,7 +127,8 @@ def test_safe_smoke_script_runs_v4_safe_commands():
     contents = script.read_text()
 
     assert 'run_test "balance (env auth)"' in contents
-    assert 'v4events get-events-log --from 2026-04-14T00:00:00 --to 2026-04-15T00:00:00 --limit 1' in contents
+    assert "EVENTS_FROM=" in contents
+    assert 'v4events get-events-log --from "$EVENTS_FROM" --to "$EVENTS_TO"' in contents
     assert 'run_v4finance_get_credit_limits' in contents
     assert 'v4goals get-stat-goals --campaign-ids "$CAMPAIGN_ID"' in contents
     assert 'v4goals get-retargeting-goals (env auth)"' in contents

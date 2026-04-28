@@ -83,6 +83,48 @@ def test_get_credit_limits_requires_finance_credentials_before_api_call():
     create_client.assert_not_called()
 
 
+def test_get_credit_limits_rejects_blank_finance_token_before_api_call():
+    with patch("direct_cli.commands.v4finance.create_v4_client") as create_client:
+        result = _invoke(
+            "--token",
+            "token",
+            "v4finance",
+            "get-credit-limits",
+            "--logins",
+            "client-login",
+            "--finance-token",
+            "   ",
+            "--operation-num",
+            "1",
+        )
+
+    assert result.exit_code != 0
+    assert "Provide --finance-token and --operation-num" in result.output
+    create_client.assert_not_called()
+
+
+def test_get_credit_limits_strips_finance_token_before_api_call():
+    with patch("direct_cli.commands.v4finance.create_v4_client") as create_client:
+        with patch("direct_cli.commands.v4finance.call_v4", return_value=[]) as call:
+            result = _invoke(
+                "--token",
+                "token",
+                "v4finance",
+                "get-credit-limits",
+                "--logins",
+                "client-login",
+                "--finance-token",
+                " finance-token ",
+                "--operation-num",
+                "1",
+            )
+
+    assert result.exit_code == 0
+    create_client.assert_called_once()
+    assert create_client.call_args.kwargs["finance_token"] == "finance-token"
+    call.assert_called_once()
+
+
 def test_get_credit_limits_empty_logins_fails_before_api_call():
     with patch("direct_cli.commands.v4finance.create_v4_client") as create_client:
         result = _invoke(
