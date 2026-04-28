@@ -5,7 +5,8 @@ import click
 V4_EPILOG = (
     "\b\n"
     "V4 Live commands use typed flags only. Supported methods are listed in "
-    "direct_cli/_vendor/tapi_yandex_direct/v4/resource_mapping.py."
+    "the Yandex Direct v4 Live documentation: "
+    "https://yandex.com/dev/direct/doc/dg-v4/en/live/concepts"
 )
 
 

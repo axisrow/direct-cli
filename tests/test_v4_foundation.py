@@ -1,10 +1,10 @@
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from click.testing import CliRunner
 
 from direct_cli.api import create_v4_client
 from direct_cli.cli import cli
-from direct_cli.v4 import build_v4_body
+from direct_cli.v4 import build_v4_body, call_v4
 
 
 def test_create_v4_client_passes_resolved_credentials():
@@ -39,6 +39,23 @@ def test_build_v4_body_with_param():
         "method": "GetClientsUnits",
         "param": {"Logins": ["x"]},
     }
+
+
+def test_call_v4_posts_body_and_returns_extracted_payload():
+    response = Mock()
+    response.return_value.extract.return_value = [{"Login": "x", "Units": 100}]
+    resource = Mock()
+    resource.post.return_value = response
+    client = Mock()
+    client.v4live.return_value = resource
+
+    result = call_v4(client, "GetClientsUnits", {"Logins": ["x"]})
+
+    resource.post.assert_called_once_with(
+        data={"method": "GetClientsUnits", "param": {"Logins": ["x"]}}
+    )
+    response.return_value.extract.assert_called_once_with()
+    assert result == [{"Login": "x", "Units": 100}]
 
 
 def test_v4_groups_appear_in_root_help():
