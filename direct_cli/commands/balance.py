@@ -29,7 +29,7 @@ def balance(ctx, logins, output_format, output, dry_run):
             raise click.UsageError("Provide --logins or configure YANDEX_DIRECT_LOGIN")
         login_list = [configured_login]
 
-    param = {"Logins": login_list}
+    param = login_list
     if dry_run:
         format_output(build_v4_body("GetClientsUnits", param), "json", None)
         return

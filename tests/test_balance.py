@@ -12,7 +12,7 @@ def test_balance_dry_run_with_logins_emits_v4_request_body():
     assert result.exit_code == 0
     assert json.loads(result.output) == {
         "method": "GetClientsUnits",
-        "param": {"Logins": ["a", "b", "c"]},
+        "param": ["a", "b", "c"],
     }
 
 
@@ -24,7 +24,7 @@ def test_balance_omitted_logins_uses_configured_login():
     assert result.exit_code == 0
     assert json.loads(result.output) == {
         "method": "GetClientsUnits",
-        "param": {"Logins": ["client-login"]},
+        "param": ["client-login"],
     }
 
 
@@ -60,9 +60,7 @@ def test_balance_formats_mocked_v4_response_as_json():
     assert result.exit_code == 0
     assert json.loads(result.output) == [{"Login": "a", "Units": 10}]
     create_client.assert_called_once()
-    call.assert_called_once_with(
-        create_client.return_value, "GetClientsUnits", {"Logins": ["a"]}
-    )
+    call.assert_called_once_with(create_client.return_value, "GetClientsUnits", ["a"])
 
 
 def test_balance_formats_mocked_v4_response_as_table():
