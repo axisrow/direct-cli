@@ -43,7 +43,7 @@ def _parse_day_budget(value: Optional[str]) -> Optional[float]:
         amount = Decimal(value)
     except InvalidOperation as exc:
         raise click.UsageError("--day-budget must be a non-negative amount") from exc
-    if not amount.is_finite() or amount < 0:
+    if not amount.is_finite() or amount < 0 or (amount == 0 and amount.is_signed()):
         raise click.UsageError("--day-budget must be a non-negative amount")
     return float(amount)
 
@@ -102,6 +102,10 @@ def _account_update_param(
         sms_notification["MoneyOutSms"] = money_out_sms
     if paused_by_day_budget_sms is not None:
         sms_notification["PausedByDayBudgetSms"] = paused_by_day_budget_sms
+    if (sms_time_from is None) != (sms_time_to is None):
+        raise click.UsageError(
+            "--sms-time-from and --sms-time-to must be provided together"
+        )
     if sms_time_from is not None:
         sms_notification["SmsTimeFrom"] = _parse_hh_mm(sms_time_from, "--sms-time-from")
     if sms_time_to is not None:
