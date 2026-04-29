@@ -382,20 +382,17 @@ class TestApiCoverage:
         assert request["params"]["FieldNames"] == ["Date", "AdGroupId", "Clicks"]
         assert request["params"]["Format"] == "TSV"
 
-    def test_reports_request_builder_both_campaign_and_adgroup_ids_merge(self):
-        request = build_report_request(
-            report_type="CUSTOM_REPORT",
-            date_from="2026-03-01",
-            date_to="2026-03-31",
-            name="Merged Coverage",
-            fields="Date,CampaignId,AdGroupId",
-            campaign_ids="1,2",
-            adgroup_ids="99,100",
-        )
-        assert request["params"]["SelectionCriteria"]["Filter"] == [
-            {"Field": "CampaignId", "Operator": "IN", "Values": ["1", "2"]},
-            {"Field": "AdGroupId", "Operator": "IN", "Values": ["99", "100"]},
-        ]
+    def test_reports_request_builder_both_campaign_and_adgroup_ids_rejected(self):
+        with pytest.raises(ValueError, match="mutually exclusive"):
+            build_report_request(
+                report_type="CUSTOM_REPORT",
+                date_from="2026-03-01",
+                date_to="2026-03-31",
+                name="Merged Coverage",
+                fields="Date,CampaignId,AdGroupId",
+                campaign_ids="1,2",
+                adgroup_ids="99,100",
+            )
 
     @pytest.mark.parametrize("output_format", ["json", "table", "csv", "tsv"])
     def test_reports_get_cli_path_sends_expected_request_body(
@@ -1859,32 +1856,33 @@ class TestReportsBuildRequestExtra:
             {"Field": "CampaignId", "Operator": "IN", "Values": ["1", "2"]}
         ]
 
-    def test_reports_request_builder_merges_distinct_shorthand_filters(self):
+    def test_reports_request_builder_filter_takes_precedence_over_shorthand(self):
         result = build_report_request(
             report_type="CAMPAIGN_PERFORMANCE_REPORT",
             date_from="2026-01-01",
             date_to="2026-01-31",
-            name="Merged Filter Report",
+            name="Precedence Filter Report",
             fields="Date,CampaignId",
             campaign_ids="99,100",
             filters=("Clicks:GREATER_THAN:0",),
         )
         assert result["params"]["SelectionCriteria"]["Filter"] == [
             {"Field": "Clicks", "Operator": "GREATER_THAN", "Values": ["0"]},
-            {"Field": "CampaignId", "Operator": "IN", "Values": ["99", "100"]},
         ]
 
-    def test_reports_request_builder_duplicate_filter_field_raises(self):
-        with pytest.raises(ValueError, match="Duplicate Reports filter field"):
-            build_report_request(
-                report_type="CAMPAIGN_PERFORMANCE_REPORT",
-                date_from="2026-01-01",
-                date_to="2026-01-31",
-                name="Duplicate Filter Report",
-                fields="Date,CampaignId",
-                campaign_ids="99,100",
-                filters=("CampaignId:IN:1,2",),
-            )
+    def test_reports_request_builder_allows_repeated_filter_field(self):
+        result = build_report_request(
+            report_type="CAMPAIGN_PERFORMANCE_REPORT",
+            date_from="2026-01-01",
+            date_to="2026-01-31",
+            name="Range Filter Report",
+            fields="Date,Clicks",
+            filters=("Clicks:GREATER_THAN:100", "Clicks:LESS_THAN:1000"),
+        )
+        assert result["params"]["SelectionCriteria"]["Filter"] == [
+            {"Field": "Clicks", "Operator": "GREATER_THAN", "Values": ["100"]},
+            {"Field": "Clicks", "Operator": "LESS_THAN", "Values": ["1000"]},
+        ]
 
     def test_reports_request_builder_with_order_by(self):
         result = build_report_request(

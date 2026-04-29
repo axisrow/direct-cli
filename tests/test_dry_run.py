@@ -288,6 +288,26 @@ def test_get_selection_criteria_new_typed_flags_payloads():
             assert criteria[key] == value
 
 
+def test_get_status_and_statuses_are_mutually_exclusive():
+    """Legacy --status must not be silently overwritten by --statuses."""
+    for command in ("adgroups", "campaigns", "keywords"):
+        result = CliRunner().invoke(
+            cli,
+            [
+                command,
+                "get",
+                "--status",
+                "ACCEPTED",
+                "--statuses",
+                "REJECTED",
+                "--dry-run",
+            ],
+            env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+        )
+        assert result.exit_code != 0
+        assert "--status and --statuses are mutually exclusive" in result.output
+
+
 def test_optional_ids_criteria_get_omits_empty_selection_criteria():
     for command in (
         "businesses",

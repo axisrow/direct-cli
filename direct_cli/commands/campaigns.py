@@ -59,6 +59,9 @@ def get(
     dry_run,
 ):
     """Get campaigns"""
+    if status and statuses:
+        raise click.UsageError("--status and --statuses are mutually exclusive")
+
     try:
         client = create_client(
             token=ctx.obj.get("token"),
