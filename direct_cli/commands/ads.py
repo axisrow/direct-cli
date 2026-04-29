@@ -73,6 +73,9 @@ def get(
     dry_run,
 ):
     """Get ads"""
+    if status and statuses:
+        raise click.UsageError("--status and --statuses are mutually exclusive")
+
     try:
         field_names = (
             fields.split(",") if fields else get_default_fields("ads", "FieldNames")

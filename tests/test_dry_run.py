@@ -290,7 +290,7 @@ def test_get_selection_criteria_new_typed_flags_payloads():
 
 def test_get_status_and_statuses_are_mutually_exclusive():
     """Legacy --status must not be silently overwritten by --statuses."""
-    for command in ("adgroups", "campaigns", "keywords"):
+    for command in ("adgroups", "ads", "campaigns", "keywords"):
         result = CliRunner().invoke(
             cli,
             [
