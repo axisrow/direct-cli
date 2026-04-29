@@ -17,13 +17,28 @@ def dynamicads():
 @dynamicads.command()
 @click.option("--ids", help="Comma-separated target IDs")
 @click.option("--adgroup-ids", help="Comma-separated ad group IDs")
+@click.option("--campaign-ids", help="Comma-separated campaign IDs")
+@click.option("--states", help="Comma-separated states")
 @click.option("--limit", type=int, help="Limit number of results")
 @click.option("--fetch-all", is_flag=True, help="Fetch all pages")
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.option("--fields", help="Comma-separated field names")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def get(ctx, ids, adgroup_ids, limit, fetch_all, output_format, output, fields):
+def get(
+    ctx,
+    ids,
+    adgroup_ids,
+    campaign_ids,
+    states,
+    limit,
+    fetch_all,
+    output_format,
+    output,
+    fields,
+    dry_run,
+):
     """Get dynamic ad targets"""
     try:
         client = create_client(
@@ -39,6 +54,12 @@ def get(ctx, ids, adgroup_ids, limit, fetch_all, output_format, output, fields):
             criteria["Ids"] = parse_ids(ids)
         if adgroup_ids:
             criteria["AdGroupIds"] = parse_ids(adgroup_ids)
+        if campaign_ids:
+            criteria["CampaignIds"] = parse_ids(campaign_ids)
+        if states:
+            criteria["States"] = [
+                item.strip().upper() for item in states.split(",") if item.strip()
+            ]
 
         params = {"SelectionCriteria": criteria, "FieldNames": field_names}
 
@@ -46,6 +67,10 @@ def get(ctx, ids, adgroup_ids, limit, fetch_all, output_format, output, fields):
             params["Page"] = {"Limit": limit}
 
         body = {"method": "get", "params": params}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
 
         result = client.dynamicads().post(data=body)
 

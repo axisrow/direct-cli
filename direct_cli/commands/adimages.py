@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import get_default_fields, load_base64_file, parse_ids
+from ..utils import add_criteria_csv, get_default_fields, load_base64_file, parse_ids
 
 
 @click.group()
@@ -16,13 +16,27 @@ def adimages():
 
 @adimages.command()
 @click.option("--ids", help="Comma-separated image IDs")
+@click.option("--image-hashes", help="Comma-separated ad image hashes")
+@click.option("--associated", type=click.Choice(["YES", "NO"], case_sensitive=False))
 @click.option("--limit", type=int, help="Limit number of results")
 @click.option("--fetch-all", is_flag=True, help="Fetch all pages")
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.option("--fields", help="Comma-separated field names")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def get(ctx, ids, limit, fetch_all, output_format, output, fields):
+def get(
+    ctx,
+    ids,
+    image_hashes,
+    associated,
+    limit,
+    fetch_all,
+    output_format,
+    output,
+    fields,
+    dry_run,
+):
     """Get ad images"""
     try:
         client = create_client(
@@ -31,20 +45,27 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
             sandbox=ctx.obj.get("sandbox"),
         )
 
-        field_names = (
-            fields.split(",") if fields else get_default_fields("adimages")
-        )
+        field_names = fields.split(",") if fields else get_default_fields("adimages")
 
         criteria = {}
         if ids:
             criteria["Ids"] = parse_ids(ids)
+        add_criteria_csv(criteria, "AdImageHashes", image_hashes)
+        if associated:
+            criteria["Associated"] = associated.upper()
 
-        params = {"SelectionCriteria": criteria, "FieldNames": field_names}
+        params = {"FieldNames": field_names}
+        if criteria:
+            params["SelectionCriteria"] = criteria
 
         if limit:
             params["Page"] = {"Limit": limit}
 
         body = {"method": "get", "params": params}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
 
         result = client.adimages().post(data=body)
 

@@ -382,17 +382,20 @@ class TestApiCoverage:
         assert request["params"]["FieldNames"] == ["Date", "AdGroupId", "Clicks"]
         assert request["params"]["Format"] == "TSV"
 
-    def test_reports_request_builder_both_campaign_and_adgroup_ids_raises(self):
-        with pytest.raises(ValueError, match="mutually exclusive"):
-            build_report_request(
-                report_type="CUSTOM_REPORT",
-                date_from="2026-03-01",
-                date_to="2026-03-31",
-                name="Precedence Coverage",
-                fields="Date,CampaignId,AdGroupId",
-                campaign_ids="1,2",
-                adgroup_ids="99,100",
-            )
+    def test_reports_request_builder_both_campaign_and_adgroup_ids_merge(self):
+        request = build_report_request(
+            report_type="CUSTOM_REPORT",
+            date_from="2026-03-01",
+            date_to="2026-03-31",
+            name="Merged Coverage",
+            fields="Date,CampaignId,AdGroupId",
+            campaign_ids="1,2",
+            adgroup_ids="99,100",
+        )
+        assert request["params"]["SelectionCriteria"]["Filter"] == [
+            {"Field": "CampaignId", "Operator": "IN", "Values": ["1", "2"]},
+            {"Field": "AdGroupId", "Operator": "IN", "Values": ["99", "100"]},
+        ]
 
     @pytest.mark.parametrize("output_format", ["json", "table", "csv", "tsv"])
     def test_reports_get_cli_path_sends_expected_request_body(
@@ -589,6 +592,150 @@ class TestApiCoverage:
         assert schema_gate["waiver_misuse"] == []
         assert schema_gate["runtime_deprecated_unguarded"] == []
         assert schema_gate["nested_schema_violations"] == []
+
+    def test_get_selection_criteria_fields_have_typed_cli_options_or_waiver(self):
+        """Every WSDL get SelectionCriteria field is exposed as a typed flag or waived."""
+        expected_options = {
+            "adextensions": {
+                "Ids": "ids",
+                "Types": "types",
+                "States": "states",
+                "Statuses": "statuses",
+                "ModifiedSince": "modified_since",
+            },
+            "adgroups": {
+                "CampaignIds": "campaign_ids",
+                "Ids": "ids",
+                "Types": "types",
+                "Statuses": "statuses",
+                "TagIds": "tag_ids",
+                "Tags": "tags",
+                "AppIconStatuses": "app_icon_statuses",
+                "ServingStatuses": "serving_statuses",
+                "NegativeKeywordSharedSetIds": "negative_keyword_shared_set_ids",
+            },
+            "adimages": {"AdImageHashes": "image_hashes", "Associated": "associated"},
+            "ads": {
+                "Ids": "ids",
+                "States": "states",
+                "Statuses": "statuses",
+                "CampaignIds": "campaign_ids",
+                "AdGroupIds": "adgroup_ids",
+                "Types": "types",
+                "Mobile": "mobile",
+                "VCardIds": "vcard_ids",
+                "SitelinkSetIds": "sitelink_set_ids",
+                "AdImageHashes": "image_hashes",
+                "VCardModerationStatuses": "vcard_moderation_statuses",
+                "SitelinksModerationStatuses": "sitelinks_moderation_statuses",
+                "AdImageModerationStatuses": "image_moderation_statuses",
+                "AdExtensionIds": "adextension_ids",
+            },
+            "advideos": {"Ids": "ids"},
+            "agencyclients": {"Logins": "logins", "Archived": "archived"},
+            "audiencetargets": {
+                "Ids": "ids",
+                "AdGroupIds": "adgroup_ids",
+                "CampaignIds": "campaign_ids",
+                "RetargetingListIds": "retargeting_list_ids",
+                "InterestIds": "interest_ids",
+                "States": "states",
+            },
+            "bidmodifiers": {
+                "CampaignIds": "campaign_ids",
+                "AdGroupIds": "adgroup_ids",
+                "Ids": "ids",
+                "Types": "types",
+                "Levels": "levels",
+            },
+            "bids": {
+                "CampaignIds": "campaign_ids",
+                "AdGroupIds": "adgroup_ids",
+                "KeywordIds": "keyword_ids",
+                "ServingStatuses": "serving_statuses",
+            },
+            "businesses": {"Ids": "ids"},
+            "campaigns": {
+                "Ids": "ids",
+                "Types": "types",
+                "States": "states",
+                "Statuses": "statuses",
+                "StatusesPayment": "payment_statuses",
+            },
+            "creatives": {"Ids": "ids", "Types": "types"},
+            "dynamicads": {
+                "Ids": "ids",
+                "AdGroupIds": "adgroup_ids",
+                "CampaignIds": "campaign_ids",
+                "States": "states",
+            },
+            "dynamicfeedadtargets": {
+                "Ids": "ids",
+                "AdGroupIds": "adgroup_ids",
+                "CampaignIds": "campaign_ids",
+                "States": "states",
+            },
+            "feeds": {"Ids": "ids"},
+            "keywordbids": {
+                "CampaignIds": "campaign_ids",
+                "AdGroupIds": "adgroup_ids",
+                "KeywordIds": "keyword_ids",
+                "ServingStatuses": "serving_statuses",
+            },
+            "keywords": {
+                "Ids": "ids",
+                "AdGroupIds": "adgroup_ids",
+                "CampaignIds": "campaign_ids",
+                "States": "states",
+                "Statuses": "statuses",
+                "ModifiedSince": "modified_since",
+                "ServingStatuses": "serving_statuses",
+            },
+            "leads": {
+                "TurboPageIds": "turbo_page_ids",
+                "DateTimeFrom": "datetime_from",
+                "DateTimeTo": "datetime_to",
+            },
+            "negativekeywordsharedsets": {"Ids": "ids"},
+            "retargeting": {"Types": "types", "Ids": "ids"},
+            "sitelinks": {"Ids": "ids"},
+            "smartadtargets": {
+                "Ids": "ids",
+                "AdGroupIds": "adgroup_ids",
+                "CampaignIds": "campaign_ids",
+                "States": "states",
+            },
+            "strategies": {"Ids": "ids", "Types": "types", "IsArchived": "is_archived"},
+            "turbopages": {"Ids": "ids", "BoundWithHrefs": "bound_with_hrefs"},
+            "vcards": {"Ids": "ids"},
+        }
+        failures = []
+        for cli_name, api_service in sorted(CLI_TO_API_SERVICE.items()):
+            if "get" not in get_cli_methods_for_service(cli_name):
+                continue
+            schema = get_operation_request_schema(fetch_wsdl(api_service), "get")
+            selection = next(
+                (
+                    field
+                    for field in schema["fields"]
+                    if field["name"] == "SelectionCriteria"
+                ),
+                None,
+            )
+            if selection is None:
+                continue
+            command = cli.commands[cli_name].commands["get"]
+            actual_params = {param.name for param in command.params}
+            expected = expected_options.get(cli_name, {})
+            for field in selection["item_fields"]:
+                option_name = expected.get(field["name"])
+                if option_name is None:
+                    failures.append(f"{cli_name}: no mapping for {field['name']}")
+                elif option_name not in actual_params:
+                    failures.append(
+                        f"{cli_name}: {field['name']} expected CLI param {option_name}"
+                    )
+        assert failures == []
 
     def test_schema_gate_flags_uncovered_get_command(self, monkeypatch):
         """A new ``get`` command without coverage and without waiver fails."""
@@ -1511,8 +1658,8 @@ class TestApiCoverage:
 class TestReportsCoverage:
     """Tests for Reports API spec snapshot and CLI parity."""
 
-    def test_reports_spec_urls_come_from_resource_mapping(self):
-        """Reports docs URLs must be derived from the vendored resource mapping."""
+    def test_reports_spec_urls_include_period_and_spec_pages(self):
+        """Reports coverage must track both the period and report spec pages."""
         from direct_cli._vendor.tapi_yandex_direct.resource_mapping import (
             RESOURCE_MAPPING_V5,
         )
@@ -1521,18 +1668,24 @@ class TestReportsCoverage:
         docs_pages = RESOURCE_MAPPING_V5["reports"]["docs_pages"]
         assert REPORTS_SPEC_URLS == {
             "type": docs_pages["type"],
-            "spec": docs_pages["period"],
+            "period": docs_pages["period"],
+            "spec": "https://yandex.ru/dev/direct/doc/reports/spec.html",
             "fields-list": docs_pages["fields-list"],
             "headers": docs_pages["headers"],
         }
-        assert all(not url.endswith(".html") for url in REPORTS_SPEC_URLS.values())
 
     def test_reports_cache_files_exist(self):
         """All 4 raw HTML files and spec.json must be committed."""
         from direct_cli.reports_coverage import REPORTS_CACHE_DIR
 
         raw_dir = REPORTS_CACHE_DIR / "raw"
-        for fname in ["spec.html", "type.html", "fields-list.html", "headers.html"]:
+        for fname in [
+            "spec.html",
+            "period.html",
+            "type.html",
+            "fields-list.html",
+            "headers.html",
+        ]:
             assert (raw_dir / fname).exists(), f"Missing cache file: raw/{fname}"
         assert (REPORTS_CACHE_DIR / "spec.json").exists(), "Missing spec.json"
 
@@ -1547,6 +1700,13 @@ class TestReportsCoverage:
         assert spec["processing_modes"], "processing_modes must not be empty"
         assert spec["request_headers"], "request_headers must not be empty"
         assert spec["field_compatibility"], "field_compatibility must not be empty"
+        assert "Goals" in spec["report_definition_fields"]
+        assert "AttributionModels" in spec["report_definition_fields"]
+        assert spec["field_usage"]["Clicks"] == {
+            "FieldNames": True,
+            "Filter.Field": True,
+            "OrderBy.Field": True,
+        }
 
     def test_cli_report_types_match_spec(self):
         """--type choices must match spec snapshot report_types."""
@@ -1641,11 +1801,11 @@ class TestReportsParseFilter:
     def test_reports_parse_filter_single_value(self):
         from direct_cli.commands.reports import _parse_filter
 
-        result = _parse_filter("Status:EQUALS:ENABLED")
+        result = _parse_filter("Clicks:GREATER_THAN:0")
         assert result == {
-            "Field": "Status",
-            "Operator": "EQUALS",
-            "Values": ["ENABLED"],
+            "Field": "Clicks",
+            "Operator": "GREATER_THAN",
+            "Values": ["0"],
         }
 
     def test_reports_parse_filter_invalid_format_raises(self):
@@ -1653,6 +1813,12 @@ class TestReportsParseFilter:
 
         with pytest.raises(ValueError, match="Field:Operator:Value"):
             _parse_filter("BadFormat")
+
+    def test_reports_parse_filter_rejects_report_definition_fields(self):
+        from direct_cli.commands.reports import _parse_filter
+
+        with pytest.raises(ValueError, match="not a filter field"):
+            _parse_filter("Goals:IN:123")
 
 
 class TestReportsParseOrderBy:
@@ -1668,13 +1834,13 @@ class TestReportsParseOrderBy:
         from direct_cli.commands.reports import _parse_order_by
 
         result = _parse_order_by("Clicks:DESC")
-        assert result == {"Field": "Clicks", "SortOrder": "DESC"}
+        assert result == {"Field": "Clicks", "SortOrder": "DESCENDING"}
 
     def test_reports_parse_order_by_case_insensitive(self):
         from direct_cli.commands.reports import _parse_order_by
 
         result = _parse_order_by("Clicks:desc")
-        assert result == {"Field": "Clicks", "SortOrder": "DESC"}
+        assert result == {"Field": "Clicks", "SortOrder": "DESCENDING"}
 
 
 class TestReportsBuildRequestExtra:
@@ -1693,20 +1859,32 @@ class TestReportsBuildRequestExtra:
             {"Field": "CampaignId", "Operator": "IN", "Values": ["1", "2"]}
         ]
 
-    def test_reports_request_builder_filter_precedence_over_campaign_ids(self):
+    def test_reports_request_builder_merges_distinct_shorthand_filters(self):
         result = build_report_request(
             report_type="CAMPAIGN_PERFORMANCE_REPORT",
             date_from="2026-01-01",
             date_to="2026-01-31",
-            name="Precedence Report",
+            name="Merged Filter Report",
             fields="Date,CampaignId",
             campaign_ids="99,100",
-            filters=("Status:EQUALS:ENABLED",),
+            filters=("Clicks:GREATER_THAN:0",),
         )
-        # --filter wins; campaign_ids ignored
         assert result["params"]["SelectionCriteria"]["Filter"] == [
-            {"Field": "Status", "Operator": "EQUALS", "Values": ["ENABLED"]}
+            {"Field": "Clicks", "Operator": "GREATER_THAN", "Values": ["0"]},
+            {"Field": "CampaignId", "Operator": "IN", "Values": ["99", "100"]},
         ]
+
+    def test_reports_request_builder_duplicate_filter_field_raises(self):
+        with pytest.raises(ValueError, match="Duplicate Reports filter field"):
+            build_report_request(
+                report_type="CAMPAIGN_PERFORMANCE_REPORT",
+                date_from="2026-01-01",
+                date_to="2026-01-31",
+                name="Duplicate Filter Report",
+                fields="Date,CampaignId",
+                campaign_ids="99,100",
+                filters=("CampaignId:IN:1,2",),
+            )
 
     def test_reports_request_builder_with_order_by(self):
         result = build_report_request(
@@ -1717,7 +1895,22 @@ class TestReportsBuildRequestExtra:
             fields="Date,Clicks",
             order_by=("Clicks:DESC",),
         )
-        assert result["params"]["OrderBy"] == [{"Field": "Clicks", "SortOrder": "DESC"}]
+        assert result["params"]["OrderBy"] == [
+            {"Field": "Clicks", "SortOrder": "DESCENDING"}
+        ]
+
+    def test_reports_request_builder_with_goals_and_attribution_models(self):
+        result = build_report_request(
+            report_type="CAMPAIGN_PERFORMANCE_REPORT",
+            date_from="2026-01-01",
+            date_to="2026-01-31",
+            name="Goals Report",
+            fields="Date,Conversions",
+            goals="123,456",
+            attribution_models="fc,auto",
+        )
+        assert result["params"]["Goals"] == ["123", "456"]
+        assert result["params"]["AttributionModels"] == ["FC", "AUTO"]
 
     def test_reports_request_builder_with_pagination(self):
         result = build_report_request(

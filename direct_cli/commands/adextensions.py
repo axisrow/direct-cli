@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import get_default_fields, parse_ids
+from ..utils import add_criteria_csv, get_default_fields, parse_ids
 
 
 @click.group()
@@ -17,13 +17,30 @@ def adextensions():
 @adextensions.command()
 @click.option("--ids", help="Comma-separated extension IDs")
 @click.option("--types", help="Filter by types")
+@click.option("--states", help="Comma-separated states")
+@click.option("--statuses", help="Comma-separated statuses")
+@click.option("--modified-since", help="ModifiedSince datetime")
 @click.option("--limit", type=int, help="Limit number of results")
 @click.option("--fetch-all", is_flag=True, help="Fetch all pages")
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.option("--fields", help="Comma-separated field names")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def get(ctx, ids, types, limit, fetch_all, output_format, output, fields):
+def get(
+    ctx,
+    ids,
+    types,
+    states,
+    statuses,
+    modified_since,
+    limit,
+    fetch_all,
+    output_format,
+    output,
+    fields,
+    dry_run,
+):
     """Get ad extensions"""
     try:
         client = create_client(
@@ -41,6 +58,10 @@ def get(ctx, ids, types, limit, fetch_all, output_format, output, fields):
             criteria["Ids"] = parse_ids(ids)
         if types:
             criteria["Types"] = types.split(",")
+        add_criteria_csv(criteria, "States", states, upper=True)
+        add_criteria_csv(criteria, "Statuses", statuses, upper=True)
+        if modified_since:
+            criteria["ModifiedSince"] = modified_since
 
         params = {"SelectionCriteria": criteria, "FieldNames": field_names}
 
@@ -48,6 +69,10 @@ def get(ctx, ids, types, limit, fetch_all, output_format, output, fields):
             params["Page"] = {"Limit": limit}
 
         body = {"method": "get", "params": params}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
 
         result = client.adextensions().post(data=body)
 

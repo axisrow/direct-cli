@@ -8,6 +8,9 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
+from ..utils import parse_csv_strings
+
+ATTRIBUTION_MODELS = {"FC", "LC", "LSC", "LYDC", "FCCD", "LSCCD", "LYDCCD", "AUTO"}
 
 
 def _load_report_types() -> list:
@@ -64,6 +67,46 @@ def _load_date_range_types() -> list:
         ]
 
 
+def _load_report_field_usage() -> dict:
+    """Load Reports field usage metadata from the committed spec snapshot."""
+    try:
+        from ..reports_coverage import load_cached_reports_spec
+
+        return load_cached_reports_spec().get("field_usage", {})
+    except Exception:
+        return {}
+
+
+def _load_filter_operators() -> list:
+    """Load FilterOperatorEnum values from the committed spec snapshot."""
+    try:
+        from ..reports_coverage import load_cached_reports_spec
+
+        return load_cached_reports_spec().get("filter_operators", [])
+    except Exception:
+        return [
+            "EQUALS",
+            "NOT_EQUALS",
+            "IN",
+            "NOT_IN",
+            "LESS_THAN",
+            "GREATER_THAN",
+            "STARTS_WITH_IGNORE_CASE",
+            "DOES_NOT_START_WITH_IGNORE_CASE",
+            "STARTS_WITH_ANY_IGNORE_CASE",
+            "DOES_NOT_START_WITH_ALL_IGNORE_CASE",
+        ]
+
+
+def _validate_report_field_usage(field: str, usage_key: str) -> None:
+    """Validate a Reports field for a specific usage column."""
+    usage = _load_report_field_usage()
+    if not usage:
+        return
+    if field not in usage or not usage[field].get(usage_key):
+        raise ValueError(f"{field} is not allowed for Reports {usage_key}")
+
+
 def _parse_filter(filter_str):
     """Parse 'Field:Operator:Value1,Value2' into a Reports API Filter entry."""
     parts = filter_str.split(":", 2)
@@ -72,20 +115,65 @@ def _parse_filter(filter_str):
             f"--filter must be Field:Operator:Value1,Value2, got: {filter_str!r}"
         )
     field, operator, values_raw = parts
-    return {
-        "Field": field.strip(),
-        "Operator": operator.strip().upper(),
-        "Values": [v.strip() for v in values_raw.split(",") if v.strip()],
-    }
+    field = field.strip()
+    operator = operator.strip().upper()
+    values = [v.strip() for v in values_raw.split(",") if v.strip()]
+    if field in {"Goals", "AttributionModels"}:
+        raise ValueError(f"{field} is a ReportDefinition field, not a filter field")
+    _validate_report_field_usage(field, "Filter.Field")
+    allowed_operators = _load_filter_operators()
+    if allowed_operators and operator not in allowed_operators:
+        allowed = ", ".join(allowed_operators)
+        raise ValueError(
+            f"Invalid filter operator {operator!r}. Expected one of: {allowed}"
+        )
+    if not values:
+        raise ValueError(f"--filter values cannot be empty: {filter_str!r}")
+    return {"Field": field, "Operator": operator, "Values": values}
 
 
 def _parse_order_by(order_str):
     """Parse 'Field[:ASC|DESC]' into a Reports API OrderBy entry."""
     parts = order_str.split(":", 1)
-    entry = {"Field": parts[0].strip()}
+    field = parts[0].strip()
+    _validate_report_field_usage(field, "OrderBy.Field")
+    entry = {"Field": field}
     if len(parts) == 2:
-        entry["SortOrder"] = parts[1].strip().upper()
+        order = parts[1].strip().upper()
+        order_aliases = {"ASC": "ASCENDING", "DESC": "DESCENDING"}
+        order = order_aliases.get(order, order)
+        if order not in {"ASCENDING", "DESCENDING"}:
+            raise ValueError("OrderBy sort order must be ASCENDING or DESCENDING")
+        entry["SortOrder"] = order
     return entry
+
+
+def _parse_goals(goals: str | None) -> list[str] | None:
+    """Parse and validate comma-separated Yandex Metrica goal IDs."""
+    parsed = parse_csv_strings(goals)
+    if not parsed:
+        return None
+    if len(parsed) > 10:
+        raise ValueError("--goals accepts at most 10 goal IDs")
+    for goal in parsed:
+        if not goal.isdigit() or int(goal) <= 0:
+            raise ValueError(f"Invalid goal ID {goal!r}; expected a positive integer")
+    return parsed
+
+
+def _parse_attribution_models(models: str | None) -> list[str] | None:
+    """Parse and validate comma-separated AttributionModelEnum values."""
+    parsed = parse_csv_strings(models)
+    if not parsed:
+        return None
+    normalized = [model.upper() for model in parsed]
+    invalid = sorted(set(normalized) - ATTRIBUTION_MODELS)
+    if invalid:
+        allowed = ", ".join(sorted(ATTRIBUTION_MODELS))
+        raise ValueError(
+            f"Invalid attribution model(s): {', '.join(invalid)}. Expected one of: {allowed}"
+        )
+    return normalized
 
 
 def build_report_request(
@@ -103,6 +191,8 @@ def build_report_request(
     page_offset=None,
     filters=(),
     order_by=(),
+    goals=None,
+    attribution_models=None,
 ):
     """
     Build the Reports API request body from CLI arguments.
@@ -129,35 +219,30 @@ def build_report_request(
     field_names = [field.strip() for field in fields.split(",") if field.strip()]
     selection_criteria = {"DateFrom": date_from, "DateTo": date_to}
 
-    # --filter takes precedence; --campaign-ids / --adgroup-ids are shorthand.
-    # When both --campaign-ids and --adgroup-ids are provided, --campaign-ids wins.
-    if filters:
-        selection_criteria["Filter"] = [_parse_filter(f) for f in filters]
-    elif campaign_ids and adgroup_ids:
-        raise ValueError(
-            "--campaign-ids and --adgroup-ids are mutually exclusive; "
-            "use --filter for complex selection criteria"
-        )
-    elif campaign_ids:
-        selection_criteria["Filter"] = [
+    filter_items = [_parse_filter(f) for f in filters]
+    if campaign_ids:
+        filter_items.append(
             {
                 "Field": "CampaignId",
                 "Operator": "IN",
-                "Values": [
-                    item.strip() for item in campaign_ids.split(",") if item.strip()
-                ],
+                "Values": parse_csv_strings(campaign_ids) or [],
             }
-        ]
-    elif adgroup_ids:
-        selection_criteria["Filter"] = [
+        )
+    if adgroup_ids:
+        filter_items.append(
             {
                 "Field": "AdGroupId",
                 "Operator": "IN",
-                "Values": [
-                    item.strip() for item in adgroup_ids.split(",") if item.strip()
-                ],
+                "Values": parse_csv_strings(adgroup_ids) or [],
             }
-        ]
+        )
+    seen_filter_fields = set()
+    for item in filter_items:
+        if item["Field"] in seen_filter_fields:
+            raise ValueError(f"Duplicate Reports filter field: {item['Field']}")
+        seen_filter_fields.add(item["Field"])
+    if filter_items:
+        selection_criteria["Filter"] = filter_items
 
     params = {
         "SelectionCriteria": selection_criteria,
@@ -172,6 +257,12 @@ def build_report_request(
 
     if order_by:
         params["OrderBy"] = [_parse_order_by(o) for o in order_by]
+    parsed_goals = _parse_goals(goals)
+    if parsed_goals:
+        params["Goals"] = parsed_goals
+    parsed_models = _parse_attribution_models(attribution_models)
+    if parsed_models:
+        params["AttributionModels"] = parsed_models
 
     if page_limit is not None or page_offset is not None:
         params["Page"] = {}
@@ -202,6 +293,11 @@ def reports():
 @click.option("--fields", required=True, help="Comma-separated field names")
 @click.option("--campaign-ids", help="Comma-separated campaign IDs")
 @click.option("--adgroup-ids", help="Comma-separated ad group IDs")
+@click.option("--goals", help="Comma-separated Yandex Metrica goal IDs (max 10)")
+@click.option(
+    "--attribution-models",
+    help="Comma-separated attribution models: FC,LC,LSC,LYDC,FCCD,LSCCD,LYDCCD,AUTO",
+)
 @click.option(
     "--format",
     "output_format",
@@ -270,10 +366,7 @@ def reports():
     "filters",
     multiple=True,
     metavar="FIELD:OPERATOR:VALUES",
-    help=(
-        "Filter in Field:Operator:Value1,Value2 format (repeatable). "
-        "Takes precedence over --campaign-ids / --adgroup-ids."
-    ),
+    help=("Filter in Field:Operator:Value1,Value2 format (repeatable)."),
 )
 @click.option(
     "--order-by",
@@ -298,6 +391,8 @@ def get(
     fields,
     campaign_ids,
     adgroup_ids,
+    goals,
+    attribution_models,
     output_format,
     output,
     date_range_type,
@@ -332,6 +427,8 @@ def get(
             page_offset=page_offset,
             filters=filters,
             order_by=order_by,
+            goals=goals,
+            attribution_models=attribution_models,
         )
 
         request_headers = {}

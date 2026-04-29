@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import parse_ids, get_default_fields, MICRO_RUBLES
+from ..utils import add_criteria_csv, parse_ids, get_default_fields, MICRO_RUBLES
 
 
 @click.group()
@@ -19,11 +19,16 @@ def keywords():
 @click.option("--adgroup-ids", help="Comma-separated ad group IDs")
 @click.option("--campaign-ids", help="Comma-separated campaign IDs")
 @click.option("--status", help="Filter by status")
+@click.option("--statuses", help="Comma-separated statuses")
+@click.option("--states", help="Comma-separated states")
+@click.option("--modified-since", help="ModifiedSince datetime")
+@click.option("--serving-statuses", help="Comma-separated serving statuses")
 @click.option("--limit", type=int, help="Limit number of results")
 @click.option("--fetch-all", is_flag=True, help="Fetch all pages")
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.option("--fields", help="Comma-separated field names")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def get(
     ctx,
@@ -31,11 +36,16 @@ def get(
     adgroup_ids,
     campaign_ids,
     status,
+    statuses,
+    states,
+    modified_since,
+    serving_statuses,
     limit,
     fetch_all,
     output_format,
     output,
     fields,
+    dry_run,
 ):
     """Get keywords"""
     try:
@@ -56,6 +66,11 @@ def get(
             criteria["CampaignIds"] = parse_ids(campaign_ids)
         if status:
             criteria["Statuses"] = [status]
+        add_criteria_csv(criteria, "Statuses", statuses, upper=True)
+        add_criteria_csv(criteria, "States", states, upper=True)
+        if modified_since:
+            criteria["ModifiedSince"] = modified_since
+        add_criteria_csv(criteria, "ServingStatuses", serving_statuses, upper=True)
 
         params = {"SelectionCriteria": criteria, "FieldNames": field_names}
 
@@ -63,6 +78,10 @@ def get(
             params["Page"] = {"Limit": limit}
 
         body = {"method": "get", "params": params}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
 
         result = client.keywords().post(data=body)
 
@@ -149,18 +168,33 @@ def _deprecated_bid_option(ctx, param, value):
 @click.option("--keyword", help="New keyword text")
 @click.option("--user-param-1", help="User parameter 1")
 @click.option("--user-param-2", help="User parameter 2")
-@click.option("--bid", default=None, expose_value=False,
-              callback=_deprecated_bid_option,
-              is_eager=True, hidden=True,
-              help="Removed: use 'bids set --keyword-id ID --bid VALUE'")
-@click.option("--context-bid", default=None, expose_value=False,
-              callback=_deprecated_bid_option,
-              is_eager=True, hidden=True,
-              help="Removed: use 'bids set --keyword-id ID --network-bid VALUE'")
-@click.option("--status", default=None, expose_value=False,
-              callback=_deprecated_bid_option,
-              is_eager=True, hidden=True,
-              help="Removed: status is not mutable via keywords update")
+@click.option(
+    "--bid",
+    default=None,
+    expose_value=False,
+    callback=_deprecated_bid_option,
+    is_eager=True,
+    hidden=True,
+    help="Removed: use 'bids set --keyword-id ID --bid VALUE'",
+)
+@click.option(
+    "--context-bid",
+    default=None,
+    expose_value=False,
+    callback=_deprecated_bid_option,
+    is_eager=True,
+    hidden=True,
+    help="Removed: use 'bids set --keyword-id ID --network-bid VALUE'",
+)
+@click.option(
+    "--status",
+    default=None,
+    expose_value=False,
+    callback=_deprecated_bid_option,
+    is_eager=True,
+    hidden=True,
+    help="Removed: status is not mutable via keywords update",
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def update(ctx, keyword_id, keyword, user_param_1, user_param_2, dry_run):

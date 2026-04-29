@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import get_default_fields, parse_ids, MICRO_RUBLES
+from ..utils import add_criteria_csv, get_default_fields, parse_ids, MICRO_RUBLES
 
 
 @click.group()
@@ -18,13 +18,24 @@ def keywordbids():
 @click.option("--keyword-ids", help="Comma-separated keyword IDs")
 @click.option("--adgroup-ids", help="Comma-separated ad group IDs")
 @click.option("--campaign-ids", help="Comma-separated campaign IDs")
+@click.option("--serving-statuses", help="Comma-separated serving statuses")
 @click.option("--limit", type=int, help="Limit number of results")
 @click.option("--fetch-all", is_flag=True, help="Fetch all pages")
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def get(
-    ctx, keyword_ids, adgroup_ids, campaign_ids, limit, fetch_all, output_format, output
+    ctx,
+    keyword_ids,
+    adgroup_ids,
+    campaign_ids,
+    serving_statuses,
+    limit,
+    fetch_all,
+    output_format,
+    output,
+    dry_run,
 ):
     """Get keyword bids"""
     try:
@@ -41,6 +52,7 @@ def get(
             criteria["AdGroupIds"] = parse_ids(adgroup_ids)
         if campaign_ids:
             criteria["CampaignIds"] = parse_ids(campaign_ids)
+        add_criteria_csv(criteria, "ServingStatuses", serving_statuses, upper=True)
 
         params = {
             "SelectionCriteria": criteria,
@@ -53,6 +65,10 @@ def get(
             params["Page"] = {"Limit": limit}
 
         body = {"method": "get", "params": params}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
 
         result = client.keywordbids().post(data=body)
 

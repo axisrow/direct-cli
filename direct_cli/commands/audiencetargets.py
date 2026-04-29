@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import get_default_fields, parse_ids, MICRO_RUBLES
+from ..utils import add_criteria_csv, get_default_fields, parse_ids, MICRO_RUBLES
 
 
 @click.group()
@@ -18,22 +18,30 @@ def audiencetargets():
 @click.option("--ids", help="Comma-separated target IDs")
 @click.option("--adgroup-ids", help="Comma-separated ad group IDs")
 @click.option("--campaign-ids", help="Comma-separated campaign IDs")
+@click.option("--retargeting-list-ids", help="Comma-separated retargeting list IDs")
+@click.option("--interest-ids", help="Comma-separated interest IDs")
+@click.option("--states", help="Comma-separated states")
 @click.option("--limit", type=int, help="Limit number of results")
 @click.option("--fetch-all", is_flag=True, help="Fetch all pages")
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.option("--fields", help="Comma-separated field names")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def get(
     ctx,
     ids,
     adgroup_ids,
     campaign_ids,
+    retargeting_list_ids,
+    interest_ids,
+    states,
     limit,
     fetch_all,
     output_format,
     output,
     fields,
+    dry_run,
 ):
     """Get audience targets"""
     try:
@@ -50,6 +58,11 @@ def get(
             criteria["AdGroupIds"] = parse_ids(adgroup_ids)
         if campaign_ids:
             criteria["CampaignIds"] = parse_ids(campaign_ids)
+        add_criteria_csv(
+            criteria, "RetargetingListIds", retargeting_list_ids, integers=True
+        )
+        add_criteria_csv(criteria, "InterestIds", interest_ids, integers=True)
+        add_criteria_csv(criteria, "States", states, upper=True)
 
         field_names = (
             fields.split(",") if fields else get_default_fields("audiencetargets")
@@ -63,6 +76,10 @@ def get(
             params["Page"] = {"Limit": limit}
 
         body = {"method": "get", "params": params}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
 
         result = client.audiencetargets().post(data=body)
 

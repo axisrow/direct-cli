@@ -68,6 +68,287 @@ def _dry_run(*args: str) -> dict:
     return json.loads(result.output)
 
 
+def test_get_selection_criteria_new_typed_flags_payloads():
+    """Focused payload coverage for WSDL SelectionCriteria flags added for #146."""
+    cases = [
+        (
+            (
+                "adextensions",
+                "get",
+                "--states",
+                "ON",
+                "--statuses",
+                "ACCEPTED",
+                "--modified-since",
+                "2026-04-14T00:00:00",
+            ),
+            {
+                "States": ["ON"],
+                "Statuses": ["ACCEPTED"],
+                "ModifiedSince": "2026-04-14T00:00:00",
+            },
+        ),
+        (
+            (
+                "adgroups",
+                "get",
+                "--statuses",
+                "ACCEPTED",
+                "--tag-ids",
+                "1,2",
+                "--tags",
+                "a,b",
+                "--app-icon-statuses",
+                "ACCEPTED",
+                "--serving-statuses",
+                "ELIGIBLE",
+                "--negative-keyword-shared-set-ids",
+                "3,4",
+            ),
+            {
+                "Statuses": ["ACCEPTED"],
+                "TagIds": [1, 2],
+                "Tags": ["a", "b"],
+                "AppIconStatuses": ["ACCEPTED"],
+                "ServingStatuses": ["ELIGIBLE"],
+                "NegativeKeywordSharedSetIds": [3, 4],
+            },
+        ),
+        (
+            (
+                "adimages",
+                "get",
+                "--image-hashes",
+                "hash-a,hash-b",
+                "--associated",
+                "YES",
+            ),
+            {"AdImageHashes": ["hash-a", "hash-b"], "Associated": "YES"},
+        ),
+        (
+            (
+                "ads",
+                "get",
+                "--states",
+                "ON",
+                "--statuses",
+                "ACCEPTED",
+                "--types",
+                "TEXT_AD",
+                "--mobile",
+                "NO",
+                "--vcard-ids",
+                "1",
+                "--sitelink-set-ids",
+                "2",
+                "--image-hashes",
+                "h",
+                "--vcard-moderation-statuses",
+                "ACCEPTED",
+                "--sitelinks-moderation-statuses",
+                "ACCEPTED",
+                "--image-moderation-statuses",
+                "ACCEPTED",
+                "--adextension-ids",
+                "3",
+            ),
+            {
+                "States": ["ON"],
+                "Statuses": ["ACCEPTED"],
+                "Types": ["TEXT_AD"],
+                "Mobile": "NO",
+                "VCardIds": [1],
+                "SitelinkSetIds": [2],
+                "AdImageHashes": ["h"],
+                "VCardModerationStatuses": ["ACCEPTED"],
+                "SitelinksModerationStatuses": ["ACCEPTED"],
+                "AdImageModerationStatuses": ["ACCEPTED"],
+                "AdExtensionIds": [3],
+            },
+        ),
+        (
+            (
+                "audiencetargets",
+                "get",
+                "--retargeting-list-ids",
+                "10",
+                "--interest-ids",
+                "20",
+                "--states",
+                "ON",
+            ),
+            {"RetargetingListIds": [10], "InterestIds": [20], "States": ["ON"]},
+        ),
+        (
+            ("bidmodifiers", "get", "--ids", "1", "--types", "MOBILE_ADJUSTMENT"),
+            {"Ids": [1], "Types": ["MOBILE_ADJUSTMENT"]},
+        ),
+        (
+            ("bids", "get", "--serving-statuses", "ELIGIBLE"),
+            {"ServingStatuses": ["ELIGIBLE"]},
+        ),
+        (
+            ("keywordbids", "get", "--serving-statuses", "ELIGIBLE"),
+            {"ServingStatuses": ["ELIGIBLE"]},
+        ),
+        (
+            (
+                "campaigns",
+                "get",
+                "--states",
+                "ON",
+                "--statuses",
+                "ACCEPTED",
+                "--payment-statuses",
+                "ALLOWED",
+            ),
+            {
+                "States": ["ON"],
+                "Statuses": ["ACCEPTED"],
+                "StatusesPayment": ["ALLOWED"],
+            },
+        ),
+        (
+            ("creatives", "get", "--types", "VIDEO_EXTENSION_CREATIVE"),
+            {"Types": ["VIDEO_EXTENSION_CREATIVE"]},
+        ),
+        (
+            ("dynamicads", "get", "--campaign-ids", "1", "--states", "ON"),
+            {"CampaignIds": [1], "States": ["ON"]},
+        ),
+        (
+            ("dynamicfeedadtargets", "get", "--states", "ON"),
+            {"States": ["ON"]},
+        ),
+        (
+            (
+                "keywords",
+                "get",
+                "--states",
+                "ON",
+                "--statuses",
+                "ACCEPTED",
+                "--modified-since",
+                "2026-04-14T00:00:00",
+                "--serving-statuses",
+                "ELIGIBLE",
+            ),
+            {
+                "States": ["ON"],
+                "Statuses": ["ACCEPTED"],
+                "ModifiedSince": "2026-04-14T00:00:00",
+                "ServingStatuses": ["ELIGIBLE"],
+            },
+        ),
+        (
+            (
+                "leads",
+                "get",
+                "--turbo-page-ids",
+                "1",
+                "--datetime-from",
+                "2026-04-14T00:00:00",
+                "--datetime-to",
+                "2026-04-15T00:00:00",
+            ),
+            {
+                "TurboPageIds": [1],
+                "DateTimeFrom": "2026-04-14T00:00:00",
+                "DateTimeTo": "2026-04-15T00:00:00",
+            },
+        ),
+        (
+            ("smartadtargets", "get", "--campaign-ids", "1", "--states", "ON"),
+            {"CampaignIds": [1], "States": ["ON"]},
+        ),
+        (
+            ("turbopages", "get", "--bound-with-hrefs", "https://example.com"),
+            {"BoundWithHrefs": ["https://example.com"]},
+        ),
+    ]
+    for argv, expected in cases:
+        body = _dry_run(*argv)
+        criteria = body["params"].get("SelectionCriteria", {})
+        for key, value in expected.items():
+            assert criteria[key] == value
+
+
+def test_optional_ids_criteria_get_omits_empty_selection_criteria():
+    for command in (
+        "businesses",
+        "feeds",
+        "negativekeywordsharedsets",
+        "sitelinks",
+        "vcards",
+    ):
+        body = _dry_run(command, "get")
+        assert "SelectionCriteria" not in body["params"]
+
+
+def test_advideos_get_ids_required():
+    result = CliRunner().invoke(cli, ["advideos", "get", "--dry-run"])
+    assert result.exit_code != 0
+    assert "Missing option '--ids'" in result.output
+
+
+def _reports_get_result(*extra_args: str) -> Result:
+    return CliRunner().invoke(
+        cli,
+        [
+            "reports",
+            "get",
+            "--type",
+            "CAMPAIGN_PERFORMANCE_REPORT",
+            "--from",
+            "2026-01-01",
+            "--to",
+            "2026-01-31",
+            "--name",
+            "Dry Run Report",
+            "--fields",
+            "Date,CampaignId,Clicks",
+            *extra_args,
+            "--dry-run",
+        ],
+    )
+
+
+def test_reports_get_goals_and_attribution_models_dry_run():
+    result = _reports_get_result(
+        "--goals",
+        "123,456",
+        "--attribution-models",
+        "fc,auto",
+    )
+    assert result.exit_code == 0, result.output
+    body = json.loads(result.output)["body"]
+    assert body["params"]["Goals"] == ["123", "456"]
+    assert body["params"]["AttributionModels"] == ["FC", "AUTO"]
+
+
+def test_reports_get_rejects_invalid_goals_and_attribution_models():
+    invalid_goal = _reports_get_result("--goals", "0")
+    assert invalid_goal.exit_code != 0
+    assert "Invalid goal ID" in invalid_goal.output
+
+    invalid_model = _reports_get_result("--attribution-models", "BAD")
+    assert invalid_model.exit_code != 0
+    assert "Invalid attribution model" in invalid_model.output
+
+
+def test_reports_get_filter_validation_dry_run():
+    invalid = _reports_get_result("--filter", "Goals:IN:123")
+    assert invalid.exit_code != 0
+    assert "not a filter field" in invalid.output
+
+    valid = _reports_get_result("--filter", "Clicks:GREATER_THAN:0")
+    assert valid.exit_code == 0, valid.output
+    body = json.loads(valid.output)["body"]
+    assert body["params"]["SelectionCriteria"]["Filter"] == [
+        {"Field": "Clicks", "Operator": "GREATER_THAN", "Values": ["0"]}
+    ]
+
+
 # ----------------------------------------------------------------------
 # ads
 # ----------------------------------------------------------------------

@@ -21,13 +21,17 @@ def turbopages():
 
 @turbopages.command()
 @click.option("--ids", help="Comma-separated Turbo Page IDs")
+@click.option("--bound-with-hrefs", help="Comma-separated hrefs bound with Turbo Pages")
 @click.option("--limit", type=int, help="Limit number of results")
 @click.option("--fetch-all", is_flag=True, help="Fetch all pages")
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.option("--fields", help="Comma-separated field names")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def get(ctx, ids, limit, fetch_all, output_format, output, fields):
+def get(
+    ctx, ids, bound_with_hrefs, limit, fetch_all, output_format, output, fields, dry_run
+):
     """Get Turbo Pages"""
     try:
         client = create_client(
@@ -41,13 +45,23 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
         criteria = {}
         if ids:
             criteria["Ids"] = parse_ids(ids)
+        if bound_with_hrefs:
+            criteria["BoundWithHrefs"] = [
+                item.strip() for item in bound_with_hrefs.split(",") if item.strip()
+            ]
 
-        params = {"SelectionCriteria": criteria, "FieldNames": field_names}
+        params = {"FieldNames": field_names}
+        if criteria:
+            params["SelectionCriteria"] = criteria
 
         if limit:
             params["Page"] = {"Limit": limit}
 
         body = {"method": "get", "params": params}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
 
         result = client.turbopages().post(data=body)
 

@@ -12,12 +12,20 @@
   "date_range_types": [
     "TODAY",
     "YESTERDAY",
+    "LAST_3_DAYS",
+    "LAST_5_DAYS",
     "LAST_7_DAYS",
     "LAST_14_DAYS",
     "LAST_30_DAYS",
+    "LAST_90_DAYS",
+    "LAST_365_DAYS",
     "THIS_WEEK_MON_TODAY",
+    "THIS_WEEK_SUN_TODAY",
     "LAST_WEEK",
     "LAST_BUSINESS_WEEK",
+    "LAST_WEEK_SUN_SAT",
+    "THIS_MONTH",
+    "LAST_MONTH",
     "ALL_TIME",
     "CUSTOM_DATE",
     "AUTO"
@@ -75,509 +83,1563 @@
       ]
     }
   },
+  "report_definition_fields": {
+    "SelectionCriteria": {
+      "type": "SelectionCriteria",
+      "required": true,
+      "description": "Критерии отбора данных для отчета."
+    },
+    "Goals": {
+      "type": "array of string",
+      "required": false,
+      "description": "Идентификаторы целей Яндекс Метрики, по которым требуется получить статистику (см. раздел Что такое цели. Типы целей помощи Яндекс Метрики ). Не более 10 элементов в массиве. Если параметр указан, то в отчете вместо полей ConversionRate , Conversions , CostPerConversion , GoalsRoi и Revenue с агрегированными данными по всем целям будут выведены аналогичные поля с именами вида <поле>_<id_цели>_<модель_атрибуции> и данными по каждой цели в отдельности. См. также Пример: данные Яндекс Метрики ."
+    },
+    "AttributionModels": {
+      "type": "array of AttributionModelEnum",
+      "required": false,
+      "description": "Модели атрибуции, используемые при расчете данных по целям Яндекс Метрики (см. раздел Модели атрибуции помощи Директа ). Обновление моделей атрибуции в Директе и Яндекс Метрике С 21 апреля устаревшие модели LSC, FC, LYDC, LYDCCD станут недоступными для выбора. С 20 мая активные кампании с устаревшими моделями автоматически перейдут на ближайшую действующую кросс-девайс версию или автоматическую атрибуцию. Переобучения стратегий при переходе не произойдет. Методы с устаревшими моделями будут конвертироваться в действующие и возвращать предупреждение о том, что используется другая модель. Возможные значения: FC — первый переход. LC — последний переход. LSC — последний значимый переход. LYDC — последний переход из Яндекс Директа. FCCD – первый переход кросс-девайс. LSCCD – последний значимый переход кросс-девайс. LYDCCD – последний переход из Яндекс Директа кросс-девайс. AUTO – автоматическая атрибуция. Значение по умолчанию — LC. Если указано несколько моделей атрибуции, данные будут выведены по каждой модели в отдельности. Примечание При использовании моделей атрибуции LYDC, LSC и FC датой визита считается не дата фактического посещения сайта, а дата клика, который является источником визита. Таким образом, визит и его данные (глубина просмотра, достижение цели, доход и т. д.) будут отражены в отчете, если дата клика попадает в период отчета. При повторном получении отчета за тот же период с теми же параметрами данные Метрики в отчете могут измениться, если с момента предыдущего получения отчета произошли визиты, источником которых являются клики, совершенные в период отчета."
+    },
+    "FieldNames": {
+      "type": "array of FieldEnum",
+      "required": true,
+      "description": "Имена полей (столбцов), которые будут присутствовать в отчете. Какие поля можно указывать, см. в разделах Допустимые поля , Несовместимые поля и зависимости . Для типа отчета REACH_AND_FREQUENCY_PERFORMANCE_REPORT поле CampaignId обязательно."
+    },
+    "Page": {
+      "type": "Page",
+      "required": false,
+      "description": "Ограничение на количество строк в отчете. Если не задано, используется ограничение 1 000 000."
+    },
+    "OrderBy": {
+      "type": "array of OrderBy",
+      "required": false,
+      "description": "Имена полей (столбцов), по которым требуется отсортировать строки в отчете."
+    },
+    "ReportName": {
+      "type": "string",
+      "required": true,
+      "description": "Название отчета. Выводится в первой строке отчета. В режиме офлайн название отчета должно быть уникальным для пользователя. Если отчет с таким названием, но с отличающимися параметрами уже сформирован или находится в очереди, выдается ошибка."
+    },
+    "ReportType": {
+      "type": "ReportTypeEnum",
+      "required": true,
+      "description": "Тип отчета. См. раздел Тип отчета выше."
+    },
+    "DateRangeType": {
+      "type": "DateRangeTypeEnum",
+      "required": true,
+      "description": "Период, за который формируется отчет. См. раздел Период отчета выше."
+    },
+    "Format": {
+      "type": "FormatEnum",
+      "required": true,
+      "description": "Формат отчета. В настоящее время поддерживается только значение TSV."
+    },
+    "IncludeVAT": {
+      "type": "YesNoEnum",
+      "required": true,
+      "description": "Включать ли НДС в денежные суммы в отчете."
+    },
+    "IncludeDiscount": {
+      "type": "YesNoEnum",
+      "required": false,
+      "description": "Учитывать ли скидку для денежных сумм в отчете. Параметр утратил актуальность, с 1 сентября 2015 года скидка в Директе не предоставляется."
+    }
+  },
+  "selection_criteria_fields": {
+    "DateFrom": {
+      "type": "string",
+      "required": false,
+      "description": "Начальная дата отчетного периода, YYYY-MM-DD."
+    },
+    "DateTo": {
+      "type": "string",
+      "required": false,
+      "description": "Конечная дата отчетного периода, YYYY-MM-DD. Примечание Параметры DateFrom и DateTo обязательны при значении CUSTOM_DATE параметра DateRangeType и недопустимы при других значениях."
+    },
+    "Filter": {
+      "type": "array of FilterItem",
+      "required": false,
+      "description": "Фильтры. См. раздел Фильтрация данных выше."
+    }
+  },
+  "filter_fields": {
+    "Field": {
+      "type": "FieldEnum",
+      "required": true,
+      "description": "Имя поля, которое используется для фильтрации данных. Каждое поле можно использовать только в одном фильтре: несколько фильтров с одним и тем же полем не допускается. Какие поля можно указывать, см. в разделах Допустимые поля , Несовместимые поля и зависимости ."
+    },
+    "Operator": {
+      "type": "FilterOperatorEnum",
+      "required": true,
+      "description": "Оператор, используемый для фильтрации данных: EQUALS — значение поля равно значению из Values ; NOT_EQUALS — значение поля не равно значению из Values ; IN — значение поля равно любому значению из Values ; NOT_IN — значение поля не равно ни одному значению из Values ; LESS_THAN — значение поля меньше значения из Values ; GREATER_THAN — значение поля больше значения из Values ; STARTS_WITH_IGNORE_CASE — значение поля начинается с значения из Values ; DOES_NOT_START_WITH_IGNORE_CASE — значение поля не начинается с значения из Values ; STARTS_WITH_ANY_IGNORE_CASE — значение поля начинается с любого из значений, указанных в Values ; DOES_NOT_START_WITH_ALL_IGNORE_CASE — значение поля не начинается ни с одного из значений, указанных в Values . Примечание Операторы EQUALS, NOT_EQUALS, IN, NOT_IN для полей Keyword и Query не учитывают регистр, для остальных полей — учитывают регистр. Операторы STARTS_WITH_IGNORE_CASE, DOES_NOT_START_WITH_IGNORE_CASE, STARTS_WITH_ANY_IGNORE_CASE, DOES_NOT_START_WITH_ALL_IGNORE_CASE не учитывают регистр."
+    },
+    "Values": {
+      "type": "array of string",
+      "required": true,
+      "description": "Значения, используемые для фильтрации данных. Не более 10 000 элементов в массиве. Все денежные значения следует указывать в виде целых чисел: сумм в валюте, умноженных на 1 000 000 (независимо от наличия заголовка returnMoneyInMicros: false )."
+    }
+  },
+  "filter_operators": [
+    "DOES_NOT_START_WITH_ALL_IGNORE_CASE",
+    "DOES_NOT_START_WITH_IGNORE_CASE",
+    "EQUALS",
+    "GREATER_THAN",
+    "IN",
+    "LESS_THAN",
+    "NOT_EQUALS",
+    "NOT_IN",
+    "STARTS_WITH_ANY_IGNORE_CASE",
+    "STARTS_WITH_IGNORE_CASE"
+  ],
+  "order_by_fields": {
+    "Field": {
+      "type": "FieldEnum",
+      "required": true,
+      "description": "Имя поля, которое используется для сортировки. Какие поля можно указывать, см. в разделах Допустимые поля , Несовместимые поля и зависимости ."
+    },
+    "SortOrder": {
+      "type": "OrderBySortOrderEnum",
+      "required": false,
+      "description": "Направление сортировки: ASCENDING — по возрастанию; DESCENDING — по убыванию. Если не задано, выполняется сортировка по возрастанию."
+    }
+  },
+  "order_by_sort_orders": [
+    "ASCENDING",
+    "DESCENDING"
+  ],
+  "attribution_models": [
+    "AUTO",
+    "FC",
+    "FCCD",
+    "LC",
+    "LSC",
+    "LSCCD",
+    "LYDC",
+    "LYDCCD"
+  ],
   "field_compatibility": {
     "AdFormat": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "сегмент",
+        "AD_PERFORMANCE_REPORT": "сегмент",
+        "ADGROUP_PERFORMANCE_REPORT": "сегмент",
+        "CAMPAIGN_PERFORMANCE_REPORT": "сегмент",
+        "CRITERIA_PERFORMANCE_REPORT": "–",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "–",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "–"
       }
     },
     "AdGroupId": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "–",
+        "AD_PERFORMANCE_REPORT": "атрибут",
+        "ADGROUP_PERFORMANCE_REPORT": "атрибут",
+        "CAMPAIGN_PERFORMANCE_REPORT": "–",
+        "CRITERIA_PERFORMANCE_REPORT": "атрибут",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "сегмент",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "атрибут"
       }
     },
     "AdGroupName": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "–"
+        "ACCOUNT_PERFORMANCE_REPORT": "–",
+        "AD_PERFORMANCE_REPORT": "атрибут",
+        "ADGROUP_PERFORMANCE_REPORT": "атрибут",
+        "CAMPAIGN_PERFORMANCE_REPORT": "–",
+        "CRITERIA_PERFORMANCE_REPORT": "атрибут",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "сегмент",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "атрибут"
       }
     },
     "AdId": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "–",
+        "AD_PERFORMANCE_REPORT": "атрибут",
+        "ADGROUP_PERFORMANCE_REPORT": "–",
+        "CAMPAIGN_PERFORMANCE_REPORT": "–",
+        "CRITERIA_PERFORMANCE_REPORT": "–",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "сегмент",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "сегмент"
       }
     },
     "AdNetworkType": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "сегмент",
+        "AD_PERFORMANCE_REPORT": "сегмент",
+        "ADGROUP_PERFORMANCE_REPORT": "сегмент",
+        "CAMPAIGN_PERFORMANCE_REPORT": "сегмент",
+        "CRITERIA_PERFORMANCE_REPORT": "сегмент",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "–",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "–"
       }
     },
     "Age": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "сегмент",
+        "AD_PERFORMANCE_REPORT": "сегмент",
+        "ADGROUP_PERFORMANCE_REPORT": "сегмент",
+        "CAMPAIGN_PERFORMANCE_REPORT": "сегмент",
+        "CRITERIA_PERFORMANCE_REPORT": "сегмент",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "сегмент",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "–"
       }
     },
     "AudienceTargetId": {
       "report_types": {
-        "Параметры": "–",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "–",
+        "AD_PERFORMANCE_REPORT": "–",
+        "ADGROUP_PERFORMANCE_REPORT": "–",
+        "CAMPAIGN_PERFORMANCE_REPORT": "–",
+        "CRITERIA_PERFORMANCE_REPORT": "фильтр",
+        "CUSTOM_REPORT": "фильтр",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "–",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "–"
       }
     },
     "AvgClickPosition": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "метрика",
+        "AD_PERFORMANCE_REPORT": "метрика",
+        "ADGROUP_PERFORMANCE_REPORT": "метрика",
+        "CAMPAIGN_PERFORMANCE_REPORT": "метрика",
+        "CRITERIA_PERFORMANCE_REPORT": "метрика",
+        "CUSTOM_REPORT": "метрика",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "–",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "метрика"
       }
     },
     "AvgCpc": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "метрика",
+        "AD_PERFORMANCE_REPORT": "метрика",
+        "ADGROUP_PERFORMANCE_REPORT": "метрика",
+        "CAMPAIGN_PERFORMANCE_REPORT": "метрика",
+        "CRITERIA_PERFORMANCE_REPORT": "метрика",
+        "CUSTOM_REPORT": "метрика",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "метрика"
       }
     },
     "AvgCpm": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "–",
+        "AD_PERFORMANCE_REPORT": "–",
+        "ADGROUP_PERFORMANCE_REPORT": "–",
+        "CAMPAIGN_PERFORMANCE_REPORT": "–",
+        "CRITERIA_PERFORMANCE_REPORT": "–",
+        "CUSTOM_REPORT": "–",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика\t–"
       }
     },
     "AvgEffectiveBid": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "метрика",
+        "AD_PERFORMANCE_REPORT": "метрика",
+        "ADGROUP_PERFORMANCE_REPORT": "метрика",
+        "CAMPAIGN_PERFORMANCE_REPORT": "метрика",
+        "CRITERIA_PERFORMANCE_REPORT": "метрика",
+        "CUSTOM_REPORT": "метрика",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "метрика"
       }
     },
     "AvgImpressionFrequency": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "–",
+        "AD_PERFORMANCE_REPORT": "–",
+        "ADGROUP_PERFORMANCE_REPORT": "–",
+        "CAMPAIGN_PERFORMANCE_REPORT": "–",
+        "CRITERIA_PERFORMANCE_REPORT": "–",
+        "CUSTOM_REPORT": "–",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика\t–"
       }
     },
     "AvgImpressionPosition": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "метрика",
+        "AD_PERFORMANCE_REPORT": "метрика",
+        "ADGROUP_PERFORMANCE_REPORT": "метрика",
+        "CAMPAIGN_PERFORMANCE_REPORT": "метрика",
+        "CRITERIA_PERFORMANCE_REPORT": "метрика",
+        "CUSTOM_REPORT": "метрика",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "–",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "метрика"
       }
     },
     "AvgPageviews": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "метрика",
+        "AD_PERFORMANCE_REPORT": "метрика",
+        "ADGROUP_PERFORMANCE_REPORT": "метрика",
+        "CAMPAIGN_PERFORMANCE_REPORT": "метрика",
+        "CRITERIA_PERFORMANCE_REPORT": "метрика",
+        "CUSTOM_REPORT": "метрика",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "метрика"
       }
     },
     "AvgTrafficVolume": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "метрика",
+        "AD_PERFORMANCE_REPORT": "метрика",
+        "ADGROUP_PERFORMANCE_REPORT": "метрика",
+        "CAMPAIGN_PERFORMANCE_REPORT": "метрика",
+        "CRITERIA_PERFORMANCE_REPORT": "метрика",
+        "CUSTOM_REPORT": "метрика",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "метрика"
       }
     },
     "AvgVideoCompleteCost": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "–",
+        "AD_PERFORMANCE_REPORT": "–",
+        "ADGROUP_PERFORMANCE_REPORT": "–",
+        "CAMPAIGN_PERFORMANCE_REPORT": "–",
+        "CRITERIA_PERFORMANCE_REPORT": "–",
+        "CUSTOM_REPORT": "–",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика\t–"
       }
     },
     "BounceRate": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "метрика",
+        "AD_PERFORMANCE_REPORT": "метрика",
+        "ADGROUP_PERFORMANCE_REPORT": "метрика",
+        "CAMPAIGN_PERFORMANCE_REPORT": "метрика",
+        "CRITERIA_PERFORMANCE_REPORT": "метрика",
+        "CUSTOM_REPORT": "метрика",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "метрика"
       }
     },
     "Bounces": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "–"
+        "ACCOUNT_PERFORMANCE_REPORT": "метрика",
+        "AD_PERFORMANCE_REPORT": "метрика",
+        "ADGROUP_PERFORMANCE_REPORT": "метрика",
+        "CAMPAIGN_PERFORMANCE_REPORT": "метрика",
+        "CRITERIA_PERFORMANCE_REPORT": "метрика",
+        "CUSTOM_REPORT": "метрика",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "метрика"
       }
     },
     "CampaignId": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "–",
+        "AD_PERFORMANCE_REPORT": "атрибут",
+        "ADGROUP_PERFORMANCE_REPORT": "атрибут",
+        "CAMPAIGN_PERFORMANCE_REPORT": "атрибут",
+        "CRITERIA_PERFORMANCE_REPORT": "атрибут",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "сегмент",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "атрибут"
       }
     },
     "CampaignName": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "–"
+        "ACCOUNT_PERFORMANCE_REPORT": "–",
+        "AD_PERFORMANCE_REPORT": "атрибут",
+        "ADGROUP_PERFORMANCE_REPORT": "атрибут",
+        "CAMPAIGN_PERFORMANCE_REPORT": "атрибут",
+        "CRITERIA_PERFORMANCE_REPORT": "атрибут",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "сегмент",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "атрибут"
       }
     },
     "CampaignUrlPath": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "–"
+        "ACCOUNT_PERFORMANCE_REPORT": "–",
+        "AD_PERFORMANCE_REPORT": "атрибут",
+        "ADGROUP_PERFORMANCE_REPORT": "атрибут",
+        "CAMPAIGN_PERFORMANCE_REPORT": "атрибут",
+        "CRITERIA_PERFORMANCE_REPORT": "атрибут",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "сегмент",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "атрибут"
       }
     },
     "CampaignType": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "сегмент",
+        "AD_PERFORMANCE_REPORT": "атрибут",
+        "ADGROUP_PERFORMANCE_REPORT": "атрибут",
+        "CAMPAIGN_PERFORMANCE_REPORT": "атрибут",
+        "CRITERIA_PERFORMANCE_REPORT": "атрибут",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "сегмент",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "атрибут"
       }
     },
     "CarrierType": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "сегмент",
+        "AD_PERFORMANCE_REPORT": "сегмент",
+        "ADGROUP_PERFORMANCE_REPORT": "сегмент",
+        "CAMPAIGN_PERFORMANCE_REPORT": "сегмент",
+        "CRITERIA_PERFORMANCE_REPORT": "сегмент",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "–",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "–"
       }
     },
     "Clicks": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "метрика",
+        "AD_PERFORMANCE_REPORT": "метрика",
+        "ADGROUP_PERFORMANCE_REPORT": "метрика",
+        "CAMPAIGN_PERFORMANCE_REPORT": "метрика",
+        "CRITERIA_PERFORMANCE_REPORT": "метрика",
+        "CUSTOM_REPORT": "метрика",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "метрика"
       }
     },
     "ClickType": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "сегмент",
+        "AD_PERFORMANCE_REPORT": "сегмент",
+        "ADGROUP_PERFORMANCE_REPORT": "сегмент",
+        "CAMPAIGN_PERFORMANCE_REPORT": "сегмент",
+        "CRITERIA_PERFORMANCE_REPORT": "сегмент",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "–",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "–"
       }
     },
     "ClientLogin": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "сегмент",
+        "AD_PERFORMANCE_REPORT": "сегмент",
+        "ADGROUP_PERFORMANCE_REPORT": "сегмент",
+        "CAMPAIGN_PERFORMANCE_REPORT": "сегмент",
+        "CRITERIA_PERFORMANCE_REPORT": "сегмент",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "сегмент",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "сегмент"
       }
     },
     "ConversionRate": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "метрика",
+        "AD_PERFORMANCE_REPORT": "метрика",
+        "ADGROUP_PERFORMANCE_REPORT": "метрика",
+        "CAMPAIGN_PERFORMANCE_REPORT": "метрика",
+        "CRITERIA_PERFORMANCE_REPORT": "метрика",
+        "CUSTOM_REPORT": "метрика",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "метрика"
       }
     },
     "Conversions": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "метрика",
+        "AD_PERFORMANCE_REPORT": "метрика",
+        "ADGROUP_PERFORMANCE_REPORT": "метрика",
+        "CAMPAIGN_PERFORMANCE_REPORT": "метрика",
+        "CRITERIA_PERFORMANCE_REPORT": "метрика",
+        "CUSTOM_REPORT": "метрика",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "метрика"
       }
     },
     "Cost": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "метрика",
+        "AD_PERFORMANCE_REPORT": "метрика",
+        "ADGROUP_PERFORMANCE_REPORT": "метрика",
+        "CAMPAIGN_PERFORMANCE_REPORT": "метрика",
+        "CRITERIA_PERFORMANCE_REPORT": "метрика",
+        "CUSTOM_REPORT": "метрика",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "метрика"
       }
     },
     "CostPerConversion": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "метрика",
+        "AD_PERFORMANCE_REPORT": "метрика",
+        "ADGROUP_PERFORMANCE_REPORT": "метрика",
+        "CAMPAIGN_PERFORMANCE_REPORT": "метрика",
+        "CRITERIA_PERFORMANCE_REPORT": "метрика",
+        "CUSTOM_REPORT": "метрика",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "метрика"
       }
     },
     "CPV": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "–",
+        "AD_PERFORMANCE_REPORT": "–",
+        "ADGROUP_PERFORMANCE_REPORT": "–",
+        "CAMPAIGN_PERFORMANCE_REPORT": "–",
+        "CRITERIA_PERFORMANCE_REPORT": "–",
+        "CUSTOM_REPORT": "–",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика\t–"
       }
     },
     "Criteria": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "–"
+        "ACCOUNT_PERFORMANCE_REPORT": "–",
+        "AD_PERFORMANCE_REPORT": "–",
+        "ADGROUP_PERFORMANCE_REPORT": "–",
+        "CAMPAIGN_PERFORMANCE_REPORT": "–",
+        "CRITERIA_PERFORMANCE_REPORT": "атрибут",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "–",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "сегмент"
       }
     },
     "CriteriaId": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "–"
+        "ACCOUNT_PERFORMANCE_REPORT": "–",
+        "AD_PERFORMANCE_REPORT": "–",
+        "ADGROUP_PERFORMANCE_REPORT": "–",
+        "CAMPAIGN_PERFORMANCE_REPORT": "–",
+        "CRITERIA_PERFORMANCE_REPORT": "атрибут",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "–",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "сегмент"
       }
     },
     "CriteriaType": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "сегмент",
+        "AD_PERFORMANCE_REPORT": "сегмент",
+        "ADGROUP_PERFORMANCE_REPORT": "сегмент",
+        "CAMPAIGN_PERFORMANCE_REPORT": "сегмент",
+        "CRITERIA_PERFORMANCE_REPORT": "атрибут",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "–",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "сегмент"
       }
     },
     "Criterion": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "–"
+        "ACCOUNT_PERFORMANCE_REPORT": "–",
+        "AD_PERFORMANCE_REPORT": "–",
+        "ADGROUP_PERFORMANCE_REPORT": "–",
+        "CAMPAIGN_PERFORMANCE_REPORT": "–",
+        "CRITERIA_PERFORMANCE_REPORT": "атрибут",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "–",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "сегмент"
       }
     },
     "CriterionId": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "–"
+        "ACCOUNT_PERFORMANCE_REPORT": "–",
+        "AD_PERFORMANCE_REPORT": "–",
+        "ADGROUP_PERFORMANCE_REPORT": "–",
+        "CAMPAIGN_PERFORMANCE_REPORT": "–",
+        "CRITERIA_PERFORMANCE_REPORT": "атрибут",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "–",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "сегмент"
       }
     },
     "CriterionType": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "сегмент",
+        "AD_PERFORMANCE_REPORT": "сегмент",
+        "ADGROUP_PERFORMANCE_REPORT": "сегмент",
+        "CAMPAIGN_PERFORMANCE_REPORT": "сегмент",
+        "CRITERIA_PERFORMANCE_REPORT": "атрибут",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "–",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "сегмент"
       }
     },
     "Ctr": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "метрика",
+        "AD_PERFORMANCE_REPORT": "метрика",
+        "ADGROUP_PERFORMANCE_REPORT": "метрика",
+        "CAMPAIGN_PERFORMANCE_REPORT": "метрика",
+        "CRITERIA_PERFORMANCE_REPORT": "метрика",
+        "CUSTOM_REPORT": "метрика",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "метрика"
       }
     },
     "Date": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "–"
+        "ACCOUNT_PERFORMANCE_REPORT": "сегмент",
+        "AD_PERFORMANCE_REPORT": "сегмент",
+        "ADGROUP_PERFORMANCE_REPORT": "сегмент",
+        "CAMPAIGN_PERFORMANCE_REPORT": "сегмент",
+        "CRITERIA_PERFORMANCE_REPORT": "сегмент",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "сегмент",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "сегмент"
       }
     },
     "Device": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "сегмент",
+        "AD_PERFORMANCE_REPORT": "сегмент",
+        "ADGROUP_PERFORMANCE_REPORT": "сегмент",
+        "CAMPAIGN_PERFORMANCE_REPORT": "сегмент",
+        "CRITERIA_PERFORMANCE_REPORT": "сегмент",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "сегмент\t–"
       }
     },
     "DynamicTextAdTargetId": {
       "report_types": {
-        "Параметры": "–",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "–",
+        "AD_PERFORMANCE_REPORT": "–",
+        "ADGROUP_PERFORMANCE_REPORT": "–",
+        "CAMPAIGN_PERFORMANCE_REPORT": "–",
+        "CRITERIA_PERFORMANCE_REPORT": "фильтр",
+        "CUSTOM_REPORT": "фильтр",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "–",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "фильтр"
       }
     },
     "ExternalNetworkName": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "сегмент",
+        "AD_PERFORMANCE_REPORT": "сегмент",
+        "ADGROUP_PERFORMANCE_REPORT": "сегмент",
+        "CAMPAIGN_PERFORMANCE_REPORT": "сегмент",
+        "CRITERIA_PERFORMANCE_REPORT": "сегмент",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "–",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "–"
       }
     },
     "Gender": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "сегмент",
+        "AD_PERFORMANCE_REPORT": "сегмент",
+        "ADGROUP_PERFORMANCE_REPORT": "сегмент",
+        "CAMPAIGN_PERFORMANCE_REPORT": "сегмент",
+        "CRITERIA_PERFORMANCE_REPORT": "сегмент",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "сегмент\t–"
       }
     },
     "GoalsRoi": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "метрика",
+        "AD_PERFORMANCE_REPORT": "метрика",
+        "ADGROUP_PERFORMANCE_REPORT": "метрика",
+        "CAMPAIGN_PERFORMANCE_REPORT": "метрика",
+        "CRITERIA_PERFORMANCE_REPORT": "метрика",
+        "CUSTOM_REPORT": "метрика",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "метрика"
       }
     },
     "ImpressionReach": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "–",
+        "AD_PERFORMANCE_REPORT": "–",
+        "ADGROUP_PERFORMANCE_REPORT": "–",
+        "CAMPAIGN_PERFORMANCE_REPORT": "–",
+        "CRITERIA_PERFORMANCE_REPORT": "–",
+        "CUSTOM_REPORT": "–",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика\t–"
       }
     },
     "Impressions": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "метрика",
+        "AD_PERFORMANCE_REPORT": "метрика",
+        "ADGROUP_PERFORMANCE_REPORT": "метрика",
+        "CAMPAIGN_PERFORMANCE_REPORT": "метрика",
+        "CRITERIA_PERFORMANCE_REPORT": "метрика",
+        "CUSTOM_REPORT": "метрика",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "метрика"
       }
     },
     "IncomeGrade": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "сегмент",
+        "AD_PERFORMANCE_REPORT": "сегмент",
+        "ADGROUP_PERFORMANCE_REPORT": "сегмент",
+        "CAMPAIGN_PERFORMANCE_REPORT": "сегмент",
+        "CRITERIA_PERFORMANCE_REPORT": "сегмент",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "–",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "сегмент"
       }
     },
     "Keyword": {
       "report_types": {
-        "Параметры": "–",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "–",
+        "AD_PERFORMANCE_REPORT": "–",
+        "ADGROUP_PERFORMANCE_REPORT": "–",
+        "CAMPAIGN_PERFORMANCE_REPORT": "–",
+        "CRITERIA_PERFORMANCE_REPORT": "фильтр",
+        "CUSTOM_REPORT": "фильтр",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "–",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "фильтр"
       }
     },
     "LocationOfPresenceId": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "сегмент",
+        "AD_PERFORMANCE_REPORT": "сегмент",
+        "ADGROUP_PERFORMANCE_REPORT": "сегмент",
+        "CAMPAIGN_PERFORMANCE_REPORT": "сегмент",
+        "CRITERIA_PERFORMANCE_REPORT": "сегмент",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "–",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "–"
       }
     },
     "LocationOfPresenceName": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "–"
+        "ACCOUNT_PERFORMANCE_REPORT": "сегмент",
+        "AD_PERFORMANCE_REPORT": "сегмент",
+        "ADGROUP_PERFORMANCE_REPORT": "сегмент",
+        "CAMPAIGN_PERFORMANCE_REPORT": "сегмент",
+        "CRITERIA_PERFORMANCE_REPORT": "сегмент",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "–",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "–"
       }
     },
     "MatchedKeyword": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "–",
+        "AD_PERFORMANCE_REPORT": "–",
+        "ADGROUP_PERFORMANCE_REPORT": "–",
+        "CAMPAIGN_PERFORMANCE_REPORT": "–",
+        "CRITERIA_PERFORMANCE_REPORT": "–",
+        "CUSTOM_REPORT": "–",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "–",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "сегмент"
       }
     },
     "MatchType": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "сегмент",
+        "AD_PERFORMANCE_REPORT": "сегмент",
+        "ADGROUP_PERFORMANCE_REPORT": "сегмент",
+        "CAMPAIGN_PERFORMANCE_REPORT": "сегмент",
+        "CRITERIA_PERFORMANCE_REPORT": "сегмент",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "–",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "сегмент"
       }
     },
     "MobilePlatform": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "сегмент",
+        "AD_PERFORMANCE_REPORT": "сегмент",
+        "ADGROUP_PERFORMANCE_REPORT": "сегмент",
+        "CAMPAIGN_PERFORMANCE_REPORT": "сегмент",
+        "CRITERIA_PERFORMANCE_REPORT": "сегмент",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "–",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "–"
       }
     },
     "Month": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "–"
+        "ACCOUNT_PERFORMANCE_REPORT": "сегмент",
+        "AD_PERFORMANCE_REPORT": "сегмент",
+        "ADGROUP_PERFORMANCE_REPORT": "сегмент",
+        "CAMPAIGN_PERFORMANCE_REPORT": "сегмент",
+        "CRITERIA_PERFORMANCE_REPORT": "сегмент",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "сегмент",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "сегмент"
       }
     },
     "Placement": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "сегмент",
+        "AD_PERFORMANCE_REPORT": "сегмент",
+        "ADGROUP_PERFORMANCE_REPORT": "сегмент",
+        "CAMPAIGN_PERFORMANCE_REPORT": "сегмент",
+        "CRITERIA_PERFORMANCE_REPORT": "сегмент",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "–",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "сегмент"
       }
     },
     "Profit": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "метрика",
+        "AD_PERFORMANCE_REPORT": "метрика",
+        "ADGROUP_PERFORMANCE_REPORT": "метрика",
+        "CAMPAIGN_PERFORMANCE_REPORT": "метрика",
+        "CRITERIA_PERFORMANCE_REPORT": "метрик",
+        "CUSTOM_REPORT": "метрика",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "метрика"
       }
     },
     "PurchaseGoals": {
       "report_types": {
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "метрика",
+        "AD_PERFORMANCE_REPORT": "метрика",
+        "ADGROUP_PERFORMANCE_REPORT": "метрика",
+        "CAMPAIGN_PERFORMANCE_REPORT": "метрика",
+        "CRITERIA_PERFORMANCE_REPORT": "метрик",
+        "CUSTOM_REPORT": "метрика",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "метрика"
       }
     },
     "PurchaseRevenue": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "метрика",
+        "AD_PERFORMANCE_REPORT": "метрика",
+        "ADGROUP_PERFORMANCE_REPORT": "метрика",
+        "CAMPAIGN_PERFORMANCE_REPORT": "метрика",
+        "CRITERIA_PERFORMANCE_REPORT": "метрик",
+        "CUSTOM_REPORT": "метрика",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "метрика"
       }
     },
     "PurchaseProfit": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "метрика",
+        "AD_PERFORMANCE_REPORT": "метрика",
+        "ADGROUP_PERFORMANCE_REPORT": "метрика",
+        "CAMPAIGN_PERFORMANCE_REPORT": "метрика",
+        "CRITERIA_PERFORMANCE_REPORT": "метрик",
+        "CUSTOM_REPORT": "метрика",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "метрика"
       }
     },
     "PurchaseGoalsRoi": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "метрика",
+        "AD_PERFORMANCE_REPORT": "метрика",
+        "ADGROUP_PERFORMANCE_REPORT": "метрика",
+        "CAMPAIGN_PERFORMANCE_REPORT": "метрика",
+        "CRITERIA_PERFORMANCE_REPORT": "метрик",
+        "CUSTOM_REPORT": "метрика",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "метрика"
       }
     },
     "Quarter": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "–"
+        "ACCOUNT_PERFORMANCE_REPORT": "сегмент",
+        "AD_PERFORMANCE_REPORT": "сегмент",
+        "ADGROUP_PERFORMANCE_REPORT": "сегмент",
+        "CAMPAIGN_PERFORMANCE_REPORT": "сегмент",
+        "CRITERIA_PERFORMANCE_REPORT": "сегмент",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "сегмент",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "сегмент"
       }
     },
     "Query": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "–",
+        "AD_PERFORMANCE_REPORT": "–",
+        "ADGROUP_PERFORMANCE_REPORT": "–",
+        "CAMPAIGN_PERFORMANCE_REPORT": "–",
+        "CRITERIA_PERFORMANCE_REPORT": "–",
+        "CUSTOM_REPORT": "–",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "–",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "атрибут"
       }
     },
     "Revenue": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "метрика",
+        "AD_PERFORMANCE_REPORT": "метрика",
+        "ADGROUP_PERFORMANCE_REPORT": "метрика",
+        "CAMPAIGN_PERFORMANCE_REPORT": "метрика",
+        "CRITERIA_PERFORMANCE_REPORT": "метрика",
+        "CUSTOM_REPORT": "метрика",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "метрика"
       }
     },
     "RlAdjustmentId": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "–",
+        "AD_PERFORMANCE_REPORT": "–",
+        "ADGROUP_PERFORMANCE_REPORT": "–",
+        "CAMPAIGN_PERFORMANCE_REPORT": "–",
+        "CRITERIA_PERFORMANCE_REPORT": "сегмент",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "–",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "–"
       }
     },
     "Sessions": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "–"
+        "ACCOUNT_PERFORMANCE_REPORT": "метрика",
+        "AD_PERFORMANCE_REPORT": "метрика",
+        "ADGROUP_PERFORMANCE_REPORT": "метрика",
+        "CAMPAIGN_PERFORMANCE_REPORT": "метрика",
+        "CRITERIA_PERFORMANCE_REPORT": "метрика",
+        "CUSTOM_REPORT": "метрика",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "–"
       }
     },
     "Slot": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "сегмент",
+        "AD_PERFORMANCE_REPORT": "сегмент",
+        "ADGROUP_PERFORMANCE_REPORT": "сегмент",
+        "CAMPAIGN_PERFORMANCE_REPORT": "сегмент",
+        "CRITERIA_PERFORMANCE_REPORT": "сегмент",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "–",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "–"
       }
     },
     "SmartAdTargetId": {
       "report_types": {
-        "Параметры": "–",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "–",
+        "AD_PERFORMANCE_REPORT": "–",
+        "ADGROUP_PERFORMANCE_REPORT": "–",
+        "CAMPAIGN_PERFORMANCE_REPORT": "–",
+        "CRITERIA_PERFORMANCE_REPORT": "фильтр",
+        "CUSTOM_REPORT": "фильтр",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "–",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "–"
       }
     },
     "TargetingCategory": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "сегмент",
+        "AD_PERFORMANCE_REPORT": "сегмент",
+        "ADGROUP_PERFORMANCE_REPORT": "сегмент",
+        "CAMPAIGN_PERFORMANCE_REPORT": "сегмент",
+        "CRITERIA_PERFORMANCE_REPORT": "сегмент",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "–",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "сегмент"
       }
     },
     "TargetingLocationId": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "сегмент",
+        "AD_PERFORMANCE_REPORT": "сегмент",
+        "ADGROUP_PERFORMANCE_REPORT": "сегмент",
+        "CAMPAIGN_PERFORMANCE_REPORT": "сегмент",
+        "CRITERIA_PERFORMANCE_REPORT": "сегмент",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "сегмент",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "–"
       }
     },
     "TargetingLocationName": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "–"
+        "ACCOUNT_PERFORMANCE_REPORT": "сегмент",
+        "AD_PERFORMANCE_REPORT": "сегмент",
+        "ADGROUP_PERFORMANCE_REPORT": "сегмент",
+        "CAMPAIGN_PERFORMANCE_REPORT": "сегмент",
+        "CRITERIA_PERFORMANCE_REPORT": "сегмент",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "сегмент",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "–"
       }
     },
     "VideoComplete": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "–",
+        "AD_PERFORMANCE_REPORT": "–",
+        "ADGROUP_PERFORMANCE_REPORT": "–",
+        "CAMPAIGN_PERFORMANCE_REPORT": "–",
+        "CRITERIA_PERFORMANCE_REPORT": "–",
+        "CUSTOM_REPORT": "–",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "–"
       }
     },
     "VideoCompleteRate": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "–",
+        "AD_PERFORMANCE_REPORT": "–",
+        "ADGROUP_PERFORMANCE_REPORT": "–",
+        "CAMPAIGN_PERFORMANCE_REPORT": "–",
+        "CRITERIA_PERFORMANCE_REPORT": "–",
+        "CUSTOM_REPORT": "–",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "–"
       }
     },
     "VideoFirstQuartile": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "–",
+        "AD_PERFORMANCE_REPORT": "–",
+        "ADGROUP_PERFORMANCE_REPORT": "–",
+        "CAMPAIGN_PERFORMANCE_REPORT": "–",
+        "CRITERIA_PERFORMANCE_REPORT": "–",
+        "CUSTOM_REPORT": "–",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "–"
       }
     },
     "VideoFirstQuartileRate": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "–",
+        "AD_PERFORMANCE_REPORT": "–",
+        "ADGROUP_PERFORMANCE_REPORT": "–",
+        "CAMPAIGN_PERFORMANCE_REPORT": "–",
+        "CRITERIA_PERFORMANCE_REPORT": "–",
+        "CUSTOM_REPORT": "–",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "–"
       }
     },
     "VideoMidpoint": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "–",
+        "AD_PERFORMANCE_REPORT": "–",
+        "ADGROUP_PERFORMANCE_REPORT": "–",
+        "CAMPAIGN_PERFORMANCE_REPORT": "–",
+        "CRITERIA_PERFORMANCE_REPORT": "–",
+        "CUSTOM_REPORT": "–",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "–"
       }
     },
     "VideoMidpointRate": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "–",
+        "AD_PERFORMANCE_REPORT": "–",
+        "ADGROUP_PERFORMANCE_REPORT": "–",
+        "CAMPAIGN_PERFORMANCE_REPORT": "–",
+        "CRITERIA_PERFORMANCE_REPORT": "–",
+        "CUSTOM_REPORT": "–",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "–"
       }
     },
     "VideoThirdQuartile": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "–",
+        "AD_PERFORMANCE_REPORT": "–",
+        "ADGROUP_PERFORMANCE_REPORT": "–",
+        "CAMPAIGN_PERFORMANCE_REPORT": "–",
+        "CRITERIA_PERFORMANCE_REPORT": "–",
+        "CUSTOM_REPORT": "–",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "–"
       }
     },
     "VideoThirdQuartileRate": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "–",
+        "AD_PERFORMANCE_REPORT": "–",
+        "ADGROUP_PERFORMANCE_REPORT": "–",
+        "CAMPAIGN_PERFORMANCE_REPORT": "–",
+        "CRITERIA_PERFORMANCE_REPORT": "–",
+        "CUSTOM_REPORT": "–",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "–"
       }
     },
     "VideoViews": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "–",
+        "AD_PERFORMANCE_REPORT": "–",
+        "ADGROUP_PERFORMANCE_REPORT": "–",
+        "CAMPAIGN_PERFORMANCE_REPORT": "–",
+        "CRITERIA_PERFORMANCE_REPORT": "–",
+        "CUSTOM_REPORT": "–",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "–"
       }
     },
     "VideoViewsRate": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "–",
+        "AD_PERFORMANCE_REPORT": "–",
+        "ADGROUP_PERFORMANCE_REPORT": "–",
+        "CAMPAIGN_PERFORMANCE_REPORT": "–",
+        "CRITERIA_PERFORMANCE_REPORT": "–",
+        "CUSTOM_REPORT": "–",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "–"
       }
     },
     "Week": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "–"
+        "ACCOUNT_PERFORMANCE_REPORT": "сегмент",
+        "AD_PERFORMANCE_REPORT": "сегмент",
+        "ADGROUP_PERFORMANCE_REPORT": "сегмент",
+        "CAMPAIGN_PERFORMANCE_REPORT": "сегмент",
+        "CRITERIA_PERFORMANCE_REPORT": "сегмент",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "сегмент",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "сегмент"
       }
     },
     "WeightedCtr": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "метрика",
+        "AD_PERFORMANCE_REPORT": "метрика",
+        "ADGROUP_PERFORMANCE_REPORT": "метрика",
+        "CAMPAIGN_PERFORMANCE_REPORT": "метрика",
+        "CRITERIA_PERFORMANCE_REPORT": "метрика",
+        "CUSTOM_REPORT": "метрика",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "метрика"
       }
     },
     "WeightedImpressions": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "+"
+        "ACCOUNT_PERFORMANCE_REPORT": "метрика",
+        "AD_PERFORMANCE_REPORT": "метрика",
+        "ADGROUP_PERFORMANCE_REPORT": "метрика",
+        "CAMPAIGN_PERFORMANCE_REPORT": "метрика",
+        "CRITERIA_PERFORMANCE_REPORT": "метрика",
+        "CUSTOM_REPORT": "метрика",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "метрика",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "метрика"
       }
     },
     "Year": {
       "report_types": {
-        "Параметры": "+",
-        "Типы отчетов": "–"
+        "ACCOUNT_PERFORMANCE_REPORT": "сегмент",
+        "AD_PERFORMANCE_REPORT": "сегмент",
+        "ADGROUP_PERFORMANCE_REPORT": "сегмент",
+        "CAMPAIGN_PERFORMANCE_REPORT": "сегмент",
+        "CRITERIA_PERFORMANCE_REPORT": "сегмент",
+        "CUSTOM_REPORT": "сегмент",
+        "REACH_AND_FREQUENCY_PERFORMANCE_REPORT": "сегмент",
+        "SEARCH_QUERY_PERFORMANCE_REPORT": "сегмент"
       }
+    }
+  },
+  "field_usage": {
+    "AdFormat": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "AdGroupId": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "AdGroupName": {
+      "FieldNames": true,
+      "Filter.Field": false,
+      "OrderBy.Field": true
+    },
+    "AdId": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "AdNetworkType": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "Age": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "AudienceTargetId": {
+      "FieldNames": false,
+      "Filter.Field": true,
+      "OrderBy.Field": false
+    },
+    "AvgClickPosition": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "AvgCpc": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "AvgCpm": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "AvgEffectiveBid": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "AvgImpressionFrequency": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "AvgImpressionPosition": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "AvgPageviews": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "AvgTrafficVolume": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "AvgVideoCompleteCost": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "BounceRate": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "Bounces": {
+      "FieldNames": true,
+      "Filter.Field": false,
+      "OrderBy.Field": true
+    },
+    "CampaignId": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "CampaignName": {
+      "FieldNames": true,
+      "Filter.Field": false,
+      "OrderBy.Field": true
+    },
+    "CampaignUrlPath": {
+      "FieldNames": true,
+      "Filter.Field": false,
+      "OrderBy.Field": true
+    },
+    "CampaignType": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "CarrierType": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "Clicks": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "ClickType": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "ClientLogin": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "ConversionRate": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "Conversions": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "Cost": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "CostPerConversion": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "CPV": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "Criteria": {
+      "FieldNames": true,
+      "Filter.Field": false,
+      "OrderBy.Field": false
+    },
+    "CriteriaId": {
+      "FieldNames": true,
+      "Filter.Field": false,
+      "OrderBy.Field": false
+    },
+    "CriteriaType": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "Criterion": {
+      "FieldNames": true,
+      "Filter.Field": false,
+      "OrderBy.Field": false
+    },
+    "CriterionId": {
+      "FieldNames": true,
+      "Filter.Field": false,
+      "OrderBy.Field": false
+    },
+    "CriterionType": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "Ctr": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "Date": {
+      "FieldNames": true,
+      "Filter.Field": false,
+      "OrderBy.Field": true
+    },
+    "Device": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "DynamicTextAdTargetId": {
+      "FieldNames": false,
+      "Filter.Field": true,
+      "OrderBy.Field": false
+    },
+    "ExternalNetworkName": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "Gender": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "GoalsRoi": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "ImpressionReach": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "Impressions": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "IncomeGrade": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "Keyword": {
+      "FieldNames": false,
+      "Filter.Field": true,
+      "OrderBy.Field": false
+    },
+    "LocationOfPresenceId": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "LocationOfPresenceName": {
+      "FieldNames": true,
+      "Filter.Field": false,
+      "OrderBy.Field": true
+    },
+    "MatchedKeyword": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "MatchType": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "MobilePlatform": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "Month": {
+      "FieldNames": true,
+      "Filter.Field": false,
+      "OrderBy.Field": true
+    },
+    "Placement": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "Profit": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "PurchaseGoals": {
+      "FieldNames": false,
+      "Filter.Field": true,
+      "OrderBy.Field": false
+    },
+    "PurchaseRevenue": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "PurchaseProfit": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "PurchaseGoalsRoi": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "Quarter": {
+      "FieldNames": true,
+      "Filter.Field": false,
+      "OrderBy.Field": true
+    },
+    "Query": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "Revenue": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "RlAdjustmentId": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "Sessions": {
+      "FieldNames": true,
+      "Filter.Field": false,
+      "OrderBy.Field": true
+    },
+    "Slot": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "SmartAdTargetId": {
+      "FieldNames": false,
+      "Filter.Field": true,
+      "OrderBy.Field": false
+    },
+    "TargetingCategory": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "TargetingLocationId": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "TargetingLocationName": {
+      "FieldNames": true,
+      "Filter.Field": false,
+      "OrderBy.Field": true
+    },
+    "VideoComplete": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "VideoCompleteRate": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "VideoFirstQuartile": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "VideoFirstQuartileRate": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "VideoMidpoint": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "VideoMidpointRate": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "VideoThirdQuartile": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "VideoThirdQuartileRate": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "VideoViews": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "VideoViewsRate": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "Week": {
+      "FieldNames": true,
+      "Filter.Field": false,
+      "OrderBy.Field": true
+    },
+    "WeightedCtr": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "WeightedImpressions": {
+      "FieldNames": true,
+      "Filter.Field": true,
+      "OrderBy.Field": true
+    },
+    "Year": {
+      "FieldNames": true,
+      "Filter.Field": false,
+      "OrderBy.Field": true
     }
   }
 }

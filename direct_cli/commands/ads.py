@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import get_default_fields, parse_ids
+from ..utils import add_criteria_csv, get_default_fields, parse_ids
 
 
 @click.group()
@@ -19,6 +19,24 @@ def ads():
 @click.option("--campaign-ids", help="Comma-separated campaign IDs")
 @click.option("--adgroup-ids", help="Comma-separated ad group IDs")
 @click.option("--status", help="Filter by status")
+@click.option("--statuses", help="Comma-separated statuses")
+@click.option("--states", help="Comma-separated states")
+@click.option("--types", help="Comma-separated ad types")
+@click.option("--mobile", type=click.Choice(["YES", "NO"], case_sensitive=False))
+@click.option("--vcard-ids", help="Comma-separated vCard IDs")
+@click.option("--sitelink-set-ids", help="Comma-separated sitelink set IDs")
+@click.option("--image-hashes", help="Comma-separated ad image hashes")
+@click.option(
+    "--vcard-moderation-statuses", help="Comma-separated vCard moderation statuses"
+)
+@click.option(
+    "--sitelinks-moderation-statuses",
+    help="Comma-separated sitelinks moderation statuses",
+)
+@click.option(
+    "--image-moderation-statuses", help="Comma-separated image moderation statuses"
+)
+@click.option("--adextension-ids", help="Comma-separated ad extension IDs")
 @click.option("--limit", type=int, help="Limit number of results")
 @click.option("--fetch-all", is_flag=True, help="Fetch all pages")
 @click.option("--format", "output_format", default="json", help="Output format")
@@ -35,6 +53,17 @@ def get(
     campaign_ids,
     adgroup_ids,
     status,
+    statuses,
+    states,
+    types,
+    mobile,
+    vcard_ids,
+    sitelink_set_ids,
+    image_hashes,
+    vcard_moderation_statuses,
+    sitelinks_moderation_statuses,
+    image_moderation_statuses,
+    adextension_ids,
     limit,
     fetch_all,
     output_format,
@@ -64,6 +93,27 @@ def get(
             criteria["AdGroupIds"] = parse_ids(adgroup_ids)
         if status:
             criteria["Statuses"] = [status]
+        add_criteria_csv(criteria, "Statuses", statuses, upper=True)
+        add_criteria_csv(criteria, "States", states, upper=True)
+        add_criteria_csv(criteria, "Types", types, upper=True)
+        if mobile:
+            criteria["Mobile"] = mobile.upper()
+        add_criteria_csv(criteria, "VCardIds", vcard_ids, integers=True)
+        add_criteria_csv(criteria, "SitelinkSetIds", sitelink_set_ids, integers=True)
+        add_criteria_csv(criteria, "AdImageHashes", image_hashes)
+        add_criteria_csv(
+            criteria, "VCardModerationStatuses", vcard_moderation_statuses, upper=True
+        )
+        add_criteria_csv(
+            criteria,
+            "SitelinksModerationStatuses",
+            sitelinks_moderation_statuses,
+            upper=True,
+        )
+        add_criteria_csv(
+            criteria, "AdImageModerationStatuses", image_moderation_statuses, upper=True
+        )
+        add_criteria_csv(criteria, "AdExtensionIds", adextension_ids, integers=True)
 
         params = {
             "SelectionCriteria": criteria,
@@ -139,9 +189,7 @@ def add(ctx, adgroup_id, ad_type, title, text, href, image_hash, dry_run):
                 if not value
             ]
             if missing_fields:
-                raise click.UsageError(
-                    "TEXT_AD requires " + ", ".join(missing_fields)
-                )
+                raise click.UsageError("TEXT_AD requires " + ", ".join(missing_fields))
             ad_data["TextAd"] = {
                 "Mobile": "NO",
                 "Title": title,

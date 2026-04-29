@@ -9,6 +9,7 @@ from ..output import format_output, print_error
 from ..utils import (
     build_selection_criteria,
     build_common_params,
+    add_criteria_csv,
     get_default_fields,
     MICRO_RUBLES,
     parse_ids,
@@ -24,7 +25,10 @@ def campaigns():
 @campaigns.command()
 @click.option("--ids", help="Comma-separated campaign IDs")
 @click.option("--status", help="Filter by status (ACTIVE, SUSPENDED, etc.)")
+@click.option("--statuses", help="Comma-separated statuses")
 @click.option("--types", help="Filter by types (TEXT_CAMPAIGN, etc.)")
+@click.option("--states", help="Comma-separated states")
+@click.option("--payment-statuses", help="Comma-separated payment statuses")
 @click.option("--limit", type=int, help="Limit number of results")
 @click.option("--fetch-all", is_flag=True, help="Fetch all pages")
 @click.option(
@@ -37,8 +41,23 @@ def campaigns():
 @click.option(
     "--fields", help="Comma-separated field names (default: all common fields)"
 )
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def get(ctx, ids, status, types, limit, fetch_all, output_format, output, fields):
+def get(
+    ctx,
+    ids,
+    status,
+    statuses,
+    types,
+    states,
+    payment_statuses,
+    limit,
+    fetch_all,
+    output_format,
+    output,
+    fields,
+    dry_run,
+):
     """Get campaigns"""
     try:
         client = create_client(
@@ -54,6 +73,11 @@ def get(ctx, ids, status, types, limit, fetch_all, output_format, output, fields
         criteria = build_selection_criteria(
             ids=parse_ids(ids), status=status, types=types
         )
+        if criteria is None:
+            criteria = {}
+        add_criteria_csv(criteria, "Statuses", statuses, upper=True)
+        add_criteria_csv(criteria, "States", states, upper=True)
+        add_criteria_csv(criteria, "StatusesPayment", payment_statuses, upper=True)
 
         # Build params
         params = build_common_params(
@@ -61,6 +85,10 @@ def get(ctx, ids, status, types, limit, fetch_all, output_format, output, fields
         )
 
         body = {"method": "get", "params": params}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
 
         result = client.campaigns().post(data=body)
 
@@ -143,14 +171,10 @@ def add(
             campaign_data["TextCampaign"] = {
                 "BiddingStrategy": {
                     "Search": {
-                        "BiddingStrategyType": (
-                            search_strategy or "HIGHEST_POSITION"
-                        )
+                        "BiddingStrategyType": (search_strategy or "HIGHEST_POSITION")
                     },
                     "Network": {
-                        "BiddingStrategyType": (
-                            network_strategy or "SERVING_OFF"
-                        )
+                        "BiddingStrategyType": (network_strategy or "SERVING_OFF")
                     },
                 },
                 "Settings": parsed_settings or [],
@@ -159,14 +183,10 @@ def add(
             campaign_data["DynamicTextCampaign"] = {
                 "BiddingStrategy": {
                     "Search": {
-                        "BiddingStrategyType": (
-                            search_strategy or "HIGHEST_POSITION"
-                        )
+                        "BiddingStrategyType": (search_strategy or "HIGHEST_POSITION")
                     },
                     "Network": {
-                        "BiddingStrategyType": (
-                            network_strategy or "SERVING_OFF"
-                        )
+                        "BiddingStrategyType": (network_strategy or "SERVING_OFF")
                     },
                 },
                 "Settings": parsed_settings or [],
@@ -175,9 +195,7 @@ def add(
             network_strategy_type = network_strategy or "AVERAGE_CPC_PER_FILTER"
             smart_campaign = {
                 "BiddingStrategy": {
-                    "Search": {
-                        "BiddingStrategyType": search_strategy or "SERVING_OFF"
-                    },
+                    "Search": {"BiddingStrategyType": search_strategy or "SERVING_OFF"},
                     "Network": {"BiddingStrategyType": network_strategy_type},
                 }
             }
@@ -187,9 +205,9 @@ def add(
                         "--filter-average-cpc is required for SMART_CAMPAIGN "
                         "with AVERAGE_CPC_PER_FILTER network strategy"
                     )
-                smart_campaign["BiddingStrategy"]["Network"][
-                    "AverageCpcPerFilter"
-                ] = {"FilterAverageCpc": filter_average_cpc}
+                smart_campaign["BiddingStrategy"]["Network"]["AverageCpcPerFilter"] = {
+                    "FilterAverageCpc": filter_average_cpc
+                }
             if parsed_settings:
                 smart_campaign["Settings"] = parsed_settings
             if counter_id is not None:
@@ -370,7 +388,6 @@ def unarchive(ctx, campaign_id, dry_run):
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
-
 
 
 @campaigns.command()
