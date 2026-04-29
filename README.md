@@ -130,6 +130,16 @@ direct v4finance transfer-money --from-campaign-id 123 --to-campaign-id 456 --am
 direct v4finance pay-campaigns --campaign-id 123 --amount 100.50 --contract-id CONTRACT_ID --pay-method CREDIT --finance-token FINANCE_TOKEN --operation-num 123 --dry-run
 ```
 
+### V4 Live Shared Account
+
+Shared-account mutations are dry-run-only in this release and always require
+`--dry-run`.
+
+```bash
+direct v4account enable-shared-account --client-login client-login --dry-run
+direct v4account account-management --action Update --account-id 1327944 --day-budget 100.50 --spend-mode Default --money-in-sms Yes --money-out-sms No --email ops@example.com --money-warning-value 25 --dry-run
+```
+
 ### CLI Convention
 
 The current CLI convention is defined as follows.
