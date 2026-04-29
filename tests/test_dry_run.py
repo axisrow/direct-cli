@@ -68,6 +68,21 @@ def _dry_run(*args: str) -> dict:
     return json.loads(result.output)
 
 
+def _read_dry_run(*args: str) -> dict:
+    """Invoke a read command dry-run with dummy credentials."""
+    result = CliRunner().invoke(
+        cli,
+        list(args) + ["--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+    assert result.exit_code == 0, (
+        f"command failed: direct {' '.join(args)} --dry-run\n"
+        f"output: {result.output}\n"
+        f"exception: {result.exception}"
+    )
+    return json.loads(result.output)
+
+
 def test_get_selection_criteria_new_typed_flags_payloads():
     """Focused payload coverage for WSDL SelectionCriteria flags added for #146."""
     cases = [
@@ -267,7 +282,7 @@ def test_get_selection_criteria_new_typed_flags_payloads():
         ),
     ]
     for argv, expected in cases:
-        body = _dry_run(*argv)
+        body = _read_dry_run(*argv)
         criteria = body["params"].get("SelectionCriteria", {})
         for key, value in expected.items():
             assert criteria[key] == value
@@ -281,7 +296,7 @@ def test_optional_ids_criteria_get_omits_empty_selection_criteria():
         "sitelinks",
         "vcards",
     ):
-        body = _dry_run(command, "get")
+        body = _read_dry_run(command, "get")
         assert "SelectionCriteria" not in body["params"]
 
 

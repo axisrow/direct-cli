@@ -337,6 +337,7 @@ direct keywords delete --id 88888
 ```bash
 # Get a report (saved to file)
 direct reports get --type CAMPAIGN_PERFORMANCE_REPORT --from 2024-01-01 --to 2024-01-31 --name "January Report" --fields "Date,CampaignId,Clicks,Cost" --format csv --output report.csv
+direct reports get --type CUSTOM_REPORT --from 2024-01-01 --to 2024-01-31 --name "Goals Report" --fields "Date,CampaignId,GoalsRoi" --goals 12345,67890 --attribution-models AUTO --format csv --output goals-report.csv
 
 # List available report types
 direct reports list-types
@@ -959,6 +960,7 @@ direct keywords delete --id 88888
 ```bash
 # Сформировать отчёт (сохраняется в файл)
 direct reports get --type CAMPAIGN_PERFORMANCE_REPORT --from 2024-01-01 --to 2024-01-31 --name "Отчёт за январь" --fields "Date,CampaignId,Clicks,Cost" --format csv --output report.csv
+direct reports get --type CUSTOM_REPORT --from 2024-01-01 --to 2024-01-31 --name "Отчёт по целям" --fields "Date,CampaignId,GoalsRoi" --goals 12345,67890 --attribution-models AUTO --format csv --output goals-report.csv
 
 # Список доступных типов отчётов
 direct reports list-types
