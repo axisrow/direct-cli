@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import get_default_fields, parse_ids
+from ..utils import add_criteria_csv, get_default_fields, parse_ids
 
 
 @click.group()
@@ -18,26 +18,46 @@ def adgroups():
 @click.option("--ids", help="Comma-separated ad group IDs")
 @click.option("--campaign-ids", help="Comma-separated campaign IDs")
 @click.option("--status", help="Filter by status")
+@click.option("--statuses", help="Comma-separated statuses")
 @click.option("--types", help="Filter by types")
+@click.option("--tag-ids", help="Comma-separated tag IDs")
+@click.option("--tags", help="Comma-separated tag names")
+@click.option("--app-icon-statuses", help="Comma-separated app icon statuses")
+@click.option("--serving-statuses", help="Comma-separated serving statuses")
+@click.option(
+    "--negative-keyword-shared-set-ids",
+    help="Comma-separated negative keyword shared set IDs",
+)
 @click.option("--limit", type=int, help="Limit number of results")
 @click.option("--fetch-all", is_flag=True, help="Fetch all pages")
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.option("--fields", help="Comma-separated field names")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def get(
     ctx,
     ids,
     campaign_ids,
     status,
+    statuses,
     types,
+    tag_ids,
+    tags,
+    app_icon_statuses,
+    serving_statuses,
+    negative_keyword_shared_set_ids,
     limit,
     fetch_all,
     output_format,
     output,
     fields,
+    dry_run,
 ):
     """Get ad groups"""
+    if status and statuses:
+        raise click.UsageError("--status and --statuses are mutually exclusive")
+
     try:
         client = create_client(
             token=ctx.obj.get("token"),
@@ -54,8 +74,19 @@ def get(
             criteria["CampaignIds"] = parse_ids(campaign_ids)
         if status:
             criteria["Statuses"] = [status]
+        add_criteria_csv(criteria, "Statuses", statuses, upper=True)
         if types:
             criteria["Types"] = types.split(",")
+        add_criteria_csv(criteria, "TagIds", tag_ids, integers=True)
+        add_criteria_csv(criteria, "Tags", tags)
+        add_criteria_csv(criteria, "AppIconStatuses", app_icon_statuses, upper=True)
+        add_criteria_csv(criteria, "ServingStatuses", serving_statuses, upper=True)
+        add_criteria_csv(
+            criteria,
+            "NegativeKeywordSharedSetIds",
+            negative_keyword_shared_set_ids,
+            integers=True,
+        )
 
         params = {"SelectionCriteria": criteria, "FieldNames": field_names}
 
@@ -63,6 +94,10 @@ def get(
             params["Page"] = {"Limit": limit}
 
         body = {"method": "get", "params": params}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
 
         result = client.adgroups().post(data=body)
 

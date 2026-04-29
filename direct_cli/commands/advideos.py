@@ -15,14 +15,15 @@ def advideos():
 
 
 @advideos.command()
-@click.option("--ids", help="Comma-separated video IDs")
+@click.option("--ids", required=True, help="Comma-separated video IDs")
 @click.option("--limit", type=int, help="Limit number of results")
 @click.option("--fetch-all", is_flag=True, help="Fetch all pages")
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.option("--fields", help="Comma-separated field names")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def get(ctx, ids, limit, fetch_all, output_format, output, fields):
+def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
     """Get ad videos"""
     try:
         client = create_client(
@@ -33,9 +34,7 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
 
         field_names = fields.split(",") if fields else get_default_fields("advideos")
 
-        criteria = {}
-        if ids:
-            criteria["Ids"] = [x.strip() for x in ids.split(",")]
+        criteria = {"Ids": [x.strip() for x in ids.split(",") if x.strip()]}
 
         params = {
             "SelectionCriteria": criteria,
@@ -46,6 +45,10 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
             params["Page"] = {"Limit": limit}
 
         body = {"method": "get", "params": params}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
 
         result = client.advideos().post(data=body)
 
@@ -64,7 +67,9 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
 
 
 @advideos.command()
-@click.option("--url", help="Video URL (mutually exclusive with --video-data/--video-file)")
+@click.option(
+    "--url", help="Video URL (mutually exclusive with --video-data/--video-file)"
+)
 @click.option("--video-data", help="Base64-encoded video binary")
 @click.option("--video-file", help="Path to a video file to base64-encode")
 @click.option("--name", help="Video name")

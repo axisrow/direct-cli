@@ -21,8 +21,9 @@ def vcards():
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.option("--fields", help="Comma-separated field names")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def get(ctx, ids, limit, fetch_all, output_format, output, fields):
+def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
     """Get vCards"""
     try:
         client = create_client(
@@ -37,12 +38,18 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
         if ids:
             criteria["Ids"] = parse_ids(ids)
 
-        params = {"SelectionCriteria": criteria, "FieldNames": field_names}
+        params = {"FieldNames": field_names}
+        if criteria:
+            params["SelectionCriteria"] = criteria
 
         if limit:
             params["Page"] = {"Limit": limit}
 
         body = {"method": "get", "params": params}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
 
         result = client.vcards().post(data=body)
 
@@ -165,7 +172,10 @@ def add(
 def delete(ctx, vcard_id, dry_run):
     """Delete vCard"""
     try:
-        body = {"method": "delete", "params": {"SelectionCriteria": {"Ids": [vcard_id]}}}
+        body = {
+            "method": "delete",
+            "params": {"SelectionCriteria": {"Ids": [vcard_id]}},
+        }
 
         if dry_run:
             format_output(body, "json", None)

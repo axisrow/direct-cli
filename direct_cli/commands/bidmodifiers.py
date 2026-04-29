@@ -15,8 +15,10 @@ def bidmodifiers():
 
 
 @bidmodifiers.command()
+@click.option("--ids", help="Comma-separated bid modifier IDs")
 @click.option("--campaign-ids", help="Comma-separated campaign IDs")
 @click.option("--adgroup-ids", help="Comma-separated ad group IDs")
+@click.option("--types", help="Comma-separated bid modifier types")
 @click.option(
     "--levels",
     type=click.Choice(["CAMPAIGN", "AD_GROUP"], case_sensitive=False),
@@ -30,17 +32,21 @@ def bidmodifiers():
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.option("--fields", help="Comma-separated field names")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def get(
     ctx,
+    ids,
     campaign_ids,
     adgroup_ids,
+    types,
     levels,
     limit,
     fetch_all,
     output_format,
     output,
     fields,
+    dry_run,
 ):
     """Get bid modifiers"""
     try:
@@ -51,10 +57,16 @@ def get(
         )
 
         criteria = {"Levels": [lv.upper() for lv in levels]}
+        if ids:
+            criteria["Ids"] = parse_ids(ids)
         if campaign_ids:
             criteria["CampaignIds"] = parse_ids(campaign_ids)
         if adgroup_ids:
             criteria["AdGroupIds"] = parse_ids(adgroup_ids)
+        if types:
+            criteria["Types"] = [
+                item.strip().upper() for item in types.split(",") if item.strip()
+            ]
 
         field_names = (
             fields.split(",") if fields else get_default_fields("bidmodifiers")
@@ -68,6 +80,10 @@ def get(
             params["Page"] = {"Limit": limit}
 
         body = {"method": "get", "params": params}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
 
         result = client.bidmodifiers().post(data=body)
 

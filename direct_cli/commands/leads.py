@@ -21,12 +21,26 @@ def leads():
     help="Comma-separated turbo page IDs",
 )
 @click.option("--limit", type=int, help="Limit number of results")
+@click.option("--datetime-from", help="DateTimeFrom in YYYY-MM-DDTHH:MM:SS format")
+@click.option("--datetime-to", help="DateTimeTo in YYYY-MM-DDTHH:MM:SS format")
 @click.option("--fetch-all", is_flag=True, help="Fetch all pages")
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.option("--fields", help="Comma-separated field names")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def get(ctx, turbo_page_ids, limit, fetch_all, output_format, output, fields):
+def get(
+    ctx,
+    turbo_page_ids,
+    limit,
+    datetime_from,
+    datetime_to,
+    fetch_all,
+    output_format,
+    output,
+    fields,
+    dry_run,
+):
     """Get leads"""
     try:
         client = create_client(
@@ -38,6 +52,10 @@ def get(ctx, turbo_page_ids, limit, fetch_all, output_format, output, fields):
         field_names = fields.split(",") if fields else get_default_fields("leads")
 
         criteria = {"TurboPageIds": parse_ids(turbo_page_ids)}
+        if datetime_from:
+            criteria["DateTimeFrom"] = datetime_from
+        if datetime_to:
+            criteria["DateTimeTo"] = datetime_to
 
         params = {"SelectionCriteria": criteria, "FieldNames": field_names}
 
@@ -45,6 +63,10 @@ def get(ctx, turbo_page_ids, limit, fetch_all, output_format, output, fields):
             params["Page"] = {"Limit": limit}
 
         body = {"method": "get", "params": params}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
 
         result = client.leads().post(data=body)
 

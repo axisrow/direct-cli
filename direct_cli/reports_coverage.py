@@ -13,7 +13,6 @@ from pathlib import Path
 
 from .utils import get_docs_pages
 
-
 _REPORTS_DOCS_PAGES = get_docs_pages("reports")
 _REQUIRED_DOCS_KEYS = ("type", "period", "fields-list", "headers")
 _missing_docs_keys = [k for k in _REQUIRED_DOCS_KEYS if k not in _REPORTS_DOCS_PAGES]
@@ -24,7 +23,8 @@ if _missing_docs_keys:
     )
 REPORTS_SPEC_URLS: dict[str, str] = {
     "type": _REPORTS_DOCS_PAGES["type"],
-    "spec": _REPORTS_DOCS_PAGES["period"],
+    "period": _REPORTS_DOCS_PAGES["period"],
+    "spec": "https://yandex.ru/dev/direct/doc/reports/spec.html",
     "fields-list": _REPORTS_DOCS_PAGES["fields-list"],
     "headers": _REPORTS_DOCS_PAGES["headers"],
 }
@@ -89,7 +89,15 @@ def parse_reports_spec(raw: dict[str, str]) -> dict:
         "formats": ["TSV"],
         "processing_modes": [],
         "request_headers": {},
+        "report_definition_fields": {},
+        "selection_criteria_fields": {},
+        "filter_fields": {},
+        "filter_operators": [],
+        "order_by_fields": {},
+        "order_by_sort_orders": [],
+        "attribution_models": [],
         "field_compatibility": {},
+        "field_usage": {},
     }
 
     # --- Report types: regex on raw HTML ---
@@ -108,13 +116,15 @@ def parse_reports_spec(raw: dict[str, str]) -> dict:
             "page structure may have changed"
         )
 
-    # --- DateRangeType values: regex on page text ---
-    if "spec" in raw:
-        text = _extract_text(raw["spec"])
+    # --- DateRangeType values: regex on period page text ---
+    if "period" in raw:
+        text = _extract_text(raw["period"])
         found = re.findall(
             r"\b(TODAY|YESTERDAY|THIS_WEEK_MON_TODAY|THIS_WEEK_MON_SUN|"
             r"LAST_WEEK|LAST_BUSINESS_WEEK|LAST_7_DAYS|LAST_14_DAYS|"
-            r"LAST_30_DAYS|LAST_3_MONTHS|LAST_5_YEARS|CUSTOM_DATE|ALL_TIME|AUTO)\b",
+            r"LAST_30_DAYS|LAST_3_MONTHS|LAST_5_YEARS|CUSTOM_DATE|ALL_TIME|AUTO|"
+            r"LAST_3_DAYS|LAST_5_DAYS|LAST_90_DAYS|LAST_365_DAYS|"
+            r"THIS_WEEK_SUN_TODAY|LAST_WEEK_SUN_SAT|THIS_MONTH|LAST_MONTH)\b",
             text,
         )
         for t in found:
@@ -123,8 +133,75 @@ def parse_reports_spec(raw: dict[str, str]) -> dict:
 
     if not spec["date_range_types"]:
         raise ValueError(
-            "parse_reports_spec: failed to extract date_range_types from spec.html — "
+            "parse_reports_spec: failed to extract date_range_types from period.html — "
             "page structure may have changed"
+        )
+
+    # --- ReportDefinition/SelectionCriteria metadata from spec.html ---
+    if "spec" in raw:
+        from bs4 import BeautifulSoup
+
+        soup = BeautifulSoup(raw["spec"], "lxml")
+        table = soup.find("table")
+        section = None
+        if table:
+            for row in table.find_all("tr"):
+                cells = [
+                    c.get_text(" ", strip=True) for c in row.find_all(["td", "th"])
+                ]
+                if len(cells) < 4:
+                    continue
+                name, type_name, description, required = cells[:4]
+                if name.startswith("Структура "):
+                    section = name.replace("Структура ", "", 1)
+                    continue
+                if name == "Параметр" or not name:
+                    continue
+                entry = {
+                    "type": type_name,
+                    "required": required == "Да",
+                    "description": description,
+                }
+                if section == "ReportDefinition":
+                    spec["report_definition_fields"][name] = entry
+                elif section == "SelectionCriteria":
+                    spec["selection_criteria_fields"][name] = entry
+                elif section == "FilterItem":
+                    spec["filter_fields"][name] = entry
+                    if name == "Operator":
+                        spec["filter_operators"] = sorted(
+                            set(
+                                re.findall(
+                                    r"\b(EQUALS|NOT_EQUALS|IN|NOT_IN|LESS_THAN|"
+                                    r"GREATER_THAN|STARTS_WITH_IGNORE_CASE|"
+                                    r"DOES_NOT_START_WITH_IGNORE_CASE|"
+                                    r"STARTS_WITH_ANY_IGNORE_CASE|"
+                                    r"DOES_NOT_START_WITH_ALL_IGNORE_CASE)\b",
+                                    description,
+                                )
+                            )
+                        )
+                elif section == "OrderBy":
+                    spec["order_by_fields"][name] = entry
+                    if name == "SortOrder":
+                        spec["order_by_sort_orders"] = sorted(
+                            set(re.findall(r"\b(ASCENDING|DESCENDING)\b", description))
+                        )
+
+        spec["attribution_models"] = sorted(
+            set(re.findall(r"\b(FC|LC|LSC|LYDC|FCCD|LSCCD|LYDCCD|AUTO)\b", raw["spec"]))
+        )
+
+    required_report_fields = {"SelectionCriteria", "Goals", "AttributionModels"}
+    if not required_report_fields <= set(spec["report_definition_fields"]):
+        raise ValueError(
+            "parse_reports_spec: failed to extract ReportDefinition fields from "
+            "spec.html — page structure may have changed"
+        )
+    if not spec["filter_operators"]:
+        raise ValueError(
+            "parse_reports_spec: failed to extract FilterOperatorEnum from "
+            "spec.html — page structure may have changed"
         )
 
     # --- Processing modes: regex on headers page text ---
@@ -171,21 +248,42 @@ def parse_reports_spec(raw: dict[str, str]) -> dict:
         if table:
             rows = table.find_all("tr")
             if rows:
-                header_cells = rows[0].find_all(["th", "td"])
-                cols = [c.get_text(strip=True) for c in header_cells]
-                report_type_cols = cols[1:]
-                for row in rows[1:]:
+                header_rows = []
+                for row in rows[:3]:
+                    cells = [
+                        c.get_text(" ", strip=True) for c in row.find_all(["th", "td"])
+                    ]
+                    if cells and "Имя поля" in cells:
+                        header_rows.append(cells)
+                        break
+                if not header_rows:
+                    raise ValueError("fields-list table header row not found")
+                cols = header_rows[0]
+                usage_cols = cols[1:4]
+                report_type_cols = cols[4:]
+                for row in rows[2:]:
                     cells = row.find_all(["td", "th"])
                     if not cells:
                         continue
-                    field_name = cells[0].get_text(strip=True)
+                    values = [c.get_text(" ", strip=True) for c in cells]
+                    field_name = values[0]
                     # Skip header rows and non-ASCII field names
-                    if not field_name or not field_name.isascii():
+                    if (
+                        not field_name
+                        or not field_name.isascii()
+                        or field_name == "Имя поля"
+                    ):
                         continue
                     entry: dict = {"report_types": {}}
+                    usage = {}
+                    for i, col in enumerate(usage_cols, start=1):
+                        marker = values[i] if i < len(values) else ""
+                        usage[col] = marker == "+"
+                    spec["field_usage"][field_name] = usage
                     for i, rt in enumerate(report_type_cols):
-                        if i + 1 < len(cells):
-                            role = cells[i + 1].get_text(strip=True).lower()
+                        cell_index = i + 4
+                        if cell_index < len(values):
+                            role = values[cell_index].lower()
                             if role and role not in ("—", "-", ""):
                                 entry["report_types"][rt] = role
                     if entry["report_types"]:

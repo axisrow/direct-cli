@@ -21,8 +21,9 @@ def negativekeywordsharedsets():
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.option("--fields", help="Comma-separated field names")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def get(ctx, ids, limit, fetch_all, output_format, output, fields):
+def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
     """Get negative keyword shared sets"""
     try:
         client = create_client(
@@ -41,12 +42,18 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
         if ids:
             criteria["Ids"] = parse_ids(ids)
 
-        params = {"SelectionCriteria": criteria, "FieldNames": field_names}
+        params = {"FieldNames": field_names}
+        if criteria:
+            params["SelectionCriteria"] = criteria
 
         if limit:
             params["Page"] = {"Limit": limit}
 
         body = {"method": "get", "params": params}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
 
         result = client.negativekeywordsharedsets().post(data=body)
 
@@ -111,9 +118,7 @@ def update(ctx, set_id, name, keywords, dry_run):
         if name:
             set_data["Name"] = name
         if keywords:
-            set_data["NegativeKeywords"] = [
-                k.strip() for k in keywords.split(",")
-            ]
+            set_data["NegativeKeywords"] = [k.strip() for k in keywords.split(",")]
         if len(set_data) == 1:
             raise click.ClickException("Provide at least one of --name or --keywords")
 

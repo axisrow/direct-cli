@@ -64,6 +64,31 @@ def parse_csv_strings(value: Optional[str]) -> Optional[List[str]]:
     return result or None
 
 
+def parse_csv_upper(value: Optional[str]) -> Optional[List[str]]:
+    """Parse comma-separated enum-like strings and uppercase each item."""
+    parsed = parse_csv_strings(value)
+    return [item.upper() for item in parsed] if parsed else None
+
+
+def add_criteria_csv(
+    criteria: Dict[str, Any],
+    key: str,
+    value: Optional[str],
+    *,
+    integers: bool = False,
+    upper: bool = False,
+) -> None:
+    """Add a comma-separated CLI value to a SelectionCriteria dict."""
+    if not value:
+        return
+    if integers:
+        criteria[key] = parse_ids(value)
+        return
+    parsed = parse_csv_upper(value) if upper else parse_csv_strings(value)
+    if parsed:
+        criteria[key] = parsed
+
+
 def build_selection_criteria(
     ids: Optional[List[int]] = None,
     status: Optional[str] = None,

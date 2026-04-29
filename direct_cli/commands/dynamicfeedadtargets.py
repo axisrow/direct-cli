@@ -18,14 +18,26 @@ def dynamicfeedadtargets():
 @click.option("--ids", help="Comma-separated target IDs")
 @click.option("--adgroup-ids", help="Comma-separated ad group IDs")
 @click.option("--campaign-ids", help="Comma-separated campaign IDs")
+@click.option("--states", help="Comma-separated states")
 @click.option("--limit", type=int, help="Limit number of results")
 @click.option("--fetch-all", is_flag=True, help="Fetch all pages")
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.option("--fields", help="Comma-separated field names")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def get(
-    ctx, ids, adgroup_ids, campaign_ids, limit, fetch_all, output_format, output, fields
+    ctx,
+    ids,
+    adgroup_ids,
+    campaign_ids,
+    states,
+    limit,
+    fetch_all,
+    output_format,
+    output,
+    fields,
+    dry_run,
 ):
     """Get dynamic feed ad targets"""
     try:
@@ -46,10 +58,14 @@ def get(
             criteria["AdGroupIds"] = parse_ids(adgroup_ids)
         if campaign_ids:
             criteria["CampaignIds"] = parse_ids(campaign_ids)
+        if states:
+            criteria["States"] = [
+                item.strip().upper() for item in states.split(",") if item.strip()
+            ]
 
         if not criteria:
             raise click.UsageError(
-                "Provide at least one filter: --ids, --adgroup-ids, or --campaign-ids"
+                "Provide at least one typed SelectionCriteria filter"
             )
 
         params = {"SelectionCriteria": criteria, "FieldNames": field_names}
@@ -58,6 +74,10 @@ def get(
             params["Page"] = {"Limit": limit}
 
         body = {"method": "get", "params": params}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
 
         result = client.dynamicfeedadtargets().post(data=body)
 

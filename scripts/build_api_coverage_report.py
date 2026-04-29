@@ -48,6 +48,7 @@ FIELD_OPERATION_CAPTURE_OPTION_FIXTURES = {
         "213",
     ],
     ("leads", "get"): ["--turbo-page-ids", "1"],
+    ("advideos", "get"): ["--ids", "video-id"],
 }
 
 # Explicit allow-list for CLI ``get`` groups whose ``get`` operation has no
