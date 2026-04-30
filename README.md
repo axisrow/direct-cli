@@ -141,7 +141,9 @@ direct v4finance pay-campaigns --campaign-ids 123,456 --amount 100.50 --currency
 ### V4 Live Shared Account
 
 Shared-account mutations are dry-run-only in this release and always require
-`--dry-run`.
+`--dry-run`. These commands follow the official v4 Live shared-account method
+shapes: `EnableSharedAccount` accepts one client `Login`, and
+`AccountManagement` updates shared-account settings through `Accounts`.
 
 ```bash
 direct v4account enable-shared-account --client-login client-login --dry-run
