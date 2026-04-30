@@ -97,7 +97,6 @@ def login(
     auth_code = code
     effective_client_id = chosen_client_id
     effective_client_secret = client_secret
-    used_pending_auth = False
 
     if not auth_code:
         if not _stdin_is_interactive():
@@ -121,16 +120,17 @@ def login(
         pending_pkce = get_pending_pkce(profile)
         if pending_pkce:
             if float(pending_pkce["expires_at"]) <= time.time():
-                raise click.ClickException(_start_pkce_required_message(profile))
-            effective_client_id = pending_pkce["client_id"]
-            if pending_pkce["type"] == "confidential":
-                effective_client_secret = pending_pkce["client_secret"]
+                remove_pending_pkce(profile)
+                pending_pkce = None
             else:
-                code_verifier = pending_pkce["code_verifier"]
-            if not login:
-                login = pending_pkce.get("login")
-            used_pending_auth = True
-        else:
+                effective_client_id = pending_pkce["client_id"]
+                if pending_pkce["type"] == "confidential":
+                    effective_client_secret = pending_pkce["client_secret"]
+                else:
+                    code_verifier = pending_pkce["code_verifier"]
+                if not login:
+                    login = pending_pkce.get("login")
+        if not pending_pkce:
             remembered_profile = get_oauth_profile(profile)
             remembered_secret = None
             remembered_client_id = None
@@ -177,8 +177,7 @@ def login(
         client_id=effective_client_id,
         client_secret=effective_client_secret,
     )
-    if used_pending_auth:
-        remove_pending_pkce(profile)
+    remove_pending_pkce(profile)
     print_success(f"Profile '{profile}' is saved and active.")
 
 

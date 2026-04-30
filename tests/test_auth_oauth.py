@@ -452,8 +452,45 @@ class TestAuthOAuth:
         assert "direct auth login --profile agency1" in result.output
 
     @patch("direct_cli.commands.auth.time.time", return_value=1000.0)
-    def test_auth_login_code_mode_expired_pending_pkce_fails(
+    def test_auth_login_code_mode_expired_pending_pkce_without_secret_fails(
         self, mock_time, isolated_auth_store
+    ):
+        save_auth_store(
+            {
+                "profiles": {},
+                "active_profile": None,
+                "pending_pkce": {
+                    "agency1": {
+                        "client_id": "cid",
+                        "code_verifier": "ver",
+                        "login": "client-login",
+                        "created_at": 100.0,
+                        "expires_at": 999.0,
+                    }
+                },
+            }
+        )
+        runner = CliRunner()
+
+        result = runner.invoke(
+            cli,
+            ["auth", "login", "--profile", "agency1", "--code", "abc123"],
+        )
+
+        assert result.exit_code != 0
+        assert "direct auth login --profile agency1" in result.output
+
+    @patch(
+        "direct_cli.commands.auth.exchange_oauth_code",
+        return_value={
+            "access_token": "new-access",
+            "refresh_token": "new-refresh",
+            "expires_in": 3600,
+        },
+    )
+    @patch("direct_cli.commands.auth.time.time", return_value=1000.0)
+    def test_auth_login_code_mode_expired_pending_falls_back_to_saved_secret(
+        self, mock_time, mock_exchange, isolated_auth_store
     ):
         save_auth_store(
             {
@@ -487,8 +524,16 @@ class TestAuthOAuth:
             ["auth", "login", "--profile", "agency1", "--code", "abc123"],
         )
 
-        assert result.exit_code != 0
-        assert "direct auth login --profile agency1" in result.output
+        assert result.exit_code == 0
+        mock_exchange.assert_called_once_with(
+            code="abc123",
+            client_id="cid",
+            client_secret="csecret",
+            code_verifier=None,
+        )
+        store = load_auth_store()
+        assert "agency1" not in store["pending_pkce"]
+        assert store["profiles"]["agency1"]["client_secret"] == "csecret"
 
     @patch(
         "direct_cli.commands.auth.exchange_oauth_code",
@@ -823,6 +868,62 @@ class TestAuthOAuth:
 
         profile = load_auth_store()["profiles"]["agency1"]
         assert profile["client_secret"] == "csecret"
+
+    @patch(
+        "direct_cli.commands.auth.exchange_oauth_code",
+        return_value={
+            "access_token": "new-access",
+            "refresh_token": "new-refresh",
+            "expires_in": 3600,
+        },
+    )
+    @patch("direct_cli.commands.auth.time.time", return_value=1000.0)
+    def test_auth_login_code_mode_explicit_secret_clears_pending_state(
+        self, mock_time, mock_exchange, isolated_auth_store
+    ):
+        save_auth_store(
+            {
+                "profiles": {},
+                "active_profile": None,
+                "pending_pkce": {
+                    "agency1": {
+                        "client_id": "old-cid",
+                        "code_verifier": "ver",
+                        "login": "client-login",
+                        "created_at": 900.0,
+                        "expires_at": 1500.0,
+                    }
+                },
+            }
+        )
+        runner = CliRunner()
+
+        result = runner.invoke(
+            cli,
+            [
+                "auth",
+                "login",
+                "--profile",
+                "agency1",
+                "--code",
+                "abc123",
+                "--client-id",
+                "cid",
+                "--client-secret",
+                "csecret",
+            ],
+        )
+
+        assert result.exit_code == 0
+        mock_exchange.assert_called_once_with(
+            code="abc123",
+            client_id="cid",
+            client_secret="csecret",
+            code_verifier=None,
+        )
+        store = load_auth_store()
+        assert "agency1" not in store["pending_pkce"]
+        assert store["profiles"]["agency1"]["client_secret"] == "csecret"
 
     @patch("direct_cli.auth.load_env_file")
     @patch("direct_cli.auth.time.time", return_value=1000.0)
