@@ -61,6 +61,10 @@ Financial methods use an additional `finance_token`, computed from the
 master token, operation number, method name, and normalized login. Public
 dry-run examples mask the computed token. The docs-backed `PayCampaigns` and
 `TransferMoney` contracts require `Currency` on each payment/transfer item.
+`CreateInvoice` is exposed as `v4finance create-invoice` with repeated
+`--payment CAMPAIGN_ID=AMOUNT` flags and sends docs-backed
+`Payments[].CampaignID/Sum/Currency`; its live write test is opt-in via
+`YANDEX_DIRECT_LIVE_FINANCE_WRITE=1`.
 
 Sandbox v4 Live probes on 2026-04-30 confirmed the runtime request shape for
 `CheckPayment`:

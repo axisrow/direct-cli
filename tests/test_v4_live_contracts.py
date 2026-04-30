@@ -137,6 +137,42 @@ def test_v4_live_get_credit_limits_contract():
     assert data is not None
 
 
+def test_v4_live_create_invoice_contract_opt_in_write():
+    if os.getenv("YANDEX_DIRECT_LIVE_FINANCE_WRITE") != "1":
+        pytest.skip("YANDEX_DIRECT_LIVE_FINANCE_WRITE=1 is required")
+    campaign_id = os.getenv("YANDEX_DIRECT_TEST_CAMPAIGN_ID")
+    if not campaign_id:
+        pytest.skip("YANDEX_DIRECT_TEST_CAMPAIGN_ID is required")
+    try:
+        parsed_campaign_id = int(campaign_id)
+    except ValueError:
+        pytest.skip("YANDEX_DIRECT_TEST_CAMPAIGN_ID must be an integer")
+    token, login = _credentials()
+    finance_token, operation_num = _finance_credentials()
+    client = create_v4_client(
+        token=token,
+        login=login,
+        finance_token=finance_token,
+        operation_num=operation_num,
+    )
+
+    data = call_v4(
+        client,
+        "CreateInvoice",
+        {
+            "Payments": [
+                {
+                    "CampaignID": parsed_campaign_id,
+                    "Sum": 1.0,
+                    "Currency": "RUB",
+                }
+            ]
+        },
+    )
+
+    assert data is not None
+
+
 def test_v4_sandbox_check_payment_custom_transaction_id_contract():
     if os.getenv("YANDEX_DIRECT_V4_SANDBOX_CONTRACT") != "1":
         pytest.skip("YANDEX_DIRECT_V4_SANDBOX_CONTRACT=1 is required")

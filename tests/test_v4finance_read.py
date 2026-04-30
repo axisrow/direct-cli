@@ -46,6 +46,54 @@ def test_get_credit_limits_dry_run_uses_login_list_and_masks_finance_token():
     }
 
 
+def test_get_clients_units_dry_run_uses_login_list():
+    result = _invoke(
+        "v4finance",
+        "get-clients-units",
+        "--logins",
+        "a,b,c",
+        "--dry-run",
+    )
+
+    assert result.exit_code == 0
+    assert json.loads(result.output) == {
+        "method": "GetClientsUnits",
+        "param": ["a", "b", "c"],
+    }
+
+
+def test_get_clients_units_formats_mocked_response_as_json():
+    with patch("direct_cli.commands.v4finance.create_v4_client") as create_client:
+        with patch(
+            "direct_cli.commands.v4finance.call_v4",
+            return_value=[{"Login": "client-login", "UnitsRest": 100}],
+        ) as call:
+            result = _invoke(
+                "--token",
+                "token",
+                "--login",
+                "client-login",
+                "v4finance",
+                "get-clients-units",
+                "--logins",
+                "client-login",
+            )
+
+    assert result.exit_code == 0
+    assert json.loads(result.output) == [{"Login": "client-login", "UnitsRest": 100}]
+    create_client.assert_called_once_with(
+        token="token",
+        login="client-login",
+        profile=None,
+        sandbox=False,
+    )
+    call.assert_called_once_with(
+        create_client.return_value,
+        "GetClientsUnits",
+        ["client-login"],
+    )
+
+
 def test_get_credit_limits_uses_finance_env_fallback_for_dry_run():
     result = _invoke(
         "v4finance",
@@ -215,6 +263,7 @@ def test_get_credit_limits_formats_mocked_response_as_json():
 def test_v4finance_help_contains_no_json_input_flag():
     for args in [
         ("v4finance", "--help"),
+        ("v4finance", "get-clients-units", "--help"),
         ("v4finance", "get-credit-limits", "--help"),
     ]:
         result = _invoke(*args)
@@ -222,8 +271,14 @@ def test_v4finance_help_contains_no_json_input_flag():
         assert "--json" not in result.output
 
 
-def test_v4finance_command_declares_v4_contract():
-    command = cli.commands["v4finance"].commands["get-credit-limits"]
+def test_v4finance_read_commands_declare_v4_contracts():
+    commands = cli.commands["v4finance"].commands
 
-    assert command.v4_method == "GetCreditLimits"
-    assert command.v4_contract == get_v4_contract("GetCreditLimits")
+    assert commands["get-clients-units"].v4_method == "GetClientsUnits"
+    assert commands["get-clients-units"].v4_contract == get_v4_contract(
+        "GetClientsUnits"
+    )
+    assert commands["get-credit-limits"].v4_method == "GetCreditLimits"
+    assert commands["get-credit-limits"].v4_contract == get_v4_contract(
+        "GetCreditLimits"
+    )
