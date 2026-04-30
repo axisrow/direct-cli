@@ -742,6 +742,44 @@ class TestAuthOAuth:
         assert result.exit_code != 0
         assert "does not match saved client_id" in result.output
 
+    @patch("direct_cli.commands.auth.time.time", return_value=1000.0)
+    def test_auth_login_code_mode_pending_client_id_mismatch_fails(
+        self, mock_time, isolated_auth_store
+    ):
+        save_auth_store(
+            {
+                "profiles": {},
+                "active_profile": None,
+                "pending_pkce": {
+                    "agency1": {
+                        "client_id": "pending-cid",
+                        "code_verifier": "ver",
+                        "login": "client-login",
+                        "created_at": 900.0,
+                        "expires_at": 1500.0,
+                    }
+                },
+            }
+        )
+        runner = CliRunner()
+
+        result = runner.invoke(
+            cli,
+            [
+                "auth",
+                "login",
+                "--profile",
+                "agency1",
+                "--code",
+                "abc123",
+                "--client-id",
+                "other-cid",
+            ],
+        )
+
+        assert result.exit_code != 0
+        assert "does not match pending client_id" in result.output
+
     @patch("direct_cli.commands.auth._stdin_is_interactive", return_value=True)
     @patch("direct_cli.commands.auth.time.time", return_value=1000.0)
     @patch("direct_cli.commands.auth.build_pkce_pair", return_value=("ver", "chal"))

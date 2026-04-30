@@ -123,6 +123,11 @@ def login(
                 remove_pending_pkce(profile)
                 pending_pkce = None
             else:
+                if client_id and client_id != pending_pkce["client_id"]:
+                    raise click.ClickException(
+                        f"--client-id {client_id} does not match pending client_id "
+                        f"for profile '{profile}'."
+                    )
                 effective_client_id = pending_pkce["client_id"]
                 if pending_pkce["type"] == "confidential":
                     effective_client_secret = pending_pkce["client_secret"]
