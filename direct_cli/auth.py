@@ -437,15 +437,18 @@ def refresh_access_token(profile: str, path: Optional[Path] = None) -> Dict[str,
             result = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as error:
         if error.code in (400, 401):
-            # Another process may have already refreshed the token (parallel invocation).
-            # Re-read the store: if expires_at is now valid, return the fresh profile.
+            # Concurrent-refresh race: another process may have just rotated
+            # the token. Re-read the store and, if a fresher access token is
+            # already on disk, return it instead of falsely declaring expiry.
             fresh_store = load_auth_store(path=path)
             fresh_item = fresh_store["profiles"].get(profile)
             if isinstance(fresh_item, dict):
-                fresh_expires_at = fresh_item.get("expires_at")
-                if isinstance(fresh_expires_at, (int, float)):
-                    if float(fresh_expires_at) > time.time() + OAUTH_REFRESH_SKEW_SECONDS:
-                        return fresh_item
+                fresh_expires = fresh_item.get("expires_at")
+                if (
+                    isinstance(fresh_expires, (int, float))
+                    and float(fresh_expires) > time.time() + OAUTH_REFRESH_SKEW_SECONDS
+                ):
+                    return fresh_item
             raise RuntimeError(
                 f"OAuth refresh token expired. "
                 f"Run direct auth login --profile {profile} again."

@@ -450,6 +450,57 @@ class TestAuthOAuth:
         with pytest.raises(RuntimeError, match="OAuth refresh token expired"):
             refresh_access_token("agency1")
 
+    def test_refresh_access_token_recovers_from_concurrent_refresh(
+        self, isolated_auth_store
+    ):
+        save_oauth_profile(
+            profile="agency1",
+            token="access-1",
+            login="client-login",
+            refresh_token="refresh-1",
+            expires_at=1000.0,
+            client_id="cid",
+        )
+
+        def simulate_concurrent_refresh(*_args, **_kwargs):
+            # Imitate another process having just rotated the token on disk
+            # before the current refresh request could complete.
+            store = load_auth_store()
+            store["profiles"]["agency1"]["token"] = "access-2"
+            store["profiles"]["agency1"]["refresh_token"] = "refresh-2"
+            store["profiles"]["agency1"]["expires_at"] = 4_100_000_000.0
+            save_auth_store(store)
+            raise fake_http_error(code=400)
+
+        with patch(
+            "direct_cli.auth.urllib.request.urlopen",
+            side_effect=simulate_concurrent_refresh,
+        ):
+            result = refresh_access_token("agency1")
+
+        assert result["token"] == "access-2"
+        assert result["refresh_token"] == "refresh-2"
+        assert result["expires_at"] == 4_100_000_000.0
+
+    @patch(
+        "direct_cli.auth.urllib.request.urlopen",
+        side_effect=URLError(TimeoutError("timed out")),
+    )
+    def test_refresh_access_token_timeout_message(
+        self, mock_urlopen, isolated_auth_store
+    ):
+        save_oauth_profile(
+            profile="agency1",
+            token="access-1",
+            login="client-login",
+            refresh_token="refresh-1",
+            expires_at=1000.0,
+            client_id="cid",
+        )
+
+        with pytest.raises(RuntimeError, match="OAuth refresh request timed out"):
+            refresh_access_token("agency1")
+
     @patch(
         "direct_cli.auth.urllib.request.urlopen",
         return_value=FakeOAuthResponse(
