@@ -520,8 +520,123 @@ class TestApiCoverage:
         assert captured["kwargs"]["processing_mode"] == "online"
         assert captured["kwargs"]["skip_report_header"] is True
         assert captured["kwargs"]["skip_column_header"] is True
+        assert captured["kwargs"]["skip_report_summary"] is True
         assert captured["kwargs"]["return_money_in_micros"] is True
         assert captured["kwargs"]["language"] == "ru"
+
+    def test_reports_get_cli_defaults_skip_report_header_and_summary(
+        self, monkeypatch
+    ):
+        """reports get defaults keep column header but omit report header/summary."""
+        captured = {}
+        reports_module = importlib.import_module("direct_cli.commands.reports")
+
+        class _FakeResponse:
+            columns = ["Date"]
+
+            def __call__(self):
+                return self
+
+            def to_dicts(self):
+                return [{"Date": "2026-01-01"}]
+
+            def to_values(self):
+                return [["2026-01-01"]]
+
+        class _FakeReports:
+            def post(self, data):
+                return _FakeResponse()
+
+        class _FakeClient:
+            def reports(self):
+                return _FakeReports()
+
+        def _fake_create_client(**kwargs):
+            captured["kwargs"] = kwargs
+            return _FakeClient()
+
+        monkeypatch.setattr(reports_module, "create_client", _fake_create_client)
+
+        result = CliRunner().invoke(
+            cli,
+            [
+                "reports",
+                "get",
+                "--type",
+                "campaign_performance_report",
+                "--from",
+                "2026-01-01",
+                "--to",
+                "2026-01-31",
+                "--name",
+                "Test",
+                "--fields",
+                "Date",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert captured["kwargs"]["skip_report_header"] is True
+        assert captured["kwargs"]["skip_column_header"] is False
+        assert captured["kwargs"]["skip_report_summary"] is True
+
+    def test_reports_get_cli_no_skip_report_header_and_summary_opt_out(
+        self, monkeypatch
+    ):
+        """--no-skip-* lets users request report header/summary rows."""
+        captured = {}
+        reports_module = importlib.import_module("direct_cli.commands.reports")
+
+        class _FakeResponse:
+            columns = ["Date"]
+
+            def __call__(self):
+                return self
+
+            def to_dicts(self):
+                return [{"Date": "2026-01-01"}]
+
+            def to_values(self):
+                return [["2026-01-01"]]
+
+        class _FakeReports:
+            def post(self, data):
+                return _FakeResponse()
+
+        class _FakeClient:
+            def reports(self):
+                return _FakeReports()
+
+        def _fake_create_client(**kwargs):
+            captured["kwargs"] = kwargs
+            return _FakeClient()
+
+        monkeypatch.setattr(reports_module, "create_client", _fake_create_client)
+
+        result = CliRunner().invoke(
+            cli,
+            [
+                "reports",
+                "get",
+                "--type",
+                "campaign_performance_report",
+                "--from",
+                "2026-01-01",
+                "--to",
+                "2026-01-31",
+                "--name",
+                "Test",
+                "--fields",
+                "Date",
+                "--no-skip-report-header",
+                "--no-skip-report-summary",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert captured["kwargs"]["skip_report_header"] is False
+        assert captured["kwargs"]["skip_column_header"] is False
+        assert captured["kwargs"]["skip_report_summary"] is False
 
     def test_api_coverage_report_script_matches_strict_parity_contract(self):
         result = subprocess.run(

@@ -2346,8 +2346,6 @@ def test_reports_get_dry_run_outputs_request():
             "Date,CampaignId",
             "--processing-mode",
             "online",
-            "--skip-report-header",
-            "--skip-report-summary",
             "--dry-run",
         ],
     )
@@ -2362,6 +2360,35 @@ def test_reports_get_dry_run_outputs_request():
     assert body_params["ReportType"] == "CAMPAIGN_PERFORMANCE_REPORT"
     assert body_params["DateRangeType"] == "CUSTOM_DATE"
     assert "SelectionCriteria" in body_params
+
+
+def test_reports_get_dry_run_no_skip_header_summary_opt_out():
+    """--no-skip-report-* omits default skip headers from dry-run output."""
+    result = CliRunner().invoke(
+        cli,
+        [
+            "reports",
+            "get",
+            "--type",
+            "campaign_performance_report",
+            "--from",
+            "2026-01-01",
+            "--to",
+            "2026-01-31",
+            "--name",
+            "Dry Run Report",
+            "--fields",
+            "Date,CampaignId",
+            "--no-skip-report-header",
+            "--no-skip-report-summary",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)
+    assert "skipReportHeader" not in data["headers"]
+    assert "skipReportSummary" not in data["headers"]
+    assert "skipColumnHeader" not in data["headers"]
 
 
 # ----------------------------------------------------------------------

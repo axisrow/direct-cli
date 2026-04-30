@@ -323,10 +323,9 @@ def reports():
     help="Processing mode: auto, online, offline",
 )
 @click.option(
-    "--skip-report-header",
-    is_flag=True,
-    default=False,
-    help="Omit report header row",
+    "--skip-report-header/--no-skip-report-header",
+    default=True,
+    help="Omit report header row (default: yes)",
 )
 @click.option(
     "--skip-column-header",
@@ -335,10 +334,9 @@ def reports():
     help="Omit column header row",
 )
 @click.option(
-    "--skip-report-summary",
-    is_flag=True,
-    default=False,
-    help="Omit report summary row",
+    "--skip-report-summary/--no-skip-report-summary",
+    default=True,
+    help="Omit report summary row (default: yes)",
 )
 @click.option(
     "--return-money-in-micros",

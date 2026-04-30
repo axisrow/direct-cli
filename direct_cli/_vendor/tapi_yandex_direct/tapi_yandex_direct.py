@@ -1,5 +1,6 @@
 import io
 import logging
+import re
 import time
 from typing import Union, Optional, Dict, List, Iterator
 
@@ -63,6 +64,7 @@ RESULT_DICTIONARY_KEYS_OF_API_METHODS = {
     },
 }
 REPORTS_RESOURCE_URL = "/json/v5/reports"
+REPORT_SUMMARY_RE = re.compile(r"^Total rows: \d+$")
 
 
 class YandexDirectClientAdapter(JSONAdapterMixin, TapiAdapter):
@@ -173,10 +175,11 @@ class YandexDirectClientAdapter(JSONAdapterMixin, TapiAdapter):
             data = super().process_response(response, request_kwargs, **kwargs)
 
         if response.request.path_url == REPORTS_RESOURCE_URL:
-            lines = self._iter_lines(data=data, response=response, **kwargs)
-            kwargs["store"]["columns"] = next(lines).split("\t")
+            self._store_report_columns(data, response, request_kwargs, **kwargs)
         else:
             kwargs["store"].pop("columns", None)
+            kwargs["store"].pop("report_data_start_line", None)
+            kwargs["store"].pop("report_header_offset", None)
 
         return data
 
@@ -306,14 +309,89 @@ class YandexDirectClientAdapter(JSONAdapterMixin, TapiAdapter):
             raise NotImplementedError("For reports resource only")
 
         lines = io.StringIO(data)
-        iterator = (line.replace("\n", "") for line in lines)
+        iterator = (line.rstrip("\r\n") for line in lines)
 
         return iterator
 
+    def _store_report_columns(
+        self,
+        data: str,
+        response: Response,
+        request_kwargs: dict,
+        **kwargs,
+    ) -> None:
+        field_names = self._get_report_field_names(request_kwargs)
+        if self._is_skip_column_header(request_kwargs):
+            if not field_names:
+                raise ValueError("Report response has no column header or FieldNames")
+            data_start_line = self._find_first_report_data_line(
+                data, response, **kwargs
+            )
+            kwargs["store"]["columns"] = field_names
+            kwargs["store"]["report_data_start_line"] = data_start_line
+            kwargs["store"]["report_header_offset"] = data_start_line
+            return
+
+        for index, line in enumerate(
+            self._iter_lines(data=data, response=response, **kwargs)
+        ):
+            if self._is_report_prelude_line(line):
+                continue
+            values = line.split("\t")
+            if field_names and values == field_names:
+                kwargs["store"]["columns"] = values
+                kwargs["store"]["report_data_start_line"] = index + 1
+                kwargs["store"]["report_header_offset"] = index
+                return
+            if "\t" in line:
+                kwargs["store"]["columns"] = values
+                kwargs["store"]["report_data_start_line"] = index + 1
+                kwargs["store"]["report_header_offset"] = index
+                return
+
+        raise ValueError("Report response has no column header")
+
+    def _find_first_report_data_line(
+        self, data: str, response: Response, **kwargs
+    ) -> int:
+        for index, line in enumerate(
+            self._iter_lines(data=data, response=response, **kwargs)
+        ):
+            if self._is_report_prelude_line(line) or self._is_report_summary_line(line):
+                continue
+            return index
+        return index + 1 if "index" in locals() else 0
+
+    @staticmethod
+    def _get_report_field_names(request_kwargs: dict) -> List[str]:
+        params = request_kwargs.get("data", {}).get("params", {})
+        return list(params.get("FieldNames") or [])
+
+    @staticmethod
+    def _is_skip_column_header(request_kwargs: dict) -> bool:
+        value = request_kwargs.get("headers", {}).get("skipColumnHeader")
+        return str(value).lower() == "true"
+
+    @staticmethod
+    def _is_report_title_line(line: str) -> bool:
+        return "\t" not in line and line.strip().startswith('"')
+
+    @staticmethod
+    def _is_report_summary_line(line: str) -> bool:
+        return bool(REPORT_SUMMARY_RE.match(line.strip()))
+
+    def _is_report_prelude_line(self, line: str) -> bool:
+        return not line.strip() or self._is_report_title_line(line)
+
     def iter_lines(self, **kwargs) -> Iterator[str]:
         iterator = self._iter_lines(**kwargs)
-        next(iterator)  # skipping columns
-        yield from iterator
+        data_start_line = kwargs["store"].get("report_data_start_line", 1)
+        for index, line in enumerate(iterator):
+            if index < data_start_line:
+                continue
+            if not line.strip() or self._is_report_summary_line(line):
+                continue
+            yield line
 
     def iter_values(self, **kwargs) -> Iterator[list]:
         for line in self.iter_lines(**kwargs):
