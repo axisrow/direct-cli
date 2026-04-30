@@ -31,6 +31,7 @@ YANDEX_OAUTH_TOKEN_URL = "https://oauth.yandex.ru/token"
 DEFAULT_OAUTH_CLIENT_ID = "dcf15d9625f6471d94d6d054d52017ba"
 AUTH_STORE_PATH = Path.home() / ".direct-cli" / "auth.json"
 OAUTH_REFRESH_SKEW_SECONDS = 60
+PENDING_PKCE_TTL_SECONDS = 600
 
 
 def op_read(ref: str) -> str:
@@ -161,16 +162,112 @@ def load_auth_store(path: Optional[Path] = None) -> Dict[str, Any]:
     profiles = data.get("profiles")
     if not isinstance(profiles, dict):
         profiles = {}
+    pending_pkce = data.get("pending_pkce")
+    if not isinstance(pending_pkce, dict):
+        pending_pkce = {}
     active = data.get("active_profile")
     if active is not None and not isinstance(active, str):
         active = None
-    return {"profiles": profiles, "active_profile": active}
+    return {
+        "profiles": profiles,
+        "active_profile": active,
+        "pending_pkce": pending_pkce,
+    }
 
 
 def save_auth_store(data: Dict[str, Any], path: Optional[Path] = None) -> None:
     """Persist OAuth profile storage."""
     store_path = path or AUTH_STORE_PATH
     _write_json(store_path, data)
+
+
+def save_pending_pkce(
+    profile: str,
+    client_id: str,
+    code_verifier: str,
+    login: Optional[str] = None,
+    created_at: Optional[float] = None,
+    path: Optional[Path] = None,
+) -> Dict[str, Any]:
+    """Save pending PKCE state for a profile."""
+    now = time.time() if created_at is None else float(created_at)
+    item: Dict[str, Any] = {
+        "type": "pkce",
+        "client_id": client_id,
+        "code_verifier": code_verifier,
+        "login": login,
+        "created_at": now,
+        "expires_at": now + PENDING_PKCE_TTL_SECONDS,
+    }
+    store = load_auth_store(path=path)
+    store["pending_pkce"][profile] = item
+    save_auth_store(store, path=path)
+    return item
+
+
+def save_pending_confidential_auth(
+    profile: str,
+    client_id: str,
+    client_secret: str,
+    login: Optional[str] = None,
+    created_at: Optional[float] = None,
+    path: Optional[Path] = None,
+) -> Dict[str, Any]:
+    """Save pending confidential-client OAuth state for a profile."""
+    now = time.time() if created_at is None else float(created_at)
+    item: Dict[str, Any] = {
+        "type": "confidential",
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "login": login,
+        "created_at": now,
+        "expires_at": now + PENDING_PKCE_TTL_SECONDS,
+    }
+    store = load_auth_store(path=path)
+    store["pending_pkce"][profile] = item
+    save_auth_store(store, path=path)
+    return item
+
+
+def get_pending_pkce(
+    profile: str, path: Optional[Path] = None
+) -> Optional[Dict[str, Any]]:
+    """Return pending OAuth state for a profile when it has the expected shape."""
+    store = load_auth_store(path=path)
+    item = store["pending_pkce"].get(profile)
+    if not isinstance(item, dict):
+        return None
+    client_id = item.get("client_id")
+    expires_at = item.get("expires_at")
+    if (
+        not isinstance(client_id, str)
+        or not client_id
+        or not isinstance(expires_at, (int, float))
+    ):
+        return None
+    auth_type = item.get("type")
+    code_verifier = item.get("code_verifier")
+    client_secret = item.get("client_secret")
+    if auth_type == "confidential":
+        if not isinstance(client_secret, str) or not client_secret:
+            return None
+    elif not isinstance(code_verifier, str) or not code_verifier:
+        return None
+    else:
+        auth_type = "pkce"
+    result = dict(item)
+    result["type"] = auth_type
+    login = result.get("login")
+    if login is not None and not isinstance(login, str):
+        result["login"] = None
+    return result
+
+
+def remove_pending_pkce(profile: str, path: Optional[Path] = None) -> None:
+    """Remove pending PKCE state for a profile if present."""
+    store = load_auth_store(path=path)
+    store["pending_pkce"].pop(profile, None)
+    save_auth_store(store, path=path)
 
 
 def save_oauth_profile(

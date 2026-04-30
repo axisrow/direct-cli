@@ -43,6 +43,7 @@ OAuth and profile commands:
 ```bash
 direct auth login
 direct auth login --profile agency1
+direct auth login --profile agency1 --format json
 direct auth login --code abc123 --profile agency1
 direct auth list
 direct auth use --profile agency1
@@ -56,6 +57,9 @@ Notes:
 - `--login` remains Direct client login.
 - Authorization is performed via `direct auth login`.
 - OAuth profiles store refresh tokens and refresh access tokens automatically.
+- In a non-interactive shell, run `direct auth login --profile NAME` first, then finish with `direct auth login --code CODE --profile NAME`.
+- If the first non-interactive step includes `--client-secret`, the secret is remembered for the matching `--code` step.
+- If a profile already stores a confidential OAuth client, `direct auth login --code CODE --profile NAME` reuses the saved `client_id` and `client_secret`.
 - `direct auth login --oauth-token TOKEN` is a manual access-token import and does not auto-refresh.
 - Alias `auth_login` is not supported.
 
@@ -716,6 +720,7 @@ OAuth и profile-команды:
 ```bash
 direct auth login
 direct auth login --profile agency1
+direct auth login --profile agency1 --format json
 direct auth login --code abc123 --profile agency1
 direct auth list
 direct auth use --profile agency1
@@ -725,6 +730,9 @@ direct --profile agency1 campaigns get
 
 Примечания:
 - OAuth profiles сохраняют refresh token и автоматически обновляют access token.
+- В non-interactive shell сначала выполните `direct auth login --profile NAME`, затем завершите через `direct auth login --code CODE --profile NAME`.
+- Если первый non-interactive шаг включает `--client-secret`, secret запоминается для последующего `--code`.
+- Если profile уже хранит confidential OAuth client, `direct auth login --code CODE --profile NAME` использует сохраненные `client_id` и `client_secret`.
 - `direct auth login --oauth-token TOKEN` импортирует access token вручную и не включает auto-refresh.
 
 Порядок выбора credentials:
