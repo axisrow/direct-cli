@@ -29,7 +29,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/campaigns
+    uri: https://api.direct.yandex.ru/json/v5/campaigns
   response:
     body:
       string: '{"result":{"AddResults":[{"Id":100000015}]}}'
@@ -91,7 +91,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/adgroups
+    uri: https://api.direct.yandex.ru/json/v5/adgroups
   response:
     body:
       string: '{"result":{"AddResults":[{"Id":2000000003}]}}'
@@ -154,7 +154,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/keywords
+    uri: https://api.direct.yandex.ru/json/v5/keywords
   response:
     body:
       string: '{"result":{"AddResults":[{"Id":40000000001}]}}'
@@ -216,7 +216,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/bids
+    uri: https://api.direct.yandex.ru/json/v5/bids
   response:
     body:
       string: '{"result":{"SetResults":[{"KeywordId":40000000001}]}}'
@@ -278,7 +278,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/keywords
+    uri: https://api.direct.yandex.ru/json/v5/keywords
   response:
     body:
       string: '{"result":{"DeleteResults":[{"Id":40000000001}]}}'
@@ -340,7 +340,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/adgroups
+    uri: https://api.direct.yandex.ru/json/v5/adgroups
   response:
     body:
       string: '{"result":{"DeleteResults":[{"Id":2000000003}]}}'
@@ -402,7 +402,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/campaigns
+    uri: https://api.direct.yandex.ru/json/v5/campaigns
   response:
     body:
       string: '{"result":{"DeleteResults":[{"Id":100000015}]}}'

@@ -29,7 +29,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/campaigns
+    uri: https://api.direct.yandex.ru/json/v5/campaigns
   response:
     body:
       string: '{"result":{"AddResults":[{"Id":100000018}]}}'
@@ -91,7 +91,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/adgroups
+    uri: https://api.direct.yandex.ru/json/v5/adgroups
   response:
     body:
       string: '{"result":{"AddResults":[{"Id":2000000006}]}}'
@@ -154,7 +154,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/ads
+    uri: https://api.direct.yandex.ru/json/v5/ads
   response:
     body:
       string: '{"result":{"AddResults":[{"Id":30000000002,"Warnings":[{"Code":10165,"Message":"Parameter
@@ -217,7 +217,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/ads
+    uri: https://api.direct.yandex.ru/json/v5/ads
   response:
     body:
       string: '{"result":{"SuspendResults":[{"Errors":[{"Code":8300,"Message":"Invalid
@@ -280,7 +280,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/ads
+    uri: https://api.direct.yandex.ru/json/v5/ads
   response:
     body:
       string: '{"result":{"ResumeResults":[{"Errors":[{"Code":8300,"Message":"Invalid
@@ -343,7 +343,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/ads
+    uri: https://api.direct.yandex.ru/json/v5/ads
   response:
     body:
       string: '{"result":{"ArchiveResults":[{"Errors":[{"Code":8300,"Message":"Invalid
@@ -406,7 +406,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/ads
+    uri: https://api.direct.yandex.ru/json/v5/ads
   response:
     body:
       string: '{"result":{"UnarchiveResults":[{"Id":30000000002,"Warnings":[{"Code":10203,"Message":"Ad
@@ -469,7 +469,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/ads
+    uri: https://api.direct.yandex.ru/json/v5/ads
   response:
     body:
       string: '{"result":{"DeleteResults":[{"Id":30000000002}]}}'
@@ -531,7 +531,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/adgroups
+    uri: https://api.direct.yandex.ru/json/v5/adgroups
   response:
     body:
       string: '{"result":{"DeleteResults":[{"Id":2000000006}]}}'
@@ -593,7 +593,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/campaigns
+    uri: https://api.direct.yandex.ru/json/v5/campaigns
   response:
     body:
       string: '{"result":{"DeleteResults":[{"Id":100000018}]}}'

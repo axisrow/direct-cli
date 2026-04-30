@@ -29,7 +29,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/campaigns
+    uri: https://api.direct.yandex.ru/json/v5/campaigns
   response:
     body:
       string: "{\"result\":{\"AddResults\":[{\"Errors\":[{\"Code\":3500,\"Message\":\"Not

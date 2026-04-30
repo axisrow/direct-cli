@@ -29,7 +29,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/advideos
+    uri: https://api.direct.yandex.ru/json/v5/advideos
   response:
     body:
       string: '{"result":{"AddResults":[{"Id":"aabbccdd1122334455667700002"}]}}'
@@ -91,7 +91,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/creatives
+    uri: https://api.direct.yandex.ru/json/v5/creatives
   response:
     body:
       string: '{"result":{"AddResults":[{"Id":1000000001}]}}'
@@ -153,7 +153,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/creatives
+    uri: https://api.direct.yandex.ru/json/v5/creatives
   response:
     body:
       string: "{\"result\":{\"Creatives\":[{\"Id\":1000000001,\"Type\":\"VIDEO_EXTENSION_CREATIVE\",\"Name\":\"\u041D\u043E\u0432\u044B\u0439

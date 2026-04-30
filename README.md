@@ -545,7 +545,7 @@ CI runs a scheduled API coverage workflow that:
 
 `WRITE_SANDBOX` smoke is a live check against the Yandex Direct **sandbox**.
 It does not replay stored HTTP traffic and it does not create new recordings.
-Run it only when you intentionally want to call `api-sandbox.direct.yandex.com`:
+Run it only when you intentionally want to call `api-sandbox.direct.yandex.ru`:
 
 ```bash
 set -a && source .env && set +a
@@ -1141,7 +1141,7 @@ YANDEX_DIRECT_LIVE_WRITE=1 pytest -m integration_live_write -v --record-mode=rew
 `WRITE_SANDBOX` smoke — это live-проверка против **sandbox-окружения**
 Яндекс Директа. Она не воспроизводит сохранённый HTTP-трафик и не создаёт
 новые записи. Запускайте её только когда намеренно хотите обратиться к
-`api-sandbox.direct.yandex.com`:
+`api-sandbox.direct.yandex.ru`:
 
 ```bash
 set -a && source .env && set +a

@@ -1305,7 +1305,7 @@ def main(argv: list[str]) -> int:
     commands = args.command or commands_for_category(WRITE_SANDBOX)
     print("direct-cli WRITE_SANDBOX live sandbox")
     print(f"WRITE_SANDBOX commands: {len(commands)}")
-    print("endpoint: api-sandbox.direct.yandex.com")
+    print("endpoint: api-sandbox.direct.yandex.ru")
     print()
 
     runner = LiveSandboxRunner(

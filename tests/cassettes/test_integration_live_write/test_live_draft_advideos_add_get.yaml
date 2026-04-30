@@ -29,7 +29,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/advideos
+    uri: https://api.direct.yandex.ru/json/v5/advideos
   response:
     body:
       string: '{"result":{"AddResults":[{"Id":"aabbccdd1122334455667700001"}]}}'
@@ -91,7 +91,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/advideos
+    uri: https://api.direct.yandex.ru/json/v5/advideos
   response:
     body:
       string: '{"result":{"AdVideos":[{"Id":"aabbccdd1122334455667700001","Status":"READY"}]}}'

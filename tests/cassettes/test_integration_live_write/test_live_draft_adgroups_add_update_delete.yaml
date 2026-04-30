@@ -29,7 +29,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/campaigns
+    uri: https://api.direct.yandex.ru/json/v5/campaigns
   response:
     body:
       string: '{"result":{"AddResults":[{"Id":100000013}]}}'
@@ -91,7 +91,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/adgroups
+    uri: https://api.direct.yandex.ru/json/v5/adgroups
   response:
     body:
       string: '{"result":{"AddResults":[{"Id":2000000001}]}}'
@@ -153,7 +153,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/adgroups
+    uri: https://api.direct.yandex.ru/json/v5/adgroups
   response:
     body:
       string: '{"result":{"UpdateResults":[{"Id":2000000001}]}}'
@@ -215,7 +215,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/adgroups
+    uri: https://api.direct.yandex.ru/json/v5/adgroups
   response:
     body:
       string: '{"result":{"AdGroups":[{"Id":2000000001,"Name":"draft-test-group-renamed","CampaignId":100000013,"Status":"DRAFT","Type":"TEXT_AD_GROUP","RegionIds":[225]}]}}'
@@ -277,7 +277,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/adgroups
+    uri: https://api.direct.yandex.ru/json/v5/adgroups
   response:
     body:
       string: '{"result":{"DeleteResults":[{"Id":2000000001}]}}'
@@ -339,7 +339,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/campaigns
+    uri: https://api.direct.yandex.ru/json/v5/campaigns
   response:
     body:
       string: '{"result":{"DeleteResults":[{"Id":100000013}]}}'

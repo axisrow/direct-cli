@@ -29,7 +29,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/feeds
+    uri: https://api.direct.yandex.ru/json/v5/feeds
   response:
     body:
       string: '{"result":{"AddResults":[{"Id":1000001}]}}'
@@ -91,7 +91,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/campaigns
+    uri: https://api.direct.yandex.ru/json/v5/campaigns
   response:
     body:
       string: "{\"result\":{\"AddResults\":[{\"Errors\":[{\"Code\":3500,\"Message\":\"Not
@@ -156,7 +156,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/feeds
+    uri: https://api.direct.yandex.ru/json/v5/feeds
   response:
     body:
       string: '{"result":{"DeleteResults":[{"Id":1000001}]}}'
