@@ -32,8 +32,9 @@ account requirements, or external dependencies.
   `PayCampaigns`, and `TransferMoney` are financial side-effect operations.
   `TransferMoney` and `PayCampaigns` remain dry-run-only in the public CLI.
   `CreateInvoice` is not exposed until a separate sandbox-write contract probe
-  can run with `YANDEX_DIRECT_FINANCE_TOKEN` and
-  `YANDEX_DIRECT_OPERATION_NUM`; without them sandbox returns
+  can run with either `YANDEX_DIRECT_FINANCE_TOKEN` or
+  `YANDEX_DIRECT_MASTER_TOKEN` plus `YANDEX_DIRECT_FINANCE_LOGIN`, and
+  `YANDEX_DIRECT_OPERATION_NUM`; without financial credentials sandbox returns
   `error_code=350 Invalid financial transaction token`.
 - **v4finance check-payment** — read-only. Official public docs were not found;
   sandbox v4 Live confirms `CustomTransactionID` (32 latin alphanumeric

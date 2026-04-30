@@ -118,18 +118,24 @@ direct v4events get-events-log --from 2026-04-14T00:00:00 --to 2026-04-15T00:00:
 
 ### V4 Live Finance
 
-`get-credit-limits` requires a financial token and operation number. Pass them
-with `--finance-token` and `--operation-num`, or set
-`YANDEX_DIRECT_FINANCE_TOKEN` and `YANDEX_DIRECT_OPERATION_NUM`.
-Money mutation commands are dry-run-only in this release and always require
-`--dry-run`; dry-run output masks the financial token.
+Finance methods require an extra financial token for money operations. In the
+Yandex Direct web UI, open Tools -> API -> Financial operations, enable the
+financial operations checkbox, click Save, then issue the master token on the
+same Financial operations page and confirm by SMS. Direct CLI can compute the
+per-request token from `--master-token`, `--operation-num`, and
+`--finance-login`; alternatively pass a precomputed token with `--finance-token`.
+Environment variables are
+`YANDEX_DIRECT_MASTER_TOKEN`, `YANDEX_DIRECT_FINANCE_LOGIN`,
+`YANDEX_DIRECT_FINANCE_TOKEN`, and `YANDEX_DIRECT_OPERATION_NUM`. Money mutation
+commands are dry-run-only in this release and always require `--dry-run`; dry-run
+output masks the financial token.
 
 ```bash
-direct v4finance get-credit-limits --logins client-login --finance-token FINANCE_TOKEN --operation-num 123
+direct v4finance get-credit-limits --logins client-login --master-token MASTER_TOKEN --operation-num 123 --finance-login agency-login
 direct v4finance get-credit-limits --logins client-login,other-client --format table
 direct v4finance check-payment --custom-transaction-id A123456789012345678901234567890B
-direct v4finance transfer-money --from-campaign-id 123 --to-campaign-id 456 --amount 100.50 --finance-token FINANCE_TOKEN --operation-num 123 --dry-run
-direct v4finance pay-campaigns --campaign-id 123 --amount 100.50 --contract-id CONTRACT_ID --pay-method CREDIT --finance-token FINANCE_TOKEN --operation-num 123 --dry-run
+direct v4finance transfer-money --from-campaign-id 123 --to-campaign-id 456 --amount 100.50 --currency RUB --master-token MASTER_TOKEN --operation-num 123 --finance-login agency-login --dry-run
+direct v4finance pay-campaigns --campaign-ids 123,456 --amount 100.50 --currency RUB --contract-id CONTRACT_ID --pay-method Bank --master-token MASTER_TOKEN --operation-num 123 --finance-login agency-login --dry-run
 ```
 
 ### V4 Live Shared Account

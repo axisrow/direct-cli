@@ -7,14 +7,23 @@ import click
 
 from ..api import create_v4_client
 from ..output import format_output, print_error
-from ..utils import parse_csv_strings
+from ..utils import parse_csv_strings, parse_ids
 from ..v4 import build_v4_body, call_v4
-from ..v4.money import parse_v4_money_sum
+from ..v4.money import build_finance_token, parse_v4_money_sum, validate_operation_num
 from ..v4_contracts import v4_method_contract
 from .v4shells import V4_EPILOG
 
 FINANCE_TOKEN_MASK = "<redacted>"
 CUSTOM_TRANSACTION_ID_RE = re.compile(r"[A-Za-z0-9]{32}")
+V4_FINANCE_CURRENCIES = ["RUB", "USD", "EUR", "BYN", "KZT", "TRY", "UAH", "CHF"]
+V4_PAY_METHODS = ["Bank", "Overdraft"]
+FINANCE_HELP_EPILOG = (
+    "To issue a master token in the Yandex Direct UI, open Tools -> API -> "
+    "Financial operations, enable the 'Allow financial operations' checkbox, "
+    "click Save, then issue the master token on the same Financial operations "
+    "page and confirm by SMS.\n\n"
+    f"{V4_EPILOG}"
+)
 
 
 def _logins_param(logins: str) -> list[str]:
@@ -27,18 +36,39 @@ def _logins_param(logins: str) -> list[str]:
 
 def _finance_credentials(
     finance_token: Optional[str],
+    master_token: Optional[str],
     operation_num: Optional[int],
+    finance_login: Optional[str],
+    method: str,
+    fallback_login: Optional[str],
 ) -> tuple[str, int]:
     """Validate and normalize finance credentials before any v4 Live API call."""
     normalized_token = (finance_token or "").strip()
-    if normalized_token and operation_num is not None:
+    normalized_master_token = (master_token or "").strip()
+    if normalized_token and normalized_master_token:
+        raise click.UsageError("Use either --finance-token or --master-token, not both")
+    if operation_num is None:
+        raise click.UsageError(_FINANCE_CREDENTIALS_ERROR)
+    operation_num = validate_operation_num(operation_num)
+    if normalized_token:
         return normalized_token, operation_num
+    if normalized_master_token:
+        login = (finance_login or fallback_login or "").strip()
+        if not login:
+            raise click.UsageError(
+                "Provide --finance-login or set YANDEX_DIRECT_FINANCE_LOGIN "
+                "when using --master-token"
+            )
+        return (
+            build_finance_token(normalized_master_token, operation_num, method, login),
+            operation_num,
+        )
     raise click.UsageError(_FINANCE_CREDENTIALS_ERROR)
 
 
 _FINANCE_CREDENTIALS_ERROR = (
-    "Provide --finance-token and --operation-num, or set "
-    "YANDEX_DIRECT_FINANCE_TOKEN and YANDEX_DIRECT_OPERATION_NUM"
+    "Provide --finance-token and --operation-num, or provide --master-token, "
+    "--operation-num, and --finance-login"
 )
 
 
@@ -64,6 +94,17 @@ def _non_empty_option(value: str, option_name: str) -> str:
     return normalized
 
 
+def _campaign_ids_param(campaign_ids: str) -> list[int]:
+    """Parse one or more campaign IDs."""
+    try:
+        parsed = parse_ids(campaign_ids)
+    except ValueError as exc:
+        raise click.UsageError(str(exc)) from exc
+    if not parsed:
+        raise click.UsageError("--campaign-ids must not be empty")
+    return parsed
+
+
 def _custom_transaction_id_param(custom_transaction_id: str) -> dict:
     """Build the v4 Live CheckPayment parameter."""
     normalized = (custom_transaction_id or "").strip()
@@ -74,7 +115,7 @@ def _custom_transaction_id_param(custom_transaction_id: str) -> dict:
     return {"CustomTransactionID": normalized}
 
 
-@click.group(epilog=V4_EPILOG)
+@click.group(epilog=FINANCE_HELP_EPILOG)
 def v4finance():
     """Yandex Direct v4 Live finance commands."""
 
@@ -85,13 +126,26 @@ def v4finance():
 @click.option(
     "--finance-token",
     envvar="YANDEX_DIRECT_FINANCE_TOKEN",
-    help="Financial token",
+    help="Precomputed financial token for this method",
+)
+@click.option(
+    "--master-token",
+    envvar="YANDEX_DIRECT_MASTER_TOKEN",
+    help=(
+        "Financial master token issued after enabling and saving financial "
+        "operations in Tools -> API -> Financial operations"
+    ),
 )
 @click.option(
     "--operation-num",
-    type=click.IntRange(min=0),
+    type=click.IntRange(min=1, max=9223372036854775807),
     envvar="YANDEX_DIRECT_OPERATION_NUM",
     help="Financial operation number",
+)
+@click.option(
+    "--finance-login",
+    envvar="YANDEX_DIRECT_FINANCE_LOGIN",
+    help="Login used in financial token generation",
 )
 @click.option(
     "--format",
@@ -107,14 +161,23 @@ def get_credit_limits(
     ctx,
     logins,
     finance_token,
+    master_token,
     operation_num,
+    finance_login,
     output_format,
     output,
     dry_run,
 ):
     """Get client credit limits."""
     login_list = _logins_param(logins)
-    finance_token, operation_num = _finance_credentials(finance_token, operation_num)
+    finance_token, operation_num = _finance_credentials(
+        finance_token,
+        master_token,
+        operation_num,
+        finance_login,
+        "GetCreditLimits",
+        ctx.obj.get("login"),
+    )
 
     if dry_run:
         format_output(
@@ -200,39 +263,80 @@ def check_payment(
 )
 @click.option("--amount", required=True, help="Positive amount, for example 100.50")
 @click.option(
+    "--currency",
+    default="RUB",
+    show_default=True,
+    type=click.Choice(V4_FINANCE_CURRENCIES, case_sensitive=False),
+    help="Payment currency",
+)
+@click.option(
     "--finance-token",
     envvar="YANDEX_DIRECT_FINANCE_TOKEN",
-    help="Financial token",
+    help="Precomputed financial token for this method",
+)
+@click.option(
+    "--master-token",
+    envvar="YANDEX_DIRECT_MASTER_TOKEN",
+    help=(
+        "Financial master token issued after enabling and saving financial "
+        "operations in Tools -> API -> Financial operations"
+    ),
 )
 @click.option(
     "--operation-num",
-    type=click.IntRange(min=0),
+    type=click.IntRange(min=1, max=9223372036854775807),
     envvar="YANDEX_DIRECT_OPERATION_NUM",
     help="Financial operation number",
+)
+@click.option(
+    "--finance-login",
+    envvar="YANDEX_DIRECT_FINANCE_LOGIN",
+    help="Login used in financial token generation",
 )
 @click.option(
     "--dry-run",
     is_flag=True,
     help="Show request without sending; required for this command",
 )
+@click.pass_context
 def transfer_money(
+    ctx,
     from_campaign_id,
     to_campaign_id,
     amount,
+    currency,
     finance_token,
+    master_token,
     operation_num,
+    finance_login,
     dry_run,
 ):
     """Preview transferring funds between campaigns."""
     _require_dry_run(dry_run)
-    _, operation_num = _finance_credentials(finance_token, operation_num)
+    _, operation_num = _finance_credentials(
+        finance_token,
+        master_token,
+        operation_num,
+        finance_login,
+        "TransferMoney",
+        ctx.obj.get("login"),
+    )
     parsed_amount = parse_v4_money_sum(amount)
+    currency = currency.upper()
     param = {
         "FromCampaigns": [
-            {"CampaignID": from_campaign_id, "Sum": parsed_amount},
+            {
+                "CampaignID": from_campaign_id,
+                "Sum": parsed_amount,
+                "Currency": currency,
+            },
         ],
         "ToCampaigns": [
-            {"CampaignID": to_campaign_id, "Sum": parsed_amount},
+            {
+                "CampaignID": to_campaign_id,
+                "Sum": parsed_amount,
+                "Currency": currency,
+            },
         ],
     }
 
@@ -246,50 +350,94 @@ def transfer_money(
 @v4_method_contract("PayCampaigns")
 @v4finance.command(name="pay-campaigns")
 @click.option(
-    "--campaign-id",
+    "--campaign-ids",
     required=True,
-    type=click.IntRange(min=1),
-    help="Campaign ID to pay",
+    help="Comma-separated campaign IDs to pay",
 )
 @click.option("--amount", required=True, help="Positive amount, for example 100.50")
-@click.option("--contract-id", required=True, help="Agency contract ID")
-@click.option("--pay-method", required=True, help="Payment method")
+@click.option(
+    "--currency",
+    default="RUB",
+    show_default=True,
+    type=click.Choice(V4_FINANCE_CURRENCIES, case_sensitive=False),
+    help="Payment currency",
+)
+@click.option("--contract-id", help="Agency contract ID; required for Bank")
+@click.option(
+    "--pay-method",
+    required=True,
+    type=click.Choice(V4_PAY_METHODS, case_sensitive=False),
+    help="Payment method",
+)
 @click.option(
     "--finance-token",
     envvar="YANDEX_DIRECT_FINANCE_TOKEN",
-    help="Financial token",
+    help="Precomputed financial token for this method",
+)
+@click.option(
+    "--master-token",
+    envvar="YANDEX_DIRECT_MASTER_TOKEN",
+    help=(
+        "Financial master token issued after enabling and saving financial "
+        "operations in Tools -> API -> Financial operations"
+    ),
 )
 @click.option(
     "--operation-num",
-    type=click.IntRange(min=0),
+    type=click.IntRange(min=1, max=9223372036854775807),
     envvar="YANDEX_DIRECT_OPERATION_NUM",
     help="Financial operation number",
+)
+@click.option(
+    "--finance-login",
+    envvar="YANDEX_DIRECT_FINANCE_LOGIN",
+    help="Login used in financial token generation",
 )
 @click.option(
     "--dry-run",
     is_flag=True,
     help="Show request without sending; required for this command",
 )
+@click.pass_context
 def pay_campaigns(
-    campaign_id,
+    ctx,
+    campaign_ids,
     amount,
+    currency,
     contract_id,
     pay_method,
     finance_token,
+    master_token,
     operation_num,
+    finance_login,
     dry_run,
 ):
     """Preview paying for a campaign from an agency credit limit."""
     _require_dry_run(dry_run)
-    _, operation_num = _finance_credentials(finance_token, operation_num)
+    _, operation_num = _finance_credentials(
+        finance_token,
+        master_token,
+        operation_num,
+        finance_login,
+        "PayCampaigns",
+        ctx.obj.get("login"),
+    )
     parsed_amount = parse_v4_money_sum(amount)
+    parsed_campaign_ids = _campaign_ids_param(campaign_ids)
+    currency = currency.upper()
+    pay_method = _non_empty_option(pay_method, "--pay-method")
+    contract_id = (contract_id or "").strip()
+    if pay_method == "Bank" and not contract_id:
+        raise click.UsageError("--contract-id is required when --pay-method Bank")
     param = {
         "Payments": [
-            {"CampaignID": campaign_id, "Sum": parsed_amount},
+            {"CampaignID": campaign_id, "Sum": parsed_amount, "Currency": currency}
+            for campaign_id in parsed_campaign_ids
         ],
-        "ContractID": _non_empty_option(contract_id, "--contract-id"),
-        "PayMethod": _non_empty_option(pay_method, "--pay-method"),
+        "PayMethod": pay_method,
     }
+    if contract_id:
+        param["ContractID"] = contract_id
 
     format_output(
         _masked_finance_body("PayCampaigns", param, operation_num),
