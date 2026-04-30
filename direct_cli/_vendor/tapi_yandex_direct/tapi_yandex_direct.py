@@ -176,10 +176,14 @@ class YandexDirectClientAdapter(JSONAdapterMixin, TapiAdapter):
 
         if response.request.path_url == REPORTS_RESOURCE_URL:
             self._store_report_columns(data, response, request_kwargs, **kwargs)
+            kwargs["store"]["skip_report_summary"] = self._is_skip_report_summary(
+                request_kwargs
+            )
         else:
             kwargs["store"].pop("columns", None)
             kwargs["store"].pop("report_data_start_line", None)
             kwargs["store"].pop("report_header_offset", None)
+            kwargs["store"].pop("skip_report_summary", None)
 
         return data
 
@@ -373,6 +377,11 @@ class YandexDirectClientAdapter(JSONAdapterMixin, TapiAdapter):
         return str(value).lower() == "true"
 
     @staticmethod
+    def _is_skip_report_summary(request_kwargs: dict) -> bool:
+        value = request_kwargs.get("headers", {}).get("skipReportSummary", True)
+        return str(value).lower() == "true"
+
+    @staticmethod
     def _is_report_title_line(line: str) -> bool:
         return "\t" not in line and line.strip().startswith('"')
 
@@ -386,20 +395,27 @@ class YandexDirectClientAdapter(JSONAdapterMixin, TapiAdapter):
     def iter_lines(self, **kwargs) -> Iterator[str]:
         iterator = self._iter_lines(**kwargs)
         data_start_line = kwargs["store"].get("report_data_start_line", 1)
+        skip_report_summary = kwargs["store"].get("skip_report_summary", True)
         for index, line in enumerate(iterator):
             if index < data_start_line:
                 continue
-            if not line.strip() or self._is_report_summary_line(line):
+            if not line.strip():
+                continue
+            if skip_report_summary and self._is_report_summary_line(line):
                 continue
             yield line
 
     def iter_values(self, **kwargs) -> Iterator[list]:
         for line in self.iter_lines(**kwargs):
-            yield line.split("\t")
+            values = line.split("\t")
+            if self._is_report_summary_line(line):
+                columns_count = len(kwargs["store"]["columns"])
+                values.extend([""] * (columns_count - len(values)))
+            yield values
 
     def iter_dicts(self, **kwargs) -> Iterator[dict]:
-        for line in self.iter_lines(**kwargs):
-            yield dict(zip(kwargs["store"]["columns"], line.split("\t")))
+        for values in self.iter_values(**kwargs):
+            yield dict(zip(kwargs["store"]["columns"], values))
 
     def to_values(self, **kwargs) -> List[list]:
         return list(self.iter_values(**kwargs))

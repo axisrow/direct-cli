@@ -59,6 +59,7 @@ class _ParsedReport:
         *,
         field_names: list[str] | None = None,
         skip_column_header: bool = False,
+        skip_report_summary: bool = True,
     ):
         self.adapter = YandexDirectClientAdapter()
         self.response = self._make_response(body)
@@ -71,6 +72,7 @@ class _ParsedReport:
                 ).encode(),
                 "headers": {
                     "skipColumnHeader": str(skip_column_header).lower(),
+                    "skipReportSummary": str(skip_report_summary).lower(),
                 },
             },
             store=self.store,
@@ -117,6 +119,15 @@ class _ParsedReport:
             store=self.store,
         )
 
+    def iter_dicts(self):
+        return list(
+            self.adapter.iter_dicts(
+                data=self.data,
+                response=self.response,
+                store=self.store,
+            )
+        )
+
 
 @pytest.mark.parametrize("skip_report_header", [True, False])
 @pytest.mark.parametrize("skip_column_header", [True, False])
@@ -133,11 +144,26 @@ def test_reports_adapter_parses_rows_for_all_header_summary_combinations(
             skip_report_summary=skip_report_summary,
         ),
         skip_column_header=skip_column_header,
+        skip_report_summary=skip_report_summary,
     )
 
+    expected_values = list(REPORT_ROWS)
+    expected_dicts = list(EXPECTED_DICTS)
+    if not skip_report_summary:
+        expected_values.append(["Total rows: 2", "", "", ""])
+        expected_dicts.append(
+            {
+                "Month": "Total rows: 2",
+                "Impressions": "",
+                "Clicks": "",
+                "Cost": "",
+            }
+        )
+
     assert report.columns == FIELD_NAMES
-    assert report.to_dicts() == EXPECTED_DICTS
-    assert report.to_values() == REPORT_ROWS
+    assert report.to_dicts() == expected_dicts
+    assert report.iter_dicts() == expected_dicts
+    assert report.to_values() == expected_values
 
 
 def test_reports_adapter_parses_single_field_report_with_header_and_summary():
@@ -150,12 +176,14 @@ def test_reports_adapter_parses_single_field_report_with_header_and_summary():
             rows=[["2026-03-01"], ["2026-03-02"]],
         ),
         field_names=["Month"],
+        skip_report_summary=False,
     )
 
     assert report.columns == ["Month"]
     assert report.to_dicts() == [
         {"Month": "2026-03-01"},
         {"Month": "2026-03-02"},
+        {"Month": "Total rows: 2"},
     ]
 
 
@@ -169,7 +197,8 @@ def test_reports_get_json_opt_out_uses_columns_not_report_title(monkeypatch):
                     skip_report_header=False,
                     skip_column_header=False,
                     skip_report_summary=False,
-                )
+                ),
+                skip_report_summary=False,
             )
 
     class _FakeClient:
@@ -205,4 +234,12 @@ def test_reports_get_json_opt_out_uses_columns_not_report_title(monkeypatch):
     )
 
     assert result.exit_code == 0, result.output
-    assert json.loads(result.output) == EXPECTED_DICTS
+    assert json.loads(result.output) == [
+        *EXPECTED_DICTS,
+        {
+            "Month": "Total rows: 2",
+            "Impressions": "",
+            "Clicks": "",
+            "Cost": "",
+        },
+    ]
