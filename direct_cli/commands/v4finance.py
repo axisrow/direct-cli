@@ -102,6 +102,8 @@ def _campaign_ids_param(campaign_ids: str) -> list[int]:
         raise click.UsageError(str(exc)) from exc
     if not parsed:
         raise click.UsageError("--campaign-ids must not be empty")
+    if any(campaign_id <= 0 for campaign_id in parsed):
+        raise click.UsageError("--campaign-ids must contain only positive integers")
     return parsed
 
 

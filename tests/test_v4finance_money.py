@@ -344,6 +344,27 @@ def test_pay_campaigns_requires_contract_for_bank():
     assert "--contract-id is required when --pay-method Bank" in result.output
 
 
+def test_pay_campaigns_rejects_non_positive_campaign_ids():
+    result = _invoke(
+        "v4finance",
+        "pay-campaigns",
+        "--campaign-ids",
+        "0,-1",
+        "--amount",
+        "100.50",
+        "--pay-method",
+        "Overdraft",
+        "--finance-token",
+        "finance-token",
+        "--operation-num",
+        "42",
+        "--dry-run",
+    )
+
+    assert result.exit_code != 0
+    assert "--campaign-ids must contain only positive integers" in result.output
+
+
 def test_pay_campaigns_allows_overdraft_without_contract():
     result = _invoke(
         "v4finance",
