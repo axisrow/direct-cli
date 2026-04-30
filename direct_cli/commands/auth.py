@@ -1,5 +1,8 @@
 """Authentication commands for OAuth profile management."""
 
+import json
+import time
+
 import click
 
 from ..auth import (
@@ -38,7 +41,12 @@ def login(profile, code, oauth_token, client_id, client_secret, login):
     if token:
         if not login:
             login = resolve_login(token)
-        save_oauth_profile(profile=profile, token=token, login=login)
+        save_oauth_profile(
+            profile=profile,
+            token=token,
+            login=login,
+            source="manual",
+        )
         print_success(f"Profile '{profile}' is saved and active.")
         return
 
@@ -58,7 +66,7 @@ def login(profile, code, oauth_token, client_id, client_secret, login):
         auth_code = click.prompt("Enter OAuth code", type=str).strip()
 
     try:
-        token = exchange_oauth_code(
+        token_response = exchange_oauth_code(
             code=auth_code,
             client_id=chosen_client_id,
             client_secret=client_secret,
@@ -67,9 +75,18 @@ def login(profile, code, oauth_token, client_id, client_secret, login):
     except RuntimeError as error:
         raise click.ClickException(str(error))
 
+    access_token = token_response["access_token"]
     if not login:
-        login = resolve_login(token)
-    save_oauth_profile(profile=profile, token=token, login=login)
+        login = resolve_login(access_token)
+    save_oauth_profile(
+        profile=profile,
+        token=access_token,
+        login=login,
+        refresh_token=token_response["refresh_token"],
+        expires_at=time.time() + token_response["expires_in"],
+        client_id=chosen_client_id,
+        client_secret=client_secret,
+    )
     print_success(f"Profile '{profile}' is saved and active.")
 
 
@@ -84,9 +101,9 @@ def list_command():
     for item in profiles:
         marker = "*" if item["active"] else " "
         login_display = item.get("login") or "(not set)"
-        click.echo(
-            f"{marker} {item['profile']}  source={item['source']}  login={login_display}"
-        )
+        profile = item["profile"]
+        source = item["source"]
+        click.echo(f"{marker} {profile}  source={source}  login={login_display}")
 
 
 @auth.command()
@@ -105,7 +122,15 @@ def use(profile):
 
 @auth.command()
 @click.option("--profile", help="Profile name (defaults to active profile)")
-def status(profile):
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    show_default=True,
+    help="Output format",
+)
+def status(profile, output_format):
     """Show auth status for one profile."""
     selected = profile or get_active_profile()
     if not selected:
@@ -116,7 +141,15 @@ def status(profile):
     env_token, env_login = get_env_profile(selected)
 
     if oauth_profile:
-        source = "oauth"
+        source = oauth_profile.get("source") or "oauth"
+        if source == "oauth" and (
+            not oauth_profile.get("refresh_token")
+            or not isinstance(oauth_profile.get("expires_at"), (int, float))
+        ):
+            raise click.ClickException(
+                f"OAuth profile '{selected}' is incomplete. "
+                f"Run direct auth login --profile {selected} again."
+            )
         login_value = oauth_profile.get("login")
         if not login_value and env_login:
             login_value = env_login
@@ -127,6 +160,25 @@ def status(profile):
     else:
         raise click.ClickException(f"Profile '{selected}' is not configured.")
 
+    expires_at = None
+    expires_in_seconds = None
+    if oauth_profile and isinstance(oauth_profile.get("expires_at"), (int, float)):
+        expires_at = float(oauth_profile["expires_at"])
+        expires_in_seconds = max(0, int(expires_at - time.time()))
+
+    if output_format == "json":
+        payload = {
+            "profile": selected,
+            "source": source,
+            "has_token": True,
+            "login": login_value,
+        }
+        if expires_at is not None:
+            payload["expires_at"] = expires_at
+            payload["expires_in_seconds"] = expires_in_seconds
+        click.echo(json.dumps(payload, ensure_ascii=False))
+        return
+
     click.echo(f"profile={selected}")
     click.echo(f"source={source}")
     click.echo("has_token=yes")
@@ -134,3 +186,19 @@ def status(profile):
         click.echo(f"login={login_value}")
     else:
         click.echo("login=(not set)")
+    if expires_in_seconds is not None:
+        click.echo(f"expires_in={_format_duration(expires_in_seconds)}")
+
+
+def _format_duration(seconds: int) -> str:
+    """Format a duration for auth status text output."""
+    hours, remainder = divmod(max(0, seconds), 3600)
+    minutes, seconds = divmod(remainder, 60)
+    parts = []
+    if hours:
+        parts.append(f"{hours}h")
+    if minutes:
+        parts.append(f"{minutes}m")
+    if not parts:
+        parts.append(f"{seconds}s")
+    return " ".join(parts)

@@ -38,7 +38,7 @@ def _resolve_test_credentials():
 
     try:
         return get_credentials()
-    except ValueError:
+    except (RuntimeError, ValueError):
         return None, None
 
 
