@@ -17,6 +17,7 @@ from ..auth import (
     resolve_login,
     save_oauth_profile,
     set_active_profile,
+    validate_oauth_profile,
 )
 from ..output import print_info, print_success
 
@@ -142,14 +143,11 @@ def status(profile, output_format):
 
     if oauth_profile:
         source = oauth_profile.get("source") or "oauth"
-        if source == "oauth" and (
-            not oauth_profile.get("refresh_token")
-            or not isinstance(oauth_profile.get("expires_at"), (int, float))
-        ):
-            raise click.ClickException(
-                f"OAuth profile '{selected}' is incomplete. "
-                f"Run direct auth login --profile {selected} again."
-            )
+        if source == "oauth":
+            try:
+                validate_oauth_profile(selected, oauth_profile)
+            except ValueError as exc:
+                raise click.ClickException(str(exc)) from exc
         login_value = oauth_profile.get("login")
         if not login_value and env_login:
             login_value = env_login

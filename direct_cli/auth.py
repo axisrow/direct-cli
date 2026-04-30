@@ -394,7 +394,7 @@ def _oauth_profile_incomplete_error(profile: str) -> ValueError:
     )
 
 
-def _validate_oauth_profile(profile: str, data: Dict[str, Any]) -> None:
+def validate_oauth_profile(profile: str, data: Dict[str, Any]) -> None:
     refresh_token = data.get("refresh_token")
     expires_at = data.get("expires_at")
     if not isinstance(refresh_token, str) or not refresh_token:
@@ -410,7 +410,7 @@ def refresh_access_token(profile: str, path: Optional[Path] = None) -> Dict[str,
     item = profiles.get(profile)
     if not isinstance(item, dict):
         raise ValueError(f"Profile '{profile}' is not configured.")
-    _validate_oauth_profile(profile, item)
+    validate_oauth_profile(profile, item)
 
     refresh_token = item["refresh_token"]
     client_id = item.get("client_id")
@@ -547,7 +547,7 @@ def get_credentials(
         oauth_profile = get_oauth_profile(selected_profile)
         if oauth_profile:
             if oauth_profile.get("source") == "oauth":
-                _validate_oauth_profile(selected_profile, oauth_profile)
+                validate_oauth_profile(selected_profile, oauth_profile)
                 expires_at = float(oauth_profile["expires_at"])
                 if expires_at <= time.time() + OAUTH_REFRESH_SKEW_SECONDS:
                     oauth_profile = refresh_access_token(selected_profile)
