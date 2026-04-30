@@ -9,6 +9,7 @@ from tapi2 import TapiAdapter, generate_wrapper_from_adapter, JSONAdapterMixin
 from tapi2.exceptions import ResponseProcessException, ClientError, TapiException
 
 from . import exceptions
+from .endpoints import DIRECT_DEBUG_ROOT, get_direct_api_root
 from .resource_mapping import RESOURCE_MAPPING_V5
 
 logger = logging.getLogger(__name__)
@@ -72,11 +73,8 @@ class YandexDirectClientAdapter(JSONAdapterMixin, TapiAdapter):
 
     def get_api_root(self, api_params: dict, resource_name: str) -> str:
         if resource_name == "debugtoken":
-            return "https://"
-        elif api_params.get("is_sandbox"):
-            return "https://api-sandbox.direct.yandex.ru/"
-        else:
-            return "https://api.direct.yandex.ru/"
+            return DIRECT_DEBUG_ROOT
+        return get_direct_api_root(api_params)
 
     def get_request_kwargs(self, api_params: dict, *args, **kwargs) -> dict:
         """Обогащение запроса, параметрами"""
@@ -154,7 +152,7 @@ class YandexDirectClientAdapter(JSONAdapterMixin, TapiAdapter):
                 "The report generation time has exceeded the server limit. "
                 "Please try to change the request parameters, "
                 "reduce the period or the amount of requested data.",
-                **kwargs
+                **kwargs,
             )
         elif response.status_code == 405:
             raise exceptions.YandexDirectApiError(
@@ -162,7 +160,7 @@ class YandexDirectClientAdapter(JSONAdapterMixin, TapiAdapter):
                 "This resource does not support the HTTP method {}\n".format(
                     response.request.method
                 ),
-                **kwargs
+                **kwargs,
             )
 
         data = self.response_to_native(response)
@@ -190,7 +188,7 @@ class YandexDirectClientAdapter(JSONAdapterMixin, TapiAdapter):
         response: Response,
         request_kwargs: dict,
         api_params: dict,
-        **kwargs
+        **kwargs,
     ) -> None:
         if response.status_code in (201, 202):
             pass
@@ -230,7 +228,7 @@ class YandexDirectClientAdapter(JSONAdapterMixin, TapiAdapter):
         response: Response,
         request_kwargs: dict,
         api_params: dict,
-        **kwargs
+        **kwargs,
     ) -> bool:
         status_code = response.status_code
         error_data = error_message.get("error", {})
@@ -283,7 +281,7 @@ class YandexDirectClientAdapter(JSONAdapterMixin, TapiAdapter):
         response: Response,
         request_kwargs: dict,
         api_params: dict,
-        **kwargs
+        **kwargs,
     ) -> Optional[dict]:
         limit = response_data["result"].get("LimitedBy")
         if limit:

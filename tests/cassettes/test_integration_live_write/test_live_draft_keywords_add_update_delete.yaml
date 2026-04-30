@@ -29,7 +29,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/campaigns
+    uri: https://api.direct.yandex.ru/json/v5/campaigns
   response:
     body:
       string: '{"result":{"AddResults":[{"Id":100000019}]}}'
@@ -91,7 +91,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/adgroups
+    uri: https://api.direct.yandex.ru/json/v5/adgroups
   response:
     body:
       string: '{"result":{"AddResults":[{"Id":2000000007}]}}'
@@ -154,7 +154,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/keywords
+    uri: https://api.direct.yandex.ru/json/v5/keywords
   response:
     body:
       string: '{"result":{"AddResults":[{"Id":40000000004}]}}'
@@ -216,7 +216,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/keywords
+    uri: https://api.direct.yandex.ru/json/v5/keywords
   response:
     body:
       string: '{"error":{"request_id":"930706505971356658","error_code":8000,"error_detail":"An
@@ -280,7 +280,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/keywords
+    uri: https://api.direct.yandex.ru/json/v5/keywords
   response:
     body:
       string: '{"result":{"DeleteResults":[{"Id":40000000004}]}}'
@@ -342,7 +342,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/adgroups
+    uri: https://api.direct.yandex.ru/json/v5/adgroups
   response:
     body:
       string: '{"result":{"DeleteResults":[{"Id":2000000007}]}}'
@@ -404,7 +404,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/campaigns
+    uri: https://api.direct.yandex.ru/json/v5/campaigns
   response:
     body:
       string: '{"result":{"DeleteResults":[{"Id":100000019}]}}'

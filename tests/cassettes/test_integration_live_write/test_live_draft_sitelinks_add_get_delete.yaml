@@ -30,7 +30,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/sitelinks
+    uri: https://api.direct.yandex.ru/json/v5/sitelinks
   response:
     body:
       string: '{"result":{"AddResults":[{"Id":1000000002}]}}'
@@ -92,7 +92,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/sitelinks
+    uri: https://api.direct.yandex.ru/json/v5/sitelinks
   response:
     body:
       string: '{"result":{"SitelinksSets":[{"Id":1000000002,"Sitelinks":[{"Title":"CLI
@@ -156,7 +156,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/sitelinks
+    uri: https://api.direct.yandex.ru/json/v5/sitelinks
   response:
     body:
       string: '{"result":{"DeleteResults":[{"Id":1000000002}]}}'

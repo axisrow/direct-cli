@@ -29,7 +29,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/campaigns
+    uri: https://api.direct.yandex.ru/json/v5/campaigns
   response:
     body:
       string: '{"result":{"AddResults":[{"Id":100000014}]}}'
@@ -91,7 +91,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/adgroups
+    uri: https://api.direct.yandex.ru/json/v5/adgroups
   response:
     body:
       string: '{"result":{"AddResults":[{"Id":2000000002}]}}'
@@ -154,7 +154,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/ads
+    uri: https://api.direct.yandex.ru/json/v5/ads
   response:
     body:
       string: '{"result":{"AddResults":[{"Id":30000000001,"Warnings":[{"Code":10165,"Message":"Parameter
@@ -218,7 +218,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/ads
+    uri: https://api.direct.yandex.ru/json/v5/ads
   response:
     body:
       string: '{"result":{"UpdateResults":[{"Id":30000000001}]}}'
@@ -280,7 +280,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/ads
+    uri: https://api.direct.yandex.ru/json/v5/ads
   response:
     body:
       string: '{"result":{"Ads":[{"Id":30000000001,"CampaignId":100000014,"AdGroupId":2000000002,"Status":"DRAFT","State":"OFF","Type":"TEXT_AD","TextAd":{"Text":"Test
@@ -343,7 +343,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/ads
+    uri: https://api.direct.yandex.ru/json/v5/ads
   response:
     body:
       string: '{"result":{"DeleteResults":[{"Id":30000000001}]}}'
@@ -405,7 +405,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/adgroups
+    uri: https://api.direct.yandex.ru/json/v5/adgroups
   response:
     body:
       string: '{"result":{"DeleteResults":[{"Id":2000000002}]}}'
@@ -467,7 +467,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/campaigns
+    uri: https://api.direct.yandex.ru/json/v5/campaigns
   response:
     body:
       string: '{"result":{"DeleteResults":[{"Id":100000014}]}}'

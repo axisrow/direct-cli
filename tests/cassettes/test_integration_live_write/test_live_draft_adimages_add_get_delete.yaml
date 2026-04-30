@@ -29,7 +29,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.com/json/v5/adimages
+    uri: https://api.direct.yandex.ru/json/v5/adimages
   response:
     body:
       string: '{"result":{"AddResults":[{"Errors":[{"Details":"Invalid image file

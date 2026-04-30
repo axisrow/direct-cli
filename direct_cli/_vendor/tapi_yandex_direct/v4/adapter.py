@@ -18,6 +18,7 @@ from tapi2 import JSONAdapterMixin, TapiAdapter, generate_wrapper_from_adapter
 from tapi2.exceptions import ClientError, ResponseProcessException, TapiException
 
 from .. import exceptions
+from ..endpoints import get_direct_api_root
 from .resource_mapping import (
     RESOURCE_MAPPING_V4_LIVE,
     SUPPORTED_V4_METHODS,
@@ -33,9 +34,7 @@ class V4LiveClientAdapter(JSONAdapterMixin, TapiAdapter):
         super().__init__(*args, **kwargs)
 
     def get_api_root(self, api_params: dict, resource_name: str) -> str:
-        if api_params.get("is_sandbox"):
-            return "https://api-sandbox.direct.yandex.ru/"
-        return "https://api.direct.yandex.ru/"
+        return get_direct_api_root(api_params)
 
     def get_request_kwargs(self, api_params: dict, *args, **kwargs) -> dict:
         params = super().get_request_kwargs(api_params, *args, **kwargs)
@@ -107,7 +106,9 @@ class V4LiveClientAdapter(JSONAdapterMixin, TapiAdapter):
                 data = None
         return data
 
-    def process_response(self, response: Response, request_kwargs: dict, **kwargs) -> dict:
+    def process_response(
+        self, response: Response, request_kwargs: dict, **kwargs
+    ) -> dict:
         # Mirror the v5 behaviour: turn the serialised body back into a dict so
         # downstream hooks (extract, retry) can read it.
         if isinstance(request_kwargs.get("data"), (bytes, bytearray, str)):
@@ -187,8 +188,13 @@ class V4LiveClientAdapter(JSONAdapterMixin, TapiAdapter):
 
         return False
 
-    def extract(self, data, response: Optional[Response] = None,
-                request_kwargs: Optional[dict] = None, **kwargs):
+    def extract(
+        self,
+        data,
+        response: Optional[Response] = None,
+        request_kwargs: Optional[dict] = None,
+        **kwargs,
+    ):
         # v4 Live always nests payload under "data". For methods returning a
         # bare scalar (TransferMoney → 1), the scalar comes through unchanged.
         # response / request_kwargs are accepted but unused — they are kept
