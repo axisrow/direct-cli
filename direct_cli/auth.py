@@ -5,12 +5,13 @@ Authentication module for Direct CLI
 import base64
 import hashlib
 import json
+import logging
 import os
 import secrets
 import shutil
 import subprocess
 import tempfile
-import logging
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -29,6 +30,7 @@ YANDEX_OAUTH_AUTHORIZE_URL = "https://oauth.yandex.ru/authorize"
 YANDEX_OAUTH_TOKEN_URL = "https://oauth.yandex.ru/token"
 DEFAULT_OAUTH_CLIENT_ID = "dcf15d9625f6471d94d6d054d52017ba"
 AUTH_STORE_PATH = Path.home() / ".direct-cli" / "auth.json"
+OAUTH_REFRESH_SKEW_SECONDS = 60
 
 
 def op_read(ref: str) -> str:
@@ -175,17 +177,33 @@ def save_oauth_profile(
     profile: str,
     token: str,
     login: Optional[str] = None,
+    refresh_token: Optional[str] = None,
+    expires_at: Optional[float] = None,
+    client_id: str = DEFAULT_OAUTH_CLIENT_ID,
+    client_secret: Optional[str] = None,
+    source: str = "oauth",
     make_active: bool = True,
     path: Optional[Path] = None,
 ) -> None:
     """Save/update one OAuth profile without exposing secret values."""
     store = load_auth_store(path=path)
     profiles = store["profiles"]
-    profiles[profile] = {
+    item: Dict[str, Any] = {
         "token": token,
         "login": login,
-        "source": "oauth",
+        "source": source,
     }
+    if source == "oauth":
+        if not refresh_token:
+            raise ValueError("OAuth profile requires refresh_token")
+        if expires_at is None:
+            raise ValueError("OAuth profile requires expires_at")
+        item["refresh_token"] = refresh_token
+        item["expires_at"] = float(expires_at)
+        item["client_id"] = client_id
+        if client_secret:
+            item["client_secret"] = client_secret
+    profiles[profile] = item
     if make_active:
         store["active_profile"] = profile
     save_auth_store(store, path=path)
@@ -205,7 +223,7 @@ def get_active_profile(path: Optional[Path] = None) -> Optional[str]:
 
 def get_oauth_profile(
     profile: str, path: Optional[Path] = None
-) -> Optional[Dict[str, Optional[str]]]:
+) -> Optional[Dict[str, Any]]:
     """Get OAuth profile by name."""
     store = load_auth_store(path=path)
     item = store["profiles"].get(profile)
@@ -217,7 +235,13 @@ def get_oauth_profile(
         return None
     if login is not None and not isinstance(login, str):
         login = None
-    return {"token": token, "login": login}
+    result = dict(item)
+    result["token"] = token
+    result["login"] = login
+    source = result.get("source")
+    if not isinstance(source, str):
+        result["source"] = "oauth"
+    return result
 
 
 def get_env_profile(profile: str) -> Tuple[Optional[str], Optional[str]]:
@@ -245,9 +269,12 @@ def list_profiles(path: Optional[Path] = None) -> List[Dict[str, Any]]:
         login = data.get("login")
         if not isinstance(token, str) or not token:
             continue
+        source = data.get("source")
+        if not isinstance(source, str):
+            source = "oauth"
         profiles[profile_name] = {
             "profile": profile_name,
-            "source": "oauth",
+            "source": source,
             "has_token": True,
             "has_login": bool(login),
             "login": login,
@@ -266,7 +293,7 @@ def list_profiles(path: Optional[Path] = None) -> List[Dict[str, Any]]:
         login = env.get(f"YANDEX_DIRECT_LOGIN_{suffix}")
         existing = profiles.get(profile_name)
         if existing:
-            existing["source"] = "oauth+env"
+            existing["source"] = f"{existing['source']}+env"
             existing["has_login"] = bool(existing["has_login"] or login)
             existing["login"] = existing["login"] or login
             continue
@@ -313,7 +340,7 @@ def exchange_oauth_code(
     client_id: str = DEFAULT_OAUTH_CLIENT_ID,
     client_secret: Optional[str] = None,
     code_verifier: Optional[str] = None,
-) -> str:
+) -> Dict[str, Any]:
     """Exchange OAuth authorization code for access token."""
     payload: Dict[str, str] = {
         "grant_type": "authorization_code",
@@ -336,22 +363,121 @@ def exchange_oauth_code(
         with urllib.request.urlopen(request, timeout=20) as response:
             result = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as error:
-        details = error.read().decode("utf-8", errors="ignore")
-        if details:
-            raise RuntimeError(f"OAuth token request failed: {details}") from error
         raise RuntimeError(
             f"OAuth token request failed with HTTP {error.code}"
         ) from error
     except urllib.error.URLError as error:
+        if isinstance(error.reason, TimeoutError):
+            raise RuntimeError("OAuth token request timed out") from error
         raise RuntimeError(f"OAuth token request failed: {error.reason}") from error
-    except TimeoutError as error:
-        raise RuntimeError("OAuth token request timed out") from error
 
     access_token = result.get("access_token")
     if not isinstance(access_token, str) or not access_token:
         raise RuntimeError("OAuth token response does not contain access_token")
-    # TODO: Persist refresh_token/expires_in and refresh automatically.
-    return access_token
+    refresh_token = result.get("refresh_token")
+    if not isinstance(refresh_token, str) or not refresh_token:
+        raise RuntimeError("OAuth token response does not contain refresh_token")
+    expires_in = result.get("expires_in")
+    if not isinstance(expires_in, int) or expires_in <= 0:
+        raise RuntimeError("OAuth token response does not contain expires_in")
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "expires_in": expires_in,
+    }
+
+
+def _oauth_profile_incomplete_error(profile: str) -> ValueError:
+    return ValueError(
+        f"OAuth profile '{profile}' is incomplete. "
+        f"Run direct auth login --profile {profile} again."
+    )
+
+
+def validate_oauth_profile(profile: str, data: Dict[str, Any]) -> None:
+    refresh_token = data.get("refresh_token")
+    expires_at = data.get("expires_at")
+    if not isinstance(refresh_token, str) or not refresh_token:
+        raise _oauth_profile_incomplete_error(profile)
+    if not isinstance(expires_at, (int, float)):
+        raise _oauth_profile_incomplete_error(profile)
+
+
+def refresh_access_token(profile: str, path: Optional[Path] = None) -> Dict[str, Any]:
+    """Refresh and persist an OAuth profile access token."""
+    store = load_auth_store(path=path)
+    profiles = store["profiles"]
+    item = profiles.get(profile)
+    if not isinstance(item, dict):
+        raise ValueError(f"Profile '{profile}' is not configured.")
+    validate_oauth_profile(profile, item)
+
+    refresh_token = item["refresh_token"]
+    client_id = item.get("client_id")
+    if not isinstance(client_id, str) or not client_id:
+        client_id = DEFAULT_OAUTH_CLIENT_ID
+    client_secret = item.get("client_secret")
+
+    payload: Dict[str, str] = {
+        "grant_type": "refresh_token",
+        "client_id": client_id,
+        "refresh_token": refresh_token,
+    }
+    if isinstance(client_secret, str) and client_secret:
+        payload["client_secret"] = client_secret
+    body = urllib.parse.urlencode(payload).encode("utf-8")
+    request = urllib.request.Request(
+        YANDEX_OAUTH_TOKEN_URL,
+        data=body,
+        method="POST",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            result = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        if error.code in (400, 401):
+            # Concurrent-refresh race: another process may have just rotated
+            # the token. Re-read the store and, if a fresher access token is
+            # already on disk, return it instead of falsely declaring expiry.
+            fresh_store = load_auth_store(path=path)
+            fresh_item = fresh_store["profiles"].get(profile)
+            if isinstance(fresh_item, dict):
+                fresh_expires = fresh_item.get("expires_at")
+                if (
+                    isinstance(fresh_expires, (int, float))
+                    and float(fresh_expires) > time.time() + OAUTH_REFRESH_SKEW_SECONDS
+                ):
+                    return fresh_item
+            raise RuntimeError(
+                f"OAuth refresh token expired. "
+                f"Run direct auth login --profile {profile} again."
+            ) from error
+        raise RuntimeError(
+            f"OAuth refresh request failed with HTTP {error.code}"
+        ) from error
+    except urllib.error.URLError as error:
+        if isinstance(error.reason, TimeoutError):
+            raise RuntimeError("OAuth refresh request timed out") from error
+        raise RuntimeError(f"OAuth refresh request failed: {error.reason}") from error
+
+    access_token = result.get("access_token")
+    if not isinstance(access_token, str) or not access_token:
+        raise RuntimeError("OAuth refresh response does not contain access_token")
+    expires_in = result.get("expires_in")
+    if not isinstance(expires_in, int) or expires_in <= 0:
+        raise RuntimeError("OAuth refresh response does not contain expires_in")
+
+    item["token"] = access_token
+    new_refresh_token = result.get("refresh_token")
+    if isinstance(new_refresh_token, str) and new_refresh_token:
+        item["refresh_token"] = new_refresh_token
+    item["expires_at"] = time.time() + expires_in
+    item["client_id"] = client_id
+    item["source"] = "oauth"
+    profiles[profile] = item
+    save_auth_store(store, path=path)
+    return item
 
 
 def resolve_login(token: str) -> Optional[str]:
@@ -364,7 +490,12 @@ def resolve_login(token: str) -> Optional[str]:
         with urllib.request.urlopen(request, timeout=10) as response:
             data = json.loads(response.read().decode("utf-8"))
             return data.get("login")
-    except (urllib.error.URLError, urllib.error.HTTPError, OSError, json.JSONDecodeError) as exc:
+    except (
+        urllib.error.URLError,
+        urllib.error.HTTPError,
+        OSError,
+        json.JSONDecodeError,
+    ) as exc:
         logging.debug("resolve_login failed: %s", exc)
         return None
 
@@ -415,6 +546,11 @@ def get_credentials(
     if selected_profile and not final_token:
         oauth_profile = get_oauth_profile(selected_profile)
         if oauth_profile:
+            if oauth_profile.get("source") == "oauth":
+                validate_oauth_profile(selected_profile, oauth_profile)
+                expires_at = float(oauth_profile["expires_at"])
+                if expires_at <= time.time() + OAUTH_REFRESH_SKEW_SECONDS:
+                    oauth_profile = refresh_access_token(selected_profile)
             final_token = oauth_profile["token"]
             if not final_login:
                 final_login = oauth_profile["login"]

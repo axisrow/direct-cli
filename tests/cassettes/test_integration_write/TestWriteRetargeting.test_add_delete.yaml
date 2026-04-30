@@ -29,7 +29,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api-sandbox.direct.yandex.com/json/v5/retargetinglists
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/retargetinglists
   response:
     body:
       string: '{"result":{"AddResults":[{"Id":1001}]}}'
@@ -83,7 +83,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api-sandbox.direct.yandex.com/json/v5/retargetinglists
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/retargetinglists
   response:
     body:
       string: '{"result":{"DeleteResults":[{"Errors":[{"Code":8800,"Message":"Object

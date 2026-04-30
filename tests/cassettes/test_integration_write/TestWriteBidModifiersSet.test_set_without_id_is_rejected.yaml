@@ -29,7 +29,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/campaigns
   response:
     body:
       string: '{"result":{"AddResults":[{"Id":100000009}]}}'
@@ -83,7 +83,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api-sandbox.direct.yandex.com/json/v5/bidmodifiers
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/bidmodifiers
   response:
     body:
       string: '{"error":{"request_id":"2726106659050373240","error_code":8000,"error_detail":"The
@@ -139,7 +139,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/campaigns
   response:
     body:
       string: '{"result":{"DeleteResults":[{"Id":100000009}]}}'

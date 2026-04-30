@@ -30,7 +30,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api-sandbox.direct.yandex.com/json/v5/adextensions
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/adextensions
   response:
     body:
       string: '{"result":{"AddResults":[{"Id":10001}]}}'
@@ -84,7 +84,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api-sandbox.direct.yandex.com/json/v5/adextensions
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/adextensions
   response:
     body:
       string: '{"result":{"DeleteResults":[{"Id":10001}]}}'

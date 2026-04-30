@@ -74,9 +74,9 @@ class YandexDirectClientAdapter(JSONAdapterMixin, TapiAdapter):
         if resource_name == "debugtoken":
             return "https://"
         elif api_params.get("is_sandbox"):
-            return "https://api-sandbox.direct.yandex.com/"
+            return "https://api-sandbox.direct.yandex.ru/"
         else:
-            return "https://api.direct.yandex.com/"
+            return "https://api.direct.yandex.ru/"
 
     def get_request_kwargs(self, api_params: dict, *args, **kwargs) -> dict:
         """Обогащение запроса, параметрами"""

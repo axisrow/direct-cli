@@ -44,7 +44,6 @@ OAuth and profile commands:
 direct auth login
 direct auth login --profile agency1
 direct auth login --code abc123 --profile agency1
-direct auth login --oauth-token y0_example --profile agency1
 direct auth list
 direct auth use --profile agency1
 direct auth status --profile agency1
@@ -56,6 +55,8 @@ Notes:
 - Select credentials with `--profile`.
 - `--login` remains Direct client login.
 - Authorization is performed via `direct auth login`.
+- OAuth profiles store refresh tokens and refresh access tokens automatically.
+- `direct auth login --oauth-token TOKEN` is a manual access-token import and does not auto-refresh.
 - Alias `auth_login` is not supported.
 
 Credential resolution priority:
@@ -686,12 +687,15 @@ OAuth и profile-команды:
 direct auth login
 direct auth login --profile agency1
 direct auth login --code abc123 --profile agency1
-direct auth login --oauth-token y0_example --profile agency1
 direct auth list
 direct auth use --profile agency1
 direct auth status --profile agency1
 direct --profile agency1 campaigns get
 ```
+
+Примечания:
+- OAuth profiles сохраняют refresh token и автоматически обновляют access token.
+- `direct auth login --oauth-token TOKEN` импортирует access token вручную и не включает auto-refresh.
 
 Порядок выбора credentials:
 

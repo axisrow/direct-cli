@@ -1,6 +1,10 @@
 """Tests for OAuth profile authentication flows."""
 
+import io
+import json
 import stat
+import urllib.parse
+from urllib.error import HTTPError, URLError
 from unittest.mock import patch
 
 import pytest
@@ -8,7 +12,11 @@ from click.testing import CliRunner
 
 from direct_cli.auth import (
     DEFAULT_OAUTH_CLIENT_ID,
+    exchange_oauth_code,
     get_credentials,
+    load_auth_store,
+    refresh_access_token,
+    save_auth_store,
     save_oauth_profile,
 )
 from direct_cli.cli import cli
@@ -19,6 +27,39 @@ def isolated_auth_store(monkeypatch, tmp_path):
     store_path = tmp_path / "auth.json"
     monkeypatch.setattr("direct_cli.auth.AUTH_STORE_PATH", store_path)
     return store_path
+
+
+class FakeOAuthResponse:
+    """Minimal context manager for urllib response mocks."""
+
+    def __init__(self, payload):
+        self.payload = payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return None
+
+    def read(self):
+        return json.dumps(self.payload).encode("utf-8")
+
+
+def fake_http_error(code=400, body=b"invalid_grant"):
+    """Build an HTTPError with a deterministic response body."""
+    return HTTPError(
+        url="https://oauth.yandex.ru/token",
+        code=code,
+        msg="Bad Request",
+        hdrs=None,
+        fp=io.BytesIO(body),
+    )
+
+
+def request_form_body(mock_urlopen):
+    """Parse the form body from the mocked urllib Request."""
+    request = mock_urlopen.call_args.args[0]
+    return urllib.parse.parse_qs(request.data.decode("utf-8"))
 
 
 class TestAuthOAuth:
@@ -34,6 +75,9 @@ class TestAuthOAuth:
             profile="agency1",
             token="oauth-token-1",
             login="client-login-1",
+            refresh_token="refresh-1",
+            expires_at=4_100_000_000.0,
+            client_id=DEFAULT_OAUTH_CLIENT_ID,
             make_active=False,
         )
 
@@ -122,15 +166,31 @@ class TestAuthOAuth:
         assert "y0_secret_token" not in status.output
 
     def test_auth_store_uses_private_permissions(self, isolated_auth_store):
-        save_oauth_profile(profile="agency1", token="oauth-token-1")
+        save_oauth_profile(
+            profile="agency1",
+            token="oauth-token-1",
+            refresh_token="refresh-1",
+            expires_at=4_100_000_000.0,
+            client_id=DEFAULT_OAUTH_CLIENT_ID,
+        )
 
         directory_mode = stat.S_IMODE(isolated_auth_store.parent.stat().st_mode)
         file_mode = stat.S_IMODE(isolated_auth_store.stat().st_mode)
         assert directory_mode == 0o700
         assert file_mode == 0o600
 
-    @patch("direct_cli.commands.auth.exchange_oauth_code", return_value="y0_token")
-    def test_auth_login_code_mode_custom_app(self, mock_exchange, isolated_auth_store):
+    @patch(
+        "direct_cli.commands.auth.exchange_oauth_code",
+        return_value={
+            "access_token": "y0_token",
+            "refresh_token": "r1",
+            "expires_in": 3600,
+        },
+    )
+    @patch("direct_cli.commands.auth.time.time", return_value=1000.0)
+    def test_auth_login_code_mode_custom_app(
+        self, mock_time, mock_exchange, isolated_auth_store
+    ):
         runner = CliRunner()
         result = runner.invoke(
             cli,
@@ -154,10 +214,22 @@ class TestAuthOAuth:
             client_secret="csecret",
             code_verifier=None,
         )
+        profile = load_auth_store()["profiles"]["agency1"]
+        assert profile["client_secret"] == "csecret"
 
+    @patch("direct_cli.commands.auth.time.time", return_value=1000.0)
     @patch("direct_cli.commands.auth.build_pkce_pair", return_value=("ver", "chal"))
-    @patch("direct_cli.commands.auth.exchange_oauth_code", return_value="y0_pkce")
-    def test_auth_login_pkce_mode(self, mock_exchange, mock_pkce, isolated_auth_store):
+    @patch(
+        "direct_cli.commands.auth.exchange_oauth_code",
+        return_value={
+            "access_token": "y0_pkce",
+            "refresh_token": "r1",
+            "expires_in": 3600,
+        },
+    )
+    def test_auth_login_pkce_mode(
+        self, mock_exchange, mock_pkce, mock_time, isolated_auth_store
+    ):
         runner = CliRunner()
         result = runner.invoke(
             cli,
@@ -186,7 +258,13 @@ class TestAuthOAuth:
         monkeypatch.delenv("YANDEX_DIRECT_OP_LOGIN_REF", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_BW_TOKEN_REF", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_BW_LOGIN_REF", raising=False)
-        save_oauth_profile(profile="agency1", token="oauth-token-1")
+        save_oauth_profile(
+            profile="agency1",
+            token="oauth-token-1",
+            refresh_token="refresh-1",
+            expires_at=4_100_000_000.0,
+            client_id=DEFAULT_OAUTH_CLIENT_ID,
+        )
         runner = CliRunner()
 
         result = runner.invoke(cli, ["campaigns", "get", "--help"])
@@ -204,3 +282,376 @@ class TestAuthOAuth:
         result = runner.invoke(cli, ["auth", "list"])
         assert result.exit_code == 0
         assert "* agency1" in result.output
+
+    @patch(
+        "direct_cli.auth.urllib.request.urlopen",
+        return_value=FakeOAuthResponse(
+            {
+                "access_token": "access-1",
+                "refresh_token": "refresh-1",
+                "expires_in": 3600,
+            }
+        ),
+    )
+    def test_exchange_oauth_code_returns_token_response(self, mock_urlopen):
+        result = exchange_oauth_code(
+            code="abc123", client_id="cid", code_verifier="verifier"
+        )
+
+        assert result == {
+            "access_token": "access-1",
+            "refresh_token": "refresh-1",
+            "expires_in": 3600,
+        }
+
+    def test_save_oauth_profile_persists_refresh_metadata(self, isolated_auth_store):
+        save_oauth_profile(
+            profile="agency1",
+            token="access-1",
+            login="client-login",
+            refresh_token="refresh-1",
+            expires_at=2000.0,
+            client_id="cid",
+        )
+
+        store = load_auth_store()
+        assert store["profiles"]["agency1"] == {
+            "token": "access-1",
+            "login": "client-login",
+            "source": "oauth",
+            "refresh_token": "refresh-1",
+            "expires_at": 2000.0,
+            "client_id": "cid",
+        }
+
+    def test_save_oauth_profile_persists_client_secret(self, isolated_auth_store):
+        save_oauth_profile(
+            profile="agency1",
+            token="access-1",
+            login="client-login",
+            refresh_token="refresh-1",
+            expires_at=2000.0,
+            client_id="cid",
+            client_secret="csecret",
+        )
+
+        profile = load_auth_store()["profiles"]["agency1"]
+        assert profile["client_secret"] == "csecret"
+
+    @patch("direct_cli.auth.load_env_file")
+    @patch("direct_cli.auth.time.time", return_value=1000.0)
+    @patch(
+        "direct_cli.auth.urllib.request.urlopen",
+        return_value=FakeOAuthResponse(
+            {
+                "access_token": "access-2",
+                "refresh_token": "refresh-2",
+                "expires_in": 3600,
+            }
+        ),
+    )
+    def test_get_credentials_refreshes_expiring_oauth_profile(
+        self, mock_urlopen, mock_time, mock_load_env, isolated_auth_store, monkeypatch
+    ):
+        monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
+        monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
+        save_oauth_profile(
+            profile="agency1",
+            token="access-1",
+            login="client-login",
+            refresh_token="refresh-1",
+            expires_at=1050.0,
+            client_id="cid",
+            make_active=False,
+        )
+
+        token, login = get_credentials(profile="agency1")
+
+        assert token == "access-2"
+        assert login == "client-login"
+        profile = load_auth_store()["profiles"]["agency1"]
+        assert profile["token"] == "access-2"
+        assert profile["refresh_token"] == "refresh-2"
+        assert profile["expires_at"] == 4600.0
+
+    @patch("direct_cli.auth.load_env_file")
+    @patch("direct_cli.auth.time.time", return_value=1000.0)
+    @patch(
+        "direct_cli.auth.urllib.request.urlopen",
+        return_value=FakeOAuthResponse(
+            {
+                "access_token": "access-2",
+                "refresh_token": "refresh-2",
+                "expires_in": 3600,
+            }
+        ),
+    )
+    def test_get_credentials_refreshes_at_refresh_skew_boundary(
+        self, mock_urlopen, mock_time, mock_load_env, isolated_auth_store, monkeypatch
+    ):
+        monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
+        monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
+        save_oauth_profile(
+            profile="agency1",
+            token="access-1",
+            login="client-login",
+            refresh_token="refresh-1",
+            expires_at=1060.0,
+            client_id="cid",
+            make_active=False,
+        )
+
+        token, login = get_credentials(profile="agency1")
+
+        assert token == "access-2"
+        assert login == "client-login"
+        assert mock_urlopen.call_count == 1
+
+    @patch("direct_cli.auth.load_env_file")
+    def test_legacy_oauth_profile_without_refresh_token_fails(
+        self, mock_load_env, isolated_auth_store, monkeypatch
+    ):
+        monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
+        monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
+        save_auth_store(
+            {
+                "profiles": {
+                    "agency1": {
+                        "token": "access-1",
+                        "login": "client-login",
+                        "source": "oauth",
+                    }
+                },
+                "active_profile": "agency1",
+            }
+        )
+
+        with pytest.raises(
+            ValueError, match="Run direct auth login --profile agency1 again"
+        ):
+            get_credentials(profile="agency1")
+
+    @patch(
+        "direct_cli.auth.urllib.request.urlopen",
+        side_effect=fake_http_error(code=400),
+    )
+    def test_refresh_access_token_expired_refresh_token_fails_cleanly(
+        self, mock_urlopen, isolated_auth_store
+    ):
+        save_oauth_profile(
+            profile="agency1",
+            token="access-1",
+            login="client-login",
+            refresh_token="refresh-1",
+            expires_at=1000.0,
+            client_id="cid",
+        )
+
+        with pytest.raises(RuntimeError, match="OAuth refresh token expired"):
+            refresh_access_token("agency1")
+
+    def test_refresh_access_token_recovers_from_concurrent_refresh(
+        self, isolated_auth_store
+    ):
+        save_oauth_profile(
+            profile="agency1",
+            token="access-1",
+            login="client-login",
+            refresh_token="refresh-1",
+            expires_at=1000.0,
+            client_id="cid",
+        )
+
+        def simulate_concurrent_refresh(*_args, **_kwargs):
+            # Imitate another process having just rotated the token on disk
+            # before the current refresh request could complete.
+            store = load_auth_store()
+            store["profiles"]["agency1"]["token"] = "access-2"
+            store["profiles"]["agency1"]["refresh_token"] = "refresh-2"
+            store["profiles"]["agency1"]["expires_at"] = 4_100_000_000.0
+            save_auth_store(store)
+            raise fake_http_error(code=400)
+
+        with patch(
+            "direct_cli.auth.urllib.request.urlopen",
+            side_effect=simulate_concurrent_refresh,
+        ):
+            result = refresh_access_token("agency1")
+
+        assert result["token"] == "access-2"
+        assert result["refresh_token"] == "refresh-2"
+        assert result["expires_at"] == 4_100_000_000.0
+
+    @patch(
+        "direct_cli.auth.urllib.request.urlopen",
+        side_effect=URLError(TimeoutError("timed out")),
+    )
+    def test_refresh_access_token_timeout_message(
+        self, mock_urlopen, isolated_auth_store
+    ):
+        save_oauth_profile(
+            profile="agency1",
+            token="access-1",
+            login="client-login",
+            refresh_token="refresh-1",
+            expires_at=1000.0,
+            client_id="cid",
+        )
+
+        with pytest.raises(RuntimeError, match="OAuth refresh request timed out"):
+            refresh_access_token("agency1")
+
+    @patch(
+        "direct_cli.auth.urllib.request.urlopen",
+        return_value=FakeOAuthResponse(
+            {
+                "access_token": "access-2",
+                "expires_in": 3600,
+            }
+        ),
+    )
+    def test_refresh_access_token_sends_client_secret(
+        self, mock_urlopen, isolated_auth_store
+    ):
+        save_oauth_profile(
+            profile="agency1",
+            token="access-1",
+            login="client-login",
+            refresh_token="refresh-1",
+            expires_at=1000.0,
+            client_id="cid",
+            client_secret="csecret",
+        )
+
+        refresh_access_token("agency1")
+
+        assert request_form_body(mock_urlopen) == {
+            "grant_type": ["refresh_token"],
+            "client_id": ["cid"],
+            "refresh_token": ["refresh-1"],
+            "client_secret": ["csecret"],
+        }
+
+    @patch(
+        "direct_cli.auth.urllib.request.urlopen",
+        side_effect=URLError("temporary failure in name resolution"),
+    )
+    def test_refresh_access_token_network_error_is_readable(
+        self, mock_urlopen, isolated_auth_store
+    ):
+        save_oauth_profile(
+            profile="agency1",
+            token="access-1",
+            login="client-login",
+            refresh_token="refresh-1",
+            expires_at=1000.0,
+            client_id="cid",
+        )
+
+        with pytest.raises(RuntimeError, match="OAuth refresh request failed"):
+            refresh_access_token("agency1")
+
+    @patch(
+        "direct_cli.auth.urllib.request.urlopen",
+        side_effect=fake_http_error(code=500, body=b"super-secret-response"),
+    )
+    def test_refresh_access_token_http_error_does_not_expose_body(
+        self, mock_urlopen, isolated_auth_store
+    ):
+        save_oauth_profile(
+            profile="agency1",
+            token="access-1",
+            login="client-login",
+            refresh_token="refresh-1",
+            expires_at=1000.0,
+            client_id="cid",
+        )
+
+        with pytest.raises(RuntimeError) as exc_info:
+            refresh_access_token("agency1")
+
+        assert str(exc_info.value) == "OAuth refresh request failed with HTTP 500"
+        assert "super-secret-response" not in str(exc_info.value)
+
+    @patch(
+        "direct_cli.auth.urllib.request.urlopen",
+        side_effect=fake_http_error(code=400, body=b"super-secret-response"),
+    )
+    def test_exchange_oauth_code_http_error_does_not_expose_body(self, mock_urlopen):
+        with pytest.raises(RuntimeError) as exc_info:
+            exchange_oauth_code(code="abc123", client_id="cid")
+
+        assert str(exc_info.value) == "OAuth token request failed with HTTP 400"
+        assert "super-secret-response" not in str(exc_info.value)
+
+    @patch("direct_cli.commands.auth.time.time", return_value=1000.0)
+    def test_auth_status_json_does_not_expose_client_secret(
+        self, mock_time, isolated_auth_store
+    ):
+        save_oauth_profile(
+            profile="agency1",
+            token="access-1",
+            login="client-login",
+            refresh_token="refresh-1",
+            expires_at=4600.0,
+            client_id="cid",
+            client_secret="csecret",
+        )
+        runner = CliRunner()
+
+        result = runner.invoke(
+            cli, ["auth", "status", "--profile", "agency1", "--format", "json"]
+        )
+
+        assert result.exit_code == 0
+        assert json.loads(result.output) == {
+            "profile": "agency1",
+            "source": "oauth",
+            "has_token": True,
+            "login": "client-login",
+            "expires_at": 4600.0,
+            "expires_in_seconds": 3600,
+        }
+        assert "client_secret" not in result.output
+        assert "csecret" not in result.output
+
+    def test_auth_status_legacy_oauth_profile_fails(self, isolated_auth_store):
+        save_auth_store(
+            {
+                "profiles": {
+                    "agency1": {
+                        "token": "access-1",
+                        "login": "client-login",
+                        "source": "oauth",
+                    }
+                },
+                "active_profile": "agency1",
+            }
+        )
+        runner = CliRunner()
+
+        result = runner.invoke(cli, ["auth", "status", "--profile", "agency1"])
+
+        assert result.exit_code != 0
+        assert "Run direct auth login --profile agency1 again" in result.output
+
+    def test_auth_login_oauth_token_mode_saves_manual_profile(
+        self, isolated_auth_store
+    ):
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "auth",
+                "login",
+                "--oauth-token",
+                "y0_secret_token",
+                "--profile",
+                "agency1",
+            ],
+        )
+
+        assert result.exit_code == 0
+        profile = load_auth_store()["profiles"]["agency1"]
+        assert profile["source"] == "manual"
+        assert "refresh_token" not in profile
