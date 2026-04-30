@@ -208,6 +208,8 @@ class LiveSandboxRunner:
             "strategies.update": self.run_strategy_id_command,
             "v4account.account-management": self.run_v4account_account_management,
             "v4account.enable-shared-account": self.run_v4account_enable_shared_account,
+            "v4wordstat.create-report": self.run_v4wordstat_create_report,
+            "v4wordstat.delete-report": self.run_v4wordstat_delete_report,
             "vcards.add": self.run_vcard_add,
             "vcards.delete": self.run_vcard_id_command,
         }
@@ -336,6 +338,18 @@ class LiveSandboxRunner:
         data = self.parse_json(run.stdout)
         return self.first_value(data, preferred_keys)
 
+    def scalar_data_id(self, run: CommandRun) -> str | None:
+        """Extract a v4 Live scalar identifier returned under top-level data."""
+        data = self.parse_json(run.stdout)
+        if not isinstance(data, dict):
+            return None
+        candidate = data.get("data")
+        if isinstance(candidate, int):
+            return str(candidate)
+        if isinstance(candidate, str) and candidate.strip():
+            return candidate.strip()
+        return None
+
     def first_value(self, value: object, preferred_keys: tuple[str, ...]) -> str | None:
         """Find the first scalar value for any preferred key in a JSON tree."""
         if isinstance(value, dict):
@@ -458,6 +472,58 @@ class LiveSandboxRunner:
                 "No",
             ],
         )
+        return self.row_from_run(matrix_command, run)
+
+    def create_wordstat_report(self) -> str:
+        phrase = self.name("wordstat")
+        run = self.invoke(
+            "v4wordstat",
+            "create-report",
+            ["--phrases", phrase, "--geo-ids", "213"],
+        )
+        status, detail = self.classify(run)
+        if status != PASS:
+            raise PrerequisiteError(status, f"v4wordstat create prerequisite: {detail}")
+        report_id = self.scalar_data_id(run)
+        if not report_id:
+            raise PrerequisiteError(
+                FAIL, "v4wordstat create prerequisite returned no scalar report ID"
+            )
+        self.register_cleanup(
+            "wordstat report",
+            "v4wordstat",
+            "delete-report",
+            ["--report-id", report_id],
+        )
+        return report_id
+
+    def run_v4wordstat_create_report(self, matrix_command: str) -> ReportRow:
+        run = self.invoke(
+            "v4wordstat",
+            "create-report",
+            ["--phrases", self.name("wordstat"), "--geo-ids", "213"],
+        )
+        report_id = self.scalar_data_id(run)
+        if report_id:
+            self.register_cleanup(
+                "wordstat report",
+                "v4wordstat",
+                "delete-report",
+                ["--report-id", report_id],
+            )
+        return self.row_from_run(matrix_command, run)
+
+    def run_v4wordstat_delete_report(self, matrix_command: str) -> ReportRow:
+        report_id = self.create_wordstat_report()
+        run = self.invoke(
+            "v4wordstat",
+            "delete-report",
+            ["--report-id", report_id],
+        )
+        if self.classify(run)[0] == PASS:
+            self.cleanup_steps = [
+                step for step in self.cleanup_steps if step[0] != "wordstat report"
+            ]
         return self.row_from_run(matrix_command, run)
 
     def create_campaign(self, campaign_type: str = "TEXT_CAMPAIGN") -> str:

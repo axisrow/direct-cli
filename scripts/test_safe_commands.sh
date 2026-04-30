@@ -183,6 +183,11 @@ run_v4finance_check_payment_contract() {
   run_test "v4finance check-payment dry-run (env auth)" direct v4finance check-payment --custom-transaction-id A123456789012345678901234567890B --dry-run
 }
 
+run_v4wordstat_contracts() {
+  run_test "v4wordstat list-reports dry-run (env auth)" direct v4wordstat list-reports --dry-run
+  run_test "v4wordstat get-report dry-run (env auth)" direct v4wordstat get-report --report-id 1 --dry-run
+}
+
 # ─── Section A: Auth via env variables (no CLI flags) ────────────────────────
 echo -e "${BOLD}=== A. Аутентификация через env-переменные ===${RESET}"
 echo ""
@@ -282,6 +287,7 @@ run_test "v4events get-events-log (env auth)"      direct v4events get-events-lo
 run_v4finance_check_payment_contract
 run_v4finance_get_clients_units
 run_v4finance_get_credit_limits
+run_v4wordstat_contracts
 
 if [ -n "$CAMPAIGN_ID" ]; then
   run_test "changes check-campaigns (env auth)"    direct changes check-campaigns --timestamp 2026-04-23T00:00:00

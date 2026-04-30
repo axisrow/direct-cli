@@ -243,38 +243,58 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
     "CreateNewWordstatReport": V4MethodContract(
         method="CreateNewWordstatReport",
         group="wordstat",
-        param_shape=PARAM_UNDOCUMENTED,
-        login_placement="unknown",
+        param_shape=PARAM_OBJECT,
+        login_placement=(
+            "param contains documented Phrases and optional GeoID; global "
+            "--login uses Client-Login header"
+        ),
         safety=SAFETY_ASYNC,
-        source_status=SOURCE_UNDOCUMENTED,
+        source_status=SOURCE_DOCS,
         live_probe_allowed=False,
+        example_param={"Phrases": ["buy laptop"], "GeoID": [213]},
+        notes=(
+            "Creates an asynchronous Wordstat report. The CLI performs one API "
+            "call only and does not poll for readiness."
+        ),
     ),
     "GetWordstatReportList": V4MethodContract(
         method="GetWordstatReportList",
         group="wordstat",
-        param_shape=PARAM_UNDOCUMENTED,
-        login_placement="unknown",
+        param_shape=PARAM_OPTIONAL_OBJECT,
+        login_placement="global --login uses Client-Login header",
         safety=SAFETY_READ,
-        source_status=SOURCE_UNDOCUMENTED,
+        source_status=SOURCE_DOCS,
         live_probe_allowed=False,
+        example_param=None,
+        notes="Official docs define no required param for listing Wordstat reports.",
     ),
     "GetWordstatReport": V4MethodContract(
         method="GetWordstatReport",
         group="wordstat",
-        param_shape=PARAM_UNDOCUMENTED,
-        login_placement="unknown",
+        param_shape=PARAM_SCALAR,
+        login_placement=(
+            "param is the scalar Wordstat report ID; global --login uses "
+            "Client-Login header"
+        ),
         safety=SAFETY_READ,
-        source_status=SOURCE_UNDOCUMENTED,
+        source_status=SOURCE_DOCS,
         live_probe_allowed=False,
+        example_param=123,
+        notes="Official docs define scalar param, not an object with ReportID.",
     ),
     "DeleteWordstatReport": V4MethodContract(
         method="DeleteWordstatReport",
         group="wordstat",
-        param_shape=PARAM_UNDOCUMENTED,
-        login_placement="unknown",
+        param_shape=PARAM_SCALAR,
+        login_placement=(
+            "param is the scalar Wordstat report ID; global --login uses "
+            "Client-Login header"
+        ),
         safety=SAFETY_WRITE,
-        source_status=SOURCE_UNDOCUMENTED,
+        source_status=SOURCE_DOCS,
         live_probe_allowed=False,
+        example_param=123,
+        notes="Official docs define scalar param, not an object with ReportID.",
     ),
     "CreateNewForecast": V4MethodContract(
         method="CreateNewForecast",

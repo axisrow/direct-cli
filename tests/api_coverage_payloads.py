@@ -76,6 +76,10 @@ DRY_RUN_PAYLOAD_EXCLUSIONS = {
     "v4finance.transfer-money": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
     "v4goals.get-retargeting-goals": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
     "v4goals.get-stat-goals": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
+    "v4wordstat.create-report": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
+    "v4wordstat.delete-report": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
+    "v4wordstat.get-report": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
+    "v4wordstat.list-reports": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
 }
 
 PAYLOAD_CASES = [

@@ -61,8 +61,8 @@ def test_smoke_matrix_counts_match_current_cli_surface():
     summary = smoke_summary()
 
     assert summary["total_cli_groups"] == 39
-    assert summary["total_cli_subcommands"] == 132
-    assert summary["api_cli_subcommands"] == 128
+    assert summary["total_cli_subcommands"] == 136
+    assert summary["api_cli_subcommands"] == 132
     assert summary["wsdl_services"] == 29
     assert summary["non_wsdl_services"] == sorted(NON_WSDL_SERVICES)
     assert summary["api_services_total"] == 30
@@ -132,6 +132,9 @@ def test_safe_smoke_script_runs_v4_safe_commands():
     assert "run_v4finance_check_payment_contract" in contents
     assert "run_v4finance_get_clients_units" in contents
     assert "run_v4finance_get_credit_limits" in contents
+    assert "run_v4wordstat_contracts" in contents
+    assert "v4wordstat list-reports --dry-run" in contents
+    assert "v4wordstat get-report --report-id 1 --dry-run" in contents
     assert 'v4goals get-stat-goals --campaign-ids "$CAMPAIGN_ID"' in contents
     assert 'v4goals get-retargeting-goals (env auth)"' in contents
     assert 'v4goals get-retargeting-goals --campaign-ids "$CAMPAIGN_ID"' in contents
@@ -148,7 +151,7 @@ def test_sandbox_write_live_runner_covers_write_sandbox_matrix():
     )
     try:
         assert set(runner.handlers()) == set(SMOKE_MATRIX[WRITE_SANDBOX])
-        assert len(SMOKE_MATRIX[WRITE_SANDBOX]) == 77
+        assert len(SMOKE_MATRIX[WRITE_SANDBOX]) == 79
     finally:
         runner.close()
 
@@ -199,6 +202,84 @@ def test_sandbox_write_live_runner_builds_v4account_commands(monkeypatch):
                 "--money-in-sms",
                 "No",
             ],
+        ),
+    ]
+
+
+def test_sandbox_write_live_runner_extracts_v4wordstat_scalar_id():
+    module = _load_sandbox_runner_module()
+    runner = module.LiveSandboxRunner(
+        commands=["v4wordstat.create-report"],
+        timeout=1,
+        verbose=False,
+        report_file=None,
+    )
+    try:
+        run = module.CommandRun(
+            args=["direct", "--sandbox", "v4wordstat", "create-report"],
+            returncode=0,
+            stdout=json.dumps({"data": 123}),
+            stderr="",
+        )
+        assert runner.scalar_data_id(run) == "123"
+    finally:
+        runner.close()
+
+
+def test_sandbox_write_live_runner_builds_v4wordstat_commands(monkeypatch):
+    module = _load_sandbox_runner_module()
+    runner = module.LiveSandboxRunner(
+        commands=["v4wordstat.create-report", "v4wordstat.delete-report"],
+        timeout=1,
+        verbose=False,
+        report_file=None,
+    )
+    calls = []
+
+    def fake_invoke(group, command, args):
+        calls.append((group, command, args))
+        if command == "create-report":
+            return module.CommandRun(
+                args=["direct", "--sandbox", group, command, *args],
+                returncode=0,
+                stdout=json.dumps({"data": 456}),
+                stderr="",
+            )
+        return module.CommandRun(
+            args=["direct", "--sandbox", group, command, *args],
+            returncode=0,
+            stdout=json.dumps({"data": 1}),
+            stderr="",
+        )
+
+    monkeypatch.setattr(runner, "invoke", fake_invoke)
+
+    try:
+        assert runner.run_one("v4wordstat.create-report").status == module.PASS
+        assert runner.run_one("v4wordstat.delete-report").status == module.PASS
+    finally:
+        runner.close()
+
+    assert calls == [
+        (
+            "v4wordstat",
+            "create-report",
+            ["--phrases", runner.name("wordstat"), "--geo-ids", "213"],
+        ),
+        (
+            "v4wordstat",
+            "delete-report",
+            ["--report-id", "456"],
+        ),
+        (
+            "v4wordstat",
+            "create-report",
+            ["--phrases", runner.name("wordstat"), "--geo-ids", "213"],
+        ),
+        (
+            "v4wordstat",
+            "delete-report",
+            ["--report-id", "456"],
         ),
     ]
 
