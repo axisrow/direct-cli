@@ -80,11 +80,12 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
         source_status=SOURCE_DOCS,
         live_probe_allowed=False,
         example_param={
-            "FromCampaigns": [{"CampaignID": 123, "Sum": 100.5}],
-            "ToCampaigns": [{"CampaignID": 456, "Sum": 100.5}],
+            "FromCampaigns": [{"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"}],
+            "ToCampaigns": [{"CampaignID": 456, "Sum": 100.5, "Currency": "RUB"}],
         },
         notes=(
-            "Official v4 docs define campaign-to-campaign transfer. "
+            "Official v4 docs define campaign-to-campaign transfer with "
+            "Currency on each transfer item. "
             "This CLI exposes dry-run only; the method is not live-probed."
         ),
     ),
@@ -100,12 +101,13 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
         source_status=SOURCE_DOCS,
         live_probe_allowed=False,
         example_param={
-            "Payments": [{"CampaignID": 123, "Sum": 100.5}],
+            "Payments": [{"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"}],
             "ContractID": "contract-id",
-            "PayMethod": "CREDIT",
+            "PayMethod": "Bank",
         },
         notes=(
-            "Official v4 docs define agency credit-limit payment. "
+            "Official v4 docs define agency credit-limit payment with "
+            "Currency on each payment item and PayMethod Bank/Overdraft. "
             "This CLI exposes dry-run only; the method is not live-probed."
         ),
     ),

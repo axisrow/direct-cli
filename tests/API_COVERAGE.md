@@ -57,6 +57,10 @@ appears in multiple categories, or if the current service/command counts drift.
 The public v4/Live4 finance docs found during milestone 0.3.3 list
 `CreateInvoice`, `GetCreditLimits`, `PayCampaigns`, and `TransferMoney`.
 No official `CheckPayment` page or `PaymentID` contract was found.
+Financial methods use an additional `finance_token`, computed from the
+master token, operation number, method name, and normalized login. Public
+dry-run examples mask the computed token. The docs-backed `PayCampaigns` and
+`TransferMoney` contracts require `Currency` on each payment/transfer item.
 
 Sandbox v4 Live probes on 2026-04-30 confirmed the runtime request shape for
 `CheckPayment`:

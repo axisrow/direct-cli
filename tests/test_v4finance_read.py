@@ -13,7 +13,9 @@ def _invoke(*args: str, env: Optional[dict] = None):
         "YANDEX_DIRECT_TOKEN": "",
         "YANDEX_DIRECT_LOGIN": "",
         "YANDEX_DIRECT_FINANCE_TOKEN": "",
+        "YANDEX_DIRECT_MASTER_TOKEN": "",
         "YANDEX_DIRECT_OPERATION_NUM": "",
+        "YANDEX_DIRECT_FINANCE_LOGIN": "",
     }
     if env:
         base_env.update(env)
@@ -65,6 +67,33 @@ def test_get_credit_limits_uses_finance_env_fallback_for_dry_run():
         "finance_token": "<redacted>",
         "operation_num": 77,
     }
+
+
+def test_get_credit_limits_can_compute_finance_token_from_master_token():
+    with patch("direct_cli.commands.v4finance.build_finance_token") as build_token:
+        build_token.return_value = "computed-finance-token"
+        result = _invoke(
+            "v4finance",
+            "get-credit-limits",
+            "--logins",
+            "client-login",
+            "--master-token",
+            "master-token",
+            "--operation-num",
+            "42",
+            "--finance-login",
+            "Agency-Login",
+            "--dry-run",
+        )
+
+    assert result.exit_code == 0
+    assert "computed-finance-token" not in result.output
+    build_token.assert_called_once_with(
+        "master-token",
+        42,
+        "GetCreditLimits",
+        "Agency-Login",
+    )
 
 
 def test_get_credit_limits_requires_finance_credentials_before_api_call():
@@ -167,9 +196,7 @@ def test_get_credit_limits_formats_mocked_response_as_json():
             )
 
     assert result.exit_code == 0
-    assert json.loads(result.output) == [
-        {"Login": "client-login", "CreditLimit": 1000}
-    ]
+    assert json.loads(result.output) == [{"Login": "client-login", "CreditLimit": 1000}]
     create_client.assert_called_once_with(
         token="token",
         login="agency-login",
