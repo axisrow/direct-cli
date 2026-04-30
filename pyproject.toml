@@ -44,6 +44,7 @@ dev = [
     "black>=22.0",
     "flake8>=4.0",
     "mypy>=1.8",
+    "ruff>=0.1",
     "requests>=2.0",
     "beautifulsoup4>=4.12",
     "lxml>=4.9",
