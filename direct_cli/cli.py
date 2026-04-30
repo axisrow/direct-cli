@@ -45,12 +45,9 @@ from .commands.balance import balance
 from .commands.v4events import v4events
 from .commands.v4finance import v4finance
 from .commands.v4account import v4account
-from .commands.v4shells import (
-    v4forecast,
-    v4meta,
-    v4wordstat,
-)
+from .commands.v4shells import v4forecast, v4meta
 from .commands.v4goals import v4goals
+from .commands.v4wordstat import v4wordstat
 
 # Load .env file
 load_dotenv()

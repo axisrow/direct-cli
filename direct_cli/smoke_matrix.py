@@ -63,6 +63,8 @@ SMOKE_MATRIX = {
         "v4finance.get-credit-limits",
         "v4goals.get-retargeting-goals",
         "v4goals.get-stat-goals",
+        "v4wordstat.get-report",
+        "v4wordstat.list-reports",
         "vcards.get",
     ],
     WRITE_SANDBOX: [
@@ -141,6 +143,8 @@ SMOKE_MATRIX = {
         "strategies.update",
         "v4account.account-management",
         "v4account.enable-shared-account",
+        "v4wordstat.create-report",
+        "v4wordstat.delete-report",
         "vcards.add",
         "vcards.delete",
     ],

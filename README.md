@@ -116,6 +116,19 @@ direct v4events get-events-log --from 2026-04-14T00:00:00 --to 2026-04-15T00:00:
 direct v4events get-events-log --from 2026-04-14T00:00:00 --to 2026-04-15T00:00:00 --currency RUB --limit 100 --offset 0 --format table
 ```
 
+### V4 Live Wordstat Reports
+
+Wordstat reports are asynchronous. Direct CLI makes exactly one API call per
+command and does not poll automatically; repeat `list-reports` or `get-report`
+yourself until the report is ready.
+
+```bash
+direct v4wordstat create-report --phrases "buy laptop,buy desktop" --geo-ids 213
+direct v4wordstat list-reports --format table
+direct v4wordstat get-report --report-id 123 --format table
+direct v4wordstat delete-report --report-id 123
+```
+
 ### V4 Live Finance
 
 Finance methods require an extra financial token for money operations. In the
