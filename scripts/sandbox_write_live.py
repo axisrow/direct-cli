@@ -206,6 +206,8 @@ class LiveSandboxRunner:
             "strategies.archive": self.run_strategy_id_command,
             "strategies.unarchive": self.run_strategy_id_command,
             "strategies.update": self.run_strategy_id_command,
+            "v4account.account-management": self.run_v4account_account_management,
+            "v4account.enable-shared-account": self.run_v4account_enable_shared_account,
             "vcards.add": self.run_vcard_add,
             "vcards.delete": self.run_vcard_id_command,
         }
@@ -403,6 +405,60 @@ class LiveSandboxRunner:
             status=NOT_COVERED,
             detail="requires account-specific existing client data",
         )
+
+    def run_v4account_enable_shared_account(self, matrix_command: str) -> ReportRow:
+        client_login = os.environ.get("YANDEX_DIRECT_V4ACCOUNT_CLIENT_LOGIN") or (
+            os.environ.get("YANDEX_DIRECT_LOGIN") or ""
+        )
+        client_login = client_login.strip()
+        if not client_login:
+            return ReportRow(
+                command=matrix_command,
+                status=NOT_COVERED,
+                detail=(
+                    "set YANDEX_DIRECT_V4ACCOUNT_CLIENT_LOGIN or "
+                    "YANDEX_DIRECT_LOGIN"
+                ),
+            )
+
+        run = self.invoke(
+            "v4account",
+            "enable-shared-account",
+            ["--client-login", client_login],
+        )
+        return self.row_from_run(matrix_command, run)
+
+    def run_v4account_account_management(self, matrix_command: str) -> ReportRow:
+        account_id = (os.environ.get("YANDEX_DIRECT_V4ACCOUNT_ACCOUNT_ID") or "").strip()
+        if not account_id:
+            return ReportRow(
+                command=matrix_command,
+                status=NOT_COVERED,
+                detail="set YANDEX_DIRECT_V4ACCOUNT_ACCOUNT_ID",
+            )
+        try:
+            if int(account_id) <= 0:
+                raise ValueError
+        except ValueError:
+            return ReportRow(
+                command=matrix_command,
+                status=FAIL,
+                detail="YANDEX_DIRECT_V4ACCOUNT_ACCOUNT_ID must be a positive integer",
+            )
+
+        run = self.invoke(
+            "v4account",
+            "account-management",
+            [
+                "--action",
+                "Update",
+                "--account-id",
+                account_id,
+                "--money-in-sms",
+                "No",
+            ],
+        )
+        return self.row_from_run(matrix_command, run)
 
     def create_campaign(self, campaign_type: str = "TEXT_CAMPAIGN") -> str:
         args = [

@@ -1,4 +1,4 @@
-from direct_cli.smoke_matrix import DANGEROUS, SAFE, command_category
+from direct_cli.smoke_matrix import DANGEROUS, SAFE, WRITE_SANDBOX, command_category
 
 
 def test_v4finance_money_commands_are_dangerous():
@@ -12,6 +12,6 @@ def test_v4finance_read_commands_are_safe():
     assert command_category("v4finance.get-clients-units") == SAFE
 
 
-def test_v4account_mutation_commands_are_dangerous():
-    assert command_category("v4account.enable-shared-account") == DANGEROUS
-    assert command_category("v4account.account-management") == DANGEROUS
+def test_v4account_mutation_commands_are_sandbox_write_only():
+    assert command_category("v4account.enable-shared-account") == WRITE_SANDBOX
+    assert command_category("v4account.account-management") == WRITE_SANDBOX

@@ -6,8 +6,9 @@ from typing import Optional
 
 import click
 
-from ..output import format_output
-from ..v4 import build_v4_body
+from ..api import create_v4_client
+from ..output import format_output, print_error
+from ..v4 import build_v4_body, call_v4
 from ..v4_contracts import v4_method_contract
 from .v4shells import V4_EPILOG
 
@@ -21,10 +22,37 @@ def v4account():
     """Yandex Direct v4 Live account commands."""
 
 
-def _require_dry_run(dry_run: bool) -> None:
-    """Reject shared-account mutations unless dry-run is explicit."""
-    if not dry_run:
-        raise click.UsageError("--dry-run is required for v4account commands")
+def _require_dry_run_or_sandbox(dry_run: bool, sandbox: bool) -> None:
+    """Reject shared-account mutations outside explicit dry-run or sandbox."""
+    if not dry_run and not sandbox:
+        raise click.UsageError("--dry-run is required unless --sandbox is set")
+
+
+def _emit_or_call_v4(
+    ctx: click.Context,
+    method: str,
+    param: dict,
+    dry_run: bool,
+    output_format: str,
+    output: Optional[str],
+) -> None:
+    """Print a v4 request preview or execute it against the sandbox API."""
+    if dry_run:
+        format_output(build_v4_body(method, param), "json", None)
+        return
+
+    try:
+        client = create_v4_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            profile=ctx.obj.get("profile"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+        data = call_v4(client, method, param)
+        format_output(data, output_format, output)
+    except Exception as e:
+        print_error(str(e))
+        raise click.Abort()
 
 
 def _non_empty(value: str, option_name: str) -> str:
@@ -139,13 +167,29 @@ def _account_update_param(
 @click.option(
     "--dry-run",
     is_flag=True,
-    help="Show request without sending; required for this command",
+    help="Show request without sending; required outside --sandbox",
 )
-def enable_shared_account(client_login, dry_run):
-    """Preview enabling a shared account for a client."""
-    _require_dry_run(dry_run)
+@click.option(
+    "--format",
+    "output_format",
+    default="json",
+    type=click.Choice(["json", "table", "csv", "tsv"]),
+    help="Output format",
+)
+@click.option("--output", help="Output file")
+@click.pass_context
+def enable_shared_account(ctx, client_login, dry_run, output_format, output):
+    """Enable a shared account for a client in sandbox, or preview the request."""
+    _require_dry_run_or_sandbox(dry_run, ctx.obj.get("sandbox"))
     param = {"Login": _non_empty(client_login, "--client-login")}
-    format_output(build_v4_body("EnableSharedAccount", param), "json", None)
+    _emit_or_call_v4(
+        ctx,
+        "EnableSharedAccount",
+        param,
+        dry_run,
+        output_format,
+        output,
+    )
 
 
 @v4_method_contract("AccountManagement")
@@ -182,9 +226,19 @@ def enable_shared_account(client_login, dry_run):
 @click.option(
     "--dry-run",
     is_flag=True,
-    help="Show request without sending; required for this command",
+    help="Show request without sending; required outside --sandbox",
 )
+@click.option(
+    "--format",
+    "output_format",
+    default="json",
+    type=click.Choice(["json", "table", "csv", "tsv"]),
+    help="Output format",
+)
+@click.option("--output", help="Output file")
+@click.pass_context
 def account_management(
+    ctx,
     action,
     account_id,
     day_budget,
@@ -198,9 +252,11 @@ def account_management(
     money_warning_value,
     paused_by_day_budget,
     dry_run,
+    output_format,
+    output,
 ):
-    """Preview updating shared-account settings."""
-    _require_dry_run(dry_run)
+    """Update shared-account settings in sandbox, or preview the request."""
+    _require_dry_run_or_sandbox(dry_run, ctx.obj.get("sandbox"))
     param = _account_update_param(
         _validate_action(action),
         account_id,
@@ -215,4 +271,11 @@ def account_management(
         money_warning_value,
         paused_by_day_budget,
     )
-    format_output(build_v4_body("AccountManagement", param), "json", None)
+    _emit_or_call_v4(
+        ctx,
+        "AccountManagement",
+        param,
+        dry_run,
+        output_format,
+        output,
+    )
