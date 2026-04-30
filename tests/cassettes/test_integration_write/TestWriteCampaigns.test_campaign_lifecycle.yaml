@@ -29,7 +29,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/campaigns
   response:
     body:
       string: '{"result":{"AddResults":[{"Id":100000001}]}}'
@@ -83,7 +83,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/campaigns
   response:
     body:
       string: '{"result":{"UpdateResults":[{"Id":100000001}]}}'
@@ -137,7 +137,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/campaigns
   response:
     body:
       string: "{\"result\":{\"SuspendResults\":[{\"Errors\":[{\"Code\":8300,\"Message\":\"Invalid
@@ -195,7 +195,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/campaigns
   response:
     body:
       string: "{\"result\":{\"ArchiveResults\":[{\"Errors\":[{\"Code\":8303,\"Message\":\"Cannot
@@ -253,7 +253,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/campaigns
   response:
     body:
       string: '{"result":{"UnarchiveResults":[{"Id":100000001,"Warnings":[{"Code":10023,"Message":"Object
@@ -308,7 +308,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/campaigns
   response:
     body:
       string: '{"result":{"DeleteResults":[{"Id":100000001}]}}'

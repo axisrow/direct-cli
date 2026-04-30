@@ -29,7 +29,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api-sandbox.direct.yandex.com/json/v5/sitelinks
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/sitelinks
   response:
     body:
       string: '{"error":{"request_id":"6414567394545914101","error_code":1000,"error_detail":"","error_string":"The

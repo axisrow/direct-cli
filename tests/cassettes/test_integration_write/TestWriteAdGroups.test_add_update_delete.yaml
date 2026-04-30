@@ -29,7 +29,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/campaigns
   response:
     body:
       string: '{"result":{"AddResults":[{"Id":100000003}]}}'
@@ -83,7 +83,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api-sandbox.direct.yandex.com/json/v5/adgroups
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/adgroups
   response:
     body:
       string: '{"result":{"AddResults":[{"Id":2000001}]}}'
@@ -137,7 +137,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api-sandbox.direct.yandex.com/json/v5/adgroups
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/adgroups
   response:
     body:
       string: '{"result":{"UpdateResults":[{"Errors":[{"Code":8800,"Message":"Object
@@ -192,7 +192,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api-sandbox.direct.yandex.com/json/v5/adgroups
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/adgroups
   response:
     body:
       string: '{"result":{"DeleteResults":[{"Errors":[{"Code":8800,"Message":"Object
@@ -247,7 +247,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api-sandbox.direct.yandex.com/json/v5/campaigns
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/campaigns
   response:
     body:
       string: '{"result":{"DeleteResults":[{"Id":100000003}]}}'
