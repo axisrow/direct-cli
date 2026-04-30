@@ -43,9 +43,12 @@ dev = [
     "vcrpy>=6.0",
     "black>=22.0",
     "flake8>=4.0",
+    "mypy>=1.8",
     "requests>=2.0",
     "beautifulsoup4>=4.12",
     "lxml>=4.9",
+    "types-setuptools",
+    "types-tabulate",
 ]
 
 [project.scripts]
@@ -81,6 +84,28 @@ exclude = '''
 
 [tool.ruff]
 exclude = ["direct_cli/_vendor"]
+
+[tool.mypy]
+python_version = "3.9"
+ignore_missing_imports = true
+no_implicit_optional = false
+exclude = [
+    "direct_cli/_vendor/",
+    "scripts/",
+    "tests/",
+]
+disable_error_code = [
+    "assignment",
+    "arg-type",
+    "attr-defined",
+    "import-untyped",
+    "index",
+    "list-item",
+    "misc",
+    "no-redef",
+    "truthy-function",
+    "var-annotated",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
