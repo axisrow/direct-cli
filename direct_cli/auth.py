@@ -367,9 +367,9 @@ def exchange_oauth_code(
             f"OAuth token request failed with HTTP {error.code}"
         ) from error
     except urllib.error.URLError as error:
+        if isinstance(error.reason, TimeoutError):
+            raise RuntimeError("OAuth token request timed out") from error
         raise RuntimeError(f"OAuth token request failed: {error.reason}") from error
-    except TimeoutError as error:
-        raise RuntimeError("OAuth token request timed out") from error
 
     access_token = result.get("access_token")
     if not isinstance(access_token, str) or not access_token:
@@ -437,6 +437,15 @@ def refresh_access_token(profile: str, path: Optional[Path] = None) -> Dict[str,
             result = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as error:
         if error.code in (400, 401):
+            # Another process may have already refreshed the token (parallel invocation).
+            # Re-read the store: if expires_at is now valid, return the fresh profile.
+            fresh_store = load_auth_store(path=path)
+            fresh_item = fresh_store["profiles"].get(profile)
+            if isinstance(fresh_item, dict):
+                fresh_expires_at = fresh_item.get("expires_at")
+                if isinstance(fresh_expires_at, (int, float)):
+                    if float(fresh_expires_at) > time.time() + OAUTH_REFRESH_SKEW_SECONDS:
+                        return fresh_item
             raise RuntimeError(
                 f"OAuth refresh token expired. "
                 f"Run direct auth login --profile {profile} again."
@@ -445,9 +454,9 @@ def refresh_access_token(profile: str, path: Optional[Path] = None) -> Dict[str,
             f"OAuth refresh request failed with HTTP {error.code}"
         ) from error
     except urllib.error.URLError as error:
+        if isinstance(error.reason, TimeoutError):
+            raise RuntimeError("OAuth refresh request timed out") from error
         raise RuntimeError(f"OAuth refresh request failed: {error.reason}") from error
-    except TimeoutError as error:
-        raise RuntimeError("OAuth refresh request timed out") from error
 
     access_token = result.get("access_token")
     if not isinstance(access_token, str) or not access_token:
