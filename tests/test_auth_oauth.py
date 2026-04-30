@@ -143,6 +143,52 @@ class TestAuthOAuth:
         assert token == "base-token"
         assert login == "base-login"
 
+    @patch("direct_cli.commands.campaigns.create_client")
+    def test_cli_command_uses_active_profile_credentials(
+        self, mock_create_client, isolated_auth_store, monkeypatch
+    ):
+        monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
+        monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
+        save_oauth_profile(
+            profile="agency1",
+            token="oauth-token-1",
+            login="client-login-1",
+            refresh_token="refresh-1",
+            expires_at=4_100_000_000.0,
+            client_id=DEFAULT_OAUTH_CLIENT_ID,
+        )
+        runner = CliRunner()
+
+        result = runner.invoke(
+            cli, ["campaigns", "get", "--ids", "123", "--dry-run"]
+        )
+
+        assert result.exit_code == 0
+        mock_create_client.assert_called_once_with(
+            token="oauth-token-1", login="client-login-1", sandbox=False
+        )
+        assert "oauth-token-1" not in result.output
+        assert "client-login-1" not in result.output
+
+    @patch("direct_cli.commands.campaigns.create_client")
+    def test_cli_command_uses_env_credentials(
+        self, mock_create_client, isolated_auth_store, monkeypatch
+    ):
+        monkeypatch.setenv("YANDEX_DIRECT_TOKEN", "env-token")
+        monkeypatch.setenv("YANDEX_DIRECT_LOGIN", "env-login")
+        runner = CliRunner()
+
+        result = runner.invoke(
+            cli, ["campaigns", "get", "--ids", "123", "--dry-run"]
+        )
+
+        assert result.exit_code == 0
+        mock_create_client.assert_called_once_with(
+            token="env-token", login="env-login", sandbox=False
+        )
+        assert "env-token" not in result.output
+        assert "env-login" not in result.output
+
     def test_auth_login_oauth_token_mode(self, isolated_auth_store):
         runner = CliRunner()
         result = runner.invoke(
