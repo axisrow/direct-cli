@@ -43,6 +43,7 @@ def test_confirmed_contracts_are_not_undocumented():
         "AccountManagement",
         "GetClientsUnits",
         "GetCreditLimits",
+        "CheckPayment",
         "GetEventsLog",
         "GetStatGoals",
         "GetRetargetingGoals",
@@ -56,6 +57,7 @@ def test_confirmed_contracts_are_not_undocumented():
     } == {
         "AccountManagement",
         "GetClientsUnits",
+        "CheckPayment",
         "GetEventsLog",
         "GetStatGoals",
         "GetRetargetingGoals",
@@ -156,6 +158,22 @@ def test_v4finance_money_contracts_are_docs_backed_dangerous_objects():
             "ContractID": "contract-id",
             "PayMethod": "CREDIT",
         },
+    }
+
+
+def test_check_payment_contract_uses_custom_transaction_id_object():
+    contract = get_v4_contract("CheckPayment")
+
+    assert contract.param_shape == PARAM_OBJECT
+    assert contract.source_status == SOURCE_CONFIRMED_LIVE
+    assert "PaymentID" in contract.notes
+    assert "CustomTransactionID" in contract.login_placement
+    assert contract.example_param == {
+        "CustomTransactionID": "A123456789012345678901234567890B"
+    }
+    assert build_v4_body("CheckPayment", contract.example_param) == {
+        "method": "CheckPayment",
+        "param": {"CustomTransactionID": "A123456789012345678901234567890B"},
     }
 
 

@@ -28,6 +28,18 @@ account requirements, or external dependencies.
 - **bids set** / **keywordbids set** / **bidmodifiers set** on existing
   non-draft objects — spends real budget. Live-write tests only verify
   request assembly via `--dry-run`.
+- **v4finance create/pay/transfer operations** — `CreateInvoice`,
+  `PayCampaigns`, and `TransferMoney` are financial side-effect operations.
+  `TransferMoney` and `PayCampaigns` remain dry-run-only in the public CLI.
+  `CreateInvoice` is not exposed until a separate sandbox-write contract probe
+  can run with `YANDEX_DIRECT_FINANCE_TOKEN` and
+  `YANDEX_DIRECT_OPERATION_NUM`; without them sandbox returns
+  `error_code=350 Invalid financial transaction token`.
+- **v4finance check-payment** — read-only. Official public docs were not found;
+  sandbox v4 Live confirms `CustomTransactionID` (32 latin alphanumeric
+  characters), not `PaymentID`. A dummy valid transaction ID returns
+  `error_code=370 Transaction does not exist`, which is accepted as request
+  shape proof.
 
 ## Campaign-Type Restrictions (Category B)
 

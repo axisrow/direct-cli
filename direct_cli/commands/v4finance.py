@@ -1,5 +1,6 @@
 """Yandex Direct v4 Live finance commands."""
 
+import re
 from typing import Any, Optional
 
 import click
@@ -13,6 +14,7 @@ from ..v4_contracts import v4_method_contract
 from .v4shells import V4_EPILOG
 
 FINANCE_TOKEN_MASK = "<redacted>"
+CUSTOM_TRANSACTION_ID_RE = re.compile(r"[A-Za-z0-9]{32}")
 
 
 def _logins_param(logins: str) -> list[str]:
@@ -60,6 +62,16 @@ def _non_empty_option(value: str, option_name: str) -> str:
     if not normalized:
         raise click.UsageError(f"{option_name} must not be empty")
     return normalized
+
+
+def _custom_transaction_id_param(custom_transaction_id: str) -> dict:
+    """Build the v4 Live CheckPayment parameter."""
+    normalized = (custom_transaction_id or "").strip()
+    if not CUSTOM_TRANSACTION_ID_RE.fullmatch(normalized):
+        raise click.UsageError(
+            "--custom-transaction-id must be exactly 32 latin letters or digits"
+        )
+    return {"CustomTransactionID": normalized}
 
 
 @click.group(epilog=V4_EPILOG)
@@ -122,6 +134,50 @@ def get_credit_limits(
             operation_num=operation_num,
         )
         data = call_v4(client, "GetCreditLimits", login_list)
+        format_output(data, output_format, output)
+    except Exception as e:
+        print_error(str(e))
+        raise click.Abort()
+
+
+@v4_method_contract("CheckPayment")
+@v4finance.command(name="check-payment")
+@click.option(
+    "--custom-transaction-id",
+    required=True,
+    help="32-character latin alphanumeric transaction ID",
+)
+@click.option(
+    "--format",
+    "output_format",
+    default="json",
+    type=click.Choice(["json", "table", "csv", "tsv"]),
+    help="Output format",
+)
+@click.option("--output", help="Output file")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@click.pass_context
+def check_payment(
+    ctx,
+    custom_transaction_id,
+    output_format,
+    output,
+    dry_run,
+):
+    """Check a v4 Live payment transaction."""
+    param = _custom_transaction_id_param(custom_transaction_id)
+    if dry_run:
+        format_output(build_v4_body("CheckPayment", param), "json", None)
+        return
+
+    try:
+        client = create_v4_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            profile=ctx.obj.get("profile"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+        data = call_v4(client, "CheckPayment", param)
         format_output(data, output_format, output)
     except Exception as e:
         print_error(str(e))

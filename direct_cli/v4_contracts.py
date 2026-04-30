@@ -121,11 +121,21 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
     "CheckPayment": V4MethodContract(
         method="CheckPayment",
         group="finance",
-        param_shape=PARAM_UNDOCUMENTED,
-        login_placement="unknown",
+        param_shape=PARAM_OBJECT,
+        login_placement=(
+            "param contains CustomTransactionID; global --login uses "
+            "Client-Login header"
+        ),
         safety=SAFETY_READ,
-        source_status=SOURCE_UNDOCUMENTED,
-        live_probe_allowed=False,
+        source_status=SOURCE_CONFIRMED_LIVE,
+        live_probe_allowed=True,
+        example_param={"CustomTransactionID": "A123456789012345678901234567890B"},
+        notes=(
+            "Official public docs were not found. Sandbox v4 Live rejects "
+            "PaymentID with error_code=71 and requires CustomTransactionID; "
+            "a valid 32-character unknown CustomTransactionID reaches method "
+            "validation and returns error_code=370."
+        ),
     ),
     "CreateInvoice": V4MethodContract(
         method="CreateInvoice",

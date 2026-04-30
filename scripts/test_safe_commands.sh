@@ -168,6 +168,10 @@ run_v4finance_get_credit_limits() {
   run_test "$name" direct v4finance get-credit-limits --logins "$AUTH_LOGIN"
 }
 
+run_v4finance_check_payment_contract() {
+  run_test "v4finance check-payment dry-run (env auth)" direct v4finance check-payment --custom-transaction-id A123456789012345678901234567890B --dry-run
+}
+
 # ─── Section A: Auth via env variables (no CLI flags) ────────────────────────
 echo -e "${BOLD}=== A. Аутентификация через env-переменные ===${RESET}"
 echo ""
@@ -264,6 +268,7 @@ run_test "balance (env auth)"                      direct balance
 EVENTS_FROM=$(date -u -d 'yesterday' '+%Y-%m-%dT00:00:00' 2>/dev/null || date -u -v-1d '+%Y-%m-%dT00:00:00')
 EVENTS_TO=$(date -u '+%Y-%m-%dT00:00:00')
 run_test "v4events get-events-log (env auth)"      direct v4events get-events-log --from "$EVENTS_FROM" --to "$EVENTS_TO" --limit 1
+run_v4finance_check_payment_contract
 run_v4finance_get_credit_limits
 
 if [ -n "$CAMPAIGN_ID" ]; then

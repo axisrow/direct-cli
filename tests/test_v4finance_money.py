@@ -222,14 +222,87 @@ def test_v4finance_money_commands_reject_blank_string_options():
     assert "--pay-method must not be empty" in result.output
 
 
-def test_check_payment_is_not_registered_without_official_docs():
-    assert "check-payment" not in cli.commands["v4finance"].commands
+def test_check_payment_dry_run_uses_custom_transaction_id_object():
+    result = _invoke(
+        "v4finance",
+        "check-payment",
+        "--custom-transaction-id",
+        "A123456789012345678901234567890B",
+        "--dry-run",
+    )
+
+    assert result.exit_code == 0
+    assert json.loads(result.output) == {
+        "method": "CheckPayment",
+        "param": {"CustomTransactionID": "A123456789012345678901234567890B"},
+    }
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "",
+        " ",
+        "short",
+        "A123456789012345678901234567890",
+        "A123456789012345678901234567890BC",
+        "A12345678901234567890123456789-B",
+        "A12345678901234567890123456789 Б",
+    ],
+)
+def test_check_payment_rejects_invalid_custom_transaction_id_before_api_call(value):
+    with patch("direct_cli.commands.v4finance.create_v4_client") as create_client:
+        result = _invoke(
+            "v4finance",
+            "check-payment",
+            "--custom-transaction-id",
+            value,
+        )
+
+    assert result.exit_code != 0
+    assert "--custom-transaction-id must be exactly 32 latin letters or digits" in (
+        result.output
+    )
+    create_client.assert_not_called()
+
+
+def test_check_payment_formats_mocked_response_as_json():
+    with patch("direct_cli.commands.v4finance.create_v4_client") as create_client:
+        with patch(
+            "direct_cli.commands.v4finance.call_v4",
+            return_value={"Status": "Done"},
+        ) as call:
+            result = _invoke(
+                "--token",
+                "token",
+                "--login",
+                "client-login",
+                "v4finance",
+                "check-payment",
+                "--custom-transaction-id",
+                "A123456789012345678901234567890B",
+            )
+
+    assert result.exit_code == 0
+    assert json.loads(result.output) == {"Status": "Done"}
+    create_client.assert_called_once_with(
+        token="token",
+        login="client-login",
+        profile=None,
+        sandbox=False,
+    )
+    call.assert_called_once_with(
+        create_client.return_value,
+        "CheckPayment",
+        {"CustomTransactionID": "A123456789012345678901234567890B"},
+    )
 
 
 def test_v4finance_money_help_contains_no_json_input_flag():
     for args in [
         ("v4finance", "transfer-money", "--help"),
         ("v4finance", "pay-campaigns", "--help"),
+        ("v4finance", "check-payment", "--help"),
     ]:
         result = _invoke(*args)
         assert result.exit_code == 0
@@ -243,3 +316,5 @@ def test_v4finance_money_commands_declare_v4_contracts():
     assert commands["transfer-money"].v4_contract == get_v4_contract("TransferMoney")
     assert commands["pay-campaigns"].v4_method == "PayCampaigns"
     assert commands["pay-campaigns"].v4_contract == get_v4_contract("PayCampaigns")
+    assert commands["check-payment"].v4_method == "CheckPayment"
+    assert commands["check-payment"].v4_contract == get_v4_contract("CheckPayment")

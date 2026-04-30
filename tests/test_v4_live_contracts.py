@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from dotenv import load_dotenv
 
+from direct_cli._vendor.tapi_yandex_direct.exceptions import V4LiveError
 from direct_cli.api import create_client, create_v4_client
 from direct_cli.v4 import call_v4
 
@@ -51,9 +52,7 @@ def _finance_credentials():
 
 
 def _events_window() -> tuple[str, str]:
-    timestamp_to = datetime.now(timezone.utc).replace(microsecond=0) - timedelta(
-        days=1
-    )
+    timestamp_to = datetime.now(timezone.utc).replace(microsecond=0) - timedelta(days=1)
     timestamp_from = timestamp_to - timedelta(hours=1)
     return (
         timestamp_from.strftime("%Y-%m-%dT%H:%M:%S"),
@@ -136,3 +135,20 @@ def test_v4_live_get_credit_limits_contract():
     data = call_v4(client, "GetCreditLimits", [login])
 
     assert data is not None
+
+
+def test_v4_sandbox_check_payment_custom_transaction_id_contract():
+    if os.getenv("YANDEX_DIRECT_V4_SANDBOX_CONTRACT") != "1":
+        pytest.skip("YANDEX_DIRECT_V4_SANDBOX_CONTRACT=1 is required")
+    token, login = _credentials()
+    client = create_v4_client(token=token, login=login, sandbox=True)
+
+    with pytest.raises(V4LiveError) as exc_info:
+        call_v4(
+            client,
+            "CheckPayment",
+            {"CustomTransactionID": "A123456789012345678901234567890B"},
+        )
+
+    assert exc_info.value.error_code == 370
+    assert exc_info.value.error_str == "Transaction does not exist"

@@ -58,6 +58,7 @@ SMOKE_MATRIX = {
         "strategies.get",
         "turbopages.get",
         "v4events.get-events-log",
+        "v4finance.check-payment",
         "v4finance.get-credit-limits",
         "v4goals.get-retargeting-goals",
         "v4goals.get-stat-goals",
