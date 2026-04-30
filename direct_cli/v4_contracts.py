@@ -175,8 +175,8 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
             "Action=Get is live-confirmed read-only and returns "
             "Accounts[].Amount/Currency; the docs-backed Update action changes "
             "shared-account settings with Accounts[].AccountID, AccountDayBudget, "
-            "SmsNotification, and EmailNotification, and is exposed by v4account "
-            "as dry-run only."
+            "SmsNotification, and EmailNotification. The v4account Update command "
+            "is production dry-run-only and can be sent live only with --sandbox."
         ),
     ),
     "EnableSharedAccount": V4MethodContract(
@@ -189,8 +189,9 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
         live_probe_allowed=False,
         example_param={"Login": "client-login"},
         notes=(
-            "Official v4 docs define one Login field. This CLI exposes dry-run "
-            "only because enabling a shared account transfers campaign funds."
+            "Official v4 docs define one Login field. Enabling a shared account "
+            "transfers campaign funds, so this CLI requires dry-run in production "
+            "and permits live execution only with --sandbox."
         ),
     ),
     "GetEventsLog": V4MethodContract(

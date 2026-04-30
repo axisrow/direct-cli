@@ -148,9 +148,78 @@ def test_sandbox_write_live_runner_covers_write_sandbox_matrix():
     )
     try:
         assert set(runner.handlers()) == set(SMOKE_MATRIX[WRITE_SANDBOX])
-        assert len(SMOKE_MATRIX[WRITE_SANDBOX]) == 75
+        assert len(SMOKE_MATRIX[WRITE_SANDBOX]) == 77
     finally:
         runner.close()
+
+
+def test_sandbox_write_live_runner_builds_v4account_commands(monkeypatch):
+    module = _load_sandbox_runner_module()
+    runner = module.LiveSandboxRunner(
+        commands=["v4account.enable-shared-account", "v4account.account-management"],
+        timeout=1,
+        verbose=False,
+        report_file=None,
+    )
+    calls = []
+
+    def fake_invoke(group, command, args):
+        calls.append((group, command, args))
+        return module.CommandRun(
+            args=["direct", "--sandbox", group, command, *args],
+            returncode=0,
+            stdout="{}",
+            stderr="",
+        )
+
+    monkeypatch.setenv("YANDEX_DIRECT_LOGIN", "client-login")
+    monkeypatch.setenv("YANDEX_DIRECT_V4ACCOUNT_ACCOUNT_ID", "1327944")
+    monkeypatch.setattr(runner, "invoke", fake_invoke)
+
+    try:
+        assert runner.run_one("v4account.enable-shared-account").status == module.PASS
+        assert runner.run_one("v4account.account-management").status == module.PASS
+    finally:
+        runner.close()
+
+    assert calls == [
+        (
+            "v4account",
+            "enable-shared-account",
+            ["--client-login", "client-login"],
+        ),
+        (
+            "v4account",
+            "account-management",
+            [
+                "--action",
+                "Update",
+                "--account-id",
+                "1327944",
+                "--money-in-sms",
+                "No",
+            ],
+        ),
+    ]
+
+
+def test_sandbox_write_live_runner_marks_v4account_account_id_missing(monkeypatch):
+    module = _load_sandbox_runner_module()
+    runner = module.LiveSandboxRunner(
+        commands=["v4account.account-management"],
+        timeout=1,
+        verbose=False,
+        report_file=None,
+    )
+    monkeypatch.delenv("YANDEX_DIRECT_V4ACCOUNT_ACCOUNT_ID", raising=False)
+
+    try:
+        row = runner.run_one("v4account.account-management")
+    finally:
+        runner.close()
+
+    assert row.status == module.NOT_COVERED
+    assert "YANDEX_DIRECT_V4ACCOUNT_ACCOUNT_ID" in row.detail
 
 
 def test_sandbox_write_live_runner_reports_subprocess_timeout(monkeypatch):

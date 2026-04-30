@@ -116,12 +116,118 @@ def test_account_management_update_dry_run_uses_nested_shared_account_body():
     ],
 )
 def test_v4account_commands_require_dry_run_before_api_call(args):
-    with patch("direct_cli.commands.v4account.build_v4_body") as build_body:
+    with patch("direct_cli.commands.v4account.create_v4_client") as create_client:
         result = _invoke(*args)
 
     assert result.exit_code != 0
-    assert "--dry-run is required" in result.output
-    build_body.assert_not_called()
+    assert "--dry-run is required unless --sandbox is set" in result.output
+    create_client.assert_not_called()
+
+
+def test_enable_shared_account_sandbox_calls_v4_api_without_dry_run():
+    with patch("direct_cli.commands.v4account.create_v4_client") as create_client:
+        with patch(
+            "direct_cli.commands.v4account.call_v4",
+            return_value={"result": "ok"},
+        ) as call:
+            result = _invoke(
+                "--sandbox",
+                "--token",
+                "token",
+                "--login",
+                "client-login",
+                "v4account",
+                "enable-shared-account",
+                "--client-login",
+                "client-login",
+            )
+
+    assert result.exit_code == 0
+    assert json.loads(result.output) == {"result": "ok"}
+    create_client.assert_called_once_with(
+        token="token",
+        login="client-login",
+        profile=None,
+        sandbox=True,
+    )
+    call.assert_called_once_with(
+        create_client.return_value,
+        "EnableSharedAccount",
+        {"Login": "client-login"},
+    )
+
+
+def test_account_management_sandbox_calls_v4_api_without_dry_run():
+    with patch("direct_cli.commands.v4account.create_v4_client") as create_client:
+        with patch(
+            "direct_cli.commands.v4account.call_v4",
+            return_value={"ActionsResult": [{"AccountID": 1327944}]},
+        ) as call:
+            result = _invoke(
+                "--sandbox",
+                "--token",
+                "token",
+                "--login",
+                "client-login",
+                "v4account",
+                "account-management",
+                "--action",
+                "Update",
+                "--account-id",
+                "1327944",
+                "--money-in-sms",
+                "No",
+            )
+
+    assert result.exit_code == 0
+    assert json.loads(result.output) == {"ActionsResult": [{"AccountID": 1327944}]}
+    create_client.assert_called_once_with(
+        token="token",
+        login="client-login",
+        profile=None,
+        sandbox=True,
+    )
+    call.assert_called_once_with(
+        create_client.return_value,
+        "AccountManagement",
+        {
+            "Action": "Update",
+            "Accounts": [
+                {
+                    "AccountID": 1327944,
+                    "SmsNotification": {"MoneyInSms": "No"},
+                }
+            ],
+        },
+    )
+
+
+def test_account_management_sandbox_formats_mocked_response_as_table():
+    with patch("direct_cli.commands.v4account.create_v4_client"):
+        with patch(
+            "direct_cli.commands.v4account.call_v4",
+            return_value=[{"AccountID": 1327944, "Status": "Updated"}],
+        ):
+            result = _invoke(
+                "--sandbox",
+                "--token",
+                "token",
+                "v4account",
+                "account-management",
+                "--action",
+                "Update",
+                "--account-id",
+                "1327944",
+                "--money-in-sms",
+                "No",
+                "--format",
+                "table",
+            )
+
+    assert result.exit_code == 0
+    assert "AccountID" in result.output
+    assert "Status" in result.output
+    assert "1327944" in result.output
 
 
 @pytest.mark.parametrize(

@@ -143,14 +143,15 @@ direct v4finance pay-campaigns --campaign-ids 123,456 --amount 100.50 --currency
 
 ### V4 Live Shared Account
 
-Shared-account mutations are dry-run-only in this release and always require
-`--dry-run`. These commands follow the official v4 Live shared-account method
-shapes: `EnableSharedAccount` accepts one client `Login`, and
-`AccountManagement` updates shared-account settings through `Accounts`.
+Shared-account mutations require `--dry-run` in production and can be sent live
+only with top-level `--sandbox`. These commands follow the official v4 Live
+shared-account method shapes: `EnableSharedAccount` accepts one client `Login`,
+and `AccountManagement` updates shared-account settings through `Accounts`.
 
 ```bash
 direct v4account enable-shared-account --client-login client-login --dry-run
 direct v4account account-management --action Update --account-id 1327944 --day-budget 100.50 --spend-mode Default --money-in-sms Yes --money-out-sms No --email ops@example.com --money-warning-value 25 --dry-run
+direct --sandbox v4account enable-shared-account --client-login client-login
 ```
 
 ### CLI Convention
@@ -576,6 +577,11 @@ The report contains one row per `WRITE_SANDBOX` command:
 
 The same OAuth token works for both production and the sandbox; no separate
 sandbox token is needed.
+
+For `v4account` sandbox smoke, `enable-shared-account` uses
+`YANDEX_DIRECT_V4ACCOUNT_CLIENT_LOGIN` or falls back to `YANDEX_DIRECT_LOGIN`.
+`account-management` requires `YANDEX_DIRECT_V4ACCOUNT_ACCOUNT_ID`; without it
+the runner reports `NOT_COVERED` for that command.
 
 #### Re-recording write cassettes
 
@@ -1171,6 +1177,11 @@ best-effort. Отчёт содержит одну строку на каждую
 
 Один и тот же OAuth-токен работает и для продакшена, и для sandbox; отдельный
 sandbox-токен не нужен.
+
+Для `v4account` sandbox smoke команда `enable-shared-account` использует
+`YANDEX_DIRECT_V4ACCOUNT_CLIENT_LOGIN` или fallback на `YANDEX_DIRECT_LOGIN`.
+Для `account-management` нужна переменная
+`YANDEX_DIRECT_V4ACCOUNT_ACCOUNT_ID`; без неё runner покажет `NOT_COVERED`.
 
 #### Перезапись write-кассет
 
