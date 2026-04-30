@@ -33,8 +33,8 @@ report values:
 | Non-WSDL API services | 1 |
 | Supported API services including Reports | 30 |
 | CLI top-level groups including auth | 31 |
-| CLI subcommands including auth | 122 |
-| API CLI subcommands excluding auth | 118 |
+| CLI subcommands including auth | 130 |
+| API CLI subcommands excluding auth | 126 |
 | Live-discovered missing services | 0 |
 | Live-discovered missing methods | 0 |
 
@@ -51,6 +51,26 @@ Every registered Click subcommand is classified exactly once in
 
 `tests/test_smoke_matrix.py` fails if a CLI command is missing from the matrix,
 appears in multiple categories, or if the current service/command counts drift.
+
+## V4 Live Finance Contract Notes
+
+The public v4/Live4 finance docs found during milestone 0.3.3 list
+`CreateInvoice`, `GetCreditLimits`, `PayCampaigns`, and `TransferMoney`.
+No official `CheckPayment` page or `PaymentID` contract was found.
+
+Sandbox v4 Live probes on 2026-04-30 confirmed the runtime request shape for
+`CheckPayment`:
+
+| Probe | Result |
+|---|---|
+| `{"PaymentID": 1}` | `error_code=71`, `Field CustomTransactionID must not be empty` |
+| `{"CustomTransactionID": "short"}` | `error_code=71`, requires 32 latin alphanumeric characters |
+| `{"CustomTransactionID": "A123456789012345678901234567890B"}` | `error_code=370`, `Transaction does not exist` |
+
+`error_code=370` is treated as positive contract evidence: the request passed
+method-level shape validation and failed only because the transaction is a
+dummy value. Do not expose a public `--payment-id` flag unless Yandex documents
+or live-confirms a separate `PaymentID` contract.
 
 ## Maintenance Rules
 

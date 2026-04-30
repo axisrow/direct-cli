@@ -126,6 +126,7 @@ Money mutation commands are dry-run-only in this release and always require
 ```bash
 direct v4finance get-credit-limits --logins client-login --finance-token FINANCE_TOKEN --operation-num 123
 direct v4finance get-credit-limits --logins client-login,other-client --format table
+direct v4finance check-payment --custom-transaction-id A123456789012345678901234567890B
 direct v4finance transfer-money --from-campaign-id 123 --to-campaign-id 456 --amount 100.50 --finance-token FINANCE_TOKEN --operation-num 123 --dry-run
 direct v4finance pay-campaigns --campaign-id 123 --amount 100.50 --contract-id CONTRACT_ID --pay-method CREDIT --finance-token FINANCE_TOKEN --operation-num 123 --dry-run
 ```
@@ -504,8 +505,8 @@ Current command surface:
 | Supported API services including Reports | 30 |
 | WSDL operations | 112 |
 | CLI groups including `auth` | 39 |
-| CLI subcommands including `auth` | 127 |
-| API CLI subcommands excluding `auth` | 123 |
+| CLI subcommands including `auth` | 130 |
+| API CLI subcommands excluding `auth` | 126 |
 
 ### API Coverage And Drift Monitoring
 
@@ -1128,8 +1129,8 @@ YANDEX_DIRECT_LIVE_WRITE=1 pytest -m integration_live_write -v --record-mode=rew
 | API services с учётом Reports | 30 |
 | WSDL operations | 112 |
 | CLI groups с `auth` | 39 |
-| CLI subcommands с `auth` | 127 |
-| API CLI subcommands без `auth` | 123 |
+| CLI subcommands с `auth` | 130 |
+| API CLI subcommands без `auth` | 126 |
 
 #### Live sandbox write smoke
 
