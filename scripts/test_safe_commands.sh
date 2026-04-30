@@ -168,6 +168,17 @@ run_v4finance_get_credit_limits() {
   run_test "$name" direct v4finance get-credit-limits --logins "$AUTH_LOGIN"
 }
 
+run_v4finance_get_clients_units() {
+  local name="v4finance get-clients-units (env auth)"
+
+  if [ -z "${AUTH_LOGIN:-}" ]; then
+    echo -e "  ${YELLOW}[SKIP]${RESET} $name - no login"
+    return
+  fi
+
+  run_test "$name" direct v4finance get-clients-units --logins "$AUTH_LOGIN"
+}
+
 run_v4finance_check_payment_contract() {
   run_test "v4finance check-payment dry-run (env auth)" direct v4finance check-payment --custom-transaction-id A123456789012345678901234567890B --dry-run
 }
@@ -269,6 +280,7 @@ EVENTS_FROM=$(date -u -d 'yesterday' '+%Y-%m-%dT00:00:00' 2>/dev/null || date -u
 EVENTS_TO=$(date -u '+%Y-%m-%dT00:00:00')
 run_test "v4events get-events-log (env auth)"      direct v4events get-events-log --from "$EVENTS_FROM" --to "$EVENTS_TO" --limit 1
 run_v4finance_check_payment_contract
+run_v4finance_get_clients_units
 run_v4finance_get_credit_limits
 
 if [ -n "$CAMPAIGN_ID" ]; then

@@ -126,13 +126,16 @@ per-request token from `--master-token`, `--operation-num`, and
 `--finance-login`; alternatively pass a precomputed token with `--finance-token`.
 Environment variables are
 `YANDEX_DIRECT_MASTER_TOKEN`, `YANDEX_DIRECT_FINANCE_LOGIN`,
-`YANDEX_DIRECT_FINANCE_TOKEN`, and `YANDEX_DIRECT_OPERATION_NUM`. Money mutation
-commands are dry-run-only in this release and always require `--dry-run`; dry-run
-output masks the financial token.
+`YANDEX_DIRECT_FINANCE_TOKEN`, and `YANDEX_DIRECT_OPERATION_NUM`.
+`transfer-money` and `pay-campaigns` are dry-run-only in this release and
+always require `--dry-run`; `create-invoice` can be sent live when `--dry-run`
+is omitted. Dry-run output masks the financial token.
 
 ```bash
+direct v4finance get-clients-units --logins client-login,other-client --format table
 direct v4finance get-credit-limits --logins client-login --master-token MASTER_TOKEN --operation-num 123 --finance-login agency-login
 direct v4finance get-credit-limits --logins client-login,other-client --format table
+direct v4finance create-invoice --payment 123=100.50 --payment 456=25 --currency RUB --master-token MASTER_TOKEN --operation-num 124 --finance-login agency-login --dry-run
 direct v4finance check-payment --custom-transaction-id A123456789012345678901234567890B
 direct v4finance transfer-money --from-campaign-id 123 --to-campaign-id 456 --amount 100.50 --currency RUB --master-token MASTER_TOKEN --operation-num 123 --finance-login agency-login --dry-run
 direct v4finance pay-campaigns --campaign-ids 123,456 --amount 100.50 --currency RUB --contract-id CONTRACT_ID --pay-method Bank --master-token MASTER_TOKEN --operation-num 123 --finance-login agency-login --dry-run

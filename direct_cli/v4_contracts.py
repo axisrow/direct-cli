@@ -142,11 +142,22 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
     "CreateInvoice": V4MethodContract(
         method="CreateInvoice",
         group="finance",
-        param_shape=PARAM_UNDOCUMENTED,
-        login_placement="unknown",
-        safety=SAFETY_WRITE,
-        source_status=SOURCE_UNDOCUMENTED,
+        param_shape=PARAM_OBJECT,
+        login_placement=(
+            "param contains Payments; finance_token and operation_num are "
+            "top-level v4 Live body fields"
+        ),
+        safety=SAFETY_DANGEROUS,
+        source_status=SOURCE_DOCS,
         live_probe_allowed=False,
+        example_param={
+            "Payments": [{"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"}],
+        },
+        notes=(
+            "Official v4 docs define invoice creation with Payments[]."
+            "CampaignID/Sum/Currency and a URL response. The method has no "
+            "v5 equivalent and requires finance_token plus operation_num."
+        ),
     ),
     "AccountManagement": V4MethodContract(
         method="AccountManagement",

@@ -136,6 +136,7 @@ def test_get_credit_limits_contract_uses_login_array_and_finance_top_level():
 def test_v4finance_money_contracts_are_docs_backed_dangerous_objects():
     transfer = get_v4_contract("TransferMoney")
     pay = get_v4_contract("PayCampaigns")
+    create_invoice = get_v4_contract("CreateInvoice")
 
     assert transfer.param_shape == PARAM_OBJECT
     assert transfer.source_status == SOURCE_DOCS
@@ -157,6 +158,18 @@ def test_v4finance_money_contracts_are_docs_backed_dangerous_objects():
             "Payments": [{"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"}],
             "ContractID": "contract-id",
             "PayMethod": "Bank",
+        },
+    }
+
+    assert create_invoice.param_shape == PARAM_OBJECT
+    assert create_invoice.source_status == SOURCE_DOCS
+    assert "finance_token" in create_invoice.login_placement
+    assert "PayCampaignsByCard" in V4_METHOD_CONTRACTS
+    assert get_v4_contract("PayCampaignsByCard").param_shape == PARAM_UNDOCUMENTED
+    assert build_v4_body("CreateInvoice", create_invoice.example_param) == {
+        "method": "CreateInvoice",
+        "param": {
+            "Payments": [{"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"}],
         },
     }
 

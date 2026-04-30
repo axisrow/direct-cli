@@ -34,6 +34,43 @@ def _logins_param(logins: str) -> list[str]:
     return login_list
 
 
+def _invoice_payments_param(payments: tuple[str, ...], currency: str) -> dict:
+    """Build the v4 Live CreateInvoice payment object parameter."""
+    if not payments:
+        raise click.UsageError("--payment is required")
+
+    parsed_payments = []
+    seen_campaign_ids = set()
+    normalized_currency = currency.upper()
+    for payment in payments:
+        spec = (payment or "").strip()
+        if "=" not in spec:
+            raise click.UsageError("--payment must use CAMPAIGN_ID=AMOUNT")
+        campaign_id_text, amount_text = spec.split("=", 1)
+        campaign_id_text = campaign_id_text.strip()
+        amount_text = amount_text.strip()
+        try:
+            campaign_id = int(campaign_id_text)
+        except ValueError as exc:
+            raise click.UsageError(
+                "--payment campaign ID must be a positive integer"
+            ) from exc
+        if campaign_id <= 0:
+            raise click.UsageError("--payment campaign ID must be a positive integer")
+        if campaign_id in seen_campaign_ids:
+            raise click.UsageError("--payment campaign IDs must be unique")
+        seen_campaign_ids.add(campaign_id)
+        parsed_payments.append(
+            {
+                "CampaignID": campaign_id,
+                "Sum": parse_v4_money_sum(amount_text),
+                "Currency": normalized_currency,
+            }
+        )
+
+    return {"Payments": parsed_payments}
+
+
 def _finance_credentials(
     finance_token: Optional[str],
     master_token: Optional[str],
@@ -120,6 +157,41 @@ def _custom_transaction_id_param(custom_transaction_id: str) -> dict:
 @click.group(epilog=FINANCE_HELP_EPILOG)
 def v4finance():
     """Yandex Direct v4 Live finance commands."""
+
+
+@v4_method_contract("GetClientsUnits")
+@v4finance.command(name="get-clients-units")
+@click.option("--logins", required=True, help="Comma-separated client logins")
+@click.option(
+    "--format",
+    "output_format",
+    default="json",
+    type=click.Choice(["json", "table", "csv", "tsv"]),
+    help="Output format",
+)
+@click.option("--output", help="Output file")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@click.pass_context
+def get_clients_units(ctx, logins, output_format, output, dry_run):
+    """Get available API units for clients."""
+    login_list = _logins_param(logins)
+
+    if dry_run:
+        format_output(build_v4_body("GetClientsUnits", login_list), "json", None)
+        return
+
+    try:
+        client = create_v4_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            profile=ctx.obj.get("profile"),
+            sandbox=ctx.obj.get("sandbox"),
+        )
+        data = call_v4(client, "GetClientsUnits", login_list)
+        format_output(data, output_format, output)
+    except Exception as e:
+        print_error(str(e))
+        raise click.Abort()
 
 
 @v4_method_contract("GetCreditLimits")
@@ -243,6 +315,103 @@ def check_payment(
             sandbox=ctx.obj.get("sandbox"),
         )
         data = call_v4(client, "CheckPayment", param)
+        format_output(data, output_format, output)
+    except Exception as e:
+        print_error(str(e))
+        raise click.Abort()
+
+
+@v4_method_contract("CreateInvoice")
+@v4finance.command(name="create-invoice")
+@click.option(
+    "--payment",
+    "payments",
+    multiple=True,
+    required=True,
+    help="Invoice payment as CAMPAIGN_ID=AMOUNT; repeat for multiple campaigns",
+)
+@click.option(
+    "--currency",
+    default="RUB",
+    show_default=True,
+    type=click.Choice(V4_FINANCE_CURRENCIES, case_sensitive=False),
+    help="Payment currency",
+)
+@click.option(
+    "--finance-token",
+    envvar="YANDEX_DIRECT_FINANCE_TOKEN",
+    help="Precomputed financial token for this method",
+)
+@click.option(
+    "--master-token",
+    envvar="YANDEX_DIRECT_MASTER_TOKEN",
+    help=(
+        "Financial master token issued after enabling and saving financial "
+        "operations in Tools -> API -> Financial operations"
+    ),
+)
+@click.option(
+    "--operation-num",
+    type=click.IntRange(min=1, max=9223372036854775807),
+    envvar="YANDEX_DIRECT_OPERATION_NUM",
+    help="Financial operation number",
+)
+@click.option(
+    "--finance-login",
+    envvar="YANDEX_DIRECT_FINANCE_LOGIN",
+    help="Login used in financial token generation",
+)
+@click.option(
+    "--format",
+    "output_format",
+    default="json",
+    type=click.Choice(["json", "table", "csv", "tsv"]),
+    help="Output format",
+)
+@click.option("--output", help="Output file")
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@click.pass_context
+def create_invoice(
+    ctx,
+    payments,
+    currency,
+    finance_token,
+    master_token,
+    operation_num,
+    finance_login,
+    output_format,
+    output,
+    dry_run,
+):
+    """Create a payment invoice for campaigns."""
+    finance_token, operation_num = _finance_credentials(
+        finance_token,
+        master_token,
+        operation_num,
+        finance_login,
+        "CreateInvoice",
+        ctx.obj.get("login"),
+    )
+    param = _invoice_payments_param(payments, currency)
+
+    if dry_run:
+        format_output(
+            _masked_finance_body("CreateInvoice", param, operation_num),
+            "json",
+            None,
+        )
+        return
+
+    try:
+        client = create_v4_client(
+            token=ctx.obj.get("token"),
+            login=ctx.obj.get("login"),
+            profile=ctx.obj.get("profile"),
+            sandbox=ctx.obj.get("sandbox"),
+            finance_token=finance_token,
+            operation_num=operation_num,
+        )
+        data = call_v4(client, "CreateInvoice", param)
         format_output(data, output_format, output)
     except Exception as e:
         print_error(str(e))

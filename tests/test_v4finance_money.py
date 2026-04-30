@@ -133,6 +133,59 @@ def test_pay_campaigns_dry_run_uses_payment_object_and_masks_finance_token():
     }
 
 
+def test_create_invoice_dry_run_uses_payment_object_and_masks_finance_token():
+    result = _invoke(
+        "v4finance",
+        "create-invoice",
+        "--payment",
+        "123=100.50",
+        "--finance-token",
+        "secret-finance-token",
+        "--operation-num",
+        "42",
+        "--dry-run",
+    )
+
+    assert result.exit_code == 0
+    assert "secret-finance-token" not in result.output
+    assert json.loads(result.output) == {
+        "method": "CreateInvoice",
+        "param": {
+            "Payments": [
+                {"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"},
+            ],
+        },
+        "finance_token": "<redacted>",
+        "operation_num": 42,
+    }
+
+
+def test_create_invoice_dry_run_accepts_multiple_payments_and_currency():
+    result = _invoke(
+        "v4finance",
+        "create-invoice",
+        "--payment",
+        "123=100.50",
+        "--payment",
+        "456=1",
+        "--currency",
+        "usd",
+        "--finance-token",
+        "secret-finance-token",
+        "--operation-num",
+        "42",
+        "--dry-run",
+    )
+
+    assert result.exit_code == 0
+    assert json.loads(result.output)["param"] == {
+        "Payments": [
+            {"CampaignID": 123, "Sum": 100.5, "Currency": "USD"},
+            {"CampaignID": 456, "Sum": 1.0, "Currency": "USD"},
+        ],
+    }
+
+
 def test_transfer_money_uses_finance_env_fallback_for_dry_run():
     result = _invoke(
         "v4finance",
@@ -182,6 +235,33 @@ def test_transfer_money_can_compute_finance_token_from_master_token():
         "master-token",
         42,
         "TransferMoney",
+        "Agency-Login",
+    )
+
+
+def test_create_invoice_can_compute_finance_token_from_master_token():
+    with patch("direct_cli.commands.v4finance.build_finance_token") as build_token:
+        build_token.return_value = "computed-finance-token"
+        result = _invoke(
+            "v4finance",
+            "create-invoice",
+            "--payment",
+            "123=100.50",
+            "--master-token",
+            "master-token",
+            "--operation-num",
+            "42",
+            "--finance-login",
+            "Agency-Login",
+            "--dry-run",
+        )
+
+    assert result.exit_code == 0
+    assert "computed-finance-token" not in result.output
+    build_token.assert_called_once_with(
+        "master-token",
+        42,
+        "CreateInvoice",
         "Agency-Login",
     )
 
@@ -297,6 +377,59 @@ def test_v4finance_money_commands_validate_amount_before_api_call():
 
     assert result.exit_code != 0
     assert "--amount must be greater than zero" in result.output
+    create_client.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("payment", "expected"),
+    [
+        ("123", "--payment must use CAMPAIGN_ID=AMOUNT"),
+        ("abc=100", "--payment campaign ID must be a positive integer"),
+        ("0=100", "--payment campaign ID must be a positive integer"),
+        ("123=0", "--amount must be greater than zero"),
+        ("123=1.234", "--amount must be a positive decimal amount"),
+    ],
+)
+def test_create_invoice_rejects_invalid_payment_specs_before_api_call(
+    payment,
+    expected,
+):
+    with patch("direct_cli.commands.v4finance.create_v4_client") as create_client:
+        result = _invoke(
+            "v4finance",
+            "create-invoice",
+            "--payment",
+            payment,
+            "--finance-token",
+            "finance-token",
+            "--operation-num",
+            "42",
+            "--dry-run",
+        )
+
+    assert result.exit_code != 0
+    assert expected in result.output
+    create_client.assert_not_called()
+
+
+def test_create_invoice_rejects_duplicate_campaign_ids_before_api_call():
+    with patch("direct_cli.commands.v4finance.create_v4_client") as create_client:
+        result = _invoke(
+            "v4finance",
+            "create-invoice",
+            "--payment",
+            "123=100",
+            "--payment",
+            "123=200",
+            "--finance-token",
+            "finance-token",
+            "--operation-num",
+            "42",
+            "--dry-run",
+        )
+
+    assert result.exit_code != 0
+    assert "--payment campaign IDs must be unique" in result.output
     create_client.assert_not_called()
 
 
@@ -467,8 +600,51 @@ def test_check_payment_formats_mocked_response_as_json():
     )
 
 
+def test_create_invoice_formats_mocked_response_as_json():
+    with patch("direct_cli.commands.v4finance.create_v4_client") as create_client:
+        with patch(
+            "direct_cli.commands.v4finance.call_v4",
+            return_value={"URL": "https://example.test/invoice"},
+        ) as call:
+            result = _invoke(
+                "--token",
+                "token",
+                "--login",
+                "agency-login",
+                "v4finance",
+                "create-invoice",
+                "--payment",
+                "123=100.50",
+                "--finance-token",
+                "finance-token",
+                "--operation-num",
+                "42",
+            )
+
+    assert result.exit_code == 0
+    assert json.loads(result.output) == {"URL": "https://example.test/invoice"}
+    create_client.assert_called_once_with(
+        token="token",
+        login="agency-login",
+        profile=None,
+        sandbox=False,
+        finance_token="finance-token",
+        operation_num=42,
+    )
+    call.assert_called_once_with(
+        create_client.return_value,
+        "CreateInvoice",
+        {
+            "Payments": [
+                {"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"},
+            ],
+        },
+    )
+
+
 def test_v4finance_money_help_contains_no_json_input_flag():
     for args in [
+        ("v4finance", "create-invoice", "--help"),
         ("v4finance", "transfer-money", "--help"),
         ("v4finance", "pay-campaigns", "--help"),
         ("v4finance", "check-payment", "--help"),
@@ -487,3 +663,5 @@ def test_v4finance_money_commands_declare_v4_contracts():
     assert commands["pay-campaigns"].v4_contract == get_v4_contract("PayCampaigns")
     assert commands["check-payment"].v4_method == "CheckPayment"
     assert commands["check-payment"].v4_contract == get_v4_contract("CheckPayment")
+    assert commands["create-invoice"].v4_method == "CreateInvoice"
+    assert commands["create-invoice"].v4_contract == get_v4_contract("CreateInvoice")

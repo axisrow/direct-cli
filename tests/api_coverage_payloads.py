@@ -69,6 +69,8 @@ DRY_RUN_PAYLOAD_EXCLUSIONS = {
     "v4account.enable-shared-account": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
     "v4events.get-events-log": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
     "v4finance.check-payment": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
+    "v4finance.create-invoice": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
+    "v4finance.get-clients-units": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
     "v4finance.get-credit-limits": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
     "v4finance.pay-campaigns": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
     "v4finance.transfer-money": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
