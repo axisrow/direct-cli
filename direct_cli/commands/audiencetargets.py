@@ -178,7 +178,10 @@ def set_bids(ctx, target_id, adgroup_id, campaign_id, context_bid, priority, dry
         if priority:
             bid_data["StrategyPriority"] = priority
         bid_fields = {k for k in ("ContextBid", "StrategyPriority") if k in bid_data}
-        if not bid_data:
+        selector_fields = {
+            k for k in ("Id", "AdGroupId", "CampaignId") if k in bid_data
+        }
+        if not selector_fields:
             raise click.UsageError(
                 "Provide target selection and bid fields for set-bids"
             )

@@ -220,13 +220,8 @@ Allowed:
 direct dictionaries get-geo-regions --region-ids 225,187 --fields GeoRegionId,GeoRegionName
 ```
 
-Not allowed:
-
-```bash
-direct dictionaries get-geo-regions \
-  --region-ids 225,187 \
-  --fields GeoRegionId,GeoRegionName
-```
+Not allowed: splitting a canonical `direct ...` command over multiple shell
+lines with `\`.
 
 #### Flag Design Rules
 
@@ -252,12 +247,8 @@ Use:
 direct changes check-campaigns --timestamp 2026-04-14T00:00:00
 ```
 
-Do not use:
-
-```bash
-direct changes check-campaigns --timestamp 2026-04-14T00:00:00Z
-direct changes check-campaigns --timestamp "2026-04-14 00:00:00"
-```
+Do not use: a timestamp with a `Z` suffix, or a quoted timestamp that contains
+a space between the date and time.
 
 #### Documentation Contract
 
@@ -279,17 +270,9 @@ direct dynamicads set-bids --id 789 --bid 12500000 --context-bid 9000000 --prior
 direct dictionaries get-geo-regions --name Moscow --region-ids 225,187 --exact-names Москва,Санкт-Петербург --fields GeoRegionId,GeoRegionName
 ```
 
-Invalid examples:
-
-```bash
-direct dictionaries get-geo-regions --json '{"GeoRegionIds":[225]}' --fields GeoRegionId,GeoRegionName
-direct dynamicads set-bids --id 789 --bid 12500000 --json '{"StrategyPriority":"HIGH"}'
-direct dictionaries get-geo-regions \
-  --region-ids 225 \
-  --fields GeoRegionId,GeoRegionName
-direct changes check-campaigns --timestamp 2026-04-14T00:00:00Z
-direct changes check-campaigns --timestamp "2026-04-14 00:00:00"
-```
+Invalid examples include command lines that pass raw JSON flags, use shell
+line continuations, add timezone suffixes to CLI datetimes, or quote
+space-separated datetime values.
 
 #### Campaigns
 
@@ -401,8 +384,8 @@ direct dynamicads set-bids --id 789 --bid 12500000 --context-bid 9000000 --prior
 
 # Shared bidding strategies
 direct strategies get --limit 5
-direct strategies add --name "Shared Clicks" --type WbMaximumClicks --params '{"SpendLimit":1000000000,"AverageCpc":30000000}' --dry-run
-direct strategies update --id 42 --params '{"AverageCpc":35000000}' --dry-run
+direct strategies add --name "Shared Clicks" --type WbMaximumClicks --spend-limit 1000000000 --average-cpc 30000000 --dry-run
+direct strategies update --id 42 --type WbMaximumClicks --average-cpc 35000000 --dry-run
 direct strategies archive --id 42 --dry-run
 
 # Dynamic feed ad targets
@@ -847,13 +830,8 @@ Allowed:
 direct dictionaries get-geo-regions --region-ids 225,187 --fields GeoRegionId,GeoRegionName
 ```
 
-Not allowed:
-
-```bash
-direct dictionaries get-geo-regions \
-  --region-ids 225,187 \
-  --fields GeoRegionId,GeoRegionName
-```
+Not allowed: splitting a canonical `direct ...` command over multiple shell
+lines with `\`.
 
 #### Flag Design Rules
 
@@ -879,12 +857,8 @@ Use:
 direct changes check-campaigns --timestamp 2026-04-14T00:00:00
 ```
 
-Do not use:
-
-```bash
-direct changes check-campaigns --timestamp 2026-04-14T00:00:00Z
-direct changes check-campaigns --timestamp "2026-04-14 00:00:00"
-```
+Do not use: a timestamp with a `Z` suffix, or a quoted timestamp that contains
+a space between the date and time.
 
 #### Documentation Contract
 
@@ -905,17 +879,9 @@ direct dynamicads set-bids --id 789 --bid 12500000
 direct dictionaries get-geo-regions --region-ids 225 --fields GeoRegionId,GeoRegionName
 ```
 
-Invalid examples:
-
-```bash
-direct dictionaries get-geo-regions --json '{"GeoRegionIds":[225]}' --fields GeoRegionId,GeoRegionName
-direct dynamicads set-bids --id 789 --bid 12500000 --json '{"StrategyPriority":"HIGH"}'
-direct dictionaries get-geo-regions \
-  --region-ids 225 \
-  --fields GeoRegionId,GeoRegionName
-direct changes check-campaigns --timestamp 2026-04-14T00:00:00Z
-direct changes check-campaigns --timestamp "2026-04-14 00:00:00"
-```
+Invalid examples include command lines that pass raw JSON flags, use shell
+line continuations, add timezone suffixes to CLI datetimes, or quote
+space-separated datetime values.
 
 #### Кампании
 
@@ -1027,8 +993,8 @@ direct dynamicads set-bids --id 789 --bid 12500000 --context-bid 9000000 --prior
 
 # Общие стратегии ставок
 direct strategies get --limit 5
-direct strategies add --name "Общая стратегия" --type WbMaximumClicks --params '{"SpendLimit":1000000000,"AverageCpc":30000000}' --dry-run
-direct strategies update --id 42 --params '{"AverageCpc":35000000}' --dry-run
+direct strategies add --name "Общая стратегия" --type WbMaximumClicks --spend-limit 1000000000 --average-cpc 30000000 --dry-run
+direct strategies update --id 42 --type WbMaximumClicks --average-cpc 35000000 --dry-run
 direct strategies archive --id 42 --dry-run
 
 # Динамические таргеты по фиду
