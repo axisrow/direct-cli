@@ -58,11 +58,9 @@ def get(ctx, names, output_format, output):
 
 
 @dictionaries.command(name="get-geo-regions")
-@click.option("--name", help="SelectionCriteria.Name value")
-@click.option("--region-ids", help="Comma-separated SelectionCriteria.RegionIds")
-@click.option(
-    "--exact-names", help="Comma-separated SelectionCriteria.ExactNames values"
-)
+@click.option("--name", help="Geo region name contains this value")
+@click.option("--region-ids", help="Comma-separated geo region IDs")
+@click.option("--exact-names", help="Comma-separated exact geo region names")
 @click.option("--fields", required=True, help="Comma-separated field names")
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")

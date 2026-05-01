@@ -294,26 +294,9 @@ def set(ctx, modifier_id, campaign_id, modifier_type, value, dry_run):
     """Set (update) an existing bid modifier
 
     The Yandex Direct API's ``bidmodifiers/set`` method updates existing
-    modifiers by ``Id``. The correct payload shape is simply::
-
-        {"BidModifiers": [{"Id": <long>, "BidModifier": <value>}]}
-
-    To create a new modifier, use ``bidmodifiers add`` instead.
-
-    This CLI command supports two shapes:
-
-    1. **Correct shape** — pass ``--id`` + ``--value``. The request
-       body becomes exactly ``{"Id": ..., "BidModifier": ...}`` and is
-       accepted by the API.
-
-    2. **Legacy shape** (broken by design) — pass ``--campaign-id`` +
-       ``--type`` + ``--value``. The request body is
-       ``{"CampaignId": ..., "Type": ..., "BidModifier": ...}`` and the
-       API rejects it with ``required field Id is omitted``. This path
-       is preserved so the existing regression cassette in
-       ``TestWriteBidModifiersSet.test_set_without_id_is_rejected``
-       keeps passing; it also gives a clear deprecation signal to
-       callers who land on this command by mistake.
+    modifiers by ``Id``. To create a new modifier, use ``bidmodifiers add``
+    instead. Prefer ``--id`` with ``--value``; the legacy
+    ``--campaign-id``/``--type`` form is kept only for compatibility.
     """
     try:
         # Validate the mutex up front.

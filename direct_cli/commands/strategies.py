@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import get_default_fields, parse_ids, parse_json
+from ..utils import MICRO_RUBLES, get_default_fields, parse_ids
 
 STRATEGY_TYPES = [
     "WbMaximumClicks",
@@ -26,6 +26,79 @@ STRATEGY_TYPES = [
     "PayForConversionPerFilter",
     "PayForConversionPerCampaign",
 ]
+
+CPA_STRATEGY_TYPES = {
+    "AverageCpa",
+    "AverageCpaPerCampaign",
+}
+FILTER_CPA_STRATEGY_TYPES = {"AverageCpaPerFilter"}
+PAY_FOR_CONVERSION_STRATEGY_TYPES = {
+    "PayForConversion",
+    "PayForConversionPerFilter",
+    "PayForConversionPerCampaign",
+}
+CRR_STRATEGY_TYPES = {
+    "AverageCrr",
+    "AverageCrrPerCampaign",
+}
+GOAL_ID_STRATEGY_TYPES = (
+    CPA_STRATEGY_TYPES
+    | FILTER_CPA_STRATEGY_TYPES
+    | PAY_FOR_CONVERSION_STRATEGY_TYPES
+    | CRR_STRATEGY_TYPES
+)
+
+
+def _parse_priority_goal(spec: str) -> dict:
+    """Parse a priority goal spec in GOAL_ID:VALUE format."""
+    goal_id, separator, value = spec.partition(":")
+    if not separator:
+        raise click.UsageError(
+            "Invalid --priority-goal. Expected GOAL_ID:VALUE, for example 123:1000000"
+        )
+    try:
+        return {"GoalId": int(goal_id.strip()), "Value": int(value.strip())}
+    except ValueError:
+        raise click.UsageError(
+            "Invalid --priority-goal. GOAL_ID and VALUE must be integers"
+        )
+
+
+def _build_strategy_fields(
+    strategy_type,
+    average_cpc,
+    average_cpa,
+    average_crr,
+    goal_id,
+    spend_limit,
+    weekly_spend_limit,
+    bid_ceiling,
+):
+    """Build typed strategy-specific fields."""
+    fields = {}
+    if average_cpc is not None:
+        fields["AverageCpc"] = average_cpc
+    if average_cpa is not None:
+        if strategy_type in PAY_FOR_CONVERSION_STRATEGY_TYPES:
+            fields["Cpa"] = average_cpa
+        elif strategy_type in FILTER_CPA_STRATEGY_TYPES:
+            fields["FilterAverageCpa"] = average_cpa
+        else:
+            fields["AverageCpa"] = average_cpa
+    if strategy_type in CRR_STRATEGY_TYPES:
+        if average_crr is not None:
+            fields["Crr"] = average_crr
+    elif average_crr is not None:
+        fields["AverageCrr"] = average_crr
+    if strategy_type in GOAL_ID_STRATEGY_TYPES and goal_id is not None:
+        fields["GoalId"] = goal_id
+    if spend_limit is not None:
+        fields["SpendLimit"] = spend_limit
+    if weekly_spend_limit is not None:
+        fields["WeeklySpendLimit"] = weekly_spend_limit
+    if bid_ceiling is not None:
+        fields["BidCeiling"] = bid_ceiling
+    return fields
 
 
 @click.group()
@@ -98,13 +171,24 @@ def get(ctx, ids, types, is_archived, limit, fetch_all, output_format, output, f
     type=click.Choice(STRATEGY_TYPES, case_sensitive=True),
     help="Strategy type",
 )
+@click.option("--average-cpc", type=MICRO_RUBLES, help="Average CPC in micro-rubles")
+@click.option("--average-cpa", type=MICRO_RUBLES, help="Average CPA in micro-rubles")
+@click.option("--average-crr", type=int, help="Average cost revenue ratio")
+@click.option("--goal-id", type=int, help="Goal ID for conversion strategies")
+@click.option("--spend-limit", type=MICRO_RUBLES, help="Spend limit in micro-rubles")
 @click.option(
-    "--params",
-    "strategy_params",
-    help="Strategy type-specific parameters as JSON",
+    "--weekly-spend-limit",
+    type=MICRO_RUBLES,
+    help="Weekly spend limit in micro-rubles",
 )
+@click.option("--bid-ceiling", type=MICRO_RUBLES, help="Bid ceiling in micro-rubles")
 @click.option("--counter-ids", help="Comma-separated Metrica counter IDs")
-@click.option("--priority-goals", help="Priority goals as JSON list")
+@click.option(
+    "--priority-goal",
+    "priority_goals",
+    multiple=True,
+    help="Priority goal as GOAL_ID:VALUE; may be repeated",
+)
 @click.option(
     "--attribution-model",
     type=click.Choice(
@@ -119,7 +203,13 @@ def add(
     ctx,
     name,
     strategy_type,
-    strategy_params,
+    average_cpc,
+    average_cpa,
+    average_crr,
+    goal_id,
+    spend_limit,
+    weekly_spend_limit,
+    bid_ceiling,
     counter_ids,
     priority_goals,
     attribution_model,
@@ -127,23 +217,29 @@ def add(
 ):
     """Add a strategy"""
     try:
-        strategy_data = {"Name": name, strategy_type: {}}
-        if strategy_params:
-            parsed = parse_json(strategy_params)
-            if not isinstance(parsed, dict):
-                raise click.UsageError(
-                    "--params must be a JSON object, not an array or scalar"
-                )
-            strategy_data[strategy_type] = parsed
+        strategy_data = {
+            "Name": name,
+            strategy_type: _build_strategy_fields(
+                strategy_type,
+                average_cpc,
+                average_cpa,
+                average_crr,
+                goal_id,
+                spend_limit,
+                weekly_spend_limit,
+                bid_ceiling,
+            ),
+        }
+        if strategy_type in GOAL_ID_STRATEGY_TYPES and goal_id is None:
+            raise click.UsageError("Provide --goal-id for this strategy type")
         if counter_ids:
             strategy_data["CounterIds"] = {
                 "Items": [int(x.strip()) for x in counter_ids.split(",")]
             }
         if priority_goals:
-            parsed_goals = parse_json(priority_goals)
-            if not isinstance(parsed_goals, list):
-                raise click.UsageError("--priority-goals must be a JSON array")
-            strategy_data["PriorityGoals"] = {"Items": parsed_goals}
+            strategy_data["PriorityGoals"] = {
+                "Items": [_parse_priority_goal(goal) for goal in priority_goals]
+            }
         if attribution_model:
             strategy_data["AttributionModel"] = attribution_model
 
@@ -177,11 +273,24 @@ def add(
     type=click.Choice(STRATEGY_TYPES, case_sensitive=True),
     help="Strategy type to update",
 )
+@click.option("--average-cpc", type=MICRO_RUBLES, help="Average CPC in micro-rubles")
+@click.option("--average-cpa", type=MICRO_RUBLES, help="Average CPA in micro-rubles")
+@click.option("--average-crr", type=int, help="Average cost revenue ratio")
+@click.option("--goal-id", type=int, help="Goal ID for conversion strategies")
+@click.option("--spend-limit", type=MICRO_RUBLES, help="Spend limit in micro-rubles")
 @click.option(
-    "--params", "strategy_params", help="Strategy type-specific fields as JSON"
+    "--weekly-spend-limit",
+    type=MICRO_RUBLES,
+    help="Weekly spend limit in micro-rubles",
 )
+@click.option("--bid-ceiling", type=MICRO_RUBLES, help="Bid ceiling in micro-rubles")
 @click.option("--counter-ids", help="Comma-separated Metrica counter IDs")
-@click.option("--priority-goals", help="Priority goals as JSON list")
+@click.option(
+    "--priority-goal",
+    "priority_goals",
+    multiple=True,
+    help="Priority goal as GOAL_ID:VALUE; may be repeated",
+)
 @click.option(
     "--attribution-model",
     type=click.Choice(
@@ -197,7 +306,13 @@ def update(
     strategy_id,
     name,
     strategy_type,
-    strategy_params,
+    average_cpc,
+    average_cpa,
+    average_crr,
+    goal_id,
+    spend_limit,
+    weekly_spend_limit,
+    bid_ceiling,
     counter_ids,
     priority_goals,
     attribution_model,
@@ -208,25 +323,30 @@ def update(
         strategy_data = {"Id": strategy_id}
         if name:
             strategy_data["Name"] = name
+        strategy_fields = _build_strategy_fields(
+            strategy_type,
+            average_cpc,
+            average_cpa,
+            average_crr,
+            goal_id,
+            spend_limit,
+            weekly_spend_limit,
+            bid_ceiling,
+        )
+        if strategy_fields and not strategy_type:
+            raise click.UsageError(
+                "Provide --type when setting strategy-specific fields"
+            )
         if strategy_type:
-            if strategy_params:
-                parsed = parse_json(strategy_params)
-                if not isinstance(parsed, dict):
-                    raise click.UsageError(
-                        "--params must be a JSON object, not an array or scalar"
-                    )
-                strategy_data[strategy_type] = parsed
-            else:
-                strategy_data[strategy_type] = {}
+            strategy_data[strategy_type] = strategy_fields
         if counter_ids:
             strategy_data["CounterIds"] = {
                 "Items": [int(x.strip()) for x in counter_ids.split(",")]
             }
         if priority_goals:
-            parsed_goals = parse_json(priority_goals)
-            if not isinstance(parsed_goals, list):
-                raise click.UsageError("--priority-goals must be a JSON array")
-            strategy_data["PriorityGoals"] = {"Items": parsed_goals}
+            strategy_data["PriorityGoals"] = {
+                "Items": [_parse_priority_goal(goal) for goal in priority_goals]
+            }
         if attribution_model:
             strategy_data["AttributionModel"] = attribution_model
 

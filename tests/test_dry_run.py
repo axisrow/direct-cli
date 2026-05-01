@@ -2466,13 +2466,16 @@ def test_strategies_add_payload():
         "My Strategy",
         "--type",
         "AverageCpc",
-        "--params",
-        '{"AverageCpc": 1000000}',
+        "--average-cpc",
+        "1000000",
+        "--priority-goal",
+        "123:2000000",
     )
     assert body["method"] == "add"
     s = body["params"]["Strategies"][0]
     assert s["Name"] == "My Strategy"
-    assert "AverageCpc" in s
+    assert s["AverageCpc"]["AverageCpc"] == 1000000
+    assert s["PriorityGoals"]["Items"] == [{"GoalId": 123, "Value": 2000000}]
 
 
 def test_strategies_add_no_type_key_at_root():
@@ -2497,11 +2500,30 @@ def test_strategies_update_payload():
         "77",
         "--name",
         "Updated",
+        "--type",
+        "AverageCpc",
+        "--average-cpc",
+        "1500000",
     )
     assert body["method"] == "update"
     s = body["params"]["Strategies"][0]
     assert s["Id"] == 77
     assert s["Name"] == "Updated"
+    assert s["AverageCpc"]["AverageCpc"] == 1500000
+
+
+def test_strategies_update_requires_type_for_strategy_specific_fields():
+    result = _failing_run(
+        "strategies",
+        "update",
+        "--id",
+        "77",
+        "--average-cpc",
+        "1500000",
+        "--dry-run",
+    )
+    assert result.exit_code != 0
+    assert "Provide --type when setting strategy-specific fields" in result.output
 
 
 def test_strategies_archive_payload():

@@ -64,9 +64,7 @@ def get(
             ]
 
         if not criteria:
-            raise click.UsageError(
-                "Provide at least one typed SelectionCriteria filter"
-            )
+            raise click.UsageError("Provide at least one typed filter")
 
         params = {"SelectionCriteria": criteria, "FieldNames": field_names}
 
