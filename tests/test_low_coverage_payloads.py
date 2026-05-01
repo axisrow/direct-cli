@@ -215,8 +215,8 @@ def test_strategies_add_all_typed_strategy_fields_payload():
         "AverageCpa",
         "--average-cpa",
         "4000000",
-        "--average-crr",
-        "25",
+        "--goal-id",
+        "123",
         "--weekly-spend-limit",
         "70000000",
         "--bid-ceiling",
@@ -228,7 +228,7 @@ def test_strategies_add_all_typed_strategy_fields_payload():
     strategy = body["params"]["Strategies"][0]
     assert strategy["AverageCpa"] == {
         "AverageCpa": 4000000,
-        "AverageCrr": 25,
+        "GoalId": 123,
         "WeeklySpendLimit": 70000000,
         "BidCeiling": 8000000,
     }
@@ -267,7 +267,61 @@ def test_strategies_add_average_crr_requires_goal_id():
     )
 
     assert result.exit_code != 0
-    assert "Provide --goal-id with --average-crr" in result.output
+    assert "Provide --goal-id for this strategy type" in result.output
+
+
+def test_strategies_add_average_cpa_payload_includes_goal_id():
+    body = _dry_run(
+        "strategies",
+        "add",
+        "--name",
+        "Average CPA",
+        "--type",
+        "AverageCpa",
+        "--average-cpa",
+        "4000000",
+        "--goal-id",
+        "123",
+    )
+
+    strategy = body["params"]["Strategies"][0]
+    assert strategy["AverageCpa"] == {"AverageCpa": 4000000, "GoalId": 123}
+
+
+def test_strategies_add_pay_for_conversion_payload_uses_cpa_field():
+    body = _dry_run(
+        "strategies",
+        "add",
+        "--name",
+        "Pay for conversion",
+        "--type",
+        "PayForConversion",
+        "--average-cpa",
+        "4000000",
+        "--goal-id",
+        "123",
+    )
+
+    strategy = body["params"]["Strategies"][0]
+    assert strategy["PayForConversion"] == {"Cpa": 4000000, "GoalId": 123}
+
+
+def test_strategies_update_pay_for_conversion_payload_uses_cpa_field():
+    body = _dry_run(
+        "strategies",
+        "update",
+        "--id",
+        "42",
+        "--type",
+        "PayForConversion",
+        "--average-cpa",
+        "4000000",
+        "--goal-id",
+        "456",
+    )
+
+    strategy = body["params"]["Strategies"][0]
+    assert strategy["PayForConversion"] == {"Cpa": 4000000, "GoalId": 456}
 
 
 def test_strategies_update_average_crr_payload_uses_api_field_names():

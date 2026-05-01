@@ -27,6 +27,27 @@ STRATEGY_TYPES = [
     "PayForConversionPerCampaign",
 ]
 
+CPA_STRATEGY_TYPES = {
+    "AverageCpa",
+    "AverageCpaPerCampaign",
+}
+FILTER_CPA_STRATEGY_TYPES = {"AverageCpaPerFilter"}
+PAY_FOR_CONVERSION_STRATEGY_TYPES = {
+    "PayForConversion",
+    "PayForConversionPerFilter",
+    "PayForConversionPerCampaign",
+}
+CRR_STRATEGY_TYPES = {
+    "AverageCrr",
+    "AverageCrrPerCampaign",
+}
+GOAL_ID_STRATEGY_TYPES = (
+    CPA_STRATEGY_TYPES
+    | FILTER_CPA_STRATEGY_TYPES
+    | PAY_FOR_CONVERSION_STRATEGY_TYPES
+    | CRR_STRATEGY_TYPES
+)
+
 
 def _parse_priority_goal(spec: str) -> dict:
     """Parse a priority goal spec in GOAL_ID:VALUE format."""
@@ -58,14 +79,19 @@ def _build_strategy_fields(
     if average_cpc is not None:
         fields["AverageCpc"] = average_cpc
     if average_cpa is not None:
-        fields["AverageCpa"] = average_cpa
-    if strategy_type and strategy_type.startswith("AverageCrr"):
+        if strategy_type in PAY_FOR_CONVERSION_STRATEGY_TYPES:
+            fields["Cpa"] = average_cpa
+        elif strategy_type in FILTER_CPA_STRATEGY_TYPES:
+            fields["FilterAverageCpa"] = average_cpa
+        else:
+            fields["AverageCpa"] = average_cpa
+    if strategy_type in CRR_STRATEGY_TYPES:
         if average_crr is not None:
             fields["Crr"] = average_crr
-        if goal_id is not None:
-            fields["GoalId"] = goal_id
     elif average_crr is not None:
         fields["AverageCrr"] = average_crr
+    if strategy_type in GOAL_ID_STRATEGY_TYPES and goal_id is not None:
+        fields["GoalId"] = goal_id
     if spend_limit is not None:
         fields["SpendLimit"] = spend_limit
     if weekly_spend_limit is not None:
@@ -148,7 +174,7 @@ def get(ctx, ids, types, is_archived, limit, fetch_all, output_format, output, f
 @click.option("--average-cpc", type=MICRO_RUBLES, help="Average CPC in micro-rubles")
 @click.option("--average-cpa", type=MICRO_RUBLES, help="Average CPA in micro-rubles")
 @click.option("--average-crr", type=int, help="Average cost revenue ratio")
-@click.option("--goal-id", type=int, help="Goal ID for CRR strategies")
+@click.option("--goal-id", type=int, help="Goal ID for conversion strategies")
 @click.option("--spend-limit", type=MICRO_RUBLES, help="Spend limit in micro-rubles")
 @click.option(
     "--weekly-spend-limit",
@@ -204,9 +230,8 @@ def add(
                 bid_ceiling,
             ),
         }
-        if strategy_type.startswith("AverageCrr") and average_crr is not None:
-            if goal_id is None:
-                raise click.UsageError("Provide --goal-id with --average-crr")
+        if strategy_type in GOAL_ID_STRATEGY_TYPES and goal_id is None:
+            raise click.UsageError("Provide --goal-id for this strategy type")
         if counter_ids:
             strategy_data["CounterIds"] = {
                 "Items": [int(x.strip()) for x in counter_ids.split(",")]
@@ -251,7 +276,7 @@ def add(
 @click.option("--average-cpc", type=MICRO_RUBLES, help="Average CPC in micro-rubles")
 @click.option("--average-cpa", type=MICRO_RUBLES, help="Average CPA in micro-rubles")
 @click.option("--average-crr", type=int, help="Average cost revenue ratio")
-@click.option("--goal-id", type=int, help="Goal ID for CRR strategies")
+@click.option("--goal-id", type=int, help="Goal ID for conversion strategies")
 @click.option("--spend-limit", type=MICRO_RUBLES, help="Spend limit in micro-rubles")
 @click.option(
     "--weekly-spend-limit",
