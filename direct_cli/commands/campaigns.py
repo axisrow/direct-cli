@@ -21,6 +21,35 @@ from ..utils import (
 def campaigns():
     """Manage campaigns"""
 
+CAMPAIGN_GET_SELECTOR_FLAGS = (
+    ("text_campaign_fields", "TextCampaignFieldNames"),
+    (
+        "text_campaign_search_strategy_placement_types_fields",
+        "TextCampaignSearchStrategyPlacementTypesFieldNames",
+    ),
+    ("mobile_app_campaign_fields", "MobileAppCampaignFieldNames"),
+    ("dynamic_text_campaign_fields", "DynamicTextCampaignFieldNames"),
+    (
+        "dynamic_text_campaign_search_strategy_placement_types_fields",
+        "DynamicTextCampaignSearchStrategyPlacementTypesFieldNames",
+    ),
+    ("cpm_banner_campaign_fields", "CpmBannerCampaignFieldNames"),
+    ("smart_campaign_fields", "SmartCampaignFieldNames"),
+    ("unified_campaign_fields", "UnifiedCampaignFieldNames"),
+    (
+        "unified_campaign_search_strategy_placement_types_fields",
+        "UnifiedCampaignSearchStrategyPlacementTypesFieldNames",
+    ),
+    (
+        "unified_campaign_package_bidding_strategy_platforms_fields",
+        "UnifiedCampaignPackageBiddingStrategyPlatformsFieldNames",
+    ),
+)
+
+
+def _parse_csv(value):
+    return [item.strip() for item in value.split(",") if item.strip()]
+
 
 @campaigns.command()
 @click.option("--ids", help="Comma-separated campaign IDs")
@@ -41,6 +70,40 @@ def campaigns():
 @click.option(
     "--fields", help="Comma-separated field names (default: all common fields)"
 )
+@click.option("--text-campaign-fields", help="Comma-separated TextCampaignFieldNames")
+@click.option(
+    "--text-campaign-search-strategy-placement-types-fields",
+    help="Comma-separated TextCampaignSearchStrategyPlacementTypesFieldNames",
+)
+@click.option(
+    "--mobile-app-campaign-fields",
+    help="Comma-separated MobileAppCampaignFieldNames",
+)
+@click.option(
+    "--dynamic-text-campaign-fields",
+    help="Comma-separated DynamicTextCampaignFieldNames",
+)
+@click.option(
+    "--dynamic-text-campaign-search-strategy-placement-types-fields",
+    help="Comma-separated DynamicTextCampaignSearchStrategyPlacementTypesFieldNames",
+)
+@click.option(
+    "--cpm-banner-campaign-fields",
+    help="Comma-separated CpmBannerCampaignFieldNames",
+)
+@click.option("--smart-campaign-fields", help="Comma-separated SmartCampaignFieldNames")
+@click.option(
+    "--unified-campaign-fields",
+    help="Comma-separated UnifiedCampaignFieldNames",
+)
+@click.option(
+    "--unified-campaign-search-strategy-placement-types-fields",
+    help="Comma-separated UnifiedCampaignSearchStrategyPlacementTypesFieldNames",
+)
+@click.option(
+    "--unified-campaign-package-bidding-strategy-platforms-fields",
+    help="Comma-separated UnifiedCampaignPackageBiddingStrategyPlatformsFieldNames",
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def get(
@@ -56,6 +119,16 @@ def get(
     output_format,
     output,
     fields,
+    text_campaign_fields,
+    text_campaign_search_strategy_placement_types_fields,
+    mobile_app_campaign_fields,
+    dynamic_text_campaign_fields,
+    dynamic_text_campaign_search_strategy_placement_types_fields,
+    cpm_banner_campaign_fields,
+    smart_campaign_fields,
+    unified_campaign_fields,
+    unified_campaign_search_strategy_placement_types_fields,
+    unified_campaign_package_bidding_strategy_platforms_fields,
     dry_run,
 ):
     """Get campaigns"""
@@ -70,7 +143,7 @@ def get(
         )
 
         # Parse field names
-        field_names = fields.split(",") if fields else get_default_fields("campaigns")
+        field_names = _parse_csv(fields) if fields else get_default_fields("campaigns")
 
         # Build selection criteria
         criteria = build_selection_criteria(
@@ -86,6 +159,10 @@ def get(
         params = build_common_params(
             criteria=criteria, field_names=field_names, limit=limit
         )
+        local_values = locals()
+        for option_name, request_key in CAMPAIGN_GET_SELECTOR_FLAGS:
+            if local_values[option_name]:
+                params[request_key] = _parse_csv(local_values[option_name])
 
         body = {"method": "get", "params": params}
 
