@@ -37,13 +37,21 @@ def _mock_service_command(module_path, service_name, args):
 
 
 def _dry_run(*args):
-    result = CliRunner().invoke(cli, list(args) + ["--dry-run"])
+    result = CliRunner().invoke(
+        cli,
+        list(args) + ["--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
     assert result.exit_code == 0, result.output
     return json.loads(result.output)
 
 
 def _failing_run(*args):
-    return CliRunner().invoke(cli, list(args))
+    return CliRunner().invoke(
+        cli,
+        list(args),
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
 
 
 def test_changes_check_builds_canonical_payload():
