@@ -1,7 +1,9 @@
 """Authentication commands for OAuth profile management."""
 
 import json
+import sys
 import time
+from typing import Optional, Tuple
 
 import click
 
@@ -13,9 +15,13 @@ from ..auth import (
     get_active_profile,
     get_env_profile,
     get_oauth_profile,
+    get_pending_pkce,
     list_profiles,
+    remove_pending_pkce,
     resolve_login,
     save_oauth_profile,
+    save_pending_confidential_auth,
+    save_pending_pkce,
     set_active_profile,
     validate_oauth_profile,
 )
@@ -34,9 +40,45 @@ def auth():
 @click.option("--client-id", help="Custom OAuth app client_id")
 @click.option("--client-secret", help="Custom OAuth app client_secret")
 @click.option("--login", help="Direct client login for this profile")
-def login(profile, code, oauth_token, client_id, client_secret, login):
+@click.option(
+    "--start-pkce",
+    is_flag=True,
+    help="Start a non-interactive PKCE login and print the authorize URL",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    show_default=True,
+    help="Output format for non-interactive auth start",
+)
+def login(
+    profile,
+    code,
+    oauth_token,
+    client_id,
+    client_secret,
+    login,
+    start_pkce,
+    output_format,
+):
     """Authorize and save OAuth credentials under a profile."""
     chosen_client_id = client_id or DEFAULT_OAUTH_CLIENT_ID
+
+    if start_pkce:
+        if code or oauth_token or client_secret:
+            raise click.ClickException(
+                "--start-pkce cannot be combined with --code, "
+                "--oauth-token, or --client-secret."
+            )
+        _start_noninteractive_pkce(
+            profile=profile,
+            client_id=chosen_client_id,
+            login=login,
+            output_format=output_format,
+        )
+        return
 
     token = oauth_token
     if token:
@@ -53,24 +95,76 @@ def login(profile, code, oauth_token, client_id, client_secret, login):
 
     code_verifier = None
     auth_code = code
+    effective_client_id = chosen_client_id
+    effective_client_secret = client_secret
 
     if not auth_code:
-        if client_secret:
-            auth_url = build_oauth_authorize_url(client_id=chosen_client_id)
-        else:
-            code_verifier, code_challenge = build_pkce_pair()
-            auth_url = build_oauth_authorize_url(
-                client_id=chosen_client_id, code_challenge=code_challenge
+        if not _stdin_is_interactive():
+            _start_noninteractive_auth(
+                profile=profile,
+                client_id=chosen_client_id,
+                client_secret=client_secret,
+                login=login,
+                output_format=output_format,
             )
+            return
+
+        auth_url, code_verifier = _build_interactive_authorize_url(
+            client_id=chosen_client_id,
+            client_secret=client_secret,
+        )
         print_info("Open this URL and grant access:")
         click.echo(auth_url)
         auth_code = click.prompt("Enter OAuth code", type=str).strip()
+    elif not client_secret:
+        pending_pkce = get_pending_pkce(profile)
+        if pending_pkce:
+            if float(pending_pkce["expires_at"]) <= time.time():
+                remove_pending_pkce(profile)
+                pending_pkce = None
+            else:
+                if client_id and client_id != pending_pkce["client_id"]:
+                    raise click.ClickException(
+                        f"--client-id {client_id} does not match pending client_id "
+                        f"for profile '{profile}'."
+                    )
+                effective_client_id = pending_pkce["client_id"]
+                if pending_pkce["type"] == "confidential":
+                    effective_client_secret = pending_pkce["client_secret"]
+                else:
+                    code_verifier = pending_pkce["code_verifier"]
+                if not login:
+                    login = pending_pkce.get("login")
+        if not pending_pkce:
+            remembered_profile = get_oauth_profile(profile)
+            remembered_secret = None
+            remembered_client_id = None
+            if remembered_profile:
+                remembered_secret = remembered_profile.get("client_secret")
+                remembered_client_id = remembered_profile.get("client_id")
+            if (
+                isinstance(remembered_secret, str)
+                and remembered_secret
+                and isinstance(remembered_client_id, str)
+                and remembered_client_id
+            ):
+                if client_id and client_id != remembered_client_id:
+                    raise click.ClickException(
+                        f"--client-id {client_id} does not match saved client_id "
+                        f"for profile '{profile}'."
+                    )
+                effective_client_id = remembered_client_id
+                effective_client_secret = remembered_secret
+                if not login:
+                    login = remembered_profile.get("login")
+            else:
+                raise click.ClickException(_start_pkce_required_message(profile))
 
     try:
         token_response = exchange_oauth_code(
             code=auth_code,
-            client_id=chosen_client_id,
-            client_secret=client_secret,
+            client_id=effective_client_id,
+            client_secret=effective_client_secret,
             code_verifier=code_verifier,
         )
     except RuntimeError as error:
@@ -85,9 +179,10 @@ def login(profile, code, oauth_token, client_id, client_secret, login):
         login=login,
         refresh_token=token_response["refresh_token"],
         expires_at=time.time() + token_response["expires_in"],
-        client_id=chosen_client_id,
-        client_secret=client_secret,
+        client_id=effective_client_id,
+        client_secret=effective_client_secret,
     )
+    remove_pending_pkce(profile)
     print_success(f"Profile '{profile}' is saved and active.")
 
 
@@ -200,3 +295,111 @@ def _format_duration(seconds: int) -> str:
     if not parts:
         parts.append(f"{seconds}s")
     return " ".join(parts)
+
+
+def _stdin_is_interactive() -> bool:
+    """Return whether stdin can be used for an OAuth code prompt."""
+    return sys.stdin.isatty()
+
+
+def _build_interactive_authorize_url(
+    client_id: str, client_secret: Optional[str] = None
+) -> Tuple[str, Optional[str]]:
+    """Build an authorize URL for same-process interactive login."""
+    if client_secret:
+        return build_oauth_authorize_url(client_id=client_id), None
+    code_verifier, code_challenge = build_pkce_pair()
+    auth_url = build_oauth_authorize_url(
+        client_id=client_id, code_challenge=code_challenge
+    )
+    return auth_url, code_verifier
+
+
+def _start_noninteractive_auth(
+    profile: str,
+    client_id: str,
+    client_secret: Optional[str],
+    login: Optional[str],
+    output_format: str,
+) -> None:
+    """Persist pending state and print the authorize URL without prompting."""
+    if client_secret:
+        pending = save_pending_confidential_auth(
+            profile=profile,
+            client_id=client_id,
+            client_secret=client_secret,
+            login=login,
+            created_at=time.time(),
+        )
+        auth_url = build_oauth_authorize_url(client_id=client_id)
+    else:
+        _start_noninteractive_pkce(
+            profile=profile,
+            client_id=client_id,
+            login=login,
+            output_format=output_format,
+        )
+        return
+
+    _print_start_auth_output(
+        profile=profile,
+        auth_url=auth_url,
+        expires_at=pending["expires_at"],
+        output_format=output_format,
+    )
+
+
+def _start_noninteractive_pkce(
+    profile: str,
+    client_id: str,
+    login: Optional[str],
+    output_format: str,
+) -> None:
+    """Persist pending PKCE state and print the authorize URL."""
+    code_verifier, code_challenge = build_pkce_pair()
+    pending = save_pending_pkce(
+        profile=profile,
+        client_id=client_id,
+        code_verifier=code_verifier,
+        login=login,
+        created_at=time.time(),
+    )
+    auth_url = build_oauth_authorize_url(
+        client_id=client_id, code_challenge=code_challenge
+    )
+    _print_start_auth_output(
+        profile=profile,
+        auth_url=auth_url,
+        expires_at=pending["expires_at"],
+        output_format=output_format,
+    )
+
+
+def _print_start_auth_output(
+    profile: str,
+    auth_url: str,
+    expires_at: float,
+    output_format: str,
+) -> None:
+    """Print the non-interactive auth start response without secrets."""
+    if output_format == "json":
+        click.echo(
+            json.dumps(
+                {
+                    "profile": profile,
+                    "authorize_url": auth_url,
+                    "expires_at": expires_at,
+                },
+                ensure_ascii=False,
+            )
+        )
+        return
+    print_info("Open this URL and grant access:")
+    click.echo(auth_url)
+
+
+def _start_pkce_required_message(profile: str) -> str:
+    return (
+        "Missing or expired pending PKCE state. "
+        f"Run direct auth login --profile {profile} first."
+    )
