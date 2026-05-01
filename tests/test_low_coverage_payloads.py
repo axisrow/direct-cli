@@ -235,6 +235,59 @@ def test_strategies_add_all_typed_strategy_fields_payload():
     assert strategy["AttributionModel"] == "LYDC"
 
 
+def test_strategies_add_average_crr_payload_uses_api_field_names():
+    body = _dry_run(
+        "strategies",
+        "add",
+        "--name",
+        "Average CRR",
+        "--type",
+        "AverageCrr",
+        "--average-crr",
+        "25",
+        "--goal-id",
+        "123",
+    )
+
+    strategy = body["params"]["Strategies"][0]
+    assert strategy["AverageCrr"] == {"Crr": 25, "GoalId": 123}
+
+
+def test_strategies_add_average_crr_requires_goal_id():
+    result = _failing_run(
+        "strategies",
+        "add",
+        "--name",
+        "Average CRR",
+        "--type",
+        "AverageCrr",
+        "--average-crr",
+        "25",
+        "--dry-run",
+    )
+
+    assert result.exit_code != 0
+    assert "Provide --goal-id with --average-crr" in result.output
+
+
+def test_strategies_update_average_crr_payload_uses_api_field_names():
+    body = _dry_run(
+        "strategies",
+        "update",
+        "--id",
+        "42",
+        "--type",
+        "AverageCrr",
+        "--average-crr",
+        "30",
+        "--goal-id",
+        "456",
+    )
+
+    strategy = body["params"]["Strategies"][0]
+    assert strategy["AverageCrr"] == {"Crr": 30, "GoalId": 456}
+
+
 def test_strategies_update_typed_metadata_payload():
     body = _dry_run(
         "strategies",
@@ -537,7 +590,7 @@ def test_audiencetargets_set_bids_requires_selector_and_bid_fields():
     no_bid = _failing_run("audiencetargets", "set-bids", "--id", "42", "--dry-run")
 
     assert no_selector.exit_code != 0
-    assert "Provide target selection and bid fields" in no_selector.output
+    assert "Provide a target selector" in no_selector.output
     assert no_bid.exit_code != 0
     assert "Provide at least one bid field" in no_bid.output
 
@@ -553,7 +606,7 @@ def test_dynamicads_set_bids_requires_selector_and_bid_fields():
     no_bid = _failing_run("dynamicads", "set-bids", "--id", "42", "--dry-run")
 
     assert no_selector.exit_code != 0
-    assert "Provide target selection and bid fields" in no_selector.output
+    assert "Provide a target selector" in no_selector.output
     assert no_bid.exit_code != 0
     assert "Provide at least one bid field" in no_bid.output
 

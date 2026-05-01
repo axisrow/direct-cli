@@ -264,7 +264,7 @@ def set_bids(
         }
         if not selector_fields:
             raise click.UsageError(
-                "Provide target selection and bid fields for set-bids"
+                "Provide a target selector (--id, --adgroup-id, or --campaign-id)"
             )
         if not bid_fields:
             raise click.UsageError(

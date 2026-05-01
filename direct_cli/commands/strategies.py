@@ -44,9 +44,11 @@ def _parse_priority_goal(spec: str) -> dict:
 
 
 def _build_strategy_fields(
+    strategy_type,
     average_cpc,
     average_cpa,
     average_crr,
+    goal_id,
     spend_limit,
     weekly_spend_limit,
     bid_ceiling,
@@ -57,7 +59,12 @@ def _build_strategy_fields(
         fields["AverageCpc"] = average_cpc
     if average_cpa is not None:
         fields["AverageCpa"] = average_cpa
-    if average_crr is not None:
+    if strategy_type and strategy_type.startswith("AverageCrr"):
+        if average_crr is not None:
+            fields["Crr"] = average_crr
+        if goal_id is not None:
+            fields["GoalId"] = goal_id
+    elif average_crr is not None:
         fields["AverageCrr"] = average_crr
     if spend_limit is not None:
         fields["SpendLimit"] = spend_limit
@@ -141,6 +148,7 @@ def get(ctx, ids, types, is_archived, limit, fetch_all, output_format, output, f
 @click.option("--average-cpc", type=MICRO_RUBLES, help="Average CPC in micro-rubles")
 @click.option("--average-cpa", type=MICRO_RUBLES, help="Average CPA in micro-rubles")
 @click.option("--average-crr", type=int, help="Average cost revenue ratio")
+@click.option("--goal-id", type=int, help="Goal ID for CRR strategies")
 @click.option("--spend-limit", type=MICRO_RUBLES, help="Spend limit in micro-rubles")
 @click.option(
     "--weekly-spend-limit",
@@ -172,6 +180,7 @@ def add(
     average_cpc,
     average_cpa,
     average_crr,
+    goal_id,
     spend_limit,
     weekly_spend_limit,
     bid_ceiling,
@@ -185,14 +194,19 @@ def add(
         strategy_data = {
             "Name": name,
             strategy_type: _build_strategy_fields(
+                strategy_type,
                 average_cpc,
                 average_cpa,
                 average_crr,
+                goal_id,
                 spend_limit,
                 weekly_spend_limit,
                 bid_ceiling,
             ),
         }
+        if strategy_type.startswith("AverageCrr") and average_crr is not None:
+            if goal_id is None:
+                raise click.UsageError("Provide --goal-id with --average-crr")
         if counter_ids:
             strategy_data["CounterIds"] = {
                 "Items": [int(x.strip()) for x in counter_ids.split(",")]
@@ -237,6 +251,7 @@ def add(
 @click.option("--average-cpc", type=MICRO_RUBLES, help="Average CPC in micro-rubles")
 @click.option("--average-cpa", type=MICRO_RUBLES, help="Average CPA in micro-rubles")
 @click.option("--average-crr", type=int, help="Average cost revenue ratio")
+@click.option("--goal-id", type=int, help="Goal ID for CRR strategies")
 @click.option("--spend-limit", type=MICRO_RUBLES, help="Spend limit in micro-rubles")
 @click.option(
     "--weekly-spend-limit",
@@ -269,6 +284,7 @@ def update(
     average_cpc,
     average_cpa,
     average_crr,
+    goal_id,
     spend_limit,
     weekly_spend_limit,
     bid_ceiling,
@@ -283,9 +299,11 @@ def update(
         if name:
             strategy_data["Name"] = name
         strategy_fields = _build_strategy_fields(
+            strategy_type,
             average_cpc,
             average_cpa,
             average_crr,
+            goal_id,
             spend_limit,
             weekly_spend_limit,
             bid_ceiling,
