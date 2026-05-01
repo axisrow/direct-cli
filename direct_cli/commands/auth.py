@@ -36,6 +36,11 @@ def auth():
 @auth.command()
 @click.option("--profile", default="default", show_default=True, help="Profile name")
 @click.option("--code", help="OAuth authorization code")
+@click.option(
+    "--code-stdin",
+    is_flag=True,
+    help="Read OAuth authorization code from stdin",
+)
 @click.option("--oauth-token", help="Ready OAuth access token")
 @click.option("--client-id", help="Custom OAuth app client_id")
 @click.option("--client-secret", help="Custom OAuth app client_secret")
@@ -56,6 +61,7 @@ def auth():
 def login(
     profile,
     code,
+    code_stdin,
     oauth_token,
     client_id,
     client_secret,
@@ -65,6 +71,16 @@ def login(
 ):
     """Authorize and save OAuth credentials under a profile."""
     chosen_client_id = client_id or DEFAULT_OAUTH_CLIENT_ID
+
+    if code_stdin:
+        if code or oauth_token or start_pkce:
+            raise click.ClickException(
+                "--code-stdin cannot be combined with --code, "
+                "--oauth-token, or --start-pkce."
+            )
+        code = sys.stdin.read().strip()
+        if not code:
+            raise click.ClickException("--code-stdin requires a code on stdin.")
 
     if start_pkce:
         if code or oauth_token or client_secret:

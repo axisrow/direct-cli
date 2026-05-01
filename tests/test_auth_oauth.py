@@ -451,6 +451,129 @@ class TestAuthOAuth:
         assert result.exit_code != 0
         assert "direct auth login --profile agency1" in result.output
 
+    @patch(
+        "direct_cli.commands.auth.exchange_oauth_code",
+        return_value={
+            "access_token": "y0_pkce",
+            "refresh_token": "r1",
+            "expires_in": 3600,
+        },
+    )
+    @patch("direct_cli.commands.auth.time.time", return_value=1000.0)
+    def test_auth_login_code_stdin_uses_pending_pkce_state(
+        self, mock_time, mock_exchange, isolated_auth_store
+    ):
+        save_auth_store(
+            {
+                "profiles": {},
+                "active_profile": None,
+                "pending_pkce": {
+                    "agency1": {
+                        "type": "pkce",
+                        "client_id": "cid",
+                        "code_verifier": "ver",
+                        "login": "client-login",
+                        "created_at": 900.0,
+                        "expires_at": 1500.0,
+                    }
+                },
+            }
+        )
+        runner = CliRunner()
+
+        result = runner.invoke(
+            cli,
+            ["auth", "login", "--profile", "agency1", "--code-stdin"],
+            input="abc123\n",
+        )
+
+        assert result.exit_code == 0
+        assert "abc123" not in result.output
+        mock_exchange.assert_called_once_with(
+            code="abc123",
+            client_id="cid",
+            client_secret=None,
+            code_verifier="ver",
+        )
+        store = load_auth_store()
+        assert "agency1" not in store["pending_pkce"]
+        profile = store["profiles"]["agency1"]
+        assert profile["token"] == "y0_pkce"
+        assert profile["login"] == "client-login"
+
+    def test_auth_login_code_stdin_requires_input(self, isolated_auth_store):
+        runner = CliRunner()
+
+        result = runner.invoke(
+            cli,
+            ["auth", "login", "--profile", "agency1", "--code-stdin"],
+            input="\n",
+        )
+
+        assert result.exit_code != 0
+        assert "--code-stdin requires a code on stdin" in result.output
+
+    def test_auth_login_code_stdin_conflicts_with_code(self, isolated_auth_store):
+        runner = CliRunner()
+
+        result = runner.invoke(
+            cli,
+            [
+                "auth",
+                "login",
+                "--profile",
+                "agency1",
+                "--code",
+                "abc123",
+                "--code-stdin",
+            ],
+            input="stdin-code\n",
+        )
+
+        assert result.exit_code != 0
+        assert "--code-stdin cannot be combined with --code" in result.output
+
+    @patch(
+        "direct_cli.commands.auth.exchange_oauth_code",
+        return_value={
+            "access_token": "new-access",
+            "refresh_token": "new-refresh",
+            "expires_in": 3600,
+        },
+    )
+    @patch("direct_cli.commands.auth.time.time", return_value=1000.0)
+    def test_auth_login_code_stdin_custom_app(
+        self, mock_time, mock_exchange, isolated_auth_store
+    ):
+        runner = CliRunner()
+
+        result = runner.invoke(
+            cli,
+            [
+                "auth",
+                "login",
+                "--profile",
+                "agency1",
+                "--code-stdin",
+                "--client-id",
+                "cid",
+                "--client-secret",
+                "csecret",
+            ],
+            input="abc123\n",
+        )
+
+        assert result.exit_code == 0
+        assert "abc123" not in result.output
+        mock_exchange.assert_called_once_with(
+            code="abc123",
+            client_id="cid",
+            client_secret="csecret",
+            code_verifier=None,
+        )
+        profile = load_auth_store()["profiles"]["agency1"]
+        assert profile["client_secret"] == "csecret"
+
     @patch("direct_cli.commands.auth.time.time", return_value=1000.0)
     def test_auth_login_code_mode_expired_pending_pkce_without_secret_fails(
         self, mock_time, isolated_auth_store
