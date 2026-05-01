@@ -45,7 +45,7 @@ direct auth login
 direct auth login --profile agency1
 direct auth login --profile agency1 --format json
 direct auth login --code abc123 --profile agency1
-printf '%s\n' abc123 | direct auth login --code-stdin --profile agency1
+printf '%s\n' abc123 | direct auth login --code - --profile agency1
 direct auth list
 direct auth use --profile agency1
 direct auth status --profile agency1
@@ -58,8 +58,8 @@ Notes:
 - `--login` remains Direct client login.
 - Authorization is performed via `direct auth login`.
 - OAuth profiles store refresh tokens and refresh access tokens automatically.
-- In a non-interactive shell, run `direct auth login --profile NAME` first, then finish with `direct auth login --code-stdin --profile NAME` and pass the browser code on stdin.
-- `direct auth login --code CODE --profile NAME` remains supported for compatibility, but `--code-stdin` avoids exposing the code in process arguments.
+- In a non-interactive shell, run `direct auth login --profile NAME` first, then finish with `direct auth login --code - --profile NAME` and pass the browser code on stdin.
+- `direct auth login --code CODE --profile NAME` remains supported for compatibility, but automation should use `--code -` to avoid exposing the code in process arguments.
 - If the first non-interactive step includes `--client-secret`, the secret is remembered for the matching completion step.
 - If a profile already stores a confidential OAuth client, `direct auth login --code CODE --profile NAME` reuses the saved `client_id` and `client_secret`.
 - `direct auth login --oauth-token TOKEN` is a manual access-token import and does not auto-refresh.
@@ -707,7 +707,7 @@ direct auth login
 direct auth login --profile agency1
 direct auth login --profile agency1 --format json
 direct auth login --code abc123 --profile agency1
-printf '%s\n' abc123 | direct auth login --code-stdin --profile agency1
+printf '%s\n' abc123 | direct auth login --code - --profile agency1
 direct auth list
 direct auth use --profile agency1
 direct auth status --profile agency1
@@ -716,8 +716,8 @@ direct --profile agency1 campaigns get
 
 Примечания:
 - OAuth profiles сохраняют refresh token и автоматически обновляют access token.
-- В non-interactive shell сначала выполните `direct auth login --profile NAME`, затем завершите через `direct auth login --code-stdin --profile NAME` и передайте browser code через stdin.
-- `direct auth login --code CODE --profile NAME` сохраняется для совместимости, но `--code-stdin` не раскрывает код в process arguments.
+- В non-interactive shell сначала выполните `direct auth login --profile NAME`, затем завершите через `direct auth login --code - --profile NAME` и передайте browser code через stdin.
+- `direct auth login --code CODE --profile NAME` сохраняется для совместимости, но automation должна использовать `--code -`, чтобы не раскрывать код в process arguments.
 - Если первый non-interactive шаг включает `--client-secret`, secret запоминается для последующего completion step.
 - Если profile уже хранит confidential OAuth client, `direct auth login --code CODE --profile NAME` использует сохраненные `client_id` и `client_secret`.
 - `direct auth login --oauth-token TOKEN` импортирует access token вручную и не включает auto-refresh.

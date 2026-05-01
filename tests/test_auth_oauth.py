@@ -460,7 +460,57 @@ class TestAuthOAuth:
         },
     )
     @patch("direct_cli.commands.auth.time.time", return_value=1000.0)
-    def test_auth_login_code_stdin_uses_pending_pkce_state(
+    def test_auth_login_code_dash_uses_pending_pkce_state(
+        self, mock_time, mock_exchange, isolated_auth_store
+    ):
+        save_auth_store(
+            {
+                "profiles": {},
+                "active_profile": None,
+                "pending_pkce": {
+                    "agency1": {
+                        "type": "pkce",
+                        "client_id": "cid",
+                        "code_verifier": "ver",
+                        "login": "client-login",
+                        "created_at": 900.0,
+                        "expires_at": 1500.0,
+                    }
+                },
+            }
+        )
+        runner = CliRunner()
+
+        result = runner.invoke(
+            cli,
+            ["auth", "login", "--profile", "agency1", "--code", "-"],
+            input="abc123\n",
+        )
+
+        assert result.exit_code == 0
+        assert "abc123" not in result.output
+        mock_exchange.assert_called_once_with(
+            code="abc123",
+            client_id="cid",
+            client_secret=None,
+            code_verifier="ver",
+        )
+        store = load_auth_store()
+        assert "agency1" not in store["pending_pkce"]
+        profile = store["profiles"]["agency1"]
+        assert profile["token"] == "y0_pkce"
+        assert profile["login"] == "client-login"
+
+    @patch(
+        "direct_cli.commands.auth.exchange_oauth_code",
+        return_value={
+            "access_token": "y0_pkce",
+            "refresh_token": "r1",
+            "expires_in": 3600,
+        },
+    )
+    @patch("direct_cli.commands.auth.time.time", return_value=1000.0)
+    def test_auth_login_code_stdin_alias_uses_pending_pkce_state(
         self, mock_time, mock_exchange, isolated_auth_store
     ):
         save_auth_store(
@@ -495,25 +545,41 @@ class TestAuthOAuth:
             client_secret=None,
             code_verifier="ver",
         )
-        store = load_auth_store()
-        assert "agency1" not in store["pending_pkce"]
-        profile = store["profiles"]["agency1"]
-        assert profile["token"] == "y0_pkce"
-        assert profile["login"] == "client-login"
 
-    def test_auth_login_code_stdin_requires_input(self, isolated_auth_store):
+    def test_auth_login_code_dash_requires_input(self, isolated_auth_store):
         runner = CliRunner()
 
         result = runner.invoke(
             cli,
-            ["auth", "login", "--profile", "agency1", "--code-stdin"],
+            ["auth", "login", "--profile", "agency1", "--code", "-"],
             input="\n",
         )
 
         assert result.exit_code != 0
-        assert "--code-stdin requires a code on stdin" in result.output
+        assert "--code - requires a code on stdin" in result.output
 
-    def test_auth_login_code_stdin_conflicts_with_code(self, isolated_auth_store):
+    def test_auth_login_code_dash_conflicts_before_reading_stdin(
+        self, isolated_auth_store
+    ):
+        runner = CliRunner()
+
+        result = runner.invoke(
+            cli,
+            [
+                "auth",
+                "login",
+                "--profile",
+                "agency1",
+                "--code",
+                "-",
+                "--start-pkce",
+            ],
+        )
+
+        assert result.exit_code != 0
+        assert "--code - cannot be combined" in result.output
+
+    def test_auth_login_code_stdin_alias_conflicts_with_code(self, isolated_auth_store):
         runner = CliRunner()
 
         result = runner.invoke(
@@ -542,7 +608,7 @@ class TestAuthOAuth:
         },
     )
     @patch("direct_cli.commands.auth.time.time", return_value=1000.0)
-    def test_auth_login_code_stdin_custom_app(
+    def test_auth_login_code_dash_custom_app(
         self, mock_time, mock_exchange, isolated_auth_store
     ):
         runner = CliRunner()
@@ -554,7 +620,8 @@ class TestAuthOAuth:
                 "login",
                 "--profile",
                 "agency1",
-                "--code-stdin",
+                "--code",
+                "-",
                 "--client-id",
                 "cid",
                 "--client-secret",
