@@ -35,10 +35,14 @@ def auth():
 
 @auth.command()
 @click.option("--profile", default="default", show_default=True, help="Profile name")
-@click.option("--code", help="OAuth authorization code")
+@click.option(
+    "--code",
+    help="OAuth authorization code; use '-' to read from stdin for automation",
+)
 @click.option(
     "--code-stdin",
     is_flag=True,
+    hidden=True,
     help="Read OAuth authorization code from stdin",
 )
 @click.option("--oauth-token", help="Ready OAuth access token")
@@ -78,9 +82,16 @@ def login(
                 "--code-stdin cannot be combined with --code, "
                 "--oauth-token, or --start-pkce."
             )
+        code = "-"
+
+    if code == "-":
+        if oauth_token or start_pkce:
+            raise click.ClickException(
+                "--code - cannot be combined with --oauth-token or --start-pkce."
+            )
         code = sys.stdin.read().strip()
         if not code:
-            raise click.ClickException("--code-stdin requires a code on stdin.")
+            raise click.ClickException("--code - requires a code on stdin.")
 
     if start_pkce:
         if code or oauth_token or client_secret:
