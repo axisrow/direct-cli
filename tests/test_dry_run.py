@@ -326,6 +326,130 @@ def test_advideos_get_ids_required():
     assert "Missing option '--ids'" in result.output
 
 
+def test_campaigns_get_text_campaign_fields_dry_run():
+    body = _read_dry_run(
+        "campaigns",
+        "get",
+        "--fields",
+        "Id,Name,State",
+        "--text-campaign-fields",
+        "BiddingStrategy",
+    )
+
+    assert body["params"]["FieldNames"] == ["Id", "Name", "State"]
+    assert body["params"]["TextCampaignFieldNames"] == ["BiddingStrategy"]
+
+
+def test_campaigns_get_campaign_specific_fields_dry_run():
+    body = _read_dry_run(
+        "campaigns",
+        "get",
+        "--text-campaign-fields",
+        "BiddingStrategy,PriorityGoals",
+        "--mobile-app-campaign-fields",
+        "Settings,BiddingStrategy",
+        "--dynamic-text-campaign-fields",
+        "BiddingStrategy,Settings",
+        "--cpm-banner-campaign-fields",
+        "BiddingStrategy,Settings",
+        "--smart-campaign-fields",
+        "BiddingStrategy,Settings",
+        "--unified-campaign-fields",
+        "BiddingStrategy,PriorityGoals",
+    )
+
+    params = body["params"]
+    assert params["TextCampaignFieldNames"] == ["BiddingStrategy", "PriorityGoals"]
+    assert params["MobileAppCampaignFieldNames"] == ["Settings", "BiddingStrategy"]
+    assert params["DynamicTextCampaignFieldNames"] == ["BiddingStrategy", "Settings"]
+    assert params["CpmBannerCampaignFieldNames"] == ["BiddingStrategy", "Settings"]
+    assert params["SmartCampaignFieldNames"] == ["BiddingStrategy", "Settings"]
+    assert params["UnifiedCampaignFieldNames"] == ["BiddingStrategy", "PriorityGoals"]
+
+
+def test_campaigns_get_strategy_placement_fields_dry_run():
+    body = _read_dry_run(
+        "campaigns",
+        "get",
+        "--text-campaign-search-strategy-placement-types-fields",
+        "SearchResults,ProductGallery",
+        "--dynamic-text-campaign-search-strategy-placement-types-fields",
+        "SearchResults,DynamicPlaces",
+        "--unified-campaign-search-strategy-placement-types-fields",
+        "SearchResults,Maps,SearchOrganizationList",
+        "--unified-campaign-package-bidding-strategy-platforms-fields",
+        "SearchResult,Network",
+    )
+
+    params = body["params"]
+    assert params["TextCampaignSearchStrategyPlacementTypesFieldNames"] == [
+        "SearchResults",
+        "ProductGallery",
+    ]
+    assert params["DynamicTextCampaignSearchStrategyPlacementTypesFieldNames"] == [
+        "SearchResults",
+        "DynamicPlaces",
+    ]
+    assert params["UnifiedCampaignSearchStrategyPlacementTypesFieldNames"] == [
+        "SearchResults",
+        "Maps",
+        "SearchOrganizationList",
+    ]
+    assert params["UnifiedCampaignPackageBiddingStrategyPlatformsFieldNames"] == [
+        "SearchResult",
+        "Network",
+    ]
+
+
+def test_campaigns_get_omits_campaign_specific_fields_by_default():
+    body = _read_dry_run("campaigns", "get", "--fields", "Id,Name,State")
+
+    omitted_keys = {
+        "TextCampaignFieldNames",
+        "TextCampaignSearchStrategyPlacementTypesFieldNames",
+        "MobileAppCampaignFieldNames",
+        "DynamicTextCampaignFieldNames",
+        "DynamicTextCampaignSearchStrategyPlacementTypesFieldNames",
+        "CpmBannerCampaignFieldNames",
+        "SmartCampaignFieldNames",
+        "UnifiedCampaignFieldNames",
+        "UnifiedCampaignSearchStrategyPlacementTypesFieldNames",
+        "UnifiedCampaignPackageBiddingStrategyPlatformsFieldNames",
+    }
+    assert body["params"]["FieldNames"] == ["Id", "Name", "State"]
+    assert omitted_keys.isdisjoint(body["params"])
+
+
+def test_campaigns_get_rejects_empty_fields_csv():
+    result = CliRunner().invoke(
+        cli,
+        ["campaigns", "get", "--fields", ",", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+
+    assert result.exit_code != 0
+    assert "--fields must contain at least one value" in result.output
+
+
+def test_campaigns_get_rejects_empty_campaign_specific_fields_csv():
+    result = CliRunner().invoke(
+        cli,
+        [
+            "campaigns",
+            "get",
+            "--fields",
+            "Id",
+            "--text-campaign-fields",
+            ",",
+            "--dry-run",
+        ],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+
+    assert result.exit_code != 0
+    assert "--text-campaign-fields must contain at least one value" in result.output
+
+
 def _reports_get_result(*extra_args: str) -> Result:
     return CliRunner().invoke(
         cli,
