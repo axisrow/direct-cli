@@ -2,6 +2,8 @@
 Campaigns commands
 """
 
+from typing import List, Optional
+
 import click
 
 from ..api import create_client
@@ -13,6 +15,7 @@ from ..utils import (
     get_default_fields,
     MICRO_RUBLES,
     parse_ids,
+    parse_csv_strings,
     parse_setting_specs,
 )
 
@@ -21,34 +24,13 @@ from ..utils import (
 def campaigns():
     """Manage campaigns"""
 
-CAMPAIGN_GET_SELECTOR_FLAGS = (
-    ("text_campaign_fields", "TextCampaignFieldNames"),
-    (
-        "text_campaign_search_strategy_placement_types_fields",
-        "TextCampaignSearchStrategyPlacementTypesFieldNames",
-    ),
-    ("mobile_app_campaign_fields", "MobileAppCampaignFieldNames"),
-    ("dynamic_text_campaign_fields", "DynamicTextCampaignFieldNames"),
-    (
-        "dynamic_text_campaign_search_strategy_placement_types_fields",
-        "DynamicTextCampaignSearchStrategyPlacementTypesFieldNames",
-    ),
-    ("cpm_banner_campaign_fields", "CpmBannerCampaignFieldNames"),
-    ("smart_campaign_fields", "SmartCampaignFieldNames"),
-    ("unified_campaign_fields", "UnifiedCampaignFieldNames"),
-    (
-        "unified_campaign_search_strategy_placement_types_fields",
-        "UnifiedCampaignSearchStrategyPlacementTypesFieldNames",
-    ),
-    (
-        "unified_campaign_package_bidding_strategy_platforms_fields",
-        "UnifiedCampaignPackageBiddingStrategyPlatformsFieldNames",
-    ),
-)
 
-
-def _parse_csv(value):
-    return [item.strip() for item in value.split(",") if item.strip()]
+def _parse_csv_option(option_name: str, value: Optional[str]) -> Optional[List[str]]:
+    """Parse a CSV option and reject explicitly empty input."""
+    parsed = parse_csv_strings(value)
+    if value is not None and not parsed:
+        raise click.UsageError(f"{option_name} must contain at least one value")
+    return parsed
 
 
 @campaigns.command()
@@ -143,7 +125,11 @@ def get(
         )
 
         # Parse field names
-        field_names = _parse_csv(fields) if fields else get_default_fields("campaigns")
+        field_names = (
+            _parse_csv_option("--fields", fields)
+            if fields is not None
+            else get_default_fields("campaigns")
+        )
 
         # Build selection criteria
         criteria = build_selection_criteria(
@@ -159,10 +145,52 @@ def get(
         params = build_common_params(
             criteria=criteria, field_names=field_names, limit=limit
         )
-        local_values = locals()
-        for option_name, request_key in CAMPAIGN_GET_SELECTOR_FLAGS:
-            if local_values[option_name]:
-                params[request_key] = _parse_csv(local_values[option_name])
+        selector_options = {
+            "TextCampaignFieldNames": (
+                "--text-campaign-fields",
+                text_campaign_fields,
+            ),
+            "TextCampaignSearchStrategyPlacementTypesFieldNames": (
+                "--text-campaign-search-strategy-placement-types-fields",
+                text_campaign_search_strategy_placement_types_fields,
+            ),
+            "MobileAppCampaignFieldNames": (
+                "--mobile-app-campaign-fields",
+                mobile_app_campaign_fields,
+            ),
+            "DynamicTextCampaignFieldNames": (
+                "--dynamic-text-campaign-fields",
+                dynamic_text_campaign_fields,
+            ),
+            "DynamicTextCampaignSearchStrategyPlacementTypesFieldNames": (
+                "--dynamic-text-campaign-search-strategy-placement-types-fields",
+                dynamic_text_campaign_search_strategy_placement_types_fields,
+            ),
+            "CpmBannerCampaignFieldNames": (
+                "--cpm-banner-campaign-fields",
+                cpm_banner_campaign_fields,
+            ),
+            "SmartCampaignFieldNames": (
+                "--smart-campaign-fields",
+                smart_campaign_fields,
+            ),
+            "UnifiedCampaignFieldNames": (
+                "--unified-campaign-fields",
+                unified_campaign_fields,
+            ),
+            "UnifiedCampaignSearchStrategyPlacementTypesFieldNames": (
+                "--unified-campaign-search-strategy-placement-types-fields",
+                unified_campaign_search_strategy_placement_types_fields,
+            ),
+            "UnifiedCampaignPackageBiddingStrategyPlatformsFieldNames": (
+                "--unified-campaign-package-bidding-strategy-platforms-fields",
+                unified_campaign_package_bidding_strategy_platforms_fields,
+            ),
+        }
+        for request_key, (option_name, value) in selector_options.items():
+            parsed = _parse_csv_option(option_name, value)
+            if parsed:
+                params[request_key] = parsed
 
         body = {"method": "get", "params": params}
 

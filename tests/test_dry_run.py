@@ -420,6 +420,36 @@ def test_campaigns_get_omits_campaign_specific_fields_by_default():
     assert omitted_keys.isdisjoint(body["params"])
 
 
+def test_campaigns_get_rejects_empty_fields_csv():
+    result = CliRunner().invoke(
+        cli,
+        ["campaigns", "get", "--fields", ",", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+
+    assert result.exit_code != 0
+    assert "--fields must contain at least one value" in result.output
+
+
+def test_campaigns_get_rejects_empty_campaign_specific_fields_csv():
+    result = CliRunner().invoke(
+        cli,
+        [
+            "campaigns",
+            "get",
+            "--fields",
+            "Id",
+            "--text-campaign-fields",
+            ",",
+            "--dry-run",
+        ],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+
+    assert result.exit_code != 0
+    assert "--text-campaign-fields must contain at least one value" in result.output
+
+
 def _reports_get_result(*extra_args: str) -> Result:
     return CliRunner().invoke(
         cli,
