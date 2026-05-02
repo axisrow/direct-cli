@@ -35,7 +35,10 @@ def auth():
 
 @auth.command()
 @click.option("--profile", default="default", show_default=True, help="Profile name")
-@click.option("--code", help="OAuth authorization code")
+@click.option(
+    "--code",
+    help="OAuth authorization code; use '-' to read from stdin for automation",
+)
 @click.option(
     "--code-stdin",
     is_flag=True,

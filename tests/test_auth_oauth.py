@@ -579,6 +579,29 @@ class TestAuthOAuth:
         assert result.exit_code != 0
         assert "--code - cannot be combined" in result.output
 
+    def test_auth_login_code_dash_oauth_token_conflict_before_reading_stdin(
+        self, isolated_auth_store
+    ):
+        runner = CliRunner()
+
+        result = runner.invoke(
+            cli,
+            [
+                "auth",
+                "login",
+                "--profile",
+                "agency1",
+                "--code",
+                "-",
+                "--oauth-token",
+                "token",
+            ],
+        )
+
+        assert result.exit_code != 0
+        assert "--code - cannot be combined" in result.output
+        assert "--code - requires a code on stdin" not in result.output
+
     def test_auth_login_code_stdin_alias_conflicts_with_code(self, isolated_auth_store):
         runner = CliRunner()
 

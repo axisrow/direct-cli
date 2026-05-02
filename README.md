@@ -717,7 +717,7 @@ direct --profile agency1 campaigns get
 Примечания:
 - OAuth profiles сохраняют refresh token и автоматически обновляют access token.
 - В non-interactive shell сначала выполните `direct auth login --profile NAME`, затем завершите через `direct auth login --code - --profile NAME` и передайте browser code через stdin.
-- `direct auth login --code CODE --profile NAME` сохраняется для совместимости, но automation должна использовать `--code -`, чтобы не раскрывать код в process arguments.
+- `direct auth login --code CODE --profile NAME` сохраняется для совместимости, но автоматизация должна использовать `--code -`, чтобы не раскрывать код в process arguments.
 - Если первый non-interactive шаг включает `--client-secret`, secret запоминается для последующего completion step.
 - Если profile уже хранит confidential OAuth client, `direct auth login --code CODE --profile NAME` использует сохраненные `client_id` и `client_secret`.
 - `direct auth login --oauth-token TOKEN` импортирует access token вручную и не включает auto-refresh.
