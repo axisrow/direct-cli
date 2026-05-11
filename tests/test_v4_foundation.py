@@ -72,6 +72,7 @@ def test_v4_groups_appear_in_root_help():
         "v4goals",
         "v4events",
         "v4wordstat",
+        "v4tags",
         "v4forecast",
         "v4meta",
     ]:
@@ -87,6 +88,7 @@ def test_v4_group_help_does_not_mention_json_input():
         "v4goals",
         "v4events",
         "v4wordstat",
+        "v4tags",
         "v4forecast",
         "v4meta",
     ]:

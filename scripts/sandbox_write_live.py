@@ -208,6 +208,8 @@ class LiveSandboxRunner:
             "strategies.update": self.run_strategy_id_command,
             "v4account.account-management": self.run_v4account_account_management,
             "v4account.enable-shared-account": self.run_v4account_enable_shared_account,
+            "v4tags.update-banners": self.run_not_covered,
+            "v4tags.update-campaigns": self.run_not_covered,
             "v4wordstat.create-report": self.run_v4wordstat_create_report,
             "v4wordstat.delete-report": self.run_v4wordstat_delete_report,
             "vcards.add": self.run_vcard_add,
@@ -430,8 +432,7 @@ class LiveSandboxRunner:
                 command=matrix_command,
                 status=NOT_COVERED,
                 detail=(
-                    "set YANDEX_DIRECT_V4ACCOUNT_CLIENT_LOGIN or "
-                    "YANDEX_DIRECT_LOGIN"
+                    "set YANDEX_DIRECT_V4ACCOUNT_CLIENT_LOGIN or " "YANDEX_DIRECT_LOGIN"
                 ),
             )
 
@@ -443,7 +444,9 @@ class LiveSandboxRunner:
         return self.row_from_run(matrix_command, run)
 
     def run_v4account_account_management(self, matrix_command: str) -> ReportRow:
-        account_id = (os.environ.get("YANDEX_DIRECT_V4ACCOUNT_ACCOUNT_ID") or "").strip()
+        account_id = (
+            os.environ.get("YANDEX_DIRECT_V4ACCOUNT_ACCOUNT_ID") or ""
+        ).strip()
         if not account_id:
             return ReportRow(
                 command=matrix_command,
