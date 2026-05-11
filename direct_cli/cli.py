@@ -47,6 +47,7 @@ from .commands.v4finance import v4finance
 from .commands.v4account import v4account
 from .commands.v4shells import v4forecast, v4meta
 from .commands.v4goals import v4goals
+from .commands.v4tags import v4tags
 from .commands.v4wordstat import v4wordstat
 
 # Load .env file
@@ -186,6 +187,7 @@ for command in (
     v4goals,
     v4events,
     v4wordstat,
+    v4tags,
     v4forecast,
     v4meta,
     auth,

@@ -174,6 +174,53 @@ def test_v4finance_money_contracts_are_docs_backed_dangerous_objects():
     }
 
 
+def test_v4tags_contracts_are_docs_backed_objects_and_arrays():
+    get_campaigns = get_v4_contract("GetCampaignsTags")
+    get_banners = get_v4_contract("GetBannersTags")
+    update_campaigns = get_v4_contract("UpdateCampaignsTags")
+    update_banners = get_v4_contract("UpdateBannersTags")
+
+    assert get_campaigns.param_shape == PARAM_OBJECT
+    assert get_campaigns.source_status == SOURCE_DOCS
+    assert get_campaigns.example_param == {"CampaignIDS": [3193279, 1634563]}
+    assert build_v4_body("GetCampaignsTags", get_campaigns.example_param) == {
+        "method": "GetCampaignsTags",
+        "param": {"CampaignIDS": [3193279, 1634563]},
+    }
+
+    assert get_banners.param_shape == PARAM_OBJECT
+    assert get_banners.source_status == SOURCE_DOCS
+    assert get_banners.example_param == {"BannerIDS": [2571700, 2571745]}
+    assert build_v4_body("GetBannersTags", get_banners.example_param) == {
+        "method": "GetBannersTags",
+        "param": {"BannerIDS": [2571700, 2571745]},
+    }
+
+    assert update_campaigns.param_shape == PARAM_ARRAY
+    assert update_campaigns.source_status == SOURCE_DOCS
+    assert "removes tags not listed" in update_campaigns.notes
+    assert build_v4_body("UpdateCampaignsTags", update_campaigns.example_param) == {
+        "method": "UpdateCampaignsTags",
+        "param": [
+            {
+                "CampaignID": 3193279,
+                "Tags": [
+                    {"TagID": 0, "Tag": "akapulko"},
+                    {"TagID": 16590, "Tag": "orange"},
+                ],
+            }
+        ],
+    }
+
+    assert update_banners.param_shape == PARAM_ARRAY
+    assert update_banners.source_status == SOURCE_DOCS
+    assert "removes previously assigned tags" in update_banners.notes
+    assert build_v4_body("UpdateBannersTags", update_banners.example_param) == {
+        "method": "UpdateBannersTags",
+        "param": [{"BannerID": 2571700, "TagIDS": [16590, 16734]}],
+    }
+
+
 def test_check_payment_contract_uses_custom_transaction_id_object():
     contract = get_v4_contract("CheckPayment")
 

@@ -15,3 +15,10 @@ def test_v4finance_read_commands_are_safe():
 def test_v4account_mutation_commands_are_sandbox_write_only():
     assert command_category("v4account.enable-shared-account") == WRITE_SANDBOX
     assert command_category("v4account.account-management") == WRITE_SANDBOX
+
+
+def test_v4tags_commands_are_classified_by_mutation_risk():
+    assert command_category("v4tags.get-campaigns") == SAFE
+    assert command_category("v4tags.get-banners") == SAFE
+    assert command_category("v4tags.update-campaigns") == WRITE_SANDBOX
+    assert command_category("v4tags.update-banners") == WRITE_SANDBOX

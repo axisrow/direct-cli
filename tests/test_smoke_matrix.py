@@ -60,9 +60,9 @@ def test_smoke_matrix_covers_every_cli_subcommand_once():
 def test_smoke_matrix_counts_match_current_cli_surface():
     summary = smoke_summary()
 
-    assert summary["total_cli_groups"] == 39
-    assert summary["total_cli_subcommands"] == 136
-    assert summary["api_cli_subcommands"] == 132
+    assert summary["total_cli_groups"] == 40
+    assert summary["total_cli_subcommands"] == 140
+    assert summary["api_cli_subcommands"] == 136
     assert summary["wsdl_services"] == 29
     assert summary["non_wsdl_services"] == sorted(NON_WSDL_SERVICES)
     assert summary["api_services_total"] == 30
@@ -133,8 +133,11 @@ def test_safe_smoke_script_runs_v4_safe_commands():
     assert "run_v4finance_get_clients_units" in contents
     assert "run_v4finance_get_credit_limits" in contents
     assert "run_v4wordstat_contracts" in contents
+    assert "run_v4tags_contracts" in contents
     assert "v4wordstat list-reports --dry-run" in contents
     assert "v4wordstat get-report --report-id 1 --dry-run" in contents
+    assert "v4tags get-campaigns --campaign-ids 1 --dry-run" in contents
+    assert "v4tags get-banners --banner-ids 1 --dry-run" in contents
     assert 'v4goals get-stat-goals --campaign-ids "$CAMPAIGN_ID"' in contents
     assert 'v4goals get-retargeting-goals (env auth)"' in contents
     assert 'v4goals get-retargeting-goals --campaign-ids "$CAMPAIGN_ID"' in contents
@@ -151,7 +154,7 @@ def test_sandbox_write_live_runner_covers_write_sandbox_matrix():
     )
     try:
         assert set(runner.handlers()) == set(SMOKE_MATRIX[WRITE_SANDBOX])
-        assert len(SMOKE_MATRIX[WRITE_SANDBOX]) == 79
+        assert len(SMOKE_MATRIX[WRITE_SANDBOX]) == 81
     finally:
         runner.close()
 

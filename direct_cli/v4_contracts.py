@@ -353,38 +353,75 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
     "GetBannersTags": V4MethodContract(
         method="GetBannersTags",
         group="tags",
-        param_shape=PARAM_UNDOCUMENTED,
-        login_placement="unknown",
+        param_shape=PARAM_OBJECT,
+        login_placement=(
+            "param contains CampaignIDS or BannerIDS; global --login uses "
+            "Client-Login header"
+        ),
         safety=SAFETY_READ,
-        source_status=SOURCE_UNDOCUMENTED,
+        source_status=SOURCE_DOCS,
         live_probe_allowed=False,
+        example_param={"BannerIDS": [2571700, 2571745]},
+        notes=(
+            "Official v4 docs define BannersRequestInfo with exactly one "
+            "selector family in normal CLI usage: CampaignIDS or BannerIDS."
+        ),
     ),
     "GetCampaignsTags": V4MethodContract(
         method="GetCampaignsTags",
         group="tags",
-        param_shape=PARAM_UNDOCUMENTED,
-        login_placement="unknown",
+        param_shape=PARAM_OBJECT,
+        login_placement=(
+            "param contains CampaignIDS; global --login uses Client-Login header"
+        ),
         safety=SAFETY_READ,
-        source_status=SOURCE_UNDOCUMENTED,
+        source_status=SOURCE_DOCS,
         live_probe_allowed=False,
+        example_param={"CampaignIDS": [3193279, 1634563]},
+        notes="Official v4 docs define CampaignIDSInfo with CampaignIDS.",
     ),
     "UpdateBannersTags": V4MethodContract(
         method="UpdateBannersTags",
         group="tags",
-        param_shape=PARAM_UNDOCUMENTED,
-        login_placement="unknown",
+        param_shape=PARAM_ARRAY,
+        login_placement=(
+            "param is a list of BannerTagsInfo; global --login uses "
+            "Client-Login header"
+        ),
         safety=SAFETY_WRITE,
-        source_status=SOURCE_UNDOCUMENTED,
+        source_status=SOURCE_DOCS,
         live_probe_allowed=False,
+        example_param=[{"BannerID": 2571700, "TagIDS": [16590, 16734]}],
+        notes=(
+            "Official v4 docs define TagIDS as campaign tag IDs. The method "
+            "assigns the specified tags and removes previously assigned tags "
+            "that are not listed."
+        ),
     ),
     "UpdateCampaignsTags": V4MethodContract(
         method="UpdateCampaignsTags",
         group="tags",
-        param_shape=PARAM_UNDOCUMENTED,
-        login_placement="unknown",
+        param_shape=PARAM_ARRAY,
+        login_placement=(
+            "param is a list of CampaignTagsInfo; global --login uses "
+            "Client-Login header"
+        ),
         safety=SAFETY_WRITE,
-        source_status=SOURCE_UNDOCUMENTED,
+        source_status=SOURCE_DOCS,
         live_probe_allowed=False,
+        example_param=[
+            {
+                "CampaignID": 3193279,
+                "Tags": [
+                    {"TagID": 0, "Tag": "akapulko"},
+                    {"TagID": 16590, "Tag": "orange"},
+                ],
+            }
+        ],
+        notes=(
+            "Official v4 docs define TagID=0 for adding a tag. The method "
+            "forms the full campaign tag list and removes tags not listed."
+        ),
     ),
     "AdImageAssociation": V4MethodContract(
         method="AdImageAssociation",

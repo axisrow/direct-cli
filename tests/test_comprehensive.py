@@ -70,6 +70,7 @@ class TestCommandsRegistered(unittest.TestCase):
         "v4goals",
         "v4events",
         "v4wordstat",
+        "v4tags",
         "v4forecast",
         "v4meta",
         "auth",

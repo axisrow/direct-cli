@@ -115,6 +115,24 @@ direct v4goals get-retargeting-goals --campaign-ids 123,456 --format table
 direct v4goals get-stat-goals --campaign-ids 123 --dry-run
 ```
 
+### V4 Live Tags
+
+Campaign tags are managed as `{TagID, Tag}` pairs. Use `TagID=0` to create a
+new campaign tag. Banner/ad tags are assigned by campaign tag IDs. Update
+methods replace the full tag list for the target campaign or banner, so pass
+existing tags again if they must remain assigned. Ad group tags are filter-only
+through `direct adgroups get --tag-ids/--tags`; this release does not add ad
+group tag mutation commands.
+
+```bash
+direct v4tags get-campaigns --campaign-ids 3193279,1634563
+direct v4tags get-banners --banner-ids 2571700,2571745
+direct v4tags get-banners --campaign-ids 3193279
+direct v4tags update-campaigns --campaign-id 3193279 --tag 0=akapulko --tag 16590=orange --dry-run
+direct v4tags update-banners --banner-ids 2571700,2571745 --tag-ids 16590,16734 --dry-run
+direct v4tags update-banners --banner-ids 2571700 --clear-tags --dry-run
+```
+
 ### V4 Live Events
 
 ```bash

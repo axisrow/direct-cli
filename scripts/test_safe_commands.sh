@@ -188,6 +188,11 @@ run_v4wordstat_contracts() {
   run_test "v4wordstat get-report dry-run (env auth)" direct v4wordstat get-report --report-id 1 --dry-run
 }
 
+run_v4tags_contracts() {
+  run_test "v4tags get-campaigns dry-run (env auth)" direct v4tags get-campaigns --campaign-ids 1 --dry-run
+  run_test "v4tags get-banners dry-run (env auth)" direct v4tags get-banners --banner-ids 1 --dry-run
+}
+
 # ─── Section A: Auth via env variables (no CLI flags) ────────────────────────
 echo -e "${BOLD}=== A. Аутентификация через env-переменные ===${RESET}"
 echo ""
@@ -288,6 +293,7 @@ run_v4finance_check_payment_contract
 run_v4finance_get_clients_units
 run_v4finance_get_credit_limits
 run_v4wordstat_contracts
+run_v4tags_contracts
 
 if [ -n "$CAMPAIGN_ID" ]; then
   run_test "changes check-campaigns (env auth)"    direct changes check-campaigns --timestamp 2026-04-23T00:00:00
