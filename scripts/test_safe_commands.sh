@@ -188,6 +188,11 @@ run_v4wordstat_contracts() {
   run_test "v4wordstat get-report dry-run (env auth)" direct v4wordstat get-report --report-id 1 --dry-run
 }
 
+run_v4forecast_contracts() {
+  run_test "v4forecast list dry-run (env auth)" direct v4forecast list --dry-run
+  run_test "v4forecast get dry-run (env auth)" direct v4forecast get --forecast-id 1 --dry-run
+}
+
 run_v4tags_contracts() {
   run_test "v4tags get-campaigns dry-run (env auth)" direct v4tags get-campaigns --campaign-ids 1 --dry-run
   run_test "v4tags get-banners dry-run (env auth)" direct v4tags get-banners --banner-ids 1 --dry-run
@@ -293,6 +298,7 @@ run_v4finance_check_payment_contract
 run_v4finance_get_clients_units
 run_v4finance_get_credit_limits
 run_v4wordstat_contracts
+run_v4forecast_contracts
 run_v4tags_contracts
 
 if [ -n "$CAMPAIGN_ID" ]; then

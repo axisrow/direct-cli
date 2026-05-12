@@ -6,6 +6,8 @@ from direct_cli.v4 import build_v4_body, call_v4
 from direct_cli.v4_contracts import (
     PARAM_ARRAY,
     PARAM_OBJECT,
+    PARAM_OPTIONAL_OBJECT,
+    PARAM_SCALAR,
     PARAM_UNDOCUMENTED,
     SOURCE_CONFIRMED_LIVE,
     SOURCE_DOCS,
@@ -218,6 +220,43 @@ def test_v4tags_contracts_are_docs_backed_objects_and_arrays():
     assert build_v4_body("UpdateBannersTags", update_banners.example_param) == {
         "method": "UpdateBannersTags",
         "param": [{"BannerID": 2571700, "TagIDS": [16590, 16734]}],
+    }
+
+
+def test_v4forecast_contracts_are_docs_backed_objects_and_scalars():
+    create = get_v4_contract("CreateNewForecast")
+    list_forecasts = get_v4_contract("GetForecastList")
+    get = get_v4_contract("GetForecast")
+    delete = get_v4_contract("DeleteForecastReport")
+
+    assert create.param_shape == PARAM_OBJECT
+    assert create.source_status == SOURCE_DOCS
+    assert create.example_param == {
+        "Phrases": ["buy laptop"],
+        "Currency": "RUB",
+        "GeoID": [213],
+    }
+    assert build_v4_body("CreateNewForecast", create.example_param) == {
+        "method": "CreateNewForecast",
+        "param": create.example_param,
+    }
+
+    assert list_forecasts.param_shape == PARAM_OPTIONAL_OBJECT
+    assert list_forecasts.source_status == SOURCE_DOCS
+    assert build_v4_body("GetForecastList") == {"method": "GetForecastList"}
+
+    assert get.param_shape == PARAM_SCALAR
+    assert get.source_status == SOURCE_DOCS
+    assert build_v4_body("GetForecast", get.example_param) == {
+        "method": "GetForecast",
+        "param": 123,
+    }
+
+    assert delete.param_shape == PARAM_SCALAR
+    assert delete.source_status == SOURCE_DOCS
+    assert build_v4_body("DeleteForecastReport", delete.example_param) == {
+        "method": "DeleteForecastReport",
+        "param": 123,
     }
 
 

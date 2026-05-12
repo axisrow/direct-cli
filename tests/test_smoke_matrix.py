@@ -61,8 +61,8 @@ def test_smoke_matrix_counts_match_current_cli_surface():
     summary = smoke_summary()
 
     assert summary["total_cli_groups"] == 40
-    assert summary["total_cli_subcommands"] == 140
-    assert summary["api_cli_subcommands"] == 136
+    assert summary["total_cli_subcommands"] == 144
+    assert summary["api_cli_subcommands"] == 140
     assert summary["wsdl_services"] == 29
     assert summary["non_wsdl_services"] == sorted(NON_WSDL_SERVICES)
     assert summary["api_services_total"] == 30
@@ -133,9 +133,12 @@ def test_safe_smoke_script_runs_v4_safe_commands():
     assert "run_v4finance_get_clients_units" in contents
     assert "run_v4finance_get_credit_limits" in contents
     assert "run_v4wordstat_contracts" in contents
+    assert "run_v4forecast_contracts" in contents
     assert "run_v4tags_contracts" in contents
     assert "v4wordstat list-reports --dry-run" in contents
     assert "v4wordstat get-report --report-id 1 --dry-run" in contents
+    assert "v4forecast list --dry-run" in contents
+    assert "v4forecast get --forecast-id 1 --dry-run" in contents
     assert "v4tags get-campaigns --campaign-ids 1 --dry-run" in contents
     assert "v4tags get-banners --banner-ids 1 --dry-run" in contents
     assert 'v4goals get-stat-goals --campaign-ids "$CAMPAIGN_ID"' in contents
@@ -154,7 +157,7 @@ def test_sandbox_write_live_runner_covers_write_sandbox_matrix():
     )
     try:
         assert set(runner.handlers()) == set(SMOKE_MATRIX[WRITE_SANDBOX])
-        assert len(SMOKE_MATRIX[WRITE_SANDBOX]) == 81
+        assert len(SMOKE_MATRIX[WRITE_SANDBOX]) == 83
     finally:
         runner.close()
 
@@ -283,6 +286,71 @@ def test_sandbox_write_live_runner_builds_v4wordstat_commands(monkeypatch):
             "v4wordstat",
             "delete-report",
             ["--report-id", "456"],
+        ),
+    ]
+
+
+def test_sandbox_write_live_runner_builds_v4forecast_commands(monkeypatch):
+    module = _load_sandbox_runner_module()
+    runner = module.LiveSandboxRunner(
+        commands=["v4forecast.create", "v4forecast.delete"],
+        timeout=1,
+        verbose=False,
+        report_file=None,
+    )
+    calls = []
+
+    def fake_invoke(group, command, args):
+        calls.append((group, command, args))
+        if command == "create":
+            return module.CommandRun(
+                args=["direct", "--sandbox", group, command, *args],
+                returncode=0,
+                stdout=json.dumps({"data": 789}),
+                stderr="",
+            )
+        return module.CommandRun(
+            args=["direct", "--sandbox", group, command, *args],
+            returncode=0,
+            stdout=json.dumps({"data": 1}),
+            stderr="",
+        )
+
+    monkeypatch.setattr(runner, "invoke", fake_invoke)
+
+    try:
+        assert runner.run_one("v4forecast.create").status == module.PASS
+        assert runner.run_one("v4forecast.delete").status == module.PASS
+    finally:
+        runner.close()
+
+    assert calls == [
+        (
+            "v4forecast",
+            "create",
+            ["--phrases", runner.name("forecast"), "--geo-ids", "213"],
+        ),
+        (
+            "v4forecast",
+            "delete",
+            ["--forecast-id", "789"],
+        ),
+        (
+            "v4forecast",
+            "create",
+            [
+                "--phrases",
+                runner.name("forecast"),
+                "--geo-ids",
+                "213",
+                "--currency",
+                "RUB",
+            ],
+        ),
+        (
+            "v4forecast",
+            "delete",
+            ["--forecast-id", "789"],
         ),
     ]
 

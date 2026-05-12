@@ -208,6 +208,8 @@ class LiveSandboxRunner:
             "strategies.update": self.run_strategy_id_command,
             "v4account.account-management": self.run_v4account_account_management,
             "v4account.enable-shared-account": self.run_v4account_enable_shared_account,
+            "v4forecast.create": self.run_v4forecast_create,
+            "v4forecast.delete": self.run_v4forecast_delete,
             "v4tags.update-banners": self.run_not_covered,
             "v4tags.update-campaigns": self.run_not_covered,
             "v4wordstat.create-report": self.run_v4wordstat_create_report,
@@ -526,6 +528,58 @@ class LiveSandboxRunner:
         if self.classify(run)[0] == PASS:
             self.cleanup_steps = [
                 step for step in self.cleanup_steps if step[0] != "wordstat report"
+            ]
+        return self.row_from_run(matrix_command, run)
+
+    def create_forecast(self) -> str:
+        phrase = self.name("forecast")
+        run = self.invoke(
+            "v4forecast",
+            "create",
+            ["--phrases", phrase, "--geo-ids", "213", "--currency", "RUB"],
+        )
+        status, detail = self.classify(run)
+        if status != PASS:
+            raise PrerequisiteError(status, f"v4forecast create prerequisite: {detail}")
+        forecast_id = self.scalar_data_id(run)
+        if not forecast_id:
+            raise PrerequisiteError(
+                FAIL, "v4forecast create prerequisite returned no scalar forecast ID"
+            )
+        self.register_cleanup(
+            "forecast",
+            "v4forecast",
+            "delete",
+            ["--forecast-id", forecast_id],
+        )
+        return forecast_id
+
+    def run_v4forecast_create(self, matrix_command: str) -> ReportRow:
+        run = self.invoke(
+            "v4forecast",
+            "create",
+            ["--phrases", self.name("forecast"), "--geo-ids", "213"],
+        )
+        forecast_id = self.scalar_data_id(run)
+        if forecast_id:
+            self.register_cleanup(
+                "forecast",
+                "v4forecast",
+                "delete",
+                ["--forecast-id", forecast_id],
+            )
+        return self.row_from_run(matrix_command, run)
+
+    def run_v4forecast_delete(self, matrix_command: str) -> ReportRow:
+        forecast_id = self.create_forecast()
+        run = self.invoke(
+            "v4forecast",
+            "delete",
+            ["--forecast-id", forecast_id],
+        )
+        if self.classify(run)[0] == PASS:
+            self.cleanup_steps = [
+                step for step in self.cleanup_steps if step[0] != "forecast"
             ]
         return self.row_from_run(matrix_command, run)
 

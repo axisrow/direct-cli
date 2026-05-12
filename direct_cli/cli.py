@@ -43,9 +43,10 @@ from .commands.strategies import strategies
 from .commands.auth import auth
 from .commands.balance import balance
 from .commands.v4events import v4events
+from .commands.v4forecast import v4forecast
 from .commands.v4finance import v4finance
 from .commands.v4account import v4account
-from .commands.v4shells import v4forecast, v4meta
+from .commands.v4shells import v4meta
 from .commands.v4goals import v4goals
 from .commands.v4tags import v4tags
 from .commands.v4wordstat import v4wordstat
