@@ -16,10 +16,5 @@ def v4wordstat():
 
 
 @click.group(epilog=V4_EPILOG)
-def v4forecast():
-    """Yandex Direct v4 Live forecast commands."""
-
-
-@click.group(epilog=V4_EPILOG)
 def v4meta():
     """Yandex Direct v4 Live metadata commands."""

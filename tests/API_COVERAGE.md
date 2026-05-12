@@ -32,9 +32,9 @@ report values:
 | Declared WSDL operations | 112 |
 | Non-WSDL API services | 1 |
 | Supported API services including Reports | 30 |
-| CLI top-level groups including auth | 31 |
-| CLI subcommands including auth | 130 |
-| API CLI subcommands excluding auth | 126 |
+| CLI top-level groups including auth | 40 |
+| CLI subcommands including auth | 144 |
+| API CLI subcommands excluding auth | 140 |
 | Live-discovered missing services | 0 |
 | Live-discovered missing methods | 0 |
 

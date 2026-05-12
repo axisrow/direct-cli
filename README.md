@@ -153,6 +153,19 @@ direct v4wordstat get-report --report-id 123 --format table
 direct v4wordstat delete-report --report-id 123
 ```
 
+### V4 Live Budget Forecasts
+
+Budget forecasts are asynchronous. Direct CLI makes exactly one API call per
+command and does not poll automatically; repeat `list` or `get` yourself until
+the forecast is ready.
+
+```bash
+direct v4forecast create --phrases "buy laptop,buy desktop" --geo-ids 213 --currency RUB
+direct v4forecast list --format table
+direct v4forecast get --forecast-id 123 --format table
+direct v4forecast delete --forecast-id 123
+```
+
 ### V4 Live Finance
 
 Finance methods require an extra financial token for money operations. In the
@@ -537,9 +550,9 @@ Current command surface:
 | WSDL-backed API services | 29 |
 | Supported API services including Reports | 30 |
 | WSDL operations | 112 |
-| CLI groups including `auth` | 39 |
-| CLI subcommands including `auth` | 130 |
-| API CLI subcommands excluding `auth` | 126 |
+| CLI groups including `auth` | 40 |
+| CLI subcommands including `auth` | 144 |
+| API CLI subcommands excluding `auth` | 140 |
 
 ### API Coverage And Drift Monitoring
 
@@ -1158,9 +1171,9 @@ YANDEX_DIRECT_LIVE_WRITE=1 pytest -m integration_live_write -v --record-mode=rew
 | WSDL-backed API services | 29 |
 | API services с учётом Reports | 30 |
 | WSDL operations | 112 |
-| CLI groups с `auth` | 39 |
-| CLI subcommands с `auth` | 130 |
-| API CLI subcommands без `auth` | 126 |
+| CLI groups с `auth` | 40 |
+| CLI subcommands с `auth` | 144 |
+| API CLI subcommands без `auth` | 140 |
 
 #### Live sandbox write smoke
 

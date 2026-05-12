@@ -22,3 +22,10 @@ def test_v4tags_commands_are_classified_by_mutation_risk():
     assert command_category("v4tags.get-banners") == SAFE
     assert command_category("v4tags.update-campaigns") == WRITE_SANDBOX
     assert command_category("v4tags.update-banners") == WRITE_SANDBOX
+
+
+def test_v4forecast_commands_are_classified_by_mutation_risk():
+    assert command_category("v4forecast.list") == SAFE
+    assert command_category("v4forecast.get") == SAFE
+    assert command_category("v4forecast.create") == WRITE_SANDBOX
+    assert command_category("v4forecast.delete") == WRITE_SANDBOX

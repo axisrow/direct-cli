@@ -299,38 +299,63 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
     "CreateNewForecast": V4MethodContract(
         method="CreateNewForecast",
         group="forecast",
-        param_shape=PARAM_UNDOCUMENTED,
-        login_placement="unknown",
+        param_shape=PARAM_OBJECT,
+        login_placement=(
+            "param contains documented Phrases, Currency, optional GeoID, "
+            "and optional AuctionBids; global --login uses Client-Login header"
+        ),
         safety=SAFETY_ASYNC,
-        source_status=SOURCE_UNDOCUMENTED,
+        source_status=SOURCE_DOCS,
         live_probe_allowed=False,
+        example_param={
+            "Phrases": ["buy laptop"],
+            "Currency": "RUB",
+            "GeoID": [213],
+        },
+        notes=(
+            "Creates an asynchronous budget forecast. The CLI performs one API "
+            "call only, does not poll for readiness, and omits AuctionBids so "
+            "the API default applies."
+        ),
     ),
     "GetForecastList": V4MethodContract(
         method="GetForecastList",
         group="forecast",
-        param_shape=PARAM_UNDOCUMENTED,
-        login_placement="unknown",
+        param_shape=PARAM_OPTIONAL_OBJECT,
+        login_placement="global --login uses Client-Login header",
         safety=SAFETY_READ,
-        source_status=SOURCE_UNDOCUMENTED,
+        source_status=SOURCE_DOCS,
         live_probe_allowed=False,
+        example_param=None,
+        notes="Official docs define no required param for listing budget forecasts.",
     ),
     "GetForecast": V4MethodContract(
         method="GetForecast",
         group="forecast",
-        param_shape=PARAM_UNDOCUMENTED,
-        login_placement="unknown",
+        param_shape=PARAM_SCALAR,
+        login_placement=(
+            "param is the scalar forecast ID; global --login uses "
+            "Client-Login header"
+        ),
         safety=SAFETY_READ,
-        source_status=SOURCE_UNDOCUMENTED,
+        source_status=SOURCE_DOCS,
         live_probe_allowed=False,
+        example_param=123,
+        notes="Official docs define scalar param, not an object with ForecastID.",
     ),
     "DeleteForecastReport": V4MethodContract(
         method="DeleteForecastReport",
         group="forecast",
-        param_shape=PARAM_UNDOCUMENTED,
-        login_placement="unknown",
+        param_shape=PARAM_SCALAR,
+        login_placement=(
+            "param is the scalar forecast ID; global --login uses "
+            "Client-Login header"
+        ),
         safety=SAFETY_WRITE,
-        source_status=SOURCE_UNDOCUMENTED,
+        source_status=SOURCE_DOCS,
         live_probe_allowed=False,
+        example_param=123,
+        notes="Official docs define scalar param, not an object with ForecastID.",
     ),
     "DeleteOfflineReport": V4MethodContract(
         method="DeleteOfflineReport",

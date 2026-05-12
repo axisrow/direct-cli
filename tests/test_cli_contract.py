@@ -18,6 +18,7 @@ MUTATING_COMMANDS = {
     "add-passport-organization",
     "add-passport-organization-member",
     "archive",
+    "create",
     "create-invoice",
     "delete",
     "enable-shared-account",
