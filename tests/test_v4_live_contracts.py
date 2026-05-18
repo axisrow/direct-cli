@@ -190,9 +190,13 @@ def test_v4_sandbox_check_payment_custom_transaction_id_contract():
     assert exc_info.value.error_str == "Transaction does not exist"
 
 
-def test_v4_live_wordstat_lifecycle_contract():
+def test_v4_live_wordstat_lifecycle_contract_opt_in_write():
     # Covers CreateNewWordstatReport, GetWordstatReportList, DeleteWordstatReport.
     # GetWordstatReport is out of scope: it requires StatusReport=Done (polling).
+    # Gated behind YANDEX_DIRECT_LIVE_WRITE=1: this test mutates the live
+    # account (creates and deletes a wordstat report).
+    if os.getenv("YANDEX_DIRECT_LIVE_WRITE") != "1":
+        pytest.skip("YANDEX_DIRECT_LIVE_WRITE=1 is required")
     token, login = _credentials()
     client = create_v4_client(token=token, login=login)
 
@@ -213,9 +217,13 @@ def test_v4_live_wordstat_lifecycle_contract():
         call_v4(client, "DeleteWordstatReport", report_id)
 
 
-def test_v4_live_forecast_lifecycle_contract():
+def test_v4_live_forecast_lifecycle_contract_opt_in_write():
     # Covers CreateNewForecast, GetForecastList, DeleteForecastReport.
     # GetForecast is out of scope: it requires StatusForecast=Done (polling).
+    # Gated behind YANDEX_DIRECT_LIVE_WRITE=1: this test mutates the live
+    # account (creates and deletes a forecast report).
+    if os.getenv("YANDEX_DIRECT_LIVE_WRITE") != "1":
+        pytest.skip("YANDEX_DIRECT_LIVE_WRITE=1 is required")
     token, login = _credentials()
     client = create_v4_client(token=token, login=login)
 
