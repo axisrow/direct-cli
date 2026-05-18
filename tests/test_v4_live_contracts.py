@@ -203,66 +203,6 @@ def test_v4_sandbox_check_payment_custom_transaction_id_contract():
     assert exc_info.value.error_str == "Transaction does not exist"
 
 
-def test_v4_live_wordstat_lifecycle_contract_opt_in_write():
-    # Covers CreateNewWordstatReport, GetWordstatReportList, DeleteWordstatReport.
-    # GetWordstatReport is out of scope: it requires StatusReport=Done (polling).
-    # Gated behind YANDEX_DIRECT_LIVE_WRITE=1: this test mutates the live
-    # account (creates and deletes a wordstat report).
-    if os.getenv("YANDEX_DIRECT_LIVE_WRITE") != "1":
-        pytest.skip("YANDEX_DIRECT_LIVE_WRITE=1 is required")
-    token, login = _credentials()
-    client = create_v4_client(token=token, login=login)
-
-    report_id = call_v4(
-        client,
-        "CreateNewWordstatReport",
-        {"Phrases": ["купить ноутбук"], "GeoID": [0]},
-    )
-    assert isinstance(report_id, int)
-    assert report_id > 0
-
-    try:
-        reports = call_v4(client, "GetWordstatReportList")
-        assert isinstance(reports, list)
-        our_report = next((r for r in reports if r.get("ReportID") == report_id), None)
-        assert our_report is not None
-        assert {"ReportID", "StatusReport"} <= set(our_report)
-    finally:
-        # TODO: assert delete return value (== 1 per docs) after first live run.
-        call_v4(client, "DeleteWordstatReport", report_id)
-
-
-def test_v4_live_forecast_lifecycle_contract_opt_in_write():
-    # Covers CreateNewForecast, GetForecastList, DeleteForecastReport.
-    # GetForecast is out of scope: it requires StatusForecast=Done (polling).
-    # Gated behind YANDEX_DIRECT_LIVE_WRITE=1: this test mutates the live
-    # account (creates and deletes a forecast report).
-    if os.getenv("YANDEX_DIRECT_LIVE_WRITE") != "1":
-        pytest.skip("YANDEX_DIRECT_LIVE_WRITE=1 is required")
-    token, login = _credentials()
-    client = create_v4_client(token=token, login=login)
-
-    forecast_id = call_v4(
-        client,
-        "CreateNewForecast",
-        {"Phrases": ["купить ноутбук"], "Currency": "RUB", "GeoID": [213]},
-    )
-    assert isinstance(forecast_id, int)
-    assert forecast_id > 0
-
-    try:
-        forecasts = call_v4(client, "GetForecastList")
-        assert isinstance(forecasts, list)
-        our_forecast = next(
-            (f for f in forecasts if f.get("ForecastID") == forecast_id), None
-        )
-        assert our_forecast is not None
-        assert {"ForecastID", "StatusForecast"} <= set(our_forecast)
-    finally:
-        # TODO: assert delete return value (== 1 per docs) after first live run.
-        call_v4(client, "DeleteForecastReport", forecast_id)
-
-
 def test_v4_live_tags_get_campaigns_contract():
     token, login = _credentials()
     campaign_id = _campaign_id(token, login)

@@ -423,9 +423,7 @@ def test_live_draft_adimages_add_get_delete() -> None:
         else:
             result_data = data.get("result", data)
             images = result_data.get("AdImages", [])
-        hashes_in_response = {
-            img.get("AdImageHash") for img in images
-        }
+        hashes_in_response = {img.get("AdImageHash") for img in images}
         assert (
             img_hash in hashes_in_response
         ), f"Uploaded image hash {img_hash} not found in get response"
@@ -441,9 +439,7 @@ def test_live_draft_adimages_add_get_delete() -> None:
 @pytest.mark.vcr
 def test_live_draft_advideos_add_get() -> None:
     """Add a video from file and verify via get."""
-    video_file = os.path.join(
-        os.path.dirname(__file__), "fixtures", "test-video.mp4"
-    )
+    video_file = os.path.join(os.path.dirname(__file__), "fixtures", "test-video.mp4")
     r = _invoke_live(
         "advideos",
         "add",
@@ -463,9 +459,7 @@ def test_live_draft_advideos_add_get() -> None:
 @pytest.mark.vcr
 def test_live_draft_creatives_chain_advideo_to_creative() -> None:
     """Chain: add advideo from file -> create creative from it -> verify via get."""
-    video_file = os.path.join(
-        os.path.dirname(__file__), "fixtures", "test-video.mp4"
-    )
+    video_file = os.path.join(os.path.dirname(__file__), "fixtures", "test-video.mp4")
     r = _invoke_live(
         "advideos",
         "add",
@@ -612,7 +606,12 @@ def test_live_draft_keywords_add_update_delete() -> None:
         kid = _extract_first_id(r.output)
 
         r = _invoke_live(
-            "keywords", "update", "--id", str(kid), "--keyword", "draft test keyword updated"
+            "keywords",
+            "update",
+            "--id",
+            str(kid),
+            "--keyword",
+            "draft test keyword updated",
         )
         _assert_success(r, "keywords update")
 
@@ -1251,3 +1250,81 @@ def test_live_draft_ads_suspend_resume_archive_unarchive() -> None:
             _invoke_live("ads", "delete", "--id", str(aid))
         _invoke_live("adgroups", "delete", "--id", str(gid))
         _safe_delete_campaign(cid)
+
+
+# ── v4 Live API lifecycle ────────────────────────────────────────────────
+
+
+def test_live_draft_v4wordstat_lifecycle() -> None:
+    """v4wordstat create-report → list-reports → delete-report through the CLI.
+
+    GetWordstatReport is out of scope: it requires StatusReport=Done (polling).
+    """
+    r = _invoke_live(
+        "v4wordstat",
+        "create-report",
+        "--phrases",
+        "купить ноутбук",
+        "--geo-ids",
+        "0",
+    )
+    _assert_success(r, "v4wordstat create-report")
+    report_id = json.loads(r.output)
+    assert (
+        isinstance(report_id, int) and report_id > 0
+    ), f"unexpected create-report output: {r.output}"
+
+    try:
+        r = _invoke_live("v4wordstat", "list-reports")
+        _assert_success(r, "v4wordstat list-reports")
+        reports = json.loads(r.output)
+        assert isinstance(reports, list)
+        our = next(
+            (item for item in reports if item.get("ReportID") == report_id), None
+        )
+        assert (
+            our is not None
+        ), f"created report {report_id} not in list: {r.output[:500]}"
+        assert {"ReportID", "StatusReport"} <= set(our)
+    finally:
+        r = _invoke_live("v4wordstat", "delete-report", "--report-id", str(report_id))
+        _assert_success(r, "v4wordstat delete-report")
+
+
+def test_live_draft_v4forecast_lifecycle() -> None:
+    """v4forecast create → list → delete through the CLI.
+
+    get is out of scope: it requires StatusForecast=Done (polling).
+    """
+    r = _invoke_live(
+        "v4forecast",
+        "create",
+        "--phrases",
+        "купить ноутбук",
+        "--geo-ids",
+        "213",
+        "--currency",
+        "RUB",
+    )
+    _assert_success(r, "v4forecast create")
+    forecast_id = json.loads(r.output)
+    assert (
+        isinstance(forecast_id, int) and forecast_id > 0
+    ), f"unexpected create output: {r.output}"
+
+    try:
+        r = _invoke_live("v4forecast", "list")
+        _assert_success(r, "v4forecast list")
+        forecasts = json.loads(r.output)
+        assert isinstance(forecasts, list)
+        our = next(
+            (item for item in forecasts if item.get("ForecastID") == forecast_id),
+            None,
+        )
+        assert (
+            our is not None
+        ), f"created forecast {forecast_id} not in list: {r.output[:500]}"
+        assert {"ForecastID", "StatusForecast"} <= set(our)
+    finally:
+        r = _invoke_live("v4forecast", "delete", "--forecast-id", str(forecast_id))
+        _assert_success(r, "v4forecast delete")
