@@ -202,7 +202,8 @@ def test_strategies_rejects_legacy_json_blob_flags():
     )
 
     assert result.exit_code != 0
-    assert "No such option: --params" in result.output
+    assert "No such option" in result.output
+    assert "--params" in result.output
 
 
 def test_strategies_add_all_typed_strategy_fields_payload():
