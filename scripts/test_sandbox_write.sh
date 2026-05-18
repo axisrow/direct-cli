@@ -15,8 +15,17 @@ if [[ -f "$ENV_FILE" ]]; then
 fi
 
 if [[ -z "${YANDEX_DIRECT_TOKEN:-}" ]] || [[ -z "${YANDEX_DIRECT_LOGIN:-}" ]]; then
-  echo "ERROR: YANDEX_DIRECT_TOKEN and YANDEX_DIRECT_LOGIN are required." >&2
-  exit 1
+  if ! python3 -m direct_cli.cli auth status 2>/dev/null | grep -q '^has_token=yes$'; then
+    echo "ERROR: no credentials." >&2
+    echo "       Use 'direct auth login', put .env, or export YANDEX_DIRECT_TOKEN+YANDEX_DIRECT_LOGIN." >&2
+    exit 1
+  fi
+  eval "$(python3 -c '
+from direct_cli.auth import get_credentials
+token, login = get_credentials(None, None)
+print(f"export YANDEX_DIRECT_TOKEN={token}")
+print(f"export YANDEX_DIRECT_LOGIN={login}")
+')"
 fi
 
 cd "$ROOT_DIR"

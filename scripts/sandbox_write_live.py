@@ -1469,13 +1469,24 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def validate_environment() -> None:
-    missing = [
-        name
-        for name in ["YANDEX_DIRECT_TOKEN", "YANDEX_DIRECT_LOGIN"]
-        if not os.environ.get(name)
-    ]
-    if missing:
-        raise SystemExit(f"ERROR: missing required environment: {', '.join(missing)}")
+    if os.environ.get("YANDEX_DIRECT_TOKEN") and os.environ.get("YANDEX_DIRECT_LOGIN"):
+        return
+    try:
+        from direct_cli.auth import get_credentials
+
+        token, login = get_credentials(None, None)
+    except Exception as exc:
+        raise SystemExit(
+            "ERROR: missing YANDEX_DIRECT_TOKEN/YANDEX_DIRECT_LOGIN and no auth profile"
+            f" resolved ({exc})."
+        )
+    if not token or not login:
+        raise SystemExit(
+            "ERROR: missing YANDEX_DIRECT_TOKEN/YANDEX_DIRECT_LOGIN and no auth"
+            " profile resolved."
+        )
+    os.environ["YANDEX_DIRECT_TOKEN"] = token
+    os.environ["YANDEX_DIRECT_LOGIN"] = login
 
 
 def main(argv: list[str]) -> int:
