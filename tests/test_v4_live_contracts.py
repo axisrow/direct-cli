@@ -209,11 +209,13 @@ def test_v4_live_wordstat_lifecycle_contract_opt_in_write():
     assert report_id > 0
 
     try:
-        reports = call_v4(client, "GetWordstatReportList", None)
+        reports = call_v4(client, "GetWordstatReportList")
         assert isinstance(reports, list)
-        assert any(r.get("ReportID") == report_id for r in reports)
-        assert {"ReportID", "StatusReport"} <= set(reports[0])
+        our_report = next((r for r in reports if r.get("ReportID") == report_id), None)
+        assert our_report is not None
+        assert {"ReportID", "StatusReport"} <= set(our_report)
     finally:
+        # TODO: assert delete return value (== 1 per docs) after first live run.
         call_v4(client, "DeleteWordstatReport", report_id)
 
 
@@ -236,11 +238,15 @@ def test_v4_live_forecast_lifecycle_contract_opt_in_write():
     assert forecast_id > 0
 
     try:
-        forecasts = call_v4(client, "GetForecastList", None)
+        forecasts = call_v4(client, "GetForecastList")
         assert isinstance(forecasts, list)
-        assert any(f.get("ForecastID") == forecast_id for f in forecasts)
-        assert {"ForecastID", "StatusForecast"} <= set(forecasts[0])
+        our_forecast = next(
+            (f for f in forecasts if f.get("ForecastID") == forecast_id), None
+        )
+        assert our_forecast is not None
+        assert {"ForecastID", "StatusForecast"} <= set(our_forecast)
     finally:
+        # TODO: assert delete return value (== 1 per docs) after first live run.
         call_v4(client, "DeleteForecastReport", forecast_id)
 
 
@@ -265,4 +271,7 @@ def test_v4_live_tags_get_banners_contract():
 
     assert isinstance(data, list)
     if data:
+        # TODO: tighten to {"BannerID", "TagIDS"} once live response is observed.
+        # UpdateBannersTags writes TagIDS (v4_contracts.py:419), so the read
+        # method likely returns the same field — confirm at first live run.
         assert "BannerID" in data[0]
