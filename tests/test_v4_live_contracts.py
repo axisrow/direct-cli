@@ -18,7 +18,20 @@ def _credentials():
     token = os.getenv("YANDEX_DIRECT_TOKEN")
     login = os.getenv("YANDEX_DIRECT_LOGIN")
     if not token or not login:
-        pytest.skip("YANDEX_DIRECT_TOKEN and YANDEX_DIRECT_LOGIN are required")
+        try:
+            from direct_cli.auth import get_credentials
+
+            token, login = get_credentials(None, None)
+        except (ValueError, RuntimeError, ImportError):
+            pytest.skip(
+                "credentials required: set YANDEX_DIRECT_TOKEN+YANDEX_DIRECT_LOGIN "
+                "or run 'direct auth login'"
+            )
+    if not token or not login:
+        pytest.skip(
+            "credentials required: set YANDEX_DIRECT_TOKEN+YANDEX_DIRECT_LOGIN "
+            "or run 'direct auth login'"
+        )
     return token, login
 
 
