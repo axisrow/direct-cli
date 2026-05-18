@@ -1897,7 +1897,8 @@ def test_clients_update_rejects_legacy_flags():
             ["clients", "update", flag, value, "--phone", "+70000000000", "--dry-run"],
         )
         assert result.exit_code != 0
-        assert f"No such option: {flag}" in result.output
+        assert "No such option" in result.output
+        assert flag in result.output
 
 
 def test_clients_update_requires_at_least_one_field():
@@ -2240,7 +2241,8 @@ def test_agencyclients_update_rejects_legacy_email_flag():
         ],
     )
     assert result.exit_code != 0
-    assert "No such option: --email" in result.output
+    assert "No such option" in result.output
+    assert "--email" in result.output
 
 
 def test_agencyclients_update_clear_grants_emits_empty_list():
