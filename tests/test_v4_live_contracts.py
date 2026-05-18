@@ -188,3 +188,73 @@ def test_v4_sandbox_check_payment_custom_transaction_id_contract():
 
     assert exc_info.value.error_code == 370
     assert exc_info.value.error_str == "Transaction does not exist"
+
+
+def test_v4_live_wordstat_lifecycle_contract():
+    # Covers CreateNewWordstatReport, GetWordstatReportList, DeleteWordstatReport.
+    # GetWordstatReport is out of scope: it requires StatusReport=Done (polling).
+    token, login = _credentials()
+    client = create_v4_client(token=token, login=login)
+
+    report_id = call_v4(
+        client,
+        "CreateNewWordstatReport",
+        {"Phrases": ["купить ноутбук"], "GeoID": [0]},
+    )
+    assert isinstance(report_id, int)
+    assert report_id > 0
+
+    try:
+        reports = call_v4(client, "GetWordstatReportList", None)
+        assert isinstance(reports, list)
+        assert any(r.get("ReportID") == report_id for r in reports)
+        assert {"ReportID", "StatusReport"} <= set(reports[0])
+    finally:
+        call_v4(client, "DeleteWordstatReport", report_id)
+
+
+def test_v4_live_forecast_lifecycle_contract():
+    # Covers CreateNewForecast, GetForecastList, DeleteForecastReport.
+    # GetForecast is out of scope: it requires StatusForecast=Done (polling).
+    token, login = _credentials()
+    client = create_v4_client(token=token, login=login)
+
+    forecast_id = call_v4(
+        client,
+        "CreateNewForecast",
+        {"Phrases": ["купить ноутбук"], "Currency": "RUB", "GeoID": [213]},
+    )
+    assert isinstance(forecast_id, int)
+    assert forecast_id > 0
+
+    try:
+        forecasts = call_v4(client, "GetForecastList", None)
+        assert isinstance(forecasts, list)
+        assert any(f.get("ForecastID") == forecast_id for f in forecasts)
+        assert {"ForecastID", "StatusForecast"} <= set(forecasts[0])
+    finally:
+        call_v4(client, "DeleteForecastReport", forecast_id)
+
+
+def test_v4_live_tags_get_campaigns_contract():
+    token, login = _credentials()
+    campaign_id = _campaign_id(token, login)
+    client = create_v4_client(token=token, login=login)
+
+    data = call_v4(client, "GetCampaignsTags", {"CampaignIDS": [campaign_id]})
+
+    assert isinstance(data, list)
+    if data:
+        assert {"CampaignID", "Tags"} <= set(data[0])
+
+
+def test_v4_live_tags_get_banners_contract():
+    token, login = _credentials()
+    campaign_id = _campaign_id(token, login)
+    client = create_v4_client(token=token, login=login)
+
+    data = call_v4(client, "GetBannersTags", {"CampaignIDS": [campaign_id]})
+
+    assert isinstance(data, list)
+    if data:
+        assert "BannerID" in data[0]
