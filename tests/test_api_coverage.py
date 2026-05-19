@@ -1217,6 +1217,76 @@ class TestApiCoverage:
         assert stale_gate["operation_waiver_misuse"] == ["fake.set"]
         assert stale_gate["schema_parity_ok"] is False
 
+    def test_schema_gate_waiver_does_not_mask_dry_run_failed(self, monkeypatch):
+        """Per-operation waivers must not silence dry_run_failed violations.
+
+        Waivers are intended only for known WSDL-schema gaps
+        (``unknown_nested_key``). If a CLI command's ``--dry-run`` starts
+        crashing, the resulting ``dry_run_failed`` violation must still surface
+        — otherwise infra breakage hides behind a waiver.
+        """
+        report_script = _load_coverage_report_script()
+        monkeypatch.setattr(report_script, "CLI_TO_API_SERVICE", {})
+        monkeypatch.setattr(report_script, "COMMON_FIELDS", {})
+        monkeypatch.setattr(report_script, "SCHEMA_GATE_WAIVERS", {})
+
+        def broken_capture(_argv):
+            raise RuntimeError("dry-run exit code 2")
+
+        payload_cases = [("fake", "set", ["fake", "set"])]
+        waivers = {"fake.set": "test reason"}
+
+        gate = report_script.build_schema_gate(
+            fetch_wsdl_func=lambda service: _wsdl_with_set_without_fieldnames(),
+            nested_schema_payload_cases=payload_cases,
+            nested_schema_exclusions={},
+            nested_schema_capture_body_func=broken_capture,
+            operation_waivers=waivers,
+        )
+
+        # Waiver must NOT silence infra breakage.
+        assert any(
+            v.get("kind") == "dry_run_failed" for v in gate["nested_schema_violations"]
+        )
+        assert gate["schema_parity_ok"] is False
+        # Waiver is stale: no unknown_nested_key under it.
+        assert gate["operation_waiver_misuse"] == ["fake.set"]
+
+    def test_schema_gate_waiver_does_not_mask_schema_error(self, monkeypatch):
+        """Per-operation waivers must not silence schema_error violations.
+
+        If the cached WSDL for a waived service becomes unparseable, the
+        ``schema_error`` violation must still surface so the maintainer
+        notices.
+        """
+        report_script = _load_coverage_report_script()
+        monkeypatch.setattr(report_script, "CLI_TO_API_SERVICE", {})
+        monkeypatch.setattr(report_script, "COMMON_FIELDS", {})
+        monkeypatch.setattr(report_script, "SCHEMA_GATE_WAIVERS", {})
+
+        def clean_capture(_argv):
+            return {"method": "set", "params": {"Items": ["valid placeholder"]}}
+
+        def broken_fetch(_service):
+            raise RuntimeError("WSDL parse error")
+
+        payload_cases = [("fake", "set", ["fake", "set"])]
+        waivers = {"fake.set": "test reason"}
+
+        gate = report_script.build_schema_gate(
+            fetch_wsdl_func=broken_fetch,
+            nested_schema_payload_cases=payload_cases,
+            nested_schema_exclusions={},
+            nested_schema_capture_body_func=clean_capture,
+            operation_waivers=waivers,
+        )
+
+        assert any(
+            v.get("kind") == "schema_error" for v in gate["nested_schema_violations"]
+        )
+        assert gate["schema_parity_ok"] is False
+        assert gate["operation_waiver_misuse"] == ["fake.set"]
+
     def test_schema_gate_waiver_required_when_no_field_enum(self, monkeypatch):
         """Service with no FieldEnum in WSDL must be explicitly waived."""
         report_script = _load_coverage_report_script()

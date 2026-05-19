@@ -913,13 +913,23 @@ def build_schema_gate(
         dry_run_payload_exclusions=nested_schema_exclusions,
         capture_body_func=nested_schema_capture_body_func,
     )
+    # Waivers only mask known WSDL-schema gaps (unknown_nested_key).
+    # dry_run_failed / schema_error / payload_cases_import_error indicate
+    # broken capture or unparseable WSDL — they must never be silenced by
+    # a per-operation waiver, otherwise infra breakage hides behind it.
+    waivable_kinds = {"unknown_nested_key"}
     violating_op_keys = {
-        key for v in all_nested_violations if (key := _violation_op_key(v))
+        key
+        for v in all_nested_violations
+        if v.get("kind") in waivable_kinds and (key := _violation_op_key(v))
     }
     nested_schema_violations = [
         v
         for v in all_nested_violations
-        if _violation_op_key(v) not in operation_waivers
+        if not (
+            v.get("kind") in waivable_kinds
+            and _violation_op_key(v) in operation_waivers
+        )
     ]
     operation_waiver_misuse = sorted(
         key for key in operation_waivers if key not in violating_op_keys
