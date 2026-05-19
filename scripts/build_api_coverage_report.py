@@ -62,6 +62,15 @@ SCHEMA_GATE_WAIVERS = {
     ),
 }
 
+# Per-operation waivers for nested-schema validation. Keys are ``"group.operation"``
+# strings (matching ``argv[0].argv[1]`` of a PAYLOAD_CASES entry); values are short
+# justifications. Use this for fine-grained exclusions of a single mutating
+# operation when ``SCHEMA_GATE_WAIVERS`` (per-group) is too broad. Stale entries
+# surface in ``operation_waiver_misuse`` so unused waivers are removed in CI.
+SCHEMA_GATE_OPERATION_WAIVERS: dict[str, str] = {
+    # "group.operation": "reason — explains why this specific operation is waived"
+}
+
 CLI_COMMAND_BY_WSDL_OPERATION = {
     wsdl_name: cli_name for cli_name, wsdl_name in METHOD_NAME_OVERRIDES.items()
 }
@@ -477,6 +486,14 @@ RUNTIME_DEPRECATED_CAPTURE_FIXTURES = {
 }
 
 
+def _violation_op_key(violation: dict) -> Optional[str]:
+    """Return ``"group.operation"`` key for a nested-schema violation, or None."""
+    argv = violation.get("argv") or []
+    if len(argv) < 2:
+        return None
+    return f"{argv[0]}.{argv[1]}"
+
+
 def _validate_nested_schema_payloads(
     fetch_wsdl_func=fetch_wsdl,
     payload_cases=None,
@@ -487,7 +504,9 @@ def _validate_nested_schema_payloads(
 
     Uses ``find_nested_schema_violations`` against
     ``get_operation_request_schema`` (which now resolves imported XSD types).
-    Skips entries listed in ``DRY_RUN_PAYLOAD_EXCLUSIONS``.
+    Skips entries listed in ``DRY_RUN_PAYLOAD_EXCLUSIONS``. Per-operation
+    waivers (``SCHEMA_GATE_OPERATION_WAIVERS``) are applied by the caller
+    (``build_schema_gate``) so it can also report stale waivers.
     """
     if payload_cases is None or dry_run_payload_exclusions is None:
         try:
@@ -697,6 +716,7 @@ def build_schema_gate(
     nested_schema_payload_cases=None,
     nested_schema_exclusions=None,
     nested_schema_capture_body_func=None,
+    operation_waivers=None,
 ) -> dict:
     """Validate default CLI ``*FieldNames`` values against WSDL ``*FieldEnum``.
 
@@ -728,6 +748,9 @@ def build_schema_gate(
       request schema (with imported XSD types resolved). Catches typos,
       stale-CLI-vs-WSDL drift below the top-level params, and any
       ``*FieldNames`` param sent to an operation whose WSDL does not declare it.
+    - ``operation_waiver_misuse`` — entries in
+      ``SCHEMA_GATE_OPERATION_WAIVERS`` whose ``group.operation`` would pass
+      nested-schema validation without the waiver (stale exclusions).
     """
     if capture_get_body_func is None:
         capture_get_body_func = capture_cli_request_body
@@ -880,11 +903,26 @@ def build_schema_gate(
     )
 
     runtime_deprecated_unguarded = _validate_runtime_deprecated_methods()
-    nested_schema_violations = _validate_nested_schema_payloads(
+    if operation_waivers is None:
+        operation_waivers = SCHEMA_GATE_OPERATION_WAIVERS
+    # Run validation unfiltered so we can both apply per-operation waivers
+    # AND report waivers that no longer mask a real violation (stale).
+    all_nested_violations = _validate_nested_schema_payloads(
         fetch_wsdl_func,
         payload_cases=nested_schema_payload_cases,
         dry_run_payload_exclusions=nested_schema_exclusions,
         capture_body_func=nested_schema_capture_body_func,
+    )
+    violating_op_keys = {
+        key for v in all_nested_violations if (key := _violation_op_key(v))
+    }
+    nested_schema_violations = [
+        v
+        for v in all_nested_violations
+        if _violation_op_key(v) not in operation_waivers
+    ]
+    operation_waiver_misuse = sorted(
+        key for key in operation_waivers if key not in violating_op_keys
     )
 
     return {
@@ -897,6 +935,7 @@ def build_schema_gate(
         "waiver_misuse": waiver_misuse,
         "runtime_deprecated_unguarded": runtime_deprecated_unguarded,
         "nested_schema_violations": nested_schema_violations,
+        "operation_waiver_misuse": operation_waiver_misuse,
         "schema_parity_ok": (
             not mismatches
             and not capture_errors
@@ -907,6 +946,7 @@ def build_schema_gate(
             and not waiver_misuse
             and not runtime_deprecated_unguarded
             and not nested_schema_violations
+            and not operation_waiver_misuse
         ),
     }
 
@@ -1025,6 +1065,7 @@ def build_report(fetch_wsdl_func=fetch_wsdl, live_fetch_wsdl_func=None) -> dict:
         "waiver_misuse": schema_gate["waiver_misuse"],
         "runtime_deprecated_unguarded": schema_gate["runtime_deprecated_unguarded"],
         "nested_schema_violations": schema_gate["nested_schema_violations"],
+        "operation_waiver_misuse": schema_gate["operation_waiver_misuse"],
     }
     report["summary"]["schema_parity_ok"] = schema_gate["schema_parity_ok"]
 
