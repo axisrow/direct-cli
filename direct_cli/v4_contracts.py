@@ -528,34 +528,6 @@ def v4_method_contract(method: str):
     return decorator
 
 
-def validate_v4_body_shape(method: str, body: dict[str, Any]) -> list[str]:
-    """Return shape errors for a v4 Live request body."""
-    contract = get_v4_contract(method)
-    errors: list[str] = []
-
-    if body.get("method") != method:
-        errors.append(f"method mismatch: {body.get('method')!r} != {method!r}")
-
-    has_param = "param" in body
-    param = body.get("param")
-    if contract.param_shape == PARAM_ARRAY:
-        if not has_param or not isinstance(param, list):
-            errors.append(f"{method} param must be an array")
-    elif contract.param_shape == PARAM_OBJECT:
-        if not has_param or not isinstance(param, dict):
-            errors.append(f"{method} param must be an object")
-    elif contract.param_shape == PARAM_OPTIONAL_OBJECT:
-        if has_param and not isinstance(param, dict):
-            errors.append(f"{method} param must be omitted or an object")
-    elif contract.param_shape == PARAM_SCALAR:
-        if not has_param or isinstance(param, (dict, list)) or param is None:
-            errors.append(f"{method} param must be a scalar")
-    elif contract.param_shape == PARAM_UNDOCUMENTED:
-        errors.append(f"{method} param shape is undocumented")
-
-    return errors
-
-
 def validate_v4_contract_registry() -> list[str]:
     """Return registry consistency errors."""
     errors = []
