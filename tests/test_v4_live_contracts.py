@@ -1,3 +1,4 @@
+import json
 import os
 from datetime import datetime, timedelta, timezone
 
@@ -31,7 +32,19 @@ def _credentials():
             from direct_cli.auth import get_credentials
 
             token, login = get_credentials(None, None)
-        except (ValueError, RuntimeError, ImportError):
+        except (
+            ValueError,
+            RuntimeError,
+            ImportError,
+            OSError,
+            json.JSONDecodeError,
+        ):
+            # OSError: writable-state failures from save_auth_store after a
+            # successful OAuth refresh (e.g. permission denied on
+            # ~/.direct-cli/).
+            # json.JSONDecodeError: malformed refresh-token response body.
+            # Both are bootstrap-only failures and should skip the test, not
+            # break the suite.
             pytest.skip(
                 "credentials required: set YANDEX_DIRECT_TOKEN+YANDEX_DIRECT_LOGIN "
                 "or run 'direct auth login'"

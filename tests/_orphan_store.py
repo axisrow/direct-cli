@@ -32,15 +32,18 @@ def _read(path: Path = ORPHAN_STORE_PATH) -> Dict[str, List[int]]:
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
-    except (FileNotFoundError, OSError, json.JSONDecodeError):
+        if not isinstance(data, dict):
+            return {}
+        return {
+            k: [int(x) for x in v if isinstance(x, (int, str))]
+            for k, v in data.items()
+            if isinstance(k, str) and isinstance(v, list)
+        }
+    except (OSError, json.JSONDecodeError, ValueError, TypeError):
+        # ValueError/TypeError cover hand-edited or buggy entries where
+        # ``int(x)`` cannot convert (e.g. "abc" or None). Per the module
+        # contract, any store IO/parsing failure must skip silently.
         return {}
-    if not isinstance(data, dict):
-        return {}
-    return {
-        k: [int(x) for x in v if isinstance(x, (int, str))]
-        for k, v in data.items()
-        if isinstance(k, str) and isinstance(v, list)
-    }
 
 
 def _write(data: Dict[str, List[int]], path: Path = ORPHAN_STORE_PATH) -> None:
