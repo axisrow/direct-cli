@@ -294,7 +294,7 @@ def _assert_draft_or_success(result, cmd_label: str) -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_campaign_create_get_delete() -> None:
+def test_v5_live_draft_campaign_create_get_delete() -> None:
     """Create, verify and delete only the draft campaign created by this test."""
     campaign_name = _campaign_name()
     created_campaign_id: Optional[int] = None
@@ -362,7 +362,7 @@ def test_live_draft_campaign_create_get_delete() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_sitelinks_add_get_delete() -> None:
+def test_v5_live_draft_sitelinks_add_get_delete() -> None:
     """Create a sitelink set, verify via get, then delete it."""
     r = _invoke_live(
         "sitelinks",
@@ -390,7 +390,7 @@ def test_live_draft_sitelinks_add_get_delete() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_adimages_add_get_delete() -> None:
+def test_v5_live_draft_adimages_add_get_delete() -> None:
     """Upload a test PNG image, verify via get, then delete by hash."""
     r = _invoke_live(
         "adimages",
@@ -423,9 +423,7 @@ def test_live_draft_adimages_add_get_delete() -> None:
         else:
             result_data = data.get("result", data)
             images = result_data.get("AdImages", [])
-        hashes_in_response = {
-            img.get("AdImageHash") for img in images
-        }
+        hashes_in_response = {img.get("AdImageHash") for img in images}
         assert (
             img_hash in hashes_in_response
         ), f"Uploaded image hash {img_hash} not found in get response"
@@ -439,11 +437,9 @@ def test_live_draft_adimages_add_get_delete() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_advideos_add_get() -> None:
+def test_v5_live_draft_advideos_add_get() -> None:
     """Add a video from file and verify via get."""
-    video_file = os.path.join(
-        os.path.dirname(__file__), "fixtures", "test-video.mp4"
-    )
+    video_file = os.path.join(os.path.dirname(__file__), "fixtures", "test-video.mp4")
     r = _invoke_live(
         "advideos",
         "add",
@@ -461,11 +457,9 @@ def test_live_draft_advideos_add_get() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_creatives_chain_advideo_to_creative() -> None:
+def test_v5_live_draft_creatives_chain_advideo_to_creative() -> None:
     """Chain: add advideo from file -> create creative from it -> verify via get."""
-    video_file = os.path.join(
-        os.path.dirname(__file__), "fixtures", "test-video.mp4"
-    )
+    video_file = os.path.join(os.path.dirname(__file__), "fixtures", "test-video.mp4")
     r = _invoke_live(
         "advideos",
         "add",
@@ -491,7 +485,7 @@ def test_live_draft_creatives_chain_advideo_to_creative() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_adgroups_add_update_delete() -> None:
+def test_v5_live_draft_adgroups_add_update_delete() -> None:
     """Create draft campaign, add/update/get/delete adgroup."""
     cid = _create_draft_campaign("-adgroups")
     gid: Optional[int] = None
@@ -529,7 +523,7 @@ def test_live_draft_adgroups_add_update_delete() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_ads_add_update_delete() -> None:
+def test_v5_live_draft_ads_add_update_delete() -> None:
     """Create draft campaign + adgroup, add/update/get/delete TEXT_AD."""
     cid = _create_draft_campaign("-ads")
     gid: Optional[int] = None
@@ -580,7 +574,7 @@ def test_live_draft_ads_add_update_delete() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_keywords_add_update_delete() -> None:
+def test_v5_live_draft_keywords_add_update_delete() -> None:
     """Create draft campaign + adgroup, add/update/get/delete keyword."""
     cid = _create_draft_campaign("-keywords")
     gid: Optional[int] = None
@@ -612,7 +606,12 @@ def test_live_draft_keywords_add_update_delete() -> None:
         kid = _extract_first_id(r.output)
 
         r = _invoke_live(
-            "keywords", "update", "--id", str(kid), "--keyword", "draft test keyword updated"
+            "keywords",
+            "update",
+            "--id",
+            str(kid),
+            "--keyword",
+            "draft test keyword updated",
         )
         _assert_success(r, "keywords update")
 
@@ -634,7 +633,7 @@ def test_live_draft_keywords_add_update_delete() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_bids_set() -> None:
+def test_v5_live_draft_bids_set() -> None:
     """Create draft campaign + adgroup + keyword, set bid."""
     cid = _create_draft_campaign("-bids")
     gid: Optional[int] = None
@@ -676,7 +675,7 @@ def test_live_draft_bids_set() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_keywordbids_set() -> None:
+def test_v5_live_draft_keywordbids_set() -> None:
     """Create draft campaign + adgroup + keyword, set keywordbid."""
     cid = _create_draft_campaign("-keywordbids")
     gid: Optional[int] = None
@@ -727,7 +726,7 @@ def test_live_draft_keywordbids_set() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_audiencetargets_add_delete() -> None:
+def test_v5_live_draft_audiencetargets_add_delete() -> None:
     """Create draft campaign + adgroup + retargeting list, add/delete
     audience target."""
     cid = _create_draft_campaign("-audience")
@@ -796,7 +795,7 @@ def test_live_draft_audiencetargets_add_delete() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_dynamicads_add_delete() -> None:
+def test_v5_live_draft_dynamicads_add_delete() -> None:
     """Create DYNAMIC_TEXT_CAMPAIGN, add dynamic ad target, verify, delete."""
     r = _invoke_live(
         "campaigns",
@@ -881,7 +880,7 @@ def test_live_draft_dynamicads_add_delete() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_smartadtargets_add_update_delete() -> None:
+def test_v5_live_draft_smartadtargets_add_update_delete() -> None:
     """Create SMART_CAMPAIGN, add smart ad target, update, verify, delete."""
     r = _invoke_live(
         "feeds",
@@ -982,7 +981,7 @@ def test_live_draft_smartadtargets_add_update_delete() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_keywords_suspend_resume() -> None:
+def test_v5_live_draft_keywords_suspend_resume() -> None:
     """Smoke-test keywords suspend/resume on draft keyword."""
     cid, gid = _create_draft_adgroup("-kw-sr")
     kid: Optional[int] = None
@@ -1012,7 +1011,7 @@ def test_live_draft_keywords_suspend_resume() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_audiencetargets_suspend_resume() -> None:
+def test_v5_live_draft_audiencetargets_suspend_resume() -> None:
     """Smoke-test audiencetargets suspend/resume on draft target."""
     cid, gid = _create_draft_adgroup("-at-sr")
     rtg_id: Optional[int] = None
@@ -1062,7 +1061,7 @@ def test_live_draft_audiencetargets_suspend_resume() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_dynamicads_suspend_resume() -> None:
+def test_v5_live_draft_dynamicads_suspend_resume() -> None:
     """Smoke-test dynamicads suspend/resume on draft target."""
     r = _invoke_live(
         "campaigns",
@@ -1132,7 +1131,7 @@ def test_live_draft_dynamicads_suspend_resume() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_smartadtargets_suspend_resume() -> None:
+def test_v5_live_draft_smartadtargets_suspend_resume() -> None:
     """Smoke-test smartadtargets suspend/resume on draft target."""
     r = _invoke_live(
         "feeds",
@@ -1214,7 +1213,7 @@ def test_live_draft_smartadtargets_suspend_resume() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_ads_suspend_resume_archive_unarchive() -> None:
+def test_v5_live_draft_ads_suspend_resume_archive_unarchive() -> None:
     """Smoke-test ads suspend/resume/archive/unarchive on draft ad."""
     cid, gid = _create_draft_adgroup("-ads-sr")
     aid: Optional[int] = None

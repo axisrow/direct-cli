@@ -82,6 +82,8 @@ fall back to base `YANDEX_DIRECT_LOGIN`; this prevents mixing a profile token
 with a login from the project `.env`. For multi-account setups, prefer OAuth
 profiles or profile-specific env vars instead of base credentials.
 
+> **Tests use the inverted order.** Live-API test suites (e.g. `tests/test_v4_live_contracts.py`) read `YANDEX_DIRECT_TOKEN` / `YANDEX_DIRECT_LOGIN` from the environment first, only then fall back to the active `direct auth` profile, and skip the test if neither is set. This is intentional: a developer machine with an active profile must not silently hit production on a plain `pytest` invocation. See `CLAUDE.md` for the contract.
+
 Install with `pip install direct-cli`, then run commands with `direct`.
 Invoking the deprecated `direct-cli` entrypoint exits with
 `use direct instead of direct-cli`.
@@ -522,16 +524,21 @@ Four tiers of tests live under `tests/`:
 | Unit / CLI wiring / dry-run | *(none)* | No | No |
 | Read-only integration | `-m integration` | Yes (production API, read-only) | Yes |
 | Write integration | `-m integration_write` | No (replays VCR cassettes) | No |
-| Live draft write integration | `-m integration_live_write` | Yes when recording, otherwise VCR replay | Yes + `YANDEX_DIRECT_LIVE_WRITE=1` |
+| Live draft write integration (v5) | `-m integration_live_write` | Yes when recording, otherwise VCR replay | Yes + `YANDEX_DIRECT_LIVE_WRITE=1` |
+| v4 live read | `-m v4_live_read` | Yes (production v4 JSON API, read-only) | Yes |
+| v4 live account-level report write (opt-in) | `-k _opt_in_write` in `tests/test_v4_live_contracts.py` | Yes (production v4) | Yes + `YANDEX_DIRECT_V4_LIVE_REPORT_WRITE=1` |
 
 ```bash
 pip install -e ".[dev]"
 pytest                              # fast tier — no token
 pytest -m integration -v            # read-only integration tests (needs token)
 pytest -m integration_write -v      # write cassette replay (no token needed)
-YANDEX_DIRECT_LIVE_WRITE=1 pytest -m integration_live_write -v  # live draft cassette replay
+YANDEX_DIRECT_LIVE_WRITE=1 pytest -m integration_live_write -v  # live draft cassette replay (v5)
 YANDEX_DIRECT_LIVE_WRITE=1 pytest -m integration_live_write -v --record-mode=rewrite  # re-record live draft cassette
+YANDEX_DIRECT_V4_LIVE_REPORT_WRITE=1 pytest tests/test_v4_live_contracts.py -k _opt_in_write -v  # v4 wordstat/forecast account-level lifecycle
 ```
+
+The v4 account-level write tier (`YANDEX_DIRECT_V4_LIVE_REPORT_WRITE=1`) creates real Wordstat and forecast reports in the production account and deletes them in the same run. There are **no cassettes** — these tests run against live API only. Created IDs are tracked in `~/.direct-cli/test-orphans.json` so that if the run is interrupted between create and delete, the next invocation will retry the cleanup automatically (see `tests/_orphan_store.py`).
 
 #### Smoke command scripts
 
@@ -769,6 +776,8 @@ direct --profile agency1 campaigns get
 base `YANDEX_DIRECT_LOGIN`; это защищает от смешивания токена из профиля с
 логином из project `.env`. Для нескольких аккаунтов используйте OAuth profiles
 или профильные env vars, а не базовые credentials.
+
+> **В тестах порядок инвертирован.** Live-API тесты (например `tests/test_v4_live_contracts.py`) сначала читают `YANDEX_DIRECT_TOKEN` / `YANDEX_DIRECT_LOGIN` из окружения, затем падают на активный профиль `direct auth`, и скипают тест если ни того ни другого нет. Это сделано специально: на машине разработчика с активным профилем обычный `pytest` не должен молча идти в боевой API. Контракт зафиксирован в `CLAUDE.md`.
 
 Установка остаётся через `pip install direct-cli`, а запуск команд теперь идет
 через `direct`. Вызов deprecated entrypoint `direct-cli` завершается ошибкой с
@@ -1143,16 +1152,21 @@ direct campaigns add --name "Тест" --start-date 2024-01-01 --dry-run
 | Юнит / CLI / dry-run | *(без маркера)* | Нет | Нет |
 | Read-only интеграция | `-m integration` | Да (prod API, только чтение) | Да |
 | Write интеграция | `-m integration_write` | Нет (replay VCR-кассет) | Нет |
-| Live draft write интеграция | `-m integration_live_write` | Да при записи, иначе VCR replay | Да + `YANDEX_DIRECT_LIVE_WRITE=1` |
+| Live draft write интеграция (v5) | `-m integration_live_write` | Да при записи, иначе VCR replay | Да + `YANDEX_DIRECT_LIVE_WRITE=1` |
+| v4 live read | `-m v4_live_read` | Да (prod v4 JSON API, только чтение) | Да |
+| v4 live запись отчётов на уровне аккаунта (opt-in) | `-k _opt_in_write` в `tests/test_v4_live_contracts.py` | Да (prod v4) | Да + `YANDEX_DIRECT_V4_LIVE_REPORT_WRITE=1` |
 
 ```bash
 pip install -e ".[dev]"
 pytest                              # быстрый уровень — без токена
 pytest -m integration -v            # read-only интеграция (нужен токен)
 pytest -m integration_write -v      # replay write-кассет (токен не нужен)
-YANDEX_DIRECT_LIVE_WRITE=1 pytest -m integration_live_write -v  # replay live draft-кассеты
+YANDEX_DIRECT_LIVE_WRITE=1 pytest -m integration_live_write -v  # replay live draft-кассеты (v5)
 YANDEX_DIRECT_LIVE_WRITE=1 pytest -m integration_live_write -v --record-mode=rewrite  # перезапись live draft-кассеты
+YANDEX_DIRECT_V4_LIVE_REPORT_WRITE=1 pytest tests/test_v4_live_contracts.py -k _opt_in_write -v  # жизненный цикл v4 wordstat/forecast
 ```
+
+Уровень v4 account-level write (`YANDEX_DIRECT_V4_LIVE_REPORT_WRITE=1`) создаёт настоящие Wordstat-отчёты и прогнозы в боевом аккаунте и удаляет их в том же запуске. **Кассет нет** — эти тесты идут только в живой API. Созданные ID пишутся в `~/.direct-cli/test-orphans.json`: если запуск оборвался между create и delete, при следующем вызове осиротевшие ID будут удалены автоматически (см. `tests/_orphan_store.py`).
 
 #### Smoke-скрипты команд
 

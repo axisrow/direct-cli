@@ -84,6 +84,15 @@ def _before_record_request(request):
             rb'"VideoData":"[^"]*"', b'"VideoData":"<REDACTED>"', body
         )
         redacted = True
+    # v4 JSON API carries the OAuth token inside the body as `"token":"..."`.
+    if isinstance(request.body, str) and '"token"' in request.body:
+        request.body = re.sub(r'"token":"[^"]*"', '"token":"<REDACTED>"', request.body)
+        redacted = True
+    elif isinstance(request.body, bytes) and b'"token"' in request.body:
+        request.body = re.sub(
+            rb'"token":"[^"]*"', b'"token":"<REDACTED>"', request.body
+        )
+        redacted = True
     if redacted:
         new_body = request.body
         new_len = str(len(new_body.encode("utf-8") if isinstance(new_body, str) else new_body))
