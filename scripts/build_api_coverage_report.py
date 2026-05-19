@@ -481,6 +481,7 @@ def _validate_nested_schema_payloads(
     fetch_wsdl_func=fetch_wsdl,
     payload_cases=None,
     dry_run_payload_exclusions=None,
+    capture_body_func=None,
 ) -> list[dict]:
     """Run dry-run for each PAYLOAD_CASES entry and flag unknown nested keys.
 
@@ -508,37 +509,24 @@ def _validate_nested_schema_payloads(
             payload_cases = PAYLOAD_CASES
         if dry_run_payload_exclusions is None:
             dry_run_payload_exclusions = DRY_RUN_PAYLOAD_EXCLUSIONS
+    if capture_body_func is None:
+        capture_body_func = _capture_payload_case_body
 
     violations: list[dict] = []
     for service, operation, argv in payload_cases:
         excl_key = f"{argv[0]}.{argv[1]}"
         if excl_key in dry_run_payload_exclusions:
             continue
-        result = CliRunner().invoke(cli, list(argv) + ["--dry-run"])
-        # Try to parse the dry-run JSON body. If parsing fails or exit code
-        # is non-zero, classify as dry_run_failed (uniform across click
-        # versions: some flag missing-command as exit 2 with usage text in
-        # stdout, others surface a non-JSON error to output regardless).
-        body = None
-        json_error = None
-        if result.output.strip():
-            try:
-                body = json.loads(result.output)
-            except (json.JSONDecodeError, TypeError) as exc:
-                json_error = str(exc)
-        if result.exit_code != 0 or body is None:
-            error = result.output.strip()
-            if result.exception is not None:
-                error = f"{error}\n{result.exception}".strip()
-            if json_error and not error:
-                error = json_error
+        try:
+            body = capture_body_func(list(argv))
+        except Exception as exc:
             violations.append(
                 {
                     "kind": "dry_run_failed",
                     "service": service,
                     "operation": operation,
                     "argv": list(argv),
-                    "error": error or f"exit code {result.exit_code}",
+                    "error": str(exc),
                 }
             )
             continue
@@ -568,6 +556,17 @@ def _validate_nested_schema_payloads(
                 }
             )
     return violations
+
+
+def _capture_payload_case_body(argv: list[str]) -> dict:
+    """Run one dry-run payload case and return the JSON request body."""
+    result = CliRunner().invoke(cli, list(argv) + ["--dry-run"])
+    if result.exit_code != 0:
+        error = result.output.strip()
+        if result.exception is not None:
+            error = f"{error}\n{result.exception}".strip()
+        raise RuntimeError(error or f"exit code {result.exit_code}")
+    return json.loads(result.output)
 
 
 def _validate_runtime_deprecated_methods(deprecated_methods=None) -> list[dict]:
@@ -697,6 +696,7 @@ def build_schema_gate(
     capture_get_body_func=None,
     nested_schema_payload_cases=None,
     nested_schema_exclusions=None,
+    nested_schema_capture_body_func=None,
 ) -> dict:
     """Validate default CLI ``*FieldNames`` values against WSDL ``*FieldEnum``.
 
@@ -725,8 +725,9 @@ def build_schema_gate(
       request and let the user hit error_code=3500 at runtime).
     - ``nested_schema_violations`` — dry-run payloads in ``PAYLOAD_CASES``
       that contain top-level or nested keys not declared in the WSDL
-      request schema (with imported XSD types resolved). Catches typos and
-      stale-CLI-vs-WSDL drift below the top-level params.
+      request schema (with imported XSD types resolved). Catches typos,
+      stale-CLI-vs-WSDL drift below the top-level params, and any
+      ``*FieldNames`` param sent to an operation whose WSDL does not declare it.
     """
     if capture_get_body_func is None:
         capture_get_body_func = capture_cli_request_body
@@ -746,12 +747,11 @@ def build_schema_gate(
     orphan_common_fields = _orphan_common_fields_keys()
     missing_field_name_params = []
     missing_common_fields = []
-    validated_groups = set()
+    validated_get_groups = set()
     waived_no_enum_groups = set()
 
     for cli_name, api_service in sorted(CLI_TO_API_SERVICE.items()):
-        if "get" not in get_cli_methods_for_service(cli_name):
-            continue
+        cli_methods = get_cli_methods_for_service(cli_name)
 
         try:
             field_operations = _field_name_operations(fetch_wsdl_func, api_service)
@@ -768,16 +768,14 @@ def build_schema_gate(
             continue
 
         if not field_operations:
-            waived_no_enum_groups.add(cli_name)
+            if "get" in cli_methods:
+                waived_no_enum_groups.add(cli_name)
             continue
-        if (
-            "get" in get_cli_methods_for_service(cli_name)
-            and "get" not in field_operations
-        ):
+        if "get" in cli_methods and "get" not in field_operations:
             waived_no_enum_groups.add(cli_name)
 
         for operation, field_specs in sorted(field_operations.items()):
-            if operation not in get_cli_methods_for_service(cli_name):
+            if operation not in cli_methods:
                 continue
 
             expected_field_params = _common_default_field_params(cli_name, api_service)
@@ -859,7 +857,8 @@ def build_schema_gate(
                         }
                     )
             if validated_any_field:
-                validated_groups.add(cli_name)
+                if operation == "get":
+                    validated_get_groups.add(cli_name)
 
     expected_groups = {
         cli_name
@@ -869,7 +868,7 @@ def build_schema_gate(
     error_groups = {entry["cli_group"] for entry in capture_errors}
     uncovered_get_groups = sorted(
         expected_groups
-        - validated_groups
+        - validated_get_groups
         - error_groups
         - (waived_no_enum_groups & set(SCHEMA_GATE_WAIVERS))
     )
@@ -885,6 +884,7 @@ def build_schema_gate(
         fetch_wsdl_func,
         payload_cases=nested_schema_payload_cases,
         dry_run_payload_exclusions=nested_schema_exclusions,
+        capture_body_func=nested_schema_capture_body_func,
     )
 
     return {

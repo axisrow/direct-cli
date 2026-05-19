@@ -1,7 +1,11 @@
 import json
 from unittest.mock import Mock
 
+import pytest
+from click.testing import CliRunner
+
 from direct_cli._vendor.tapi_yandex_direct.v4 import SUPPORTED_V4_METHODS
+from direct_cli.cli import cli
 from direct_cli.v4 import build_v4_body, call_v4
 from direct_cli.v4_contracts import (
     PARAM_ARRAY,
@@ -14,8 +18,182 @@ from direct_cli.v4_contracts import (
     V4_METHOD_CONTRACTS,
     get_v4_contract,
     v4_method_contract,
+    validate_v4_body_shape,
     validate_v4_contract_registry,
 )
+
+V4_CLI_DRY_RUN_FIXTURES = {
+    "balance": ["balance", "--logins", "client-login"],
+    "v4account.account-management": [
+        "v4account",
+        "account-management",
+        "--action",
+        "Update",
+        "--account-id",
+        "1",
+        "--money-in-sms",
+        "Yes",
+    ],
+    "v4account.enable-shared-account": [
+        "v4account",
+        "enable-shared-account",
+        "--client-login",
+        "client-login",
+    ],
+    "v4events.get-events-log": [
+        "v4events",
+        "get-events-log",
+        "--from",
+        "2026-04-14T00:00:00",
+        "--to",
+        "2026-04-14T01:00:00",
+    ],
+    "v4finance.check-payment": [
+        "v4finance",
+        "check-payment",
+        "--custom-transaction-id",
+        "A123456789012345678901234567890B",
+    ],
+    "v4finance.create-invoice": [
+        "v4finance",
+        "create-invoice",
+        "--payment",
+        "123=100.50",
+        "--finance-token",
+        "finance-token",
+        "--operation-num",
+        "1",
+    ],
+    "v4finance.get-clients-units": [
+        "v4finance",
+        "get-clients-units",
+        "--logins",
+        "client-login",
+    ],
+    "v4finance.get-credit-limits": [
+        "v4finance",
+        "get-credit-limits",
+        "--logins",
+        "client-login",
+        "--finance-token",
+        "finance-token",
+        "--operation-num",
+        "1",
+    ],
+    "v4finance.pay-campaigns": [
+        "v4finance",
+        "pay-campaigns",
+        "--campaign-ids",
+        "123",
+        "--amount",
+        "100.50",
+        "--pay-method",
+        "Bank",
+        "--contract-id",
+        "contract-id",
+        "--finance-token",
+        "finance-token",
+        "--operation-num",
+        "1",
+    ],
+    "v4finance.transfer-money": [
+        "v4finance",
+        "transfer-money",
+        "--from-campaign-id",
+        "123",
+        "--to-campaign-id",
+        "456",
+        "--amount",
+        "100.50",
+        "--finance-token",
+        "finance-token",
+        "--operation-num",
+        "1",
+    ],
+    "v4forecast.create": [
+        "v4forecast",
+        "create",
+        "--phrases",
+        "buy laptop",
+    ],
+    "v4forecast.delete": ["v4forecast", "delete", "--forecast-id", "1"],
+    "v4forecast.get": ["v4forecast", "get", "--forecast-id", "1"],
+    "v4forecast.list": ["v4forecast", "list"],
+    "v4goals.get-retargeting-goals": [
+        "v4goals",
+        "get-retargeting-goals",
+        "--campaign-ids",
+        "123",
+    ],
+    "v4goals.get-stat-goals": [
+        "v4goals",
+        "get-stat-goals",
+        "--campaign-ids",
+        "123",
+    ],
+    "v4tags.get-banners": ["v4tags", "get-banners", "--banner-ids", "123"],
+    "v4tags.get-campaigns": [
+        "v4tags",
+        "get-campaigns",
+        "--campaign-ids",
+        "123",
+    ],
+    "v4tags.update-banners": [
+        "v4tags",
+        "update-banners",
+        "--banner-ids",
+        "123",
+        "--tag-ids",
+        "1",
+    ],
+    "v4tags.update-campaigns": [
+        "v4tags",
+        "update-campaigns",
+        "--campaign-id",
+        "123",
+        "--tag",
+        "0=test",
+    ],
+    "v4wordstat.create-report": [
+        "v4wordstat",
+        "create-report",
+        "--phrases",
+        "buy laptop",
+    ],
+    "v4wordstat.delete-report": [
+        "v4wordstat",
+        "delete-report",
+        "--report-id",
+        "1",
+    ],
+    "v4wordstat.get-report": ["v4wordstat", "get-report", "--report-id", "1"],
+    "v4wordstat.list-reports": ["v4wordstat", "list-reports"],
+}
+
+
+def _v4_cli_command_methods() -> dict[str, str]:
+    """Return CLI command label -> registered v4 Live method."""
+    commands = {}
+    for group_name, command in sorted(cli.commands.items()):
+        method = getattr(command, "v4_method", None)
+        if method:
+            commands[group_name] = method
+        if hasattr(command, "commands"):
+            for command_name, subcommand in sorted(command.commands.items()):
+                method = getattr(subcommand, "v4_method", None)
+                if method:
+                    commands[f"{group_name}.{command_name}"] = method
+    return commands
+
+
+def _v4_dry_run_body(argv: list[str]) -> dict:
+    result = CliRunner().invoke(cli, list(argv) + ["--dry-run"])
+    assert result.exit_code == 0, (
+        f"command failed: direct {' '.join(argv)} --dry-run\n"
+        f"output: {result.output}\n"
+        f"exception: {result.exception}"
+    )
+    return json.loads(result.output)
 
 
 def test_v4_contract_registry_covers_supported_methods_exactly():
@@ -32,6 +210,51 @@ def test_v4_contract_registry_has_explicit_policy_for_every_method():
         assert contract.safety
         assert contract.source_status
         assert isinstance(contract.live_probe_allowed, bool)
+
+
+def test_v4_cli_dry_run_fixtures_cover_exposed_contract_commands():
+    commands = _v4_cli_command_methods()
+
+    assert set(V4_CLI_DRY_RUN_FIXTURES) == set(commands), (
+        "V4 dry-run shape fixtures are out of date.\n"
+        f"Missing fixtures: {sorted(set(commands) - set(V4_CLI_DRY_RUN_FIXTURES))}\n"
+        f"Stale fixtures: {sorted(set(V4_CLI_DRY_RUN_FIXTURES) - set(commands))}"
+    )
+
+
+@pytest.mark.parametrize("command_label", sorted(V4_CLI_DRY_RUN_FIXTURES))
+def test_v4_cli_dry_run_body_matches_registered_param_shape(command_label):
+    method = _v4_cli_command_methods()[command_label]
+    body = _v4_dry_run_body(V4_CLI_DRY_RUN_FIXTURES[command_label])
+
+    assert validate_v4_body_shape(method, body) == []
+
+
+def test_v4_body_shape_validator_rejects_wrong_param_shape():
+    assert validate_v4_body_shape(
+        "GetClientsUnits",
+        {"method": "GetClientsUnits", "param": {"Login": "client-login"}},
+    ) == ["GetClientsUnits param must be an array"]
+
+    assert validate_v4_body_shape(
+        "CheckPayment",
+        {"method": "CheckPayment", "param": ["A123456789012345678901234567890B"]},
+    ) == ["CheckPayment param must be an object"]
+
+    assert validate_v4_body_shape(
+        "GetForecastList",
+        {"method": "GetForecastList", "param": 123},
+    ) == ["GetForecastList param must be omitted or an object"]
+
+    assert validate_v4_body_shape(
+        "GetForecast",
+        {"method": "GetForecast", "param": {"ForecastID": 1}},
+    ) == ["GetForecast param must be a scalar"]
+
+    assert validate_v4_body_shape(
+        "PayCampaignsByCard",
+        {"method": "PayCampaignsByCard", "param": {}},
+    ) == ["PayCampaignsByCard param shape is undocumented"]
 
 
 def test_confirmed_contracts_are_not_undocumented():
