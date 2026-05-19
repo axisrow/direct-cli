@@ -106,6 +106,70 @@ def _wsdl_with_get_field_enum(*values):
     )
 
 
+def _wsdl_with_set_field_enum(*values):
+    """Build a minimal WSDL set request with a FieldNames enum."""
+    enum_values = "\n".join(
+        f'                <xsd:enumeration value="{value}" />' for value in values
+    )
+    return (
+        '<wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" '
+        'xmlns:xsd="http://www.w3.org/2001/XMLSchema" '
+        'xmlns:tns="http://api.direct.yandex.com/v5/fake">\n'
+        '    <wsdl:message name="setRequest">\n'
+        '        <wsdl:part name="parameters" element="tns:set" />\n'
+        "    </wsdl:message>\n"
+        "    <wsdl:portType>\n"
+        '        <wsdl:operation name="set">\n'
+        '            <wsdl:input message="tns:setRequest" />\n'
+        "        </wsdl:operation>\n"
+        "    </wsdl:portType>\n"
+        '    <xsd:schema targetNamespace="http://api.direct.yandex.com/v5/fake">\n'
+        '        <xsd:simpleType name="FakeFieldEnum">\n'
+        '            <xsd:restriction base="xsd:string">\n'
+        f"{enum_values}\n"
+        "            </xsd:restriction>\n"
+        "        </xsd:simpleType>\n"
+        '        <xsd:element name="set">\n'
+        "            <xsd:complexType>\n"
+        "                <xsd:sequence>\n"
+        '                    <xsd:element name="FieldNames" '
+        'type="tns:FakeFieldEnum" minOccurs="1" maxOccurs="unbounded" />\n'
+        "                </xsd:sequence>\n"
+        "            </xsd:complexType>\n"
+        "        </xsd:element>\n"
+        "    </xsd:schema>\n"
+        "</wsdl:definitions>\n"
+    )
+
+
+def _wsdl_with_set_without_fieldnames():
+    """Build a minimal WSDL set request without any ``*FieldNames`` field."""
+    return (
+        '<wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" '
+        'xmlns:xsd="http://www.w3.org/2001/XMLSchema" '
+        'xmlns:tns="http://api.direct.yandex.com/v5/fake">\n'
+        '    <wsdl:message name="setRequest">\n'
+        '        <wsdl:part name="parameters" element="tns:set" />\n'
+        "    </wsdl:message>\n"
+        "    <wsdl:portType>\n"
+        '        <wsdl:operation name="set">\n'
+        '            <wsdl:input message="tns:setRequest" />\n'
+        "        </wsdl:operation>\n"
+        "    </wsdl:portType>\n"
+        '    <xsd:schema targetNamespace="http://api.direct.yandex.com/v5/fake">\n'
+        '        <xsd:element name="set">\n'
+        "            <xsd:complexType>\n"
+        "                <xsd:sequence>\n"
+        '                    <xsd:element name="Items" '
+        'type="xsd:string" minOccurs="1" maxOccurs="unbounded" />\n'
+        "                </xsd:sequence>\n"
+        "            </xsd:complexType>\n"
+        "        </xsd:element>\n"
+        "    </xsd:schema>\n"
+        "</wsdl:definitions>\n"
+    )
+
+
 def _wsdl_with_get_field_enums(field_values):
     """Build a minimal WSDL get request with several ``*FieldNames`` enums."""
     simple_types = []
@@ -524,9 +588,7 @@ class TestApiCoverage:
         assert captured["kwargs"]["return_money_in_micros"] is True
         assert captured["kwargs"]["language"] == "ru"
 
-    def test_reports_get_cli_defaults_skip_report_header_and_summary(
-        self, monkeypatch
-    ):
+    def test_reports_get_cli_defaults_skip_report_header_and_summary(self, monkeypatch):
         """reports get defaults keep column header but omit report header/summary."""
         captured = {}
         reports_module = importlib.import_module("direct_cli.commands.reports")
@@ -689,6 +751,38 @@ class TestApiCoverage:
                 "FieldNames"
             ]["values"]
         )
+
+    def test_current_wsdl_has_no_mutating_fieldname_operations(self):
+        """Current cached WSDL has no mutating enum-backed ``*FieldNames`` ops."""
+        mutating_prefixes = (
+            "add",
+            "archive",
+            "delete",
+            "moderate",
+            "resume",
+            "set",
+            "suspend",
+            "unarchive",
+            "update",
+        )
+        mutating_fieldname_operations = []
+
+        for service in CANONICAL_API_SERVICES:
+            wsdl_xml = fetch_wsdl(service)
+            for operation in parse_wsdl_operations(wsdl_xml):
+                if not operation.startswith(mutating_prefixes):
+                    continue
+                field_enums = get_operation_field_name_enums(wsdl_xml, operation)
+                if field_enums:
+                    mutating_fieldname_operations.append(
+                        {
+                            "service": service,
+                            "operation": operation,
+                            "request_fields": sorted(field_enums),
+                        }
+                    )
+
+        assert mutating_fieldname_operations == []
 
     def test_default_fieldnames_match_wsdl_enum(self):
         report_script = _load_coverage_report_script()
@@ -956,6 +1050,242 @@ class TestApiCoverage:
                 "resource": "keywordsresearch",
             }
         ]
+
+    def test_schema_gate_validates_mutating_fieldnames_without_get(self, monkeypatch):
+        """A mutating enum-backed ``FieldNames`` operation does not need ``get``."""
+        report_script = _load_coverage_report_script()
+        monkeypatch.setattr(report_script, "CLI_TO_API_SERVICE", {"fake": "fake"})
+        monkeypatch.setattr(
+            report_script,
+            "get_cli_methods_for_service",
+            lambda cli_name: {"set"},
+        )
+        monkeypatch.setattr(report_script, "COMMON_FIELDS", {"fake": ["Id"]})
+        monkeypatch.setattr(report_script, "SCHEMA_GATE_WAIVERS", {})
+
+        schema_gate = report_script.build_schema_gate(
+            fetch_wsdl_func=lambda service: _wsdl_with_set_field_enum("Id", "Name"),
+            capture_get_body_func=lambda cli_name, operation: {
+                "method": operation,
+                "params": {"FieldNames": ["Id"]},
+            },
+            nested_schema_payload_cases=[],
+            nested_schema_exclusions={},
+        )
+
+        assert schema_gate["schema_parity_ok"] is True
+        assert schema_gate["field_name_mismatches"] == []
+        assert schema_gate["capture_errors"] == []
+        assert schema_gate["missing_field_name_params"] == []
+        assert schema_gate["missing_common_fields"] == []
+        assert schema_gate["uncovered_get_groups"] == []
+
+    def test_schema_gate_flags_mutating_fieldname_wire_mismatch_without_get(
+        self, monkeypatch
+    ):
+        """Invalid mutating ``FieldNames`` values are reported from wire capture."""
+        report_script = _load_coverage_report_script()
+        monkeypatch.setattr(report_script, "CLI_TO_API_SERVICE", {"fake": "fake"})
+        monkeypatch.setattr(
+            report_script,
+            "get_cli_methods_for_service",
+            lambda cli_name: {"set"},
+        )
+        monkeypatch.setattr(report_script, "COMMON_FIELDS", {"fake": ["Id"]})
+        monkeypatch.setattr(report_script, "SCHEMA_GATE_WAIVERS", {})
+
+        schema_gate = report_script.build_schema_gate(
+            fetch_wsdl_func=lambda service: _wsdl_with_set_field_enum("Id", "Name"),
+            capture_get_body_func=lambda cli_name, operation: {
+                "method": operation,
+                "params": {"FieldNames": ["Bogus"]},
+            },
+            nested_schema_payload_cases=[],
+            nested_schema_exclusions={},
+        )
+
+        assert schema_gate["schema_parity_ok"] is False
+        assert schema_gate["field_name_mismatches"] == [
+            {
+                "cli_group": "fake",
+                "api_service": "fake",
+                "operation": "set",
+                "request_field": "FieldNames",
+                "enum_type": "FakeFieldEnum",
+                "invalid_values": ["Bogus"],
+                "actual_values": ["Bogus"],
+                "source": "wire_payload",
+                "resource": "fake",
+            }
+        ]
+        assert schema_gate["capture_errors"] == []
+        assert schema_gate["missing_field_name_params"] == []
+
+    def test_schema_gate_flags_fieldnames_sent_to_operation_without_fieldnames(
+        self, monkeypatch
+    ):
+        """Generic WSDL payload validation catches unsupported ``FieldNames``."""
+        report_script = _load_coverage_report_script()
+        monkeypatch.setattr(report_script, "CLI_TO_API_SERVICE", {})
+        monkeypatch.setattr(report_script, "COMMON_FIELDS", {})
+
+        schema_gate = report_script.build_schema_gate(
+            fetch_wsdl_func=lambda service: _wsdl_with_set_without_fieldnames(),
+            nested_schema_payload_cases=[
+                (
+                    "keywordbids",
+                    "set",
+                    ["keywordbids", "set"],
+                )
+            ],
+            nested_schema_exclusions={},
+            nested_schema_capture_body_func=lambda argv: {
+                "method": "set",
+                "params": {
+                    "Items": ["valid placeholder"],
+                    "FieldNames": ["KeywordId"],
+                },
+            },
+        )
+
+        assert schema_gate["schema_parity_ok"] is False
+        assert schema_gate["field_name_mismatches"] == []
+        assert schema_gate["nested_schema_violations"] == [
+            {
+                "kind": "unknown_nested_key",
+                "service": "keywordbids",
+                "operation": "set",
+                "argv": ["keywordbids", "set"],
+                "error": "",
+                "unknown_paths": ["params.FieldNames"],
+            }
+        ]
+
+    def test_schema_gate_per_operation_waiver_suppresses_violation(self, monkeypatch):
+        """Per-operation waivers suppress nested-schema violations for a single op.
+
+        Stale waivers (whose corresponding op would pass anyway) surface in
+        ``operation_waiver_misuse`` so unused exclusions get cleaned up in CI.
+        """
+        report_script = _load_coverage_report_script()
+        monkeypatch.setattr(report_script, "CLI_TO_API_SERVICE", {})
+        monkeypatch.setattr(report_script, "COMMON_FIELDS", {})
+        monkeypatch.setattr(report_script, "SCHEMA_GATE_WAIVERS", {})
+
+        def broken_capture(_argv):
+            # Sends FieldNames to an op whose WSDL does not declare it.
+            return {
+                "method": "set",
+                "params": {
+                    "Items": ["valid placeholder"],
+                    "FieldNames": ["KeywordId"],
+                },
+            }
+
+        def clean_capture(_argv):
+            return {
+                "method": "set",
+                "params": {"Items": ["valid placeholder"]},
+            }
+
+        payload_cases = [("fake", "set", ["fake", "set"])]
+        waivers = {"fake.set": "test reason"}
+
+        schema_gate = report_script.build_schema_gate(
+            fetch_wsdl_func=lambda service: _wsdl_with_set_without_fieldnames(),
+            nested_schema_payload_cases=payload_cases,
+            nested_schema_exclusions={},
+            nested_schema_capture_body_func=broken_capture,
+            operation_waivers=waivers,
+        )
+
+        assert schema_gate["schema_parity_ok"] is True
+        assert schema_gate["nested_schema_violations"] == []
+        # Waiver masked a real violation, so it is NOT misuse.
+        assert schema_gate["operation_waiver_misuse"] == []
+
+        # Same waiver against a clean fixture is stale.
+        stale_gate = report_script.build_schema_gate(
+            fetch_wsdl_func=lambda service: _wsdl_with_set_without_fieldnames(),
+            nested_schema_payload_cases=payload_cases,
+            nested_schema_exclusions={},
+            nested_schema_capture_body_func=clean_capture,
+            operation_waivers=waivers,
+        )
+
+        assert stale_gate["nested_schema_violations"] == []
+        assert stale_gate["operation_waiver_misuse"] == ["fake.set"]
+        assert stale_gate["schema_parity_ok"] is False
+
+    def test_schema_gate_waiver_does_not_mask_dry_run_failed(self, monkeypatch):
+        """Per-operation waivers must not silence dry_run_failed violations.
+
+        Waivers are intended only for known WSDL-schema gaps
+        (``unknown_nested_key``). If a CLI command's ``--dry-run`` starts
+        crashing, the resulting ``dry_run_failed`` violation must still surface
+        — otherwise infra breakage hides behind a waiver.
+        """
+        report_script = _load_coverage_report_script()
+        monkeypatch.setattr(report_script, "CLI_TO_API_SERVICE", {})
+        monkeypatch.setattr(report_script, "COMMON_FIELDS", {})
+        monkeypatch.setattr(report_script, "SCHEMA_GATE_WAIVERS", {})
+
+        def broken_capture(_argv):
+            raise RuntimeError("dry-run exit code 2")
+
+        payload_cases = [("fake", "set", ["fake", "set"])]
+        waivers = {"fake.set": "test reason"}
+
+        gate = report_script.build_schema_gate(
+            fetch_wsdl_func=lambda service: _wsdl_with_set_without_fieldnames(),
+            nested_schema_payload_cases=payload_cases,
+            nested_schema_exclusions={},
+            nested_schema_capture_body_func=broken_capture,
+            operation_waivers=waivers,
+        )
+
+        # Waiver must NOT silence infra breakage.
+        assert any(
+            v.get("kind") == "dry_run_failed" for v in gate["nested_schema_violations"]
+        )
+        assert gate["schema_parity_ok"] is False
+        # Waiver is stale: no unknown_nested_key under it.
+        assert gate["operation_waiver_misuse"] == ["fake.set"]
+
+    def test_schema_gate_waiver_does_not_mask_schema_error(self, monkeypatch):
+        """Per-operation waivers must not silence schema_error violations.
+
+        If the cached WSDL for a waived service becomes unparseable, the
+        ``schema_error`` violation must still surface so the maintainer
+        notices.
+        """
+        report_script = _load_coverage_report_script()
+        monkeypatch.setattr(report_script, "CLI_TO_API_SERVICE", {})
+        monkeypatch.setattr(report_script, "COMMON_FIELDS", {})
+        monkeypatch.setattr(report_script, "SCHEMA_GATE_WAIVERS", {})
+
+        def clean_capture(_argv):
+            return {"method": "set", "params": {"Items": ["valid placeholder"]}}
+
+        def broken_fetch(_service):
+            raise RuntimeError("WSDL parse error")
+
+        payload_cases = [("fake", "set", ["fake", "set"])]
+        waivers = {"fake.set": "test reason"}
+
+        gate = report_script.build_schema_gate(
+            fetch_wsdl_func=broken_fetch,
+            nested_schema_payload_cases=payload_cases,
+            nested_schema_exclusions={},
+            nested_schema_capture_body_func=clean_capture,
+            operation_waivers=waivers,
+        )
+
+        assert any(
+            v.get("kind") == "schema_error" for v in gate["nested_schema_violations"]
+        )
+        assert gate["schema_parity_ok"] is False
+        assert gate["operation_waiver_misuse"] == ["fake.set"]
 
     def test_schema_gate_waiver_required_when_no_field_enum(self, monkeypatch):
         """Service with no FieldEnum in WSDL must be explicitly waived."""
