@@ -125,7 +125,7 @@ recommended per release to detect if Yandex restores them.
 | sitelinks add/delete | service permanently unavailable in sandbox | 1000 | `TestWriteSitelinks` |
 | adimages add/delete | valid 450×450 PNG rejected | 5004 | `TestWriteAdImages` |
 
-Testing strategy: guarded live-write tier via `tests/test_integration_live_write.py`
+Testing strategy: guarded live-write tier via `tests/test_v5_live_write.py`
 (issue #56) is the current workaround; sandbox rewrite per release to detect fixes.
 
 ### Category B — unsupported (code 3500)
