@@ -1,0 +1,153 @@
+interactions:
+- request:
+    body: "{\"method\":\"CreateNewWordstatReport\",\"param\":{\"Phrases\":[\"\u043A\u0443\u043F\u0438\u0442\u044C
+      \u043D\u043E\u0443\u0442\u0431\u0443\u043A\"],\"GeoID\":[0]},\"token\":\"<REDACTED>\",\"locale\":\"en\"}"
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '135'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+    method: POST
+    uri: https://api.direct.yandex.ru/live/v4/json/
+  response:
+    body:
+      string: '{"data":1211301440}'
+    headers:
+      Content-Security-Policy:
+      - default-src 'none'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Tue, 19 May 2026 06:17:53 GMT
+      RequestId:
+      - '1048193948762013570'
+      Set-Cookie:
+      - REDACTED
+      Transfer-Encoding:
+      - chunked
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.json-api/CreateNewWordstatReport
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+      content-length:
+      - '19'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"GetWordstatReportList","token":"<REDACTED>","locale":"en"}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '69'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+    method: POST
+    uri: https://api.direct.yandex.ru/live/v4/json/
+  response:
+    body:
+      string: '{"data":[{"ReportID":1211301440,"StatusReport":"Done"}]}'
+    headers:
+      Content-Security-Policy:
+      - default-src 'none'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Tue, 19 May 2026 06:17:54 GMT
+      RequestId:
+      - '1718543217330080295'
+      Set-Cookie:
+      - REDACTED
+      Transfer-Encoding:
+      - chunked
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.json-api/GetWordstatReportList
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+      content-length:
+      - '56'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"DeleteWordstatReport","param":1211301440,"token":"<REDACTED>","locale":"en"}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '87'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+    method: POST
+    uri: https://api.direct.yandex.ru/live/v4/json/
+  response:
+    body:
+      string: '{"data":1}'
+    headers:
+      Content-Security-Policy:
+      - default-src 'none'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Tue, 19 May 2026 06:17:56 GMT
+      RequestId:
+      - '1624432486624277449'
+      Set-Cookie:
+      - REDACTED
+      Transfer-Encoding:
+      - chunked
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.json-api/DeleteWordstatReport
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+      content-length:
+      - '10'
+    status:
+      code: 200
+      message: OK
+version: 1

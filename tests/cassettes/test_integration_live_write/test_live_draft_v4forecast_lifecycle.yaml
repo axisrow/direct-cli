@@ -1,0 +1,153 @@
+interactions:
+- request:
+    body: "{\"method\":\"CreateNewForecast\",\"param\":{\"Phrases\":[\"\u043A\u0443\u043F\u0438\u0442\u044C
+      \u043D\u043E\u0443\u0442\u0431\u0443\u043A\"],\"Currency\":\"RUB\",\"GeoID\":[213]},\"token\":\"<REDACTED>\",\"locale\":\"en\"}"
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '148'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+    method: POST
+    uri: https://api.direct.yandex.ru/live/v4/json/
+  response:
+    body:
+      string: '{"data":1211301582}'
+    headers:
+      Content-Security-Policy:
+      - default-src 'none'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Tue, 19 May 2026 06:17:57 GMT
+      RequestId:
+      - '7731295156904107958'
+      Set-Cookie:
+      - REDACTED
+      Transfer-Encoding:
+      - chunked
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.json-api/CreateNewForecast
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+      content-length:
+      - '19'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"GetForecastList","token":"<REDACTED>","locale":"en"}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '63'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+    method: POST
+    uri: https://api.direct.yandex.ru/live/v4/json/
+  response:
+    body:
+      string: '{"data":[{"StatusForecast":"Done","ForecastID":1211301582}]}'
+    headers:
+      Content-Security-Policy:
+      - default-src 'none'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Tue, 19 May 2026 06:17:58 GMT
+      RequestId:
+      - '9094080080140678746'
+      Set-Cookie:
+      - REDACTED
+      Transfer-Encoding:
+      - chunked
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.json-api/GetForecastList
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+      content-length:
+      - '60'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"DeleteForecastReport","param":1211301582,"token":"<REDACTED>","locale":"en"}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '87'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+    method: POST
+    uri: https://api.direct.yandex.ru/live/v4/json/
+  response:
+    body:
+      string: '{"data":1}'
+    headers:
+      Content-Security-Policy:
+      - default-src 'none'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Tue, 19 May 2026 06:18:00 GMT
+      RequestId:
+      - '5766834794048043848'
+      Set-Cookie:
+      - REDACTED
+      Transfer-Encoding:
+      - chunked
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.json-api/DeleteForecastReport
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+      content-length:
+      - '10'
+    status:
+      code: 200
+      message: OK
+version: 1

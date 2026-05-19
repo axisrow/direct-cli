@@ -1255,6 +1255,7 @@ def test_live_draft_ads_suspend_resume_archive_unarchive() -> None:
 # ── v4 Live API lifecycle ────────────────────────────────────────────────
 
 
+@pytest.mark.vcr
 def test_live_draft_v4wordstat_lifecycle() -> None:
     """v4wordstat create-report → list-reports → delete-report through the CLI.
 
@@ -1291,6 +1292,7 @@ def test_live_draft_v4wordstat_lifecycle() -> None:
         _assert_success(r, "v4wordstat delete-report")
 
 
+@pytest.mark.vcr
 def test_live_draft_v4forecast_lifecycle() -> None:
     """v4forecast create → list → delete through the CLI.
 
