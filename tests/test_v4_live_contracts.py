@@ -15,6 +15,15 @@ pytestmark = pytest.mark.v4_live_read
 
 
 def _credentials():
+    """Resolve test credentials with env > profile > skip priority.
+
+    Tests intentionally invert the CLI priority chain: env vars win over the
+    active ``direct auth`` profile. This way a developer machine with an
+    active profile cannot silently hit production on a plain ``pytest``
+    invocation — the suite either uses explicit env vars, or falls back to
+    the saved profile only when env vars are absent, or skips entirely.
+    Contract is documented in CLAUDE.md and README.md.
+    """
     token = os.getenv("YANDEX_DIRECT_TOKEN")
     login = os.getenv("YANDEX_DIRECT_LOGIN")
     if not token or not login:
@@ -228,3 +237,92 @@ def test_v4_live_tags_get_banners_contract():
         # UpdateBannersTags writes TagIDS (v4_contracts.py:419), so the read
         # method likely returns the same field — confirm at first live run.
         assert "BannerID" in data[0]
+
+
+# ── v4 account-level report lifecycle (opt-in, no cassettes) ────────────
+#
+# Wordstat reports and forecast reports live in the account-wide list and
+# are not draft resources of a disposable campaign. They are gated by
+# YANDEX_DIRECT_V4_LIVE_REPORT_WRITE=1 to keep the default ``pytest`` run
+# free of mutating live calls. Created IDs are tracked in
+# ``~/.direct-cli/test-orphans.json`` so an interrupted run can finish
+# cleanup on the next invocation — see ``tests/_orphan_store.py``.
+
+
+_REPORT_WRITE_ENV = "YANDEX_DIRECT_V4_LIVE_REPORT_WRITE"
+
+
+def test_v4_live_wordstat_lifecycle_opt_in_write():
+    if os.getenv(_REPORT_WRITE_ENV) != "1":
+        pytest.skip(f"{_REPORT_WRITE_ENV}=1 is required")
+    from tests import _orphan_store
+
+    token, login = _credentials()
+    client = create_v4_client(token=token, login=login)
+
+    _orphan_store.drain(
+        "v4wordstat", lambda rid: call_v4(client, "DeleteWordstatReport", rid)
+    )
+
+    report_id = call_v4(
+        client,
+        "CreateNewWordstatReport",
+        {"Phrases": ["купить ноутбук"], "GeoID": [0]},
+    )
+    assert (
+        isinstance(report_id, int) and report_id > 0
+    ), f"unexpected CreateNewWordstatReport response: {report_id!r}"
+    _orphan_store.add("v4wordstat", report_id)
+    try:
+        reports = call_v4(client, "GetWordstatReportList")
+        assert isinstance(reports, list)
+        ours = next(
+            (item for item in reports if item.get("ReportID") == report_id), None
+        )
+        assert ours is not None, f"created report {report_id} not in list"
+        assert {"ReportID", "StatusReport"} <= set(ours)
+    finally:
+        try:
+            call_v4(client, "DeleteWordstatReport", report_id)
+            _orphan_store.remove("v4wordstat", report_id)
+        except Exception:
+            # Leave the ID in the store; next run's ``drain`` will retry.
+            pass
+
+
+def test_v4_live_forecast_lifecycle_opt_in_write():
+    if os.getenv(_REPORT_WRITE_ENV) != "1":
+        pytest.skip(f"{_REPORT_WRITE_ENV}=1 is required")
+    from tests import _orphan_store
+
+    token, login = _credentials()
+    client = create_v4_client(token=token, login=login)
+
+    _orphan_store.drain(
+        "v4forecast", lambda fid: call_v4(client, "DeleteForecastReport", fid)
+    )
+
+    forecast_id = call_v4(
+        client,
+        "CreateNewForecast",
+        {"Phrases": ["купить ноутбук"], "GeoID": [213], "Currency": "RUB"},
+    )
+    assert (
+        isinstance(forecast_id, int) and forecast_id > 0
+    ), f"unexpected CreateNewForecast response: {forecast_id!r}"
+    _orphan_store.add("v4forecast", forecast_id)
+    try:
+        forecasts = call_v4(client, "GetForecastList")
+        assert isinstance(forecasts, list)
+        ours = next(
+            (item for item in forecasts if item.get("ForecastID") == forecast_id),
+            None,
+        )
+        assert ours is not None, f"created forecast {forecast_id} not in list"
+        assert {"ForecastID", "StatusForecast"} <= set(ours)
+    finally:
+        try:
+            call_v4(client, "DeleteForecastReport", forecast_id)
+            _orphan_store.remove("v4forecast", forecast_id)
+        except Exception:
+            pass

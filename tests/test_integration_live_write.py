@@ -294,7 +294,7 @@ def _assert_draft_or_success(result, cmd_label: str) -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_campaign_create_get_delete() -> None:
+def test_v5_live_draft_campaign_create_get_delete() -> None:
     """Create, verify and delete only the draft campaign created by this test."""
     campaign_name = _campaign_name()
     created_campaign_id: Optional[int] = None
@@ -362,7 +362,7 @@ def test_live_draft_campaign_create_get_delete() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_sitelinks_add_get_delete() -> None:
+def test_v5_live_draft_sitelinks_add_get_delete() -> None:
     """Create a sitelink set, verify via get, then delete it."""
     r = _invoke_live(
         "sitelinks",
@@ -390,7 +390,7 @@ def test_live_draft_sitelinks_add_get_delete() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_adimages_add_get_delete() -> None:
+def test_v5_live_draft_adimages_add_get_delete() -> None:
     """Upload a test PNG image, verify via get, then delete by hash."""
     r = _invoke_live(
         "adimages",
@@ -437,7 +437,7 @@ def test_live_draft_adimages_add_get_delete() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_advideos_add_get() -> None:
+def test_v5_live_draft_advideos_add_get() -> None:
     """Add a video from file and verify via get."""
     video_file = os.path.join(os.path.dirname(__file__), "fixtures", "test-video.mp4")
     r = _invoke_live(
@@ -457,7 +457,7 @@ def test_live_draft_advideos_add_get() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_creatives_chain_advideo_to_creative() -> None:
+def test_v5_live_draft_creatives_chain_advideo_to_creative() -> None:
     """Chain: add advideo from file -> create creative from it -> verify via get."""
     video_file = os.path.join(os.path.dirname(__file__), "fixtures", "test-video.mp4")
     r = _invoke_live(
@@ -485,7 +485,7 @@ def test_live_draft_creatives_chain_advideo_to_creative() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_adgroups_add_update_delete() -> None:
+def test_v5_live_draft_adgroups_add_update_delete() -> None:
     """Create draft campaign, add/update/get/delete adgroup."""
     cid = _create_draft_campaign("-adgroups")
     gid: Optional[int] = None
@@ -523,7 +523,7 @@ def test_live_draft_adgroups_add_update_delete() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_ads_add_update_delete() -> None:
+def test_v5_live_draft_ads_add_update_delete() -> None:
     """Create draft campaign + adgroup, add/update/get/delete TEXT_AD."""
     cid = _create_draft_campaign("-ads")
     gid: Optional[int] = None
@@ -574,7 +574,7 @@ def test_live_draft_ads_add_update_delete() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_keywords_add_update_delete() -> None:
+def test_v5_live_draft_keywords_add_update_delete() -> None:
     """Create draft campaign + adgroup, add/update/get/delete keyword."""
     cid = _create_draft_campaign("-keywords")
     gid: Optional[int] = None
@@ -633,7 +633,7 @@ def test_live_draft_keywords_add_update_delete() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_bids_set() -> None:
+def test_v5_live_draft_bids_set() -> None:
     """Create draft campaign + adgroup + keyword, set bid."""
     cid = _create_draft_campaign("-bids")
     gid: Optional[int] = None
@@ -675,7 +675,7 @@ def test_live_draft_bids_set() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_keywordbids_set() -> None:
+def test_v5_live_draft_keywordbids_set() -> None:
     """Create draft campaign + adgroup + keyword, set keywordbid."""
     cid = _create_draft_campaign("-keywordbids")
     gid: Optional[int] = None
@@ -726,7 +726,7 @@ def test_live_draft_keywordbids_set() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_audiencetargets_add_delete() -> None:
+def test_v5_live_draft_audiencetargets_add_delete() -> None:
     """Create draft campaign + adgroup + retargeting list, add/delete
     audience target."""
     cid = _create_draft_campaign("-audience")
@@ -795,7 +795,7 @@ def test_live_draft_audiencetargets_add_delete() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_dynamicads_add_delete() -> None:
+def test_v5_live_draft_dynamicads_add_delete() -> None:
     """Create DYNAMIC_TEXT_CAMPAIGN, add dynamic ad target, verify, delete."""
     r = _invoke_live(
         "campaigns",
@@ -880,7 +880,7 @@ def test_live_draft_dynamicads_add_delete() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_smartadtargets_add_update_delete() -> None:
+def test_v5_live_draft_smartadtargets_add_update_delete() -> None:
     """Create SMART_CAMPAIGN, add smart ad target, update, verify, delete."""
     r = _invoke_live(
         "feeds",
@@ -981,7 +981,7 @@ def test_live_draft_smartadtargets_add_update_delete() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_keywords_suspend_resume() -> None:
+def test_v5_live_draft_keywords_suspend_resume() -> None:
     """Smoke-test keywords suspend/resume on draft keyword."""
     cid, gid = _create_draft_adgroup("-kw-sr")
     kid: Optional[int] = None
@@ -1011,7 +1011,7 @@ def test_live_draft_keywords_suspend_resume() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_audiencetargets_suspend_resume() -> None:
+def test_v5_live_draft_audiencetargets_suspend_resume() -> None:
     """Smoke-test audiencetargets suspend/resume on draft target."""
     cid, gid = _create_draft_adgroup("-at-sr")
     rtg_id: Optional[int] = None
@@ -1061,7 +1061,7 @@ def test_live_draft_audiencetargets_suspend_resume() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_dynamicads_suspend_resume() -> None:
+def test_v5_live_draft_dynamicads_suspend_resume() -> None:
     """Smoke-test dynamicads suspend/resume on draft target."""
     r = _invoke_live(
         "campaigns",
@@ -1131,7 +1131,7 @@ def test_live_draft_dynamicads_suspend_resume() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_smartadtargets_suspend_resume() -> None:
+def test_v5_live_draft_smartadtargets_suspend_resume() -> None:
     """Smoke-test smartadtargets suspend/resume on draft target."""
     r = _invoke_live(
         "feeds",
@@ -1213,7 +1213,7 @@ def test_live_draft_smartadtargets_suspend_resume() -> None:
 
 
 @pytest.mark.vcr
-def test_live_draft_ads_suspend_resume_archive_unarchive() -> None:
+def test_v5_live_draft_ads_suspend_resume_archive_unarchive() -> None:
     """Smoke-test ads suspend/resume/archive/unarchive on draft ad."""
     cid, gid = _create_draft_adgroup("-ads-sr")
     aid: Optional[int] = None
@@ -1250,83 +1250,3 @@ def test_live_draft_ads_suspend_resume_archive_unarchive() -> None:
             _invoke_live("ads", "delete", "--id", str(aid))
         _invoke_live("adgroups", "delete", "--id", str(gid))
         _safe_delete_campaign(cid)
-
-
-# ── v4 Live API lifecycle ────────────────────────────────────────────────
-
-
-@pytest.mark.vcr
-def test_live_draft_v4wordstat_lifecycle() -> None:
-    """v4wordstat create-report → list-reports → delete-report through the CLI.
-
-    GetWordstatReport is out of scope: it requires StatusReport=Done (polling).
-    """
-    r = _invoke_live(
-        "v4wordstat",
-        "create-report",
-        "--phrases",
-        "купить ноутбук",
-        "--geo-ids",
-        "0",
-    )
-    _assert_success(r, "v4wordstat create-report")
-    report_id = json.loads(r.output)
-    assert (
-        isinstance(report_id, int) and report_id > 0
-    ), f"unexpected create-report output: {r.output}"
-
-    try:
-        r = _invoke_live("v4wordstat", "list-reports")
-        _assert_success(r, "v4wordstat list-reports")
-        reports = json.loads(r.output)
-        assert isinstance(reports, list)
-        our = next(
-            (item for item in reports if item.get("ReportID") == report_id), None
-        )
-        assert (
-            our is not None
-        ), f"created report {report_id} not in list: {r.output[:500]}"
-        assert {"ReportID", "StatusReport"} <= set(our)
-    finally:
-        r = _invoke_live("v4wordstat", "delete-report", "--report-id", str(report_id))
-        _assert_success(r, "v4wordstat delete-report")
-
-
-@pytest.mark.vcr
-def test_live_draft_v4forecast_lifecycle() -> None:
-    """v4forecast create → list → delete through the CLI.
-
-    get is out of scope: it requires StatusForecast=Done (polling).
-    """
-    r = _invoke_live(
-        "v4forecast",
-        "create",
-        "--phrases",
-        "купить ноутбук",
-        "--geo-ids",
-        "213",
-        "--currency",
-        "RUB",
-    )
-    _assert_success(r, "v4forecast create")
-    forecast_id = json.loads(r.output)
-    assert (
-        isinstance(forecast_id, int) and forecast_id > 0
-    ), f"unexpected create output: {r.output}"
-
-    try:
-        r = _invoke_live("v4forecast", "list")
-        _assert_success(r, "v4forecast list")
-        forecasts = json.loads(r.output)
-        assert isinstance(forecasts, list)
-        our = next(
-            (item for item in forecasts if item.get("ForecastID") == forecast_id),
-            None,
-        )
-        assert (
-            our is not None
-        ), f"created forecast {forecast_id} not in list: {r.output[:500]}"
-        assert {"ForecastID", "StatusForecast"} <= set(our)
-    finally:
-        r = _invoke_live("v4forecast", "delete", "--forecast-id", str(forecast_id))
-        _assert_success(r, "v4forecast delete")
