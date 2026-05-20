@@ -1190,7 +1190,16 @@ class TestWriteBidsRead:
 
     Cassette must be recorded with
     ``pytest --record-mode=once -m integration_write tests/test_integration_write.py::TestWriteBidsRead``
-    once credentials are available.
+
+    KNOWN LIMITATION: the currently committed cassettes contain only the
+    ``sandbox_keyword`` fixture setup interactions (campaigns / adgroups /
+    keywords add + cleanup) and **no** ``/json/v5/bids`` interactions —
+    sandbox returns code 8800 ("Ad group not found") on ``keywords.add``,
+    so the fixture raises ``pytest.skip`` before either test body runs.
+    These tests therefore report as SKIPPED in replay-mode and provide no
+    actual ``bids`` endpoint coverage today. Re-record against an
+    environment where keywords persist to capture the real ``bids``
+    interactions and unlock the test bodies.
     """
 
     def test_bids_get(self, sandbox_keyword):
