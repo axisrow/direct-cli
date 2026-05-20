@@ -77,6 +77,7 @@ from conftest import (  # noqa: E402
     _ARCHIVE_PATTERNS,
     _CAMPAIGN_STATUS_PATTERNS,
     _IMAGE_PATTERNS,
+    _RETARGETING_PATTERNS,
     _SITELINK_PATTERNS,
     _SMART_AD_PATTERNS,
     _has_result_errors,
@@ -1002,3 +1003,235 @@ class TestWriteNegativeKeywordSharedSets:
 # service is read-only (``get`` only).  The earlier ``turbopages add`` CLI
 # command was a ghost endpoint that never corresponded to any real API
 # method and was removed together with its test coverage.
+
+
+# ── strategies ───────────────────────────────────────────────────────────
+
+
+@pytest.mark.integration_write
+@pytest.mark.vcr
+@pytest.mark.sandbox_limitation(
+    category="disabled",
+    reason="Strategies require non-draft campaigns; sandbox campaigns are always DRAFT so add/update/archive may be rejected (codes 8800 / Invalid object status)",
+)
+class TestWriteStrategies:
+    """Full strategies lifecycle: add → get → update → archive → unarchive.
+
+    Cassette must be recorded with
+    ``pytest --record-mode=once -m integration_write tests/test_integration_write.py::TestWriteStrategies``
+
+    NOTE: the currently committed cassette captures only the first
+    ``strategies add`` interaction (Yandex sandbox rejects public strategy
+    creation with code 6000 because the sandbox account has no wallet).
+    The test skips at that step via ``_STRATEGY_ADD_SANDBOX_PATTERNS``.
+    If a future sandbox change permits the ``add`` step to succeed, this
+    cassette will be incomplete (get/update/archive/unarchive interactions
+    were never recorded) and VCR will raise "no matching request" on the
+    next step. Re-record the full lifecycle when that happens.
+    """
+
+    def test_strategies_lifecycle(self, unique_suffix):
+        name = f"strategy-{unique_suffix}"
+
+        r = _invoke(
+            "strategies",
+            "add",
+            "--name",
+            name,
+            "--type",
+            "WbMaximumClicks",
+            "--weekly-spend-limit",
+            "300000000",
+        )
+        _STRATEGY_ADD_SANDBOX_PATTERNS = (
+            "без кошелька",
+            "inconsistent object state",
+        )
+        if r.exit_code != 0 or _has_result_errors(r.output, "AddResults"):
+            if _is_sandbox_error(r.output, extra_patterns=_STRATEGY_ADD_SANDBOX_PATTERNS):
+                pytest.skip(f"strategies add not supported (sandbox): {r.output[:200]}")
+            pytest.fail(f"strategies add failed (CLI regression?): {r.output[:500]}")
+
+        # ``strategies`` has no ``delete`` endpoint — archive is the closest
+        # equivalent.  Leaving an archived sandbox strategy behind is
+        # acceptable (cleanup happens via sandbox reset).
+        sid = parse_add_result(r)
+
+        r = _invoke(
+            "strategies",
+            "get",
+            "--ids",
+            str(sid),
+            "--fields",
+            "Id,Name,Type",
+        )
+        if r.exit_code != 0 and _is_sandbox_error(r.output):
+            pytest.skip(f"strategies get not supported (sandbox): {r.output[:200]}")
+        assert_success(r, "strategies get")
+
+        r = _invoke(
+            "strategies",
+            "update",
+            "--id",
+            str(sid),
+            "--name",
+            f"{name}-renamed",
+        )
+        if r.exit_code != 0:
+            if _is_sandbox_error(r.output):
+                pytest.skip(
+                    f"strategies update not supported (sandbox): {r.output[:200]}"
+                )
+            pytest.fail(
+                f"strategies update failed (CLI regression?): {r.output[:500]}"
+            )
+
+        r = _invoke("strategies", "archive", "--id", str(sid))
+        if r.exit_code != 0 or _has_result_errors(r.output, "ArchiveResults"):
+            if _is_sandbox_error(r.output, extra_patterns=_ARCHIVE_PATTERNS):
+                pytest.skip(
+                    f"strategies archive not supported (sandbox): {r.output[:200]}"
+                )
+            pytest.fail(
+                f"strategies archive failed (CLI regression?): {r.output[:500]}"
+            )
+
+        r = _invoke("strategies", "unarchive", "--id", str(sid))
+        if r.exit_code != 0 or _has_result_errors(r.output, "UnarchiveResults"):
+            if _is_sandbox_error(r.output, extra_patterns=_ARCHIVE_PATTERNS):
+                pytest.skip(
+                    f"strategies unarchive not supported (sandbox): {r.output[:200]}"
+                )
+            pytest.fail(
+                f"strategies unarchive failed (CLI regression?): {r.output[:500]}"
+            )
+
+
+# ── retargeting update ────────────────────────────────────────────────────
+
+
+@pytest.mark.integration_write
+@pytest.mark.vcr
+class TestWriteRetargetingUpdate:
+    """Retargeting list update lifecycle (separate from add-delete coverage).
+
+    Cassette must be recorded with
+    ``pytest --record-mode=once -m integration_write tests/test_integration_write.py::TestWriteRetargetingUpdate``
+    once credentials are available.
+    """
+
+    def test_retargeting_update(self, unique_suffix):
+        r = _invoke(
+            "retargeting",
+            "add",
+            "--name",
+            f"rtg-upd-{unique_suffix}",
+            "--type",
+            "RETARGETING",
+            "--rule",
+            "ANY:1234567890",
+        )
+        if r.exit_code != 0:
+            if _is_sandbox_error(r.output, extra_patterns=_RETARGETING_PATTERNS):
+                pytest.skip(
+                    f"retargeting add not supported (sandbox): {r.output[:200]}"
+                )
+            pytest.fail(f"retargeting add failed (CLI regression?): {r.output[:500]}")
+
+        # parse_add_result handles empty-list / missing-Id edge cases and
+        # surfaces embedded "Errors" via _has_result_errors below.
+        if _has_result_errors(r.output, "AddResults"):
+            err_text = r.output
+            if _is_sandbox_error(err_text, extra_patterns=_RETARGETING_PATTERNS):
+                pytest.skip(f"retargeting add rejected (sandbox): {err_text[:200]}")
+            pytest.fail(f"API rejected retargeting add (CLI bug?): {err_text[:500]}")
+
+        rid = parse_add_result(r)
+        try:
+            r = _invoke(
+                "retargeting",
+                "update",
+                "--id",
+                str(rid),
+                "--name",
+                f"rtg-upd-{unique_suffix}-renamed",
+            )
+            # API often returns HTTP 200 with Errors:[{Code:8800,...}] in
+            # the body; check both exit code and embedded errors.
+            if r.exit_code != 0 or _has_result_errors(r.output, "UpdateResults"):
+                if _is_sandbox_error(r.output, extra_patterns=_RETARGETING_PATTERNS):
+                    pytest.skip(
+                        f"retargeting update not supported (sandbox): {r.output[:200]}"
+                    )
+                pytest.fail(
+                    f"retargeting update failed (CLI regression?): {r.output[:500]}"
+                )
+            assert_success(r, "retargeting update")
+        finally:
+            _invoke("retargeting", "delete", "--id", str(rid))
+
+
+# ── bids (read + auto) ────────────────────────────────────────────────────
+
+
+@pytest.mark.integration_write
+@pytest.mark.vcr
+@pytest.mark.sandbox_limitation(
+    category="disabled",
+    reason="Sandbox does not persist adgroups/keywords (code 8800 chain); bids get/set-auto may have no addressable keyword to operate on",
+)
+class TestWriteBidsRead:
+    """Read-side bids coverage: ``bids get`` and ``bids set-auto``.
+
+    Both calls go through the sandbox.  ``bids get`` exercises the
+    SelectionCriteria path with ``--keyword-ids``; ``bids set-auto``
+    exercises the typed ``--scope`` payload.  Sandbox limitations
+    (no persisted keyword) are detected via ``_is_sandbox_error``.
+
+    Cassette must be recorded with
+    ``pytest --record-mode=once -m integration_write tests/test_integration_write.py::TestWriteBidsRead``
+
+    KNOWN LIMITATION: the currently committed cassettes contain only the
+    ``sandbox_keyword`` fixture setup interactions (campaigns / adgroups /
+    keywords add + cleanup) and **no** ``/json/v5/bids`` interactions —
+    sandbox returns code 8800 ("Ad group not found") on ``keywords.add``,
+    so the fixture raises ``pytest.skip`` before either test body runs.
+    These tests therefore report as SKIPPED in replay-mode and provide no
+    actual ``bids`` endpoint coverage today. Re-record against an
+    environment where keywords persist to capture the real ``bids``
+    interactions and unlock the test bodies.
+    """
+
+    def test_bids_get(self, sandbox_keyword):
+        r = _invoke(
+            "bids",
+            "get",
+            "--keyword-ids",
+            str(sandbox_keyword),
+        )
+        if r.exit_code != 0:
+            if _is_sandbox_error(r.output):
+                pytest.skip(f"bids get not supported (sandbox): {r.output[:200]}")
+            pytest.fail(f"bids get failed (CLI regression?): {r.output[:500]}")
+        # Parse to guard against malformed/non-JSON output regressions.
+        json.loads(r.output)
+
+    def test_bids_set_auto(self, sandbox_keyword):
+        r = _invoke(
+            "bids",
+            "set-auto",
+            "--keyword-id",
+            str(sandbox_keyword),
+            "--scope",
+            "SEARCH",
+        )
+        if r.exit_code != 0:
+            if _is_sandbox_error(r.output):
+                pytest.skip(f"bids set-auto not supported (sandbox): {r.output[:200]}")
+            pytest.fail(f"bids set-auto failed (CLI regression?): {r.output[:500]}")
+        if _has_result_errors(r.output, "SetAutoResults"):
+            if _is_sandbox_error(r.output):
+                pytest.skip(f"bids set-auto rejected (sandbox): {r.output[:200]}")
+            pytest.fail(
+                f"bids set-auto returned errors (CLI regression?): {r.output[:500]}"
+            )

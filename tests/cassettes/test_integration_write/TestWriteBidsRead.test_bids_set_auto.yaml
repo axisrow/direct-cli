@@ -1,0 +1,275 @@
+interactions:
+- request:
+    body: '{"method":"add","params":{"Campaigns":[{"Name":"claude-test-cassette","StartDate":"2030-01-15","TextCampaign":{"BiddingStrategy":{"Search":{"BiddingStrategyType":"HIGHEST_POSITION"},"Network":{"BiddingStrategyType":"SERVING_OFF"}},"Settings":[]}}]}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '249'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/campaigns
+  response:
+    body:
+      string: '{"result":{"AddResults":[{"Id":700012183}]}}'
+    headers:
+      Content-Length:
+      - '44'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Wed, 20 May 2026 02:53:44 GMT
+      RequestId:
+      - '1480041511661785211'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 15/159666/160000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.api5/campaigns.add,appcode:0
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"add","params":{"AdGroups":[{"Name":"test-group","CampaignId":700012183,"RegionIds":[1,225]}]}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '105'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/adgroups
+  response:
+    body:
+      string: '{"result":{"AddResults":[{"Id":4798034}]}}'
+    headers:
+      Content-Length:
+      - '42'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Wed, 20 May 2026 02:53:45 GMT
+      RequestId:
+      - '1856222419985537885'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 40/159626/160000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.api5/adgroups.add,appcode:0
+    status:
+      code: 200
+      message: OK
+- request:
+    body: "{\"method\":\"add\",\"params\":{\"Keywords\":[{\"AdGroupId\":4798034,\"Keyword\":\"\u0442\u0435\u0441\u0442\u043E\u0432\u043E\u0435
+      \u043A\u043B\u044E\u0447\u0435\u0432\u043E\u0435 \u0441\u043B\u043E\u0432\u043E\"}]}}"
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '119'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/keywords
+  response:
+    body:
+      string: '{"result":{"AddResults":[{"Errors":[{"Code":8800,"Message":"Object
+        not found","Details":"Ad group not found"}]}]}}'
+    headers:
+      Content-Length:
+      - '114'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Wed, 20 May 2026 02:53:45 GMT
+      RequestId:
+      - '5715008510430494557'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 40/159586/160000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.api5/keywords.add,appcode:0
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[4798034]}}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '68'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/adgroups
+  response:
+    body:
+      string: '{"result":{"DeleteResults":[{"Errors":[{"Code":8800,"Message":"Object
+        not found","Details":"Ad group not found"}]}]}}'
+    headers:
+      Content-Length:
+      - '117'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Wed, 20 May 2026 02:53:46 GMT
+      RequestId:
+      - '6691081636736337014'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 30/159556/160000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.api5/adgroups.delete,appcode:0
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[700012183]}}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '70'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/campaigns
+  response:
+    body:
+      string: '{"result":{"DeleteResults":[{"Id":700012183}]}}'
+    headers:
+      Content-Length:
+      - '47'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Wed, 20 May 2026 02:53:47 GMT
+      RequestId:
+      - '2018897772531755510'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 12/159544/160000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.api5/campaigns.delete,appcode:0
+    status:
+      code: 200
+      message: OK
+version: 1

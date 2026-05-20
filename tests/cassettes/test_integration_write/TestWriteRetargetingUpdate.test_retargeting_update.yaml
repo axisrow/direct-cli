@@ -1,0 +1,166 @@
+interactions:
+- request:
+    body: '{"method":"add","params":{"RetargetingLists":[{"Name":"rtg-upd-cassette","Type":"RETARGETING","Rules":[{"Operator":"ANY","Arguments":[{"ExternalId":1234567890}]}]}]}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '166'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/retargetinglists
+  response:
+    body:
+      string: '{"result":{"AddResults":[{"Id":5290}]}}'
+    headers:
+      Content-Length:
+      - '39'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Wed, 20 May 2026 04:20:39 GMT
+      RequestId:
+      - '6433016572883275929'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 12/159532/160000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.api5/retargetinglists.add,appcode:0
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"update","params":{"RetargetingLists":[{"Id":5290,"Name":"rtg-upd-cassette-renamed"}]}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '97'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/retargetinglists
+  response:
+    body:
+      string: '{"result":{"UpdateResults":[{"Errors":[{"Code":8800,"Message":"Object
+        not found"}]}]}}'
+    headers:
+      Content-Length:
+      - '86'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Wed, 20 May 2026 04:20:40 GMT
+      RequestId:
+      - '8498609398024554623'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 30/159502/160000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.api5/retargetinglists.update,appcode:0
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[5290]}}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '65'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/retargetinglists
+  response:
+    body:
+      string: '{"result":{"DeleteResults":[{"Errors":[{"Code":8800,"Message":"Object
+        not found"}]}]}}'
+    headers:
+      Content-Length:
+      - '86'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Wed, 20 May 2026 04:20:41 GMT
+      RequestId:
+      - '3328842938649100324'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 30/159472/160000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.api5/retargetinglists.delete,appcode:0
+    status:
+      code: 200
+      message: OK
+version: 1
