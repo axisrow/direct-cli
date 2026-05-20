@@ -37,6 +37,7 @@ from direct_cli.cli import cli
 from direct_cli.commands.strategies import STRATEGY_TYPES
 from direct_cli.smoke_matrix import commands_for_category
 from direct_cli.wsdl_coverage import (
+    CLI_TO_API_SERVICE,
     RUNTIME_DEPRECATED_METHODS,
     fetch_wsdl,
     get_operation_request_schema,
@@ -47,20 +48,42 @@ from direct_cli.wsdl_coverage import (
 # Pattern A — empty subtype no-op
 # ---------------------------------------------------------------------------
 
-# Each entry: (command_key, argv that supplies ONLY the resource ID).
-# Each command must refuse this invocation with a non-zero exit code and
-# a message guiding the user toward a real update.
-EMPTY_PAYLOAD_PROBES: list[tuple[str, list[str]]] = [
-    ("ads.update", ["ads", "update", "--id", "1", "--type", "TEXT_AD"]),
-    ("adgroups.update", ["adgroups", "update", "--id", "1"]),
-    ("bids.set", ["bids", "set", "--keyword-id", "1"]),
-    ("keywordbids.set", ["keywordbids", "set", "--keyword-id", "1"]),
-    ("keywords.update", ["keywords", "update", "--id", "1"]),
+# Each entry: (command_key, argv that supplies ONLY the resource ID,
+# expected substring in the rejection message). The substring must
+# describe the *guard reason* ("no fields", "at least one") so that
+# strict-xfail in PR 2 cannot flip green from an unrelated UsageError
+# like ``Missing option '--foo'`` introduced for a different reason.
+EMPTY_PAYLOAD_PROBES: list[tuple[str, list[str], str]] = [
+    (
+        "ads.update",
+        ["ads", "update", "--id", "1", "--type", "TEXT_AD"],
+        "at least one",
+    ),
+    (
+        "adgroups.update",
+        ["adgroups", "update", "--id", "1"],
+        "at least one",
+    ),
+    (
+        "bids.set",
+        ["bids", "set", "--keyword-id", "1"],
+        "at least one",
+    ),
+    (
+        "keywordbids.set",
+        ["keywordbids", "set", "--keyword-id", "1"],
+        "at least one",
+    ),
+    (
+        "keywords.update",
+        ["keywords", "update", "--id", "1"],
+        "at least one",
+    ),
 ]
 
 
 @pytest.mark.parametrize(
-    ("command_key", "argv"),
+    ("command_key", "argv", "expected_error"),
     EMPTY_PAYLOAD_PROBES,
     ids=[probe[0] for probe in EMPTY_PAYLOAD_PROBES],
 )
@@ -71,10 +94,17 @@ EMPTY_PAYLOAD_PROBES: list[tuple[str, list[str]]] = [
         "Fixed in PR 2 — gate flips green when guards are added."
     ),
 )
-def test_empty_payload_no_op_rejected(command_key: str, argv: list[str]) -> None:
+def test_empty_payload_no_op_rejected(
+    command_key: str, argv: list[str], expected_error: str
+) -> None:
     result = CliRunner().invoke(cli, argv + ["--dry-run"])
     assert result.exit_code != 0, (
         f"{command_key}: empty payload accepted as no-op. " f"Output: {result.output!r}"
+    )
+    assert expected_error.lower() in result.output.lower(), (
+        f"{command_key}: rejection happened but the error message lacks the "
+        f"guard substring {expected_error!r}. PR 2 must add an empty-payload "
+        f"guard, not just any Click required-option. Output: {result.output!r}"
     )
 
 
@@ -83,8 +113,10 @@ def test_empty_payload_no_op_rejected(command_key: str, argv: list[str]) -> None
 # ---------------------------------------------------------------------------
 
 # A flag that does not belong to the chosen ``--type`` must raise
-# UsageError rather than be silently dropped.
-SILENT_LOSS_PROBES: list[tuple[str, list[str]]] = [
+# UsageError rather than be silently dropped. The expected substring
+# pins the rejection reason to the per-type validation so strict-xfail
+# cannot flip green from an unrelated UsageError.
+SILENT_LOSS_PROBES: list[tuple[str, list[str], str]] = [
     (
         "ads.update TEXT_AD + --image-hash",
         [
@@ -97,12 +129,13 @@ SILENT_LOSS_PROBES: list[tuple[str, list[str]]] = [
             "--image-hash",
             "abc123",
         ],
+        "--image-hash",
     ),
 ]
 
 
 @pytest.mark.parametrize(
-    ("probe_id", "argv"),
+    ("probe_id", "argv", "expected_error"),
     SILENT_LOSS_PROBES,
     ids=[probe[0] for probe in SILENT_LOSS_PROBES],
 )
@@ -113,10 +146,18 @@ SILENT_LOSS_PROBES: list[tuple[str, list[str]]] = [
         "Fixed in PR 2 — gate flips green when per-type flag validation lands."
     ),
 )
-def test_silent_data_loss_rejected(probe_id: str, argv: list[str]) -> None:
+def test_silent_data_loss_rejected(
+    probe_id: str, argv: list[str], expected_error: str
+) -> None:
     result = CliRunner().invoke(cli, argv + ["--dry-run"])
     assert result.exit_code != 0, (
         f"{probe_id}: incompatible flag silently dropped. " f"Output: {result.output!r}"
+    )
+    assert expected_error.lower() in result.output.lower(), (
+        f"{probe_id}: rejection happened but the error message does not "
+        f"reference the offending flag {expected_error!r}. PR 2 must add "
+        f"per-type flag validation, not just any UsageError. "
+        f"Output: {result.output!r}"
     )
 
 
@@ -348,13 +389,28 @@ def test_internal_validation_rejects_missing_field(
 
 
 def _wsdl_strategy_subtype_names() -> list[str]:
+    """Return choice-of-one subtype field names from ``StrategyAddItem``.
+
+    The WSDL declares each per-strategy block as an element whose type
+    is ``Strategy*AddItem`` (e.g. ``StrategyAverageCpcAddItem``). Scalar
+    fields like ``Name`` / ``CounterIds`` use built-in or shared types,
+    so a stable filter is "type name ends with ``AddItem``". This keeps
+    the gate honest if Yandex adds a new scalar to ``StrategyAddItem``
+    or renames a subtype.
+    """
     schema = get_operation_request_schema(fetch_wsdl("strategies"), "add")
-    strategies_field = next(f for f in schema["fields"] if f["name"] == "Strategies")
-    scalar_fields = {"AttributionModel", "Name", "CounterIds", "PriorityGoals"}
+    strategies_field = next(
+        (f for f in schema["fields"] if f["name"] == "Strategies"), None
+    )
+    assert strategies_field is not None, (
+        "WSDL drift: strategies.add request schema has no top-level "
+        "'Strategies' field. Refresh tests/wsdl_cache/strategies.xml "
+        "and update the gate."
+    )
     return [
         itf["name"]
         for itf in (strategies_field.get("item_fields") or [])
-        if itf["name"] not in scalar_fields
+        if (itf.get("type") or "").endswith("AddItem")
     ]
 
 
@@ -397,6 +453,20 @@ def _mutating_commands() -> list[str]:
     ]
 
 
+def _is_runtime_deprecated(cli_command: str) -> bool:
+    """Test whether a CLI command maps to a RUNTIME_DEPRECATED API method.
+
+    ``RUNTIME_DEPRECATED_METHODS`` is keyed by ``(api_service, wsdl_op)``
+    while CLI commands use the CLI group name. For groups whose name
+    differs from the API service (e.g. CLI ``retargeting`` →
+    API ``retargetinglists``) the lookup must go through
+    ``CLI_TO_API_SERVICE`` first or it silently misses.
+    """
+    cli_group, cli_op = cli_command.split(".", 1)
+    api_service = CLI_TO_API_SERVICE.get(cli_group, cli_group)
+    return (api_service, cli_op) in RUNTIME_DEPRECATED_METHODS
+
+
 def test_command_wsdl_map_covers_known_mutating_commands() -> None:
     """Force new mutating commands to be evaluated against the parity gate.
 
@@ -404,12 +474,7 @@ def test_command_wsdl_map_covers_known_mutating_commands() -> None:
     in ``COMMAND_WSDL_MAP`` slips past the WSDL ↔ CLI parity check.
     """
     declared = {f"{group}.{op}" for group, op in COMMAND_WSDL_MAP}
-    relevant = {
-        cmd
-        for cmd in _mutating_commands()
-        if (cmd.split(".", 1)[0], cmd.split(".", 1)[1])
-        not in RUNTIME_DEPRECATED_METHODS
-    }
+    relevant = {cmd for cmd in _mutating_commands() if not _is_runtime_deprecated(cmd)}
     missing = sorted(relevant - declared)
     assert not missing, (
         "New mutating commands lack a COMMAND_WSDL_MAP entry:\n"
