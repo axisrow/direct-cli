@@ -673,6 +673,8 @@ PAYLOAD_CASES = [
             "update",
             "--id",
             "7",
+            "--type",
+            "TEXT_AD",
             "--title",
             "Updated title",
             "--text",

@@ -289,47 +289,97 @@ def add(
 @ads.command()
 @click.option("--id", "ad_id", required=True, type=int, help="Ad ID")
 @click.option(
+    "--type",
+    "ad_type",
+    required=True,
+    help="Ad subtype: TEXT_AD | TEXT_IMAGE_AD | MOBILE_APP_AD",
+)
+@click.option(
     "--status",
     help=(
         "Deprecated: not part of WSDL AdUpdateItem. "
         "Use 'direct ads suspend/resume/archive/unarchive' instead."
     ),
 )
-@click.option("--title", help="New text ad title")
-@click.option("--text", help="New text ad text")
-@click.option("--href", help="New text ad URL")
-@click.option("--image-hash", help="New text image ad image hash")
+@click.option("--title", help="Title (TEXT_AD / MOBILE_APP_AD)")
+@click.option("--text", help="Text (TEXT_AD / MOBILE_APP_AD)")
+@click.option("--href", help="URL (TEXT_AD / TEXT_IMAGE_AD)")
+@click.option("--image-hash", help="Image hash (TEXT_IMAGE_AD / MOBILE_APP_AD)")
+@click.option(
+    "--action",
+    help="MOBILE_APP_AD call-to-action (MobileAppAdActionEnum, e.g. INSTALL)",
+)
+@click.option("--tracking-url", help="MOBILE_APP_AD tracking URL")
+@click.option("--age-label", help="MOBILE_APP_AD age label (MobAppAgeLabelEnum)")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def update(ctx, ad_id, status, title, text, href, image_hash, dry_run):
+def update(
+    ctx,
+    ad_id,
+    ad_type,
+    status,
+    title,
+    text,
+    href,
+    image_hash,
+    action,
+    tracking_url,
+    age_label,
+    dry_run,
+):
     """Update ad"""
     if status:
         raise click.UsageError(
             "Use 'direct ads suspend/resume/archive/unarchive' to change status. "
             "The --status flag is not supported by WSDL AdUpdateItem."
         )
-    text_ad_flags_set = any([title, text, href])
-    image_ad_flag_set = bool(image_hash)
-    if text_ad_flags_set and image_ad_flag_set:
+
+    ad_type_norm = ad_type.upper().replace("-", "_")
+    supported_types = {"TEXT_AD", "TEXT_IMAGE_AD", "MOBILE_APP_AD"}
+    if ad_type_norm not in supported_types:
         raise click.UsageError(
-            "Cannot mix --title/--text/--href (TextAd) with --image-hash "
-            "(TextImageAd) in one update. WSDL AdUpdateItem expects a "
-            "single ad-subtype block."
+            "Invalid value for '--type': "
+            f"{ad_type!r} is not one of "
+            "'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD'."
         )
 
     try:
         ad_data = {"Id": ad_id}
 
-        if text_ad_flags_set:
-            ad_data["TextAd"] = {}
+        if ad_type_norm == "TEXT_AD":
+            text_ad = {}
             if title:
-                ad_data["TextAd"]["Title"] = title
+                text_ad["Title"] = title
             if text:
-                ad_data["TextAd"]["Text"] = text
+                text_ad["Text"] = text
             if href:
-                ad_data["TextAd"]["Href"] = href
-        if image_ad_flag_set:
-            ad_data["TextImageAd"] = {"AdImageHash": image_hash}
+                text_ad["Href"] = href
+            if text_ad:
+                ad_data["TextAd"] = text_ad
+        elif ad_type_norm == "TEXT_IMAGE_AD":
+            text_image_ad = {}
+            if image_hash:
+                text_image_ad["AdImageHash"] = image_hash
+            if href:
+                text_image_ad["Href"] = href
+            if text_image_ad:
+                ad_data["TextImageAd"] = text_image_ad
+        elif ad_type_norm == "MOBILE_APP_AD":
+            mobile_app_ad = {}
+            if title:
+                mobile_app_ad["Title"] = title
+            if text:
+                mobile_app_ad["Text"] = text
+            if image_hash:
+                mobile_app_ad["AdImageHash"] = image_hash
+            if action:
+                mobile_app_ad["Action"] = action.upper()
+            if tracking_url:
+                mobile_app_ad["TrackingUrl"] = tracking_url
+            if age_label:
+                mobile_app_ad["AgeLabel"] = age_label.upper()
+            if mobile_app_ad:
+                ad_data["MobileAppAd"] = mobile_app_ad
 
         body = {"method": "update", "params": {"Ads": [ad_data]}}
 

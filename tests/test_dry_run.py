@@ -653,7 +653,17 @@ def test_ads_update_rejects_status_flag():
     """
     result = CliRunner().invoke(
         cli,
-        ["ads", "update", "--id", "1", "--status", "SUSPENDED", "--dry-run"],
+        [
+            "ads",
+            "update",
+            "--id",
+            "1",
+            "--type",
+            "TEXT_AD",
+            "--status",
+            "SUSPENDED",
+            "--dry-run",
+        ],
     )
     assert result.exit_code != 0
     assert "not supported by WSDL AdUpdateItem" in result.output
@@ -667,6 +677,8 @@ def test_ads_update_text_ad_flags_build_nested_textad():
         "update",
         "--id",
         "999",
+        "--type",
+        "TEXT_AD",
         "--title",
         "Updated",
         "--text",
@@ -691,6 +703,8 @@ def test_ads_update_image_hash_builds_nested_textimagead():
         "update",
         "--id",
         "999",
+        "--type",
+        "TEXT_IMAGE_AD",
         "--image-hash",
         "ygqa6jmlkgsbz7vnewp0",
     )
