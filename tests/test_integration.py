@@ -26,6 +26,7 @@ import json
 import os
 import sys
 import unittest
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from click.testing import CliRunner
@@ -579,6 +580,87 @@ class TestReadOnlyAgencyClients(unittest.TestCase):
                 "account is not an agency account"
             )
         assert_success(live_result, "agencyclients get")
+
+
+def _recent_timestamp() -> str:
+    """Return an ISO timestamp 1 hour in the past for changes.check* probes."""
+    ts = datetime.now(timezone.utc) - timedelta(hours=1)
+    return ts.strftime("%Y-%m-%dT%H:%M:%S")
+
+
+@pytest.mark.integration
+@skip_if_no_token
+class TestReadOnlyChanges(unittest.TestCase):
+    def test_changes_check_dictionaries(self):
+        result = invoke_get("changes", "check-dictionaries", "--format", "json")
+        assert_success(result, "changes check-dictionaries")
+
+    def test_changes_check_campaigns(self):
+        result = invoke_get(
+            "changes",
+            "check-campaigns",
+            "--timestamp",
+            _recent_timestamp(),
+            "--format",
+            "json",
+        )
+        assert_success(result, "changes check-campaigns")
+
+    def test_changes_check(self):
+        campaign_id = get_first_campaign_id()
+        if campaign_id is None:
+            self.skipTest("No campaigns found in account")
+        result = invoke_get(
+            "changes",
+            "check",
+            "--campaign-ids",
+            str(campaign_id),
+            "--timestamp",
+            _recent_timestamp(),
+            "--format",
+            "json",
+        )
+        assert_success(result, "changes check")
+
+
+@pytest.mark.integration
+@skip_if_no_token
+class TestReadOnlyKeywordsResearch(unittest.TestCase):
+    def test_has_search_volume(self):
+        result = invoke_get(
+            "keywordsresearch",
+            "has-search-volume",
+            "--keywords",
+            "купить квартиру",
+            "--region-ids",
+            "213",
+            "--format",
+            "json",
+        )
+        assert_success(result, "keywordsresearch has-search-volume")
+
+    def test_deduplicate(self):
+        result = invoke_get(
+            "keywordsresearch",
+            "deduplicate",
+            "--keywords",
+            "купить квартиру,купить дом",
+            "--format",
+            "json",
+        )
+        assert_success(result, "keywordsresearch deduplicate")
+
+
+@pytest.mark.integration
+@skip_if_no_token
+class TestReadOnlyBalance(unittest.TestCase):
+    def test_balance_get(self):
+        # ``invoke_get`` calls the live API (read-only mode), same as the
+        # other TestReadOnly* classes in this file. The v4
+        # AccountManagement.Get endpoint exists in production; the sandbox
+        # 3500 limitation does not apply to this invocation path.
+        result = invoke_get("balance", "--format", "json")
+        assert_success(result, "balance")
 
 
 if __name__ == "__main__":
