@@ -808,35 +808,15 @@ def test_ads_add_rejects_incomplete_text_image_ad():
     assert "TEXT_IMAGE_AD requires both --image-hash and --href" in missing_href.output
 
 
-def test_ads_update_rejects_mixing_text_ad_and_image_ad_flags():
-    """WSDL AdUpdateItem is a one-of choice; mixing subtype flags must
-    be rejected at CLI level rather than emitting an invalid payload."""
-    result = _failing_run(
-        "ads",
-        "update",
-        "--id",
-        "99",
-        "--title",
-        "New title",
-        "--text",
-        "New text",
-        "--href",
-        "https://example.com",
-        "--image-hash",
-        "hash",
-    )
-    assert result.exit_code != 0
-    assert "Cannot mix --title/--text/--href" in result.output
-
-
-def test_ads_update_single_text_ad_flags_still_work():
-    """Updating with only TextAd flags must keep producing the canonical
-    TextAd payload — the rejection above is a guard, not a regression."""
+def test_ads_update_text_ad_builds_textad_payload():
+    """TEXT_AD subtype: --title/--text/--href produce a TextAd block."""
     body = _dry_run(
         "ads",
         "update",
         "--id",
         "99",
+        "--type",
+        "TEXT_AD",
         "--title",
         "New title",
         "--text",
@@ -862,16 +842,20 @@ def test_ads_update_single_text_ad_flags_still_work():
     }
 
 
-def test_ads_update_single_image_ad_flag_still_works():
-    """Updating with only --image-hash must keep producing the canonical
-    TextImageAd payload."""
+def test_ads_update_text_image_ad_builds_textimagead_payload():
+    """TEXT_IMAGE_AD subtype: --image-hash + --href produce a single
+    TextImageAd block (per WSDL TextImageAdUpdate)."""
     body = _dry_run(
         "ads",
         "update",
         "--id",
         "99",
+        "--type",
+        "TEXT_IMAGE_AD",
         "--image-hash",
         "hash",
+        "--href",
+        "https://example.com",
     )
 
     assert body == {
@@ -880,11 +864,72 @@ def test_ads_update_single_image_ad_flag_still_works():
             "Ads": [
                 {
                     "Id": 99,
-                    "TextImageAd": {"AdImageHash": "hash"},
+                    "TextImageAd": {
+                        "AdImageHash": "hash",
+                        "Href": "https://example.com",
+                    },
                 }
             ]
         },
     }
+
+
+def test_ads_update_mobile_app_ad_builds_mobileapp_payload():
+    """MOBILE_APP_AD subtype: all six flags map into a MobileAppAd block."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "99",
+        "--type",
+        "MOBILE_APP_AD",
+        "--title",
+        "App title",
+        "--text",
+        "App text",
+        "--image-hash",
+        "icon-hash",
+        "--action",
+        "INSTALL",
+        "--tracking-url",
+        "https://track.example",
+        "--age-label",
+        "AGE_12",
+    )
+
+    assert body == {
+        "method": "update",
+        "params": {
+            "Ads": [
+                {
+                    "Id": 99,
+                    "MobileAppAd": {
+                        "Title": "App title",
+                        "Text": "App text",
+                        "AdImageHash": "icon-hash",
+                        "Action": "INSTALL",
+                        "TrackingUrl": "https://track.example",
+                        "AgeLabel": "AGE_12",
+                    },
+                }
+            ]
+        },
+    }
+
+
+def test_ads_update_requires_explicit_type():
+    """ads update without --type must fail with a clear error rather
+    than guessing the subtype from the flags present."""
+    result = _failing_run(
+        "ads",
+        "update",
+        "--id",
+        "99",
+        "--title",
+        "New title",
+    )
+    assert result.exit_code != 0
+    assert "Missing option '--type'" in result.output
 
 
 def test_ads_update_rejects_status_flag():
@@ -894,6 +939,8 @@ def test_ads_update_rejects_status_flag():
         "update",
         "--id",
         "1",
+        "--type",
+        "TEXT_AD",
         "--status",
         "SUSPENDED",
         "--dry-run",
