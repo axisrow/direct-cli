@@ -2,16 +2,20 @@
 Output formatting module for Direct CLI
 """
 
-import json
 import csv
+import json
 import sys
-from typing import Any, List, Optional
 from io import StringIO
+from typing import Any, Iterator, List, Optional
 
 try:
     from tabulate import tabulate
 except ImportError:
     tabulate = None
+
+
+class DirectAPIResultError(RuntimeError):
+    """Raised when a Direct API action response contains item-level errors."""
 
 
 def format_output(
@@ -32,6 +36,8 @@ def format_output(
     Returns:
         Formatted string
     """
+    raise_for_api_result_errors(data)
+
     if format_type == "json":
         output = format_json(data)
     elif format_type == "table":
@@ -50,6 +56,70 @@ def format_output(
         print(output)
 
     return output
+
+
+def raise_for_api_result_errors(data: Any) -> None:
+    """Raise a human-readable error for embedded Direct API action errors."""
+    result_errors = list(_iter_api_result_errors(data))
+    if not result_errors:
+        return
+
+    lines = ["Yandex Direct API returned errors; operation was not applied."]
+    for error in result_errors:
+        lines.append(_format_api_result_error(error))
+
+    if any(_error_code(error) == 8800 for error in result_errors):
+        lines.append(
+            "Code 8800 means the object is not available under the current "
+            "Client-Login/account. Check --login, YANDEX_DIRECT_LOGIN, or "
+            "the selected auth profile for the target client."
+        )
+
+    raise DirectAPIResultError("\n".join(lines))
+
+
+def _iter_api_result_errors(data: Any) -> Iterator[dict]:
+    if isinstance(data, dict):
+        errors = data.get("Errors")
+        if isinstance(errors, list):
+            for error in errors:
+                if isinstance(error, dict):
+                    yield error
+                else:
+                    yield {"Message": str(error)}
+        for key, value in data.items():
+            if key != "Errors":
+                yield from _iter_api_result_errors(value)
+    elif isinstance(data, list):
+        for item in data:
+            yield from _iter_api_result_errors(item)
+
+
+def _format_api_result_error(error: dict) -> str:
+    code = _error_code(error)
+    message = error.get("Message")
+    details = error.get("Details")
+
+    if code is not None and message and details:
+        return f"Error {code}: {message}. Details: {details}"
+    if code is not None and message:
+        return f"Error {code}: {message}"
+    if message and details:
+        return f"Error: {message}. Details: {details}"
+    if message:
+        return f"Error: {message}"
+    if code is not None:
+        return f"Error {code}"
+    return f"Error: {format_json(error, indent=0)}"
+
+
+def _error_code(error: dict) -> Optional[int]:
+    code = error.get("Code")
+    if isinstance(code, int):
+        return code
+    if isinstance(code, str) and code.isdigit():
+        return int(code)
+    return None
 
 
 def format_json(data: Any, indent: int = 2) -> str:

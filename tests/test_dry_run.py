@@ -696,6 +696,25 @@ def test_ads_update_text_ad_flags_build_nested_textad():
     assert "TextImageAd" not in ad
 
 
+def test_ads_update_text_ad_image_hash_builds_nested_textad():
+    """TextAd subtype: --image-hash produces TextAd.AdImageHash."""
+    image_hash = "ygqa6jmlkgsbz7vnewp0"
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_AD",
+        "--image-hash",
+        image_hash,
+    )
+    ad = body["params"]["Ads"][0]
+    assert ad["Id"] == 999
+    assert ad["TextAd"] == {"AdImageHash": image_hash}
+    assert "TextImageAd" not in ad
+
+
 def test_ads_update_image_hash_builds_nested_textimagead():
     """TextImageAd subtype: --image-hash produces TextImageAd block only."""
     body = _dry_run(
@@ -712,6 +731,28 @@ def test_ads_update_image_hash_builds_nested_textimagead():
     assert ad["Id"] == 999
     assert ad["TextImageAd"] == {"AdImageHash": "ygqa6jmlkgsbz7vnewp0"}
     assert "TextAd" not in ad
+
+
+def test_ads_update_incompatible_flag_explains_existing_subtype():
+    result = CliRunner().invoke(
+        cli,
+        [
+            "ads",
+            "update",
+            "--id",
+            "999",
+            "--type",
+            "TEXT_AD",
+            "--action",
+            "INSTALL",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "--action is not compatible with --type TEXT_AD" in result.output
+    assert "does not convert an ad between subtypes" in result.output
+    assert "Allowed flags for TEXT_AD" in result.output
+    assert "--image-hash" in result.output
 
 
 def test_ads_get_default_fieldnames():

@@ -116,7 +116,7 @@ def test_empty_payload_no_op_rejected(
 # cannot flip green from an unrelated UsageError.
 SILENT_LOSS_PROBES: list[tuple[str, list[str], str]] = [
     (
-        "ads.update TEXT_AD + --image-hash",
+        "ads.update TEXT_AD + --action",
         [
             "ads",
             "update",
@@ -124,10 +124,10 @@ SILENT_LOSS_PROBES: list[tuple[str, list[str], str]] = [
             "1",
             "--type",
             "TEXT_AD",
-            "--image-hash",
-            "abc123",
+            "--action",
+            "INSTALL",
         ],
-        "--image-hash",
+        "--action",
     ),
 ]
 

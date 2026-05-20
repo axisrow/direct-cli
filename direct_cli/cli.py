@@ -55,7 +55,20 @@ from .commands.v4wordstat import v4wordstat
 load_dotenv()
 
 
-@click.group(name="direct")
+CLI_EPILOG = """\b
+Credential context:
+  --login / YANDEX_DIRECT_LOGIN selects the Yandex Direct Client-Login.
+  Use direct auth status to inspect the selected OAuth profile.
+
+\b
+API errors:
+  Item-level Yandex Direct Errors are reported as command failures.
+  Error 8800 usually means the object is not available under the current
+  Client-Login/account.
+"""
+
+
+@click.group(name="direct", epilog=CLI_EPILOG)
 @click.version_option(__version__, prog_name="direct")
 @click.option("--token", envvar="YANDEX_DIRECT_TOKEN", help="API access token")
 @click.option("--login", envvar="YANDEX_DIRECT_LOGIN", help="Client login")
