@@ -1195,6 +1195,28 @@ class TestWriteBidsRead:
 
     then restore ``_invoke`` and ``sed`` the host back to
     ``api-sandbox.direct.yandex.ru`` in the new cassettes.
+
+    Why this is acceptable for this repository (responding to a 2026-05
+    adversarial review flagging the live-as-sandbox pattern):
+
+    * Single-author project — there is no team of contributors who could
+      bypass the sandbox boundary by accident. The cassette-refresh
+      ritual is a private maintenance step, not a CI primitive.
+    * Replay never reaches the network (pytest-recording default
+      ``record_mode='none'`` + ``host`` match in ``vcr_config``), so the
+      rewritten URI cannot leak a real production call from CI.
+    * The wire-shape captured against ``api.direct.yandex.ru`` is
+      identical to the sandbox WSDL for ``/v5/bids`` — the URL was the
+      only difference, not the schema. The cassette therefore exercises
+      the correct request/response contract for the CLI under test.
+    * This is a **bridge** until the CLI achieves full Yandex Direct
+      parity. Once sandbox accepts the full ``campaign → adgroup →
+      keyword → bids`` chain (currently blocked by code 8800 on
+      ``keywords.add``), cassettes can be re-recorded the standard way
+      and this whole block goes away.
+
+    If this rationale changes — e.g. the repo gains contributors, or the
+    sandbox parity gap closes — revisit the pattern.
     """
 
     def test_bids_get(self, sandbox_keyword):
