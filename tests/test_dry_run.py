@@ -660,7 +660,8 @@ def test_ads_update_rejects_status_flag():
     assert '"Status"' not in result.output
 
 
-def test_ads_update_typed_fields_build_nested_objects():
+def test_ads_update_text_ad_flags_build_nested_textad():
+    """TextAd subtype: --title/--text/--href produce TextAd block only."""
     body = _dry_run(
         "ads",
         "update",
@@ -672,8 +673,6 @@ def test_ads_update_typed_fields_build_nested_objects():
         "Body",
         "--href",
         "https://example.com",
-        "--image-hash",
-        "ygqa6jmlkgsbz7vnewp0",
     )
     ad = body["params"]["Ads"][0]
     assert ad["Id"] == 999
@@ -682,7 +681,23 @@ def test_ads_update_typed_fields_build_nested_objects():
         "Text": "Body",
         "Href": "https://example.com",
     }
+    assert "TextImageAd" not in ad
+
+
+def test_ads_update_image_hash_builds_nested_textimagead():
+    """TextImageAd subtype: --image-hash produces TextImageAd block only."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--image-hash",
+        "ygqa6jmlkgsbz7vnewp0",
+    )
+    ad = body["params"]["Ads"][0]
+    assert ad["Id"] == 999
     assert ad["TextImageAd"] == {"AdImageHash": "ygqa6jmlkgsbz7vnewp0"}
+    assert "TextAd" not in ad
 
 
 def test_ads_get_default_fieldnames():
