@@ -343,6 +343,74 @@ def test_strategies_update_average_crr_payload_uses_api_field_names():
     assert strategy["AverageCrr"] == {"Crr": 30, "GoalId": 456}
 
 
+def test_strategies_add_average_cpc_per_filter_payload_uses_filter_field():
+    body = _dry_run(
+        "strategies",
+        "add",
+        "--name",
+        "Per-filter CPC",
+        "--type",
+        "AverageCpcPerFilter",
+        "--average-cpc",
+        "1000000",
+    )
+
+    strategy = body["params"]["Strategies"][0]
+    assert strategy["AverageCpcPerFilter"] == {"FilterAverageCpc": 1000000}
+
+
+def test_strategies_add_pay_for_conversion_crr_payload_uses_crr_field():
+    body = _dry_run(
+        "strategies",
+        "add",
+        "--name",
+        "PFC CRR",
+        "--type",
+        "PayForConversionCrr",
+        "--average-crr",
+        "30",
+        "--goal-id",
+        "123",
+    )
+
+    strategy = body["params"]["Strategies"][0]
+    assert strategy["PayForConversionCrr"] == {"Crr": 30, "GoalId": 123}
+
+
+def test_strategies_add_multi_goal_rejects_average_cpa():
+    result = _failing_run(
+        "strategies",
+        "add",
+        "--name",
+        "Multi-goal",
+        "--type",
+        "AverageCpaMultipleGoals",
+        "--average-cpa",
+        "1000000",
+        "--dry-run",
+    )
+
+    assert result.exit_code != 0
+    assert (
+        "--average-cpa is not valid for --type AverageCpaMultipleGoals" in result.output
+    )
+
+
+def test_strategies_add_pay_for_conversion_multi_goal_requires_goal_id():
+    result = _failing_run(
+        "strategies",
+        "add",
+        "--name",
+        "PFC Multi-goal",
+        "--type",
+        "PayForConversionMultipleGoals",
+        "--dry-run",
+    )
+
+    assert result.exit_code != 0
+    assert "Provide --goal-id" in result.output
+
+
 def test_strategies_update_typed_metadata_payload():
     body = _dry_run(
         "strategies",
@@ -431,19 +499,26 @@ def test_dynamicads_get_builds_typed_filter_payload():
     }
 
 
-def test_dynamicads_add_requires_condition():
-    result = _failing_run(
+def test_dynamicads_add_without_condition_omits_conditions_field():
+    """WSDL DynamicTextAdTargetAddItem.Conditions is minOccurs=0.
+
+    Issue #198 H7 — the CLI used to over-constrain by requiring
+    ``--condition``. The CLI now mirrors the WSDL and omits the
+    ``Conditions`` field when no condition is provided.
+    """
+    body = _dry_run(
         "dynamicads",
         "add",
         "--adgroup-id",
         "1",
         "--name",
         "Webpage",
-        "--dry-run",
     )
 
-    assert result.exit_code != 0
-    assert "Provide at least one --condition" in result.output
+    webpage = body["params"]["Webpages"][0]
+    assert "Conditions" not in webpage
+    assert webpage["AdGroupId"] == 1
+    assert webpage["Name"] == "Webpage"
 
 
 def test_dynamicads_lifecycle_payloads_use_id_selection_criteria():

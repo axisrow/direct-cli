@@ -94,11 +94,12 @@ def get(
 @click.pass_context
 def set(ctx, keyword_id, bid, dry_run):
     """Set bids"""
-    try:
-        bid_data = {"KeywordId": keyword_id}
+    # Reject empty-payload no-op (issue #198 H8).
+    if bid is None:
+        raise click.UsageError("bids set requires at least one bid value (--bid).")
 
-        if bid is not None:
-            bid_data["Bid"] = bid
+    try:
+        bid_data = {"KeywordId": keyword_id, "Bid": bid}
 
         body = {"method": "set", "params": {"Bids": [bid_data]}}
 

@@ -343,44 +343,99 @@ def update(
             "'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD'."
         )
 
+    # Per-WSDL-subtype field allow-list: each --type accepts only the
+    # options that map to fields inside its AdUpdateItem subtype. A flag
+    # outside the allow-list (e.g. --image-hash on TEXT_AD) would be
+    # silently dropped by the loop below; reject up front so the user
+    # sees the conflict instead of a no-op (issue #198 H2).
+    type_fields = {
+        "TEXT_AD": {"title", "text", "href"},
+        "TEXT_IMAGE_AD": {"image_hash", "href"},
+        "MOBILE_APP_AD": {
+            "title",
+            "text",
+            "image_hash",
+            "action",
+            "tracking_url",
+            "age_label",
+        },
+    }
+    provided = {
+        "title": title,
+        "text": text,
+        "href": href,
+        "image_hash": image_hash,
+        "action": action,
+        "tracking_url": tracking_url,
+        "age_label": age_label,
+    }
+    flag_for = {
+        "title": "--title",
+        "text": "--text",
+        "href": "--href",
+        "image_hash": "--image-hash",
+        "action": "--action",
+        "tracking_url": "--tracking-url",
+        "age_label": "--age-label",
+    }
+    incompatible = [
+        flag_for[name]
+        for name, value in provided.items()
+        if value is not None and name not in type_fields[ad_type_norm]
+    ]
+    if incompatible:
+        raise click.UsageError(
+            f"{', '.join(incompatible)} is not compatible with --type {ad_type_norm}. "
+            f"Allowed flags for {ad_type_norm}: "
+            f"{', '.join(sorted(flag_for[n] for n in type_fields[ad_type_norm]))}."
+        )
+
+    ad_data = {"Id": ad_id}
+
+    if ad_type_norm == "TEXT_AD":
+        text_ad = {}
+        if title:
+            text_ad["Title"] = title
+        if text:
+            text_ad["Text"] = text
+        if href:
+            text_ad["Href"] = href
+        if text_ad:
+            ad_data["TextAd"] = text_ad
+    elif ad_type_norm == "TEXT_IMAGE_AD":
+        text_image_ad = {}
+        if image_hash:
+            text_image_ad["AdImageHash"] = image_hash
+        if href:
+            text_image_ad["Href"] = href
+        if text_image_ad:
+            ad_data["TextImageAd"] = text_image_ad
+    elif ad_type_norm == "MOBILE_APP_AD":
+        mobile_app_ad = {}
+        if title:
+            mobile_app_ad["Title"] = title
+        if text:
+            mobile_app_ad["Text"] = text
+        if image_hash:
+            mobile_app_ad["AdImageHash"] = image_hash
+        if action:
+            mobile_app_ad["Action"] = action.upper()
+        if tracking_url:
+            mobile_app_ad["TrackingUrl"] = tracking_url
+        if age_label:
+            mobile_app_ad["AgeLabel"] = age_label.upper()
+        if mobile_app_ad:
+            ad_data["MobileAppAd"] = mobile_app_ad
+
+    # Reject empty-subtype no-ops: ``{Id: N}`` with no subtype block
+    # is a silent no-op on the live API (issue #198 H1).
+    if len(ad_data) == 1:
+        raise click.UsageError(
+            f"ads update requires at least one updatable field for "
+            f"--type {ad_type_norm}."
+        )
+
     try:
-        ad_data = {"Id": ad_id}
-
-        if ad_type_norm == "TEXT_AD":
-            text_ad = {}
-            if title:
-                text_ad["Title"] = title
-            if text:
-                text_ad["Text"] = text
-            if href:
-                text_ad["Href"] = href
-            if text_ad:
-                ad_data["TextAd"] = text_ad
-        elif ad_type_norm == "TEXT_IMAGE_AD":
-            text_image_ad = {}
-            if image_hash:
-                text_image_ad["AdImageHash"] = image_hash
-            if href:
-                text_image_ad["Href"] = href
-            if text_image_ad:
-                ad_data["TextImageAd"] = text_image_ad
-        elif ad_type_norm == "MOBILE_APP_AD":
-            mobile_app_ad = {}
-            if title:
-                mobile_app_ad["Title"] = title
-            if text:
-                mobile_app_ad["Text"] = text
-            if image_hash:
-                mobile_app_ad["AdImageHash"] = image_hash
-            if action:
-                mobile_app_ad["Action"] = action.upper()
-            if tracking_url:
-                mobile_app_ad["TrackingUrl"] = tracking_url
-            if age_label:
-                mobile_app_ad["AgeLabel"] = age_label.upper()
-            if mobile_app_ad:
-                ad_data["MobileAppAd"] = mobile_app_ad
-
         body = {"method": "update", "params": {"Ads": [ad_data]}}
 
         if dry_run:

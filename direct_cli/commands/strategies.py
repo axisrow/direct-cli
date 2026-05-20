@@ -8,23 +8,31 @@ from ..api import create_client
 from ..output import format_output, print_error
 from ..utils import MICRO_RUBLES, get_default_fields, parse_ids
 
+# Canonical list of strategy subtypes, mirroring the choice-of-one
+# fields on WSDL StrategyAddItem. The previous list (PR #205 review,
+# issue #198 H11) carried five names that do not exist in the WSDL
+# (WbMaximumClicksPerBid, WbMaximumConversionRatePerBid,
+# AverageCrrPerCampaign, MaxProfitPerFilter, MaxProfitPerCampaign) and
+# omitted five that do (AverageCpcPerCampaign, AverageCpcPerFilter,
+# PayForConversionCrr, AverageCpaMultipleGoals,
+# PayForConversionMultipleGoals).
 STRATEGY_TYPES = [
     "WbMaximumClicks",
-    "WbMaximumClicksPerBid",
     "WbMaximumConversionRate",
-    "WbMaximumConversionRatePerBid",
     "AverageCpc",
+    "AverageCpcPerCampaign",
+    "AverageCpcPerFilter",
     "AverageCpa",
-    "AverageCpaPerFilter",
     "AverageCpaPerCampaign",
+    "AverageCpaPerFilter",
+    "AverageCpaMultipleGoals",
     "AverageCrr",
-    "AverageCrrPerCampaign",
     "MaxProfit",
-    "MaxProfitPerFilter",
-    "MaxProfitPerCampaign",
     "PayForConversion",
-    "PayForConversionPerFilter",
     "PayForConversionPerCampaign",
+    "PayForConversionPerFilter",
+    "PayForConversionCrr",
+    "PayForConversionMultipleGoals",
 ]
 
 CPA_STRATEGY_TYPES = {
@@ -32,20 +40,33 @@ CPA_STRATEGY_TYPES = {
     "AverageCpaPerCampaign",
 }
 FILTER_CPA_STRATEGY_TYPES = {"AverageCpaPerFilter"}
+# AverageCpcPerFilter's WSDL AddItem uses FilterAverageCpc, not AverageCpc.
+FILTER_CPC_STRATEGY_TYPES = {"AverageCpcPerFilter"}
 PAY_FOR_CONVERSION_STRATEGY_TYPES = {
     "PayForConversion",
     "PayForConversionPerFilter",
     "PayForConversionPerCampaign",
 }
+# CRR-family strategies map --average-crr to Crr (not AverageCrr).
+# PayForConversionCrr lives here, not in PAY_FOR_CONVERSION_STRATEGY_TYPES:
+# its WSDL AddItem has Crr+GoalId and no Cpa field.
 CRR_STRATEGY_TYPES = {
     "AverageCrr",
-    "AverageCrrPerCampaign",
+    "PayForConversionCrr",
+}
+# Multi-goal strategies. AverageCpaMultipleGoalsAddItem has no GoalId field
+# at all (its schema is WeeklySpendLimit/CustomPeriodBudget/...), so only
+# PayForConversionMultipleGoals requires --goal-id on add.
+MULTI_GOAL_STRATEGY_TYPES = {
+    "AverageCpaMultipleGoals",
+    "PayForConversionMultipleGoals",
 }
 GOAL_ID_STRATEGY_TYPES = (
     CPA_STRATEGY_TYPES
     | FILTER_CPA_STRATEGY_TYPES
     | PAY_FOR_CONVERSION_STRATEGY_TYPES
     | CRR_STRATEGY_TYPES
+    | {"PayForConversionMultipleGoals"}
 )
 
 
@@ -77,8 +98,19 @@ def _build_strategy_fields(
     """Build typed strategy-specific fields."""
     fields = {}
     if average_cpc is not None:
-        fields["AverageCpc"] = average_cpc
+        if strategy_type in FILTER_CPC_STRATEGY_TYPES:
+            fields["FilterAverageCpc"] = average_cpc
+        else:
+            fields["AverageCpc"] = average_cpc
     if average_cpa is not None:
+        if strategy_type in MULTI_GOAL_STRATEGY_TYPES:
+            # StrategyAverageCpaMultipleGoalsAddItem and
+            # StrategyPayForConversionMultipleGoalsAddItem have no Cpa
+            # field — reject the flag explicitly rather than emit a
+            # WSDL-unknown key.
+            raise click.UsageError(
+                f"--average-cpa is not valid for --type {strategy_type}"
+            )
         if strategy_type in PAY_FOR_CONVERSION_STRATEGY_TYPES:
             fields["Cpa"] = average_cpa
         elif strategy_type in FILTER_CPA_STRATEGY_TYPES:
@@ -337,7 +369,23 @@ def update(
             raise click.UsageError(
                 "Provide --type when setting strategy-specific fields"
             )
+        if strategy_type and not strategy_fields:
+            # Reject empty-subtype no-op (issue #198 sibling of H1/H5/H10):
+            # `--type AverageCpa` with no field flags would emit
+            # {Id, AverageCpa: {}}, which the live API accepts as a
+            # silent no-op.
+            raise click.UsageError(
+                f"strategies update requires at least one field for "
+                f"--type {strategy_type}."
+            )
         if strategy_type:
+            # GoalId is minOccurs=0 in every Strategy*Base used by
+            # Strategy*UpdateItem (cached WSDL strategies.xml), so update
+            # must NOT require --goal-id even for the goal-id family —
+            # users may change AverageCpa/Crr/SpendLimit without
+            # re-specifying the existing goal. The add command keeps the
+            # required-on-add validation because *AddItem.GoalId is
+            # minOccurs=1.
             strategy_data[strategy_type] = strategy_fields
         if counter_ids:
             strategy_data["CounterIds"] = {
@@ -349,6 +397,13 @@ def update(
             }
         if attribution_model:
             strategy_data["AttributionModel"] = attribution_model
+
+        if len(strategy_data) == 1:
+            # Only `Id` populated — reject the no-op payload (sibling of
+            # the H1/H5/H10 empty-payload guards on other resources).
+            raise click.UsageError(
+                "strategies update requires at least one updatable field."
+            )
 
         body = {"method": "update", "params": {"Strategies": [strategy_data]}}
 

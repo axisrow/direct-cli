@@ -79,6 +79,11 @@ EMPTY_PAYLOAD_PROBES: list[tuple[str, list[str], str]] = [
         ["keywords", "update", "--id", "1"],
         "at least one",
     ),
+    (
+        "strategies.update",
+        ["strategies", "update", "--id", "1", "--type", "AverageCpa"],
+        "at least one",
+    ),
 ]
 
 
@@ -86,13 +91,6 @@ EMPTY_PAYLOAD_PROBES: list[tuple[str, list[str], str]] = [
     ("command_key", "argv", "expected_error"),
     EMPTY_PAYLOAD_PROBES,
     ids=[probe[0] for probe in EMPTY_PAYLOAD_PROBES],
-)
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Empty-payload no-op bugs (issue #198 H1/H5/H8/H9/H10). "
-        "Fixed in PR 2 — gate flips green when guards are added."
-    ),
 )
 def test_empty_payload_no_op_rejected(
     command_key: str, argv: list[str], expected_error: str
@@ -138,13 +136,6 @@ SILENT_LOSS_PROBES: list[tuple[str, list[str], str]] = [
     ("probe_id", "argv", "expected_error"),
     SILENT_LOSS_PROBES,
     ids=[probe[0] for probe in SILENT_LOSS_PROBES],
-)
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Silent data-loss bug (issue #198 H2). "
-        "Fixed in PR 2 — gate flips green when per-type flag validation lands."
-    ),
 )
 def test_silent_data_loss_rejected(
     probe_id: str, argv: list[str], expected_error: str
@@ -267,13 +258,6 @@ INTERNAL_VALIDATION: dict[tuple[str, str, str], str] = {
     ("creatives", "add", "VideoExtensionCreative"): "Missing option '--video-id'",
 }
 
-# Known bugs from issue #198 that PR 2 fixes. Listed as
-# ``(cli_group, cli_op, wsdl_field)`` so the gate xfails just these
-# specific pairs — every other mutating command must pass.
-KNOWN_REQUIRED_FIELD_BUGS: set[tuple[str, str, str]] = {
-    ("adgroups", "add", "RegionIds"),  # H4
-}
-
 
 def _click_command(group_name: str, command_name: str):
     group = cli.commands.get(group_name)
@@ -332,15 +316,6 @@ def test_wsdl_required_fields_have_cli_options(
             continue
         missing.append((field, sorted(expected_opts)))
 
-    bug_keys = {(cli_group, cli_op, field) for field, _ in missing}
-    expected_bugs = bug_keys & KNOWN_REQUIRED_FIELD_BUGS
-    new_bugs = bug_keys - KNOWN_REQUIRED_FIELD_BUGS
-
-    if expected_bugs and not new_bugs:
-        pytest.xfail(
-            f"{cli_group}.{cli_op}: known issue #198 bug — required field(s) "
-            f"{sorted(expected_bugs)} not enforced by Click. Fixed in PR 2."
-        )
     assert not missing, (
         f"{cli_group}.{cli_op}: WSDL minOccurs=1 fields not marked Click required: "
         f"{missing}. Either add ``required=True`` to the option, "
@@ -414,13 +389,6 @@ def _wsdl_strategy_subtype_names() -> list[str]:
     ]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "STRATEGY_TYPES contains 5 bogus names and is missing 5 WSDL names "
-        "(issue #198 H11). Fixed in PR 2."
-    ),
-)
 def test_strategy_types_match_wsdl() -> None:
     wsdl_types = set(_wsdl_strategy_subtype_names())
     cli_types = set(STRATEGY_TYPES)

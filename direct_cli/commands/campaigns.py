@@ -300,12 +300,20 @@ def add(
                 "Settings": parsed_settings or [],
             }
         elif campaign_type_norm == "SMART_CAMPAIGN":
+            # WSDL SmartCampaignAddItem.CounterId is minOccurs=1
+            # (issue #198 H6).
+            if counter_id is None:
+                raise click.UsageError(
+                    "--counter-id is required for SMART_CAMPAIGN "
+                    "(WSDL SmartCampaignAddItem.CounterId minOccurs=1)"
+                )
             network_strategy_type = network_strategy or "AVERAGE_CPC_PER_FILTER"
             smart_campaign = {
                 "BiddingStrategy": {
                     "Search": {"BiddingStrategyType": search_strategy or "SERVING_OFF"},
                     "Network": {"BiddingStrategyType": network_strategy_type},
-                }
+                },
+                "CounterId": counter_id,
             }
             if network_strategy_type == "AVERAGE_CPC_PER_FILTER":
                 if filter_average_cpc is None:
@@ -318,8 +326,6 @@ def add(
                 }
             if parsed_settings:
                 smart_campaign["Settings"] = parsed_settings
-            if counter_id is not None:
-                smart_campaign["CounterId"] = counter_id
             campaign_data["SmartCampaign"] = smart_campaign
 
         if budget:

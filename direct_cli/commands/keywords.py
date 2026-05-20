@@ -202,16 +202,23 @@ def _deprecated_bid_option(ctx, param, value):
 @click.pass_context
 def update(ctx, keyword_id, keyword, user_param_1, user_param_2, dry_run):
     """Update keyword text or user params (use 'bids set' for bid changes)"""
+    keyword_data = {"Id": keyword_id}
+
+    if keyword:
+        keyword_data["Keyword"] = keyword
+    if user_param_1 is not None:
+        keyword_data["UserParam1"] = user_param_1
+    if user_param_2 is not None:
+        keyword_data["UserParam2"] = user_param_2
+
+    # Reject empty-payload no-op (issue #198 H10).
+    if len(keyword_data) == 1:
+        raise click.UsageError(
+            "keywords update requires at least one updatable field "
+            "(--keyword, --user-param-1, or --user-param-2)."
+        )
+
     try:
-        keyword_data = {"Id": keyword_id}
-
-        if keyword:
-            keyword_data["Keyword"] = keyword
-        if user_param_1 is not None:
-            keyword_data["UserParam1"] = user_param_1
-        if user_param_2 is not None:
-            keyword_data["UserParam2"] = user_param_2
-
         body = {"method": "update", "params": {"Keywords": [keyword_data]}}
 
         if dry_run:

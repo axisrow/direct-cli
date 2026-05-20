@@ -124,7 +124,11 @@ def get(
     default="TEXT_AD_GROUP",
     help="Ad group type",
 )
-@click.option("--region-ids", help="Comma-separated region IDs")
+@click.option(
+    "--region-ids",
+    required=True,
+    help="Comma-separated region IDs (WSDL AdGroupAddItem.RegionIds minOccurs=1)",
+)
 @click.option("--domain-url", help="Dynamic text ad group domain URL")
 @click.option("--feed-id", type=int, help="Smart ad group feed ID")
 @click.option("--ad-title-source", help="Smart ad group title source")
@@ -209,17 +213,24 @@ def add(
 @click.pass_context
 def update(ctx, adgroup_id, name, status, region_ids, dry_run):
     """Update ad group"""
+    adgroup_data = {"Id": adgroup_id}
+
+    if name:
+        adgroup_data["Name"] = name
+
+    if status:
+        adgroup_data["Status"] = status
+    if region_ids:
+        adgroup_data["RegionIds"] = parse_ids(region_ids)
+
+    # Reject empty-payload no-op (issue #198 H5).
+    if len(adgroup_data) == 1:
+        raise click.UsageError(
+            "adgroups update requires at least one updatable field "
+            "(--name, --status, or --region-ids)."
+        )
+
     try:
-        adgroup_data = {"Id": adgroup_id}
-
-        if name:
-            adgroup_data["Name"] = name
-
-        if status:
-            adgroup_data["Status"] = status
-        if region_ids:
-            adgroup_data["RegionIds"] = parse_ids(region_ids)
-
         body = {"method": "update", "params": {"AdGroups": [adgroup_data]}}
 
         if dry_run:
