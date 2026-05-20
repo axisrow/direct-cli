@@ -337,7 +337,10 @@ class TestWriteAds:
             "--href",
             "https://example.com",
         )
-        assert_success(r, "ads add")
+        if r.exit_code != 0:
+            if _is_sandbox_error(r.output):
+                pytest.skip(f"adgroup not persisted in sandbox: {r.output[:200]}")
+            pytest.fail(f"ads add failed (CLI regression?): {r.output[:500]}")
         data = json.loads(r.output)
         if isinstance(data, list):
             first = data[0]
@@ -388,7 +391,10 @@ class TestWriteKeywords:
             "--keyword",
             "купить тест",
         )
-        assert_success(r, "keywords add")
+        if r.exit_code != 0:
+            if _is_sandbox_error(r.output):
+                pytest.skip(f"adgroup not persisted in sandbox: {r.output[:200]}")
+            pytest.fail(f"keywords add failed (CLI regression?): {r.output[:500]}")
         data = json.loads(r.output)
         if isinstance(data, list):
             first = data[0]
@@ -527,6 +533,14 @@ class TestWriteBidModifiersAdd:
         mid = ids[0]
 
         r = _invoke("bidmodifiers", "delete", "--id", str(mid))
+        if r.exit_code != 0:
+            if _is_sandbox_error(r.output):
+                pytest.skip(
+                    f"bidmodifiers delete not supported (sandbox): {r.output[:200]}"
+                )
+            pytest.fail(
+                f"bidmodifiers delete failed (CLI regression?): {r.output[:500]}"
+            )
         assert_success(r, "bidmodifiers delete")
 
 
@@ -631,6 +645,12 @@ class TestWriteRetargeting:
 
         rid = parse_add_result(r)
         r = _invoke("retargeting", "delete", "--id", str(rid))
+        if r.exit_code != 0:
+            if _is_sandbox_error(r.output):
+                pytest.skip(f"retargeting delete not supported: {r.output[:200]}")
+            pytest.fail(
+                f"retargeting delete failed (CLI regression?): {r.output[:500]}"
+            )
         assert_success(r, "retargeting delete")
 
 
@@ -1050,7 +1070,9 @@ class TestWriteStrategies:
             "inconsistent object state",
         )
         if r.exit_code != 0 or _has_result_errors(r.output, "AddResults"):
-            if _is_sandbox_error(r.output, extra_patterns=_STRATEGY_ADD_SANDBOX_PATTERNS):
+            if _is_sandbox_error(
+                r.output, extra_patterns=_STRATEGY_ADD_SANDBOX_PATTERNS
+            ):
                 pytest.skip(f"strategies add not supported (sandbox): {r.output[:200]}")
             pytest.fail(f"strategies add failed (CLI regression?): {r.output[:500]}")
 
@@ -1084,9 +1106,7 @@ class TestWriteStrategies:
                 pytest.skip(
                     f"strategies update not supported (sandbox): {r.output[:200]}"
                 )
-            pytest.fail(
-                f"strategies update failed (CLI regression?): {r.output[:500]}"
-            )
+            pytest.fail(f"strategies update failed (CLI regression?): {r.output[:500]}")
 
         r = _invoke("strategies", "archive", "--id", str(sid))
         if r.exit_code != 0 or _has_result_errors(r.output, "ArchiveResults"):

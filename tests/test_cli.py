@@ -6,6 +6,7 @@ import io
 import os
 import unittest
 from contextlib import redirect_stderr
+from importlib import import_module
 from importlib.metadata import version
 from pathlib import Path
 from unittest.mock import patch
@@ -146,7 +147,8 @@ class TestCLI(unittest.TestCase):
             def post(self, data):
                 return FakeResponse()
 
-        with patch("direct_cli.commands.ads.create_client", return_value=FakeClient()):
+        ads_module = import_module("direct_cli.commands.ads")
+        with patch.object(ads_module, "create_client", return_value=FakeClient()):
             result = self.runner.invoke(
                 cli,
                 [
