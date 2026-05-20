@@ -240,7 +240,7 @@ PAYLOAD_CASES = [
             "--name",
             "Dyn Target",
             "--condition",
-            "PAGE_URL:CONTAINS:catalog",
+            "URL:CONTAINS_ANY:catalog",
             "--bid",
             "3000000",
             "--context-bid",
