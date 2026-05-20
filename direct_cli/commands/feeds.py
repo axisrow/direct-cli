@@ -70,13 +70,23 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
 @feeds.command()
 @click.option("--name", required=True, help="Feed name")
 @click.option("--url", required=True, help="Feed URL")
+@click.option(
+    "--business-type",
+    required=True,
+    type=click.Choice(
+        ["RETAIL", "HOTELS", "REALTY", "AUTOMOBILES", "FLIGHTS", "OTHER"],
+        case_sensitive=False,
+    ),
+    help="Business type (BusinessTypeEnum)",
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def add(ctx, name, url, dry_run):
+def add(ctx, name, url, business_type, dry_run):
     """Add feed"""
     try:
         feed_data = {
             "Name": name,
+            "BusinessType": business_type.upper(),
             "SourceType": "URL",
             "UrlFeed": {"Url": url},
         }

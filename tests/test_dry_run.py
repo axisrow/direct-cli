@@ -1248,13 +1248,16 @@ def test_feeds_add_payload_uses_nested_urlfeed():
         "Feed A",
         "--url",
         "https://example.com/feed.xml",
+        "--business-type",
+        "RETAIL",
     )
     assert body["method"] == "add"
     feed = body["params"]["Feeds"][0]
-    # The API requires both the SourceType discriminator and the nested
-    # UrlFeed/FileFeed/BusinessType object that carries the URL or data.
+    # The API requires Name, BusinessType (minOccurs=1 in WSDL), SourceType
+    # discriminator, and the nested UrlFeed/FileFeed object carrying the URL.
     assert feed == {
         "Name": "Feed A",
+        "BusinessType": "RETAIL",
         "SourceType": "URL",
         "UrlFeed": {"Url": "https://example.com/feed.xml"},
     }
