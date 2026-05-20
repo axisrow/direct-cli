@@ -662,6 +662,32 @@ class TestReadOnlyBalance(unittest.TestCase):
         result = invoke_get("balance", "--format", "json")
         assert_success(result, "balance")
 
+@pytest.mark.integration
+@skip_if_no_token
+class TestReadOnlyAuth(unittest.TestCase):
+    """Read-only coverage of ``direct auth status`` / ``direct auth list``.
+
+    These commands do not hit the Yandex Direct API — they read local
+    profile state — but they require an active profile (i.e. the same
+    credentials the rest of the integration suite needs), so we gate them
+    behind ``skip_if_no_token``.
+
+    ``auth login`` and ``auth use`` are DANGEROUS (they mutate
+    ``~/.direct-cli/auth.json``) and are intentionally NOT covered here.
+    """
+
+    def test_auth_status_json(self):
+        result = invoke_get("auth", "status", "--format", "json")
+        self.assertEqual(result.exit_code, 0, result.output)
+        payload = json.loads(result.output)
+        for key in ("profile", "source", "has_token"):
+            self.assertIn(key, payload, f"auth status JSON missing {key}: {payload}")
+        self.assertTrue(payload["has_token"], payload)
+
+    def test_auth_list(self):
+        result = invoke_get("auth", "list")
+        self.assertEqual(result.exit_code, 0, result.output)
+
 
 if __name__ == "__main__":
     unittest.main()
