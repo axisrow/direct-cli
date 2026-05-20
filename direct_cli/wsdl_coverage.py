@@ -533,6 +533,37 @@ def get_operation_request_schema(wsdl_xml: str, operation_name: str) -> dict:
     return {"input_element": element_name, "fields": fields}
 
 
+def get_required_fields(schema: dict) -> list[str]:
+    """Return names of top-level schema fields whose WSDL ``minOccurs`` is ≥ 1.
+
+    Used by the WSDL↔CLI parity gate to assert that CLI commands either
+    require the corresponding option or build it from defaults.
+    """
+    return [
+        field["name"]
+        for field in schema.get("fields", [])
+        if field.get("min_occurs", 1) >= 1
+    ]
+
+
+def get_required_item_fields(schema: dict, container_name: str) -> list[str]:
+    """Return required nested ``item_fields`` for a top-level container field.
+
+    Mutating WSDL ``AddItems``/``UpdateItems`` ops wrap real fields inside a
+    container like ``Ads``/``Campaigns``/``Keywords``. The required fields the
+    CLI must validate live one level deeper, on each item.
+    """
+    for field in schema.get("fields", []):
+        if field.get("name") != container_name:
+            continue
+        return [
+            item["name"]
+            for item in (field.get("item_fields") or [])
+            if item.get("min_occurs", 1) >= 1
+        ]
+    return []
+
+
 def find_nested_schema_violations(
     body: dict, schema: dict, *, path: str = "params"
 ) -> list[str]:

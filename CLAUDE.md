@@ -52,6 +52,15 @@ Click group-of-groups. Each Yandex Direct API resource = one file in `direct_cli
 
 A guard in `tests/test_api_coverage.py::test_dry_run_exclusions_have_no_helper_or_legacy_rationale` enforces this — any rationale outside those five categories that uses the banned phrasing is a mis-classification: write a `PAYLOAD_CASES` fixture instead. See post-mortem in issue #199.
 
+**WSDL parity gate:** `tests/test_wsdl_parity_gate.py` runs four invariant checks across every `add`/`update`/`set` command in `WRITE_SANDBOX`:
+
+1. *Empty subtype no-op* — a mutating command with only the resource ID must refuse to send the payload (no silent no-op on the live API).
+2. *Silent data loss* — a typed flag that does not belong to the chosen `--type` must raise `UsageError`, not be dropped.
+3. *WSDL `minOccurs=1` not validated* — every required WSDL item field must be enforced either via Click `required=True` *or* a documented `UsageError` body check (listed in `INTERNAL_VALIDATION`).
+4. *Strategy enum drift* — `STRATEGY_TYPES` (`direct_cli/commands/strategies.py`) must equal the subtype-of-one field names in `StrategyAddItem`.
+
+Adding a new mutating command requires extending `COMMAND_WSDL_MAP` in `tests/test_wsdl_parity_gate.py` (the coverage test fails otherwise) and, if the WSDL request has a non-mechanical field name, also `WSDL_FIELD_TO_CLI_OPTION`. Tracked in issue #198.
+
 **SelectionCriteria:** Resources like `adgroups`, `ads`, `keywords` require at least one of `Ids`, `CampaignIds`, or `AdGroupIds` — otherwise API error 4001.
 
 **Error handling:** All commands wrap API calls in `try/except Exception` → `print_error(str(e))` + `raise click.Abort()`.
