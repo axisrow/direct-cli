@@ -44,12 +44,17 @@ PAY_FOR_CONVERSION_STRATEGY_TYPES = {
     "PayForConversion",
     "PayForConversionPerFilter",
     "PayForConversionPerCampaign",
-    "PayForConversionCrr",
 }
+# CRR-family strategies map --average-crr to Crr (not AverageCrr).
+# PayForConversionCrr lives here, not in PAY_FOR_CONVERSION_STRATEGY_TYPES:
+# its WSDL AddItem has Crr+GoalId and no Cpa field.
 CRR_STRATEGY_TYPES = {
     "AverageCrr",
+    "PayForConversionCrr",
 }
-# Multi-goal strategies use a Goals[] array instead of a single GoalId.
+# Multi-goal strategies. AverageCpaMultipleGoalsAddItem has no GoalId field
+# at all (its schema is WeeklySpendLimit/CustomPeriodBudget/...), so only
+# PayForConversionMultipleGoals requires --goal-id on add.
 MULTI_GOAL_STRATEGY_TYPES = {
     "AverageCpaMultipleGoals",
     "PayForConversionMultipleGoals",
@@ -59,6 +64,7 @@ GOAL_ID_STRATEGY_TYPES = (
     | FILTER_CPA_STRATEGY_TYPES
     | PAY_FOR_CONVERSION_STRATEGY_TYPES
     | CRR_STRATEGY_TYPES
+    | {"PayForConversionMultipleGoals"}
 )
 
 
@@ -351,11 +357,13 @@ def update(
                 "Provide --type when setting strategy-specific fields"
             )
         if strategy_type:
-            # GoalId is minOccurs=1 inside Strategy*Update for the
-            # goal-id family (issue #198 H12). Mirror the add command's
-            # validation here so updates do not silently drop GoalId.
-            if strategy_type in GOAL_ID_STRATEGY_TYPES and goal_id is None:
-                raise click.UsageError("Provide --goal-id for this strategy type")
+            # GoalId is minOccurs=0 in every Strategy*Base used by
+            # Strategy*UpdateItem (cached WSDL strategies.xml), so update
+            # must NOT require --goal-id even for the goal-id family —
+            # users may change AverageCpa/Crr/SpendLimit without
+            # re-specifying the existing goal. The add command keeps the
+            # required-on-add validation because *AddItem.GoalId is
+            # minOccurs=1.
             strategy_data[strategy_type] = strategy_fields
         if counter_ids:
             strategy_data["CounterIds"] = {
