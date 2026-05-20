@@ -304,7 +304,9 @@ def add(
 @click.option("--title", help="Title (TEXT_AD / MOBILE_APP_AD)")
 @click.option("--text", help="Text (TEXT_AD / MOBILE_APP_AD)")
 @click.option("--href", help="URL (TEXT_AD / TEXT_IMAGE_AD)")
-@click.option("--image-hash", help="Image hash (TEXT_IMAGE_AD / MOBILE_APP_AD)")
+@click.option(
+    "--image-hash", help="Image hash (TEXT_AD / TEXT_IMAGE_AD / MOBILE_APP_AD)"
+)
 @click.option(
     "--action",
     help="MOBILE_APP_AD call-to-action (MobileAppAdActionEnum, e.g. INSTALL)",
@@ -345,11 +347,11 @@ def update(
 
     # Per-WSDL-subtype field allow-list: each --type accepts only the
     # options that map to fields inside its AdUpdateItem subtype. A flag
-    # outside the allow-list (e.g. --image-hash on TEXT_AD) would be
-    # silently dropped by the loop below; reject up front so the user
-    # sees the conflict instead of a no-op (issue #198 H2).
+    # outside the allow-list would be silently dropped by the loop below;
+    # reject up front so the user sees the conflict instead of a no-op
+    # (issue #198 H2).
     type_fields = {
-        "TEXT_AD": {"title", "text", "href"},
+        "TEXT_AD": {"title", "text", "href", "image_hash"},
         "TEXT_IMAGE_AD": {"image_hash", "href"},
         "MOBILE_APP_AD": {
             "title",
@@ -384,10 +386,15 @@ def update(
         if value is not None and name not in type_fields[ad_type_norm]
     ]
     if incompatible:
+        allowed_flags = ", ".join(
+            sorted(flag_for[name] for name in type_fields[ad_type_norm])
+        )
         raise click.UsageError(
             f"{', '.join(incompatible)} is not compatible with --type {ad_type_norm}. "
+            "--type selects the existing ad subtype update block; it does not "
+            "convert an ad between subtypes. "
             f"Allowed flags for {ad_type_norm}: "
-            f"{', '.join(sorted(flag_for[n] for n in type_fields[ad_type_norm]))}."
+            f"{allowed_flags}."
         )
 
     ad_data = {"Id": ad_id}
@@ -400,6 +407,8 @@ def update(
             text_ad["Text"] = text
         if href:
             text_ad["Href"] = href
+        if image_hash:
+            text_ad["AdImageHash"] = image_hash
         if text_ad:
             ad_data["TextAd"] = text_ad
     elif ad_type_norm == "TEXT_IMAGE_AD":

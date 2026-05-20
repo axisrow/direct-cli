@@ -6,6 +6,7 @@ import io
 import os
 import unittest
 from contextlib import redirect_stderr
+from importlib import import_module
 from importlib.metadata import version
 from pathlib import Path
 from unittest.mock import patch
@@ -30,6 +31,13 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("Command-line interface for Yandex Direct API", result.output)
         self.assertIn("Usage: direct", result.output)
+        self.assertIn("Credential context:", result.output)
+        self.assertIn(
+            "YANDEX_DIRECT_LOGIN selects the Yandex Direct Client-Login", result.output
+        )
+        self.assertIn("direct auth status", result.output)
+        self.assertIn("Item-level Yandex Direct Errors", result.output)
+        self.assertIn("Error 8800", result.output)
 
     def test_cli_version(self):
         """Test CLI version command"""
@@ -84,6 +92,13 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertNotIn("Documentation:", result.output)
 
+    def test_ads_update_help_documents_text_ad_image_hash(self):
+        result = self.runner.invoke(cli, ["ads", "update", "--help"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn(
+            "Image hash (TEXT_AD / TEXT_IMAGE_AD / MOBILE_APP_AD)", result.output
+        )
+
     def test_canonical_groups_in_help(self):
         """Test canonical transport groups"""
         result = self.runner.invoke(cli, ["--help"])
@@ -104,6 +119,60 @@ class TestCLI(unittest.TestCase):
         result = self.runner.invoke(cli, ["auth_login", "--help"])
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("No such command", result.output)
+
+    def test_embedded_api_errors_are_reported_as_cli_errors(self):
+        """Direct item-level Errors should be visible as command failures."""
+
+        class FakeResponse:
+            def __call__(self):
+                return self
+
+            def extract(self):
+                return [
+                    {
+                        "Errors": [
+                            {
+                                "Code": 8800,
+                                "Message": "Object not found",
+                                "Details": "Ad not found",
+                            }
+                        ]
+                    }
+                ]
+
+        class FakeClient:
+            def ads(self):
+                return self
+
+            def post(self, data):
+                return FakeResponse()
+
+        ads_module = import_module("direct_cli.commands.ads")
+        with patch.object(ads_module, "create_client", return_value=FakeClient()):
+            result = self.runner.invoke(
+                cli,
+                [
+                    "ads",
+                    "update",
+                    "--id",
+                    "17722952450",
+                    "--type",
+                    "TEXT_AD",
+                    "--image-hash",
+                    "h5ojHelMOAjyHko5bq6QFw",
+                ],
+                env={
+                    "YANDEX_DIRECT_TOKEN": "test-token",
+                    "YANDEX_DIRECT_LOGIN": "axisrow",
+                },
+            )
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("Yandex Direct API returned errors", result.output)
+        self.assertIn("Error 8800: Object not found", result.output)
+        self.assertIn("Details: Ad not found", result.output)
+        self.assertIn("current Client-Login/account", result.output)
+        self.assertIn("YANDEX_DIRECT_LOGIN", result.output)
 
     def test_changes_help_uses_canonical_names(self):
         """Test changes help only exposes canonical command names"""
@@ -227,6 +296,21 @@ class TestReadmeContract(unittest.TestCase):
         self.assertIn("YANDEX_DIRECT_TOKEN_AGENCY1", self.content)
         self.assertIn("YANDEX_DIRECT_LOGIN_AGENCY1", self.content)
         self.assertNotIn("YANDEX_DIRECT_PROFILE", self.content)
+
+    def test_readme_documents_text_ad_image_update_contract(self):
+        """README must show WSDL-valid TEXT_AD image update syntax."""
+        self.assertIn(
+            "direct ads update --id 99999 --type TEXT_AD --image-hash",
+            self.content,
+        )
+        self.assertNotIn("direct ads update --id 99999 --status", self.content)
+
+    def test_readme_documents_api_item_errors(self):
+        """README must explain item-level API Errors and 8800 account context."""
+        self.assertIn("item-level `Errors`", self.content)
+        self.assertIn("Code `8800`", self.content)
+        self.assertIn("Client-Login", self.content)
+        self.assertIn("YANDEX_DIRECT_LOGIN", self.content)
 
     def test_readme_documents_removed_legacy_names(self):
         """README must include a table of removed legacy group/command names."""

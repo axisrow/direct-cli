@@ -367,8 +367,9 @@ direct adgroups delete --id 67890
 direct ads get --campaign-ids 1,2,3
 direct ads get --adgroup-ids 45678 --format table
 direct ads add --adgroup-id 12345 --type TEXT_AD --title "Title" --text "Ad text" --href "https://example.com" --dry-run
-direct ads add --adgroup-id 12345 --type TEXT_IMAGE_AD --image-hash abcdefghijklmnopqrst --href "https://example.com" --title "Banner" --text "Image ad" --dry-run
-direct ads update --id 99999 --status PAUSED --title "New Title" --text "New text" --href "https://example.com" --image-hash abcdefghijklmnopqrst
+direct ads add --adgroup-id 12345 --type TEXT_IMAGE_AD --image-hash abcdefghijklmnopqrst --href "https://example.com" --dry-run
+direct ads update --id 99999 --type TEXT_AD --title "New Title" --text "New text" --href "https://example.com"
+direct ads update --id 99999 --type TEXT_AD --image-hash abcdefghijklmnopqrst
 direct ads delete --id 99999
 ```
 
@@ -514,6 +515,17 @@ Use `--dry-run` on `add` / `update` commands to preview the API request before s
 ```bash
 direct campaigns add --name "Test" --start-date 2024-01-01 --dry-run
 ```
+
+### API Errors
+
+Yandex Direct can return a successful HTTP response that still contains
+item-level `Errors` for one object. Direct CLI treats those responses as
+failed operations: it exits non-zero and prints the error code, message, and
+details.
+
+Code `8800` with `Object not found` usually means the object is not available
+under the current `Client-Login` or account. Check the selected `--login`,
+`YANDEX_DIRECT_LOGIN`, or auth profile before retrying.
 
 ### Testing
 
@@ -994,8 +1006,9 @@ direct adgroups delete --id 67890
 direct ads get --campaign-ids 1,2,3
 direct ads get --adgroup-ids 45678 --format table
 direct ads add --adgroup-id 12345 --type TEXT_AD --title "Заголовок" --text "Текст объявления" --href "https://example.com" --dry-run
-direct ads add --adgroup-id 12345 --type TEXT_IMAGE_AD --image-hash abcdefghijklmnopqrst --href "https://example.com" --title "Баннер" --text "Имиджевое объявление" --dry-run
-direct ads update --id 99999 --status PAUSED --title "Новый заголовок" --text "Новый текст" --href "https://example.com" --image-hash abcdefghijklmnopqrst
+direct ads add --adgroup-id 12345 --type TEXT_IMAGE_AD --image-hash abcdefghijklmnopqrst --href "https://example.com" --dry-run
+direct ads update --id 99999 --type TEXT_AD --title "Новый заголовок" --text "Новый текст" --href "https://example.com"
+direct ads update --id 99999 --type TEXT_AD --image-hash abcdefghijklmnopqrst
 direct ads delete --id 99999
 ```
 
@@ -1142,6 +1155,17 @@ direct campaigns get --fetch-all   # все страницы
 ```bash
 direct campaigns add --name "Тест" --start-date 2024-01-01 --dry-run
 ```
+
+### Ошибки API
+
+Яндекс Директ может вернуть успешный HTTP-ответ, внутри которого есть
+item-level `Errors` для конкретного объекта. Direct CLI считает такой ответ
+ошибкой операции: команда завершается с ненулевым кодом и печатает код ошибки,
+сообщение и детали.
+
+Код `8800` с `Object not found` обычно означает, что объект недоступен в
+текущем `Client-Login` или аккаунте. Перед повтором проверьте выбранный
+`--login`, `YANDEX_DIRECT_LOGIN` или auth profile.
 
 ### Тестирование
 
