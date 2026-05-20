@@ -1176,30 +1176,25 @@ class TestWriteRetargetingUpdate:
 
 @pytest.mark.integration_write
 @pytest.mark.vcr
-@pytest.mark.sandbox_limitation(
-    category="disabled",
-    reason="Sandbox does not persist adgroups/keywords (code 8800 chain); bids get/set-auto may have no addressable keyword to operate on",
-)
 class TestWriteBidsRead:
     """Read-side bids coverage: ``bids get`` and ``bids set-auto``.
 
-    Both calls go through the sandbox.  ``bids get`` exercises the
-    SelectionCriteria path with ``--keyword-ids``; ``bids set-auto``
-    exercises the typed ``--scope`` payload.  Sandbox limitations
-    (no persisted keyword) are detected via ``_is_sandbox_error``.
+    Both calls go through the sandbox in replay mode.  ``bids get``
+    exercises the SelectionCriteria path with ``--keyword-ids``;
+    ``bids set-auto`` exercises the typed ``--scope`` + ``--position``
+    payload.
 
-    Cassette must be recorded with
+    Cassettes were recorded against the **live API** (sandbox does not
+    persist keywords reliably — code 8800 chain), then their request URIs
+    were rewritten from ``api.direct.yandex.ru`` to
+    ``api-sandbox.direct.yandex.ru`` so they replay under the default
+    ``--sandbox`` test setup.  To re-record, temporarily drop the
+    ``--sandbox`` injection in ``conftest._invoke`` and rerun:
+
     ``pytest --record-mode=once -m integration_write tests/test_integration_write.py::TestWriteBidsRead``
 
-    KNOWN LIMITATION: the currently committed cassettes contain only the
-    ``sandbox_keyword`` fixture setup interactions (campaigns / adgroups /
-    keywords add + cleanup) and **no** ``/json/v5/bids`` interactions —
-    sandbox returns code 8800 ("Ad group not found") on ``keywords.add``,
-    so the fixture raises ``pytest.skip`` before either test body runs.
-    These tests therefore report as SKIPPED in replay-mode and provide no
-    actual ``bids`` endpoint coverage today. Re-record against an
-    environment where keywords persist to capture the real ``bids``
-    interactions and unlock the test bodies.
+    then restore ``_invoke`` and ``sed`` the host back to
+    ``api-sandbox.direct.yandex.ru`` in the new cassettes.
     """
 
     def test_bids_get(self, sandbox_keyword):
@@ -1217,6 +1212,8 @@ class TestWriteBidsRead:
         json.loads(r.output)
 
     def test_bids_set_auto(self, sandbox_keyword):
+        # SEARCH scope requires Position (live API error 9600 otherwise);
+        # PREMIUMBLOCK is a valid value per general:PositionEnum.
         r = _invoke(
             "bids",
             "set-auto",
@@ -1224,6 +1221,8 @@ class TestWriteBidsRead:
             str(sandbox_keyword),
             "--scope",
             "SEARCH",
+            "--position",
+            "PREMIUMBLOCK",
         )
         if r.exit_code != 0:
             if _is_sandbox_error(r.output):
