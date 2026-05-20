@@ -109,6 +109,7 @@ _BIDMODIFIER_TYPE_TO_NESTED = {
     "TABLET_ADJUSTMENT": "TabletAdjustment",
     "DESKTOP_ADJUSTMENT": "DesktopAdjustment",
     "DESKTOP_ONLY_ADJUSTMENT": "DesktopOnlyAdjustment",
+    "SMART_TV_ADJUSTMENT": "SmartTvAdjustment",
     "DEMOGRAPHICS_ADJUSTMENT": "DemographicsAdjustments",  # plural per WSDL
     "RETARGETING_ADJUSTMENT": "RetargetingAdjustments",  # plural per WSDL
     "REGIONAL_ADJUSTMENT": "RegionalAdjustments",  # plural per WSDL
@@ -123,6 +124,40 @@ _BIDMODIFIER_TYPE_TO_NESTED = {
 _PLURAL_NESTED_KEYS = {
     v for v in _BIDMODIFIER_TYPE_TO_NESTED.values() if v.endswith("Adjustments")
 }
+
+_BIDMODIFIER_ALLOWED_EXTRA_FLAGS = {
+    "MOBILE_ADJUSTMENT": set(),
+    "TABLET_ADJUSTMENT": set(),
+    "DESKTOP_ADJUSTMENT": set(),
+    "DESKTOP_ONLY_ADJUSTMENT": set(),
+    "SMART_TV_ADJUSTMENT": set(),
+    "VIDEO_ADJUSTMENT": set(),
+    "SMART_AD_ADJUSTMENT": set(),
+    "AD_GROUP_ADJUSTMENT": set(),
+    "DEMOGRAPHICS_ADJUSTMENT": {"--gender", "--age"},
+    "RETARGETING_ADJUSTMENT": {"--retargeting-condition-id"},
+    "REGIONAL_ADJUSTMENT": {"--region-id"},
+    "SERP_LAYOUT_ADJUSTMENT": {"--serp-layout"},
+    "INCOME_GRADE_ADJUSTMENT": {"--income-grade"},
+}
+
+
+def _reject_incompatible_extra_flags(
+    modifier_type: str,
+    provided_flags: dict[str, object],
+) -> None:
+    """Reject extra flags that do not belong to the selected modifier type."""
+    allowed = _BIDMODIFIER_ALLOWED_EXTRA_FLAGS[modifier_type]
+    incompatible = [
+        flag
+        for flag, value in provided_flags.items()
+        if value is not None and flag not in allowed
+    ]
+    if incompatible:
+        raise click.UsageError(
+            f"{', '.join(sorted(incompatible))} is not compatible with --type "
+            f"{modifier_type}."
+        )
 
 
 @bidmodifiers.command()
@@ -190,9 +225,21 @@ def add(
                 "Exactly one of --campaign-id or --adgroup-id is required"
             )
 
-        nested_key = _BIDMODIFIER_TYPE_TO_NESTED[modifier_type.upper()]
-        nested = {"BidModifier": value}
         modifier_type_upper = modifier_type.upper()
+        _reject_incompatible_extra_flags(
+            modifier_type_upper,
+            {
+                "--gender": gender,
+                "--age": age,
+                "--retargeting-condition-id": retargeting_condition_id,
+                "--region-id": region_id,
+                "--serp-layout": serp_layout,
+                "--income-grade": income_grade,
+            },
+        )
+
+        nested_key = _BIDMODIFIER_TYPE_TO_NESTED[modifier_type_upper]
+        nested = {"BidModifier": value}
         if modifier_type_upper == "DEMOGRAPHICS_ADJUSTMENT":
             if gender:
                 nested["Gender"] = gender
@@ -221,7 +268,7 @@ def add(
                 raise click.UsageError(
                     "INCOME_GRADE_ADJUSTMENT requires --income-grade"
                 )
-            nested["IncomeGrade"] = income_grade
+            nested["Grade"] = income_grade
 
         # Plural fields expect a list per WSDL BidModifierAddItem
         if nested_key in _PLURAL_NESTED_KEYS:
@@ -295,8 +342,7 @@ def set(ctx, modifier_id, campaign_id, modifier_type, value, dry_run):
 
     The Yandex Direct API's ``bidmodifiers/set`` method updates existing
     modifiers by ``Id``. To create a new modifier, use ``bidmodifiers add``
-    instead. Prefer ``--id`` with ``--value``; the legacy
-    ``--campaign-id``/``--type`` form is kept only for compatibility.
+    instead.
     """
     try:
         # Validate the mutex up front.
@@ -308,25 +354,16 @@ def set(ctx, modifier_id, campaign_id, modifier_type, value, dry_run):
                 "Use --id + --value for the correct bidmodifiers/set shape."
             )
 
-        if modifier_id is None and (campaign_id is None or modifier_type is None):
+        if modifier_id is None:
             raise click.UsageError(
-                "Provide either --id (preferred) or both --campaign-id "
-                "and --type (legacy)."
+                "Provide --id with --value for bidmodifiers set. "
+                "The legacy --campaign-id/--type shape is not supported by "
+                "WSDL BidModifierSetItem; use bidmodifiers add to create a "
+                "new modifier."
             )
 
-        if modifier_id is not None:
-            # Correct API shape: Id + BidModifier. Nothing else.
-            modifier_data = {"Id": modifier_id, "BidModifier": value}
-        else:
-            # Legacy broken-by-design path — kept for backwards
-            # compatibility with the existing regression test.  The
-            # click.Choice above has already validated/normalized
-            # modifier_type, so we forward it unchanged.
-            modifier_data = {
-                "CampaignId": campaign_id,
-                "Type": modifier_type,
-                "BidModifier": value,
-            }
+        # Correct API shape: Id + BidModifier. Nothing else.
+        modifier_data = {"Id": modifier_id, "BidModifier": value}
 
         body = {"method": "set", "params": {"BidModifiers": [modifier_data]}}
 

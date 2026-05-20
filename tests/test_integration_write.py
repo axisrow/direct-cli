@@ -34,7 +34,7 @@ Passing in replay (10 tests, cassettes up to date):
   - campaigns draft parity (add/get/delete/get, mirrors live draft tier)
   - adgroups add-update-delete
   - bidmodifiers add/delete (mobile adjustment)
-  - bidmodifiers set regression guard (no-id rejection)
+  - bidmodifiers set regression guard (local no-id rejection)
   - feeds add-update-delete
   - retargeting add-delete
   - vcards add-delete
@@ -547,17 +547,13 @@ class TestWriteBidModifiersAdd:
 @pytest.mark.integration_write
 @pytest.mark.vcr
 class TestWriteBidModifiersSet:
-    """Regression guard: ``bidmodifiers set`` without ``--id`` is rejected.
+    """Regression guard: ``bidmodifiers set`` without ``--id`` is rejected locally.
 
     The API's ``set`` method updates EXISTING modifiers only — it
-    requires the ``Id`` field.  The CLI's ``set`` subcommand builds a
-    payload without ``Id``, so the call is by-design rejected.  New
-    modifiers go through the ``bidmodifiers add`` subcommand instead
-    (covered by ``TestWriteBidModifiersAdd``).
-
-    This test freezes the broken-by-design behaviour: if the CLI ever
-    starts including ``Id`` automatically, or the API stops returning
-    this specific error, the cassette miss will flag it.
+    requires the ``Id`` field.  New modifiers go through
+    ``bidmodifiers add`` instead (covered by ``TestWriteBidModifiersAdd``).
+    The CLI must not send the old ``CampaignId + Type`` shape because
+    it is not a WSDL-valid ``BidModifierSetItem``.
     """
 
     def test_set_without_id_is_rejected(self, sandbox_campaign):
@@ -572,12 +568,11 @@ class TestWriteBidModifiersSet:
             "120",
         )
         assert r.exit_code != 0, (
-            "bidmodifiers set unexpectedly succeeded without --id; either the "
-            "CLI was fixed to include Id, or the API now allows creating "
-            "modifiers via set. Update this test accordingly."
+            "bidmodifiers set unexpectedly succeeded without --id; it must "
+            "reject the legacy CampaignId + Type shape locally."
         )
         assert (
-            "The required field Id is omitted" in r.output
+            "legacy --campaign-id/--type shape is not supported" in r.output
         ), f"Unexpected failure mode from bidmodifiers set: {r.output[:500]}"
 
 

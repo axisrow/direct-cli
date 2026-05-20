@@ -12,8 +12,10 @@ difference between declared strict parity and live-discovered model gaps.
 import json
 import importlib
 import importlib.util
+import re
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
@@ -375,7 +377,16 @@ class TestApiCoverage:
         indicates a mis-classification. If the WSDL declares the operation,
         the CLI must mirror it 1:1 with a PAYLOAD_CASES fixture.
         """
-        banned_phrases = ("helper", "legacy", "not part of strict wsdl parity")
+        banned_phrases = (
+            "helper",
+            "legacy",
+            "not part of strict wsdl parity",
+            "no fixture written",
+            "fixture not written",
+            "not written yet",
+            "todo",
+            "tbd",
+        )
         offenders = [
             (key, rationale)
             for key, rationale in DRY_RUN_PAYLOAD_EXCLUSIONS.items()
@@ -383,9 +394,27 @@ class TestApiCoverage:
         ]
         assert not offenders, (
             "DRY_RUN_PAYLOAD_EXCLUSIONS contains entries with banned rationale "
-            f"phrases (helper/legacy/strict parity): {offenders}. "
+            f"phrases (helper/legacy/strict parity/no fixture): {offenders}. "
             "Add a PAYLOAD_CASES fixture instead. See issue #199."
         )
+
+    def test_dry_run_exclusion_focused_test_references_exist(self):
+        test_dry_run = Path(__file__).with_name("test_dry_run.py")
+        contents = test_dry_run.read_text()
+        declared_tests = set(re.findall(r"^def (test_[A-Za-z0-9_]+)\(", contents, re.M))
+        declared_tests.update(
+            re.findall(r"^\s+def (test_[A-Za-z0-9_]+)\(", contents, re.M)
+        )
+
+        missing = []
+        for key, rationale in DRY_RUN_PAYLOAD_EXCLUSIONS.items():
+            for test_name in re.findall(
+                r"test_dry_run\.py::(test_[A-Za-z0-9_]+)", rationale
+            ):
+                if test_name not in declared_tests:
+                    missing.append((key, test_name))
+
+        assert missing == []
 
     def test_reports_contract_coverage(self):
         result = CliRunner().invoke(cli, ["reports", "list-types"])

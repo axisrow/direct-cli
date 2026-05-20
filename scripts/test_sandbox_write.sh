@@ -7,6 +7,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 ENV_FILE="$ROOT_DIR/.env"
 
+cd "$ROOT_DIR"
+if [[ "${1:-}" == "--audit" ]]; then
+  shift
+  python3 scripts/sandbox_write_audit.py "$@"
+  exit $?
+fi
+
 if [[ -f "$ENV_FILE" ]]; then
   set -a
   # shellcheck disable=SC1090
@@ -34,5 +41,4 @@ print(f"export YANDEX_DIRECT_LOGIN={shlex.quote(login)}")
   eval "$resolved"
 fi
 
-cd "$ROOT_DIR"
 python3 scripts/sandbox_write_live.py "$@"

@@ -33,6 +33,24 @@ def _parse_csv_option(option_name: str, value: Optional[str]) -> Optional[List[s
     return parsed
 
 
+def _reject_incompatible_flags(
+    command_type: str,
+    allowed_flags: set[str],
+    provided_flags: dict[str, object],
+) -> None:
+    """Reject typed flags that do not belong to the chosen subtype."""
+    incompatible = [
+        flag
+        for flag, value in provided_flags.items()
+        if value is not None and flag not in allowed_flags
+    ]
+    if incompatible:
+        raise click.UsageError(
+            f"{', '.join(sorted(incompatible))} is not compatible with --type "
+            f"{command_type}."
+        )
+
+
 @campaigns.command()
 @click.option("--ids", help="Comma-separated campaign IDs")
 @click.option("--status", help="Filter by status (ACTIVE, SUSPENDED, etc.)")
@@ -273,6 +291,33 @@ def add(
                 "'TEXT_CAMPAIGN', 'DYNAMIC_TEXT_CAMPAIGN', 'SMART_CAMPAIGN'."
             )
 
+        allowed_flags_by_type = {
+            "TEXT_CAMPAIGN": {"--setting", "--search-strategy", "--network-strategy"},
+            "DYNAMIC_TEXT_CAMPAIGN": {
+                "--setting",
+                "--search-strategy",
+                "--network-strategy",
+            },
+            "SMART_CAMPAIGN": {
+                "--setting",
+                "--search-strategy",
+                "--network-strategy",
+                "--filter-average-cpc",
+                "--counter-id",
+            },
+        }
+        _reject_incompatible_flags(
+            campaign_type_norm,
+            allowed_flags_by_type[campaign_type_norm],
+            {
+                "--setting": list(settings) or None,
+                "--search-strategy": search_strategy,
+                "--network-strategy": network_strategy,
+                "--filter-average-cpc": filter_average_cpc,
+                "--counter-id": counter_id,
+            },
+        )
+
         campaign_data = {"Name": name, "StartDate": start_date}
         parsed_settings = parse_setting_specs(list(settings))
         if campaign_type_norm == "TEXT_CAMPAIGN":
@@ -308,6 +353,14 @@ def add(
                     "(WSDL SmartCampaignAddItem.CounterId minOccurs=1)"
                 )
             network_strategy_type = network_strategy or "AVERAGE_CPC_PER_FILTER"
+            if (
+                filter_average_cpc is not None
+                and network_strategy_type != "AVERAGE_CPC_PER_FILTER"
+            ):
+                raise click.UsageError(
+                    "--filter-average-cpc is only valid for SMART_CAMPAIGN "
+                    "with AVERAGE_CPC_PER_FILTER network strategy"
+                )
             smart_campaign = {
                 "BiddingStrategy": {
                     "Search": {"BiddingStrategyType": search_strategy or "SERVING_OFF"},

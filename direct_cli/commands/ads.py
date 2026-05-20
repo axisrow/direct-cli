@@ -14,6 +14,26 @@ def ads():
     """Manage ads"""
 
 
+def _reject_incompatible_flags(
+    ad_type: str,
+    allowed_fields: set[str],
+    provided: dict[str, object],
+    flag_for: dict[str, str],
+) -> None:
+    """Reject typed flags that do not belong to the selected ad subtype."""
+    incompatible = [
+        flag_for[name]
+        for name, value in provided.items()
+        if value is not None and name not in allowed_fields
+    ]
+    if incompatible:
+        allowed_flags = ", ".join(sorted(flag_for[name] for name in allowed_fields))
+        raise click.UsageError(
+            f"{', '.join(incompatible)} is not compatible with --type {ad_type}. "
+            f"Allowed flags for {ad_type}: {allowed_flags}."
+        )
+
+
 @ads.command()
 @click.option("--ids", help="Comma-separated ad IDs")
 @click.option("--campaign-ids", help="Comma-separated campaign IDs")
@@ -199,6 +219,40 @@ def add(
                 "'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD'."
             )
 
+        type_fields = {
+            "TEXT_AD": {"title", "text", "href", "image_hash"},
+            "TEXT_IMAGE_AD": {"href", "image_hash"},
+            "MOBILE_APP_AD": {
+                "title",
+                "text",
+                "image_hash",
+                "action",
+                "tracking_url",
+                "age_label",
+            },
+        }
+        provided = {
+            "title": title,
+            "text": text,
+            "href": href,
+            "image_hash": image_hash,
+            "action": action,
+            "tracking_url": tracking_url,
+            "age_label": age_label,
+        }
+        flag_for = {
+            "title": "--title",
+            "text": "--text",
+            "href": "--href",
+            "image_hash": "--image-hash",
+            "action": "--action",
+            "tracking_url": "--tracking-url",
+            "age_label": "--age-label",
+        }
+        _reject_incompatible_flags(
+            ad_type_norm, type_fields[ad_type_norm], provided, flag_for
+        )
+
         ad_data = {"AdGroupId": adgroup_id}
         if ad_type_norm == "TEXT_AD":
             missing_fields = [
@@ -218,6 +272,8 @@ def add(
                 "Text": text,
                 "Href": href,
             }
+            if image_hash:
+                ad_data["TextAd"]["AdImageHash"] = image_hash
         elif ad_type_norm == "TEXT_IMAGE_AD":
             if title or text:
                 raise click.UsageError(
@@ -380,21 +436,14 @@ def update(
         "tracking_url": "--tracking-url",
         "age_label": "--age-label",
     }
-    incompatible = [
-        flag_for[name]
-        for name, value in provided.items()
-        if value is not None and name not in type_fields[ad_type_norm]
-    ]
-    if incompatible:
-        allowed_flags = ", ".join(
-            sorted(flag_for[name] for name in type_fields[ad_type_norm])
+    try:
+        _reject_incompatible_flags(
+            ad_type_norm, type_fields[ad_type_norm], provided, flag_for
         )
+    except click.UsageError as exc:
         raise click.UsageError(
-            f"{', '.join(incompatible)} is not compatible with --type {ad_type_norm}. "
-            "--type selects the existing ad subtype update block; it does not "
-            "convert an ad between subtypes. "
-            f"Allowed flags for {ad_type_norm}: "
-            f"{allowed_flags}."
+            f"{exc.message} --type selects the existing ad subtype update block; "
+            "it does not convert an ad between subtypes."
         )
 
     ad_data = {"Id": ad_id}

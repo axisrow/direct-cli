@@ -66,8 +66,102 @@ GOAL_ID_STRATEGY_TYPES = (
     | FILTER_CPA_STRATEGY_TYPES
     | PAY_FOR_CONVERSION_STRATEGY_TYPES
     | CRR_STRATEGY_TYPES
+    | {"WbMaximumConversionRate"}
     | {"PayForConversionMultipleGoals"}
 )
+STRATEGY_FIELD_OPTIONS = {
+    "WbMaximumClicks": {
+        "weekly_spend_limit": "WeeklySpendLimit",
+        "bid_ceiling": "BidCeiling",
+    },
+    "WbMaximumConversionRate": {
+        "weekly_spend_limit": "WeeklySpendLimit",
+        "bid_ceiling": "BidCeiling",
+        "goal_id": "GoalId",
+    },
+    "AverageCpc": {
+        "average_cpc": "AverageCpc",
+        "weekly_spend_limit": "WeeklySpendLimit",
+    },
+    "AverageCpcPerCampaign": {
+        "average_cpc": "AverageCpc",
+        "weekly_spend_limit": "WeeklySpendLimit",
+        "bid_ceiling": "BidCeiling",
+    },
+    "AverageCpcPerFilter": {
+        "average_cpc": "FilterAverageCpc",
+        "weekly_spend_limit": "WeeklySpendLimit",
+        "bid_ceiling": "BidCeiling",
+    },
+    "AverageCpa": {
+        "average_cpa": "AverageCpa",
+        "goal_id": "GoalId",
+        "weekly_spend_limit": "WeeklySpendLimit",
+        "bid_ceiling": "BidCeiling",
+    },
+    "AverageCpaPerCampaign": {
+        "average_cpa": "AverageCpa",
+        "goal_id": "GoalId",
+        "weekly_spend_limit": "WeeklySpendLimit",
+        "bid_ceiling": "BidCeiling",
+    },
+    "AverageCpaPerFilter": {
+        "average_cpa": "FilterAverageCpa",
+        "goal_id": "GoalId",
+        "weekly_spend_limit": "WeeklySpendLimit",
+        "bid_ceiling": "BidCeiling",
+    },
+    "AverageCpaMultipleGoals": {
+        "weekly_spend_limit": "WeeklySpendLimit",
+        "bid_ceiling": "BidCeiling",
+    },
+    "AverageCrr": {
+        "average_crr": "Crr",
+        "goal_id": "GoalId",
+        "weekly_spend_limit": "WeeklySpendLimit",
+    },
+    "MaxProfit": {
+        "weekly_spend_limit": "WeeklySpendLimit",
+    },
+    "PayForConversion": {
+        "average_cpa": "Cpa",
+        "goal_id": "GoalId",
+        "weekly_spend_limit": "WeeklySpendLimit",
+    },
+    "PayForConversionPerCampaign": {
+        "average_cpa": "Cpa",
+        "goal_id": "GoalId",
+        "weekly_spend_limit": "WeeklySpendLimit",
+    },
+    "PayForConversionPerFilter": {
+        "average_cpa": "Cpa",
+        "goal_id": "GoalId",
+        "weekly_spend_limit": "WeeklySpendLimit",
+    },
+    "PayForConversionCrr": {
+        "average_crr": "Crr",
+        "goal_id": "GoalId",
+        "weekly_spend_limit": "WeeklySpendLimit",
+    },
+    "PayForConversionMultipleGoals": {
+        "goal_id": "GoalId",
+        "weekly_spend_limit": "WeeklySpendLimit",
+    },
+}
+STRATEGY_UPDATE_FIELD_OPTIONS = {
+    strategy_type: dict(options)
+    for strategy_type, options in STRATEGY_FIELD_OPTIONS.items()
+}
+STRATEGY_UPDATE_FIELD_OPTIONS["PayForConversionMultipleGoals"].pop("goal_id")
+STRATEGY_FLAG_NAMES = {
+    "average_cpc": "--average-cpc",
+    "average_cpa": "--average-cpa",
+    "average_crr": "--average-crr",
+    "goal_id": "--goal-id",
+    "spend_limit": "--spend-limit",
+    "weekly_spend_limit": "--weekly-spend-limit",
+    "bid_ceiling": "--bid-ceiling",
+}
 
 
 def _parse_priority_goal(spec: str) -> dict:
@@ -94,38 +188,62 @@ def _build_strategy_fields(
     spend_limit,
     weekly_spend_limit,
     bid_ceiling,
+    *,
+    update=False,
 ):
     """Build typed strategy-specific fields."""
+    if strategy_type is None:
+        if any(
+            value is not None
+            for value in (
+                average_cpc,
+                average_cpa,
+                average_crr,
+                goal_id,
+                spend_limit,
+                weekly_spend_limit,
+                bid_ceiling,
+            )
+        ):
+            raise click.UsageError(
+                "Provide --type when setting strategy-specific fields"
+            )
+        return {}
+
+    field_options = STRATEGY_UPDATE_FIELD_OPTIONS if update else STRATEGY_FIELD_OPTIONS
+    allowed_options = field_options[strategy_type]
+    provided_options = {
+        "average_cpc": average_cpc,
+        "average_cpa": average_cpa,
+        "average_crr": average_crr,
+        "goal_id": goal_id,
+        "spend_limit": spend_limit,
+        "weekly_spend_limit": weekly_spend_limit,
+        "bid_ceiling": bid_ceiling,
+    }
+    incompatible = [
+        STRATEGY_FLAG_NAMES[name]
+        for name, value in provided_options.items()
+        if value is not None and name not in allowed_options
+    ]
+    if incompatible:
+        allowed_flags = ", ".join(
+            sorted(STRATEGY_FLAG_NAMES[name] for name in allowed_options)
+        )
+        raise click.UsageError(
+            f"{', '.join(incompatible)} is not valid for --type {strategy_type}. "
+            f"Allowed strategy field flags: {allowed_flags}."
+        )
+
     fields = {}
     if average_cpc is not None:
-        if strategy_type in FILTER_CPC_STRATEGY_TYPES:
-            fields["FilterAverageCpc"] = average_cpc
-        else:
-            fields["AverageCpc"] = average_cpc
+        fields[allowed_options["average_cpc"]] = average_cpc
     if average_cpa is not None:
-        if strategy_type in MULTI_GOAL_STRATEGY_TYPES:
-            # StrategyAverageCpaMultipleGoalsAddItem and
-            # StrategyPayForConversionMultipleGoalsAddItem have no Cpa
-            # field — reject the flag explicitly rather than emit a
-            # WSDL-unknown key.
-            raise click.UsageError(
-                f"--average-cpa is not valid for --type {strategy_type}"
-            )
-        if strategy_type in PAY_FOR_CONVERSION_STRATEGY_TYPES:
-            fields["Cpa"] = average_cpa
-        elif strategy_type in FILTER_CPA_STRATEGY_TYPES:
-            fields["FilterAverageCpa"] = average_cpa
-        else:
-            fields["AverageCpa"] = average_cpa
-    if strategy_type in CRR_STRATEGY_TYPES:
-        if average_crr is not None:
-            fields["Crr"] = average_crr
-    elif average_crr is not None:
-        fields["AverageCrr"] = average_crr
-    if strategy_type in GOAL_ID_STRATEGY_TYPES and goal_id is not None:
-        fields["GoalId"] = goal_id
-    if spend_limit is not None:
-        fields["SpendLimit"] = spend_limit
+        fields[allowed_options["average_cpa"]] = average_cpa
+    if average_crr is not None:
+        fields[allowed_options["average_crr"]] = average_crr
+    if goal_id is not None:
+        fields[allowed_options["goal_id"]] = goal_id
     if weekly_spend_limit is not None:
         fields["WeeklySpendLimit"] = weekly_spend_limit
     if bid_ceiling is not None:
@@ -364,6 +482,7 @@ def update(
             spend_limit,
             weekly_spend_limit,
             bid_ceiling,
+            update=True,
         )
         if strategy_fields and not strategy_type:
             raise click.UsageError(
@@ -382,7 +501,7 @@ def update(
             # GoalId is minOccurs=0 in every Strategy*Base used by
             # Strategy*UpdateItem (cached WSDL strategies.xml), so update
             # must NOT require --goal-id even for the goal-id family —
-            # users may change AverageCpa/Crr/SpendLimit without
+            # users may change AverageCpa/Crr/WeeklySpendLimit without
             # re-specifying the existing goal. The add command keeps the
             # required-on-add validation because *AddItem.GoalId is
             # minOccurs=1.
