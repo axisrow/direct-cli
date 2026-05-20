@@ -653,15 +653,13 @@ class TestReadOnlyKeywordsResearch(unittest.TestCase):
 
 @pytest.mark.integration
 @skip_if_no_token
-@pytest.mark.sandbox_limitation(
-    reason="balance.get unsupported in sandbox (v4 AccountManagement returns 3500)",
-    category="unsupported",
-)
 class TestReadOnlyBalance(unittest.TestCase):
     def test_balance_get(self):
+        # ``invoke_get`` calls the live API (read-only mode), same as the
+        # other TestReadOnly* classes in this file. The v4
+        # AccountManagement.Get endpoint exists in production; the sandbox
+        # 3500 limitation does not apply to this invocation path.
         result = invoke_get("balance", "--format", "json")
-        if result.exit_code != 0 and "3500" in (result.output or ""):
-            self.skipTest("balance.get unsupported in sandbox (error 3500)")
         assert_success(result, "balance")
 
 
