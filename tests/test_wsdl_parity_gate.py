@@ -79,6 +79,11 @@ EMPTY_PAYLOAD_PROBES: list[tuple[str, list[str], str]] = [
         ["keywords", "update", "--id", "1"],
         "at least one",
     ),
+    (
+        "strategies.update",
+        ["strategies", "update", "--id", "1", "--type", "AverageCpa"],
+        "at least one",
+    ),
 ]
 
 

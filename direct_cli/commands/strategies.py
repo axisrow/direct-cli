@@ -369,6 +369,15 @@ def update(
             raise click.UsageError(
                 "Provide --type when setting strategy-specific fields"
             )
+        if strategy_type and not strategy_fields:
+            # Reject empty-subtype no-op (issue #198 sibling of H1/H5/H10):
+            # `--type AverageCpa` with no field flags would emit
+            # {Id, AverageCpa: {}}, which the live API accepts as a
+            # silent no-op.
+            raise click.UsageError(
+                f"strategies update requires at least one field for "
+                f"--type {strategy_type}."
+            )
         if strategy_type:
             # GoalId is minOccurs=0 in every Strategy*Base used by
             # Strategy*UpdateItem (cached WSDL strategies.xml), so update
@@ -388,6 +397,13 @@ def update(
             }
         if attribution_model:
             strategy_data["AttributionModel"] = attribution_model
+
+        if len(strategy_data) == 1:
+            # Only `Id` populated — reject the no-op payload (sibling of
+            # the H1/H5/H10 empty-payload guards on other resources).
+            raise click.UsageError(
+                "strategies update requires at least one updatable field."
+            )
 
         body = {"method": "update", "params": {"Strategies": [strategy_data]}}
 
