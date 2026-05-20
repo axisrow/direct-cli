@@ -23,7 +23,6 @@ DRY_RUN_PAYLOAD_EXCLUSIONS = {
     "turbopages.get": "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria tests.",
     "vcards.get": "Read path omits optional SelectionCriteria when --ids is absent.",
     "ads.get": "Read path with rich field-selection options; payload contract differs from mutating coverage focus.",
-    "bidmodifiers.delete": "Helper/legacy surface; not part of strict WSDL parity claim.",
     "agencyclients.add": "Runtime-deprecated method (Yandex error 3500); CLI rejects with UsageError before reaching dry-run. See RUNTIME_DEPRECATED_METHODS.",
     "dynamicfeedadtargets.add": "Covered by test_dry_run.py::test_dynamicfeedadtargets_add_payload.",
     "dynamicfeedadtargets.delete": "Covered by test_dry_run.py::test_dynamicfeedadtargets_delete_payload.",
@@ -468,6 +467,11 @@ PAYLOAD_CASES = [
         "audiencetargets",
         "delete",
         ["audiencetargets", "delete", "--id", "16"],
+    ),
+    (
+        "bidmodifiers",
+        "delete",
+        ["bidmodifiers", "delete", "--id", "10"],
     ),
     (
         "dynamictextadtargets",
