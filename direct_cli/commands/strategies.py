@@ -8,23 +8,31 @@ from ..api import create_client
 from ..output import format_output, print_error
 from ..utils import MICRO_RUBLES, get_default_fields, parse_ids
 
+# Canonical list of strategy subtypes, mirroring the choice-of-one
+# fields on WSDL StrategyAddItem. The previous list (PR #205 review,
+# issue #198 H11) carried five names that do not exist in the WSDL
+# (WbMaximumClicksPerBid, WbMaximumConversionRatePerBid,
+# AverageCrrPerCampaign, MaxProfitPerFilter, MaxProfitPerCampaign) and
+# omitted five that do (AverageCpcPerCampaign, AverageCpcPerFilter,
+# PayForConversionCrr, AverageCpaMultipleGoals,
+# PayForConversionMultipleGoals).
 STRATEGY_TYPES = [
     "WbMaximumClicks",
-    "WbMaximumClicksPerBid",
     "WbMaximumConversionRate",
-    "WbMaximumConversionRatePerBid",
     "AverageCpc",
+    "AverageCpcPerCampaign",
+    "AverageCpcPerFilter",
     "AverageCpa",
-    "AverageCpaPerFilter",
     "AverageCpaPerCampaign",
+    "AverageCpaPerFilter",
+    "AverageCpaMultipleGoals",
     "AverageCrr",
-    "AverageCrrPerCampaign",
     "MaxProfit",
-    "MaxProfitPerFilter",
-    "MaxProfitPerCampaign",
     "PayForConversion",
-    "PayForConversionPerFilter",
     "PayForConversionPerCampaign",
+    "PayForConversionPerFilter",
+    "PayForConversionCrr",
+    "PayForConversionMultipleGoals",
 ]
 
 CPA_STRATEGY_TYPES = {
@@ -36,10 +44,15 @@ PAY_FOR_CONVERSION_STRATEGY_TYPES = {
     "PayForConversion",
     "PayForConversionPerFilter",
     "PayForConversionPerCampaign",
+    "PayForConversionCrr",
 }
 CRR_STRATEGY_TYPES = {
     "AverageCrr",
-    "AverageCrrPerCampaign",
+}
+# Multi-goal strategies use a Goals[] array instead of a single GoalId.
+MULTI_GOAL_STRATEGY_TYPES = {
+    "AverageCpaMultipleGoals",
+    "PayForConversionMultipleGoals",
 }
 GOAL_ID_STRATEGY_TYPES = (
     CPA_STRATEGY_TYPES
@@ -338,6 +351,11 @@ def update(
                 "Provide --type when setting strategy-specific fields"
             )
         if strategy_type:
+            # GoalId is minOccurs=1 inside Strategy*Update for the
+            # goal-id family (issue #198 H12). Mirror the add command's
+            # validation here so updates do not silently drop GoalId.
+            if strategy_type in GOAL_ID_STRATEGY_TYPES and goal_id is None:
+                raise click.UsageError("Provide --goal-id for this strategy type")
             strategy_data[strategy_type] = strategy_fields
         if counter_ids:
             strategy_data["CounterIds"] = {

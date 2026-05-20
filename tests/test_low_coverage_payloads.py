@@ -431,19 +431,26 @@ def test_dynamicads_get_builds_typed_filter_payload():
     }
 
 
-def test_dynamicads_add_requires_condition():
-    result = _failing_run(
+def test_dynamicads_add_without_condition_omits_conditions_field():
+    """WSDL DynamicTextAdTargetAddItem.Conditions is minOccurs=0.
+
+    Issue #198 H7 — the CLI used to over-constrain by requiring
+    ``--condition``. The CLI now mirrors the WSDL and omits the
+    ``Conditions`` field when no condition is provided.
+    """
+    body = _dry_run(
         "dynamicads",
         "add",
         "--adgroup-id",
         "1",
         "--name",
         "Webpage",
-        "--dry-run",
     )
 
-    assert result.exit_code != 0
-    assert "Provide at least one --condition" in result.output
+    webpage = body["params"]["Webpages"][0]
+    assert "Conditions" not in webpage
+    assert webpage["AdGroupId"] == 1
+    assert webpage["Name"] == "Webpage"
 
 
 def test_dynamicads_lifecycle_payloads_use_id_selection_criteria():

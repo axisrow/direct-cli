@@ -797,6 +797,8 @@ def test_adgroups_add_case_insensitive_default_type():
         "Group A",
         "--campaign-id",
         "111",
+        "--region-ids",
+        "225",
         "--type",
         "text_ad_group",
     )
@@ -998,6 +1000,8 @@ def test_campaigns_add_smart_requires_filter_average_cpc():
             "2026-04-10",
             "--type",
             "SMART_CAMPAIGN",
+            "--counter-id",
+            "42",
             "--dry-run",
         ],
     )

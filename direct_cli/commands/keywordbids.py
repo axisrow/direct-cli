@@ -94,6 +94,12 @@ def get(
 @click.pass_context
 def set(ctx, keyword_id, search_bid, network_bid, dry_run):
     """Set keyword bids"""
+    # Reject empty-payload no-op (issue #198 H9).
+    if search_bid is None and network_bid is None:
+        raise click.UsageError(
+            "keywordbids set requires at least one of " "--search-bid or --network-bid."
+        )
+
     try:
         bid_data = {"KeywordId": keyword_id}
 

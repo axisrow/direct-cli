@@ -105,14 +105,14 @@ def get(
 def add(ctx, adgroup_id, name, conditions, bid, context_bid, priority, dry_run):
     """Add dynamic ad target"""
     try:
-        if not conditions:
-            raise click.UsageError("Provide at least one --condition")
-
+        # WSDL DynamicTextAdTargetAddItem.Conditions is minOccurs=0;
+        # the CLI used to require it (over-constraint, issue #198 H7).
         target_data = {
             "AdGroupId": adgroup_id,
             "Name": name,
-            "Conditions": parse_condition_specs(list(conditions)),
         }
+        if conditions:
+            target_data["Conditions"] = parse_condition_specs(list(conditions))
         if bid is not None:
             target_data["Bid"] = bid
         if context_bid is not None:
