@@ -40,6 +40,8 @@ CPA_STRATEGY_TYPES = {
     "AverageCpaPerCampaign",
 }
 FILTER_CPA_STRATEGY_TYPES = {"AverageCpaPerFilter"}
+# AverageCpcPerFilter's WSDL AddItem uses FilterAverageCpc, not AverageCpc.
+FILTER_CPC_STRATEGY_TYPES = {"AverageCpcPerFilter"}
 PAY_FOR_CONVERSION_STRATEGY_TYPES = {
     "PayForConversion",
     "PayForConversionPerFilter",
@@ -96,8 +98,19 @@ def _build_strategy_fields(
     """Build typed strategy-specific fields."""
     fields = {}
     if average_cpc is not None:
-        fields["AverageCpc"] = average_cpc
+        if strategy_type in FILTER_CPC_STRATEGY_TYPES:
+            fields["FilterAverageCpc"] = average_cpc
+        else:
+            fields["AverageCpc"] = average_cpc
     if average_cpa is not None:
+        if strategy_type in MULTI_GOAL_STRATEGY_TYPES:
+            # StrategyAverageCpaMultipleGoalsAddItem and
+            # StrategyPayForConversionMultipleGoalsAddItem have no Cpa
+            # field — reject the flag explicitly rather than emit a
+            # WSDL-unknown key.
+            raise click.UsageError(
+                f"--average-cpa is not valid for --type {strategy_type}"
+            )
         if strategy_type in PAY_FOR_CONVERSION_STRATEGY_TYPES:
             fields["Cpa"] = average_cpa
         elif strategy_type in FILTER_CPA_STRATEGY_TYPES:
