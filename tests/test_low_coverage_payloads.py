@@ -814,8 +814,6 @@ def test_ads_update_combines_text_and_image_fields():
         "update",
         "--id",
         "99",
-        "--status",
-        "SUSPENDED",
         "--title",
         "New title",
         "--text",
@@ -832,7 +830,6 @@ def test_ads_update_combines_text_and_image_fields():
             "Ads": [
                 {
                     "Id": 99,
-                    "Status": "SUSPENDED",
                     "TextAd": {
                         "Title": "New title",
                         "Text": "New text",
@@ -843,6 +840,97 @@ def test_ads_update_combines_text_and_image_fields():
             ]
         },
     }
+
+
+def test_ads_update_rejects_status_flag():
+    """Status changes go through suspend/resume/archive/unarchive (#183)."""
+    result = _failing_run(
+        "ads",
+        "update",
+        "--id",
+        "1",
+        "--status",
+        "SUSPENDED",
+        "--dry-run",
+    )
+    assert result.exit_code != 0
+    assert "not supported by WSDL AdUpdateItem" in result.output
+
+
+def test_ads_add_text_image_ad_rejects_title_and_text():
+    """TEXT_IMAGE_AD has no Title/Text in WSDL TextImageAdAdd (#183)."""
+    for extra in (
+        ["--title", "T"],
+        ["--text", "Body"],
+        ["--title", "T", "--text", "Body"],
+    ):
+        result = _failing_run(
+            "ads",
+            "add",
+            "--adgroup-id",
+            "1",
+            "--type",
+            "TEXT_IMAGE_AD",
+            "--image-hash",
+            "hash",
+            "--href",
+            "https://example.com",
+            *extra,
+            "--dry-run",
+        )
+        assert result.exit_code != 0, f"expected failure for extras={extra}"
+        assert "--title/--text are only valid for TEXT_AD" in result.output
+
+
+def test_ads_add_mobile_app_ad_builds_payload():
+    """MOBILE_APP_AD builds a MobileAppAd payload (#183)."""
+    body = _dry_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "100",
+        "--type",
+        "MOBILE_APP_AD",
+        "--title",
+        "Install our app",
+        "--text",
+        "Best mobile shopping experience",
+        "--action",
+        "INSTALL",
+        "--tracking-url",
+        "https://tracker.example.com/click",
+        "--image-hash",
+        "hash-mobile",
+    )
+    assert body["method"] == "add"
+    ad = body["params"]["Ads"][0]
+    assert "Type" not in ad
+    assert ad["AdGroupId"] == 100
+    assert ad["MobileAppAd"] == {
+        "Title": "Install our app",
+        "Text": "Best mobile shopping experience",
+        "Action": "INSTALL",
+        "TrackingUrl": "https://tracker.example.com/click",
+        "AdImageHash": "hash-mobile",
+    }
+
+
+def test_ads_add_mobile_app_ad_requires_action():
+    result = _failing_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "100",
+        "--type",
+        "MOBILE_APP_AD",
+        "--title",
+        "T",
+        "--text",
+        "B",
+        "--dry-run",
+    )
+    assert result.exit_code != 0
+    assert "MOBILE_APP_AD requires --action" in result.output
 
 
 def test_ads_lifecycle_payloads_use_id_selection_criteria():

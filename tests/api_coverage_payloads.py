@@ -645,6 +645,24 @@ PAYLOAD_CASES = [
     ),
     (
         "ads",
+        "add",
+        [
+            "ads",
+            "add",
+            "--adgroup-id",
+            "100",
+            "--type",
+            "MOBILE_APP_AD",
+            "--title",
+            "Install our app",
+            "--text",
+            "Best mobile shopping experience",
+            "--action",
+            "INSTALL",
+        ],
+    ),
+    (
+        "ads",
         "update",
         [
             "ads",

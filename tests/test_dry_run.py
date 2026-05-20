@@ -644,11 +644,20 @@ def test_ads_add_text_image_uses_typed_flags():
     }
 
 
-def test_ads_update_payload_status_only():
-    body = _dry_run("ads", "update", "--id", "999", "--status", "SUSPENDED")
-    assert body["method"] == "update"
-    ad = body["params"]["Ads"][0]
-    assert ad == {"Id": 999, "Status": "SUSPENDED"}
+def test_ads_update_rejects_status_flag():
+    """``--status`` is not part of WSDL ``AdUpdateItem`` (regression for #183).
+
+    Status changes must go through ``ads suspend/resume/archive/unarchive``.
+    Verify the flag now fails loudly via ``click.UsageError`` and that no
+    request body containing a top-level ``Status`` key is emitted.
+    """
+    result = CliRunner().invoke(
+        cli,
+        ["ads", "update", "--id", "1", "--status", "SUSPENDED", "--dry-run"],
+    )
+    assert result.exit_code != 0
+    assert "not supported by WSDL AdUpdateItem" in result.output
+    assert '"Status"' not in result.output
 
 
 def test_ads_update_typed_fields_build_nested_objects():

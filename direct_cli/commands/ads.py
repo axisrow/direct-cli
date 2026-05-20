@@ -163,21 +163,40 @@ def get(
     default="TEXT_AD",
     help="Ad type",
 )
-@click.option("--title", help="Ad title (TEXT_AD only)")
-@click.option("--text", help="Ad text (TEXT_AD only)")
-@click.option("--href", help="Ad URL (TEXT_AD only)")
-@click.option("--image-hash", help="Ad image hash for TEXT_IMAGE_AD")
+@click.option("--title", help="Ad title (TEXT_AD / MOBILE_APP_AD)")
+@click.option("--text", help="Ad text (TEXT_AD / MOBILE_APP_AD)")
+@click.option("--href", help="Ad URL (TEXT_AD / TEXT_IMAGE_AD)")
+@click.option("--image-hash", help="Ad image hash (TEXT_IMAGE_AD / MOBILE_APP_AD)")
+@click.option(
+    "--action",
+    help="MOBILE_APP_AD call-to-action (MobileAppAdActionEnum, e.g. INSTALL)",
+)
+@click.option("--tracking-url", help="MOBILE_APP_AD tracking URL")
+@click.option("--age-label", help="MOBILE_APP_AD age label (MobAppAgeLabelEnum)")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def add(ctx, adgroup_id, ad_type, title, text, href, image_hash, dry_run):
+def add(
+    ctx,
+    adgroup_id,
+    ad_type,
+    title,
+    text,
+    href,
+    image_hash,
+    action,
+    tracking_url,
+    age_label,
+    dry_run,
+):
     """Add new ad"""
     try:
         ad_type_norm = (ad_type or "TEXT_AD").upper().replace("-", "_")
-        supported_types = {"TEXT_AD", "TEXT_IMAGE_AD"}
+        supported_types = {"TEXT_AD", "TEXT_IMAGE_AD", "MOBILE_APP_AD"}
         if ad_type_norm not in supported_types:
             raise click.UsageError(
                 "Invalid value for '--type': "
-                f"{ad_type!r} is not one of 'TEXT_AD', 'TEXT_IMAGE_AD'."
+                f"{ad_type!r} is not one of "
+                "'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD'."
             )
 
         ad_data = {"AdGroupId": adgroup_id}
@@ -200,6 +219,11 @@ def add(ctx, adgroup_id, ad_type, title, text, href, image_hash, dry_run):
                 "Href": href,
             }
         elif ad_type_norm == "TEXT_IMAGE_AD":
+            if title or text:
+                raise click.UsageError(
+                    "--title/--text are only valid for TEXT_AD. "
+                    "For TEXT_IMAGE_AD, use --image-hash and --href."
+                )
             if not image_hash or not href:
                 raise click.UsageError(
                     "TEXT_IMAGE_AD requires both --image-hash and --href"
@@ -208,10 +232,32 @@ def add(ctx, adgroup_id, ad_type, title, text, href, image_hash, dry_run):
                 "AdImageHash": image_hash,
                 "Href": href,
             }
-            if title:
-                ad_data["TextImageAd"]["Title"] = title
-            if text:
-                ad_data["TextImageAd"]["Text"] = text
+        elif ad_type_norm == "MOBILE_APP_AD":
+            missing_fields = [
+                option_name
+                for option_name, value in (
+                    ("--title", title),
+                    ("--text", text),
+                    ("--action", action),
+                )
+                if not value
+            ]
+            if missing_fields:
+                raise click.UsageError(
+                    "MOBILE_APP_AD requires " + ", ".join(missing_fields)
+                )
+            mobile_app_ad = {
+                "Title": title,
+                "Text": text,
+                "Action": action.upper(),
+            }
+            if image_hash:
+                mobile_app_ad["AdImageHash"] = image_hash
+            if tracking_url:
+                mobile_app_ad["TrackingUrl"] = tracking_url
+            if age_label:
+                mobile_app_ad["AgeLabel"] = age_label.upper()
+            ad_data["MobileAppAd"] = mobile_app_ad
 
         body = {"method": "add", "params": {"Ads": [ad_data]}}
 
@@ -237,7 +283,13 @@ def add(ctx, adgroup_id, ad_type, title, text, href, image_hash, dry_run):
 
 @ads.command()
 @click.option("--id", "ad_id", required=True, type=int, help="Ad ID")
-@click.option("--status", help="New status")
+@click.option(
+    "--status",
+    help=(
+        "Deprecated: not part of WSDL AdUpdateItem. "
+        "Use 'direct ads suspend/resume/archive/unarchive' instead."
+    ),
+)
 @click.option("--title", help="New text ad title")
 @click.option("--text", help="New text ad text")
 @click.option("--href", help="New text ad URL")
@@ -246,11 +298,14 @@ def add(ctx, adgroup_id, ad_type, title, text, href, image_hash, dry_run):
 @click.pass_context
 def update(ctx, ad_id, status, title, text, href, image_hash, dry_run):
     """Update ad"""
+    if status:
+        raise click.UsageError(
+            "Use 'direct ads suspend/resume/archive/unarchive' to change status. "
+            "The --status flag is not supported by WSDL AdUpdateItem."
+        )
     try:
         ad_data = {"Id": ad_id}
 
-        if status:
-            ad_data["Status"] = status
         if any([title, text, href]):
             ad_data["TextAd"] = {}
             if title:
