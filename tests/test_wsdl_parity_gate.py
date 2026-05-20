@@ -23,9 +23,8 @@ Pattern D — strategy enum drift:
     ``STRATEGY_TYPES`` in ``direct_cli/commands/strategies.py`` must equal
     the choice-of-one subtype names declared in ``StrategyAddItem``.
 
-Some failures are *expected* in PR 1 — the bugs they catch are fixed in
-PR 2. Those are marked with ``pytest.mark.xfail(strict=True)`` so PR 2
-flips them to passing without touching the gate logic.
+The gate now enforces these invariants directly. Regression failures should
+be treated as WSDL/CLI parity breaks, not as expected milestone work.
 """
 
 from __future__ import annotations
