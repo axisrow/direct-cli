@@ -169,9 +169,9 @@ def test_strategies_add_typed_fields_payload():
         "Shared Clicks",
         "--type",
         "WbMaximumClicks",
-        "--spend-limit",
+        "--weekly-spend-limit",
         "1000000000",
-        "--average-cpc",
+        "--bid-ceiling",
         "30000000",
         "--counter-ids",
         "1,2",
@@ -182,8 +182,8 @@ def test_strategies_add_typed_fields_payload():
     strategy = body["params"]["Strategies"][0]
     assert body["method"] == "add"
     assert strategy["WbMaximumClicks"] == {
-        "AverageCpc": 30000000,
-        "SpendLimit": 1000000000,
+        "BidCeiling": 30000000,
+        "WeeklySpendLimit": 1000000000,
     }
     assert strategy["CounterIds"] == {"Items": [1, 2]}
     assert strategy["PriorityGoals"] == {"Items": [{"GoalId": 123, "Value": 4560000}]}
@@ -396,6 +396,47 @@ def test_strategies_add_multi_goal_rejects_average_cpa():
     )
 
 
+def test_strategies_add_wb_maximum_clicks_rejects_unknown_strategy_fields():
+    result = _failing_run(
+        "strategies",
+        "add",
+        "--name",
+        "Shared Clicks",
+        "--type",
+        "WbMaximumClicks",
+        "--spend-limit",
+        "1000000000",
+        "--average-cpc",
+        "30000000",
+        "--dry-run",
+    )
+
+    assert result.exit_code != 0
+    assert "--spend-limit" in result.output
+    assert "--average-cpc" in result.output
+    assert "WbMaximumClicks" in result.output
+
+
+def test_strategies_update_multi_goal_rejects_goal_id():
+    result = _failing_run(
+        "strategies",
+        "update",
+        "--id",
+        "42",
+        "--type",
+        "PayForConversionMultipleGoals",
+        "--goal-id",
+        "123",
+        "--dry-run",
+    )
+
+    assert result.exit_code != 0
+    assert (
+        "--goal-id is not valid for --type PayForConversionMultipleGoals"
+        in result.output
+    )
+
+
 def test_strategies_add_pay_for_conversion_multi_goal_requires_goal_id():
     result = _failing_run(
         "strategies",
@@ -419,7 +460,7 @@ def test_strategies_update_typed_metadata_payload():
         "42",
         "--type",
         "WbMaximumClicks",
-        "--average-cpc",
+        "--weekly-spend-limit",
         "35000000",
         "--counter-ids",
         "10,20",
@@ -432,7 +473,7 @@ def test_strategies_update_typed_metadata_payload():
     strategy = body["params"]["Strategies"][0]
     assert strategy == {
         "Id": 42,
-        "WbMaximumClicks": {"AverageCpc": 35000000},
+        "WbMaximumClicks": {"WeeklySpendLimit": 35000000},
         "CounterIds": {"Items": [10, 20]},
         "PriorityGoals": {"Items": [{"GoalId": 123, "Value": 4560000}]},
         "AttributionModel": "LC",
@@ -1046,7 +1087,7 @@ def test_ads_add_text_image_ad_rejects_title_and_text():
             "--dry-run",
         )
         assert result.exit_code != 0, f"expected failure for extras={extra}"
-        assert "--title/--text are only valid for TEXT_AD" in result.output
+        assert "is not compatible with --type TEXT_IMAGE_AD" in result.output
 
 
 def test_ads_add_mobile_app_ad_builds_payload():
@@ -1103,7 +1144,7 @@ def test_ads_add_mobile_app_ad_rejects_href():
         "--dry-run",
     )
     assert result.exit_code != 0
-    assert "--href does not apply to MOBILE_APP_AD" in result.output
+    assert "--href is not compatible with --type MOBILE_APP_AD" in result.output
 
 
 def test_ads_add_mobile_app_ad_requires_action():

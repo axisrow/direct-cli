@@ -83,6 +83,16 @@ def _read_dry_run(*args: str) -> dict:
     return json.loads(result.output)
 
 
+def _rejected(*args: str) -> Result:
+    """Invoke a CLI command expecting Click-level rejection."""
+    result = CliRunner().invoke(cli, list(args) + ["--dry-run"])
+    assert result.exit_code != 0, (
+        f"command unexpectedly succeeded: direct {' '.join(args)} --dry-run\n"
+        f"output: {result.output}"
+    )
+    return result
+
+
 def test_get_selection_criteria_new_typed_flags_payloads():
     """Focused payload coverage for WSDL SelectionCriteria flags added for #146."""
     cases = [
@@ -543,6 +553,68 @@ def test_ads_add_text_ad_payload_omits_type():
     }
 
 
+def test_ads_add_text_ad_accepts_wsdl_image_hash():
+    image_hash = "ygqa6jmlkgsbz7vnewp0"
+    body = _dry_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "TEXT_AD",
+        "--title",
+        "T",
+        "--text",
+        "Some text",
+        "--href",
+        "https://example.com",
+        "--image-hash",
+        image_hash,
+    )
+
+    ad = body["params"]["Ads"][0]
+    assert ad["TextAd"]["AdImageHash"] == image_hash
+
+
+def test_ads_add_rejects_incompatible_subtype_flags():
+    text_ad = _rejected(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "1",
+        "--type",
+        "TEXT_AD",
+        "--title",
+        "T",
+        "--text",
+        "Body",
+        "--href",
+        "https://example.com",
+        "--action",
+        "INSTALL",
+    )
+    text_image = _rejected(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "1",
+        "--type",
+        "TEXT_IMAGE_AD",
+        "--image-hash",
+        "hash",
+        "--href",
+        "https://example.com",
+        "--tracking-url",
+        "https://tracker.example.com",
+    )
+
+    assert "--action is not compatible with --type TEXT_AD" in text_ad.output
+    assert (
+        "--tracking-url is not compatible with --type TEXT_IMAGE_AD"
+        in text_image.output
+    )
+
+
 def test_ads_add_default_type_builds_textad():
     """Without --type, convenience flags still build a TextAd payload."""
     body = _dry_run(
@@ -897,6 +969,67 @@ def test_adgroups_add_smart_payload_omits_type():
     }
 
 
+def test_adgroups_add_rejects_incompatible_subtype_flags():
+    text_result = _rejected(
+        "adgroups",
+        "add",
+        "--name",
+        "Group A",
+        "--campaign-id",
+        "111",
+        "--region-ids",
+        "225",
+        "--type",
+        "TEXT_AD_GROUP",
+        "--domain-url",
+        "example.com",
+    )
+    dynamic_result = _rejected(
+        "adgroups",
+        "add",
+        "--name",
+        "Dynamic Group",
+        "--campaign-id",
+        "111",
+        "--region-ids",
+        "225",
+        "--type",
+        "DYNAMIC_TEXT_AD_GROUP",
+        "--domain-url",
+        "example.com",
+        "--feed-id",
+        "77",
+    )
+    smart_result = _rejected(
+        "adgroups",
+        "add",
+        "--name",
+        "Smart Group",
+        "--campaign-id",
+        "111",
+        "--region-ids",
+        "225",
+        "--type",
+        "SMART_AD_GROUP",
+        "--feed-id",
+        "77",
+        "--domain-url",
+        "example.com",
+    )
+
+    assert (
+        "--domain-url is not compatible with --type TEXT_AD_GROUP" in text_result.output
+    )
+    assert (
+        "--feed-id is not compatible with --type DYNAMIC_TEXT_AD_GROUP"
+        in dynamic_result.output
+    )
+    assert (
+        "--domain-url is not compatible with --type SMART_AD_GROUP"
+        in smart_result.output
+    )
+
+
 def test_adgroups_update_payload_name_only():
     body = _dry_run("adgroups", "update", "--id", "222", "--name", "Renamed")
     assert body["method"] == "update"
@@ -1053,6 +1186,42 @@ def test_campaigns_add_smart_requires_filter_average_cpc():
     assert "--filter-average-cpc" in combined or "AVERAGE_CPC_PER_FILTER" in combined
 
 
+def test_campaigns_add_rejects_incompatible_subtype_flags():
+    text_result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "C-text",
+        "--start-date",
+        "2026-04-10",
+        "--type",
+        "TEXT_CAMPAIGN",
+        "--counter-id",
+        "123",
+    )
+    smart_result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "C-smart",
+        "--start-date",
+        "2026-04-10",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--counter-id",
+        "123",
+        "--network-strategy",
+        "SERVING_OFF",
+        "--filter-average-cpc",
+        "1000000",
+    )
+
+    assert (
+        "--counter-id is not compatible with --type TEXT_CAMPAIGN" in text_result.output
+    )
+    assert "AVERAGE_CPC_PER_FILTER" in smart_result.output
+
+
 # ----------------------------------------------------------------------
 # keywords
 # ----------------------------------------------------------------------
@@ -1137,21 +1306,8 @@ def test_keywordbids_set_search_and_network():
 # ----------------------------------------------------------------------
 
 
-def test_bidmodifiers_set_legacy_payload_keeps_modifier_type():
-    """Legacy (broken-by-design) ``bidmodifiers set`` path.
-
-    The API rejects this shape with ``required field Id is omitted``
-    — see ``TestWriteBidModifiersSet.test_set_without_id_is_rejected``.
-    It is preserved only so that existing integration cassette keeps
-    passing; new callers should use ``--id`` (see test below).
-
-    Regression guard: the enum is the same as ``bidmodifiers add``
-    (``MOBILE_ADJUSTMENT``), not the short form ``MOBILE`` that an
-    older version of this test asserted — the cassette actually
-    sends ``MOBILE_ADJUSTMENT``, and click.Choice now enforces the
-    full enum form.
-    """
-    body = _dry_run(
+def test_bidmodifiers_set_rejects_legacy_campaign_type_shape():
+    result = _rejected(
         "bidmodifiers",
         "set",
         "--campaign-id",
@@ -1161,34 +1317,8 @@ def test_bidmodifiers_set_legacy_payload_keeps_modifier_type():
         "--value",
         "150",
     )
-    assert body["method"] == "set"
-    modifier = body["params"]["BidModifiers"][0]
-    assert modifier == {
-        "CampaignId": 1,
-        "Type": "MOBILE_ADJUSTMENT",
-        "BidModifier": 150,
-    }
 
-
-def test_bidmodifiers_set_legacy_type_is_case_insensitive():
-    """Legacy path: ``--type mobile_adjustment`` (lowercase) is accepted.
-
-    click.Choice(..., case_sensitive=False) normalizes to the canonical
-    uppercase form, so users can't get a silent typo drop.  Regression
-    guard for axisrow/direct-cli#23.
-    """
-    body = _dry_run(
-        "bidmodifiers",
-        "set",
-        "--campaign-id",
-        "1",
-        "--type",
-        "mobile_adjustment",
-        "--value",
-        "150",
-    )
-    modifier = body["params"]["BidModifiers"][0]
-    assert modifier["Type"] == "MOBILE_ADJUSTMENT"
+    assert "legacy --campaign-id/--type shape is not supported" in result.output
 
 
 def test_bidmodifiers_set_with_id_builds_correct_payload():
@@ -1259,7 +1389,7 @@ def test_bidmodifiers_set_without_any_key_errors():
     combined = (result.output or "") + (
         str(result.exception) if result.exception else ""
     )
-    assert "--id" in combined or "--campaign-id" in combined
+    assert "Provide --id with --value" in combined
 
 
 def test_bidmodifiers_add_mobile_uses_nested_object():
@@ -1278,6 +1408,76 @@ def test_bidmodifiers_add_mobile_uses_nested_object():
     assert "Type" not in modifier
     assert modifier["CampaignId"] == 1
     assert modifier["MobileAdjustment"] == {"BidModifier": 120}
+
+
+def test_bidmodifiers_add_rejects_incompatible_extra_flags():
+    mobile_result = _rejected(
+        "bidmodifiers",
+        "add",
+        "--campaign-id",
+        "1",
+        "--type",
+        "MOBILE_ADJUSTMENT",
+        "--value",
+        "120",
+        "--gender",
+        "GENDER_MALE",
+    )
+    demographics_result = _rejected(
+        "bidmodifiers",
+        "add",
+        "--campaign-id",
+        "1",
+        "--type",
+        "DEMOGRAPHICS_ADJUSTMENT",
+        "--value",
+        "120",
+        "--retargeting-condition-id",
+        "123",
+    )
+
+    assert (
+        "--gender is not compatible with --type MOBILE_ADJUSTMENT"
+        in mobile_result.output
+    )
+    assert (
+        "--retargeting-condition-id is not compatible with --type "
+        "DEMOGRAPHICS_ADJUSTMENT"
+    ) in demographics_result.output
+
+
+def test_bidmodifiers_add_income_grade_uses_wsdl_grade_field():
+    body = _dry_run(
+        "bidmodifiers",
+        "add",
+        "--campaign-id",
+        "1",
+        "--type",
+        "INCOME_GRADE_ADJUSTMENT",
+        "--value",
+        "120",
+        "--income-grade",
+        "HIGH",
+    )
+
+    modifier = body["params"]["BidModifiers"][0]
+    assert modifier["IncomeGradeAdjustments"] == [{"BidModifier": 120, "Grade": "HIGH"}]
+
+
+def test_bidmodifiers_add_smart_tv_uses_wsdl_subtype():
+    body = _dry_run(
+        "bidmodifiers",
+        "add",
+        "--campaign-id",
+        "1",
+        "--type",
+        "SMART_TV_ADJUSTMENT",
+        "--value",
+        "120",
+    )
+
+    modifier = body["params"]["BidModifiers"][0]
+    assert modifier["SmartTvAdjustment"] == {"BidModifier": 120}
 
 
 # ----------------------------------------------------------------------
@@ -2153,7 +2353,7 @@ class TestBidModifiersAddPluralFields:
         item = body["params"]["BidModifiers"][0]
         assert "IncomeGradeAdjustments" in item, f"got keys: {list(item.keys())}"
         assert item["IncomeGradeAdjustments"] == [
-            {"BidModifier": 103, "IncomeGrade": "VERY_HIGH"}
+            {"BidModifier": 103, "Grade": "VERY_HIGH"}
         ]
 
     def test_mobile_singular(self):

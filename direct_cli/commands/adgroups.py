@@ -14,6 +14,24 @@ def adgroups():
     """Manage ad groups"""
 
 
+def _reject_incompatible_flags(
+    group_type: str,
+    allowed_flags: set[str],
+    provided_flags: dict[str, object],
+) -> None:
+    """Reject subtype-specific flags that do not apply to ``group_type``."""
+    incompatible = [
+        flag
+        for flag, value in provided_flags.items()
+        if value is not None and flag not in allowed_flags
+    ]
+    if incompatible:
+        raise click.UsageError(
+            f"{', '.join(sorted(incompatible))} is not compatible with --type "
+            f"{group_type}."
+        )
+
+
 @adgroups.command()
 @click.option("--ids", help="Comma-separated ad group IDs")
 @click.option("--campaign-ids", help="Comma-separated campaign IDs")
@@ -161,6 +179,21 @@ def add(
                 f"{group_type!r} is not one of "
                 "'TEXT_AD_GROUP', 'DYNAMIC_TEXT_AD_GROUP', 'SMART_AD_GROUP'."
             )
+        allowed_flags_by_type = {
+            "TEXT_AD_GROUP": set(),
+            "DYNAMIC_TEXT_AD_GROUP": {"--domain-url"},
+            "SMART_AD_GROUP": {"--feed-id", "--ad-title-source", "--ad-body-source"},
+        }
+        _reject_incompatible_flags(
+            group_type_norm,
+            allowed_flags_by_type[group_type_norm],
+            {
+                "--domain-url": domain_url,
+                "--feed-id": feed_id,
+                "--ad-title-source": ad_title_source,
+                "--ad-body-source": ad_body_source,
+            },
+        )
 
         adgroup_data = {"Name": name, "CampaignId": campaign_id}
 

@@ -100,8 +100,9 @@ def test_empty_payload_no_op_rejected(
     )
     assert expected_error.lower() in result.output.lower(), (
         f"{command_key}: rejection happened but the error message lacks the "
-        f"guard substring {expected_error!r}. PR 2 must add an empty-payload "
-        f"guard, not just any Click required-option. Output: {result.output!r}"
+        f"guard substring {expected_error!r}. The command must have a real "
+        f"empty-payload guard, not just any Click required-option. "
+        f"Output: {result.output!r}"
     )
 
 
@@ -128,6 +129,104 @@ SILENT_LOSS_PROBES: list[tuple[str, list[str], str]] = [
         ],
         "--action",
     ),
+    (
+        "campaigns.add TEXT_CAMPAIGN + --counter-id",
+        [
+            "campaigns",
+            "add",
+            "--name",
+            "C",
+            "--start-date",
+            "2026-04-10",
+            "--type",
+            "TEXT_CAMPAIGN",
+            "--counter-id",
+            "123",
+        ],
+        "--counter-id",
+    ),
+    (
+        "adgroups.add TEXT_AD_GROUP + --domain-url",
+        [
+            "adgroups",
+            "add",
+            "--name",
+            "G",
+            "--campaign-id",
+            "1",
+            "--region-ids",
+            "225",
+            "--type",
+            "TEXT_AD_GROUP",
+            "--domain-url",
+            "example.com",
+        ],
+        "--domain-url",
+    ),
+    (
+        "ads.add TEXT_AD + --action",
+        [
+            "ads",
+            "add",
+            "--adgroup-id",
+            "1",
+            "--type",
+            "TEXT_AD",
+            "--title",
+            "T",
+            "--text",
+            "Body",
+            "--href",
+            "https://example.com",
+            "--action",
+            "INSTALL",
+        ],
+        "--action",
+    ),
+    (
+        "bidmodifiers.add MOBILE_ADJUSTMENT + --gender",
+        [
+            "bidmodifiers",
+            "add",
+            "--campaign-id",
+            "1",
+            "--type",
+            "MOBILE_ADJUSTMENT",
+            "--value",
+            "120",
+            "--gender",
+            "GENDER_MALE",
+        ],
+        "--gender",
+    ),
+    (
+        "strategies.add WbMaximumClicks + --average-cpc",
+        [
+            "strategies",
+            "add",
+            "--name",
+            "S",
+            "--type",
+            "WbMaximumClicks",
+            "--average-cpc",
+            "1000000",
+        ],
+        "--average-cpc",
+    ),
+    (
+        "strategies.update PayForConversionMultipleGoals + --goal-id",
+        [
+            "strategies",
+            "update",
+            "--id",
+            "1",
+            "--type",
+            "PayForConversionMultipleGoals",
+            "--goal-id",
+            "123",
+        ],
+        "--goal-id",
+    ),
 ]
 
 
@@ -145,8 +244,8 @@ def test_silent_data_loss_rejected(
     )
     assert expected_error.lower() in result.output.lower(), (
         f"{probe_id}: rejection happened but the error message does not "
-        f"reference the offending flag {expected_error!r}. PR 2 must add "
-        f"per-type flag validation, not just any UsageError. "
+        f"reference the offending flag {expected_error!r}. The command must "
+        f"have per-type flag validation, not just any UsageError. "
         f"Output: {result.output!r}"
     )
 
@@ -197,8 +296,8 @@ COMMAND_WSDL_MAP: dict[tuple[str, str], tuple[str, str, str]] = {
     ("retargeting", "add"): ("retargetinglists", "add", "RetargetingLists"),
     ("retargeting", "update"): ("retargetinglists", "update", "RetargetingLists"),
     ("sitelinks", "add"): ("sitelinks", "add", "SitelinksSets"),
-    ("smartadtargets", "add"): ("smartadtargets", "add", "Webpages"),
-    ("smartadtargets", "update"): ("smartadtargets", "update", "Webpages"),
+    ("smartadtargets", "add"): ("smartadtargets", "add", "SmartAdTargets"),
+    ("smartadtargets", "update"): ("smartadtargets", "update", "SmartAdTargets"),
     ("strategies", "add"): ("strategies", "add", "Strategies"),
     ("strategies", "update"): ("strategies", "update", "Strategies"),
     ("vcards", "add"): ("vcards", "add", "VCards"),
@@ -215,6 +314,7 @@ COMMAND_WSDL_MAP: dict[tuple[str, str], tuple[str, str, str]] = {
 WSDL_FIELD_TO_CLI_OPTION: dict[str, set[str]] = {
     "AdGroupId": {"--adgroup-id", "--ad-group-id"},
     "CampaignId": {"--campaign-id"},
+    "SmartTvAdjustment": {"--type"},
     "RegionIds": {"--region-ids"},
     "Name": {"--name"},
     "StartDate": {"--start-date"},
@@ -251,7 +351,7 @@ INTERNAL_VALIDATION: dict[tuple[str, str, str], str] = {
         "add",
         "ImageData",
     ): "Provide exactly one of --image-data or --image-file",
-    ("bidmodifiers", "set", "Id"): "Provide either --id",
+    ("bidmodifiers", "set", "Id"): "Provide --id with --value",
     ("bidmodifiers", "set", "BidModifier"): "Missing option '--value'",
     ("retargeting", "add", "Rules"): "Provide at least one --rule",
     ("creatives", "add", "VideoExtensionCreative"): "Missing option '--video-id'",

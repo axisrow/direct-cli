@@ -438,8 +438,8 @@ direct dynamicads set-bids --id 789 --bid 12500000 --context-bid 9000000 --prior
 
 # Shared bidding strategies
 direct strategies get --limit 5
-direct strategies add --name "Shared Clicks" --type WbMaximumClicks --spend-limit 1000000000 --average-cpc 30000000 --dry-run
-direct strategies update --id 42 --type WbMaximumClicks --average-cpc 35000000 --dry-run
+direct strategies add --name "Shared Clicks" --type WbMaximumClicks --weekly-spend-limit 1000000000 --bid-ceiling 30000000 --dry-run
+direct strategies update --id 42 --type WbMaximumClicks --weekly-spend-limit 35000000 --dry-run
 direct strategies archive --id 42 --dry-run
 
 # Dynamic feed ad targets
@@ -1077,8 +1077,8 @@ direct dynamicads set-bids --id 789 --bid 12500000 --context-bid 9000000 --prior
 
 # Общие стратегии ставок
 direct strategies get --limit 5
-direct strategies add --name "Общая стратегия" --type WbMaximumClicks --spend-limit 1000000000 --average-cpc 30000000 --dry-run
-direct strategies update --id 42 --type WbMaximumClicks --average-cpc 35000000 --dry-run
+direct strategies add --name "Общая стратегия" --type WbMaximumClicks --weekly-spend-limit 1000000000 --bid-ceiling 30000000 --dry-run
+direct strategies update --id 42 --type WbMaximumClicks --weekly-spend-limit 35000000 --dry-run
 direct strategies archive --id 42 --dry-run
 
 # Динамические таргеты по фиду
