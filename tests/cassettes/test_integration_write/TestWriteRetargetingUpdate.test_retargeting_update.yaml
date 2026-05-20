@@ -32,20 +32,20 @@ interactions:
     uri: https://api-sandbox.direct.yandex.ru/json/v5/retargetinglists
   response:
     body:
-      string: '{"result":{"AddResults":[{"Id":5289}]}}'
+      string: '{"result":{"AddResults":[{"Id":5290}]}}'
     headers:
       Content-Length:
       - '39'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Wed, 20 May 2026 02:53:21 GMT
+      - Wed, 20 May 2026 04:20:39 GMT
       RequestId:
-      - '3519605148912139462'
+      - '6433016572883275929'
       Set-Cookie:
       - REDACTED
       Units:
-      - 12/159878/160000
+      - 12/159532/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
@@ -54,7 +54,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"update","params":{"RetargetingLists":[{"Id":5289,"Name":"rtg-upd-cassette-renamed"}]}}'
+    body: '{"method":"update","params":{"RetargetingLists":[{"Id":5290,"Name":"rtg-upd-cassette-renamed"}]}}'
     headers:
       Accept:
       - '*/*'
@@ -94,13 +94,13 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Wed, 20 May 2026 02:53:22 GMT
+      - Wed, 20 May 2026 04:20:40 GMT
       RequestId:
-      - '8888026665403421059'
+      - '8498609398024554623'
       Set-Cookie:
       - REDACTED
       Units:
-      - 30/159848/160000
+      - 30/159502/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
@@ -109,7 +109,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[5289]}}}'
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[5290]}}}'
     headers:
       Accept:
       - '*/*'
@@ -149,13 +149,13 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Wed, 20 May 2026 02:53:23 GMT
+      - Wed, 20 May 2026 04:20:41 GMT
       RequestId:
-      - '6527970694103112314'
+      - '3328842938649100324'
       Set-Cookie:
       - REDACTED
       Units:
-      - 30/159818/160000
+      - 30/159472/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:

@@ -1019,8 +1019,15 @@ class TestWriteStrategies:
 
     Cassette must be recorded with
     ``pytest --record-mode=once -m integration_write tests/test_integration_write.py::TestWriteStrategies``
-    once credentials are available. Until then this class skips in
-    replay-mode (no cassette present).
+
+    NOTE: the currently committed cassette captures only the first
+    ``strategies add`` interaction (Yandex sandbox rejects public strategy
+    creation with code 6000 because the sandbox account has no wallet).
+    The test skips at that step via ``_STRATEGY_ADD_SANDBOX_PATTERNS``.
+    If a future sandbox change permits the ``add`` step to succeed, this
+    cassette will be incomplete (get/update/archive/unarchive interactions
+    were never recorded) and VCR will raise "no matching request" on the
+    next step. Re-record the full lifecycle when that happens.
     """
 
     def test_strategies_lifecycle(self, unique_suffix):
@@ -1131,15 +1138,15 @@ class TestWriteRetargetingUpdate:
                 )
             pytest.fail(f"retargeting add failed (CLI regression?): {r.output[:500]}")
 
-        data = json.loads(r.output)
-        first = data[0] if isinstance(data, list) else data.get("AddResults", [{}])[0]
-        if "Errors" in first and first["Errors"]:
-            err_text = str(first["Errors"])
+        # parse_add_result handles empty-list / missing-Id edge cases and
+        # surfaces embedded "Errors" via _has_result_errors below.
+        if _has_result_errors(r.output, "AddResults"):
+            err_text = r.output
             if _is_sandbox_error(err_text, extra_patterns=_RETARGETING_PATTERNS):
-                pytest.skip(f"retargeting add rejected (sandbox): {first['Errors']}")
-            pytest.fail(f"API rejected retargeting add (CLI bug?): {first['Errors']}")
+                pytest.skip(f"retargeting add rejected (sandbox): {err_text[:200]}")
+            pytest.fail(f"API rejected retargeting add (CLI bug?): {err_text[:500]}")
 
-        rid = first["Id"]
+        rid = parse_add_result(r)
         try:
             r = _invoke(
                 "retargeting",
@@ -1149,7 +1156,9 @@ class TestWriteRetargetingUpdate:
                 "--name",
                 f"rtg-upd-{unique_suffix}-renamed",
             )
-            if r.exit_code != 0:
+            # API often returns HTTP 200 with Errors:[{Code:8800,...}] in
+            # the body; check both exit code and embedded errors.
+            if r.exit_code != 0 or _has_result_errors(r.output, "UpdateResults"):
                 if _is_sandbox_error(r.output, extra_patterns=_RETARGETING_PATTERNS):
                     pytest.skip(
                         f"retargeting update not supported (sandbox): {r.output[:200]}"
