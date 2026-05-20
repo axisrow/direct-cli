@@ -1036,8 +1036,12 @@ class TestWriteStrategies:
             "--weekly-spend-limit",
             "300000000",
         )
-        if r.exit_code != 0:
-            if _is_sandbox_error(r.output):
+        _STRATEGY_ADD_SANDBOX_PATTERNS = (
+            "без кошелька",
+            "inconsistent object state",
+        )
+        if r.exit_code != 0 or _has_result_errors(r.output, "AddResults"):
+            if _is_sandbox_error(r.output, extra_patterns=_STRATEGY_ADD_SANDBOX_PATTERNS):
                 pytest.skip(f"strategies add not supported (sandbox): {r.output[:200]}")
             pytest.fail(f"strategies add failed (CLI regression?): {r.output[:500]}")
 
