@@ -808,8 +808,10 @@ def test_ads_add_rejects_incomplete_text_image_ad():
     assert "TEXT_IMAGE_AD requires both --image-hash and --href" in missing_href.output
 
 
-def test_ads_update_combines_text_and_image_fields():
-    body = _dry_run(
+def test_ads_update_rejects_mixing_text_ad_and_image_ad_flags():
+    """WSDL AdUpdateItem is a one-of choice; mixing subtype flags must
+    be rejected at CLI level rather than emitting an invalid payload."""
+    result = _failing_run(
         "ads",
         "update",
         "--id",
@@ -823,6 +825,25 @@ def test_ads_update_combines_text_and_image_fields():
         "--image-hash",
         "hash",
     )
+    assert result.exit_code != 0
+    assert "Cannot mix --title/--text/--href" in result.output
+
+
+def test_ads_update_single_text_ad_flags_still_work():
+    """Updating with only TextAd flags must keep producing the canonical
+    TextAd payload — the rejection above is a guard, not a regression."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "99",
+        "--title",
+        "New title",
+        "--text",
+        "New text",
+        "--href",
+        "https://example.com",
+    )
 
     assert body == {
         "method": "update",
@@ -835,6 +856,30 @@ def test_ads_update_combines_text_and_image_fields():
                         "Text": "New text",
                         "Href": "https://example.com",
                     },
+                }
+            ]
+        },
+    }
+
+
+def test_ads_update_single_image_ad_flag_still_works():
+    """Updating with only --image-hash must keep producing the canonical
+    TextImageAd payload."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "99",
+        "--image-hash",
+        "hash",
+    )
+
+    assert body == {
+        "method": "update",
+        "params": {
+            "Ads": [
+                {
+                    "Id": 99,
                     "TextImageAd": {"AdImageHash": "hash"},
                 }
             ]
@@ -913,6 +958,30 @@ def test_ads_add_mobile_app_ad_builds_payload():
         "TrackingUrl": "https://tracker.example.com/click",
         "AdImageHash": "hash-mobile",
     }
+
+
+def test_ads_add_mobile_app_ad_rejects_href():
+    """MobileAppAdAdd has no Href field; passing --href would silently
+    drop the user's URL. CLI must reject the combination loudly."""
+    result = _failing_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "100",
+        "--type",
+        "MOBILE_APP_AD",
+        "--title",
+        "T",
+        "--text",
+        "B",
+        "--action",
+        "GET",
+        "--href",
+        "https://example.com",
+        "--dry-run",
+    )
+    assert result.exit_code != 0
+    assert "--href does not apply to MOBILE_APP_AD" in result.output
 
 
 def test_ads_add_mobile_app_ad_requires_action():

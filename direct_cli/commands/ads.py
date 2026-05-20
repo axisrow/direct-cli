@@ -233,6 +233,11 @@ def add(
                 "Href": href,
             }
         elif ad_type_norm == "MOBILE_APP_AD":
+            if href:
+                raise click.UsageError(
+                    "--href does not apply to MOBILE_APP_AD. "
+                    "Use --tracking-url instead."
+                )
             missing_fields = [
                 option_name
                 for option_name, value in (
@@ -303,10 +308,19 @@ def update(ctx, ad_id, status, title, text, href, image_hash, dry_run):
             "Use 'direct ads suspend/resume/archive/unarchive' to change status. "
             "The --status flag is not supported by WSDL AdUpdateItem."
         )
+    text_ad_flags_set = any([title, text, href])
+    image_ad_flag_set = bool(image_hash)
+    if text_ad_flags_set and image_ad_flag_set:
+        raise click.UsageError(
+            "Cannot mix --title/--text/--href (TextAd) with --image-hash "
+            "(TextImageAd) in one update. WSDL AdUpdateItem expects a "
+            "single ad-subtype block."
+        )
+
     try:
         ad_data = {"Id": ad_id}
 
-        if any([title, text, href]):
+        if text_ad_flags_set:
             ad_data["TextAd"] = {}
             if title:
                 ad_data["TextAd"]["Title"] = title
@@ -314,7 +328,7 @@ def update(ctx, ad_id, status, title, text, href, image_hash, dry_run):
                 ad_data["TextAd"]["Text"] = text
             if href:
                 ad_data["TextAd"]["Href"] = href
-        if image_hash:
+        if image_ad_flag_set:
             ad_data["TextImageAd"] = {"AdImageHash": image_hash}
 
         body = {"method": "update", "params": {"Ads": [ad_data]}}
