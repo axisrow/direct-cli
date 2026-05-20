@@ -581,6 +581,8 @@ class TestWriteFeeds:
             f"test-feed-{unique_suffix}",
             "--url",
             "https://example.com/feed.xml",
+            "--business-type",
+            "RETAIL",
         )
         if r.exit_code != 0:
             if _is_sandbox_error(r.output):

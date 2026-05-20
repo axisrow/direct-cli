@@ -33,7 +33,6 @@ DRY_RUN_PAYLOAD_EXCLUSIONS = {
     "strategies.archive": "Covered by test_dry_run.py::test_strategies_archive_payload.",
     "strategies.unarchive": "Covered by test_dry_run.py::test_strategies_unarchive_payload.",
     "strategies.update": "Covered by test_dry_run.py::test_strategies_update_payload.",
-    "feeds.add": "WSDL declares BusinessType as required on FeedAddItem but the CLI does not expose --business-type; covered by command-level dry-run and live cassette tests until the CLI gains a typed flag.",
     "reports.get": "Reports API uses a custom TSV endpoint; payload contract is covered by test_reports_request_builder_contract.",
     "v4account.account-management": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
     "v4account.enable-shared-account": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
@@ -245,6 +244,20 @@ PAYLOAD_CASES = [
             "18",
             "--name",
             "Renamed feed",
+        ],
+    ),
+    (
+        "feeds",
+        "add",
+        [
+            "feeds",
+            "add",
+            "--name",
+            "Test feed",
+            "--url",
+            "https://example.com/feed.xml",
+            "--business-type",
+            "RETAIL",
         ],
     ),
     (
