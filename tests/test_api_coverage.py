@@ -367,6 +367,26 @@ class TestApiCoverage:
             f"Stale registry entries: {sorted(accounted - actual)}"
         )
 
+    def test_dry_run_exclusions_have_no_helper_or_legacy_rationale(self):
+        """Strict WSDL parity guard — see issue #199.
+
+        Any entry in DRY_RUN_PAYLOAD_EXCLUSIONS whose rationale uses the
+        phrases 'helper', 'legacy', or 'not part of strict WSDL parity'
+        indicates a mis-classification. If the WSDL declares the operation,
+        the CLI must mirror it 1:1 with a PAYLOAD_CASES fixture.
+        """
+        banned_phrases = ("helper", "legacy", "not part of strict wsdl parity")
+        offenders = [
+            (key, rationale)
+            for key, rationale in DRY_RUN_PAYLOAD_EXCLUSIONS.items()
+            if any(phrase in rationale.lower() for phrase in banned_phrases)
+        ]
+        assert not offenders, (
+            "DRY_RUN_PAYLOAD_EXCLUSIONS contains entries with banned rationale "
+            f"phrases (helper/legacy/strict parity): {offenders}. "
+            "Add a PAYLOAD_CASES fixture instead. See issue #199."
+        )
+
     def test_reports_contract_coverage(self):
         result = CliRunner().invoke(cli, ["reports", "list-types"])
         assert result.exit_code == 0, result.output

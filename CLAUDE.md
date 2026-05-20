@@ -43,6 +43,15 @@ Click group-of-groups. Each Yandex Direct API resource = one file in `direct_cli
 
 **Runtime-deprecated methods:** WSDL-visible methods that Yandex rejects at runtime belong in `RUNTIME_DEPRECATED_METHODS` (`direct_cli/wsdl_coverage.py`) and must fail with `click.UsageError` before request construction. `agencyclients add` is blocked this way; use `agencyclients add-passport-organization`.
 
+**Strict WSDL parity:** `DRY_RUN_PAYLOAD_EXCLUSIONS` in `tests/api_coverage_payloads.py` must NOT contain any entry whose rationale claims the CLI surface is a «helper», «legacy», or «not part of strict WSDL parity». If the WSDL declares the operation, the CLI mirrors it 1:1 with a `PAYLOAD_CASES` fixture. Legitimate permanent exclusions are limited to:
+- read-path `*.get` (covered by SelectionCriteria tests);
+- runtime-deprecated methods (see `RUNTIME_DEPRECATED_METHODS`);
+- v4 methods that have no v5 WSDL (covered by `direct_cli/v4_contracts.py`);
+- custom non-RPC endpoints (e.g. `reports.get` — TSV stream);
+- methods explicitly covered by `tests/test_dry_run.py::test_<service>_<op>_payload`.
+
+A guard in `tests/test_api_coverage.py::test_dry_run_exclusions_have_no_helper_or_legacy_rationale` enforces this — any rationale outside those five categories that uses the banned phrasing is a mis-classification: write a `PAYLOAD_CASES` fixture instead. See post-mortem in issue #199.
+
 **SelectionCriteria:** Resources like `adgroups`, `ads`, `keywords` require at least one of `Ids`, `CampaignIds`, or `AdGroupIds` — otherwise API error 4001.
 
 **Error handling:** All commands wrap API calls in `try/except Exception` → `print_error(str(e))` + `raise click.Abort()`.
