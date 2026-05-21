@@ -189,6 +189,8 @@ def get_clients_units(ctx, logins, output_format, output, dry_run):
         )
         data = call_v4(client, "GetClientsUnits", login_list)
         format_output(data, output_format, output)
+    except click.ClickException:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
@@ -272,6 +274,8 @@ def get_credit_limits(
         )
         data = call_v4(client, "GetCreditLimits", login_list)
         format_output(data, output_format, output)
+    except click.ClickException:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
@@ -316,6 +320,8 @@ def check_payment(
         )
         data = call_v4(client, "CheckPayment", param)
         format_output(data, output_format, output)
+    except click.ClickException:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
@@ -413,6 +419,8 @@ def create_invoice(
         )
         data = call_v4(client, "CreateInvoice", param)
         format_output(data, output_format, output)
+    except click.ClickException:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()

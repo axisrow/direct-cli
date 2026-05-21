@@ -142,6 +142,8 @@ def _call_v4tags(ctx, method: str, param, output_format: str, output: str) -> No
         )
         data = call_v4(client, method, param)
         format_output(data, output_format, output)
+    except click.ClickException:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
