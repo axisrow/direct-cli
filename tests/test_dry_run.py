@@ -1675,10 +1675,13 @@ def test_campaigns_add_pay_for_conversion_crr_search_payload():
         "SERVING_OFF",
         "--goal-id",
         "555",
+        "--crr",
+        "8",
     )
     search = body["params"]["Campaigns"][0]["TextCampaign"]["BiddingStrategy"]["Search"]
     assert search["BiddingStrategyType"] == "PAY_FOR_CONVERSION_CRR"
-    assert search["PayForConversionCrr"] == {"GoalId": 555}
+    # WSDL StrategyPayForConversionCrrAdd: Crr + GoalId both minOccurs=1.
+    assert search["PayForConversionCrr"] == {"Crr": 8, "GoalId": 555}
 
 
 def test_campaigns_add_priority_goals_payload():
@@ -1991,6 +1994,8 @@ def test_campaigns_add_rejects_bid_ceiling_for_pay_for_conversion_crr():
         "SERVING_OFF",
         "--goal-id",
         "1",
+        "--crr",
+        "8",
         "--bid-ceiling",
         "1000000",
     )
@@ -2013,6 +2018,97 @@ def test_campaigns_add_rejects_bid_ceiling_for_pay_for_conversion_multiple_goals
     )
     assert "--bid-ceiling" in result.output
     assert "PayForConversionMultipleGoals" in result.output
+
+
+def test_campaigns_add_rejects_pay_for_conversion_crr_without_crr():
+    """PayForConversionCrr.Crr is minOccurs=1 — CLI must demand --crr."""
+    result = _rejected(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "PAY_FOR_CONVERSION_CRR",
+        "--network-strategy",
+        "SERVING_OFF",
+        "--goal-id",
+        "1",
+    )
+    assert "--crr" in result.output
+    assert "PayForConversionCrr" in result.output
+
+
+def test_campaigns_add_rejects_pay_for_conversion_crr_without_goal_id():
+    """PayForConversionCrr.GoalId is minOccurs=1."""
+    result = _rejected(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "PAY_FOR_CONVERSION_CRR",
+        "--network-strategy",
+        "SERVING_OFF",
+        "--crr",
+        "8",
+    )
+    assert "--goal-id" in result.output
+
+
+def test_campaigns_add_rejects_average_cpa_strategy_without_required_fields():
+    """StrategyAverageCpaAdd: AverageCpa + GoalId both minOccurs=1."""
+    result = _rejected(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "AVERAGE_CPA",
+        "--network-strategy",
+        "SERVING_OFF",
+    )
+    out = result.output
+    assert "--average-cpa" in out and "--goal-id" in out
+
+
+def test_campaigns_add_rejects_multiple_goals_strategy_without_priority_goals():
+    """StrategyAverageCpaMultipleGoals requires PriorityGoals at WSDL."""
+    result = _rejected(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "AVERAGE_CPA_MULTIPLE_GOALS",
+        "--network-strategy",
+        "SERVING_OFF",
+    )
+    assert "--priority-goals" in result.output
+
+
+def test_campaigns_add_rejects_crr_for_average_cpa():
+    """--crr is only valid for PAY_FOR_CONVERSION_CRR."""
+    result = _rejected(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "AVERAGE_CPA",
+        "--network-strategy",
+        "SERVING_OFF",
+        "--goal-id",
+        "1",
+        "--average-cpa",
+        "100000",
+        "--crr",
+        "8",
+    )
+    assert "--crr" in result.output and "PayForConversionCrr" in result.output
+
+
+def test_campaigns_add_rejects_text_campaign_with_per_campaign_network_strategy():
+    """Per-Campaign/Per-Filter exist only on SmartCampaign; rejecting them
+    for TEXT_CAMPAIGN prevents emitting WSDL-invalid keys."""
+    result = _rejected(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "HIGHEST_POSITION",
+        "--network-strategy",
+        "AVERAGE_CPA_PER_CAMPAIGN",
+        "--goal-id",
+        "1",
+        "--average-cpa",
+        "100000",
+    )
+    # Without --network-strategy in the typed-subtype map, --average-cpa
+    # has no CPA-shaped strategy to land on → CLI rejects.
+    assert "CPA-shaped" in result.output
 
 
 # ----------------------------------------------------------------------

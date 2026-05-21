@@ -33,31 +33,41 @@ _SEARCH_STRATEGY_TO_WSDL_SUBTYPE = {
     "AVERAGE_CPA_MULTIPLE_GOALS": "AverageCpaMultipleGoals",
     "PAY_FOR_CONVERSION_MULTIPLE_GOALS": "PayForConversionMultipleGoals",
 }
-_NETWORK_STRATEGY_TO_WSDL_SUBTYPE = {
-    # Smart-only subtype lives on Network side as well.
-    "AVERAGE_CPA_PER_CAMPAIGN": "AverageCpaPerCampaign",
-    "AVERAGE_CPA_PER_FILTER": "AverageCpaPerFilter",
-}
+# Per-Campaign / Per-Filter subtypes live only on SmartCampaignStrategyAddBase
+# (WSDL), not on TextCampaign/DynamicTextCampaign network strategy. SMART_CAMPAIGN
+# follows a separate code path that doesn't call _apply_cpa_strategy_fields, so
+# the network mapping for these typed flags is intentionally empty. Adding them
+# here would silently emit fields the WSDL rejects.
+_NETWORK_STRATEGY_TO_WSDL_SUBTYPE: Dict[str, str] = {}
 
 _STRATEGY_SUPPORTS_AVERAGE_CPA = {
     "AverageCpa",
-    "AverageCpaPerCampaign",
 }
 _STRATEGY_SUPPORTS_GOAL_ID = {
     "AverageCpa",
     "PayForConversionCrr",
-    "AverageCpaPerCampaign",
-    "AverageCpaPerFilter",
 }
 _STRATEGY_SUPPORTS_BID_CEILING = {
     "AverageCpa",
-    "AverageCpaPerCampaign",
-    "AverageCpaPerFilter",
     "AverageCpaMultipleGoals",
+}
+_STRATEGY_SUPPORTS_CRR = {
+    "PayForConversionCrr",
 }
 _STRATEGY_REQUIRES_PRIORITY_GOALS = {
     "AverageCpaMultipleGoals",
     "PayForConversionMultipleGoals",
+}
+# WSDL minOccurs=1 fields per Strategy*Add subtype — used to fail-fast at the
+# CLI when the user picks the strategy but forgets a required typed flag.
+# Maps subtype name → {WSDL field name → (CLI option string, value resolver)}.
+# The resolver takes the runtime closure of CLI args; values use direct
+# variable names from the add(...) function.
+_STRATEGY_REQUIRED_TYPED_FLAGS: Dict[str, Dict[str, str]] = {
+    "AverageCpa": {"AverageCpa": "--average-cpa", "GoalId": "--goal-id"},
+    "PayForConversionCrr": {"Crr": "--crr", "GoalId": "--goal-id"},
+    "AverageCpaMultipleGoals": {"PriorityGoals": "--priority-goals"},
+    "PayForConversionMultipleGoals": {"PriorityGoals": "--priority-goals"},
 }
 
 _NOTIFICATION_KEYS = {"SmsSettings", "EmailSettings"}
@@ -125,11 +135,12 @@ def _apply_cpa_strategy_fields(
     network_strategy: Optional[str],
     goal_id: Optional[int],
     average_cpa: Optional[int],
+    crr: Optional[int],
     bid_ceiling: Optional[int],
     priority_goals_items: Optional[List[dict]],
     sub_campaign_block: dict,
 ) -> None:
-    """Place AverageCpa/GoalId/BidCeiling/PriorityGoals into the
+    """Place AverageCpa/GoalId/Crr/BidCeiling/PriorityGoals into the
     correct WSDL Strategy*Add subtype block, enforcing 1:1 parity.
 
     `bidding_strategy` is the {"Search":{...}, "Network":{...}} dict;
@@ -140,13 +151,16 @@ def _apply_cpa_strategy_fields(
     network_subtype = _NETWORK_STRATEGY_TO_WSDL_SUBTYPE.get(network_strategy or "")
 
     has_cpa_flags = (
-        goal_id is not None or average_cpa is not None or bid_ceiling is not None
+        goal_id is not None
+        or average_cpa is not None
+        or crr is not None
+        or bid_ceiling is not None
     )
 
     if has_cpa_flags and search_subtype is None and network_subtype is None:
         raise click.UsageError(
-            "--average-cpa / --goal-id / --bid-ceiling are only valid with a "
-            "CPA-shaped --search-strategy or --network-strategy "
+            "--average-cpa / --goal-id / --crr / --bid-ceiling are only "
+            "valid with a CPA-shaped --search-strategy or --network-strategy "
             "(e.g. AVERAGE_CPA, PAY_FOR_CONVERSION_CRR, "
             "AVERAGE_CPA_MULTIPLE_GOALS); "
             f"got --search-strategy={search_strategy!r}, "
@@ -167,6 +181,36 @@ def _apply_cpa_strategy_fields(
             )
         sub_campaign_block["PriorityGoals"] = {"Items": priority_goals_items}
 
+    # WSDL minOccurs=1 fields per subtype: fail-fast at CLI level. The
+    # "invalid combinations never reach the API" guarantee depends on
+    # this check; without it, a half-configured strategy block would be
+    # silently sent to Yandex and rejected at the wire with a confusing
+    # error message instead of a CLI hint.
+    def _ensure_required(side: str, subtype: Optional[str]) -> None:
+        if subtype is None:
+            return
+        required = _STRATEGY_REQUIRED_TYPED_FLAGS.get(subtype, {})
+        provided_lookup = {
+            "AverageCpa": average_cpa,
+            "GoalId": goal_id,
+            "Crr": crr,
+            "PriorityGoals": priority_goals_items,
+        }
+        missing = [
+            flag
+            for wsdl_field, flag in required.items()
+            if provided_lookup.get(wsdl_field) is None
+        ]
+        if missing:
+            raise click.UsageError(
+                f"{side} strategy {subtype} requires "
+                f"{', '.join(sorted(missing))} "
+                f"(WSDL Strategy{subtype}Add minOccurs=1)"
+            )
+
+    _ensure_required("Search", search_subtype)
+    _ensure_required("Network", network_subtype)
+
     def _place(side: str, subtype: Optional[str]) -> None:
         if subtype is None:
             return
@@ -179,6 +223,14 @@ def _apply_cpa_strategy_fields(
                     f"{sorted(_STRATEGY_SUPPORTS_AVERAGE_CPA)}"
                 )
             block["AverageCpa"] = average_cpa
+        if crr is not None:
+            if subtype not in _STRATEGY_SUPPORTS_CRR:
+                raise click.UsageError(
+                    f"--crr is not valid for {side} strategy "
+                    f"{subtype}; WSDL field is declared only on "
+                    f"{sorted(_STRATEGY_SUPPORTS_CRR)}"
+                )
+            block["Crr"] = crr
         if goal_id is not None:
             if subtype not in _STRATEGY_SUPPORTS_GOAL_ID:
                 raise click.UsageError(
@@ -518,7 +570,15 @@ def get(
 @click.option(
     "--average-cpa",
     type=MICRO_RUBLES,
-    help=("Target CPA in micro-rubles " "(AVERAGE_CPA / AVERAGE_CPA_PER_CAMPAIGN)"),
+    help="Target CPA in micro-rubles (AVERAGE_CPA)",
+)
+@click.option(
+    "--crr",
+    type=int,
+    help=(
+        "CRR (cost revenue ratio) percentage for "
+        "PAY_FOR_CONVERSION_CRR — WSDL StrategyPayForConversionCrrAdd.Crr"
+    ),
 )
 @click.option(
     "--bid-ceiling",
@@ -559,6 +619,7 @@ def add(
     goal_id,
     priority_goals,
     average_cpa,
+    crr,
     bid_ceiling,
     notification_json,
     time_targeting_json,
@@ -595,6 +656,7 @@ def add(
             "--goal-id",
             "--priority-goals",
             "--average-cpa",
+            "--crr",
             "--bid-ceiling",
         }
         allowed_flags_by_type = {
@@ -631,6 +693,7 @@ def add(
                 "--goal-id": goal_id,
                 "--priority-goals": priority_goals,
                 "--average-cpa": average_cpa,
+                "--crr": crr,
                 "--bid-ceiling": bid_ceiling,
             },
         )
@@ -685,6 +748,7 @@ def add(
                 network_strategy=network_strategy,
                 goal_id=goal_id,
                 average_cpa=average_cpa,
+                crr=crr,
                 bid_ceiling=bid_ceiling,
                 priority_goals_items=priority_goals_items,
                 sub_campaign_block=text_block,
@@ -710,6 +774,7 @@ def add(
                 network_strategy=network_strategy,
                 goal_id=goal_id,
                 average_cpa=average_cpa,
+                crr=crr,
                 bid_ceiling=bid_ceiling,
                 priority_goals_items=priority_goals_items,
                 sub_campaign_block=dyn_block,

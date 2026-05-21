@@ -26,8 +26,8 @@
   is unchanged (#203).
 - `direct campaigns add` typed flags for CPA strategies and
   cross-cutting `CampaignAddItem` fields: `--goal-id` (single
-  Metrika goal for `AVERAGE_CPA` / `PAY_FOR_CONVERSION_CRR` /
-  `AVERAGE_CPA_PER_CAMPAIGN` / `AVERAGE_CPA_PER_FILTER`),
+  Metrika goal), `--crr` (CRR percentage for
+  `PAY_FOR_CONVERSION_CRR`),
   `--priority-goals goal_id:value,…` (multi-goal CPA via
   WSDL `PriorityGoalsArray`), `--average-cpa MICRO_RUBLES`,
   `--bid-ceiling MICRO_RUBLES`, `--counter-ids`
@@ -36,9 +36,16 @@
   shape validation), `--time-targeting JSON`
   (`CampaignAddItem.TimeTargeting` with `HolidaysSchedule`
   shape validation). Strategy-subtype compatibility is enforced
-  via `UsageError` at CLI level — e.g. `--average-cpa` is rejected
-  for `HIGHEST_POSITION`; `--priority-goals` is rejected unless
-  the strategy is `*_MULTIPLE_GOALS`. Closes #204.
+  via `UsageError` at CLI level both ways: WSDL-incompatible flags
+  are rejected (e.g. `--average-cpa` for `HIGHEST_POSITION`,
+  `--crr` outside `PAY_FOR_CONVERSION_CRR`,
+  `--bid-ceiling` for `PayForConversionCrr` /
+  `PayForConversionMultipleGoals`), and WSDL `minOccurs=1`
+  fields are demanded up-front (e.g. picking `AVERAGE_CPA`
+  without `--average-cpa`+`--goal-id`, or `PAY_FOR_CONVERSION_CRR`
+  without `--crr`+`--goal-id`, or `*_MULTIPLE_GOALS` without
+  `--priority-goals`, all fail at the CLI instead of the API).
+  Closes #204.
 
 **Notes:**
 
