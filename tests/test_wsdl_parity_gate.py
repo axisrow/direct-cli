@@ -280,6 +280,32 @@ SILENT_LOSS_PROBES: list[tuple[str, list[str], str]] = [
         "--filter-average-cpc",
     ),
     (
+        "campaigns.update --tracking-params without --type",
+        [
+            "campaigns",
+            "update",
+            "--id",
+            "123",
+            "--tracking-params",
+            "utm_source=direct",
+        ],
+        "--tracking-params",
+    ),
+    (
+        "campaigns.update MOBILE_APP_CAMPAIGN + --tracking-params",
+        [
+            "campaigns",
+            "update",
+            "--id",
+            "123",
+            "--type",
+            "MOBILE_APP_CAMPAIGN",
+            "--tracking-params",
+            "utm_source=direct",
+        ],
+        "MOBILE_APP_CAMPAIGN",
+    ),
+    (
         "adgroups.add DYNAMIC_TEXT_AD_GROUP + --feed-id",
         [
             "adgroups",

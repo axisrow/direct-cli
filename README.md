@@ -350,8 +350,12 @@ direct campaigns add --name "Multi-Goal CPA" --start-date 2026-06-01 --type TEXT
 # Notification (Sms/Email) and TimeTargeting accept JSON with WSDL CamelCase keys
 direct campaigns add --name "Notify+Schedule" --start-date 2026-06-01 --type TEXT_CAMPAIGN --search-strategy HIGHEST_POSITION --network-strategy SERVING_OFF --notification '{"EmailSettings":{"Email":"ops@example.com","SendWarnings":"YES"}}' --time-targeting '{"Schedule":["1A0123456789ABCDEFGHIJKL"],"ConsiderWorkingWeekends":"YES"}' --dry-run
 
+# TrackingParams (campaign-level UTM / tracking query string)
+direct campaigns add --name "UTM" --start-date 2026-06-01 --type TEXT_CAMPAIGN --tracking-params "utm_source=direct&utm_campaign={campaign_id}" --dry-run
+
 # Update / lifecycle
 direct campaigns update --id 12345 --name "New Name" --status SUSPENDED --budget 100000000 --start-date 2024-02-10 --end-date 2024-03-01
+direct campaigns update --id 12345 --type TEXT_CAMPAIGN --tracking-params "utm_source=direct&utm_medium=cpc" --dry-run
 direct campaigns suspend --id 12345
 direct campaigns resume --id 12345
 direct campaigns archive --id 12345
@@ -1040,8 +1044,12 @@ direct campaigns add --name "Мульти-целевой CPA" --start-date 2026-
 # Notification (Sms/Email) и TimeTargeting принимают JSON с CamelCase ключами WSDL
 direct campaigns add --name "Уведомления+Расписание" --start-date 2026-06-01 --type TEXT_CAMPAIGN --search-strategy HIGHEST_POSITION --network-strategy SERVING_OFF --notification '{"EmailSettings":{"Email":"ops@example.com","SendWarnings":"YES"}}' --time-targeting '{"Schedule":["1A0123456789ABCDEFGHIJKL"],"ConsiderWorkingWeekends":"YES"}' --dry-run
 
+# TrackingParams — UTM/трекинг на уровне кампании (TextCampaign/DynamicTextCampaign/SmartCampaign.TrackingParams)
+direct campaigns add --name "UTM" --start-date 2026-06-01 --type TEXT_CAMPAIGN --tracking-params "utm_source=direct&utm_campaign={campaign_id}" --dry-run
+
 # Обновление и управление статусом
 direct campaigns update --id 12345 --name "Новое название" --status SUSPENDED --budget 100000000 --start-date 2024-02-10 --end-date 2024-03-01
+direct campaigns update --id 12345 --type TEXT_CAMPAIGN --tracking-params "utm_source=direct&utm_medium=cpc" --dry-run
 direct campaigns suspend --id 12345
 direct campaigns resume --id 12345
 direct campaigns archive --id 12345

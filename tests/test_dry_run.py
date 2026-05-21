@@ -1762,6 +1762,176 @@ def test_campaigns_add_time_targeting_payload():
     assert "TimeTargeting" not in campaign["TextCampaign"]
 
 
+def test_campaigns_add_text_tracking_params_payload():
+    body = _dry_run(
+        *_cpa_base_args(),
+        "--tracking-params",
+        "utm_source=direct&utm_campaign={campaign_id}",
+    )
+    text = body["params"]["Campaigns"][0]["TextCampaign"]
+    assert text["TrackingParams"] == "utm_source=direct&utm_campaign={campaign_id}"
+
+
+def test_campaigns_add_dynamic_tracking_params_payload():
+    body = _dry_run(
+        "campaigns",
+        "add",
+        "--name",
+        "Dyn Track",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--tracking-params",
+        "utm_source=direct&utm_medium=cpc",
+    )
+    dyn = body["params"]["Campaigns"][0]["DynamicTextCampaign"]
+    assert dyn["TrackingParams"] == "utm_source=direct&utm_medium=cpc"
+
+
+def test_campaigns_add_smart_tracking_params_payload():
+    body = _dry_run(
+        "campaigns",
+        "add",
+        "--name",
+        "Smart Track",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--counter-id",
+        "111",
+        "--filter-average-cpc",
+        "5000000",
+        "--tracking-params",
+        "utm_source=direct",
+    )
+    smart = body["params"]["Campaigns"][0]["SmartCampaign"]
+    assert smart["TrackingParams"] == "utm_source=direct"
+
+
+def test_campaigns_add_tracking_params_on_unsupported_type_rejected():
+    # MOBILE_APP_CAMPAIGN is not in supported_types for `campaigns add`,
+    # so the add guard rejects the type itself before --tracking-params
+    # is evaluated. We assert the supported-types message so the test
+    # documents this behaviour.
+    result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "X",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "MOBILE_APP_CAMPAIGN",
+        "--tracking-params",
+        "utm_source=direct",
+    )
+    assert "MOBILE_APP_CAMPAIGN" in result.output
+
+
+def test_campaigns_update_text_tracking_params_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "TEXT_CAMPAIGN",
+        "--tracking-params",
+        "utm_source=direct&utm_campaign={campaign_id}",
+    )
+    campaign = body["params"]["Campaigns"][0]
+    assert campaign["Id"] == 123
+    assert campaign["TextCampaign"] == {
+        "TrackingParams": "utm_source=direct&utm_campaign={campaign_id}",
+    }
+
+
+def test_campaigns_update_dynamic_tracking_params_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--tracking-params",
+        "utm_source=direct",
+    )
+    campaign = body["params"]["Campaigns"][0]
+    assert campaign["DynamicTextCampaign"] == {"TrackingParams": "utm_source=direct"}
+
+
+def test_campaigns_update_smart_tracking_params_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--tracking-params",
+        "utm_source=direct",
+    )
+    campaign = body["params"]["Campaigns"][0]
+    assert campaign["SmartCampaign"] == {"TrackingParams": "utm_source=direct"}
+
+
+def test_campaigns_update_tracking_params_without_type_rejected():
+    result = _rejected(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--tracking-params",
+        "utm_source=direct",
+    )
+    assert "--tracking-params" in result.output
+    assert "--type" in result.output
+
+
+def test_campaigns_update_unsupported_type_rejected():
+    result = _rejected(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "MOBILE_APP_CAMPAIGN",
+        "--tracking-params",
+        "utm_source=direct",
+    )
+    assert "MOBILE_APP_CAMPAIGN" in result.output
+
+
+def test_campaigns_update_backward_compat_no_type():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--name",
+        "Renamed",
+    )
+    campaign = body["params"]["Campaigns"][0]
+    assert campaign == {"Id": 123, "Name": "Renamed"}
+
+
+def test_campaigns_update_type_without_subtype_fields_rejected():
+    # --type without any subtype-specific value must not silently
+    # build an empty TextCampaign/DynamicTextCampaign/SmartCampaign block.
+    result = _rejected(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "TEXT_CAMPAIGN",
+    )
+    assert "TEXT_CAMPAIGN" in result.output
+
+
 def test_campaigns_add_dynamic_text_campaign_with_cpa():
     body = _dry_run(
         "campaigns",
