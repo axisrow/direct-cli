@@ -355,6 +355,208 @@ def test_sandbox_write_live_runner_builds_v4forecast_commands(monkeypatch):
     ]
 
 
+def test_sandbox_write_live_runner_clients_update_requires_opt_in_login(monkeypatch):
+    module = _load_sandbox_runner_module()
+    runner = module.LiveSandboxRunner(
+        commands=["clients.update"],
+        timeout=1,
+        verbose=False,
+        report_file=None,
+    )
+    monkeypatch.delenv("YANDEX_DIRECT_CLIENTS_UPDATE_LOGIN", raising=False)
+
+    try:
+        row = runner.run_one("clients.update")
+    finally:
+        runner.close()
+
+    assert row.status == module.NOT_COVERED
+    assert "YANDEX_DIRECT_CLIENTS_UPDATE_LOGIN" in row.detail
+
+
+def test_sandbox_write_live_runner_builds_clients_update_command(monkeypatch):
+    module = _load_sandbox_runner_module()
+    runner = module.LiveSandboxRunner(
+        commands=["clients.update"],
+        timeout=1,
+        verbose=False,
+        report_file=None,
+    )
+    calls = []
+
+    def fake_invoke(group, command, args, global_args=None):
+        calls.append((group, command, args, global_args))
+        return module.CommandRun(
+            args=["direct", "--sandbox", *(global_args or []), group, command, *args],
+            returncode=0,
+            stdout="{}",
+            stderr="",
+        )
+
+    monkeypatch.setenv("YANDEX_DIRECT_CLIENTS_UPDATE_LOGIN", "client-login")
+    monkeypatch.setattr(runner, "invoke", fake_invoke)
+
+    try:
+        row = runner.run_one("clients.update")
+    finally:
+        runner.close()
+
+    assert row.status == module.PASS
+    assert calls == [
+        (
+            "clients",
+            "update",
+            ["--client-info", runner.name("clients-update")],
+            ["--login", "client-login"],
+        )
+    ]
+
+
+def test_sandbox_write_live_runner_builds_v4tags_update_campaigns(monkeypatch):
+    module = _load_sandbox_runner_module()
+    runner = module.LiveSandboxRunner(
+        commands=["v4tags.update-campaigns"],
+        timeout=1,
+        verbose=False,
+        report_file=None,
+    )
+    calls = []
+
+    def fake_invoke(group, command, args, global_args=None):
+        calls.append((group, command, args, global_args))
+        if (group, command) == ("campaigns", "add"):
+            stdout = json.dumps({"result": {"AddResults": [{"Id": 101}]}})
+        else:
+            stdout = json.dumps({"data": 1})
+        return module.CommandRun(
+            args=["direct", "--sandbox", *(global_args or []), group, command, *args],
+            returncode=0,
+            stdout=stdout,
+            stderr="",
+        )
+
+    monkeypatch.setattr(runner, "invoke", fake_invoke)
+
+    try:
+        row = runner.run_one("v4tags.update-campaigns")
+    finally:
+        runner.close()
+
+    assert row.status == module.PASS
+    assert calls == [
+        (
+            "campaigns",
+            "add",
+            [
+                "--name",
+                runner.name("text_campaign"),
+                "--start-date",
+                runner.tomorrow(),
+                "--type",
+                "TEXT_CAMPAIGN",
+            ],
+            None,
+        ),
+        (
+            "v4tags",
+            "update-campaigns",
+            ["--campaign-id", "101", "--tag", f"0={runner.v4_tag_text()}"],
+            None,
+        ),
+        (
+            "v4tags",
+            "update-campaigns",
+            ["--campaign-id", "101", "--clear-tags"],
+            None,
+        ),
+        ("campaigns", "delete", ["--id", "101"], None),
+    ]
+
+
+def test_sandbox_write_live_runner_builds_v4tags_update_banners(monkeypatch):
+    module = _load_sandbox_runner_module()
+    runner = module.LiveSandboxRunner(
+        commands=["v4tags.update-banners"],
+        timeout=1,
+        verbose=False,
+        report_file=None,
+    )
+    calls = []
+
+    def fake_invoke(group, command, args, global_args=None):
+        calls.append((group, command, args, global_args))
+        resource_ids = {
+            ("campaigns", "add"): 101,
+            ("adgroups", "add"): 202,
+            ("ads", "add"): 303,
+        }
+        if (group, command) in resource_ids:
+            stdout = json.dumps(
+                {"result": {"AddResults": [{"Id": resource_ids[(group, command)]}]}}
+            )
+        elif (group, command) == ("v4tags", "get-campaigns"):
+            stdout = json.dumps(
+                [
+                    {
+                        "CampaignID": 101,
+                        "Tags": [{"TagID": 404, "Tag": runner.v4_tag_text()}],
+                    }
+                ]
+            )
+        else:
+            stdout = json.dumps({"data": 1})
+        return module.CommandRun(
+            args=["direct", "--sandbox", *(global_args or []), group, command, *args],
+            returncode=0,
+            stdout=stdout,
+            stderr="",
+        )
+
+    monkeypatch.setattr(runner, "invoke", fake_invoke)
+
+    try:
+        row = runner.run_one("v4tags.update-banners")
+    finally:
+        runner.close()
+
+    assert row.status == module.PASS
+    assert (
+        "v4tags",
+        "update-campaigns",
+        ["--campaign-id", "101", "--tag", f"0={runner.v4_tag_text()}"],
+        None,
+    ) in calls
+    assert (
+        "v4tags",
+        "get-campaigns",
+        ["--campaign-ids", "101"],
+        None,
+    ) in calls
+    assert (
+        "v4tags",
+        "update-banners",
+        ["--banner-ids", "303", "--tag-ids", "404"],
+        None,
+    ) in calls
+    assert calls[-5:] == [
+        (
+            "v4tags",
+            "update-banners",
+            ["--banner-ids", "303", "--clear-tags"],
+            None,
+        ),
+        (
+            "v4tags",
+            "update-campaigns",
+            ["--campaign-id", "101", "--clear-tags"],
+            None,
+        ),
+        ("ads", "delete", ["--id", "303"], None),
+        ("adgroups", "delete", ["--id", "202"], None),
+        ("campaigns", "delete", ["--id", "101"], None),
+    ]
+
+
 def test_sandbox_write_live_runner_marks_v4account_account_id_missing(monkeypatch):
     module = _load_sandbox_runner_module()
     runner = module.LiveSandboxRunner(

@@ -29,11 +29,7 @@ NOT_COVERED = "NOT_COVERED"
 
 ALLOWED_STATUSES = {PASS, SANDBOX_LIMITATION, DANGEROUS, NOT_COVERED}
 
-FOLLOW_UP_ISSUES = {
-    "clients.update": "https://github.com/axisrow/direct-cli/issues/213",
-    "v4tags.update-banners": "https://github.com/axisrow/direct-cli/issues/213",
-    "v4tags.update-campaigns": "https://github.com/axisrow/direct-cli/issues/213",
-}
+FOLLOW_UP_ISSUES: dict[str, str] = {}
 
 DEFAULT_JSON_OUTPUT = ROOT_DIR / "build" / "sandbox_audit.json"
 

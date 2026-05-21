@@ -8,12 +8,7 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 AUDIT_SCRIPT = ROOT_DIR / "scripts" / "sandbox_write_audit.py"
 SANDBOX_SCRIPT = ROOT_DIR / "scripts" / "test_sandbox_write.sh"
 
-EXPECTED_NOT_COVERED = {
-    "clients.update",
-    "v4tags.update-banners",
-    "v4tags.update-campaigns",
-}
-FOLLOW_UP_ISSUE = "https://github.com/axisrow/direct-cli/issues/213"
+EXPECTED_NOT_COVERED: set[str] = set()
 ALLOWED_STATUSES = {"PASS", "SANDBOX_LIMITATION", "DANGEROUS", "NOT_COVERED"}
 
 
@@ -45,10 +40,7 @@ def test_sandbox_write_audit_outputs_markdown_and_json(tmp_path):
     assert not_covered == EXPECTED_NOT_COVERED
 
     for row in rows:
-        if row["status"] == "NOT_COVERED":
-            assert row["follow_up"] == FOLLOW_UP_ISSUE
-        else:
-            assert row["follow_up"] == ""
+        assert row["follow_up"] == ""
 
 
 def test_sandbox_write_audit_mode_does_not_require_credentials(tmp_path):

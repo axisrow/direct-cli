@@ -635,6 +635,12 @@ For `v4account` sandbox smoke, `enable-shared-account` uses
 `account-management` requires `YANDEX_DIRECT_V4ACCOUNT_ACCOUNT_ID`; without it
 the runner reports `NOT_COVERED` for that command.
 
+`clients.update` is opt-in because it mutates client-level account metadata.
+Set `YANDEX_DIRECT_CLIENTS_UPDATE_LOGIN` to an expendable sandbox
+`Client-Login`; the runner passes it through `--login` and updates only
+`ClientInfo` with a unique smoke marker. Without that variable, the runner
+reports `NOT_COVERED` for `clients.update`.
+
 #### Re-recording write cassettes
 
 The `integration_write` pytest tier still replays stored write-test traffic
@@ -1242,6 +1248,12 @@ sandbox-токен не нужен.
 `YANDEX_DIRECT_V4ACCOUNT_CLIENT_LOGIN` или fallback на `YANDEX_DIRECT_LOGIN`.
 Для `account-management` нужна переменная
 `YANDEX_DIRECT_V4ACCOUNT_ACCOUNT_ID`; без неё runner покажет `NOT_COVERED`.
+
+`clients.update` включается только явно, потому что меняет client-level
+metadata аккаунта. Укажите `YANDEX_DIRECT_CLIENTS_UPDATE_LOGIN` с disposable
+sandbox `Client-Login`; runner передаст его через `--login` и изменит только
+`ClientInfo` на уникальный smoke marker. Без этой переменной runner покажет
+`NOT_COVERED` для `clients.update`.
 
 #### Перезапись write-кассет
 
