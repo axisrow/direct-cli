@@ -1,6 +1,6 @@
 interactions:
 - request:
-    body: '{"method":"add","params":{"Feeds":[{"Name":"test-feed-cassette","SourceType":"URL","UrlFeed":{"Url":"https://example.com/feed.xml"}}]}}'
+    body: '{"method":"add","params":{"Feeds":[{"Name":"test-feed-cassette","BusinessType":"RETAIL","SourceType":"URL","UrlFeed":{"Url":"https://example.com/feed.xml"}}]}}'
     headers:
       Accept:
       - '*/*'
@@ -9,7 +9,7 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '135'
+      - '159'
       Content-Type:
       - application/json
       User-Agent:
@@ -32,20 +32,20 @@ interactions:
     uri: https://api-sandbox.direct.yandex.ru/json/v5/feeds
   response:
     body:
-      string: '{"result":{"AddResults":[{"Id":102}]}}'
+      string: '{"result":{"AddResults":[{"Id":223}]}}'
     headers:
       Content-Length:
       - '38'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Mon, 01 Jan 2024 00:00:00 GMT
+      - Thu, 21 May 2026 03:19:05 GMT
       RequestId:
-      - '0000000000000000000'
+      - '2110566262372802526'
       Set-Cookie:
       - REDACTED
       Units:
-      - 40/146554/160000
+      - 40/159094/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
@@ -54,7 +54,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"add","params":{"Campaigns":[{"Name":"claude-smart-cassette","StartDate":"2030-01-15","SmartCampaign":{"BiddingStrategy":{"Search":{"BiddingStrategyType":"SERVING_OFF"},"Network":{"BiddingStrategyType":"AVERAGE_CPC_PER_FILTER","AverageCpcPerFilter":{"FilterAverageCpc":1000000}}}}}]}}'
+    body: '{"method":"add","params":{"Campaigns":[{"Name":"claude-smart-cassette","StartDate":"2030-01-15","SmartCampaign":{"BiddingStrategy":{"Search":{"BiddingStrategyType":"SERVING_OFF"},"Network":{"BiddingStrategyType":"AVERAGE_CPC_PER_FILTER","AverageCpcPerFilter":{"FilterAverageCpc":1000000}}},"CounterId":12345678}}]}}'
     headers:
       Accept:
       - '*/*'
@@ -63,7 +63,7 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '294'
+      - '315'
       Content-Type:
       - application/json
       User-Agent:
@@ -96,13 +96,13 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Mon, 01 Jan 2024 00:00:00 GMT
+      - Thu, 21 May 2026 03:19:05 GMT
       RequestId:
-      - '404399309962680236'
+      - '8250733613511298828'
       Set-Cookie:
       - REDACTED
       Units:
-      - 30/146524/160000
+      - 30/159064/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
@@ -111,7 +111,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[102]}}}'
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[223]}}}'
     headers:
       Accept:
       - '*/*'
@@ -144,20 +144,20 @@ interactions:
   response:
     body:
       string: "{\"result\":{\"DeleteResults\":[{\"Errors\":[{\"Code\":8800,\"Message\":\"Object
-        not found\",\"Details\":\"\u0424\u0438\u0434 \u0441 id=102 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\"}]}]}}"
+        not found\",\"Details\":\"\u0424\u0438\u0434 \u0441 id=223 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\"}]}]}}"
     headers:
       Content-Length:
       - '133'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Mon, 01 Jan 2024 00:00:00 GMT
+      - Thu, 21 May 2026 03:19:06 GMT
       RequestId:
-      - '0000000000000000000'
+      - '4360930337043032760'
       Set-Cookie:
       - REDACTED
       Units:
-      - 30/146494/160000
+      - 30/159034/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:

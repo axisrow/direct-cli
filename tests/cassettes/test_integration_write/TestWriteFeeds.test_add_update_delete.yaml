@@ -32,26 +32,134 @@ interactions:
     uri: https://api-sandbox.direct.yandex.ru/json/v5/feeds
   response:
     body:
-      string: '{"error":{"request_id":"1431110674131759796","error_code":8800,"error_detail":"The
-        HTTP Client-Login header contains a nonexistent username","error_string":"Object
-        not found"}}'
+      string: '{"result":{"AddResults":[{"Id":221}]}}'
     headers:
       Content-Length:
-      - '176'
+      - '38'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Wed, 20 May 2026 09:29:15 GMT
+      - Thu, 21 May 2026 03:17:12 GMT
       RequestId:
-      - '1431110674131759796'
+      - '5394065380847361362'
       Set-Cookie:
       - REDACTED
       Units:
-      - 50/159950/160000
+      - 40/159274/160000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
-      - reqid:0000000000000000000,cmd:direct.api5/feeds.add,appcode:8800
+      - reqid:0000000000000000000,cmd:direct.api5/feeds.add,appcode:0
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"update","params":{"Feeds":[{"Id":221,"Name":"test-feed-cassette-renamed"}]}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '87'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/feeds
+  response:
+    body:
+      string: "{\"result\":{\"UpdateResults\":[{\"Errors\":[{\"Code\":8800,\"Message\":\"Object
+        not found\",\"Details\":\"\u0424\u0438\u0434 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\"}]}]}}"
+    headers:
+      Content-Length:
+      - '123'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Thu, 21 May 2026 03:17:13 GMT
+      RequestId:
+      - '933372213873970660'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 40/159234/160000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.api5/feeds.update,appcode:0
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[221]}}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '64'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/feeds
+  response:
+    body:
+      string: "{\"result\":{\"DeleteResults\":[{\"Errors\":[{\"Code\":8800,\"Message\":\"Object
+        not found\",\"Details\":\"\u0424\u0438\u0434 \u0441 id=221 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\"}]}]}}"
+    headers:
+      Content-Length:
+      - '133'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Thu, 21 May 2026 03:17:14 GMT
+      RequestId:
+      - '4935616505837308537'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 30/159204/160000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.api5/feeds.delete,appcode:0
     status:
       code: 200
       message: OK

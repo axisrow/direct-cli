@@ -1749,8 +1749,10 @@ def test_bidmodifiers_set_with_id_builds_correct_payload():
 def test_bidmodifiers_set_id_and_legacy_flags_are_mutex():
     """Mixing --id with --campaign-id/--type is rejected up front.
 
-    Without this guard, a caller combining the two shapes would end up
-    with a confusing payload that the API rejects in a non-obvious way.
+    Legacy flags are now hidden + eagerly rejected by Click callback, so
+    they fail before mutex evaluation. The legacy-shape error message
+    still surfaces, which is the contract: legacy flags are never
+    acceptable, even alongside the correct --id form.
     """
     result = CliRunner().invoke(
         cli,
@@ -1772,7 +1774,7 @@ def test_bidmodifiers_set_id_and_legacy_flags_are_mutex():
     combined = (result.output or "") + (
         str(result.exception) if result.exception else ""
     )
-    assert "mutually exclusive" in combined or "--id" in combined
+    assert "legacy --campaign-id/--type shape is not supported" in combined
 
 
 def test_bidmodifiers_set_without_any_key_errors():
