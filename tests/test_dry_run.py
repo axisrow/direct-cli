@@ -716,6 +716,271 @@ def test_ads_add_text_image_uses_typed_flags():
     }
 
 
+def test_ads_add_text_ad_with_title2_and_display_url_path():
+    """Issue #202: --title2 and --display-url-path map to TextAd fields."""
+    body = _dry_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "TEXT_AD",
+        "--title",
+        "T",
+        "--text",
+        "Body text long enough",
+        "--href",
+        "https://example.com",
+        "--title2",
+        "Second headline",
+        "--display-url-path",
+        "deals",
+    )
+    text_ad = body["params"]["Ads"][0]["TextAd"]
+    assert text_ad["Title2"] == "Second headline"
+    assert text_ad["DisplayUrlPath"] == "deals"
+
+
+def test_ads_add_text_ad_with_mobile_yes():
+    """Issue #202: --mobile YES overrides the default ``Mobile: NO``."""
+    body = _dry_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "TEXT_AD",
+        "--title",
+        "T",
+        "--text",
+        "Body text long enough",
+        "--href",
+        "https://example.com",
+        "--mobile",
+        "YES",
+    )
+    assert body["params"]["Ads"][0]["TextAd"]["Mobile"] == "YES"
+
+
+def test_ads_add_text_ad_default_mobile_is_no():
+    """Default ``Mobile: NO`` is preserved when --mobile is omitted (regression)."""
+    body = _dry_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "TEXT_AD",
+        "--title",
+        "T",
+        "--text",
+        "Body text long enough",
+        "--href",
+        "https://example.com",
+    )
+    assert body["params"]["Ads"][0]["TextAd"]["Mobile"] == "NO"
+
+
+def test_ads_add_text_ad_with_vcard_sitelink_extensions():
+    """Issue #202: VCardId, SitelinkSetId, AdExtensionIds map from typed flags."""
+    body = _dry_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "TEXT_AD",
+        "--title",
+        "T",
+        "--text",
+        "Body text long enough",
+        "--href",
+        "https://example.com",
+        "--vcard-id",
+        "111",
+        "--sitelink-set-id",
+        "222",
+        "--ad-extensions",
+        "444,555",
+    )
+    text_ad = body["params"]["Ads"][0]["TextAd"]
+    assert text_ad["VCardId"] == 111
+    assert text_ad["SitelinkSetId"] == 222
+    assert text_ad["AdExtensionIds"] == [444, 555]
+
+
+def test_ads_add_text_ad_with_turbo_page_id():
+    """Issue #202: --turbo-page-id maps to TextAd.TurboPageId."""
+    body = _dry_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "TEXT_AD",
+        "--title",
+        "T",
+        "--text",
+        "Body text long enough",
+        "--href",
+        "https://example.com",
+        "--turbo-page-id",
+        "333",
+    )
+    assert body["params"]["Ads"][0]["TextAd"]["TurboPageId"] == 333
+
+
+def test_ads_add_text_image_ad_with_turbo_page_id():
+    """Issue #202: --turbo-page-id is also valid for TEXT_IMAGE_AD."""
+    body = _dry_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "55",
+        "--type",
+        "TEXT_IMAGE_AD",
+        "--image-hash",
+        "abcdefghij",
+        "--href",
+        "https://example.com",
+        "--turbo-page-id",
+        "777",
+    )
+    assert body["params"]["Ads"][0]["TextImageAd"]["TurboPageId"] == 777
+
+
+def test_ads_add_rejects_title2_on_text_image_ad():
+    """Issue #202 (Pattern B): --title2 belongs to TEXT_AD only."""
+    result = CliRunner().invoke(
+        cli,
+        [
+            "ads",
+            "add",
+            "--adgroup-id",
+            "1",
+            "--type",
+            "TEXT_IMAGE_AD",
+            "--image-hash",
+            "abcdefghij",
+            "--href",
+            "https://example.com",
+            "--title2",
+            "X",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "--title2 is not compatible with --type TEXT_IMAGE_AD" in result.output
+
+
+def test_ads_add_rejects_ad_extensions_on_mobile_app_ad():
+    """Issue #202 (Pattern B): --ad-extensions is TEXT_AD-only."""
+    result = CliRunner().invoke(
+        cli,
+        [
+            "ads",
+            "add",
+            "--adgroup-id",
+            "1",
+            "--type",
+            "MOBILE_APP_AD",
+            "--title",
+            "T",
+            "--text",
+            "Body",
+            "--action",
+            "INSTALL",
+            "--ad-extensions",
+            "1,2",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert (
+        "--ad-extensions is not compatible with --type MOBILE_APP_AD" in result.output
+    )
+
+
+def test_ads_add_rejects_mobile_yes_on_text_image_ad():
+    """Explicit --mobile YES on a non-TEXT_AD subtype is silent data loss."""
+    result = CliRunner().invoke(
+        cli,
+        [
+            "ads",
+            "add",
+            "--adgroup-id",
+            "1",
+            "--type",
+            "TEXT_IMAGE_AD",
+            "--image-hash",
+            "abcdefghij",
+            "--href",
+            "https://example.com",
+            "--mobile",
+            "YES",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "--mobile is not compatible with --type TEXT_IMAGE_AD" in result.output
+
+
+def test_ads_add_rejects_explicit_mobile_no_on_text_image_ad():
+    """Even explicit --mobile NO on a non-TEXT_AD subtype must be rejected.
+
+    The Click default for --mobile is ``NO``, but per WSDL parity (#198 H2),
+    a typed flag does not silently drop based on its value — passing the flag
+    explicitly on an incompatible subtype must raise UsageError.
+    """
+    result = CliRunner().invoke(
+        cli,
+        [
+            "ads",
+            "add",
+            "--adgroup-id",
+            "1",
+            "--type",
+            "TEXT_IMAGE_AD",
+            "--image-hash",
+            "abcdefghij",
+            "--href",
+            "https://example.com",
+            "--mobile",
+            "NO",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "--mobile is not compatible with --type TEXT_IMAGE_AD" in result.output
+
+
+def test_ads_add_text_image_ad_default_mobile_does_not_leak():
+    """Regression: omitting --mobile must NOT trigger the Pattern B guard.
+
+    Click fills --mobile with its default ``NO`` on every invocation, so the
+    guard's per-subtype check must distinguish "explicitly passed" from
+    "default" via ``ctx.get_parameter_source``.
+    """
+    body = _dry_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "1",
+        "--type",
+        "TEXT_IMAGE_AD",
+        "--image-hash",
+        "abcdefghij",
+        "--href",
+        "https://example.com",
+    )
+    ad = body["params"]["Ads"][0]
+    assert ad["TextImageAd"] == {
+        "AdImageHash": "abcdefghij",
+        "Href": "https://example.com",
+    }
+    assert "Mobile" not in ad["TextImageAd"]
+
+
 def test_ads_update_rejects_status_flag():
     """``--status`` is not part of WSDL ``AdUpdateItem`` (regression for #183).
 
@@ -825,6 +1090,143 @@ def test_ads_update_incompatible_flag_explains_existing_subtype():
     assert "does not convert an ad between subtypes" in result.output
     assert "Allowed flags for TEXT_AD" in result.output
     assert "--image-hash" in result.output
+
+
+def test_ads_update_text_ad_with_title2_and_display_url_path():
+    """Issue #202: update can set TextAd.Title2 and TextAd.DisplayUrlPath."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_AD",
+        "--title2",
+        "Updated second",
+        "--display-url-path",
+        "newpath",
+    )
+    ad = body["params"]["Ads"][0]
+    assert ad["Id"] == 999
+    assert ad["TextAd"] == {
+        "Title2": "Updated second",
+        "DisplayUrlPath": "newpath",
+    }
+    assert "Mobile" not in ad["TextAd"]
+
+
+def test_ads_update_text_ad_with_vcard_sitelink():
+    """Issue #202: update sets VCardId and SitelinkSetId in nested TextAd."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_AD",
+        "--vcard-id",
+        "111",
+        "--sitelink-set-id",
+        "222",
+    )
+    text_ad = body["params"]["Ads"][0]["TextAd"]
+    assert text_ad == {"VCardId": 111, "SitelinkSetId": 222}
+
+
+def test_ads_update_text_ad_with_turbo_page_id():
+    """Issue #202: update sets TurboPageId in TextAd."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_AD",
+        "--turbo-page-id",
+        "555",
+    )
+    assert body["params"]["Ads"][0]["TextAd"] == {"TurboPageId": 555}
+
+
+def test_ads_update_text_image_ad_with_turbo_page_id():
+    """Issue #202: update sets TurboPageId in TextImageAd."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_IMAGE_AD",
+        "--turbo-page-id",
+        "555",
+    )
+    assert body["params"]["Ads"][0]["TextImageAd"] == {"TurboPageId": 555}
+
+
+def test_ads_update_rejects_mobile_flag():
+    """Issue #202: --mobile is not exposed on update (TextAdUpdate lacks Mobile)."""
+    result = CliRunner().invoke(
+        cli,
+        [
+            "ads",
+            "update",
+            "--id",
+            "999",
+            "--type",
+            "TEXT_AD",
+            "--mobile",
+            "YES",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    # Click formats this message differently across versions: 8.1 says
+    # "No such option: --mobile" while 8.2+ writes "No such option '--mobile'".
+    # Match the stable substring.
+    assert "No such option" in result.output and "--mobile" in result.output
+
+
+def test_ads_update_rejects_ad_extensions_flag():
+    """Issue #202: --ad-extensions is not exposed on update.
+
+    TextAdUpdateBase uses ``CalloutSetting``, not an ``AdExtensionIds`` array.
+    """
+    result = CliRunner().invoke(
+        cli,
+        [
+            "ads",
+            "update",
+            "--id",
+            "999",
+            "--type",
+            "TEXT_AD",
+            "--ad-extensions",
+            "1,2",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "No such option" in result.output and "--ad-extensions" in result.output
+
+
+def test_ads_update_rejects_title2_on_text_image_ad():
+    """Issue #202 (Pattern B): --title2 is TEXT_AD-only in update too."""
+    result = CliRunner().invoke(
+        cli,
+        [
+            "ads",
+            "update",
+            "--id",
+            "999",
+            "--type",
+            "TEXT_IMAGE_AD",
+            "--title2",
+            "X",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "--title2 is not compatible with --type TEXT_IMAGE_AD" in result.output
 
 
 def test_ads_get_default_fieldnames():

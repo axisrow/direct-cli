@@ -95,9 +95,10 @@ class TestCLI(unittest.TestCase):
     def test_ads_update_help_documents_text_ad_image_hash(self):
         result = self.runner.invoke(cli, ["ads", "update", "--help"])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn(
-            "Image hash (TEXT_AD / TEXT_IMAGE_AD / MOBILE_APP_AD)", result.output
-        )
+        # Click may wrap the help text across lines, so collapse whitespace
+        # before searching for the canonical phrase.
+        collapsed = " ".join(result.output.split())
+        self.assertIn("Image hash (TEXT_AD / TEXT_IMAGE_AD / MOBILE_APP_AD)", collapsed)
 
     def test_canonical_groups_in_help(self):
         """Test canonical transport groups"""
