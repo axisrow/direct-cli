@@ -3,6 +3,7 @@ Tests for Direct CLI
 """
 
 import io
+import json
 import os
 import unittest
 from contextlib import redirect_stderr
@@ -174,6 +175,191 @@ class TestCLI(unittest.TestCase):
         self.assertIn("Details: Ad not found", result.output)
         self.assertIn("current Client-Login/account", result.output)
         self.assertIn("YANDEX_DIRECT_LOGIN", result.output)
+
+    def test_keywords_bulk_add_surfaces_item_errors(self):
+        """Bulk-add path must not bypass the item-level error renderer. See #211."""
+
+        class FakeResponse:
+            def __call__(self):
+                return self
+
+            def extract(self):
+                return [
+                    {
+                        "Errors": [
+                            {
+                                "Code": 8800,
+                                "Message": "Object not found",
+                                "Details": "Ad group not found",
+                            }
+                        ]
+                    }
+                ]
+
+        class FakeClient:
+            def keywords(self):
+                return self
+
+            def post(self, data):
+                return FakeResponse()
+
+        keywords_module = import_module("direct_cli.commands.keywords")
+        with patch.object(keywords_module, "create_client", return_value=FakeClient()):
+            result = self.runner.invoke(
+                cli,
+                [
+                    "keywords",
+                    "add",
+                    "--keywords-json",
+                    '[{"AdGroupId": 1, "Keyword": "shoes"}]',
+                ],
+                env={
+                    "YANDEX_DIRECT_TOKEN": "test-token",
+                    "YANDEX_DIRECT_LOGIN": "axisrow",
+                },
+            )
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("Yandex Direct API returned errors", result.output)
+        self.assertIn("Error 8800: Object not found", result.output)
+        self.assertIn("Details: Ad group not found", result.output)
+        self.assertIn("current Client-Login/account", result.output)
+
+    def test_keywords_bulk_add_multi_chunk_partial_success(self):
+        """Earlier chunk OK, later chunk fails: diagnostic shows both. See #211."""
+
+        good_chunk_result = [
+            {"Id": idx} for idx in range(1, 11)  # KEYWORDS_ADD_MAX_BATCH = 10
+        ]
+        # Mixed chunk: one item succeeds, one fails. The success item must
+        # land in partial-success diagnostic; the failure item must not.
+        bad_chunk_result = [
+            {"Id": 999},
+            {
+                "Errors": [
+                    {
+                        "Code": 8800,
+                        "Message": "Object not found",
+                        "Details": "Ad group not found",
+                    }
+                ]
+            },
+        ]
+
+        class FakeResponse:
+            def __init__(self, payload):
+                self.payload = payload
+
+            def __call__(self):
+                return self
+
+            def extract(self):
+                return self.payload
+
+        class FakeClient:
+            def __init__(self):
+                self.calls = 0
+
+            def keywords(self):
+                return self
+
+            def post(self, data):
+                self.calls += 1
+                if self.calls == 1:
+                    return FakeResponse(good_chunk_result)
+                return FakeResponse(bad_chunk_result)
+
+        keywords_json = json.dumps(
+            [{"AdGroupId": 1, "Keyword": f"kw-{i}"} for i in range(12)]
+        )
+
+        keywords_module = import_module("direct_cli.commands.keywords")
+        with patch.object(keywords_module, "create_client", return_value=FakeClient()):
+            result = self.runner.invoke(
+                cli,
+                ["keywords", "add", "--keywords-json", keywords_json],
+                env={
+                    "YANDEX_DIRECT_TOKEN": "test-token",
+                    "YANDEX_DIRECT_LOGIN": "axisrow",
+                },
+            )
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("Yandex Direct API returned errors", result.output)
+        self.assertIn("Error 8800: Object not found", result.output)
+        self.assertIn("Partial success before failure", result.output)
+        # Successful items (chunk 1 ids 1..10 + mixed chunk id 999) must
+        # appear in the partial-success diagnostic.
+        self.assertIn('"Id": 1', result.output)
+        self.assertIn('"Id": 10', result.output)
+        self.assertIn('"Id": 999', result.output)
+        # The failed item must NOT be claimed as "already created".
+        diagnostic = result.output.split("Partial success before failure")[1]
+        self.assertNotIn('"Errors"', diagnostic)
+
+    def test_keywords_bulk_add_all_failure_second_chunk(self):
+        """Chunk 1 OK, chunk 2 all-failure: diagnostic shows chunk 1 only. See #211."""
+
+        good_chunk_result = [{"Id": idx} for idx in range(1, 11)]
+        all_failure_chunk_result = [
+            {
+                "Errors": [
+                    {
+                        "Code": 8800,
+                        "Message": "Object not found",
+                        "Details": "Ad group not found",
+                    }
+                ]
+            }
+        ]
+
+        class FakeResponse:
+            def __init__(self, payload):
+                self.payload = payload
+
+            def __call__(self):
+                return self
+
+            def extract(self):
+                return self.payload
+
+        class FakeClient:
+            def __init__(self):
+                self.calls = 0
+
+            def keywords(self):
+                return self
+
+            def post(self, data):
+                self.calls += 1
+                if self.calls == 1:
+                    return FakeResponse(good_chunk_result)
+                return FakeResponse(all_failure_chunk_result)
+
+        keywords_json = json.dumps(
+            [{"AdGroupId": 1, "Keyword": f"kw-{i}"} for i in range(11)]
+        )
+
+        keywords_module = import_module("direct_cli.commands.keywords")
+        with patch.object(keywords_module, "create_client", return_value=FakeClient()):
+            result = self.runner.invoke(
+                cli,
+                ["keywords", "add", "--keywords-json", keywords_json],
+                env={
+                    "YANDEX_DIRECT_TOKEN": "test-token",
+                    "YANDEX_DIRECT_LOGIN": "axisrow",
+                },
+            )
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("Error 8800: Object not found", result.output)
+        self.assertIn("Partial success before failure", result.output)
+        # Only chunk-1 ids must appear in the diagnostic.
+        diagnostic = result.output.split("Partial success before failure")[1]
+        self.assertIn('"Id": 1', diagnostic)
+        self.assertIn('"Id": 10', diagnostic)
+        # The failed chunk's Errors item must NOT be in the diagnostic.
+        self.assertNotIn('"Errors"', diagnostic)
 
     def test_changes_help_uses_canonical_names(self):
         """Test changes help only exposes canonical command names"""

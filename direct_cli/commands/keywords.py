@@ -9,7 +9,12 @@ from typing import Any, Dict, Iterator, List, Optional
 import click
 
 from ..api import create_client
-from ..output import format_json, format_output, print_error
+from ..output import (
+    format_json,
+    format_output,
+    print_error,
+    raise_for_api_result_errors,
+)
 from ..utils import add_criteria_csv, parse_ids, get_default_fields, MICRO_RUBLES
 
 # Yandex Direct API "keywords.add" caps a single AddItems request at 10
@@ -434,9 +439,17 @@ def _bulk_add(
             )
             body = {"method": "add", "params": {"Keywords": chunk}}
             response = client.keywords().post(data=body)
-            all_results.extend(_normalize_add_results(response().extract()))
+            chunk_results = _normalize_add_results(response().extract())
+            # Only items without per-item Errors are "already created" — the
+            # partial-success diagnostic must not lie about failed items.
+            all_results.extend(
+                item
+                for item in chunk_results
+                if not (isinstance(item, dict) and item.get("Errors"))
+            )
+            raise_for_api_result_errors(chunk_results)
 
-        print(format_json({"AddResults": all_results}, indent=2))
+        format_output({"AddResults": all_results}, "json", None)
     except click.UsageError:
         raise
     except Exception as e:
