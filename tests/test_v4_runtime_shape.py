@@ -13,6 +13,9 @@ from direct_cli.v4_contracts import (
     PARAM_SCALAR,
     PARAM_UNDOCUMENTED,
     PARAM_UNDOCUMENTED_SHAPE_MSG,
+    SAFETY_DANGEROUS,
+    SAFETY_READ,
+    SAFETY_WRITE,
     V4_METHOD_CONTRACTS,
 )
 
@@ -23,6 +26,16 @@ def _first_method_with_shape(shape: str) -> str:
         if contract.param_shape == shape:
             return method
     raise AssertionError(f"No v4 method registered with param_shape={shape!r}")
+
+
+def _first_method_with_shape_and_safety(shape: str, safety: str) -> str:
+    """Pick a registry method by (shape, safety)."""
+    for method, contract in V4_METHOD_CONTRACTS.items():
+        if contract.param_shape == shape and contract.safety == safety:
+            return method
+    raise AssertionError(
+        f"No v4 method registered with param_shape={shape!r} and safety={safety!r}"
+    )
 
 
 def _fake_client(extract_value=None):
@@ -67,8 +80,9 @@ def test_call_v4_rejects_optional_object_with_list():
     client.v4live.return_value.post.assert_not_called()
 
 
-def test_call_v4_warns_on_undocumented_but_proceeds(capfd):
-    method = _first_method_with_shape(PARAM_UNDOCUMENTED)
+def test_call_v4_warns_on_undocumented_read_method_but_proceeds(capfd):
+    """READ-class undocumented methods are soft: warn + proceed."""
+    method = _first_method_with_shape_and_safety(PARAM_UNDOCUMENTED, SAFETY_READ)
     sentinel = {"undocumented": "passthrough"}
     client = _fake_client(extract_value=sentinel)
 
@@ -82,6 +96,30 @@ def test_call_v4_warns_on_undocumented_but_proceeds(capfd):
     assert "undocumented param" in err
 
 
+def test_call_v4_refuses_undocumented_write_method():
+    """WRITE-class undocumented methods are hard: refuse to send. See Codex review."""
+    method = _first_method_with_shape_and_safety(PARAM_UNDOCUMENTED, SAFETY_WRITE)
+    client = _fake_client()
+
+    with pytest.raises(click.UsageError, match="refusing to send"):
+        call_v4(client, method, param={"any": "shape"})
+    client.v4live.return_value.post.assert_not_called()
+
+
+def test_call_v4_refuses_undocumented_dangerous_method():
+    """DANGEROUS-class undocumented methods are hard: refuse to send.
+
+    PayCampaignsByCard is financial — blind shape pass-through is unacceptable
+    even with a stderr warning. See Codex adversarial review on issue #182.
+    """
+    method = _first_method_with_shape_and_safety(PARAM_UNDOCUMENTED, SAFETY_DANGEROUS)
+    client = _fake_client()
+
+    with pytest.raises(click.UsageError, match="refusing to send"):
+        call_v4(client, method, param={"arbitrary": ["payload"]})
+    client.v4live.return_value.post.assert_not_called()
+
+
 def test_call_v4_undocumented_still_rejects_hard_errors():
     """A hard error coexisting with the undocumented marker must still raise.
 
@@ -89,7 +127,7 @@ def test_call_v4_undocumented_still_rejects_hard_errors():
     marker, call_v4's gate must classify by message content and raise
     UsageError — not silently warn. See issue #182 review.
     """
-    method = _first_method_with_shape(PARAM_UNDOCUMENTED)
+    method = _first_method_with_shape_and_safety(PARAM_UNDOCUMENTED, SAFETY_READ)
     client = _fake_client()
     mixed_errors = [
         "method mismatch: 'WrongMethod' != 'ActualMethod'",
