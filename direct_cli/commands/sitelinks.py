@@ -2,11 +2,78 @@
 Sitelinks commands
 """
 
+import json
+from pathlib import Path
+from typing import Any, Dict, List
+
 import click
 
 from ..api import create_client
 from ..output import format_output, print_error
 from ..utils import get_default_fields, parse_ids, parse_sitelink_specs
+
+_SITELINK_FIELDS = ("Title", "Href", "Description")
+
+
+def _normalize_sitelink_row(row: Any, index: int) -> Dict[str, str]:
+    if not isinstance(row, dict):
+        raise click.UsageError(
+            f"Sitelink #{index}: expected a JSON object, got {type(row).__name__}"
+        )
+
+    unknown = sorted(set(row) - set(_SITELINK_FIELDS))
+    if unknown:
+        allowed = ", ".join(_SITELINK_FIELDS)
+        raise click.UsageError(
+            f"Unknown field {unknown[0]!r} in sitelink #{index}; allowed: {allowed}"
+        )
+
+    if "Title" not in row or not str(row.get("Title") or "").strip():
+        raise click.UsageError(f"Sitelink #{index}: missing required field 'Title'")
+    if "Href" not in row or not str(row.get("Href") or "").strip():
+        raise click.UsageError(f"Sitelink #{index}: missing required field 'Href'")
+
+    item: Dict[str, str] = {
+        "Title": str(row["Title"]).strip(),
+        "Href": str(row["Href"]).strip(),
+    }
+    description = row.get("Description")
+    if description is not None and str(description).strip():
+        item["Description"] = str(description).strip()
+    return item
+
+
+def _load_sitelinks_from_inline(json_str: str) -> List[Any]:
+    try:
+        decoded = json.loads(json_str)
+    except json.JSONDecodeError as exc:
+        raise click.UsageError(f"--sitelink-json: invalid JSON: {exc.msg}")
+    if not isinstance(decoded, list):
+        raise click.UsageError(
+            "--sitelink-json must be a JSON array of sitelink objects"
+        )
+    return decoded
+
+
+def _load_sitelinks_from_file(path: str) -> List[Any]:
+    file_path = Path(path)
+    try:
+        text = file_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise click.UsageError(f"Cannot read --sitelinks-from-file {path!r}: {exc}")
+
+    rows: List[Any] = []
+    for line_number, raw_line in enumerate(text.splitlines(), start=1):
+        line = raw_line.strip()
+        if not line:
+            continue
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError as exc:
+            raise click.UsageError(
+                f"--sitelinks-from-file line {line_number}: invalid JSON: {exc.msg}"
+            )
+    return rows
 
 
 @click.group()
@@ -72,21 +139,67 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
     "--sitelink",
     "sitelinks_specs",
     multiple=True,
-    required=True,
-    help="Sitelink spec: TITLE|HREF[|DESCRIPTION]",
+    help="Sitelink spec: TITLE|HREF[|DESCRIPTION]. Escape literal '|' as '\\|'.",
+)
+@click.option(
+    "--sitelink-json",
+    "sitelinks_json",
+    help="Inline JSON array of sitelink objects: "
+    '[{"Title":"...","Href":"...","Description":"..."}]',
+)
+@click.option(
+    "--sitelinks-from-file",
+    "sitelinks_from_file",
+    type=click.Path(exists=True, dir_okay=False, readable=True),
+    help="JSONL file with one sitelink object per line",
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def add(ctx, sitelinks_specs, dry_run):
-    """Add sitelinks set"""
+def add(ctx, sitelinks_specs, sitelinks_json, sitelinks_from_file, dry_run):
+    """Add sitelinks set.
+
+    Provide exactly one source: --sitelink (repeatable), --sitelink-json,
+    or --sitelinks-from-file.
+    """
+    sources_used = (
+        (1 if sitelinks_specs else 0)
+        + (1 if sitelinks_json is not None else 0)
+        + (1 if sitelinks_from_file is not None else 0)
+    )
+    if sources_used == 0:
+        raise click.UsageError(
+            "Provide exactly one of: --sitelink (repeatable), "
+            "--sitelink-json (inline JSON array), or --sitelinks-from-file (JSONL)."
+        )
+    if sources_used > 1:
+        raise click.UsageError(
+            "--sitelink, --sitelink-json, and --sitelinks-from-file are "
+            "mutually exclusive — provide exactly one."
+        )
+
     try:
+        if sitelinks_specs:
+            try:
+                sitelinks_payload = parse_sitelink_specs(list(sitelinks_specs))
+            except ValueError as exc:
+                raise click.UsageError(str(exc))
+        else:
+            if sitelinks_json is not None:
+                raw_rows = _load_sitelinks_from_inline(sitelinks_json)
+            else:
+                raw_rows = _load_sitelinks_from_file(sitelinks_from_file)
+
+            if not raw_rows:
+                raise click.UsageError("Input contains no sitelink rows.")
+
+            sitelinks_payload = [
+                _normalize_sitelink_row(row, idx)
+                for idx, row in enumerate(raw_rows, start=1)
+            ]
+
         body = {
             "method": "add",
-            "params": {
-                "SitelinksSets": [
-                    {"Sitelinks": parse_sitelink_specs(list(sitelinks_specs))}
-                ]
-            },
+            "params": {"SitelinksSets": [{"Sitelinks": sitelinks_payload}]},
         }
 
         if dry_run:
@@ -102,6 +215,8 @@ def add(ctx, sitelinks_specs, dry_run):
         result = client.sitelinks().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
