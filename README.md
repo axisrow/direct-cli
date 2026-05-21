@@ -391,6 +391,31 @@ direct keywords update --id 88888 --keyword "updated keyword text"
 direct keywords delete --id 88888
 ```
 
+**Batch keyword upload** (CLI auto-chunks to the API limit of 10 per request):
+
+```bash
+# From a JSONL file (one keyword object per line)
+direct keywords add --adgroup-id 12345 --from-file keywords.jsonl
+
+# Inline JSON array
+direct keywords add --keywords-json '[{"Keyword":"buy laptop","Bid":10000000},{"Keyword":"buy desktop"}]'
+```
+
+Example `keywords.jsonl`:
+
+```jsonl
+{"Keyword":"buy laptop","Bid":10000000,"UserParam1":"src=ad1"}
+{"Keyword":"buy desktop","ContextBid":5000000}
+{"Keyword":"купить ноутбук","AdGroupId":99999}
+```
+
+- Row keys use WSDL CamelCase: `Keyword`, `AdGroupId`, `Bid`, `ContextBid`, `UserParam1`, `UserParam2`.
+- `--adgroup-id` provides the default group ID; rows can override it via per-row `AdGroupId`.
+- Each effective row must resolve `Keyword` and `AdGroupId`; unknown fields are rejected with the row number.
+- API limit: 10 items per `keywords.add` request — see [Yandex Direct docs](https://yandex.ru/dev/direct/doc/dg/objects/keyword.html). The CLI sends as many chunks as needed and merges `AddResults`.
+- Item-level errors from the API do not abort the batch; the merged output includes successes and per-item errors.
+- `--dry-run` shows the first chunk's payload plus `{chunks, totalItems, chunkSize}`.
+
 #### Reports
 
 ```bash
@@ -1045,6 +1070,31 @@ direct keywords add --adgroup-id 12345 --keyword "купить ноутбук" -
 direct keywords update --id 88888 --keyword "updated keyword text"
 direct keywords delete --id 88888
 ```
+
+**Пакетная загрузка ключевых слов** (CLI автоматически режет на куски по API-лимиту 10/запрос):
+
+```bash
+# Из JSONL-файла (по одному объекту ключевого слова на строку)
+direct keywords add --adgroup-id 12345 --from-file keywords.jsonl
+
+# Inline JSON-массив
+direct keywords add --keywords-json '[{"Keyword":"купить ноутбук","Bid":10000000},{"Keyword":"купить ПК"}]'
+```
+
+Пример `keywords.jsonl`:
+
+```jsonl
+{"Keyword":"купить ноутбук","Bid":10000000,"UserParam1":"src=ad1"}
+{"Keyword":"купить ПК","ContextBid":5000000}
+{"Keyword":"buy laptop","AdGroupId":99999}
+```
+
+- Ключи строки — WSDL CamelCase: `Keyword`, `AdGroupId`, `Bid`, `ContextBid`, `UserParam1`, `UserParam2`.
+- `--adgroup-id` задаёт значение по умолчанию; в строке можно переопределить через `AdGroupId`.
+- В каждой строке должны разрешаться `Keyword` и `AdGroupId`; неизвестные поля отклоняются с указанием номера строки.
+- API-лимит: 10 элементов на запрос `keywords.add` — см. [документацию Yandex Direct](https://yandex.ru/dev/direct/doc/dg/objects/keyword.html). CLI отправит нужное число чанков и склеит `AddResults`.
+- Item-level ошибки от API не прерывают batch; объединённый вывод содержит и успешные Id, и ошибки.
+- `--dry-run` показывает payload первого чанка плюс `{chunks, totalItems, chunkSize}`.
 
 #### Отчёты
 

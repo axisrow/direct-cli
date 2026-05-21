@@ -363,6 +363,8 @@ INTERNAL_VALIDATION: dict[tuple[str, str, str], str] = {
     ("bidmodifiers", "set", "BidModifier"): "Missing option '--value'",
     ("retargeting", "add", "Rules"): "Provide at least one --rule",
     ("creatives", "add", "VideoExtensionCreative"): "Missing option '--video-id'",
+    ("keywords", "add", "Keyword"): "Provide exactly one of: --keyword",
+    ("keywords", "add", "AdGroupId"): "Provide exactly one of: --keyword",
 }
 
 
@@ -448,6 +450,8 @@ INTERNAL_VALIDATION_PROBES: dict[tuple[str, str, str], list[str]] = {
     ("bidmodifiers", "set", "BidModifier"): ["bidmodifiers", "set", "--id", "1"],
     ("retargeting", "add", "Rules"): ["retargeting", "add", "--name", "X"],
     ("creatives", "add", "VideoExtensionCreative"): ["creatives", "add"],
+    ("keywords", "add", "Keyword"): ["keywords", "add"],
+    ("keywords", "add", "AdGroupId"): ["keywords", "add"],
 }
 
 

@@ -1672,6 +1672,218 @@ def test_keywords_update_payload_user_params():
 
 
 # ----------------------------------------------------------------------
+# keywords add: batch mode (issue #203)
+# ----------------------------------------------------------------------
+
+
+def _write_jsonl(tmp_path, rows):
+    path = tmp_path / "keywords.jsonl"
+    path.write_text(
+        "\n".join(json.dumps(row, ensure_ascii=False) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+    return str(path)
+
+
+def test_keywords_add_payload_batch_from_jsonl(tmp_path):
+    path = _write_jsonl(
+        tmp_path,
+        [
+            {"Keyword": "buy laptop", "AdGroupId": 100, "Bid": 10000000},
+            {"Keyword": "buy desktop", "AdGroupId": 100},
+            {"Keyword": "купить тест", "AdGroupId": 200, "UserParam1": "src=a"},
+        ],
+    )
+    body = _dry_run("keywords", "add", "--from-file", path)
+    assert body["chunks"] == 1
+    assert body["totalItems"] == 3
+    assert body["chunkSize"] == 10
+    keywords = body["firstChunk"]["params"]["Keywords"]
+    assert body["firstChunk"]["method"] == "add"
+    assert keywords[0] == {
+        "Keyword": "buy laptop",
+        "AdGroupId": 100,
+        "Bid": 10000000,
+    }
+    assert keywords[2] == {
+        "Keyword": "купить тест",
+        "AdGroupId": 200,
+        "UserParam1": "src=a",
+    }
+
+
+def test_keywords_add_payload_batch_inline():
+    inline = json.dumps(
+        [
+            {"Keyword": "kw-a", "AdGroupId": 1},
+            {"Keyword": "kw-b", "AdGroupId": 1, "ContextBid": 5000000},
+        ]
+    )
+    body = _dry_run("keywords", "add", "--keywords-json", inline)
+    assert body["totalItems"] == 2
+    assert body["chunks"] == 1
+    assert body["firstChunk"]["params"]["Keywords"][1]["ContextBid"] == 5000000
+
+
+def test_keywords_add_payload_batch_chunks_at_10(tmp_path):
+    rows = [{"Keyword": f"kw-{i}", "AdGroupId": 1} for i in range(25)]
+    path = _write_jsonl(tmp_path, rows)
+    body = _dry_run("keywords", "add", "--from-file", path)
+    assert body["chunks"] == 3
+    assert body["totalItems"] == 25
+    first_chunk = body["firstChunk"]["params"]["Keywords"]
+    assert len(first_chunk) == 10
+    assert [k["Keyword"] for k in first_chunk] == [f"kw-{i}" for i in range(10)]
+
+
+def test_keywords_add_payload_adgroup_override(tmp_path):
+    path = _write_jsonl(
+        tmp_path,
+        [
+            {"Keyword": "kw-default"},
+            {"Keyword": "kw-override", "AdGroupId": 200},
+        ],
+    )
+    body = _dry_run("keywords", "add", "--adgroup-id", "100", "--from-file", path)
+    items = body["firstChunk"]["params"]["Keywords"]
+    assert items[0] == {"Keyword": "kw-default", "AdGroupId": 100}
+    assert items[1] == {"Keyword": "kw-override", "AdGroupId": 200}
+
+
+def test_keywords_add_payload_micro_rubles_in_row(tmp_path):
+    path = _write_jsonl(
+        tmp_path,
+        [{"Keyword": "kw", "AdGroupId": 1, "Bid": 15000000}],
+    )
+    body = _dry_run("keywords", "add", "--from-file", path)
+    assert body["firstChunk"]["params"]["Keywords"][0]["Bid"] == 15000000
+
+
+def test_keywords_add_rejects_unknown_field_in_row(tmp_path):
+    path = _write_jsonl(
+        tmp_path,
+        [{"Keyword": "kw", "AdGroupId": 1, "Foo": "bar"}],
+    )
+    result = _rejected("keywords", "add", "--from-file", path)
+    assert "Unknown field 'Foo' in keyword row 1" in result.output
+
+
+def test_keywords_add_rejects_invalid_jsonl(tmp_path):
+    path = tmp_path / "broken.jsonl"
+    path.write_text(
+        '{"Keyword": "ok", "AdGroupId": 1}\n{"Keyword": broken\n',
+        encoding="utf-8",
+    )
+    result = _rejected("keywords", "add", "--from-file", str(path))
+    assert "Row 2: invalid JSON" in result.output
+
+
+def test_keywords_add_rejects_empty_file(tmp_path):
+    path = tmp_path / "empty.jsonl"
+    path.write_text("\n   \n", encoding="utf-8")
+    result = _rejected("keywords", "add", "--from-file", str(path))
+    assert "Input contains no keyword rows" in result.output
+
+
+def test_keywords_add_rejects_mutex(tmp_path):
+    path = _write_jsonl(tmp_path, [{"Keyword": "kw", "AdGroupId": 1}])
+    result = _rejected(
+        "keywords",
+        "add",
+        "--keyword",
+        "x",
+        "--adgroup-id",
+        "1",
+        "--from-file",
+        path,
+    )
+    assert "Provide exactly one of" in result.output
+
+
+def test_keywords_add_rejects_missing_required_in_row(tmp_path):
+    path = _write_jsonl(tmp_path, [{"Keyword": "kw"}])
+    result = _rejected("keywords", "add", "--from-file", path)
+    assert "Row 1" in result.output
+    assert "AdGroupId" in result.output
+
+
+def test_keywords_add_rejects_too_low_bid_in_row(tmp_path):
+    path = _write_jsonl(
+        tmp_path,
+        [{"Keyword": "kw", "AdGroupId": 1, "Bid": 50000}],
+    )
+    result = _rejected("keywords", "add", "--from-file", path)
+    assert "Row 1 field 'Bid'" in result.output
+
+
+def test_keywords_add_rejects_non_json_format_in_batch(tmp_path):
+    path = _write_jsonl(tmp_path, [{"Keyword": "kw", "AdGroupId": 1}])
+    result = _rejected(
+        "keywords",
+        "add",
+        "--from-file",
+        path,
+        "--format",
+        "table",
+    )
+    assert "batch mode" in result.output
+
+
+def test_keywords_add_rejects_no_mode():
+    result = _rejected("keywords", "add")
+    assert "Provide exactly one of" in result.output
+
+
+def test_keywords_add_single_still_raises_on_item_error():
+    """Single-mode (non-batch) must still bubble item-level Errors."""
+    from direct_cli.output import DirectAPIResultError
+
+    class _StubExtract:
+        def extract(self):
+            return {
+                "AddResults": [{"Id": 0, "Errors": [{"Code": 8500, "Message": "bad"}]}]
+            }
+
+    class _StubResult:
+        def __call__(self):
+            return _StubExtract()
+
+    class _StubKeywords:
+        def post(self, data):
+            return _StubResult()
+
+    class _StubClient:
+        def keywords(self):
+            return _StubKeywords()
+
+    with patch(
+        "direct_cli.commands.keywords.create_client", return_value=_StubClient()
+    ):
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "--token",
+                "T",
+                "--login",
+                "L",
+                "keywords",
+                "add",
+                "--adgroup-id",
+                "1",
+                "--keyword",
+                "kw",
+            ],
+        )
+    assert result.exit_code != 0
+    # Single-mode goes through format_output → raise_for_api_result_errors,
+    # which DirectAPIResultError-then-Abort. CLI surfaces it via print_error.
+    assert "Yandex Direct API returned errors" in result.output or isinstance(
+        result.exception, DirectAPIResultError
+    )
+
+
+# ----------------------------------------------------------------------
 # bids / keywordbids
 # ----------------------------------------------------------------------
 

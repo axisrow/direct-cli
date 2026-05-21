@@ -2,6 +2,22 @@
 
 ## 0.3.9 (Unreleased)
 
+**Added:**
+
+- `direct keywords add` now supports batch mode via `--from-file PATH`
+  (JSONL, one keyword object per line) or `--keywords-json '[…]'`
+  (inline JSON array). The CLI splits input into chunks of 10 — the
+  Yandex Direct API limit for `keywords.add` documented at
+  https://yandex.ru/dev/direct/doc/dg/objects/keyword.html — preserves
+  input order, and merges `AddResults` from every chunk into a single
+  response. Item-level errors do not abort the batch. Row keys use
+  WSDL CamelCase (`Keyword`, `AdGroupId`, `Bid`, `ContextBid`,
+  `UserParam1`, `UserParam2`); unknown keys are rejected with the row
+  number. `--adgroup-id` is optional in batch mode and acts as a
+  default, overridable per row. `--dry-run` prints the first chunk's
+  payload alongside `{chunks, totalItems, chunkSize}`. Single-item
+  mode (`--keyword`) is unchanged (#203).
+
 **Fixed:**
 
 - Refreshed `TestWriteFeeds` and `TestWriteSmartAdTargets` VCR cassettes against a real sandbox, dropped the `_FEED_REGRESSION_PATTERNS` skip workaround, and updated `sandbox_feed` / `sandbox_smart_adgroup` fixtures to pass the now-WSDL-required `--business-type RETAIL` (FeedAddItem) and `--counter-id` (SmartCampaignAddItem). Tests now skip only on genuine sandbox limitations, not on the missing-option proxy that the workaround papered over (#206, fallout from #201). Test invocation now also passes `--login` and prefers env vars over an active `direct auth` profile, matching the inversion documented in CLAUDE.md.
