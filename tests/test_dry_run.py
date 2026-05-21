@@ -4327,6 +4327,54 @@ def test_strategies_update_requires_type_for_strategy_specific_fields():
     assert "Provide --type when setting strategy-specific fields" in result.output
 
 
+def test_strategies_update_average_cpc_per_filter_maps_to_filter_average_cpc():
+    body = _dry_run(
+        "strategies",
+        "update",
+        "--id",
+        "42",
+        "--type",
+        "AverageCpcPerFilter",
+        "--average-cpc",
+        "30000000",
+    )
+    s = body["params"]["Strategies"][0]
+    assert s["AverageCpcPerFilter"] == {"FilterAverageCpc": 30000000}
+
+
+def test_strategies_update_pay_for_conversion_maps_average_cpa_to_cpa():
+    body = _dry_run(
+        "strategies",
+        "update",
+        "--id",
+        "42",
+        "--type",
+        "PayForConversion",
+        "--average-cpa",
+        "4000000",
+        "--goal-id",
+        "123",
+    )
+    s = body["params"]["Strategies"][0]
+    assert s["PayForConversion"] == {"Cpa": 4000000, "GoalId": 123}
+
+
+def test_strategies_update_average_cpa_without_goal_id_is_allowed():
+    body = _dry_run(
+        "strategies",
+        "update",
+        "--id",
+        "42",
+        "--type",
+        "AverageCpa",
+        "--average-cpa",
+        "4000000",
+    )
+    s = body["params"]["Strategies"][0]
+    assert s["AverageCpa"] == {"AverageCpa": 4000000}
+    assert "GoalId" not in s["AverageCpa"]
+
+
 def test_strategies_archive_payload():
     body = _dry_run("strategies", "archive", "--id", "10")
     assert body == {

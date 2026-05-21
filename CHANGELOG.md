@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.10 (unreleased)
+
+**Added:**
+
+- Regression tests that lock down subtype validation invariants from the
+  `#210` umbrella repro matrix. Nine new `SILENT_LOSS_PROBES` in
+  `tests/test_wsdl_parity_gate.py` cover per-type rejection across
+  `campaigns add`, `adgroups add`, `ads add`, `bidmodifiers add` and
+  `strategies add` (test-only — the corrected rejection behavior was
+  shipped earlier in 0.3.9 via #198 audit follow-up PRs). Three new non-regression tests in
+  `tests/test_dry_run.py` lock down `strategies update` field aliases
+  (`AverageCpcPerFilter → FilterAverageCpc`,
+  `PayForConversion → Cpa`) and confirm that `AverageCpa` update
+  without `--goal-id` stays WSDL-valid (`GoalId` is `minOccurs=0` on
+  update). Refs: Closes #210.
+
 ## 0.3.9
 
 **Added:**
