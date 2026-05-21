@@ -195,6 +195,51 @@ def parse_setting_specs(specs: Optional[List[str]]) -> Optional[List[Dict[str, s
     return settings
 
 
+def parse_priority_goals_spec(
+    value: Optional[str],
+) -> Optional[List[Dict[str, int]]]:
+    """Parse `goal_id:value,...` into WSDL PriorityGoalsItem[] (GoalId/Value)."""
+    if not value:
+        return None
+
+    items: List[Dict[str, int]] = []
+    for pair in value.split(","):
+        pair = pair.strip()
+        if not pair:
+            raise click.UsageError(
+                "--priority-goals must be a comma-separated list of "
+                "goal_id:value pairs"
+            )
+        goal_part, separator, value_part = pair.partition(":")
+        if not separator:
+            raise click.UsageError(
+                f"Invalid --priority-goals item: '{pair}'. "
+                "Expected format: goal_id:value"
+            )
+        goal_part = goal_part.strip()
+        value_part = value_part.strip()
+        if not goal_part or not value_part:
+            raise click.UsageError(
+                f"Invalid --priority-goals item: '{pair}'. "
+                "Both goal_id and value are required"
+            )
+        try:
+            goal_id = int(goal_part)
+            value_int = int(value_part)
+        except ValueError:
+            raise click.UsageError(
+                f"Invalid --priority-goals item: '{pair}'. "
+                "goal_id and value must be integers"
+            )
+        items.append({"GoalId": goal_id, "Value": value_int})
+
+    if not items:
+        raise click.UsageError(
+            "--priority-goals must contain at least one goal_id:value pair"
+        )
+    return items
+
+
 EMAIL_SUBSCRIPTION_OPTIONS = {
     "RECEIVE_RECOMMENDATIONS",
     "TRACK_MANAGED_CAMPAIGNS",

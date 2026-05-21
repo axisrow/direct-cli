@@ -1625,6 +1625,493 @@ def test_campaigns_add_rejects_incompatible_subtype_flags():
 
 
 # ----------------------------------------------------------------------
+# campaigns add: CPA strategy / Notification / TimeTargeting (issue #204)
+# ----------------------------------------------------------------------
+
+
+def _cpa_base_args():
+    return [
+        "campaigns",
+        "add",
+        "--name",
+        "CPA Campaign",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "TEXT_CAMPAIGN",
+    ]
+
+
+def test_campaigns_add_average_cpa_search_payload():
+    body = _dry_run(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "AVERAGE_CPA",
+        "--network-strategy",
+        "SERVING_OFF",
+        "--goal-id",
+        "1234567",
+        "--average-cpa",
+        "500000000",
+        "--bid-ceiling",
+        "1000000000",
+    )
+    text = body["params"]["Campaigns"][0]["TextCampaign"]
+    search = text["BiddingStrategy"]["Search"]
+    assert search["BiddingStrategyType"] == "AVERAGE_CPA"
+    assert search["AverageCpa"] == {
+        "AverageCpa": 500000000,
+        "GoalId": 1234567,
+        "BidCeiling": 1000000000,
+    }
+
+
+def test_campaigns_add_pay_for_conversion_crr_search_payload():
+    body = _dry_run(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "PAY_FOR_CONVERSION_CRR",
+        "--network-strategy",
+        "SERVING_OFF",
+        "--goal-id",
+        "555",
+        "--crr",
+        "8",
+    )
+    search = body["params"]["Campaigns"][0]["TextCampaign"]["BiddingStrategy"]["Search"]
+    assert search["BiddingStrategyType"] == "PAY_FOR_CONVERSION_CRR"
+    # WSDL StrategyPayForConversionCrrAdd: Crr + GoalId both minOccurs=1.
+    assert search["PayForConversionCrr"] == {"Crr": 8, "GoalId": 555}
+
+
+def test_campaigns_add_priority_goals_payload():
+    body = _dry_run(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "AVERAGE_CPA_MULTIPLE_GOALS",
+        "--network-strategy",
+        "SERVING_OFF",
+        "--priority-goals",
+        "1234567:80,9876543:20",
+        "--bid-ceiling",
+        "1000000000",
+    )
+    text = body["params"]["Campaigns"][0]["TextCampaign"]
+    assert text["PriorityGoals"] == {
+        "Items": [
+            {"GoalId": 1234567, "Value": 80},
+            {"GoalId": 9876543, "Value": 20},
+        ]
+    }
+    search = text["BiddingStrategy"]["Search"]
+    assert search["BiddingStrategyType"] == "AVERAGE_CPA_MULTIPLE_GOALS"
+    assert search["AverageCpaMultipleGoals"] == {"BidCeiling": 1000000000}
+
+
+def test_campaigns_add_counter_ids_payload():
+    body = _dry_run(
+        *_cpa_base_args(),
+        "--counter-ids",
+        "111,222,333",
+    )
+    text = body["params"]["Campaigns"][0]["TextCampaign"]
+    assert text["CounterIds"] == [111, 222, 333]
+
+
+def test_campaigns_add_notification_payload():
+    notification = (
+        '{"SmsSettings":{"Events":["FINISHED"],"TimeFrom":"09:00","TimeTo":"18:00"},'
+        '"EmailSettings":{"Email":"ops@example.com","SendWarnings":"YES"}}'
+    )
+    body = _dry_run(*_cpa_base_args(), "--notification", notification)
+    campaign = body["params"]["Campaigns"][0]
+    assert campaign["Notification"] == {
+        "SmsSettings": {
+            "Events": ["FINISHED"],
+            "TimeFrom": "09:00",
+            "TimeTo": "18:00",
+        },
+        "EmailSettings": {
+            "Email": "ops@example.com",
+            "SendWarnings": "YES",
+        },
+    }
+    # Lives at campaign level, sibling of TextCampaign.
+    assert "Notification" not in campaign["TextCampaign"]
+
+
+def test_campaigns_add_time_targeting_payload():
+    tt = (
+        '{"Schedule":["1A0123456789ABCDEFGHIJKL"],'
+        '"ConsiderWorkingWeekends":"YES",'
+        '"HolidaysSchedule":{"SuspendOnHolidays":"NO","BidPercent":50,'
+        '"StartHour":10,"EndHour":20}}'
+    )
+    body = _dry_run(*_cpa_base_args(), "--time-targeting", tt)
+    campaign = body["params"]["Campaigns"][0]
+    assert campaign["TimeTargeting"] == {
+        "Schedule": ["1A0123456789ABCDEFGHIJKL"],
+        "ConsiderWorkingWeekends": "YES",
+        "HolidaysSchedule": {
+            "SuspendOnHolidays": "NO",
+            "BidPercent": 50,
+            "StartHour": 10,
+            "EndHour": 20,
+        },
+    }
+    assert "TimeTargeting" not in campaign["TextCampaign"]
+
+
+def test_campaigns_add_dynamic_text_campaign_with_cpa():
+    body = _dry_run(
+        "campaigns",
+        "add",
+        "--name",
+        "Dyn CPA",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--search-strategy",
+        "AVERAGE_CPA",
+        "--network-strategy",
+        "SERVING_OFF",
+        "--goal-id",
+        "42",
+        "--average-cpa",
+        "200000000",
+        "--counter-ids",
+        "555",
+    )
+    dyn = body["params"]["Campaigns"][0]["DynamicTextCampaign"]
+    search = dyn["BiddingStrategy"]["Search"]
+    assert search["BiddingStrategyType"] == "AVERAGE_CPA"
+    assert search["AverageCpa"] == {"AverageCpa": 200000000, "GoalId": 42}
+    assert dyn["CounterIds"] == [555]
+
+
+def test_campaigns_add_smart_campaign_keeps_counter_id_singular():
+    """Regression: SMART_CAMPAIGN still uses singular --counter-id."""
+    body = _dry_run(
+        "campaigns",
+        "add",
+        "--name",
+        "Smart",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--counter-id",
+        "987",
+        "--network-strategy",
+        "AVERAGE_CPC_PER_FILTER",
+        "--filter-average-cpc",
+        "1000000",
+    )
+    smart = body["params"]["Campaigns"][0]["SmartCampaign"]
+    assert smart["CounterId"] == 987
+    assert "CounterIds" not in smart
+
+
+def test_campaigns_add_rejects_average_cpa_for_highest_position():
+    result = _rejected(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "HIGHEST_POSITION",
+        "--network-strategy",
+        "SERVING_OFF",
+        "--average-cpa",
+        "100000000",
+    )
+    assert "--average-cpa" in result.output and "CPA-shaped" in result.output
+
+
+def test_campaigns_add_rejects_goal_id_for_highest_position():
+    result = _rejected(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "HIGHEST_POSITION",
+        "--network-strategy",
+        "SERVING_OFF",
+        "--goal-id",
+        "1",
+    )
+    assert "--goal-id" in result.output or "CPA-shaped" in result.output
+
+
+def test_campaigns_add_rejects_priority_goals_for_single_goal_strategy():
+    result = _rejected(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "AVERAGE_CPA",
+        "--network-strategy",
+        "SERVING_OFF",
+        "--goal-id",
+        "1",
+        "--average-cpa",
+        "100000000",
+        "--priority-goals",
+        "1:50,2:50",
+    )
+    assert "--priority-goals" in result.output and "MULTIPLE_GOALS" in result.output
+
+
+def test_campaigns_add_rejects_priority_goals_bad_shape_missing_weight():
+    result = _rejected(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "AVERAGE_CPA_MULTIPLE_GOALS",
+        "--network-strategy",
+        "SERVING_OFF",
+        "--priority-goals",
+        "1:",
+    )
+    assert "--priority-goals" in result.output
+
+
+def test_campaigns_add_rejects_priority_goals_non_integer():
+    result = _rejected(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "AVERAGE_CPA_MULTIPLE_GOALS",
+        "--network-strategy",
+        "SERVING_OFF",
+        "--priority-goals",
+        "abc:80",
+    )
+    assert "--priority-goals" in result.output
+    assert "must be integers" in result.output
+
+
+def test_campaigns_add_rejects_priority_goals_no_separator():
+    result = _rejected(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "AVERAGE_CPA_MULTIPLE_GOALS",
+        "--network-strategy",
+        "SERVING_OFF",
+        "--priority-goals",
+        "1:80,broken",
+    )
+    assert "--priority-goals" in result.output
+
+
+def test_campaigns_add_rejects_notification_bad_json():
+    result = _rejected(*_cpa_base_args(), "--notification", "not-json")
+    assert "--notification" in result.output
+
+
+def test_campaigns_add_rejects_notification_unknown_top_level_key():
+    result = _rejected(*_cpa_base_args(), "--notification", '{"Foo":1}')
+    assert "--notification" in result.output and "unknown key" in result.output
+
+
+def test_campaigns_add_rejects_notification_empty_object():
+    result = _rejected(*_cpa_base_args(), "--notification", "{}")
+    assert "non-empty" in result.output
+
+
+def test_campaigns_add_rejects_notification_unknown_sms_key():
+    result = _rejected(
+        *_cpa_base_args(),
+        "--notification",
+        '{"SmsSettings":{"Foo":1}}',
+    )
+    assert "SmsSettings" in result.output and "unknown key" in result.output
+
+
+def test_campaigns_add_rejects_notification_unknown_email_key():
+    result = _rejected(
+        *_cpa_base_args(),
+        "--notification",
+        '{"EmailSettings":{"Foo":1}}',
+    )
+    assert "EmailSettings" in result.output and "unknown key" in result.output
+
+
+def test_campaigns_add_rejects_time_targeting_bad_json():
+    result = _rejected(*_cpa_base_args(), "--time-targeting", "x")
+    assert "--time-targeting" in result.output
+
+
+def test_campaigns_add_rejects_time_targeting_unknown_key():
+    result = _rejected(
+        *_cpa_base_args(),
+        "--time-targeting",
+        '{"Foo":1}',
+    )
+    assert "--time-targeting" in result.output and "unknown key" in result.output
+
+
+def test_campaigns_add_rejects_time_targeting_empty():
+    result = _rejected(*_cpa_base_args(), "--time-targeting", "{}")
+    assert "non-empty" in result.output
+
+
+def test_campaigns_add_rejects_time_targeting_unknown_holidays_key():
+    result = _rejected(
+        *_cpa_base_args(),
+        "--time-targeting",
+        '{"HolidaysSchedule":{"Foo":1}}',
+    )
+    assert "HolidaysSchedule" in result.output and "unknown key" in result.output
+
+
+def test_campaigns_add_rejects_counter_ids_for_smart_campaign():
+    result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "Smart no counter-ids",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--counter-id",
+        "987",
+        "--network-strategy",
+        "AVERAGE_CPC_PER_FILTER",
+        "--filter-average-cpc",
+        "1000000",
+        "--counter-ids",
+        "111",
+    )
+    assert "--counter-ids" in result.output and "SMART_CAMPAIGN" in result.output
+
+
+def test_campaigns_add_rejects_counter_ids_empty():
+    result = _rejected(*_cpa_base_args(), "--counter-ids", "")
+    assert "--counter-ids" in result.output
+
+
+def test_campaigns_add_rejects_bid_ceiling_for_pay_for_conversion_crr():
+    """WSDL StrategyPayForConversionCrrAdd has no BidCeiling field."""
+    result = _rejected(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "PAY_FOR_CONVERSION_CRR",
+        "--network-strategy",
+        "SERVING_OFF",
+        "--goal-id",
+        "1",
+        "--crr",
+        "8",
+        "--bid-ceiling",
+        "1000000",
+    )
+    assert "--bid-ceiling" in result.output
+    assert "PayForConversionCrr" in result.output
+
+
+def test_campaigns_add_rejects_bid_ceiling_for_pay_for_conversion_multiple_goals():
+    """WSDL StrategyPayForConversionMultipleGoalsAdd has no BidCeiling field."""
+    result = _rejected(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
+        "--network-strategy",
+        "SERVING_OFF",
+        "--priority-goals",
+        "1:50,2:50",
+        "--bid-ceiling",
+        "1000000",
+    )
+    assert "--bid-ceiling" in result.output
+    assert "PayForConversionMultipleGoals" in result.output
+
+
+def test_campaigns_add_rejects_pay_for_conversion_crr_without_crr():
+    """PayForConversionCrr.Crr is minOccurs=1 — CLI must demand --crr."""
+    result = _rejected(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "PAY_FOR_CONVERSION_CRR",
+        "--network-strategy",
+        "SERVING_OFF",
+        "--goal-id",
+        "1",
+    )
+    assert "--crr" in result.output
+    assert "PayForConversionCrr" in result.output
+
+
+def test_campaigns_add_rejects_pay_for_conversion_crr_without_goal_id():
+    """PayForConversionCrr.GoalId is minOccurs=1."""
+    result = _rejected(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "PAY_FOR_CONVERSION_CRR",
+        "--network-strategy",
+        "SERVING_OFF",
+        "--crr",
+        "8",
+    )
+    assert "--goal-id" in result.output
+
+
+def test_campaigns_add_rejects_average_cpa_strategy_without_required_fields():
+    """StrategyAverageCpaAdd: AverageCpa + GoalId both minOccurs=1."""
+    result = _rejected(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "AVERAGE_CPA",
+        "--network-strategy",
+        "SERVING_OFF",
+    )
+    out = result.output
+    assert "--average-cpa" in out and "--goal-id" in out
+
+
+def test_campaigns_add_rejects_multiple_goals_strategy_without_priority_goals():
+    """StrategyAverageCpaMultipleGoals requires PriorityGoals at WSDL."""
+    result = _rejected(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "AVERAGE_CPA_MULTIPLE_GOALS",
+        "--network-strategy",
+        "SERVING_OFF",
+    )
+    assert "--priority-goals" in result.output
+
+
+def test_campaigns_add_rejects_crr_for_average_cpa():
+    """--crr is only valid for PAY_FOR_CONVERSION_CRR."""
+    result = _rejected(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "AVERAGE_CPA",
+        "--network-strategy",
+        "SERVING_OFF",
+        "--goal-id",
+        "1",
+        "--average-cpa",
+        "100000",
+        "--crr",
+        "8",
+    )
+    assert "--crr" in result.output and "PayForConversionCrr" in result.output
+
+
+def test_campaigns_add_rejects_text_campaign_with_per_campaign_network_strategy():
+    """Per-Campaign/Per-Filter exist only on SmartCampaign; rejecting them
+    for TEXT_CAMPAIGN prevents emitting WSDL-invalid keys."""
+    result = _rejected(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "HIGHEST_POSITION",
+        "--network-strategy",
+        "AVERAGE_CPA_PER_CAMPAIGN",
+        "--goal-id",
+        "1",
+        "--average-cpa",
+        "100000",
+    )
+    # Without --network-strategy in the typed-subtype map, --average-cpa
+    # has no CPA-shaped strategy to land on → CLI rejects.
+    assert "CPA-shaped" in result.output
+
+
+# ----------------------------------------------------------------------
 # keywords
 # ----------------------------------------------------------------------
 

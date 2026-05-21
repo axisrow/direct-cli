@@ -24,6 +24,39 @@
   `--dry-run` prints the first chunk's payload alongside
   `{chunks, totalItems, chunkSize}`. Single-item mode (`--keyword`)
   is unchanged (#203).
+- `direct campaigns add` typed flags for CPA strategies and
+  cross-cutting `CampaignAddItem` fields: `--goal-id` (single
+  Metrika goal), `--crr` (CRR percentage for
+  `PAY_FOR_CONVERSION_CRR`),
+  `--priority-goals goal_id:value,…` (multi-goal CPA via
+  WSDL `PriorityGoalsArray`), `--average-cpa MICRO_RUBLES`,
+  `--bid-ceiling MICRO_RUBLES`, `--counter-ids`
+  (TextCampaign/DynamicTextCampaign), `--notification JSON`
+  (`CampaignBase.Notification` with `SmsSettings`/`EmailSettings`
+  shape validation), `--time-targeting JSON`
+  (`CampaignAddItem.TimeTargeting` with `HolidaysSchedule`
+  shape validation). Strategy-subtype compatibility is enforced
+  via `UsageError` at CLI level both ways: WSDL-incompatible flags
+  are rejected (e.g. `--average-cpa` for `HIGHEST_POSITION`,
+  `--crr` outside `PAY_FOR_CONVERSION_CRR`,
+  `--bid-ceiling` for `PayForConversionCrr` /
+  `PayForConversionMultipleGoals`), and WSDL `minOccurs=1`
+  fields are demanded up-front (e.g. picking `AVERAGE_CPA`
+  without `--average-cpa`+`--goal-id`, or `PAY_FOR_CONVERSION_CRR`
+  without `--crr`+`--goal-id`, or `*_MULTIPLE_GOALS` without
+  `--priority-goals`, all fail at the CLI instead of the API).
+  Closes #204.
+
+**Notes:**
+
+- Issue #204 also requested `--goals` (array) and
+  `--network-settings`; both were dropped after WSDL audit. Yandex
+  `Strategy*Add` complex types declare only scalar `GoalId`, so
+  multi-goal CPA is shipped through `--priority-goals` instead
+  (correct WSDL path: `TextCampaign.PriorityGoals.Items[].GoalId/Value`).
+  No `NetworkSettings` field exists on `CampaignAddItem` /
+  `TextCampaignAddItem` / `DynamicTextCampaignAddItem` /
+  `SmartCampaignAddItem` in the current `campaigns.xml` WSDL.
 
 **Fixed:**
 
