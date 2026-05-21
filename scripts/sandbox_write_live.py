@@ -166,7 +166,7 @@ class LiveSandboxRunner:
             "campaigns.suspend": self.run_campaign_id_command,
             "campaigns.unarchive": self.run_campaign_id_command,
             "campaigns.update": self.run_campaign_id_command,
-            "clients.update": self.run_not_covered,
+            "clients.update": self.run_clients_update,
             "creatives.add": self.run_creative_add,
             "dynamicads.add": self.run_dynamic_ad_add,
             "dynamicads.delete": self.run_dynamic_ad_id_command,
@@ -210,17 +210,23 @@ class LiveSandboxRunner:
             "v4account.enable-shared-account": self.run_v4account_enable_shared_account,
             "v4forecast.create": self.run_v4forecast_create,
             "v4forecast.delete": self.run_v4forecast_delete,
-            "v4tags.update-banners": self.run_not_covered,
-            "v4tags.update-campaigns": self.run_not_covered,
+            "v4tags.update-banners": self.run_v4tags_update_banners,
+            "v4tags.update-campaigns": self.run_v4tags_update_campaigns,
             "v4wordstat.create-report": self.run_v4wordstat_create_report,
             "v4wordstat.delete-report": self.run_v4wordstat_delete_report,
             "vcards.add": self.run_vcard_add,
             "vcards.delete": self.run_vcard_id_command,
         }
 
-    def invoke(self, group: str, command: str, args: list[str]) -> CommandRun:
+    def invoke(
+        self,
+        group: str,
+        command: str,
+        args: list[str],
+        global_args: list[str] | None = None,
+    ) -> CommandRun:
         """Run one canonical CLI command against the sandbox API."""
-        full_args = ["direct", "--sandbox", group, command, *args]
+        full_args = ["direct", "--sandbox", *(global_args or []), group, command, *args]
         if self.verbose:
             print(f"$ {' '.join(shlex.quote(part) for part in full_args)}", flush=True)
         try:
@@ -354,6 +360,35 @@ class LiveSandboxRunner:
             return candidate.strip()
         return None
 
+    def campaign_tag_id(self, run: CommandRun, tag_text: str) -> str | None:
+        """Extract a positive campaign tag ID by tag text from v4 tag output."""
+        data = self.parse_json(run.stdout)
+        return self.campaign_tag_id_from_value(data, tag_text)
+
+    def campaign_tag_id_from_value(self, value: object, tag_text: str) -> str | None:
+        """Find a campaign tag ID in a v4 GetCampaignsTags response tree."""
+        if isinstance(value, dict):
+            tags = value.get("Tags")
+            if isinstance(tags, list):
+                for tag in tags:
+                    if not isinstance(tag, dict) or tag.get("Tag") != tag_text:
+                        continue
+                    tag_id = tag.get("TagID")
+                    if isinstance(tag_id, int) and tag_id > 0:
+                        return str(tag_id)
+                    if isinstance(tag_id, str) and tag_id.strip() not in {"", "0"}:
+                        return tag_id.strip()
+            for nested in value.values():
+                found = self.campaign_tag_id_from_value(nested, tag_text)
+                if found:
+                    return found
+        elif isinstance(value, list):
+            for item in value:
+                found = self.campaign_tag_id_from_value(item, tag_text)
+                if found:
+                    return found
+        return None
+
     def first_value(self, value: object, preferred_keys: tuple[str, ...]) -> str | None:
         """Find the first scalar value for any preferred key in a JSON tree."""
         if isinstance(value, dict):
@@ -417,12 +452,31 @@ class LiveSandboxRunner:
         """Build a unique resource name."""
         return f"direct-cli-{prefix}-{self.suffix}"
 
-    def run_not_covered(self, matrix_command: str) -> ReportRow:
-        return ReportRow(
-            command=matrix_command,
-            status=NOT_COVERED,
-            detail="requires account-specific existing client data",
+    def v4_tag_text(self) -> str:
+        """Build a v4 campaign tag text within the 25-character API limit."""
+        return f"dcli-{self.suffix}"[:25]
+
+    def run_clients_update(self, matrix_command: str) -> ReportRow:
+        client_login = (
+            os.environ.get("YANDEX_DIRECT_CLIENTS_UPDATE_LOGIN") or ""
+        ).strip()
+        if not client_login:
+            return ReportRow(
+                command=matrix_command,
+                status=NOT_COVERED,
+                detail=(
+                    "set YANDEX_DIRECT_CLIENTS_UPDATE_LOGIN to an expendable "
+                    "sandbox Client-Login"
+                ),
+            )
+
+        run = self.invoke(
+            "clients",
+            "update",
+            ["--client-info", self.name("clients-update")],
+            global_args=["--login", client_login],
         )
+        return self.row_from_run(matrix_command, run)
 
     def run_v4account_enable_shared_account(self, matrix_command: str) -> ReportRow:
         client_login = os.environ.get("YANDEX_DIRECT_V4ACCOUNT_CLIENT_LOGIN") or (
@@ -583,6 +637,77 @@ class LiveSandboxRunner:
             ]
         return self.row_from_run(matrix_command, run)
 
+    def create_campaign_tag(self, campaign_id: str, tag_text: str) -> str:
+        run = self.invoke(
+            "v4tags",
+            "update-campaigns",
+            ["--campaign-id", campaign_id, "--tag", f"0={tag_text}"],
+        )
+        status, detail = self.classify(run)
+        if status != PASS:
+            raise PrerequisiteError(
+                status, f"v4tags update-campaigns prerequisite: {detail}"
+            )
+        self.register_cleanup(
+            "campaign tags",
+            "v4tags",
+            "update-campaigns",
+            ["--campaign-id", campaign_id, "--clear-tags"],
+        )
+
+        get_run = self.invoke(
+            "v4tags",
+            "get-campaigns",
+            ["--campaign-ids", campaign_id],
+        )
+        status, detail = self.classify(get_run)
+        if status != PASS:
+            raise PrerequisiteError(
+                status, f"v4tags get-campaigns prerequisite: {detail}"
+            )
+        tag_id = self.campaign_tag_id(get_run, tag_text)
+        if not tag_id:
+            raise PrerequisiteError(
+                FAIL, "v4tags get-campaigns prerequisite returned no new tag ID"
+            )
+        return tag_id
+
+    def run_v4tags_update_campaigns(self, matrix_command: str) -> ReportRow:
+        campaign_id = self.create_campaign()
+        tag_text = self.v4_tag_text()
+        run = self.invoke(
+            "v4tags",
+            "update-campaigns",
+            ["--campaign-id", campaign_id, "--tag", f"0={tag_text}"],
+        )
+        if self.classify(run)[0] == PASS:
+            self.register_cleanup(
+                "campaign tags",
+                "v4tags",
+                "update-campaigns",
+                ["--campaign-id", campaign_id, "--clear-tags"],
+            )
+        return self.row_from_run(matrix_command, run)
+
+    def run_v4tags_update_banners(self, matrix_command: str) -> ReportRow:
+        campaign_id = self.create_campaign()
+        adgroup_id = self.create_adgroup(campaign_id=campaign_id)
+        ad_id = self.create_ad(adgroup_id=adgroup_id)
+        tag_id = self.create_campaign_tag(campaign_id, self.v4_tag_text())
+        run = self.invoke(
+            "v4tags",
+            "update-banners",
+            ["--banner-ids", ad_id, "--tag-ids", tag_id],
+        )
+        if self.classify(run)[0] == PASS:
+            self.register_cleanup(
+                "banner tags",
+                "v4tags",
+                "update-banners",
+                ["--banner-ids", ad_id, "--clear-tags"],
+            )
+        return self.row_from_run(matrix_command, run)
+
     def create_campaign(self, campaign_type: str = "TEXT_CAMPAIGN") -> str:
         args = [
             "--name",
@@ -599,7 +724,9 @@ class LiveSandboxRunner:
         self.register_cleanup("campaign", "campaigns", "delete", ["--id", campaign_id])
         return campaign_id
 
-    def create_adgroup(self, group_type: str = "TEXT_AD_GROUP") -> str:
+    def create_adgroup(
+        self, group_type: str = "TEXT_AD_GROUP", campaign_id: str | None = None
+    ) -> str:
         campaign_type = "TEXT_CAMPAIGN"
         extra_args: list[str] = []
         if group_type == "DYNAMIC_TEXT_AD_GROUP":
@@ -617,7 +744,8 @@ class LiveSandboxRunner:
                 "DESCRIPTION",
             ]
 
-        campaign_id = self.create_campaign(campaign_type)
+        if campaign_id is None:
+            campaign_id = self.create_campaign(campaign_type)
         run = self.invoke(
             "adgroups",
             "add",
@@ -637,8 +765,9 @@ class LiveSandboxRunner:
         self.register_cleanup("adgroup", "adgroups", "delete", ["--id", adgroup_id])
         return adgroup_id
 
-    def create_ad(self) -> str:
-        adgroup_id = self.create_adgroup()
+    def create_ad(self, adgroup_id: str | None = None) -> str:
+        if adgroup_id is None:
+            adgroup_id = self.create_adgroup()
         run = self.invoke(
             "ads",
             "add",
