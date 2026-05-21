@@ -1,20 +1,64 @@
 # Changelog
 
-## 0.3.10 (unreleased)
+## 0.3.10
 
 **Added:**
 
-- Regression tests that lock down subtype validation invariants from the
-  `#210` umbrella repro matrix. Nine new `SILENT_LOSS_PROBES` in
+- `direct changes check` now exposes all three mutually-exclusive ID
+  filters from the WSDL — `--campaign-ids` (≤3000), `--ad-group-ids`
+  (≤10 000) and `--ad-ids` (≤50 000); exactly one is required and the
+  mutex is enforced via `click.UsageError` (exit code 2) before any
+  request is built. `--fields` is now validated against the
+  `CheckFieldEnum` (`CampaignIds`, `AdGroupIds`, `AdIds`,
+  `CampaignsStat`); unknown values, empty / comma-only inputs and the
+  WSDL `minOccurs=1` violation are caught up-front. Refs: Closes #228.
+- `direct sitelinks add` accepts `\|` as a literal pipe inside
+  `--sitelink` spec strings, so UTM templates like
+  `cid|{campaign_id}|gid|{gbid}` survive parsing. Two new structural
+  sources mirror the `keywords.add` #218 pattern:
+  `--sitelink-json '<JSON-array>'` (inline) and
+  `--sitelinks-from-file <path.jsonl>` (one object per line); sources
+  are mutually exclusive. Unknown JSON keys are rejected with the
+  offending key surfaced (no silent data loss), and missing
+  `Title`/`Href` rows are rejected with the row index. Refs:
+  Closes #221, Closes #220.
+- `direct v4 *` commands now validate request body shape against
+  `V4_METHOD_CONTRACTS` before sending. Documented param shapes
+  (`PARAM_ARRAY` / `PARAM_OBJECT` / `PARAM_OPTIONAL_OBJECT` /
+  `PARAM_SCALAR`) raise `click.UsageError` on mismatch — the request
+  never reaches the network. Undocumented-shape methods are split by
+  contract safety: `SAFETY_READ` (e.g. `GetKeywordsSuggestion`)
+  emits a stderr warning and proceeds; `SAFETY_WRITE` /
+  `SAFETY_DANGEROUS` (e.g. `PayCampaignsByCard`) fail-closed with a
+  remediation pointer to `V4_METHOD_CONTRACTS`. Refs: Closes #182.
+- Regression tests that lock down subtype validation invariants from
+  the `#210` umbrella repro matrix. Nine new `SILENT_LOSS_PROBES` in
   `tests/test_wsdl_parity_gate.py` cover per-type rejection across
   `campaigns add`, `adgroups add`, `ads add`, `bidmodifiers add` and
   `strategies add` (test-only — the corrected rejection behavior was
-  shipped earlier in 0.3.9 via #198 audit follow-up PRs). Three new non-regression tests in
-  `tests/test_dry_run.py` lock down `strategies update` field aliases
-  (`AverageCpcPerFilter → FilterAverageCpc`,
-  `PayForConversion → Cpa`) and confirm that `AverageCpa` update
-  without `--goal-id` stays WSDL-valid (`GoalId` is `minOccurs=0` on
-  update). Refs: Closes #210.
+  shipped earlier in 0.3.9 via #198 audit follow-up PRs). Three new
+  non-regression tests in `tests/test_dry_run.py` lock down
+  `strategies update` field aliases (`AverageCpcPerFilter →
+  FilterAverageCpc`, `PayForConversion → Cpa`) and confirm that
+  `AverageCpa` update without `--goal-id` stays WSDL-valid
+  (`GoalId` is `minOccurs=0` on update). Refs: Closes #210.
+
+**Fixed:**
+
+- `direct keywords add` in bulk mode (`--from-file` / `--keywords-json`,
+  shipped in 0.3.9 / #218) now surfaces per-item `Errors` instead of
+  swallowing them and exiting 0 with raw JSON. The per-chunk loop now
+  calls `raise_for_api_result_errors` and the final response goes
+  through `format_output`, so the 8800 Client-Login guidance and the
+  full `Errors` payload propagate through the existing exception
+  handler. The partial-success diagnostic ("these keywords were
+  already created in Yandex Direct") only lists items Yandex actually
+  accepted. Refs: Closes #211.
+- `direct_cli/auth.py::_write_json` no longer leaks a file descriptor
+  when `chmod` fails between `tempfile.mkstemp` and `os.fdopen`.
+  Descriptor ownership is now tracked via a sentinel; cleanup errors
+  in `os.close` / `os.unlink` use `contextlib.suppress(OSError)` so
+  the original exception is preserved. Refs: Closes #154.
 
 ## 0.3.9
 
