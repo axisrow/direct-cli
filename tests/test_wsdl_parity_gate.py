@@ -339,6 +339,14 @@ WSDL_FIELD_TO_CLI_OPTION: dict[str, set[str]] = {
         "--phone-city-code",
         "--phone-number",
     },
+    # ads add/update typed flags introduced in issue #202
+    "Title2": {"--title2"},
+    "DisplayUrlPath": {"--display-url-path"},
+    "Mobile": {"--mobile"},
+    "VCardId": {"--vcard-id"},
+    "SitelinkSetId": {"--sitelink-set-id"},
+    "TurboPageId": {"--turbo-page-id"},
+    "AdExtensionIds": {"--ad-extensions"},
 }
 
 # Fields whose required-ness is enforced inside the command body rather

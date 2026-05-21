@@ -193,6 +193,20 @@ def get(
 )
 @click.option("--tracking-url", help="MOBILE_APP_AD tracking URL")
 @click.option("--age-label", help="MOBILE_APP_AD age label (MobAppAgeLabelEnum)")
+@click.option("--title2", help="Second headline (TEXT_AD)")
+@click.option("--display-url-path", help="Display URL path (TEXT_AD)")
+@click.option(
+    "--mobile",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    default="NO",
+    help="Mobile-targeted flag (TEXT_AD)",
+)
+@click.option("--vcard-id", type=int, help="VCard ID (TEXT_AD)")
+@click.option("--sitelink-set-id", type=int, help="Sitelink set ID (TEXT_AD)")
+@click.option(
+    "--turbo-page-id", type=int, help="Turbo page ID (TEXT_AD / TEXT_IMAGE_AD)"
+)
+@click.option("--ad-extensions", help="Comma-separated ad extension IDs (TEXT_AD)")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def add(
@@ -206,6 +220,13 @@ def add(
     action,
     tracking_url,
     age_label,
+    title2,
+    display_url_path,
+    mobile,
+    vcard_id,
+    sitelink_set_id,
+    turbo_page_id,
+    ad_extensions,
     dry_run,
 ):
     """Add new ad"""
@@ -219,9 +240,27 @@ def add(
                 "'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD'."
             )
 
+        # --mobile has a Click default of "NO", so the value is always
+        # present. Track explicit user intent for the per-subtype check by
+        # comparing against the default; mismatches on non-TEXT_AD subtypes
+        # are flagged below.
+        mobile_provided = mobile if mobile and mobile.upper() != "NO" else None
+
         type_fields = {
-            "TEXT_AD": {"title", "text", "href", "image_hash"},
-            "TEXT_IMAGE_AD": {"href", "image_hash"},
+            "TEXT_AD": {
+                "title",
+                "text",
+                "href",
+                "image_hash",
+                "title2",
+                "display_url_path",
+                "mobile",
+                "vcard_id",
+                "sitelink_set_id",
+                "turbo_page_id",
+                "ad_extensions",
+            },
+            "TEXT_IMAGE_AD": {"href", "image_hash", "turbo_page_id"},
             "MOBILE_APP_AD": {
                 "title",
                 "text",
@@ -239,6 +278,13 @@ def add(
             "action": action,
             "tracking_url": tracking_url,
             "age_label": age_label,
+            "title2": title2,
+            "display_url_path": display_url_path,
+            "mobile": mobile_provided,
+            "vcard_id": vcard_id,
+            "sitelink_set_id": sitelink_set_id,
+            "turbo_page_id": turbo_page_id,
+            "ad_extensions": ad_extensions,
         }
         flag_for = {
             "title": "--title",
@@ -248,6 +294,13 @@ def add(
             "action": "--action",
             "tracking_url": "--tracking-url",
             "age_label": "--age-label",
+            "title2": "--title2",
+            "display_url_path": "--display-url-path",
+            "mobile": "--mobile",
+            "vcard_id": "--vcard-id",
+            "sitelink_set_id": "--sitelink-set-id",
+            "turbo_page_id": "--turbo-page-id",
+            "ad_extensions": "--ad-extensions",
         }
         _reject_incompatible_flags(
             ad_type_norm, type_fields[ad_type_norm], provided, flag_for
@@ -266,14 +319,27 @@ def add(
             ]
             if missing_fields:
                 raise click.UsageError("TEXT_AD requires " + ", ".join(missing_fields))
-            ad_data["TextAd"] = {
-                "Mobile": "NO",
+            text_ad = {
+                "Mobile": mobile.upper(),
                 "Title": title,
                 "Text": text,
                 "Href": href,
             }
             if image_hash:
-                ad_data["TextAd"]["AdImageHash"] = image_hash
+                text_ad["AdImageHash"] = image_hash
+            if title2:
+                text_ad["Title2"] = title2
+            if display_url_path:
+                text_ad["DisplayUrlPath"] = display_url_path
+            if vcard_id:
+                text_ad["VCardId"] = vcard_id
+            if sitelink_set_id:
+                text_ad["SitelinkSetId"] = sitelink_set_id
+            if turbo_page_id:
+                text_ad["TurboPageId"] = turbo_page_id
+            if ad_extensions:
+                text_ad["AdExtensionIds"] = parse_ids(ad_extensions)
+            ad_data["TextAd"] = text_ad
         elif ad_type_norm == "TEXT_IMAGE_AD":
             if title or text:
                 raise click.UsageError(
@@ -284,10 +350,13 @@ def add(
                 raise click.UsageError(
                     "TEXT_IMAGE_AD requires both --image-hash and --href"
                 )
-            ad_data["TextImageAd"] = {
+            text_image_ad = {
                 "AdImageHash": image_hash,
                 "Href": href,
             }
+            if turbo_page_id:
+                text_image_ad["TurboPageId"] = turbo_page_id
+            ad_data["TextImageAd"] = text_image_ad
         elif ad_type_norm == "MOBILE_APP_AD":
             if href:
                 raise click.UsageError(
@@ -369,6 +438,13 @@ def add(
 )
 @click.option("--tracking-url", help="MOBILE_APP_AD tracking URL")
 @click.option("--age-label", help="MOBILE_APP_AD age label (MobAppAgeLabelEnum)")
+@click.option("--title2", help="Second headline (TEXT_AD)")
+@click.option("--display-url-path", help="Display URL path (TEXT_AD)")
+@click.option("--vcard-id", type=int, help="VCard ID (TEXT_AD)")
+@click.option("--sitelink-set-id", type=int, help="Sitelink set ID (TEXT_AD)")
+@click.option(
+    "--turbo-page-id", type=int, help="Turbo page ID (TEXT_AD / TEXT_IMAGE_AD)"
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def update(
@@ -383,6 +459,11 @@ def update(
     action,
     tracking_url,
     age_label,
+    title2,
+    display_url_path,
+    vcard_id,
+    sitelink_set_id,
+    turbo_page_id,
     dry_run,
 ):
     """Update ad"""
@@ -407,8 +488,18 @@ def update(
     # reject up front so the user sees the conflict instead of a no-op
     # (issue #198 H2).
     type_fields = {
-        "TEXT_AD": {"title", "text", "href", "image_hash"},
-        "TEXT_IMAGE_AD": {"image_hash", "href"},
+        "TEXT_AD": {
+            "title",
+            "text",
+            "href",
+            "image_hash",
+            "title2",
+            "display_url_path",
+            "vcard_id",
+            "sitelink_set_id",
+            "turbo_page_id",
+        },
+        "TEXT_IMAGE_AD": {"image_hash", "href", "turbo_page_id"},
         "MOBILE_APP_AD": {
             "title",
             "text",
@@ -426,6 +517,11 @@ def update(
         "action": action,
         "tracking_url": tracking_url,
         "age_label": age_label,
+        "title2": title2,
+        "display_url_path": display_url_path,
+        "vcard_id": vcard_id,
+        "sitelink_set_id": sitelink_set_id,
+        "turbo_page_id": turbo_page_id,
     }
     flag_for = {
         "title": "--title",
@@ -435,6 +531,11 @@ def update(
         "action": "--action",
         "tracking_url": "--tracking-url",
         "age_label": "--age-label",
+        "title2": "--title2",
+        "display_url_path": "--display-url-path",
+        "vcard_id": "--vcard-id",
+        "sitelink_set_id": "--sitelink-set-id",
+        "turbo_page_id": "--turbo-page-id",
     }
     try:
         _reject_incompatible_flags(
@@ -458,6 +559,16 @@ def update(
             text_ad["Href"] = href
         if image_hash:
             text_ad["AdImageHash"] = image_hash
+        if title2:
+            text_ad["Title2"] = title2
+        if display_url_path:
+            text_ad["DisplayUrlPath"] = display_url_path
+        if vcard_id:
+            text_ad["VCardId"] = vcard_id
+        if sitelink_set_id:
+            text_ad["SitelinkSetId"] = sitelink_set_id
+        if turbo_page_id:
+            text_ad["TurboPageId"] = turbo_page_id
         if text_ad:
             ad_data["TextAd"] = text_ad
     elif ad_type_norm == "TEXT_IMAGE_AD":
@@ -466,6 +577,8 @@ def update(
             text_image_ad["AdImageHash"] = image_hash
         if href:
             text_image_ad["Href"] = href
+        if turbo_page_id:
+            text_image_ad["TurboPageId"] = turbo_page_id
         if text_image_ad:
             ad_data["TextImageAd"] = text_image_ad
     elif ad_type_norm == "MOBILE_APP_AD":
