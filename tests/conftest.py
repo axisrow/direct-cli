@@ -28,12 +28,23 @@ load_dotenv()
 
 
 def _resolve_test_credentials():
-    """Resolve real API credentials using the full auth priority chain.
+    """Resolve API credentials for tests with env-vars taking priority.
 
-    Walks the same resolution as the CLI: direct args → OAuth profile →
-    env vars → .env → 1Password → Bitwarden.  Returns (None, None) when
-    no credentials are available (e.g. CI with VCR replay only).
+    Inverted vs CLI on purpose (see CLAUDE.md): on a developer machine
+    with an active ``direct auth`` profile we must not silently hit
+    production during a plain ``pytest`` run. Env vars
+    (``YANDEX_DIRECT_TOKEN`` / ``YANDEX_DIRECT_LOGIN``, optionally
+    loaded from .env above) win over the active profile. Falls back to
+    the profile-driven resolution only when env vars are absent.
+    Returns (None, None) when no credentials are available.
     """
+    import os
+
+    env_token = os.environ.get("YANDEX_DIRECT_TOKEN")
+    env_login = os.environ.get("YANDEX_DIRECT_LOGIN")
+    if env_token:
+        return env_token, env_login
+
     from direct_cli.auth import get_credentials
 
     try:
@@ -172,8 +183,18 @@ def tomorrow() -> str:
 
 
 def _invoke(*args: str):
-    """Invoke a CLI command with ``--sandbox`` and ``--token`` pre-injected."""
-    all_args = ["--sandbox", "--token", TOKEN] + list(args)
+    """Invoke a CLI command with ``--sandbox``, ``--token`` and ``--login`` pre-injected.
+
+    ``--login`` is required during cassette rewrite: without it the CLI
+    falls back to whatever login the active ``direct auth`` profile
+    holds, which is rarely the same account the sandbox token belongs
+    to. In replay mode the value is irrelevant — VCR intercepts the
+    request before any header is checked.
+    """
+    all_args = ["--sandbox", "--token", TOKEN]
+    if _REAL_LOGIN:
+        all_args += ["--login", _REAL_LOGIN]
+    all_args += list(args)
     return CliRunner().invoke(cli, all_args)
 
 
@@ -444,13 +465,6 @@ def sandbox_feed(unique_suffix):
         "--business-type", "RETAIL",
     )
     if result.exit_code != 0:
-        if "Can't overwrite existing cassette" in result.output:
-            pytest.skip(
-                "feeds add cassette body mismatch — cassette needs refresh "
-                "via 'pytest -m integration_write --record-mode=rewrite -k "
-                "\"TestWriteFeeds or TestWriteSmartAdTargets\"' with valid "
-                "sandbox credentials"
-            )
         if _is_sandbox_error(result.output):
             pytest.skip(f"feeds add fixture skipped: {result.output[:200]}")
         pytest.fail(f"feeds add failed (not a sandbox error): {result.output[:500]}")
@@ -508,11 +522,15 @@ def sandbox_smart_adgroup(unique_suffix, sandbox_feed):
     The generic sandbox_adgroup fixture creates TEXT_AD_GROUP, which is wrong.
     """
     # Step 1: create SMART_CAMPAIGN
+    # --counter-id is WSDL-required (SmartCampaignAddItem.CounterId minOccurs=1).
+    # Sandbox accepts any positive integer; replays match on body so the value
+    # just needs to be stable.
     campaign_result = _fixture_invoke(
         "campaigns", "add",
         "--name", f"claude-smart-{unique_suffix}",
         "--start-date", tomorrow(),
         "--type", "SMART_CAMPAIGN",
+        "--counter-id", "12345678",
         "--network-strategy", "AVERAGE_CPC_PER_FILTER",
         "--filter-average-cpc", "1000000",
         label="campaigns add (smart)",

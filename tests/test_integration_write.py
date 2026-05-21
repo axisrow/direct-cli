@@ -608,7 +608,10 @@ class TestWriteFeeds:
                 "--name",
                 f"test-feed-{unique_suffix}-renamed",
             )
-            assert_success(r, "feeds update")
+            if r.exit_code != 0:
+                if _is_sandbox_error(r.output):
+                    pytest.skip(f"feeds update not supported in sandbox: {r.output[:200]}")
+                pytest.fail(f"feeds update failed (CLI regression?): {r.output[:500]}")
         finally:
             _invoke("feeds", "delete", "--id", str(fid))
 
