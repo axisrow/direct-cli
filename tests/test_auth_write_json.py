@@ -1,7 +1,6 @@
 """Tests for direct_cli.auth._write_json cleanup semantics."""
 
 import errno
-import fcntl
 import json
 import os
 import stat
@@ -11,6 +10,9 @@ from pathlib import Path
 import pytest
 
 from direct_cli.auth import _write_json
+
+# fcntl is POSIX-only; skip the whole module on platforms without it.
+fcntl = pytest.importorskip("fcntl")
 
 
 def _wrap_mkstemp(monkeypatch, captured):
