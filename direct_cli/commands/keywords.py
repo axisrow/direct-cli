@@ -18,6 +18,12 @@ from ..utils import add_criteria_csv, parse_ids, get_default_fields, MICRO_RUBLE
 # https://yandex.ru/dev/direct/doc/dg/objects/keyword.html
 KEYWORDS_ADD_MAX_BATCH = 10
 
+# Yandex Direct caps the number of keywords per ad group at 200 (same docs).
+# Going over the limit doesn't fail pre-flight — the API rejects the excess
+# items with per-item errors, which the batch already surfaces. The warning
+# below just tells the operator before any chunk is sent.
+KEYWORDS_PER_ADGROUP_LIMIT = 200
+
 _KEYWORD_ROW_FIELDS: Dict[str, str] = {
     "Keyword": "str",
     "AdGroupId": "int",
@@ -132,6 +138,32 @@ def _load_keyword_rows_from_inline(json_str: str) -> List[Any]:
 def _chunked(items: List[Any], size: int) -> Iterator[List[Any]]:
     for start in range(0, len(items), size):
         yield items[start : start + size]
+
+
+def _warn_on_adgroup_overflow(items: List[Dict[str, Any]]) -> None:
+    counts: Dict[int, int] = {}
+    for item in items:
+        adgroup_id = item.get("AdGroupId")
+        if adgroup_id is None:
+            continue
+        counts[adgroup_id] = counts.get(adgroup_id, 0) + 1
+    over = sorted(
+        (gid, n) for gid, n in counts.items() if n > KEYWORDS_PER_ADGROUP_LIMIT
+    )
+    if not over:
+        return
+    click.echo(
+        f"Warning: input exceeds the Yandex Direct limit of "
+        f"{KEYWORDS_PER_ADGROUP_LIMIT} keywords per ad group; the API will "
+        "reject the excess with per-item errors:",
+        err=True,
+    )
+    for gid, count in over:
+        excess = count - KEYWORDS_PER_ADGROUP_LIMIT
+        click.echo(
+            f"  AdGroupId={gid}: {count} keywords ({excess} over the limit)",
+            err=True,
+        )
 
 
 def _normalize_add_results(raw: Any) -> List[Any]:
@@ -369,6 +401,8 @@ def _bulk_add(
         _normalize_keyword_row(row, idx, adgroup_id)
         for idx, row in enumerate(raw_rows, start=1)
     ]
+
+    _warn_on_adgroup_overflow(items)
 
     chunks = list(_chunked(items, KEYWORDS_ADD_MAX_BATCH))
 

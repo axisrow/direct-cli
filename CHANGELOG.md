@@ -10,13 +10,20 @@
   Yandex Direct API limit for `keywords.add` documented at
   https://yandex.ru/dev/direct/doc/dg/objects/keyword.html — preserves
   input order, and merges `AddResults` from every chunk into a single
-  response. Item-level errors do not abort the batch. Row keys use
-  WSDL CamelCase (`Keyword`, `AdGroupId`, `Bid`, `ContextBid`,
-  `UserParam1`, `UserParam2`); unknown keys are rejected with the row
-  number. `--adgroup-id` is optional in batch mode and acts as a
-  default, overridable per row. `--dry-run` prints the first chunk's
-  payload alongside `{chunks, totalItems, chunkSize}`. Single-item
-  mode (`--keyword`) is unchanged (#203).
+  response. Item-level errors do not abort the batch. If a chunk-level
+  exception breaks the loop, already-created Ids are printed to stderr
+  with a "Partial success before failure" header so a retry doesn't
+  duplicate them. Pre-flight warning when any AdGroupId in the input
+  exceeds the per-ad-group limit of 200 keywords (the API rejects the
+  excess with per-item errors; warning surfaces this before any chunk
+  is sent). Row keys use WSDL CamelCase (`Keyword`, `AdGroupId`,
+  `Bid`, `ContextBid`, `UserParam1`, `UserParam2`); unknown keys are
+  rejected with the row number, and JSON booleans are explicitly
+  rejected to prevent silent `True → 1` coercion. `--adgroup-id` is
+  optional in batch mode and acts as a default, overridable per row.
+  `--dry-run` prints the first chunk's payload alongside
+  `{chunks, totalItems, chunkSize}`. Single-item mode (`--keyword`)
+  is unchanged (#203).
 
 **Fixed:**
 

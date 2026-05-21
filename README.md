@@ -413,7 +413,9 @@ Example `keywords.jsonl`:
 - `--adgroup-id` provides the default group ID; rows can override it via per-row `AdGroupId`.
 - Each effective row must resolve `Keyword` and `AdGroupId`; unknown fields are rejected with the row number.
 - API limit: 10 items per `keywords.add` request — see [Yandex Direct docs](https://yandex.ru/dev/direct/doc/dg/objects/keyword.html). The CLI sends as many chunks as needed and merges `AddResults`.
+- API limit: 200 keywords per ad group. The CLI prints a warning if any `AdGroupId` in the input exceeds it; the API rejects the excess as per-item errors.
 - Item-level errors from the API do not abort the batch; the merged output includes successes and per-item errors.
+- If a chunk fails with a network-level error mid-batch, already-created Ids are printed to stderr (`Partial success before failure`) so a retry doesn't duplicate them.
 - `--dry-run` shows the first chunk's payload plus `{chunks, totalItems, chunkSize}`.
 
 #### Reports
@@ -1093,7 +1095,9 @@ direct keywords add --keywords-json '[{"Keyword":"купить ноутбук","
 - `--adgroup-id` задаёт значение по умолчанию; в строке можно переопределить через `AdGroupId`.
 - В каждой строке должны разрешаться `Keyword` и `AdGroupId`; неизвестные поля отклоняются с указанием номера строки.
 - API-лимит: 10 элементов на запрос `keywords.add` — см. [документацию Yandex Direct](https://yandex.ru/dev/direct/doc/dg/objects/keyword.html). CLI отправит нужное число чанков и склеит `AddResults`.
+- API-лимит: 200 ключевых слов на одну группу объявлений. CLI печатает предупреждение, если в каком-то `AdGroupId` во входе их больше; API отклонит излишек item-level ошибками.
 - Item-level ошибки от API не прерывают batch; объединённый вывод содержит и успешные Id, и ошибки.
+- При сетевой ошибке в середине batch уже созданные Id выводятся в stderr (`Partial success before failure`), чтобы при retry не возникли дубли.
 - `--dry-run` показывает payload первого чанка плюс `{chunks, totalItems, chunkSize}`.
 
 #### Отчёты

@@ -1923,8 +1923,40 @@ def test_keywords_add_empty_string_keyword_counts_as_mode():
     assert body["params"]["Keywords"][0] == {"AdGroupId": 1, "Keyword": ""}
 
 
-def test_keywords_add_batch_partial_success_on_failure(tmp_path, capsys):
-    """If a later chunk raises, already-created Ids must be surfaced to stderr."""
+def test_keywords_add_batch_warns_when_over_200_per_adgroup(tmp_path):
+    """Pre-flight warning when input has >200 keywords for the same AdGroupId
+    (Yandex Direct limit)."""
+    rows = [{"Keyword": f"kw-{i}", "AdGroupId": 1} for i in range(201)]
+    rows.append({"Keyword": "ok", "AdGroupId": 2})
+    path = _write_jsonl(tmp_path, rows)
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["keywords", "add", "--from-file", str(path), "--dry-run"],
+    )
+    assert result.exit_code == 0
+    assert "exceeds the Yandex Direct limit of 200" in result.output
+    assert "AdGroupId=1: 201 keywords (1 over the limit)" in result.output
+    # AdGroupId=2 is within the limit; must NOT be flagged.
+    assert "AdGroupId=2" not in result.output
+
+
+def test_keywords_add_batch_no_warning_under_200(tmp_path):
+    """No warning when every adgroup is within the 200-keyword limit."""
+    rows = [{"Keyword": f"kw-{i}", "AdGroupId": 1} for i in range(150)]
+    path = _write_jsonl(tmp_path, rows)
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["keywords", "add", "--from-file", str(path), "--dry-run"],
+    )
+    assert result.exit_code == 0
+    assert "exceeds the Yandex Direct limit" not in result.output
+
+
+def test_keywords_add_batch_partial_success_on_failure(tmp_path):
+    """If a later chunk raises, already-created Ids must be surfaced to the
+    user (via stderr) so a retry doesn't create duplicates."""
     rows = [{"Keyword": f"kw-{i}", "AdGroupId": 1} for i in range(15)]
     path = _write_jsonl(tmp_path, rows)
 
@@ -1952,8 +1984,10 @@ def test_keywords_add_batch_partial_success_on_failure(tmp_path, capsys):
     with patch(
         "direct_cli.commands.keywords.create_client", return_value=_StubClient()
     ):
-        runner = CliRunner(mix_stderr=False)
-        result = runner.invoke(
+        # CliRunner's default mixes stderr into result.output, which is what
+        # we want here — the partial-results message goes to stderr but lands
+        # in the combined output buffer regardless of Click version.
+        result = CliRunner().invoke(
             cli,
             [
                 "--token",
@@ -1967,11 +2001,9 @@ def test_keywords_add_batch_partial_success_on_failure(tmp_path, capsys):
             ],
         )
     assert result.exit_code != 0
-    # First chunk's Ids must be reported on stderr so the operator can avoid
-    # creating duplicates on retry.
-    assert "Partial success before failure" in result.stderr
-    assert '"Id": 1' in result.stderr
-    assert '"Id": 10' in result.stderr
+    assert "Partial success before failure" in result.output
+    assert '"Id": 1' in result.output
+    assert '"Id": 10' in result.output
 
 
 # ----------------------------------------------------------------------
