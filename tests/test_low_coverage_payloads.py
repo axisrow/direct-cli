@@ -66,7 +66,7 @@ def test_changes_check_builds_canonical_payload():
             "--timestamp",
             "2026-04-14T00:00:00",
             "--fields",
-            "CampaignId,ChangesIn",
+            "CampaignIds,CampaignsStat",
         ],
     )
 
@@ -75,7 +75,7 @@ def test_changes_check_builds_canonical_payload():
         "params": {
             "CampaignIds": [1, 2],
             "Timestamp": "2026-04-14T00:00:00Z",
-            "FieldNames": ["CampaignId", "ChangesIn"],
+            "FieldNames": ["CampaignIds", "CampaignsStat"],
         },
     }
 
