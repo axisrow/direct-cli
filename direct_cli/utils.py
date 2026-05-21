@@ -457,18 +457,48 @@ def parse_retargeting_rule_specs(
     return rules
 
 
+def _split_sitelink_spec(spec: str) -> List[str]:
+    """Split a sitelink spec by '|', treating '\\|' as a literal pipe.
+
+    UTM templates in Yandex Direct use literal '|' inside URLs
+    (e.g. cid|{campaign_id}|gid|{gbid}); allow users to escape it as '\\|'.
+    """
+    parts: List[str] = []
+    current: List[str] = []
+    i = 0
+    while i < len(spec):
+        ch = spec[i]
+        if ch == "\\" and i + 1 < len(spec) and spec[i + 1] == "|":
+            current.append("|")
+            i += 2
+            continue
+        if ch == "|":
+            parts.append("".join(current))
+            current = []
+            i += 1
+            continue
+        current.append(ch)
+        i += 1
+    parts.append("".join(current))
+    return parts
+
+
 def parse_sitelink_specs(specs: Optional[List[str]]) -> Optional[List[Dict[str, str]]]:
-    """Parse repeated TITLE|HREF[|DESCRIPTION] sitelink specs."""
+    """Parse repeated TITLE|HREF[|DESCRIPTION] sitelink specs.
+
+    Literal '|' characters inside any field can be escaped as '\\|'.
+    """
     if not specs:
         return None
 
     sitelinks = []
     for spec in specs:
-        parts = [part.strip() for part in spec.split("|")]
+        parts = [part.strip() for part in _split_sitelink_spec(spec)]
         if len(parts) not in (2, 3):
             raise ValueError(
                 "Invalid sitelink: "
-                f"'{spec}'. Expected format: TITLE|HREF[|DESCRIPTION]"
+                f"'{spec}'. Expected format: TITLE|HREF[|DESCRIPTION]. "
+                "Escape a literal '|' inside a field as '\\|'."
             )
 
         sitelink = {"Title": parts[0], "Href": parts[1]}

@@ -2934,6 +2934,140 @@ def test_sitelinks_add_parses_links_array():
     }
 
 
+def test_sitelinks_add_supports_escaped_pipe_in_href():
+    """UTM templates with literal '|' must round-trip via '\\|'. See #221."""
+    body = _dry_run(
+        "sitelinks",
+        "add",
+        "--sitelink",
+        (
+            "Главная|https://example.com/?utm_content=cid"
+            "\\|{campaign_id}\\|gid\\|{gbid}|Узнать больше"
+        ),
+    )
+    sitelink = body["params"]["SitelinksSets"][0]["Sitelinks"][0]
+    assert sitelink == {
+        "Title": "Главная",
+        "Href": "https://example.com/?utm_content=cid|{campaign_id}|gid|{gbid}",
+        "Description": "Узнать больше",
+    }
+
+
+def test_sitelinks_add_pipe_spec_invalid_raises():
+    """Unescaped '|' overflowing the 3-part shape must error with a hint."""
+    result = _rejected(
+        "sitelinks",
+        "add",
+        "--sitelink",
+        "Главная|https://example.com/?utm=cid|{cid}|gid|{gbid}|Узнать",
+    )
+    assert "Invalid sitelink" in result.output
+    assert "\\|" in result.output
+
+
+def test_sitelinks_add_from_inline_json():
+    body = _dry_run(
+        "sitelinks",
+        "add",
+        "--sitelink-json",
+        json.dumps(
+            [
+                {
+                    "Title": "Главная",
+                    "Href": "https://example.com/?utm=cid|{cid}",
+                    "Description": "Узнать",
+                },
+                {"Title": "Контакты", "Href": "https://example.com/contact"},
+            ]
+        ),
+    )
+    assert body["params"]["SitelinksSets"][0]["Sitelinks"] == [
+        {
+            "Title": "Главная",
+            "Href": "https://example.com/?utm=cid|{cid}",
+            "Description": "Узнать",
+        },
+        {"Title": "Контакты", "Href": "https://example.com/contact"},
+    ]
+
+
+def test_sitelinks_add_from_file_jsonl(tmp_path):
+    jsonl_path = tmp_path / "sitelinks.jsonl"
+    jsonl_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "Title": "Главная",
+                        "Href": "https://example.com/?utm=cid|{cid}",
+                    }
+                ),
+                "",
+                json.dumps(
+                    {
+                        "Title": "Контакты",
+                        "Href": "https://example.com/contact",
+                        "Description": "Связаться",
+                    }
+                ),
+            ]
+        ),
+        encoding="utf-8",
+    )
+    body = _dry_run(
+        "sitelinks",
+        "add",
+        "--sitelinks-from-file",
+        str(jsonl_path),
+    )
+    assert body["params"]["SitelinksSets"][0]["Sitelinks"] == [
+        {"Title": "Главная", "Href": "https://example.com/?utm=cid|{cid}"},
+        {
+            "Title": "Контакты",
+            "Href": "https://example.com/contact",
+            "Description": "Связаться",
+        },
+    ]
+
+
+def test_sitelinks_add_mixed_sources_rejected():
+    result = _rejected(
+        "sitelinks",
+        "add",
+        "--sitelink",
+        "About|https://example.com/about",
+        "--sitelink-json",
+        '[{"Title":"X","Href":"https://example.com/"}]',
+    )
+    assert "mutually exclusive" in result.output
+
+
+def test_sitelinks_add_no_source_rejected():
+    result = _rejected("sitelinks", "add")
+    assert "Provide exactly one of" in result.output
+
+
+def test_sitelinks_add_json_missing_href_rejected():
+    result = _rejected(
+        "sitelinks",
+        "add",
+        "--sitelink-json",
+        '[{"Title":"Главная"}]',
+    )
+    assert "Sitelink #1" in result.output
+    assert "Href" in result.output
+
+
+def test_sitelinks_add_json_not_array_rejected():
+    result = _rejected(
+        "sitelinks",
+        "add",
+        "--sitelink-json",
+        '{"Title":"X","Href":"https://example.com/"}',
+    )
+    assert "must be a JSON array" in result.output
+
+
 # ----------------------------------------------------------------------
 # vcards
 # ----------------------------------------------------------------------

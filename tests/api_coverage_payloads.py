@@ -375,6 +375,29 @@ PAYLOAD_CASES = [
         ],
     ),
     (
+        "sitelinks",
+        "add",
+        [
+            "sitelinks",
+            "add",
+            "--sitelink",
+            "Главная|https://example.com/?utm=cid\\|{campaign_id}\\|gid|Подробнее",
+        ],
+    ),
+    (
+        "sitelinks",
+        "add",
+        [
+            "sitelinks",
+            "add",
+            "--sitelink-json",
+            (
+                '[{"Title":"Главная","Href":"https://example.com/?utm=cid|{cid}",'
+                '"Description":"Подробнее"}]'
+            ),
+        ],
+    ),
+    (
         "smartadtargets",
         "add",
         [
