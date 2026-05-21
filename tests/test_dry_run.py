@@ -3068,6 +3068,32 @@ def test_sitelinks_add_json_not_array_rejected():
     assert "must be a JSON array" in result.output
 
 
+def test_sitelinks_add_rejects_unknown_field():
+    """Typo in a JSON key must fail loudly, not silently drop. See PR #223."""
+    result = _rejected(
+        "sitelinks",
+        "add",
+        "--sitelink-json",
+        json.dumps(
+            [
+                {
+                    "Title": "Главная",
+                    "Href": "https://example.com/",
+                    "Decsription": "typo",
+                }
+            ]
+        ),
+    )
+    assert "Unknown field 'Decsription'" in result.output
+    assert "sitelink #1" in result.output
+
+
+def test_sitelinks_add_empty_json_rejected():
+    """`--sitelink-json ''` is provided-but-invalid, not absent. See PR #223."""
+    result = _rejected("sitelinks", "add", "--sitelink-json", "")
+    assert "invalid JSON" in result.output
+
+
 # ----------------------------------------------------------------------
 # vcards
 # ----------------------------------------------------------------------

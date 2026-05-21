@@ -12,12 +12,22 @@ from ..api import create_client
 from ..output import format_output, print_error
 from ..utils import get_default_fields, parse_ids, parse_sitelink_specs
 
+_SITELINK_FIELDS = ("Title", "Href", "Description")
+
 
 def _normalize_sitelink_row(row: Any, index: int) -> Dict[str, str]:
     if not isinstance(row, dict):
         raise click.UsageError(
             f"Sitelink #{index}: expected a JSON object, got {type(row).__name__}"
         )
+
+    unknown = sorted(set(row) - set(_SITELINK_FIELDS))
+    if unknown:
+        allowed = ", ".join(_SITELINK_FIELDS)
+        raise click.UsageError(
+            f"Unknown field {unknown[0]!r} in sitelink #{index}; allowed: {allowed}"
+        )
+
     if "Title" not in row or not str(row.get("Title") or "").strip():
         raise click.UsageError(f"Sitelink #{index}: missing required field 'Title'")
     if "Href" not in row or not str(row.get("Href") or "").strip():
@@ -151,14 +161,10 @@ def add(ctx, sitelinks_specs, sitelinks_json, sitelinks_from_file, dry_run):
     Provide exactly one source: --sitelink (repeatable), --sitelink-json,
     or --sitelinks-from-file.
     """
-    sources_used = sum(
-        1
-        for value in (
-            sitelinks_specs or None,
-            sitelinks_json,
-            sitelinks_from_file,
-        )
-        if value
+    sources_used = (
+        (1 if sitelinks_specs else 0)
+        + (1 if sitelinks_json is not None else 0)
+        + (1 if sitelinks_from_file is not None else 0)
     )
     if sources_used == 0:
         raise click.UsageError(
