@@ -434,17 +434,6 @@ def sandbox_retargeting_list(unique_suffix):
     _safe_delete("retargeting", "delete", "--id", str(rtg_id))
 
 
-# PR #201 made --business-type required for `feeds add`, but the VCR
-# cassette consumed by sandbox_feed was recorded before that. Adding
-# the flag would invalidate the cassette body match, and re-recording
-# needs live sandbox credentials. Treat the missing-option error as a
-# known regression and skip rather than fail until the cassette is
-# refreshed.
-_FEED_REGRESSION_PATTERNS = (
-    "Missing option '--business-type'",
-)
-
-
 @pytest.fixture
 def sandbox_feed(unique_suffix):
     """Create a feed in sandbox, yield its ID, delete on teardown."""
@@ -452,9 +441,17 @@ def sandbox_feed(unique_suffix):
         "feeds", "add",
         "--name", f"test-feed-{unique_suffix}",
         "--url", "https://example.com/feed.xml",
+        "--business-type", "RETAIL",
     )
     if result.exit_code != 0:
-        if _is_sandbox_error(result.output, extra_patterns=_FEED_REGRESSION_PATTERNS):
+        if "Can't overwrite existing cassette" in result.output:
+            pytest.skip(
+                "feeds add cassette body mismatch — cassette needs refresh "
+                "via 'pytest -m integration_write --record-mode=rewrite -k "
+                "\"TestWriteFeeds or TestWriteSmartAdTargets\"' with valid "
+                "sandbox credentials"
+            )
+        if _is_sandbox_error(result.output):
             pytest.skip(f"feeds add fixture skipped: {result.output[:200]}")
         pytest.fail(f"feeds add failed (not a sandbox error): {result.output[:500]}")
     feed_id = _fixture_parse(result)

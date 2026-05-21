@@ -319,10 +319,10 @@ WSDL_FIELD_TO_CLI_OPTION: dict[str, set[str]] = {
     "Name": {"--name"},
     "StartDate": {"--start-date"},
     "BusinessType": {"--business-type"},
-    "SourceType": {"--url", "--file"},  # derived inside the command
+    "SourceType": {"--url"},  # derived inside the command
     "Id": {"--id"},
     "Keyword": {"--keyword"},
-    "ImageData": {"--file", "--image-data"},
+    "ImageData": {"--image-data", "--image-file"},
     "BidModifier": {"--value"},
     "VideoExtensionCreative": {"--video-id"},
     "Audience": {"--audience"},
@@ -393,6 +393,13 @@ def test_wsdl_required_fields_have_cli_options(
     cli_group, cli_op = command_key
     api_service, wsdl_op, container = COMMAND_WSDL_MAP[command_key]
     schema = get_operation_request_schema(fetch_wsdl(api_service), wsdl_op)
+    container_names = {field["name"] for field in schema.get("fields", [])}
+    assert container in container_names, (
+        f"{cli_group}.{cli_op}: COMMAND_WSDL_MAP points at container "
+        f"{container!r} but the WSDL request schema for "
+        f"{api_service}.{wsdl_op} only declares {sorted(container_names)}. "
+        f"Fix the mapping or refresh tests/wsdl_cache/{api_service}.xml."
+    )
     wsdl_required = get_required_item_fields(schema, container)
     if not wsdl_required:
         pytest.skip(f"{cli_group}.{cli_op}: WSDL declares no required item fields")

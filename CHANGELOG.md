@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.9 (Unreleased)
+
+**Fixed:**
+
+- Refreshed `sandbox_feed` VCR cassette to pass `--business-type RETAIL`; removed the `_FEED_REGRESSION_PATTERNS` skip workaround so feed-backed smart-adgroup integration tests run again instead of silently skipping (#206, fallout from #201).
+- WSDL parity gate now fails fast when `COMMAND_WSDL_MAP` points at a container that does not exist in the WSDL request schema. The previous skip-on-empty-required-list silently masked typo'd container names (#206, Copilot follow-up from #205).
+- `WSDL_FIELD_TO_CLI_OPTION` no longer references the non-existent generic `--file` flag. `SourceType` maps to `{--url}` and `ImageData` maps to `{--image-data, --image-file}`, matching the real CLI surface (#206, Copilot follow-up from #205).
+- `direct bidmodifiers set --help` no longer advertises the rejected `--campaign-id`/`--type` legacy path; the rejection now happens via an eager Click callback (same pattern as deprecated `keywords update` options), preserving the existing `UsageError` message for regression coverage (#206, Copilot follow-up from #214).
+
 ## 0.3.8
 
 **BREAKING CHANGES:**

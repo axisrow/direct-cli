@@ -302,6 +302,27 @@ def add(
         raise click.Abort()
 
 
+_DEPRECATED_BIDMODIFIERS_SET_OPTIONS = {
+    "campaign_id": (
+        "--campaign-id is no longer accepted on 'bidmodifiers set'; "
+        "legacy --campaign-id/--type shape is not supported by "
+        "WSDL BidModifierSetItem; use bidmodifiers add to create a new "
+        "modifier."
+    ),
+    "modifier_type": (
+        "--type is no longer accepted on 'bidmodifiers set'; "
+        "legacy --campaign-id/--type shape is not supported by "
+        "WSDL BidModifierSetItem; use bidmodifiers add to create a new "
+        "modifier."
+    ),
+}
+
+
+def _deprecated_legacy_option(ctx, param, value):
+    if value is not None:
+        raise click.UsageError(_DEPRECATED_BIDMODIFIERS_SET_OPTIONS[param.name])
+
+
 @bidmodifiers.command()
 @click.option(
     "--id",
@@ -311,33 +332,32 @@ def add(
         "Existing BidModifier ID to update. This is the shape Yandex "
         "Direct's ``bidmodifiers/set`` method actually supports — pass "
         "the Id of a modifier created via ``bidmodifiers add`` and the "
-        "new ``--value``. Mutually exclusive with --campaign-id/--type."
+        "new ``--value``."
     ),
 )
 @click.option(
     "--campaign-id",
-    type=int,
-    help=(
-        "Campaign ID (legacy path, broken by design — kept for "
-        "backwards compatibility and regression coverage; the API "
-        "rejects this shape with ``required field Id is omitted``). "
-        "Use --id for real updates."
-    ),
+    default=None,
+    expose_value=False,
+    callback=_deprecated_legacy_option,
+    is_eager=True,
+    hidden=True,
+    help="Removed: legacy --campaign-id/--type shape not supported by bidmodifiers set",
 )
 @click.option(
     "--type",
     "modifier_type",
-    type=click.Choice(sorted(_BIDMODIFIER_TYPE_TO_NESTED.keys()), case_sensitive=False),
-    help=(
-        "Modifier category (legacy path). Uses the same enum as "
-        "``bidmodifiers add`` (MOBILE_ADJUSTMENT / DEMOGRAPHICS_ADJUSTMENT "
-        "/ ...), case-insensitive."
-    ),
+    default=None,
+    expose_value=False,
+    callback=_deprecated_legacy_option,
+    is_eager=True,
+    hidden=True,
+    help="Removed: legacy --campaign-id/--type shape not supported by bidmodifiers set",
 )
 @click.option("--value", type=int, required=True, help="Modifier value")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def set(ctx, modifier_id, campaign_id, modifier_type, value, dry_run):
+def set(ctx, modifier_id, value, dry_run):
     """Set (update) an existing bid modifier
 
     The Yandex Direct API's ``bidmodifiers/set`` method updates existing
@@ -345,15 +365,6 @@ def set(ctx, modifier_id, campaign_id, modifier_type, value, dry_run):
     instead.
     """
     try:
-        # Validate the mutex up front.
-        if modifier_id is not None and (
-            campaign_id is not None or modifier_type is not None
-        ):
-            raise click.UsageError(
-                "--id is mutually exclusive with --campaign-id/--type. "
-                "Use --id + --value for the correct bidmodifiers/set shape."
-            )
-
         if modifier_id is None:
             raise click.UsageError(
                 "Provide --id with --value for bidmodifiers set. "
