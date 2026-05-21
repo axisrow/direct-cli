@@ -925,6 +925,62 @@ def test_ads_add_rejects_mobile_yes_on_text_image_ad():
     assert "--mobile is not compatible with --type TEXT_IMAGE_AD" in result.output
 
 
+def test_ads_add_rejects_explicit_mobile_no_on_text_image_ad():
+    """Even explicit --mobile NO on a non-TEXT_AD subtype must be rejected.
+
+    The Click default for --mobile is ``NO``, but per WSDL parity (#198 H2),
+    a typed flag does not silently drop based on its value — passing the flag
+    explicitly on an incompatible subtype must raise UsageError.
+    """
+    result = CliRunner().invoke(
+        cli,
+        [
+            "ads",
+            "add",
+            "--adgroup-id",
+            "1",
+            "--type",
+            "TEXT_IMAGE_AD",
+            "--image-hash",
+            "abcdefghij",
+            "--href",
+            "https://example.com",
+            "--mobile",
+            "NO",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "--mobile is not compatible with --type TEXT_IMAGE_AD" in result.output
+
+
+def test_ads_add_text_image_ad_default_mobile_does_not_leak():
+    """Regression: omitting --mobile must NOT trigger the Pattern B guard.
+
+    Click fills --mobile with its default ``NO`` on every invocation, so the
+    guard's per-subtype check must distinguish "explicitly passed" from
+    "default" via ``ctx.get_parameter_source``.
+    """
+    body = _dry_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "1",
+        "--type",
+        "TEXT_IMAGE_AD",
+        "--image-hash",
+        "abcdefghij",
+        "--href",
+        "https://example.com",
+    )
+    ad = body["params"]["Ads"][0]
+    assert ad["TextImageAd"] == {
+        "AdImageHash": "abcdefghij",
+        "Href": "https://example.com",
+    }
+    assert "Mobile" not in ad["TextImageAd"]
+
+
 def test_ads_update_rejects_status_flag():
     """``--status`` is not part of WSDL ``AdUpdateItem`` (regression for #183).
 

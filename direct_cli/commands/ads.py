@@ -240,11 +240,17 @@ def add(
                 "'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD'."
             )
 
-        # --mobile has a Click default of "NO", so the value is always
-        # present. Track explicit user intent for the per-subtype check by
-        # comparing against the default; mismatches on non-TEXT_AD subtypes
-        # are flagged below.
-        mobile_provided = mobile if mobile and mobile.upper() != "NO" else None
+        # --mobile has a Click default of "NO" so the value is always present
+        # in the payload, but the per-subtype guard must reject any explicit
+        # use of --mobile on non-TEXT_AD subtypes — including --mobile NO —
+        # to avoid silent data loss (issue #198 H2 / #202).
+        mobile_source = ctx.get_parameter_source("mobile")
+        mobile_explicit = (
+            mobile_source != click.core.ParameterSource.DEFAULT
+            if mobile_source
+            else False
+        )
+        mobile_provided = mobile if mobile_explicit else None
 
         type_fields = {
             "TEXT_AD": {
