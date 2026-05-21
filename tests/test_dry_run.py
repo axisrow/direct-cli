@@ -1785,6 +1785,17 @@ def test_keywords_add_rejects_empty_file(tmp_path):
     assert "Input contains no keyword rows" in result.output
 
 
+def test_keywords_add_rejects_empty_json_array():
+    result = _rejected("keywords", "add", "--keywords-json", "[]")
+    assert "Input contains no keyword rows" in result.output
+
+
+def test_keywords_add_rejects_non_object_row_in_inline():
+    result = _rejected("keywords", "add", "--keywords-json", "[1, 2, 3]")
+    assert "Row 1" in result.output
+    assert "expected JSON object" in result.output
+
+
 def test_keywords_add_rejects_mutex(tmp_path):
     path = _write_jsonl(tmp_path, [{"Keyword": "kw", "AdGroupId": 1}])
     result = _rejected(
@@ -1796,6 +1807,19 @@ def test_keywords_add_rejects_mutex(tmp_path):
         "1",
         "--from-file",
         path,
+    )
+    assert "Provide exactly one of" in result.output
+
+
+def test_keywords_add_rejects_mutex_file_and_inline(tmp_path):
+    path = _write_jsonl(tmp_path, [{"Keyword": "kw", "AdGroupId": 1}])
+    result = _rejected(
+        "keywords",
+        "add",
+        "--from-file",
+        path,
+        "--keywords-json",
+        "[]",
     )
     assert "Provide exactly one of" in result.output
 
