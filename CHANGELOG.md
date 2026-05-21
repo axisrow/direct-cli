@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+**Added:**
+
+- `direct campaigns add` and `direct campaigns update` now expose
+  `--tracking-params` for the campaign-level tracking query string
+  (`TextCampaign` / `DynamicTextCampaign` / `SmartCampaign` `.TrackingParams`).
+  `campaigns update` gained an optional `--type` discriminator —
+  required when `--tracking-params` is set, validated against
+  the three subtypes supported by the CLI. Backward compatible:
+  existing `campaigns update --id N --name X` calls without `--type`
+  keep working unchanged. Closes #230.
+
 ## 0.3.10
 
 **Added:**

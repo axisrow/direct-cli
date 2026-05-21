@@ -601,6 +601,15 @@ def get(
         '({"Schedule":[...], "ConsiderWorkingWeekends":"YES|NO", ...})'
     ),
 )
+@click.option(
+    "--tracking-params",
+    "tracking_params",
+    help=(
+        "Tracking params query-string for "
+        "TextCampaign/DynamicTextCampaign/SmartCampaign.TrackingParams "
+        '(e.g. "utm_source=direct&utm_campaign={campaign_id}")'
+    ),
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def add(
@@ -623,6 +632,7 @@ def add(
     bid_ceiling,
     notification_json,
     time_targeting_json,
+    tracking_params,
     dry_run,
 ):
     """Add new campaign"""
@@ -664,12 +674,14 @@ def add(
                 "--setting",
                 "--search-strategy",
                 "--network-strategy",
+                "--tracking-params",
             }
             | text_dynamic_extras,
             "DYNAMIC_TEXT_CAMPAIGN": {
                 "--setting",
                 "--search-strategy",
                 "--network-strategy",
+                "--tracking-params",
             }
             | text_dynamic_extras,
             "SMART_CAMPAIGN": {
@@ -678,6 +690,7 @@ def add(
                 "--network-strategy",
                 "--filter-average-cpc",
                 "--counter-id",
+                "--tracking-params",
             },
         }
         _reject_incompatible_flags(
@@ -695,6 +708,7 @@ def add(
                 "--average-cpa": average_cpa,
                 "--crr": crr,
                 "--bid-ceiling": bid_ceiling,
+                "--tracking-params": tracking_params,
             },
         )
 
@@ -753,6 +767,8 @@ def add(
                 priority_goals_items=priority_goals_items,
                 sub_campaign_block=text_block,
             )
+            if tracking_params:
+                text_block["TrackingParams"] = tracking_params
             campaign_data["TextCampaign"] = text_block
         elif campaign_type_norm == "DYNAMIC_TEXT_CAMPAIGN":
             dyn_block = {
@@ -779,6 +795,8 @@ def add(
                 priority_goals_items=priority_goals_items,
                 sub_campaign_block=dyn_block,
             )
+            if tracking_params:
+                dyn_block["TrackingParams"] = tracking_params
             campaign_data["DynamicTextCampaign"] = dyn_block
         elif campaign_type_norm == "SMART_CAMPAIGN":
             # WSDL SmartCampaignAddItem.CounterId is minOccurs=1
@@ -815,6 +833,8 @@ def add(
                 }
             if parsed_settings:
                 smart_campaign["Settings"] = parsed_settings
+            if tracking_params:
+                smart_campaign["TrackingParams"] = tracking_params
             campaign_data["SmartCampaign"] = smart_campaign
 
         if budget:
@@ -863,9 +883,37 @@ def add(
 @click.option("--budget", type=MICRO_RUBLES, help="New daily budget in micro-rubles")
 @click.option("--start-date", help="New start date (YYYY-MM-DD)")
 @click.option("--end-date", help="New end date (YYYY-MM-DD)")
+@click.option(
+    "--type",
+    "campaign_type",
+    help=(
+        "Campaign subtype "
+        "(TEXT_CAMPAIGN | DYNAMIC_TEXT_CAMPAIGN | SMART_CAMPAIGN). "
+        "Required when updating subtype-specific fields."
+    ),
+)
+@click.option(
+    "--tracking-params",
+    "tracking_params",
+    help=(
+        "Tracking params query-string for "
+        "TextCampaign/DynamicTextCampaign/SmartCampaign.TrackingParams"
+    ),
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def update(ctx, campaign_id, name, status, budget, start_date, end_date, dry_run):
+def update(
+    ctx,
+    campaign_id,
+    name,
+    status,
+    budget,
+    start_date,
+    end_date,
+    campaign_type,
+    tracking_params,
+    dry_run,
+):
     """Update campaign"""
     try:
         campaign_data = {"Id": campaign_id}
@@ -885,6 +933,60 @@ def update(ctx, campaign_id, name, status, budget, start_date, end_date, dry_run
             campaign_data["StartDate"] = start_date
         if end_date:
             campaign_data["EndDate"] = end_date
+
+        subtype_supported = {
+            "TEXT_CAMPAIGN",
+            "DYNAMIC_TEXT_CAMPAIGN",
+            "SMART_CAMPAIGN",
+        }
+        campaign_type_norm = (
+            campaign_type.upper().replace("-", "_") if campaign_type else None
+        )
+        subtype_flag_values = {
+            "--tracking-params": tracking_params,
+        }
+        subtype_flags_provided = [
+            flag for flag, value in subtype_flag_values.items() if value is not None
+        ]
+        if (
+            campaign_type_norm is not None
+            and campaign_type_norm not in subtype_supported
+        ):
+            raise click.UsageError(
+                "Invalid value for '--type': "
+                f"{campaign_type!r} is not one of "
+                "'TEXT_CAMPAIGN', 'DYNAMIC_TEXT_CAMPAIGN', 'SMART_CAMPAIGN'."
+            )
+        if subtype_flags_provided and campaign_type_norm is None:
+            raise click.UsageError(
+                f"{', '.join(sorted(subtype_flags_provided))} requires --type "
+                "(TEXT_CAMPAIGN | DYNAMIC_TEXT_CAMPAIGN | SMART_CAMPAIGN)."
+            )
+        if campaign_type_norm is not None:
+            allowed_subtype_flags_by_type = {
+                "TEXT_CAMPAIGN": {"--tracking-params"},
+                "DYNAMIC_TEXT_CAMPAIGN": {"--tracking-params"},
+                "SMART_CAMPAIGN": {"--tracking-params"},
+            }
+            _reject_incompatible_flags(
+                campaign_type_norm,
+                allowed_subtype_flags_by_type[campaign_type_norm],
+                subtype_flag_values,
+            )
+            sub_block: Dict[str, object] = {}
+            if tracking_params:
+                sub_block["TrackingParams"] = tracking_params
+            if not sub_block:
+                raise click.UsageError(
+                    f"--type {campaign_type_norm} requires at least one "
+                    "subtype-specific field to update."
+                )
+            subtype_container = {
+                "TEXT_CAMPAIGN": "TextCampaign",
+                "DYNAMIC_TEXT_CAMPAIGN": "DynamicTextCampaign",
+                "SMART_CAMPAIGN": "SmartCampaign",
+            }[campaign_type_norm]
+            campaign_data[subtype_container] = sub_block
 
         if len(campaign_data) == 1:
             raise click.UsageError("Provide at least one field to update")
