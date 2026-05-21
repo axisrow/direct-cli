@@ -3,6 +3,7 @@ Authentication module for Direct CLI
 """
 
 import base64
+import contextlib
 import hashlib
 import json
 import logging
@@ -148,10 +149,15 @@ def _write_json(path: Path, payload: Dict[str, Any]) -> None:
     try:
         os.chmod(tmp, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as f:
+            fd = -1  # ownership transferred to the file object
             f.write(json.dumps(payload, ensure_ascii=False, indent=2))
         os.replace(tmp, path)
     except Exception:
-        os.unlink(tmp)
+        if fd != -1:
+            with contextlib.suppress(OSError):
+                os.close(fd)
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
         raise
 
 
