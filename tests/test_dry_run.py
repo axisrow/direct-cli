@@ -1907,6 +1907,73 @@ def test_keywords_add_single_still_raises_on_item_error():
     )
 
 
+def test_keywords_add_rejects_bool_in_row(tmp_path):
+    """JSON booleans must NOT be silently coerced to 1/0 for int/micro fields."""
+    path = _write_jsonl(tmp_path, [{"Keyword": "kw", "AdGroupId": True}])
+    result = _rejected("keywords", "add", "--from-file", path)
+    assert "Row 1 field 'AdGroupId'" in result.output
+    assert "bool" in result.output
+
+
+def test_keywords_add_empty_string_keyword_counts_as_mode():
+    """`--keyword ''` must register as mode-provided, not fall through to
+    'Provide exactly one of' (mode-detection uses `is not None`, not
+    truthiness)."""
+    body = _dry_run("keywords", "add", "--keyword", "", "--adgroup-id", "1")
+    assert body["params"]["Keywords"][0] == {"AdGroupId": 1, "Keyword": ""}
+
+
+def test_keywords_add_batch_partial_success_on_failure(tmp_path, capsys):
+    """If a later chunk raises, already-created Ids must be surfaced to stderr."""
+    rows = [{"Keyword": f"kw-{i}", "AdGroupId": 1} for i in range(15)]
+    path = _write_jsonl(tmp_path, rows)
+
+    call_count = {"n": 0}
+
+    class _StubExtract:
+        def extract(self):
+            return {"AddResults": [{"Id": i + 1} for i in range(10)]}
+
+    class _StubResult:
+        def __call__(self):
+            return _StubExtract()
+
+    class _StubKeywords:
+        def post(self, data):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                return _StubResult()
+            raise RuntimeError("network blip on second chunk")
+
+    class _StubClient:
+        def keywords(self):
+            return _StubKeywords()
+
+    with patch(
+        "direct_cli.commands.keywords.create_client", return_value=_StubClient()
+    ):
+        runner = CliRunner(mix_stderr=False)
+        result = runner.invoke(
+            cli,
+            [
+                "--token",
+                "T",
+                "--login",
+                "L",
+                "keywords",
+                "add",
+                "--from-file",
+                str(path),
+            ],
+        )
+    assert result.exit_code != 0
+    # First chunk's Ids must be reported on stderr so the operator can avoid
+    # creating duplicates on retry.
+    assert "Partial success before failure" in result.stderr
+    assert '"Id": 1' in result.stderr
+    assert '"Id": 10' in result.stderr
+
+
 # ----------------------------------------------------------------------
 # bids / keywordbids
 # ----------------------------------------------------------------------

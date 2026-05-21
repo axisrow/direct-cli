@@ -30,6 +30,10 @@ _KEYWORD_ROW_FIELDS: Dict[str, str] = {
 
 def _coerce_keyword_field(field: str, raw_value: Any, row_index: int) -> Any:
     kind = _KEYWORD_ROW_FIELDS[field]
+    if isinstance(raw_value, bool):
+        raise click.UsageError(
+            f"Row {row_index} field {field!r}: expected {kind}, got bool"
+        )
     if kind == "str":
         if not isinstance(raw_value, str):
             raise click.UsageError(
@@ -38,15 +42,15 @@ def _coerce_keyword_field(field: str, raw_value: Any, row_index: int) -> Any:
             )
         return raw_value
     if kind == "int":
-        if isinstance(raw_value, bool) or not isinstance(raw_value, int):
-            try:
-                return int(raw_value)
-            except (TypeError, ValueError):
-                raise click.UsageError(
-                    f"Row {row_index} field {field!r}: expected integer, "
-                    f"got {raw_value!r}"
-                )
-        return raw_value
+        if isinstance(raw_value, int):
+            return raw_value
+        try:
+            return int(raw_value)
+        except (TypeError, ValueError):
+            raise click.UsageError(
+                f"Row {row_index} field {field!r}: expected integer, "
+                f"got {raw_value!r}"
+            )
     if kind == "micro":
         try:
             return MICRO_RUBLES.convert(raw_value, None, None)
@@ -274,7 +278,9 @@ def add(
     dry_run,
 ):
     """Add one or many keywords (batch via --from-file / --keywords-json)."""
-    modes_used = sum(1 for value in (keyword, from_file, keywords_json) if value)
+    modes_used = sum(
+        1 for value in (keyword, from_file, keywords_json) if value is not None
+    )
     if modes_used == 0:
         raise click.UsageError(
             "Provide exactly one of: --keyword (single), --from-file (JSONL), "
@@ -379,6 +385,7 @@ def _bulk_add(
         print(format_json(preview, indent=2))
         return
 
+    all_results: List[Any] = []
     try:
         client = create_client(
             token=ctx.obj.get("token"),
@@ -386,7 +393,6 @@ def _bulk_add(
             sandbox=ctx.obj.get("sandbox"),
         )
 
-        all_results: List[Any] = []
         for index, chunk in enumerate(chunks, start=1):
             click.echo(
                 f"Sending chunk {index}/{len(chunks)}: {len(chunk)} items",
@@ -400,6 +406,13 @@ def _bulk_add(
     except click.UsageError:
         raise
     except Exception as e:
+        if all_results:
+            click.echo(
+                "Partial success before failure — these keywords were already "
+                "created in Yandex Direct (retrying will duplicate them):",
+                err=True,
+            )
+            click.echo(format_json({"AddResults": all_results}, indent=2), err=True)
         print_error(str(e))
         raise click.Abort()
 
