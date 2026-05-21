@@ -341,6 +341,25 @@ direct campaigns add --name "My Campaign" --start-date 2024-02-01 --type TEXT_CA
 direct campaigns add --name "Dynamic Campaign" --start-date 2024-02-01 --type DYNAMIC_TEXT_CAMPAIGN --setting ADD_METRICA_TAG=NO --search-strategy HIGHEST_POSITION --network-strategy SERVING_OFF --dry-run
 direct campaigns add --name "Smart Campaign" --start-date 2024-02-01 --type SMART_CAMPAIGN --network-strategy AVERAGE_CPC_PER_FILTER --filter-average-cpc 1000000 --counter-id 123 --dry-run
 
+# CPA strategy (single goal): --goal-id is required at the API level,
+# --average-cpa and --bid-ceiling are micro-rubles
+direct campaigns add --name "CPA Campaign" --start-date 2026-06-01 --type TEXT_CAMPAIGN \
+  --search-strategy AVERAGE_CPA --network-strategy SERVING_OFF \
+  --goal-id 1234567 --average-cpa 500000000 --bid-ceiling 1000000000 \
+  --counter-ids 111,222 --dry-run
+
+# Multi-goal CPA via PriorityGoals (goal_id:value pairs, WSDL PriorityGoalsItem)
+direct campaigns add --name "Multi-Goal CPA" --start-date 2026-06-01 --type TEXT_CAMPAIGN \
+  --search-strategy AVERAGE_CPA_MULTIPLE_GOALS --network-strategy SERVING_OFF \
+  --priority-goals 1234567:80,9876543:20 --bid-ceiling 1000000000 --dry-run
+
+# Notification (Sms/Email) and TimeTargeting accept JSON with WSDL CamelCase keys
+direct campaigns add --name "Notify+Schedule" --start-date 2026-06-01 --type TEXT_CAMPAIGN \
+  --search-strategy HIGHEST_POSITION --network-strategy SERVING_OFF \
+  --notification '{"EmailSettings":{"Email":"ops@example.com","SendWarnings":"YES"}}' \
+  --time-targeting '{"Schedule":["1A0123456789ABCDEFGHIJKL"],"ConsiderWorkingWeekends":"YES"}' \
+  --dry-run
+
 # Update / lifecycle
 direct campaigns update --id 12345 --name "New Name" --status SUSPENDED --budget 100000000 --start-date 2024-02-10 --end-date 2024-03-01
 direct campaigns suspend --id 12345
@@ -1021,6 +1040,25 @@ direct campaigns get --fetch-all --format csv --output campaigns.csv
 direct campaigns add --name "Моя кампания" --start-date 2024-02-01 --type TEXT_CAMPAIGN --budget 1000000000 --setting ADD_METRICA_TAG=YES --search-strategy HIGHEST_POSITION --network-strategy SERVING_OFF --dry-run
 direct campaigns add --name "Динамическая кампания" --start-date 2024-02-01 --type DYNAMIC_TEXT_CAMPAIGN --setting ADD_METRICA_TAG=NO --search-strategy HIGHEST_POSITION --network-strategy SERVING_OFF --dry-run
 direct campaigns add --name "Смарт-кампания" --start-date 2024-02-01 --type SMART_CAMPAIGN --network-strategy AVERAGE_CPC_PER_FILTER --filter-average-cpc 1000000 --counter-id 123 --dry-run
+
+# CPA-стратегия (одна цель): --goal-id обязателен для API,
+# --average-cpa и --bid-ceiling — micro-рубли
+direct campaigns add --name "CPA-кампания" --start-date 2026-06-01 --type TEXT_CAMPAIGN \
+  --search-strategy AVERAGE_CPA --network-strategy SERVING_OFF \
+  --goal-id 1234567 --average-cpa 500000000 --bid-ceiling 1000000000 \
+  --counter-ids 111,222 --dry-run
+
+# Мульти-целевой CPA через PriorityGoals (пары goal_id:value, WSDL PriorityGoalsItem)
+direct campaigns add --name "Мульти-целевой CPA" --start-date 2026-06-01 --type TEXT_CAMPAIGN \
+  --search-strategy AVERAGE_CPA_MULTIPLE_GOALS --network-strategy SERVING_OFF \
+  --priority-goals 1234567:80,9876543:20 --bid-ceiling 1000000000 --dry-run
+
+# Notification (Sms/Email) и TimeTargeting принимают JSON с CamelCase ключами WSDL
+direct campaigns add --name "Уведомления+Расписание" --start-date 2026-06-01 --type TEXT_CAMPAIGN \
+  --search-strategy HIGHEST_POSITION --network-strategy SERVING_OFF \
+  --notification '{"EmailSettings":{"Email":"ops@example.com","SendWarnings":"YES"}}' \
+  --time-targeting '{"Schedule":["1A0123456789ABCDEFGHIJKL"],"ConsiderWorkingWeekends":"YES"}' \
+  --dry-run
 
 # Обновление и управление статусом
 direct campaigns update --id 12345 --name "Новое название" --status SUSPENDED --budget 100000000 --start-date 2024-02-10 --end-date 2024-03-01
