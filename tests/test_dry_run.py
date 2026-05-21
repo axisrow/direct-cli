@@ -1858,8 +1858,11 @@ def test_keywords_add_rejects_no_mode():
     assert "Provide exactly one of" in result.output
 
 
-def test_keywords_add_single_still_raises_on_item_error():
+def test_keywords_add_single_still_raises_on_item_error(monkeypatch):
     """Single-mode (non-batch) must still bubble item-level Errors."""
+    import importlib
+
+    keywords_module = importlib.import_module("direct_cli.commands.keywords")
     from direct_cli.output import DirectAPIResultError
 
     class _StubExtract:
@@ -1880,25 +1883,23 @@ def test_keywords_add_single_still_raises_on_item_error():
         def keywords(self):
             return _StubKeywords()
 
-    with patch(
-        "direct_cli.commands.keywords.create_client", return_value=_StubClient()
-    ):
-        runner = CliRunner()
-        result = runner.invoke(
-            cli,
-            [
-                "--token",
-                "T",
-                "--login",
-                "L",
-                "keywords",
-                "add",
-                "--adgroup-id",
-                "1",
-                "--keyword",
-                "kw",
-            ],
-        )
+    monkeypatch.setattr(keywords_module, "create_client", lambda **_: _StubClient())
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "--token",
+            "T",
+            "--login",
+            "L",
+            "keywords",
+            "add",
+            "--adgroup-id",
+            "1",
+            "--keyword",
+            "kw",
+        ],
+    )
     assert result.exit_code != 0
     # Single-mode goes through format_output → raise_for_api_result_errors,
     # which DirectAPIResultError-then-Abort. CLI surfaces it via print_error.
@@ -1954,9 +1955,13 @@ def test_keywords_add_batch_no_warning_under_200(tmp_path):
     assert "exceeds the Yandex Direct limit" not in result.output
 
 
-def test_keywords_add_batch_partial_success_on_failure(tmp_path):
+def test_keywords_add_batch_partial_success_on_failure(tmp_path, monkeypatch):
     """If a later chunk raises, already-created Ids must be surfaced to the
     user (via stderr) so a retry doesn't create duplicates."""
+    import importlib
+
+    keywords_module = importlib.import_module("direct_cli.commands.keywords")
+
     rows = [{"Keyword": f"kw-{i}", "AdGroupId": 1} for i in range(15)]
     path = _write_jsonl(tmp_path, rows)
 
@@ -1981,25 +1986,23 @@ def test_keywords_add_batch_partial_success_on_failure(tmp_path):
         def keywords(self):
             return _StubKeywords()
 
-    with patch(
-        "direct_cli.commands.keywords.create_client", return_value=_StubClient()
-    ):
-        # CliRunner's default mixes stderr into result.output, which is what
-        # we want here — the partial-results message goes to stderr but lands
-        # in the combined output buffer regardless of Click version.
-        result = CliRunner().invoke(
-            cli,
-            [
-                "--token",
-                "T",
-                "--login",
-                "L",
-                "keywords",
-                "add",
-                "--from-file",
-                str(path),
-            ],
-        )
+    monkeypatch.setattr(keywords_module, "create_client", lambda **_: _StubClient())
+    # CliRunner's default mixes stderr into result.output, which is what
+    # we want here — the partial-results message goes to stderr but lands
+    # in the combined output buffer regardless of Click version.
+    result = CliRunner().invoke(
+        cli,
+        [
+            "--token",
+            "T",
+            "--login",
+            "L",
+            "keywords",
+            "add",
+            "--from-file",
+            str(path),
+        ],
+    )
     assert result.exit_code != 0
     assert "Partial success before failure" in result.output
     assert '"Id": 1' in result.output
