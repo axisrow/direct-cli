@@ -1180,7 +1180,10 @@ def test_ads_update_rejects_mobile_flag():
         ],
     )
     assert result.exit_code != 0
-    assert "No such option: --mobile" in result.output
+    # Click formats this message differently across versions: 8.1 says
+    # "No such option: --mobile" while 8.2+ writes "No such option '--mobile'".
+    # Match the stable substring.
+    assert "No such option" in result.output and "--mobile" in result.output
 
 
 def test_ads_update_rejects_ad_extensions_flag():
@@ -1203,7 +1206,7 @@ def test_ads_update_rejects_ad_extensions_flag():
         ],
     )
     assert result.exit_code != 0
-    assert "No such option: --ad-extensions" in result.output
+    assert "No such option" in result.output and "--ad-extensions" in result.output
 
 
 def test_ads_update_rejects_title2_on_text_image_ad():
