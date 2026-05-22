@@ -167,7 +167,7 @@ def test_v4_live_get_credit_limits_contract():
         operation_num=operation_num,
     )
 
-    data = call_v4(client, "GetCreditLimits", [login])
+    data = call_v4(client, "GetCreditLimits")
 
     assert data is not None
 

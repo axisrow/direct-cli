@@ -53,9 +53,9 @@ def test_confirmed_contracts_are_not_undocumented():
     for contract in confirmed:
         assert contract.param_shape != PARAM_UNDOCUMENTED
         if contract.param_shape != PARAM_OPTIONAL_OBJECT:
-            # PARAM_OPTIONAL_OBJECT means the method accepts no param at all
-            # (e.g. GetCreditLimits per official v4 Live docs), so example_param
-            # is legitimately None.
+            # PARAM_OPTIONAL_OBJECT means param may be omitted; if present it
+            # must be an object (e.g. GetCreditLimits per official v4 Live docs
+            # omits param), so example_param is legitimately None.
             assert contract.example_param is not None
 
     assert {
@@ -346,7 +346,7 @@ def test_v4_adapter_sends_finance_credentials_as_top_level_body_fields():
 
     request = adapter.get_request_kwargs(
         api_params,
-        data={"method": "GetCreditLimits", "param": ["client-login"]},
+        data={"method": "GetClientsUnits", "param": ["client-login"]},
     )
     body = json.loads(request["data"])
 
