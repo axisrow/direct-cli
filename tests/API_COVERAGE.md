@@ -80,6 +80,15 @@ method-level shape validation and failed only because the transaction is a
 dummy value. Do not expose a public `--payment-id` flag unless Yandex documents
 or live-confirms a separate `PaymentID` contract.
 
+The official `GetCreditLimits` page
+(<https://yandex.ru/dev/direct/doc/dg-v4/reference/GetCreditLimits.html>)
+defines the request body as `{method, finance_token, operation_num}` only —
+no `param`. An earlier CLI surface required `--logins` and shipped a
+`param=[logins]` array; that contradicted the docs and has been removed
+(breaking change). The contract entry now uses `PARAM_OPTIONAL_OBJECT` with
+`example_param=None`, and `v4finance get-credit-limits` accepts no positional
+list arguments.
+
 ## Maintenance Rules
 
 - When a missing service is implemented, add it to `CLI_TO_API_SERVICE`,

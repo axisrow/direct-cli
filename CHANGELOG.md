@@ -22,6 +22,14 @@
   matching Click's contract; non-Click runtime errors still surface
   through `print_error` + `Abort` (exit 1). Closes #227.
 
+**Breaking changes:**
+
+- `direct v4finance get-credit-limits` no longer accepts `--logins`; the
+  request body now omits `param` per the official v4 Live docs
+  (<https://yandex.ru/dev/direct/doc/dg-v4/reference/GetCreditLimits.html>),
+  which define the body as `method`, `finance_token`, and `operation_num`
+  only. Refs #125.
+
 ## 0.3.10
 
 **Added:**

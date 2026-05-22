@@ -165,7 +165,7 @@ run_v4finance_get_credit_limits() {
     return
   fi
 
-  run_test "$name" direct v4finance get-credit-limits --logins "$AUTH_LOGIN"
+  run_test "$name" direct v4finance get-credit-limits
 }
 
 run_v4finance_get_clients_units() {
