@@ -17,7 +17,6 @@ from ..v4_contracts import v4_method_contract
 # financial sub-actions (Deposit/Invoice/TransferMoney) need the same
 # finance_token / operation_num plumbing as v4finance methods.
 from .v4finance import (  # noqa: E402
-    FINANCE_TOKEN_MASK,
     _finance_credentials,
     _masked_finance_body,
 )
@@ -220,23 +219,34 @@ def _validate_action(action: str) -> str:
     return normalized
 
 
-def _flag_supplied(name: str, value: Any) -> bool:
-    """Detect whether an action-specific Click parameter was supplied."""
+def _flag_supplied(
+    ctx: click.Context, name: str, value: Any
+) -> bool:
+    """Detect whether an action-specific Click parameter was supplied by the user.
+
+    Values sourced from envvars or defaults are NOT counted as "supplied" —
+    only ones the user typed on the command line. This lets users keep
+    ``YANDEX_DIRECT_FINANCE_TOKEN`` & friends exported in their shell while
+    still running ``--action Get`` / ``--action Update`` without spurious
+    "flag not valid for action" errors.
+    """
     if value is None:
         return False
-    # Click `multiple=True` options arrive as a tuple; empty means not supplied.
     if isinstance(value, tuple) and len(value) == 0:
         return False
-    return True
+    source = ctx.get_parameter_source(name)
+    return source == click.core.ParameterSource.COMMANDLINE
 
 
-def _reject_disallowed_flags(action: str, supplied: dict[str, Any]) -> None:
+def _reject_disallowed_flags(
+    ctx: click.Context, action: str, supplied: dict[str, Any]
+) -> None:
     """Fail fast when a flag is set that does not apply to the chosen Action."""
     allowed = _ACCOUNT_ACTION_ALLOWED_FLAGS[action] | _COMMON_PARAMS
     offenders = sorted(
         _PARAM_TO_FLAG.get(name, f"--{name.replace('_', '-')}")
         for name, value in supplied.items()
-        if name not in allowed and _flag_supplied(name, value)
+        if name not in allowed and _flag_supplied(ctx, name, value)
     )
     if offenders:
         valid_flags = sorted(_PARAM_TO_FLAG[name] for name in allowed if name in _PARAM_TO_FLAG)
@@ -389,7 +399,7 @@ def _parse_account_payments(
         parsed_items.append(
             {
                 "AccountID": account_id,
-                "Amount": parse_v4_money_sum(amount_text),
+                "Amount": parse_v4_money_sum(amount_text, option_name="--payment"),
                 "Currency": normalized_currency,
             }
         )
@@ -670,7 +680,7 @@ def account_management(
         "operation_num": operation_num,
         "finance_login": finance_login,
     }
-    _reject_disallowed_flags(action, supplied)
+    _reject_disallowed_flags(ctx, action, supplied)
 
     if action == "Get":
         param = _account_get_param(logins, account_ids)

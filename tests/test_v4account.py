@@ -14,7 +14,9 @@ def _invoke(*args: str, env: Optional[dict] = None):
         "YANDEX_DIRECT_TOKEN": "",
         "YANDEX_DIRECT_LOGIN": "",
         "YANDEX_DIRECT_FINANCE_TOKEN": "",
+        "YANDEX_DIRECT_MASTER_TOKEN": "",
         "YANDEX_DIRECT_OPERATION_NUM": "",
+        "YANDEX_DIRECT_FINANCE_LOGIN": "",
     }
     if env:
         base_env.update(env)
@@ -948,3 +950,77 @@ def test_account_management_options_are_all_in_allow_list():
     assert not uncovered, (
         f"account-management options not in any allow-list: {sorted(uncovered)}"
     )
+
+
+# ─── Envvar-vs-CLI source distinction (regression for PR #234 review) ────
+
+
+def test_account_management_get_ignores_finance_envvars():
+    """Finance envvars exported in the shell must not break --action Get."""
+    result = _invoke(
+        "v4account",
+        "account-management",
+        "--action",
+        "Get",
+        "--dry-run",
+        env={
+            "YANDEX_DIRECT_FINANCE_TOKEN": "env-finance-token",
+            "YANDEX_DIRECT_MASTER_TOKEN": "env-master-token",
+            "YANDEX_DIRECT_OPERATION_NUM": "42",
+            "YANDEX_DIRECT_FINANCE_LOGIN": "env-login",
+        },
+    )
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output) == {
+        "method": "AccountManagement",
+        "param": {"Action": "Get"},
+    }
+
+
+def test_account_management_update_ignores_finance_envvars():
+    """Finance envvars exported in the shell must not break --action Update."""
+    result = _invoke(
+        "v4account",
+        "account-management",
+        "--action",
+        "Update",
+        "--account-id",
+        "1",
+        "--money-in-sms",
+        "No",
+        "--dry-run",
+        env={
+            "YANDEX_DIRECT_FINANCE_TOKEN": "env-finance-token",
+            "YANDEX_DIRECT_MASTER_TOKEN": "env-master-token",
+            "YANDEX_DIRECT_OPERATION_NUM": "42",
+            "YANDEX_DIRECT_FINANCE_LOGIN": "env-login",
+        },
+    )
+
+    assert result.exit_code == 0, result.output
+
+
+def test_account_management_deposit_misleading_amount_message_uses_payment_label():
+    """A bad amount in --payment must point at --payment, not --amount."""
+    with patch("direct_cli.commands.v4account.build_v4_body") as build_body:
+        result = _invoke(
+            "v4account",
+            "account-management",
+            "--action",
+            "Deposit",
+            "--payment",
+            "1=bad",
+            "--currency",
+            "RUB",
+            "--finance-token",
+            "tok",
+            "--operation-num",
+            "1",
+            "--dry-run",
+        )
+
+    assert result.exit_code != 0
+    assert "--payment" in result.output
+    assert "--amount" not in result.output
+    build_body.assert_not_called()
