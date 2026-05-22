@@ -89,6 +89,30 @@ no `param`. An earlier CLI surface required `--logins` and shipped a
 `example_param=None`, and `v4finance get-credit-limits` accepts no positional
 list arguments.
 
+## V4 Live Shared Account Contract Notes
+
+The official `AccountManagement` page
+(<https://yandex.ru/dev/direct/doc/dg-v4/reference/AccountManagement-docpage/>)
+defines five `Action` values: `Get`, `Update`, `Deposit`, `Invoice`, and
+`TransferMoney`. The `direct v4account account-management` command surfaces all
+five through `--action`. Per-action shapes:
+
+| Action | Required fields | Finance token? | Dry-run rule |
+|---|---|---|---|
+| `Get` | `Action="Get"`, optional `SelectionCriteria.Logins` (≤50) and/or `AccountIDS` (≤100) | no | no rule (read-only) |
+| `Update` | `Action="Update"`, `Accounts[]` (one item) with `AccountID` plus at least one of `AccountDayBudget` / `SmsNotification` / `EmailNotification` | no | `--dry-run` required outside `--sandbox` |
+| `Deposit` | `Action="Deposit"`, `Payments[].AccountID/Amount/Currency` (≤50); optional `Origin="Overdraft"`, `Contract` per payment | yes | `--dry-run` required outside `--sandbox` |
+| `Invoice` | `Action="Invoice"`, `Payments[].AccountID/Amount/Currency` (≤50) | yes | `--dry-run` required outside `--sandbox` |
+| `TransferMoney` | `Action="TransferMoney"`, `Transfers[].FromAccountID/ToAccountID/Amount/Currency` (exactly 1 per call) | yes | `--dry-run` required outside `--sandbox` |
+
+Click-side allow-list (`_ACCOUNT_ACTION_ALLOWED_FLAGS` in
+`direct_cli/commands/v4account.py`) rejects flags that do not belong to the
+chosen action before any body is built, so an `--action Get --day-budget …`
+typo fails with a usage error and never produces a request. Currency on
+`Deposit`/`Invoice`/`TransferMoney` is one of
+`RUB / CHF / EUR / KZT / TRY / UAH / USD / BYN`; mismatches with the account
+currency surface as `error_code=245` from the API.
+
 ## Maintenance Rules
 
 - When a missing service is implemented, add it to `CLI_TO_API_SERVICE`,

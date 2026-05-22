@@ -179,11 +179,20 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
         live_probe_allowed=True,
         example_param={"Action": "Get"},
         notes=(
-            "Action=Get is live-confirmed read-only and returns "
-            "Accounts[].Amount/Currency; the docs-backed Update action changes "
-            "shared-account settings with Accounts[].AccountID, AccountDayBudget, "
-            "SmsNotification, and EmailNotification. The v4account Update command "
-            "is production dry-run-only and can be sent live only with --sandbox."
+            "Action in {Get, Update, Deposit, Invoice, TransferMoney}. "
+            "Get is live-confirmed read-only and returns Accounts[]."
+            "Amount/Currency; Get accepts optional SelectionCriteria.Logins "
+            "(max 50) or AccountIDS (max 100). Update is docs-backed and "
+            "changes shared-account settings via Accounts[].AccountID/"
+            "AccountDayBudget/SmsNotification/EmailNotification. Deposit, "
+            "Invoice, and TransferMoney are docs-backed financial mutations "
+            "that require finance_token and operation_num at the top level: "
+            "Deposit and Invoice send Payments[].AccountID/Amount/Currency "
+            "(max 50); TransferMoney sends Transfers[].FromAccountID/"
+            "ToAccountID/Amount/Currency (max 1 per call, max 3 per account "
+            "per day). All v4account.account-management actions other than "
+            "Get require --dry-run in production and live execution only "
+            "with --sandbox."
         ),
     ),
     "EnableSharedAccount": V4MethodContract(

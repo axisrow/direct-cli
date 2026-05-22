@@ -194,14 +194,27 @@ direct v4finance pay-campaigns --campaign-ids 123,456 --amount 100.50 --currency
 
 ### V4 Live Shared Account
 
-Shared-account mutations require `--dry-run` in production and can be sent live
-only with top-level `--sandbox`. These commands follow the official v4 Live
-shared-account method shapes: `EnableSharedAccount` accepts one client `Login`,
-and `AccountManagement` updates shared-account settings through `Accounts`.
+`EnableSharedAccount` accepts one client `Login` (agencies only).
+`AccountManagement` exposes the five official v4 Live actions:
+`Get`, `Update`, `Deposit`, `Invoice`, and `TransferMoney`. `Get` is
+read-only and runs against production without `--dry-run`. `Update`,
+`Deposit`, `Invoice`, and `TransferMoney` are mutations: they require
+`--dry-run` in production and can be sent live only with top-level
+`--sandbox`. `Deposit`, `Invoice`, and `TransferMoney` are financial
+operations that need `--finance-token` (or `--master-token` +
+`--operation-num` + `--finance-login`); dry-run output masks the
+financial token.
 
 ```bash
 direct v4account enable-shared-account --client-login client-login --dry-run
+direct v4account account-management --action Get
+direct v4account account-management --action Get --logins client-a,client-b
+direct v4account account-management --action Get --account-ids 1327944,1327945
 direct v4account account-management --action Update --account-id 1327944 --day-budget 100.50 --spend-mode Default --money-in-sms Yes --money-out-sms No --email ops@example.com --money-warning-value 25 --dry-run
+direct v4account account-management --action Deposit --payment 1327944=100.50 --currency RUB --master-token MASTER_TOKEN --operation-num 124 --finance-login agency-login --dry-run
+direct v4account account-management --action Deposit --payment 1327944=100.50 --currency RUB --origin Overdraft --contract CONTRACT_ID --master-token MASTER_TOKEN --operation-num 125 --finance-login agency-login --dry-run
+direct v4account account-management --action Invoice --payment 1327944=100.50 --currency RUB --master-token MASTER_TOKEN --operation-num 126 --finance-login agency-login --dry-run
+direct v4account account-management --action TransferMoney --from-account-id 1327944 --to-account-id 1327945 --amount 50.00 --currency RUB --master-token MASTER_TOKEN --operation-num 127 --finance-login agency-login --dry-run
 direct --sandbox v4account enable-shared-account --client-login client-login
 ```
 

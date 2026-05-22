@@ -84,7 +84,7 @@ def test_account_management_get_contract_returns_money_balance():
     contract = get_v4_contract("AccountManagement")
 
     assert contract.example_param == {"Action": "Get"}
-    assert "docs-backed Update action" in contract.notes
+    assert "Get, Update, Deposit, Invoice, TransferMoney" in contract.notes
     assert build_v4_body("AccountManagement", {"Action": "Get"}) == {
         "method": "AccountManagement",
         "param": {"Action": "Get"},
@@ -105,6 +105,59 @@ def test_account_management_update_contract_uses_shared_account_objects():
                     "Email": "agrom@yandex.ru",
                     "MoneyWarningValue": 25,
                 },
+            }
+        ],
+    }
+
+    assert build_v4_body("AccountManagement", param) == {
+        "method": "AccountManagement",
+        "param": param,
+    }
+
+
+def test_account_management_deposit_contract_uses_payments_with_origin():
+    param = {
+        "Action": "Deposit",
+        "Payments": [
+            {
+                "AccountID": 1327944,
+                "Amount": 100.5,
+                "Currency": "RUB",
+                "Origin": "Overdraft",
+                "Contract": "C-1",
+            }
+        ],
+    }
+
+    assert build_v4_body("AccountManagement", param) == {
+        "method": "AccountManagement",
+        "param": param,
+    }
+
+
+def test_account_management_invoice_contract_uses_payments():
+    param = {
+        "Action": "Invoice",
+        "Payments": [
+            {"AccountID": 1327944, "Amount": 100.5, "Currency": "RUB"}
+        ],
+    }
+
+    assert build_v4_body("AccountManagement", param) == {
+        "method": "AccountManagement",
+        "param": param,
+    }
+
+
+def test_account_management_transfer_contract_uses_transfers():
+    param = {
+        "Action": "TransferMoney",
+        "Transfers": [
+            {
+                "FromAccountID": 10,
+                "ToAccountID": 20,
+                "Amount": 50.0,
+                "Currency": "RUB",
             }
         ],
     }
