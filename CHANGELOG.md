@@ -12,6 +12,17 @@
   the three subtypes supported by the CLI. Backward compatible:
   existing `campaigns update --id N --name X` calls without `--type`
   keep working unchanged. Closes #230.
+- `direct v4account account-management` now supports `--action Get`,
+  `Deposit`, `Invoice`, and `TransferMoney` in addition to `Update`,
+  matching the official v4 Live docs
+  (<https://yandex.ru/dev/direct/doc/dg-v4/reference/AccountManagement-docpage/>).
+  `Get` is read-only and accepts optional `--logins` / `--account-ids`
+  filters. `Deposit`, `Invoice`, and `TransferMoney` are financial
+  mutations: they need `--finance-token` (or `--master-token` +
+  `--operation-num` + `--finance-login`) and respect the existing
+  dry-run-unless-sandbox rule. A Click-side allow-list rejects flags
+  that do not belong to the chosen action before any body is built.
+  Refs #125.
 
 **Fixed:**
 
