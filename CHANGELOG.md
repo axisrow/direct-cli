@@ -13,6 +13,15 @@
   existing `campaigns update --id N --name X` calls without `--type`
   keep working unchanged. Closes #230.
 
+**Fixed:**
+
+- `direct v4 *` command wrappers now let `click.ClickException`
+  (including `UsageError` from `call_v4` shape validation) propagate to
+  Click instead of swallowing it in the generic `except Exception`.
+  Shape-validation errors keep their usage hint and exit with code 2,
+  matching Click's contract; non-Click runtime errors still surface
+  through `print_error` + `Abort` (exit 1). Closes #227.
+
 ## 0.3.10
 
 **Added:**

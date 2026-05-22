@@ -50,6 +50,8 @@ def _emit_or_call_v4(
         )
         data = call_v4(client, method, param)
         format_output(data, output_format, output)
+    except click.ClickException:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
