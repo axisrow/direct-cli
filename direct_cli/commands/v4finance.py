@@ -198,7 +198,6 @@ def get_clients_units(ctx, logins, output_format, output, dry_run):
 
 @v4_method_contract("GetCreditLimits")
 @v4finance.command(name="get-credit-limits")
-@click.option("--logins", required=True, help="Comma-separated client logins")
 @click.option(
     "--finance-token",
     envvar="YANDEX_DIRECT_FINANCE_TOKEN",
@@ -235,7 +234,6 @@ def get_clients_units(ctx, logins, output_format, output, dry_run):
 @click.pass_context
 def get_credit_limits(
     ctx,
-    logins,
     finance_token,
     master_token,
     operation_num,
@@ -245,7 +243,6 @@ def get_credit_limits(
     dry_run,
 ):
     """Get client credit limits."""
-    login_list = _logins_param(logins)
     finance_token, operation_num = _finance_credentials(
         finance_token,
         master_token,
@@ -257,7 +254,7 @@ def get_credit_limits(
 
     if dry_run:
         format_output(
-            _masked_finance_body("GetCreditLimits", login_list, operation_num),
+            _masked_finance_body("GetCreditLimits", None, operation_num),
             "json",
             None,
         )
@@ -272,7 +269,7 @@ def get_credit_limits(
             finance_token=finance_token,
             operation_num=operation_num,
         )
-        data = call_v4(client, "GetCreditLimits", login_list)
+        data = call_v4(client, "GetCreditLimits", None)
         format_output(data, output_format, output)
     except click.ClickException:
         raise

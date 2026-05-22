@@ -59,18 +59,20 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
     "GetCreditLimits": V4MethodContract(
         method="GetCreditLimits",
         group="finance",
-        param_shape=PARAM_ARRAY,
+        param_shape=PARAM_OPTIONAL_OBJECT,
         login_placement=(
-            "param is a list of client logins; finance_token and "
-            "operation_num are top-level v4 Live body fields"
+            "param is omitted; finance_token and operation_num are top-level "
+            "v4 Live body fields"
         ),
         safety=SAFETY_READ,
         source_status=SOURCE_CONFIRMED_LIVE,
         live_probe_allowed=False,
-        example_param=["client-login"],
+        example_param=None,
         notes=(
-            "Requires finance_token and operation_num at the top level. "
-            "Live probe without them returns error_code=350."
+            "Official docs (dg-v4/reference/GetCreditLimits) define the "
+            "request body as method + finance_token + operation_num only; "
+            "no param. Live probe without finance credentials returns "
+            "error_code=350."
         ),
     ),
     "TransferMoney": V4MethodContract(

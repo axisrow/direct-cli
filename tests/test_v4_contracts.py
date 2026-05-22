@@ -52,7 +52,11 @@ def test_confirmed_contracts_are_not_undocumented():
     }
     for contract in confirmed:
         assert contract.param_shape != PARAM_UNDOCUMENTED
-        assert contract.example_param is not None
+        if contract.param_shape != PARAM_OPTIONAL_OBJECT:
+            # PARAM_OPTIONAL_OBJECT means param may be omitted; if present it
+            # must be an object (e.g. GetCreditLimits per official v4 Live docs
+            # omits param), so example_param is legitimately None.
+            assert contract.example_param is not None
 
     assert {
         contract.method for contract in confirmed if contract.live_probe_allowed
@@ -123,16 +127,13 @@ def test_enable_shared_account_contract_is_docs_backed_dangerous_object():
     }
 
 
-def test_get_credit_limits_contract_uses_login_array_and_finance_top_level():
+def test_get_credit_limits_contract_omits_param_and_finance_top_level():
     contract = get_v4_contract("GetCreditLimits")
 
-    assert contract.param_shape == PARAM_ARRAY
-    assert contract.example_param == ["client-login"]
+    assert contract.param_shape == PARAM_OPTIONAL_OBJECT
+    assert contract.example_param is None
     assert "finance_token" in contract.login_placement
-    assert build_v4_body("GetCreditLimits", ["client-login"]) == {
-        "method": "GetCreditLimits",
-        "param": ["client-login"],
-    }
+    assert build_v4_body("GetCreditLimits") == {"method": "GetCreditLimits"}
 
 
 def test_v4finance_money_contracts_are_docs_backed_dangerous_objects():
@@ -345,7 +346,7 @@ def test_v4_adapter_sends_finance_credentials_as_top_level_body_fields():
 
     request = adapter.get_request_kwargs(
         api_params,
-        data={"method": "GetCreditLimits", "param": ["client-login"]},
+        data={"method": "GetClientsUnits", "param": ["client-login"]},
     )
     body = json.loads(request["data"])
 
