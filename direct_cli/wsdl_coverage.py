@@ -182,6 +182,17 @@ def fetch_wsdl(service_name: str, use_cache: bool = True) -> str:
     return xml_text
 
 
+def fetch_cached_wsdl(service_name: str) -> str:
+    """Read a service WSDL from the committed local cache only."""
+    cache_file = CACHE_DIR / f"{service_name}.xml"
+    if not cache_file.exists():
+        raise FileNotFoundError(
+            f"Missing cached WSDL for {service_name}: {cache_file}. "
+            "Refresh tests/wsdl_cache before running offline gates."
+        )
+    return cache_file.read_text(encoding="utf-8")
+
+
 def fetch_live_wsdl(service_name: str) -> str:
     """Fetch live WSDL XML without reading or writing the local cache."""
     import requests

@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -15,7 +14,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from direct_cli.cli import cli  # noqa: E402
 from direct_cli.wsdl_coverage import (  # noqa: E402
-    fetch_wsdl,
+    fetch_cached_wsdl,
     get_operation_request_schema,
     iter_container_item_fields,
 )
@@ -23,18 +22,13 @@ from tests.test_wsdl_parity_gate import (  # noqa: E402
     COMMAND_WSDL_MAP,
     INTERNAL_VALIDATION,
     OPTIONAL_FIELD_AUDIT,
+    OPTIONAL_FIELD_CLI_OPTIONS,
+    OPTIONAL_FIELD_DEFAULT_FOLLOWUPS,
     OPTIONAL_FIELD_AUDIT_MAX_DEPTH,
     OPTIONAL_FIELD_AUDIT_REPORT,
-    WSDL_FIELD_TO_CLI_OPTION,
 )
 
-
-def _camel_to_option(name: str) -> str:
-    """Return the conventional Click option for a WSDL CamelCase field."""
-    option = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "-", name)
-    option = re.sub(r"(?<=[A-Z])(?=[A-Z][a-z])", "-", option)
-    option = re.sub(r"(?<=[A-Za-z])(?=[0-9])", "-", option)
-    return f"--{option.lower()}"
+REPOSITORY_SLUG = "axisrow/direct-cli"
 
 
 def _click_options(cli_group: str, cli_op: str) -> set[str]:
@@ -48,16 +42,30 @@ def _click_options(cli_group: str, cli_op: str) -> set[str]:
     return options
 
 
-def _candidate_options(field_name: str) -> set[str]:
-    return set(WSDL_FIELD_TO_CLI_OPTION.get(field_name, set())) | {
-        _camel_to_option(field_name)
-    }
-
-
 def _issue_link(issue: str) -> str:
     if issue.startswith("#") and issue[1:].isdigit():
-        return f"[{issue}](https://github.com/axisrow/direct-cli/issues/{issue[1:]})"
+        return f"[{issue}](https://github.com/{REPOSITORY_SLUG}/issues/{issue[1:]})"
     return issue
+
+
+def _format_audit_entry(entry: dict[str, str]) -> str:
+    issue = entry.get("issue", "")
+    issue_text = f" {_issue_link(issue)}" if issue else ""
+    return f"{entry.get('note', '')}{issue_text}".strip()
+
+
+def _audit_entry_for_path(
+    cli_group: str,
+    cli_op: str,
+    wsdl_path: str,
+) -> tuple[str, dict[str, str]] | None:
+    parts = wsdl_path.split(".")
+    for size in range(len(parts), 0, -1):
+        prefix = ".".join(parts[:size])
+        entry = OPTIONAL_FIELD_AUDIT.get((cli_group, cli_op, prefix))
+        if entry is not None:
+            return prefix, entry
+    return None
 
 
 def _classify_row(
@@ -67,25 +75,36 @@ def _classify_row(
     command_options: set[str],
 ) -> tuple[str, str]:
     key = (cli_group, cli_op, row["path"])
-    override = OPTIONAL_FIELD_AUDIT.get(key)
-    if override is not None:
-        issue = override.get("issue", "")
-        issue_text = f" {_issue_link(issue)}" if issue else ""
-        return override["status"], f"{override.get('note', '')}{issue_text}".strip()
+    audit_entry = _audit_entry_for_path(cli_group, cli_op, row["path"])
+    if audit_entry is not None:
+        matched_path, override = audit_entry
+        evidence = _format_audit_entry(override)
+        if matched_path != row["path"]:
+            evidence = f"{evidence}; inherited from `{matched_path}`"
+        return override["status"], evidence
 
-    field_name = row["name"]
+    configured_options = OPTIONAL_FIELD_CLI_OPTIONS.get(key)
+    if configured_options is not None:
+        matched = sorted(configured_options & command_options)
+        if matched:
+            return "supported", ", ".join(matched)
+        missing = ", ".join(sorted(configured_options))
+        return (
+            "untriaged",
+            f"configured option(s) missing from Click command: {missing}",
+        )
+
     if row.get("min_occurs", 1) >= 1 and row.get("depth") == 1:
-        return "required_hard_gate", "covered by minOccurs>=1 parity gate"
+        return "supported", "covered by minOccurs>=1 parity gate"
 
-    candidates = _candidate_options(field_name)
-    matched = sorted(candidates & command_options)
-    if matched:
-        return "supported", ", ".join(matched)
-
-    if (cli_group, cli_op, field_name) in INTERNAL_VALIDATION:
+    if (cli_group, cli_op, row["name"]) in INTERNAL_VALIDATION:
         return "supported", "internal UsageError validation"
 
-    return "missing_candidate", "no typed option detected by audit script"
+    default = OPTIONAL_FIELD_DEFAULT_FOLLOWUPS.get((cli_group, cli_op))
+    if default is not None:
+        return "missing_followup", _format_audit_entry(default)
+
+    return "untriaged", "no explicit audit classification"
 
 
 def collect_rows() -> list[dict[str, Any]]:
@@ -96,7 +115,7 @@ def collect_rows() -> list[dict[str, Any]]:
         wsdl_op,
         container,
     ) in sorted(COMMAND_WSDL_MAP.items()):
-        schema = get_operation_request_schema(fetch_wsdl(api_service), wsdl_op)
+        schema = get_operation_request_schema(fetch_cached_wsdl(api_service), wsdl_op)
         command_options = _click_options(cli_group, cli_op)
         for field in iter_container_item_fields(
             schema, container, max_depth=OPTIONAL_FIELD_AUDIT_MAX_DEPTH
@@ -123,9 +142,16 @@ def _escape(value: object) -> str:
     return str(value).replace("|", "\\|").replace("\n", " ")
 
 
-def render_markdown() -> str:
+def _unclassified_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        row
+        for row in rows
+        if row["status"] not in {"supported", "missing_followup", "not_applicable"}
+    ]
+
+
+def render_markdown(rows: list[dict[str, Any]]) -> str:
     """Render the committed Markdown audit document."""
-    rows = collect_rows()
     counts = Counter(row["status"] for row in rows)
     confirmed = [
         row for row in rows if row["status"] in {"missing_followup", "not_applicable"}
@@ -137,9 +163,9 @@ def render_markdown() -> str:
         "Generated by `python3 scripts/build_wsdl_optional_field_audit.py --write`.",
         f"Max audited nesting depth below each item container: `{OPTIONAL_FIELD_AUDIT_MAX_DEPTH}`.",
         "",
-        "This is a soft gate for issue #239. `missing_candidate` rows do not fail",
-        "CI by themselves; confirmed misses are promoted to `missing_followup`",
-        "with linked GitHub issues.",
+        "This is a soft gate for issue #239, but every audited row must now",
+        "be classified as `supported`, `missing_followup`, or `not_applicable`.",
+        "`missing_followup` rows are linked to GitHub follow-up issues.",
         "",
         "## Summary",
         "",
@@ -201,7 +227,22 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    rendered = render_markdown()
+    rows = collect_rows()
+    rendered = render_markdown(rows)
+    unclassified = _unclassified_rows(rows)
+    if unclassified:
+        preview = "\n".join(
+            f"- {row['cli_command']} {row['path']}: {row['evidence']}"
+            for row in unclassified[:20]
+        )
+        print(
+            "Optional-field audit has unclassified rows:\n"
+            f"{preview}\n"
+            "Add exact support evidence, a missing_followup issue, or "
+            "a not_applicable audit entry.",
+            file=sys.stderr,
+        )
+        return 1
 
     if args.write:
         OPTIONAL_FIELD_AUDIT_REPORT.write_text(rendered, encoding="utf-8")
