@@ -71,12 +71,14 @@ API errors:
 def _command_has_option(cmd: click.Command, option_name: str) -> bool:
     """Whether *cmd* declares *option_name* among its Click options.
 
-    Searches all option names (including hidden ones), so `keywords update`
-    with its hidden deprecated traps still counts as "having" `--bid` and
-    won't be advertised as a sibling that accepts the flag.
+    Searches both ``opts`` (e.g. ``--send-warnings``) and ``secondary_opts``
+    (e.g. ``--no-send-warnings`` for ``--foo/--no-foo`` style switches), and
+    includes hidden options — so `keywords update`'s hidden deprecated traps
+    still count as "having" `--bid` and won't be advertised as siblings.
     """
     return any(
-        isinstance(param, click.Option) and option_name in param.opts
+        isinstance(param, click.Option)
+        and (option_name in param.opts or option_name in param.secondary_opts)
         for param in cmd.params
     )
 

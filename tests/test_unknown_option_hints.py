@@ -132,6 +132,29 @@ def test_hidden_deprecated_callback_still_takes_precedence():
     assert "Hint:" not in result.output
 
 
+def test_no_foo_secondary_opt_is_recognised_as_sibling_option():
+    """Regression for the Copilot/claude review on PR #237: Click stores
+    the negative spelling of ``--foo/--no-foo`` switches in
+    ``param.secondary_opts``, not ``param.opts``. ``agencyclients add``
+    declares ``--send-warnings/--no-send-warnings`` and so does
+    ``add-passport-organization``; ``agencyclients update`` does not.
+    The hint must point at the right siblings.
+    """
+    result = _invoke(
+        "agencyclients",
+        "update",
+        "--client-id",
+        "1",
+        "--no-send-warnings",
+    )
+    assert result.exit_code == 2
+    assert "No such option" in result.output
+    assert "--no-send-warnings" in result.output
+    assert "Hint:" in result.output
+    assert "`direct agencyclients add`" in result.output
+    assert "`direct agencyclients add-passport-organization`" in result.output
+
+
 def test_existing_substring_assert_for_ad_extensions_still_holds():
     """Backwards-compat: the assert from tests/test_dry_run.py:1209 must
     continue to match — our augmentation only appends to the message."""
