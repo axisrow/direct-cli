@@ -36,6 +36,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
+from direct_cli import wsdl_coverage
 from direct_cli.cli import cli
 from direct_cli.commands.bidmodifiers import _BIDMODIFIER_TYPE_TO_NESTED
 from direct_cli.commands.strategies import (
@@ -1349,6 +1350,28 @@ def test_optional_field_default_followups_reference_issues() -> None:
         "Optional-field default follow-ups must reference command keys and "
         f"GitHub issue ids: {bad_defaults}"
     )
+
+
+def test_optional_field_audit_imports_are_cache_only(monkeypatch, tmp_path) -> None:
+    """Offline gates must fail on missing imported XSDs without network calls."""
+    import requests
+
+    network_calls = []
+
+    def fail_network(url, *args, **kwargs):
+        network_calls.append(url)
+        raise AssertionError(f"Unexpected network call: {url}")
+
+    monkeypatch.setattr(wsdl_coverage, "IMPORTS_CACHE_DIR", tmp_path)
+    monkeypatch.setattr(requests, "get", fail_network)
+    wsdl_coverage._cached_imported_xsd.cache_clear()
+    try:
+        with pytest.raises(FileNotFoundError):
+            get_operation_request_schema(fetch_cached_wsdl("clients"), "update")
+    finally:
+        wsdl_coverage._cached_imported_xsd.cache_clear()
+
+    assert not network_calls
 
 
 def test_optional_field_audit_report_is_current() -> None:

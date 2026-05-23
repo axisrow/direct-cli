@@ -368,10 +368,25 @@ def fetch_imported_xsd(namespace: str, use_cache: bool = True) -> str:
     return xml_text
 
 
+def fetch_cached_imported_xsd(namespace: str) -> str:
+    """Read an imported XSD from the committed local cache only."""
+    filename = IMPORTED_XSD_REGISTRY.get(namespace)
+    if filename is None:
+        raise KeyError(f"Unsupported imported XSD namespace: {namespace}")
+
+    cache_file = IMPORTS_CACHE_DIR / filename
+    if not cache_file.exists():
+        raise FileNotFoundError(
+            f"Missing cached imported XSD for {namespace}: {cache_file}. "
+            "Refresh tests/wsdl_cache/imports before running offline gates."
+        )
+    return cache_file.read_text(encoding="utf-8")
+
+
 @lru_cache(maxsize=None)
 def _cached_imported_xsd(namespace: str) -> str:
     """Return cached imported XSD XML for namespace."""
-    return fetch_imported_xsd(namespace, use_cache=True)
+    return fetch_cached_imported_xsd(namespace)
 
 
 def _load_schema_contexts(wsdl_xml: str) -> dict[str, dict]:
