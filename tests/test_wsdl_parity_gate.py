@@ -608,7 +608,7 @@ INTERNAL_VALIDATION: dict[tuple[str, str, str], str] = {
 # soft gate: confirmed misses are allowed to remain in CI, but they must be
 # recorded with a follow-up issue so ``minOccurs=0`` WSDL fields do not vanish
 # from the release audit again.
-OPTIONAL_FIELD_AUDIT_MAX_DEPTH = 2
+OPTIONAL_FIELD_AUDIT_MAX_DEPTH = None
 OPTIONAL_FIELD_AUDIT_REPORT = (
     Path(__file__).resolve().parent / "WSDL_OPTIONAL_FIELD_AUDIT.md"
 )
@@ -686,13 +686,6 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("campaigns", "add", "DailyBudget.Amount"): {"--budget"},
     ("campaigns", "add", "DailyBudget.Mode"): {"--budget"},
     ("campaigns", "add", "EndDate"): {"--end-date"},
-    ("campaigns", "add", "Notification"): {"--notification"},
-    ("campaigns", "add", "Notification.SmsSettings"): {"--notification"},
-    ("campaigns", "add", "Notification.EmailSettings"): {"--notification"},
-    ("campaigns", "add", "TimeTargeting"): {"--time-targeting"},
-    ("campaigns", "add", "TimeTargeting.Schedule"): {"--time-targeting"},
-    ("campaigns", "add", "TimeTargeting.ConsiderWorkingWeekends"): {"--time-targeting"},
-    ("campaigns", "add", "TimeTargeting.HolidaysSchedule"): {"--time-targeting"},
     ("campaigns", "add", "TextCampaign"): {"--type"},
     ("campaigns", "add", "TextCampaign.BiddingStrategy"): {
         "--search-strategy",
@@ -1301,6 +1294,33 @@ def test_optional_field_audit_entries_reference_real_wsdl_paths() -> None:
     assert not missing_issues, (
         "Optional-field missing_followup entries must link a GitHub issue: "
         f"{missing_issues}"
+    )
+
+
+def test_optional_field_missing_followups_do_not_mask_supported_paths() -> None:
+    """A stale missing override must not hide newly implemented typed support."""
+    conflicts = []
+    for (cli_group, cli_op, audit_path), entry in OPTIONAL_FIELD_AUDIT.items():
+        if entry.get("status") != "missing_followup":
+            continue
+        for support_group, support_op, support_path in OPTIONAL_FIELD_CLI_OPTIONS:
+            if (support_group, support_op) != (cli_group, cli_op):
+                continue
+            if support_path == audit_path or support_path.startswith(f"{audit_path}."):
+                conflicts.append(
+                    (
+                        cli_group,
+                        cli_op,
+                        audit_path,
+                        support_path,
+                        entry.get("issue"),
+                    )
+                )
+
+    assert not conflicts, (
+        "Optional-field missing_followup entries mask supported path mappings: "
+        f"{conflicts}. Remove the stale follow-up override or do not mark the "
+        "path supported."
     )
 
 
