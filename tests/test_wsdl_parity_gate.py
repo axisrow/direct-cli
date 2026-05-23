@@ -29,18 +29,31 @@ be treated as WSDL/CLI parity breaks, not as expected milestone work.
 
 from __future__ import annotations
 
+import subprocess
+import sys
+from pathlib import Path
+
 import pytest
 from click.testing import CliRunner
 
+from direct_cli import wsdl_coverage
 from direct_cli.cli import cli
-from direct_cli.commands.strategies import STRATEGY_TYPES
+from direct_cli.commands.bidmodifiers import _BIDMODIFIER_TYPE_TO_NESTED
+from direct_cli.commands.strategies import (
+    STRATEGY_FIELD_OPTIONS,
+    STRATEGY_FLAG_NAMES,
+    STRATEGY_TYPES,
+    STRATEGY_UPDATE_FIELD_OPTIONS,
+)
 from direct_cli.smoke_matrix import commands_for_category
 from direct_cli.wsdl_coverage import (
     CLI_TO_API_SERVICE,
     RUNTIME_DEPRECATED_METHODS,
+    fetch_cached_wsdl,
     fetch_wsdl,
     get_operation_request_schema,
     get_required_item_fields,
+    iter_container_item_fields,
 )
 
 # ---------------------------------------------------------------------------
@@ -592,6 +605,529 @@ INTERNAL_VALIDATION: dict[tuple[str, str, str], str] = {
     ("sitelinks", "add", "Sitelinks"): "Provide exactly one of: --sitelink",
 }
 
+# Optional-field audit status registry for issue #239. This is deliberately a
+# soft gate: confirmed misses are allowed to remain in CI, but they must be
+# recorded with a follow-up issue so ``minOccurs=0`` WSDL fields do not vanish
+# from the release audit again.
+OPTIONAL_FIELD_AUDIT_MAX_DEPTH = None
+OPTIONAL_FIELD_AUDIT_REPORT = (
+    Path(__file__).resolve().parent / "WSDL_OPTIONAL_FIELD_AUDIT.md"
+)
+OPTIONAL_FIELD_AUDIT_STATUSES = {
+    "missing_followup",
+    "not_applicable",
+    "supported",
+}
+
+# Exact WSDL path -> CLI option coverage used by the optional-field audit.
+# This intentionally avoids leaf-name heuristics: ``FeedId`` under one subtype
+# must not make every other ``*.FeedId`` row look supported.
+OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
+    ("adextensions", "add", "Callout"): {"--callout-text"},
+    ("adextensions", "add", "Callout.CalloutText"): {"--callout-text"},
+    ("adimages", "add", "Type"): {"--type"},
+    ("adgroups", "add", "DynamicTextAdGroup"): {"--type"},
+    ("adgroups", "add", "DynamicTextAdGroup.DomainUrl"): {"--domain-url"},
+    ("adgroups", "add", "SmartAdGroup"): {"--type"},
+    ("adgroups", "add", "SmartAdGroup.FeedId"): {"--feed-id"},
+    ("adgroups", "add", "SmartAdGroup.AdTitleSource"): {"--ad-title-source"},
+    ("adgroups", "add", "SmartAdGroup.AdBodySource"): {"--ad-body-source"},
+    ("adgroups", "update", "Name"): {"--name"},
+    ("adgroups", "update", "RegionIds"): {"--region-ids"},
+    ("ads", "add", "TextAd"): {"--type"},
+    ("ads", "add", "TextAd.VCardId"): {"--vcard-id"},
+    ("ads", "add", "TextAd.AdImageHash"): {"--image-hash"},
+    ("ads", "add", "TextAd.SitelinkSetId"): {"--sitelink-set-id"},
+    ("ads", "add", "TextAd.AdExtensionIds"): {"--ad-extensions"},
+    ("ads", "add", "TextAd.Text"): {"--text"},
+    ("ads", "add", "TextAd.Title"): {"--title"},
+    ("ads", "add", "TextAd.Title2"): {"--title2"},
+    ("ads", "add", "TextAd.Href"): {"--href"},
+    ("ads", "add", "TextAd.Mobile"): {"--mobile"},
+    ("ads", "add", "TextAd.DisplayUrlPath"): {"--display-url-path"},
+    ("ads", "add", "TextAd.TurboPageId"): {"--turbo-page-id"},
+    ("ads", "add", "MobileAppAd"): {"--type"},
+    ("ads", "add", "MobileAppAd.AdImageHash"): {"--image-hash"},
+    ("ads", "add", "MobileAppAd.Text"): {"--text"},
+    ("ads", "add", "MobileAppAd.Title"): {"--title"},
+    ("ads", "add", "MobileAppAd.TrackingUrl"): {"--tracking-url"},
+    ("ads", "add", "MobileAppAd.Action"): {"--action"},
+    ("ads", "add", "MobileAppAd.AgeLabel"): {"--age-label"},
+    ("ads", "add", "TextImageAd"): {"--type"},
+    ("ads", "add", "TextImageAd.AdImageHash"): {"--image-hash"},
+    ("ads", "add", "TextImageAd.Href"): {"--href"},
+    ("ads", "add", "TextImageAd.TurboPageId"): {"--turbo-page-id"},
+    ("ads", "update", "TextAd"): {"--type"},
+    ("ads", "update", "TextAd.VCardId"): {"--vcard-id"},
+    ("ads", "update", "TextAd.AdImageHash"): {"--image-hash"},
+    ("ads", "update", "TextAd.SitelinkSetId"): {"--sitelink-set-id"},
+    ("ads", "update", "TextAd.Text"): {"--text"},
+    ("ads", "update", "TextAd.Title"): {"--title"},
+    ("ads", "update", "TextAd.Title2"): {"--title2"},
+    ("ads", "update", "TextAd.Href"): {"--href"},
+    ("ads", "update", "TextAd.DisplayUrlPath"): {"--display-url-path"},
+    ("ads", "update", "TextAd.TurboPageId"): {"--turbo-page-id"},
+    ("ads", "update", "TextAd.CalloutSetting"): {
+        "--callouts-add",
+        "--callouts-remove",
+        "--callouts-set",
+    },
+    ("ads", "update", "MobileAppAd"): {"--type"},
+    ("ads", "update", "MobileAppAd.AdImageHash"): {"--image-hash"},
+    ("ads", "update", "MobileAppAd.Text"): {"--text"},
+    ("ads", "update", "MobileAppAd.Title"): {"--title"},
+    ("ads", "update", "MobileAppAd.TrackingUrl"): {"--tracking-url"},
+    ("ads", "update", "MobileAppAd.Action"): {"--action"},
+    ("ads", "update", "MobileAppAd.AgeLabel"): {"--age-label"},
+    ("ads", "update", "TextImageAd"): {"--type"},
+    ("ads", "update", "TextImageAd.AdImageHash"): {"--image-hash"},
+    ("ads", "update", "TextImageAd.Href"): {"--href"},
+    ("ads", "update", "TextImageAd.TurboPageId"): {"--turbo-page-id"},
+    ("campaigns", "add", "DailyBudget"): {"--budget"},
+    ("campaigns", "add", "DailyBudget.Amount"): {"--budget"},
+    ("campaigns", "add", "DailyBudget.Mode"): {"--budget"},
+    ("campaigns", "add", "EndDate"): {"--end-date"},
+    ("campaigns", "add", "TextCampaign"): {"--type"},
+    ("campaigns", "add", "TextCampaign.BiddingStrategy"): {
+        "--search-strategy",
+        "--network-strategy",
+    },
+    ("campaigns", "add", "TextCampaign.Settings"): {"--setting"},
+    ("campaigns", "add", "TextCampaign.CounterIds"): {"--counter-ids"},
+    ("campaigns", "add", "TextCampaign.PriorityGoals"): {"--priority-goals"},
+    ("campaigns", "add", "TextCampaign.TrackingParams"): {"--tracking-params"},
+    ("campaigns", "add", "DynamicTextCampaign"): {"--type"},
+    ("campaigns", "add", "DynamicTextCampaign.BiddingStrategy"): {
+        "--search-strategy",
+        "--network-strategy",
+    },
+    ("campaigns", "add", "DynamicTextCampaign.Settings"): {"--setting"},
+    ("campaigns", "add", "DynamicTextCampaign.CounterIds"): {"--counter-ids"},
+    ("campaigns", "add", "DynamicTextCampaign.PriorityGoals"): {"--priority-goals"},
+    ("campaigns", "add", "DynamicTextCampaign.TrackingParams"): {"--tracking-params"},
+    ("campaigns", "add", "SmartCampaign"): {"--type"},
+    ("campaigns", "add", "SmartCampaign.CounterId"): {"--counter-id"},
+    ("campaigns", "add", "SmartCampaign.BiddingStrategy"): {
+        "--search-strategy",
+        "--network-strategy",
+        "--filter-average-cpc",
+    },
+    ("campaigns", "add", "SmartCampaign.Settings"): {"--setting"},
+    ("campaigns", "add", "SmartCampaign.TrackingParams"): {"--tracking-params"},
+    ("campaigns", "update", "Name"): {"--name"},
+    ("campaigns", "update", "DailyBudget"): {"--budget"},
+    ("campaigns", "update", "DailyBudget.Amount"): {"--budget"},
+    ("campaigns", "update", "DailyBudget.Mode"): {"--budget"},
+    ("campaigns", "update", "StartDate"): {"--start-date"},
+    ("campaigns", "update", "EndDate"): {"--end-date"},
+    ("campaigns", "update", "TextCampaign"): {"--type"},
+    ("campaigns", "update", "TextCampaign.TrackingParams"): {"--tracking-params"},
+    ("campaigns", "update", "DynamicTextCampaign"): {"--type"},
+    ("campaigns", "update", "DynamicTextCampaign.TrackingParams"): {
+        "--tracking-params"
+    },
+    ("campaigns", "update", "SmartCampaign"): {"--type"},
+    ("campaigns", "update", "SmartCampaign.TrackingParams"): {"--tracking-params"},
+    ("advideos", "add", "Url"): {"--url"},
+    ("advideos", "add", "VideoData"): {"--video-data", "--video-file"},
+    ("advideos", "add", "Name"): {"--name"},
+    ("clients", "update", "ClientInfo"): {"--client-info"},
+    ("clients", "update", "Phone"): {"--phone"},
+    ("clients", "update", "Notification"): {
+        "--notification-email",
+        "--email-subscription",
+        "--notification-lang",
+    },
+    ("clients", "update", "Notification.Email"): {"--notification-email"},
+    ("clients", "update", "Notification.EmailSubscriptions"): {"--email-subscription"},
+    ("clients", "update", "Notification.Lang"): {"--notification-lang"},
+    ("clients", "update", "Settings"): {"--setting"},
+    ("clients", "update", "TinInfo"): {"--tin", "--tin-type"},
+    ("clients", "update", "TinInfo.TinType"): {"--tin-type"},
+    ("clients", "update", "TinInfo.Tin"): {"--tin"},
+    ("dynamicads", "add", "Conditions"): {"--condition"},
+    ("dynamicads", "add", "Conditions.Operand"): {"--condition"},
+    ("dynamicads", "add", "Conditions.Operator"): {"--condition"},
+    ("dynamicads", "add", "Conditions.Arguments"): {"--condition"},
+    ("dynamicads", "add", "Bid"): {"--bid"},
+    ("dynamicads", "add", "ContextBid"): {"--context-bid"},
+    ("dynamicads", "add", "StrategyPriority"): {"--priority"},
+    ("dynamicfeedadtargets", "add", "Conditions"): {"--condition"},
+    ("dynamicfeedadtargets", "add", "Conditions.Items"): {"--condition"},
+    ("dynamicfeedadtargets", "add", "Bid"): {"--bid"},
+    ("dynamicfeedadtargets", "add", "ContextBid"): {"--context-bid"},
+    ("dynamicfeedadtargets", "add", "AvailableItemsOnly"): {"--available-items-only"},
+    ("feeds", "add", "UrlFeed"): {"--url"},
+    ("feeds", "add", "UrlFeed.Url"): {"--url"},
+    ("feeds", "update", "Name"): {"--name"},
+    ("feeds", "update", "UrlFeed"): {"--url"},
+    ("feeds", "update", "UrlFeed.Url"): {"--url"},
+    ("creatives", "add", "VideoExtensionCreative.VideoId"): {"--video-id"},
+    ("keywords", "add", "Bid"): {"--bid"},
+    ("keywords", "add", "ContextBid"): {"--context-bid"},
+    ("keywords", "add", "UserParam1"): {"--user-param-1"},
+    ("keywords", "add", "UserParam2"): {"--user-param-2"},
+    ("keywords", "update", "Keyword"): {"--keyword"},
+    ("keywords", "update", "UserParam1"): {"--user-param-1"},
+    ("keywords", "update", "UserParam2"): {"--user-param-2"},
+    ("negativekeywordsharedsets", "update", "Name"): {"--name"},
+    ("negativekeywordsharedsets", "update", "NegativeKeywords"): {"--keywords"},
+    ("audiencetargets", "add", "RetargetingListId"): {"--retargeting-list-id"},
+    ("audiencetargets", "add", "InterestId"): {"--interest-id"},
+    ("bids", "set", "KeywordId"): {"--keyword-id"},
+    ("bids", "set", "Bid"): {"--bid"},
+    ("keywordbids", "set", "KeywordId"): {"--keyword-id"},
+    ("keywordbids", "set", "SearchBid"): {"--search-bid"},
+    ("keywordbids", "set", "NetworkBid"): {"--network-bid"},
+    ("retargeting", "add", "Rules"): {"--rule"},
+    ("retargeting", "add", "Type"): {"--type"},
+    ("retargeting", "add", "Rules.Arguments"): {"--rule"},
+    ("retargeting", "add", "Rules.Operator"): {"--rule"},
+    ("retargeting", "update", "Rules"): {"--rule"},
+    ("retargeting", "update", "Name"): {"--name"},
+    ("retargeting", "update", "Rules.Arguments"): {"--rule"},
+    ("retargeting", "update", "Rules.Operator"): {"--rule"},
+    ("sitelinks", "add", "Sitelinks"): {"--sitelink"},
+    ("sitelinks", "add", "Sitelinks.Title"): {"--sitelink"},
+    ("sitelinks", "add", "Sitelinks.Href"): {"--sitelink"},
+    ("sitelinks", "add", "Sitelinks.Description"): {"--sitelink"},
+    ("smartadtargets", "add", "StrategyPriority"): {"--priority"},
+    ("smartadtargets", "add", "AverageCpc"): {"--average-cpc"},
+    ("smartadtargets", "add", "AverageCpa"): {"--average-cpa"},
+    ("smartadtargets", "add", "AvailableItemsOnly"): {"--available-items-only"},
+    ("smartadtargets", "add", "Conditions"): {"--condition"},
+    ("smartadtargets", "add", "Conditions.Items"): {"--condition"},
+    ("smartadtargets", "update", "Name"): {"--name"},
+    ("smartadtargets", "update", "StrategyPriority"): {"--priority"},
+    ("smartadtargets", "update", "AverageCpc"): {"--average-cpc"},
+    ("smartadtargets", "update", "AverageCpa"): {"--average-cpa"},
+    ("smartadtargets", "update", "Audience"): {"--audience"},
+    ("smartadtargets", "update", "AvailableItemsOnly"): {"--available-items-only"},
+    ("smartadtargets", "update", "Conditions"): {"--condition"},
+    ("smartadtargets", "update", "Conditions.Items"): {"--condition"},
+    ("vcards", "add", "Phone.CountryCode"): {"--phone-country-code"},
+    ("vcards", "add", "Phone.CityCode"): {"--phone-city-code"},
+    ("vcards", "add", "Phone.PhoneNumber"): {"--phone-number"},
+    ("vcards", "add", "Phone.Extension"): {"--phone-extension"},
+    ("vcards", "add", "Street"): {"--street"},
+    ("vcards", "add", "House"): {"--house"},
+    ("vcards", "add", "Building"): {"--building"},
+    ("vcards", "add", "Apartment"): {"--apartment"},
+    ("vcards", "add", "ExtraMessage"): {"--extra-message"},
+    ("vcards", "add", "ContactEmail"): {"--contact-email"},
+    ("vcards", "add", "Ogrn"): {"--ogrn"},
+    ("vcards", "add", "MetroStationId"): {"--metro-station-id"},
+    ("vcards", "add", "ContactPerson"): {"--contact-person"},
+}
+
+for strategy_type, options in STRATEGY_FIELD_OPTIONS.items():
+    OPTIONAL_FIELD_CLI_OPTIONS[("strategies", "add", strategy_type)] = {"--type"}
+    for param_name, wsdl_field in options.items():
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            ("strategies", "add", f"{strategy_type}.{wsdl_field}")
+        ] = {STRATEGY_FLAG_NAMES[param_name]}
+
+OPTIONAL_FIELD_CLI_OPTIONS.update(
+    {
+        ("strategies", "add", "AttributionModel"): {"--attribution-model"},
+        ("strategies", "add", "CounterIds"): {"--counter-ids"},
+        ("strategies", "add", "CounterIds.Items"): {"--counter-ids"},
+        ("strategies", "add", "PriorityGoals"): {"--priority-goal"},
+        ("strategies", "add", "PriorityGoals.Items"): {"--priority-goal"},
+    }
+)
+
+for strategy_type, options in STRATEGY_UPDATE_FIELD_OPTIONS.items():
+    OPTIONAL_FIELD_CLI_OPTIONS[("strategies", "update", strategy_type)] = {"--type"}
+    for param_name, wsdl_field in options.items():
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            ("strategies", "update", f"{strategy_type}.{wsdl_field}")
+        ] = {STRATEGY_FLAG_NAMES[param_name]}
+
+OPTIONAL_FIELD_CLI_OPTIONS.update(
+    {
+        ("strategies", "update", "Name"): {"--name"},
+        ("strategies", "update", "AttributionModel"): {"--attribution-model"},
+        ("strategies", "update", "CounterIds"): {"--counter-ids"},
+        ("strategies", "update", "CounterIds.Items"): {"--counter-ids"},
+        ("strategies", "update", "PriorityGoals"): {"--priority-goal"},
+        ("strategies", "update", "PriorityGoals.Items"): {"--priority-goal"},
+    }
+)
+
+for nested_field in _BIDMODIFIER_TYPE_TO_NESTED.values():
+    OPTIONAL_FIELD_CLI_OPTIONS[("bidmodifiers", "add", nested_field)] = {"--type"}
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("bidmodifiers", "add", f"{nested_field}.BidModifier")
+    ] = {"--value"}
+
+OPTIONAL_FIELD_CLI_OPTIONS.update(
+    {
+        ("bidmodifiers", "add", "CampaignId"): {"--campaign-id"},
+        ("bidmodifiers", "add", "AdGroupId"): {"--adgroup-id"},
+        ("bidmodifiers", "add", "DemographicsAdjustments.Gender"): {"--gender"},
+        ("bidmodifiers", "add", "DemographicsAdjustments.Age"): {"--age"},
+        ("bidmodifiers", "add", "RetargetingAdjustments.RetargetingConditionId"): {
+            "--retargeting-condition-id"
+        },
+        ("bidmodifiers", "add", "RegionalAdjustments.RegionId"): {"--region-id"},
+        ("bidmodifiers", "add", "SerpLayoutAdjustments.SerpLayout"): {"--serp-layout"},
+        ("bidmodifiers", "add", "IncomeGradeAdjustments.Grade"): {"--income-grade"},
+    }
+)
+
+OPTIONAL_FIELD_DEFAULT_FOLLOWUPS: dict[tuple[str, str], dict[str, str]] = {
+    ("ads", "add"): {
+        "issue": "#249",
+        "note": "ads.add optional WSDL path needs typed support or N/A.",
+    },
+    ("ads", "update"): {
+        "issue": "#240",
+        "note": "ads.update optional WSDL path needs typed support or N/A.",
+    },
+    ("audiencetargets", "add"): {
+        "issue": "#252",
+        "note": "target bid optional WSDL path needs typed support or N/A.",
+    },
+    ("bidmodifiers", "add"): {
+        "issue": "#254",
+        "note": "bidmodifiers.add optional WSDL path needs typed support or N/A.",
+    },
+    ("bids", "set"): {
+        "issue": "#252",
+        "note": "bids.set optional WSDL path needs typed support or N/A.",
+    },
+    ("campaigns", "add"): {
+        "issue": "#250",
+        "note": "campaigns.add optional WSDL path needs typed support or N/A.",
+    },
+    ("campaigns", "update"): {
+        "issue": "#250",
+        "note": "campaigns.update optional WSDL path needs typed support or N/A.",
+    },
+    ("clients", "update"): {
+        "issue": "#255",
+        "note": "clients.update optional WSDL path needs typed support or N/A.",
+    },
+    ("dynamicads", "add"): {
+        "issue": "#252",
+        "note": "dynamicads.add optional WSDL path needs typed support or N/A.",
+    },
+    ("dynamicfeedadtargets", "add"): {
+        "issue": "#252",
+        "note": "dynamicfeedadtargets.add optional WSDL path needs typed support or N/A.",
+    },
+    ("feeds", "add"): {
+        "issue": "#253",
+        "note": "feeds.add optional WSDL path needs typed support or N/A.",
+    },
+    ("feeds", "update"): {
+        "issue": "#253",
+        "note": "feeds.update optional WSDL path needs typed support or N/A.",
+    },
+    ("keywordbids", "set"): {
+        "issue": "#252",
+        "note": "keywordbids.set optional WSDL path needs typed support or N/A.",
+    },
+    ("retargeting", "add"): {
+        "issue": "#256",
+        "note": "retargeting.add optional WSDL path needs typed support or N/A.",
+    },
+    ("retargeting", "update"): {
+        "issue": "#256",
+        "note": "retargeting.update optional WSDL path needs typed support or N/A.",
+    },
+    ("smartadtargets", "add"): {
+        "issue": "#252",
+        "note": "smartadtargets.add optional WSDL path needs typed support or N/A.",
+    },
+    ("smartadtargets", "update"): {
+        "issue": "#252",
+        "note": "smartadtargets.update optional WSDL path needs typed support or N/A.",
+    },
+    ("strategies", "add"): {
+        "issue": "#251",
+        "note": "strategies.add optional WSDL path needs typed support or N/A.",
+    },
+    ("strategies", "update"): {
+        "issue": "#251",
+        "note": "strategies.update optional WSDL path needs typed support or N/A.",
+    },
+}
+
+OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
+    ("adgroups", "add", "TrackingParams"): {
+        "status": "missing_followup",
+        "issue": "#242",
+        "note": "AdGroupAddItem.TrackingParams has no typed flag.",
+    },
+    ("adgroups", "update", "TrackingParams"): {
+        "status": "missing_followup",
+        "issue": "#242",
+        "note": "AdGroupUpdateItem.TrackingParams has no typed flag.",
+    },
+    ("adgroups", "add", "NegativeKeywords"): {
+        "status": "missing_followup",
+        "issue": "#243",
+        "note": "Ad-group-level negative keywords are not exposed on add.",
+    },
+    ("adgroups", "update", "NegativeKeywords"): {
+        "status": "missing_followup",
+        "issue": "#243",
+        "note": "Ad-group-level negative keywords are not exposed on update.",
+    },
+    ("adgroups", "add", "NegativeKeywordSharedSetIds"): {
+        "status": "missing_followup",
+        "issue": "#243",
+        "note": "Shared-set IDs are read-filterable but not addable.",
+    },
+    ("adgroups", "update", "NegativeKeywordSharedSetIds"): {
+        "status": "missing_followup",
+        "issue": "#243",
+        "note": "Shared-set IDs are read-filterable but not updatable.",
+    },
+    ("adgroups", "add", "DynamicTextAdGroup.AutotargetingCategories"): {
+        "status": "missing_followup",
+        "issue": "#247",
+        "note": "Dynamic text ad group autotargeting categories are not exposed.",
+    },
+    ("adgroups", "add", "DynamicTextAdGroup.AutotargetingSettings"): {
+        "status": "missing_followup",
+        "issue": "#247",
+        "note": "Dynamic text ad group autotargeting settings are not exposed.",
+    },
+    ("keywords", "add", "AutotargetingCategories"): {
+        "status": "missing_followup",
+        "issue": "#244",
+        "note": "Keyword autotargeting categories have no typed add flags.",
+    },
+    ("keywords", "add", "AutotargetingSearchBidIsAuto"): {
+        "status": "missing_followup",
+        "issue": "#244",
+        "note": "Keyword autotargeting auto-search-bid has no typed add flag.",
+    },
+    ("keywords", "add", "StrategyPriority"): {
+        "status": "missing_followup",
+        "issue": "#244",
+        "note": "Keyword strategy priority has no typed add flag.",
+    },
+    ("keywords", "add", "AutotargetingBrandOptions"): {
+        "status": "missing_followup",
+        "issue": "#244",
+        "note": "Keyword autotargeting brand options have no typed add flags.",
+    },
+    ("keywords", "add", "AutotargetingSettings"): {
+        "status": "missing_followup",
+        "issue": "#244",
+        "note": "Keyword autotargeting settings have no typed add flags.",
+    },
+    ("keywords", "update", "AutotargetingCategories"): {
+        "status": "missing_followup",
+        "issue": "#244",
+        "note": "Keyword autotargeting categories have no typed update flags.",
+    },
+    ("keywords", "update", "AutotargetingBrandOptions"): {
+        "status": "missing_followup",
+        "issue": "#244",
+        "note": "Keyword autotargeting brand options have no typed update flags.",
+    },
+    ("keywords", "update", "AutotargetingSettings"): {
+        "status": "missing_followup",
+        "issue": "#244",
+        "note": "Keyword autotargeting settings have no typed update flags.",
+    },
+    ("ads", "update", "TextAd.VideoExtension"): {
+        "status": "missing_followup",
+        "issue": "#245",
+        "note": "TEXT_AD video extension update is WSDL-supported but absent.",
+    },
+    ("ads", "update", "TextAd.PriceExtension"): {
+        "status": "missing_followup",
+        "issue": "#245",
+        "note": "TEXT_AD price extension update is WSDL-supported but absent.",
+    },
+    ("sitelinks", "add", "Sitelinks.TurboPageId"): {
+        "status": "missing_followup",
+        "issue": "#257",
+        "note": "Sitelink TurboPageId has no typed add flag.",
+    },
+    ("vcards", "add", "InstantMessenger"): {
+        "status": "missing_followup",
+        "issue": "#246",
+        "note": "VCard InstantMessenger nested object has no typed flags.",
+    },
+    ("vcards", "add", "PointOnMap"): {
+        "status": "missing_followup",
+        "issue": "#246",
+        "note": "VCard PointOnMap nested object has no typed flags.",
+    },
+    ("adgroups", "add", "MobileAppAdGroup"): {
+        "status": "missing_followup",
+        "issue": "#247",
+        "note": "Rare ad group subtype block is not exposed by --type.",
+    },
+    ("adgroups", "add", "DynamicTextFeedAdGroup"): {
+        "status": "missing_followup",
+        "issue": "#247",
+        "note": "Rare ad group subtype block is not exposed by --type.",
+    },
+    ("adgroups", "add", "CpmBannerKeywordsAdGroup"): {
+        "status": "missing_followup",
+        "issue": "#247",
+        "note": "Rare ad group subtype block is not exposed by --type.",
+    },
+    ("adgroups", "add", "CpmBannerUserProfileAdGroup"): {
+        "status": "missing_followup",
+        "issue": "#247",
+        "note": "Rare ad group subtype block is not exposed by --type.",
+    },
+    ("adgroups", "add", "CpmVideoAdGroup"): {
+        "status": "missing_followup",
+        "issue": "#247",
+        "note": "Rare ad group subtype block is not exposed by --type.",
+    },
+    ("adgroups", "add", "UnifiedAdGroup"): {
+        "status": "missing_followup",
+        "issue": "#247",
+        "note": "Rare ad group subtype block is not exposed by --type.",
+    },
+    ("adgroups", "add", "TextAdGroupFeedParams"): {
+        "status": "missing_followup",
+        "issue": "#247",
+        "note": "Rare ad group feed params block has no typed add flags.",
+    },
+    ("adgroups", "update", "MobileAppAdGroup"): {
+        "status": "missing_followup",
+        "issue": "#247",
+        "note": "Rare ad group subtype block is not exposed by update.",
+    },
+    ("adgroups", "update", "DynamicTextAdGroup"): {
+        "status": "missing_followup",
+        "issue": "#247",
+        "note": "Dynamic ad group subtype update block has no typed flags.",
+    },
+    ("adgroups", "update", "DynamicTextFeedAdGroup"): {
+        "status": "missing_followup",
+        "issue": "#247",
+        "note": "Rare ad group subtype block is not exposed by update.",
+    },
+    ("adgroups", "update", "SmartAdGroup"): {
+        "status": "missing_followup",
+        "issue": "#247",
+        "note": "Smart ad group subtype update block has no typed flags.",
+    },
+    ("adgroups", "update", "TextAdGroupFeedParams"): {
+        "status": "missing_followup",
+        "issue": "#247",
+        "note": "Rare ad group feed params block has no typed update flags.",
+    },
+    ("adgroups", "update", "UnifiedAdGroup"): {
+        "status": "missing_followup",
+        "issue": "#247",
+        "note": "Rare ad group subtype block is not exposed by update.",
+    },
+}
+
 
 def _click_command(group_name: str, command_name: str):
     group = cli.commands.get(group_name)
@@ -700,6 +1236,159 @@ def test_internal_validation_rejects_missing_field(
         f"{'.'.join(field_key[:2])}: expected error containing "
         f"{expected_error!r} for missing {field_key[2]}, got {result.output!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Pattern C2 — optional WSDL fields are visible in the audit
+# ---------------------------------------------------------------------------
+
+
+def _audited_wsdl_paths() -> dict[tuple[str, str], set[str]]:
+    paths: dict[tuple[str, str], set[str]] = {}
+    for command_key, (api_service, wsdl_op, container) in COMMAND_WSDL_MAP.items():
+        schema = get_operation_request_schema(fetch_cached_wsdl(api_service), wsdl_op)
+        rows = iter_container_item_fields(
+            schema, container, max_depth=OPTIONAL_FIELD_AUDIT_MAX_DEPTH
+        )
+        paths[command_key] = {row["path"] for row in rows}
+    return paths
+
+
+def test_optional_field_audit_entries_reference_real_wsdl_paths() -> None:
+    """Manual #239 follow-up entries must stay tied to real WSDL paths."""
+    paths_by_command = _audited_wsdl_paths()
+    bad_statuses = []
+    stale_entries = []
+    missing_issues = []
+
+    for (cli_group, cli_op, wsdl_path), entry in OPTIONAL_FIELD_AUDIT.items():
+        status = entry.get("status")
+        if status not in OPTIONAL_FIELD_AUDIT_STATUSES:
+            bad_statuses.append((cli_group, cli_op, wsdl_path, status))
+        if wsdl_path not in paths_by_command.get((cli_group, cli_op), set()):
+            stale_entries.append((cli_group, cli_op, wsdl_path))
+        if status == "missing_followup":
+            issue = entry.get("issue", "")
+            if not (issue.startswith("#") and issue[1:].isdigit()):
+                missing_issues.append((cli_group, cli_op, wsdl_path, issue))
+
+    assert not bad_statuses, f"Invalid optional-field audit statuses: {bad_statuses}"
+    assert (
+        not stale_entries
+    ), f"Optional-field audit entries no longer in WSDL: {stale_entries}"
+    assert not missing_issues, (
+        "Optional-field missing_followup entries must link a GitHub issue: "
+        f"{missing_issues}"
+    )
+
+
+def test_optional_field_missing_followups_do_not_mask_supported_paths() -> None:
+    """A stale missing override must not hide newly implemented typed support."""
+    conflicts = []
+    for (cli_group, cli_op, audit_path), entry in OPTIONAL_FIELD_AUDIT.items():
+        if entry.get("status") != "missing_followup":
+            continue
+        for support_group, support_op, support_path in OPTIONAL_FIELD_CLI_OPTIONS:
+            if (support_group, support_op) != (cli_group, cli_op):
+                continue
+            if support_path == audit_path or support_path.startswith(f"{audit_path}."):
+                conflicts.append(
+                    (
+                        cli_group,
+                        cli_op,
+                        audit_path,
+                        support_path,
+                        entry.get("issue"),
+                    )
+                )
+
+    assert not conflicts, (
+        "Optional-field missing_followup entries mask supported path mappings: "
+        f"{conflicts}. Remove the stale follow-up override or do not mark the "
+        "path supported."
+    )
+
+
+def test_optional_field_supported_options_reference_click_options() -> None:
+    """Path-aware supported entries must point at real Click options."""
+    paths_by_command = _audited_wsdl_paths()
+    stale_paths = []
+    bad_options = []
+    for (cli_group, cli_op, wsdl_path), options in OPTIONAL_FIELD_CLI_OPTIONS.items():
+        if wsdl_path not in paths_by_command.get((cli_group, cli_op), set()):
+            stale_paths.append((cli_group, cli_op, wsdl_path))
+        command = _click_command(cli_group, cli_op)
+        assert command is not None, f"CLI command not registered: {cli_group}.{cli_op}"
+        click_options = {
+            opt for param in command.params for opt in getattr(param, "opts", [])
+        }
+        missing = sorted(options - click_options)
+        if missing:
+            bad_options.append((cli_group, cli_op, wsdl_path, missing))
+
+    assert not stale_paths, (
+        "Optional-field supported entries no longer exist in WSDL: " f"{stale_paths}"
+    )
+    assert not bad_options, (
+        "Optional-field supported entries reference missing Click options: "
+        f"{bad_options}"
+    )
+
+
+def test_optional_field_default_followups_reference_issues() -> None:
+    """Default missing classifications must be tied to real follow-up ids."""
+    bad_defaults = []
+    for command_key, entry in OPTIONAL_FIELD_DEFAULT_FOLLOWUPS.items():
+        if command_key not in COMMAND_WSDL_MAP:
+            bad_defaults.append((command_key, "not in COMMAND_WSDL_MAP"))
+            continue
+        issue = entry.get("issue", "")
+        if not (issue.startswith("#") and issue[1:].isdigit()):
+            bad_defaults.append((command_key, issue))
+
+    assert not bad_defaults, (
+        "Optional-field default follow-ups must reference command keys and "
+        f"GitHub issue ids: {bad_defaults}"
+    )
+
+
+def test_optional_field_audit_imports_are_cache_only(monkeypatch, tmp_path) -> None:
+    """Offline gates must fail on missing imported XSDs without network calls."""
+    import requests
+
+    network_calls = []
+
+    def fail_network(url, *args, **kwargs):
+        network_calls.append(url)
+        raise AssertionError(f"Unexpected network call: {url}")
+
+    monkeypatch.setattr(wsdl_coverage, "IMPORTS_CACHE_DIR", tmp_path)
+    monkeypatch.setattr(requests, "get", fail_network)
+    wsdl_coverage._cached_imported_xsd.cache_clear()
+    try:
+        with pytest.raises(FileNotFoundError):
+            get_operation_request_schema(fetch_cached_wsdl("clients"), "update")
+    finally:
+        wsdl_coverage._cached_imported_xsd.cache_clear()
+
+    assert not network_calls
+
+
+def test_optional_field_audit_report_is_current() -> None:
+    """The committed soft-audit table must match cached WSDL + audit ledger."""
+    repo_root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/build_wsdl_optional_field_audit.py",
+            "--check",
+        ],
+        cwd=repo_root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 # ---------------------------------------------------------------------------

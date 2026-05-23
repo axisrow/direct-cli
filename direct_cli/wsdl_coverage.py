@@ -182,6 +182,17 @@ def fetch_wsdl(service_name: str, use_cache: bool = True) -> str:
     return xml_text
 
 
+def fetch_cached_wsdl(service_name: str) -> str:
+    """Read a service WSDL from the committed local cache only."""
+    cache_file = CACHE_DIR / f"{service_name}.xml"
+    if not cache_file.exists():
+        raise FileNotFoundError(
+            f"Missing cached WSDL for {service_name}: {cache_file}. "
+            "Refresh tests/wsdl_cache before running offline gates."
+        )
+    return cache_file.read_text(encoding="utf-8")
+
+
 def fetch_live_wsdl(service_name: str) -> str:
     """Fetch live WSDL XML without reading or writing the local cache."""
     import requests
@@ -357,10 +368,25 @@ def fetch_imported_xsd(namespace: str, use_cache: bool = True) -> str:
     return xml_text
 
 
+def fetch_cached_imported_xsd(namespace: str) -> str:
+    """Read an imported XSD from the committed local cache only."""
+    filename = IMPORTED_XSD_REGISTRY.get(namespace)
+    if filename is None:
+        raise KeyError(f"Unsupported imported XSD namespace: {namespace}")
+
+    cache_file = IMPORTS_CACHE_DIR / filename
+    if not cache_file.exists():
+        raise FileNotFoundError(
+            f"Missing cached imported XSD for {namespace}: {cache_file}. "
+            "Refresh tests/wsdl_cache/imports before running offline gates."
+        )
+    return cache_file.read_text(encoding="utf-8")
+
+
 @lru_cache(maxsize=None)
 def _cached_imported_xsd(namespace: str) -> str:
     """Return cached imported XSD XML for namespace."""
-    return fetch_imported_xsd(namespace, use_cache=True)
+    return fetch_cached_imported_xsd(namespace)
 
 
 def _load_schema_contexts(wsdl_xml: str) -> dict[str, dict]:
@@ -562,6 +588,61 @@ def get_required_item_fields(schema: dict, container_name: str) -> list[str]:
             if item.get("min_occurs", 1) >= 1
         ]
     return []
+
+
+def iter_container_item_fields(
+    schema: dict, container_name: str, *, max_depth: int | None = None
+) -> list[dict]:
+    """Return item field metadata below a mutating request container.
+
+    Unlike :func:`get_required_item_fields`, this includes optional
+    ``minOccurs=0`` fields and nested subtype fields. The WSDL parity audit uses
+    this to make optional-field gaps visible without turning every optional
+    field into a hard CLI requirement.
+
+    Args:
+        schema: Request schema from :func:`get_operation_request_schema`.
+        container_name: Top-level container field such as ``Ads`` or
+            ``Campaigns``.
+        max_depth: Optional maximum nesting depth below the item. ``1`` means
+            direct item fields only; ``2`` includes one subtype/object level.
+
+    Returns:
+        A list of field dictionaries. Each entry is a shallow copy of the
+        original schema field with added ``path``, ``parent_path``, and
+        ``depth`` keys.
+    """
+    container = next(
+        (
+            field
+            for field in schema.get("fields", [])
+            if field.get("name") == container_name
+        ),
+        None,
+    )
+    if container is None:
+        return []
+
+    rows: list[dict] = []
+
+    def walk(fields: list[dict], prefix: tuple[str, ...]) -> None:
+        for field in fields:
+            name = field.get("name")
+            if not name:
+                continue
+            path_parts = prefix + (name,)
+            depth = len(path_parts)
+            row = {key: value for key, value in field.items() if key != "item_fields"}
+            row["path"] = ".".join(path_parts)
+            row["parent_path"] = ".".join(prefix)
+            row["depth"] = depth
+            rows.append(row)
+            if max_depth is not None and depth >= max_depth:
+                continue
+            walk(field.get("item_fields") or [], path_parts)
+
+    walk(container.get("item_fields") or [], ())
+    return rows
 
 
 def find_nested_schema_violations(
