@@ -11,8 +11,8 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2856 |
-| `supported` | 385 |
+| `missing_followup` | 2857 |
+| `supported` | 384 |
 
 ## Confirmed Follow-Ups
 
@@ -2661,6 +2661,7 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `retargeting.update` | `Description` | retargeting.update optional WSDL path needs typed support or N/A. [#256](https://github.com/axisrow/direct-cli/issues/256) |
 | `retargeting.update` | `Rules.Arguments.MembershipLifeSpan` | retargeting.update optional WSDL path needs typed support or N/A. [#256](https://github.com/axisrow/direct-cli/issues/256) |
 | `retargeting.update` | `Rules.Arguments.ExternalId` | retargeting.update optional WSDL path needs typed support or N/A. [#256](https://github.com/axisrow/direct-cli/issues/256) |
+| `sitelinks.add` | `Sitelinks.TurboPageId` | Sitelink TurboPageId has no typed add flag. [#257](https://github.com/axisrow/direct-cli/issues/257) |
 | `smartadtargets.add` | `Conditions.Items.Operand` | smartadtargets.add optional WSDL path needs typed support or N/A. [#252](https://github.com/axisrow/direct-cli/issues/252) |
 | `smartadtargets.add` | `Conditions.Items.Operator` | smartadtargets.add optional WSDL path needs typed support or N/A. [#252](https://github.com/axisrow/direct-cli/issues/252) |
 | `smartadtargets.add` | `Conditions.Items.Arguments` | smartadtargets.add optional WSDL path needs typed support or N/A. [#252](https://github.com/axisrow/direct-cli/issues/252) |
@@ -5731,11 +5732,11 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `retargeting.update` | `retargetinglists.update` | `Rules.Arguments.ExternalId` | `long` | 1 | 1 | `missing_followup` | retargeting.update optional WSDL path needs typed support or N/A. [#256](https://github.com/axisrow/direct-cli/issues/256) |
 | `retargeting.update` | `retargetinglists.update` | `Rules.Operator` | `RetargetingListRuleOperatorEnum` | 1 | 1 | `supported` | --rule |
 | `retargeting.update` | `retargetinglists.update` | `Id` | `long` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
-| `sitelinks.add` | `sitelinks.add` | `Sitelinks` | `SitelinkAddItem` | 1 | unbounded | `supported` | --sitelink, --sitelink-json, --sitelinks-from-file |
-| `sitelinks.add` | `sitelinks.add` | `Sitelinks.Title` | `string` | 1 | 1 | `supported` | --sitelink, --sitelink-json, --sitelinks-from-file |
-| `sitelinks.add` | `sitelinks.add` | `Sitelinks.Href` | `string` | 0 | 1 | `supported` | --sitelink, --sitelink-json, --sitelinks-from-file |
-| `sitelinks.add` | `sitelinks.add` | `Sitelinks.Description` | `string` | 0 | 1 | `supported` | --sitelink, --sitelink-json, --sitelinks-from-file |
-| `sitelinks.add` | `sitelinks.add` | `Sitelinks.TurboPageId` | `long` | 0 | 1 | `supported` | --sitelink, --sitelink-json, --sitelinks-from-file |
+| `sitelinks.add` | `sitelinks.add` | `Sitelinks` | `SitelinkAddItem` | 1 | unbounded | `supported` | --sitelink |
+| `sitelinks.add` | `sitelinks.add` | `Sitelinks.Title` | `string` | 1 | 1 | `supported` | --sitelink |
+| `sitelinks.add` | `sitelinks.add` | `Sitelinks.Href` | `string` | 0 | 1 | `supported` | --sitelink |
+| `sitelinks.add` | `sitelinks.add` | `Sitelinks.Description` | `string` | 0 | 1 | `supported` | --sitelink |
+| `sitelinks.add` | `sitelinks.add` | `Sitelinks.TurboPageId` | `long` | 0 | 1 | `missing_followup` | Sitelink TurboPageId has no typed add flag. [#257](https://github.com/axisrow/direct-cli/issues/257) |
 | `smartadtargets.add` | `smartadtargets.add` | `Name` | `string` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `smartadtargets.add` | `smartadtargets.add` | `AdGroupId` | `long` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `smartadtargets.add` | `smartadtargets.add` | `AverageCpc` | `long` | 0 | 1 | `supported` | --average-cpc |
