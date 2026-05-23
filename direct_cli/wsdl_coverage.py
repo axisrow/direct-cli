@@ -564,6 +564,61 @@ def get_required_item_fields(schema: dict, container_name: str) -> list[str]:
     return []
 
 
+def iter_container_item_fields(
+    schema: dict, container_name: str, *, max_depth: int | None = None
+) -> list[dict]:
+    """Return item field metadata below a mutating request container.
+
+    Unlike :func:`get_required_item_fields`, this includes optional
+    ``minOccurs=0`` fields and nested subtype fields. The WSDL parity audit uses
+    this to make optional-field gaps visible without turning every optional
+    field into a hard CLI requirement.
+
+    Args:
+        schema: Request schema from :func:`get_operation_request_schema`.
+        container_name: Top-level container field such as ``Ads`` or
+            ``Campaigns``.
+        max_depth: Optional maximum nesting depth below the item. ``1`` means
+            direct item fields only; ``2`` includes one subtype/object level.
+
+    Returns:
+        A list of field dictionaries. Each entry is a shallow copy of the
+        original schema field with added ``path``, ``parent_path``, and
+        ``depth`` keys.
+    """
+    container = next(
+        (
+            field
+            for field in schema.get("fields", [])
+            if field.get("name") == container_name
+        ),
+        None,
+    )
+    if container is None:
+        return []
+
+    rows: list[dict] = []
+
+    def walk(fields: list[dict], prefix: tuple[str, ...]) -> None:
+        for field in fields:
+            name = field.get("name")
+            if not name:
+                continue
+            path_parts = prefix + (name,)
+            depth = len(path_parts)
+            row = {key: value for key, value in field.items() if key != "item_fields"}
+            row["path"] = ".".join(path_parts)
+            row["parent_path"] = ".".join(prefix)
+            row["depth"] = depth
+            rows.append(row)
+            if max_depth is not None and depth >= max_depth:
+                continue
+            walk(field.get("item_fields") or [], path_parts)
+
+    walk(container.get("item_fields") or [], ())
+    return rows
+
+
 def find_nested_schema_violations(
     body: dict, schema: dict, *, path: str = "params"
 ) -> list[str]:

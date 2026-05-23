@@ -29,6 +29,10 @@ be treated as WSDL/CLI parity breaks, not as expected milestone work.
 
 from __future__ import annotations
 
+import subprocess
+import sys
+from pathlib import Path
+
 import pytest
 from click.testing import CliRunner
 
@@ -41,6 +45,7 @@ from direct_cli.wsdl_coverage import (
     fetch_wsdl,
     get_operation_request_schema,
     get_required_item_fields,
+    iter_container_item_fields,
 )
 
 # ---------------------------------------------------------------------------
@@ -592,6 +597,167 @@ INTERNAL_VALIDATION: dict[tuple[str, str, str], str] = {
     ("sitelinks", "add", "Sitelinks"): "Provide exactly one of: --sitelink",
 }
 
+# Optional-field audit status registry for issue #239. This is deliberately a
+# soft gate: confirmed misses are allowed to remain in CI, but they must be
+# recorded with a follow-up issue so ``minOccurs=0`` WSDL fields do not vanish
+# from the release audit again.
+OPTIONAL_FIELD_AUDIT_MAX_DEPTH = 2
+OPTIONAL_FIELD_AUDIT_REPORT = (
+    Path(__file__).resolve().parent / "WSDL_OPTIONAL_FIELD_AUDIT.md"
+)
+OPTIONAL_FIELD_AUDIT_STATUSES = {
+    "missing_followup",
+    "not_applicable",
+    "supported",
+}
+OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
+    ("adgroups", "add", "TrackingParams"): {
+        "status": "missing_followup",
+        "issue": "#242",
+        "note": "AdGroupAddItem.TrackingParams has no typed flag.",
+    },
+    ("adgroups", "update", "TrackingParams"): {
+        "status": "missing_followup",
+        "issue": "#242",
+        "note": "AdGroupUpdateItem.TrackingParams has no typed flag.",
+    },
+    ("adgroups", "add", "NegativeKeywords"): {
+        "status": "missing_followup",
+        "issue": "#243",
+        "note": "Ad-group-level negative keywords are not exposed on add.",
+    },
+    ("adgroups", "update", "NegativeKeywords"): {
+        "status": "missing_followup",
+        "issue": "#243",
+        "note": "Ad-group-level negative keywords are not exposed on update.",
+    },
+    ("adgroups", "add", "NegativeKeywordSharedSetIds"): {
+        "status": "missing_followup",
+        "issue": "#243",
+        "note": "Shared-set IDs are read-filterable but not addable.",
+    },
+    ("adgroups", "update", "NegativeKeywordSharedSetIds"): {
+        "status": "missing_followup",
+        "issue": "#243",
+        "note": "Shared-set IDs are read-filterable but not updatable.",
+    },
+    ("keywords", "add", "AutotargetingCategories"): {
+        "status": "missing_followup",
+        "issue": "#244",
+        "note": "Keyword autotargeting categories have no typed add flags.",
+    },
+    ("keywords", "add", "AutotargetingBrandOptions"): {
+        "status": "missing_followup",
+        "issue": "#244",
+        "note": "Keyword autotargeting brand options have no typed add flags.",
+    },
+    ("keywords", "add", "AutotargetingSettings"): {
+        "status": "missing_followup",
+        "issue": "#244",
+        "note": "Keyword autotargeting settings have no typed add flags.",
+    },
+    ("keywords", "update", "AutotargetingCategories"): {
+        "status": "missing_followup",
+        "issue": "#244",
+        "note": "Keyword autotargeting categories have no typed update flags.",
+    },
+    ("keywords", "update", "AutotargetingBrandOptions"): {
+        "status": "missing_followup",
+        "issue": "#244",
+        "note": "Keyword autotargeting brand options have no typed update flags.",
+    },
+    ("keywords", "update", "AutotargetingSettings"): {
+        "status": "missing_followup",
+        "issue": "#244",
+        "note": "Keyword autotargeting settings have no typed update flags.",
+    },
+    ("ads", "update", "TextAd.VideoExtension"): {
+        "status": "missing_followup",
+        "issue": "#245",
+        "note": "TEXT_AD video extension update is WSDL-supported but absent.",
+    },
+    ("ads", "update", "TextAd.PriceExtension"): {
+        "status": "missing_followup",
+        "issue": "#245",
+        "note": "TEXT_AD price extension update is WSDL-supported but absent.",
+    },
+    ("vcards", "add", "InstantMessenger"): {
+        "status": "missing_followup",
+        "issue": "#246",
+        "note": "VCard InstantMessenger nested object has no typed flags.",
+    },
+    ("vcards", "add", "PointOnMap"): {
+        "status": "missing_followup",
+        "issue": "#246",
+        "note": "VCard PointOnMap nested object has no typed flags.",
+    },
+    ("adgroups", "add", "MobileAppAdGroup"): {
+        "status": "missing_followup",
+        "issue": "#247",
+        "note": "Rare ad group subtype block is not exposed by --type.",
+    },
+    ("adgroups", "add", "DynamicTextFeedAdGroup"): {
+        "status": "missing_followup",
+        "issue": "#247",
+        "note": "Rare ad group subtype block is not exposed by --type.",
+    },
+    ("adgroups", "add", "CpmBannerKeywordsAdGroup"): {
+        "status": "missing_followup",
+        "issue": "#247",
+        "note": "Rare ad group subtype block is not exposed by --type.",
+    },
+    ("adgroups", "add", "CpmBannerUserProfileAdGroup"): {
+        "status": "missing_followup",
+        "issue": "#247",
+        "note": "Rare ad group subtype block is not exposed by --type.",
+    },
+    ("adgroups", "add", "CpmVideoAdGroup"): {
+        "status": "missing_followup",
+        "issue": "#247",
+        "note": "Rare ad group subtype block is not exposed by --type.",
+    },
+    ("adgroups", "add", "UnifiedAdGroup"): {
+        "status": "missing_followup",
+        "issue": "#247",
+        "note": "Rare ad group subtype block is not exposed by --type.",
+    },
+    ("adgroups", "add", "TextAdGroupFeedParams"): {
+        "status": "missing_followup",
+        "issue": "#247",
+        "note": "Rare ad group feed params block has no typed add flags.",
+    },
+    ("adgroups", "update", "MobileAppAdGroup"): {
+        "status": "missing_followup",
+        "issue": "#247",
+        "note": "Rare ad group subtype block is not exposed by update.",
+    },
+    ("adgroups", "update", "DynamicTextAdGroup"): {
+        "status": "missing_followup",
+        "issue": "#247",
+        "note": "Dynamic ad group subtype update block has no typed flags.",
+    },
+    ("adgroups", "update", "DynamicTextFeedAdGroup"): {
+        "status": "missing_followup",
+        "issue": "#247",
+        "note": "Rare ad group subtype block is not exposed by update.",
+    },
+    ("adgroups", "update", "SmartAdGroup"): {
+        "status": "missing_followup",
+        "issue": "#247",
+        "note": "Smart ad group subtype update block has no typed flags.",
+    },
+    ("adgroups", "update", "TextAdGroupFeedParams"): {
+        "status": "missing_followup",
+        "issue": "#247",
+        "note": "Rare ad group feed params block has no typed update flags.",
+    },
+    ("adgroups", "update", "UnifiedAdGroup"): {
+        "status": "missing_followup",
+        "issue": "#247",
+        "note": "Rare ad group subtype block is not exposed by update.",
+    },
+}
+
 
 def _click_command(group_name: str, command_name: str):
     group = cli.commands.get(group_name)
@@ -700,6 +866,67 @@ def test_internal_validation_rejects_missing_field(
         f"{'.'.join(field_key[:2])}: expected error containing "
         f"{expected_error!r} for missing {field_key[2]}, got {result.output!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Pattern C2 — optional WSDL fields are visible in the audit
+# ---------------------------------------------------------------------------
+
+
+def _audited_wsdl_paths() -> dict[tuple[str, str], set[str]]:
+    paths: dict[tuple[str, str], set[str]] = {}
+    for command_key, (api_service, wsdl_op, container) in COMMAND_WSDL_MAP.items():
+        schema = get_operation_request_schema(fetch_wsdl(api_service), wsdl_op)
+        rows = iter_container_item_fields(
+            schema, container, max_depth=OPTIONAL_FIELD_AUDIT_MAX_DEPTH
+        )
+        paths[command_key] = {row["path"] for row in rows}
+    return paths
+
+
+def test_optional_field_audit_entries_reference_real_wsdl_paths() -> None:
+    """Manual #239 follow-up entries must stay tied to real WSDL paths."""
+    paths_by_command = _audited_wsdl_paths()
+    bad_statuses = []
+    stale_entries = []
+    missing_issues = []
+
+    for (cli_group, cli_op, wsdl_path), entry in OPTIONAL_FIELD_AUDIT.items():
+        status = entry.get("status")
+        if status not in OPTIONAL_FIELD_AUDIT_STATUSES:
+            bad_statuses.append((cli_group, cli_op, wsdl_path, status))
+        if wsdl_path not in paths_by_command.get((cli_group, cli_op), set()):
+            stale_entries.append((cli_group, cli_op, wsdl_path))
+        if status == "missing_followup":
+            issue = entry.get("issue", "")
+            if not (issue.startswith("#") and issue[1:].isdigit()):
+                missing_issues.append((cli_group, cli_op, wsdl_path, issue))
+
+    assert not bad_statuses, f"Invalid optional-field audit statuses: {bad_statuses}"
+    assert (
+        not stale_entries
+    ), f"Optional-field audit entries no longer in WSDL: {stale_entries}"
+    assert not missing_issues, (
+        "Optional-field missing_followup entries must link a GitHub issue: "
+        f"{missing_issues}"
+    )
+
+
+def test_optional_field_audit_report_is_current() -> None:
+    """The committed soft-audit table must match cached WSDL + audit ledger."""
+    repo_root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/build_wsdl_optional_field_audit.py",
+            "--check",
+        ],
+        cwd=repo_root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 # ---------------------------------------------------------------------------
