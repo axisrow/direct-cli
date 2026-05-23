@@ -417,6 +417,34 @@ SILENT_LOSS_PROBES: list[tuple[str, list[str], str]] = [
         ],
         "--average-cpc",
     ),
+    (
+        "ads.update TEXT_IMAGE_AD + --callouts-add",
+        [
+            "ads",
+            "update",
+            "--id",
+            "1",
+            "--type",
+            "TEXT_IMAGE_AD",
+            "--callouts-add",
+            "111",
+        ],
+        "--callouts-add",
+    ),
+    (
+        "ads.update MOBILE_APP_AD + --callouts-set",
+        [
+            "ads",
+            "update",
+            "--id",
+            "1",
+            "--type",
+            "MOBILE_APP_AD",
+            "--callouts-set",
+            "111",
+        ],
+        "--callouts-set",
+    ),
 ]
 
 
@@ -537,6 +565,12 @@ WSDL_FIELD_TO_CLI_OPTION: dict[str, set[str]] = {
     "SitelinkSetId": {"--sitelink-set-id"},
     "TurboPageId": {"--turbo-page-id"},
     "AdExtensionIds": {"--ad-extensions"},
+    # ads update typed flags introduced in issue #238
+    "CalloutSetting": {
+        "--callouts-add",
+        "--callouts-remove",
+        "--callouts-set",
+    },
 }
 
 # Fields whose required-ness is enforced inside the command body rather
