@@ -397,15 +397,22 @@ direct ads add --adgroup-id 12345 --type TEXT_IMAGE_AD --image-hash abcdefghijkl
 direct ads update --id 99999 --type TEXT_AD --title "New Title" --text "New text" --href "https://example.com"
 direct ads update --id 99999 --type TEXT_AD --image-hash abcdefghijklmnopqrst
 direct ads update --id 99999 --type TEXT_AD --title2 "New second headline" --vcard-id 222
+direct ads update --id 99999 --type TEXT_AD --callouts-add "111,222" --callouts-remove "333"
+direct ads update --id 99999 --type TEXT_AD --callouts-set "444,555"
 direct ads delete --id 99999
 ```
 
 Available TEXT_AD typed flags for `ads add` / `ads update`: `--title`, `--text`,
 `--href`, `--image-hash`, `--title2`, `--display-url-path`, `--vcard-id`,
-`--sitelink-set-id`, `--turbo-page-id`. `--mobile` (default `NO`) and
-`--ad-extensions` are `ads add`-only — `TextAdUpdate` does not contain `Mobile`,
-and ad-extension updates go through the `CalloutSetting` WSDL field, which is
-not yet exposed by the CLI. TEXT_IMAGE_AD additionally accepts `--turbo-page-id`.
+`--sitelink-set-id`, `--turbo-page-id`. `ads update` additionally exposes
+`--callouts-add`, `--callouts-remove`, and `--callouts-set` for managing the
+`TextAdUpdateBase.CalloutSetting` (`ext:AdExtensionSetting`) field on an
+existing ad — `--callouts-set` replaces the whole callout list and is mutually
+exclusive with the incremental `--callouts-add` / `--callouts-remove` pair.
+`--mobile` (default `NO`) and `--ad-extensions` are `ads add`-only —
+`TextAdUpdate` does not contain `Mobile`, and on update ad-extensions are
+managed through the `--callouts-*` flags above. TEXT_IMAGE_AD additionally
+accepts `--turbo-page-id`.
 
 #### Keywords
 
@@ -1091,16 +1098,23 @@ direct ads add --adgroup-id 12345 --type TEXT_IMAGE_AD --image-hash abcdefghijkl
 direct ads update --id 99999 --type TEXT_AD --title "Новый заголовок" --text "Новый текст" --href "https://example.com"
 direct ads update --id 99999 --type TEXT_AD --image-hash abcdefghijklmnopqrst
 direct ads update --id 99999 --type TEXT_AD --title2 "Новый второй заголовок" --vcard-id 222
+direct ads update --id 99999 --type TEXT_AD --callouts-add "111,222" --callouts-remove "333"
+direct ads update --id 99999 --type TEXT_AD --callouts-set "444,555"
 direct ads delete --id 99999
 ```
 
 Доступные типизированные флаги TEXT_AD для `ads add` / `ads update`:
 `--title`, `--text`, `--href`, `--image-hash`, `--title2`, `--display-url-path`,
-`--vcard-id`, `--sitelink-set-id`, `--turbo-page-id`. `--mobile`
-(default `NO`) и `--ad-extensions` доступны только в `ads add` — WSDL
-`TextAdUpdate` не содержит `Mobile`, а обновление расширений идёт через поле
-`CalloutSetting`, которое пока не покрыто CLI. Для TEXT_IMAGE_AD дополнительно
-доступен `--turbo-page-id`.
+`--vcard-id`, `--sitelink-set-id`, `--turbo-page-id`. В `ads update`
+дополнительно доступны `--callouts-add`, `--callouts-remove` и
+`--callouts-set` для управления полем `TextAdUpdateBase.CalloutSetting`
+(`ext:AdExtensionSetting`) у существующего объявления — `--callouts-set`
+заменяет весь список выносок и взаимоисключим с инкрементальной парой
+`--callouts-add` / `--callouts-remove`. `--mobile` (default `NO`) и
+`--ad-extensions` доступны только в `ads add` — WSDL `TextAdUpdate` не
+содержит `Mobile`, а в `ads update` расширения управляются через флаги
+`--callouts-*` выше. Для TEXT_IMAGE_AD дополнительно доступен
+`--turbo-page-id`.
 
 #### Ключевые слова
 

@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.3.12
+
+**Added:**
+
+- `direct ads update` now exposes `--callouts-add`, `--callouts-remove`,
+  and `--callouts-set` for managing the
+  `TextAdUpdateBase.CalloutSetting` field
+  (`ext:AdExtensionSetting`). Each flag accepts a comma-separated list
+  of `CALLOUT`-type ad-extension IDs; `--callouts-set` replaces the
+  full callout list and is mutually exclusive with the incremental
+  `--callouts-add` / `--callouts-remove` pair (enforced via
+  `click.UsageError` before any request is built). Flags are
+  TEXT_AD-only — per-subtype validation rejects them on `TEXT_IMAGE_AD`
+  / `MOBILE_APP_AD` with the standard "not compatible with --type"
+  message. Empty CSV input is rejected up-front rather than silently
+  producing a no-op payload. Closes #238.
+
 ## 0.3.11
 
 **Added:**

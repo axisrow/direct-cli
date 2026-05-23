@@ -34,6 +34,42 @@ def _reject_incompatible_flags(
         )
 
 
+def _build_callout_setting(callouts_add, callouts_remove, callouts_set):
+    """Build TextAdUpdateBase.CalloutSetting (ext:AdExtensionSetting).
+
+    SET is mutually exclusive with ADD/REMOVE per WSDL OperationEnum
+    semantics. Returns None when no callout flag was provided.
+    """
+    if callouts_set and (callouts_add or callouts_remove):
+        raise click.UsageError(
+            "--callouts-set is mutually exclusive with "
+            "--callouts-add / --callouts-remove. "
+            "Use --callouts-set to replace the full callout list, "
+            "or --callouts-add / --callouts-remove for incremental edits."
+        )
+    items = []
+    for csv_value, op in (
+        (callouts_set, "SET"),
+        (callouts_add, "ADD"),
+        (callouts_remove, "REMOVE"),
+    ):
+        if csv_value is None:
+            continue
+        try:
+            ids = parse_ids(csv_value)
+        except ValueError as exc:
+            raise click.UsageError(f"--callouts-{op.lower()}: {exc}")
+        if not ids:
+            raise click.UsageError(
+                f"--callouts-{op.lower()} must contain at least one ad extension ID."
+            )
+        for ad_ext_id in ids:
+            items.append({"AdExtensionId": ad_ext_id, "Operation": op})
+    if not items:
+        return None
+    return {"AdExtensions": items}
+
+
 @ads.command()
 @click.option("--ids", help="Comma-separated ad IDs")
 @click.option("--campaign-ids", help="Comma-separated campaign IDs")
@@ -451,6 +487,28 @@ def add(
 @click.option(
     "--turbo-page-id", type=int, help="Turbo page ID (TEXT_AD / TEXT_IMAGE_AD)"
 )
+@click.option(
+    "--callouts-add",
+    help=(
+        "Comma-separated CALLOUT ad-extension IDs to attach "
+        "(Operation=ADD). TEXT_AD only."
+    ),
+)
+@click.option(
+    "--callouts-remove",
+    help=(
+        "Comma-separated CALLOUT ad-extension IDs to detach "
+        "(Operation=REMOVE). TEXT_AD only."
+    ),
+)
+@click.option(
+    "--callouts-set",
+    help=(
+        "Comma-separated CALLOUT ad-extension IDs that REPLACE the ad's "
+        "current callout list (Operation=SET). Mutually exclusive with "
+        "--callouts-add / --callouts-remove. TEXT_AD only."
+    ),
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def update(
@@ -470,6 +528,9 @@ def update(
     vcard_id,
     sitelink_set_id,
     turbo_page_id,
+    callouts_add,
+    callouts_remove,
+    callouts_set,
     dry_run,
 ):
     """Update ad"""
@@ -504,6 +565,9 @@ def update(
             "vcard_id",
             "sitelink_set_id",
             "turbo_page_id",
+            "callouts_add",
+            "callouts_remove",
+            "callouts_set",
         },
         "TEXT_IMAGE_AD": {"image_hash", "href", "turbo_page_id"},
         "MOBILE_APP_AD": {
@@ -528,6 +592,9 @@ def update(
         "vcard_id": vcard_id,
         "sitelink_set_id": sitelink_set_id,
         "turbo_page_id": turbo_page_id,
+        "callouts_add": callouts_add,
+        "callouts_remove": callouts_remove,
+        "callouts_set": callouts_set,
     }
     flag_for = {
         "title": "--title",
@@ -542,6 +609,9 @@ def update(
         "vcard_id": "--vcard-id",
         "sitelink_set_id": "--sitelink-set-id",
         "turbo_page_id": "--turbo-page-id",
+        "callouts_add": "--callouts-add",
+        "callouts_remove": "--callouts-remove",
+        "callouts_set": "--callouts-set",
     }
     try:
         _reject_incompatible_flags(
@@ -552,6 +622,13 @@ def update(
             f"{exc.message} --type selects the existing ad subtype update block; "
             "it does not convert an ad between subtypes."
         )
+
+    # Validate up-front so SET vs ADD/REMOVE mutex errors raise UsageError
+    # before any payload work, bypassing the generic ``except Exception``
+    # net wrapped around the network call below.
+    callout_setting = _build_callout_setting(
+        callouts_add, callouts_remove, callouts_set
+    )
 
     ad_data = {"Id": ad_id}
 
@@ -575,6 +652,8 @@ def update(
             text_ad["SitelinkSetId"] = sitelink_set_id
         if turbo_page_id:
             text_ad["TurboPageId"] = turbo_page_id
+        if callout_setting:
+            text_ad["CalloutSetting"] = callout_setting
         if text_ad:
             ad_data["TextAd"] = text_ad
     elif ad_type_norm == "TEXT_IMAGE_AD":

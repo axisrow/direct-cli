@@ -1189,7 +1189,9 @@ def test_ads_update_rejects_mobile_flag():
 def test_ads_update_rejects_ad_extensions_flag():
     """Issue #202: --ad-extensions is not exposed on update.
 
-    TextAdUpdateBase uses ``CalloutSetting``, not an ``AdExtensionIds`` array.
+    TextAdUpdateBase uses ``CalloutSetting`` (managed via
+    ``--callouts-add`` / ``--callouts-remove`` / ``--callouts-set`` since
+    #238), not the ``AdExtensionIds`` flat array exposed on ``ads add``.
     """
     result = CliRunner().invoke(
         cli,
@@ -1207,6 +1209,192 @@ def test_ads_update_rejects_ad_extensions_flag():
     )
     assert result.exit_code != 0
     assert "No such option" in result.output and "--ad-extensions" in result.output
+
+
+def test_ads_update_callouts_add_only():
+    """Issue #238: --callouts-add builds CalloutSetting with ADD ops."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_AD",
+        "--callouts-add",
+        "111,222",
+    )
+    assert body["params"]["Ads"][0]["TextAd"] == {
+        "CalloutSetting": {
+            "AdExtensions": [
+                {"AdExtensionId": 111, "Operation": "ADD"},
+                {"AdExtensionId": 222, "Operation": "ADD"},
+            ]
+        }
+    }
+
+
+def test_ads_update_callouts_remove_only():
+    """Issue #238: --callouts-remove builds CalloutSetting with REMOVE ops."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_AD",
+        "--callouts-remove",
+        "333",
+    )
+    text_ad = body["params"]["Ads"][0]["TextAd"]
+    assert text_ad["CalloutSetting"]["AdExtensions"] == [
+        {"AdExtensionId": 333, "Operation": "REMOVE"},
+    ]
+
+
+def test_ads_update_callouts_set_only():
+    """Issue #238: --callouts-set replaces the full list with Operation=SET."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_AD",
+        "--callouts-set",
+        "111,222,333",
+    )
+    items = body["params"]["Ads"][0]["TextAd"]["CalloutSetting"]["AdExtensions"]
+    assert items == [
+        {"AdExtensionId": 111, "Operation": "SET"},
+        {"AdExtensionId": 222, "Operation": "SET"},
+        {"AdExtensionId": 333, "Operation": "SET"},
+    ]
+
+
+def test_ads_update_callouts_add_and_remove_combined():
+    """Issue #238: ADD and REMOVE coexist in one request; SET cannot mix in."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_AD",
+        "--callouts-add",
+        "111",
+        "--callouts-remove",
+        "222,333",
+    )
+    items = body["params"]["Ads"][0]["TextAd"]["CalloutSetting"]["AdExtensions"]
+    # Deterministic order from _build_callout_setting iteration:
+    # SET first (absent here), then ADD, then REMOVE.
+    assert items == [
+        {"AdExtensionId": 111, "Operation": "ADD"},
+        {"AdExtensionId": 222, "Operation": "REMOVE"},
+        {"AdExtensionId": 333, "Operation": "REMOVE"},
+    ]
+
+
+def test_ads_update_callouts_set_conflicts_with_add():
+    """Issue #238: --callouts-set is mutex with --callouts-add (UsageError)."""
+    result = _rejected(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_AD",
+        "--callouts-set",
+        "111",
+        "--callouts-add",
+        "222",
+    )
+    assert result.exit_code == 2
+    assert "--callouts-set is mutually exclusive" in result.output
+
+
+def test_ads_update_callouts_set_conflicts_with_remove():
+    """Issue #238: --callouts-set is mutex with --callouts-remove (UsageError)."""
+    result = _rejected(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_AD",
+        "--callouts-set",
+        "111",
+        "--callouts-remove",
+        "222",
+    )
+    assert result.exit_code == 2
+    assert "--callouts-set is mutually exclusive" in result.output
+
+
+def test_ads_update_callouts_rejected_for_text_image_ad():
+    """Issue #238 (Pattern B): callouts flags are TEXT_AD-only."""
+    result = _rejected(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_IMAGE_AD",
+        "--callouts-add",
+        "111",
+    )
+    assert "--callouts-add is not compatible with --type TEXT_IMAGE_AD" in result.output
+
+
+def test_ads_update_callouts_rejected_for_mobile_app_ad():
+    """Issue #238 (Pattern B): callouts flags are TEXT_AD-only."""
+    result = _rejected(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "MOBILE_APP_AD",
+        "--callouts-set",
+        "111",
+    )
+    assert "--callouts-set is not compatible with --type MOBILE_APP_AD" in result.output
+
+
+def test_ads_update_callouts_empty_string_rejected():
+    """Issue #238: empty CSV must raise UsageError, not silently no-op."""
+    result = _rejected(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_AD",
+        "--callouts-add",
+        "",
+    )
+    assert result.exit_code != 0
+    assert "must contain at least one ad extension ID" in result.output
+
+
+def test_ads_update_callouts_invalid_id_rejected_with_usage_error():
+    """Issue #238: non-integer CSV item must raise UsageError (exit 2),
+    not surface ValueError as a traceback through the generic except.
+    """
+    result = _rejected(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_AD",
+        "--callouts-add",
+        "123,bad",
+    )
+    assert result.exit_code == 2
+    assert "--callouts-add" in result.output
+    assert "Invalid ID" in result.output
+    assert "Traceback" not in result.output
 
 
 def test_ads_update_rejects_title2_on_text_image_ad():
