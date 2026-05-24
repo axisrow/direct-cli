@@ -490,8 +490,9 @@ direct retargeting update --id 55 --name "Renamed" --description "Updated note" 
 # Bids and modifiers
 direct bids get --campaign-ids 123 --fields CampaignId,AdGroupId,KeywordId,Bid
 direct bids set --keyword-id 123 --bid 15000000
+direct bids set --campaign-id 123 --context-bid 9000000 --autotargeting-search-bid-is-auto YES --priority HIGH
 direct bids set-auto --keyword-id 123 --max-bid 20000000 --position PREMIUMBLOCK --scope SEARCH --dry-run
-direct keywordbids set --keyword-id 321 --search-bid 8000000 --network-bid 3000000
+direct keywordbids set --adgroup-id 321 --search-bid 8000000 --network-bid 3000000 --autotargeting-search-bid-is-auto NO --priority NORMAL
 direct keywordbids set-auto --keyword-id 321 --target-traffic-volume 100 --increase-percent 10 --bid-ceiling 12500000 --dry-run
 direct bidmodifiers get --campaign-ids 123 --fields Id,CampaignId,AdGroupId,Level,Type
 direct bidmodifiers add --campaign-id 123 --type DEMOGRAPHICS_ADJUSTMENT --value 150 --gender GENDER_MALE --age AGE_25_34 --dry-run
@@ -1201,8 +1202,9 @@ direct retargeting update --id 55 --name "Переименованный спи�
 # Ставки и модификаторы
 direct bids get --campaign-ids 123 --fields CampaignId,AdGroupId,KeywordId,Bid
 direct bids set --keyword-id 123 --bid 15000000
+direct bids set --campaign-id 123 --context-bid 9000000 --autotargeting-search-bid-is-auto YES --priority HIGH
 direct bids set-auto --keyword-id 123 --max-bid 20000000 --position PREMIUMBLOCK --scope SEARCH --dry-run
-direct keywordbids set --keyword-id 321 --search-bid 8000000 --network-bid 3000000
+direct keywordbids set --adgroup-id 321 --search-bid 8000000 --network-bid 3000000 --autotargeting-search-bid-is-auto NO --priority NORMAL
 direct keywordbids set-auto --keyword-id 321 --target-traffic-volume 100 --increase-percent 10 --bid-ceiling 12500000 --dry-run
 direct bidmodifiers get --campaign-ids 123 --fields Id,CampaignId,AdGroupId,Level,Type
 direct bidmodifiers add --campaign-id 123 --type DEMOGRAPHICS_ADJUSTMENT --value 150 --gender GENDER_MALE --age AGE_25_34 --dry-run

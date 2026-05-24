@@ -6,7 +6,13 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import add_criteria_csv, get_default_fields, parse_ids, MICRO_RUBLES
+from ..utils import (
+    add_criteria_csv,
+    add_single_id_selector,
+    get_default_fields,
+    parse_ids,
+    MICRO_RUBLES,
+)
 
 
 @click.group()
@@ -88,18 +94,67 @@ def get(
 
 
 @bids.command()
-@click.option("--keyword-id", required=True, type=int, help="Keyword ID")
+@click.option("--campaign-id", type=int, help="Campaign ID selector")
+@click.option("--adgroup-id", type=int, help="Ad group ID selector")
+@click.option("--keyword-id", type=int, help="Keyword ID selector")
 @click.option("--bid", type=MICRO_RUBLES, help="Bid in micro-rubles")
+@click.option("--context-bid", type=MICRO_RUBLES, help="ContextBid in micro-rubles")
+@click.option(
+    "--autotargeting-search-bid-is-auto",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="AutotargetingSearchBidIsAuto value: YES or NO",
+)
+@click.option(
+    "--priority",
+    type=click.Choice(["LOW", "NORMAL", "HIGH"], case_sensitive=False),
+    help="StrategyPriority value: LOW, NORMAL, or HIGH",
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def set(ctx, keyword_id, bid, dry_run):
+def set(
+    ctx,
+    campaign_id,
+    adgroup_id,
+    keyword_id,
+    bid,
+    context_bid,
+    autotargeting_search_bid_is_auto,
+    priority,
+    dry_run,
+):
     """Set bids"""
     # Reject empty-payload no-op (issue #198 H8).
-    if bid is None:
-        raise click.UsageError("bids set requires at least one bid value (--bid).")
+    if (
+        bid is None
+        and context_bid is None
+        and autotargeting_search_bid_is_auto is None
+        and priority is None
+    ):
+        raise click.UsageError(
+            "bids set requires at least one bid field "
+            "(--bid, --context-bid, --priority, "
+            "or --autotargeting-search-bid-is-auto)."
+        )
 
     try:
-        bid_data = {"KeywordId": keyword_id, "Bid": bid}
+        bid_data = {}
+        add_single_id_selector(
+            bid_data,
+            campaign_id=campaign_id,
+            adgroup_id=adgroup_id,
+            keyword_id=keyword_id,
+            command_name="bids set",
+        )
+        if bid is not None:
+            bid_data["Bid"] = bid
+        if context_bid is not None:
+            bid_data["ContextBid"] = context_bid
+        if autotargeting_search_bid_is_auto is not None:
+            bid_data["AutotargetingSearchBidIsAuto"] = (
+                autotargeting_search_bid_is_auto.upper()
+            )
+        if priority is not None:
+            bid_data["StrategyPriority"] = priority.upper()
 
         body = {"method": "set", "params": {"Bids": [bid_data]}}
 
@@ -115,6 +170,8 @@ def set(ctx, keyword_id, bid, dry_run):
         result = client.bids().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()

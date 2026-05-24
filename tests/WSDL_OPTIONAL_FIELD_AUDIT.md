@@ -11,8 +11,8 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2774 |
-| `supported` | 467 |
+| `missing_followup` | 2765 |
+| `supported` | 476 |
 
 ## Confirmed Follow-Ups
 
@@ -351,11 +351,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.update` | `ListingAd.TextSources` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
 | `ads.update` | `ListingAd.TextSources.Items` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
 | `ads.update` | `ListingAd.DefaultTexts` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
-| `bids.set` | `CampaignId` | bids.set optional WSDL path needs typed support or N/A. [#301](https://github.com/axisrow/direct-cli/issues/301) |
-| `bids.set` | `AdGroupId` | bids.set optional WSDL path needs typed support or N/A. [#301](https://github.com/axisrow/direct-cli/issues/301) |
-| `bids.set` | `ContextBid` | bids.set optional WSDL path needs typed support or N/A. [#301](https://github.com/axisrow/direct-cli/issues/301) |
-| `bids.set` | `AutotargetingSearchBidIsAuto` | bids.set optional WSDL path needs typed support or N/A. [#301](https://github.com/axisrow/direct-cli/issues/301) |
-| `bids.set` | `StrategyPriority` | bids.set optional WSDL path needs typed support or N/A. [#301](https://github.com/axisrow/direct-cli/issues/301) |
 | `campaigns.add` | `ClientInfo` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
 | `campaigns.add` | `Notification` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
 | `campaigns.add` | `Notification.SmsSettings` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
@@ -2555,10 +2550,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `feeds.update` | `FileFeed` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264) |
 | `feeds.update` | `FileFeed.Data` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
 | `feeds.update` | `FileFeed.Filename` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
-| `keywordbids.set` | `CampaignId` | keywordbids.set optional WSDL path needs typed support or N/A. [#301](https://github.com/axisrow/direct-cli/issues/301) |
-| `keywordbids.set` | `AdGroupId` | keywordbids.set optional WSDL path needs typed support or N/A. [#301](https://github.com/axisrow/direct-cli/issues/301) |
-| `keywordbids.set` | `AutotargetingSearchBidIsAuto` | keywordbids.set optional WSDL path needs typed support or N/A. [#301](https://github.com/axisrow/direct-cli/issues/301) |
-| `keywordbids.set` | `StrategyPriority` | keywordbids.set optional WSDL path needs typed support or N/A. [#301](https://github.com/axisrow/direct-cli/issues/301) |
 | `keywords.add` | `AutotargetingSearchBidIsAuto` | Keyword autotargeting auto-search-bid has no typed add flag. [#285](https://github.com/axisrow/direct-cli/issues/285) |
 | `keywords.add` | `StrategyPriority` | Keyword strategy priority has no typed add flag. [#285](https://github.com/axisrow/direct-cli/issues/285) |
 | `keywords.add` | `AutotargetingCategories` | Keyword autotargeting categories have no typed add flags. [#286](https://github.com/axisrow/direct-cli/issues/286) |
@@ -3257,13 +3248,13 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `bidmodifiers.add` | `bidmodifiers.add` | `AdGroupAdjustment.BidModifier` | `int` | 1 | 1 | `supported` | --value |
 | `bidmodifiers.set` | `bidmodifiers.set` | `Id` | `long` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `bidmodifiers.set` | `bidmodifiers.set` | `BidModifier` | `int` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
-| `bids.set` | `bids.set` | `CampaignId` | `long` | 0 | 1 | `missing_followup` | bids.set optional WSDL path needs typed support or N/A. [#301](https://github.com/axisrow/direct-cli/issues/301) |
-| `bids.set` | `bids.set` | `AdGroupId` | `long` | 0 | 1 | `missing_followup` | bids.set optional WSDL path needs typed support or N/A. [#301](https://github.com/axisrow/direct-cli/issues/301) |
+| `bids.set` | `bids.set` | `CampaignId` | `long` | 0 | 1 | `supported` | --campaign-id |
+| `bids.set` | `bids.set` | `AdGroupId` | `long` | 0 | 1 | `supported` | --adgroup-id |
 | `bids.set` | `bids.set` | `KeywordId` | `long` | 0 | 1 | `supported` | --keyword-id |
 | `bids.set` | `bids.set` | `Bid` | `long` | 0 | 1 | `supported` | --bid |
-| `bids.set` | `bids.set` | `ContextBid` | `long` | 0 | 1 | `missing_followup` | bids.set optional WSDL path needs typed support or N/A. [#301](https://github.com/axisrow/direct-cli/issues/301) |
-| `bids.set` | `bids.set` | `AutotargetingSearchBidIsAuto` | `YesNoEnum` | 0 | 1 | `missing_followup` | bids.set optional WSDL path needs typed support or N/A. [#301](https://github.com/axisrow/direct-cli/issues/301) |
-| `bids.set` | `bids.set` | `StrategyPriority` | `PriorityEnum` | 0 | 1 | `missing_followup` | bids.set optional WSDL path needs typed support or N/A. [#301](https://github.com/axisrow/direct-cli/issues/301) |
+| `bids.set` | `bids.set` | `ContextBid` | `long` | 0 | 1 | `supported` | --context-bid |
+| `bids.set` | `bids.set` | `AutotargetingSearchBidIsAuto` | `YesNoEnum` | 0 | 1 | `supported` | --autotargeting-search-bid-is-auto |
+| `bids.set` | `bids.set` | `StrategyPriority` | `PriorityEnum` | 0 | 1 | `supported` | --priority |
 | `campaigns.add` | `campaigns.add` | `ClientInfo` | `string` | 0 | 1 | `missing_followup` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
 | `campaigns.add` | `campaigns.add` | `Notification` | `Notification` | 0 | 1 | `missing_followup` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
 | `campaigns.add` | `campaigns.add` | `Notification.SmsSettings` | `SmsSettings` | 0 | 1 | `missing_followup` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
@@ -5575,13 +5566,13 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `feeds.update` | `feeds.update` | `FileFeed` | `FileFeedUpdate` | 0 | 1 | `missing_followup` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264) |
 | `feeds.update` | `feeds.update` | `FileFeed.Data` | `base64Binary` | 1 | 1 | `missing_followup` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
 | `feeds.update` | `feeds.update` | `FileFeed.Filename` | `string` | 1 | 1 | `missing_followup` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
-| `keywordbids.set` | `keywordbids.set` | `CampaignId` | `long` | 0 | 1 | `missing_followup` | keywordbids.set optional WSDL path needs typed support or N/A. [#301](https://github.com/axisrow/direct-cli/issues/301) |
-| `keywordbids.set` | `keywordbids.set` | `AdGroupId` | `long` | 0 | 1 | `missing_followup` | keywordbids.set optional WSDL path needs typed support or N/A. [#301](https://github.com/axisrow/direct-cli/issues/301) |
+| `keywordbids.set` | `keywordbids.set` | `CampaignId` | `long` | 0 | 1 | `supported` | --campaign-id |
+| `keywordbids.set` | `keywordbids.set` | `AdGroupId` | `long` | 0 | 1 | `supported` | --adgroup-id |
 | `keywordbids.set` | `keywordbids.set` | `KeywordId` | `long` | 0 | 1 | `supported` | --keyword-id |
 | `keywordbids.set` | `keywordbids.set` | `SearchBid` | `long` | 0 | 1 | `supported` | --search-bid |
-| `keywordbids.set` | `keywordbids.set` | `AutotargetingSearchBidIsAuto` | `YesNoEnum` | 0 | 1 | `missing_followup` | keywordbids.set optional WSDL path needs typed support or N/A. [#301](https://github.com/axisrow/direct-cli/issues/301) |
+| `keywordbids.set` | `keywordbids.set` | `AutotargetingSearchBidIsAuto` | `YesNoEnum` | 0 | 1 | `supported` | --autotargeting-search-bid-is-auto |
 | `keywordbids.set` | `keywordbids.set` | `NetworkBid` | `long` | 0 | 1 | `supported` | --network-bid |
-| `keywordbids.set` | `keywordbids.set` | `StrategyPriority` | `PriorityEnum` | 0 | 1 | `missing_followup` | keywordbids.set optional WSDL path needs typed support or N/A. [#301](https://github.com/axisrow/direct-cli/issues/301) |
+| `keywordbids.set` | `keywordbids.set` | `StrategyPriority` | `PriorityEnum` | 0 | 1 | `supported` | --priority |
 | `keywords.add` | `keywords.add` | `Keyword` | `string` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `keywords.add` | `keywords.add` | `AdGroupId` | `long` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `keywords.add` | `keywords.add` | `Bid` | `long` | 0 | 1 | `supported` | --bid |
