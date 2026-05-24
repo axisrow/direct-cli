@@ -942,13 +942,31 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("ads", "add", "TextAd.BusinessId"): {"--business-id"},
     ("ads", "add", "TextAd.PreferVCardOverBusiness"): {"--prefer-vcard-over-business"},
     ("ads", "add", "TextAd.ErirAdDescription"): {"--erir-ad-description"},
+    ("ads", "add", "DynamicTextAd"): {"--type"},
+    ("ads", "add", "DynamicTextAd.VCardId"): {"--vcard-id"},
+    ("ads", "add", "DynamicTextAd.AdImageHash"): {"--image-hash"},
+    ("ads", "add", "DynamicTextAd.SitelinkSetId"): {"--sitelink-set-id"},
+    ("ads", "add", "DynamicTextAd.AdExtensionIds"): {"--ad-extensions"},
+    ("ads", "add", "DynamicTextAd.Text"): {"--text"},
     ("ads", "add", "MobileAppAd"): {"--type"},
     ("ads", "add", "MobileAppAd.AdImageHash"): {"--image-hash"},
     ("ads", "add", "MobileAppAd.Text"): {"--text"},
     ("ads", "add", "MobileAppAd.Title"): {"--title"},
     ("ads", "add", "MobileAppAd.TrackingUrl"): {"--tracking-url"},
     ("ads", "add", "MobileAppAd.Action"): {"--action"},
+    ("ads", "add", "MobileAppAd.Features"): {"--mobile-app-feature"},
+    ("ads", "add", "MobileAppAd.Features.Feature"): {"--mobile-app-feature"},
+    ("ads", "add", "MobileAppAd.Features.Enabled"): {"--mobile-app-feature"},
     ("ads", "add", "MobileAppAd.AgeLabel"): {"--age-label"},
+    ("ads", "add", "MobileAppAd.VideoExtension"): {"--video-extension-creative-id"},
+    ("ads", "add", "MobileAppAd.VideoExtension.CreativeId"): {
+        "--video-extension-creative-id"
+    },
+    ("ads", "add", "MobileAppAd.ErirAdDescription"): {"--erir-ad-description"},
+    ("ads", "add", "MobileAppImageAd"): {"--type"},
+    ("ads", "add", "MobileAppImageAd.AdImageHash"): {"--image-hash"},
+    ("ads", "add", "MobileAppImageAd.ErirAdDescription"): {"--erir-ad-description"},
+    ("ads", "add", "MobileAppImageAd.TrackingUrl"): {"--tracking-url"},
     ("ads", "add", "TextImageAd"): {"--type"},
     ("ads", "add", "TextImageAd.AdImageHash"): {"--image-hash"},
     ("ads", "add", "TextImageAd.Href"): {"--href"},
@@ -1965,21 +1983,6 @@ OPTIONAL_FIELD_DEFAULT_FOLLOWUPS: dict[tuple[str, str], dict[str, str]] = {
 }
 
 OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]] = {
-    ("ads", "add", "DynamicTextAd"): {
-        "status": "missing_followup",
-        "issue": "#277",
-        "note": "DYNAMIC_TEXT_AD add fields need typed support or N/A.",
-    },
-    ("ads", "add", "MobileAppAd"): {
-        "status": "missing_followup",
-        "issue": "#277",
-        "note": "Mobile app ad add fields need typed support or N/A.",
-    },
-    ("ads", "add", "MobileAppImageAd"): {
-        "status": "missing_followup",
-        "issue": "#277",
-        "note": "Mobile app image ad add fields need typed support or N/A.",
-    },
     ("ads", "add", "SmartAdBuilderAd"): {
         "status": "missing_followup",
         "issue": "#278",

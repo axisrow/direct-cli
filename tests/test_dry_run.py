@@ -1094,6 +1094,194 @@ def test_ads_add_text_image_ad_default_mobile_does_not_leak():
     assert "Mobile" not in ad["TextImageAd"]
 
 
+def test_ads_add_dynamic_text_ad_payload():
+    """Issue #277: DYNAMIC_TEXT_AD add builds DynamicTextAdAdd fields."""
+    body = _dry_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "DYNAMIC_TEXT_AD",
+        "--text",
+        "Dynamic ad text",
+        "--image-hash",
+        "abcdefghij",
+        "--vcard-id",
+        "0",
+        "--sitelink-set-id",
+        "0",
+        "--ad-extensions",
+        "333,444",
+    )
+    assert body["params"]["Ads"][0] == {
+        "AdGroupId": 12345,
+        "DynamicTextAd": {
+            "Text": "Dynamic ad text",
+            "AdImageHash": "abcdefghij",
+            "VCardId": 0,
+            "SitelinkSetId": 0,
+            "AdExtensionIds": [333, 444],
+        },
+    }
+
+
+def test_ads_add_dynamic_text_ad_requires_text():
+    """Issue #277: DynamicTextAdAdd.Text is required by the WSDL."""
+    result = _rejected(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "DYNAMIC_TEXT_AD",
+    )
+    assert "DYNAMIC_TEXT_AD requires --text" in result.output
+
+
+def test_ads_add_dynamic_text_ad_rejects_other_subtype_flags():
+    """Issue #277: DYNAMIC_TEXT_AD add must not silently drop other flags."""
+    result = _rejected(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "DYNAMIC_TEXT_AD",
+        "--text",
+        "Dynamic ad text",
+        "--href",
+        "https://example.com",
+    )
+    assert "--href is not compatible with --type DYNAMIC_TEXT_AD" in result.output
+
+
+def test_ads_add_mobile_app_ad_optional_fields_payload():
+    """Issue #277: MOBILE_APP_AD add supports compact optional app fields."""
+    body = _dry_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "MOBILE_APP_AD",
+        "--title",
+        "Install app",
+        "--text",
+        "App promo text",
+        "--action",
+        "download",
+        "--image-hash",
+        "abcdefghij",
+        "--tracking-url",
+        "https://track.example.com",
+        "--age-label",
+        "age_18",
+        "--mobile-app-feature",
+        "PRICE=YES",
+        "--mobile-app-feature",
+        "CUSTOMER_RATING=NO",
+        "--video-extension-creative-id",
+        "0",
+        "--erir-ad-description",
+        "Mobile app object",
+    )
+    assert body["params"]["Ads"][0] == {
+        "AdGroupId": 12345,
+        "MobileAppAd": {
+            "Title": "Install app",
+            "Text": "App promo text",
+            "Action": "DOWNLOAD",
+            "AdImageHash": "abcdefghij",
+            "TrackingUrl": "https://track.example.com",
+            "AgeLabel": "AGE_18",
+            "Features": [
+                {"Feature": "PRICE", "Enabled": "YES"},
+                {"Feature": "CUSTOMER_RATING", "Enabled": "NO"},
+            ],
+            "VideoExtension": {"CreativeId": 0},
+            "ErirAdDescription": "Mobile app object",
+        },
+    }
+
+
+def test_ads_add_mobile_app_ad_feature_validation():
+    """Issue #277: MobileAppAd.Features keeps the typed FEATURE=YES|NO grammar."""
+    result = _rejected(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "MOBILE_APP_AD",
+        "--title",
+        "Install app",
+        "--text",
+        "App promo text",
+        "--action",
+        "INSTALL",
+        "--mobile-app-feature",
+        "PRICE=MAYBE",
+    )
+    assert "Invalid --mobile-app-feature value" in result.output
+
+
+def test_ads_add_mobile_app_image_ad_payload():
+    """Issue #277: MOBILE_APP_IMAGE_AD add builds MobileAppImageAdAdd."""
+    body = _dry_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "MOBILE_APP_IMAGE_AD",
+        "--image-hash",
+        "abcdefghij",
+        "--tracking-url",
+        "https://track.example.com",
+        "--erir-ad-description",
+        "Mobile image object",
+    )
+    assert body["params"]["Ads"][0] == {
+        "AdGroupId": 12345,
+        "MobileAppImageAd": {
+            "AdImageHash": "abcdefghij",
+            "TrackingUrl": "https://track.example.com",
+            "ErirAdDescription": "Mobile image object",
+        },
+    }
+
+
+def test_ads_add_mobile_app_image_ad_requires_image_hash():
+    """Issue #277: MobileAppImageAdAdd.AdImageHash is required by the WSDL."""
+    result = _rejected(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "MOBILE_APP_IMAGE_AD",
+    )
+    assert "MOBILE_APP_IMAGE_AD requires --image-hash" in result.output
+
+
+def test_ads_add_mobile_app_image_ad_rejects_other_subtype_flags():
+    """Issue #277: MOBILE_APP_IMAGE_AD add must reject unrelated typed flags."""
+    result = _rejected(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "MOBILE_APP_IMAGE_AD",
+        "--image-hash",
+        "abcdefghij",
+        "--title",
+        "Install app",
+    )
+    assert "--title is not compatible with --type MOBILE_APP_IMAGE_AD" in result.output
+
+
 def test_ads_add_responsive_ad_payload():
     """Issue #274: RESPONSIVE_AD add builds the documented ResponsiveAd block."""
     body = _dry_run(

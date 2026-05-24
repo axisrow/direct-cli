@@ -414,6 +414,9 @@ direct ads add --adgroup-id 12345 --type TEXT_AD_BUILDER_AD --creative-id 123 --
 direct ads add --adgroup-id 12345 --type MOBILE_APP_AD_BUILDER_AD --creative-id 123 --tracking-url "https://track.example.com" --erir-ad-description "Mobile builder ad" --dry-run
 direct ads add --adgroup-id 12345 --type CPM_BANNER_AD_BUILDER_AD --creative-id 123 --href "https://example.com" --tracking-pixels "https://pixel.example.com/a,https://pixel.example.com/b" --dry-run
 direct ads add --adgroup-id 12345 --type TEXT_IMAGE_AD --image-hash abcdefghijklmnopqrst --href "https://example.com" --turbo-page-id 555 --dry-run
+direct ads add --adgroup-id 12345 --type DYNAMIC_TEXT_AD --text "Dynamic ad text" --image-hash abcdefghijklmnopqrst --vcard-id 111 --sitelink-set-id 222 --ad-extensions "333,444" --dry-run
+direct ads add --adgroup-id 12345 --type MOBILE_APP_AD --title "Install app" --text "App promo text" --action INSTALL --tracking-url "https://track.example.com" --mobile-app-feature PRICE=YES --video-extension-creative-id 777 --erir-ad-description "Mobile app object" --dry-run
+direct ads add --adgroup-id 12345 --type MOBILE_APP_IMAGE_AD --image-hash abcdefghijklmnopqrst --tracking-url "https://track.example.com" --erir-ad-description "Mobile image ad" --dry-run
 direct ads update --id 99999 --type TEXT_AD --title "New Title" --text "New text" --href "https://example.com"
 direct ads update --id 99999 --type TEXT_AD --image-hash abcdefghijklmnopqrst
 direct ads update --id 99999 --type TEXT_AD --title2 "New second headline" --vcard-id 222
@@ -452,8 +455,10 @@ the Yandex Direct API long-unit format internally. `ads update` also supports
 `TextAdUpdate` does not contain `Mobile`, and on update ad-extensions are
 managed through the `--callouts-*` flags above. TEXT_IMAGE_AD additionally
 accepts `--turbo-page-id`, `--final-url`, and `--erir-ad-description`.
-DYNAMIC_TEXT_AD update supports `--text`, `--image-hash`, `--vcard-id`,
-`--sitelink-set-id`, and `--callouts-*`.
+DYNAMIC_TEXT_AD add requires `--text` and supports `--image-hash`,
+`--vcard-id`, `--sitelink-set-id`, and `--ad-extensions`; update supports
+`--text`, `--image-hash`, `--vcard-id`, `--sitelink-set-id`, and
+`--callouts-*`.
 RESPONSIVE_AD `ads add` uses `--texts` and `--titles` as required
 comma-separated lists and also requires `--href`, `--business-id`, or both.
 Optional creation flags include `--image-hashes`, `--video-extension-ids`,
@@ -468,8 +473,11 @@ CPC_VIDEO_AD_BUILDER_AD, CPM_BANNER_AD_BUILDER_AD, and
 CPM_VIDEO_AD_BUILDER_AD require `--href`, `--turbo-page-id`, or both. Mobile app
 builder subtypes use `--tracking-url`. CPM builder subtypes also support
 `--tracking-pixels`; all AdBuilder add subtypes support `--erir-ad-description`.
-MOBILE_APP_AD update supports `--mobile-app-feature FEATURE=YES|NO`,
-`--video-extension-creative-id`, and `--erir-ad-description`.
+MOBILE_APP_AD add requires `--title`, `--text`, and `--action`; optional add
+fields include `--mobile-app-feature FEATURE=YES|NO`,
+`--video-extension-creative-id`, and `--erir-ad-description`. MOBILE_APP_IMAGE_AD
+add requires `--image-hash`; add/update support `--tracking-url` and
+`--erir-ad-description`.
 RESPONSIVE_AD update supports `--texts`, `--titles`, `--image-hashes`,
 `--video-extension-ids`, `--href`, `--age-label`, `--display-url-path`,
 `--sitelink-set-id`, `--callouts-*`, `--price-extension-*`, `--business-id`,
@@ -1198,6 +1206,9 @@ direct ads add --adgroup-id 12345 --type TEXT_AD_BUILDER_AD --creative-id 123 --
 direct ads add --adgroup-id 12345 --type MOBILE_APP_AD_BUILDER_AD --creative-id 123 --tracking-url "https://track.example.com" --erir-ad-description "Мобильное объявление из конструктора" --dry-run
 direct ads add --adgroup-id 12345 --type CPM_BANNER_AD_BUILDER_AD --creative-id 123 --href "https://example.com" --tracking-pixels "https://pixel.example.com/a,https://pixel.example.com/b" --dry-run
 direct ads add --adgroup-id 12345 --type TEXT_IMAGE_AD --image-hash abcdefghijklmnopqrst --href "https://example.com" --turbo-page-id 555 --dry-run
+direct ads add --adgroup-id 12345 --type DYNAMIC_TEXT_AD --text "Динамический текст" --image-hash abcdefghijklmnopqrst --vcard-id 111 --sitelink-set-id 222 --ad-extensions "333,444" --dry-run
+direct ads add --adgroup-id 12345 --type MOBILE_APP_AD --title "Установите приложение" --text "Текст приложения" --action INSTALL --tracking-url "https://track.example.com" --mobile-app-feature PRICE=YES --video-extension-creative-id 777 --erir-ad-description "Объект мобильного объявления" --dry-run
+direct ads add --adgroup-id 12345 --type MOBILE_APP_IMAGE_AD --image-hash abcdefghijklmnopqrst --tracking-url "https://track.example.com" --erir-ad-description "Мобильное графическое объявление" --dry-run
 direct ads update --id 99999 --type TEXT_AD --title "Новый заголовок" --text "Новый текст" --href "https://example.com"
 direct ads update --id 99999 --type TEXT_AD --image-hash abcdefghijklmnopqrst
 direct ads update --id 99999 --type TEXT_AD --title2 "Новый второй заголовок" --vcard-id 222
@@ -1237,8 +1248,10 @@ direct ads delete --id 99999
 содержит `Mobile`, а в `ads update` расширения управляются через флаги
 `--callouts-*` выше. Для TEXT_IMAGE_AD дополнительно доступен
 `--turbo-page-id`, `--final-url` и `--erir-ad-description`. Для
-DYNAMIC_TEXT_AD в `ads update` доступны `--text`, `--image-hash`,
-`--vcard-id`, `--sitelink-set-id` и `--callouts-*`.
+DYNAMIC_TEXT_AD в `ads add` обязателен `--text`; доступны `--image-hash`,
+`--vcard-id`, `--sitelink-set-id` и `--ad-extensions`. В `ads update`
+доступны `--text`, `--image-hash`, `--vcard-id`, `--sitelink-set-id` и
+`--callouts-*`.
 Для RESPONSIVE_AD в `ads add` обязательны `--texts` и `--titles` как списки
 через запятую, а также `--href`, `--business-id` или оба флага. Дополнительные
 флаги создания: `--image-hashes`, `--video-extension-ids`, `--age-label`,
@@ -1255,8 +1268,11 @@ CPM_VIDEO_AD_BUILDER_AD требуют `--href`, `--turbo-page-id` или оба
 Mobile app builder subtype используют `--tracking-url`. CPM builder subtype
 также поддерживают `--tracking-pixels`; все AdBuilder subtype в `ads add`
 поддерживают `--erir-ad-description`.
-Для MOBILE_APP_AD в `ads update` доступны `--mobile-app-feature FEATURE=YES|NO`,
-`--video-extension-creative-id` и `--erir-ad-description`.
+Для MOBILE_APP_AD в `ads add` обязательны `--title`, `--text` и `--action`;
+дополнительно доступны `--mobile-app-feature FEATURE=YES|NO`,
+`--video-extension-creative-id` и `--erir-ad-description`. Для
+MOBILE_APP_IMAGE_AD в `ads add` обязателен `--image-hash`; в add/update
+доступны `--tracking-url` и `--erir-ad-description`.
 Для RESPONSIVE_AD в `ads update` доступны `--texts`, `--titles`,
 `--image-hashes`, `--video-extension-ids`, `--href`, `--age-label`,
 `--display-url-path`, `--sitelink-set-id`, `--callouts-*`,

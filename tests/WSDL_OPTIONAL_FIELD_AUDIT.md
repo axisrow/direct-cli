@@ -11,9 +11,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2410 |
+| `missing_followup` | 2394 |
 | `not_applicable` | 23 |
-| `supported` | 808 |
+| `supported` | 824 |
 
 ## Confirmed Follow-Ups
 
@@ -42,24 +42,8 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `adgroups.update` | `DynamicTextFeedAdGroup.AutotargetingSettings.BrandOptions.WithAdvertiserBrand` | Official adgroups.update docs for DynamicTextFeedAdGroupUpdate list AutotargetingCategories only. [#281](https://github.com/axisrow/direct-cli/issues/281); inherited from `DynamicTextFeedAdGroup.AutotargetingSettings` |
 | `adgroups.update` | `DynamicTextFeedAdGroup.AutotargetingSettings.BrandOptions.WithCompetitorsBrand` | Official adgroups.update docs for DynamicTextFeedAdGroupUpdate list AutotargetingCategories only. [#281](https://github.com/axisrow/direct-cli/issues/281); inherited from `DynamicTextFeedAdGroup.AutotargetingSettings` |
 | `adgroups.update` | `DynamicTextFeedAdGroup.FeedId` | Official adgroups.update docs for DynamicTextFeedAdGroupUpdate do not list FeedId. [#281](https://github.com/axisrow/direct-cli/issues/281) |
-| `ads.add` | `DynamicTextAd` | DYNAMIC_TEXT_AD add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277) |
-| `ads.add` | `DynamicTextAd.VCardId` | DYNAMIC_TEXT_AD add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `DynamicTextAd` |
-| `ads.add` | `DynamicTextAd.AdImageHash` | DYNAMIC_TEXT_AD add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `DynamicTextAd` |
-| `ads.add` | `DynamicTextAd.SitelinkSetId` | DYNAMIC_TEXT_AD add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `DynamicTextAd` |
-| `ads.add` | `DynamicTextAd.AdExtensionIds` | DYNAMIC_TEXT_AD add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `DynamicTextAd` |
-| `ads.add` | `DynamicTextAd.Text` | DYNAMIC_TEXT_AD add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `DynamicTextAd` |
-| `ads.add` | `MobileAppAd.Features` | Mobile app ad add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `MobileAppAd` |
-| `ads.add` | `MobileAppAd.Features.Feature` | Mobile app ad add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `MobileAppAd` |
-| `ads.add` | `MobileAppAd.Features.Enabled` | Mobile app ad add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `MobileAppAd` |
-| `ads.add` | `MobileAppAd.VideoExtension` | Mobile app ad add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `MobileAppAd` |
-| `ads.add` | `MobileAppAd.VideoExtension.CreativeId` | Mobile app ad add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `MobileAppAd` |
-| `ads.add` | `MobileAppAd.ErirAdDescription` | Mobile app ad add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `MobileAppAd` |
 | `ads.add` | `TextImageAd.ErirAdDescription` | ads.add residual optional WSDL path needs typed support or N/A. [#278](https://github.com/axisrow/direct-cli/issues/278) |
 | `ads.add` | `TextImageAd.FinalUrl` | ads.add residual optional WSDL path needs typed support or N/A. [#278](https://github.com/axisrow/direct-cli/issues/278) |
-| `ads.add` | `MobileAppImageAd` | Mobile app image ad add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277) |
-| `ads.add` | `MobileAppImageAd.AdImageHash` | Mobile app image ad add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `MobileAppImageAd` |
-| `ads.add` | `MobileAppImageAd.ErirAdDescription` | Mobile app image ad add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `MobileAppImageAd` |
-| `ads.add` | `MobileAppImageAd.TrackingUrl` | Mobile app image ad add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `MobileAppImageAd` |
 | `ads.add` | `SmartAdBuilderAd` | SMART_AD_BUILDER_AD add fields need typed support or N/A. [#278](https://github.com/axisrow/direct-cli/issues/278) |
 | `ads.add` | `SmartAdBuilderAd.LogoExtensionHash` | SMART_AD_BUILDER_AD add fields need typed support or N/A. [#278](https://github.com/axisrow/direct-cli/issues/278); inherited from `SmartAdBuilderAd` |
 | `campaigns.add` | `ClientInfo` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
@@ -2614,35 +2598,35 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.add` | `ads.add` | `ResponsiveAd.PriceExtension.PriceCurrency` | `PriceCurrencyEnum` | 1 | 1 | `supported` | --price-extension-price-currency |
 | `ads.add` | `ads.add` | `ResponsiveAd.BusinessId` | `long` | 0 | 1 | `supported` | --business-id |
 | `ads.add` | `ads.add` | `ResponsiveAd.ErirAdDescription` | `string` | 0 | 1 | `supported` | --erir-ad-description |
-| `ads.add` | `ads.add` | `DynamicTextAd` | `DynamicTextAdAdd` | 0 | 1 | `missing_followup` | DYNAMIC_TEXT_AD add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277) |
-| `ads.add` | `ads.add` | `DynamicTextAd.VCardId` | `long` | 0 | 1 | `missing_followup` | DYNAMIC_TEXT_AD add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `DynamicTextAd` |
-| `ads.add` | `ads.add` | `DynamicTextAd.AdImageHash` | `string` | 0 | 1 | `missing_followup` | DYNAMIC_TEXT_AD add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `DynamicTextAd` |
-| `ads.add` | `ads.add` | `DynamicTextAd.SitelinkSetId` | `long` | 0 | 1 | `missing_followup` | DYNAMIC_TEXT_AD add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `DynamicTextAd` |
-| `ads.add` | `ads.add` | `DynamicTextAd.AdExtensionIds` | `long` | 0 | unbounded | `missing_followup` | DYNAMIC_TEXT_AD add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `DynamicTextAd` |
-| `ads.add` | `ads.add` | `DynamicTextAd.Text` | `string` | 1 | 1 | `missing_followup` | DYNAMIC_TEXT_AD add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `DynamicTextAd` |
+| `ads.add` | `ads.add` | `DynamicTextAd` | `DynamicTextAdAdd` | 0 | 1 | `supported` | --type |
+| `ads.add` | `ads.add` | `DynamicTextAd.VCardId` | `long` | 0 | 1 | `supported` | --vcard-id |
+| `ads.add` | `ads.add` | `DynamicTextAd.AdImageHash` | `string` | 0 | 1 | `supported` | --image-hash |
+| `ads.add` | `ads.add` | `DynamicTextAd.SitelinkSetId` | `long` | 0 | 1 | `supported` | --sitelink-set-id |
+| `ads.add` | `ads.add` | `DynamicTextAd.AdExtensionIds` | `long` | 0 | unbounded | `supported` | --ad-extensions |
+| `ads.add` | `ads.add` | `DynamicTextAd.Text` | `string` | 1 | 1 | `supported` | --text |
 | `ads.add` | `ads.add` | `MobileAppAd` | `MobileAppAdAdd` | 0 | 1 | `supported` | --type |
 | `ads.add` | `ads.add` | `MobileAppAd.AdImageHash` | `string` | 0 | 1 | `supported` | --image-hash |
 | `ads.add` | `ads.add` | `MobileAppAd.Text` | `string` | 1 | 1 | `supported` | --text |
 | `ads.add` | `ads.add` | `MobileAppAd.Title` | `string` | 1 | 1 | `supported` | --title |
 | `ads.add` | `ads.add` | `MobileAppAd.TrackingUrl` | `string` | 0 | 1 | `supported` | --tracking-url |
 | `ads.add` | `ads.add` | `MobileAppAd.Action` | `MobileAppAdActionEnum` | 1 | 1 | `supported` | --action |
-| `ads.add` | `ads.add` | `MobileAppAd.Features` | `MobileAppAdFeatureItem` | 0 | unbounded | `missing_followup` | Mobile app ad add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `MobileAppAd` |
-| `ads.add` | `ads.add` | `MobileAppAd.Features.Feature` | `MobileAppFeatureEnum` | 1 | 1 | `missing_followup` | Mobile app ad add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `MobileAppAd` |
-| `ads.add` | `ads.add` | `MobileAppAd.Features.Enabled` | `YesNoEnum` | 1 | 1 | `missing_followup` | Mobile app ad add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `MobileAppAd` |
+| `ads.add` | `ads.add` | `MobileAppAd.Features` | `MobileAppAdFeatureItem` | 0 | unbounded | `supported` | --mobile-app-feature |
+| `ads.add` | `ads.add` | `MobileAppAd.Features.Feature` | `MobileAppFeatureEnum` | 1 | 1 | `supported` | --mobile-app-feature |
+| `ads.add` | `ads.add` | `MobileAppAd.Features.Enabled` | `YesNoEnum` | 1 | 1 | `supported` | --mobile-app-feature |
 | `ads.add` | `ads.add` | `MobileAppAd.AgeLabel` | `MobAppAgeLabelEnum` | 0 | 1 | `supported` | --age-label |
-| `ads.add` | `ads.add` | `MobileAppAd.VideoExtension` | `VideoExtensionAddItem` | 0 | 1 | `missing_followup` | Mobile app ad add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `MobileAppAd` |
-| `ads.add` | `ads.add` | `MobileAppAd.VideoExtension.CreativeId` | `long` | 0 | 1 | `missing_followup` | Mobile app ad add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `MobileAppAd` |
-| `ads.add` | `ads.add` | `MobileAppAd.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | Mobile app ad add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `MobileAppAd` |
+| `ads.add` | `ads.add` | `MobileAppAd.VideoExtension` | `VideoExtensionAddItem` | 0 | 1 | `supported` | --video-extension-creative-id |
+| `ads.add` | `ads.add` | `MobileAppAd.VideoExtension.CreativeId` | `long` | 0 | 1 | `supported` | --video-extension-creative-id |
+| `ads.add` | `ads.add` | `MobileAppAd.ErirAdDescription` | `string` | 0 | 1 | `supported` | --erir-ad-description |
 | `ads.add` | `ads.add` | `TextImageAd` | `TextImageAdAdd` | 0 | 1 | `supported` | --type |
 | `ads.add` | `ads.add` | `TextImageAd.AdImageHash` | `string` | 1 | 1 | `supported` | --image-hash |
 | `ads.add` | `ads.add` | `TextImageAd.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | ads.add residual optional WSDL path needs typed support or N/A. [#278](https://github.com/axisrow/direct-cli/issues/278) |
 | `ads.add` | `ads.add` | `TextImageAd.FinalUrl` | `string` | 0 | 1 | `missing_followup` | ads.add residual optional WSDL path needs typed support or N/A. [#278](https://github.com/axisrow/direct-cli/issues/278) |
 | `ads.add` | `ads.add` | `TextImageAd.Href` | `string` | 0 | 1 | `supported` | --href |
 | `ads.add` | `ads.add` | `TextImageAd.TurboPageId` | `long` | 0 | 1 | `supported` | --turbo-page-id |
-| `ads.add` | `ads.add` | `MobileAppImageAd` | `MobileAppImageAdAdd` | 0 | 1 | `missing_followup` | Mobile app image ad add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277) |
-| `ads.add` | `ads.add` | `MobileAppImageAd.AdImageHash` | `string` | 1 | 1 | `missing_followup` | Mobile app image ad add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `MobileAppImageAd` |
-| `ads.add` | `ads.add` | `MobileAppImageAd.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | Mobile app image ad add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `MobileAppImageAd` |
-| `ads.add` | `ads.add` | `MobileAppImageAd.TrackingUrl` | `string` | 0 | 1 | `missing_followup` | Mobile app image ad add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `MobileAppImageAd` |
+| `ads.add` | `ads.add` | `MobileAppImageAd` | `MobileAppImageAdAdd` | 0 | 1 | `supported` | --type |
+| `ads.add` | `ads.add` | `MobileAppImageAd.AdImageHash` | `string` | 1 | 1 | `supported` | --image-hash |
+| `ads.add` | `ads.add` | `MobileAppImageAd.ErirAdDescription` | `string` | 0 | 1 | `supported` | --erir-ad-description |
+| `ads.add` | `ads.add` | `MobileAppImageAd.TrackingUrl` | `string` | 0 | 1 | `supported` | --tracking-url |
 | `ads.add` | `ads.add` | `TextAdBuilderAd` | `TextAdBuilderAdAdd` | 0 | 1 | `supported` | --type |
 | `ads.add` | `ads.add` | `TextAdBuilderAd.Creative` | `AdBuilderAdAddItem` | 1 | 1 | `supported` | --creative-id |
 | `ads.add` | `ads.add` | `TextAdBuilderAd.Creative.CreativeId` | `long` | 1 | 1 | `supported` | --creative-id |

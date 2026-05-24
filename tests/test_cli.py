@@ -266,9 +266,19 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         collapsed = " ".join(result.output.split())
         self.assertIn(
-            "Ad type: TEXT_AD | TEXT_IMAGE_AD | MOBILE_APP_AD | RESPONSIVE_AD | "
-            "SHOPPING_AD | LISTING_AD | TEXT_AD_BUILDER_AD",
+            "Ad type: TEXT_AD | TEXT_IMAGE_AD | MOBILE_APP_AD | DYNAMIC_TEXT_AD | "
+            "MOBILE_APP_IMAGE_AD | RESPONSIVE_AD | SHOPPING_AD | LISTING_AD | "
+            "TEXT_AD_BUILDER_AD",
             collapsed,
+        )
+        self.assertIn("Ad text (TEXT_AD / MOBILE_APP_AD / DYNAMIC_TEXT_AD)", collapsed)
+        self.assertIn(
+            "Ad image hash (TEXT_IMAGE_AD / MOBILE_APP_AD / DYNAMIC_TEXT_AD / "
+            "MOBILE_APP_IMAGE_AD)",
+            collapsed,
+        )
+        self.assertIn(
+            "Repeatable MobileAppAd.Features item as FEATURE=YES|NO", collapsed
         )
         self.assertIn("Comma-separated ResponsiveAd.Titles values", collapsed)
         self.assertIn("Comma-separated ResponsiveAd.Texts values", collapsed)
@@ -277,7 +287,10 @@ class TestCLI(unittest.TestCase):
             "Comma-separated ResponsiveAd.VideoExtensionIds values", collapsed
         )
         self.assertIn("FinalUrl (TEXT_AD / TEXT_AD_BUILDER_AD)", collapsed)
-        self.assertIn("TextAd.VideoExtension.CreativeId (TEXT_AD)", collapsed)
+        self.assertIn(
+            "TextAd/MobileAppAd.VideoExtension.CreativeId (TEXT_AD / MOBILE_APP_AD)",
+            collapsed,
+        )
         self.assertIn(
             "TextAd/ResponsiveAd.PriceExtension.Price as human-readable money",
             collapsed,
@@ -291,7 +304,8 @@ class TestCLI(unittest.TestCase):
         )
         self.assertIn("TextAd.PreferVCardOverBusiness value: YES or NO", collapsed)
         self.assertIn(
-            "ErirAdDescription (TEXT_AD / RESPONSIVE_AD / AdBuilder add subtypes)",
+            "ErirAdDescription (TEXT_AD / MOBILE_APP_AD / MOBILE_APP_IMAGE_AD / "
+            "RESPONSIVE_AD / AdBuilder add subtypes)",
             collapsed,
         )
         self.assertIn(
