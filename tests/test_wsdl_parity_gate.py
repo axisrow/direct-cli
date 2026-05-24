@@ -956,15 +956,15 @@ OPTIONAL_FIELD_CLI_OPTIONS.update(
 
 OPTIONAL_FIELD_DEFAULT_FOLLOWUPS: dict[tuple[str, str], dict[str, str]] = {
     ("ads", "add"): {
-        "issue": "#249",
-        "note": "ads.add optional WSDL path needs typed support or N/A.",
+        "issue": "#278",
+        "note": "ads.add residual optional WSDL path needs typed support or N/A.",
     },
     ("ads", "update"): {
-        "issue": "#240",
-        "note": "ads.update optional WSDL path needs typed support or N/A.",
+        "issue": "#272",
+        "note": "ads.update residual optional WSDL path needs typed support or N/A.",
     },
     ("audiencetargets", "add"): {
-        "issue": "#252",
+        "issue": "#302",
         "note": "target bid optional WSDL path needs typed support or N/A.",
     },
     ("bidmodifiers", "add"): {
@@ -972,39 +972,39 @@ OPTIONAL_FIELD_DEFAULT_FOLLOWUPS: dict[tuple[str, str], dict[str, str]] = {
         "note": "bidmodifiers.add optional WSDL path needs typed support or N/A.",
     },
     ("bids", "set"): {
-        "issue": "#252",
+        "issue": "#301",
         "note": "bids.set optional WSDL path needs typed support or N/A.",
     },
     ("campaigns", "add"): {
-        "issue": "#250",
-        "note": "campaigns.add optional WSDL path needs typed support or N/A.",
+        "issue": "#291",
+        "note": "campaigns.add campaign-level optional path needs typed support or N/A.",
     },
     ("campaigns", "update"): {
-        "issue": "#250",
-        "note": "campaigns.update optional WSDL path needs typed support or N/A.",
+        "issue": "#291",
+        "note": "campaigns.update campaign-level optional path needs typed support or N/A.",
     },
     ("clients", "update"): {
-        "issue": "#255",
-        "note": "clients.update optional WSDL path needs typed support or N/A.",
+        "issue": "#305",
+        "note": "clients.update item option/value path needs typed support or N/A.",
     },
     ("dynamicads", "add"): {
-        "issue": "#252",
+        "issue": "#303",
         "note": "dynamicads.add optional WSDL path needs typed support or N/A.",
     },
     ("dynamicfeedadtargets", "add"): {
-        "issue": "#252",
+        "issue": "#303",
         "note": "dynamicfeedadtargets.add optional WSDL path needs typed support or N/A.",
     },
     ("feeds", "add"): {
-        "issue": "#253",
+        "issue": "#264",
         "note": "feeds.add optional WSDL path needs typed support or N/A.",
     },
     ("feeds", "update"): {
-        "issue": "#253",
+        "issue": "#264",
         "note": "feeds.update optional WSDL path needs typed support or N/A.",
     },
     ("keywordbids", "set"): {
-        "issue": "#252",
+        "issue": "#301",
         "note": "keywordbids.set optional WSDL path needs typed support or N/A.",
     },
     ("retargeting", "add"): {
@@ -1016,72 +1016,352 @@ OPTIONAL_FIELD_DEFAULT_FOLLOWUPS: dict[tuple[str, str], dict[str, str]] = {
         "note": "retargeting.update optional WSDL path needs typed support or N/A.",
     },
     ("smartadtargets", "add"): {
-        "issue": "#252",
+        "issue": "#304",
         "note": "smartadtargets.add optional WSDL path needs typed support or N/A.",
     },
     ("smartadtargets", "update"): {
-        "issue": "#252",
+        "issue": "#304",
         "note": "smartadtargets.update optional WSDL path needs typed support or N/A.",
     },
     ("strategies", "add"): {
-        "issue": "#251",
-        "note": "strategies.add optional WSDL path needs typed support or N/A.",
+        "issue": "#299",
+        "note": "strategies.add residual optional WSDL path needs typed support or N/A.",
     },
     ("strategies", "update"): {
-        "issue": "#251",
-        "note": "strategies.update optional WSDL path needs typed support or N/A.",
+        "issue": "#300",
+        "note": "strategies.update residual optional WSDL path needs typed support or N/A.",
+    },
+}
+
+OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[
+    tuple[str, str, str], dict[str, str]
+] = {
+    ("ads", "add", "TextAd"): {
+        "status": "missing_followup",
+        "issue": "#273",
+        "note": "TEXT_AD optional add fields need typed support or N/A.",
+    },
+    ("ads", "add", "ResponsiveAd"): {
+        "status": "missing_followup",
+        "issue": "#274",
+        "note": "RESPONSIVE_AD add fields need typed support or N/A.",
+    },
+    ("ads", "add", "ShoppingAd"): {
+        "status": "missing_followup",
+        "issue": "#275",
+        "note": "SHOPPING_AD add fields need typed support or N/A.",
+    },
+    ("ads", "add", "ListingAd"): {
+        "status": "missing_followup",
+        "issue": "#275",
+        "note": "LISTING_AD add fields need typed support or N/A.",
+    },
+    ("ads", "add", "TextAdBuilderAd"): {
+        "status": "missing_followup",
+        "issue": "#276",
+        "note": "AdBuilder add subtype fields need typed support or N/A.",
+    },
+    ("ads", "add", "MobileAppAdBuilderAd"): {
+        "status": "missing_followup",
+        "issue": "#276",
+        "note": "AdBuilder add subtype fields need typed support or N/A.",
+    },
+    ("ads", "add", "CpcVideoAdBuilderAd"): {
+        "status": "missing_followup",
+        "issue": "#276",
+        "note": "AdBuilder add subtype fields need typed support or N/A.",
+    },
+    ("ads", "add", "CpmBannerAdBuilderAd"): {
+        "status": "missing_followup",
+        "issue": "#276",
+        "note": "AdBuilder add subtype fields need typed support or N/A.",
+    },
+    ("ads", "add", "CpmVideoAdBuilderAd"): {
+        "status": "missing_followup",
+        "issue": "#276",
+        "note": "AdBuilder add subtype fields need typed support or N/A.",
+    },
+    ("ads", "add", "MobileAppCpcVideoAdBuilderAd"): {
+        "status": "missing_followup",
+        "issue": "#276",
+        "note": "AdBuilder add subtype fields need typed support or N/A.",
+    },
+    ("ads", "add", "DynamicTextAd"): {
+        "status": "missing_followup",
+        "issue": "#277",
+        "note": "DYNAMIC_TEXT_AD add fields need typed support or N/A.",
+    },
+    ("ads", "add", "MobileAppAd"): {
+        "status": "missing_followup",
+        "issue": "#277",
+        "note": "Mobile app ad add fields need typed support or N/A.",
+    },
+    ("ads", "add", "MobileAppImageAd"): {
+        "status": "missing_followup",
+        "issue": "#277",
+        "note": "Mobile app image ad add fields need typed support or N/A.",
+    },
+    ("ads", "add", "SmartAdBuilderAd"): {
+        "status": "missing_followup",
+        "issue": "#278",
+        "note": "SMART_AD_BUILDER_AD add fields need typed support or N/A.",
+    },
+    ("ads", "update", "DynamicTextAd"): {
+        "status": "missing_followup",
+        "issue": "#267",
+        "note": "DYNAMIC_TEXT_AD update fields need typed support or N/A.",
+    },
+    ("ads", "update", "ResponsiveAd"): {
+        "status": "missing_followup",
+        "issue": "#268",
+        "note": "RESPONSIVE_AD update fields need typed support or N/A.",
+    },
+    ("ads", "update", "ShoppingAd"): {
+        "status": "missing_followup",
+        "issue": "#269",
+        "note": "SHOPPING_AD update fields need typed support or N/A.",
+    },
+    ("ads", "update", "ListingAd"): {
+        "status": "missing_followup",
+        "issue": "#269",
+        "note": "LISTING_AD update fields need typed support or N/A.",
+    },
+    ("ads", "update", "TextAdBuilderAd"): {
+        "status": "missing_followup",
+        "issue": "#270",
+        "note": "AdBuilder update subtype fields need typed support or N/A.",
+    },
+    ("ads", "update", "MobileAppAdBuilderAd"): {
+        "status": "missing_followup",
+        "issue": "#270",
+        "note": "AdBuilder update subtype fields need typed support or N/A.",
+    },
+    ("ads", "update", "CpcVideoAdBuilderAd"): {
+        "status": "missing_followup",
+        "issue": "#270",
+        "note": "AdBuilder update subtype fields need typed support or N/A.",
+    },
+    ("ads", "update", "CpmBannerAdBuilderAd"): {
+        "status": "missing_followup",
+        "issue": "#270",
+        "note": "AdBuilder update subtype fields need typed support or N/A.",
+    },
+    ("ads", "update", "CpmVideoAdBuilderAd"): {
+        "status": "missing_followup",
+        "issue": "#270",
+        "note": "AdBuilder update subtype fields need typed support or N/A.",
+    },
+    ("ads", "update", "MobileAppCpcVideoAdBuilderAd"): {
+        "status": "missing_followup",
+        "issue": "#270",
+        "note": "AdBuilder update subtype fields need typed support or N/A.",
+    },
+    ("ads", "update", "SmartAdBuilderAd"): {
+        "status": "missing_followup",
+        "issue": "#271",
+        "note": "SMART_AD_BUILDER_AD update fields need typed support or N/A.",
+    },
+    ("ads", "update", "MobileAppImageAd"): {
+        "status": "missing_followup",
+        "issue": "#271",
+        "note": "MOBILE_APP_IMAGE_AD update fields need typed support or N/A.",
+    },
+    ("campaigns", "add", "TextCampaign.BiddingStrategy"): {
+        "status": "missing_followup",
+        "issue": "#290",
+        "note": "Shared campaign BiddingStrategy builder needs typed support.",
+    },
+    ("campaigns", "update", "TextCampaign.BiddingStrategy"): {
+        "status": "missing_followup",
+        "issue": "#290",
+        "note": "Shared campaign BiddingStrategy builder needs typed support.",
+    },
+    ("campaigns", "add", "UnifiedCampaign.BiddingStrategy"): {
+        "status": "missing_followup",
+        "issue": "#290",
+        "note": "Shared campaign BiddingStrategy builder needs typed support.",
+    },
+    ("campaigns", "update", "UnifiedCampaign.BiddingStrategy"): {
+        "status": "missing_followup",
+        "issue": "#290",
+        "note": "Shared campaign BiddingStrategy builder needs typed support.",
+    },
+    ("campaigns", "add", "DynamicTextCampaign.BiddingStrategy"): {
+        "status": "missing_followup",
+        "issue": "#290",
+        "note": "Shared campaign BiddingStrategy builder needs typed support.",
+    },
+    ("campaigns", "update", "DynamicTextCampaign.BiddingStrategy"): {
+        "status": "missing_followup",
+        "issue": "#290",
+        "note": "Shared campaign BiddingStrategy builder needs typed support.",
+    },
+    ("campaigns", "add", "SmartCampaign.BiddingStrategy"): {
+        "status": "missing_followup",
+        "issue": "#290",
+        "note": "Shared campaign BiddingStrategy builder needs typed support.",
+    },
+    ("campaigns", "update", "SmartCampaign.BiddingStrategy"): {
+        "status": "missing_followup",
+        "issue": "#290",
+        "note": "Shared campaign BiddingStrategy builder needs typed support.",
+    },
+    ("campaigns", "add", "MobileAppCampaign.BiddingStrategy"): {
+        "status": "missing_followup",
+        "issue": "#290",
+        "note": "Shared campaign BiddingStrategy builder needs typed support.",
+    },
+    ("campaigns", "update", "MobileAppCampaign.BiddingStrategy"): {
+        "status": "missing_followup",
+        "issue": "#290",
+        "note": "Shared campaign BiddingStrategy builder needs typed support.",
+    },
+    ("campaigns", "add", "CpmBannerCampaign.BiddingStrategy"): {
+        "status": "missing_followup",
+        "issue": "#290",
+        "note": "Shared campaign BiddingStrategy builder needs typed support.",
+    },
+    ("campaigns", "update", "CpmBannerCampaign.BiddingStrategy"): {
+        "status": "missing_followup",
+        "issue": "#290",
+        "note": "Shared campaign BiddingStrategy builder needs typed support.",
+    },
+    ("campaigns", "add", "TextCampaign"): {
+        "status": "missing_followup",
+        "issue": "#292",
+        "note": "TextCampaign optional fields need typed support or N/A.",
+    },
+    ("campaigns", "update", "TextCampaign"): {
+        "status": "missing_followup",
+        "issue": "#292",
+        "note": "TextCampaign optional fields need typed support or N/A.",
+    },
+    ("campaigns", "add", "UnifiedCampaign"): {
+        "status": "missing_followup",
+        "issue": "#293",
+        "note": "UnifiedCampaign optional fields need typed support or N/A.",
+    },
+    ("campaigns", "update", "UnifiedCampaign"): {
+        "status": "missing_followup",
+        "issue": "#293",
+        "note": "UnifiedCampaign optional fields need typed support or N/A.",
+    },
+    ("campaigns", "add", "DynamicTextCampaign"): {
+        "status": "missing_followup",
+        "issue": "#294",
+        "note": "DynamicTextCampaign optional fields need typed support or N/A.",
+    },
+    ("campaigns", "update", "DynamicTextCampaign"): {
+        "status": "missing_followup",
+        "issue": "#294",
+        "note": "DynamicTextCampaign optional fields need typed support or N/A.",
+    },
+    ("campaigns", "add", "SmartCampaign"): {
+        "status": "missing_followup",
+        "issue": "#295",
+        "note": "SmartCampaign optional fields need typed support or N/A.",
+    },
+    ("campaigns", "update", "SmartCampaign"): {
+        "status": "missing_followup",
+        "issue": "#295",
+        "note": "SmartCampaign optional fields need typed support or N/A.",
+    },
+    ("campaigns", "add", "MobileAppCampaign"): {
+        "status": "missing_followup",
+        "issue": "#296",
+        "note": "MobileAppCampaign optional fields need typed support or N/A.",
+    },
+    ("campaigns", "update", "MobileAppCampaign"): {
+        "status": "missing_followup",
+        "issue": "#296",
+        "note": "MobileAppCampaign optional fields need typed support or N/A.",
+    },
+    ("campaigns", "add", "CpmBannerCampaign"): {
+        "status": "missing_followup",
+        "issue": "#296",
+        "note": "CpmBannerCampaign optional fields need typed support or N/A.",
+    },
+    ("campaigns", "update", "CpmBannerCampaign"): {
+        "status": "missing_followup",
+        "issue": "#296",
+        "note": "CpmBannerCampaign optional fields need typed support or N/A.",
+    },
+    ("clients", "update", "Notification.EmailSubscriptions"): {
+        "status": "missing_followup",
+        "issue": "#305",
+        "note": "Client EmailSubscriptions item parity needs typed support or N/A.",
+    },
+    ("clients", "update", "Settings"): {
+        "status": "missing_followup",
+        "issue": "#305",
+        "note": "Client Settings item parity needs typed support or N/A.",
+    },
+    ("clients", "update", "ErirAttributes.Organization"): {
+        "status": "missing_followup",
+        "issue": "#306",
+        "note": "ERIR Organization fields need typed support or N/A.",
+    },
+    ("clients", "update", "ErirAttributes.Contract"): {
+        "status": "missing_followup",
+        "issue": "#307",
+        "note": "ERIR Contract fields need typed support or N/A.",
+    },
+    ("clients", "update", "ErirAttributes.Contragent"): {
+        "status": "missing_followup",
+        "issue": "#308",
+        "note": "ERIR Contragent fields need typed support or N/A.",
     },
 }
 
 OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
     ("adgroups", "add", "DynamicTextAdGroup.AutotargetingCategories"): {
         "status": "missing_followup",
-        "issue": "#247",
+        "issue": "#280",
         "note": "Dynamic text ad group autotargeting categories are not exposed.",
     },
     ("adgroups", "add", "DynamicTextAdGroup.AutotargetingSettings"): {
         "status": "missing_followup",
-        "issue": "#247",
+        "issue": "#280",
         "note": "Dynamic text ad group autotargeting settings are not exposed.",
     },
     ("keywords", "add", "AutotargetingCategories"): {
         "status": "missing_followup",
-        "issue": "#244",
+        "issue": "#286",
         "note": "Keyword autotargeting categories have no typed add flags.",
     },
     ("keywords", "add", "AutotargetingSearchBidIsAuto"): {
         "status": "missing_followup",
-        "issue": "#244",
+        "issue": "#285",
         "note": "Keyword autotargeting auto-search-bid has no typed add flag.",
     },
     ("keywords", "add", "StrategyPriority"): {
         "status": "missing_followup",
-        "issue": "#244",
+        "issue": "#285",
         "note": "Keyword strategy priority has no typed add flag.",
     },
     ("keywords", "add", "AutotargetingBrandOptions"): {
         "status": "missing_followup",
-        "issue": "#244",
+        "issue": "#287",
         "note": "Keyword autotargeting brand options have no typed add flags.",
     },
     ("keywords", "add", "AutotargetingSettings"): {
         "status": "missing_followup",
-        "issue": "#244",
+        "issue": "#288",
         "note": "Keyword autotargeting settings have no typed add flags.",
     },
     ("keywords", "update", "AutotargetingCategories"): {
         "status": "missing_followup",
-        "issue": "#244",
+        "issue": "#286",
         "note": "Keyword autotargeting categories have no typed update flags.",
     },
     ("keywords", "update", "AutotargetingBrandOptions"): {
         "status": "missing_followup",
-        "issue": "#244",
+        "issue": "#287",
         "note": "Keyword autotargeting brand options have no typed update flags.",
     },
     ("keywords", "update", "AutotargetingSettings"): {
         "status": "missing_followup",
-        "issue": "#244",
+        "issue": "#288",
         "note": "Keyword autotargeting settings have no typed update flags.",
     },
     ("feeds", "add", "FileFeed"): {
@@ -1096,67 +1376,67 @@ OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
     },
     ("adgroups", "add", "MobileAppAdGroup"): {
         "status": "missing_followup",
-        "issue": "#247",
+        "issue": "#279",
         "note": "Rare ad group subtype block is not exposed by --type.",
     },
     ("adgroups", "add", "DynamicTextFeedAdGroup"): {
         "status": "missing_followup",
-        "issue": "#247",
+        "issue": "#281",
         "note": "Rare ad group subtype block is not exposed by --type.",
     },
     ("adgroups", "add", "CpmBannerKeywordsAdGroup"): {
         "status": "missing_followup",
-        "issue": "#247",
+        "issue": "#282",
         "note": "Rare ad group subtype block is not exposed by --type.",
     },
     ("adgroups", "add", "CpmBannerUserProfileAdGroup"): {
         "status": "missing_followup",
-        "issue": "#247",
+        "issue": "#282",
         "note": "Rare ad group subtype block is not exposed by --type.",
     },
     ("adgroups", "add", "CpmVideoAdGroup"): {
         "status": "missing_followup",
-        "issue": "#247",
+        "issue": "#282",
         "note": "Rare ad group subtype block is not exposed by --type.",
     },
     ("adgroups", "add", "UnifiedAdGroup"): {
         "status": "missing_followup",
-        "issue": "#247",
+        "issue": "#283",
         "note": "Rare ad group subtype block is not exposed by --type.",
     },
     ("adgroups", "add", "TextAdGroupFeedParams"): {
         "status": "missing_followup",
-        "issue": "#247",
+        "issue": "#284",
         "note": "Rare ad group feed params block has no typed add flags.",
     },
     ("adgroups", "update", "MobileAppAdGroup"): {
         "status": "missing_followup",
-        "issue": "#247",
+        "issue": "#279",
         "note": "Rare ad group subtype block is not exposed by update.",
     },
     ("adgroups", "update", "DynamicTextAdGroup"): {
         "status": "missing_followup",
-        "issue": "#247",
+        "issue": "#280",
         "note": "Dynamic ad group subtype update block has no typed flags.",
     },
     ("adgroups", "update", "DynamicTextFeedAdGroup"): {
         "status": "missing_followup",
-        "issue": "#247",
+        "issue": "#281",
         "note": "Rare ad group subtype block is not exposed by update.",
     },
     ("adgroups", "update", "SmartAdGroup"): {
         "status": "missing_followup",
-        "issue": "#247",
+        "issue": "#283",
         "note": "Smart ad group subtype update block has no typed flags.",
     },
     ("adgroups", "update", "TextAdGroupFeedParams"): {
         "status": "missing_followup",
-        "issue": "#247",
+        "issue": "#284",
         "note": "Rare ad group feed params block has no typed update flags.",
     },
     ("adgroups", "update", "UnifiedAdGroup"): {
         "status": "missing_followup",
-        "issue": "#247",
+        "issue": "#283",
         "note": "Rare ad group subtype block is not exposed by update.",
     },
 }
@@ -1382,6 +1662,29 @@ def test_optional_field_default_followups_reference_issues() -> None:
     assert not bad_defaults, (
         "Optional-field default follow-ups must reference command keys and "
         f"GitHub issue ids: {bad_defaults}"
+    )
+
+
+def test_optional_field_followups_do_not_route_to_parent_epics() -> None:
+    """Milestone 18 audit rows must point at PR-sized child issues."""
+    parent_epics = {"#240", "#244", "#247", "#249", "#250", "#251", "#252", "#255"}
+    bad_routes = []
+
+    for command_key, entry in OPTIONAL_FIELD_DEFAULT_FOLLOWUPS.items():
+        if entry.get("issue") in parent_epics:
+            bad_routes.append(("default", command_key, entry.get("issue")))
+
+    for audit_key, entry in OPTIONAL_FIELD_AUDIT.items():
+        if entry.get("issue") in parent_epics:
+            bad_routes.append(("audit", audit_key, entry.get("issue")))
+
+    for prefix_key, entry in OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS.items():
+        if entry.get("issue") in parent_epics:
+            bad_routes.append(("prefix", prefix_key, entry.get("issue")))
+
+    assert not bad_routes, (
+        "Optional-field follow-up routes must point at child issues, not "
+        f"parent epics: {bad_routes}"
     )
 
 
