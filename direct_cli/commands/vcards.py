@@ -2,6 +2,8 @@
 VCards commands
 """
 
+from typing import Dict, Optional
+
 import click
 
 from ..api import create_client
@@ -12,6 +14,51 @@ from ..utils import get_default_fields, parse_ids
 @click.group()
 def vcards():
     """Manage vCards"""
+
+
+def _build_instant_messenger(
+    messenger_client: Optional[str],
+    messenger_login: Optional[str],
+) -> Optional[Dict[str, str]]:
+    if not messenger_client and not messenger_login:
+        return None
+    if not messenger_client or not messenger_login:
+        raise click.UsageError(
+            "--instant-messenger-client and --instant-messenger-login must be "
+            "provided together"
+        )
+    return {
+        "MessengerClient": messenger_client,
+        "MessengerLogin": messenger_login,
+    }
+
+
+def _build_point_on_map(
+    x: Optional[float],
+    y: Optional[float],
+    x1: Optional[float],
+    y1: Optional[float],
+    x2: Optional[float],
+    y2: Optional[float],
+) -> Optional[Dict[str, float]]:
+    values = {
+        "X": x,
+        "Y": y,
+        "X1": x1,
+        "Y1": y1,
+        "X2": x2,
+        "Y2": y2,
+    }
+    provided = {name for name, value in values.items() if value is not None}
+    if not provided:
+        return None
+    if len(provided) != len(values):
+        missing = ", ".join(
+            f"--point-on-map-{name.lower()}"
+            for name in sorted(values.keys() - provided)
+        )
+        raise click.UsageError(f"PointOnMap requires all coordinate flags: {missing}")
+    return {name: value for name, value in values.items() if value is not None}
 
 
 @vcards.command()
@@ -86,6 +133,20 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
 @click.option("--extra-message", help="Extra message")
 @click.option("--ogrn", help="OGRN")
 @click.option("--metro-station-id", type=int, help="Metro station ID")
+@click.option(
+    "--instant-messenger-client",
+    help="Instant messenger client for InstantMessenger.MessengerClient",
+)
+@click.option(
+    "--instant-messenger-login",
+    help="Instant messenger login for InstantMessenger.MessengerLogin",
+)
+@click.option("--point-on-map-x", type=float, help="PointOnMap.X coordinate")
+@click.option("--point-on-map-y", type=float, help="PointOnMap.Y coordinate")
+@click.option("--point-on-map-x1", type=float, help="PointOnMap.X1 coordinate")
+@click.option("--point-on-map-y1", type=float, help="PointOnMap.Y1 coordinate")
+@click.option("--point-on-map-x2", type=float, help="PointOnMap.X2 coordinate")
+@click.option("--point-on-map-y2", type=float, help="PointOnMap.Y2 coordinate")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def add(
@@ -108,10 +169,30 @@ def add(
     extra_message,
     ogrn,
     metro_station_id,
+    instant_messenger_client,
+    instant_messenger_login,
+    point_on_map_x,
+    point_on_map_y,
+    point_on_map_x1,
+    point_on_map_y1,
+    point_on_map_x2,
+    point_on_map_y2,
     dry_run,
 ):
     """Add vCard"""
     try:
+        instant_messenger = _build_instant_messenger(
+            instant_messenger_client,
+            instant_messenger_login,
+        )
+        point_on_map = _build_point_on_map(
+            point_on_map_x,
+            point_on_map_y,
+            point_on_map_x1,
+            point_on_map_y1,
+            point_on_map_x2,
+            point_on_map_y2,
+        )
         vcard = {
             "CampaignId": campaign_id,
             "Country": country,
@@ -144,6 +225,10 @@ def add(
             vcard["Ogrn"] = ogrn
         if metro_station_id is not None:
             vcard["MetroStationId"] = metro_station_id
+        if instant_messenger:
+            vcard["InstantMessenger"] = instant_messenger
+        if point_on_map:
+            vcard["PointOnMap"] = point_on_map
 
         body = {"method": "add", "params": {"VCards": [vcard]}}
 
@@ -160,6 +245,8 @@ def add(
         result = client.vcards().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
