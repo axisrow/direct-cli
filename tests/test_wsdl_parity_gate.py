@@ -633,6 +633,13 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("adgroups", "add", "SmartAdGroup.FeedId"): {"--feed-id"},
     ("adgroups", "add", "SmartAdGroup.AdTitleSource"): {"--ad-title-source"},
     ("adgroups", "add", "SmartAdGroup.AdBodySource"): {"--ad-body-source"},
+    ("adgroups", "add", "MobileAppAdGroup"): {"--type"},
+    ("adgroups", "add", "MobileAppAdGroup.StoreUrl"): {"--store-url"},
+    ("adgroups", "add", "MobileAppAdGroup.TargetDeviceType"): {"--target-device-types"},
+    ("adgroups", "add", "MobileAppAdGroup.TargetCarrier"): {"--target-carrier"},
+    ("adgroups", "add", "MobileAppAdGroup.TargetOperatingSystemVersion"): {
+        "--target-operating-system-version"
+    },
     ("adgroups", "add", "NegativeKeywords"): {"--negative-keywords"},
     ("adgroups", "add", "NegativeKeywords.Items"): {"--negative-keywords"},
     ("adgroups", "add", "NegativeKeywordSharedSetIds"): {
@@ -653,6 +660,18 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
         "--negative-keyword-shared-set-ids"
     },
     ("adgroups", "update", "TrackingParams"): {"--tracking-params"},
+    ("adgroups", "update", "MobileAppAdGroup"): {
+        "--target-device-types",
+        "--target-carrier",
+        "--target-operating-system-version",
+    },
+    ("adgroups", "update", "MobileAppAdGroup.TargetDeviceType"): {
+        "--target-device-types"
+    },
+    ("adgroups", "update", "MobileAppAdGroup.TargetCarrier"): {"--target-carrier"},
+    ("adgroups", "update", "MobileAppAdGroup.TargetOperatingSystemVersion"): {
+        "--target-operating-system-version"
+    },
     ("ads", "add", "TextAd"): {"--type"},
     ("ads", "add", "TextAd.VCardId"): {"--vcard-id"},
     ("ads", "add", "TextAd.AdImageHash"): {"--image-hash"},
@@ -1593,11 +1612,6 @@ OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
             "intentionally reject autotargeting fields."
         ),
     },
-    ("adgroups", "add", "MobileAppAdGroup"): {
-        "status": "missing_followup",
-        "issue": "#279",
-        "note": "Rare ad group subtype block is not exposed by --type.",
-    },
     ("adgroups", "add", "DynamicTextFeedAdGroup"): {
         "status": "missing_followup",
         "issue": "#281",
@@ -1627,11 +1641,6 @@ OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
         "status": "missing_followup",
         "issue": "#284",
         "note": "Rare ad group feed params block has no typed add flags.",
-    },
-    ("adgroups", "update", "MobileAppAdGroup"): {
-        "status": "missing_followup",
-        "issue": "#279",
-        "note": "Rare ad group subtype block is not exposed by update.",
     },
     ("adgroups", "update", "DynamicTextAdGroup"): {
         "status": "missing_followup",
