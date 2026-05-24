@@ -251,7 +251,11 @@ def update(
                     erir_contragent_epay_number,
                     erir_contragent_reg_number,
                     erir_contragent_oksm_number,
-                    parse_tin_info(erir_contragent_tin_type, erir_contragent_tin),
+                    parse_tin_info(
+                        erir_contragent_tin_type,
+                        erir_contragent_tin,
+                        "--erir-contragent-tin-type",
+                    ),
                 ),
             ),
         )

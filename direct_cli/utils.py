@@ -358,6 +358,7 @@ def parse_grant_specs(specs: Optional[List[str]]) -> Optional[List[Dict[str, str
 def parse_tin_info(
     tin_type: Optional[str],
     tin: Optional[str],
+    option_name: str = "--tin-type",
 ) -> Optional[Dict[str, str]]:
     """Build TinInfo from typed flags."""
     tin_info = {}
@@ -365,7 +366,8 @@ def parse_tin_info(
         if tin_type not in TIN_TYPES:
             allowed = ", ".join(sorted(TIN_TYPES))
             raise click.UsageError(
-                f"Invalid tin type: '{tin_type}'. Expected one of: {allowed}"
+                f"Invalid tin type for {option_name}: "
+                f"'{tin_type}'. Expected one of: {allowed}"
             )
         tin_info["TinType"] = tin_type
     if tin:

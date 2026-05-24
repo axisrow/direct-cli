@@ -4946,6 +4946,7 @@ def test_clients_update_erir_contragent_rejects_invalid_tin_type():
     )
     assert result.exit_code != 0
     assert "Invalid tin type" in result.output
+    assert "--erir-contragent-tin-type" in result.output
 
 
 def test_clients_update_rejects_invalid_subscription_or_setting():
