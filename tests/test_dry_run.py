@@ -831,6 +831,118 @@ def test_ads_add_text_ad_with_turbo_page_id():
     assert body["params"]["Ads"][0]["TextAd"]["TurboPageId"] == 333
 
 
+def test_ads_add_text_ad_optional_extension_fields_payload():
+    """Issue #273: TEXT_AD add optional extension fields are top-level TextAd."""
+    body = _dry_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "TEXT_AD",
+        "--title",
+        "T",
+        "--text",
+        "Body text long enough",
+        "--href",
+        "https://example.com",
+        "--final-url",
+        "https://final.example.com",
+        "--video-extension-creative-id",
+        "0",
+        "--price-extension-price",
+        "123.45",
+        "--price-extension-old-price",
+        "234.56",
+        "--price-extension-price-qualifier",
+        "from",
+        "--price-extension-price-currency",
+        "rub",
+        "--business-id",
+        "0",
+        "--prefer-vcard-over-business",
+        "yes",
+        "--erir-ad-description",
+        "Text ad object",
+    )
+    text_ad = body["params"]["Ads"][0]["TextAd"]
+    assert text_ad["FinalUrl"] == "https://final.example.com"
+    assert text_ad["VideoExtension"] == {"CreativeId": 0}
+    assert text_ad["PriceExtension"] == {
+        "Price": 123450000,
+        "OldPrice": 234560000,
+        "PriceQualifier": "FROM",
+        "PriceCurrency": "RUB",
+    }
+    assert text_ad["BusinessId"] == 0
+    assert text_ad["PreferVCardOverBusiness"] == "YES"
+    assert text_ad["ErirAdDescription"] == "Text ad object"
+
+
+def test_ads_add_text_ad_price_extension_requires_mandatory_fields():
+    """Issue #273: PriceExtensionAddItem has required nested fields."""
+    result = _rejected(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "TEXT_AD",
+        "--title",
+        "T",
+        "--text",
+        "Body text long enough",
+        "--href",
+        "https://example.com",
+        "--price-extension-old-price",
+        "234.56",
+    )
+    assert "TextAd.PriceExtension add requires" in result.output
+    assert "--price-extension-price" in result.output
+    assert "--price-extension-price-qualifier" in result.output
+    assert "--price-extension-price-currency" in result.output
+
+
+def test_ads_add_text_ad_optional_extension_flags_reject_other_subtypes():
+    """Issue #273: TEXT_AD add flags must not silently drop on other subtypes."""
+    text_image = _rejected(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "1",
+        "--type",
+        "TEXT_IMAGE_AD",
+        "--image-hash",
+        "abcdefghij",
+        "--href",
+        "https://example.com",
+        "--final-url",
+        "https://final.example.com",
+    )
+    mobile_app = _rejected(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "1",
+        "--type",
+        "MOBILE_APP_AD",
+        "--title",
+        "T",
+        "--text",
+        "Body",
+        "--action",
+        "INSTALL",
+        "--price-extension-price",
+        "123.45",
+    )
+    assert "--final-url is not compatible with --type TEXT_IMAGE_AD" in (
+        text_image.output
+    )
+    assert "--price-extension-price is not compatible with --type MOBILE_APP_AD" in (
+        mobile_app.output
+    )
+
+
 def test_ads_add_text_image_ad_with_turbo_page_id():
     """Issue #202: --turbo-page-id is also valid for TEXT_IMAGE_AD."""
     body = _dry_run(
@@ -1282,9 +1394,9 @@ def test_ads_update_responsive_ad_payload():
         "--display-url-path",
         "deals",
         "--price-extension-price",
-        "123450000",
+        "123.45",
         "--price-extension-old-price",
-        "150000000",
+        "150.00",
         "--price-extension-price-qualifier",
         "from",
         "--price-extension-price-currency",
@@ -2382,9 +2494,9 @@ def test_ads_update_text_ad_price_extension_payload():
         "--type",
         "TEXT_AD",
         "--price-extension-price",
-        "123450000",
+        "123.45",
         "--price-extension-old-price",
-        "150000000",
+        "150.00",
         "--price-extension-price-qualifier",
         "from",
         "--price-extension-price-currency",
@@ -2401,6 +2513,23 @@ def test_ads_update_text_ad_price_extension_payload():
             }
         },
     }
+
+
+def test_ads_update_text_ad_price_extension_rejects_fractional_cents():
+    """PriceExtension money input is human-readable with two decimal places."""
+    result = _rejected(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_AD",
+        "--price-extension-price",
+        "123.456",
+    )
+    assert "--price-extension-price must have at most two decimal places" in (
+        result.output
+    )
 
 
 def test_ads_update_text_ad_price_extension_partial_payload():
@@ -2449,7 +2578,7 @@ def test_ads_update_text_ad_price_extension_flags_rejected_for_mobile_app_ad():
         "--type",
         "MOBILE_APP_AD",
         "--price-extension-price",
-        "123450000",
+        "123.45",
     )
     assert (
         "--price-extension-price is not compatible with --type MOBILE_APP_AD"

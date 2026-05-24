@@ -2,6 +2,7 @@
 Ads commands
 """
 
+from decimal import Decimal, InvalidOperation
 from typing import Optional
 
 import click
@@ -207,14 +208,80 @@ def _build_price_extension(
     """Build TextAd.PriceExtension update payload from typed flags."""
     price_extension = {}
     if price_extension_price is not None:
-        price_extension["Price"] = price_extension_price
+        price_extension["Price"] = _parse_price_extension_amount(
+            price_extension_price, "--price-extension-price"
+        )
     if price_extension_old_price is not None:
-        price_extension["OldPrice"] = price_extension_old_price
+        price_extension["OldPrice"] = _parse_price_extension_amount(
+            price_extension_old_price, "--price-extension-old-price"
+        )
     if price_extension_price_qualifier:
         price_extension["PriceQualifier"] = price_extension_price_qualifier.upper()
     if price_extension_price_currency:
         price_extension["PriceCurrency"] = price_extension_price_currency.upper()
     return price_extension or None
+
+
+def _parse_price_extension_amount(value: str, flag_name: str) -> int:
+    """Convert human-readable price-extension money to API long units."""
+    try:
+        amount = Decimal(value)
+    except (InvalidOperation, ValueError):
+        raise click.UsageError(
+            f"{flag_name} must be a human-readable money value, for example 123.45."
+        )
+
+    if not amount.is_finite():
+        raise click.UsageError(f"{flag_name} must be a finite money value.")
+    if amount < 0:
+        raise click.UsageError(f"{flag_name} must be non-negative.")
+    exponent = amount.as_tuple().exponent
+    if not isinstance(exponent, int) or exponent < -2:
+        raise click.UsageError(f"{flag_name} must have at most two decimal places.")
+
+    return int(amount * Decimal("1000000"))
+
+
+def _build_price_extension_add(
+    price_extension_price,
+    price_extension_old_price,
+    price_extension_price_qualifier,
+    price_extension_price_currency,
+):
+    """Build TextAd.PriceExtension add payload from typed flags."""
+    provided = (
+        price_extension_price is not None
+        or price_extension_old_price is not None
+        or price_extension_price_qualifier
+        or price_extension_price_currency
+    )
+    if not provided:
+        return None
+
+    missing = []
+    if price_extension_price is None:
+        missing.append("--price-extension-price")
+    if not price_extension_price_qualifier:
+        missing.append("--price-extension-price-qualifier")
+    if not price_extension_price_currency:
+        missing.append("--price-extension-price-currency")
+    if missing:
+        raise click.UsageError(
+            "TextAd.PriceExtension add requires " + ", ".join(missing)
+        )
+
+    price_extension = {
+        "Price": _parse_price_extension_amount(
+            price_extension_price, "--price-extension-price"
+        ),
+        "PriceQualifier": price_extension_price_qualifier.upper(),
+        "PriceCurrency": price_extension_price_currency.upper(),
+    }
+    if price_extension_old_price is not None:
+        price_extension["OldPrice"] = _parse_price_extension_amount(
+            price_extension_old_price, "--price-extension-old-price"
+        )
+    return price_extension
 
 
 def _parse_required_csv_strings(
@@ -616,6 +683,54 @@ def get(
     "--turbo-page-id", type=int, help="Turbo page ID (TEXT_AD / TEXT_IMAGE_AD)"
 )
 @click.option("--ad-extensions", help="Comma-separated ad extension IDs (TEXT_AD)")
+@click.option("--final-url", help="TextAd.FinalUrl (TEXT_AD)")
+@click.option(
+    "--video-extension-creative-id",
+    type=int,
+    help="TextAd.VideoExtension.CreativeId (TEXT_AD)",
+)
+@click.option(
+    "--price-extension-price",
+    help=(
+        "TextAd.PriceExtension.Price as human-readable money. "
+        "Required whenever any PriceExtension flag is used."
+    ),
+)
+@click.option(
+    "--price-extension-old-price",
+    help=(
+        "TextAd.PriceExtension.OldPrice as human-readable money. "
+        "Optional; if supplied, PriceExtension add also requires "
+        "--price-extension-price, --price-extension-price-qualifier, "
+        "and --price-extension-price-currency."
+    ),
+)
+@click.option(
+    "--price-extension-price-qualifier",
+    type=click.Choice(["FROM", "UP_TO", "NONE"], case_sensitive=False),
+    help=(
+        "TextAd.PriceExtension.PriceQualifier: FROM, UP_TO, or NONE. "
+        "Required whenever any PriceExtension flag is used."
+    ),
+)
+@click.option(
+    "--price-extension-price-currency",
+    type=click.Choice(
+        ["RUB", "UAH", "BYN", "USD", "EUR", "KZT", "TRY", "CHF", "UZS"],
+        case_sensitive=False,
+    ),
+    help=(
+        "TextAd.PriceExtension.PriceCurrency enum value. "
+        "Required whenever any PriceExtension flag is used."
+    ),
+)
+@click.option("--business-id", type=int, help="TextAd.BusinessId (TEXT_AD)")
+@click.option(
+    "--prefer-vcard-over-business",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="TextAd.PreferVCardOverBusiness value: YES or NO",
+)
+@click.option("--erir-ad-description", help="TextAd.ErirAdDescription (TEXT_AD)")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def add(
@@ -636,6 +751,15 @@ def add(
     sitelink_set_id,
     turbo_page_id,
     ad_extensions,
+    final_url,
+    video_extension_creative_id,
+    price_extension_price,
+    price_extension_old_price,
+    price_extension_price_qualifier,
+    price_extension_price_currency,
+    business_id,
+    prefer_vcard_over_business,
+    erir_ad_description,
     dry_run,
 ):
     """Add new ad"""
@@ -674,6 +798,15 @@ def add(
                 "sitelink_set_id",
                 "turbo_page_id",
                 "ad_extensions",
+                "final_url",
+                "video_extension_creative_id",
+                "price_extension_price",
+                "price_extension_old_price",
+                "price_extension_price_qualifier",
+                "price_extension_price_currency",
+                "business_id",
+                "prefer_vcard_over_business",
+                "erir_ad_description",
             },
             "TEXT_IMAGE_AD": {"href", "image_hash", "turbo_page_id"},
             "MOBILE_APP_AD": {
@@ -700,6 +833,15 @@ def add(
             "sitelink_set_id": sitelink_set_id,
             "turbo_page_id": turbo_page_id,
             "ad_extensions": ad_extensions,
+            "final_url": final_url,
+            "video_extension_creative_id": video_extension_creative_id,
+            "price_extension_price": price_extension_price,
+            "price_extension_old_price": price_extension_old_price,
+            "price_extension_price_qualifier": price_extension_price_qualifier,
+            "price_extension_price_currency": price_extension_price_currency,
+            "business_id": business_id,
+            "prefer_vcard_over_business": prefer_vcard_over_business,
+            "erir_ad_description": erir_ad_description,
         }
         flag_for = {
             "title": "--title",
@@ -716,6 +858,15 @@ def add(
             "sitelink_set_id": "--sitelink-set-id",
             "turbo_page_id": "--turbo-page-id",
             "ad_extensions": "--ad-extensions",
+            "final_url": "--final-url",
+            "video_extension_creative_id": "--video-extension-creative-id",
+            "price_extension_price": "--price-extension-price",
+            "price_extension_old_price": "--price-extension-old-price",
+            "price_extension_price_qualifier": "--price-extension-price-qualifier",
+            "price_extension_price_currency": "--price-extension-price-currency",
+            "business_id": "--business-id",
+            "prefer_vcard_over_business": "--prefer-vcard-over-business",
+            "erir_ad_description": "--erir-ad-description",
         }
         _reject_incompatible_flags(
             ad_type_norm, type_fields[ad_type_norm], provided, flag_for
@@ -754,6 +905,24 @@ def add(
                 text_ad["TurboPageId"] = turbo_page_id
             if ad_extensions:
                 text_ad["AdExtensionIds"] = parse_ids(ad_extensions)
+            if final_url:
+                text_ad["FinalUrl"] = final_url
+            if video_extension_creative_id is not None:
+                text_ad["VideoExtension"] = {"CreativeId": video_extension_creative_id}
+            price_extension = _build_price_extension_add(
+                price_extension_price,
+                price_extension_old_price,
+                price_extension_price_qualifier,
+                price_extension_price_currency,
+            )
+            if price_extension:
+                text_ad["PriceExtension"] = price_extension
+            if business_id is not None:
+                text_ad["BusinessId"] = business_id
+            if prefer_vcard_over_business:
+                text_ad["PreferVCardOverBusiness"] = prefer_vcard_over_business.upper()
+            if erir_ad_description:
+                text_ad["ErirAdDescription"] = erir_ad_description
             ad_data["TextAd"] = text_ad
         elif ad_type_norm == "TEXT_IMAGE_AD":
             if title or text:
@@ -957,18 +1126,16 @@ def add(
 )
 @click.option(
     "--price-extension-price",
-    type=int,
     help=(
-        "PriceExtension.Price as API long units "
-        "(price multiplied by 1,000,000). TEXT_AD / RESPONSIVE_AD only."
+        "PriceExtension.Price as human-readable money; converted to API long "
+        "units. TEXT_AD / RESPONSIVE_AD only."
     ),
 )
 @click.option(
     "--price-extension-old-price",
-    type=int,
     help=(
-        "PriceExtension.OldPrice as API long units "
-        "(price multiplied by 1,000,000). TEXT_AD / RESPONSIVE_AD only."
+        "PriceExtension.OldPrice as human-readable money; converted to API "
+        "long units. TEXT_AD / RESPONSIVE_AD only."
     ),
 )
 @click.option(
