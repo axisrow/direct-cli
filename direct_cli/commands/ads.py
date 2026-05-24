@@ -35,6 +35,17 @@ FEED_BASED_UPDATE_FIELDS = {
 }
 
 
+MOBILE_APP_IMAGE_UPDATE_FIELDS = {
+    "image_hash",
+    "tracking_url",
+    "erir_ad_description",
+}
+
+SMART_AD_BUILDER_UPDATE_FIELDS = {
+    "logo_extension_hash",
+    "erir_ad_description",
+}
+
 AD_BUILDER_BASE_UPDATE_FIELDS = {
     "creative_id",
     "creative_erir_ad_description",
@@ -315,6 +326,39 @@ def _build_ad_builder_update(
         ad_payload["TrackingPixels"] = {"Items": parsed_tracking_pixels}
 
     return ad_payload
+
+
+def _build_mobile_app_image_ad_update(
+    image_hash: Optional[str],
+    erir_ad_description: Optional[str],
+    tracking_url: Optional[str],
+) -> dict[str, object]:
+    """Build MobileAppImageAdUpdate payload from typed flags."""
+    mobile_app_image_ad: dict[str, object] = {}
+
+    if image_hash:
+        mobile_app_image_ad["AdImageHash"] = image_hash
+    if erir_ad_description:
+        mobile_app_image_ad["ErirAdDescription"] = erir_ad_description
+    if tracking_url:
+        mobile_app_image_ad["TrackingUrl"] = tracking_url
+
+    return mobile_app_image_ad
+
+
+def _build_smart_ad_builder_ad_update(
+    logo_extension_hash: Optional[str],
+    erir_ad_description: Optional[str],
+) -> dict[str, object]:
+    """Build SmartAdBuilderAdUpdate payload from typed flags."""
+    smart_ad_builder_ad: dict[str, object] = {}
+
+    if logo_extension_hash:
+        smart_ad_builder_ad["LogoExtensionHash"] = logo_extension_hash
+    if erir_ad_description:
+        smart_ad_builder_ad["ErirAdDescription"] = erir_ad_description
+
+    return smart_ad_builder_ad
 
 
 @ads.command()
@@ -708,10 +752,11 @@ def add(
     required=True,
     help=(
         "Ad subtype: TEXT_AD | TEXT_IMAGE_AD | MOBILE_APP_AD | "
-        "DYNAMIC_TEXT_AD | RESPONSIVE_AD | SHOPPING_AD | LISTING_AD | "
-        "TEXT_AD_BUILDER_AD | MOBILE_APP_AD_BUILDER_AD | "
-        "MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD | CPC_VIDEO_AD_BUILDER_AD | "
-        "CPM_BANNER_AD_BUILDER_AD | CPM_VIDEO_AD_BUILDER_AD"
+        "DYNAMIC_TEXT_AD | MOBILE_APP_IMAGE_AD | RESPONSIVE_AD | "
+        "SHOPPING_AD | LISTING_AD | SMART_AD_BUILDER_AD | TEXT_AD_BUILDER_AD | "
+        "MOBILE_APP_AD_BUILDER_AD | MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD | "
+        "CPC_VIDEO_AD_BUILDER_AD | CPM_BANNER_AD_BUILDER_AD | "
+        "CPM_VIDEO_AD_BUILDER_AD"
     ),
 )
 @click.option(
@@ -735,7 +780,10 @@ def add(
 )
 @click.option(
     "--image-hash",
-    help="Image hash (TEXT_AD / TEXT_IMAGE_AD / MOBILE_APP_AD / DYNAMIC_TEXT_AD)",
+    help=(
+        "Image hash (TEXT_AD / TEXT_IMAGE_AD / MOBILE_APP_AD / "
+        "DYNAMIC_TEXT_AD / MOBILE_APP_IMAGE_AD)"
+    ),
 )
 @click.option(
     "--image-hashes",
@@ -749,7 +797,7 @@ def add(
     "--tracking-url",
     help=(
         "Tracking URL (MOBILE_APP_AD / MOBILE_APP_AD_BUILDER_AD / "
-        "MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD)"
+        "MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD / MOBILE_APP_IMAGE_AD)"
     ),
 )
 @click.option(
@@ -849,7 +897,14 @@ def add(
 )
 @click.option(
     "--erir-ad-description",
-    help="ErirAdDescription for RESPONSIVE_AD and AdBuilder update subtypes",
+    help=(
+        "ErirAdDescription for RESPONSIVE_AD, MOBILE_APP_IMAGE_AD, "
+        "SMART_AD_BUILDER_AD, and AdBuilder update subtypes"
+    ),
+)
+@click.option(
+    "--logo-extension-hash",
+    help="SmartAdBuilderAd.LogoExtensionHash",
 )
 @click.option(
     "--creative-id",
@@ -922,6 +977,7 @@ def update(
     price_extension_price_currency,
     business_id,
     erir_ad_description,
+    logo_extension_hash,
     creative_id,
     creative_erir_ad_description,
     final_url,
@@ -944,10 +1000,12 @@ def update(
         "TEXT_AD",
         "TEXT_IMAGE_AD",
         "MOBILE_APP_AD",
+        "MOBILE_APP_IMAGE_AD",
         "DYNAMIC_TEXT_AD",
         "RESPONSIVE_AD",
         "SHOPPING_AD",
         "LISTING_AD",
+        "SMART_AD_BUILDER_AD",
         *AD_BUILDER_UPDATE_BLOCKS,
     }
     if ad_type_norm not in supported_types:
@@ -955,7 +1013,8 @@ def update(
             "Invalid value for '--type': "
             f"{ad_type!r} is not one of "
             "'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD', 'DYNAMIC_TEXT_AD', "
-            "'RESPONSIVE_AD', 'SHOPPING_AD', 'LISTING_AD', "
+            "'MOBILE_APP_IMAGE_AD', 'RESPONSIVE_AD', 'SHOPPING_AD', 'LISTING_AD', "
+            "'SMART_AD_BUILDER_AD', "
             "'TEXT_AD_BUILDER_AD', 'MOBILE_APP_AD_BUILDER_AD', "
             "'MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD', 'CPC_VIDEO_AD_BUILDER_AD', "
             "'CPM_BANNER_AD_BUILDER_AD', 'CPM_VIDEO_AD_BUILDER_AD'."
@@ -1004,6 +1063,7 @@ def update(
             "tracking_url",
             "age_label",
         },
+        "MOBILE_APP_IMAGE_AD": MOBILE_APP_IMAGE_UPDATE_FIELDS,
         "RESPONSIVE_AD": {
             "texts",
             "titles",
@@ -1025,6 +1085,7 @@ def update(
         },
         "SHOPPING_AD": FEED_BASED_UPDATE_FIELDS,
         "LISTING_AD": FEED_BASED_UPDATE_FIELDS,
+        "SMART_AD_BUILDER_AD": SMART_AD_BUILDER_UPDATE_FIELDS,
         **AD_BUILDER_TYPE_FIELDS,
     }
     provided = {
@@ -1054,6 +1115,7 @@ def update(
         "price_extension_price_currency": price_extension_price_currency,
         "business_id": business_id,
         "erir_ad_description": erir_ad_description,
+        "logo_extension_hash": logo_extension_hash,
         "creative_id": creative_id,
         "creative_erir_ad_description": creative_erir_ad_description,
         "final_url": final_url,
@@ -1090,6 +1152,7 @@ def update(
         "price_extension_price_currency": "--price-extension-price-currency",
         "business_id": "--business-id",
         "erir_ad_description": "--erir-ad-description",
+        "logo_extension_hash": "--logo-extension-hash",
         "creative_id": "--creative-id",
         "creative_erir_ad_description": "--creative-erir-ad-description",
         "final_url": "--final-url",
@@ -1186,6 +1249,14 @@ def update(
             mobile_app_ad["AgeLabel"] = age_label.upper()
         if mobile_app_ad:
             ad_data["MobileAppAd"] = mobile_app_ad
+    elif ad_type_norm == "MOBILE_APP_IMAGE_AD":
+        mobile_app_image_ad = _build_mobile_app_image_ad_update(
+            image_hash,
+            erir_ad_description,
+            tracking_url,
+        )
+        if mobile_app_image_ad:
+            ad_data["MobileAppImageAd"] = mobile_app_image_ad
     elif ad_type_norm == "RESPONSIVE_AD":
         responsive_ad = _build_responsive_ad_update(
             texts,
@@ -1216,6 +1287,13 @@ def update(
         if feed_based_ad:
             field_name = "ShoppingAd" if ad_type_norm == "SHOPPING_AD" else "ListingAd"
             ad_data[field_name] = feed_based_ad
+    elif ad_type_norm == "SMART_AD_BUILDER_AD":
+        smart_ad_builder_ad = _build_smart_ad_builder_ad_update(
+            logo_extension_hash,
+            erir_ad_description,
+        )
+        if smart_ad_builder_ad:
+            ad_data["SmartAdBuilderAd"] = smart_ad_builder_ad
     elif ad_type_norm in AD_BUILDER_UPDATE_BLOCKS:
         ad_builder_ad = _build_ad_builder_update(
             creative_id,
