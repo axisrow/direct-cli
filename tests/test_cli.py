@@ -135,6 +135,25 @@ class TestCLI(unittest.TestCase):
         self.assertIn("--erir-contragent-tin-type", result.output)
         self.assertIn("--erir-contragent-tin", result.output)
 
+    def test_bids_set_help_documents_optional_bid_flags(self):
+        result = self.runner.invoke(cli, ["bids", "set", "--help"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("--campaign-id", result.output)
+        self.assertIn("--adgroup-id", result.output)
+        self.assertIn("--keyword-id", result.output)
+        self.assertIn("--context-bid", result.output)
+        self.assertIn("--autotargeting-search-bid-is-auto", result.output)
+        self.assertIn("--priority", result.output)
+
+    def test_keywordbids_set_help_documents_optional_bid_flags(self):
+        result = self.runner.invoke(cli, ["keywordbids", "set", "--help"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("--campaign-id", result.output)
+        self.assertIn("--adgroup-id", result.output)
+        self.assertIn("--keyword-id", result.output)
+        self.assertIn("--autotargeting-search-bid-is-auto", result.output)
+        self.assertIn("--priority", result.output)
+
     def test_canonical_groups_in_help(self):
         """Test canonical transport groups"""
         result = self.runner.invoke(cli, ["--help"])

@@ -3176,6 +3176,58 @@ def test_bids_set_payload():
     assert bid == {"KeywordId": 1, "Bid": 15000000}
 
 
+def test_bids_set_campaign_context_auto_priority_payload():
+    body = _dry_run(
+        "bids",
+        "set",
+        "--campaign-id",
+        "123",
+        "--context-bid",
+        "9000000",
+        "--autotargeting-search-bid-is-auto",
+        "yes",
+        "--priority",
+        "high",
+    )
+    assert body["params"]["Bids"][0] == {
+        "CampaignId": 123,
+        "ContextBid": 9000000,
+        "AutotargetingSearchBidIsAuto": "YES",
+        "StrategyPriority": "HIGH",
+    }
+
+
+def test_bids_set_adgroup_context_payload():
+    body = _dry_run(
+        "bids",
+        "set",
+        "--adgroup-id",
+        "456",
+        "--context-bid",
+        "7000000",
+    )
+    assert body["params"]["Bids"][0] == {"AdGroupId": 456, "ContextBid": 7000000}
+
+
+def test_bids_set_requires_exactly_one_selector():
+    result = CliRunner().invoke(
+        cli,
+        [
+            "bids",
+            "set",
+            "--campaign-id",
+            "1",
+            "--keyword-id",
+            "2",
+            "--bid",
+            "15000000",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "exactly one selector" in result.output
+
+
 def test_keywordbids_set_search_and_network():
     body = _dry_run(
         "keywordbids",
@@ -3194,6 +3246,58 @@ def test_keywordbids_set_search_and_network():
         "SearchBid": 8000000,
         "NetworkBid": 3000000,
     }
+
+
+def test_keywordbids_set_campaign_auto_priority_payload():
+    body = _dry_run(
+        "keywordbids",
+        "set",
+        "--campaign-id",
+        "123",
+        "--autotargeting-search-bid-is-auto",
+        "no",
+        "--priority",
+        "normal",
+    )
+    assert body["params"]["KeywordBids"][0] == {
+        "CampaignId": 123,
+        "AutotargetingSearchBidIsAuto": "NO",
+        "StrategyPriority": "NORMAL",
+    }
+
+
+def test_keywordbids_set_adgroup_network_payload():
+    body = _dry_run(
+        "keywordbids",
+        "set",
+        "--adgroup-id",
+        "456",
+        "--network-bid",
+        "3000000",
+    )
+    assert body["params"]["KeywordBids"][0] == {
+        "AdGroupId": 456,
+        "NetworkBid": 3000000,
+    }
+
+
+def test_keywordbids_set_requires_exactly_one_selector():
+    result = CliRunner().invoke(
+        cli,
+        [
+            "keywordbids",
+            "set",
+            "--campaign-id",
+            "1",
+            "--keyword-id",
+            "2",
+            "--search-bid",
+            "15000000",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "exactly one selector" in result.output
 
 
 # ----------------------------------------------------------------------

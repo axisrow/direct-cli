@@ -92,6 +92,35 @@ def add_criteria_csv(
         criteria[key] = parsed
 
 
+def add_single_id_selector(
+    item: Dict[str, Any],
+    *,
+    campaign_id: Optional[int],
+    adgroup_id: Optional[int],
+    keyword_id: Optional[int],
+    command_name: str,
+) -> None:
+    """Add exactly one campaign, ad group, or keyword selector to an item."""
+    selectors = [
+        ("CampaignId", campaign_id, "--campaign-id"),
+        ("AdGroupId", adgroup_id, "--adgroup-id"),
+        ("KeywordId", keyword_id, "--keyword-id"),
+    ]
+    provided = [
+        (field_name, value, option_name)
+        for field_name, value, option_name in selectors
+        if value is not None
+    ]
+    if len(provided) != 1:
+        options = ", ".join(option for _, _, option in selectors)
+        raise click.UsageError(
+            f"{command_name} requires exactly one selector: {options}"
+        )
+
+    field_name, value, _ = provided[0]
+    item[field_name] = value
+
+
 def build_selection_criteria(
     ids: Optional[List[int]] = None,
     status: Optional[str] = None,

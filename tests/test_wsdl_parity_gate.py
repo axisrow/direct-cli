@@ -946,11 +946,24 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("audiencetargets", "add", "InterestId"): {"--interest-id"},
     ("audiencetargets", "add", "ContextBid"): {"--bid"},
     ("audiencetargets", "add", "StrategyPriority"): {"--priority"},
+    ("bids", "set", "CampaignId"): {"--campaign-id"},
+    ("bids", "set", "AdGroupId"): {"--adgroup-id"},
     ("bids", "set", "KeywordId"): {"--keyword-id"},
     ("bids", "set", "Bid"): {"--bid"},
+    ("bids", "set", "ContextBid"): {"--context-bid"},
+    ("bids", "set", "AutotargetingSearchBidIsAuto"): {
+        "--autotargeting-search-bid-is-auto"
+    },
+    ("bids", "set", "StrategyPriority"): {"--priority"},
+    ("keywordbids", "set", "CampaignId"): {"--campaign-id"},
+    ("keywordbids", "set", "AdGroupId"): {"--adgroup-id"},
     ("keywordbids", "set", "KeywordId"): {"--keyword-id"},
     ("keywordbids", "set", "SearchBid"): {"--search-bid"},
+    ("keywordbids", "set", "AutotargetingSearchBidIsAuto"): {
+        "--autotargeting-search-bid-is-auto"
+    },
     ("keywordbids", "set", "NetworkBid"): {"--network-bid"},
+    ("keywordbids", "set", "StrategyPriority"): {"--priority"},
     ("retargeting", "add", "Rules"): {"--rule"},
     ("retargeting", "add", "Type"): {"--type"},
     ("retargeting", "add", "Description"): {"--description"},
@@ -1106,10 +1119,6 @@ OPTIONAL_FIELD_DEFAULT_FOLLOWUPS: dict[tuple[str, str], dict[str, str]] = {
         "issue": "#254",
         "note": "bidmodifiers.add optional WSDL path needs typed support or N/A.",
     },
-    ("bids", "set"): {
-        "issue": "#301",
-        "note": "bids.set optional WSDL path needs typed support or N/A.",
-    },
     ("campaigns", "add"): {
         "issue": "#291",
         "note": "campaigns.add campaign-level optional path needs typed support or N/A.",
@@ -1133,10 +1142,6 @@ OPTIONAL_FIELD_DEFAULT_FOLLOWUPS: dict[tuple[str, str], dict[str, str]] = {
     ("feeds", "update"): {
         "issue": "#264",
         "note": "feeds.update optional WSDL path needs typed support or N/A.",
-    },
-    ("keywordbids", "set"): {
-        "issue": "#301",
-        "note": "keywordbids.set optional WSDL path needs typed support or N/A.",
     },
     ("retargeting", "add"): {
         "issue": "#256",
