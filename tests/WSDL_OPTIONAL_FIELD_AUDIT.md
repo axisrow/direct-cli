@@ -11,9 +11,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2625 |
+| `missing_followup` | 2603 |
 | `not_applicable` | 23 |
-| `supported` | 593 |
+| `supported` | 615 |
 
 ## Confirmed Follow-Ups
 
@@ -161,28 +161,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.update` | `TextAd.BusinessId` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
 | `ads.update` | `TextAd.PreferVCardOverBusiness` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
 | `ads.update` | `TextAd.ErirAdDescription` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
-| `ads.update` | `ResponsiveAd` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268) |
-| `ads.update` | `ResponsiveAd.Texts` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ResponsiveAd.Titles` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ResponsiveAd.AdImageHashes` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ResponsiveAd.AdImageHashes.Items` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ResponsiveAd.VideoExtensionIds` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ResponsiveAd.VideoExtensionIds.Items` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ResponsiveAd.SitelinkSetId` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ResponsiveAd.CalloutSetting` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ResponsiveAd.CalloutSetting.AdExtensions` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ResponsiveAd.CalloutSetting.AdExtensions.AdExtensionId` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ResponsiveAd.CalloutSetting.AdExtensions.Operation` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ResponsiveAd.Href` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ResponsiveAd.AgeLabel` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ResponsiveAd.DisplayUrlPath` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ResponsiveAd.PriceExtension` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ResponsiveAd.PriceExtension.Price` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ResponsiveAd.PriceExtension.OldPrice` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ResponsiveAd.PriceExtension.PriceQualifier` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ResponsiveAd.PriceExtension.PriceCurrency` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ResponsiveAd.BusinessId` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ResponsiveAd.ErirAdDescription` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
 | `ads.update` | `MobileAppAd.ErirAdDescription` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
 | `ads.update` | `MobileAppAd.Features` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
 | `ads.update` | `MobileAppAd.Features.Feature` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
@@ -2950,28 +2928,28 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.update` | `ads.update` | `TextAd.BusinessId` | `long` | 0 | 1 | `missing_followup` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
 | `ads.update` | `ads.update` | `TextAd.PreferVCardOverBusiness` | `YesNoEnum` | 0 | 1 | `missing_followup` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
 | `ads.update` | `ads.update` | `TextAd.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
-| `ads.update` | `ads.update` | `ResponsiveAd` | `ResponsiveAdUpdate` | 0 | 1 | `missing_followup` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268) |
-| `ads.update` | `ads.update` | `ResponsiveAd.Texts` | `string` | 0 | unbounded | `missing_followup` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ads.update` | `ResponsiveAd.Titles` | `string` | 0 | unbounded | `missing_followup` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ads.update` | `ResponsiveAd.AdImageHashes` | `ArrayOfString` | 0 | 1 | `missing_followup` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ads.update` | `ResponsiveAd.AdImageHashes.Items` | `string` | 1 | unbounded | `missing_followup` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ads.update` | `ResponsiveAd.VideoExtensionIds` | `ArrayOfLong` | 0 | 1 | `missing_followup` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ads.update` | `ResponsiveAd.VideoExtensionIds.Items` | `long` | 1 | unbounded | `missing_followup` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ads.update` | `ResponsiveAd.SitelinkSetId` | `long` | 0 | 1 | `missing_followup` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ads.update` | `ResponsiveAd.CalloutSetting` | `AdExtensionSetting` | 0 | 1 | `missing_followup` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ads.update` | `ResponsiveAd.CalloutSetting.AdExtensions` | `AdExtensionSettingItem` | 1 | unbounded | `missing_followup` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ads.update` | `ResponsiveAd.CalloutSetting.AdExtensions.AdExtensionId` | `long` | 1 | 1 | `missing_followup` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ads.update` | `ResponsiveAd.CalloutSetting.AdExtensions.Operation` | `OperationEnum` | 1 | 1 | `missing_followup` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ads.update` | `ResponsiveAd.Href` | `string` | 0 | 1 | `missing_followup` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ads.update` | `ResponsiveAd.AgeLabel` | `AgeLabelEnum` | 0 | 1 | `missing_followup` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ads.update` | `ResponsiveAd.DisplayUrlPath` | `string` | 0 | 1 | `missing_followup` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ads.update` | `ResponsiveAd.PriceExtension` | `PriceExtensionUpdateItem` | 0 | 1 | `missing_followup` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ads.update` | `ResponsiveAd.PriceExtension.Price` | `long` | 0 | 1 | `missing_followup` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ads.update` | `ResponsiveAd.PriceExtension.OldPrice` | `long` | 0 | 1 | `missing_followup` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ads.update` | `ResponsiveAd.PriceExtension.PriceQualifier` | `PriceQualifierEnum` | 0 | 1 | `missing_followup` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ads.update` | `ResponsiveAd.PriceExtension.PriceCurrency` | `PriceCurrencyEnum` | 0 | 1 | `missing_followup` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ads.update` | `ResponsiveAd.BusinessId` | `long` | 0 | 1 | `missing_followup` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ads.update` | `ResponsiveAd.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
+| `ads.update` | `ads.update` | `ResponsiveAd` | `ResponsiveAdUpdate` | 0 | 1 | `supported` | --type |
+| `ads.update` | `ads.update` | `ResponsiveAd.Texts` | `string` | 0 | unbounded | `supported` | --texts |
+| `ads.update` | `ads.update` | `ResponsiveAd.Titles` | `string` | 0 | unbounded | `supported` | --titles |
+| `ads.update` | `ads.update` | `ResponsiveAd.AdImageHashes` | `ArrayOfString` | 0 | 1 | `supported` | --image-hashes |
+| `ads.update` | `ads.update` | `ResponsiveAd.AdImageHashes.Items` | `string` | 1 | unbounded | `supported` | --image-hashes |
+| `ads.update` | `ads.update` | `ResponsiveAd.VideoExtensionIds` | `ArrayOfLong` | 0 | 1 | `supported` | --video-extension-ids |
+| `ads.update` | `ads.update` | `ResponsiveAd.VideoExtensionIds.Items` | `long` | 1 | unbounded | `supported` | --video-extension-ids |
+| `ads.update` | `ads.update` | `ResponsiveAd.SitelinkSetId` | `long` | 0 | 1 | `supported` | --sitelink-set-id |
+| `ads.update` | `ads.update` | `ResponsiveAd.CalloutSetting` | `AdExtensionSetting` | 0 | 1 | `supported` | --callouts-add, --callouts-remove, --callouts-set |
+| `ads.update` | `ads.update` | `ResponsiveAd.CalloutSetting.AdExtensions` | `AdExtensionSettingItem` | 1 | unbounded | `supported` | --callouts-add, --callouts-remove, --callouts-set |
+| `ads.update` | `ads.update` | `ResponsiveAd.CalloutSetting.AdExtensions.AdExtensionId` | `long` | 1 | 1 | `supported` | --callouts-add, --callouts-remove, --callouts-set |
+| `ads.update` | `ads.update` | `ResponsiveAd.CalloutSetting.AdExtensions.Operation` | `OperationEnum` | 1 | 1 | `supported` | --callouts-add, --callouts-remove, --callouts-set |
+| `ads.update` | `ads.update` | `ResponsiveAd.Href` | `string` | 0 | 1 | `supported` | --href |
+| `ads.update` | `ads.update` | `ResponsiveAd.AgeLabel` | `AgeLabelEnum` | 0 | 1 | `supported` | --age-label |
+| `ads.update` | `ads.update` | `ResponsiveAd.DisplayUrlPath` | `string` | 0 | 1 | `supported` | --display-url-path |
+| `ads.update` | `ads.update` | `ResponsiveAd.PriceExtension` | `PriceExtensionUpdateItem` | 0 | 1 | `supported` | --price-extension-old-price, --price-extension-price, --price-extension-price-currency, --price-extension-price-qualifier |
+| `ads.update` | `ads.update` | `ResponsiveAd.PriceExtension.Price` | `long` | 0 | 1 | `supported` | --price-extension-price |
+| `ads.update` | `ads.update` | `ResponsiveAd.PriceExtension.OldPrice` | `long` | 0 | 1 | `supported` | --price-extension-old-price |
+| `ads.update` | `ads.update` | `ResponsiveAd.PriceExtension.PriceQualifier` | `PriceQualifierEnum` | 0 | 1 | `supported` | --price-extension-price-qualifier |
+| `ads.update` | `ads.update` | `ResponsiveAd.PriceExtension.PriceCurrency` | `PriceCurrencyEnum` | 0 | 1 | `supported` | --price-extension-price-currency |
+| `ads.update` | `ads.update` | `ResponsiveAd.BusinessId` | `long` | 0 | 1 | `supported` | --business-id |
+| `ads.update` | `ads.update` | `ResponsiveAd.ErirAdDescription` | `string` | 0 | 1 | `supported` | --erir-ad-description |
 | `ads.update` | `ads.update` | `DynamicTextAd` | `DynamicTextAdUpdate` | 0 | 1 | `supported` | --type |
 | `ads.update` | `ads.update` | `DynamicTextAd.VCardId` | `long` | 0 | 1 | `supported` | --vcard-id |
 | `ads.update` | `ads.update` | `DynamicTextAd.AdImageHash` | `string` | 0 | 1 | `supported` | --image-hash |

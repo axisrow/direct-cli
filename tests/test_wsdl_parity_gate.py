@@ -1002,6 +1002,57 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("ads", "update", "TextImageAd.AdImageHash"): {"--image-hash"},
     ("ads", "update", "TextImageAd.Href"): {"--href"},
     ("ads", "update", "TextImageAd.TurboPageId"): {"--turbo-page-id"},
+    ("ads", "update", "ResponsiveAd"): {"--type"},
+    ("ads", "update", "ResponsiveAd.Texts"): {"--texts"},
+    ("ads", "update", "ResponsiveAd.Titles"): {"--titles"},
+    ("ads", "update", "ResponsiveAd.AdImageHashes"): {"--image-hashes"},
+    ("ads", "update", "ResponsiveAd.AdImageHashes.Items"): {"--image-hashes"},
+    ("ads", "update", "ResponsiveAd.VideoExtensionIds"): {"--video-extension-ids"},
+    ("ads", "update", "ResponsiveAd.VideoExtensionIds.Items"): {
+        "--video-extension-ids"
+    },
+    ("ads", "update", "ResponsiveAd.SitelinkSetId"): {"--sitelink-set-id"},
+    ("ads", "update", "ResponsiveAd.CalloutSetting"): {
+        "--callouts-add",
+        "--callouts-remove",
+        "--callouts-set",
+    },
+    ("ads", "update", "ResponsiveAd.CalloutSetting.AdExtensions"): {
+        "--callouts-add",
+        "--callouts-remove",
+        "--callouts-set",
+    },
+    ("ads", "update", "ResponsiveAd.CalloutSetting.AdExtensions.AdExtensionId"): {
+        "--callouts-add",
+        "--callouts-remove",
+        "--callouts-set",
+    },
+    ("ads", "update", "ResponsiveAd.CalloutSetting.AdExtensions.Operation"): {
+        "--callouts-add",
+        "--callouts-remove",
+        "--callouts-set",
+    },
+    ("ads", "update", "ResponsiveAd.Href"): {"--href"},
+    ("ads", "update", "ResponsiveAd.AgeLabel"): {"--age-label"},
+    ("ads", "update", "ResponsiveAd.DisplayUrlPath"): {"--display-url-path"},
+    ("ads", "update", "ResponsiveAd.PriceExtension"): {
+        "--price-extension-price",
+        "--price-extension-old-price",
+        "--price-extension-price-qualifier",
+        "--price-extension-price-currency",
+    },
+    ("ads", "update", "ResponsiveAd.PriceExtension.Price"): {"--price-extension-price"},
+    ("ads", "update", "ResponsiveAd.PriceExtension.OldPrice"): {
+        "--price-extension-old-price"
+    },
+    ("ads", "update", "ResponsiveAd.PriceExtension.PriceQualifier"): {
+        "--price-extension-price-qualifier"
+    },
+    ("ads", "update", "ResponsiveAd.PriceExtension.PriceCurrency"): {
+        "--price-extension-price-currency"
+    },
+    ("ads", "update", "ResponsiveAd.BusinessId"): {"--business-id"},
+    ("ads", "update", "ResponsiveAd.ErirAdDescription"): {"--erir-ad-description"},
     ("campaigns", "add", "DailyBudget"): {"--budget"},
     ("campaigns", "add", "DailyBudget.Amount"): {"--budget"},
     ("campaigns", "add", "DailyBudget.Mode"): {"--budget"},
@@ -1640,11 +1691,6 @@ OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]
         "status": "missing_followup",
         "issue": "#278",
         "note": "SMART_AD_BUILDER_AD add fields need typed support or N/A.",
-    },
-    ("ads", "update", "ResponsiveAd"): {
-        "status": "missing_followup",
-        "issue": "#268",
-        "note": "RESPONSIVE_AD update fields need typed support or N/A.",
     },
     ("ads", "update", "ShoppingAd"): {
         "status": "missing_followup",
