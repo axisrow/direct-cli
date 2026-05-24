@@ -2845,6 +2845,31 @@ def test_keywords_add_rejects_scalar_autotargeting_flags_in_batch_mode(tmp_path)
     assert "single-item mode" in result.output
 
 
+def test_keywords_add_rejects_single_item_flags_in_batch_mode(tmp_path):
+    path = _write_jsonl(tmp_path, [{"Keyword": "kw", "AdGroupId": 100}])
+    result = CliRunner().invoke(
+        cli,
+        [
+            "keywords",
+            "add",
+            "--from-file",
+            path,
+            "--bid",
+            "15000000",
+            "--context-bid",
+            "5000000",
+            "--user-param-1",
+            "segment-a",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "single-item mode" in result.output
+    assert "--bid" in result.output
+    assert "--context-bid" in result.output
+    assert "--user-param-1" in result.output
+
+
 def test_keywords_update_payload_keyword_text():
     body = _dry_run("keywords", "update", "--id", "777", "--keyword", "new text")
     keyword = body["params"]["Keywords"][0]

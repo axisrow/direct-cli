@@ -344,10 +344,21 @@ def add(
     batch_mode = from_file is not None or keywords_json is not None
 
     if batch_mode:
-        if autotargeting_search_bid_is_auto is not None or priority is not None:
+        single_item_flags = {
+            "--bid": bid,
+            "--context-bid": context_bid,
+            "--autotargeting-search-bid-is-auto": autotargeting_search_bid_is_auto,
+            "--priority": priority,
+            "--user-param-1": user_param_1,
+            "--user-param-2": user_param_2,
+        }
+        unsupported = [
+            flag for flag, value in single_item_flags.items() if value is not None
+        ]
+        if unsupported:
             raise click.UsageError(
-                "--autotargeting-search-bid-is-auto and --priority are "
-                "supported only with --keyword single-item mode"
+                f"{', '.join(unsupported)} supported only with --keyword "
+                "single-item mode"
             )
         _bulk_add(
             ctx,
