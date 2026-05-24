@@ -240,6 +240,12 @@ def _build_strategy_fields(
     update=False,
 ):
     """Build typed strategy-specific fields."""
+    custom_period_values = (
+        custom_period_spend_limit,
+        custom_period_start_date,
+        custom_period_end_date,
+        custom_period_auto_continue,
+    )
     if strategy_type is None:
         if any(
             value is not None
@@ -251,16 +257,23 @@ def _build_strategy_fields(
                 spend_limit,
                 weekly_spend_limit,
                 bid_ceiling,
-                custom_period_spend_limit,
-                custom_period_start_date,
-                custom_period_end_date,
-                custom_period_auto_continue,
+                *custom_period_values,
             )
         ):
             raise click.UsageError(
                 "Provide --type when setting strategy-specific fields"
             )
         return {}
+
+    if (
+        update
+        and strategy_type == "AverageCpa"
+        and any(value is not None for value in custom_period_values)
+    ):
+        raise click.UsageError(
+            "--custom-period-* flags are not valid for --type AverageCpa "
+            "on strategies update."
+        )
 
     field_options = STRATEGY_UPDATE_FIELD_OPTIONS if update else STRATEGY_FIELD_OPTIONS
     allowed_options = field_options[strategy_type]

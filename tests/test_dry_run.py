@@ -9630,6 +9630,31 @@ def test_strategies_update_custom_period_budget_requires_type():
     assert "Provide --type when setting strategy-specific fields" in result.output
 
 
+def test_strategies_update_average_cpa_rejects_custom_period_budget():
+    result = _failing_run(
+        "strategies",
+        "update",
+        "--id",
+        "42",
+        "--type",
+        "AverageCpa",
+        "--custom-period-spend-limit",
+        "1000000000",
+        "--custom-period-start-date",
+        "2026-06-01",
+        "--custom-period-end-date",
+        "2026-06-30",
+        "--custom-period-auto-continue",
+        "YES",
+        "--dry-run",
+    )
+    assert result.exit_code != 0
+    assert (
+        "--custom-period-* flags are not valid for --type AverageCpa "
+        "on strategies update."
+    ) in result.output
+
+
 def test_strategies_custom_period_budget_rejects_weekly_spend_limit():
     result = _failing_run(
         "strategies",
