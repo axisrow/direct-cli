@@ -9,6 +9,7 @@ from ..output import format_output, print_error
 from ..utils import (
     build_client_update_item,
     build_erir_attributes,
+    build_erir_contragent,
     build_erir_contract,
     build_erir_organization,
     build_notification_update,
@@ -146,6 +147,29 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
     type=click.Choice(["YES", "NO"], case_sensitive=False),
     help="ErirAttributes.Contract.Price.IncludingVat",
 )
+@click.option("--erir-contragent-name", help="ErirAttributes.Contragent.Name")
+@click.option("--erir-contragent-kpp", help="ErirAttributes.Contragent.Kpp")
+@click.option("--erir-contragent-phone", help="ErirAttributes.Contragent.Phone")
+@click.option(
+    "--erir-contragent-epay-number",
+    help="ErirAttributes.Contragent.EpayNumber",
+)
+@click.option(
+    "--erir-contragent-reg-number",
+    help="ErirAttributes.Contragent.RegNumber",
+)
+@click.option(
+    "--erir-contragent-oksm-number",
+    help="ErirAttributes.Contragent.OksmNumber",
+)
+@click.option(
+    "--erir-contragent-tin-type",
+    help="ErirAttributes.Contragent.TinInfo.TinType",
+)
+@click.option(
+    "--erir-contragent-tin",
+    help="ErirAttributes.Contragent.TinInfo.Tin",
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def update(
@@ -172,6 +196,14 @@ def update(
     erir_contract_is_agency_payment,
     erir_contract_price_amount,
     erir_contract_price_including_vat,
+    erir_contragent_name,
+    erir_contragent_kpp,
+    erir_contragent_phone,
+    erir_contragent_epay_number,
+    erir_contragent_reg_number,
+    erir_contragent_oksm_number,
+    erir_contragent_tin_type,
+    erir_contragent_tin,
     dry_run,
 ):
     """Update client settings"""
@@ -211,6 +243,19 @@ def update(
                     erir_contract_is_agency_payment,
                     price_amount,
                     erir_contract_price_including_vat,
+                ),
+                contragent=build_erir_contragent(
+                    erir_contragent_name,
+                    erir_contragent_kpp,
+                    erir_contragent_phone,
+                    erir_contragent_epay_number,
+                    erir_contragent_reg_number,
+                    erir_contragent_oksm_number,
+                    parse_tin_info(
+                        erir_contragent_tin_type,
+                        erir_contragent_tin,
+                        "--erir-contragent-tin-type",
+                    ),
                 ),
             ),
         )

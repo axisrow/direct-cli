@@ -11,8 +11,8 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2783 |
-| `supported` | 458 |
+| `missing_followup` | 2774 |
+| `supported` | 467 |
 
 ## Confirmed Follow-Ups
 
@@ -2549,15 +2549,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `campaigns.update` | `TimeTargeting.HolidaysSchedule.BidPercent` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
 | `campaigns.update` | `TimeTargeting.HolidaysSchedule.StartHour` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
 | `campaigns.update` | `TimeTargeting.HolidaysSchedule.EndHour` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `clients.update` | `ErirAttributes.Contragent` | ERIR Contragent fields need typed support or N/A. [#308](https://github.com/axisrow/direct-cli/issues/308) |
-| `clients.update` | `ErirAttributes.Contragent.Name` | ERIR Contragent fields need typed support or N/A. [#308](https://github.com/axisrow/direct-cli/issues/308); inherited from `ErirAttributes.Contragent` |
-| `clients.update` | `ErirAttributes.Contragent.Phone` | ERIR Contragent fields need typed support or N/A. [#308](https://github.com/axisrow/direct-cli/issues/308); inherited from `ErirAttributes.Contragent` |
-| `clients.update` | `ErirAttributes.Contragent.EpayNumber` | ERIR Contragent fields need typed support or N/A. [#308](https://github.com/axisrow/direct-cli/issues/308); inherited from `ErirAttributes.Contragent` |
-| `clients.update` | `ErirAttributes.Contragent.RegNumber` | ERIR Contragent fields need typed support or N/A. [#308](https://github.com/axisrow/direct-cli/issues/308); inherited from `ErirAttributes.Contragent` |
-| `clients.update` | `ErirAttributes.Contragent.OksmNumber` | ERIR Contragent fields need typed support or N/A. [#308](https://github.com/axisrow/direct-cli/issues/308); inherited from `ErirAttributes.Contragent` |
-| `clients.update` | `ErirAttributes.Contragent.TinInfo` | ERIR Contragent fields need typed support or N/A. [#308](https://github.com/axisrow/direct-cli/issues/308); inherited from `ErirAttributes.Contragent` |
-| `clients.update` | `ErirAttributes.Contragent.TinInfo.TinType` | ERIR Contragent fields need typed support or N/A. [#308](https://github.com/axisrow/direct-cli/issues/308); inherited from `ErirAttributes.Contragent` |
-| `clients.update` | `ErirAttributes.Contragent.TinInfo.Tin` | ERIR Contragent fields need typed support or N/A. [#308](https://github.com/axisrow/direct-cli/issues/308); inherited from `ErirAttributes.Contragent` |
 | `feeds.add` | `FileFeed` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264) |
 | `feeds.add` | `FileFeed.Data` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
 | `feeds.add` | `FileFeed.Filename` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
@@ -5516,7 +5507,7 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `clients.update` | `clients.update` | `TinInfo` | `TinInfoUpdate` | 0 | 1 | `supported` | --tin, --tin-type |
 | `clients.update` | `clients.update` | `TinInfo.TinType` | `TinTypeEnum` | 0 | 1 | `supported` | --tin-type |
 | `clients.update` | `clients.update` | `TinInfo.Tin` | `string` | 0 | 1 | `supported` | --tin |
-| `clients.update` | `clients.update` | `ErirAttributes` | `ErirAttributesUpdate` | 0 | 1 | `supported` | --erir-contract-action-type, --erir-contract-date, --erir-contract-is-agency-payment, --erir-contract-number, --erir-contract-price-amount, --erir-contract-price-including-vat, --erir-contract-subject-type, --erir-contract-type, --erir-organization-epay-number, --erir-organization-kpp, --erir-organization-name, --erir-organization-oksm-number, --erir-organization-okved-code, --erir-organization-reg-number |
+| `clients.update` | `clients.update` | `ErirAttributes` | `ErirAttributesUpdate` | 0 | 1 | `supported` | --erir-contract-action-type, --erir-contract-date, --erir-contract-is-agency-payment, --erir-contract-number, --erir-contract-price-amount, --erir-contract-price-including-vat, --erir-contract-subject-type, --erir-contract-type, --erir-contragent-epay-number, --erir-contragent-kpp, --erir-contragent-name, --erir-contragent-oksm-number, --erir-contragent-phone, --erir-contragent-reg-number, --erir-contragent-tin, --erir-contragent-tin-type, --erir-organization-epay-number, --erir-organization-kpp, --erir-organization-name, --erir-organization-oksm-number, --erir-organization-okved-code, --erir-organization-reg-number |
 | `clients.update` | `clients.update` | `ErirAttributes.Organization` | `OrgInfo` | 0 | 1 | `supported` | --erir-organization-epay-number, --erir-organization-kpp, --erir-organization-name, --erir-organization-oksm-number, --erir-organization-okved-code, --erir-organization-reg-number |
 | `clients.update` | `clients.update` | `ErirAttributes.Organization.Name` | `string` | 0 | 1 | `supported` | --erir-organization-name |
 | `clients.update` | `clients.update` | `ErirAttributes.Organization.EpayNumber` | `string` | 0 | 1 | `supported` | --erir-organization-epay-number |
@@ -5533,15 +5524,15 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `clients.update` | `clients.update` | `ErirAttributes.Contract.Price` | `ContractPrice` | 0 | 1 | `supported` | --erir-contract-price-amount, --erir-contract-price-including-vat |
 | `clients.update` | `clients.update` | `ErirAttributes.Contract.Price.Amount` | `decimal` | 1 | 1 | `supported` | --erir-contract-price-amount |
 | `clients.update` | `clients.update` | `ErirAttributes.Contract.Price.IncludingVat` | `YesNoEnum` | 1 | 1 | `supported` | --erir-contract-price-including-vat |
-| `clients.update` | `clients.update` | `ErirAttributes.Contragent` | `ContragentInfoUpdate` | 0 | 1 | `missing_followup` | ERIR Contragent fields need typed support or N/A. [#308](https://github.com/axisrow/direct-cli/issues/308) |
-| `clients.update` | `clients.update` | `ErirAttributes.Contragent.Name` | `string` | 0 | 1 | `missing_followup` | ERIR Contragent fields need typed support or N/A. [#308](https://github.com/axisrow/direct-cli/issues/308); inherited from `ErirAttributes.Contragent` |
-| `clients.update` | `clients.update` | `ErirAttributes.Contragent.Phone` | `string` | 0 | 1 | `missing_followup` | ERIR Contragent fields need typed support or N/A. [#308](https://github.com/axisrow/direct-cli/issues/308); inherited from `ErirAttributes.Contragent` |
-| `clients.update` | `clients.update` | `ErirAttributes.Contragent.EpayNumber` | `string` | 0 | 1 | `missing_followup` | ERIR Contragent fields need typed support or N/A. [#308](https://github.com/axisrow/direct-cli/issues/308); inherited from `ErirAttributes.Contragent` |
-| `clients.update` | `clients.update` | `ErirAttributes.Contragent.RegNumber` | `string` | 0 | 1 | `missing_followup` | ERIR Contragent fields need typed support or N/A. [#308](https://github.com/axisrow/direct-cli/issues/308); inherited from `ErirAttributes.Contragent` |
-| `clients.update` | `clients.update` | `ErirAttributes.Contragent.OksmNumber` | `string` | 0 | 1 | `missing_followup` | ERIR Contragent fields need typed support or N/A. [#308](https://github.com/axisrow/direct-cli/issues/308); inherited from `ErirAttributes.Contragent` |
-| `clients.update` | `clients.update` | `ErirAttributes.Contragent.TinInfo` | `TinInfoUpdate` | 0 | 1 | `missing_followup` | ERIR Contragent fields need typed support or N/A. [#308](https://github.com/axisrow/direct-cli/issues/308); inherited from `ErirAttributes.Contragent` |
-| `clients.update` | `clients.update` | `ErirAttributes.Contragent.TinInfo.TinType` | `TinTypeEnum` | 0 | 1 | `missing_followup` | ERIR Contragent fields need typed support or N/A. [#308](https://github.com/axisrow/direct-cli/issues/308); inherited from `ErirAttributes.Contragent` |
-| `clients.update` | `clients.update` | `ErirAttributes.Contragent.TinInfo.Tin` | `string` | 0 | 1 | `missing_followup` | ERIR Contragent fields need typed support or N/A. [#308](https://github.com/axisrow/direct-cli/issues/308); inherited from `ErirAttributes.Contragent` |
+| `clients.update` | `clients.update` | `ErirAttributes.Contragent` | `ContragentInfoUpdate` | 0 | 1 | `supported` | --erir-contragent-epay-number, --erir-contragent-kpp, --erir-contragent-name, --erir-contragent-oksm-number, --erir-contragent-phone, --erir-contragent-reg-number, --erir-contragent-tin, --erir-contragent-tin-type |
+| `clients.update` | `clients.update` | `ErirAttributes.Contragent.Name` | `string` | 0 | 1 | `supported` | --erir-contragent-name |
+| `clients.update` | `clients.update` | `ErirAttributes.Contragent.Phone` | `string` | 0 | 1 | `supported` | --erir-contragent-phone |
+| `clients.update` | `clients.update` | `ErirAttributes.Contragent.EpayNumber` | `string` | 0 | 1 | `supported` | --erir-contragent-epay-number |
+| `clients.update` | `clients.update` | `ErirAttributes.Contragent.RegNumber` | `string` | 0 | 1 | `supported` | --erir-contragent-reg-number |
+| `clients.update` | `clients.update` | `ErirAttributes.Contragent.OksmNumber` | `string` | 0 | 1 | `supported` | --erir-contragent-oksm-number |
+| `clients.update` | `clients.update` | `ErirAttributes.Contragent.TinInfo` | `TinInfoUpdate` | 0 | 1 | `supported` | --erir-contragent-tin, --erir-contragent-tin-type |
+| `clients.update` | `clients.update` | `ErirAttributes.Contragent.TinInfo.TinType` | `TinTypeEnum` | 0 | 1 | `supported` | --erir-contragent-tin-type |
+| `clients.update` | `clients.update` | `ErirAttributes.Contragent.TinInfo.Tin` | `string` | 0 | 1 | `supported` | --erir-contragent-tin |
 | `creatives.add` | `creatives.add` | `VideoExtensionCreative` | `VideoExtensionCreativeAddItem` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `creatives.add` | `creatives.add` | `VideoExtensionCreative.VideoId` | `string` | 1 | 1 | `supported` | --video-id |
 | `dynamicads.add` | `dynamictextadtargets.add` | `Name` | `string` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |

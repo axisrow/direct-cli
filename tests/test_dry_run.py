@@ -4885,6 +4885,70 @@ def test_clients_update_erir_contract_price_rejects_non_finite_amount():
         )
 
 
+def test_clients_update_erir_contragent_payload():
+    body = _dry_run(
+        "clients",
+        "update",
+        "--erir-contragent-name",
+        "Counterparty LLC",
+        "--erir-contragent-kpp",
+        "770201001",
+        "--erir-contragent-phone",
+        "+70000000001",
+        "--erir-contragent-epay-number",
+        "epay456",
+        "--erir-contragent-reg-number",
+        "1027700132196",
+        "--erir-contragent-oksm-number",
+        "643",
+        "--erir-contragent-tin-type",
+        "LEGAL",
+        "--erir-contragent-tin",
+        "1234567890",
+    )
+    assert body["params"]["Clients"][0] == {
+        "ErirAttributes": {
+            "Contragent": {
+                "Name": "Counterparty LLC",
+                "Kpp": "770201001",
+                "Phone": "+70000000001",
+                "EpayNumber": "epay456",
+                "RegNumber": "1027700132196",
+                "OksmNumber": "643",
+                "TinInfo": {"TinType": "LEGAL", "Tin": "1234567890"},
+            }
+        }
+    }
+
+
+def test_clients_update_erir_contragent_tin_info_partial_payload():
+    body = _dry_run(
+        "clients",
+        "update",
+        "--erir-contragent-tin-type",
+        "LEGAL",
+    )
+    assert body["params"]["Clients"][0] == {
+        "ErirAttributes": {"Contragent": {"TinInfo": {"TinType": "LEGAL"}}}
+    }
+
+
+def test_clients_update_erir_contragent_rejects_invalid_tin_type():
+    result = CliRunner().invoke(
+        cli,
+        [
+            "clients",
+            "update",
+            "--erir-contragent-tin-type",
+            "UNKNOWN",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "Invalid tin type" in result.output
+    assert "--erir-contragent-tin-type" in result.output
+
+
 def test_clients_update_rejects_invalid_subscription_or_setting():
     invalid_cases = [
         [

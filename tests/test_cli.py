@@ -123,6 +123,18 @@ class TestCLI(unittest.TestCase):
         self.assertIn("--erir-contract-price-amount", result.output)
         self.assertIn("--erir-contract-price-including-vat", result.output)
 
+    def test_clients_update_help_documents_erir_contragent_flags(self):
+        result = self.runner.invoke(cli, ["clients", "update", "--help"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("--erir-contragent-name", result.output)
+        self.assertIn("--erir-contragent-kpp", result.output)
+        self.assertIn("--erir-contragent-phone", result.output)
+        self.assertIn("--erir-contragent-epay-number", result.output)
+        self.assertIn("--erir-contragent-reg-number", result.output)
+        self.assertIn("--erir-contragent-oksm-number", result.output)
+        self.assertIn("--erir-contragent-tin-type", result.output)
+        self.assertIn("--erir-contragent-tin", result.output)
+
     def test_canonical_groups_in_help(self):
         """Test canonical transport groups"""
         result = self.runner.invoke(cli, ["--help"])
