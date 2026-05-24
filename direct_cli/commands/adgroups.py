@@ -544,7 +544,10 @@ def get(
 @click.option(
     "--feed-id",
     type=int,
-    help="SmartAdGroup.FeedId or DynamicTextFeedAdGroup.FeedId",
+    help=(
+        "SmartAdGroup.FeedId or DynamicTextFeedAdGroup.FeedId; "
+        "required for SMART_AD_GROUP and DYNAMIC_TEXT_FEED_AD_GROUP"
+    ),
 )
 @click.option("--ad-title-source", help="Smart ad group title source")
 @click.option("--ad-body-source", help="Smart ad group body source")
