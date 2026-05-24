@@ -916,8 +916,8 @@ def test_ads_add_text_ad_optional_extension_flags_reject_other_subtypes():
         "abcdefghij",
         "--href",
         "https://example.com",
-        "--final-url",
-        "https://final.example.com",
+        "--prefer-vcard-over-business",
+        "YES",
     )
     mobile_app = _rejected(
         "ads",
@@ -935,8 +935,9 @@ def test_ads_add_text_ad_optional_extension_flags_reject_other_subtypes():
         "--price-extension-price",
         "123.45",
     )
-    assert "--final-url is not compatible with --type TEXT_IMAGE_AD" in (
-        text_image.output
+    assert (
+        "--prefer-vcard-over-business is not compatible with --type TEXT_IMAGE_AD"
+        in text_image.output
     )
     assert "--price-extension-price is not compatible with --type MOBILE_APP_AD" in (
         mobile_app.output
@@ -960,6 +961,62 @@ def test_ads_add_text_image_ad_with_turbo_page_id():
         "777",
     )
     assert body["params"]["Ads"][0]["TextImageAd"]["TurboPageId"] == 777
+
+
+def test_ads_add_text_image_ad_cleanup_fields_payload():
+    """Issue #278: TEXT_IMAGE_AD add supports residual optional fields."""
+    body = _dry_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "55",
+        "--type",
+        "TEXT_IMAGE_AD",
+        "--image-hash",
+        "abcdefghij",
+        "--turbo-page-id",
+        "0",
+        "--final-url",
+        "https://final.example.com",
+        "--erir-ad-description",
+        "Image ad object",
+    )
+    assert body["params"]["Ads"][0]["TextImageAd"] == {
+        "AdImageHash": "abcdefghij",
+        "ErirAdDescription": "Image ad object",
+        "FinalUrl": "https://final.example.com",
+        "TurboPageId": 0,
+    }
+
+
+def test_ads_add_text_image_ad_requires_image_hash():
+    """Issue #278: TextImageAdAdd.AdImageHash is required by the WSDL."""
+    result = _rejected(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "55",
+        "--type",
+        "TEXT_IMAGE_AD",
+        "--href",
+        "https://example.com",
+    )
+    assert "TEXT_IMAGE_AD requires --image-hash" in result.output
+
+
+def test_ads_add_text_image_ad_requires_href_or_turbo_page_id():
+    """Issue #278: TextImageAd add needs a destination flag."""
+    result = _rejected(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "55",
+        "--type",
+        "TEXT_IMAGE_AD",
+        "--image-hash",
+        "abcdefghij",
+    )
+    assert "TEXT_IMAGE_AD requires either --href or --turbo-page-id." in result.output
 
 
 def test_ads_add_rejects_title2_on_text_image_ad():
@@ -1817,6 +1874,44 @@ def test_ads_add_cpm_video_ad_builder_ad_payload():
             "TurboPageId": 0,
         },
     }
+
+
+def test_ads_add_smart_ad_builder_ad_payload():
+    """Issue #278: SMART_AD_BUILDER_AD add supports LogoExtensionHash."""
+    body = _dry_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "SMART_AD_BUILDER_AD",
+        "--logo-extension-hash",
+        "logoabcdefghijklmnop",
+    )
+    assert body["params"]["Ads"][0] == {
+        "AdGroupId": 12345,
+        "SmartAdBuilderAd": {
+            "LogoExtensionHash": "logoabcdefghijklmnop",
+        },
+    }
+
+
+def test_ads_add_smart_ad_builder_ad_rejects_erir_description():
+    """Issue #278: SmartAdBuilderAdAdd exposes LogoExtensionHash only."""
+    result = _rejected(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "SMART_AD_BUILDER_AD",
+        "--erir-ad-description",
+        "Smart builder ad",
+    )
+    assert (
+        "--erir-ad-description is not compatible with --type SMART_AD_BUILDER_AD"
+        in result.output
+    )
 
 
 def test_ads_add_ad_builder_requires_creative_id():

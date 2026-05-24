@@ -919,9 +919,12 @@ def test_ads_add_rejects_incomplete_text_image_ad():
     )
 
     assert missing_hash.exit_code != 0
-    assert "TEXT_IMAGE_AD requires both --image-hash and --href" in missing_hash.output
+    assert "TEXT_IMAGE_AD requires --image-hash" in missing_hash.output
     assert missing_href.exit_code != 0
-    assert "TEXT_IMAGE_AD requires both --image-hash and --href" in missing_href.output
+    assert (
+        "TEXT_IMAGE_AD requires either --href or --turbo-page-id."
+        in missing_href.output
+    )
 
 
 def test_ads_update_text_ad_builds_textad_payload():

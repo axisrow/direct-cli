@@ -969,6 +969,8 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("ads", "add", "MobileAppImageAd.TrackingUrl"): {"--tracking-url"},
     ("ads", "add", "TextImageAd"): {"--type"},
     ("ads", "add", "TextImageAd.AdImageHash"): {"--image-hash"},
+    ("ads", "add", "TextImageAd.ErirAdDescription"): {"--erir-ad-description"},
+    ("ads", "add", "TextImageAd.FinalUrl"): {"--final-url"},
     ("ads", "add", "TextImageAd.Href"): {"--href"},
     ("ads", "add", "TextImageAd.TurboPageId"): {"--turbo-page-id"},
     ("ads", "add", "ResponsiveAd"): {"--type"},
@@ -1078,6 +1080,8 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("ads", "add", "CpmVideoAdBuilderAd.TrackingPixels"): {"--tracking-pixels"},
     ("ads", "add", "CpmVideoAdBuilderAd.TrackingPixels.Items"): {"--tracking-pixels"},
     ("ads", "add", "CpmVideoAdBuilderAd.TurboPageId"): {"--turbo-page-id"},
+    ("ads", "add", "SmartAdBuilderAd"): {"--type"},
+    ("ads", "add", "SmartAdBuilderAd.LogoExtensionHash"): {"--logo-extension-hash"},
     ("ads", "update", "TextAd"): {"--type"},
     ("ads", "update", "TextAd.VCardId"): {"--vcard-id"},
     ("ads", "update", "TextAd.AdImageHash"): {"--image-hash"},
@@ -1924,10 +1928,6 @@ OPTIONAL_FIELD_CLI_OPTIONS.update(
 )
 
 OPTIONAL_FIELD_DEFAULT_FOLLOWUPS: dict[tuple[str, str], dict[str, str]] = {
-    ("ads", "add"): {
-        "issue": "#278",
-        "note": "ads.add residual optional WSDL path needs typed support or N/A.",
-    },
     ("ads", "update"): {
         "issue": "#272",
         "note": "ads.update residual optional WSDL path needs typed support or N/A.",
@@ -1983,11 +1983,6 @@ OPTIONAL_FIELD_DEFAULT_FOLLOWUPS: dict[tuple[str, str], dict[str, str]] = {
 }
 
 OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]] = {
-    ("ads", "add", "SmartAdBuilderAd"): {
-        "status": "missing_followup",
-        "issue": "#278",
-        "note": "SMART_AD_BUILDER_AD add fields need typed support or N/A.",
-    },
     ("campaigns", "add", "TextCampaign.BiddingStrategy"): {
         "status": "missing_followup",
         "issue": "#290",

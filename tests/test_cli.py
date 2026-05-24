@@ -268,7 +268,7 @@ class TestCLI(unittest.TestCase):
         self.assertIn(
             "Ad type: TEXT_AD | TEXT_IMAGE_AD | MOBILE_APP_AD | DYNAMIC_TEXT_AD | "
             "MOBILE_APP_IMAGE_AD | RESPONSIVE_AD | SHOPPING_AD | LISTING_AD | "
-            "TEXT_AD_BUILDER_AD",
+            "SMART_AD_BUILDER_AD | TEXT_AD_BUILDER_AD",
             collapsed,
         )
         self.assertIn("Ad text (TEXT_AD / MOBILE_APP_AD / DYNAMIC_TEXT_AD)", collapsed)
@@ -286,7 +286,9 @@ class TestCLI(unittest.TestCase):
         self.assertIn(
             "Comma-separated ResponsiveAd.VideoExtensionIds values", collapsed
         )
-        self.assertIn("FinalUrl (TEXT_AD / TEXT_AD_BUILDER_AD)", collapsed)
+        self.assertIn(
+            "FinalUrl (TEXT_AD / TEXT_IMAGE_AD / TEXT_AD_BUILDER_AD)", collapsed
+        )
         self.assertIn(
             "TextAd/MobileAppAd.VideoExtension.CreativeId (TEXT_AD / MOBILE_APP_AD)",
             collapsed,
@@ -304,12 +306,15 @@ class TestCLI(unittest.TestCase):
         )
         self.assertIn("TextAd.PreferVCardOverBusiness value: YES or NO", collapsed)
         self.assertIn(
-            "ErirAdDescription (TEXT_AD / MOBILE_APP_AD / MOBILE_APP_IMAGE_AD / "
-            "RESPONSIVE_AD / AdBuilder add subtypes)",
+            "ErirAdDescription (TEXT_AD / TEXT_IMAGE_AD / MOBILE_APP_AD / "
+            "MOBILE_APP_IMAGE_AD / RESPONSIVE_AD / non-SMART AdBuilder add subtypes)",
             collapsed,
         )
         self.assertIn(
-            "AdBuilder Creative.CreativeId for AdBuilder add subtypes",
+            "SmartAdBuilderAd.LogoExtensionHash (SMART_AD_BUILDER_AD)", collapsed
+        )
+        self.assertIn(
+            "AdBuilder Creative.CreativeId for non-SMART AdBuilder add subtypes",
             collapsed,
         )
         self.assertIn(
