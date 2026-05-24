@@ -413,8 +413,11 @@ direct ads update --id 99999 --type TEXT_AD --title2 "New second headline" --vca
 direct ads update --id 99999 --type TEXT_AD --callouts-add "111,222" --callouts-remove "333"
 direct ads update --id 99999 --type TEXT_AD --callouts-set "444,555"
 direct ads update --id 99999 --type TEXT_AD --video-extension-creative-id 777 --price-extension-price 123450000 --price-extension-price-qualifier FROM --price-extension-price-currency RUB
+direct ads update --id 99999 --type TEXT_AD --final-url "https://final.example.com" --age-label AGE_18 --business-id 777 --prefer-vcard-over-business NO --erir-ad-description "Text ad object"
 direct ads update --id 99999 --type DYNAMIC_TEXT_AD --text "Updated dynamic text" --callouts-add "111,222"
+direct ads update --id 99999 --type MOBILE_APP_AD --mobile-app-feature PRICE=YES --mobile-app-feature CUSTOMER_RATING=NO --video-extension-creative-id 777 --erir-ad-description "Mobile app object"
 direct ads update --id 99999 --type RESPONSIVE_AD --texts "Text one,Text two" --titles "Title one,Title two" --image-hashes hash1,hash2 --video-extension-ids 111,222 --href "https://example.com" --price-extension-price 123450000 --price-extension-price-qualifier FROM --price-extension-price-currency RUB
+direct ads update --id 99999 --type TEXT_IMAGE_AD --final-url "https://final.example.com" --erir-ad-description "Image ad object"
 direct ads update --id 99999 --type SHOPPING_AD --sitelink-set-id 222 --callouts-set "444,555" --business-id 777 --feed-filter-condition "CATEGORY:EQUALS_ANY:shoes|boots" --title-sources NAME,BRAND --text-sources DESCRIPTION --default-texts "Default product text"
 direct ads update --id 99999 --type MOBILE_APP_IMAGE_AD --image-hash abcdefghijklmnopqrst --tracking-url "https://track.example.com" --erir-ad-description "Mobile image ad"
 direct ads update --id 99999 --type TEXT_AD_BUILDER_AD --creative-id 123 --creative-erir-ad-description "Creative object" --href "https://example.com" --turbo-page-id 456
@@ -432,12 +435,17 @@ existing ad — `--callouts-set` replaces the whole callout list and is mutually
 exclusive with the incremental `--callouts-add` / `--callouts-remove` pair.
 It also exposes `--video-extension-creative-id` and `--price-extension-*` flags
 for `TextAd.VideoExtension` and `TextAd.PriceExtension`; price values use the
-Yandex Direct API long-unit format (price multiplied by 1,000,000).
+Yandex Direct API long-unit format (price multiplied by 1,000,000). Residual
+TEXT_AD update fields are available through `--final-url`, `--age-label`,
+`--business-id`, `--prefer-vcard-over-business`, and `--erir-ad-description`.
 `--mobile` (default `NO`) and `--ad-extensions` are `ads add`-only —
 `TextAdUpdate` does not contain `Mobile`, and on update ad-extensions are
 managed through the `--callouts-*` flags above. TEXT_IMAGE_AD additionally
-accepts `--turbo-page-id`. DYNAMIC_TEXT_AD update supports `--text`,
-`--image-hash`, `--vcard-id`, `--sitelink-set-id`, and `--callouts-*`.
+accepts `--turbo-page-id`, `--final-url`, and `--erir-ad-description`.
+DYNAMIC_TEXT_AD update supports `--text`, `--image-hash`, `--vcard-id`,
+`--sitelink-set-id`, and `--callouts-*`.
+MOBILE_APP_AD update supports `--mobile-app-feature FEATURE=YES|NO`,
+`--video-extension-creative-id`, and `--erir-ad-description`.
 RESPONSIVE_AD update supports `--texts`, `--titles`, `--image-hashes`,
 `--video-extension-ids`, `--href`, `--age-label`, `--display-url-path`,
 `--sitelink-set-id`, `--callouts-*`, `--price-extension-*`, `--business-id`,
@@ -1165,8 +1173,11 @@ direct ads update --id 99999 --type TEXT_AD --title2 "Новый второй з
 direct ads update --id 99999 --type TEXT_AD --callouts-add "111,222" --callouts-remove "333"
 direct ads update --id 99999 --type TEXT_AD --callouts-set "444,555"
 direct ads update --id 99999 --type TEXT_AD --video-extension-creative-id 777 --price-extension-price 123450000 --price-extension-price-qualifier FROM --price-extension-price-currency RUB
+direct ads update --id 99999 --type TEXT_AD --final-url "https://final.example.com" --age-label AGE_18 --business-id 777 --prefer-vcard-over-business NO --erir-ad-description "Объект текстового объявления"
 direct ads update --id 99999 --type DYNAMIC_TEXT_AD --text "Обновленный динамический текст" --callouts-add "111,222"
+direct ads update --id 99999 --type MOBILE_APP_AD --mobile-app-feature PRICE=YES --mobile-app-feature CUSTOMER_RATING=NO --video-extension-creative-id 777 --erir-ad-description "Объект мобильного объявления"
 direct ads update --id 99999 --type RESPONSIVE_AD --texts "Текст один,Текст два" --titles "Заголовок один,Заголовок два" --image-hashes hash1,hash2 --video-extension-ids 111,222 --href "https://example.com" --price-extension-price 123450000 --price-extension-price-qualifier FROM --price-extension-price-currency RUB
+direct ads update --id 99999 --type TEXT_IMAGE_AD --final-url "https://final.example.com" --erir-ad-description "Объект графического объявления"
 direct ads update --id 99999 --type SHOPPING_AD --sitelink-set-id 222 --callouts-set "444,555" --business-id 777 --feed-filter-condition "CATEGORY:EQUALS_ANY:shoes|boots" --title-sources NAME,BRAND --text-sources DESCRIPTION --default-texts "Текст по умолчанию"
 direct ads update --id 99999 --type MOBILE_APP_IMAGE_AD --image-hash abcdefghijklmnopqrst --tracking-url "https://track.example.com" --erir-ad-description "Мобильное графическое объявление"
 direct ads update --id 99999 --type TEXT_AD_BUILDER_AD --creative-id 123 --creative-erir-ad-description "Объект креатива" --href "https://example.com" --turbo-page-id 456
@@ -1185,13 +1196,18 @@ direct ads delete --id 99999
 `--callouts-add` / `--callouts-remove`. Также доступны
 `--video-extension-creative-id` и флаги `--price-extension-*` для
 `TextAd.VideoExtension` и `TextAd.PriceExtension`; цены передаются в формате
-long-единиц API Яндекс Директа (цена, умноженная на 1 000 000). `--mobile`
-(default `NO`) и
+long-единиц API Яндекс Директа (цена, умноженная на 1 000 000). Остальные
+поля TEXT_AD в `ads update` доступны через `--final-url`, `--age-label`,
+`--business-id`, `--prefer-vcard-over-business` и `--erir-ad-description`.
+`--mobile` (default `NO`) и
 `--ad-extensions` доступны только в `ads add` — WSDL `TextAdUpdate` не
 содержит `Mobile`, а в `ads update` расширения управляются через флаги
 `--callouts-*` выше. Для TEXT_IMAGE_AD дополнительно доступен
-`--turbo-page-id`. Для DYNAMIC_TEXT_AD в `ads update` доступны `--text`,
-`--image-hash`, `--vcard-id`, `--sitelink-set-id` и `--callouts-*`.
+`--turbo-page-id`, `--final-url` и `--erir-ad-description`. Для
+DYNAMIC_TEXT_AD в `ads update` доступны `--text`, `--image-hash`,
+`--vcard-id`, `--sitelink-set-id` и `--callouts-*`.
+Для MOBILE_APP_AD в `ads update` доступны `--mobile-app-feature FEATURE=YES|NO`,
+`--video-extension-creative-id` и `--erir-ad-description`.
 Для RESPONSIVE_AD в `ads update` доступны `--texts`, `--titles`,
 `--image-hashes`, `--video-extension-ids`, `--href`, `--age-label`,
 `--display-url-path`, `--sitelink-set-id`, `--callouts-*`,
