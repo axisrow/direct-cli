@@ -24,6 +24,8 @@ from tests.test_wsdl_parity_gate import (  # noqa: E402
     OPTIONAL_FIELD_AUDIT,
     OPTIONAL_FIELD_CLI_OPTIONS,
     OPTIONAL_FIELD_DEFAULT_FOLLOWUPS,
+    OPTIONAL_FIELD_CHILD_COMPONENT_FOLLOWUPS,
+    OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS,
     OPTIONAL_FIELD_AUDIT_MAX_DEPTH,
     OPTIONAL_FIELD_AUDIT_REPORT,
 )
@@ -68,6 +70,28 @@ def _audit_entry_for_path(
     return None
 
 
+def _child_followup_for_path(
+    cli_group: str,
+    cli_op: str,
+    wsdl_path: str,
+) -> tuple[str, dict[str, str]] | None:
+    parts = wsdl_path.split(".")
+    for size in range(len(parts), 0, -1):
+        prefix = ".".join(parts[:size])
+        entry = OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS.get((cli_group, cli_op, prefix))
+        if entry is not None:
+            return prefix, entry
+
+    for component in parts:
+        entry = OPTIONAL_FIELD_CHILD_COMPONENT_FOLLOWUPS.get(
+            (cli_group, cli_op, component)
+        )
+        if entry is not None:
+            matched_path = ".".join(parts[: parts.index(component) + 1])
+            return matched_path, entry
+    return None
+
+
 def _classify_row(
     cli_group: str,
     cli_op: str,
@@ -99,6 +123,14 @@ def _classify_row(
 
     if (cli_group, cli_op, row["name"]) in INTERNAL_VALIDATION:
         return "supported", "internal UsageError validation"
+
+    child_followup = _child_followup_for_path(cli_group, cli_op, row["path"])
+    if child_followup is not None:
+        matched_path, override = child_followup
+        evidence = _format_audit_entry(override)
+        if matched_path != row["path"]:
+            evidence = f"{evidence}; inherited from `{matched_path}`"
+        return override["status"], evidence
 
     default = OPTIONAL_FIELD_DEFAULT_FOLLOWUPS.get((cli_group, cli_op))
     if default is not None:
