@@ -1462,6 +1462,246 @@ def test_ads_add_listing_ad_rejects_other_subtype_flags():
     assert "--href is not compatible with --type LISTING_AD" in result.output
 
 
+def test_ads_add_text_ad_builder_ad_payload():
+    """Issue #276: TEXT_AD_BUILDER_AD add builds TextAdBuilderAd block."""
+    body = _dry_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "TEXT_AD_BUILDER_AD",
+        "--creative-id",
+        "111",
+        "--erir-ad-description",
+        "Ad object",
+        "--final-url",
+        "https://final.example.com",
+        "--href",
+        "https://example.com",
+        "--turbo-page-id",
+        "222",
+    )
+    ad = body["params"]["Ads"][0]
+    assert "Type" not in ad
+    assert ad == {
+        "AdGroupId": 12345,
+        "TextAdBuilderAd": {
+            "Creative": {"CreativeId": 111},
+            "ErirAdDescription": "Ad object",
+            "FinalUrl": "https://final.example.com",
+            "Href": "https://example.com",
+            "TurboPageId": 222,
+        },
+    }
+
+
+def test_ads_add_mobile_app_ad_builder_ad_payload():
+    """Issue #276: MOBILE_APP_AD_BUILDER_AD add supports TrackingUrl."""
+    body = _dry_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "MOBILE_APP_AD_BUILDER_AD",
+        "--creative-id",
+        "111",
+        "--tracking-url",
+        "https://track.example.com",
+        "--erir-ad-description",
+        "Mobile builder",
+    )
+    assert body["params"]["Ads"][0] == {
+        "AdGroupId": 12345,
+        "MobileAppAdBuilderAd": {
+            "Creative": {"CreativeId": 111},
+            "ErirAdDescription": "Mobile builder",
+            "TrackingUrl": "https://track.example.com",
+        },
+    }
+
+
+def test_ads_add_mobile_app_cpc_video_ad_builder_ad_payload():
+    """Issue #276: MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD uses its own block."""
+    body = _dry_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD",
+        "--creative-id",
+        "111",
+        "--tracking-url",
+        "https://track.example.com",
+    )
+    assert body["params"]["Ads"][0] == {
+        "AdGroupId": 12345,
+        "MobileAppCpcVideoAdBuilderAd": {
+            "Creative": {"CreativeId": 111},
+            "TrackingUrl": "https://track.example.com",
+        },
+    }
+
+
+def test_ads_add_cpc_video_ad_builder_ad_payload():
+    """Issue #276: CPC_VIDEO_AD_BUILDER_AD supports href and TurboPageId."""
+    body = _dry_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "CPC_VIDEO_AD_BUILDER_AD",
+        "--creative-id",
+        "111",
+        "--href",
+        "https://example.com",
+        "--turbo-page-id",
+        "222",
+    )
+    assert body["params"]["Ads"][0] == {
+        "AdGroupId": 12345,
+        "CpcVideoAdBuilderAd": {
+            "Creative": {"CreativeId": 111},
+            "Href": "https://example.com",
+            "TurboPageId": 222,
+        },
+    }
+
+
+def test_ads_add_cpm_banner_ad_builder_ad_payload():
+    """Issue #276: CPM_BANNER_AD_BUILDER_AD wraps TrackingPixels.Items."""
+    body = _dry_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "CPM_BANNER_AD_BUILDER_AD",
+        "--creative-id",
+        "111",
+        "--href",
+        "https://example.com",
+        "--tracking-pixels",
+        "https://pixel.example.com/a,https://pixel.example.com/b",
+        "--turbo-page-id",
+        "222",
+    )
+    assert body["params"]["Ads"][0] == {
+        "AdGroupId": 12345,
+        "CpmBannerAdBuilderAd": {
+            "Creative": {"CreativeId": 111},
+            "Href": "https://example.com",
+            "TrackingPixels": {
+                "Items": [
+                    "https://pixel.example.com/a",
+                    "https://pixel.example.com/b",
+                ]
+            },
+            "TurboPageId": 222,
+        },
+    }
+
+
+def test_ads_add_cpm_video_ad_builder_ad_payload():
+    """Issue #276: CPM_VIDEO_AD_BUILDER_AD wraps TrackingPixels.Items."""
+    body = _dry_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "CPM_VIDEO_AD_BUILDER_AD",
+        "--creative-id",
+        "0",
+        "--tracking-pixels",
+        "https://pixel.example.com/a",
+        "--turbo-page-id",
+        "0",
+    )
+    assert body["params"]["Ads"][0] == {
+        "AdGroupId": 12345,
+        "CpmVideoAdBuilderAd": {
+            "Creative": {"CreativeId": 0},
+            "TrackingPixels": {"Items": ["https://pixel.example.com/a"]},
+            "TurboPageId": 0,
+        },
+    }
+
+
+def test_ads_add_ad_builder_requires_creative_id():
+    """Issue #276: AdBuilderAddBase.Creative is required."""
+    result = _rejected(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "TEXT_AD_BUILDER_AD",
+        "--href",
+        "https://example.com",
+    )
+    assert "TextAdBuilderAd requires --creative-id." in result.output
+
+
+def test_ads_add_ad_builder_destination_required():
+    """Issue #276: web AdBuilder subtypes require Href, TurboPageId, or both."""
+    result = _rejected(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "CPM_BANNER_AD_BUILDER_AD",
+        "--creative-id",
+        "111",
+    )
+    assert (
+        "CpmBannerAdBuilderAd requires either --href or --turbo-page-id."
+        in result.output
+    )
+
+
+def test_ads_add_ad_builder_empty_tracking_pixels_rejected():
+    """Issue #276: explicit empty TrackingPixels list is rejected locally."""
+    result = _rejected(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "CPM_VIDEO_AD_BUILDER_AD",
+        "--creative-id",
+        "111",
+        "--turbo-page-id",
+        "222",
+        "--tracking-pixels",
+        "",
+    )
+    assert "--tracking-pixels must contain at least one value." in result.output
+
+
+def test_ads_add_ad_builder_rejects_other_subtype_flags():
+    """Issue #276: AdBuilder add flags must honor subtype allow-lists."""
+    result = _rejected(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "MOBILE_APP_AD_BUILDER_AD",
+        "--creative-id",
+        "111",
+        "--href",
+        "https://example.com",
+    )
+    assert "--href is not compatible with --type MOBILE_APP_AD_BUILDER_AD" in (
+        result.output
+    )
+
+
 def test_ads_update_rejects_status_flag():
     """``--status`` is not part of WSDL ``AdUpdateItem`` (regression for #183).
 

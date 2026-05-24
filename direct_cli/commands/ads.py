@@ -134,6 +134,36 @@ AD_BUILDER_UPDATE_BLOCKS = {
     "CPM_VIDEO_AD_BUILDER_AD": "CpmVideoAdBuilderAd",
 }
 
+AD_BUILDER_ADD_BLOCKS = {
+    "TEXT_AD_BUILDER_AD": "TextAdBuilderAd",
+    "MOBILE_APP_AD_BUILDER_AD": "MobileAppAdBuilderAd",
+    "MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD": "MobileAppCpcVideoAdBuilderAd",
+    "CPC_VIDEO_AD_BUILDER_AD": "CpcVideoAdBuilderAd",
+    "CPM_BANNER_AD_BUILDER_AD": "CpmBannerAdBuilderAd",
+    "CPM_VIDEO_AD_BUILDER_AD": "CpmVideoAdBuilderAd",
+}
+
+AD_BUILDER_ADD_BASE_FIELDS = {"creative_id", "erir_ad_description"}
+
+AD_BUILDER_ADD_TYPE_FIELDS = {
+    "TEXT_AD_BUILDER_AD": AD_BUILDER_ADD_BASE_FIELDS
+    | {"final_url", "href", "turbo_page_id"},
+    "MOBILE_APP_AD_BUILDER_AD": AD_BUILDER_ADD_BASE_FIELDS | {"tracking_url"},
+    "MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD": AD_BUILDER_ADD_BASE_FIELDS | {"tracking_url"},
+    "CPC_VIDEO_AD_BUILDER_AD": AD_BUILDER_ADD_BASE_FIELDS | {"href", "turbo_page_id"},
+    "CPM_BANNER_AD_BUILDER_AD": AD_BUILDER_ADD_BASE_FIELDS
+    | {"href", "tracking_pixels", "turbo_page_id"},
+    "CPM_VIDEO_AD_BUILDER_AD": AD_BUILDER_ADD_BASE_FIELDS
+    | {"href", "tracking_pixels", "turbo_page_id"},
+}
+
+AD_BUILDER_ADD_DESTINATION_TYPES = {
+    "TEXT_AD_BUILDER_AD",
+    "CPC_VIDEO_AD_BUILDER_AD",
+    "CPM_BANNER_AD_BUILDER_AD",
+    "CPM_VIDEO_AD_BUILDER_AD",
+}
+
 
 def _reject_incompatible_flags(
     ad_type: str,
@@ -549,6 +579,51 @@ def _build_ad_builder_update(
     return ad_payload
 
 
+def _build_ad_builder_add(
+    creative_id: Optional[int],
+    erir_ad_description: Optional[str],
+    final_url: Optional[str],
+    href: Optional[str],
+    turbo_page_id: Optional[int],
+    tracking_url: Optional[str],
+    tracking_pixels: Optional[str],
+    ad_type: str,
+    container_name: str,
+) -> dict[str, object]:
+    """Build an AdBuilder*Add payload from typed flags."""
+    if creative_id is None:
+        raise click.UsageError(f"{container_name} requires --creative-id.")
+    if (
+        ad_type in AD_BUILDER_ADD_DESTINATION_TYPES
+        and not href
+        and turbo_page_id is None
+    ):
+        raise click.UsageError(
+            f"{container_name} requires either --href or --turbo-page-id."
+        )
+
+    ad_payload: dict[str, object] = {"Creative": {"CreativeId": creative_id}}
+
+    if erir_ad_description:
+        ad_payload["ErirAdDescription"] = erir_ad_description
+    if final_url:
+        ad_payload["FinalUrl"] = final_url
+    if href:
+        ad_payload["Href"] = href
+    if turbo_page_id is not None:
+        ad_payload["TurboPageId"] = turbo_page_id
+    if tracking_url:
+        ad_payload["TrackingUrl"] = tracking_url
+
+    parsed_tracking_pixels = _parse_required_csv_strings(
+        tracking_pixels, "--tracking-pixels"
+    )
+    if parsed_tracking_pixels:
+        ad_payload["TrackingPixels"] = {"Items": parsed_tracking_pixels}
+
+    return ad_payload
+
+
 def _build_mobile_app_image_ad_update(
     image_hash: Optional[str],
     erir_ad_description: Optional[str],
@@ -731,14 +806,24 @@ def get(
     default="TEXT_AD",
     help=(
         "Ad type: TEXT_AD | TEXT_IMAGE_AD | MOBILE_APP_AD | RESPONSIVE_AD | "
-        "SHOPPING_AD | LISTING_AD"
+        "SHOPPING_AD | LISTING_AD | TEXT_AD_BUILDER_AD | "
+        "MOBILE_APP_AD_BUILDER_AD | MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD | "
+        "CPC_VIDEO_AD_BUILDER_AD | CPM_BANNER_AD_BUILDER_AD | "
+        "CPM_VIDEO_AD_BUILDER_AD"
     ),
 )
 @click.option("--title", help="Ad title (TEXT_AD / MOBILE_APP_AD)")
 @click.option("--text", help="Ad text (TEXT_AD / MOBILE_APP_AD)")
 @click.option("--titles", help="Comma-separated ResponsiveAd.Titles values")
 @click.option("--texts", help="Comma-separated ResponsiveAd.Texts values")
-@click.option("--href", help="Ad URL (TEXT_AD / TEXT_IMAGE_AD / RESPONSIVE_AD)")
+@click.option(
+    "--href",
+    help=(
+        "Ad URL (TEXT_AD / TEXT_IMAGE_AD / RESPONSIVE_AD / TEXT_AD_BUILDER_AD / "
+        "CPC_VIDEO_AD_BUILDER_AD / CPM_BANNER_AD_BUILDER_AD / "
+        "CPM_VIDEO_AD_BUILDER_AD)"
+    ),
+)
 @click.option("--image-hash", help="Ad image hash (TEXT_IMAGE_AD / MOBILE_APP_AD)")
 @click.option(
     "--image-hashes",
@@ -748,7 +833,13 @@ def get(
     "--action",
     help="MOBILE_APP_AD call-to-action (MobileAppAdActionEnum, e.g. INSTALL)",
 )
-@click.option("--tracking-url", help="MOBILE_APP_AD tracking URL")
+@click.option(
+    "--tracking-url",
+    help=(
+        "Tracking URL (MOBILE_APP_AD / MOBILE_APP_AD_BUILDER_AD / "
+        "MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD)"
+    ),
+)
 @click.option(
     "--age-label",
     help="Age label (MOBILE_APP_AD MobAppAgeLabelEnum / RESPONSIVE_AD AgeLabelEnum)",
@@ -768,7 +859,13 @@ def get(
     help="Sitelink set ID (TEXT_AD / RESPONSIVE_AD / SHOPPING_AD / LISTING_AD)",
 )
 @click.option(
-    "--turbo-page-id", type=int, help="Turbo page ID (TEXT_AD / TEXT_IMAGE_AD)"
+    "--turbo-page-id",
+    type=int,
+    help=(
+        "Turbo page ID (TEXT_AD / TEXT_IMAGE_AD / TEXT_AD_BUILDER_AD / "
+        "CPC_VIDEO_AD_BUILDER_AD / CPM_BANNER_AD_BUILDER_AD / "
+        "CPM_VIDEO_AD_BUILDER_AD)"
+    ),
 )
 @click.option(
     "--ad-extensions",
@@ -777,7 +874,7 @@ def get(
         "(TEXT_AD / RESPONSIVE_AD / SHOPPING_AD / LISTING_AD)"
     ),
 )
-@click.option("--final-url", help="TextAd.FinalUrl (TEXT_AD)")
+@click.option("--final-url", help="FinalUrl (TEXT_AD / TEXT_AD_BUILDER_AD)")
 @click.option(
     "--video-extension-creative-id",
     type=int,
@@ -834,7 +931,16 @@ def get(
 )
 @click.option(
     "--erir-ad-description",
-    help="TextAd/ResponsiveAd.ErirAdDescription (TEXT_AD / RESPONSIVE_AD)",
+    help=("ErirAdDescription (TEXT_AD / RESPONSIVE_AD / AdBuilder add subtypes)"),
+)
+@click.option(
+    "--creative-id",
+    type=int,
+    help="AdBuilder Creative.CreativeId for AdBuilder add subtypes",
+)
+@click.option(
+    "--tracking-pixels",
+    help="Comma-separated AdBuilder TrackingPixels.Items values",
 )
 @click.option(
     "--feed-id",
@@ -895,6 +1001,8 @@ def add(
     business_id,
     prefer_vcard_over_business,
     erir_ad_description,
+    creative_id,
+    tracking_pixels,
     feed_id,
     feed_filter_conditions,
     title_sources,
@@ -912,13 +1020,17 @@ def add(
             "RESPONSIVE_AD",
             "SHOPPING_AD",
             "LISTING_AD",
+            *AD_BUILDER_ADD_BLOCKS,
         }
         if ad_type_norm not in supported_types:
             raise click.UsageError(
                 "Invalid value for '--type': "
                 f"{ad_type!r} is not one of "
                 "'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD', 'RESPONSIVE_AD', "
-                "'SHOPPING_AD', 'LISTING_AD'."
+                "'SHOPPING_AD', 'LISTING_AD', "
+                "'TEXT_AD_BUILDER_AD', 'MOBILE_APP_AD_BUILDER_AD', "
+                "'MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD', 'CPC_VIDEO_AD_BUILDER_AD', "
+                "'CPM_BANNER_AD_BUILDER_AD', 'CPM_VIDEO_AD_BUILDER_AD'."
             )
 
         # --mobile has a Click default of "NO" so the value is always present
@@ -976,6 +1088,7 @@ def add(
             },
             "SHOPPING_AD": FEED_BASED_ADD_FIELDS,
             "LISTING_AD": FEED_BASED_ADD_FIELDS,
+            **AD_BUILDER_ADD_TYPE_FIELDS,
             "MOBILE_APP_AD": {
                 "title",
                 "text",
@@ -1013,6 +1126,8 @@ def add(
             "business_id": business_id,
             "prefer_vcard_over_business": prefer_vcard_over_business,
             "erir_ad_description": erir_ad_description,
+            "creative_id": creative_id,
+            "tracking_pixels": tracking_pixels,
             "feed_id": feed_id,
             "feed_filter_conditions": feed_filter_conditions,
             "title_sources": title_sources,
@@ -1047,6 +1162,8 @@ def add(
             "business_id": "--business-id",
             "prefer_vcard_over_business": "--prefer-vcard-over-business",
             "erir_ad_description": "--erir-ad-description",
+            "creative_id": "--creative-id",
+            "tracking_pixels": "--tracking-pixels",
             "feed_id": "--feed-id",
             "feed_filter_conditions": "--feed-filter-condition",
             "title_sources": "--title-sources",
@@ -1195,6 +1312,19 @@ def add(
                 feed_filter_conditions,
                 title_sources,
                 text_sources,
+                field_name,
+            )
+        elif ad_type_norm in AD_BUILDER_ADD_BLOCKS:
+            field_name = AD_BUILDER_ADD_BLOCKS[ad_type_norm]
+            ad_data[field_name] = _build_ad_builder_add(
+                creative_id,
+                erir_ad_description,
+                final_url,
+                href,
+                turbo_page_id,
+                tracking_url,
+                tracking_pixels,
+                ad_type_norm,
                 field_name,
             )
         elif ad_type_norm == "MOBILE_APP_AD":

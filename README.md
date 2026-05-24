@@ -410,6 +410,9 @@ direct ads add --adgroup-id 12345 --type TEXT_AD --title "Title" --text "Ad text
 direct ads add --adgroup-id 12345 --type RESPONSIVE_AD --texts "Text one,Text two" --titles "Title one,Title two" --image-hashes hash1,hash2 --video-extension-ids 111,222 --href "https://example.com" --price-extension-price 123.45 --price-extension-price-qualifier FROM --price-extension-price-currency RUB --business-id 777 --erir-ad-description "Responsive ad object" --dry-run
 direct ads add --adgroup-id 12345 --type SHOPPING_AD --feed-id 170 --default-texts "Default product text" --sitelink-set-id 222 --ad-extensions "333,444" --business-id 777 --feed-filter-condition "CATEGORY:EQUALS_ANY:shoes|boots" --title-sources NAME,BRAND --text-sources DESCRIPTION --dry-run
 direct ads add --adgroup-id 12345 --type LISTING_AD --feed-id 171 --default-texts "Default listing text" --feed-filter-condition "CATEGORY:EQUALS_ANY:appliances" --title-sources TITLE --text-sources DESCRIPTION --dry-run
+direct ads add --adgroup-id 12345 --type TEXT_AD_BUILDER_AD --creative-id 123 --href "https://example.com" --turbo-page-id 456 --erir-ad-description "Builder ad object" --dry-run
+direct ads add --adgroup-id 12345 --type MOBILE_APP_AD_BUILDER_AD --creative-id 123 --tracking-url "https://track.example.com" --erir-ad-description "Mobile builder ad" --dry-run
+direct ads add --adgroup-id 12345 --type CPM_BANNER_AD_BUILDER_AD --creative-id 123 --href "https://example.com" --tracking-pixels "https://pixel.example.com/a,https://pixel.example.com/b" --dry-run
 direct ads add --adgroup-id 12345 --type TEXT_IMAGE_AD --image-hash abcdefghijklmnopqrst --href "https://example.com" --turbo-page-id 555 --dry-run
 direct ads update --id 99999 --type TEXT_AD --title "New Title" --text "New text" --href "https://example.com"
 direct ads update --id 99999 --type TEXT_AD --image-hash abcdefghijklmnopqrst
@@ -460,6 +463,11 @@ SHOPPING_AD and LISTING_AD `ads add` require `--feed-id` and one
 `--default-texts` value. Optional creation flags include `--sitelink-set-id`,
 `--ad-extensions`, `--business-id`, repeatable `--feed-filter-condition`
 (`OPERAND:OPERATOR:ARG1|ARG2`), `--title-sources`, and `--text-sources`.
+AdBuilder add subtypes require `--creative-id`. TEXT_AD_BUILDER_AD,
+CPC_VIDEO_AD_BUILDER_AD, CPM_BANNER_AD_BUILDER_AD, and
+CPM_VIDEO_AD_BUILDER_AD require `--href`, `--turbo-page-id`, or both. Mobile app
+builder subtypes use `--tracking-url`. CPM builder subtypes also support
+`--tracking-pixels`; all AdBuilder add subtypes support `--erir-ad-description`.
 MOBILE_APP_AD update supports `--mobile-app-feature FEATURE=YES|NO`,
 `--video-extension-creative-id`, and `--erir-ad-description`.
 RESPONSIVE_AD update supports `--texts`, `--titles`, `--image-hashes`,
@@ -1186,6 +1194,9 @@ direct ads add --adgroup-id 12345 --type TEXT_AD --title "Заголовок" --
 direct ads add --adgroup-id 12345 --type RESPONSIVE_AD --texts "Текст один,Текст два" --titles "Заголовок один,Заголовок два" --image-hashes hash1,hash2 --video-extension-ids 111,222 --href "https://example.com" --price-extension-price 123.45 --price-extension-price-qualifier FROM --price-extension-price-currency RUB --business-id 777 --erir-ad-description "Объект адаптивного объявления" --dry-run
 direct ads add --adgroup-id 12345 --type SHOPPING_AD --feed-id 170 --default-texts "Текст по умолчанию" --sitelink-set-id 222 --ad-extensions "333,444" --business-id 777 --feed-filter-condition "CATEGORY:EQUALS_ANY:shoes|boots" --title-sources NAME,BRAND --text-sources DESCRIPTION --dry-run
 direct ads add --adgroup-id 12345 --type LISTING_AD --feed-id 171 --default-texts "Текст листинга по умолчанию" --feed-filter-condition "CATEGORY:EQUALS_ANY:appliances" --title-sources TITLE --text-sources DESCRIPTION --dry-run
+direct ads add --adgroup-id 12345 --type TEXT_AD_BUILDER_AD --creative-id 123 --href "https://example.com" --turbo-page-id 456 --erir-ad-description "Объект объявления из конструктора" --dry-run
+direct ads add --adgroup-id 12345 --type MOBILE_APP_AD_BUILDER_AD --creative-id 123 --tracking-url "https://track.example.com" --erir-ad-description "Мобильное объявление из конструктора" --dry-run
+direct ads add --adgroup-id 12345 --type CPM_BANNER_AD_BUILDER_AD --creative-id 123 --href "https://example.com" --tracking-pixels "https://pixel.example.com/a,https://pixel.example.com/b" --dry-run
 direct ads add --adgroup-id 12345 --type TEXT_IMAGE_AD --image-hash abcdefghijklmnopqrst --href "https://example.com" --turbo-page-id 555 --dry-run
 direct ads update --id 99999 --type TEXT_AD --title "Новый заголовок" --text "Новый текст" --href "https://example.com"
 direct ads update --id 99999 --type TEXT_AD --image-hash abcdefghijklmnopqrst
@@ -1238,6 +1249,12 @@ DYNAMIC_TEXT_AD в `ads update` доступны `--text`, `--image-hash`,
 `--sitelink-set-id`, `--ad-extensions`, `--business-id`, повторяемый
 `--feed-filter-condition` (`OPERAND:OPERATOR:ARG1|ARG2`), `--title-sources` и
 `--text-sources`.
+Для AdBuilder subtype в `ads add` обязателен `--creative-id`.
+TEXT_AD_BUILDER_AD, CPC_VIDEO_AD_BUILDER_AD, CPM_BANNER_AD_BUILDER_AD и
+CPM_VIDEO_AD_BUILDER_AD требуют `--href`, `--turbo-page-id` или оба флага.
+Mobile app builder subtype используют `--tracking-url`. CPM builder subtype
+также поддерживают `--tracking-pixels`; все AdBuilder subtype в `ads add`
+поддерживают `--erir-ad-description`.
 Для MOBILE_APP_AD в `ads update` доступны `--mobile-app-feature FEATURE=YES|NO`,
 `--video-extension-creative-id` и `--erir-ad-description`.
 Для RESPONSIVE_AD в `ads update` доступны `--texts`, `--titles`,
