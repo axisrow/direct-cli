@@ -80,11 +80,11 @@ def _build_text_ad_update_base(
 ) -> dict[str, object]:
     """Build fields inherited from WSDL TextAdUpdateBase."""
     text_ad_base: dict[str, object] = {}
-    if vcard_id:
+    if vcard_id is not None:
         text_ad_base["VCardId"] = vcard_id
     if image_hash:
         text_ad_base["AdImageHash"] = image_hash
-    if sitelink_set_id:
+    if sitelink_set_id is not None:
         text_ad_base["SitelinkSetId"] = sitelink_set_id
     if callout_setting:
         text_ad_base["CalloutSetting"] = callout_setting

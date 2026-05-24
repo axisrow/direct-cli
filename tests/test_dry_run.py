@@ -1232,6 +1232,26 @@ def test_ads_update_dynamic_text_ad_noop_rejected():
     )
 
 
+def test_ads_update_dynamic_text_ad_zero_ids_are_not_silently_dropped():
+    """Issue #267: integer flags use presence, not truthiness, in the payload."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "DYNAMIC_TEXT_AD",
+        "--vcard-id",
+        "0",
+        "--sitelink-set-id",
+        "0",
+    )
+    assert body["params"]["Ads"][0] == {
+        "Id": 999,
+        "DynamicTextAd": {"VCardId": 0, "SitelinkSetId": 0},
+    }
+
+
 def test_ads_update_text_ad_with_turbo_page_id():
     """Issue #202: update sets TurboPageId in TextAd."""
     body = _dry_run(
