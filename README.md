@@ -380,6 +380,7 @@ direct campaigns delete --id 12345
 ```bash
 direct adgroups get --campaign-ids 1,2,3 --limit 50
 direct adgroups add --name "Group 1" --campaign-id 12345 --region-ids 1,225 --negative-keywords "repair,used" --tracking-params "utm_source=direct" --dry-run
+direct adgroups add --name "Text Feed Group" --campaign-id 12345 --region-ids 1,225 --feed-id 170 --feed-category-ids 10,11 --dry-run
 direct adgroups add --name "Dynamic Group" --campaign-id 12345 --type DYNAMIC_TEXT_AD_GROUP --region-ids 1,225 --domain-url example.com --autotargeting-category EXACT=YES --dry-run
 direct adgroups add --name "Dynamic Feed Group" --campaign-id 12345 --type DYNAMIC_TEXT_FEED_AD_GROUP --region-ids 1,225 --feed-id 170 --autotargeting-category EXACT=YES --dry-run
 direct adgroups add --name "CPM Keywords Group" --campaign-id 12345 --type CPM_BANNER_KEYWORDS_AD_GROUP --region-ids 1,225 --dry-run
@@ -389,6 +390,7 @@ direct adgroups add --name "Smart Group" --campaign-id 12345 --type SMART_AD_GRO
 direct adgroups add --name "Unified Group" --campaign-id 12345 --type UNIFIED_AD_GROUP --region-ids 1,225 --offer-retargeting YES --dry-run
 direct adgroups add --name "Mobile App Group" --campaign-id 12345 --type MOBILE_APP_AD_GROUP --region-ids 1,225 --store-url https://apps.apple.com/app/id123456789 --target-device-types DEVICE_TYPE_MOBILE,DEVICE_TYPE_TABLET --target-carrier WI_FI_AND_CELLULAR --target-operating-system-version 14.0 --dry-run
 direct adgroups update --id 67890 --negative-keyword-shared-set-ids 10,11 --tracking-params "utm_source=direct"
+direct adgroups update --id 67890 --feed-id 170 --feed-category-ids 10,11
 direct adgroups update --id 67890 --domain-url example.com --autotargeting-settings-exact YES --autotargeting-settings-without-brands YES --dry-run
 direct adgroups update --id 67890 --dynamic-feed --autotargeting-category EXACT=YES --dry-run
 direct adgroups update --id 67890 --target-device-types DEVICE_TYPE_TABLET --target-carrier WI_FI_ONLY --target-operating-system-version 13.0
@@ -1108,6 +1110,7 @@ direct campaigns delete --id 12345
 ```bash
 direct adgroups get --campaign-ids 1,2,3 --limit 50
 direct adgroups add --name "Группа 1" --campaign-id 12345 --region-ids 1,225 --negative-keywords "ремонт,б/у" --tracking-params "utm_source=direct" --dry-run
+direct adgroups add --name "ТГО-группа с фидом" --campaign-id 12345 --region-ids 1,225 --feed-id 170 --feed-category-ids 10,11 --dry-run
 direct adgroups add --name "Динамическая группа" --campaign-id 12345 --type DYNAMIC_TEXT_AD_GROUP --region-ids 1,225 --domain-url example.com --autotargeting-category EXACT=YES --dry-run
 direct adgroups add --name "Динамическая группа с фидом" --campaign-id 12345 --type DYNAMIC_TEXT_FEED_AD_GROUP --region-ids 1,225 --feed-id 170 --autotargeting-category EXACT=YES --dry-run
 direct adgroups add --name "CPM группа с ключевыми фразами" --campaign-id 12345 --type CPM_BANNER_KEYWORDS_AD_GROUP --region-ids 1,225 --dry-run
@@ -1117,6 +1120,7 @@ direct adgroups add --name "Смарт-группа" --campaign-id 12345 --type 
 direct adgroups add --name "ЕПК-группа" --campaign-id 12345 --type UNIFIED_AD_GROUP --region-ids 1,225 --offer-retargeting YES --dry-run
 direct adgroups add --name "Группа мобильного приложения" --campaign-id 12345 --type MOBILE_APP_AD_GROUP --region-ids 1,225 --store-url https://apps.apple.com/app/id123456789 --target-device-types DEVICE_TYPE_MOBILE,DEVICE_TYPE_TABLET --target-carrier WI_FI_AND_CELLULAR --target-operating-system-version 14.0 --dry-run
 direct adgroups update --id 67890 --negative-keyword-shared-set-ids 10,11 --tracking-params "utm_source=direct"
+direct adgroups update --id 67890 --feed-id 170 --feed-category-ids 10,11
 direct adgroups update --id 67890 --domain-url example.com --autotargeting-settings-exact YES --autotargeting-settings-without-brands YES --dry-run
 direct adgroups update --id 67890 --dynamic-feed --autotargeting-category EXACT=YES --dry-run
 direct adgroups update --id 67890 --target-device-types DEVICE_TYPE_TABLET --target-carrier WI_FI_ONLY --target-operating-system-version 13.0
