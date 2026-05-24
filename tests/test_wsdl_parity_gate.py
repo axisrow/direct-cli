@@ -640,6 +640,71 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("adgroups", "add", "MobileAppAdGroup.TargetOperatingSystemVersion"): {
         "--target-operating-system-version"
     },
+    ("adgroups", "add", "DynamicTextAdGroup.AutotargetingCategories"): {
+        "--autotargeting-category"
+    },
+    ("adgroups", "add", "DynamicTextAdGroup.AutotargetingCategories.Category"): {
+        "--autotargeting-category"
+    },
+    ("adgroups", "add", "DynamicTextAdGroup.AutotargetingCategories.Value"): {
+        "--autotargeting-category"
+    },
+    ("adgroups", "add", "DynamicTextAdGroup.AutotargetingSettings"): {
+        "--autotargeting-settings-exact",
+        "--autotargeting-settings-without-brands",
+    },
+    ("adgroups", "add", "DynamicTextAdGroup.AutotargetingSettings.Categories"): {
+        "--autotargeting-settings-exact",
+        "--autotargeting-settings-narrow",
+        "--autotargeting-settings-alternative",
+        "--autotargeting-settings-accessory",
+        "--autotargeting-settings-broader",
+    },
+    (
+        "adgroups",
+        "add",
+        "DynamicTextAdGroup.AutotargetingSettings.Categories.Exact",
+    ): {"--autotargeting-settings-exact"},
+    (
+        "adgroups",
+        "add",
+        "DynamicTextAdGroup.AutotargetingSettings.Categories.Narrow",
+    ): {"--autotargeting-settings-narrow"},
+    (
+        "adgroups",
+        "add",
+        "DynamicTextAdGroup.AutotargetingSettings.Categories.Alternative",
+    ): {"--autotargeting-settings-alternative"},
+    (
+        "adgroups",
+        "add",
+        "DynamicTextAdGroup.AutotargetingSettings.Categories.Accessory",
+    ): {"--autotargeting-settings-accessory"},
+    (
+        "adgroups",
+        "add",
+        "DynamicTextAdGroup.AutotargetingSettings.Categories.Broader",
+    ): {"--autotargeting-settings-broader"},
+    ("adgroups", "add", "DynamicTextAdGroup.AutotargetingSettings.BrandOptions"): {
+        "--autotargeting-settings-without-brands",
+        "--autotargeting-settings-with-advertiser-brand",
+        "--autotargeting-settings-with-competitors-brand",
+    },
+    (
+        "adgroups",
+        "add",
+        "DynamicTextAdGroup.AutotargetingSettings.BrandOptions.WithoutBrands",
+    ): {"--autotargeting-settings-without-brands"},
+    (
+        "adgroups",
+        "add",
+        "DynamicTextAdGroup.AutotargetingSettings.BrandOptions.WithAdvertiserBrand",
+    ): {"--autotargeting-settings-with-advertiser-brand"},
+    (
+        "adgroups",
+        "add",
+        "DynamicTextAdGroup.AutotargetingSettings.BrandOptions.WithCompetitorsBrand",
+    ): {"--autotargeting-settings-with-competitors-brand"},
     ("adgroups", "add", "NegativeKeywords"): {"--negative-keywords"},
     ("adgroups", "add", "NegativeKeywords.Items"): {"--negative-keywords"},
     ("adgroups", "add", "NegativeKeywordSharedSetIds"): {
@@ -672,6 +737,77 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("adgroups", "update", "MobileAppAdGroup.TargetOperatingSystemVersion"): {
         "--target-operating-system-version"
     },
+    ("adgroups", "update", "DynamicTextAdGroup"): {
+        "--domain-url",
+        "--autotargeting-category",
+        "--autotargeting-settings-exact",
+    },
+    ("adgroups", "update", "DynamicTextAdGroup.DomainUrl"): {"--domain-url"},
+    ("adgroups", "update", "DynamicTextAdGroup.AutotargetingCategories"): {
+        "--autotargeting-category"
+    },
+    ("adgroups", "update", "DynamicTextAdGroup.AutotargetingCategories.Category"): {
+        "--autotargeting-category"
+    },
+    ("adgroups", "update", "DynamicTextAdGroup.AutotargetingCategories.Value"): {
+        "--autotargeting-category"
+    },
+    ("adgroups", "update", "DynamicTextAdGroup.AutotargetingSettings"): {
+        "--autotargeting-settings-exact",
+        "--autotargeting-settings-without-brands",
+    },
+    ("adgroups", "update", "DynamicTextAdGroup.AutotargetingSettings.Categories"): {
+        "--autotargeting-settings-exact",
+        "--autotargeting-settings-narrow",
+        "--autotargeting-settings-alternative",
+        "--autotargeting-settings-accessory",
+        "--autotargeting-settings-broader",
+    },
+    (
+        "adgroups",
+        "update",
+        "DynamicTextAdGroup.AutotargetingSettings.Categories.Exact",
+    ): {"--autotargeting-settings-exact"},
+    (
+        "adgroups",
+        "update",
+        "DynamicTextAdGroup.AutotargetingSettings.Categories.Narrow",
+    ): {"--autotargeting-settings-narrow"},
+    (
+        "adgroups",
+        "update",
+        "DynamicTextAdGroup.AutotargetingSettings.Categories.Alternative",
+    ): {"--autotargeting-settings-alternative"},
+    (
+        "adgroups",
+        "update",
+        "DynamicTextAdGroup.AutotargetingSettings.Categories.Accessory",
+    ): {"--autotargeting-settings-accessory"},
+    (
+        "adgroups",
+        "update",
+        "DynamicTextAdGroup.AutotargetingSettings.Categories.Broader",
+    ): {"--autotargeting-settings-broader"},
+    ("adgroups", "update", "DynamicTextAdGroup.AutotargetingSettings.BrandOptions"): {
+        "--autotargeting-settings-without-brands",
+        "--autotargeting-settings-with-advertiser-brand",
+        "--autotargeting-settings-with-competitors-brand",
+    },
+    (
+        "adgroups",
+        "update",
+        "DynamicTextAdGroup.AutotargetingSettings.BrandOptions.WithoutBrands",
+    ): {"--autotargeting-settings-without-brands"},
+    (
+        "adgroups",
+        "update",
+        "DynamicTextAdGroup.AutotargetingSettings.BrandOptions.WithAdvertiserBrand",
+    ): {"--autotargeting-settings-with-advertiser-brand"},
+    (
+        "adgroups",
+        "update",
+        "DynamicTextAdGroup.AutotargetingSettings.BrandOptions.WithCompetitorsBrand",
+    ): {"--autotargeting-settings-with-competitors-brand"},
     ("ads", "add", "TextAd"): {"--type"},
     ("ads", "add", "TextAd.VCardId"): {"--vcard-id"},
     ("ads", "add", "TextAd.AdImageHash"): {"--image-hash"},
@@ -1586,16 +1722,6 @@ OPTIONAL_FIELD_CHILD_COMPONENT_FOLLOWUPS: dict[tuple[str, str, str], dict[str, s
 }
 
 OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
-    ("adgroups", "add", "DynamicTextAdGroup.AutotargetingCategories"): {
-        "status": "missing_followup",
-        "issue": "#280",
-        "note": "Dynamic text ad group autotargeting categories are not exposed.",
-    },
-    ("adgroups", "add", "DynamicTextAdGroup.AutotargetingSettings"): {
-        "status": "missing_followup",
-        "issue": "#280",
-        "note": "Dynamic text ad group autotargeting settings are not exposed.",
-    },
     ("keywords", "add", "AutotargetingSearchBidIsAuto"): {
         "status": "supported",
         "issue": "#289",
@@ -1641,11 +1767,6 @@ OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
         "status": "missing_followup",
         "issue": "#284",
         "note": "Rare ad group feed params block has no typed add flags.",
-    },
-    ("adgroups", "update", "DynamicTextAdGroup"): {
-        "status": "missing_followup",
-        "issue": "#280",
-        "note": "Dynamic ad group subtype update block has no typed flags.",
     },
     ("adgroups", "update", "DynamicTextFeedAdGroup"): {
         "status": "missing_followup",

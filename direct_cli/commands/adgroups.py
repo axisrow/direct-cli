@@ -24,6 +24,32 @@ _SUPPORTED_ADGROUP_TYPES = (
 )
 _TARGET_DEVICE_TYPES = ("DEVICE_TYPE_MOBILE", "DEVICE_TYPE_TABLET")
 _TARGET_CARRIERS = ("WI_FI_ONLY", "WI_FI_AND_CELLULAR")
+_AUTOTARGETING_CATEGORIES = (
+    "EXACT",
+    "ALTERNATIVE",
+    "COMPETITOR",
+    "BROADER",
+    "ACCESSORY",
+)
+_AUTOTARGETING_CATEGORY_HELP = (
+    "DynamicTextAdGroup.AutotargetingCategories item as CATEGORY=YES|NO. "
+    "Categories: " + ", ".join(_AUTOTARGETING_CATEGORIES)
+)
+_AUTOTARGETING_SETTINGS_FLAGS = {
+    "--autotargeting-settings-exact",
+    "--autotargeting-settings-narrow",
+    "--autotargeting-settings-alternative",
+    "--autotargeting-settings-accessory",
+    "--autotargeting-settings-broader",
+    "--autotargeting-settings-without-brands",
+    "--autotargeting-settings-with-advertiser-brand",
+    "--autotargeting-settings-with-competitors-brand",
+}
+_DYNAMIC_TEXT_ADGROUP_FLAGS = {
+    "--domain-url",
+    "--autotargeting-category",
+    *_AUTOTARGETING_SETTINGS_FLAGS,
+}
 
 
 @click.group()
@@ -141,6 +167,139 @@ def _build_mobile_app_adgroup(
     return mobile_app_adgroup or None
 
 
+def _parse_autotargeting_categories(
+    raw_values: tuple[str, ...],
+) -> Optional[list[dict[str, str]]]:
+    """Parse DynamicTextAdGroup.AutotargetingCategories CLI items."""
+    if not raw_values:
+        return None
+
+    allowed_categories = ", ".join(_AUTOTARGETING_CATEGORIES)
+    items = []
+    for raw_value in raw_values:
+        category_raw, separator, value_raw = raw_value.strip().partition("=")
+        if not separator:
+            raise click.UsageError(
+                "--autotargeting-category expects CATEGORY=YES|NO "
+                "(for example EXACT=YES)"
+            )
+
+        category = _normalize_enum_token(category_raw)
+        value = _normalize_enum_token(value_raw)
+        if category not in _AUTOTARGETING_CATEGORIES:
+            raise click.UsageError(
+                "Invalid --autotargeting-category category "
+                f"{category_raw!r}; allowed: {allowed_categories}"
+            )
+        if value not in {"YES", "NO"}:
+            raise click.UsageError(
+                "Invalid --autotargeting-category value "
+                f"{value_raw!r}; expected YES or NO"
+            )
+        items.append({"Category": category, "Value": value})
+
+    return items
+
+
+def _build_autotargeting_settings(
+    *,
+    exact: Optional[str],
+    narrow: Optional[str],
+    alternative: Optional[str],
+    accessory: Optional[str],
+    broader: Optional[str],
+    without_brands: Optional[str],
+    with_advertiser_brand: Optional[str],
+    with_competitors_brand: Optional[str],
+) -> Optional[dict[str, dict[str, str]]]:
+    """Build DynamicTextAdGroup.AutotargetingSettings from typed flags."""
+    categories = {}
+    for field_name, value in (
+        ("Exact", exact),
+        ("Narrow", narrow),
+        ("Alternative", alternative),
+        ("Accessory", accessory),
+        ("Broader", broader),
+    ):
+        if value is not None:
+            categories[field_name] = value.upper()
+
+    brand_options = {}
+    for field_name, value in (
+        ("WithoutBrands", without_brands),
+        ("WithAdvertiserBrand", with_advertiser_brand),
+        ("WithCompetitorsBrand", with_competitors_brand),
+    ):
+        if value is not None:
+            brand_options[field_name] = value.upper()
+
+    settings = {}
+    if categories:
+        settings["Categories"] = categories
+    if brand_options:
+        settings["BrandOptions"] = brand_options
+
+    return settings or None
+
+
+def _reject_legacy_autotargeting_mix(
+    settings: Optional[dict[str, dict[str, str]]],
+    categories: tuple[str, ...],
+) -> None:
+    """Reject ambiguous legacy AutotargetingCategories + Settings payloads."""
+    if settings is not None and categories:
+        raise click.UsageError(
+            "AutotargetingSettings flags cannot be combined with legacy "
+            "--autotargeting-category flags."
+        )
+
+
+def _build_dynamic_text_adgroup(
+    *,
+    domain_url: Optional[str],
+    autotargeting_categories: tuple[str, ...],
+    autotargeting_settings_exact: Optional[str],
+    autotargeting_settings_narrow: Optional[str],
+    autotargeting_settings_alternative: Optional[str],
+    autotargeting_settings_accessory: Optional[str],
+    autotargeting_settings_broader: Optional[str],
+    autotargeting_settings_without_brands: Optional[str],
+    autotargeting_settings_with_advertiser_brand: Optional[str],
+    autotargeting_settings_with_competitors_brand: Optional[str],
+    force_domain_url: bool = False,
+) -> Optional[dict[str, object]]:
+    """Build the DynamicTextAdGroup block shared by add/update."""
+    parsed_categories = _parse_autotargeting_categories(autotargeting_categories)
+    autotargeting_settings = _build_autotargeting_settings(
+        exact=autotargeting_settings_exact,
+        narrow=autotargeting_settings_narrow,
+        alternative=autotargeting_settings_alternative,
+        accessory=autotargeting_settings_accessory,
+        broader=autotargeting_settings_broader,
+        without_brands=autotargeting_settings_without_brands,
+        with_advertiser_brand=autotargeting_settings_with_advertiser_brand,
+        with_competitors_brand=autotargeting_settings_with_competitors_brand,
+    )
+    _reject_legacy_autotargeting_mix(
+        settings=autotargeting_settings,
+        categories=autotargeting_categories,
+    )
+
+    has_dynamic_fields = bool(domain_url or parsed_categories or autotargeting_settings)
+    if (force_domain_url or has_dynamic_fields) and not domain_url:
+        raise click.UsageError("--domain-url is required for DYNAMIC_TEXT_AD_GROUP")
+
+    dynamic_text_adgroup: dict[str, object] = {}
+    if domain_url:
+        dynamic_text_adgroup["DomainUrl"] = domain_url
+    if parsed_categories:
+        dynamic_text_adgroup["AutotargetingCategories"] = parsed_categories
+    if autotargeting_settings:
+        dynamic_text_adgroup["AutotargetingSettings"] = autotargeting_settings
+
+    return dynamic_text_adgroup or None
+
+
 def _reject_incompatible_flags(
     group_type: str,
     allowed_flags: set[str],
@@ -150,7 +309,7 @@ def _reject_incompatible_flags(
     incompatible = [
         flag
         for flag, value in provided_flags.items()
-        if value is not None and flag not in allowed_flags
+        if value not in (None, ()) and flag not in allowed_flags
     ]
     if incompatible:
         raise click.UsageError(
@@ -278,6 +437,58 @@ def get(
     help="Comma-separated region IDs (WSDL AdGroupAddItem.RegionIds minOccurs=1)",
 )
 @click.option("--domain-url", help="Dynamic text ad group domain URL")
+@click.option(
+    "--autotargeting-category",
+    "autotargeting_categories",
+    multiple=True,
+    help=_AUTOTARGETING_CATEGORY_HELP,
+)
+@click.option(
+    "--autotargeting-settings-exact",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="DynamicTextAdGroup.AutotargetingSettings.Categories.Exact value",
+)
+@click.option(
+    "--autotargeting-settings-narrow",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="DynamicTextAdGroup.AutotargetingSettings.Categories.Narrow value",
+)
+@click.option(
+    "--autotargeting-settings-alternative",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="DynamicTextAdGroup.AutotargetingSettings.Categories.Alternative value",
+)
+@click.option(
+    "--autotargeting-settings-accessory",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="DynamicTextAdGroup.AutotargetingSettings.Categories.Accessory value",
+)
+@click.option(
+    "--autotargeting-settings-broader",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="DynamicTextAdGroup.AutotargetingSettings.Categories.Broader value",
+)
+@click.option(
+    "--autotargeting-settings-without-brands",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="DynamicTextAdGroup.AutotargetingSettings.BrandOptions.WithoutBrands value",
+)
+@click.option(
+    "--autotargeting-settings-with-advertiser-brand",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help=(
+        "DynamicTextAdGroup.AutotargetingSettings.BrandOptions."
+        "WithAdvertiserBrand value"
+    ),
+)
+@click.option(
+    "--autotargeting-settings-with-competitors-brand",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help=(
+        "DynamicTextAdGroup.AutotargetingSettings.BrandOptions."
+        "WithCompetitorsBrand value"
+    ),
+)
 @click.option("--feed-id", type=int, help="Smart ad group feed ID")
 @click.option("--ad-title-source", help="Smart ad group title source")
 @click.option("--ad-body-source", help="Smart ad group body source")
@@ -328,6 +539,15 @@ def add(
     group_type,
     region_ids,
     domain_url,
+    autotargeting_categories,
+    autotargeting_settings_exact,
+    autotargeting_settings_narrow,
+    autotargeting_settings_alternative,
+    autotargeting_settings_accessory,
+    autotargeting_settings_broader,
+    autotargeting_settings_without_brands,
+    autotargeting_settings_with_advertiser_brand,
+    autotargeting_settings_with_competitors_brand,
     feed_id,
     ad_title_source,
     ad_body_source,
@@ -353,7 +573,7 @@ def add(
             )
         allowed_flags_by_type = {
             "TEXT_AD_GROUP": set(),
-            "DYNAMIC_TEXT_AD_GROUP": {"--domain-url"},
+            "DYNAMIC_TEXT_AD_GROUP": _DYNAMIC_TEXT_ADGROUP_FLAGS,
             "SMART_AD_GROUP": {"--feed-id", "--ad-title-source", "--ad-body-source"},
             "MOBILE_APP_AD_GROUP": {
                 "--store-url",
@@ -367,6 +587,25 @@ def add(
             allowed_flags_by_type[group_type_norm],
             {
                 "--domain-url": domain_url,
+                "--autotargeting-category": autotargeting_categories,
+                "--autotargeting-settings-exact": autotargeting_settings_exact,
+                "--autotargeting-settings-narrow": autotargeting_settings_narrow,
+                "--autotargeting-settings-alternative": (
+                    autotargeting_settings_alternative
+                ),
+                "--autotargeting-settings-accessory": (
+                    autotargeting_settings_accessory
+                ),
+                "--autotargeting-settings-broader": autotargeting_settings_broader,
+                "--autotargeting-settings-without-brands": (
+                    autotargeting_settings_without_brands
+                ),
+                "--autotargeting-settings-with-advertiser-brand": (
+                    autotargeting_settings_with_advertiser_brand
+                ),
+                "--autotargeting-settings-with-competitors-brand": (
+                    autotargeting_settings_with_competitors_brand
+                ),
                 "--feed-id": feed_id,
                 "--ad-title-source": ad_title_source,
                 "--ad-body-source": ad_body_source,
@@ -395,11 +634,27 @@ def add(
         if tracking_params:
             adgroup_data["TrackingParams"] = tracking_params
         if group_type_norm == "DYNAMIC_TEXT_AD_GROUP":
-            if not domain_url:
-                raise click.UsageError(
-                    "--domain-url is required for DYNAMIC_TEXT_AD_GROUP"
-                )
-            adgroup_data["DynamicTextAdGroup"] = {"DomainUrl": domain_url}
+            dynamic_text_adgroup = _build_dynamic_text_adgroup(
+                domain_url=domain_url,
+                autotargeting_categories=autotargeting_categories,
+                autotargeting_settings_exact=autotargeting_settings_exact,
+                autotargeting_settings_narrow=autotargeting_settings_narrow,
+                autotargeting_settings_alternative=autotargeting_settings_alternative,
+                autotargeting_settings_accessory=autotargeting_settings_accessory,
+                autotargeting_settings_broader=autotargeting_settings_broader,
+                autotargeting_settings_without_brands=(
+                    autotargeting_settings_without_brands
+                ),
+                autotargeting_settings_with_advertiser_brand=(
+                    autotargeting_settings_with_advertiser_brand
+                ),
+                autotargeting_settings_with_competitors_brand=(
+                    autotargeting_settings_with_competitors_brand
+                ),
+                force_domain_url=True,
+            )
+            if dynamic_text_adgroup:
+                adgroup_data["DynamicTextAdGroup"] = dynamic_text_adgroup
         elif group_type_norm == "SMART_AD_GROUP":
             if feed_id is None:
                 raise click.UsageError("--feed-id is required for SMART_AD_GROUP")
@@ -448,6 +703,10 @@ def add(
 @click.option("--status", help="New status")
 @click.option("--region-ids", help="Comma-separated region IDs")
 @click.option(
+    "--domain-url",
+    help="DynamicTextAdGroup.DomainUrl; required for DynamicTextAdGroup updates",
+)
+@click.option(
     "--negative-keywords",
     help="Comma-separated ad-group negative keywords for NegativeKeywords.Items",
 )
@@ -481,6 +740,58 @@ def add(
     "--target-operating-system-version",
     help="Minimum OS version for MobileAppAdGroup.TargetOperatingSystemVersion",
 )
+@click.option(
+    "--autotargeting-category",
+    "autotargeting_categories",
+    multiple=True,
+    help=_AUTOTARGETING_CATEGORY_HELP,
+)
+@click.option(
+    "--autotargeting-settings-exact",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="DynamicTextAdGroup.AutotargetingSettings.Categories.Exact value",
+)
+@click.option(
+    "--autotargeting-settings-narrow",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="DynamicTextAdGroup.AutotargetingSettings.Categories.Narrow value",
+)
+@click.option(
+    "--autotargeting-settings-alternative",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="DynamicTextAdGroup.AutotargetingSettings.Categories.Alternative value",
+)
+@click.option(
+    "--autotargeting-settings-accessory",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="DynamicTextAdGroup.AutotargetingSettings.Categories.Accessory value",
+)
+@click.option(
+    "--autotargeting-settings-broader",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="DynamicTextAdGroup.AutotargetingSettings.Categories.Broader value",
+)
+@click.option(
+    "--autotargeting-settings-without-brands",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="DynamicTextAdGroup.AutotargetingSettings.BrandOptions.WithoutBrands value",
+)
+@click.option(
+    "--autotargeting-settings-with-advertiser-brand",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help=(
+        "DynamicTextAdGroup.AutotargetingSettings.BrandOptions."
+        "WithAdvertiserBrand value"
+    ),
+)
+@click.option(
+    "--autotargeting-settings-with-competitors-brand",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help=(
+        "DynamicTextAdGroup.AutotargetingSettings.BrandOptions."
+        "WithCompetitorsBrand value"
+    ),
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def update(
@@ -489,12 +800,22 @@ def update(
     name,
     status,
     region_ids,
+    domain_url,
     negative_keywords,
     negative_keyword_shared_set_ids,
     tracking_params,
     target_device_types,
     target_carrier,
     target_operating_system_version,
+    autotargeting_categories,
+    autotargeting_settings_exact,
+    autotargeting_settings_narrow,
+    autotargeting_settings_alternative,
+    autotargeting_settings_accessory,
+    autotargeting_settings_broader,
+    autotargeting_settings_without_brands,
+    autotargeting_settings_with_advertiser_brand,
+    autotargeting_settings_with_competitors_brand,
     dry_run,
 ):
     """Update ad group"""
@@ -521,6 +842,24 @@ def update(
         }
     if tracking_params:
         adgroup_data["TrackingParams"] = tracking_params
+    dynamic_text_adgroup = _build_dynamic_text_adgroup(
+        domain_url=domain_url,
+        autotargeting_categories=autotargeting_categories,
+        autotargeting_settings_exact=autotargeting_settings_exact,
+        autotargeting_settings_narrow=autotargeting_settings_narrow,
+        autotargeting_settings_alternative=autotargeting_settings_alternative,
+        autotargeting_settings_accessory=autotargeting_settings_accessory,
+        autotargeting_settings_broader=autotargeting_settings_broader,
+        autotargeting_settings_without_brands=autotargeting_settings_without_brands,
+        autotargeting_settings_with_advertiser_brand=(
+            autotargeting_settings_with_advertiser_brand
+        ),
+        autotargeting_settings_with_competitors_brand=(
+            autotargeting_settings_with_competitors_brand
+        ),
+    )
+    if dynamic_text_adgroup:
+        adgroup_data["DynamicTextAdGroup"] = dynamic_text_adgroup
     mobile_app_adgroup = _build_mobile_app_adgroup(
         target_device_types=target_device_types,
         target_carrier=target_carrier,
@@ -535,8 +874,9 @@ def update(
             "adgroups update requires at least one updatable field "
             "(--name, --status, --region-ids, --negative-keywords, "
             "--negative-keyword-shared-set-ids, --tracking-params, "
-            "--target-device-types, --target-carrier, or "
-            "--target-operating-system-version)."
+            "--domain-url, --autotargeting-category, "
+            "--autotargeting-settings-* flags, --target-device-types, "
+            "--target-carrier, or --target-operating-system-version)."
         )
 
     try:
