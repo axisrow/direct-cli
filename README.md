@@ -480,8 +480,8 @@ direct changes check-dictionaries
 
 # Keyword research and retargeting
 direct keywordsresearch has-search-volume --keywords "buy laptop,buy desktop"
-direct retargeting add --name "List A" --type AUDIENCE --rule "ALL:12345:30|67890:7" --dry-run
-direct retargeting update --id 55 --name "Renamed" --rule "ANY:12345:30" --dry-run
+direct retargeting add --name "List A" --description "High intent users" --type AUDIENCE --rule "ALL:12345:30|67890:7" --dry-run
+direct retargeting update --id 55 --name "Renamed" --description "Updated note" --rule "ANY:12345:30" --dry-run
 
 # Bids and modifiers
 direct bids get --campaign-ids 123 --fields CampaignId,AdGroupId,KeywordId,Bid
@@ -1182,8 +1182,8 @@ direct changes check-dictionaries
 
 # Исследование ключевых слов и ретаргетинг
 direct keywordsresearch has-search-volume --keywords "купить ноутбук,купить компьютер"
-direct retargeting add --name "Список A" --type AUDIENCE --rule "ALL:12345:30|67890:7" --dry-run
-direct retargeting update --id 55 --name "Переименованный список" --rule "ANY:12345:30" --dry-run
+direct retargeting add --name "Список A" --description "Теплая аудитория" --type AUDIENCE --rule "ALL:12345:30|67890:7" --dry-run
+direct retargeting update --id 55 --name "Переименованный список" --description "Обновленное примечание" --rule "ANY:12345:30" --dry-run
 
 # Ставки и модификаторы
 direct bids get --campaign-ids 123 --fields CampaignId,AdGroupId,KeywordId,Bid

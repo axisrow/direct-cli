@@ -11,8 +11,8 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2854 |
-| `supported` | 387 |
+| `missing_followup` | 2848 |
+| `supported` | 393 |
 
 ## Confirmed Follow-Ups
 
@@ -2653,12 +2653,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `keywords.update` | `AutotargetingSettings.BrandOptions.WithoutBrands` | Keyword autotargeting settings have no typed update flags. [#244](https://github.com/axisrow/direct-cli/issues/244); inherited from `AutotargetingSettings` |
 | `keywords.update` | `AutotargetingSettings.BrandOptions.WithAdvertiserBrand` | Keyword autotargeting settings have no typed update flags. [#244](https://github.com/axisrow/direct-cli/issues/244); inherited from `AutotargetingSettings` |
 | `keywords.update` | `AutotargetingSettings.BrandOptions.WithCompetitorsBrand` | Keyword autotargeting settings have no typed update flags. [#244](https://github.com/axisrow/direct-cli/issues/244); inherited from `AutotargetingSettings` |
-| `retargeting.add` | `Description` | retargeting.add optional WSDL path needs typed support or N/A. [#256](https://github.com/axisrow/direct-cli/issues/256) |
-| `retargeting.add` | `Rules.Arguments.MembershipLifeSpan` | retargeting.add optional WSDL path needs typed support or N/A. [#256](https://github.com/axisrow/direct-cli/issues/256) |
-| `retargeting.add` | `Rules.Arguments.ExternalId` | retargeting.add optional WSDL path needs typed support or N/A. [#256](https://github.com/axisrow/direct-cli/issues/256) |
-| `retargeting.update` | `Description` | retargeting.update optional WSDL path needs typed support or N/A. [#256](https://github.com/axisrow/direct-cli/issues/256) |
-| `retargeting.update` | `Rules.Arguments.MembershipLifeSpan` | retargeting.update optional WSDL path needs typed support or N/A. [#256](https://github.com/axisrow/direct-cli/issues/256) |
-| `retargeting.update` | `Rules.Arguments.ExternalId` | retargeting.update optional WSDL path needs typed support or N/A. [#256](https://github.com/axisrow/direct-cli/issues/256) |
 | `smartadtargets.add` | `Conditions.Items.Operand` | smartadtargets.add optional WSDL path needs typed support or N/A. [#252](https://github.com/axisrow/direct-cli/issues/252) |
 | `smartadtargets.add` | `Conditions.Items.Operator` | smartadtargets.add optional WSDL path needs typed support or N/A. [#252](https://github.com/axisrow/direct-cli/issues/252) |
 | `smartadtargets.add` | `Conditions.Items.Arguments` | smartadtargets.add optional WSDL path needs typed support or N/A. [#252](https://github.com/axisrow/direct-cli/issues/252) |
@@ -5715,18 +5709,18 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `negativekeywordsharedsets.update` | `negativekeywordsharedsets.update` | `Id` | `long` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `retargeting.add` | `retargetinglists.add` | `Type` | `RetargetingListTypeEnum` | 0 | 1 | `supported` | --type |
 | `retargeting.add` | `retargetinglists.add` | `Name` | `string` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
-| `retargeting.add` | `retargetinglists.add` | `Description` | `string` | 0 | 1 | `missing_followup` | retargeting.add optional WSDL path needs typed support or N/A. [#256](https://github.com/axisrow/direct-cli/issues/256) |
+| `retargeting.add` | `retargetinglists.add` | `Description` | `string` | 0 | 1 | `supported` | --description |
 | `retargeting.add` | `retargetinglists.add` | `Rules` | `RetargetingListRuleItem` | 1 | unbounded | `supported` | --rule |
 | `retargeting.add` | `retargetinglists.add` | `Rules.Arguments` | `RetargetingListRuleArgumentItem` | 1 | unbounded | `supported` | --rule |
-| `retargeting.add` | `retargetinglists.add` | `Rules.Arguments.MembershipLifeSpan` | `int` | 0 | 1 | `missing_followup` | retargeting.add optional WSDL path needs typed support or N/A. [#256](https://github.com/axisrow/direct-cli/issues/256) |
-| `retargeting.add` | `retargetinglists.add` | `Rules.Arguments.ExternalId` | `long` | 1 | 1 | `missing_followup` | retargeting.add optional WSDL path needs typed support or N/A. [#256](https://github.com/axisrow/direct-cli/issues/256) |
+| `retargeting.add` | `retargetinglists.add` | `Rules.Arguments.MembershipLifeSpan` | `int` | 0 | 1 | `supported` | --rule |
+| `retargeting.add` | `retargetinglists.add` | `Rules.Arguments.ExternalId` | `long` | 1 | 1 | `supported` | --rule |
 | `retargeting.add` | `retargetinglists.add` | `Rules.Operator` | `RetargetingListRuleOperatorEnum` | 1 | 1 | `supported` | --rule |
 | `retargeting.update` | `retargetinglists.update` | `Name` | `string` | 0 | 1 | `supported` | --name |
-| `retargeting.update` | `retargetinglists.update` | `Description` | `string` | 0 | 1 | `missing_followup` | retargeting.update optional WSDL path needs typed support or N/A. [#256](https://github.com/axisrow/direct-cli/issues/256) |
+| `retargeting.update` | `retargetinglists.update` | `Description` | `string` | 0 | 1 | `supported` | --description |
 | `retargeting.update` | `retargetinglists.update` | `Rules` | `RetargetingListRuleItem` | 0 | unbounded | `supported` | --rule |
 | `retargeting.update` | `retargetinglists.update` | `Rules.Arguments` | `RetargetingListRuleArgumentItem` | 1 | unbounded | `supported` | --rule |
-| `retargeting.update` | `retargetinglists.update` | `Rules.Arguments.MembershipLifeSpan` | `int` | 0 | 1 | `missing_followup` | retargeting.update optional WSDL path needs typed support or N/A. [#256](https://github.com/axisrow/direct-cli/issues/256) |
-| `retargeting.update` | `retargetinglists.update` | `Rules.Arguments.ExternalId` | `long` | 1 | 1 | `missing_followup` | retargeting.update optional WSDL path needs typed support or N/A. [#256](https://github.com/axisrow/direct-cli/issues/256) |
+| `retargeting.update` | `retargetinglists.update` | `Rules.Arguments.MembershipLifeSpan` | `int` | 0 | 1 | `supported` | --rule |
+| `retargeting.update` | `retargetinglists.update` | `Rules.Arguments.ExternalId` | `long` | 1 | 1 | `supported` | --rule |
 | `retargeting.update` | `retargetinglists.update` | `Rules.Operator` | `RetargetingListRuleOperatorEnum` | 1 | 1 | `supported` | --rule |
 | `retargeting.update` | `retargetinglists.update` | `Id` | `long` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `sitelinks.add` | `sitelinks.add` | `Sitelinks` | `SitelinkAddItem` | 1 | unbounded | `supported` | --sitelink |
