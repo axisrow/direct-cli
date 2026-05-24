@@ -11,8 +11,8 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2729 |
-| `supported` | 512 |
+| `missing_followup` | 2723 |
+| `supported` | 518 |
 
 ## Confirmed Follow-Ups
 
@@ -2544,12 +2544,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `campaigns.update` | `TimeTargeting.HolidaysSchedule.BidPercent` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
 | `campaigns.update` | `TimeTargeting.HolidaysSchedule.StartHour` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
 | `campaigns.update` | `TimeTargeting.HolidaysSchedule.EndHour` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `feeds.add` | `FileFeed` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264) |
-| `feeds.add` | `FileFeed.Data` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
-| `feeds.add` | `FileFeed.Filename` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
-| `feeds.update` | `FileFeed` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264) |
-| `feeds.update` | `FileFeed.Data` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
-| `feeds.update` | `FileFeed.Filename` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
 | `strategies.add` | `PriorityGoals.Items.GoalId` | strategies.add residual optional WSDL path needs typed support or N/A. [#299](https://github.com/axisrow/direct-cli/issues/299) |
 | `strategies.add` | `PriorityGoals.Items.Value` | strategies.add residual optional WSDL path needs typed support or N/A. [#299](https://github.com/axisrow/direct-cli/issues/299) |
 | `strategies.add` | `PriorityGoals.Items.IsMetrikaSourceOfValue` | strategies.add residual optional WSDL path needs typed support or N/A. [#299](https://github.com/axisrow/direct-cli/issues/299) |
@@ -5517,9 +5511,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `feeds.add` | `feeds.add` | `UrlFeed.Url` | `string` | 1 | 1 | `supported` | --url |
 | `feeds.add` | `feeds.add` | `UrlFeed.Login` | `string` | 0 | 1 | `supported` | --feed-login |
 | `feeds.add` | `feeds.add` | `UrlFeed.Password` | `string` | 0 | 1 | `supported` | --feed-password |
-| `feeds.add` | `feeds.add` | `FileFeed` | `FileFeedAdd` | 0 | 1 | `missing_followup` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264) |
-| `feeds.add` | `feeds.add` | `FileFeed.Data` | `base64Binary` | 1 | 1 | `missing_followup` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
-| `feeds.add` | `feeds.add` | `FileFeed.Filename` | `string` | 1 | 1 | `missing_followup` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
+| `feeds.add` | `feeds.add` | `FileFeed` | `FileFeedAdd` | 0 | 1 | `supported` | --file-feed-path |
+| `feeds.add` | `feeds.add` | `FileFeed.Data` | `base64Binary` | 1 | 1 | `supported` | --file-feed-path |
+| `feeds.add` | `feeds.add` | `FileFeed.Filename` | `string` | 1 | 1 | `supported` | --file-feed-filename, --file-feed-path |
 | `feeds.update` | `feeds.update` | `Id` | `long` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `feeds.update` | `feeds.update` | `Name` | `string` | 0 | 1 | `supported` | --name |
 | `feeds.update` | `feeds.update` | `UrlFeed` | `UrlFeedUpdate` | 0 | 1 | `supported` | --url |
@@ -5527,9 +5521,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `feeds.update` | `feeds.update` | `UrlFeed.Url` | `string` | 0 | 1 | `supported` | --url |
 | `feeds.update` | `feeds.update` | `UrlFeed.Login` | `string` | 0 | 1 | `supported` | --clear-feed-login, --feed-login |
 | `feeds.update` | `feeds.update` | `UrlFeed.Password` | `string` | 0 | 1 | `supported` | --clear-feed-password, --feed-password |
-| `feeds.update` | `feeds.update` | `FileFeed` | `FileFeedUpdate` | 0 | 1 | `missing_followup` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264) |
-| `feeds.update` | `feeds.update` | `FileFeed.Data` | `base64Binary` | 1 | 1 | `missing_followup` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
-| `feeds.update` | `feeds.update` | `FileFeed.Filename` | `string` | 1 | 1 | `missing_followup` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
+| `feeds.update` | `feeds.update` | `FileFeed` | `FileFeedUpdate` | 0 | 1 | `supported` | --file-feed-path |
+| `feeds.update` | `feeds.update` | `FileFeed.Data` | `base64Binary` | 1 | 1 | `supported` | --file-feed-path |
+| `feeds.update` | `feeds.update` | `FileFeed.Filename` | `string` | 1 | 1 | `supported` | --file-feed-filename, --file-feed-path |
 | `keywordbids.set` | `keywordbids.set` | `CampaignId` | `long` | 0 | 1 | `supported` | --campaign-id |
 | `keywordbids.set` | `keywordbids.set` | `AdGroupId` | `long` | 0 | 1 | `supported` | --adgroup-id |
 | `keywordbids.set` | `keywordbids.set` | `KeywordId` | `long` | 0 | 1 | `supported` | --keyword-id |

@@ -2,6 +2,8 @@
 Feeds commands
 """
 
+import base64
+from pathlib import Path
 from typing import Dict, Optional
 
 import click
@@ -11,6 +13,12 @@ from ..output import format_output, print_error
 from ..utils import get_default_fields, parse_ids
 
 _YES_NO = ["YES", "NO"]
+# Yandex Direct docs cap FileFeed.Data by total request size. This
+# pre-read guard rejects definitely oversized local files; the API remains
+# the final validator for the base64-encoded request envelope.
+_FILE_FEED_MAX_BYTES = 50 * 1024 * 1024
+# feeds.add/update docs define FileFeed.Filename as at most 255 characters.
+_FILE_FEED_MAX_FILENAME_LENGTH = 255
 
 
 def _url_feed_payload(
@@ -35,6 +43,65 @@ def _url_feed_payload(
     elif password:
         payload["Password"] = password
     return payload
+
+
+def _file_feed_payload(
+    file_feed_path: str,
+    file_feed_filename: Optional[str] = None,
+) -> Dict[str, object]:
+    path = Path(file_feed_path)
+    filename = file_feed_filename or path.name
+    if not filename:
+        raise click.UsageError("FileFeed.Filename cannot be empty.")
+    if len(filename) > _FILE_FEED_MAX_FILENAME_LENGTH:
+        raise click.UsageError(
+            "FileFeed.Filename must be at most "
+            f"{_FILE_FEED_MAX_FILENAME_LENGTH} characters."
+        )
+
+    try:
+        file_size = path.stat().st_size
+    except OSError as exc:
+        raise click.UsageError(
+            f"Cannot read --file-feed-path {file_feed_path!r}: {exc}"
+        )
+
+    if file_size > _FILE_FEED_MAX_BYTES:
+        raise click.UsageError(
+            "FileFeed.Data must be at most 50 MiB before base64 encoding."
+        )
+
+    try:
+        data = path.read_bytes()
+    except OSError as exc:
+        raise click.UsageError(
+            f"Cannot read --file-feed-path {file_feed_path!r}: {exc}"
+        )
+
+    return {
+        "Data": base64.b64encode(data).decode("ascii"),
+        "Filename": filename,
+    }
+
+
+def _has_url_feed_options(
+    url: Optional[str],
+    remove_utm_tags: Optional[str],
+    feed_login: Optional[str],
+    feed_password: Optional[str],
+    clear_feed_login: bool = False,
+    clear_feed_password: bool = False,
+) -> bool:
+    return any(
+        (
+            url,
+            remove_utm_tags,
+            feed_login,
+            feed_password,
+            clear_feed_login,
+            clear_feed_password,
+        )
+    )
 
 
 @click.group()
@@ -97,7 +164,16 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
 
 @feeds.command()
 @click.option("--name", required=True, help="Feed name")
-@click.option("--url", required=True, help="Feed URL")
+@click.option("--url", help="Feed URL")
+@click.option(
+    "--file-feed-path",
+    type=click.Path(exists=True, dir_okay=False, readable=True),
+    help="Path to feed file for FileFeed.Data base64 upload.",
+)
+@click.option(
+    "--file-feed-filename",
+    help="FileFeed.Filename; defaults to the basename of --file-feed-path.",
+)
 @click.option(
     "--remove-utm-tags",
     type=click.Choice(_YES_NO, case_sensitive=False),
@@ -117,18 +193,46 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def add(
-    ctx, name, url, remove_utm_tags, feed_login, feed_password, business_type, dry_run
+    ctx,
+    name,
+    url,
+    file_feed_path,
+    file_feed_filename,
+    remove_utm_tags,
+    feed_login,
+    feed_password,
+    business_type,
+    dry_run,
 ):
     """Add feed"""
     try:
+        if file_feed_filename and not file_feed_path:
+            raise click.UsageError("--file-feed-filename requires --file-feed-path.")
+        if url and file_feed_path:
+            raise click.UsageError("Use either --url or --file-feed-path, not both.")
+        if not url and not file_feed_path:
+            raise click.UsageError("Provide exactly one of --url or --file-feed-path.")
+        if file_feed_path and _has_url_feed_options(
+            None, remove_utm_tags, feed_login, feed_password
+        ):
+            raise click.UsageError(
+                "--remove-utm-tags, --feed-login, and --feed-password are "
+                "only valid with --url feeds."
+            )
+
         feed_data = {
             "Name": name,
             "BusinessType": business_type.upper(),
-            "SourceType": "URL",
-            "UrlFeed": _url_feed_payload(
-                url, remove_utm_tags, feed_login, feed_password
-            ),
+            "SourceType": "FILE" if file_feed_path else "URL",
         }
+        if file_feed_path:
+            feed_data["FileFeed"] = _file_feed_payload(
+                file_feed_path, file_feed_filename
+            )
+        else:
+            feed_data["UrlFeed"] = _url_feed_payload(
+                url, remove_utm_tags, feed_login, feed_password
+            )
 
         body = {"method": "add", "params": {"Feeds": [feed_data]}}
 
@@ -145,6 +249,8 @@ def add(
         result = client.feeds().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
@@ -153,7 +259,22 @@ def add(
 @feeds.command()
 @click.option("--id", "feed_id", required=True, type=int, help="Feed ID")
 @click.option("--name", help="Feed name")
-@click.option("--url", help="Feed URL")
+@click.option(
+    "--url",
+    help="Feed URL for an existing URL feed; Yandex Direct rejects source switches.",
+)
+@click.option(
+    "--file-feed-path",
+    type=click.Path(exists=True, dir_okay=False, readable=True),
+    help=(
+        "Path to feed file for an existing FILE feed; Yandex Direct rejects "
+        "source switches."
+    ),
+)
+@click.option(
+    "--file-feed-filename",
+    help="FileFeed.Filename; defaults to the basename of --file-feed-path.",
+)
 @click.option(
     "--remove-utm-tags",
     type=click.Choice(_YES_NO, case_sensitive=False),
@@ -172,6 +293,8 @@ def update(
     feed_id,
     name,
     url,
+    file_feed_path,
+    file_feed_filename,
     remove_utm_tags,
     feed_login,
     feed_password,
@@ -189,6 +312,19 @@ def update(
             raise click.UsageError(
                 "Use either --feed-password or --clear-feed-password, not both"
             )
+        if file_feed_filename and not file_feed_path:
+            raise click.UsageError("--file-feed-filename requires --file-feed-path.")
+        if file_feed_path and _has_url_feed_options(
+            url,
+            remove_utm_tags,
+            feed_login,
+            feed_password,
+            clear_feed_login,
+            clear_feed_password,
+        ):
+            raise click.UsageError(
+                "FileFeed options cannot be combined with UrlFeed options."
+            )
 
         feed_data = {"Id": feed_id}
 
@@ -204,11 +340,15 @@ def update(
         )
         if url_feed:
             feed_data["UrlFeed"] = url_feed
+        if file_feed_path:
+            feed_data["FileFeed"] = _file_feed_payload(
+                file_feed_path, file_feed_filename
+            )
         if len(feed_data) == 1:
             raise click.UsageError(
-                "Provide at least one of --name, --url, --remove-utm-tags, "
-                "--feed-login, --feed-password, --clear-feed-login, or "
-                "--clear-feed-password"
+                "Provide at least one of --name, --url, --file-feed-path, "
+                "--remove-utm-tags, --feed-login, --feed-password, "
+                "--clear-feed-login, or --clear-feed-password"
             )
 
         body = {"method": "update", "params": {"Feeds": [feed_data]}}

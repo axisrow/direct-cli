@@ -48,6 +48,7 @@ commands that now expose ``--dry-run`` (``delete``,
 Part of axisrow/yandex-direct-mcp-plugin#61.
 """
 
+import base64
 import json
 from unittest.mock import patch
 
@@ -4034,6 +4035,124 @@ def test_feeds_add_payload_accepts_urlfeed_details():
     }
 
 
+def test_feeds_add_payload_accepts_filefeed_upload(tmp_path):
+    feed_path = tmp_path / "feed.xml"
+    feed_bytes = b"<yml_catalog><shop /></yml_catalog>"
+    feed_path.write_bytes(feed_bytes)
+
+    body = _dry_run(
+        "feeds",
+        "add",
+        "--name",
+        "Feed A",
+        "--file-feed-path",
+        str(feed_path),
+        "--business-type",
+        "retail",
+    )
+    feed = body["params"]["Feeds"][0]
+    assert feed == {
+        "Name": "Feed A",
+        "BusinessType": "RETAIL",
+        "SourceType": "FILE",
+        "FileFeed": {
+            "Data": base64.b64encode(feed_bytes).decode("ascii"),
+            "Filename": "feed.xml",
+        },
+    }
+
+
+def test_feeds_add_payload_accepts_filefeed_filename_override(tmp_path):
+    feed_path = tmp_path / "source.tmp"
+    feed_path.write_bytes(b"id,name\n1,chair\n")
+
+    body = _dry_run(
+        "feeds",
+        "add",
+        "--name",
+        "Feed A",
+        "--file-feed-path",
+        str(feed_path),
+        "--file-feed-filename",
+        "products.csv",
+        "--business-type",
+        "RETAIL",
+    )
+    feed = body["params"]["Feeds"][0]
+    assert feed["SourceType"] == "FILE"
+    assert feed["FileFeed"]["Filename"] == "products.csv"
+
+
+def test_feeds_add_rejects_url_and_filefeed_mix(tmp_path):
+    feed_path = tmp_path / "feed.xml"
+    feed_path.write_text("<feed />", encoding="utf-8")
+
+    result = _rejected(
+        "feeds",
+        "add",
+        "--name",
+        "Feed A",
+        "--url",
+        "https://example.com/feed.xml",
+        "--file-feed-path",
+        str(feed_path),
+        "--business-type",
+        "RETAIL",
+    )
+    assert "Use either --url or --file-feed-path" in result.output
+
+
+def test_feeds_add_rejects_filefeed_filename_without_path():
+    result = _rejected(
+        "feeds",
+        "add",
+        "--name",
+        "Feed A",
+        "--file-feed-filename",
+        "feed.xml",
+        "--business-type",
+        "RETAIL",
+    )
+    assert "--file-feed-filename requires --file-feed-path" in result.output
+
+
+def test_feeds_add_rejects_overlong_filefeed_filename(tmp_path):
+    feed_path = tmp_path / "feed.xml"
+    feed_path.write_text("<feed />", encoding="utf-8")
+
+    result = _rejected(
+        "feeds",
+        "add",
+        "--name",
+        "Feed A",
+        "--file-feed-path",
+        str(feed_path),
+        "--file-feed-filename",
+        "x" * 256,
+        "--business-type",
+        "RETAIL",
+    )
+    assert "FileFeed.Filename must be at most 255 characters" in result.output
+
+
+def test_feeds_add_rejects_oversized_filefeed_before_reading(tmp_path):
+    feed_path = tmp_path / "huge-feed.xml"
+    with feed_path.open("wb") as fh:
+        fh.truncate((50 * 1024 * 1024) + 1)
+
+    result = _rejected(
+        "feeds",
+        "add",
+        "--name",
+        "Feed A",
+        "--file-feed-path",
+        str(feed_path),
+        "--business-type",
+        "RETAIL",
+    )
+    assert "FileFeed.Data must be at most 50 MiB" in result.output
+
+
 def test_feeds_update_payload_changes_url():
     body = _dry_run(
         "feeds",
@@ -4084,6 +4203,46 @@ def test_feeds_update_payload_can_clear_urlfeed_credentials():
     assert feed == {"Id": 9, "UrlFeed": {"Login": None, "Password": None}}
 
 
+def test_feeds_update_payload_accepts_filefeed_upload(tmp_path):
+    feed_path = tmp_path / "feed.yml"
+    feed_bytes = b"offer: 1\n"
+    feed_path.write_bytes(feed_bytes)
+
+    body = _dry_run(
+        "feeds",
+        "update",
+        "--id",
+        "9",
+        "--file-feed-path",
+        str(feed_path),
+    )
+    feed = body["params"]["Feeds"][0]
+    assert feed == {
+        "Id": 9,
+        "FileFeed": {
+            "Data": base64.b64encode(feed_bytes).decode("ascii"),
+            "Filename": "feed.yml",
+        },
+    }
+
+
+def test_feeds_update_rejects_urlfeed_and_filefeed_mix(tmp_path):
+    feed_path = tmp_path / "feed.xml"
+    feed_path.write_text("<feed />", encoding="utf-8")
+
+    result = _rejected(
+        "feeds",
+        "update",
+        "--id",
+        "9",
+        "--file-feed-path",
+        str(feed_path),
+        "--remove-utm-tags",
+        "YES",
+    )
+    assert "FileFeed options cannot be combined with UrlFeed options" in result.output
+
+
 def test_feeds_update_rejects_setting_and_clearing_login():
     result = CliRunner().invoke(
         cli,
@@ -4122,6 +4281,7 @@ def test_feeds_update_without_fields_errors():
     )
     assert "--name" in combined
     assert "--url" in combined
+    assert "--file-feed-path" in combined
     assert "--remove-utm-tags" in combined
     assert "--clear-feed-login" in combined
 
