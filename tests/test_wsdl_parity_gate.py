@@ -632,8 +632,26 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("adgroups", "add", "SmartAdGroup.FeedId"): {"--feed-id"},
     ("adgroups", "add", "SmartAdGroup.AdTitleSource"): {"--ad-title-source"},
     ("adgroups", "add", "SmartAdGroup.AdBodySource"): {"--ad-body-source"},
+    ("adgroups", "add", "NegativeKeywords"): {"--negative-keywords"},
+    ("adgroups", "add", "NegativeKeywords.Items"): {"--negative-keywords"},
+    ("adgroups", "add", "NegativeKeywordSharedSetIds"): {
+        "--negative-keyword-shared-set-ids"
+    },
+    ("adgroups", "add", "NegativeKeywordSharedSetIds.Items"): {
+        "--negative-keyword-shared-set-ids"
+    },
+    ("adgroups", "add", "TrackingParams"): {"--tracking-params"},
     ("adgroups", "update", "Name"): {"--name"},
     ("adgroups", "update", "RegionIds"): {"--region-ids"},
+    ("adgroups", "update", "NegativeKeywords"): {"--negative-keywords"},
+    ("adgroups", "update", "NegativeKeywords.Items"): {"--negative-keywords"},
+    ("adgroups", "update", "NegativeKeywordSharedSetIds"): {
+        "--negative-keyword-shared-set-ids"
+    },
+    ("adgroups", "update", "NegativeKeywordSharedSetIds.Items"): {
+        "--negative-keyword-shared-set-ids"
+    },
+    ("adgroups", "update", "TrackingParams"): {"--tracking-params"},
     ("ads", "add", "TextAd"): {"--type"},
     ("ads", "add", "TextAd.VCardId"): {"--vcard-id"},
     ("ads", "add", "TextAd.AdImageHash"): {"--image-hash"},
@@ -671,6 +689,26 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
         "--callouts-add",
         "--callouts-remove",
         "--callouts-set",
+    },
+    ("ads", "update", "TextAd.VideoExtension"): {"--video-extension-creative-id"},
+    ("ads", "update", "TextAd.VideoExtension.CreativeId"): {
+        "--video-extension-creative-id"
+    },
+    ("ads", "update", "TextAd.PriceExtension"): {
+        "--price-extension-price",
+        "--price-extension-old-price",
+        "--price-extension-price-qualifier",
+        "--price-extension-price-currency",
+    },
+    ("ads", "update", "TextAd.PriceExtension.Price"): {"--price-extension-price"},
+    ("ads", "update", "TextAd.PriceExtension.OldPrice"): {
+        "--price-extension-old-price"
+    },
+    ("ads", "update", "TextAd.PriceExtension.PriceQualifier"): {
+        "--price-extension-price-qualifier"
+    },
+    ("ads", "update", "TextAd.PriceExtension.PriceCurrency"): {
+        "--price-extension-price-currency"
     },
     ("ads", "update", "MobileAppAd"): {"--type"},
     ("ads", "update", "MobileAppAd.AdImageHash"): {"--image-hash"},
@@ -759,9 +797,18 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("dynamicfeedadtargets", "add", "AvailableItemsOnly"): {"--available-items-only"},
     ("feeds", "add", "UrlFeed"): {"--url"},
     ("feeds", "add", "UrlFeed.Url"): {"--url"},
+    ("feeds", "add", "UrlFeed.RemoveUtmTags"): {"--remove-utm-tags"},
+    ("feeds", "add", "UrlFeed.Login"): {"--feed-login"},
+    ("feeds", "add", "UrlFeed.Password"): {"--feed-password"},
     ("feeds", "update", "Name"): {"--name"},
     ("feeds", "update", "UrlFeed"): {"--url"},
     ("feeds", "update", "UrlFeed.Url"): {"--url"},
+    ("feeds", "update", "UrlFeed.RemoveUtmTags"): {"--remove-utm-tags"},
+    ("feeds", "update", "UrlFeed.Login"): {"--feed-login", "--clear-feed-login"},
+    ("feeds", "update", "UrlFeed.Password"): {
+        "--feed-password",
+        "--clear-feed-password",
+    },
     ("creatives", "add", "VideoExtensionCreative.VideoId"): {"--video-id"},
     ("keywords", "add", "Bid"): {"--bid"},
     ("keywords", "add", "ContextBid"): {"--context-bid"},
@@ -781,16 +828,23 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("keywordbids", "set", "NetworkBid"): {"--network-bid"},
     ("retargeting", "add", "Rules"): {"--rule"},
     ("retargeting", "add", "Type"): {"--type"},
+    ("retargeting", "add", "Description"): {"--description"},
     ("retargeting", "add", "Rules.Arguments"): {"--rule"},
+    ("retargeting", "add", "Rules.Arguments.MembershipLifeSpan"): {"--rule"},
+    ("retargeting", "add", "Rules.Arguments.ExternalId"): {"--rule"},
     ("retargeting", "add", "Rules.Operator"): {"--rule"},
     ("retargeting", "update", "Rules"): {"--rule"},
     ("retargeting", "update", "Name"): {"--name"},
+    ("retargeting", "update", "Description"): {"--description"},
     ("retargeting", "update", "Rules.Arguments"): {"--rule"},
+    ("retargeting", "update", "Rules.Arguments.MembershipLifeSpan"): {"--rule"},
+    ("retargeting", "update", "Rules.Arguments.ExternalId"): {"--rule"},
     ("retargeting", "update", "Rules.Operator"): {"--rule"},
     ("sitelinks", "add", "Sitelinks"): {"--sitelink"},
     ("sitelinks", "add", "Sitelinks.Title"): {"--sitelink"},
     ("sitelinks", "add", "Sitelinks.Href"): {"--sitelink"},
     ("sitelinks", "add", "Sitelinks.Description"): {"--sitelink"},
+    ("sitelinks", "add", "Sitelinks.TurboPageId"): {"--sitelink"},
     ("smartadtargets", "add", "StrategyPriority"): {"--priority"},
     ("smartadtargets", "add", "AverageCpc"): {"--average-cpc"},
     ("smartadtargets", "add", "AverageCpa"): {"--average-cpa"},
@@ -809,6 +863,16 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("vcards", "add", "Phone.CityCode"): {"--phone-city-code"},
     ("vcards", "add", "Phone.PhoneNumber"): {"--phone-number"},
     ("vcards", "add", "Phone.Extension"): {"--phone-extension"},
+    ("vcards", "add", "InstantMessenger"): {
+        "--instant-messenger-client",
+        "--instant-messenger-login",
+    },
+    ("vcards", "add", "InstantMessenger.MessengerClient"): {
+        "--instant-messenger-client"
+    },
+    ("vcards", "add", "InstantMessenger.MessengerLogin"): {
+        "--instant-messenger-login"
+    },
     ("vcards", "add", "Street"): {"--street"},
     ("vcards", "add", "House"): {"--house"},
     ("vcards", "add", "Building"): {"--building"},
@@ -817,6 +881,20 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("vcards", "add", "ContactEmail"): {"--contact-email"},
     ("vcards", "add", "Ogrn"): {"--ogrn"},
     ("vcards", "add", "MetroStationId"): {"--metro-station-id"},
+    ("vcards", "add", "PointOnMap"): {
+        "--point-on-map-x",
+        "--point-on-map-y",
+        "--point-on-map-x1",
+        "--point-on-map-y1",
+        "--point-on-map-x2",
+        "--point-on-map-y2",
+    },
+    ("vcards", "add", "PointOnMap.X"): {"--point-on-map-x"},
+    ("vcards", "add", "PointOnMap.Y"): {"--point-on-map-y"},
+    ("vcards", "add", "PointOnMap.X1"): {"--point-on-map-x1"},
+    ("vcards", "add", "PointOnMap.Y1"): {"--point-on-map-y1"},
+    ("vcards", "add", "PointOnMap.X2"): {"--point-on-map-x2"},
+    ("vcards", "add", "PointOnMap.Y2"): {"--point-on-map-y2"},
     ("vcards", "add", "ContactPerson"): {"--contact-person"},
 }
 
@@ -956,36 +1034,6 @@ OPTIONAL_FIELD_DEFAULT_FOLLOWUPS: dict[tuple[str, str], dict[str, str]] = {
 }
 
 OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
-    ("adgroups", "add", "TrackingParams"): {
-        "status": "missing_followup",
-        "issue": "#242",
-        "note": "AdGroupAddItem.TrackingParams has no typed flag.",
-    },
-    ("adgroups", "update", "TrackingParams"): {
-        "status": "missing_followup",
-        "issue": "#242",
-        "note": "AdGroupUpdateItem.TrackingParams has no typed flag.",
-    },
-    ("adgroups", "add", "NegativeKeywords"): {
-        "status": "missing_followup",
-        "issue": "#243",
-        "note": "Ad-group-level negative keywords are not exposed on add.",
-    },
-    ("adgroups", "update", "NegativeKeywords"): {
-        "status": "missing_followup",
-        "issue": "#243",
-        "note": "Ad-group-level negative keywords are not exposed on update.",
-    },
-    ("adgroups", "add", "NegativeKeywordSharedSetIds"): {
-        "status": "missing_followup",
-        "issue": "#243",
-        "note": "Shared-set IDs are read-filterable but not addable.",
-    },
-    ("adgroups", "update", "NegativeKeywordSharedSetIds"): {
-        "status": "missing_followup",
-        "issue": "#243",
-        "note": "Shared-set IDs are read-filterable but not updatable.",
-    },
     ("adgroups", "add", "DynamicTextAdGroup.AutotargetingCategories"): {
         "status": "missing_followup",
         "issue": "#247",
@@ -1036,30 +1084,15 @@ OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
         "issue": "#244",
         "note": "Keyword autotargeting settings have no typed update flags.",
     },
-    ("ads", "update", "TextAd.VideoExtension"): {
+    ("feeds", "add", "FileFeed"): {
         "status": "missing_followup",
-        "issue": "#245",
-        "note": "TEXT_AD video extension update is WSDL-supported but absent.",
+        "issue": "#264",
+        "note": "FileFeed upload/base64 CLI support is split from #253.",
     },
-    ("ads", "update", "TextAd.PriceExtension"): {
+    ("feeds", "update", "FileFeed"): {
         "status": "missing_followup",
-        "issue": "#245",
-        "note": "TEXT_AD price extension update is WSDL-supported but absent.",
-    },
-    ("sitelinks", "add", "Sitelinks.TurboPageId"): {
-        "status": "missing_followup",
-        "issue": "#257",
-        "note": "Sitelink TurboPageId has no typed add flag.",
-    },
-    ("vcards", "add", "InstantMessenger"): {
-        "status": "missing_followup",
-        "issue": "#246",
-        "note": "VCard InstantMessenger nested object has no typed flags.",
-    },
-    ("vcards", "add", "PointOnMap"): {
-        "status": "missing_followup",
-        "issue": "#246",
-        "note": "VCard PointOnMap nested object has no typed flags.",
+        "issue": "#264",
+        "note": "FileFeed upload/base64 CLI support is split from #253.",
     },
     ("adgroups", "add", "MobileAppAdGroup"): {
         "status": "missing_followup",

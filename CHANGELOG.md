@@ -16,13 +16,57 @@
   / `MOBILE_APP_AD` with the standard "not compatible with --type"
   message. Empty CSV input is rejected up-front rather than silently
   producing a no-op payload. Closes #238.
+- `direct adgroups add` and `direct adgroups update` now expose
+  `--tracking-params` for the top-level `AdGroup*.TrackingParams`
+  field. Values are limited to the documented 1024-character maximum;
+  `update` does not require `--type` because the field belongs to the
+  ad group item itself, not a subtype block. Closes #242.
+- `direct adgroups add` and `direct adgroups update` now expose
+  `--negative-keywords` and `--negative-keyword-shared-set-ids` for
+  `NegativeKeywords.Items` and `NegativeKeywordSharedSetIds.Items`.
+  Empty list input is rejected, shared-set IDs are parsed as integers,
+  and `update` treats either flag as a meaningful field for the
+  no-op guard. Closes #243.
+- `direct ads update --type TEXT_AD` now exposes
+  `--video-extension-creative-id` for `TextAd.VideoExtension.CreativeId`
+  and `--price-extension-price`, `--price-extension-old-price`,
+  `--price-extension-price-qualifier`, and
+  `--price-extension-price-currency` for `TextAd.PriceExtension`.
+  These flags are TEXT_AD-only and are rejected on other ad subtypes
+  before any request is built. Closes #245.
+- `direct vcards add` now exposes `--instant-messenger-client` and
+  `--instant-messenger-login` for `InstantMessenger.MessengerClient`
+  and `InstantMessenger.MessengerLogin`, plus the six
+  `--point-on-map-*` coordinate flags for `PointOnMap`. Partial
+  `InstantMessenger` or `PointOnMap` input is rejected with
+  `click.UsageError` so required nested WSDL fields are not omitted.
+  Closes #246.
+- `direct feeds add` and `direct feeds update` now expose
+  `--remove-utm-tags`, `--feed-login`, and `--feed-password` for
+  `UrlFeed.RemoveUtmTags`, `UrlFeed.Login`, and `UrlFeed.Password`.
+  `feeds update` also exposes `--clear-feed-login` and
+  `--clear-feed-password` for the nillable credential fields, with
+  mutual-exclusion checks against the corresponding set flags.
+  `FileFeed` upload/base64 support was split to follow-up #264.
+  Closes #253.
+- `direct retargeting add` and `direct retargeting update` now expose
+  `--description` for the optional retargeting-list `Description`
+  field. Description input is validated against the documented maximum
+  length before building the request, and update-only description
+  changes satisfy the no-op guard. Closes #256.
+- `direct sitelinks add` now supports `TurboPageId` for
+  `SitelinkAddItem.TurboPageId` through the canonical `--sitelink`
+  pipe spec by accepting an optional fourth segment after
+  `Title|Href|Description`. Rows must provide either `Href` or
+  `TurboPageId`, so Turbo-only sitelinks are accepted without relaxing
+  empty-row validation. Closes #257.
 
 **Changed:**
 
 - WSDL parity now includes a soft optional-field audit for issue #239.
   `scripts/build_wsdl_optional_field_audit.py --check` regenerates and
   compares `tests/WSDL_OPTIONAL_FIELD_AUDIT.md`, covering cached mutating
-  WSDL item fields through nesting depth 2. Confirmed `minOccurs=0`
+  WSDL item fields at unbounded nesting depth. Confirmed `minOccurs=0`
   gaps are tracked as linked `missing_followup` rows instead of being
   invisible to the required-field gate.
 

@@ -379,10 +379,10 @@ direct campaigns delete --id 12345
 
 ```bash
 direct adgroups get --campaign-ids 1,2,3 --limit 50
-direct adgroups add --name "Group 1" --campaign-id 12345 --region-ids 1,225 --dry-run
+direct adgroups add --name "Group 1" --campaign-id 12345 --region-ids 1,225 --negative-keywords "repair,used" --tracking-params "utm_source=direct" --dry-run
 direct adgroups add --name "Dynamic Group" --campaign-id 12345 --type DYNAMIC_TEXT_AD_GROUP --region-ids 1,225 --domain-url example.com --dry-run
 direct adgroups add --name "Smart Group" --campaign-id 12345 --type SMART_AD_GROUP --region-ids 1,225 --feed-id 170 --ad-title-source FEED_NAME --ad-body-source FEED_NAME --dry-run
-direct adgroups update --id 67890 --name "New Name" --status SUSPENDED --region-ids 1,225
+direct adgroups update --id 67890 --negative-keyword-shared-set-ids 10,11 --tracking-params "utm_source=direct"
 direct adgroups delete --id 67890
 ```
 
@@ -399,6 +399,7 @@ direct ads update --id 99999 --type TEXT_AD --image-hash abcdefghijklmnopqrst
 direct ads update --id 99999 --type TEXT_AD --title2 "New second headline" --vcard-id 222
 direct ads update --id 99999 --type TEXT_AD --callouts-add "111,222" --callouts-remove "333"
 direct ads update --id 99999 --type TEXT_AD --callouts-set "444,555"
+direct ads update --id 99999 --type TEXT_AD --video-extension-creative-id 777 --price-extension-price 123450000 --price-extension-price-qualifier FROM --price-extension-price-currency RUB
 direct ads delete --id 99999
 ```
 
@@ -409,6 +410,9 @@ Available TEXT_AD typed flags for `ads add` / `ads update`: `--title`, `--text`,
 `TextAdUpdateBase.CalloutSetting` (`ext:AdExtensionSetting`) field on an
 existing ad — `--callouts-set` replaces the whole callout list and is mutually
 exclusive with the incremental `--callouts-add` / `--callouts-remove` pair.
+It also exposes `--video-extension-creative-id` and `--price-extension-*` flags
+for `TextAd.VideoExtension` and `TextAd.PriceExtension`; price values use the
+Yandex Direct API long-unit format (price multiplied by 1,000,000).
 `--mobile` (default `NO`) and `--ad-extensions` are `ads add`-only —
 `TextAdUpdate` does not contain `Mobile`, and on update ad-extensions are
 managed through the `--callouts-*` flags above. TEXT_IMAGE_AD additionally
@@ -480,8 +484,8 @@ direct changes check-dictionaries
 
 # Keyword research and retargeting
 direct keywordsresearch has-search-volume --keywords "buy laptop,buy desktop"
-direct retargeting add --name "List A" --type AUDIENCE --rule "ALL:12345:30|67890:7" --dry-run
-direct retargeting update --id 55 --name "Renamed" --rule "ANY:12345:30" --dry-run
+direct retargeting add --name "List A" --description "High intent users" --type AUDIENCE --rule "ALL:12345:30|67890:7" --dry-run
+direct retargeting update --id 55 --name "Renamed" --description "Updated note" --rule "ANY:12345:30" --dry-run
 
 # Bids and modifiers
 direct bids get --campaign-ids 123 --fields CampaignId,AdGroupId,KeywordId,Bid
@@ -516,13 +520,13 @@ direct dynamicfeedadtargets add --adgroup-id 33 --name "Feed slice A" --conditio
 direct dynamicfeedadtargets set-bids --id 789 --bid 6500000 --context-bid 4000000 --dry-run
 
 # Extensions, assets, feeds, and clients
-direct sitelinks add --sitelink "Docs|https://example.com/docs" --sitelink "Help|https://example.com/help|Desk" --dry-run
-direct vcards add --campaign-id 555 --country "Russia" --city "Moscow" --company-name "Acme" --work-time 1#5#9#0#18#0 --phone-country-code +7 --phone-city-code 495 --phone-number 1234567 --dry-run
+direct sitelinks add --sitelink "Docs|https://example.com/docs|API docs|12345" --sitelink "Help|https://example.com/help|Desk" --dry-run
+direct vcards add --campaign-id 555 --country "Russia" --city "Moscow" --company-name "Acme" --work-time 1#5#9#0#18#0 --phone-country-code +7 --phone-city-code 495 --phone-number 1234567 --instant-messenger-client telegram --instant-messenger-login acme_support --point-on-map-x 37.6173 --point-on-map-y 55.7558 --point-on-map-x1 37.60 --point-on-map-y1 55.74 --point-on-map-x2 37.63 --point-on-map-y2 55.77 --dry-run
 direct adextensions add --callout-text "Free shipping" --dry-run
 direct adimages add --name banner.png --image-data BASE64DATA --type ICON --dry-run
 direct creatives add --video-id video-id --dry-run
-direct feeds add --name "Feed A" --url "https://example.com/feed.xml" --business-type RETAIL --dry-run
-direct feeds update --id 18 --name "Feed A v2" --url "https://example.com/feed-v2.xml" --dry-run
+direct feeds add --name "Feed A" --url "https://example.com/feed.xml" --business-type RETAIL --remove-utm-tags YES --feed-login feedbot --dry-run
+direct feeds update --id 18 --name "Feed A v2" --url "https://example.com/feed-v2.xml" --remove-utm-tags NO --clear-feed-login --clear-feed-password --dry-run
 direct clients update --client-info "Priority client" --phone +70000000000 --notification-email user@example.com --notification-lang EN --email-subscription RECEIVE_RECOMMENDATIONS=YES --setting DISPLAY_STORE_RATING=NO --dry-run
 direct --login CLIENT_LOGIN clients update --phone +70000000000 --notification-email user@example.com --dry-run
 direct agencyclients add-passport-organization --name "Org" --currency RUB --notification-email ops@example.com --notification-lang EN --no-send-account-news --send-warnings --dry-run
@@ -1080,10 +1084,10 @@ direct campaigns delete --id 12345
 
 ```bash
 direct adgroups get --campaign-ids 1,2,3 --limit 50
-direct adgroups add --name "Группа 1" --campaign-id 12345 --region-ids 1,225 --dry-run
+direct adgroups add --name "Группа 1" --campaign-id 12345 --region-ids 1,225 --negative-keywords "ремонт,б/у" --tracking-params "utm_source=direct" --dry-run
 direct adgroups add --name "Динамическая группа" --campaign-id 12345 --type DYNAMIC_TEXT_AD_GROUP --region-ids 1,225 --domain-url example.com --dry-run
 direct adgroups add --name "Смарт-группа" --campaign-id 12345 --type SMART_AD_GROUP --region-ids 1,225 --feed-id 170 --ad-title-source FEED_NAME --ad-body-source FEED_NAME --dry-run
-direct adgroups update --id 67890 --name "Новое название" --status SUSPENDED --region-ids 1,225
+direct adgroups update --id 67890 --negative-keyword-shared-set-ids 10,11 --tracking-params "utm_source=direct"
 direct adgroups delete --id 67890
 ```
 
@@ -1100,6 +1104,7 @@ direct ads update --id 99999 --type TEXT_AD --image-hash abcdefghijklmnopqrst
 direct ads update --id 99999 --type TEXT_AD --title2 "Новый второй заголовок" --vcard-id 222
 direct ads update --id 99999 --type TEXT_AD --callouts-add "111,222" --callouts-remove "333"
 direct ads update --id 99999 --type TEXT_AD --callouts-set "444,555"
+direct ads update --id 99999 --type TEXT_AD --video-extension-creative-id 777 --price-extension-price 123450000 --price-extension-price-qualifier FROM --price-extension-price-currency RUB
 direct ads delete --id 99999
 ```
 
@@ -1110,7 +1115,11 @@ direct ads delete --id 99999
 `--callouts-set` для управления полем `TextAdUpdateBase.CalloutSetting`
 (`ext:AdExtensionSetting`) у существующего объявления — `--callouts-set`
 заменяет весь список выносок и взаимоисключим с инкрементальной парой
-`--callouts-add` / `--callouts-remove`. `--mobile` (default `NO`) и
+`--callouts-add` / `--callouts-remove`. Также доступны
+`--video-extension-creative-id` и флаги `--price-extension-*` для
+`TextAd.VideoExtension` и `TextAd.PriceExtension`; цены передаются в формате
+long-единиц API Яндекс Директа (цена, умноженная на 1 000 000). `--mobile`
+(default `NO`) и
 `--ad-extensions` доступны только в `ads add` — WSDL `TextAdUpdate` не
 содержит `Mobile`, а в `ads update` расширения управляются через флаги
 `--callouts-*` выше. Для TEXT_IMAGE_AD дополнительно доступен
@@ -1182,8 +1191,8 @@ direct changes check-dictionaries
 
 # Исследование ключевых слов и ретаргетинг
 direct keywordsresearch has-search-volume --keywords "купить ноутбук,купить компьютер"
-direct retargeting add --name "Список A" --type AUDIENCE --rule "ALL:12345:30|67890:7" --dry-run
-direct retargeting update --id 55 --name "Переименованный список" --rule "ANY:12345:30" --dry-run
+direct retargeting add --name "Список A" --description "Теплая аудитория" --type AUDIENCE --rule "ALL:12345:30|67890:7" --dry-run
+direct retargeting update --id 55 --name "Переименованный список" --description "Обновленное примечание" --rule "ANY:12345:30" --dry-run
 
 # Ставки и модификаторы
 direct bids get --campaign-ids 123 --fields CampaignId,AdGroupId,KeywordId,Bid
@@ -1218,13 +1227,13 @@ direct dynamicfeedadtargets add --adgroup-id 33 --name "Срез фида А" --
 direct dynamicfeedadtargets set-bids --id 789 --bid 6500000 --context-bid 4000000 --dry-run
 
 # Расширения, ассеты, фиды и клиенты
-direct sitelinks add --sitelink "Docs|https://example.com/docs" --sitelink "Help|https://example.com/help|Desk" --dry-run
-direct vcards add --campaign-id 555 --country "Россия" --city "Москва" --company-name "Acme" --work-time 1#5#9#0#18#0 --phone-country-code +7 --phone-city-code 495 --phone-number 1234567 --dry-run
+direct sitelinks add --sitelink "Docs|https://example.com/docs|API docs|12345" --sitelink "Help|https://example.com/help|Desk" --dry-run
+direct vcards add --campaign-id 555 --country "Россия" --city "Москва" --company-name "Acme" --work-time 1#5#9#0#18#0 --phone-country-code +7 --phone-city-code 495 --phone-number 1234567 --instant-messenger-client telegram --instant-messenger-login acme_support --point-on-map-x 37.6173 --point-on-map-y 55.7558 --point-on-map-x1 37.60 --point-on-map-y1 55.74 --point-on-map-x2 37.63 --point-on-map-y2 55.77 --dry-run
 direct adextensions add --callout-text "Free shipping" --dry-run
 direct adimages add --name banner.png --image-data BASE64DATA --type ICON --dry-run
 direct creatives add --video-id video-id --dry-run
-direct feeds add --name "Фид A" --url "https://example.com/feed.xml" --business-type RETAIL --dry-run
-direct feeds update --id 18 --name "Фид A v2" --url "https://example.com/feed-v2.xml" --dry-run
+direct feeds add --name "Фид A" --url "https://example.com/feed.xml" --business-type RETAIL --remove-utm-tags YES --feed-login feedbot --dry-run
+direct feeds update --id 18 --name "Фид A v2" --url "https://example.com/feed-v2.xml" --remove-utm-tags NO --clear-feed-login --clear-feed-password --dry-run
 direct clients update --client-info "Приоритетный клиент" --phone +70000000000 --notification-email user@example.com --notification-lang EN --email-subscription RECEIVE_RECOMMENDATIONS=YES --setting DISPLAY_STORE_RATING=NO --dry-run
 direct --login CLIENT_LOGIN clients update --phone +70000000000 --notification-email user@example.com --dry-run
 direct agencyclients add-passport-organization --name "Org" --currency RUB --notification-email ops@example.com --notification-lang EN --no-send-account-news --send-warnings --dry-run

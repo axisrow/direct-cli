@@ -11,18 +11,13 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2857 |
-| `supported` | 384 |
+| `missing_followup` | 2817 |
+| `supported` | 424 |
 
 ## Confirmed Follow-Ups
 
 | CLI command | WSDL path | Issue / note |
 |---|---|---|
-| `adgroups.add` | `NegativeKeywords` | Ad-group-level negative keywords are not exposed on add. [#243](https://github.com/axisrow/direct-cli/issues/243) |
-| `adgroups.add` | `NegativeKeywords.Items` | Ad-group-level negative keywords are not exposed on add. [#243](https://github.com/axisrow/direct-cli/issues/243); inherited from `NegativeKeywords` |
-| `adgroups.add` | `NegativeKeywordSharedSetIds` | Shared-set IDs are read-filterable but not addable. [#243](https://github.com/axisrow/direct-cli/issues/243) |
-| `adgroups.add` | `NegativeKeywordSharedSetIds.Items` | Shared-set IDs are read-filterable but not addable. [#243](https://github.com/axisrow/direct-cli/issues/243); inherited from `NegativeKeywordSharedSetIds` |
-| `adgroups.add` | `TrackingParams` | AdGroupAddItem.TrackingParams has no typed flag. [#242](https://github.com/axisrow/direct-cli/issues/242) |
 | `adgroups.add` | `MobileAppAdGroup` | Rare ad group subtype block is not exposed by --type. [#247](https://github.com/axisrow/direct-cli/issues/247) |
 | `adgroups.add` | `MobileAppAdGroup.StoreUrl` | Rare ad group subtype block is not exposed by --type. [#247](https://github.com/axisrow/direct-cli/issues/247); inherited from `MobileAppAdGroup` |
 | `adgroups.add` | `MobileAppAdGroup.TargetDeviceType` | Rare ad group subtype block is not exposed by --type. [#247](https://github.com/axisrow/direct-cli/issues/247); inherited from `MobileAppAdGroup` |
@@ -67,11 +62,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `adgroups.add` | `TextAdGroupFeedParams.FeedId` | Rare ad group feed params block has no typed add flags. [#247](https://github.com/axisrow/direct-cli/issues/247); inherited from `TextAdGroupFeedParams` |
 | `adgroups.add` | `TextAdGroupFeedParams.FeedCategoryIds` | Rare ad group feed params block has no typed add flags. [#247](https://github.com/axisrow/direct-cli/issues/247); inherited from `TextAdGroupFeedParams` |
 | `adgroups.add` | `TextAdGroupFeedParams.FeedCategoryIds.Items` | Rare ad group feed params block has no typed add flags. [#247](https://github.com/axisrow/direct-cli/issues/247); inherited from `TextAdGroupFeedParams` |
-| `adgroups.update` | `NegativeKeywords` | Ad-group-level negative keywords are not exposed on update. [#243](https://github.com/axisrow/direct-cli/issues/243) |
-| `adgroups.update` | `NegativeKeywords.Items` | Ad-group-level negative keywords are not exposed on update. [#243](https://github.com/axisrow/direct-cli/issues/243); inherited from `NegativeKeywords` |
-| `adgroups.update` | `NegativeKeywordSharedSetIds` | Shared-set IDs are read-filterable but not updatable. [#243](https://github.com/axisrow/direct-cli/issues/243) |
-| `adgroups.update` | `NegativeKeywordSharedSetIds.Items` | Shared-set IDs are read-filterable but not updatable. [#243](https://github.com/axisrow/direct-cli/issues/243); inherited from `NegativeKeywordSharedSetIds` |
-| `adgroups.update` | `TrackingParams` | AdGroupUpdateItem.TrackingParams has no typed flag. [#242](https://github.com/axisrow/direct-cli/issues/242) |
 | `adgroups.update` | `MobileAppAdGroup` | Rare ad group subtype block is not exposed by update. [#247](https://github.com/axisrow/direct-cli/issues/247) |
 | `adgroups.update` | `MobileAppAdGroup.TargetDeviceType` | Rare ad group subtype block is not exposed by update. [#247](https://github.com/axisrow/direct-cli/issues/247); inherited from `MobileAppAdGroup` |
 | `adgroups.update` | `MobileAppAdGroup.TargetCarrier` | Rare ad group subtype block is not exposed by update. [#247](https://github.com/axisrow/direct-cli/issues/247); inherited from `MobileAppAdGroup` |
@@ -233,13 +223,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.update` | `TextAd.CalloutSetting.AdExtensions.Operation` | ads.update optional WSDL path needs typed support or N/A. [#240](https://github.com/axisrow/direct-cli/issues/240) |
 | `ads.update` | `TextAd.FinalUrl` | ads.update optional WSDL path needs typed support or N/A. [#240](https://github.com/axisrow/direct-cli/issues/240) |
 | `ads.update` | `TextAd.AgeLabel` | ads.update optional WSDL path needs typed support or N/A. [#240](https://github.com/axisrow/direct-cli/issues/240) |
-| `ads.update` | `TextAd.VideoExtension` | TEXT_AD video extension update is WSDL-supported but absent. [#245](https://github.com/axisrow/direct-cli/issues/245) |
-| `ads.update` | `TextAd.VideoExtension.CreativeId` | TEXT_AD video extension update is WSDL-supported but absent. [#245](https://github.com/axisrow/direct-cli/issues/245); inherited from `TextAd.VideoExtension` |
-| `ads.update` | `TextAd.PriceExtension` | TEXT_AD price extension update is WSDL-supported but absent. [#245](https://github.com/axisrow/direct-cli/issues/245) |
-| `ads.update` | `TextAd.PriceExtension.Price` | TEXT_AD price extension update is WSDL-supported but absent. [#245](https://github.com/axisrow/direct-cli/issues/245); inherited from `TextAd.PriceExtension` |
-| `ads.update` | `TextAd.PriceExtension.OldPrice` | TEXT_AD price extension update is WSDL-supported but absent. [#245](https://github.com/axisrow/direct-cli/issues/245); inherited from `TextAd.PriceExtension` |
-| `ads.update` | `TextAd.PriceExtension.PriceQualifier` | TEXT_AD price extension update is WSDL-supported but absent. [#245](https://github.com/axisrow/direct-cli/issues/245); inherited from `TextAd.PriceExtension` |
-| `ads.update` | `TextAd.PriceExtension.PriceCurrency` | TEXT_AD price extension update is WSDL-supported but absent. [#245](https://github.com/axisrow/direct-cli/issues/245); inherited from `TextAd.PriceExtension` |
 | `ads.update` | `TextAd.BusinessId` | ads.update optional WSDL path needs typed support or N/A. [#240](https://github.com/axisrow/direct-cli/issues/240) |
 | `ads.update` | `TextAd.PreferVCardOverBusiness` | ads.update optional WSDL path needs typed support or N/A. [#240](https://github.com/axisrow/direct-cli/issues/240) |
 | `ads.update` | `TextAd.ErirAdDescription` | ads.update optional WSDL path needs typed support or N/A. [#240](https://github.com/axisrow/direct-cli/issues/240) |
@@ -2603,18 +2586,12 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `dynamicfeedadtargets.add` | `Conditions.Items.Operand` | dynamicfeedadtargets.add optional WSDL path needs typed support or N/A. [#252](https://github.com/axisrow/direct-cli/issues/252) |
 | `dynamicfeedadtargets.add` | `Conditions.Items.Operator` | dynamicfeedadtargets.add optional WSDL path needs typed support or N/A. [#252](https://github.com/axisrow/direct-cli/issues/252) |
 | `dynamicfeedadtargets.add` | `Conditions.Items.Arguments` | dynamicfeedadtargets.add optional WSDL path needs typed support or N/A. [#252](https://github.com/axisrow/direct-cli/issues/252) |
-| `feeds.add` | `UrlFeed.RemoveUtmTags` | feeds.add optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.add` | `UrlFeed.Login` | feeds.add optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.add` | `UrlFeed.Password` | feeds.add optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.add` | `FileFeed` | feeds.add optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.add` | `FileFeed.Data` | feeds.add optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.add` | `FileFeed.Filename` | feeds.add optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.update` | `UrlFeed.RemoveUtmTags` | feeds.update optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.update` | `UrlFeed.Login` | feeds.update optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.update` | `UrlFeed.Password` | feeds.update optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.update` | `FileFeed` | feeds.update optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.update` | `FileFeed.Data` | feeds.update optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.update` | `FileFeed.Filename` | feeds.update optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
+| `feeds.add` | `FileFeed` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264) |
+| `feeds.add` | `FileFeed.Data` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
+| `feeds.add` | `FileFeed.Filename` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
+| `feeds.update` | `FileFeed` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264) |
+| `feeds.update` | `FileFeed.Data` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
+| `feeds.update` | `FileFeed.Filename` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
 | `keywordbids.set` | `CampaignId` | keywordbids.set optional WSDL path needs typed support or N/A. [#252](https://github.com/axisrow/direct-cli/issues/252) |
 | `keywordbids.set` | `AdGroupId` | keywordbids.set optional WSDL path needs typed support or N/A. [#252](https://github.com/axisrow/direct-cli/issues/252) |
 | `keywordbids.set` | `AutotargetingSearchBidIsAuto` | keywordbids.set optional WSDL path needs typed support or N/A. [#252](https://github.com/axisrow/direct-cli/issues/252) |
@@ -2655,13 +2632,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `keywords.update` | `AutotargetingSettings.BrandOptions.WithoutBrands` | Keyword autotargeting settings have no typed update flags. [#244](https://github.com/axisrow/direct-cli/issues/244); inherited from `AutotargetingSettings` |
 | `keywords.update` | `AutotargetingSettings.BrandOptions.WithAdvertiserBrand` | Keyword autotargeting settings have no typed update flags. [#244](https://github.com/axisrow/direct-cli/issues/244); inherited from `AutotargetingSettings` |
 | `keywords.update` | `AutotargetingSettings.BrandOptions.WithCompetitorsBrand` | Keyword autotargeting settings have no typed update flags. [#244](https://github.com/axisrow/direct-cli/issues/244); inherited from `AutotargetingSettings` |
-| `retargeting.add` | `Description` | retargeting.add optional WSDL path needs typed support or N/A. [#256](https://github.com/axisrow/direct-cli/issues/256) |
-| `retargeting.add` | `Rules.Arguments.MembershipLifeSpan` | retargeting.add optional WSDL path needs typed support or N/A. [#256](https://github.com/axisrow/direct-cli/issues/256) |
-| `retargeting.add` | `Rules.Arguments.ExternalId` | retargeting.add optional WSDL path needs typed support or N/A. [#256](https://github.com/axisrow/direct-cli/issues/256) |
-| `retargeting.update` | `Description` | retargeting.update optional WSDL path needs typed support or N/A. [#256](https://github.com/axisrow/direct-cli/issues/256) |
-| `retargeting.update` | `Rules.Arguments.MembershipLifeSpan` | retargeting.update optional WSDL path needs typed support or N/A. [#256](https://github.com/axisrow/direct-cli/issues/256) |
-| `retargeting.update` | `Rules.Arguments.ExternalId` | retargeting.update optional WSDL path needs typed support or N/A. [#256](https://github.com/axisrow/direct-cli/issues/256) |
-| `sitelinks.add` | `Sitelinks.TurboPageId` | Sitelink TurboPageId has no typed add flag. [#257](https://github.com/axisrow/direct-cli/issues/257) |
 | `smartadtargets.add` | `Conditions.Items.Operand` | smartadtargets.add optional WSDL path needs typed support or N/A. [#252](https://github.com/axisrow/direct-cli/issues/252) |
 | `smartadtargets.add` | `Conditions.Items.Operator` | smartadtargets.add optional WSDL path needs typed support or N/A. [#252](https://github.com/axisrow/direct-cli/issues/252) |
 | `smartadtargets.add` | `Conditions.Items.Arguments` | smartadtargets.add optional WSDL path needs typed support or N/A. [#252](https://github.com/axisrow/direct-cli/issues/252) |
@@ -2865,16 +2835,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `strategies.update` | `PayForConversionMultipleGoals.CustomPeriodBudget.StartDate` | strategies.update optional WSDL path needs typed support or N/A. [#251](https://github.com/axisrow/direct-cli/issues/251) |
 | `strategies.update` | `PayForConversionMultipleGoals.CustomPeriodBudget.EndDate` | strategies.update optional WSDL path needs typed support or N/A. [#251](https://github.com/axisrow/direct-cli/issues/251) |
 | `strategies.update` | `PayForConversionMultipleGoals.CustomPeriodBudget.AutoContinue` | strategies.update optional WSDL path needs typed support or N/A. [#251](https://github.com/axisrow/direct-cli/issues/251) |
-| `vcards.add` | `InstantMessenger` | VCard InstantMessenger nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246) |
-| `vcards.add` | `InstantMessenger.MessengerClient` | VCard InstantMessenger nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246); inherited from `InstantMessenger` |
-| `vcards.add` | `InstantMessenger.MessengerLogin` | VCard InstantMessenger nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246); inherited from `InstantMessenger` |
-| `vcards.add` | `PointOnMap` | VCard PointOnMap nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246) |
-| `vcards.add` | `PointOnMap.X` | VCard PointOnMap nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246); inherited from `PointOnMap` |
-| `vcards.add` | `PointOnMap.Y` | VCard PointOnMap nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246); inherited from `PointOnMap` |
-| `vcards.add` | `PointOnMap.X1` | VCard PointOnMap nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246); inherited from `PointOnMap` |
-| `vcards.add` | `PointOnMap.Y1` | VCard PointOnMap nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246); inherited from `PointOnMap` |
-| `vcards.add` | `PointOnMap.X2` | VCard PointOnMap nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246); inherited from `PointOnMap` |
-| `vcards.add` | `PointOnMap.Y2` | VCard PointOnMap nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246); inherited from `PointOnMap` |
 
 ## Field Table
 
@@ -2885,11 +2845,11 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `adgroups.add` | `adgroups.add` | `Name` | `string` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `adgroups.add` | `adgroups.add` | `CampaignId` | `long` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `adgroups.add` | `adgroups.add` | `RegionIds` | `long` | 1 | unbounded | `supported` | covered by minOccurs>=1 parity gate |
-| `adgroups.add` | `adgroups.add` | `NegativeKeywords` | `ArrayOfString` | 0 | 1 | `missing_followup` | Ad-group-level negative keywords are not exposed on add. [#243](https://github.com/axisrow/direct-cli/issues/243) |
-| `adgroups.add` | `adgroups.add` | `NegativeKeywords.Items` | `string` | 1 | unbounded | `missing_followup` | Ad-group-level negative keywords are not exposed on add. [#243](https://github.com/axisrow/direct-cli/issues/243); inherited from `NegativeKeywords` |
-| `adgroups.add` | `adgroups.add` | `NegativeKeywordSharedSetIds` | `ArrayOfLong` | 0 | 1 | `missing_followup` | Shared-set IDs are read-filterable but not addable. [#243](https://github.com/axisrow/direct-cli/issues/243) |
-| `adgroups.add` | `adgroups.add` | `NegativeKeywordSharedSetIds.Items` | `long` | 1 | unbounded | `missing_followup` | Shared-set IDs are read-filterable but not addable. [#243](https://github.com/axisrow/direct-cli/issues/243); inherited from `NegativeKeywordSharedSetIds` |
-| `adgroups.add` | `adgroups.add` | `TrackingParams` | `string` | 0 | 1 | `missing_followup` | AdGroupAddItem.TrackingParams has no typed flag. [#242](https://github.com/axisrow/direct-cli/issues/242) |
+| `adgroups.add` | `adgroups.add` | `NegativeKeywords` | `ArrayOfString` | 0 | 1 | `supported` | --negative-keywords |
+| `adgroups.add` | `adgroups.add` | `NegativeKeywords.Items` | `string` | 1 | unbounded | `supported` | --negative-keywords |
+| `adgroups.add` | `adgroups.add` | `NegativeKeywordSharedSetIds` | `ArrayOfLong` | 0 | 1 | `supported` | --negative-keyword-shared-set-ids |
+| `adgroups.add` | `adgroups.add` | `NegativeKeywordSharedSetIds.Items` | `long` | 1 | unbounded | `supported` | --negative-keyword-shared-set-ids |
+| `adgroups.add` | `adgroups.add` | `TrackingParams` | `string` | 0 | 1 | `supported` | --tracking-params |
 | `adgroups.add` | `adgroups.add` | `MobileAppAdGroup` | `MobileAppAdGroupAdd` | 0 | 1 | `missing_followup` | Rare ad group subtype block is not exposed by --type. [#247](https://github.com/axisrow/direct-cli/issues/247) |
 | `adgroups.add` | `adgroups.add` | `MobileAppAdGroup.StoreUrl` | `string` | 1 | 1 | `missing_followup` | Rare ad group subtype block is not exposed by --type. [#247](https://github.com/axisrow/direct-cli/issues/247); inherited from `MobileAppAdGroup` |
 | `adgroups.add` | `adgroups.add` | `MobileAppAdGroup.TargetDeviceType` | `TargetDeviceTypeEnum` | 1 | unbounded | `missing_followup` | Rare ad group subtype block is not exposed by --type. [#247](https://github.com/axisrow/direct-cli/issues/247); inherited from `MobileAppAdGroup` |
@@ -2941,11 +2901,11 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `adgroups.add` | `adgroups.add` | `TextAdGroupFeedParams.FeedCategoryIds` | `ArrayOfLong` | 0 | 1 | `missing_followup` | Rare ad group feed params block has no typed add flags. [#247](https://github.com/axisrow/direct-cli/issues/247); inherited from `TextAdGroupFeedParams` |
 | `adgroups.add` | `adgroups.add` | `TextAdGroupFeedParams.FeedCategoryIds.Items` | `long` | 1 | unbounded | `missing_followup` | Rare ad group feed params block has no typed add flags. [#247](https://github.com/axisrow/direct-cli/issues/247); inherited from `TextAdGroupFeedParams` |
 | `adgroups.update` | `adgroups.update` | `RegionIds` | `long` | 0 | unbounded | `supported` | --region-ids |
-| `adgroups.update` | `adgroups.update` | `NegativeKeywords` | `ArrayOfString` | 0 | 1 | `missing_followup` | Ad-group-level negative keywords are not exposed on update. [#243](https://github.com/axisrow/direct-cli/issues/243) |
-| `adgroups.update` | `adgroups.update` | `NegativeKeywords.Items` | `string` | 1 | unbounded | `missing_followup` | Ad-group-level negative keywords are not exposed on update. [#243](https://github.com/axisrow/direct-cli/issues/243); inherited from `NegativeKeywords` |
-| `adgroups.update` | `adgroups.update` | `NegativeKeywordSharedSetIds` | `ArrayOfLong` | 0 | 1 | `missing_followup` | Shared-set IDs are read-filterable but not updatable. [#243](https://github.com/axisrow/direct-cli/issues/243) |
-| `adgroups.update` | `adgroups.update` | `NegativeKeywordSharedSetIds.Items` | `long` | 1 | unbounded | `missing_followup` | Shared-set IDs are read-filterable but not updatable. [#243](https://github.com/axisrow/direct-cli/issues/243); inherited from `NegativeKeywordSharedSetIds` |
-| `adgroups.update` | `adgroups.update` | `TrackingParams` | `string` | 0 | 1 | `missing_followup` | AdGroupUpdateItem.TrackingParams has no typed flag. [#242](https://github.com/axisrow/direct-cli/issues/242) |
+| `adgroups.update` | `adgroups.update` | `NegativeKeywords` | `ArrayOfString` | 0 | 1 | `supported` | --negative-keywords |
+| `adgroups.update` | `adgroups.update` | `NegativeKeywords.Items` | `string` | 1 | unbounded | `supported` | --negative-keywords |
+| `adgroups.update` | `adgroups.update` | `NegativeKeywordSharedSetIds` | `ArrayOfLong` | 0 | 1 | `supported` | --negative-keyword-shared-set-ids |
+| `adgroups.update` | `adgroups.update` | `NegativeKeywordSharedSetIds.Items` | `long` | 1 | unbounded | `supported` | --negative-keyword-shared-set-ids |
+| `adgroups.update` | `adgroups.update` | `TrackingParams` | `string` | 0 | 1 | `supported` | --tracking-params |
 | `adgroups.update` | `adgroups.update` | `Id` | `long` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `adgroups.update` | `adgroups.update` | `Name` | `string` | 0 | 1 | `supported` | --name |
 | `adgroups.update` | `adgroups.update` | `MobileAppAdGroup` | `MobileAppAdGroupUpdate` | 0 | 1 | `missing_followup` | Rare ad group subtype block is not exposed by update. [#247](https://github.com/axisrow/direct-cli/issues/247) |
@@ -3147,13 +3107,13 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.update` | `ads.update` | `TextAd.Href` | `string` | 0 | 1 | `supported` | --href |
 | `ads.update` | `ads.update` | `TextAd.AgeLabel` | `AgeLabelEnum` | 0 | 1 | `missing_followup` | ads.update optional WSDL path needs typed support or N/A. [#240](https://github.com/axisrow/direct-cli/issues/240) |
 | `ads.update` | `ads.update` | `TextAd.DisplayUrlPath` | `string` | 0 | 1 | `supported` | --display-url-path |
-| `ads.update` | `ads.update` | `TextAd.VideoExtension` | `VideoExtensionUpdateItem` | 0 | 1 | `missing_followup` | TEXT_AD video extension update is WSDL-supported but absent. [#245](https://github.com/axisrow/direct-cli/issues/245) |
-| `ads.update` | `ads.update` | `TextAd.VideoExtension.CreativeId` | `long` | 0 | 1 | `missing_followup` | TEXT_AD video extension update is WSDL-supported but absent. [#245](https://github.com/axisrow/direct-cli/issues/245); inherited from `TextAd.VideoExtension` |
-| `ads.update` | `ads.update` | `TextAd.PriceExtension` | `PriceExtensionUpdateItem` | 0 | 1 | `missing_followup` | TEXT_AD price extension update is WSDL-supported but absent. [#245](https://github.com/axisrow/direct-cli/issues/245) |
-| `ads.update` | `ads.update` | `TextAd.PriceExtension.Price` | `long` | 0 | 1 | `missing_followup` | TEXT_AD price extension update is WSDL-supported but absent. [#245](https://github.com/axisrow/direct-cli/issues/245); inherited from `TextAd.PriceExtension` |
-| `ads.update` | `ads.update` | `TextAd.PriceExtension.OldPrice` | `long` | 0 | 1 | `missing_followup` | TEXT_AD price extension update is WSDL-supported but absent. [#245](https://github.com/axisrow/direct-cli/issues/245); inherited from `TextAd.PriceExtension` |
-| `ads.update` | `ads.update` | `TextAd.PriceExtension.PriceQualifier` | `PriceQualifierEnum` | 0 | 1 | `missing_followup` | TEXT_AD price extension update is WSDL-supported but absent. [#245](https://github.com/axisrow/direct-cli/issues/245); inherited from `TextAd.PriceExtension` |
-| `ads.update` | `ads.update` | `TextAd.PriceExtension.PriceCurrency` | `PriceCurrencyEnum` | 0 | 1 | `missing_followup` | TEXT_AD price extension update is WSDL-supported but absent. [#245](https://github.com/axisrow/direct-cli/issues/245); inherited from `TextAd.PriceExtension` |
+| `ads.update` | `ads.update` | `TextAd.VideoExtension` | `VideoExtensionUpdateItem` | 0 | 1 | `supported` | --video-extension-creative-id |
+| `ads.update` | `ads.update` | `TextAd.VideoExtension.CreativeId` | `long` | 0 | 1 | `supported` | --video-extension-creative-id |
+| `ads.update` | `ads.update` | `TextAd.PriceExtension` | `PriceExtensionUpdateItem` | 0 | 1 | `supported` | --price-extension-old-price, --price-extension-price, --price-extension-price-currency, --price-extension-price-qualifier |
+| `ads.update` | `ads.update` | `TextAd.PriceExtension.Price` | `long` | 0 | 1 | `supported` | --price-extension-price |
+| `ads.update` | `ads.update` | `TextAd.PriceExtension.OldPrice` | `long` | 0 | 1 | `supported` | --price-extension-old-price |
+| `ads.update` | `ads.update` | `TextAd.PriceExtension.PriceQualifier` | `PriceQualifierEnum` | 0 | 1 | `supported` | --price-extension-price-qualifier |
+| `ads.update` | `ads.update` | `TextAd.PriceExtension.PriceCurrency` | `PriceCurrencyEnum` | 0 | 1 | `supported` | --price-extension-price-currency |
 | `ads.update` | `ads.update` | `TextAd.TurboPageId` | `long` | 0 | 1 | `supported` | --turbo-page-id |
 | `ads.update` | `ads.update` | `TextAd.BusinessId` | `long` | 0 | 1 | `missing_followup` | ads.update optional WSDL path needs typed support or N/A. [#240](https://github.com/axisrow/direct-cli/issues/240) |
 | `ads.update` | `ads.update` | `TextAd.PreferVCardOverBusiness` | `YesNoEnum` | 0 | 1 | `missing_followup` | ads.update optional WSDL path needs typed support or N/A. [#240](https://github.com/axisrow/direct-cli/issues/240) |
@@ -5641,23 +5601,23 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `feeds.add` | `feeds.add` | `BusinessType` | `BusinessTypeEnum` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `feeds.add` | `feeds.add` | `SourceType` | `SourceTypeEnum` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `feeds.add` | `feeds.add` | `UrlFeed` | `UrlFeedAdd` | 0 | 1 | `supported` | --url |
-| `feeds.add` | `feeds.add` | `UrlFeed.RemoveUtmTags` | `YesNoEnum` | 0 | 1 | `missing_followup` | feeds.add optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
+| `feeds.add` | `feeds.add` | `UrlFeed.RemoveUtmTags` | `YesNoEnum` | 0 | 1 | `supported` | --remove-utm-tags |
 | `feeds.add` | `feeds.add` | `UrlFeed.Url` | `string` | 1 | 1 | `supported` | --url |
-| `feeds.add` | `feeds.add` | `UrlFeed.Login` | `string` | 0 | 1 | `missing_followup` | feeds.add optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.add` | `feeds.add` | `UrlFeed.Password` | `string` | 0 | 1 | `missing_followup` | feeds.add optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.add` | `feeds.add` | `FileFeed` | `FileFeedAdd` | 0 | 1 | `missing_followup` | feeds.add optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.add` | `feeds.add` | `FileFeed.Data` | `base64Binary` | 1 | 1 | `missing_followup` | feeds.add optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.add` | `feeds.add` | `FileFeed.Filename` | `string` | 1 | 1 | `missing_followup` | feeds.add optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
+| `feeds.add` | `feeds.add` | `UrlFeed.Login` | `string` | 0 | 1 | `supported` | --feed-login |
+| `feeds.add` | `feeds.add` | `UrlFeed.Password` | `string` | 0 | 1 | `supported` | --feed-password |
+| `feeds.add` | `feeds.add` | `FileFeed` | `FileFeedAdd` | 0 | 1 | `missing_followup` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264) |
+| `feeds.add` | `feeds.add` | `FileFeed.Data` | `base64Binary` | 1 | 1 | `missing_followup` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
+| `feeds.add` | `feeds.add` | `FileFeed.Filename` | `string` | 1 | 1 | `missing_followup` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
 | `feeds.update` | `feeds.update` | `Id` | `long` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `feeds.update` | `feeds.update` | `Name` | `string` | 0 | 1 | `supported` | --name |
 | `feeds.update` | `feeds.update` | `UrlFeed` | `UrlFeedUpdate` | 0 | 1 | `supported` | --url |
-| `feeds.update` | `feeds.update` | `UrlFeed.RemoveUtmTags` | `YesNoEnum` | 0 | 1 | `missing_followup` | feeds.update optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
+| `feeds.update` | `feeds.update` | `UrlFeed.RemoveUtmTags` | `YesNoEnum` | 0 | 1 | `supported` | --remove-utm-tags |
 | `feeds.update` | `feeds.update` | `UrlFeed.Url` | `string` | 0 | 1 | `supported` | --url |
-| `feeds.update` | `feeds.update` | `UrlFeed.Login` | `string` | 0 | 1 | `missing_followup` | feeds.update optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.update` | `feeds.update` | `UrlFeed.Password` | `string` | 0 | 1 | `missing_followup` | feeds.update optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.update` | `feeds.update` | `FileFeed` | `FileFeedUpdate` | 0 | 1 | `missing_followup` | feeds.update optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.update` | `feeds.update` | `FileFeed.Data` | `base64Binary` | 1 | 1 | `missing_followup` | feeds.update optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.update` | `feeds.update` | `FileFeed.Filename` | `string` | 1 | 1 | `missing_followup` | feeds.update optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
+| `feeds.update` | `feeds.update` | `UrlFeed.Login` | `string` | 0 | 1 | `supported` | --clear-feed-login, --feed-login |
+| `feeds.update` | `feeds.update` | `UrlFeed.Password` | `string` | 0 | 1 | `supported` | --clear-feed-password, --feed-password |
+| `feeds.update` | `feeds.update` | `FileFeed` | `FileFeedUpdate` | 0 | 1 | `missing_followup` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264) |
+| `feeds.update` | `feeds.update` | `FileFeed.Data` | `base64Binary` | 1 | 1 | `missing_followup` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
+| `feeds.update` | `feeds.update` | `FileFeed.Filename` | `string` | 1 | 1 | `missing_followup` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
 | `keywordbids.set` | `keywordbids.set` | `CampaignId` | `long` | 0 | 1 | `missing_followup` | keywordbids.set optional WSDL path needs typed support or N/A. [#252](https://github.com/axisrow/direct-cli/issues/252) |
 | `keywordbids.set` | `keywordbids.set` | `AdGroupId` | `long` | 0 | 1 | `missing_followup` | keywordbids.set optional WSDL path needs typed support or N/A. [#252](https://github.com/axisrow/direct-cli/issues/252) |
 | `keywordbids.set` | `keywordbids.set` | `KeywordId` | `long` | 0 | 1 | `supported` | --keyword-id |
@@ -5718,25 +5678,25 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `negativekeywordsharedsets.update` | `negativekeywordsharedsets.update` | `Id` | `long` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `retargeting.add` | `retargetinglists.add` | `Type` | `RetargetingListTypeEnum` | 0 | 1 | `supported` | --type |
 | `retargeting.add` | `retargetinglists.add` | `Name` | `string` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
-| `retargeting.add` | `retargetinglists.add` | `Description` | `string` | 0 | 1 | `missing_followup` | retargeting.add optional WSDL path needs typed support or N/A. [#256](https://github.com/axisrow/direct-cli/issues/256) |
+| `retargeting.add` | `retargetinglists.add` | `Description` | `string` | 0 | 1 | `supported` | --description |
 | `retargeting.add` | `retargetinglists.add` | `Rules` | `RetargetingListRuleItem` | 1 | unbounded | `supported` | --rule |
 | `retargeting.add` | `retargetinglists.add` | `Rules.Arguments` | `RetargetingListRuleArgumentItem` | 1 | unbounded | `supported` | --rule |
-| `retargeting.add` | `retargetinglists.add` | `Rules.Arguments.MembershipLifeSpan` | `int` | 0 | 1 | `missing_followup` | retargeting.add optional WSDL path needs typed support or N/A. [#256](https://github.com/axisrow/direct-cli/issues/256) |
-| `retargeting.add` | `retargetinglists.add` | `Rules.Arguments.ExternalId` | `long` | 1 | 1 | `missing_followup` | retargeting.add optional WSDL path needs typed support or N/A. [#256](https://github.com/axisrow/direct-cli/issues/256) |
+| `retargeting.add` | `retargetinglists.add` | `Rules.Arguments.MembershipLifeSpan` | `int` | 0 | 1 | `supported` | --rule |
+| `retargeting.add` | `retargetinglists.add` | `Rules.Arguments.ExternalId` | `long` | 1 | 1 | `supported` | --rule |
 | `retargeting.add` | `retargetinglists.add` | `Rules.Operator` | `RetargetingListRuleOperatorEnum` | 1 | 1 | `supported` | --rule |
 | `retargeting.update` | `retargetinglists.update` | `Name` | `string` | 0 | 1 | `supported` | --name |
-| `retargeting.update` | `retargetinglists.update` | `Description` | `string` | 0 | 1 | `missing_followup` | retargeting.update optional WSDL path needs typed support or N/A. [#256](https://github.com/axisrow/direct-cli/issues/256) |
+| `retargeting.update` | `retargetinglists.update` | `Description` | `string` | 0 | 1 | `supported` | --description |
 | `retargeting.update` | `retargetinglists.update` | `Rules` | `RetargetingListRuleItem` | 0 | unbounded | `supported` | --rule |
 | `retargeting.update` | `retargetinglists.update` | `Rules.Arguments` | `RetargetingListRuleArgumentItem` | 1 | unbounded | `supported` | --rule |
-| `retargeting.update` | `retargetinglists.update` | `Rules.Arguments.MembershipLifeSpan` | `int` | 0 | 1 | `missing_followup` | retargeting.update optional WSDL path needs typed support or N/A. [#256](https://github.com/axisrow/direct-cli/issues/256) |
-| `retargeting.update` | `retargetinglists.update` | `Rules.Arguments.ExternalId` | `long` | 1 | 1 | `missing_followup` | retargeting.update optional WSDL path needs typed support or N/A. [#256](https://github.com/axisrow/direct-cli/issues/256) |
+| `retargeting.update` | `retargetinglists.update` | `Rules.Arguments.MembershipLifeSpan` | `int` | 0 | 1 | `supported` | --rule |
+| `retargeting.update` | `retargetinglists.update` | `Rules.Arguments.ExternalId` | `long` | 1 | 1 | `supported` | --rule |
 | `retargeting.update` | `retargetinglists.update` | `Rules.Operator` | `RetargetingListRuleOperatorEnum` | 1 | 1 | `supported` | --rule |
 | `retargeting.update` | `retargetinglists.update` | `Id` | `long` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `sitelinks.add` | `sitelinks.add` | `Sitelinks` | `SitelinkAddItem` | 1 | unbounded | `supported` | --sitelink |
 | `sitelinks.add` | `sitelinks.add` | `Sitelinks.Title` | `string` | 1 | 1 | `supported` | --sitelink |
 | `sitelinks.add` | `sitelinks.add` | `Sitelinks.Href` | `string` | 0 | 1 | `supported` | --sitelink |
 | `sitelinks.add` | `sitelinks.add` | `Sitelinks.Description` | `string` | 0 | 1 | `supported` | --sitelink |
-| `sitelinks.add` | `sitelinks.add` | `Sitelinks.TurboPageId` | `long` | 0 | 1 | `missing_followup` | Sitelink TurboPageId has no typed add flag. [#257](https://github.com/axisrow/direct-cli/issues/257) |
+| `sitelinks.add` | `sitelinks.add` | `Sitelinks.TurboPageId` | `long` | 0 | 1 | `supported` | --sitelink |
 | `smartadtargets.add` | `smartadtargets.add` | `Name` | `string` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `smartadtargets.add` | `smartadtargets.add` | `AdGroupId` | `long` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `smartadtargets.add` | `smartadtargets.add` | `AverageCpc` | `long` | 0 | 1 | `supported` | --average-cpc |
@@ -6106,18 +6066,18 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `vcards.add` | `vcards.add` | `House` | `string` | 0 | 1 | `supported` | --house |
 | `vcards.add` | `vcards.add` | `Building` | `string` | 0 | 1 | `supported` | --building |
 | `vcards.add` | `vcards.add` | `Apartment` | `string` | 0 | 1 | `supported` | --apartment |
-| `vcards.add` | `vcards.add` | `InstantMessenger` | `InstantMessenger` | 0 | 1 | `missing_followup` | VCard InstantMessenger nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246) |
-| `vcards.add` | `vcards.add` | `InstantMessenger.MessengerClient` | `string` | 1 | 1 | `missing_followup` | VCard InstantMessenger nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246); inherited from `InstantMessenger` |
-| `vcards.add` | `vcards.add` | `InstantMessenger.MessengerLogin` | `string` | 1 | 1 | `missing_followup` | VCard InstantMessenger nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246); inherited from `InstantMessenger` |
+| `vcards.add` | `vcards.add` | `InstantMessenger` | `InstantMessenger` | 0 | 1 | `supported` | --instant-messenger-client, --instant-messenger-login |
+| `vcards.add` | `vcards.add` | `InstantMessenger.MessengerClient` | `string` | 1 | 1 | `supported` | --instant-messenger-client |
+| `vcards.add` | `vcards.add` | `InstantMessenger.MessengerLogin` | `string` | 1 | 1 | `supported` | --instant-messenger-login |
 | `vcards.add` | `vcards.add` | `ExtraMessage` | `string` | 0 | 1 | `supported` | --extra-message |
 | `vcards.add` | `vcards.add` | `ContactEmail` | `string` | 0 | 1 | `supported` | --contact-email |
 | `vcards.add` | `vcards.add` | `Ogrn` | `string` | 0 | 1 | `supported` | --ogrn |
 | `vcards.add` | `vcards.add` | `MetroStationId` | `long` | 0 | 1 | `supported` | --metro-station-id |
-| `vcards.add` | `vcards.add` | `PointOnMap` | `MapPoint` | 0 | 1 | `missing_followup` | VCard PointOnMap nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246) |
-| `vcards.add` | `vcards.add` | `PointOnMap.X` | `decimal` | 1 | 1 | `missing_followup` | VCard PointOnMap nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246); inherited from `PointOnMap` |
-| `vcards.add` | `vcards.add` | `PointOnMap.Y` | `decimal` | 1 | 1 | `missing_followup` | VCard PointOnMap nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246); inherited from `PointOnMap` |
-| `vcards.add` | `vcards.add` | `PointOnMap.X1` | `decimal` | 1 | 1 | `missing_followup` | VCard PointOnMap nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246); inherited from `PointOnMap` |
-| `vcards.add` | `vcards.add` | `PointOnMap.Y1` | `decimal` | 1 | 1 | `missing_followup` | VCard PointOnMap nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246); inherited from `PointOnMap` |
-| `vcards.add` | `vcards.add` | `PointOnMap.X2` | `decimal` | 1 | 1 | `missing_followup` | VCard PointOnMap nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246); inherited from `PointOnMap` |
-| `vcards.add` | `vcards.add` | `PointOnMap.Y2` | `decimal` | 1 | 1 | `missing_followup` | VCard PointOnMap nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246); inherited from `PointOnMap` |
+| `vcards.add` | `vcards.add` | `PointOnMap` | `MapPoint` | 0 | 1 | `supported` | --point-on-map-x, --point-on-map-x1, --point-on-map-x2, --point-on-map-y, --point-on-map-y1, --point-on-map-y2 |
+| `vcards.add` | `vcards.add` | `PointOnMap.X` | `decimal` | 1 | 1 | `supported` | --point-on-map-x |
+| `vcards.add` | `vcards.add` | `PointOnMap.Y` | `decimal` | 1 | 1 | `supported` | --point-on-map-y |
+| `vcards.add` | `vcards.add` | `PointOnMap.X1` | `decimal` | 1 | 1 | `supported` | --point-on-map-x1 |
+| `vcards.add` | `vcards.add` | `PointOnMap.Y1` | `decimal` | 1 | 1 | `supported` | --point-on-map-y1 |
+| `vcards.add` | `vcards.add` | `PointOnMap.X2` | `decimal` | 1 | 1 | `supported` | --point-on-map-x2 |
+| `vcards.add` | `vcards.add` | `PointOnMap.Y2` | `decimal` | 1 | 1 | `supported` | --point-on-map-y2 |
 | `vcards.add` | `vcards.add` | `ContactPerson` | `string` | 0 | 1 | `supported` | --contact-person |

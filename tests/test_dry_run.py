@@ -1397,6 +1397,127 @@ def test_ads_update_callouts_invalid_id_rejected_with_usage_error():
     assert "Traceback" not in result.output
 
 
+def test_ads_update_text_ad_video_extension_payload():
+    """Issue #245: TEXT_AD update exposes VideoExtension.CreativeId."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_AD",
+        "--video-extension-creative-id",
+        "777",
+    )
+    assert body["params"]["Ads"][0] == {
+        "Id": 999,
+        "TextAd": {"VideoExtension": {"CreativeId": 777}},
+    }
+
+
+def test_ads_update_text_ad_price_extension_payload():
+    """Issue #245: TEXT_AD update exposes PriceExtension fields."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_AD",
+        "--price-extension-price",
+        "123450000",
+        "--price-extension-old-price",
+        "150000000",
+        "--price-extension-price-qualifier",
+        "from",
+        "--price-extension-price-currency",
+        "rub",
+    )
+    assert body["params"]["Ads"][0] == {
+        "Id": 999,
+        "TextAd": {
+            "PriceExtension": {
+                "Price": 123450000,
+                "OldPrice": 150000000,
+                "PriceQualifier": "FROM",
+                "PriceCurrency": "RUB",
+            }
+        },
+    }
+
+
+def test_ads_update_text_ad_price_extension_partial_payload():
+    """PriceExtensionUpdateItem children are optional in WSDL update."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_AD",
+        "--price-extension-price-currency",
+        "USD",
+    )
+    assert body["params"]["Ads"][0] == {
+        "Id": 999,
+        "TextAd": {"PriceExtension": {"PriceCurrency": "USD"}},
+    }
+
+
+def test_ads_update_text_ad_extension_flags_rejected_for_text_image_ad():
+    """Issue #245: TEXT_AD extension flags must not silently drop by subtype."""
+    result = _rejected(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_IMAGE_AD",
+        "--video-extension-creative-id",
+        "777",
+    )
+    assert (
+        "--video-extension-creative-id is not compatible with --type TEXT_IMAGE_AD"
+        in result.output
+    )
+
+
+def test_ads_update_text_ad_price_extension_flags_rejected_for_mobile_app_ad():
+    """Issue #245: PriceExtension flags are TEXT_AD-only in this patch scope."""
+    result = _rejected(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "MOBILE_APP_AD",
+        "--price-extension-price",
+        "123450000",
+    )
+    assert (
+        "--price-extension-price is not compatible with --type MOBILE_APP_AD"
+        in result.output
+    )
+
+
+def test_ads_update_text_ad_extension_flags_count_as_updatable_fields():
+    """Issue #245: extension-only updates must not trip the no-op guard."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_AD",
+        "--price-extension-price-qualifier",
+        "NONE",
+    )
+    assert body["params"]["Ads"][0] == {
+        "Id": 999,
+        "TextAd": {"PriceExtension": {"PriceQualifier": "NONE"}},
+    }
+
+
 def test_ads_update_rejects_title2_on_text_image_ad():
     """Issue #202 (Pattern B): --title2 is TEXT_AD-only in update too."""
     result = CliRunner().invoke(
@@ -1482,6 +1603,76 @@ def test_adgroups_add_payload_omits_type():
     assert group["Name"] == "Group A"
     assert group["CampaignId"] == 111
     assert group["RegionIds"] == [1, 225]
+
+
+def test_adgroups_add_tracking_params_payload():
+    body = _dry_run(
+        "adgroups",
+        "add",
+        "--name",
+        "Group A",
+        "--campaign-id",
+        "111",
+        "--region-ids",
+        "1,225",
+        "--tracking-params",
+        "utm_source=direct",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert group["TrackingParams"] == "utm_source=direct"
+    assert "DynamicTextAdGroup" not in group
+    assert "SmartAdGroup" not in group
+
+
+def test_adgroups_add_negative_keywords_payload():
+    body = _dry_run(
+        "adgroups",
+        "add",
+        "--name",
+        "Group A",
+        "--campaign-id",
+        "111",
+        "--region-ids",
+        "1,225",
+        "--negative-keywords",
+        "word1, word2",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert group["NegativeKeywords"] == {"Items": ["word1", "word2"]}
+
+
+def test_adgroups_add_negative_keyword_shared_set_ids_payload():
+    body = _dry_run(
+        "adgroups",
+        "add",
+        "--name",
+        "Group A",
+        "--campaign-id",
+        "111",
+        "--region-ids",
+        "1,225",
+        "--negative-keyword-shared-set-ids",
+        "10,11",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert group["NegativeKeywordSharedSetIds"] == {"Items": [10, 11]}
+
+
+def test_adgroups_add_negative_keyword_shared_set_ids_rejects_invalid_id():
+    result = _rejected(
+        "adgroups",
+        "add",
+        "--name",
+        "Group A",
+        "--campaign-id",
+        "111",
+        "--region-ids",
+        "1,225",
+        "--negative-keyword-shared-set-ids",
+        "10,nope",
+    )
+    assert "--negative-keyword-shared-set-ids: Invalid ID: 'nope'" in result.output
+    assert "Traceback" not in result.output
 
 
 def test_adgroups_add_case_insensitive_default_type():
@@ -1625,6 +1816,125 @@ def test_adgroups_update_payload_name_only():
     assert body["method"] == "update"
     group = body["params"]["AdGroups"][0]
     assert group == {"Id": 222, "Name": "Renamed"}
+
+
+def test_adgroups_update_tracking_params_payload():
+    body = _dry_run(
+        "adgroups",
+        "update",
+        "--id",
+        "222",
+        "--tracking-params",
+        "utm_source=direct",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert group == {"Id": 222, "TrackingParams": "utm_source=direct"}
+
+
+def test_adgroups_update_negative_keywords_payload():
+    body = _dry_run(
+        "adgroups",
+        "update",
+        "--id",
+        "222",
+        "--negative-keywords",
+        "word1, word2",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert group == {"Id": 222, "NegativeKeywords": {"Items": ["word1", "word2"]}}
+
+
+def test_adgroups_update_negative_keyword_shared_set_ids_payload():
+    body = _dry_run(
+        "adgroups",
+        "update",
+        "--id",
+        "222",
+        "--negative-keyword-shared-set-ids",
+        "10,11",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert group == {"Id": 222, "NegativeKeywordSharedSetIds": {"Items": [10, 11]}}
+
+
+def test_adgroups_update_negative_keyword_shared_set_ids_rejects_invalid_id():
+    result = _rejected(
+        "adgroups",
+        "update",
+        "--id",
+        "222",
+        "--negative-keyword-shared-set-ids",
+        "10,nope",
+    )
+    assert "--negative-keyword-shared-set-ids: Invalid ID: 'nope'" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_adgroups_update_region_ids_rejects_invalid_id():
+    result = _rejected(
+        "adgroups",
+        "update",
+        "--id",
+        "222",
+        "--region-ids",
+        "225,nope",
+    )
+    assert "--region-ids: Invalid ID: 'nope'" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_adgroups_add_tracking_params_accepts_1024_chars():
+    tracking_params = "x" * 1024
+    body = _dry_run(
+        "adgroups",
+        "add",
+        "--name",
+        "Group A",
+        "--campaign-id",
+        "111",
+        "--region-ids",
+        "225",
+        "--tracking-params",
+        tracking_params,
+    )
+    group = body["params"]["AdGroups"][0]
+    assert group["TrackingParams"] == tracking_params
+
+
+def test_adgroups_add_tracking_params_rejects_1025_chars():
+    result = _rejected(
+        "adgroups",
+        "add",
+        "--name",
+        "Group A",
+        "--campaign-id",
+        "111",
+        "--region-ids",
+        "225",
+        "--tracking-params",
+        "x" * 1025,
+    )
+    assert "--tracking-params must be at most 1024 characters" in result.output
+
+
+def test_adgroups_update_tracking_params_rejects_1025_chars():
+    result = _rejected(
+        "adgroups",
+        "update",
+        "--id",
+        "222",
+        "--tracking-params",
+        "x" * 1025,
+    )
+    assert "--tracking-params must be at most 1024 characters" in result.output
+
+
+def test_adgroups_update_without_tracking_params_or_other_fields_rejected():
+    result = _rejected("adgroups", "update", "--id", "222")
+    assert "--tracking-params" in result.output
+    assert "--negative-keywords" in result.output
+    assert "--negative-keyword-shared-set-ids" in result.output
+    assert "requires at least one updatable field" in result.output
 
 
 # ----------------------------------------------------------------------
@@ -3095,6 +3405,33 @@ def test_feeds_add_payload_uses_nested_urlfeed():
     }
 
 
+def test_feeds_add_payload_accepts_urlfeed_details():
+    body = _dry_run(
+        "feeds",
+        "add",
+        "--name",
+        "Feed A",
+        "--url",
+        "https://example.com/feed.xml",
+        "--business-type",
+        "RETAIL",
+        "--remove-utm-tags",
+        "yes",
+        "--feed-login",
+        "feedbot",
+        "--feed-password",
+        "secret",
+    )
+    feed = body["params"]["Feeds"][0]
+    assert feed["SourceType"] == "URL"
+    assert feed["UrlFeed"] == {
+        "Url": "https://example.com/feed.xml",
+        "RemoveUtmTags": "YES",
+        "Login": "feedbot",
+        "Password": "secret",
+    }
+
+
 def test_feeds_update_payload_changes_url():
     body = _dry_run(
         "feeds",
@@ -3106,6 +3443,64 @@ def test_feeds_update_payload_changes_url():
     )
     feed = body["params"]["Feeds"][0]
     assert feed == {"Id": 9, "UrlFeed": {"Url": "https://example.com/feed-v2.xml"}}
+
+
+def test_feeds_update_payload_accepts_urlfeed_details():
+    body = _dry_run(
+        "feeds",
+        "update",
+        "--id",
+        "9",
+        "--remove-utm-tags",
+        "no",
+        "--feed-login",
+        "feedbot",
+        "--feed-password",
+        "secret",
+    )
+    feed = body["params"]["Feeds"][0]
+    assert feed == {
+        "Id": 9,
+        "UrlFeed": {
+            "RemoveUtmTags": "NO",
+            "Login": "feedbot",
+            "Password": "secret",
+        },
+    }
+
+
+def test_feeds_update_payload_can_clear_urlfeed_credentials():
+    body = _dry_run(
+        "feeds",
+        "update",
+        "--id",
+        "9",
+        "--clear-feed-login",
+        "--clear-feed-password",
+    )
+    feed = body["params"]["Feeds"][0]
+    assert feed == {"Id": 9, "UrlFeed": {"Login": None, "Password": None}}
+
+
+def test_feeds_update_rejects_setting_and_clearing_login():
+    result = CliRunner().invoke(
+        cli,
+        [
+            "feeds",
+            "update",
+            "--id",
+            "9",
+            "--feed-login",
+            "feedbot",
+            "--clear-feed-login",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    combined = (result.output or "") + (
+        str(result.exception) if result.exception else ""
+    )
+    assert "Use either --feed-login or --clear-feed-login" in combined
 
 
 def test_feeds_update_without_fields_errors():
@@ -3123,7 +3518,10 @@ def test_feeds_update_without_fields_errors():
     combined = (result.output or "") + (
         str(result.exception) if result.exception else ""
     )
-    assert "--name" in combined or "--url" in combined
+    assert "--name" in combined
+    assert "--url" in combined
+    assert "--remove-utm-tags" in combined
+    assert "--clear-feed-login" in combined
 
 
 # ----------------------------------------------------------------------
@@ -3165,6 +3563,66 @@ def test_retargeting_add_keeps_list_type():
             }
         ],
     }
+
+
+def test_retargeting_add_description_payload():
+    body = _dry_run(
+        "retargeting",
+        "add",
+        "--name",
+        "List A",
+        "--description",
+        "High intent users",
+        "--rule",
+        "ALL:12345:30",
+    )
+    rtg = body["params"]["RetargetingLists"][0]
+    assert rtg["Description"] == "High intent users"
+
+
+def test_retargeting_add_empty_description_payload():
+    body = _dry_run(
+        "retargeting",
+        "add",
+        "--name",
+        "List A",
+        "--description",
+        "",
+        "--rule",
+        "ALL:12345:30",
+    )
+    rtg = body["params"]["RetargetingLists"][0]
+    assert rtg["Description"] == ""
+
+
+def test_retargeting_add_description_accepts_4096_chars():
+    description = "x" * 4096
+    body = _dry_run(
+        "retargeting",
+        "add",
+        "--name",
+        "List A",
+        "--description",
+        description,
+        "--rule",
+        "ALL:12345:30",
+    )
+    rtg = body["params"]["RetargetingLists"][0]
+    assert rtg["Description"] == description
+
+
+def test_retargeting_add_description_rejects_4097_chars():
+    result = _rejected(
+        "retargeting",
+        "add",
+        "--name",
+        "List A",
+        "--description",
+        "x" * 4097,
+        "--rule",
+        "ALL:12345:30",
+    )
+    assert "--description must be at most 4096 characters" in result.output
 
 
 def test_retargeting_add_default_type_is_retargeting():
@@ -3311,6 +3769,60 @@ def test_sitelinks_add_supports_escaped_pipe_in_href():
     }
 
 
+def test_sitelinks_add_pipe_spec_turbo_page_id():
+    """Issue #257: --sitelink exposes Sitelinks.TurboPageId."""
+    body = _dry_run(
+        "sitelinks",
+        "add",
+        "--sitelink",
+        "Docs|https://example.com/docs|API docs|12345",
+    )
+    sitelink = body["params"]["SitelinksSets"][0]["Sitelinks"][0]
+    assert sitelink == {
+        "Title": "Docs",
+        "Href": "https://example.com/docs",
+        "Description": "API docs",
+        "TurboPageId": 12345,
+    }
+
+
+def test_sitelinks_add_pipe_spec_turbo_page_id_without_href():
+    """Yandex API allows Href or TurboPageId on a sitelink."""
+    body = _dry_run(
+        "sitelinks",
+        "add",
+        "--sitelink",
+        "Turbo||Turbo page|12345",
+    )
+    sitelink = body["params"]["SitelinksSets"][0]["Sitelinks"][0]
+    assert sitelink == {
+        "Title": "Turbo",
+        "Description": "Turbo page",
+        "TurboPageId": 12345,
+    }
+
+
+def test_sitelinks_add_pipe_spec_turbo_page_id_without_href_or_description():
+    body = _dry_run(
+        "sitelinks",
+        "add",
+        "--sitelink",
+        "Turbo|||12345",
+    )
+    sitelink = body["params"]["SitelinksSets"][0]["Sitelinks"][0]
+    assert sitelink == {"Title": "Turbo", "TurboPageId": 12345}
+
+
+def test_sitelinks_add_pipe_spec_turbo_page_id_invalid_rejected():
+    result = _rejected(
+        "sitelinks",
+        "add",
+        "--sitelink",
+        "Docs|https://example.com/docs|API docs|not-an-id",
+    )
+    assert "TurboPageId must be an integer" in result.output
+
+
 def test_sitelinks_add_pipe_spec_invalid_raises():
     """Unescaped '|' overflowing the 3-part shape must error with a hint."""
     result = _rejected(
@@ -3347,6 +3859,60 @@ def test_sitelinks_add_from_inline_json():
         },
         {"Title": "Контакты", "Href": "https://example.com/contact"},
     ]
+
+
+def test_sitelinks_add_from_inline_json_turbo_page_id_without_href():
+    body = _dry_run(
+        "sitelinks",
+        "add",
+        "--sitelink-json",
+        json.dumps([{"Title": "Turbo", "TurboPageId": 12345}]),
+    )
+    assert body["params"]["SitelinksSets"][0]["Sitelinks"] == [
+        {"Title": "Turbo", "TurboPageId": 12345}
+    ]
+
+
+def test_sitelinks_add_from_inline_json_turbo_page_id_string_coerced():
+    body = _dry_run(
+        "sitelinks",
+        "add",
+        "--sitelink-json",
+        json.dumps([{"Title": "Turbo", "TurboPageId": "12345"}]),
+    )
+    assert body["params"]["SitelinksSets"][0]["Sitelinks"] == [
+        {"Title": "Turbo", "TurboPageId": 12345}
+    ]
+
+
+def test_sitelinks_add_from_inline_json_turbo_page_id_invalid_rejected():
+    result = _rejected(
+        "sitelinks",
+        "add",
+        "--sitelink-json",
+        json.dumps([{"Title": "Turbo", "TurboPageId": "not-an-id"}]),
+    )
+    assert "'TurboPageId' must be an integer" in result.output
+
+
+def test_sitelinks_add_from_inline_json_turbo_page_id_bool_rejected():
+    result = _rejected(
+        "sitelinks",
+        "add",
+        "--sitelink-json",
+        json.dumps([{"Title": "Turbo", "TurboPageId": False}]),
+    )
+    assert "'TurboPageId' must be an integer" in result.output
+
+
+def test_sitelinks_add_from_inline_json_turbo_page_id_float_rejected():
+    result = _rejected(
+        "sitelinks",
+        "add",
+        "--sitelink-json",
+        json.dumps([{"Title": "Turbo", "TurboPageId": 12.5}]),
+    )
+    assert "'TurboPageId' must be an integer" in result.output
 
 
 def test_sitelinks_add_from_file_jsonl(tmp_path):
@@ -3414,6 +3980,7 @@ def test_sitelinks_add_json_missing_href_rejected():
     )
     assert "Sitelink #1" in result.output
     assert "Href" in result.output
+    assert "TurboPageId" in result.output
 
 
 def test_sitelinks_add_json_not_array_rejected():
@@ -3493,6 +4060,137 @@ def test_vcards_add_uses_typed_flags():
             },
         }
     ]
+
+
+def test_vcards_add_instant_messenger_payload():
+    body = _dry_run(
+        "vcards",
+        "add",
+        "--campaign-id",
+        "555",
+        "--country",
+        "Россия",
+        "--city",
+        "Москва",
+        "--company-name",
+        "Acme",
+        "--work-time",
+        "1#5#9#0#18#0",
+        "--phone-country-code",
+        "+7",
+        "--phone-city-code",
+        "495",
+        "--phone-number",
+        "1234567",
+        "--instant-messenger-client",
+        "telegram",
+        "--instant-messenger-login",
+        "acme_support",
+    )
+    vcard = body["params"]["VCards"][0]
+    assert vcard["InstantMessenger"] == {
+        "MessengerClient": "telegram",
+        "MessengerLogin": "acme_support",
+    }
+
+
+def test_vcards_add_instant_messenger_partial_rejected():
+    result = _rejected(
+        "vcards",
+        "add",
+        "--campaign-id",
+        "555",
+        "--country",
+        "Россия",
+        "--city",
+        "Москва",
+        "--company-name",
+        "Acme",
+        "--work-time",
+        "1#5#9#0#18#0",
+        "--phone-country-code",
+        "+7",
+        "--phone-city-code",
+        "495",
+        "--phone-number",
+        "1234567",
+        "--instant-messenger-client",
+        "telegram",
+    )
+    assert "--instant-messenger-client and --instant-messenger-login" in result.output
+    assert result.exit_code == 2
+
+
+def test_vcards_add_point_on_map_payload():
+    body = _dry_run(
+        "vcards",
+        "add",
+        "--campaign-id",
+        "555",
+        "--country",
+        "Россия",
+        "--city",
+        "Москва",
+        "--company-name",
+        "Acme",
+        "--work-time",
+        "1#5#9#0#18#0",
+        "--phone-country-code",
+        "+7",
+        "--phone-city-code",
+        "495",
+        "--phone-number",
+        "1234567",
+        "--point-on-map-x",
+        "37.6173",
+        "--point-on-map-y",
+        "55.7558",
+        "--point-on-map-x1",
+        "37.60",
+        "--point-on-map-y1",
+        "55.74",
+        "--point-on-map-x2",
+        "37.63",
+        "--point-on-map-y2",
+        "55.77",
+    )
+    vcard = body["params"]["VCards"][0]
+    assert vcard["PointOnMap"] == {
+        "X": 37.6173,
+        "Y": 55.7558,
+        "X1": 37.60,
+        "Y1": 55.74,
+        "X2": 37.63,
+        "Y2": 55.77,
+    }
+
+
+def test_vcards_add_point_on_map_partial_rejected():
+    result = _rejected(
+        "vcards",
+        "add",
+        "--campaign-id",
+        "555",
+        "--country",
+        "Россия",
+        "--city",
+        "Москва",
+        "--company-name",
+        "Acme",
+        "--work-time",
+        "1#5#9#0#18#0",
+        "--phone-country-code",
+        "+7",
+        "--phone-city-code",
+        "495",
+        "--phone-number",
+        "1234567",
+        "--point-on-map-x",
+        "37.6173",
+    )
+    assert "PointOnMap requires all coordinate flags" in result.output
+    assert "--point-on-map-y" in result.output
+    assert result.exit_code == 2
 
 
 # ----------------------------------------------------------------------
@@ -4414,6 +5112,38 @@ def test_retargeting_update_payload_uses_lists_array():
             }
         ],
     }
+
+
+def test_retargeting_update_description_payload():
+    body = _dry_run(
+        "retargeting",
+        "update",
+        "--id",
+        "55",
+        "--description",
+        "Updated note",
+    )
+    assert body["params"]["RetargetingLists"][0] == {
+        "Id": 55,
+        "Description": "Updated note",
+    }
+
+
+def test_retargeting_update_empty_description_payload():
+    body = _dry_run("retargeting", "update", "--id", "55", "--description", "")
+    assert body["params"]["RetargetingLists"][0] == {"Id": 55, "Description": ""}
+
+
+def test_retargeting_update_description_rejects_4097_chars():
+    result = _rejected(
+        "retargeting",
+        "update",
+        "--id",
+        "55",
+        "--description",
+        "x" * 4097,
+    )
+    assert "--description must be at most 4096 characters" in result.output
 
 
 def test_smartadtargets_set_bids_payload_uses_average_cpc():

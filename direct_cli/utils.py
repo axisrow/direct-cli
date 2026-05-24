@@ -483,8 +483,8 @@ def _split_sitelink_spec(spec: str) -> List[str]:
     return parts
 
 
-def parse_sitelink_specs(specs: Optional[List[str]]) -> Optional[List[Dict[str, str]]]:
-    """Parse repeated TITLE|HREF[|DESCRIPTION] sitelink specs.
+def parse_sitelink_specs(specs: Optional[List[str]]) -> Optional[List[Dict[str, Any]]]:
+    """Parse repeated TITLE|HREF[|DESCRIPTION[|TURBO_PAGE_ID]] specs.
 
     Literal '|' characters inside any field can be escaped as '\\|'.
     """
@@ -494,16 +494,40 @@ def parse_sitelink_specs(specs: Optional[List[str]]) -> Optional[List[Dict[str, 
     sitelinks = []
     for spec in specs:
         parts = [part.strip() for part in _split_sitelink_spec(spec)]
-        if len(parts) not in (2, 3):
+        if len(parts) not in (2, 3, 4):
             raise ValueError(
                 "Invalid sitelink: "
-                f"'{spec}'. Expected format: TITLE|HREF[|DESCRIPTION]. "
+                f"'{spec}'. Expected format: "
+                "TITLE|HREF[|DESCRIPTION[|TURBO_PAGE_ID]]. "
                 "Escape a literal '|' inside a field as '\\|'."
             )
 
-        sitelink = {"Title": parts[0], "Href": parts[1]}
+        if not parts[0]:
+            raise ValueError(f"Invalid sitelink: '{spec}'. Title is required.")
+
+        sitelink: Dict[str, Any] = {"Title": parts[0]}
+        if parts[1]:
+            sitelink["Href"] = parts[1]
         if len(parts) == 3 and parts[2]:
             sitelink["Description"] = parts[2]
+        if len(parts) == 4:
+            if parts[2]:
+                sitelink["Description"] = parts[2]
+            if not parts[3]:
+                raise ValueError(
+                    f"Invalid sitelink: '{spec}'. TurboPageId must be an integer."
+                )
+            try:
+                sitelink["TurboPageId"] = int(parts[3])
+            except ValueError:
+                raise ValueError(
+                    f"Invalid sitelink: '{spec}'. TurboPageId must be an integer."
+                )
+
+        if "Href" not in sitelink and "TurboPageId" not in sitelink:
+            raise ValueError(
+                f"Invalid sitelink: '{spec}'. Provide Href or TurboPageId."
+            )
         sitelinks.append(sitelink)
     return sitelinks
 
