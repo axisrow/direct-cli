@@ -408,6 +408,8 @@ direct ads add --adgroup-id 12345 --type TEXT_AD --title "Title" --text "Ad text
 direct ads add --adgroup-id 12345 --type TEXT_AD --title "Title" --text "Ad text" --href "https://example.com" --title2 "Second headline" --display-url-path "deals" --mobile YES --vcard-id 111 --sitelink-set-id 222 --turbo-page-id 333 --ad-extensions "444,555" --dry-run
 direct ads add --adgroup-id 12345 --type TEXT_AD --title "Title" --text "Ad text" --href "https://example.com" --final-url "https://final.example.com" --video-extension-creative-id 777 --price-extension-price 123.45 --price-extension-price-qualifier FROM --price-extension-price-currency RUB --business-id 777 --prefer-vcard-over-business NO --erir-ad-description "Text ad object" --dry-run
 direct ads add --adgroup-id 12345 --type RESPONSIVE_AD --texts "Text one,Text two" --titles "Title one,Title two" --image-hashes hash1,hash2 --video-extension-ids 111,222 --href "https://example.com" --price-extension-price 123.45 --price-extension-price-qualifier FROM --price-extension-price-currency RUB --business-id 777 --erir-ad-description "Responsive ad object" --dry-run
+direct ads add --adgroup-id 12345 --type SHOPPING_AD --feed-id 170 --default-texts "Default product text" --sitelink-set-id 222 --ad-extensions "333,444" --business-id 777 --feed-filter-condition "CATEGORY:EQUALS_ANY:shoes|boots" --title-sources NAME,BRAND --text-sources DESCRIPTION --dry-run
+direct ads add --adgroup-id 12345 --type LISTING_AD --feed-id 171 --default-texts "Default listing text" --feed-filter-condition "CATEGORY:EQUALS_ANY:appliances" --title-sources TITLE --text-sources DESCRIPTION --dry-run
 direct ads add --adgroup-id 12345 --type TEXT_IMAGE_AD --image-hash abcdefghijklmnopqrst --href "https://example.com" --turbo-page-id 555 --dry-run
 direct ads update --id 99999 --type TEXT_AD --title "New Title" --text "New text" --href "https://example.com"
 direct ads update --id 99999 --type TEXT_AD --image-hash abcdefghijklmnopqrst
@@ -454,6 +456,10 @@ comma-separated lists and also requires `--href`, `--business-id`, or both.
 Optional creation flags include `--image-hashes`, `--video-extension-ids`,
 `--age-label`, `--display-url-path`, `--sitelink-set-id`, `--ad-extensions`,
 `--price-extension-*`, and `--erir-ad-description`.
+SHOPPING_AD and LISTING_AD `ads add` require `--feed-id` and one
+`--default-texts` value. Optional creation flags include `--sitelink-set-id`,
+`--ad-extensions`, `--business-id`, repeatable `--feed-filter-condition`
+(`OPERAND:OPERATOR:ARG1|ARG2`), `--title-sources`, and `--text-sources`.
 MOBILE_APP_AD update supports `--mobile-app-feature FEATURE=YES|NO`,
 `--video-extension-creative-id`, and `--erir-ad-description`.
 RESPONSIVE_AD update supports `--texts`, `--titles`, `--image-hashes`,
@@ -1178,6 +1184,8 @@ direct ads add --adgroup-id 12345 --type TEXT_AD --title "Заголовок" --
 direct ads add --adgroup-id 12345 --type TEXT_AD --title "Заголовок" --text "Текст" --href "https://example.com" --title2 "Второй заголовок" --display-url-path "deals" --mobile YES --vcard-id 111 --sitelink-set-id 222 --turbo-page-id 333 --ad-extensions "444,555" --dry-run
 direct ads add --adgroup-id 12345 --type TEXT_AD --title "Заголовок" --text "Текст объявления" --href "https://example.com" --final-url "https://final.example.com" --video-extension-creative-id 777 --price-extension-price 123.45 --price-extension-price-qualifier FROM --price-extension-price-currency RUB --business-id 777 --prefer-vcard-over-business NO --erir-ad-description "Объект текстового объявления" --dry-run
 direct ads add --adgroup-id 12345 --type RESPONSIVE_AD --texts "Текст один,Текст два" --titles "Заголовок один,Заголовок два" --image-hashes hash1,hash2 --video-extension-ids 111,222 --href "https://example.com" --price-extension-price 123.45 --price-extension-price-qualifier FROM --price-extension-price-currency RUB --business-id 777 --erir-ad-description "Объект адаптивного объявления" --dry-run
+direct ads add --adgroup-id 12345 --type SHOPPING_AD --feed-id 170 --default-texts "Текст по умолчанию" --sitelink-set-id 222 --ad-extensions "333,444" --business-id 777 --feed-filter-condition "CATEGORY:EQUALS_ANY:shoes|boots" --title-sources NAME,BRAND --text-sources DESCRIPTION --dry-run
+direct ads add --adgroup-id 12345 --type LISTING_AD --feed-id 171 --default-texts "Текст листинга по умолчанию" --feed-filter-condition "CATEGORY:EQUALS_ANY:appliances" --title-sources TITLE --text-sources DESCRIPTION --dry-run
 direct ads add --adgroup-id 12345 --type TEXT_IMAGE_AD --image-hash abcdefghijklmnopqrst --href "https://example.com" --turbo-page-id 555 --dry-run
 direct ads update --id 99999 --type TEXT_AD --title "Новый заголовок" --text "Новый текст" --href "https://example.com"
 direct ads update --id 99999 --type TEXT_AD --image-hash abcdefghijklmnopqrst
@@ -1225,6 +1233,11 @@ DYNAMIC_TEXT_AD в `ads update` доступны `--text`, `--image-hash`,
 флаги создания: `--image-hashes`, `--video-extension-ids`, `--age-label`,
 `--display-url-path`, `--sitelink-set-id`, `--ad-extensions`,
 `--price-extension-*` и `--erir-ad-description`.
+Для SHOPPING_AD и LISTING_AD в `ads add` обязательны `--feed-id` и одно
+значение `--default-texts`. Дополнительные флаги создания:
+`--sitelink-set-id`, `--ad-extensions`, `--business-id`, повторяемый
+`--feed-filter-condition` (`OPERAND:OPERATOR:ARG1|ARG2`), `--title-sources` и
+`--text-sources`.
 Для MOBILE_APP_AD в `ads update` доступны `--mobile-app-feature FEATURE=YES|NO`,
 `--video-extension-creative-id` и `--erir-ad-description`.
 Для RESPONSIVE_AD в `ads update` доступны `--texts`, `--titles`,

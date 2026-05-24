@@ -266,7 +266,8 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         collapsed = " ".join(result.output.split())
         self.assertIn(
-            "Ad type: TEXT_AD | TEXT_IMAGE_AD | MOBILE_APP_AD | RESPONSIVE_AD",
+            "Ad type: TEXT_AD | TEXT_IMAGE_AD | MOBILE_APP_AD | RESPONSIVE_AD | "
+            "SHOPPING_AD | LISTING_AD",
             collapsed,
         )
         self.assertIn("Comma-separated ResponsiveAd.Titles values", collapsed)
@@ -285,12 +286,26 @@ class TestCLI(unittest.TestCase):
             "Optional; if supplied, PriceExtension add also requires", collapsed
         )
         self.assertIn(
-            "TextAd/ResponsiveAd.BusinessId (TEXT_AD / RESPONSIVE_AD)",
+            "BusinessId (TEXT_AD / RESPONSIVE_AD / SHOPPING_AD / LISTING_AD)",
             collapsed,
         )
         self.assertIn("TextAd.PreferVCardOverBusiness value: YES or NO", collapsed)
         self.assertIn(
             "TextAd/ResponsiveAd.ErirAdDescription (TEXT_AD / RESPONSIVE_AD)",
+            collapsed,
+        )
+        self.assertIn(
+            "ShoppingAd/ListingAd.FeedId (SHOPPING_AD / LISTING_AD)",
+            collapsed,
+        )
+        self.assertIn(
+            "Repeatable ShoppingAd/ListingAd.FeedFilterConditions item as "
+            "OPERAND:OPERATOR:ARG1|ARG2",
+            collapsed,
+        )
+        self.assertIn(
+            "ShoppingAd/ListingAd.DefaultTexts value "
+            "(required for SHOPPING_AD/LISTING_AD)",
             collapsed,
         )
 

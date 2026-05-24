@@ -981,6 +981,42 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     },
     ("ads", "add", "ResponsiveAd.BusinessId"): {"--business-id"},
     ("ads", "add", "ResponsiveAd.ErirAdDescription"): {"--erir-ad-description"},
+    ("ads", "add", "ShoppingAd"): {"--type"},
+    ("ads", "add", "ShoppingAd.SitelinkSetId"): {"--sitelink-set-id"},
+    ("ads", "add", "ShoppingAd.AdExtensionIds"): {"--ad-extensions"},
+    ("ads", "add", "ShoppingAd.BusinessId"): {"--business-id"},
+    ("ads", "add", "ShoppingAd.FeedId"): {"--feed-id"},
+    ("ads", "add", "ShoppingAd.FeedFilterConditions"): {"--feed-filter-condition"},
+    ("ads", "add", "ShoppingAd.FeedFilterConditions.Operand"): {
+        "--feed-filter-condition"
+    },
+    ("ads", "add", "ShoppingAd.FeedFilterConditions.Operator"): {
+        "--feed-filter-condition"
+    },
+    ("ads", "add", "ShoppingAd.FeedFilterConditions.Arguments"): {
+        "--feed-filter-condition"
+    },
+    ("ads", "add", "ShoppingAd.TitleSources"): {"--title-sources"},
+    ("ads", "add", "ShoppingAd.TextSources"): {"--text-sources"},
+    ("ads", "add", "ShoppingAd.DefaultTexts"): {"--default-texts"},
+    ("ads", "add", "ListingAd"): {"--type"},
+    ("ads", "add", "ListingAd.SitelinkSetId"): {"--sitelink-set-id"},
+    ("ads", "add", "ListingAd.AdExtensionIds"): {"--ad-extensions"},
+    ("ads", "add", "ListingAd.BusinessId"): {"--business-id"},
+    ("ads", "add", "ListingAd.FeedId"): {"--feed-id"},
+    ("ads", "add", "ListingAd.FeedFilterConditions"): {"--feed-filter-condition"},
+    ("ads", "add", "ListingAd.FeedFilterConditions.Operand"): {
+        "--feed-filter-condition"
+    },
+    ("ads", "add", "ListingAd.FeedFilterConditions.Operator"): {
+        "--feed-filter-condition"
+    },
+    ("ads", "add", "ListingAd.FeedFilterConditions.Arguments"): {
+        "--feed-filter-condition"
+    },
+    ("ads", "add", "ListingAd.TitleSources"): {"--title-sources"},
+    ("ads", "add", "ListingAd.TextSources"): {"--text-sources"},
+    ("ads", "add", "ListingAd.DefaultTexts"): {"--default-texts"},
     ("ads", "update", "TextAd"): {"--type"},
     ("ads", "update", "TextAd.VCardId"): {"--vcard-id"},
     ("ads", "update", "TextAd.AdImageHash"): {"--image-hash"},
@@ -1886,16 +1922,6 @@ OPTIONAL_FIELD_DEFAULT_FOLLOWUPS: dict[tuple[str, str], dict[str, str]] = {
 }
 
 OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]] = {
-    ("ads", "add", "ShoppingAd"): {
-        "status": "missing_followup",
-        "issue": "#275",
-        "note": "SHOPPING_AD add fields need typed support or N/A.",
-    },
-    ("ads", "add", "ListingAd"): {
-        "status": "missing_followup",
-        "issue": "#275",
-        "note": "LISTING_AD add fields need typed support or N/A.",
-    },
     ("ads", "add", "TextAdBuilderAd"): {
         "status": "missing_followup",
         "issue": "#276",
