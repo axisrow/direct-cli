@@ -3094,6 +3094,26 @@ def test_keywords_autotargeting_settings_rejects_legacy_category_mix():
     assert "--autotargeting-category" in result.output
 
 
+def test_keywords_autotargeting_settings_rejects_legacy_brand_option_mix():
+    result = CliRunner().invoke(
+        cli,
+        [
+            "keywords",
+            "update",
+            "--id",
+            "777",
+            "--autotargeting-brand-option",
+            "WITHOUT_BRANDS=YES",
+            "--autotargeting-settings-without-brands",
+            "YES",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "cannot be combined" in result.output
+    assert "--autotargeting-brand-option" in result.output
+
+
 def test_keywords_autotargeting_category_requires_category_value_pair():
     result = CliRunner().invoke(
         cli,
