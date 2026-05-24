@@ -9682,6 +9682,106 @@ def test_strategies_custom_period_budget_rejects_weekly_spend_limit():
     )
 
 
+def test_strategies_add_exploration_budget_payload():
+    body = _dry_run(
+        "strategies",
+        "add",
+        "--name",
+        "Exploration",
+        "--type",
+        "AverageCpa",
+        "--average-cpa",
+        "4000000",
+        "--goal-id",
+        "123",
+        "--minimum-exploration-budget",
+        "200000000",
+    )
+    s = body["params"]["Strategies"][0]
+    assert s["AverageCpa"]["ExplorationBudget"] == {
+        "MinimumExplorationBudget": 200000000,
+        "IsMinimumExplorationBudgetCustom": "YES",
+    }
+
+
+def test_strategies_update_exploration_budget_payload_accepts_zero():
+    body = _dry_run(
+        "strategies",
+        "update",
+        "--id",
+        "42",
+        "--type",
+        "MaxProfit",
+        "--minimum-exploration-budget",
+        "0",
+    )
+    s = body["params"]["Strategies"][0]
+    assert s["MaxProfit"] == {
+        "ExplorationBudget": {
+            "MinimumExplorationBudget": 0,
+            "IsMinimumExplorationBudgetCustom": "YES",
+        }
+    }
+
+
+def test_strategies_exploration_budget_requires_type():
+    result = _failing_run(
+        "strategies",
+        "update",
+        "--id",
+        "42",
+        "--minimum-exploration-budget",
+        "200000000",
+        "--dry-run",
+    )
+    assert result.exit_code != 0
+    assert "Provide --type when setting strategy-specific fields" in result.output
+
+
+def test_strategies_exploration_budget_rejects_unsupported_type():
+    result = _failing_run(
+        "strategies",
+        "update",
+        "--id",
+        "42",
+        "--type",
+        "AverageCpc",
+        "--minimum-exploration-budget",
+        "200000000",
+        "--dry-run",
+    )
+    assert result.exit_code != 0
+    assert (
+        "--minimum-exploration-budget is not valid for --type AverageCpc."
+        in result.output
+    )
+
+
+def test_strategies_exploration_budget_rejects_value_above_weekly_budget():
+    result = _failing_run(
+        "strategies",
+        "add",
+        "--name",
+        "Exploration",
+        "--type",
+        "AverageCpa",
+        "--average-cpa",
+        "4000000",
+        "--goal-id",
+        "123",
+        "--weekly-spend-limit",
+        "100000000",
+        "--minimum-exploration-budget",
+        "200000000",
+        "--dry-run",
+    )
+    assert result.exit_code != 0
+    assert (
+        "--minimum-exploration-budget must be less than or equal to "
+        "--weekly-spend-limit"
+    ) in result.output
+
+
 def test_strategies_archive_payload():
     body = _dry_run("strategies", "archive", "--id", "10")
     assert body == {

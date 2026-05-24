@@ -11,9 +11,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2235 |
+| `missing_followup` | 2199 |
 | `not_applicable` | 23 |
-| `supported` | 983 |
+| `supported` | 1019 |
 
 ## Confirmed Follow-Ups
 
@@ -2238,45 +2238,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `strategies.add` | `PriorityGoals.Items.GoalId` | strategies.add residual optional WSDL path needs typed support or N/A. [#299](https://github.com/axisrow/direct-cli/issues/299) |
 | `strategies.add` | `PriorityGoals.Items.Value` | strategies.add residual optional WSDL path needs typed support or N/A. [#299](https://github.com/axisrow/direct-cli/issues/299) |
 | `strategies.add` | `PriorityGoals.Items.IsMetrikaSourceOfValue` | strategies.add residual optional WSDL path needs typed support or N/A. [#299](https://github.com/axisrow/direct-cli/issues/299) |
-| `strategies.add` | `AverageCpa.ExplorationBudget` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298) |
-| `strategies.add` | `AverageCpa.ExplorationBudget.MinimumExplorationBudget` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCpa.ExplorationBudget` |
-| `strategies.add` | `AverageCpa.ExplorationBudget.IsMinimumExplorationBudgetCustom` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCpa.ExplorationBudget` |
-| `strategies.add` | `MaxProfit.ExplorationBudget` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298) |
-| `strategies.add` | `MaxProfit.ExplorationBudget.MinimumExplorationBudget` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `MaxProfit.ExplorationBudget` |
-| `strategies.add` | `MaxProfit.ExplorationBudget.IsMinimumExplorationBudgetCustom` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `MaxProfit.ExplorationBudget` |
-| `strategies.add` | `AverageCpaPerCampaign.ExplorationBudget` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298) |
-| `strategies.add` | `AverageCpaPerCampaign.ExplorationBudget.MinimumExplorationBudget` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCpaPerCampaign.ExplorationBudget` |
-| `strategies.add` | `AverageCpaPerCampaign.ExplorationBudget.IsMinimumExplorationBudgetCustom` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCpaPerCampaign.ExplorationBudget` |
-| `strategies.add` | `AverageCpaPerFilter.ExplorationBudget` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298) |
-| `strategies.add` | `AverageCpaPerFilter.ExplorationBudget.MinimumExplorationBudget` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCpaPerFilter.ExplorationBudget` |
-| `strategies.add` | `AverageCpaPerFilter.ExplorationBudget.IsMinimumExplorationBudgetCustom` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCpaPerFilter.ExplorationBudget` |
-| `strategies.add` | `AverageCrr.ExplorationBudget` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298) |
-| `strategies.add` | `AverageCrr.ExplorationBudget.MinimumExplorationBudget` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCrr.ExplorationBudget` |
-| `strategies.add` | `AverageCrr.ExplorationBudget.IsMinimumExplorationBudgetCustom` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCrr.ExplorationBudget` |
-| `strategies.add` | `AverageCpaMultipleGoals.ExplorationBudget` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298) |
-| `strategies.add` | `AverageCpaMultipleGoals.ExplorationBudget.MinimumExplorationBudget` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCpaMultipleGoals.ExplorationBudget` |
-| `strategies.add` | `AverageCpaMultipleGoals.ExplorationBudget.IsMinimumExplorationBudgetCustom` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCpaMultipleGoals.ExplorationBudget` |
 | `strategies.update` | `PriorityGoals.Items.GoalId` | strategies.update residual optional WSDL path needs typed support or N/A. [#300](https://github.com/axisrow/direct-cli/issues/300) |
 | `strategies.update` | `PriorityGoals.Items.Value` | strategies.update residual optional WSDL path needs typed support or N/A. [#300](https://github.com/axisrow/direct-cli/issues/300) |
 | `strategies.update` | `PriorityGoals.Items.IsMetrikaSourceOfValue` | strategies.update residual optional WSDL path needs typed support or N/A. [#300](https://github.com/axisrow/direct-cli/issues/300) |
-| `strategies.update` | `AverageCpa.ExplorationBudget` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298) |
-| `strategies.update` | `AverageCpa.ExplorationBudget.MinimumExplorationBudget` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCpa.ExplorationBudget` |
-| `strategies.update` | `AverageCpa.ExplorationBudget.IsMinimumExplorationBudgetCustom` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCpa.ExplorationBudget` |
-| `strategies.update` | `MaxProfit.ExplorationBudget` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298) |
-| `strategies.update` | `MaxProfit.ExplorationBudget.MinimumExplorationBudget` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `MaxProfit.ExplorationBudget` |
-| `strategies.update` | `MaxProfit.ExplorationBudget.IsMinimumExplorationBudgetCustom` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `MaxProfit.ExplorationBudget` |
-| `strategies.update` | `AverageCpaPerCampaign.ExplorationBudget` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298) |
-| `strategies.update` | `AverageCpaPerCampaign.ExplorationBudget.MinimumExplorationBudget` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCpaPerCampaign.ExplorationBudget` |
-| `strategies.update` | `AverageCpaPerCampaign.ExplorationBudget.IsMinimumExplorationBudgetCustom` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCpaPerCampaign.ExplorationBudget` |
-| `strategies.update` | `AverageCpaPerFilter.ExplorationBudget` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298) |
-| `strategies.update` | `AverageCpaPerFilter.ExplorationBudget.MinimumExplorationBudget` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCpaPerFilter.ExplorationBudget` |
-| `strategies.update` | `AverageCpaPerFilter.ExplorationBudget.IsMinimumExplorationBudgetCustom` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCpaPerFilter.ExplorationBudget` |
-| `strategies.update` | `AverageCrr.ExplorationBudget` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298) |
-| `strategies.update` | `AverageCrr.ExplorationBudget.MinimumExplorationBudget` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCrr.ExplorationBudget` |
-| `strategies.update` | `AverageCrr.ExplorationBudget.IsMinimumExplorationBudgetCustom` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCrr.ExplorationBudget` |
-| `strategies.update` | `AverageCpaMultipleGoals.ExplorationBudget` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298) |
-| `strategies.update` | `AverageCpaMultipleGoals.ExplorationBudget.MinimumExplorationBudget` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCpaMultipleGoals.ExplorationBudget` |
-| `strategies.update` | `AverageCpaMultipleGoals.ExplorationBudget.IsMinimumExplorationBudgetCustom` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCpaMultipleGoals.ExplorationBudget` |
 
 ## Field Table
 
@@ -5207,9 +5171,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `strategies.add` | `strategies.add` | `AverageCpa.CustomPeriodBudget.EndDate` | `string` | 1 | 1 | `supported` | --custom-period-end-date |
 | `strategies.add` | `strategies.add` | `AverageCpa.CustomPeriodBudget.AutoContinue` | `YesNoEnum` | 1 | 1 | `supported` | --custom-period-auto-continue |
 | `strategies.add` | `strategies.add` | `AverageCpa.BidCeiling` | `long` | 0 | 1 | `supported` | --bid-ceiling |
-| `strategies.add` | `strategies.add` | `AverageCpa.ExplorationBudget` | `ExplorationBudget` | 0 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298) |
-| `strategies.add` | `strategies.add` | `AverageCpa.ExplorationBudget.MinimumExplorationBudget` | `long` | 1 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCpa.ExplorationBudget` |
-| `strategies.add` | `strategies.add` | `AverageCpa.ExplorationBudget.IsMinimumExplorationBudgetCustom` | `YesNoEnum` | 1 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCpa.ExplorationBudget` |
+| `strategies.add` | `strategies.add` | `AverageCpa.ExplorationBudget` | `ExplorationBudget` | 0 | 1 | `supported` | --minimum-exploration-budget |
+| `strategies.add` | `strategies.add` | `AverageCpa.ExplorationBudget.MinimumExplorationBudget` | `long` | 1 | 1 | `supported` | --minimum-exploration-budget |
+| `strategies.add` | `strategies.add` | `AverageCpa.ExplorationBudget.IsMinimumExplorationBudgetCustom` | `YesNoEnum` | 1 | 1 | `supported` | --minimum-exploration-budget |
 | `strategies.add` | `strategies.add` | `MaxProfit` | `StrategyMaxProfitAddItem` | 0 | 1 | `supported` | --type |
 | `strategies.add` | `strategies.add` | `MaxProfit.WeeklySpendLimit` | `long` | 0 | 1 | `supported` | --weekly-spend-limit |
 | `strategies.add` | `strategies.add` | `MaxProfit.CustomPeriodBudget` | `CustomPeriodBudget` | 0 | 1 | `supported` | --custom-period-auto-continue, --custom-period-end-date, --custom-period-spend-limit, --custom-period-start-date |
@@ -5217,9 +5181,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `strategies.add` | `strategies.add` | `MaxProfit.CustomPeriodBudget.StartDate` | `string` | 1 | 1 | `supported` | --custom-period-start-date |
 | `strategies.add` | `strategies.add` | `MaxProfit.CustomPeriodBudget.EndDate` | `string` | 1 | 1 | `supported` | --custom-period-end-date |
 | `strategies.add` | `strategies.add` | `MaxProfit.CustomPeriodBudget.AutoContinue` | `YesNoEnum` | 1 | 1 | `supported` | --custom-period-auto-continue |
-| `strategies.add` | `strategies.add` | `MaxProfit.ExplorationBudget` | `ExplorationBudget` | 0 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298) |
-| `strategies.add` | `strategies.add` | `MaxProfit.ExplorationBudget.MinimumExplorationBudget` | `long` | 1 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `MaxProfit.ExplorationBudget` |
-| `strategies.add` | `strategies.add` | `MaxProfit.ExplorationBudget.IsMinimumExplorationBudgetCustom` | `YesNoEnum` | 1 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `MaxProfit.ExplorationBudget` |
+| `strategies.add` | `strategies.add` | `MaxProfit.ExplorationBudget` | `ExplorationBudget` | 0 | 1 | `supported` | --minimum-exploration-budget |
+| `strategies.add` | `strategies.add` | `MaxProfit.ExplorationBudget.MinimumExplorationBudget` | `long` | 1 | 1 | `supported` | --minimum-exploration-budget |
+| `strategies.add` | `strategies.add` | `MaxProfit.ExplorationBudget.IsMinimumExplorationBudgetCustom` | `YesNoEnum` | 1 | 1 | `supported` | --minimum-exploration-budget |
 | `strategies.add` | `strategies.add` | `PayForConversion` | `StrategyPayForConversionAddItem` | 0 | 1 | `supported` | --type |
 | `strategies.add` | `strategies.add` | `PayForConversion.Cpa` | `long` | 1 | 1 | `supported` | --average-cpa |
 | `strategies.add` | `strategies.add` | `PayForConversion.GoalId` | `long` | 1 | 1 | `supported` | --goal-id |
@@ -5239,9 +5203,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `strategies.add` | `strategies.add` | `AverageCpaPerCampaign.CustomPeriodBudget.EndDate` | `string` | 1 | 1 | `supported` | --custom-period-end-date |
 | `strategies.add` | `strategies.add` | `AverageCpaPerCampaign.CustomPeriodBudget.AutoContinue` | `YesNoEnum` | 1 | 1 | `supported` | --custom-period-auto-continue |
 | `strategies.add` | `strategies.add` | `AverageCpaPerCampaign.BidCeiling` | `long` | 0 | 1 | `supported` | --bid-ceiling |
-| `strategies.add` | `strategies.add` | `AverageCpaPerCampaign.ExplorationBudget` | `ExplorationBudget` | 0 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298) |
-| `strategies.add` | `strategies.add` | `AverageCpaPerCampaign.ExplorationBudget.MinimumExplorationBudget` | `long` | 1 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCpaPerCampaign.ExplorationBudget` |
-| `strategies.add` | `strategies.add` | `AverageCpaPerCampaign.ExplorationBudget.IsMinimumExplorationBudgetCustom` | `YesNoEnum` | 1 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCpaPerCampaign.ExplorationBudget` |
+| `strategies.add` | `strategies.add` | `AverageCpaPerCampaign.ExplorationBudget` | `ExplorationBudget` | 0 | 1 | `supported` | --minimum-exploration-budget |
+| `strategies.add` | `strategies.add` | `AverageCpaPerCampaign.ExplorationBudget.MinimumExplorationBudget` | `long` | 1 | 1 | `supported` | --minimum-exploration-budget |
+| `strategies.add` | `strategies.add` | `AverageCpaPerCampaign.ExplorationBudget.IsMinimumExplorationBudgetCustom` | `YesNoEnum` | 1 | 1 | `supported` | --minimum-exploration-budget |
 | `strategies.add` | `strategies.add` | `PayForConversionPerCampaign` | `StrategyPayForConversionPerCampaignAddItem` | 0 | 1 | `supported` | --type |
 | `strategies.add` | `strategies.add` | `PayForConversionPerCampaign.Cpa` | `long` | 1 | 1 | `supported` | --average-cpa |
 | `strategies.add` | `strategies.add` | `PayForConversionPerCampaign.GoalId` | `long` | 1 | 1 | `supported` | --goal-id |
@@ -5270,9 +5234,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `strategies.add` | `strategies.add` | `AverageCpaPerFilter.CustomPeriodBudget.EndDate` | `string` | 1 | 1 | `supported` | --custom-period-end-date |
 | `strategies.add` | `strategies.add` | `AverageCpaPerFilter.CustomPeriodBudget.AutoContinue` | `YesNoEnum` | 1 | 1 | `supported` | --custom-period-auto-continue |
 | `strategies.add` | `strategies.add` | `AverageCpaPerFilter.BidCeiling` | `long` | 0 | 1 | `supported` | --bid-ceiling |
-| `strategies.add` | `strategies.add` | `AverageCpaPerFilter.ExplorationBudget` | `ExplorationBudget` | 0 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298) |
-| `strategies.add` | `strategies.add` | `AverageCpaPerFilter.ExplorationBudget.MinimumExplorationBudget` | `long` | 1 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCpaPerFilter.ExplorationBudget` |
-| `strategies.add` | `strategies.add` | `AverageCpaPerFilter.ExplorationBudget.IsMinimumExplorationBudgetCustom` | `YesNoEnum` | 1 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCpaPerFilter.ExplorationBudget` |
+| `strategies.add` | `strategies.add` | `AverageCpaPerFilter.ExplorationBudget` | `ExplorationBudget` | 0 | 1 | `supported` | --minimum-exploration-budget |
+| `strategies.add` | `strategies.add` | `AverageCpaPerFilter.ExplorationBudget.MinimumExplorationBudget` | `long` | 1 | 1 | `supported` | --minimum-exploration-budget |
+| `strategies.add` | `strategies.add` | `AverageCpaPerFilter.ExplorationBudget.IsMinimumExplorationBudgetCustom` | `YesNoEnum` | 1 | 1 | `supported` | --minimum-exploration-budget |
 | `strategies.add` | `strategies.add` | `AverageCpcPerCampaign` | `StrategyAverageCpcPerCampaignAddItem` | 0 | 1 | `supported` | --type |
 | `strategies.add` | `strategies.add` | `AverageCpcPerCampaign.AverageCpc` | `long` | 1 | 1 | `supported` | --average-cpc |
 | `strategies.add` | `strategies.add` | `AverageCpcPerCampaign.WeeklySpendLimit` | `long` | 0 | 1 | `supported` | --weekly-spend-limit |
@@ -5300,9 +5264,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `strategies.add` | `strategies.add` | `AverageCrr.CustomPeriodBudget.StartDate` | `string` | 1 | 1 | `supported` | --custom-period-start-date |
 | `strategies.add` | `strategies.add` | `AverageCrr.CustomPeriodBudget.EndDate` | `string` | 1 | 1 | `supported` | --custom-period-end-date |
 | `strategies.add` | `strategies.add` | `AverageCrr.CustomPeriodBudget.AutoContinue` | `YesNoEnum` | 1 | 1 | `supported` | --custom-period-auto-continue |
-| `strategies.add` | `strategies.add` | `AverageCrr.ExplorationBudget` | `ExplorationBudget` | 0 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298) |
-| `strategies.add` | `strategies.add` | `AverageCrr.ExplorationBudget.MinimumExplorationBudget` | `long` | 1 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCrr.ExplorationBudget` |
-| `strategies.add` | `strategies.add` | `AverageCrr.ExplorationBudget.IsMinimumExplorationBudgetCustom` | `YesNoEnum` | 1 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCrr.ExplorationBudget` |
+| `strategies.add` | `strategies.add` | `AverageCrr.ExplorationBudget` | `ExplorationBudget` | 0 | 1 | `supported` | --minimum-exploration-budget |
+| `strategies.add` | `strategies.add` | `AverageCrr.ExplorationBudget.MinimumExplorationBudget` | `long` | 1 | 1 | `supported` | --minimum-exploration-budget |
+| `strategies.add` | `strategies.add` | `AverageCrr.ExplorationBudget.IsMinimumExplorationBudgetCustom` | `YesNoEnum` | 1 | 1 | `supported` | --minimum-exploration-budget |
 | `strategies.add` | `strategies.add` | `PayForConversionCrr` | `StrategyPayForConversionCrrAddItem` | 0 | 1 | `supported` | --type |
 | `strategies.add` | `strategies.add` | `PayForConversionCrr.Crr` | `int` | 1 | 1 | `supported` | --average-crr |
 | `strategies.add` | `strategies.add` | `PayForConversionCrr.GoalId` | `long` | 1 | 1 | `supported` | --goal-id |
@@ -5319,9 +5283,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `strategies.add` | `strategies.add` | `AverageCpaMultipleGoals.CustomPeriodBudget.StartDate` | `string` | 1 | 1 | `supported` | --custom-period-start-date |
 | `strategies.add` | `strategies.add` | `AverageCpaMultipleGoals.CustomPeriodBudget.EndDate` | `string` | 1 | 1 | `supported` | --custom-period-end-date |
 | `strategies.add` | `strategies.add` | `AverageCpaMultipleGoals.CustomPeriodBudget.AutoContinue` | `YesNoEnum` | 1 | 1 | `supported` | --custom-period-auto-continue |
-| `strategies.add` | `strategies.add` | `AverageCpaMultipleGoals.ExplorationBudget` | `ExplorationBudget` | 0 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298) |
-| `strategies.add` | `strategies.add` | `AverageCpaMultipleGoals.ExplorationBudget.MinimumExplorationBudget` | `long` | 1 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCpaMultipleGoals.ExplorationBudget` |
-| `strategies.add` | `strategies.add` | `AverageCpaMultipleGoals.ExplorationBudget.IsMinimumExplorationBudgetCustom` | `YesNoEnum` | 1 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCpaMultipleGoals.ExplorationBudget` |
+| `strategies.add` | `strategies.add` | `AverageCpaMultipleGoals.ExplorationBudget` | `ExplorationBudget` | 0 | 1 | `supported` | --minimum-exploration-budget |
+| `strategies.add` | `strategies.add` | `AverageCpaMultipleGoals.ExplorationBudget.MinimumExplorationBudget` | `long` | 1 | 1 | `supported` | --minimum-exploration-budget |
+| `strategies.add` | `strategies.add` | `AverageCpaMultipleGoals.ExplorationBudget.IsMinimumExplorationBudgetCustom` | `YesNoEnum` | 1 | 1 | `supported` | --minimum-exploration-budget |
 | `strategies.add` | `strategies.add` | `AverageCpaMultipleGoals.BidCeiling` | `long` | 0 | 1 | `supported` | --bid-ceiling |
 | `strategies.add` | `strategies.add` | `PayForConversionMultipleGoals` | `StrategyPayForConversionMultipleGoalsAddItem` | 0 | 1 | `supported` | --type |
 | `strategies.add` | `strategies.add` | `PayForConversionMultipleGoals.GoalId` | `long` | 1 | 1 | `supported` | --goal-id |
@@ -5371,9 +5335,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `strategies.update` | `strategies.update` | `AverageCpa.GoalId` | `long` | 0 | 1 | `supported` | --goal-id |
 | `strategies.update` | `strategies.update` | `AverageCpa.WeeklySpendLimit` | `long` | 0 | 1 | `supported` | --weekly-spend-limit |
 | `strategies.update` | `strategies.update` | `AverageCpa.BidCeiling` | `long` | 0 | 1 | `supported` | --bid-ceiling |
-| `strategies.update` | `strategies.update` | `AverageCpa.ExplorationBudget` | `ExplorationBudget` | 0 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298) |
-| `strategies.update` | `strategies.update` | `AverageCpa.ExplorationBudget.MinimumExplorationBudget` | `long` | 1 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCpa.ExplorationBudget` |
-| `strategies.update` | `strategies.update` | `AverageCpa.ExplorationBudget.IsMinimumExplorationBudgetCustom` | `YesNoEnum` | 1 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCpa.ExplorationBudget` |
+| `strategies.update` | `strategies.update` | `AverageCpa.ExplorationBudget` | `ExplorationBudget` | 0 | 1 | `supported` | --minimum-exploration-budget |
+| `strategies.update` | `strategies.update` | `AverageCpa.ExplorationBudget.MinimumExplorationBudget` | `long` | 1 | 1 | `supported` | --minimum-exploration-budget |
+| `strategies.update` | `strategies.update` | `AverageCpa.ExplorationBudget.IsMinimumExplorationBudgetCustom` | `YesNoEnum` | 1 | 1 | `supported` | --minimum-exploration-budget |
 | `strategies.update` | `strategies.update` | `MaxProfit` | `StrategyMaxProfitUpdateItem` | 0 | 1 | `supported` | --type |
 | `strategies.update` | `strategies.update` | `MaxProfit.WeeklySpendLimit` | `long` | 0 | 1 | `supported` | --weekly-spend-limit |
 | `strategies.update` | `strategies.update` | `MaxProfit.CustomPeriodBudget` | `CustomPeriodBudget` | 0 | 1 | `supported` | --custom-period-auto-continue, --custom-period-end-date, --custom-period-spend-limit, --custom-period-start-date |
@@ -5381,9 +5345,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `strategies.update` | `strategies.update` | `MaxProfit.CustomPeriodBudget.StartDate` | `string` | 1 | 1 | `supported` | --custom-period-start-date |
 | `strategies.update` | `strategies.update` | `MaxProfit.CustomPeriodBudget.EndDate` | `string` | 1 | 1 | `supported` | --custom-period-end-date |
 | `strategies.update` | `strategies.update` | `MaxProfit.CustomPeriodBudget.AutoContinue` | `YesNoEnum` | 1 | 1 | `supported` | --custom-period-auto-continue |
-| `strategies.update` | `strategies.update` | `MaxProfit.ExplorationBudget` | `ExplorationBudget` | 0 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298) |
-| `strategies.update` | `strategies.update` | `MaxProfit.ExplorationBudget.MinimumExplorationBudget` | `long` | 1 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `MaxProfit.ExplorationBudget` |
-| `strategies.update` | `strategies.update` | `MaxProfit.ExplorationBudget.IsMinimumExplorationBudgetCustom` | `YesNoEnum` | 1 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `MaxProfit.ExplorationBudget` |
+| `strategies.update` | `strategies.update` | `MaxProfit.ExplorationBudget` | `ExplorationBudget` | 0 | 1 | `supported` | --minimum-exploration-budget |
+| `strategies.update` | `strategies.update` | `MaxProfit.ExplorationBudget.MinimumExplorationBudget` | `long` | 1 | 1 | `supported` | --minimum-exploration-budget |
+| `strategies.update` | `strategies.update` | `MaxProfit.ExplorationBudget.IsMinimumExplorationBudgetCustom` | `YesNoEnum` | 1 | 1 | `supported` | --minimum-exploration-budget |
 | `strategies.update` | `strategies.update` | `PayForConversion` | `StrategyPayForConversionUpdateItem` | 0 | 1 | `supported` | --type |
 | `strategies.update` | `strategies.update` | `PayForConversion.Cpa` | `long` | 0 | 1 | `supported` | --average-cpa |
 | `strategies.update` | `strategies.update` | `PayForConversion.GoalId` | `long` | 0 | 1 | `supported` | --goal-id |
@@ -5403,9 +5367,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `strategies.update` | `strategies.update` | `AverageCpaPerCampaign.CustomPeriodBudget.EndDate` | `string` | 1 | 1 | `supported` | --custom-period-end-date |
 | `strategies.update` | `strategies.update` | `AverageCpaPerCampaign.CustomPeriodBudget.AutoContinue` | `YesNoEnum` | 1 | 1 | `supported` | --custom-period-auto-continue |
 | `strategies.update` | `strategies.update` | `AverageCpaPerCampaign.BidCeiling` | `long` | 0 | 1 | `supported` | --bid-ceiling |
-| `strategies.update` | `strategies.update` | `AverageCpaPerCampaign.ExplorationBudget` | `ExplorationBudget` | 0 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298) |
-| `strategies.update` | `strategies.update` | `AverageCpaPerCampaign.ExplorationBudget.MinimumExplorationBudget` | `long` | 1 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCpaPerCampaign.ExplorationBudget` |
-| `strategies.update` | `strategies.update` | `AverageCpaPerCampaign.ExplorationBudget.IsMinimumExplorationBudgetCustom` | `YesNoEnum` | 1 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCpaPerCampaign.ExplorationBudget` |
+| `strategies.update` | `strategies.update` | `AverageCpaPerCampaign.ExplorationBudget` | `ExplorationBudget` | 0 | 1 | `supported` | --minimum-exploration-budget |
+| `strategies.update` | `strategies.update` | `AverageCpaPerCampaign.ExplorationBudget.MinimumExplorationBudget` | `long` | 1 | 1 | `supported` | --minimum-exploration-budget |
+| `strategies.update` | `strategies.update` | `AverageCpaPerCampaign.ExplorationBudget.IsMinimumExplorationBudgetCustom` | `YesNoEnum` | 1 | 1 | `supported` | --minimum-exploration-budget |
 | `strategies.update` | `strategies.update` | `PayForConversionPerCampaign` | `StrategyPayForConversionPerCampaignUpdateItem` | 0 | 1 | `supported` | --type |
 | `strategies.update` | `strategies.update` | `PayForConversionPerCampaign.Cpa` | `long` | 0 | 1 | `supported` | --average-cpa |
 | `strategies.update` | `strategies.update` | `PayForConversionPerCampaign.GoalId` | `long` | 0 | 1 | `supported` | --goal-id |
@@ -5434,9 +5398,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `strategies.update` | `strategies.update` | `AverageCpaPerFilter.CustomPeriodBudget.EndDate` | `string` | 1 | 1 | `supported` | --custom-period-end-date |
 | `strategies.update` | `strategies.update` | `AverageCpaPerFilter.CustomPeriodBudget.AutoContinue` | `YesNoEnum` | 1 | 1 | `supported` | --custom-period-auto-continue |
 | `strategies.update` | `strategies.update` | `AverageCpaPerFilter.BidCeiling` | `long` | 0 | 1 | `supported` | --bid-ceiling |
-| `strategies.update` | `strategies.update` | `AverageCpaPerFilter.ExplorationBudget` | `ExplorationBudget` | 0 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298) |
-| `strategies.update` | `strategies.update` | `AverageCpaPerFilter.ExplorationBudget.MinimumExplorationBudget` | `long` | 1 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCpaPerFilter.ExplorationBudget` |
-| `strategies.update` | `strategies.update` | `AverageCpaPerFilter.ExplorationBudget.IsMinimumExplorationBudgetCustom` | `YesNoEnum` | 1 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCpaPerFilter.ExplorationBudget` |
+| `strategies.update` | `strategies.update` | `AverageCpaPerFilter.ExplorationBudget` | `ExplorationBudget` | 0 | 1 | `supported` | --minimum-exploration-budget |
+| `strategies.update` | `strategies.update` | `AverageCpaPerFilter.ExplorationBudget.MinimumExplorationBudget` | `long` | 1 | 1 | `supported` | --minimum-exploration-budget |
+| `strategies.update` | `strategies.update` | `AverageCpaPerFilter.ExplorationBudget.IsMinimumExplorationBudgetCustom` | `YesNoEnum` | 1 | 1 | `supported` | --minimum-exploration-budget |
 | `strategies.update` | `strategies.update` | `AverageCpcPerCampaign` | `StrategyAverageCpcPerCampaignUpdateItem` | 0 | 1 | `supported` | --type |
 | `strategies.update` | `strategies.update` | `AverageCpcPerCampaign.AverageCpc` | `long` | 0 | 1 | `supported` | --average-cpc |
 | `strategies.update` | `strategies.update` | `AverageCpcPerCampaign.WeeklySpendLimit` | `long` | 0 | 1 | `supported` | --weekly-spend-limit |
@@ -5464,9 +5428,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `strategies.update` | `strategies.update` | `AverageCrr.CustomPeriodBudget.StartDate` | `string` | 1 | 1 | `supported` | --custom-period-start-date |
 | `strategies.update` | `strategies.update` | `AverageCrr.CustomPeriodBudget.EndDate` | `string` | 1 | 1 | `supported` | --custom-period-end-date |
 | `strategies.update` | `strategies.update` | `AverageCrr.CustomPeriodBudget.AutoContinue` | `YesNoEnum` | 1 | 1 | `supported` | --custom-period-auto-continue |
-| `strategies.update` | `strategies.update` | `AverageCrr.ExplorationBudget` | `ExplorationBudget` | 0 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298) |
-| `strategies.update` | `strategies.update` | `AverageCrr.ExplorationBudget.MinimumExplorationBudget` | `long` | 1 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCrr.ExplorationBudget` |
-| `strategies.update` | `strategies.update` | `AverageCrr.ExplorationBudget.IsMinimumExplorationBudgetCustom` | `YesNoEnum` | 1 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCrr.ExplorationBudget` |
+| `strategies.update` | `strategies.update` | `AverageCrr.ExplorationBudget` | `ExplorationBudget` | 0 | 1 | `supported` | --minimum-exploration-budget |
+| `strategies.update` | `strategies.update` | `AverageCrr.ExplorationBudget.MinimumExplorationBudget` | `long` | 1 | 1 | `supported` | --minimum-exploration-budget |
+| `strategies.update` | `strategies.update` | `AverageCrr.ExplorationBudget.IsMinimumExplorationBudgetCustom` | `YesNoEnum` | 1 | 1 | `supported` | --minimum-exploration-budget |
 | `strategies.update` | `strategies.update` | `PayForConversionCrr` | `StrategyPayForConversionCrrUpdateItem` | 0 | 1 | `supported` | --type |
 | `strategies.update` | `strategies.update` | `PayForConversionCrr.Crr` | `int` | 0 | 1 | `supported` | --average-crr |
 | `strategies.update` | `strategies.update` | `PayForConversionCrr.GoalId` | `long` | 0 | 1 | `supported` | --goal-id |
@@ -5483,9 +5447,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `strategies.update` | `strategies.update` | `AverageCpaMultipleGoals.CustomPeriodBudget.StartDate` | `string` | 1 | 1 | `supported` | --custom-period-start-date |
 | `strategies.update` | `strategies.update` | `AverageCpaMultipleGoals.CustomPeriodBudget.EndDate` | `string` | 1 | 1 | `supported` | --custom-period-end-date |
 | `strategies.update` | `strategies.update` | `AverageCpaMultipleGoals.CustomPeriodBudget.AutoContinue` | `YesNoEnum` | 1 | 1 | `supported` | --custom-period-auto-continue |
-| `strategies.update` | `strategies.update` | `AverageCpaMultipleGoals.ExplorationBudget` | `ExplorationBudget` | 0 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298) |
-| `strategies.update` | `strategies.update` | `AverageCpaMultipleGoals.ExplorationBudget.MinimumExplorationBudget` | `long` | 1 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCpaMultipleGoals.ExplorationBudget` |
-| `strategies.update` | `strategies.update` | `AverageCpaMultipleGoals.ExplorationBudget.IsMinimumExplorationBudgetCustom` | `YesNoEnum` | 1 | 1 | `missing_followup` | Strategy ExplorationBudget fields need typed support. [#298](https://github.com/axisrow/direct-cli/issues/298); inherited from `AverageCpaMultipleGoals.ExplorationBudget` |
+| `strategies.update` | `strategies.update` | `AverageCpaMultipleGoals.ExplorationBudget` | `ExplorationBudget` | 0 | 1 | `supported` | --minimum-exploration-budget |
+| `strategies.update` | `strategies.update` | `AverageCpaMultipleGoals.ExplorationBudget.MinimumExplorationBudget` | `long` | 1 | 1 | `supported` | --minimum-exploration-budget |
+| `strategies.update` | `strategies.update` | `AverageCpaMultipleGoals.ExplorationBudget.IsMinimumExplorationBudgetCustom` | `YesNoEnum` | 1 | 1 | `supported` | --minimum-exploration-budget |
 | `strategies.update` | `strategies.update` | `AverageCpaMultipleGoals.BidCeiling` | `long` | 0 | 1 | `supported` | --bid-ceiling |
 | `strategies.update` | `strategies.update` | `PayForConversionMultipleGoals` | `StrategyPayForConversionMultipleGoalsUpdateItem` | 0 | 1 | `supported` | --type |
 | `strategies.update` | `strategies.update` | `PayForConversionMultipleGoals.WeeklySpendLimit` | `long` | 0 | 1 | `supported` | --weekly-spend-limit |

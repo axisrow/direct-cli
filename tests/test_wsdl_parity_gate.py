@@ -42,6 +42,9 @@ from direct_cli.commands.bidmodifiers import _BIDMODIFIER_TYPE_TO_NESTED
 from direct_cli.commands.strategies import (
     CUSTOM_PERIOD_BUDGET_FIELD_OPTIONS,
     CUSTOM_PERIOD_BUDGET_FLAGS,
+    EXPLORATION_BUDGET_FIELD_OPTIONS,
+    EXPLORATION_BUDGET_FLAGS,
+    EXPLORATION_BUDGET_STRATEGY_TYPES,
     STRATEGY_FIELD_OPTIONS,
     STRATEGY_FLAG_NAMES,
     STRATEGY_TYPES,
@@ -1880,6 +1883,14 @@ for strategy_type, options in STRATEGY_FIELD_OPTIONS.items():
         OPTIONAL_FIELD_CLI_OPTIONS[
             ("strategies", "add", f"{strategy_type}.CustomPeriodBudget.{wsdl_field}")
         ] = {flag_name}
+    if strategy_type in EXPLORATION_BUDGET_STRATEGY_TYPES:
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            ("strategies", "add", f"{strategy_type}.ExplorationBudget")
+        ] = EXPLORATION_BUDGET_FLAGS
+        for wsdl_field, flag_name in EXPLORATION_BUDGET_FIELD_OPTIONS.items():
+            OPTIONAL_FIELD_CLI_OPTIONS[
+                ("strategies", "add", f"{strategy_type}.ExplorationBudget.{wsdl_field}")
+            ] = {flag_name}
 
 OPTIONAL_FIELD_CLI_OPTIONS.update(
     {
@@ -1898,19 +1909,30 @@ for strategy_type, options in STRATEGY_UPDATE_FIELD_OPTIONS.items():
             ("strategies", "update", f"{strategy_type}.{wsdl_field}")
         ] = {STRATEGY_FLAG_NAMES[param_name]}
     # Cached strategies WSDL does not expose this update path for bare AverageCpa.
-    if strategy_type == "AverageCpa":
-        continue
-    OPTIONAL_FIELD_CLI_OPTIONS[
-        ("strategies", "update", f"{strategy_type}.CustomPeriodBudget")
-    ] = CUSTOM_PERIOD_BUDGET_FLAGS
-    for wsdl_field, flag_name in CUSTOM_PERIOD_BUDGET_FIELD_OPTIONS.items():
+    if strategy_type != "AverageCpa":
         OPTIONAL_FIELD_CLI_OPTIONS[
-            (
-                "strategies",
-                "update",
-                f"{strategy_type}.CustomPeriodBudget.{wsdl_field}",
-            )
-        ] = {flag_name}
+            ("strategies", "update", f"{strategy_type}.CustomPeriodBudget")
+        ] = CUSTOM_PERIOD_BUDGET_FLAGS
+        for wsdl_field, flag_name in CUSTOM_PERIOD_BUDGET_FIELD_OPTIONS.items():
+            OPTIONAL_FIELD_CLI_OPTIONS[
+                (
+                    "strategies",
+                    "update",
+                    f"{strategy_type}.CustomPeriodBudget.{wsdl_field}",
+                )
+            ] = {flag_name}
+    if strategy_type in EXPLORATION_BUDGET_STRATEGY_TYPES:
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            ("strategies", "update", f"{strategy_type}.ExplorationBudget")
+        ] = EXPLORATION_BUDGET_FLAGS
+        for wsdl_field, flag_name in EXPLORATION_BUDGET_FIELD_OPTIONS.items():
+            OPTIONAL_FIELD_CLI_OPTIONS[
+                (
+                    "strategies",
+                    "update",
+                    f"{strategy_type}.ExplorationBudget.{wsdl_field}",
+                )
+            ] = {flag_name}
 
 OPTIONAL_FIELD_CLI_OPTIONS.update(
     {
@@ -2128,18 +2150,9 @@ OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]
     },
 }
 
-OPTIONAL_FIELD_CHILD_COMPONENT_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]] = {
-    ("strategies", "add", "ExplorationBudget"): {
-        "status": "missing_followup",
-        "issue": "#298",
-        "note": "Strategy ExplorationBudget fields need typed support.",
-    },
-    ("strategies", "update", "ExplorationBudget"): {
-        "status": "missing_followup",
-        "issue": "#298",
-        "note": "Strategy ExplorationBudget fields need typed support.",
-    },
-}
+OPTIONAL_FIELD_CHILD_COMPONENT_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]] = (
+    {}
+)
 
 OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
     ("keywords", "add", "AutotargetingSearchBidIsAuto"): {

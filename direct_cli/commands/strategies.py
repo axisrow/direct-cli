@@ -160,6 +160,19 @@ CUSTOM_PERIOD_BUDGET_FIELD_OPTIONS = {
     "AutoContinue": "--custom-period-auto-continue",
 }
 CUSTOM_PERIOD_BUDGET_FLAGS = set(CUSTOM_PERIOD_BUDGET_FIELD_OPTIONS.values())
+EXPLORATION_BUDGET_FIELD_OPTIONS = {
+    "MinimumExplorationBudget": "--minimum-exploration-budget",
+    "IsMinimumExplorationBudgetCustom": "--minimum-exploration-budget",
+}
+EXPLORATION_BUDGET_FLAGS = set(EXPLORATION_BUDGET_FIELD_OPTIONS.values())
+EXPLORATION_BUDGET_STRATEGY_TYPES = {
+    "AverageCpa",
+    "MaxProfit",
+    "AverageCpaPerCampaign",
+    "AverageCpaPerFilter",
+    "AverageCrr",
+    "AverageCpaMultipleGoals",
+}
 STRATEGY_FLAG_NAMES = {
     "average_cpc": "--average-cpc",
     "average_cpa": "--average-cpa",
@@ -208,6 +221,32 @@ def _build_custom_period_budget(
     }
 
 
+def _build_exploration_budget(
+    strategy_type,
+    minimum_exploration_budget,
+    weekly_spend_limit,
+):
+    """Build ExplorationBudget from typed flags."""
+    if minimum_exploration_budget is None:
+        return None
+    if strategy_type not in EXPLORATION_BUDGET_STRATEGY_TYPES:
+        raise click.UsageError(
+            "--minimum-exploration-budget is not valid for " f"--type {strategy_type}."
+        )
+    if (
+        weekly_spend_limit is not None
+        and minimum_exploration_budget > weekly_spend_limit
+    ):
+        raise click.UsageError(
+            "--minimum-exploration-budget must be less than or equal to "
+            "--weekly-spend-limit when both flags are provided."
+        )
+    return {
+        "MinimumExplorationBudget": minimum_exploration_budget,
+        "IsMinimumExplorationBudgetCustom": "YES",
+    }
+
+
 def _parse_priority_goal(spec: str) -> dict:
     """Parse a priority goal spec in GOAL_ID:VALUE format."""
     goal_id, separator, value = spec.partition(":")
@@ -236,6 +275,7 @@ def _build_strategy_fields(
     custom_period_start_date,
     custom_period_end_date,
     custom_period_auto_continue,
+    minimum_exploration_budget,
     *,
     update=False,
 ):
@@ -258,6 +298,7 @@ def _build_strategy_fields(
                 weekly_spend_limit,
                 bid_ceiling,
                 *custom_period_values,
+                minimum_exploration_budget,
             )
         ):
             raise click.UsageError(
@@ -322,6 +363,13 @@ def _build_strategy_fields(
     )
     if custom_period_budget:
         fields["CustomPeriodBudget"] = custom_period_budget
+    exploration_budget = _build_exploration_budget(
+        strategy_type,
+        minimum_exploration_budget,
+        weekly_spend_limit,
+    )
+    if exploration_budget:
+        fields["ExplorationBudget"] = exploration_budget
     return fields
 
 
@@ -424,6 +472,14 @@ def get(ctx, ids, types, is_archived, limit, fetch_all, output_format, output, f
     type=click.Choice(["YES", "NO"], case_sensitive=False),
     help="CustomPeriodBudget.AutoContinue value: YES or NO",
 )
+@click.option(
+    "--minimum-exploration-budget",
+    type=MICRO_RUBLES,
+    help=(
+        "ExplorationBudget.MinimumExplorationBudget in micro-rubles; "
+        "sets IsMinimumExplorationBudgetCustom=YES"
+    ),
+)
 @click.option("--counter-ids", help="Comma-separated Metrica counter IDs")
 @click.option(
     "--priority-goal",
@@ -456,6 +512,7 @@ def add(
     custom_period_start_date,
     custom_period_end_date,
     custom_period_auto_continue,
+    minimum_exploration_budget,
     counter_ids,
     priority_goals,
     attribution_model,
@@ -478,6 +535,7 @@ def add(
                 custom_period_start_date,
                 custom_period_end_date,
                 custom_period_auto_continue,
+                minimum_exploration_budget,
             ),
         }
         if strategy_type in GOAL_ID_STRATEGY_TYPES and goal_id is None:
@@ -552,6 +610,14 @@ def add(
     type=click.Choice(["YES", "NO"], case_sensitive=False),
     help="CustomPeriodBudget.AutoContinue value: YES or NO",
 )
+@click.option(
+    "--minimum-exploration-budget",
+    type=MICRO_RUBLES,
+    help=(
+        "ExplorationBudget.MinimumExplorationBudget in micro-rubles; "
+        "sets IsMinimumExplorationBudgetCustom=YES"
+    ),
+)
 @click.option("--counter-ids", help="Comma-separated Metrica counter IDs")
 @click.option(
     "--priority-goal",
@@ -585,6 +651,7 @@ def update(
     custom_period_start_date,
     custom_period_end_date,
     custom_period_auto_continue,
+    minimum_exploration_budget,
     counter_ids,
     priority_goals,
     attribution_model,
@@ -608,6 +675,7 @@ def update(
             custom_period_start_date,
             custom_period_end_date,
             custom_period_auto_continue,
+            minimum_exploration_budget,
             update=True,
         )
         if strategy_fields and not strategy_type:
