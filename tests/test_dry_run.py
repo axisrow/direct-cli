@@ -2805,6 +2805,46 @@ def test_keywords_add_payload_with_bids():
     assert keyword["ContextBid"] == 5000000
 
 
+def test_keywords_add_payload_with_scalar_autotargeting_fields():
+    body = _dry_run(
+        "keywords",
+        "add",
+        "--adgroup-id",
+        "12",
+        "--keyword",
+        "---autotargeting",
+        "--autotargeting-search-bid-is-auto",
+        "yes",
+        "--priority",
+        "high",
+    )
+    keyword = body["params"]["Keywords"][0]
+    assert keyword == {
+        "AdGroupId": 12,
+        "Keyword": "---autotargeting",
+        "AutotargetingSearchBidIsAuto": "YES",
+        "StrategyPriority": "HIGH",
+    }
+
+
+def test_keywords_add_rejects_scalar_autotargeting_flags_in_batch_mode(tmp_path):
+    path = _write_jsonl(tmp_path, [{"Keyword": "kw", "AdGroupId": 100}])
+    result = CliRunner().invoke(
+        cli,
+        [
+            "keywords",
+            "add",
+            "--from-file",
+            path,
+            "--priority",
+            "HIGH",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "single-item mode" in result.output
+
+
 def test_keywords_update_payload_keyword_text():
     body = _dry_run("keywords", "update", "--id", "777", "--keyword", "new text")
     keyword = body["params"]["Keywords"][0]

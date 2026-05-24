@@ -934,7 +934,11 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     },
     ("creatives", "add", "VideoExtensionCreative.VideoId"): {"--video-id"},
     ("keywords", "add", "Bid"): {"--bid"},
+    ("keywords", "add", "AutotargetingSearchBidIsAuto"): {
+        "--autotargeting-search-bid-is-auto"
+    },
     ("keywords", "add", "ContextBid"): {"--context-bid"},
+    ("keywords", "add", "StrategyPriority"): {"--priority"},
     ("keywords", "add", "UserParam1"): {"--user-param-1"},
     ("keywords", "add", "UserParam2"): {"--user-param-2"},
     ("keywords", "update", "Keyword"): {"--keyword"},
@@ -1460,16 +1464,6 @@ OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
         "status": "missing_followup",
         "issue": "#286",
         "note": "Keyword autotargeting categories have no typed add flags.",
-    },
-    ("keywords", "add", "AutotargetingSearchBidIsAuto"): {
-        "status": "missing_followup",
-        "issue": "#285",
-        "note": "Keyword autotargeting auto-search-bid has no typed add flag.",
-    },
-    ("keywords", "add", "StrategyPriority"): {
-        "status": "missing_followup",
-        "issue": "#285",
-        "note": "Keyword strategy priority has no typed add flag.",
     },
     ("keywords", "add", "AutotargetingBrandOptions"): {
         "status": "missing_followup",

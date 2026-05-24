@@ -280,6 +280,16 @@ def get(
 @click.option("--keyword", help="Keyword text (single-item mode)")
 @click.option("--bid", type=MICRO_RUBLES, help="Search bid in micro-rubles")
 @click.option("--context-bid", type=MICRO_RUBLES, help="Context bid in micro-rubles")
+@click.option(
+    "--autotargeting-search-bid-is-auto",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="AutotargetingSearchBidIsAuto value: YES or NO",
+)
+@click.option(
+    "--priority",
+    type=click.Choice(["LOW", "NORMAL", "HIGH"], case_sensitive=False),
+    help="StrategyPriority value: LOW, NORMAL, or HIGH",
+)
 @click.option("--user-param-1", help="User parameter 1")
 @click.option("--user-param-2", help="User parameter 2")
 @click.option(
@@ -307,6 +317,8 @@ def add(
     keyword,
     bid,
     context_bid,
+    autotargeting_search_bid_is_auto,
+    priority,
     user_param_1,
     user_param_2,
     from_file,
@@ -332,6 +344,11 @@ def add(
     batch_mode = from_file is not None or keywords_json is not None
 
     if batch_mode:
+        if autotargeting_search_bid_is_auto is not None or priority is not None:
+            raise click.UsageError(
+                "--autotargeting-search-bid-is-auto and --priority are "
+                "supported only with --keyword single-item mode"
+            )
         _bulk_add(
             ctx,
             adgroup_id=adgroup_id,
@@ -354,6 +371,12 @@ def add(
             keyword_data["Bid"] = bid
         if context_bid is not None:
             keyword_data["ContextBid"] = context_bid
+        if autotargeting_search_bid_is_auto is not None:
+            keyword_data["AutotargetingSearchBidIsAuto"] = (
+                autotargeting_search_bid_is_auto.upper()
+            )
+        if priority is not None:
+            keyword_data["StrategyPriority"] = priority.upper()
         if user_param_1:
             keyword_data["UserParam1"] = user_param_1
         if user_param_2:
