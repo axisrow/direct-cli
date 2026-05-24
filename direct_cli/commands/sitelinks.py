@@ -15,6 +15,16 @@ from ..utils import get_default_fields, parse_ids, parse_sitelink_specs
 _SITELINK_FIELDS = ("Title", "Href", "Description", "TurboPageId")
 
 
+def _coerce_turbo_page_id(raw_value: Any, index: int) -> int:
+    if isinstance(raw_value, bool):
+        raise click.UsageError(f"Sitelink #{index}: 'TurboPageId' must be an integer")
+    if isinstance(raw_value, int):
+        return raw_value
+    if isinstance(raw_value, str) and raw_value.strip().isdigit():
+        return int(raw_value.strip())
+    raise click.UsageError(f"Sitelink #{index}: 'TurboPageId' must be an integer")
+
+
 def _normalize_sitelink_row(row: Any, index: int) -> Dict[str, Any]:
     if not isinstance(row, dict):
         raise click.UsageError(
@@ -46,12 +56,7 @@ def _normalize_sitelink_row(row: Any, index: int) -> Dict[str, Any]:
     if description is not None and str(description).strip():
         item["Description"] = str(description).strip()
     if raw_turbo_page_id not in (None, ""):
-        try:
-            item["TurboPageId"] = int(raw_turbo_page_id)
-        except (TypeError, ValueError):
-            raise click.UsageError(
-                f"Sitelink #{index}: 'TurboPageId' must be an integer"
-            )
+        item["TurboPageId"] = _coerce_turbo_page_id(raw_turbo_page_id, index)
     return item
 
 
