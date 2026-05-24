@@ -11,8 +11,8 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2817 |
-| `supported` | 424 |
+| `missing_followup` | 2815 |
+| `supported` | 426 |
 
 ## Confirmed Follow-Ups
 
@@ -353,8 +353,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.update` | `ListingAd.DefaultTexts` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
 | `audiencetargets.add` | `ContextBid` | target bid optional WSDL path needs typed support or N/A. [#302](https://github.com/axisrow/direct-cli/issues/302) |
 | `audiencetargets.add` | `StrategyPriority` | target bid optional WSDL path needs typed support or N/A. [#302](https://github.com/axisrow/direct-cli/issues/302) |
-| `bidmodifiers.add` | `MobileAdjustment.OperatingSystemType` | bidmodifiers.add optional WSDL path needs typed support or N/A. [#254](https://github.com/axisrow/direct-cli/issues/254) |
-| `bidmodifiers.add` | `TabletAdjustment.OperatingSystemType` | bidmodifiers.add optional WSDL path needs typed support or N/A. [#254](https://github.com/axisrow/direct-cli/issues/254) |
 | `bids.set` | `CampaignId` | bids.set optional WSDL path needs typed support or N/A. [#301](https://github.com/axisrow/direct-cli/issues/301) |
 | `bids.set` | `AdGroupId` | bids.set optional WSDL path needs typed support or N/A. [#301](https://github.com/axisrow/direct-cli/issues/301) |
 | `bids.set` | `ContextBid` | bids.set optional WSDL path needs typed support or N/A. [#301](https://github.com/axisrow/direct-cli/issues/301) |
@@ -3266,14 +3264,14 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `bidmodifiers.add` | `bidmodifiers.add` | `AdGroupId` | `long` | 0 | 1 | `supported` | --adgroup-id |
 | `bidmodifiers.add` | `bidmodifiers.add` | `MobileAdjustment` | `MobileAdjustmentAdd` | 0 | 1 | `supported` | --type |
 | `bidmodifiers.add` | `bidmodifiers.add` | `MobileAdjustment.BidModifier` | `int` | 1 | 1 | `supported` | --value |
-| `bidmodifiers.add` | `bidmodifiers.add` | `MobileAdjustment.OperatingSystemType` | `OperatingSystemTypeEnum` | 0 | 1 | `missing_followup` | bidmodifiers.add optional WSDL path needs typed support or N/A. [#254](https://github.com/axisrow/direct-cli/issues/254) |
+| `bidmodifiers.add` | `bidmodifiers.add` | `MobileAdjustment.OperatingSystemType` | `OperatingSystemTypeEnum` | 0 | 1 | `supported` | --operating-system-type |
 | `bidmodifiers.add` | `bidmodifiers.add` | `DesktopAdjustment` | `DesktopAdjustmentAdd` | 0 | 1 | `supported` | --type |
 | `bidmodifiers.add` | `bidmodifiers.add` | `DesktopAdjustment.BidModifier` | `int` | 1 | 1 | `supported` | --value |
 | `bidmodifiers.add` | `bidmodifiers.add` | `SmartTvAdjustment` | `SmartTvAdjustmentAdd` | 0 | 1 | `supported` | --type |
 | `bidmodifiers.add` | `bidmodifiers.add` | `SmartTvAdjustment.BidModifier` | `int` | 1 | 1 | `supported` | --value |
 | `bidmodifiers.add` | `bidmodifiers.add` | `TabletAdjustment` | `TabletAdjustmentAdd` | 0 | 1 | `supported` | --type |
 | `bidmodifiers.add` | `bidmodifiers.add` | `TabletAdjustment.BidModifier` | `int` | 1 | 1 | `supported` | --value |
-| `bidmodifiers.add` | `bidmodifiers.add` | `TabletAdjustment.OperatingSystemType` | `OperatingSystemTypeEnum` | 0 | 1 | `missing_followup` | bidmodifiers.add optional WSDL path needs typed support or N/A. [#254](https://github.com/axisrow/direct-cli/issues/254) |
+| `bidmodifiers.add` | `bidmodifiers.add` | `TabletAdjustment.OperatingSystemType` | `OperatingSystemTypeEnum` | 0 | 1 | `supported` | --operating-system-type |
 | `bidmodifiers.add` | `bidmodifiers.add` | `DesktopOnlyAdjustment` | `DesktopOnlyAdjustmentAdd` | 0 | 1 | `supported` | --type |
 | `bidmodifiers.add` | `bidmodifiers.add` | `DesktopOnlyAdjustment.BidModifier` | `int` | 1 | 1 | `supported` | --value |
 | `bidmodifiers.add` | `bidmodifiers.add` | `DemographicsAdjustments` | `DemographicsAdjustmentAdd` | 0 | unbounded | `supported` | --type |

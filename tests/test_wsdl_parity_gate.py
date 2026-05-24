@@ -949,6 +949,12 @@ OPTIONAL_FIELD_CLI_OPTIONS.update(
         ("bidmodifiers", "add", "RegionalAdjustments.RegionId"): {"--region-id"},
         ("bidmodifiers", "add", "SerpLayoutAdjustments.SerpLayout"): {"--serp-layout"},
         ("bidmodifiers", "add", "IncomeGradeAdjustments.Grade"): {"--income-grade"},
+        ("bidmodifiers", "add", "MobileAdjustment.OperatingSystemType"): {
+            "--operating-system-type"
+        },
+        ("bidmodifiers", "add", "TabletAdjustment.OperatingSystemType"): {
+            "--operating-system-type"
+        },
     }
 )
 

@@ -495,6 +495,7 @@ direct keywordbids set --keyword-id 321 --search-bid 8000000 --network-bid 30000
 direct keywordbids set-auto --keyword-id 321 --target-traffic-volume 100 --increase-percent 10 --bid-ceiling 12500000 --dry-run
 direct bidmodifiers get --campaign-ids 123 --fields Id,CampaignId,AdGroupId,Level,Type
 direct bidmodifiers add --campaign-id 123 --type DEMOGRAPHICS_ADJUSTMENT --value 150 --gender GENDER_MALE --age AGE_25_34 --dry-run
+direct bidmodifiers add --campaign-id 123 --type MOBILE_ADJUSTMENT --value 120 --operating-system-type IOS --dry-run
 direct bidmodifiers set --id 99 --value 130 --dry-run
 
 # Canonical multiword groups
@@ -1202,6 +1203,7 @@ direct keywordbids set --keyword-id 321 --search-bid 8000000 --network-bid 30000
 direct keywordbids set-auto --keyword-id 321 --target-traffic-volume 100 --increase-percent 10 --bid-ceiling 12500000 --dry-run
 direct bidmodifiers get --campaign-ids 123 --fields Id,CampaignId,AdGroupId,Level,Type
 direct bidmodifiers add --campaign-id 123 --type DEMOGRAPHICS_ADJUSTMENT --value 150 --gender GENDER_MALE --age AGE_25_34 --dry-run
+direct bidmodifiers add --campaign-id 123 --type MOBILE_ADJUSTMENT --value 120 --operating-system-type IOS --dry-run
 direct bidmodifiers set --id 99 --value 130 --dry-run
 
 # Канонические многословные группы
