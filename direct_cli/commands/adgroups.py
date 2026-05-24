@@ -35,6 +35,14 @@ def _validate_tracking_params(tracking_params: Optional[str]) -> None:
         )
 
 
+def _parse_ids_option(value: Optional[str], option_name: str) -> Optional[list[int]]:
+    """Parse comma-separated IDs and report bad input as a Click usage error."""
+    try:
+        return parse_ids(value)
+    except ValueError as exc:
+        raise click.UsageError(f"{option_name}: {exc}") from exc
+
+
 def _reject_incompatible_flags(
     group_type: str,
     allowed_flags: set[str],
@@ -243,12 +251,13 @@ def add(
         adgroup_data = {"Name": name, "CampaignId": campaign_id}
 
         if region_ids:
-            adgroup_data["RegionIds"] = parse_ids(region_ids)
+            adgroup_data["RegionIds"] = _parse_ids_option(region_ids, "--region-ids")
         parsed_negative_keywords = parse_csv_strings(negative_keywords)
         if parsed_negative_keywords:
             adgroup_data["NegativeKeywords"] = {"Items": parsed_negative_keywords}
-        parsed_negative_keyword_shared_set_ids = parse_ids(
-            negative_keyword_shared_set_ids
+        parsed_negative_keyword_shared_set_ids = _parse_ids_option(
+            negative_keyword_shared_set_ids,
+            "--negative-keyword-shared-set-ids",
         )
         if parsed_negative_keyword_shared_set_ids:
             adgroup_data["NegativeKeywordSharedSetIds"] = {
@@ -342,11 +351,13 @@ def update(
     if status:
         adgroup_data["Status"] = status
     if region_ids:
-        adgroup_data["RegionIds"] = parse_ids(region_ids)
+        adgroup_data["RegionIds"] = _parse_ids_option(region_ids, "--region-ids")
     parsed_negative_keywords = parse_csv_strings(negative_keywords)
     if parsed_negative_keywords:
         adgroup_data["NegativeKeywords"] = {"Items": parsed_negative_keywords}
-    parsed_negative_keyword_shared_set_ids = parse_ids(negative_keyword_shared_set_ids)
+    parsed_negative_keyword_shared_set_ids = _parse_ids_option(
+        negative_keyword_shared_set_ids, "--negative-keyword-shared-set-ids"
+    )
     if parsed_negative_keyword_shared_set_ids:
         adgroup_data["NegativeKeywordSharedSetIds"] = {
             "Items": parsed_negative_keyword_shared_set_ids

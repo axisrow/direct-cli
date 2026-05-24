@@ -1537,6 +1537,23 @@ def test_adgroups_add_negative_keyword_shared_set_ids_payload():
     assert group["NegativeKeywordSharedSetIds"] == {"Items": [10, 11]}
 
 
+def test_adgroups_add_negative_keyword_shared_set_ids_rejects_invalid_id():
+    result = _rejected(
+        "adgroups",
+        "add",
+        "--name",
+        "Group A",
+        "--campaign-id",
+        "111",
+        "--region-ids",
+        "1,225",
+        "--negative-keyword-shared-set-ids",
+        "10,nope",
+    )
+    assert "--negative-keyword-shared-set-ids: Invalid ID: 'nope'" in result.output
+    assert "Traceback" not in result.output
+
+
 def test_adgroups_add_case_insensitive_default_type():
     """``--type text_ad_group`` (lowercase) still builds a valid payload.
 
@@ -1717,6 +1734,32 @@ def test_adgroups_update_negative_keyword_shared_set_ids_payload():
     )
     group = body["params"]["AdGroups"][0]
     assert group == {"Id": 222, "NegativeKeywordSharedSetIds": {"Items": [10, 11]}}
+
+
+def test_adgroups_update_negative_keyword_shared_set_ids_rejects_invalid_id():
+    result = _rejected(
+        "adgroups",
+        "update",
+        "--id",
+        "222",
+        "--negative-keyword-shared-set-ids",
+        "10,nope",
+    )
+    assert "--negative-keyword-shared-set-ids: Invalid ID: 'nope'" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_adgroups_update_region_ids_rejects_invalid_id():
+    result = _rejected(
+        "adgroups",
+        "update",
+        "--id",
+        "222",
+        "--region-ids",
+        "225,nope",
+    )
+    assert "--region-ids: Invalid ID: 'nope'" in result.output
+    assert "Traceback" not in result.output
 
 
 def test_adgroups_add_tracking_params_accepts_1024_chars():
