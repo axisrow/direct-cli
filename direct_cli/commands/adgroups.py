@@ -19,6 +19,7 @@ _TRACKING_PARAMS_MAX_LENGTH = 1024
 _SUPPORTED_ADGROUP_TYPES = (
     "TEXT_AD_GROUP",
     "DYNAMIC_TEXT_AD_GROUP",
+    "DYNAMIC_TEXT_FEED_AD_GROUP",
     "SMART_AD_GROUP",
     "MOBILE_APP_AD_GROUP",
 )
@@ -32,8 +33,8 @@ _AUTOTARGETING_CATEGORIES = (
     "ACCESSORY",
 )
 _AUTOTARGETING_CATEGORY_HELP = (
-    "DynamicTextAdGroup.AutotargetingCategories item as CATEGORY=YES|NO. "
-    "Categories: " + ", ".join(_AUTOTARGETING_CATEGORIES)
+    "DynamicTextAdGroup/DynamicTextFeedAdGroup.AutotargetingCategories item "
+    "as CATEGORY=YES|NO. Categories: " + ", ".join(_AUTOTARGETING_CATEGORIES)
 )
 _AUTOTARGETING_SETTINGS_FLAGS = {
     "--autotargeting-settings-exact",
@@ -49,6 +50,10 @@ _DYNAMIC_TEXT_ADGROUP_FLAGS = {
     "--domain-url",
     "--autotargeting-category",
     *_AUTOTARGETING_SETTINGS_FLAGS,
+}
+_DYNAMIC_TEXT_FEED_ADGROUP_FLAGS = {
+    "--feed-id",
+    "--autotargeting-category",
 }
 
 
@@ -300,6 +305,27 @@ def _build_dynamic_text_adgroup(
     return dynamic_text_adgroup or None
 
 
+def _build_dynamic_text_feed_adgroup(
+    *,
+    feed_id: Optional[int] = None,
+    autotargeting_categories: tuple[str, ...],
+    require_feed_id: bool = False,
+) -> Optional[dict[str, object]]:
+    """Build the DynamicTextFeedAdGroup block shared by add/update."""
+    parsed_categories = _parse_autotargeting_categories(autotargeting_categories)
+
+    if require_feed_id and feed_id is None:
+        raise click.UsageError("--feed-id is required for DYNAMIC_TEXT_FEED_AD_GROUP")
+
+    dynamic_text_feed_adgroup: dict[str, object] = {}
+    if feed_id is not None:
+        dynamic_text_feed_adgroup["FeedId"] = feed_id
+    if parsed_categories:
+        dynamic_text_feed_adgroup["AutotargetingCategories"] = parsed_categories
+
+    return dynamic_text_feed_adgroup or None
+
+
 def _reject_incompatible_flags(
     group_type: str,
     allowed_flags: set[str],
@@ -326,18 +352,21 @@ def _provided_flags(provided_flags: dict[str, object]) -> list[str]:
 
 
 def _reject_mixed_update_subtype_flags(
-    dynamic_flags: dict[str, object],
-    mobile_flags: dict[str, object],
+    subtype_flags: dict[str, dict[str, object]],
 ) -> None:
     """Reject update payloads that would target multiple ad group subtypes."""
-    provided_dynamic_flags = _provided_flags(dynamic_flags)
-    provided_mobile_flags = _provided_flags(mobile_flags)
-    if provided_dynamic_flags and provided_mobile_flags:
+    provided_by_subtype = [
+        (subtype_name, provided_flags)
+        for subtype_name, flags in subtype_flags.items()
+        if (provided_flags := _provided_flags(flags))
+    ]
+    if len(provided_by_subtype) > 1:
+        first_subtype, first_flags = provided_by_subtype[0]
+        second_subtype, second_flags = provided_by_subtype[1]
         raise click.UsageError(
-            "DynamicTextAdGroup update flags "
-            f"({', '.join(provided_dynamic_flags)}) cannot be combined with "
-            "MobileAppAdGroup update flags "
-            f"({', '.join(provided_mobile_flags)})."
+            f"{first_subtype} update flags "
+            f"({', '.join(first_flags)}) cannot be combined with "
+            f"{second_subtype} update flags ({', '.join(second_flags)})."
         )
 
 
@@ -450,8 +479,8 @@ def get(
     "group_type",
     default="TEXT_AD_GROUP",
     help=(
-        "Ad group type: TEXT_AD_GROUP, DYNAMIC_TEXT_AD_GROUP, SMART_AD_GROUP, "
-        "or MOBILE_APP_AD_GROUP"
+        "Ad group type: TEXT_AD_GROUP, DYNAMIC_TEXT_AD_GROUP, "
+        "DYNAMIC_TEXT_FEED_AD_GROUP, SMART_AD_GROUP, or MOBILE_APP_AD_GROUP"
     ),
 )
 @click.option(
@@ -512,7 +541,11 @@ def get(
         "WithCompetitorsBrand value"
     ),
 )
-@click.option("--feed-id", type=int, help="Smart ad group feed ID")
+@click.option(
+    "--feed-id",
+    type=int,
+    help="SmartAdGroup.FeedId or DynamicTextFeedAdGroup.FeedId",
+)
 @click.option("--ad-title-source", help="Smart ad group title source")
 @click.option("--ad-body-source", help="Smart ad group body source")
 @click.option(
@@ -597,6 +630,7 @@ def add(
         allowed_flags_by_type = {
             "TEXT_AD_GROUP": set(),
             "DYNAMIC_TEXT_AD_GROUP": _DYNAMIC_TEXT_ADGROUP_FLAGS,
+            "DYNAMIC_TEXT_FEED_AD_GROUP": _DYNAMIC_TEXT_FEED_ADGROUP_FLAGS,
             "SMART_AD_GROUP": {"--feed-id", "--ad-title-source", "--ad-body-source"},
             "MOBILE_APP_AD_GROUP": {
                 "--store-url",
@@ -678,6 +712,14 @@ def add(
             )
             if dynamic_text_adgroup:
                 adgroup_data["DynamicTextAdGroup"] = dynamic_text_adgroup
+        elif group_type_norm == "DYNAMIC_TEXT_FEED_AD_GROUP":
+            dynamic_text_feed_adgroup = _build_dynamic_text_feed_adgroup(
+                feed_id=feed_id,
+                autotargeting_categories=autotargeting_categories,
+                require_feed_id=True,
+            )
+            if dynamic_text_feed_adgroup:
+                adgroup_data["DynamicTextFeedAdGroup"] = dynamic_text_feed_adgroup
         elif group_type_norm == "SMART_AD_GROUP":
             if feed_id is None:
                 raise click.UsageError("--feed-id is required for SMART_AD_GROUP")
@@ -728,6 +770,11 @@ def add(
 @click.option(
     "--domain-url",
     help="DynamicTextAdGroup.DomainUrl; required for DynamicTextAdGroup updates",
+)
+@click.option(
+    "--dynamic-feed",
+    is_flag=True,
+    help=("Build DynamicTextFeedAdGroup update block for " "--autotargeting-category"),
 )
 @click.option(
     "--negative-keywords",
@@ -824,6 +871,7 @@ def update(
     status,
     region_ids,
     domain_url,
+    dynamic_feed,
     negative_keywords,
     negative_keyword_shared_set_ids,
     tracking_params,
@@ -843,30 +891,42 @@ def update(
 ):
     """Update ad group"""
     _validate_tracking_params(tracking_params)
+    autotargeting_settings_flags = {
+        "--autotargeting-settings-exact": autotargeting_settings_exact,
+        "--autotargeting-settings-narrow": autotargeting_settings_narrow,
+        "--autotargeting-settings-alternative": autotargeting_settings_alternative,
+        "--autotargeting-settings-accessory": autotargeting_settings_accessory,
+        "--autotargeting-settings-broader": autotargeting_settings_broader,
+        "--autotargeting-settings-without-brands": (
+            autotargeting_settings_without_brands
+        ),
+        "--autotargeting-settings-with-advertiser-brand": (
+            autotargeting_settings_with_advertiser_brand
+        ),
+        "--autotargeting-settings-with-competitors-brand": (
+            autotargeting_settings_with_competitors_brand
+        ),
+    }
+    dynamic_text_flags = {
+        "--domain-url": domain_url,
+        **autotargeting_settings_flags,
+    }
+    dynamic_feed_flags = {"--dynamic-feed": True if dynamic_feed else None}
+    if dynamic_feed:
+        dynamic_feed_flags["--autotargeting-category"] = autotargeting_categories
+    else:
+        dynamic_text_flags["--autotargeting-category"] = autotargeting_categories
+
     _reject_mixed_update_subtype_flags(
-        dynamic_flags={
-            "--domain-url": domain_url,
-            "--autotargeting-category": autotargeting_categories,
-            "--autotargeting-settings-exact": autotargeting_settings_exact,
-            "--autotargeting-settings-narrow": autotargeting_settings_narrow,
-            "--autotargeting-settings-alternative": autotargeting_settings_alternative,
-            "--autotargeting-settings-accessory": autotargeting_settings_accessory,
-            "--autotargeting-settings-broader": autotargeting_settings_broader,
-            "--autotargeting-settings-without-brands": (
-                autotargeting_settings_without_brands
-            ),
-            "--autotargeting-settings-with-advertiser-brand": (
-                autotargeting_settings_with_advertiser_brand
-            ),
-            "--autotargeting-settings-with-competitors-brand": (
-                autotargeting_settings_with_competitors_brand
-            ),
-        },
-        mobile_flags={
-            "--target-device-types": target_device_types,
-            "--target-carrier": target_carrier,
-            "--target-operating-system-version": target_operating_system_version,
-        },
+        {
+            "DynamicTextAdGroup": dynamic_text_flags,
+            "DynamicTextFeedAdGroup": dynamic_feed_flags,
+            "MobileAppAdGroup": {
+                "--target-device-types": target_device_types,
+                "--target-carrier": target_carrier,
+                "--target-operating-system-version": (target_operating_system_version),
+            },
+        }
     )
 
     adgroup_data = {"Id": adgroup_id}
@@ -890,24 +950,35 @@ def update(
         }
     if tracking_params:
         adgroup_data["TrackingParams"] = tracking_params
-    dynamic_text_adgroup = _build_dynamic_text_adgroup(
-        domain_url=domain_url,
-        autotargeting_categories=autotargeting_categories,
-        autotargeting_settings_exact=autotargeting_settings_exact,
-        autotargeting_settings_narrow=autotargeting_settings_narrow,
-        autotargeting_settings_alternative=autotargeting_settings_alternative,
-        autotargeting_settings_accessory=autotargeting_settings_accessory,
-        autotargeting_settings_broader=autotargeting_settings_broader,
-        autotargeting_settings_without_brands=autotargeting_settings_without_brands,
-        autotargeting_settings_with_advertiser_brand=(
-            autotargeting_settings_with_advertiser_brand
-        ),
-        autotargeting_settings_with_competitors_brand=(
-            autotargeting_settings_with_competitors_brand
-        ),
-    )
-    if dynamic_text_adgroup:
-        adgroup_data["DynamicTextAdGroup"] = dynamic_text_adgroup
+    if dynamic_feed:
+        if not autotargeting_categories:
+            raise click.UsageError("--dynamic-feed requires --autotargeting-category")
+        dynamic_text_feed_adgroup = _build_dynamic_text_feed_adgroup(
+            autotargeting_categories=autotargeting_categories,
+        )
+        if dynamic_text_feed_adgroup:
+            adgroup_data["DynamicTextFeedAdGroup"] = dynamic_text_feed_adgroup
+    else:
+        dynamic_text_adgroup = _build_dynamic_text_adgroup(
+            domain_url=domain_url,
+            autotargeting_categories=autotargeting_categories,
+            autotargeting_settings_exact=autotargeting_settings_exact,
+            autotargeting_settings_narrow=autotargeting_settings_narrow,
+            autotargeting_settings_alternative=autotargeting_settings_alternative,
+            autotargeting_settings_accessory=autotargeting_settings_accessory,
+            autotargeting_settings_broader=autotargeting_settings_broader,
+            autotargeting_settings_without_brands=(
+                autotargeting_settings_without_brands
+            ),
+            autotargeting_settings_with_advertiser_brand=(
+                autotargeting_settings_with_advertiser_brand
+            ),
+            autotargeting_settings_with_competitors_brand=(
+                autotargeting_settings_with_competitors_brand
+            ),
+        )
+        if dynamic_text_adgroup:
+            adgroup_data["DynamicTextAdGroup"] = dynamic_text_adgroup
     mobile_app_adgroup = _build_mobile_app_adgroup(
         target_device_types=target_device_types,
         target_carrier=target_carrier,
@@ -922,7 +993,7 @@ def update(
             "adgroups update requires at least one updatable field "
             "(--name, --status, --region-ids, --negative-keywords, "
             "--negative-keyword-shared-set-ids, --tracking-params, "
-            "--domain-url, --autotargeting-category, "
+            "--domain-url, --dynamic-feed, --autotargeting-category, "
             "--autotargeting-settings-* flags, --target-device-types, "
             "--target-carrier, or --target-operating-system-version)."
         )

@@ -1838,6 +1838,99 @@ def test_adgroups_add_dynamic_autotargeting_rejects_legacy_mix():
     assert "AutotargetingSettings flags cannot be combined" in result.output
 
 
+def test_adgroups_add_dynamic_feed_payload_omits_type():
+    """Issue #281: dynamic feed add sets top-level DynamicTextFeedAdGroup."""
+    body = _dry_run(
+        "adgroups",
+        "add",
+        "--name",
+        "Dynamic Feed Group",
+        "--campaign-id",
+        "111",
+        "--type",
+        "DYNAMIC_TEXT_FEED_AD_GROUP",
+        "--region-ids",
+        "1,225",
+        "--feed-id",
+        "170",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert "Type" not in group
+    assert group["RegionIds"] == [1, 225]
+    assert group["DynamicTextFeedAdGroup"] == {"FeedId": 170}
+
+
+def test_adgroups_add_dynamic_feed_autotargeting_categories_payload():
+    """Issue #281: dynamic feed add supports documented categories."""
+    body = _dry_run(
+        "adgroups",
+        "add",
+        "--name",
+        "Dynamic Feed Group",
+        "--campaign-id",
+        "111",
+        "--type",
+        "DYNAMIC_TEXT_FEED_AD_GROUP",
+        "--region-ids",
+        "1,225",
+        "--feed-id",
+        "170",
+        "--autotargeting-category",
+        "exact=yes",
+        "--autotargeting-category",
+        "ACCESSORY=NO",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert group["DynamicTextFeedAdGroup"] == {
+        "FeedId": 170,
+        "AutotargetingCategories": [
+            {"Category": "EXACT", "Value": "YES"},
+            {"Category": "ACCESSORY", "Value": "NO"},
+        ],
+    }
+
+
+def test_adgroups_add_dynamic_feed_requires_feed_id():
+    """Issue #281: add docs require DynamicTextFeedAdGroup.FeedId."""
+    result = _rejected(
+        "adgroups",
+        "add",
+        "--name",
+        "Dynamic Feed Group",
+        "--campaign-id",
+        "111",
+        "--type",
+        "DYNAMIC_TEXT_FEED_AD_GROUP",
+        "--region-ids",
+        "225",
+    )
+    assert "--feed-id is required for DYNAMIC_TEXT_FEED_AD_GROUP" in result.output
+
+
+def test_adgroups_add_dynamic_feed_rejects_undocumented_settings():
+    """Issue #281: feed subtype only exposes docs-backed category flags."""
+    result = _rejected(
+        "adgroups",
+        "add",
+        "--name",
+        "Dynamic Feed Group",
+        "--campaign-id",
+        "111",
+        "--type",
+        "DYNAMIC_TEXT_FEED_AD_GROUP",
+        "--region-ids",
+        "225",
+        "--feed-id",
+        "170",
+        "--autotargeting-settings-exact",
+        "YES",
+    )
+    assert (
+        "--autotargeting-settings-exact is not compatible with --type "
+        "DYNAMIC_TEXT_FEED_AD_GROUP"
+    ) in result.output
+
+
 def test_adgroups_add_smart_payload_omits_type():
     body = _dry_run(
         "adgroups",
@@ -2208,6 +2301,75 @@ def test_adgroups_update_dynamic_autotargeting_rejects_legacy_mix():
     assert "AutotargetingSettings flags cannot be combined" in result.output
 
 
+def test_adgroups_update_dynamic_feed_autotargeting_categories_payload():
+    """Issue #281: update targets DynamicTextFeedAdGroup with --dynamic-feed."""
+    body = _dry_run(
+        "adgroups",
+        "update",
+        "--id",
+        "222",
+        "--dynamic-feed",
+        "--autotargeting-category",
+        "ALTERNATIVE=YES",
+        "--autotargeting-category",
+        "competitor=no",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert group == {
+        "Id": 222,
+        "DynamicTextFeedAdGroup": {
+            "AutotargetingCategories": [
+                {"Category": "ALTERNATIVE", "Value": "YES"},
+                {"Category": "COMPETITOR", "Value": "NO"},
+            ],
+        },
+    }
+
+
+def test_adgroups_update_dynamic_feed_requires_category():
+    """Issue #281: --dynamic-feed must not be silently ignored."""
+    result = _rejected("adgroups", "update", "--id", "222", "--dynamic-feed")
+    assert "--dynamic-feed requires --autotargeting-category" in result.output
+
+
+def test_adgroups_update_rejects_mixed_dynamic_text_and_feed_subtype_flags():
+    """Issue #281: update must not emit both dynamic subtype blocks."""
+    result = _rejected(
+        "adgroups",
+        "update",
+        "--id",
+        "222",
+        "--dynamic-feed",
+        "--autotargeting-category",
+        "EXACT=YES",
+        "--domain-url",
+        "example.com",
+    )
+    assert "DynamicTextAdGroup update flags" in result.output
+    assert "--domain-url" in result.output
+    assert "DynamicTextFeedAdGroup update flags" in result.output
+    assert "--dynamic-feed" in result.output
+
+
+def test_adgroups_update_rejects_mixed_dynamic_feed_and_mobile_subtype_flags():
+    """Issue #281: update must not mix feed subtype with mobile app fields."""
+    result = _rejected(
+        "adgroups",
+        "update",
+        "--id",
+        "222",
+        "--dynamic-feed",
+        "--autotargeting-category",
+        "EXACT=YES",
+        "--target-device-types",
+        "DEVICE_TYPE_MOBILE",
+    )
+    assert "DynamicTextFeedAdGroup update flags" in result.output
+    assert "--dynamic-feed" in result.output
+    assert "MobileAppAdGroup update flags" in result.output
+    assert "--target-device-types" in result.output
+
+
 def test_adgroups_update_rejects_mixed_dynamic_and_mobile_subtype_flags():
     """Issue #280: update must not emit two subtype blocks in one item."""
     result = _rejected(
@@ -2370,6 +2532,7 @@ def test_adgroups_update_without_tracking_params_or_other_fields_rejected():
     assert "--negative-keywords" in result.output
     assert "--negative-keyword-shared-set-ids" in result.output
     assert "--domain-url" in result.output
+    assert "--dynamic-feed" in result.output
     assert "--autotargeting-category" in result.output
     assert "--autotargeting-settings-* flags" in result.output
     assert "--target-device-types" in result.output

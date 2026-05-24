@@ -629,6 +629,17 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("adimages", "add", "Type"): {"--type"},
     ("adgroups", "add", "DynamicTextAdGroup"): {"--type"},
     ("adgroups", "add", "DynamicTextAdGroup.DomainUrl"): {"--domain-url"},
+    ("adgroups", "add", "DynamicTextFeedAdGroup"): {"--type"},
+    ("adgroups", "add", "DynamicTextFeedAdGroup.FeedId"): {"--feed-id"},
+    ("adgroups", "add", "DynamicTextFeedAdGroup.AutotargetingCategories"): {
+        "--autotargeting-category"
+    },
+    ("adgroups", "add", "DynamicTextFeedAdGroup.AutotargetingCategories.Category"): {
+        "--autotargeting-category"
+    },
+    ("adgroups", "add", "DynamicTextFeedAdGroup.AutotargetingCategories.Value"): {
+        "--autotargeting-category"
+    },
     ("adgroups", "add", "SmartAdGroup"): {"--type"},
     ("adgroups", "add", "SmartAdGroup.FeedId"): {"--feed-id"},
     ("adgroups", "add", "SmartAdGroup.AdTitleSource"): {"--ad-title-source"},
@@ -808,6 +819,20 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
         "update",
         "DynamicTextAdGroup.AutotargetingSettings.BrandOptions.WithCompetitorsBrand",
     ): {"--autotargeting-settings-with-competitors-brand"},
+    ("adgroups", "update", "DynamicTextFeedAdGroup"): {"--dynamic-feed"},
+    ("adgroups", "update", "DynamicTextFeedAdGroup.AutotargetingCategories"): {
+        "--autotargeting-category"
+    },
+    (
+        "adgroups",
+        "update",
+        "DynamicTextFeedAdGroup.AutotargetingCategories.Category",
+    ): {"--autotargeting-category"},
+    (
+        "adgroups",
+        "update",
+        "DynamicTextFeedAdGroup.AutotargetingCategories.Value",
+    ): {"--autotargeting-category"},
     ("ads", "add", "TextAd"): {"--type"},
     ("ads", "add", "TextAd.VCardId"): {"--vcard-id"},
     ("ads", "add", "TextAd.AdImageHash"): {"--image-hash"},
@@ -1738,10 +1763,13 @@ OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
             "intentionally reject autotargeting fields."
         ),
     },
-    ("adgroups", "add", "DynamicTextFeedAdGroup"): {
-        "status": "missing_followup",
+    ("adgroups", "add", "DynamicTextFeedAdGroup.AutotargetingSettings"): {
+        "status": "not_applicable",
         "issue": "#281",
-        "note": "Rare ad group subtype block is not exposed by --type.",
+        "note": (
+            "Official adgroups.add docs for DynamicTextFeedAdGroupAdd list "
+            "FeedId and AutotargetingCategories only."
+        ),
     },
     ("adgroups", "add", "CpmBannerKeywordsAdGroup"): {
         "status": "missing_followup",
@@ -1768,10 +1796,21 @@ OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
         "issue": "#284",
         "note": "Rare ad group feed params block has no typed add flags.",
     },
-    ("adgroups", "update", "DynamicTextFeedAdGroup"): {
-        "status": "missing_followup",
+    ("adgroups", "update", "DynamicTextFeedAdGroup.AutotargetingSettings"): {
+        "status": "not_applicable",
         "issue": "#281",
-        "note": "Rare ad group subtype block is not exposed by update.",
+        "note": (
+            "Official adgroups.update docs for DynamicTextFeedAdGroupUpdate "
+            "list AutotargetingCategories only."
+        ),
+    },
+    ("adgroups", "update", "DynamicTextFeedAdGroup.FeedId"): {
+        "status": "not_applicable",
+        "issue": "#281",
+        "note": (
+            "Official adgroups.update docs for DynamicTextFeedAdGroupUpdate "
+            "do not list FeedId."
+        ),
     },
     ("adgroups", "update", "SmartAdGroup"): {
         "status": "missing_followup",
