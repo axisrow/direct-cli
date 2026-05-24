@@ -687,6 +687,8 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("adgroups", "add", "SmartAdGroup.FeedId"): {"--feed-id"},
     ("adgroups", "add", "SmartAdGroup.AdTitleSource"): {"--ad-title-source"},
     ("adgroups", "add", "SmartAdGroup.AdBodySource"): {"--ad-body-source"},
+    ("adgroups", "add", "UnifiedAdGroup"): {"--type"},
+    ("adgroups", "add", "UnifiedAdGroup.OfferRetargeting"): {"--offer-retargeting"},
     ("adgroups", "add", "MobileAppAdGroup"): {"--type"},
     ("adgroups", "add", "MobileAppAdGroup.StoreUrl"): {"--store-url"},
     ("adgroups", "add", "MobileAppAdGroup.TargetDeviceType"): {"--target-device-types"},
@@ -876,6 +878,14 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
         "update",
         "DynamicTextFeedAdGroup.AutotargetingCategories.Value",
     ): {"--autotargeting-category"},
+    ("adgroups", "update", "SmartAdGroup"): {
+        "--ad-title-source",
+        "--ad-body-source",
+    },
+    ("adgroups", "update", "SmartAdGroup.AdTitleSource"): {"--ad-title-source"},
+    ("adgroups", "update", "SmartAdGroup.AdBodySource"): {"--ad-body-source"},
+    ("adgroups", "update", "UnifiedAdGroup"): {"--offer-retargeting"},
+    ("adgroups", "update", "UnifiedAdGroup.OfferRetargeting"): {"--offer-retargeting"},
     ("ads", "add", "TextAd"): {"--type"},
     ("ads", "add", "TextAd.VCardId"): {"--vcard-id"},
     ("ads", "add", "TextAd.AdImageHash"): {"--image-hash"},
@@ -1814,11 +1824,6 @@ OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
             "FeedId and AutotargetingCategories only."
         ),
     },
-    ("adgroups", "add", "UnifiedAdGroup"): {
-        "status": "missing_followup",
-        "issue": "#283",
-        "note": "Rare ad group subtype block is not exposed by --type.",
-    },
     ("adgroups", "add", "TextAdGroupFeedParams"): {
         "status": "missing_followup",
         "issue": "#284",
@@ -1840,20 +1845,10 @@ OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
             "do not list FeedId."
         ),
     },
-    ("adgroups", "update", "SmartAdGroup"): {
-        "status": "missing_followup",
-        "issue": "#283",
-        "note": "Smart ad group subtype update block has no typed flags.",
-    },
     ("adgroups", "update", "TextAdGroupFeedParams"): {
         "status": "missing_followup",
         "issue": "#284",
         "note": "Rare ad group feed params block has no typed update flags.",
-    },
-    ("adgroups", "update", "UnifiedAdGroup"): {
-        "status": "missing_followup",
-        "issue": "#283",
-        "note": "Rare ad group subtype block is not exposed by update.",
     },
 }
 

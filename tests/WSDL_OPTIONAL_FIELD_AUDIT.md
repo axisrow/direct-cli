@@ -11,9 +11,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2649 |
+| `missing_followup` | 2642 |
 | `not_applicable` | 23 |
-| `supported` | 569 |
+| `supported` | 576 |
 
 ## Confirmed Follow-Ups
 
@@ -30,8 +30,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `adgroups.add` | `DynamicTextFeedAdGroup.AutotargetingSettings.BrandOptions.WithoutBrands` | Official adgroups.add docs for DynamicTextFeedAdGroupAdd list FeedId and AutotargetingCategories only. [#281](https://github.com/axisrow/direct-cli/issues/281); inherited from `DynamicTextFeedAdGroup.AutotargetingSettings` |
 | `adgroups.add` | `DynamicTextFeedAdGroup.AutotargetingSettings.BrandOptions.WithAdvertiserBrand` | Official adgroups.add docs for DynamicTextFeedAdGroupAdd list FeedId and AutotargetingCategories only. [#281](https://github.com/axisrow/direct-cli/issues/281); inherited from `DynamicTextFeedAdGroup.AutotargetingSettings` |
 | `adgroups.add` | `DynamicTextFeedAdGroup.AutotargetingSettings.BrandOptions.WithCompetitorsBrand` | Official adgroups.add docs for DynamicTextFeedAdGroupAdd list FeedId and AutotargetingCategories only. [#281](https://github.com/axisrow/direct-cli/issues/281); inherited from `DynamicTextFeedAdGroup.AutotargetingSettings` |
-| `adgroups.add` | `UnifiedAdGroup` | Rare ad group subtype block is not exposed by --type. [#283](https://github.com/axisrow/direct-cli/issues/283) |
-| `adgroups.add` | `UnifiedAdGroup.OfferRetargeting` | Rare ad group subtype block is not exposed by --type. [#283](https://github.com/axisrow/direct-cli/issues/283); inherited from `UnifiedAdGroup` |
 | `adgroups.add` | `TextAdGroupFeedParams` | Rare ad group feed params block has no typed add flags. [#284](https://github.com/axisrow/direct-cli/issues/284) |
 | `adgroups.add` | `TextAdGroupFeedParams.FeedId` | Rare ad group feed params block has no typed add flags. [#284](https://github.com/axisrow/direct-cli/issues/284); inherited from `TextAdGroupFeedParams` |
 | `adgroups.add` | `TextAdGroupFeedParams.FeedCategoryIds` | Rare ad group feed params block has no typed add flags. [#284](https://github.com/axisrow/direct-cli/issues/284); inherited from `TextAdGroupFeedParams` |
@@ -48,15 +46,10 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `adgroups.update` | `DynamicTextFeedAdGroup.AutotargetingSettings.BrandOptions.WithAdvertiserBrand` | Official adgroups.update docs for DynamicTextFeedAdGroupUpdate list AutotargetingCategories only. [#281](https://github.com/axisrow/direct-cli/issues/281); inherited from `DynamicTextFeedAdGroup.AutotargetingSettings` |
 | `adgroups.update` | `DynamicTextFeedAdGroup.AutotargetingSettings.BrandOptions.WithCompetitorsBrand` | Official adgroups.update docs for DynamicTextFeedAdGroupUpdate list AutotargetingCategories only. [#281](https://github.com/axisrow/direct-cli/issues/281); inherited from `DynamicTextFeedAdGroup.AutotargetingSettings` |
 | `adgroups.update` | `DynamicTextFeedAdGroup.FeedId` | Official adgroups.update docs for DynamicTextFeedAdGroupUpdate do not list FeedId. [#281](https://github.com/axisrow/direct-cli/issues/281) |
-| `adgroups.update` | `SmartAdGroup` | Smart ad group subtype update block has no typed flags. [#283](https://github.com/axisrow/direct-cli/issues/283) |
-| `adgroups.update` | `SmartAdGroup.AdTitleSource` | Smart ad group subtype update block has no typed flags. [#283](https://github.com/axisrow/direct-cli/issues/283); inherited from `SmartAdGroup` |
-| `adgroups.update` | `SmartAdGroup.AdBodySource` | Smart ad group subtype update block has no typed flags. [#283](https://github.com/axisrow/direct-cli/issues/283); inherited from `SmartAdGroup` |
 | `adgroups.update` | `TextAdGroupFeedParams` | Rare ad group feed params block has no typed update flags. [#284](https://github.com/axisrow/direct-cli/issues/284) |
 | `adgroups.update` | `TextAdGroupFeedParams.FeedId` | Rare ad group feed params block has no typed update flags. [#284](https://github.com/axisrow/direct-cli/issues/284); inherited from `TextAdGroupFeedParams` |
 | `adgroups.update` | `TextAdGroupFeedParams.FeedCategoryIds` | Rare ad group feed params block has no typed update flags. [#284](https://github.com/axisrow/direct-cli/issues/284); inherited from `TextAdGroupFeedParams` |
 | `adgroups.update` | `TextAdGroupFeedParams.FeedCategoryIds.Items` | Rare ad group feed params block has no typed update flags. [#284](https://github.com/axisrow/direct-cli/issues/284); inherited from `TextAdGroupFeedParams` |
-| `adgroups.update` | `UnifiedAdGroup` | Rare ad group subtype block is not exposed by update. [#283](https://github.com/axisrow/direct-cli/issues/283) |
-| `adgroups.update` | `UnifiedAdGroup.OfferRetargeting` | Rare ad group subtype block is not exposed by update. [#283](https://github.com/axisrow/direct-cli/issues/283); inherited from `UnifiedAdGroup` |
 | `ads.add` | `TextAd.FinalUrl` | TEXT_AD optional add fields need typed support or N/A. [#273](https://github.com/axisrow/direct-cli/issues/273); inherited from `TextAd` |
 | `ads.add` | `TextAd.VideoExtension` | TEXT_AD optional add fields need typed support or N/A. [#273](https://github.com/axisrow/direct-cli/issues/273); inherited from `TextAd` |
 | `ads.add` | `TextAd.VideoExtension.CreativeId` | TEXT_AD optional add fields need typed support or N/A. [#273](https://github.com/axisrow/direct-cli/issues/273); inherited from `TextAd` |
@@ -2750,8 +2743,8 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `adgroups.add` | `adgroups.add` | `SmartAdGroup.FeedId` | `long` | 1 | 1 | `supported` | --feed-id |
 | `adgroups.add` | `adgroups.add` | `SmartAdGroup.AdTitleSource` | `string` | 0 | 1 | `supported` | --ad-title-source |
 | `adgroups.add` | `adgroups.add` | `SmartAdGroup.AdBodySource` | `string` | 0 | 1 | `supported` | --ad-body-source |
-| `adgroups.add` | `adgroups.add` | `UnifiedAdGroup` | `UnifiedAdGroupAdd` | 0 | 1 | `missing_followup` | Rare ad group subtype block is not exposed by --type. [#283](https://github.com/axisrow/direct-cli/issues/283) |
-| `adgroups.add` | `adgroups.add` | `UnifiedAdGroup.OfferRetargeting` | `YesNoEnum` | 1 | 1 | `missing_followup` | Rare ad group subtype block is not exposed by --type. [#283](https://github.com/axisrow/direct-cli/issues/283); inherited from `UnifiedAdGroup` |
+| `adgroups.add` | `adgroups.add` | `UnifiedAdGroup` | `UnifiedAdGroupAdd` | 0 | 1 | `supported` | --type |
+| `adgroups.add` | `adgroups.add` | `UnifiedAdGroup.OfferRetargeting` | `YesNoEnum` | 1 | 1 | `supported` | --offer-retargeting |
 | `adgroups.add` | `adgroups.add` | `TextAdGroupFeedParams` | `TextAdGroupFeedParamsAdd` | 0 | 1 | `missing_followup` | Rare ad group feed params block has no typed add flags. [#284](https://github.com/axisrow/direct-cli/issues/284) |
 | `adgroups.add` | `adgroups.add` | `TextAdGroupFeedParams.FeedId` | `long` | 1 | 1 | `missing_followup` | Rare ad group feed params block has no typed add flags. [#284](https://github.com/axisrow/direct-cli/issues/284); inherited from `TextAdGroupFeedParams` |
 | `adgroups.add` | `adgroups.add` | `TextAdGroupFeedParams.FeedCategoryIds` | `ArrayOfLong` | 0 | 1 | `missing_followup` | Rare ad group feed params block has no typed add flags. [#284](https://github.com/axisrow/direct-cli/issues/284); inherited from `TextAdGroupFeedParams` |
@@ -2800,15 +2793,15 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `adgroups.update` | `adgroups.update` | `DynamicTextFeedAdGroup.AutotargetingSettings.BrandOptions.WithAdvertiserBrand` | `YesNoEnum` | 0 | 1 | `not_applicable` | Official adgroups.update docs for DynamicTextFeedAdGroupUpdate list AutotargetingCategories only. [#281](https://github.com/axisrow/direct-cli/issues/281); inherited from `DynamicTextFeedAdGroup.AutotargetingSettings` |
 | `adgroups.update` | `adgroups.update` | `DynamicTextFeedAdGroup.AutotargetingSettings.BrandOptions.WithCompetitorsBrand` | `YesNoEnum` | 0 | 1 | `not_applicable` | Official adgroups.update docs for DynamicTextFeedAdGroupUpdate list AutotargetingCategories only. [#281](https://github.com/axisrow/direct-cli/issues/281); inherited from `DynamicTextFeedAdGroup.AutotargetingSettings` |
 | `adgroups.update` | `adgroups.update` | `DynamicTextFeedAdGroup.FeedId` | `long` | 0 | 1 | `not_applicable` | Official adgroups.update docs for DynamicTextFeedAdGroupUpdate do not list FeedId. [#281](https://github.com/axisrow/direct-cli/issues/281) |
-| `adgroups.update` | `adgroups.update` | `SmartAdGroup` | `SmartAdGroupUpdate` | 0 | 1 | `missing_followup` | Smart ad group subtype update block has no typed flags. [#283](https://github.com/axisrow/direct-cli/issues/283) |
-| `adgroups.update` | `adgroups.update` | `SmartAdGroup.AdTitleSource` | `string` | 0 | 1 | `missing_followup` | Smart ad group subtype update block has no typed flags. [#283](https://github.com/axisrow/direct-cli/issues/283); inherited from `SmartAdGroup` |
-| `adgroups.update` | `adgroups.update` | `SmartAdGroup.AdBodySource` | `string` | 0 | 1 | `missing_followup` | Smart ad group subtype update block has no typed flags. [#283](https://github.com/axisrow/direct-cli/issues/283); inherited from `SmartAdGroup` |
+| `adgroups.update` | `adgroups.update` | `SmartAdGroup` | `SmartAdGroupUpdate` | 0 | 1 | `supported` | --ad-body-source, --ad-title-source |
+| `adgroups.update` | `adgroups.update` | `SmartAdGroup.AdTitleSource` | `string` | 0 | 1 | `supported` | --ad-title-source |
+| `adgroups.update` | `adgroups.update` | `SmartAdGroup.AdBodySource` | `string` | 0 | 1 | `supported` | --ad-body-source |
 | `adgroups.update` | `adgroups.update` | `TextAdGroupFeedParams` | `TextAdGroupFeedParamsUpdate` | 0 | 1 | `missing_followup` | Rare ad group feed params block has no typed update flags. [#284](https://github.com/axisrow/direct-cli/issues/284) |
 | `adgroups.update` | `adgroups.update` | `TextAdGroupFeedParams.FeedId` | `long` | 1 | 1 | `missing_followup` | Rare ad group feed params block has no typed update flags. [#284](https://github.com/axisrow/direct-cli/issues/284); inherited from `TextAdGroupFeedParams` |
 | `adgroups.update` | `adgroups.update` | `TextAdGroupFeedParams.FeedCategoryIds` | `ArrayOfLong` | 0 | 1 | `missing_followup` | Rare ad group feed params block has no typed update flags. [#284](https://github.com/axisrow/direct-cli/issues/284); inherited from `TextAdGroupFeedParams` |
 | `adgroups.update` | `adgroups.update` | `TextAdGroupFeedParams.FeedCategoryIds.Items` | `long` | 1 | unbounded | `missing_followup` | Rare ad group feed params block has no typed update flags. [#284](https://github.com/axisrow/direct-cli/issues/284); inherited from `TextAdGroupFeedParams` |
-| `adgroups.update` | `adgroups.update` | `UnifiedAdGroup` | `UnifiedAdGroupUpdate` | 0 | 1 | `missing_followup` | Rare ad group subtype block is not exposed by update. [#283](https://github.com/axisrow/direct-cli/issues/283) |
-| `adgroups.update` | `adgroups.update` | `UnifiedAdGroup.OfferRetargeting` | `YesNoEnum` | 0 | 1 | `missing_followup` | Rare ad group subtype block is not exposed by update. [#283](https://github.com/axisrow/direct-cli/issues/283); inherited from `UnifiedAdGroup` |
+| `adgroups.update` | `adgroups.update` | `UnifiedAdGroup` | `UnifiedAdGroupUpdate` | 0 | 1 | `supported` | --offer-retargeting |
+| `adgroups.update` | `adgroups.update` | `UnifiedAdGroup.OfferRetargeting` | `YesNoEnum` | 0 | 1 | `supported` | --offer-retargeting |
 | `adimages.add` | `adimages.add` | `ImageData` | `base64Binary` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `adimages.add` | `adimages.add` | `Type` | `AdImageAddTypeEnum` | 0 | 1 | `supported` | --type |
 | `adimages.add` | `adimages.add` | `Name` | `string` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
