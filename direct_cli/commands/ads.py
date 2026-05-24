@@ -22,6 +22,19 @@ def ads():
     """Manage ads"""
 
 
+FEED_BASED_UPDATE_FIELDS = {
+    "sitelink_set_id",
+    "callouts_add",
+    "callouts_remove",
+    "callouts_set",
+    "business_id",
+    "feed_filter_conditions",
+    "title_sources",
+    "text_sources",
+    "default_texts",
+}
+
+
 def _reject_incompatible_flags(
     ad_type: str,
     allowed_fields: set[str],
@@ -892,28 +905,8 @@ def update(
             "business_id",
             "erir_ad_description",
         },
-        "SHOPPING_AD": {
-            "sitelink_set_id",
-            "callouts_add",
-            "callouts_remove",
-            "callouts_set",
-            "business_id",
-            "feed_filter_conditions",
-            "title_sources",
-            "text_sources",
-            "default_texts",
-        },
-        "LISTING_AD": {
-            "sitelink_set_id",
-            "callouts_add",
-            "callouts_remove",
-            "callouts_set",
-            "business_id",
-            "feed_filter_conditions",
-            "title_sources",
-            "text_sources",
-            "default_texts",
-        },
+        "SHOPPING_AD": FEED_BASED_UPDATE_FIELDS,
+        "LISTING_AD": FEED_BASED_UPDATE_FIELDS,
     }
     provided = {
         "title": title,
