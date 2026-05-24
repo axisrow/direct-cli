@@ -966,6 +966,31 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("ads", "update", "TextAd.PriceExtension.PriceCurrency"): {
         "--price-extension-price-currency"
     },
+    ("ads", "update", "DynamicTextAd"): {"--type"},
+    ("ads", "update", "DynamicTextAd.VCardId"): {"--vcard-id"},
+    ("ads", "update", "DynamicTextAd.AdImageHash"): {"--image-hash"},
+    ("ads", "update", "DynamicTextAd.SitelinkSetId"): {"--sitelink-set-id"},
+    ("ads", "update", "DynamicTextAd.CalloutSetting"): {
+        "--callouts-add",
+        "--callouts-remove",
+        "--callouts-set",
+    },
+    ("ads", "update", "DynamicTextAd.CalloutSetting.AdExtensions"): {
+        "--callouts-add",
+        "--callouts-remove",
+        "--callouts-set",
+    },
+    ("ads", "update", "DynamicTextAd.CalloutSetting.AdExtensions.AdExtensionId"): {
+        "--callouts-add",
+        "--callouts-remove",
+        "--callouts-set",
+    },
+    ("ads", "update", "DynamicTextAd.CalloutSetting.AdExtensions.Operation"): {
+        "--callouts-add",
+        "--callouts-remove",
+        "--callouts-set",
+    },
+    ("ads", "update", "DynamicTextAd.Text"): {"--text"},
     ("ads", "update", "MobileAppAd"): {"--type"},
     ("ads", "update", "MobileAppAd.AdImageHash"): {"--image-hash"},
     ("ads", "update", "MobileAppAd.Text"): {"--text"},
@@ -1615,11 +1640,6 @@ OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]
         "status": "missing_followup",
         "issue": "#278",
         "note": "SMART_AD_BUILDER_AD add fields need typed support or N/A.",
-    },
-    ("ads", "update", "DynamicTextAd"): {
-        "status": "missing_followup",
-        "issue": "#267",
-        "note": "DYNAMIC_TEXT_AD update fields need typed support or N/A.",
     },
     ("ads", "update", "ResponsiveAd"): {
         "status": "missing_followup",

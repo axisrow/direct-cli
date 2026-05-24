@@ -11,9 +11,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2634 |
+| `missing_followup` | 2625 |
 | `not_applicable` | 23 |
-| `supported` | 584 |
+| `supported` | 593 |
 
 ## Confirmed Follow-Ups
 
@@ -183,15 +183,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.update` | `ResponsiveAd.PriceExtension.PriceCurrency` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
 | `ads.update` | `ResponsiveAd.BusinessId` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
 | `ads.update` | `ResponsiveAd.ErirAdDescription` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `DynamicTextAd` | DYNAMIC_TEXT_AD update fields need typed support or N/A. [#267](https://github.com/axisrow/direct-cli/issues/267) |
-| `ads.update` | `DynamicTextAd.VCardId` | DYNAMIC_TEXT_AD update fields need typed support or N/A. [#267](https://github.com/axisrow/direct-cli/issues/267); inherited from `DynamicTextAd` |
-| `ads.update` | `DynamicTextAd.AdImageHash` | DYNAMIC_TEXT_AD update fields need typed support or N/A. [#267](https://github.com/axisrow/direct-cli/issues/267); inherited from `DynamicTextAd` |
-| `ads.update` | `DynamicTextAd.SitelinkSetId` | DYNAMIC_TEXT_AD update fields need typed support or N/A. [#267](https://github.com/axisrow/direct-cli/issues/267); inherited from `DynamicTextAd` |
-| `ads.update` | `DynamicTextAd.CalloutSetting` | DYNAMIC_TEXT_AD update fields need typed support or N/A. [#267](https://github.com/axisrow/direct-cli/issues/267); inherited from `DynamicTextAd` |
-| `ads.update` | `DynamicTextAd.CalloutSetting.AdExtensions` | DYNAMIC_TEXT_AD update fields need typed support or N/A. [#267](https://github.com/axisrow/direct-cli/issues/267); inherited from `DynamicTextAd` |
-| `ads.update` | `DynamicTextAd.CalloutSetting.AdExtensions.AdExtensionId` | DYNAMIC_TEXT_AD update fields need typed support or N/A. [#267](https://github.com/axisrow/direct-cli/issues/267); inherited from `DynamicTextAd` |
-| `ads.update` | `DynamicTextAd.CalloutSetting.AdExtensions.Operation` | DYNAMIC_TEXT_AD update fields need typed support or N/A. [#267](https://github.com/axisrow/direct-cli/issues/267); inherited from `DynamicTextAd` |
-| `ads.update` | `DynamicTextAd.Text` | DYNAMIC_TEXT_AD update fields need typed support or N/A. [#267](https://github.com/axisrow/direct-cli/issues/267); inherited from `DynamicTextAd` |
 | `ads.update` | `MobileAppAd.ErirAdDescription` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
 | `ads.update` | `MobileAppAd.Features` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
 | `ads.update` | `MobileAppAd.Features.Feature` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
@@ -2981,15 +2972,15 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.update` | `ads.update` | `ResponsiveAd.PriceExtension.PriceCurrency` | `PriceCurrencyEnum` | 0 | 1 | `missing_followup` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
 | `ads.update` | `ads.update` | `ResponsiveAd.BusinessId` | `long` | 0 | 1 | `missing_followup` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
 | `ads.update` | `ads.update` | `ResponsiveAd.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | RESPONSIVE_AD update fields need typed support or N/A. [#268](https://github.com/axisrow/direct-cli/issues/268); inherited from `ResponsiveAd` |
-| `ads.update` | `ads.update` | `DynamicTextAd` | `DynamicTextAdUpdate` | 0 | 1 | `missing_followup` | DYNAMIC_TEXT_AD update fields need typed support or N/A. [#267](https://github.com/axisrow/direct-cli/issues/267) |
-| `ads.update` | `ads.update` | `DynamicTextAd.VCardId` | `long` | 0 | 1 | `missing_followup` | DYNAMIC_TEXT_AD update fields need typed support or N/A. [#267](https://github.com/axisrow/direct-cli/issues/267); inherited from `DynamicTextAd` |
-| `ads.update` | `ads.update` | `DynamicTextAd.AdImageHash` | `string` | 0 | 1 | `missing_followup` | DYNAMIC_TEXT_AD update fields need typed support or N/A. [#267](https://github.com/axisrow/direct-cli/issues/267); inherited from `DynamicTextAd` |
-| `ads.update` | `ads.update` | `DynamicTextAd.SitelinkSetId` | `long` | 0 | 1 | `missing_followup` | DYNAMIC_TEXT_AD update fields need typed support or N/A. [#267](https://github.com/axisrow/direct-cli/issues/267); inherited from `DynamicTextAd` |
-| `ads.update` | `ads.update` | `DynamicTextAd.CalloutSetting` | `AdExtensionSetting` | 0 | 1 | `missing_followup` | DYNAMIC_TEXT_AD update fields need typed support or N/A. [#267](https://github.com/axisrow/direct-cli/issues/267); inherited from `DynamicTextAd` |
-| `ads.update` | `ads.update` | `DynamicTextAd.CalloutSetting.AdExtensions` | `AdExtensionSettingItem` | 1 | unbounded | `missing_followup` | DYNAMIC_TEXT_AD update fields need typed support or N/A. [#267](https://github.com/axisrow/direct-cli/issues/267); inherited from `DynamicTextAd` |
-| `ads.update` | `ads.update` | `DynamicTextAd.CalloutSetting.AdExtensions.AdExtensionId` | `long` | 1 | 1 | `missing_followup` | DYNAMIC_TEXT_AD update fields need typed support or N/A. [#267](https://github.com/axisrow/direct-cli/issues/267); inherited from `DynamicTextAd` |
-| `ads.update` | `ads.update` | `DynamicTextAd.CalloutSetting.AdExtensions.Operation` | `OperationEnum` | 1 | 1 | `missing_followup` | DYNAMIC_TEXT_AD update fields need typed support or N/A. [#267](https://github.com/axisrow/direct-cli/issues/267); inherited from `DynamicTextAd` |
-| `ads.update` | `ads.update` | `DynamicTextAd.Text` | `string` | 0 | 1 | `missing_followup` | DYNAMIC_TEXT_AD update fields need typed support or N/A. [#267](https://github.com/axisrow/direct-cli/issues/267); inherited from `DynamicTextAd` |
+| `ads.update` | `ads.update` | `DynamicTextAd` | `DynamicTextAdUpdate` | 0 | 1 | `supported` | --type |
+| `ads.update` | `ads.update` | `DynamicTextAd.VCardId` | `long` | 0 | 1 | `supported` | --vcard-id |
+| `ads.update` | `ads.update` | `DynamicTextAd.AdImageHash` | `string` | 0 | 1 | `supported` | --image-hash |
+| `ads.update` | `ads.update` | `DynamicTextAd.SitelinkSetId` | `long` | 0 | 1 | `supported` | --sitelink-set-id |
+| `ads.update` | `ads.update` | `DynamicTextAd.CalloutSetting` | `AdExtensionSetting` | 0 | 1 | `supported` | --callouts-add, --callouts-remove, --callouts-set |
+| `ads.update` | `ads.update` | `DynamicTextAd.CalloutSetting.AdExtensions` | `AdExtensionSettingItem` | 1 | unbounded | `supported` | --callouts-add, --callouts-remove, --callouts-set |
+| `ads.update` | `ads.update` | `DynamicTextAd.CalloutSetting.AdExtensions.AdExtensionId` | `long` | 1 | 1 | `supported` | --callouts-add, --callouts-remove, --callouts-set |
+| `ads.update` | `ads.update` | `DynamicTextAd.CalloutSetting.AdExtensions.Operation` | `OperationEnum` | 1 | 1 | `supported` | --callouts-add, --callouts-remove, --callouts-set |
+| `ads.update` | `ads.update` | `DynamicTextAd.Text` | `string` | 0 | 1 | `supported` | --text |
 | `ads.update` | `ads.update` | `MobileAppAd` | `MobileAppAdUpdate` | 0 | 1 | `supported` | --type |
 | `ads.update` | `ads.update` | `MobileAppAd.Title` | `string` | 0 | 1 | `supported` | --title |
 | `ads.update` | `ads.update` | `MobileAppAd.Text` | `string` | 0 | 1 | `supported` | --text |

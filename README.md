@@ -413,6 +413,7 @@ direct ads update --id 99999 --type TEXT_AD --title2 "New second headline" --vca
 direct ads update --id 99999 --type TEXT_AD --callouts-add "111,222" --callouts-remove "333"
 direct ads update --id 99999 --type TEXT_AD --callouts-set "444,555"
 direct ads update --id 99999 --type TEXT_AD --video-extension-creative-id 777 --price-extension-price 123450000 --price-extension-price-qualifier FROM --price-extension-price-currency RUB
+direct ads update --id 99999 --type DYNAMIC_TEXT_AD --text "Updated dynamic text" --callouts-add "111,222"
 direct ads delete --id 99999
 ```
 
@@ -429,7 +430,8 @@ Yandex Direct API long-unit format (price multiplied by 1,000,000).
 `--mobile` (default `NO`) and `--ad-extensions` are `ads add`-only —
 `TextAdUpdate` does not contain `Mobile`, and on update ad-extensions are
 managed through the `--callouts-*` flags above. TEXT_IMAGE_AD additionally
-accepts `--turbo-page-id`.
+accepts `--turbo-page-id`. DYNAMIC_TEXT_AD update supports `--text`,
+`--image-hash`, `--vcard-id`, `--sitelink-set-id`, and `--callouts-*`.
 
 #### Keywords
 
@@ -1143,6 +1145,7 @@ direct ads update --id 99999 --type TEXT_AD --title2 "Новый второй з
 direct ads update --id 99999 --type TEXT_AD --callouts-add "111,222" --callouts-remove "333"
 direct ads update --id 99999 --type TEXT_AD --callouts-set "444,555"
 direct ads update --id 99999 --type TEXT_AD --video-extension-creative-id 777 --price-extension-price 123450000 --price-extension-price-qualifier FROM --price-extension-price-currency RUB
+direct ads update --id 99999 --type DYNAMIC_TEXT_AD --text "Обновленный динамический текст" --callouts-add "111,222"
 direct ads delete --id 99999
 ```
 
@@ -1161,7 +1164,8 @@ long-единиц API Яндекс Директа (цена, умноженна�
 `--ad-extensions` доступны только в `ads add` — WSDL `TextAdUpdate` не
 содержит `Mobile`, а в `ads update` расширения управляются через флаги
 `--callouts-*` выше. Для TEXT_IMAGE_AD дополнительно доступен
-`--turbo-page-id`.
+`--turbo-page-id`. Для DYNAMIC_TEXT_AD в `ads update` доступны `--text`,
+`--image-hash`, `--vcard-id`, `--sitelink-set-id` и `--callouts-*`.
 
 #### Ключевые слова
 
