@@ -8,7 +8,12 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import add_criteria_csv, get_default_fields, parse_ids
+from ..utils import (
+    add_criteria_csv,
+    get_default_fields,
+    parse_csv_strings,
+    parse_ids,
+)
 
 _TRACKING_PARAMS_MAX_LENGTH = 1024
 
@@ -28,6 +33,14 @@ def _validate_tracking_params(tracking_params: Optional[str]) -> None:
             "--tracking-params must be at most "
             f"{_TRACKING_PARAMS_MAX_LENGTH} characters"
         )
+
+
+def _parse_ids_option(value: Optional[str], option_name: str) -> Optional[list[int]]:
+    """Parse comma-separated IDs and report bad input as a Click usage error."""
+    try:
+        return parse_ids(value)
+    except ValueError as exc:
+        raise click.UsageError(f"{option_name}: {exc}") from exc
 
 
 def _reject_incompatible_flags(
@@ -168,6 +181,17 @@ def get(
 @click.option("--ad-title-source", help="Smart ad group title source")
 @click.option("--ad-body-source", help="Smart ad group body source")
 @click.option(
+    "--negative-keywords",
+    help="Comma-separated ad-group negative keywords for NegativeKeywords.Items",
+)
+@click.option(
+    "--negative-keyword-shared-set-ids",
+    help=(
+        "Comma-separated negative keyword shared set IDs for "
+        "NegativeKeywordSharedSetIds.Items"
+    ),
+)
+@click.option(
     "--tracking-params",
     "tracking_params",
     help=(
@@ -187,6 +211,8 @@ def add(
     feed_id,
     ad_title_source,
     ad_body_source,
+    negative_keywords,
+    negative_keyword_shared_set_ids,
     tracking_params,
     dry_run,
 ):
@@ -225,7 +251,18 @@ def add(
         adgroup_data = {"Name": name, "CampaignId": campaign_id}
 
         if region_ids:
-            adgroup_data["RegionIds"] = parse_ids(region_ids)
+            adgroup_data["RegionIds"] = _parse_ids_option(region_ids, "--region-ids")
+        parsed_negative_keywords = parse_csv_strings(negative_keywords)
+        if parsed_negative_keywords:
+            adgroup_data["NegativeKeywords"] = {"Items": parsed_negative_keywords}
+        parsed_negative_keyword_shared_set_ids = _parse_ids_option(
+            negative_keyword_shared_set_ids,
+            "--negative-keyword-shared-set-ids",
+        )
+        if parsed_negative_keyword_shared_set_ids:
+            adgroup_data["NegativeKeywordSharedSetIds"] = {
+                "Items": parsed_negative_keyword_shared_set_ids
+            }
         if tracking_params:
             adgroup_data["TrackingParams"] = tracking_params
         if group_type_norm == "DYNAMIC_TEXT_AD_GROUP":
@@ -272,6 +309,17 @@ def add(
 @click.option("--status", help="New status")
 @click.option("--region-ids", help="Comma-separated region IDs")
 @click.option(
+    "--negative-keywords",
+    help="Comma-separated ad-group negative keywords for NegativeKeywords.Items",
+)
+@click.option(
+    "--negative-keyword-shared-set-ids",
+    help=(
+        "Comma-separated negative keyword shared set IDs for "
+        "NegativeKeywordSharedSetIds.Items"
+    ),
+)
+@click.option(
     "--tracking-params",
     "tracking_params",
     help=(
@@ -281,7 +329,17 @@ def add(
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def update(ctx, adgroup_id, name, status, region_ids, tracking_params, dry_run):
+def update(
+    ctx,
+    adgroup_id,
+    name,
+    status,
+    region_ids,
+    negative_keywords,
+    negative_keyword_shared_set_ids,
+    tracking_params,
+    dry_run,
+):
     """Update ad group"""
     _validate_tracking_params(tracking_params)
 
@@ -293,7 +351,17 @@ def update(ctx, adgroup_id, name, status, region_ids, tracking_params, dry_run):
     if status:
         adgroup_data["Status"] = status
     if region_ids:
-        adgroup_data["RegionIds"] = parse_ids(region_ids)
+        adgroup_data["RegionIds"] = _parse_ids_option(region_ids, "--region-ids")
+    parsed_negative_keywords = parse_csv_strings(negative_keywords)
+    if parsed_negative_keywords:
+        adgroup_data["NegativeKeywords"] = {"Items": parsed_negative_keywords}
+    parsed_negative_keyword_shared_set_ids = _parse_ids_option(
+        negative_keyword_shared_set_ids, "--negative-keyword-shared-set-ids"
+    )
+    if parsed_negative_keyword_shared_set_ids:
+        adgroup_data["NegativeKeywordSharedSetIds"] = {
+            "Items": parsed_negative_keyword_shared_set_ids
+        }
     if tracking_params:
         adgroup_data["TrackingParams"] = tracking_params
 
@@ -301,7 +369,8 @@ def update(ctx, adgroup_id, name, status, region_ids, tracking_params, dry_run):
     if len(adgroup_data) == 1:
         raise click.UsageError(
             "adgroups update requires at least one updatable field "
-            "(--name, --status, --region-ids, or --tracking-params)."
+            "(--name, --status, --region-ids, --negative-keywords, "
+            "--negative-keyword-shared-set-ids, or --tracking-params)."
         )
 
     try:

@@ -632,9 +632,25 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("adgroups", "add", "SmartAdGroup.FeedId"): {"--feed-id"},
     ("adgroups", "add", "SmartAdGroup.AdTitleSource"): {"--ad-title-source"},
     ("adgroups", "add", "SmartAdGroup.AdBodySource"): {"--ad-body-source"},
+    ("adgroups", "add", "NegativeKeywords"): {"--negative-keywords"},
+    ("adgroups", "add", "NegativeKeywords.Items"): {"--negative-keywords"},
+    ("adgroups", "add", "NegativeKeywordSharedSetIds"): {
+        "--negative-keyword-shared-set-ids"
+    },
+    ("adgroups", "add", "NegativeKeywordSharedSetIds.Items"): {
+        "--negative-keyword-shared-set-ids"
+    },
     ("adgroups", "add", "TrackingParams"): {"--tracking-params"},
     ("adgroups", "update", "Name"): {"--name"},
     ("adgroups", "update", "RegionIds"): {"--region-ids"},
+    ("adgroups", "update", "NegativeKeywords"): {"--negative-keywords"},
+    ("adgroups", "update", "NegativeKeywords.Items"): {"--negative-keywords"},
+    ("adgroups", "update", "NegativeKeywordSharedSetIds"): {
+        "--negative-keyword-shared-set-ids"
+    },
+    ("adgroups", "update", "NegativeKeywordSharedSetIds.Items"): {
+        "--negative-keyword-shared-set-ids"
+    },
     ("adgroups", "update", "TrackingParams"): {"--tracking-params"},
     ("ads", "add", "TextAd"): {"--type"},
     ("ads", "add", "TextAd.VCardId"): {"--vcard-id"},
@@ -965,26 +981,6 @@ OPTIONAL_FIELD_DEFAULT_FOLLOWUPS: dict[tuple[str, str], dict[str, str]] = {
 }
 
 OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
-    ("adgroups", "add", "NegativeKeywords"): {
-        "status": "missing_followup",
-        "issue": "#243",
-        "note": "Ad-group-level negative keywords are not exposed on add.",
-    },
-    ("adgroups", "update", "NegativeKeywords"): {
-        "status": "missing_followup",
-        "issue": "#243",
-        "note": "Ad-group-level negative keywords are not exposed on update.",
-    },
-    ("adgroups", "add", "NegativeKeywordSharedSetIds"): {
-        "status": "missing_followup",
-        "issue": "#243",
-        "note": "Shared-set IDs are read-filterable but not addable.",
-    },
-    ("adgroups", "update", "NegativeKeywordSharedSetIds"): {
-        "status": "missing_followup",
-        "issue": "#243",
-        "note": "Shared-set IDs are read-filterable but not updatable.",
-    },
     ("adgroups", "add", "DynamicTextAdGroup.AutotargetingCategories"): {
         "status": "missing_followup",
         "issue": "#247",

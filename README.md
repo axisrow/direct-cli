@@ -379,10 +379,10 @@ direct campaigns delete --id 12345
 
 ```bash
 direct adgroups get --campaign-ids 1,2,3 --limit 50
-direct adgroups add --name "Group 1" --campaign-id 12345 --region-ids 1,225 --tracking-params "utm_source=direct" --dry-run
+direct adgroups add --name "Group 1" --campaign-id 12345 --region-ids 1,225 --negative-keywords "repair,used" --tracking-params "utm_source=direct" --dry-run
 direct adgroups add --name "Dynamic Group" --campaign-id 12345 --type DYNAMIC_TEXT_AD_GROUP --region-ids 1,225 --domain-url example.com --dry-run
 direct adgroups add --name "Smart Group" --campaign-id 12345 --type SMART_AD_GROUP --region-ids 1,225 --feed-id 170 --ad-title-source FEED_NAME --ad-body-source FEED_NAME --dry-run
-direct adgroups update --id 67890 --tracking-params "utm_source=direct"
+direct adgroups update --id 67890 --negative-keyword-shared-set-ids 10,11 --tracking-params "utm_source=direct"
 direct adgroups delete --id 67890
 ```
 
@@ -1080,10 +1080,10 @@ direct campaigns delete --id 12345
 
 ```bash
 direct adgroups get --campaign-ids 1,2,3 --limit 50
-direct adgroups add --name "Группа 1" --campaign-id 12345 --region-ids 1,225 --tracking-params "utm_source=direct" --dry-run
+direct adgroups add --name "Группа 1" --campaign-id 12345 --region-ids 1,225 --negative-keywords "ремонт,б/у" --tracking-params "utm_source=direct" --dry-run
 direct adgroups add --name "Динамическая группа" --campaign-id 12345 --type DYNAMIC_TEXT_AD_GROUP --region-ids 1,225 --domain-url example.com --dry-run
 direct adgroups add --name "Смарт-группа" --campaign-id 12345 --type SMART_AD_GROUP --region-ids 1,225 --feed-id 170 --ad-title-source FEED_NAME --ad-body-source FEED_NAME --dry-run
-direct adgroups update --id 67890 --tracking-params "utm_source=direct"
+direct adgroups update --id 67890 --negative-keyword-shared-set-ids 10,11 --tracking-params "utm_source=direct"
 direct adgroups delete --id 67890
 ```
 
