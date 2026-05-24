@@ -1677,6 +1677,22 @@ def test_adgroups_add_tracking_params_accepts_1024_chars():
     assert group["TrackingParams"] == tracking_params
 
 
+def test_adgroups_add_tracking_params_rejects_1025_chars():
+    result = _rejected(
+        "adgroups",
+        "add",
+        "--name",
+        "Group A",
+        "--campaign-id",
+        "111",
+        "--region-ids",
+        "225",
+        "--tracking-params",
+        "x" * 1025,
+    )
+    assert "--tracking-params must be at most 1024 characters" in result.output
+
+
 def test_adgroups_update_tracking_params_rejects_1025_chars():
     result = _rejected(
         "adgroups",
