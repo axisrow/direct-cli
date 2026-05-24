@@ -10,6 +10,11 @@ RESOURCE_MAPPING_V5 = {
         "docs": "https://yandex.ru/dev/direct/doc/ru/adgroups/adgroups",
         "methods": ["get", "add", "update", "delete"],
     },
+    "adgroups_v501": {
+        "resource": "json/v501/adgroups",
+        "docs": "https://yandex.ru/dev/direct/doc/ru/adgroups/adgroups",
+        "methods": ["add", "update"],
+    },
     "adimages": {
         "resource": "json/v5/adimages",
         "docs": "https://yandex.ru/dev/direct/doc/ru/adimages/adimages",

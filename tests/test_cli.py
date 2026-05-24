@@ -10,6 +10,7 @@ from contextlib import redirect_stderr
 from importlib import import_module
 from importlib.metadata import version
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 from click.testing import CliRunner
@@ -18,6 +19,35 @@ from direct_cli._vendor.tapi_yandex_direct.resource_mapping import RESOURCE_MAPP
 from direct_cli._deprecated import DEPRECATED_ENTRYPOINT_MESSAGE, deprecated_main
 from direct_cli.cli import cli
 from direct_cli.utils import get_docs_url
+
+
+class _FakeAdGroupsResponse:
+    def __call__(self) -> "_FakeAdGroupsResponse":
+        return self
+
+    def extract(self) -> list[dict[str, int]]:
+        return [{"Id": 1}]
+
+
+class _FakeAdGroupsEndpoint:
+    def __init__(self, client: "_FakeAdGroupsClient", resource_name: str) -> None:
+        self.client = client
+        self.resource_name = resource_name
+
+    def post(self, data: dict[str, Any]) -> _FakeAdGroupsResponse:
+        self.client.calls.append((self.resource_name, data))
+        return _FakeAdGroupsResponse()
+
+
+class _FakeAdGroupsClient:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+
+    def adgroups(self) -> _FakeAdGroupsEndpoint:
+        return _FakeAdGroupsEndpoint(self, "adgroups")
+
+    def adgroups_v501(self) -> _FakeAdGroupsEndpoint:
+        return _FakeAdGroupsEndpoint(self, "adgroups_v501")
 
 
 class TestCLI(unittest.TestCase):
@@ -86,6 +116,108 @@ class TestCLI(unittest.TestCase):
                     f"Documentation: {get_docs_url(group)}",
                     result.output,
                 )
+
+    def test_adgroups_v501_resource_mapping_exists_for_unified_groups(self):
+        """Unified ad groups must be sent to the documented v501 endpoint."""
+        self.assertEqual(
+            RESOURCE_MAPPING_V5["adgroups_v501"]["resource"],
+            "json/v501/adgroups",
+        )
+        self.assertEqual(
+            RESOURCE_MAPPING_V5["adgroups_v501"]["methods"],
+            ["add", "update"],
+        )
+
+    def test_adgroups_add_unified_uses_v501_endpoint(self):
+        """UNIFIED_AD_GROUP add payloads must not use the default v5 resource."""
+        fake_client = _FakeAdGroupsClient()
+        adgroups_module = import_module("direct_cli.commands.adgroups")
+
+        with patch.object(adgroups_module, "create_client", return_value=fake_client):
+            result = self.runner.invoke(
+                cli,
+                [
+                    "adgroups",
+                    "add",
+                    "--name",
+                    "Unified Group",
+                    "--campaign-id",
+                    "12345",
+                    "--type",
+                    "UNIFIED_AD_GROUP",
+                    "--region-ids",
+                    "1,225",
+                    "--offer-retargeting",
+                    "YES",
+                ],
+                env={
+                    "YANDEX_DIRECT_TOKEN": "test-token",
+                    "YANDEX_DIRECT_LOGIN": "axisrow",
+                },
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(fake_client.calls[0][0], "adgroups_v501")
+        adgroup = fake_client.calls[0][1]["params"]["AdGroups"][0]
+        self.assertEqual(adgroup["UnifiedAdGroup"]["OfferRetargeting"], "YES")
+
+    def test_adgroups_update_unified_uses_v501_endpoint(self):
+        """UnifiedAdGroup update blocks must use the documented v501 resource."""
+        fake_client = _FakeAdGroupsClient()
+        adgroups_module = import_module("direct_cli.commands.adgroups")
+
+        with patch.object(adgroups_module, "create_client", return_value=fake_client):
+            result = self.runner.invoke(
+                cli,
+                [
+                    "adgroups",
+                    "update",
+                    "--id",
+                    "67890",
+                    "--offer-retargeting",
+                    "NO",
+                ],
+                env={
+                    "YANDEX_DIRECT_TOKEN": "test-token",
+                    "YANDEX_DIRECT_LOGIN": "axisrow",
+                },
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(fake_client.calls[0][0], "adgroups_v501")
+        adgroup = fake_client.calls[0][1]["params"]["AdGroups"][0]
+        self.assertEqual(adgroup["UnifiedAdGroup"]["OfferRetargeting"], "NO")
+
+    def test_adgroups_add_smart_keeps_v5_endpoint(self):
+        """Non-unified ad group payloads keep the regular v5 resource."""
+        fake_client = _FakeAdGroupsClient()
+        adgroups_module = import_module("direct_cli.commands.adgroups")
+
+        with patch.object(adgroups_module, "create_client", return_value=fake_client):
+            result = self.runner.invoke(
+                cli,
+                [
+                    "adgroups",
+                    "add",
+                    "--name",
+                    "Smart Group",
+                    "--campaign-id",
+                    "12345",
+                    "--type",
+                    "SMART_AD_GROUP",
+                    "--region-ids",
+                    "1,225",
+                    "--feed-id",
+                    "42",
+                ],
+                env={
+                    "YANDEX_DIRECT_TOKEN": "test-token",
+                    "YANDEX_DIRECT_LOGIN": "axisrow",
+                },
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(fake_client.calls[0][0], "adgroups")
 
     def test_auth_help_has_no_docs_url(self):
         """Auth is not a Yandex Direct API resource and has no docs epilog."""

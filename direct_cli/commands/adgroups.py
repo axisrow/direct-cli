@@ -2,7 +2,7 @@
 Ad Groups commands
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 import click
 
@@ -400,6 +400,29 @@ def _reject_mixed_update_subtype_flags(
             f"({', '.join(first_flags)}) cannot be combined with "
             f"{second_subtype} update flags ({', '.join(second_flags)})."
         )
+
+
+def _uses_unified_adgroup_endpoint(body: dict[str, Any]) -> bool:
+    """Return whether an adgroups add/update payload must use API v501."""
+    params = body.get("params")
+    if not isinstance(params, dict):
+        return False
+
+    adgroups_payload = params.get("AdGroups")
+    if not isinstance(adgroups_payload, list):
+        return False
+
+    return any(
+        isinstance(adgroup, dict) and "UnifiedAdGroup" in adgroup
+        for adgroup in adgroups_payload
+    )
+
+
+def _post_adgroups(client: Any, body: dict[str, Any]) -> Any:
+    """Post adgroups payloads to the documented API version."""
+    if _uses_unified_adgroup_endpoint(body):
+        return client.adgroups_v501().post(data=body)
+    return client.adgroups().post(data=body)
 
 
 @adgroups.command()
@@ -823,7 +846,7 @@ def add(
             sandbox=ctx.obj.get("sandbox"),
         )
 
-        result = client.adgroups().post(data=body)
+        result = _post_adgroups(client, body)
         format_output(result().extract(), "json", None)
 
     except click.UsageError:
@@ -1109,7 +1132,7 @@ def update(
             sandbox=ctx.obj.get("sandbox"),
         )
 
-        result = client.adgroups().post(data=body)
+        result = _post_adgroups(client, body)
         format_output(result().extract(), "json", None)
 
     except Exception as e:
