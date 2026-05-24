@@ -806,6 +806,14 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
         "--erir-contract-is-agency-payment",
         "--erir-contract-price-amount",
         "--erir-contract-price-including-vat",
+        "--erir-contragent-name",
+        "--erir-contragent-kpp",
+        "--erir-contragent-phone",
+        "--erir-contragent-epay-number",
+        "--erir-contragent-reg-number",
+        "--erir-contragent-oksm-number",
+        "--erir-contragent-tin-type",
+        "--erir-contragent-tin",
     },
     ("clients", "update", "ErirAttributes.Organization"): {
         "--erir-organization-name",
@@ -861,6 +869,39 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     },
     ("clients", "update", "ErirAttributes.Contract.Price.IncludingVat"): {
         "--erir-contract-price-including-vat"
+    },
+    ("clients", "update", "ErirAttributes.Contragent"): {
+        "--erir-contragent-name",
+        "--erir-contragent-kpp",
+        "--erir-contragent-phone",
+        "--erir-contragent-epay-number",
+        "--erir-contragent-reg-number",
+        "--erir-contragent-oksm-number",
+        "--erir-contragent-tin-type",
+        "--erir-contragent-tin",
+    },
+    ("clients", "update", "ErirAttributes.Contragent.Name"): {"--erir-contragent-name"},
+    ("clients", "update", "ErirAttributes.Contragent.Phone"): {
+        "--erir-contragent-phone"
+    },
+    ("clients", "update", "ErirAttributes.Contragent.EpayNumber"): {
+        "--erir-contragent-epay-number"
+    },
+    ("clients", "update", "ErirAttributes.Contragent.RegNumber"): {
+        "--erir-contragent-reg-number"
+    },
+    ("clients", "update", "ErirAttributes.Contragent.OksmNumber"): {
+        "--erir-contragent-oksm-number"
+    },
+    ("clients", "update", "ErirAttributes.Contragent.TinInfo"): {
+        "--erir-contragent-tin-type",
+        "--erir-contragent-tin",
+    },
+    ("clients", "update", "ErirAttributes.Contragent.TinInfo.TinType"): {
+        "--erir-contragent-tin-type"
+    },
+    ("clients", "update", "ErirAttributes.Contragent.TinInfo.Tin"): {
+        "--erir-contragent-tin"
     },
     ("dynamicads", "add", "Conditions"): {"--condition"},
     ("dynamicads", "add", "Conditions.Operand"): {"--condition"},
@@ -1373,11 +1414,6 @@ OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]
         "status": "missing_followup",
         "issue": "#296",
         "note": "CpmBannerCampaign optional fields need typed support or N/A.",
-    },
-    ("clients", "update", "ErirAttributes.Contragent"): {
-        "status": "missing_followup",
-        "issue": "#308",
-        "note": "ERIR Contragent fields need typed support or N/A.",
     },
 }
 

@@ -442,6 +442,34 @@ def build_erir_contract(
     return contract or None
 
 
+def build_erir_contragent(
+    name: Optional[str],
+    kpp: Optional[str],
+    phone: Optional[str],
+    epay_number: Optional[str],
+    reg_number: Optional[str],
+    oksm_number: Optional[str],
+    tin_info: Optional[Dict[str, str]],
+) -> Optional[Dict[str, Any]]:
+    """Build ErirAttributes.Contragent from typed flags."""
+    contragent = {}
+    if name:
+        contragent["Name"] = name
+    if kpp:
+        contragent["Kpp"] = kpp
+    if phone:
+        contragent["Phone"] = phone
+    if epay_number:
+        contragent["EpayNumber"] = epay_number
+    if reg_number:
+        contragent["RegNumber"] = reg_number
+    if oksm_number:
+        contragent["OksmNumber"] = oksm_number
+    if tin_info:
+        contragent["TinInfo"] = tin_info
+    return contragent or None
+
+
 def parse_positive_decimal_amount(value: str, option_name: str) -> float:
     """Parse a positive finite decimal CLI amount."""
     normalized = (value or "").strip()
@@ -469,6 +497,7 @@ def parse_positive_decimal_amount(value: str, option_name: str) -> float:
 def build_erir_attributes(
     organization: Optional[Dict[str, Any]] = None,
     contract: Optional[Dict[str, Any]] = None,
+    contragent: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
     """Build ErirAttributes from typed child objects."""
     erir_attributes = {}
@@ -476,6 +505,8 @@ def build_erir_attributes(
         erir_attributes["Organization"] = organization
     if contract:
         erir_attributes["Contract"] = contract
+    if contragent:
+        erir_attributes["Contragent"] = contragent
     return erir_attributes or None
 
 
