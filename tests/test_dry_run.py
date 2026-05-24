@@ -4757,6 +4757,37 @@ def test_clients_update_repeated_subscription_and_setting_items():
     }
 
 
+def test_clients_update_erir_organization_payload():
+    body = _dry_run(
+        "clients",
+        "update",
+        "--erir-organization-name",
+        "Advertiser LLC",
+        "--erir-organization-kpp",
+        "770101001",
+        "--erir-organization-epay-number",
+        "epay123",
+        "--erir-organization-reg-number",
+        "1027700132195",
+        "--erir-organization-oksm-number",
+        "643",
+        "--erir-organization-okved-code",
+        "62.01",
+    )
+    assert body["params"]["Clients"][0] == {
+        "ErirAttributes": {
+            "Organization": {
+                "Name": "Advertiser LLC",
+                "Kpp": "770101001",
+                "EpayNumber": "epay123",
+                "RegNumber": "1027700132195",
+                "OksmNumber": "643",
+                "OkvedCode": "62.01",
+            }
+        }
+    }
+
+
 def test_clients_update_rejects_invalid_subscription_or_setting():
     invalid_cases = [
         [

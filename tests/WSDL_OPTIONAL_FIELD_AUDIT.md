@@ -11,8 +11,8 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2800 |
-| `supported` | 441 |
+| `missing_followup` | 2793 |
+| `supported` | 448 |
 
 ## Confirmed Follow-Ups
 
@@ -2549,13 +2549,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `campaigns.update` | `TimeTargeting.HolidaysSchedule.BidPercent` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
 | `campaigns.update` | `TimeTargeting.HolidaysSchedule.StartHour` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
 | `campaigns.update` | `TimeTargeting.HolidaysSchedule.EndHour` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `clients.update` | `ErirAttributes` | ERIR parent wrapper is tracked with the first ERIR child issue. [#306](https://github.com/axisrow/direct-cli/issues/306) |
-| `clients.update` | `ErirAttributes.Organization` | ERIR Organization fields need typed support or N/A. [#306](https://github.com/axisrow/direct-cli/issues/306) |
-| `clients.update` | `ErirAttributes.Organization.Name` | ERIR Organization fields need typed support or N/A. [#306](https://github.com/axisrow/direct-cli/issues/306); inherited from `ErirAttributes.Organization` |
-| `clients.update` | `ErirAttributes.Organization.EpayNumber` | ERIR Organization fields need typed support or N/A. [#306](https://github.com/axisrow/direct-cli/issues/306); inherited from `ErirAttributes.Organization` |
-| `clients.update` | `ErirAttributes.Organization.RegNumber` | ERIR Organization fields need typed support or N/A. [#306](https://github.com/axisrow/direct-cli/issues/306); inherited from `ErirAttributes.Organization` |
-| `clients.update` | `ErirAttributes.Organization.OksmNumber` | ERIR Organization fields need typed support or N/A. [#306](https://github.com/axisrow/direct-cli/issues/306); inherited from `ErirAttributes.Organization` |
-| `clients.update` | `ErirAttributes.Organization.OkvedCode` | ERIR Organization fields need typed support or N/A. [#306](https://github.com/axisrow/direct-cli/issues/306); inherited from `ErirAttributes.Organization` |
 | `clients.update` | `ErirAttributes.Contract` | ERIR Contract fields need typed support or N/A. [#307](https://github.com/axisrow/direct-cli/issues/307) |
 | `clients.update` | `ErirAttributes.Contract.Number` | ERIR Contract fields need typed support or N/A. [#307](https://github.com/axisrow/direct-cli/issues/307); inherited from `ErirAttributes.Contract` |
 | `clients.update` | `ErirAttributes.Contract.Date` | ERIR Contract fields need typed support or N/A. [#307](https://github.com/axisrow/direct-cli/issues/307); inherited from `ErirAttributes.Contract` |
@@ -5533,13 +5526,13 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `clients.update` | `clients.update` | `TinInfo` | `TinInfoUpdate` | 0 | 1 | `supported` | --tin, --tin-type |
 | `clients.update` | `clients.update` | `TinInfo.TinType` | `TinTypeEnum` | 0 | 1 | `supported` | --tin-type |
 | `clients.update` | `clients.update` | `TinInfo.Tin` | `string` | 0 | 1 | `supported` | --tin |
-| `clients.update` | `clients.update` | `ErirAttributes` | `ErirAttributesUpdate` | 0 | 1 | `missing_followup` | ERIR parent wrapper is tracked with the first ERIR child issue. [#306](https://github.com/axisrow/direct-cli/issues/306) |
-| `clients.update` | `clients.update` | `ErirAttributes.Organization` | `OrgInfo` | 0 | 1 | `missing_followup` | ERIR Organization fields need typed support or N/A. [#306](https://github.com/axisrow/direct-cli/issues/306) |
-| `clients.update` | `clients.update` | `ErirAttributes.Organization.Name` | `string` | 0 | 1 | `missing_followup` | ERIR Organization fields need typed support or N/A. [#306](https://github.com/axisrow/direct-cli/issues/306); inherited from `ErirAttributes.Organization` |
-| `clients.update` | `clients.update` | `ErirAttributes.Organization.EpayNumber` | `string` | 0 | 1 | `missing_followup` | ERIR Organization fields need typed support or N/A. [#306](https://github.com/axisrow/direct-cli/issues/306); inherited from `ErirAttributes.Organization` |
-| `clients.update` | `clients.update` | `ErirAttributes.Organization.RegNumber` | `string` | 0 | 1 | `missing_followup` | ERIR Organization fields need typed support or N/A. [#306](https://github.com/axisrow/direct-cli/issues/306); inherited from `ErirAttributes.Organization` |
-| `clients.update` | `clients.update` | `ErirAttributes.Organization.OksmNumber` | `string` | 0 | 1 | `missing_followup` | ERIR Organization fields need typed support or N/A. [#306](https://github.com/axisrow/direct-cli/issues/306); inherited from `ErirAttributes.Organization` |
-| `clients.update` | `clients.update` | `ErirAttributes.Organization.OkvedCode` | `string` | 0 | 1 | `missing_followup` | ERIR Organization fields need typed support or N/A. [#306](https://github.com/axisrow/direct-cli/issues/306); inherited from `ErirAttributes.Organization` |
+| `clients.update` | `clients.update` | `ErirAttributes` | `ErirAttributesUpdate` | 0 | 1 | `supported` | --erir-organization-epay-number, --erir-organization-kpp, --erir-organization-name, --erir-organization-oksm-number, --erir-organization-okved-code, --erir-organization-reg-number |
+| `clients.update` | `clients.update` | `ErirAttributes.Organization` | `OrgInfo` | 0 | 1 | `supported` | --erir-organization-epay-number, --erir-organization-kpp, --erir-organization-name, --erir-organization-oksm-number, --erir-organization-okved-code, --erir-organization-reg-number |
+| `clients.update` | `clients.update` | `ErirAttributes.Organization.Name` | `string` | 0 | 1 | `supported` | --erir-organization-name |
+| `clients.update` | `clients.update` | `ErirAttributes.Organization.EpayNumber` | `string` | 0 | 1 | `supported` | --erir-organization-epay-number |
+| `clients.update` | `clients.update` | `ErirAttributes.Organization.RegNumber` | `string` | 0 | 1 | `supported` | --erir-organization-reg-number |
+| `clients.update` | `clients.update` | `ErirAttributes.Organization.OksmNumber` | `string` | 0 | 1 | `supported` | --erir-organization-oksm-number |
+| `clients.update` | `clients.update` | `ErirAttributes.Organization.OkvedCode` | `string` | 0 | 1 | `supported` | --erir-organization-okved-code |
 | `clients.update` | `clients.update` | `ErirAttributes.Contract` | `ContractInfoUpdate` | 0 | 1 | `missing_followup` | ERIR Contract fields need typed support or N/A. [#307](https://github.com/axisrow/direct-cli/issues/307) |
 | `clients.update` | `clients.update` | `ErirAttributes.Contract.Number` | `string` | 0 | 1 | `missing_followup` | ERIR Contract fields need typed support or N/A. [#307](https://github.com/axisrow/direct-cli/issues/307); inherited from `ErirAttributes.Contract` |
 | `clients.update` | `clients.update` | `ErirAttributes.Contract.Date` | `string` | 0 | 1 | `missing_followup` | ERIR Contract fields need typed support or N/A. [#307](https://github.com/axisrow/direct-cli/issues/307); inherited from `ErirAttributes.Contract` |

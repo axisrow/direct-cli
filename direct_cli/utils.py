@@ -347,6 +347,41 @@ def parse_tin_info(
     return tin_info or None
 
 
+def build_erir_organization(
+    name: Optional[str],
+    kpp: Optional[str],
+    epay_number: Optional[str],
+    reg_number: Optional[str],
+    oksm_number: Optional[str],
+    okved_code: Optional[str],
+) -> Optional[Dict[str, str]]:
+    """Build ErirAttributes.Organization from typed flags."""
+    organization = {}
+    if name:
+        organization["Name"] = name
+    if kpp:
+        organization["Kpp"] = kpp
+    if epay_number:
+        organization["EpayNumber"] = epay_number
+    if reg_number:
+        organization["RegNumber"] = reg_number
+    if oksm_number:
+        organization["OksmNumber"] = oksm_number
+    if okved_code:
+        organization["OkvedCode"] = okved_code
+    return organization or None
+
+
+def build_erir_attributes(
+    organization: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict[str, Any]]:
+    """Build ErirAttributes from typed child objects."""
+    erir_attributes = {}
+    if organization:
+        erir_attributes["Organization"] = organization
+    return erir_attributes or None
+
+
 def build_notification_update(
     email: Optional[str],
     lang: Optional[str],
@@ -369,6 +404,7 @@ def build_client_update_item(
     notification: Optional[Dict[str, Any]],
     settings: Optional[List[Dict[str, str]]],
     tin_info: Optional[Dict[str, str]],
+    erir_attributes: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Build a generalclients ClientUpdateItem with WSDL-valid keys only."""
     item = {}
@@ -382,6 +418,8 @@ def build_client_update_item(
         item["Settings"] = settings
     if tin_info:
         item["TinInfo"] = tin_info
+    if erir_attributes:
+        item["ErirAttributes"] = erir_attributes
     return item
 
 
