@@ -424,8 +424,10 @@ accepts `--turbo-page-id`.
 direct keywords get --campaign-ids 1,2,3
 direct keywords add --adgroup-id 12345 --keyword "buy laptop" --bid 10500000 --context-bid 5250000 --user-param-1 segment-a --user-param-2 segment-b --dry-run
 direct keywords add --adgroup-id 12345 --keyword "---autotargeting" --autotargeting-search-bid-is-auto YES --priority HIGH --autotargeting-category EXACT=YES --autotargeting-category BROADER=NO --autotargeting-brand-option WITHOUT_BRANDS=YES --dry-run
+direct keywords add --adgroup-id 12345 --keyword "---autotargeting" --autotargeting-settings-exact YES --autotargeting-settings-narrow NO --autotargeting-settings-without-brands YES --dry-run
 direct keywords update --id 88888 --keyword "updated keyword text"
 direct keywords update --id 88888 --autotargeting-category EXACT=YES --autotargeting-category BROADER=NO --autotargeting-brand-option WITHOUT_BRANDS=YES
+direct keywords update --id 88888 --autotargeting-settings-broader YES --autotargeting-settings-with-competitors-brand NO
 direct keywords delete --id 88888
 ```
 
@@ -1138,8 +1140,10 @@ long-единиц API Яндекс Директа (цена, умноженна�
 direct keywords get --campaign-ids 1,2,3
 direct keywords add --adgroup-id 12345 --keyword "купить ноутбук" --bid 10500000 --context-bid 5250000 --user-param-1 segment-a --user-param-2 segment-b --dry-run
 direct keywords add --adgroup-id 12345 --keyword "---autotargeting" --autotargeting-search-bid-is-auto YES --priority HIGH --autotargeting-category EXACT=YES --autotargeting-category BROADER=NO --autotargeting-brand-option WITHOUT_BRANDS=YES --dry-run
+direct keywords add --adgroup-id 12345 --keyword "---autotargeting" --autotargeting-settings-exact YES --autotargeting-settings-narrow NO --autotargeting-settings-without-brands YES --dry-run
 direct keywords update --id 88888 --keyword "updated keyword text"
 direct keywords update --id 88888 --autotargeting-category EXACT=YES --autotargeting-category BROADER=NO --autotargeting-brand-option WITHOUT_BRANDS=YES
+direct keywords update --id 88888 --autotargeting-settings-broader YES --autotargeting-settings-with-competitors-brand NO
 direct keywords delete --id 88888
 ```
 

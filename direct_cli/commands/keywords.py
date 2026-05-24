@@ -271,6 +271,67 @@ def _parse_autotargeting_brand_options(
     return items
 
 
+def _build_autotargeting_settings(
+    *,
+    exact: Optional[str],
+    narrow: Optional[str],
+    alternative: Optional[str],
+    accessory: Optional[str],
+    broader: Optional[str],
+    without_brands: Optional[str],
+    with_advertiser_brand: Optional[str],
+    with_competitors_brand: Optional[str],
+) -> Optional[Dict[str, Dict[str, str]]]:
+    categories: Dict[str, str] = {}
+    for field_name, value in (
+        ("Exact", exact),
+        ("Narrow", narrow),
+        ("Alternative", alternative),
+        ("Accessory", accessory),
+        ("Broader", broader),
+    ):
+        if value is not None:
+            categories[field_name] = value.upper()
+
+    brand_options: Dict[str, str] = {}
+    for field_name, value in (
+        ("WithoutBrands", without_brands),
+        ("WithAdvertiserBrand", with_advertiser_brand),
+        ("WithCompetitorsBrand", with_competitors_brand),
+    ):
+        if value is not None:
+            brand_options[field_name] = value.upper()
+
+    settings: Dict[str, Dict[str, str]] = {}
+    if categories:
+        settings["Categories"] = categories
+    if brand_options:
+        settings["BrandOptions"] = brand_options
+
+    return settings or None
+
+
+def _reject_legacy_autotargeting_mix(
+    *,
+    settings: Optional[Dict[str, Dict[str, str]]],
+    categories: tuple[str, ...],
+    brand_options: tuple[str, ...],
+) -> None:
+    if settings is None:
+        return
+
+    legacy_flags = []
+    if categories:
+        legacy_flags.append("--autotargeting-category")
+    if brand_options:
+        legacy_flags.append("--autotargeting-brand-option")
+    if legacy_flags:
+        raise click.UsageError(
+            "AutotargetingSettings flags cannot be combined with legacy "
+            f"{', '.join(legacy_flags)} flags."
+        )
+
+
 @click.group()
 def keywords():
     """Manage keywords"""
@@ -391,6 +452,46 @@ def get(
     multiple=True,
     help=AUTOTARGETING_BRAND_OPTION_HELP,
 )
+@click.option(
+    "--autotargeting-settings-exact",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="AutotargetingSettings.Categories.Exact value: YES or NO",
+)
+@click.option(
+    "--autotargeting-settings-narrow",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="AutotargetingSettings.Categories.Narrow value: YES or NO",
+)
+@click.option(
+    "--autotargeting-settings-alternative",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="AutotargetingSettings.Categories.Alternative value: YES or NO",
+)
+@click.option(
+    "--autotargeting-settings-accessory",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="AutotargetingSettings.Categories.Accessory value: YES or NO",
+)
+@click.option(
+    "--autotargeting-settings-broader",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="AutotargetingSettings.Categories.Broader value: YES or NO",
+)
+@click.option(
+    "--autotargeting-settings-without-brands",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="AutotargetingSettings.BrandOptions.WithoutBrands value: YES or NO",
+)
+@click.option(
+    "--autotargeting-settings-with-advertiser-brand",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help=("AutotargetingSettings.BrandOptions.WithAdvertiserBrand value: YES or NO"),
+)
+@click.option(
+    "--autotargeting-settings-with-competitors-brand",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help=("AutotargetingSettings.BrandOptions.WithCompetitorsBrand value: YES or NO"),
+)
 @click.option("--user-param-1", help="User parameter 1")
 @click.option("--user-param-2", help="User parameter 2")
 @click.option(
@@ -422,6 +523,14 @@ def add(
     priority,
     autotargeting_categories,
     autotargeting_brand_options,
+    autotargeting_settings_exact,
+    autotargeting_settings_narrow,
+    autotargeting_settings_alternative,
+    autotargeting_settings_accessory,
+    autotargeting_settings_broader,
+    autotargeting_settings_without_brands,
+    autotargeting_settings_with_advertiser_brand,
+    autotargeting_settings_with_competitors_brand,
     user_param_1,
     user_param_2,
     from_file,
@@ -454,6 +563,22 @@ def add(
             "--priority": priority,
             "--autotargeting-category": autotargeting_categories,
             "--autotargeting-brand-option": autotargeting_brand_options,
+            "--autotargeting-settings-exact": autotargeting_settings_exact,
+            "--autotargeting-settings-narrow": autotargeting_settings_narrow,
+            "--autotargeting-settings-alternative": (
+                autotargeting_settings_alternative
+            ),
+            "--autotargeting-settings-accessory": autotargeting_settings_accessory,
+            "--autotargeting-settings-broader": autotargeting_settings_broader,
+            "--autotargeting-settings-without-brands": (
+                autotargeting_settings_without_brands
+            ),
+            "--autotargeting-settings-with-advertiser-brand": (
+                autotargeting_settings_with_advertiser_brand
+            ),
+            "--autotargeting-settings-with-competitors-brand": (
+                autotargeting_settings_with_competitors_brand
+            ),
             "--user-param-1": user_param_1,
             "--user-param-2": user_param_2,
         }
@@ -484,6 +609,21 @@ def add(
     parsed_autotargeting_brand_options = _parse_autotargeting_brand_options(
         autotargeting_brand_options
     )
+    autotargeting_settings = _build_autotargeting_settings(
+        exact=autotargeting_settings_exact,
+        narrow=autotargeting_settings_narrow,
+        alternative=autotargeting_settings_alternative,
+        accessory=autotargeting_settings_accessory,
+        broader=autotargeting_settings_broader,
+        without_brands=autotargeting_settings_without_brands,
+        with_advertiser_brand=autotargeting_settings_with_advertiser_brand,
+        with_competitors_brand=autotargeting_settings_with_competitors_brand,
+    )
+    _reject_legacy_autotargeting_mix(
+        settings=autotargeting_settings,
+        categories=autotargeting_categories,
+        brand_options=autotargeting_brand_options,
+    )
 
     try:
         keyword_data: Dict[str, Any] = {
@@ -506,6 +646,8 @@ def add(
             keyword_data["AutotargetingBrandOptions"] = (
                 parsed_autotargeting_brand_options
             )
+        if autotargeting_settings is not None:
+            keyword_data["AutotargetingSettings"] = autotargeting_settings
         if user_param_1:
             keyword_data["UserParam1"] = user_param_1
         if user_param_2:
@@ -646,6 +788,46 @@ def _deprecated_bid_option(ctx, param, value):
     help=AUTOTARGETING_BRAND_OPTION_HELP,
 )
 @click.option(
+    "--autotargeting-settings-exact",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="AutotargetingSettings.Categories.Exact value: YES or NO",
+)
+@click.option(
+    "--autotargeting-settings-narrow",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="AutotargetingSettings.Categories.Narrow value: YES or NO",
+)
+@click.option(
+    "--autotargeting-settings-alternative",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="AutotargetingSettings.Categories.Alternative value: YES or NO",
+)
+@click.option(
+    "--autotargeting-settings-accessory",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="AutotargetingSettings.Categories.Accessory value: YES or NO",
+)
+@click.option(
+    "--autotargeting-settings-broader",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="AutotargetingSettings.Categories.Broader value: YES or NO",
+)
+@click.option(
+    "--autotargeting-settings-without-brands",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="AutotargetingSettings.BrandOptions.WithoutBrands value: YES or NO",
+)
+@click.option(
+    "--autotargeting-settings-with-advertiser-brand",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help=("AutotargetingSettings.BrandOptions.WithAdvertiserBrand value: YES or NO"),
+)
+@click.option(
+    "--autotargeting-settings-with-competitors-brand",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help=("AutotargetingSettings.BrandOptions.WithCompetitorsBrand value: YES or NO"),
+)
+@click.option(
     "--bid",
     default=None,
     expose_value=False,
@@ -682,6 +864,14 @@ def update(
     user_param_2,
     autotargeting_categories,
     autotargeting_brand_options,
+    autotargeting_settings_exact,
+    autotargeting_settings_narrow,
+    autotargeting_settings_alternative,
+    autotargeting_settings_accessory,
+    autotargeting_settings_broader,
+    autotargeting_settings_without_brands,
+    autotargeting_settings_with_advertiser_brand,
+    autotargeting_settings_with_competitors_brand,
     dry_run,
 ):
     """Update keyword text, user params, or autotargeting options."""
@@ -691,6 +881,21 @@ def update(
     )
     parsed_autotargeting_brand_options = _parse_autotargeting_brand_options(
         autotargeting_brand_options
+    )
+    autotargeting_settings = _build_autotargeting_settings(
+        exact=autotargeting_settings_exact,
+        narrow=autotargeting_settings_narrow,
+        alternative=autotargeting_settings_alternative,
+        accessory=autotargeting_settings_accessory,
+        broader=autotargeting_settings_broader,
+        without_brands=autotargeting_settings_without_brands,
+        with_advertiser_brand=autotargeting_settings_with_advertiser_brand,
+        with_competitors_brand=autotargeting_settings_with_competitors_brand,
+    )
+    _reject_legacy_autotargeting_mix(
+        settings=autotargeting_settings,
+        categories=autotargeting_categories,
+        brand_options=autotargeting_brand_options,
     )
 
     if keyword:
@@ -703,13 +908,16 @@ def update(
         keyword_data["AutotargetingCategories"] = parsed_autotargeting_categories
     if parsed_autotargeting_brand_options is not None:
         keyword_data["AutotargetingBrandOptions"] = parsed_autotargeting_brand_options
+    if autotargeting_settings is not None:
+        keyword_data["AutotargetingSettings"] = autotargeting_settings
 
     # Reject empty-payload no-op (issue #198 H10).
     if len(keyword_data) == 1:
         raise click.UsageError(
             "keywords update requires at least one updatable field "
             "(--keyword, --user-param-1, --user-param-2, "
-            "--autotargeting-category, or --autotargeting-brand-option)."
+            "--autotargeting-category, --autotargeting-brand-option, "
+            "or AutotargetingSettings flags)."
         )
 
     try:

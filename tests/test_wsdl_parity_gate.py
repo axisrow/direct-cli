@@ -951,6 +951,46 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("keywords", "add", "AutotargetingBrandOptions.Value"): {
         "--autotargeting-brand-option"
     },
+    ("keywords", "add", "AutotargetingSettings"): {
+        "--autotargeting-settings-exact",
+        "--autotargeting-settings-without-brands",
+    },
+    ("keywords", "add", "AutotargetingSettings.Categories"): {
+        "--autotargeting-settings-exact",
+        "--autotargeting-settings-narrow",
+        "--autotargeting-settings-alternative",
+        "--autotargeting-settings-accessory",
+        "--autotargeting-settings-broader",
+    },
+    ("keywords", "add", "AutotargetingSettings.Categories.Exact"): {
+        "--autotargeting-settings-exact"
+    },
+    ("keywords", "add", "AutotargetingSettings.Categories.Narrow"): {
+        "--autotargeting-settings-narrow"
+    },
+    ("keywords", "add", "AutotargetingSettings.Categories.Alternative"): {
+        "--autotargeting-settings-alternative"
+    },
+    ("keywords", "add", "AutotargetingSettings.Categories.Accessory"): {
+        "--autotargeting-settings-accessory"
+    },
+    ("keywords", "add", "AutotargetingSettings.Categories.Broader"): {
+        "--autotargeting-settings-broader"
+    },
+    ("keywords", "add", "AutotargetingSettings.BrandOptions"): {
+        "--autotargeting-settings-without-brands",
+        "--autotargeting-settings-with-advertiser-brand",
+        "--autotargeting-settings-with-competitors-brand",
+    },
+    ("keywords", "add", "AutotargetingSettings.BrandOptions.WithoutBrands"): {
+        "--autotargeting-settings-without-brands"
+    },
+    ("keywords", "add", "AutotargetingSettings.BrandOptions.WithAdvertiserBrand"): {
+        "--autotargeting-settings-with-advertiser-brand"
+    },
+    ("keywords", "add", "AutotargetingSettings.BrandOptions.WithCompetitorsBrand"): {
+        "--autotargeting-settings-with-competitors-brand"
+    },
     ("keywords", "add", "UserParam1"): {"--user-param-1"},
     ("keywords", "add", "UserParam2"): {"--user-param-2"},
     ("keywords", "update", "Keyword"): {"--keyword"},
@@ -972,6 +1012,50 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("keywords", "update", "AutotargetingBrandOptions.Value"): {
         "--autotargeting-brand-option"
     },
+    ("keywords", "update", "AutotargetingSettings"): {
+        "--autotargeting-settings-exact",
+        "--autotargeting-settings-without-brands",
+    },
+    ("keywords", "update", "AutotargetingSettings.Categories"): {
+        "--autotargeting-settings-exact",
+        "--autotargeting-settings-narrow",
+        "--autotargeting-settings-alternative",
+        "--autotargeting-settings-accessory",
+        "--autotargeting-settings-broader",
+    },
+    ("keywords", "update", "AutotargetingSettings.Categories.Exact"): {
+        "--autotargeting-settings-exact"
+    },
+    ("keywords", "update", "AutotargetingSettings.Categories.Narrow"): {
+        "--autotargeting-settings-narrow"
+    },
+    ("keywords", "update", "AutotargetingSettings.Categories.Alternative"): {
+        "--autotargeting-settings-alternative"
+    },
+    ("keywords", "update", "AutotargetingSettings.Categories.Accessory"): {
+        "--autotargeting-settings-accessory"
+    },
+    ("keywords", "update", "AutotargetingSettings.Categories.Broader"): {
+        "--autotargeting-settings-broader"
+    },
+    ("keywords", "update", "AutotargetingSettings.BrandOptions"): {
+        "--autotargeting-settings-without-brands",
+        "--autotargeting-settings-with-advertiser-brand",
+        "--autotargeting-settings-with-competitors-brand",
+    },
+    ("keywords", "update", "AutotargetingSettings.BrandOptions.WithoutBrands"): {
+        "--autotargeting-settings-without-brands"
+    },
+    (
+        "keywords",
+        "update",
+        "AutotargetingSettings.BrandOptions.WithAdvertiserBrand",
+    ): {"--autotargeting-settings-with-advertiser-brand"},
+    (
+        "keywords",
+        "update",
+        "AutotargetingSettings.BrandOptions.WithCompetitorsBrand",
+    ): {"--autotargeting-settings-with-competitors-brand"},
     ("negativekeywordsharedsets", "update", "Name"): {"--name"},
     ("negativekeywordsharedsets", "update", "NegativeKeywords"): {"--keywords"},
     ("audiencetargets", "add", "RetargetingListId"): {"--retargeting-list-id"},
@@ -1503,16 +1587,6 @@ OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
             "Single-item typed flag is supported; batch/from-file parity is "
             "tracked separately."
         ),
-    },
-    ("keywords", "add", "AutotargetingSettings"): {
-        "status": "missing_followup",
-        "issue": "#288",
-        "note": "Keyword autotargeting settings have no typed add flags.",
-    },
-    ("keywords", "update", "AutotargetingSettings"): {
-        "status": "missing_followup",
-        "issue": "#288",
-        "note": "Keyword autotargeting settings have no typed update flags.",
     },
     ("feeds", "add", "FileFeed"): {
         "status": "missing_followup",

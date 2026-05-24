@@ -2875,6 +2875,40 @@ def test_keywords_add_payload_with_autotargeting_brand_options():
     }
 
 
+def test_keywords_add_payload_with_autotargeting_settings():
+    body = _dry_run(
+        "keywords",
+        "add",
+        "--adgroup-id",
+        "12",
+        "--keyword",
+        "---autotargeting",
+        "--autotargeting-settings-exact",
+        "yes",
+        "--autotargeting-settings-narrow",
+        "no",
+        "--autotargeting-settings-without-brands",
+        "YES",
+        "--autotargeting-settings-with-competitors-brand",
+        "no",
+    )
+    keyword = body["params"]["Keywords"][0]
+    assert keyword == {
+        "AdGroupId": 12,
+        "Keyword": "---autotargeting",
+        "AutotargetingSettings": {
+            "Categories": {
+                "Exact": "YES",
+                "Narrow": "NO",
+            },
+            "BrandOptions": {
+                "WithoutBrands": "YES",
+                "WithCompetitorsBrand": "NO",
+            },
+        },
+    }
+
+
 def test_keywords_add_rejects_scalar_autotargeting_flags_in_batch_mode(tmp_path):
     path = _write_jsonl(tmp_path, [{"Keyword": "kw", "AdGroupId": 100}])
     for flag, value in (
@@ -2882,6 +2916,7 @@ def test_keywords_add_rejects_scalar_autotargeting_flags_in_batch_mode(tmp_path)
         ("--autotargeting-search-bid-is-auto", "YES"),
         ("--autotargeting-category", "EXACT=YES"),
         ("--autotargeting-brand-option", "WITHOUT_BRANDS=YES"),
+        ("--autotargeting-settings-exact", "YES"),
     ):
         result = CliRunner().invoke(
             cli,
@@ -3004,6 +3039,59 @@ def test_keywords_update_payload_with_autotargeting_brand_options():
             {"Option": "WITH_ADVERTISER_BRAND", "Value": "YES"},
         ],
     }
+
+
+def test_keywords_update_payload_with_autotargeting_settings():
+    body = _dry_run(
+        "keywords",
+        "update",
+        "--id",
+        "777",
+        "--autotargeting-settings-alternative",
+        "YES",
+        "--autotargeting-settings-accessory",
+        "no",
+        "--autotargeting-settings-broader",
+        "yes",
+        "--autotargeting-settings-with-advertiser-brand",
+        "NO",
+    )
+    keyword = body["params"]["Keywords"][0]
+    assert keyword == {
+        "Id": 777,
+        "AutotargetingSettings": {
+            "Categories": {
+                "Alternative": "YES",
+                "Accessory": "NO",
+                "Broader": "YES",
+            },
+            "BrandOptions": {
+                "WithAdvertiserBrand": "NO",
+            },
+        },
+    }
+
+
+def test_keywords_autotargeting_settings_rejects_legacy_category_mix():
+    result = CliRunner().invoke(
+        cli,
+        [
+            "keywords",
+            "add",
+            "--adgroup-id",
+            "12",
+            "--keyword",
+            "---autotargeting",
+            "--autotargeting-category",
+            "EXACT=YES",
+            "--autotargeting-settings-exact",
+            "YES",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "cannot be combined" in result.output
+    assert "--autotargeting-category" in result.output
 
 
 def test_keywords_autotargeting_category_requires_category_value_pair():
