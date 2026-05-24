@@ -9438,6 +9438,38 @@ def test_strategies_add_payload():
     assert s["PriorityGoals"]["Items"] == [{"GoalId": 123, "Value": 2000000}]
 
 
+def test_strategies_add_priority_goal_metrika_source_payload():
+    body = _dry_run(
+        "strategies",
+        "add",
+        "--name",
+        "CRR Strategy",
+        "--type",
+        "AverageCrr",
+        "--average-crr",
+        "10",
+        "--goal-id",
+        "123",
+        "--priority-goal",
+        "123:2000000:YES",
+        "--priority-goal",
+        "456:1000000:no",
+    )
+    s = body["params"]["Strategies"][0]
+    assert s["PriorityGoals"]["Items"] == [
+        {
+            "GoalId": 123,
+            "Value": 2000000,
+            "IsMetrikaSourceOfValue": "YES",
+        },
+        {
+            "GoalId": 456,
+            "Value": 1000000,
+            "IsMetrikaSourceOfValue": "NO",
+        },
+    ]
+
+
 def test_strategies_add_no_type_key_at_root():
     body = _dry_run(
         "strategies",
@@ -9470,6 +9502,44 @@ def test_strategies_update_payload():
     assert s["Id"] == 77
     assert s["Name"] == "Updated"
     assert s["AverageCpc"]["AverageCpc"] == 1500000
+
+
+def test_strategies_update_priority_goal_metrika_source_payload():
+    body = _dry_run(
+        "strategies",
+        "update",
+        "--id",
+        "77",
+        "--priority-goal",
+        "123:2000000:YES",
+    )
+    s = body["params"]["Strategies"][0]
+    assert s == {
+        "Id": 77,
+        "PriorityGoals": {
+            "Items": [
+                {
+                    "GoalId": 123,
+                    "Value": 2000000,
+                    "IsMetrikaSourceOfValue": "YES",
+                }
+            ]
+        },
+    }
+
+
+def test_strategies_rejects_invalid_priority_goal_metrika_source():
+    result = _failing_run(
+        "strategies",
+        "update",
+        "--id",
+        "77",
+        "--priority-goal",
+        "123:2000000:MAYBE",
+        "--dry-run",
+    )
+    assert result.exit_code != 0
+    assert "IsMetrikaSourceOfValue must be YES or NO" in result.output
 
 
 def test_strategies_update_requires_type_for_strategy_specific_fields():

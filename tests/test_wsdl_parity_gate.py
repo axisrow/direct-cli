@@ -45,6 +45,7 @@ from direct_cli.commands.strategies import (
     EXPLORATION_BUDGET_FIELD_OPTIONS,
     EXPLORATION_BUDGET_FLAGS,
     EXPLORATION_BUDGET_STRATEGY_TYPES,
+    PRIORITY_GOAL_FIELD_OPTIONS,
     STRATEGY_FIELD_OPTIONS,
     STRATEGY_FLAG_NAMES,
     STRATEGY_TYPES,
@@ -1899,6 +1900,10 @@ OPTIONAL_FIELD_CLI_OPTIONS.update(
         ("strategies", "add", "CounterIds.Items"): {"--counter-ids"},
         ("strategies", "add", "PriorityGoals"): {"--priority-goal"},
         ("strategies", "add", "PriorityGoals.Items"): {"--priority-goal"},
+        **{
+            ("strategies", "add", f"PriorityGoals.Items.{wsdl_field}"): {flag_name}
+            for wsdl_field, flag_name in PRIORITY_GOAL_FIELD_OPTIONS.items()
+        },
     }
 )
 
@@ -1942,6 +1947,10 @@ OPTIONAL_FIELD_CLI_OPTIONS.update(
         ("strategies", "update", "CounterIds.Items"): {"--counter-ids"},
         ("strategies", "update", "PriorityGoals"): {"--priority-goal"},
         ("strategies", "update", "PriorityGoals.Items"): {"--priority-goal"},
+        **{
+            ("strategies", "update", f"PriorityGoals.Items.{wsdl_field}"): {flag_name}
+            for wsdl_field, flag_name in PRIORITY_GOAL_FIELD_OPTIONS.items()
+        },
     }
 )
 
@@ -2016,14 +2025,6 @@ OPTIONAL_FIELD_DEFAULT_FOLLOWUPS: dict[tuple[str, str], dict[str, str]] = {
     ("smartadtargets", "update"): {
         "issue": "#304",
         "note": "smartadtargets.update optional WSDL path needs typed support or N/A.",
-    },
-    ("strategies", "add"): {
-        "issue": "#299",
-        "note": "strategies.add residual optional WSDL path needs typed support or N/A.",
-    },
-    ("strategies", "update"): {
-        "issue": "#300",
-        "note": "strategies.update residual optional WSDL path needs typed support or N/A.",
     },
 }
 
