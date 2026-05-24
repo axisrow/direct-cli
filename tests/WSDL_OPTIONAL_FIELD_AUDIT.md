@@ -11,9 +11,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2524 |
+| `missing_followup` | 2517 |
 | `not_applicable` | 23 |
-| `supported` | 694 |
+| `supported` | 701 |
 
 ## Confirmed Follow-Ups
 
@@ -169,13 +169,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.update` | `MobileAppAd.VideoExtension.CreativeId` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
 | `ads.update` | `TextImageAd.ErirAdDescription` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
 | `ads.update` | `TextImageAd.FinalUrl` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
-| `ads.update` | `MobileAppImageAd` | MOBILE_APP_IMAGE_AD update fields need typed support or N/A. [#271](https://github.com/axisrow/direct-cli/issues/271) |
-| `ads.update` | `MobileAppImageAd.AdImageHash` | MOBILE_APP_IMAGE_AD update fields need typed support or N/A. [#271](https://github.com/axisrow/direct-cli/issues/271); inherited from `MobileAppImageAd` |
-| `ads.update` | `MobileAppImageAd.ErirAdDescription` | MOBILE_APP_IMAGE_AD update fields need typed support or N/A. [#271](https://github.com/axisrow/direct-cli/issues/271); inherited from `MobileAppImageAd` |
-| `ads.update` | `MobileAppImageAd.TrackingUrl` | MOBILE_APP_IMAGE_AD update fields need typed support or N/A. [#271](https://github.com/axisrow/direct-cli/issues/271); inherited from `MobileAppImageAd` |
-| `ads.update` | `SmartAdBuilderAd` | SMART_AD_BUILDER_AD update fields need typed support or N/A. [#271](https://github.com/axisrow/direct-cli/issues/271) |
-| `ads.update` | `SmartAdBuilderAd.LogoExtensionHash` | SMART_AD_BUILDER_AD update fields need typed support or N/A. [#271](https://github.com/axisrow/direct-cli/issues/271); inherited from `SmartAdBuilderAd` |
-| `ads.update` | `SmartAdBuilderAd.ErirAdDescription` | SMART_AD_BUILDER_AD update fields need typed support or N/A. [#271](https://github.com/axisrow/direct-cli/issues/271); inherited from `SmartAdBuilderAd` |
 | `campaigns.add` | `ClientInfo` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
 | `campaigns.add` | `Notification` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
 | `campaigns.add` | `Notification.SmsSettings` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
@@ -2899,10 +2892,10 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.update` | `ads.update` | `TextImageAd.FinalUrl` | `string` | 0 | 1 | `missing_followup` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
 | `ads.update` | `ads.update` | `TextImageAd.Href` | `string` | 0 | 1 | `supported` | --href |
 | `ads.update` | `ads.update` | `TextImageAd.TurboPageId` | `long` | 0 | 1 | `supported` | --turbo-page-id |
-| `ads.update` | `ads.update` | `MobileAppImageAd` | `MobileAppImageAdUpdate` | 0 | 1 | `missing_followup` | MOBILE_APP_IMAGE_AD update fields need typed support or N/A. [#271](https://github.com/axisrow/direct-cli/issues/271) |
-| `ads.update` | `ads.update` | `MobileAppImageAd.AdImageHash` | `string` | 0 | 1 | `missing_followup` | MOBILE_APP_IMAGE_AD update fields need typed support or N/A. [#271](https://github.com/axisrow/direct-cli/issues/271); inherited from `MobileAppImageAd` |
-| `ads.update` | `ads.update` | `MobileAppImageAd.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | MOBILE_APP_IMAGE_AD update fields need typed support or N/A. [#271](https://github.com/axisrow/direct-cli/issues/271); inherited from `MobileAppImageAd` |
-| `ads.update` | `ads.update` | `MobileAppImageAd.TrackingUrl` | `string` | 0 | 1 | `missing_followup` | MOBILE_APP_IMAGE_AD update fields need typed support or N/A. [#271](https://github.com/axisrow/direct-cli/issues/271); inherited from `MobileAppImageAd` |
+| `ads.update` | `ads.update` | `MobileAppImageAd` | `MobileAppImageAdUpdate` | 0 | 1 | `supported` | --type |
+| `ads.update` | `ads.update` | `MobileAppImageAd.AdImageHash` | `string` | 0 | 1 | `supported` | --image-hash |
+| `ads.update` | `ads.update` | `MobileAppImageAd.ErirAdDescription` | `string` | 0 | 1 | `supported` | --erir-ad-description |
+| `ads.update` | `ads.update` | `MobileAppImageAd.TrackingUrl` | `string` | 0 | 1 | `supported` | --tracking-url |
 | `ads.update` | `ads.update` | `MobileAppCpcVideoAdBuilderAd` | `MobileAppCpcVideoAdBuilderAdUpdate` | 0 | 1 | `supported` | --type |
 | `ads.update` | `ads.update` | `MobileAppCpcVideoAdBuilderAd.Creative` | `AdBuilderAdUpdateItem` | 0 | 1 | `supported` | --creative-erir-ad-description, --creative-id |
 | `ads.update` | `ads.update` | `MobileAppCpcVideoAdBuilderAd.Creative.CreativeId` | `long` | 1 | 1 | `supported` | --creative-id |
@@ -2948,9 +2941,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.update` | `ads.update` | `CpmVideoAdBuilderAd.TrackingPixels` | `ArrayOfString` | 0 | 1 | `supported` | --tracking-pixels |
 | `ads.update` | `ads.update` | `CpmVideoAdBuilderAd.TrackingPixels.Items` | `string` | 1 | unbounded | `supported` | --tracking-pixels |
 | `ads.update` | `ads.update` | `CpmVideoAdBuilderAd.TurboPageId` | `long` | 0 | 1 | `supported` | --turbo-page-id |
-| `ads.update` | `ads.update` | `SmartAdBuilderAd` | `SmartAdBuilderAdUpdate` | 0 | 1 | `missing_followup` | SMART_AD_BUILDER_AD update fields need typed support or N/A. [#271](https://github.com/axisrow/direct-cli/issues/271) |
-| `ads.update` | `ads.update` | `SmartAdBuilderAd.LogoExtensionHash` | `string` | 0 | 1 | `missing_followup` | SMART_AD_BUILDER_AD update fields need typed support or N/A. [#271](https://github.com/axisrow/direct-cli/issues/271); inherited from `SmartAdBuilderAd` |
-| `ads.update` | `ads.update` | `SmartAdBuilderAd.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | SMART_AD_BUILDER_AD update fields need typed support or N/A. [#271](https://github.com/axisrow/direct-cli/issues/271); inherited from `SmartAdBuilderAd` |
+| `ads.update` | `ads.update` | `SmartAdBuilderAd` | `SmartAdBuilderAdUpdate` | 0 | 1 | `supported` | --type |
+| `ads.update` | `ads.update` | `SmartAdBuilderAd.LogoExtensionHash` | `string` | 0 | 1 | `supported` | --logo-extension-hash |
+| `ads.update` | `ads.update` | `SmartAdBuilderAd.ErirAdDescription` | `string` | 0 | 1 | `supported` | --erir-ad-description |
 | `ads.update` | `ads.update` | `ShoppingAd` | `ShoppingAdUpdate` | 0 | 1 | `supported` | --type |
 | `ads.update` | `ads.update` | `ShoppingAd.SitelinkSetId` | `long` | 0 | 1 | `supported` | --sitelink-set-id |
 | `ads.update` | `ads.update` | `ShoppingAd.CalloutSetting` | `AdExtensionSetting` | 0 | 1 | `supported` | --callouts-add, --callouts-remove, --callouts-set |

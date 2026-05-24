@@ -268,12 +268,19 @@ class TestCLI(unittest.TestCase):
         # before searching for the canonical phrase.
         collapsed = " ".join(result.output.split())
         self.assertIn(
-            "Image hash (TEXT_AD / TEXT_IMAGE_AD / MOBILE_APP_AD / DYNAMIC_TEXT_AD)",
+            "Image hash (TEXT_AD / TEXT_IMAGE_AD / MOBILE_APP_AD / "
+            "DYNAMIC_TEXT_AD / MOBILE_APP_IMAGE_AD)",
+            collapsed,
+        )
+        self.assertIn(
+            "Tracking URL (MOBILE_APP_AD / MOBILE_APP_AD_BUILDER_AD / "
+            "MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD / MOBILE_APP_IMAGE_AD)",
             collapsed,
         )
         self.assertIn(
             "TEXT_AD | TEXT_IMAGE_AD | MOBILE_APP_AD | DYNAMIC_TEXT_AD | "
-            "RESPONSIVE_AD | SHOPPING_AD | LISTING_AD | TEXT_AD_BUILDER_AD",
+            "MOBILE_APP_IMAGE_AD | RESPONSIVE_AD | SHOPPING_AD | LISTING_AD | "
+            "SMART_AD_BUILDER_AD | TEXT_AD_BUILDER_AD",
             collapsed,
         )
         self.assertIn("Comma-separated ResponsiveAd.Titles values", collapsed)
@@ -289,6 +296,7 @@ class TestCLI(unittest.TestCase):
             collapsed,
         )
         self.assertIn("AdBuilder Creative.CreativeId", collapsed)
+        self.assertIn("SmartAdBuilderAd.LogoExtensionHash", collapsed)
         self.assertIn(
             "Comma-separated AdBuilder TrackingPixels.Items values", collapsed
         )

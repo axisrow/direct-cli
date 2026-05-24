@@ -1835,6 +1835,124 @@ def test_ads_update_ad_builder_zero_ids_are_not_silently_dropped():
     }
 
 
+def test_ads_update_mobile_app_image_ad_payload():
+    """Issue #271: MOBILE_APP_IMAGE_AD update builds MobileAppImageAd block."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "MOBILE_APP_IMAGE_AD",
+        "--image-hash",
+        "abcdefghijklmnopqrst",
+        "--tracking-url",
+        "https://track.example.com",
+        "--erir-ad-description",
+        "Mobile image ad",
+    )
+    ad = body["params"]["Ads"][0]
+    assert ad == {
+        "Id": 999,
+        "MobileAppImageAd": {
+            "AdImageHash": "abcdefghijklmnopqrst",
+            "ErirAdDescription": "Mobile image ad",
+            "TrackingUrl": "https://track.example.com",
+        },
+    }
+    assert "MobileAppAd" not in ad
+
+
+def test_ads_update_smart_ad_builder_ad_payload():
+    """Issue #271: SMART_AD_BUILDER_AD update supports compact fields."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "SMART_AD_BUILDER_AD",
+        "--logo-extension-hash",
+        "logoabcdefghijklmnop",
+        "--erir-ad-description",
+        "Smart builder ad",
+    )
+    assert body["params"]["Ads"][0] == {
+        "Id": 999,
+        "SmartAdBuilderAd": {
+            "LogoExtensionHash": "logoabcdefghijklmnop",
+            "ErirAdDescription": "Smart builder ad",
+        },
+    }
+
+
+def test_ads_update_mobile_app_image_rejects_unrelated_flag():
+    """Issue #271: MobileAppImageAd must not silently drop unrelated flags."""
+    result = _rejected(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "MOBILE_APP_IMAGE_AD",
+        "--href",
+        "https://example.com",
+    )
+    assert "--href is not compatible with --type MOBILE_APP_IMAGE_AD" in result.output
+    assert "does not convert an ad between subtypes" in result.output
+
+
+def test_ads_update_smart_ad_builder_rejects_unrelated_flag():
+    """Issue #271: SmartAdBuilderAd has no Creative block in ads.update."""
+    result = _rejected(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "SMART_AD_BUILDER_AD",
+        "--creative-id",
+        "111",
+    )
+    assert (
+        "--creative-id is not compatible with --type SMART_AD_BUILDER_AD"
+        in result.output
+    )
+    assert "does not convert an ad between subtypes" in result.output
+
+
+def test_ads_update_mobile_app_image_noop_rejected():
+    """Issue #271: MobileAppImageAd update without fields stays a no-op error."""
+    result = _rejected(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "MOBILE_APP_IMAGE_AD",
+    )
+    assert (
+        "ads update requires at least one updatable field for "
+        "--type MOBILE_APP_IMAGE_AD"
+    ) in result.output
+
+
+def test_ads_update_smart_ad_builder_noop_rejected():
+    """Issue #271: SmartAdBuilderAd update without fields stays a no-op error."""
+    result = _rejected(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "SMART_AD_BUILDER_AD",
+    )
+    assert (
+        "ads update requires at least one updatable field for "
+        "--type SMART_AD_BUILDER_AD"
+    ) in result.output
+
+
 def test_ads_update_text_ad_with_turbo_page_id():
     """Issue #202: update sets TurboPageId in TextAd."""
     body = _dry_run(

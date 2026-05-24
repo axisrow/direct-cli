@@ -1228,6 +1228,13 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
         "--tracking-pixels"
     },
     ("ads", "update", "CpmVideoAdBuilderAd.TurboPageId"): {"--turbo-page-id"},
+    ("ads", "update", "MobileAppImageAd"): {"--type"},
+    ("ads", "update", "MobileAppImageAd.AdImageHash"): {"--image-hash"},
+    ("ads", "update", "MobileAppImageAd.ErirAdDescription"): {"--erir-ad-description"},
+    ("ads", "update", "MobileAppImageAd.TrackingUrl"): {"--tracking-url"},
+    ("ads", "update", "SmartAdBuilderAd"): {"--type"},
+    ("ads", "update", "SmartAdBuilderAd.LogoExtensionHash"): {"--logo-extension-hash"},
+    ("ads", "update", "SmartAdBuilderAd.ErirAdDescription"): {"--erir-ad-description"},
     ("campaigns", "add", "DailyBudget"): {"--budget"},
     ("campaigns", "add", "DailyBudget.Amount"): {"--budget"},
     ("campaigns", "add", "DailyBudget.Mode"): {"--budget"},
@@ -1866,16 +1873,6 @@ OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]
         "status": "missing_followup",
         "issue": "#278",
         "note": "SMART_AD_BUILDER_AD add fields need typed support or N/A.",
-    },
-    ("ads", "update", "SmartAdBuilderAd"): {
-        "status": "missing_followup",
-        "issue": "#271",
-        "note": "SMART_AD_BUILDER_AD update fields need typed support or N/A.",
-    },
-    ("ads", "update", "MobileAppImageAd"): {
-        "status": "missing_followup",
-        "issue": "#271",
-        "note": "MOBILE_APP_IMAGE_AD update fields need typed support or N/A.",
     },
     ("campaigns", "add", "TextCampaign.BiddingStrategy"): {
         "status": "missing_followup",
