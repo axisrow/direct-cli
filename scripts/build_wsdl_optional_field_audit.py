@@ -24,6 +24,7 @@ from tests.test_wsdl_parity_gate import (  # noqa: E402
     OPTIONAL_FIELD_AUDIT,
     OPTIONAL_FIELD_CLI_OPTIONS,
     OPTIONAL_FIELD_DEFAULT_FOLLOWUPS,
+    OPTIONAL_FIELD_CHILD_COMPONENT_FOLLOWUPS,
     OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS,
     OPTIONAL_FIELD_AUDIT_MAX_DEPTH,
     OPTIONAL_FIELD_AUDIT_REPORT,
@@ -81,27 +82,13 @@ def _child_followup_for_path(
         if entry is not None:
             return prefix, entry
 
-    if cli_group == "strategies" and cli_op in {"add", "update"}:
-        if "CustomPeriodBudget" in parts:
-            matched_path = ".".join(parts[: parts.index("CustomPeriodBudget") + 1])
-            return (
-                matched_path,
-                {
-                    "status": "missing_followup",
-                    "issue": "#297",
-                    "note": "Strategy CustomPeriodBudget fields need typed support.",
-                },
-            )
-        if "ExplorationBudget" in parts:
-            matched_path = ".".join(parts[: parts.index("ExplorationBudget") + 1])
-            return (
-                matched_path,
-                {
-                    "status": "missing_followup",
-                    "issue": "#298",
-                    "note": "Strategy ExplorationBudget fields need typed support.",
-                },
-            )
+    for component in parts:
+        entry = OPTIONAL_FIELD_CHILD_COMPONENT_FOLLOWUPS.get(
+            (cli_group, cli_op, component)
+        )
+        if entry is not None:
+            matched_path = ".".join(parts[: parts.index(component) + 1])
+            return matched_path, entry
     return None
 
 

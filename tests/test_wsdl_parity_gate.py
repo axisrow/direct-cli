@@ -870,9 +870,7 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("vcards", "add", "InstantMessenger.MessengerClient"): {
         "--instant-messenger-client"
     },
-    ("vcards", "add", "InstantMessenger.MessengerLogin"): {
-        "--instant-messenger-login"
-    },
+    ("vcards", "add", "InstantMessenger.MessengerLogin"): {"--instant-messenger-login"},
     ("vcards", "add", "Street"): {"--street"},
     ("vcards", "add", "House"): {"--house"},
     ("vcards", "add", "Building"): {"--building"},
@@ -1033,9 +1031,7 @@ OPTIONAL_FIELD_DEFAULT_FOLLOWUPS: dict[tuple[str, str], dict[str, str]] = {
     },
 }
 
-OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[
-    tuple[str, str, str], dict[str, str]
-] = {
+OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]] = {
     ("ads", "add", "TextAd"): {
         "status": "missing_followup",
         "issue": "#273",
@@ -1310,6 +1306,29 @@ OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[
         "status": "missing_followup",
         "issue": "#308",
         "note": "ERIR Contragent fields need typed support or N/A.",
+    },
+}
+
+OPTIONAL_FIELD_CHILD_COMPONENT_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]] = {
+    ("strategies", "add", "CustomPeriodBudget"): {
+        "status": "missing_followup",
+        "issue": "#297",
+        "note": "Strategy CustomPeriodBudget fields need typed support.",
+    },
+    ("strategies", "update", "CustomPeriodBudget"): {
+        "status": "missing_followup",
+        "issue": "#297",
+        "note": "Strategy CustomPeriodBudget fields need typed support.",
+    },
+    ("strategies", "add", "ExplorationBudget"): {
+        "status": "missing_followup",
+        "issue": "#298",
+        "note": "Strategy ExplorationBudget fields need typed support.",
+    },
+    ("strategies", "update", "ExplorationBudget"): {
+        "status": "missing_followup",
+        "issue": "#298",
+        "note": "Strategy ExplorationBudget fields need typed support.",
     },
 }
 
@@ -1665,6 +1684,53 @@ def test_optional_field_default_followups_reference_issues() -> None:
     )
 
 
+def test_optional_field_child_followups_reference_real_paths() -> None:
+    """Child follow-up routing must stay tied to real WSDL paths."""
+    paths_by_command = _audited_wsdl_paths()
+    bad_routes = []
+
+    for (
+        cli_group,
+        cli_op,
+        prefix,
+    ), entry in OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS.items():
+        command_key = (cli_group, cli_op)
+        paths = paths_by_command.get(command_key)
+        if paths is None:
+            bad_routes.append((command_key, prefix, "not in COMMAND_WSDL_MAP"))
+            continue
+        if entry.get("status") not in OPTIONAL_FIELD_AUDIT_STATUSES:
+            bad_routes.append((command_key, prefix, entry.get("status")))
+        issue = entry.get("issue", "")
+        if not (issue.startswith("#") and issue[1:].isdigit()):
+            bad_routes.append((command_key, prefix, issue))
+        if not any(path == prefix or path.startswith(f"{prefix}.") for path in paths):
+            bad_routes.append((command_key, prefix, "not in WSDL paths"))
+
+    for (
+        cli_group,
+        cli_op,
+        component,
+    ), entry in OPTIONAL_FIELD_CHILD_COMPONENT_FOLLOWUPS.items():
+        command_key = (cli_group, cli_op)
+        paths = paths_by_command.get(command_key)
+        if paths is None:
+            bad_routes.append((command_key, component, "not in COMMAND_WSDL_MAP"))
+            continue
+        if entry.get("status") not in OPTIONAL_FIELD_AUDIT_STATUSES:
+            bad_routes.append((command_key, component, entry.get("status")))
+        issue = entry.get("issue", "")
+        if not (issue.startswith("#") and issue[1:].isdigit()):
+            bad_routes.append((command_key, component, issue))
+        if not any(component in path.split(".") for path in paths):
+            bad_routes.append((command_key, component, "not in WSDL paths"))
+
+    assert not bad_routes, (
+        "Optional-field child follow-up routes must reference real paths and "
+        f"valid issue ids: {bad_routes}"
+    )
+
+
 def test_optional_field_followups_do_not_route_to_parent_epics() -> None:
     """Milestone 18 audit rows must point at PR-sized child issues."""
     parent_epics = {"#240", "#244", "#247", "#249", "#250", "#251", "#252", "#255"}
@@ -1681,6 +1747,10 @@ def test_optional_field_followups_do_not_route_to_parent_epics() -> None:
     for prefix_key, entry in OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS.items():
         if entry.get("issue") in parent_epics:
             bad_routes.append(("prefix", prefix_key, entry.get("issue")))
+
+    for component_key, entry in OPTIONAL_FIELD_CHILD_COMPONENT_FOLLOWUPS.items():
+        if entry.get("issue") in parent_epics:
+            bad_routes.append(("component", component_key, entry.get("issue")))
 
     assert not bad_routes, (
         "Optional-field follow-up routes must point at child issues, not "
