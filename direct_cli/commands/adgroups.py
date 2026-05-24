@@ -24,6 +24,7 @@ _SUPPORTED_ADGROUP_TYPES = (
     "CPM_BANNER_USER_PROFILE_AD_GROUP",
     "CPM_VIDEO_AD_GROUP",
     "SMART_AD_GROUP",
+    "UNIFIED_AD_GROUP",
     "MOBILE_APP_AD_GROUP",
 )
 _NEGATIVE_KEYWORDS_UNSUPPORTED_ADGROUP_TYPES = {
@@ -39,6 +40,7 @@ _AUTOTARGETING_CATEGORIES = (
     "BROADER",
     "ACCESSORY",
 )
+_YES_NO_VALUES = ("YES", "NO")
 _AUTOTARGETING_CATEGORY_HELP = (
     "DynamicTextAdGroup/DynamicTextFeedAdGroup.AutotargetingCategories item "
     "as CATEGORY=YES|NO. Categories: " + ", ".join(_AUTOTARGETING_CATEGORIES)
@@ -512,7 +514,7 @@ def get(
         "Ad group type: TEXT_AD_GROUP, DYNAMIC_TEXT_AD_GROUP, "
         "DYNAMIC_TEXT_FEED_AD_GROUP, CPM_BANNER_KEYWORDS_AD_GROUP, "
         "CPM_BANNER_USER_PROFILE_AD_GROUP, CPM_VIDEO_AD_GROUP, "
-        "SMART_AD_GROUP, or MOBILE_APP_AD_GROUP"
+        "SMART_AD_GROUP, UNIFIED_AD_GROUP, or MOBILE_APP_AD_GROUP"
     ),
 )
 @click.option(
@@ -584,6 +586,11 @@ def get(
 @click.option("--ad-title-source", help="Smart ad group title source")
 @click.option("--ad-body-source", help="Smart ad group body source")
 @click.option(
+    "--offer-retargeting",
+    type=click.Choice(_YES_NO_VALUES, case_sensitive=False),
+    help="UnifiedAdGroup.OfferRetargeting value: YES or NO",
+)
+@click.option(
     "--store-url",
     help="Mobile app ad group app store URL for MobileAppAdGroup.StoreUrl",
 )
@@ -646,6 +653,7 @@ def add(
     feed_id,
     ad_title_source,
     ad_body_source,
+    offer_retargeting,
     store_url,
     target_device_types,
     target_carrier,
@@ -674,6 +682,7 @@ def add(
             "CPM_BANNER_USER_PROFILE_AD_GROUP": set(),
             "CPM_VIDEO_AD_GROUP": set(),
             "SMART_AD_GROUP": {"--feed-id", "--ad-title-source", "--ad-body-source"},
+            "UNIFIED_AD_GROUP": {"--offer-retargeting"},
             "MOBILE_APP_AD_GROUP": {
                 "--store-url",
                 "--target-device-types",
@@ -708,6 +717,7 @@ def add(
                 "--feed-id": feed_id,
                 "--ad-title-source": ad_title_source,
                 "--ad-body-source": ad_body_source,
+                "--offer-retargeting": offer_retargeting,
                 "--store-url": store_url,
                 "--target-device-types": target_device_types,
                 "--target-carrier": target_carrier,
@@ -782,6 +792,14 @@ def add(
             if ad_body_source:
                 smart_ad_group["AdBodySource"] = ad_body_source
             adgroup_data["SmartAdGroup"] = smart_ad_group
+        elif group_type_norm == "UNIFIED_AD_GROUP":
+            if offer_retargeting is None:
+                raise click.UsageError(
+                    "--offer-retargeting is required for UNIFIED_AD_GROUP"
+                )
+            adgroup_data["UnifiedAdGroup"] = {
+                "OfferRetargeting": offer_retargeting.upper()
+            }
         elif group_type_norm == "MOBILE_APP_AD_GROUP":
             mobile_app_adgroup = _build_mobile_app_adgroup(
                 store_url=store_url,
@@ -847,6 +865,13 @@ def add(
         "Tracking params query-string for AdGroupUpdateItem.TrackingParams "
         "(max 1024 chars)"
     ),
+)
+@click.option("--ad-title-source", help="SmartAdGroup.AdTitleSource update value")
+@click.option("--ad-body-source", help="SmartAdGroup.AdBodySource update value")
+@click.option(
+    "--offer-retargeting",
+    type=click.Choice(_YES_NO_VALUES, case_sensitive=False),
+    help="UnifiedAdGroup.OfferRetargeting update value: YES or NO",
 )
 @click.option(
     "--target-device-types",
@@ -928,6 +953,9 @@ def update(
     negative_keywords,
     negative_keyword_shared_set_ids,
     tracking_params,
+    ad_title_source,
+    ad_body_source,
+    offer_retargeting,
     target_device_types,
     target_carrier,
     target_operating_system_version,
@@ -978,6 +1006,13 @@ def update(
                 "--target-device-types": target_device_types,
                 "--target-carrier": target_carrier,
                 "--target-operating-system-version": (target_operating_system_version),
+            },
+            "SmartAdGroup": {
+                "--ad-title-source": ad_title_source,
+                "--ad-body-source": ad_body_source,
+            },
+            "UnifiedAdGroup": {
+                "--offer-retargeting": offer_retargeting,
             },
         }
     )
@@ -1039,6 +1074,15 @@ def update(
     )
     if mobile_app_adgroup:
         adgroup_data["MobileAppAdGroup"] = mobile_app_adgroup
+    smart_adgroup = {}
+    if ad_title_source:
+        smart_adgroup["AdTitleSource"] = ad_title_source
+    if ad_body_source:
+        smart_adgroup["AdBodySource"] = ad_body_source
+    if smart_adgroup:
+        adgroup_data["SmartAdGroup"] = smart_adgroup
+    if offer_retargeting is not None:
+        adgroup_data["UnifiedAdGroup"] = {"OfferRetargeting": offer_retargeting.upper()}
 
     # Reject empty-payload no-op (issue #198 H5).
     if len(adgroup_data) == 1:
@@ -1048,7 +1092,8 @@ def update(
             "--negative-keyword-shared-set-ids, --tracking-params, "
             "--domain-url, --dynamic-feed, --autotargeting-category, "
             "--autotargeting-settings-* flags, --target-device-types, "
-            "--target-carrier, or --target-operating-system-version)."
+            "--target-carrier, --target-operating-system-version, "
+            "--ad-title-source, --ad-body-source, or --offer-retargeting)."
         )
 
     try:

@@ -386,11 +386,14 @@ direct adgroups add --name "CPM Keywords Group" --campaign-id 12345 --type CPM_B
 direct adgroups add --name "CPM User Profile Group" --campaign-id 12345 --type CPM_BANNER_USER_PROFILE_AD_GROUP --region-ids 1,225 --dry-run
 direct adgroups add --name "CPM Video Group" --campaign-id 12345 --type CPM_VIDEO_AD_GROUP --region-ids 1,225 --dry-run
 direct adgroups add --name "Smart Group" --campaign-id 12345 --type SMART_AD_GROUP --region-ids 1,225 --feed-id 170 --ad-title-source FEED_NAME --ad-body-source FEED_NAME --dry-run
+direct adgroups add --name "Unified Group" --campaign-id 12345 --type UNIFIED_AD_GROUP --region-ids 1,225 --offer-retargeting YES --dry-run
 direct adgroups add --name "Mobile App Group" --campaign-id 12345 --type MOBILE_APP_AD_GROUP --region-ids 1,225 --store-url https://apps.apple.com/app/id123456789 --target-device-types DEVICE_TYPE_MOBILE,DEVICE_TYPE_TABLET --target-carrier WI_FI_AND_CELLULAR --target-operating-system-version 14.0 --dry-run
 direct adgroups update --id 67890 --negative-keyword-shared-set-ids 10,11 --tracking-params "utm_source=direct"
 direct adgroups update --id 67890 --domain-url example.com --autotargeting-settings-exact YES --autotargeting-settings-without-brands YES --dry-run
 direct adgroups update --id 67890 --dynamic-feed --autotargeting-category EXACT=YES --dry-run
 direct adgroups update --id 67890 --target-device-types DEVICE_TYPE_TABLET --target-carrier WI_FI_ONLY --target-operating-system-version 13.0
+direct adgroups update --id 67890 --ad-title-source FEED_NAME --ad-body-source FEED_DESCRIPTION
+direct adgroups update --id 67890 --offer-retargeting NO
 direct adgroups delete --id 67890
 ```
 
@@ -1111,11 +1114,14 @@ direct adgroups add --name "CPM группа с ключевыми фразам�
 direct adgroups add --name "CPM группа с профилем пользователя" --campaign-id 12345 --type CPM_BANNER_USER_PROFILE_AD_GROUP --region-ids 1,225 --dry-run
 direct adgroups add --name "CPM видео группа" --campaign-id 12345 --type CPM_VIDEO_AD_GROUP --region-ids 1,225 --dry-run
 direct adgroups add --name "Смарт-группа" --campaign-id 12345 --type SMART_AD_GROUP --region-ids 1,225 --feed-id 170 --ad-title-source FEED_NAME --ad-body-source FEED_NAME --dry-run
+direct adgroups add --name "ЕПК-группа" --campaign-id 12345 --type UNIFIED_AD_GROUP --region-ids 1,225 --offer-retargeting YES --dry-run
 direct adgroups add --name "Группа мобильного приложения" --campaign-id 12345 --type MOBILE_APP_AD_GROUP --region-ids 1,225 --store-url https://apps.apple.com/app/id123456789 --target-device-types DEVICE_TYPE_MOBILE,DEVICE_TYPE_TABLET --target-carrier WI_FI_AND_CELLULAR --target-operating-system-version 14.0 --dry-run
 direct adgroups update --id 67890 --negative-keyword-shared-set-ids 10,11 --tracking-params "utm_source=direct"
 direct adgroups update --id 67890 --domain-url example.com --autotargeting-settings-exact YES --autotargeting-settings-without-brands YES --dry-run
 direct adgroups update --id 67890 --dynamic-feed --autotargeting-category EXACT=YES --dry-run
 direct adgroups update --id 67890 --target-device-types DEVICE_TYPE_TABLET --target-carrier WI_FI_ONLY --target-operating-system-version 13.0
+direct adgroups update --id 67890 --ad-title-source FEED_NAME --ad-body-source FEED_DESCRIPTION
+direct adgroups update --id 67890 --offer-retargeting NO
 direct adgroups delete --id 67890
 ```
 

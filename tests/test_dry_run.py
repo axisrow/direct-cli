@@ -2104,6 +2104,66 @@ def test_adgroups_add_cpm_video_rejects_negative_keyword_shared_sets_before_pars
     assert "Invalid ID" not in result.output
 
 
+def test_adgroups_add_unified_payload_omits_type():
+    """Issue #283: unified ad group sends top-level UnifiedAdGroup."""
+    body = _dry_run(
+        "adgroups",
+        "add",
+        "--name",
+        "Unified Group",
+        "--campaign-id",
+        "111",
+        "--type",
+        "UNIFIED_AD_GROUP",
+        "--region-ids",
+        "1,225",
+        "--offer-retargeting",
+        "yes",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert "Type" not in group
+    assert group["RegionIds"] == [1, 225]
+    assert group["UnifiedAdGroup"] == {"OfferRetargeting": "YES"}
+
+
+def test_adgroups_add_unified_requires_offer_retargeting():
+    """Issue #283: UnifiedAdGroupAdd.OfferRetargeting is required."""
+    result = _rejected(
+        "adgroups",
+        "add",
+        "--name",
+        "Unified Group",
+        "--campaign-id",
+        "111",
+        "--type",
+        "UNIFIED_AD_GROUP",
+        "--region-ids",
+        "225",
+    )
+    assert "--offer-retargeting is required for UNIFIED_AD_GROUP" in result.output
+
+
+def test_adgroups_add_rejects_unified_flag_for_text_group():
+    """Issue #283: UnifiedAdGroup flags must not leak into other types."""
+    result = _rejected(
+        "adgroups",
+        "add",
+        "--name",
+        "Text Group",
+        "--campaign-id",
+        "111",
+        "--type",
+        "TEXT_AD_GROUP",
+        "--region-ids",
+        "225",
+        "--offer-retargeting",
+        "YES",
+    )
+    assert "--offer-retargeting is not compatible with --type TEXT_AD_GROUP" in (
+        result.output
+    )
+
+
 def test_adgroups_add_smart_payload_omits_type():
     body = _dry_run(
         "adgroups",
@@ -2619,6 +2679,63 @@ def test_adgroups_update_mobile_app_rejects_invalid_carrier():
     assert "WI_FI_ONLY, WI_FI_AND_CELLULAR" in result.output
 
 
+def test_adgroups_update_smart_payload_without_type():
+    """Issue #283: update sets top-level SmartAdGroup without --type."""
+    body = _dry_run(
+        "adgroups",
+        "update",
+        "--id",
+        "222",
+        "--ad-title-source",
+        "name",
+        "--ad-body-source",
+        "description",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert group == {
+        "Id": 222,
+        "SmartAdGroup": {
+            "AdTitleSource": "name",
+            "AdBodySource": "description",
+        },
+    }
+
+
+def test_adgroups_update_unified_payload_without_type():
+    """Issue #283: update sets top-level UnifiedAdGroup without --type."""
+    body = _dry_run(
+        "adgroups",
+        "update",
+        "--id",
+        "222",
+        "--offer-retargeting",
+        "no",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert group == {
+        "Id": 222,
+        "UnifiedAdGroup": {"OfferRetargeting": "NO"},
+    }
+
+
+def test_adgroups_update_rejects_mixed_smart_and_unified_subtype_flags():
+    """Issue #283: update must not emit SmartAdGroup and UnifiedAdGroup."""
+    result = _rejected(
+        "adgroups",
+        "update",
+        "--id",
+        "222",
+        "--ad-title-source",
+        "name",
+        "--offer-retargeting",
+        "YES",
+    )
+    assert "SmartAdGroup update flags" in result.output
+    assert "--ad-title-source" in result.output
+    assert "UnifiedAdGroup update flags" in result.output
+    assert "--offer-retargeting" in result.output
+
+
 def test_adgroups_update_negative_keywords_payload():
     body = _dry_run(
         "adgroups",
@@ -2729,6 +2846,9 @@ def test_adgroups_update_without_tracking_params_or_other_fields_rejected():
     assert "--target-device-types" in result.output
     assert "--target-carrier" in result.output
     assert "--target-operating-system-version" in result.output
+    assert "--ad-title-source" in result.output
+    assert "--ad-body-source" in result.output
+    assert "--offer-retargeting" in result.output
     assert "requires at least one updatable field" in result.output
 
 
