@@ -11,8 +11,8 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2813 |
-| `supported` | 428 |
+| `missing_followup` | 2810 |
+| `supported` | 431 |
 
 ## Confirmed Follow-Ups
 
@@ -2579,9 +2579,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `clients.update` | `ErirAttributes.Contragent.TinInfo` | ERIR Contragent fields need typed support or N/A. [#308](https://github.com/axisrow/direct-cli/issues/308); inherited from `ErirAttributes.Contragent` |
 | `clients.update` | `ErirAttributes.Contragent.TinInfo.TinType` | ERIR Contragent fields need typed support or N/A. [#308](https://github.com/axisrow/direct-cli/issues/308); inherited from `ErirAttributes.Contragent` |
 | `clients.update` | `ErirAttributes.Contragent.TinInfo.Tin` | ERIR Contragent fields need typed support or N/A. [#308](https://github.com/axisrow/direct-cli/issues/308); inherited from `ErirAttributes.Contragent` |
-| `dynamicfeedadtargets.add` | `Conditions.Items.Operand` | dynamicfeedadtargets.add optional WSDL path needs typed support or N/A. [#303](https://github.com/axisrow/direct-cli/issues/303) |
-| `dynamicfeedadtargets.add` | `Conditions.Items.Operator` | dynamicfeedadtargets.add optional WSDL path needs typed support or N/A. [#303](https://github.com/axisrow/direct-cli/issues/303) |
-| `dynamicfeedadtargets.add` | `Conditions.Items.Arguments` | dynamicfeedadtargets.add optional WSDL path needs typed support or N/A. [#303](https://github.com/axisrow/direct-cli/issues/303) |
 | `feeds.add` | `FileFeed` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264) |
 | `feeds.add` | `FileFeed.Data` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
 | `feeds.add` | `FileFeed.Filename` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
@@ -5589,9 +5586,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `dynamicfeedadtargets.add` | `dynamicfeedadtargets.add` | `ContextBid` | `long` | 0 | 1 | `supported` | --context-bid |
 | `dynamicfeedadtargets.add` | `dynamicfeedadtargets.add` | `Conditions` | `ConditionsArray` | 0 | 1 | `supported` | --condition |
 | `dynamicfeedadtargets.add` | `dynamicfeedadtargets.add` | `Conditions.Items` | `FeedCondition` | 1 | unbounded | `supported` | --condition |
-| `dynamicfeedadtargets.add` | `dynamicfeedadtargets.add` | `Conditions.Items.Operand` | `string` | 1 | 1 | `missing_followup` | dynamicfeedadtargets.add optional WSDL path needs typed support or N/A. [#303](https://github.com/axisrow/direct-cli/issues/303) |
-| `dynamicfeedadtargets.add` | `dynamicfeedadtargets.add` | `Conditions.Items.Operator` | `StringConditionOperatorEnum` | 1 | 1 | `missing_followup` | dynamicfeedadtargets.add optional WSDL path needs typed support or N/A. [#303](https://github.com/axisrow/direct-cli/issues/303) |
-| `dynamicfeedadtargets.add` | `dynamicfeedadtargets.add` | `Conditions.Items.Arguments` | `string` | 1 | unbounded | `missing_followup` | dynamicfeedadtargets.add optional WSDL path needs typed support or N/A. [#303](https://github.com/axisrow/direct-cli/issues/303) |
+| `dynamicfeedadtargets.add` | `dynamicfeedadtargets.add` | `Conditions.Items.Operand` | `string` | 1 | 1 | `supported` | --condition |
+| `dynamicfeedadtargets.add` | `dynamicfeedadtargets.add` | `Conditions.Items.Operator` | `StringConditionOperatorEnum` | 1 | 1 | `supported` | --condition |
+| `dynamicfeedadtargets.add` | `dynamicfeedadtargets.add` | `Conditions.Items.Arguments` | `string` | 1 | unbounded | `supported` | --condition |
 | `dynamicfeedadtargets.add` | `dynamicfeedadtargets.add` | `AvailableItemsOnly` | `YesNoEnum` | 0 | 1 | `supported` | --available-items-only |
 | `feeds.add` | `feeds.add` | `Name` | `string` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `feeds.add` | `feeds.add` | `BusinessType` | `BusinessTypeEnum` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
