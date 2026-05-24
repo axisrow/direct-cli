@@ -125,9 +125,11 @@ _PLURAL_NESTED_KEYS = {
     v for v in _BIDMODIFIER_TYPE_TO_NESTED.values() if v.endswith("Adjustments")
 }
 
+_OPERATING_SYSTEM_TYPE_MODIFIERS = {"MOBILE_ADJUSTMENT", "TABLET_ADJUSTMENT"}
+
 _BIDMODIFIER_ALLOWED_EXTRA_FLAGS = {
-    "MOBILE_ADJUSTMENT": set(),
-    "TABLET_ADJUSTMENT": set(),
+    "MOBILE_ADJUSTMENT": {"--operating-system-type"},
+    "TABLET_ADJUSTMENT": {"--operating-system-type"},
     "DESKTOP_ADJUSTMENT": set(),
     "DESKTOP_ONLY_ADJUSTMENT": set(),
     "SMART_TV_ADJUSTMENT": set(),
@@ -190,6 +192,14 @@ def _reject_incompatible_extra_flags(
 @click.option("--region-id", type=int, help="Regional adjustment region ID")
 @click.option("--serp-layout", help="SERP layout adjustment value")
 @click.option("--income-grade", help="Income grade adjustment value")
+@click.option(
+    "--operating-system-type",
+    type=click.Choice(["IOS", "ANDROID"], case_sensitive=False),
+    help=(
+        "Operating system type for MobileAdjustment.OperatingSystemType or "
+        "TabletAdjustment.OperatingSystemType."
+    ),
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def add(
@@ -204,6 +214,7 @@ def add(
     region_id,
     serp_layout,
     income_grade,
+    operating_system_type,
     dry_run,
 ):
     """Add a new bid modifier
@@ -235,11 +246,17 @@ def add(
                 "--region-id": region_id,
                 "--serp-layout": serp_layout,
                 "--income-grade": income_grade,
+                "--operating-system-type": operating_system_type,
             },
         )
 
         nested_key = _BIDMODIFIER_TYPE_TO_NESTED[modifier_type_upper]
         nested = {"BidModifier": value}
+        if (
+            modifier_type_upper in _OPERATING_SYSTEM_TYPE_MODIFIERS
+            and operating_system_type
+        ):
+            nested["OperatingSystemType"] = operating_system_type.upper()
         if modifier_type_upper == "DEMOGRAPHICS_ADJUSTMENT":
             if gender:
                 nested["Gender"] = gender

@@ -3307,6 +3307,48 @@ def test_bidmodifiers_add_mobile_uses_nested_object():
     assert modifier["MobileAdjustment"] == {"BidModifier": 120}
 
 
+def test_bidmodifiers_add_mobile_operating_system_type():
+    body = _dry_run(
+        "bidmodifiers",
+        "add",
+        "--campaign-id",
+        "1",
+        "--type",
+        "MOBILE_ADJUSTMENT",
+        "--value",
+        "120",
+        "--operating-system-type",
+        "ios",
+    )
+
+    modifier = body["params"]["BidModifiers"][0]
+    assert modifier["MobileAdjustment"] == {
+        "BidModifier": 120,
+        "OperatingSystemType": "IOS",
+    }
+
+
+def test_bidmodifiers_add_tablet_operating_system_type():
+    body = _dry_run(
+        "bidmodifiers",
+        "add",
+        "--campaign-id",
+        "1",
+        "--type",
+        "TABLET_ADJUSTMENT",
+        "--value",
+        "120",
+        "--operating-system-type",
+        "ANDROID",
+    )
+
+    modifier = body["params"]["BidModifiers"][0]
+    assert modifier["TabletAdjustment"] == {
+        "BidModifier": 120,
+        "OperatingSystemType": "ANDROID",
+    }
+
+
 def test_bidmodifiers_add_rejects_incompatible_extra_flags():
     mobile_result = _rejected(
         "bidmodifiers",
@@ -3332,6 +3374,18 @@ def test_bidmodifiers_add_rejects_incompatible_extra_flags():
         "--retargeting-condition-id",
         "123",
     )
+    desktop_result = _rejected(
+        "bidmodifiers",
+        "add",
+        "--campaign-id",
+        "1",
+        "--type",
+        "DESKTOP_ADJUSTMENT",
+        "--value",
+        "120",
+        "--operating-system-type",
+        "IOS",
+    )
 
     assert (
         "--gender is not compatible with --type MOBILE_ADJUSTMENT"
@@ -3341,6 +3395,9 @@ def test_bidmodifiers_add_rejects_incompatible_extra_flags():
         "--retargeting-condition-id is not compatible with --type "
         "DEMOGRAPHICS_ADJUSTMENT"
     ) in demographics_result.output
+    assert (
+        "--operating-system-type is not compatible with --type DESKTOP_ADJUSTMENT"
+    ) in desktop_result.output
 
 
 def test_bidmodifiers_add_income_grade_uses_wsdl_grade_field():
