@@ -944,6 +944,13 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
         "--autotargeting-category"
     },
     ("keywords", "add", "AutotargetingCategories.Value"): {"--autotargeting-category"},
+    ("keywords", "add", "AutotargetingBrandOptions"): {"--autotargeting-brand-option"},
+    ("keywords", "add", "AutotargetingBrandOptions.Option"): {
+        "--autotargeting-brand-option"
+    },
+    ("keywords", "add", "AutotargetingBrandOptions.Value"): {
+        "--autotargeting-brand-option"
+    },
     ("keywords", "add", "UserParam1"): {"--user-param-1"},
     ("keywords", "add", "UserParam2"): {"--user-param-2"},
     ("keywords", "update", "Keyword"): {"--keyword"},
@@ -955,6 +962,15 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     },
     ("keywords", "update", "AutotargetingCategories.Value"): {
         "--autotargeting-category"
+    },
+    ("keywords", "update", "AutotargetingBrandOptions"): {
+        "--autotargeting-brand-option"
+    },
+    ("keywords", "update", "AutotargetingBrandOptions.Option"): {
+        "--autotargeting-brand-option"
+    },
+    ("keywords", "update", "AutotargetingBrandOptions.Value"): {
+        "--autotargeting-brand-option"
     },
     ("negativekeywordsharedsets", "update", "Name"): {"--name"},
     ("negativekeywordsharedsets", "update", "NegativeKeywords"): {"--keywords"},
@@ -1480,11 +1496,6 @@ OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
             "tracked separately."
         ),
     },
-    ("keywords", "add", "AutotargetingBrandOptions"): {
-        "status": "missing_followup",
-        "issue": "#287",
-        "note": "Keyword autotargeting brand options have no typed add flags.",
-    },
     ("keywords", "add", "StrategyPriority"): {
         "status": "supported",
         "issue": "#289",
@@ -1497,11 +1508,6 @@ OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
         "status": "missing_followup",
         "issue": "#288",
         "note": "Keyword autotargeting settings have no typed add flags.",
-    },
-    ("keywords", "update", "AutotargetingBrandOptions"): {
-        "status": "missing_followup",
-        "issue": "#287",
-        "note": "Keyword autotargeting brand options have no typed update flags.",
     },
     ("keywords", "update", "AutotargetingSettings"): {
         "status": "missing_followup",
