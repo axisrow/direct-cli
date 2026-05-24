@@ -8,12 +8,31 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import add_criteria_csv, get_default_fields, parse_csv_strings, parse_ids
+from ..utils import (
+    add_criteria_csv,
+    get_default_fields,
+    parse_condition_specs,
+    parse_csv_strings,
+    parse_ids,
+)
 
 
 @click.group()
 def ads():
     """Manage ads"""
+
+
+FEED_BASED_UPDATE_FIELDS = {
+    "sitelink_set_id",
+    "callouts_add",
+    "callouts_remove",
+    "callouts_set",
+    "business_id",
+    "feed_filter_conditions",
+    "title_sources",
+    "text_sources",
+    "default_texts",
+}
 
 
 def _reject_incompatible_flags(
@@ -26,7 +45,7 @@ def _reject_incompatible_flags(
     incompatible = [
         flag_for[name]
         for name, value in provided.items()
-        if value is not None and name not in allowed_fields
+        if value is not None and value != () and name not in allowed_fields
     ]
     if incompatible:
         allowed_flags = ", ".join(sorted(flag_for[name] for name in allowed_fields))
@@ -186,6 +205,45 @@ def _build_responsive_ad_update(
         responsive_ad["ErirAdDescription"] = erir_ad_description
 
     return responsive_ad
+
+
+def _build_feed_based_ad_update(
+    sitelink_set_id: Optional[int],
+    callout_setting: Optional[dict[str, object]],
+    business_id: Optional[int],
+    feed_filter_conditions: tuple[str, ...],
+    title_sources: Optional[str],
+    text_sources: Optional[str],
+    default_texts: Optional[str],
+) -> dict[str, object]:
+    """Build ShoppingAdUpdate / ListingAdUpdate payload from typed flags."""
+    ad_payload: dict[str, object] = {}
+
+    if sitelink_set_id is not None:
+        ad_payload["SitelinkSetId"] = sitelink_set_id
+    if callout_setting:
+        ad_payload["CalloutSetting"] = callout_setting
+    if business_id is not None:
+        ad_payload["BusinessId"] = business_id
+    if feed_filter_conditions:
+        try:
+            parsed_conditions = parse_condition_specs(list(feed_filter_conditions))
+        except ValueError as exc:
+            raise click.UsageError(f"--feed-filter-condition: {exc}")
+        if parsed_conditions:
+            ad_payload["FeedFilterConditions"] = {"Items": parsed_conditions}
+
+    parsed_title_sources = _parse_required_csv_strings(title_sources, "--title-sources")
+    if parsed_title_sources:
+        ad_payload["TitleSources"] = {"Items": parsed_title_sources}
+    parsed_text_sources = _parse_required_csv_strings(text_sources, "--text-sources")
+    if parsed_text_sources:
+        ad_payload["TextSources"] = {"Items": parsed_text_sources}
+    parsed_default_texts = _parse_required_csv_strings(default_texts, "--default-texts")
+    if parsed_default_texts:
+        ad_payload["DefaultTexts"] = parsed_default_texts
+
+    return ad_payload
 
 
 @ads.command()
@@ -579,7 +637,7 @@ def add(
     required=True,
     help=(
         "Ad subtype: TEXT_AD | TEXT_IMAGE_AD | MOBILE_APP_AD | "
-        "DYNAMIC_TEXT_AD | RESPONSIVE_AD"
+        "DYNAMIC_TEXT_AD | RESPONSIVE_AD | SHOPPING_AD | LISTING_AD"
     ),
 )
 @click.option(
@@ -617,7 +675,10 @@ def add(
 @click.option(
     "--sitelink-set-id",
     type=int,
-    help="Sitelink set ID (TEXT_AD / DYNAMIC_TEXT_AD / RESPONSIVE_AD)",
+    help=(
+        "Sitelink set ID "
+        "(TEXT_AD / DYNAMIC_TEXT_AD / RESPONSIVE_AD / SHOPPING_AD / LISTING_AD)"
+    ),
 )
 @click.option(
     "--turbo-page-id", type=int, help="Turbo page ID (TEXT_AD / TEXT_IMAGE_AD)"
@@ -626,14 +687,16 @@ def add(
     "--callouts-add",
     help=(
         "Comma-separated CALLOUT ad-extension IDs to attach "
-        "(Operation=ADD). TEXT_AD / DYNAMIC_TEXT_AD / RESPONSIVE_AD only."
+        "(Operation=ADD). TEXT_AD / DYNAMIC_TEXT_AD / RESPONSIVE_AD / "
+        "SHOPPING_AD / LISTING_AD only."
     ),
 )
 @click.option(
     "--callouts-remove",
     help=(
         "Comma-separated CALLOUT ad-extension IDs to detach "
-        "(Operation=REMOVE). TEXT_AD / DYNAMIC_TEXT_AD / RESPONSIVE_AD only."
+        "(Operation=REMOVE). TEXT_AD / DYNAMIC_TEXT_AD / RESPONSIVE_AD / "
+        "SHOPPING_AD / LISTING_AD only."
     ),
 )
 @click.option(
@@ -642,7 +705,7 @@ def add(
         "Comma-separated CALLOUT ad-extension IDs that REPLACE the ad's "
         "current callout list (Operation=SET). Mutually exclusive with "
         "--callouts-add / --callouts-remove. TEXT_AD / DYNAMIC_TEXT_AD / "
-        "RESPONSIVE_AD only."
+        "RESPONSIVE_AD / SHOPPING_AD / LISTING_AD only."
     ),
 )
 @click.option(
@@ -686,10 +749,35 @@ def add(
     ),
     help="PriceExtension.PriceCurrency enum value. TEXT_AD / RESPONSIVE_AD only.",
 )
-@click.option("--business-id", type=int, help="ResponsiveAd.BusinessId")
+@click.option(
+    "--business-id",
+    type=int,
+    help="BusinessId (RESPONSIVE_AD / SHOPPING_AD / LISTING_AD)",
+)
 @click.option(
     "--erir-ad-description",
     help="ResponsiveAd.ErirAdDescription",
+)
+@click.option(
+    "--feed-filter-condition",
+    "feed_filter_conditions",
+    multiple=True,
+    help=(
+        "Repeatable ShoppingAd/ListingAd FeedFilterConditions item as "
+        "OPERAND:OPERATOR:ARG1|ARG2"
+    ),
+)
+@click.option(
+    "--title-sources",
+    help="Comma-separated ShoppingAd/ListingAd.TitleSources.Items values",
+)
+@click.option(
+    "--text-sources",
+    help="Comma-separated ShoppingAd/ListingAd.TextSources.Items values",
+)
+@click.option(
+    "--default-texts",
+    help="Comma-separated ShoppingAd/ListingAd.DefaultTexts values",
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
@@ -724,6 +812,10 @@ def update(
     price_extension_price_currency,
     business_id,
     erir_ad_description,
+    feed_filter_conditions,
+    title_sources,
+    text_sources,
+    default_texts,
     dry_run,
 ):
     """Update ad"""
@@ -740,13 +832,15 @@ def update(
         "MOBILE_APP_AD",
         "DYNAMIC_TEXT_AD",
         "RESPONSIVE_AD",
+        "SHOPPING_AD",
+        "LISTING_AD",
     }
     if ad_type_norm not in supported_types:
         raise click.UsageError(
             "Invalid value for '--type': "
             f"{ad_type!r} is not one of "
             "'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD', 'DYNAMIC_TEXT_AD', "
-            "'RESPONSIVE_AD'."
+            "'RESPONSIVE_AD', 'SHOPPING_AD', 'LISTING_AD'."
         )
 
     # Per-WSDL-subtype field allow-list: each --type accepts only the
@@ -811,6 +905,8 @@ def update(
             "business_id",
             "erir_ad_description",
         },
+        "SHOPPING_AD": FEED_BASED_UPDATE_FIELDS,
+        "LISTING_AD": FEED_BASED_UPDATE_FIELDS,
     }
     provided = {
         "title": title,
@@ -839,6 +935,10 @@ def update(
         "price_extension_price_currency": price_extension_price_currency,
         "business_id": business_id,
         "erir_ad_description": erir_ad_description,
+        "feed_filter_conditions": feed_filter_conditions,
+        "title_sources": title_sources,
+        "text_sources": text_sources,
+        "default_texts": default_texts,
     }
     flag_for = {
         "title": "--title",
@@ -867,6 +967,10 @@ def update(
         "price_extension_price_currency": "--price-extension-price-currency",
         "business_id": "--business-id",
         "erir_ad_description": "--erir-ad-description",
+        "feed_filter_conditions": "--feed-filter-condition",
+        "title_sources": "--title-sources",
+        "text_sources": "--text-sources",
+        "default_texts": "--default-texts",
     }
     try:
         _reject_incompatible_flags(
@@ -972,6 +1076,19 @@ def update(
         )
         if responsive_ad:
             ad_data["ResponsiveAd"] = responsive_ad
+    elif ad_type_norm in {"SHOPPING_AD", "LISTING_AD"}:
+        feed_based_ad = _build_feed_based_ad_update(
+            sitelink_set_id,
+            callout_setting,
+            business_id,
+            feed_filter_conditions,
+            title_sources,
+            text_sources,
+            default_texts,
+        )
+        if feed_based_ad:
+            field_name = "ShoppingAd" if ad_type_norm == "SHOPPING_AD" else "ListingAd"
+            ad_data[field_name] = feed_based_ad
 
     # Reject empty-subtype no-ops: ``{Id: N}`` with no subtype block
     # is a silent no-op on the live API (issue #198 H1).

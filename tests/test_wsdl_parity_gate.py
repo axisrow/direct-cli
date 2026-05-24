@@ -1053,6 +1053,88 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     },
     ("ads", "update", "ResponsiveAd.BusinessId"): {"--business-id"},
     ("ads", "update", "ResponsiveAd.ErirAdDescription"): {"--erir-ad-description"},
+    ("ads", "update", "ShoppingAd"): {"--type"},
+    ("ads", "update", "ShoppingAd.SitelinkSetId"): {"--sitelink-set-id"},
+    ("ads", "update", "ShoppingAd.CalloutSetting"): {
+        "--callouts-add",
+        "--callouts-remove",
+        "--callouts-set",
+    },
+    ("ads", "update", "ShoppingAd.CalloutSetting.AdExtensions"): {
+        "--callouts-add",
+        "--callouts-remove",
+        "--callouts-set",
+    },
+    ("ads", "update", "ShoppingAd.CalloutSetting.AdExtensions.AdExtensionId"): {
+        "--callouts-add",
+        "--callouts-remove",
+        "--callouts-set",
+    },
+    ("ads", "update", "ShoppingAd.CalloutSetting.AdExtensions.Operation"): {
+        "--callouts-add",
+        "--callouts-remove",
+        "--callouts-set",
+    },
+    ("ads", "update", "ShoppingAd.BusinessId"): {"--business-id"},
+    ("ads", "update", "ShoppingAd.FeedFilterConditions"): {"--feed-filter-condition"},
+    ("ads", "update", "ShoppingAd.FeedFilterConditions.Items"): {
+        "--feed-filter-condition"
+    },
+    ("ads", "update", "ShoppingAd.FeedFilterConditions.Items.Operand"): {
+        "--feed-filter-condition"
+    },
+    ("ads", "update", "ShoppingAd.FeedFilterConditions.Items.Operator"): {
+        "--feed-filter-condition"
+    },
+    ("ads", "update", "ShoppingAd.FeedFilterConditions.Items.Arguments"): {
+        "--feed-filter-condition"
+    },
+    ("ads", "update", "ShoppingAd.TitleSources"): {"--title-sources"},
+    ("ads", "update", "ShoppingAd.TitleSources.Items"): {"--title-sources"},
+    ("ads", "update", "ShoppingAd.TextSources"): {"--text-sources"},
+    ("ads", "update", "ShoppingAd.TextSources.Items"): {"--text-sources"},
+    ("ads", "update", "ShoppingAd.DefaultTexts"): {"--default-texts"},
+    ("ads", "update", "ListingAd"): {"--type"},
+    ("ads", "update", "ListingAd.SitelinkSetId"): {"--sitelink-set-id"},
+    ("ads", "update", "ListingAd.CalloutSetting"): {
+        "--callouts-add",
+        "--callouts-remove",
+        "--callouts-set",
+    },
+    ("ads", "update", "ListingAd.CalloutSetting.AdExtensions"): {
+        "--callouts-add",
+        "--callouts-remove",
+        "--callouts-set",
+    },
+    ("ads", "update", "ListingAd.CalloutSetting.AdExtensions.AdExtensionId"): {
+        "--callouts-add",
+        "--callouts-remove",
+        "--callouts-set",
+    },
+    ("ads", "update", "ListingAd.CalloutSetting.AdExtensions.Operation"): {
+        "--callouts-add",
+        "--callouts-remove",
+        "--callouts-set",
+    },
+    ("ads", "update", "ListingAd.BusinessId"): {"--business-id"},
+    ("ads", "update", "ListingAd.FeedFilterConditions"): {"--feed-filter-condition"},
+    ("ads", "update", "ListingAd.FeedFilterConditions.Items"): {
+        "--feed-filter-condition"
+    },
+    ("ads", "update", "ListingAd.FeedFilterConditions.Items.Operand"): {
+        "--feed-filter-condition"
+    },
+    ("ads", "update", "ListingAd.FeedFilterConditions.Items.Operator"): {
+        "--feed-filter-condition"
+    },
+    ("ads", "update", "ListingAd.FeedFilterConditions.Items.Arguments"): {
+        "--feed-filter-condition"
+    },
+    ("ads", "update", "ListingAd.TitleSources"): {"--title-sources"},
+    ("ads", "update", "ListingAd.TitleSources.Items"): {"--title-sources"},
+    ("ads", "update", "ListingAd.TextSources"): {"--text-sources"},
+    ("ads", "update", "ListingAd.TextSources.Items"): {"--text-sources"},
+    ("ads", "update", "ListingAd.DefaultTexts"): {"--default-texts"},
     ("campaigns", "add", "DailyBudget"): {"--budget"},
     ("campaigns", "add", "DailyBudget.Amount"): {"--budget"},
     ("campaigns", "add", "DailyBudget.Mode"): {"--budget"},
@@ -1691,16 +1773,6 @@ OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]
         "status": "missing_followup",
         "issue": "#278",
         "note": "SMART_AD_BUILDER_AD add fields need typed support or N/A.",
-    },
-    ("ads", "update", "ShoppingAd"): {
-        "status": "missing_followup",
-        "issue": "#269",
-        "note": "SHOPPING_AD update fields need typed support or N/A.",
-    },
-    ("ads", "update", "ListingAd"): {
-        "status": "missing_followup",
-        "issue": "#269",
-        "note": "LISTING_AD update fields need typed support or N/A.",
     },
     ("ads", "update", "TextAdBuilderAd"): {
         "status": "missing_followup",

@@ -273,13 +273,20 @@ class TestCLI(unittest.TestCase):
         )
         self.assertIn(
             "TEXT_AD | TEXT_IMAGE_AD | MOBILE_APP_AD | DYNAMIC_TEXT_AD | "
-            "RESPONSIVE_AD",
+            "RESPONSIVE_AD | SHOPPING_AD | LISTING_AD",
             collapsed,
         )
         self.assertIn("Comma-separated ResponsiveAd.Titles values", collapsed)
         self.assertIn("Comma-separated ResponsiveAd.Texts values", collapsed)
         self.assertIn(
             "Comma-separated ResponsiveAd.AdImageHashes.Items values", collapsed
+        )
+        self.assertIn(
+            "Repeatable ShoppingAd/ListingAd FeedFilterConditions item", collapsed
+        )
+        self.assertIn(
+            "Comma-separated ShoppingAd/ListingAd.TitleSources.Items values",
+            collapsed,
         )
 
     def test_clients_update_help_documents_erir_organization_flags(self):
