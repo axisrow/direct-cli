@@ -920,6 +920,28 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("ads", "add", "TextAd.Mobile"): {"--mobile"},
     ("ads", "add", "TextAd.DisplayUrlPath"): {"--display-url-path"},
     ("ads", "add", "TextAd.TurboPageId"): {"--turbo-page-id"},
+    ("ads", "add", "TextAd.FinalUrl"): {"--final-url"},
+    ("ads", "add", "TextAd.VideoExtension"): {"--video-extension-creative-id"},
+    ("ads", "add", "TextAd.VideoExtension.CreativeId"): {
+        "--video-extension-creative-id"
+    },
+    ("ads", "add", "TextAd.PriceExtension"): {
+        "--price-extension-price",
+        "--price-extension-old-price",
+        "--price-extension-price-qualifier",
+        "--price-extension-price-currency",
+    },
+    ("ads", "add", "TextAd.PriceExtension.Price"): {"--price-extension-price"},
+    ("ads", "add", "TextAd.PriceExtension.OldPrice"): {"--price-extension-old-price"},
+    ("ads", "add", "TextAd.PriceExtension.PriceQualifier"): {
+        "--price-extension-price-qualifier"
+    },
+    ("ads", "add", "TextAd.PriceExtension.PriceCurrency"): {
+        "--price-extension-price-currency"
+    },
+    ("ads", "add", "TextAd.BusinessId"): {"--business-id"},
+    ("ads", "add", "TextAd.PreferVCardOverBusiness"): {"--prefer-vcard-over-business"},
+    ("ads", "add", "TextAd.ErirAdDescription"): {"--erir-ad-description"},
     ("ads", "add", "MobileAppAd"): {"--type"},
     ("ads", "add", "MobileAppAd.AdImageHash"): {"--image-hash"},
     ("ads", "add", "MobileAppAd.Text"): {"--text"},
@@ -1836,11 +1858,6 @@ OPTIONAL_FIELD_DEFAULT_FOLLOWUPS: dict[tuple[str, str], dict[str, str]] = {
 }
 
 OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]] = {
-    ("ads", "add", "TextAd"): {
-        "status": "missing_followup",
-        "issue": "#273",
-        "note": "TEXT_AD optional add fields need typed support or N/A.",
-    },
     ("ads", "add", "ResponsiveAd"): {
         "status": "missing_followup",
         "issue": "#274",

@@ -261,6 +261,17 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertNotIn("Documentation:", result.output)
 
+    def test_ads_add_help_documents_text_ad_optional_extensions(self):
+        result = self.runner.invoke(cli, ["ads", "add", "--help"])
+        self.assertEqual(result.exit_code, 0)
+        collapsed = " ".join(result.output.split())
+        self.assertIn("TextAd.FinalUrl (TEXT_AD)", collapsed)
+        self.assertIn("TextAd.VideoExtension.CreativeId (TEXT_AD)", collapsed)
+        self.assertIn("TextAd.PriceExtension.Price as API long units", collapsed)
+        self.assertIn("TextAd.BusinessId (TEXT_AD)", collapsed)
+        self.assertIn("TextAd.PreferVCardOverBusiness value: YES or NO", collapsed)
+        self.assertIn("TextAd.ErirAdDescription (TEXT_AD)", collapsed)
+
     def test_ads_update_help_documents_text_ad_image_hash(self):
         result = self.runner.invoke(cli, ["ads", "update", "--help"])
         self.assertEqual(result.exit_code, 0)

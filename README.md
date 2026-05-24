@@ -406,6 +406,7 @@ direct ads get --campaign-ids 1,2,3
 direct ads get --adgroup-ids 45678 --format table
 direct ads add --adgroup-id 12345 --type TEXT_AD --title "Title" --text "Ad text" --href "https://example.com" --dry-run
 direct ads add --adgroup-id 12345 --type TEXT_AD --title "Title" --text "Ad text" --href "https://example.com" --title2 "Second headline" --display-url-path "deals" --mobile YES --vcard-id 111 --sitelink-set-id 222 --turbo-page-id 333 --ad-extensions "444,555" --dry-run
+direct ads add --adgroup-id 12345 --type TEXT_AD --title "Title" --text "Ad text" --href "https://example.com" --final-url "https://final.example.com" --video-extension-creative-id 777 --price-extension-price 123450000 --price-extension-price-qualifier FROM --price-extension-price-currency RUB --business-id 777 --prefer-vcard-over-business NO --erir-ad-description "Text ad object" --dry-run
 direct ads add --adgroup-id 12345 --type TEXT_IMAGE_AD --image-hash abcdefghijklmnopqrst --href "https://example.com" --turbo-page-id 555 --dry-run
 direct ads update --id 99999 --type TEXT_AD --title "New Title" --text "New text" --href "https://example.com"
 direct ads update --id 99999 --type TEXT_AD --image-hash abcdefghijklmnopqrst
@@ -428,16 +429,18 @@ direct ads delete --id 99999
 
 Available TEXT_AD typed flags for `ads add` / `ads update`: `--title`, `--text`,
 `--href`, `--image-hash`, `--title2`, `--display-url-path`, `--vcard-id`,
-`--sitelink-set-id`, `--turbo-page-id`. `ads update` additionally exposes
+`--sitelink-set-id`, `--turbo-page-id`, `--final-url`,
+`--video-extension-creative-id`, `--price-extension-*`, `--business-id`,
+`--prefer-vcard-over-business`, and `--erir-ad-description`. For `ads add`,
+`TextAd.PriceExtension` requires `--price-extension-price`,
+`--price-extension-price-qualifier`, and `--price-extension-price-currency`
+when any price-extension flag is used. `ads update` additionally exposes
 `--callouts-add`, `--callouts-remove`, and `--callouts-set` for managing the
 `TextAdUpdateBase.CalloutSetting` (`ext:AdExtensionSetting`) field on an
 existing ad — `--callouts-set` replaces the whole callout list and is mutually
 exclusive with the incremental `--callouts-add` / `--callouts-remove` pair.
-It also exposes `--video-extension-creative-id` and `--price-extension-*` flags
-for `TextAd.VideoExtension` and `TextAd.PriceExtension`; price values use the
-Yandex Direct API long-unit format (price multiplied by 1,000,000). Residual
-TEXT_AD update fields are available through `--final-url`, `--age-label`,
-`--business-id`, `--prefer-vcard-over-business`, and `--erir-ad-description`.
+Price values use the Yandex Direct API long-unit format (price multiplied by
+1,000,000). `ads update` also supports `--age-label`.
 `--mobile` (default `NO`) and `--ad-extensions` are `ads add`-only —
 `TextAdUpdate` does not contain `Mobile`, and on update ad-extensions are
 managed through the `--callouts-*` flags above. TEXT_IMAGE_AD additionally
@@ -1166,6 +1169,7 @@ direct ads get --campaign-ids 1,2,3
 direct ads get --adgroup-ids 45678 --format table
 direct ads add --adgroup-id 12345 --type TEXT_AD --title "Заголовок" --text "Текст объявления" --href "https://example.com" --dry-run
 direct ads add --adgroup-id 12345 --type TEXT_AD --title "Заголовок" --text "Текст" --href "https://example.com" --title2 "Второй заголовок" --display-url-path "deals" --mobile YES --vcard-id 111 --sitelink-set-id 222 --turbo-page-id 333 --ad-extensions "444,555" --dry-run
+direct ads add --adgroup-id 12345 --type TEXT_AD --title "Заголовок" --text "Текст объявления" --href "https://example.com" --final-url "https://final.example.com" --video-extension-creative-id 777 --price-extension-price 123450000 --price-extension-price-qualifier FROM --price-extension-price-currency RUB --business-id 777 --prefer-vcard-over-business NO --erir-ad-description "Объект текстового объявления" --dry-run
 direct ads add --adgroup-id 12345 --type TEXT_IMAGE_AD --image-hash abcdefghijklmnopqrst --href "https://example.com" --turbo-page-id 555 --dry-run
 direct ads update --id 99999 --type TEXT_AD --title "Новый заголовок" --text "Новый текст" --href "https://example.com"
 direct ads update --id 99999 --type TEXT_AD --image-hash abcdefghijklmnopqrst
@@ -1188,18 +1192,19 @@ direct ads delete --id 99999
 
 Доступные типизированные флаги TEXT_AD для `ads add` / `ads update`:
 `--title`, `--text`, `--href`, `--image-hash`, `--title2`, `--display-url-path`,
-`--vcard-id`, `--sitelink-set-id`, `--turbo-page-id`. В `ads update`
-дополнительно доступны `--callouts-add`, `--callouts-remove` и
+`--vcard-id`, `--sitelink-set-id`, `--turbo-page-id`, `--final-url`,
+`--video-extension-creative-id`, `--price-extension-*`, `--business-id`,
+`--prefer-vcard-over-business` и `--erir-ad-description`. Для `ads add`
+`TextAd.PriceExtension` требует `--price-extension-price`,
+`--price-extension-price-qualifier` и `--price-extension-price-currency`, если
+передан любой price-extension флаг. В `ads update` дополнительно доступны
+`--callouts-add`, `--callouts-remove` и
 `--callouts-set` для управления полем `TextAdUpdateBase.CalloutSetting`
 (`ext:AdExtensionSetting`) у существующего объявления — `--callouts-set`
 заменяет весь список выносок и взаимоисключим с инкрементальной парой
-`--callouts-add` / `--callouts-remove`. Также доступны
-`--video-extension-creative-id` и флаги `--price-extension-*` для
-`TextAd.VideoExtension` и `TextAd.PriceExtension`; цены передаются в формате
-long-единиц API Яндекс Директа (цена, умноженная на 1 000 000). Остальные
-поля TEXT_AD в `ads update` доступны через `--final-url`, `--age-label`,
-`--business-id`, `--prefer-vcard-over-business` и `--erir-ad-description`.
-`--mobile` (default `NO`) и
+`--callouts-add` / `--callouts-remove`. Цены передаются в формате long-единиц
+API Яндекс Директа (цена, умноженная на 1 000 000). В `ads update` также
+поддерживается `--age-label`. `--mobile` (по умолчанию `NO`) и
 `--ad-extensions` доступны только в `ads add` — WSDL `TextAdUpdate` не
 содержит `Mobile`, а в `ads update` расширения управляются через флаги
 `--callouts-*` выше. Для TEXT_IMAGE_AD дополнительно доступен

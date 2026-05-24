@@ -11,9 +11,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2501 |
+| `missing_followup` | 2490 |
 | `not_applicable` | 23 |
-| `supported` | 717 |
+| `supported` | 728 |
 
 ## Confirmed Follow-Ups
 
@@ -42,17 +42,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `adgroups.update` | `DynamicTextFeedAdGroup.AutotargetingSettings.BrandOptions.WithAdvertiserBrand` | Official adgroups.update docs for DynamicTextFeedAdGroupUpdate list AutotargetingCategories only. [#281](https://github.com/axisrow/direct-cli/issues/281); inherited from `DynamicTextFeedAdGroup.AutotargetingSettings` |
 | `adgroups.update` | `DynamicTextFeedAdGroup.AutotargetingSettings.BrandOptions.WithCompetitorsBrand` | Official adgroups.update docs for DynamicTextFeedAdGroupUpdate list AutotargetingCategories only. [#281](https://github.com/axisrow/direct-cli/issues/281); inherited from `DynamicTextFeedAdGroup.AutotargetingSettings` |
 | `adgroups.update` | `DynamicTextFeedAdGroup.FeedId` | Official adgroups.update docs for DynamicTextFeedAdGroupUpdate do not list FeedId. [#281](https://github.com/axisrow/direct-cli/issues/281) |
-| `ads.add` | `TextAd.FinalUrl` | TEXT_AD optional add fields need typed support or N/A. [#273](https://github.com/axisrow/direct-cli/issues/273); inherited from `TextAd` |
-| `ads.add` | `TextAd.VideoExtension` | TEXT_AD optional add fields need typed support or N/A. [#273](https://github.com/axisrow/direct-cli/issues/273); inherited from `TextAd` |
-| `ads.add` | `TextAd.VideoExtension.CreativeId` | TEXT_AD optional add fields need typed support or N/A. [#273](https://github.com/axisrow/direct-cli/issues/273); inherited from `TextAd` |
-| `ads.add` | `TextAd.PriceExtension` | TEXT_AD optional add fields need typed support or N/A. [#273](https://github.com/axisrow/direct-cli/issues/273); inherited from `TextAd` |
-| `ads.add` | `TextAd.PriceExtension.Price` | TEXT_AD optional add fields need typed support or N/A. [#273](https://github.com/axisrow/direct-cli/issues/273); inherited from `TextAd` |
-| `ads.add` | `TextAd.PriceExtension.OldPrice` | TEXT_AD optional add fields need typed support or N/A. [#273](https://github.com/axisrow/direct-cli/issues/273); inherited from `TextAd` |
-| `ads.add` | `TextAd.PriceExtension.PriceQualifier` | TEXT_AD optional add fields need typed support or N/A. [#273](https://github.com/axisrow/direct-cli/issues/273); inherited from `TextAd` |
-| `ads.add` | `TextAd.PriceExtension.PriceCurrency` | TEXT_AD optional add fields need typed support or N/A. [#273](https://github.com/axisrow/direct-cli/issues/273); inherited from `TextAd` |
-| `ads.add` | `TextAd.BusinessId` | TEXT_AD optional add fields need typed support or N/A. [#273](https://github.com/axisrow/direct-cli/issues/273); inherited from `TextAd` |
-| `ads.add` | `TextAd.PreferVCardOverBusiness` | TEXT_AD optional add fields need typed support or N/A. [#273](https://github.com/axisrow/direct-cli/issues/273); inherited from `TextAd` |
-| `ads.add` | `TextAd.ErirAdDescription` | TEXT_AD optional add fields need typed support or N/A. [#273](https://github.com/axisrow/direct-cli/issues/273); inherited from `TextAd` |
 | `ads.add` | `ResponsiveAd` | RESPONSIVE_AD add fields need typed support or N/A. [#274](https://github.com/axisrow/direct-cli/issues/274) |
 | `ads.add` | `ResponsiveAd.Texts` | RESPONSIVE_AD add fields need typed support or N/A. [#274](https://github.com/axisrow/direct-cli/issues/274); inherited from `ResponsiveAd` |
 | `ads.add` | `ResponsiveAd.Titles` | RESPONSIVE_AD add fields need typed support or N/A. [#274](https://github.com/axisrow/direct-cli/issues/274); inherited from `ResponsiveAd` |
@@ -2673,21 +2662,21 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.add` | `ads.add` | `TextAd.Text` | `string` | 1 | 1 | `supported` | --text |
 | `ads.add` | `ads.add` | `TextAd.Title` | `string` | 1 | 1 | `supported` | --title |
 | `ads.add` | `ads.add` | `TextAd.Title2` | `string` | 0 | 1 | `supported` | --title2 |
-| `ads.add` | `ads.add` | `TextAd.FinalUrl` | `string` | 0 | 1 | `missing_followup` | TEXT_AD optional add fields need typed support or N/A. [#273](https://github.com/axisrow/direct-cli/issues/273); inherited from `TextAd` |
+| `ads.add` | `ads.add` | `TextAd.FinalUrl` | `string` | 0 | 1 | `supported` | --final-url |
 | `ads.add` | `ads.add` | `TextAd.Href` | `string` | 0 | 1 | `supported` | --href |
 | `ads.add` | `ads.add` | `TextAd.Mobile` | `YesNoEnum` | 1 | 1 | `supported` | --mobile |
 | `ads.add` | `ads.add` | `TextAd.DisplayUrlPath` | `string` | 0 | 1 | `supported` | --display-url-path |
-| `ads.add` | `ads.add` | `TextAd.VideoExtension` | `VideoExtensionAddItem` | 0 | 1 | `missing_followup` | TEXT_AD optional add fields need typed support or N/A. [#273](https://github.com/axisrow/direct-cli/issues/273); inherited from `TextAd` |
-| `ads.add` | `ads.add` | `TextAd.VideoExtension.CreativeId` | `long` | 0 | 1 | `missing_followup` | TEXT_AD optional add fields need typed support or N/A. [#273](https://github.com/axisrow/direct-cli/issues/273); inherited from `TextAd` |
-| `ads.add` | `ads.add` | `TextAd.PriceExtension` | `PriceExtensionAddItem` | 0 | 1 | `missing_followup` | TEXT_AD optional add fields need typed support or N/A. [#273](https://github.com/axisrow/direct-cli/issues/273); inherited from `TextAd` |
-| `ads.add` | `ads.add` | `TextAd.PriceExtension.Price` | `long` | 1 | 1 | `missing_followup` | TEXT_AD optional add fields need typed support or N/A. [#273](https://github.com/axisrow/direct-cli/issues/273); inherited from `TextAd` |
-| `ads.add` | `ads.add` | `TextAd.PriceExtension.OldPrice` | `long` | 0 | 1 | `missing_followup` | TEXT_AD optional add fields need typed support or N/A. [#273](https://github.com/axisrow/direct-cli/issues/273); inherited from `TextAd` |
-| `ads.add` | `ads.add` | `TextAd.PriceExtension.PriceQualifier` | `PriceQualifierEnum` | 1 | 1 | `missing_followup` | TEXT_AD optional add fields need typed support or N/A. [#273](https://github.com/axisrow/direct-cli/issues/273); inherited from `TextAd` |
-| `ads.add` | `ads.add` | `TextAd.PriceExtension.PriceCurrency` | `PriceCurrencyEnum` | 1 | 1 | `missing_followup` | TEXT_AD optional add fields need typed support or N/A. [#273](https://github.com/axisrow/direct-cli/issues/273); inherited from `TextAd` |
+| `ads.add` | `ads.add` | `TextAd.VideoExtension` | `VideoExtensionAddItem` | 0 | 1 | `supported` | --video-extension-creative-id |
+| `ads.add` | `ads.add` | `TextAd.VideoExtension.CreativeId` | `long` | 0 | 1 | `supported` | --video-extension-creative-id |
+| `ads.add` | `ads.add` | `TextAd.PriceExtension` | `PriceExtensionAddItem` | 0 | 1 | `supported` | --price-extension-old-price, --price-extension-price, --price-extension-price-currency, --price-extension-price-qualifier |
+| `ads.add` | `ads.add` | `TextAd.PriceExtension.Price` | `long` | 1 | 1 | `supported` | --price-extension-price |
+| `ads.add` | `ads.add` | `TextAd.PriceExtension.OldPrice` | `long` | 0 | 1 | `supported` | --price-extension-old-price |
+| `ads.add` | `ads.add` | `TextAd.PriceExtension.PriceQualifier` | `PriceQualifierEnum` | 1 | 1 | `supported` | --price-extension-price-qualifier |
+| `ads.add` | `ads.add` | `TextAd.PriceExtension.PriceCurrency` | `PriceCurrencyEnum` | 1 | 1 | `supported` | --price-extension-price-currency |
 | `ads.add` | `ads.add` | `TextAd.TurboPageId` | `long` | 0 | 1 | `supported` | --turbo-page-id |
-| `ads.add` | `ads.add` | `TextAd.BusinessId` | `long` | 0 | 1 | `missing_followup` | TEXT_AD optional add fields need typed support or N/A. [#273](https://github.com/axisrow/direct-cli/issues/273); inherited from `TextAd` |
-| `ads.add` | `ads.add` | `TextAd.PreferVCardOverBusiness` | `YesNoEnum` | 0 | 1 | `missing_followup` | TEXT_AD optional add fields need typed support or N/A. [#273](https://github.com/axisrow/direct-cli/issues/273); inherited from `TextAd` |
-| `ads.add` | `ads.add` | `TextAd.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | TEXT_AD optional add fields need typed support or N/A. [#273](https://github.com/axisrow/direct-cli/issues/273); inherited from `TextAd` |
+| `ads.add` | `ads.add` | `TextAd.BusinessId` | `long` | 0 | 1 | `supported` | --business-id |
+| `ads.add` | `ads.add` | `TextAd.PreferVCardOverBusiness` | `YesNoEnum` | 0 | 1 | `supported` | --prefer-vcard-over-business |
+| `ads.add` | `ads.add` | `TextAd.ErirAdDescription` | `string` | 0 | 1 | `supported` | --erir-ad-description |
 | `ads.add` | `ads.add` | `ResponsiveAd` | `ResponsiveAdAdd` | 0 | 1 | `missing_followup` | RESPONSIVE_AD add fields need typed support or N/A. [#274](https://github.com/axisrow/direct-cli/issues/274) |
 | `ads.add` | `ads.add` | `ResponsiveAd.Texts` | `string` | 1 | unbounded | `missing_followup` | RESPONSIVE_AD add fields need typed support or N/A. [#274](https://github.com/axisrow/direct-cli/issues/274); inherited from `ResponsiveAd` |
 | `ads.add` | `ads.add` | `ResponsiveAd.Titles` | `string` | 1 | unbounded | `missing_followup` | RESPONSIVE_AD add fields need typed support or N/A. [#274](https://github.com/axisrow/direct-cli/issues/274); inherited from `ResponsiveAd` |
