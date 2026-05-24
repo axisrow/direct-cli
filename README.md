@@ -450,6 +450,7 @@ Example `keywords.jsonl`:
 ```
 
 - Row keys use WSDL CamelCase: `Keyword`, `AdGroupId`, `Bid`, `ContextBid`, `UserParam1`, `UserParam2`.
+- Autotargeting row fields are intentionally not accepted in batch mode; use single-item typed flags such as `--autotargeting-search-bid-is-auto`, `--priority`, `--autotargeting-category`, `--autotargeting-brand-option`, or `--autotargeting-settings-*`.
 - `--adgroup-id` provides the default group ID; rows can override it via per-row `AdGroupId`.
 - Each effective row must resolve `Keyword` and `AdGroupId`; unknown fields are rejected with the row number.
 - API limit: 10 items per `keywords.add` request — see [Yandex Direct docs](https://yandex.ru/dev/direct/doc/dg/objects/keyword.html). The CLI sends as many chunks as needed and merges `AddResults`.
@@ -1166,6 +1167,7 @@ direct keywords add --keywords-json '[{"Keyword":"купить ноутбук","
 ```
 
 - Ключи строки — WSDL CamelCase: `Keyword`, `AdGroupId`, `Bid`, `ContextBid`, `UserParam1`, `UserParam2`.
+- Поля автотаргетинга намеренно не принимаются в batch-режиме; используйте single-item typed flags: `--autotargeting-search-bid-is-auto`, `--priority`, `--autotargeting-category`, `--autotargeting-brand-option` или `--autotargeting-settings-*`.
 - `--adgroup-id` задаёт значение по умолчанию; в строке можно переопределить через `AdGroupId`.
 - В каждой строке должны разрешаться `Keyword` и `AdGroupId`; неизвестные поля отклоняются с указанием номера строки.
 - API-лимит: 10 элементов на запрос `keywords.add` — см. [документацию Yandex Direct](https://yandex.ru/dev/direct/doc/dg/objects/keyword.html). CLI отправит нужное число чанков и склеит `AddResults`.

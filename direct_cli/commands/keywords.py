@@ -59,6 +59,14 @@ _KEYWORD_ROW_FIELDS: Dict[str, str] = {
     "UserParam2": "str",
 }
 
+_KEYWORD_BATCH_DEFERRED_FIELDS = {
+    "AutotargetingSearchBidIsAuto": "--autotargeting-search-bid-is-auto",
+    "StrategyPriority": "--priority",
+    "AutotargetingCategories": "--autotargeting-category",
+    "AutotargetingBrandOptions": "--autotargeting-brand-option",
+    "AutotargetingSettings": "--autotargeting-settings-* flags",
+}
+
 
 def _coerce_keyword_field(field: str, raw_value: Any, row_index: int) -> Any:
     kind = _KEYWORD_ROW_FIELDS[field]
@@ -101,6 +109,16 @@ def _normalize_keyword_row(
     if not isinstance(row, dict):
         raise click.UsageError(
             f"Row {row_index}: expected JSON object, got {type(row).__name__}"
+        )
+
+    deferred = sorted(set(row) & set(_KEYWORD_BATCH_DEFERRED_FIELDS))
+    if deferred:
+        field = deferred[0]
+        flag = _KEYWORD_BATCH_DEFERRED_FIELDS[field]
+        raise click.UsageError(
+            f"Keyword row {row_index} field {field!r} is intentionally "
+            "unsupported in batch mode; use the single-item typed option "
+            f"{flag} instead."
         )
 
     unknown = sorted(set(row) - set(_KEYWORD_ROW_FIELDS))

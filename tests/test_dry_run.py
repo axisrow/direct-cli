@@ -3320,6 +3320,50 @@ def test_keywords_add_rejects_unknown_field_in_row(tmp_path):
     assert "Unknown field 'Foo' in keyword row 1" in result.output
 
 
+def test_keywords_add_rejects_autotargeting_row_fields_in_batch(tmp_path):
+    deferred_fields = {
+        "AutotargetingSearchBidIsAuto": ("YES", "--autotargeting-search-bid-is-auto"),
+        "StrategyPriority": ("HIGH", "--priority"),
+        "AutotargetingCategories": (
+            [{"Category": "EXACT", "Value": "YES"}],
+            "--autotargeting-category",
+        ),
+        "AutotargetingBrandOptions": (
+            [{"Option": "WITHOUT_BRANDS", "Value": "YES"}],
+            "--autotargeting-brand-option",
+        ),
+        "AutotargetingSettings": (
+            {"Categories": {"Exact": "YES"}},
+            "--autotargeting-settings-* flags",
+        ),
+    }
+
+    for field, (value, expected_flag) in deferred_fields.items():
+        path = _write_jsonl(
+            tmp_path,
+            [{"Keyword": "kw", "AdGroupId": 1, field: value}],
+        )
+        result = _rejected("keywords", "add", "--from-file", path)
+        assert f"field '{field}' is intentionally unsupported" in result.output
+        assert "batch mode" in result.output
+        assert expected_flag in result.output
+
+
+def test_keywords_add_rejects_autotargeting_inline_batch_row():
+    inline = json.dumps(
+        [
+            {
+                "Keyword": "kw",
+                "AdGroupId": 1,
+                "AutotargetingSearchBidIsAuto": "YES",
+            }
+        ]
+    )
+    result = _rejected("keywords", "add", "--keywords-json", inline)
+    assert "AutotargetingSearchBidIsAuto" in result.output
+    assert "intentionally unsupported in batch mode" in result.output
+
+
 def test_keywords_add_rejects_invalid_jsonl(tmp_path):
     path = tmp_path / "broken.jsonl"
     path.write_text(
