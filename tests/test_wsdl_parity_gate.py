@@ -939,11 +939,23 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     },
     ("keywords", "add", "ContextBid"): {"--context-bid"},
     ("keywords", "add", "StrategyPriority"): {"--priority"},
+    ("keywords", "add", "AutotargetingCategories"): {"--autotargeting-category"},
+    ("keywords", "add", "AutotargetingCategories.Category"): {
+        "--autotargeting-category"
+    },
+    ("keywords", "add", "AutotargetingCategories.Value"): {"--autotargeting-category"},
     ("keywords", "add", "UserParam1"): {"--user-param-1"},
     ("keywords", "add", "UserParam2"): {"--user-param-2"},
     ("keywords", "update", "Keyword"): {"--keyword"},
     ("keywords", "update", "UserParam1"): {"--user-param-1"},
     ("keywords", "update", "UserParam2"): {"--user-param-2"},
+    ("keywords", "update", "AutotargetingCategories"): {"--autotargeting-category"},
+    ("keywords", "update", "AutotargetingCategories.Category"): {
+        "--autotargeting-category"
+    },
+    ("keywords", "update", "AutotargetingCategories.Value"): {
+        "--autotargeting-category"
+    },
     ("negativekeywordsharedsets", "update", "Name"): {"--name"},
     ("negativekeywordsharedsets", "update", "NegativeKeywords"): {"--keywords"},
     ("audiencetargets", "add", "RetargetingListId"): {"--retargeting-list-id"},
@@ -1460,11 +1472,6 @@ OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
         "issue": "#280",
         "note": "Dynamic text ad group autotargeting settings are not exposed.",
     },
-    ("keywords", "add", "AutotargetingCategories"): {
-        "status": "missing_followup",
-        "issue": "#286",
-        "note": "Keyword autotargeting categories have no typed add flags.",
-    },
     ("keywords", "add", "AutotargetingSearchBidIsAuto"): {
         "status": "supported",
         "issue": "#289",
@@ -1490,11 +1497,6 @@ OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
         "status": "missing_followup",
         "issue": "#288",
         "note": "Keyword autotargeting settings have no typed add flags.",
-    },
-    ("keywords", "update", "AutotargetingCategories"): {
-        "status": "missing_followup",
-        "issue": "#286",
-        "note": "Keyword autotargeting categories have no typed update flags.",
     },
     ("keywords", "update", "AutotargetingBrandOptions"): {
         "status": "missing_followup",

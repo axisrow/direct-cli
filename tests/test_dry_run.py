@@ -2827,11 +2827,36 @@ def test_keywords_add_payload_with_scalar_autotargeting_fields():
     }
 
 
+def test_keywords_add_payload_with_autotargeting_categories():
+    body = _dry_run(
+        "keywords",
+        "add",
+        "--adgroup-id",
+        "12",
+        "--keyword",
+        "---autotargeting",
+        "--autotargeting-category",
+        "exact=yes",
+        "--autotargeting-category",
+        "BROADER=NO",
+    )
+    keyword = body["params"]["Keywords"][0]
+    assert keyword == {
+        "AdGroupId": 12,
+        "Keyword": "---autotargeting",
+        "AutotargetingCategories": [
+            {"Category": "EXACT", "Value": "YES"},
+            {"Category": "BROADER", "Value": "NO"},
+        ],
+    }
+
+
 def test_keywords_add_rejects_scalar_autotargeting_flags_in_batch_mode(tmp_path):
     path = _write_jsonl(tmp_path, [{"Keyword": "kw", "AdGroupId": 100}])
     for flag, value in (
         ("--priority", "HIGH"),
         ("--autotargeting-search-bid-is-auto", "YES"),
+        ("--autotargeting-category", "EXACT=YES"),
     ):
         result = CliRunner().invoke(
             cli,
@@ -2897,6 +2922,96 @@ def test_keywords_update_payload_user_params():
     )
     keyword = body["params"]["Keywords"][0]
     assert keyword == {"Id": 777, "UserParam1": "seg-a", "UserParam2": "seg-b"}
+
+
+def test_keywords_update_rejects_noop_payload():
+    result = CliRunner().invoke(
+        cli,
+        [
+            "keywords",
+            "update",
+            "--id",
+            "777",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "requires at least one updatable field" in result.output
+
+
+def test_keywords_update_payload_with_autotargeting_categories():
+    body = _dry_run(
+        "keywords",
+        "update",
+        "--id",
+        "777",
+        "--autotargeting-category",
+        "ALTERNATIVE=YES",
+        "--autotargeting-category",
+        "competitor=no",
+    )
+    keyword = body["params"]["Keywords"][0]
+    assert keyword == {
+        "Id": 777,
+        "AutotargetingCategories": [
+            {"Category": "ALTERNATIVE", "Value": "YES"},
+            {"Category": "COMPETITOR", "Value": "NO"},
+        ],
+    }
+
+
+def test_keywords_autotargeting_category_requires_category_value_pair():
+    result = CliRunner().invoke(
+        cli,
+        [
+            "keywords",
+            "add",
+            "--adgroup-id",
+            "12",
+            "--keyword",
+            "---autotargeting",
+            "--autotargeting-category",
+            "EXACT",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "CATEGORY=YES|NO" in result.output
+
+
+def test_keywords_autotargeting_category_rejects_unknown_category():
+    result = CliRunner().invoke(
+        cli,
+        [
+            "keywords",
+            "update",
+            "--id",
+            "777",
+            "--autotargeting-category",
+            "UNKNOWN=YES",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "Invalid --autotargeting-category category" in result.output
+    assert "EXACT" in result.output
+
+
+def test_keywords_autotargeting_category_rejects_unknown_value():
+    result = CliRunner().invoke(
+        cli,
+        [
+            "keywords",
+            "update",
+            "--id",
+            "777",
+            "--autotargeting-category",
+            "EXACT=MAYBE",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "expected YES or NO" in result.output
 
 
 # ----------------------------------------------------------------------
