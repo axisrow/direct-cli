@@ -48,6 +48,32 @@ FEED_BASED_ADD_FIELDS = {
     "default_texts",
 }
 
+DYNAMIC_TEXT_AD_ADD_FIELDS = {
+    "text",
+    "image_hash",
+    "vcard_id",
+    "sitelink_set_id",
+    "ad_extensions",
+}
+
+MOBILE_APP_AD_ADD_FIELDS = {
+    "title",
+    "text",
+    "image_hash",
+    "action",
+    "tracking_url",
+    "age_label",
+    "mobile_app_features",
+    "video_extension_creative_id",
+    "erir_ad_description",
+}
+
+MOBILE_APP_IMAGE_AD_ADD_FIELDS = {
+    "image_hash",
+    "tracking_url",
+    "erir_ad_description",
+}
+
 
 TEXT_AD_UPDATE_FIELDS = {
     "title",
@@ -538,6 +564,31 @@ def _build_feed_based_ad_add(
     return ad_payload
 
 
+def _build_dynamic_text_ad_add(
+    text: Optional[str],
+    image_hash: Optional[str],
+    vcard_id: Optional[int],
+    sitelink_set_id: Optional[int],
+    ad_extensions: Optional[str],
+) -> dict[str, object]:
+    """Build DynamicTextAdAdd payload from typed flags."""
+    if not text:
+        raise click.UsageError("DYNAMIC_TEXT_AD requires --text")
+
+    dynamic_text_ad: dict[str, object] = {"Text": text}
+    if image_hash:
+        dynamic_text_ad["AdImageHash"] = image_hash
+    if vcard_id is not None:
+        dynamic_text_ad["VCardId"] = vcard_id
+    if sitelink_set_id is not None:
+        dynamic_text_ad["SitelinkSetId"] = sitelink_set_id
+    parsed_ad_extensions = _parse_required_ids(ad_extensions, "--ad-extensions")
+    if parsed_ad_extensions:
+        dynamic_text_ad["AdExtensionIds"] = parsed_ad_extensions
+
+    return dynamic_text_ad
+
+
 def _build_ad_builder_update(
     creative_id: Optional[int],
     creative_erir_ad_description: Optional[str],
@@ -634,6 +685,24 @@ def _build_mobile_app_image_ad_update(
 
     if image_hash:
         mobile_app_image_ad["AdImageHash"] = image_hash
+    if erir_ad_description:
+        mobile_app_image_ad["ErirAdDescription"] = erir_ad_description
+    if tracking_url:
+        mobile_app_image_ad["TrackingUrl"] = tracking_url
+
+    return mobile_app_image_ad
+
+
+def _build_mobile_app_image_ad_add(
+    image_hash: Optional[str],
+    erir_ad_description: Optional[str],
+    tracking_url: Optional[str],
+) -> dict[str, object]:
+    """Build MobileAppImageAdAdd payload from typed flags."""
+    if not image_hash:
+        raise click.UsageError("MOBILE_APP_IMAGE_AD requires --image-hash")
+
+    mobile_app_image_ad: dict[str, object] = {"AdImageHash": image_hash}
     if erir_ad_description:
         mobile_app_image_ad["ErirAdDescription"] = erir_ad_description
     if tracking_url:
@@ -805,15 +874,16 @@ def get(
     "ad_type",
     default="TEXT_AD",
     help=(
-        "Ad type: TEXT_AD | TEXT_IMAGE_AD | MOBILE_APP_AD | RESPONSIVE_AD | "
-        "SHOPPING_AD | LISTING_AD | TEXT_AD_BUILDER_AD | "
+        "Ad type: TEXT_AD | TEXT_IMAGE_AD | MOBILE_APP_AD | DYNAMIC_TEXT_AD | "
+        "MOBILE_APP_IMAGE_AD | RESPONSIVE_AD | SHOPPING_AD | LISTING_AD | "
+        "TEXT_AD_BUILDER_AD | "
         "MOBILE_APP_AD_BUILDER_AD | MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD | "
         "CPC_VIDEO_AD_BUILDER_AD | CPM_BANNER_AD_BUILDER_AD | "
         "CPM_VIDEO_AD_BUILDER_AD"
     ),
 )
 @click.option("--title", help="Ad title (TEXT_AD / MOBILE_APP_AD)")
-@click.option("--text", help="Ad text (TEXT_AD / MOBILE_APP_AD)")
+@click.option("--text", help="Ad text (TEXT_AD / MOBILE_APP_AD / DYNAMIC_TEXT_AD)")
 @click.option("--titles", help="Comma-separated ResponsiveAd.Titles values")
 @click.option("--texts", help="Comma-separated ResponsiveAd.Texts values")
 @click.option(
@@ -824,7 +894,13 @@ def get(
         "CPM_VIDEO_AD_BUILDER_AD)"
     ),
 )
-@click.option("--image-hash", help="Ad image hash (TEXT_IMAGE_AD / MOBILE_APP_AD)")
+@click.option(
+    "--image-hash",
+    help=(
+        "Ad image hash (TEXT_IMAGE_AD / MOBILE_APP_AD / DYNAMIC_TEXT_AD / "
+        "MOBILE_APP_IMAGE_AD)"
+    ),
+)
 @click.option(
     "--image-hashes",
     help="Comma-separated ResponsiveAd.AdImageHashes values",
@@ -837,12 +913,21 @@ def get(
     "--tracking-url",
     help=(
         "Tracking URL (MOBILE_APP_AD / MOBILE_APP_AD_BUILDER_AD / "
-        "MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD)"
+        "MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD / MOBILE_APP_IMAGE_AD)"
     ),
 )
 @click.option(
     "--age-label",
     help="Age label (MOBILE_APP_AD MobAppAgeLabelEnum / RESPONSIVE_AD AgeLabelEnum)",
+)
+@click.option(
+    "--mobile-app-feature",
+    "mobile_app_features",
+    multiple=True,
+    help=(
+        "Repeatable MobileAppAd.Features item as FEATURE=YES|NO "
+        "(PRICE, ICON, CUSTOMER_RATING, RATINGS)"
+    ),
 )
 @click.option("--title2", help="Second headline (TEXT_AD)")
 @click.option("--display-url-path", help="Display URL path (TEXT_AD / RESPONSIVE_AD)")
@@ -852,11 +937,14 @@ def get(
     default="NO",
     help="Mobile-targeted flag (TEXT_AD)",
 )
-@click.option("--vcard-id", type=int, help="VCard ID (TEXT_AD)")
+@click.option("--vcard-id", type=int, help="VCard ID (TEXT_AD / DYNAMIC_TEXT_AD)")
 @click.option(
     "--sitelink-set-id",
     type=int,
-    help="Sitelink set ID (TEXT_AD / RESPONSIVE_AD / SHOPPING_AD / LISTING_AD)",
+    help=(
+        "Sitelink set ID "
+        "(TEXT_AD / DYNAMIC_TEXT_AD / RESPONSIVE_AD / SHOPPING_AD / LISTING_AD)"
+    ),
 )
 @click.option(
     "--turbo-page-id",
@@ -871,14 +959,14 @@ def get(
     "--ad-extensions",
     help=(
         "Comma-separated ad extension IDs "
-        "(TEXT_AD / RESPONSIVE_AD / SHOPPING_AD / LISTING_AD)"
+        "(TEXT_AD / DYNAMIC_TEXT_AD / RESPONSIVE_AD / SHOPPING_AD / LISTING_AD)"
     ),
 )
 @click.option("--final-url", help="FinalUrl (TEXT_AD / TEXT_AD_BUILDER_AD)")
 @click.option(
     "--video-extension-creative-id",
     type=int,
-    help="TextAd.VideoExtension.CreativeId (TEXT_AD)",
+    help="TextAd/MobileAppAd.VideoExtension.CreativeId (TEXT_AD / MOBILE_APP_AD)",
 )
 @click.option(
     "--price-extension-price",
@@ -931,7 +1019,10 @@ def get(
 )
 @click.option(
     "--erir-ad-description",
-    help=("ErirAdDescription (TEXT_AD / RESPONSIVE_AD / AdBuilder add subtypes)"),
+    help=(
+        "ErirAdDescription (TEXT_AD / MOBILE_APP_AD / MOBILE_APP_IMAGE_AD / "
+        "RESPONSIVE_AD / AdBuilder add subtypes)"
+    ),
 )
 @click.option(
     "--creative-id",
@@ -984,6 +1075,7 @@ def add(
     action,
     tracking_url,
     age_label,
+    mobile_app_features,
     title2,
     display_url_path,
     mobile,
@@ -1017,6 +1109,8 @@ def add(
             "TEXT_AD",
             "TEXT_IMAGE_AD",
             "MOBILE_APP_AD",
+            "DYNAMIC_TEXT_AD",
+            "MOBILE_APP_IMAGE_AD",
             "RESPONSIVE_AD",
             "SHOPPING_AD",
             "LISTING_AD",
@@ -1026,8 +1120,8 @@ def add(
             raise click.UsageError(
                 "Invalid value for '--type': "
                 f"{ad_type!r} is not one of "
-                "'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD', 'RESPONSIVE_AD', "
-                "'SHOPPING_AD', 'LISTING_AD', "
+                "'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD', 'DYNAMIC_TEXT_AD', "
+                "'MOBILE_APP_IMAGE_AD', 'RESPONSIVE_AD', 'SHOPPING_AD', 'LISTING_AD', "
                 "'TEXT_AD_BUILDER_AD', 'MOBILE_APP_AD_BUILDER_AD', "
                 "'MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD', 'CPC_VIDEO_AD_BUILDER_AD', "
                 "'CPM_BANNER_AD_BUILDER_AD', 'CPM_VIDEO_AD_BUILDER_AD'."
@@ -1089,14 +1183,9 @@ def add(
             "SHOPPING_AD": FEED_BASED_ADD_FIELDS,
             "LISTING_AD": FEED_BASED_ADD_FIELDS,
             **AD_BUILDER_ADD_TYPE_FIELDS,
-            "MOBILE_APP_AD": {
-                "title",
-                "text",
-                "image_hash",
-                "action",
-                "tracking_url",
-                "age_label",
-            },
+            "DYNAMIC_TEXT_AD": DYNAMIC_TEXT_AD_ADD_FIELDS,
+            "MOBILE_APP_AD": MOBILE_APP_AD_ADD_FIELDS,
+            "MOBILE_APP_IMAGE_AD": MOBILE_APP_IMAGE_AD_ADD_FIELDS,
         }
         provided = {
             "title": title,
@@ -1109,6 +1198,7 @@ def add(
             "action": action,
             "tracking_url": tracking_url,
             "age_label": age_label,
+            "mobile_app_features": mobile_app_features,
             "title2": title2,
             "display_url_path": display_url_path,
             "mobile": mobile_provided,
@@ -1145,6 +1235,7 @@ def add(
             "action": "--action",
             "tracking_url": "--tracking-url",
             "age_label": "--age-label",
+            "mobile_app_features": "--mobile-app-feature",
             "title2": "--title2",
             "display_url_path": "--display-url-path",
             "mobile": "--mobile",
@@ -1226,6 +1317,14 @@ def add(
             if erir_ad_description:
                 text_ad["ErirAdDescription"] = erir_ad_description
             ad_data["TextAd"] = text_ad
+        elif ad_type_norm == "DYNAMIC_TEXT_AD":
+            ad_data["DynamicTextAd"] = _build_dynamic_text_ad_add(
+                text,
+                image_hash,
+                vcard_id,
+                sitelink_set_id,
+                ad_extensions,
+            )
         elif ad_type_norm == "TEXT_IMAGE_AD":
             if title or text:
                 raise click.UsageError(
@@ -1357,7 +1456,22 @@ def add(
                 mobile_app_ad["TrackingUrl"] = tracking_url
             if age_label:
                 mobile_app_ad["AgeLabel"] = age_label.upper()
+            parsed_features = _parse_mobile_app_features(mobile_app_features)
+            if parsed_features:
+                mobile_app_ad["Features"] = parsed_features
+            if video_extension_creative_id is not None:
+                mobile_app_ad["VideoExtension"] = {
+                    "CreativeId": video_extension_creative_id
+                }
+            if erir_ad_description:
+                mobile_app_ad["ErirAdDescription"] = erir_ad_description
             ad_data["MobileAppAd"] = mobile_app_ad
+        elif ad_type_norm == "MOBILE_APP_IMAGE_AD":
+            ad_data["MobileAppImageAd"] = _build_mobile_app_image_ad_add(
+                image_hash,
+                erir_ad_description,
+                tracking_url,
+            )
 
         body = {"method": "add", "params": {"Ads": [ad_data]}}
 
