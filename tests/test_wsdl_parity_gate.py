@@ -953,6 +953,34 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("ads", "add", "TextImageAd.AdImageHash"): {"--image-hash"},
     ("ads", "add", "TextImageAd.Href"): {"--href"},
     ("ads", "add", "TextImageAd.TurboPageId"): {"--turbo-page-id"},
+    ("ads", "add", "ResponsiveAd"): {"--type"},
+    ("ads", "add", "ResponsiveAd.Texts"): {"--texts"},
+    ("ads", "add", "ResponsiveAd.Titles"): {"--titles"},
+    ("ads", "add", "ResponsiveAd.AdImageHashes"): {"--image-hashes"},
+    ("ads", "add", "ResponsiveAd.VideoExtensionIds"): {"--video-extension-ids"},
+    ("ads", "add", "ResponsiveAd.Href"): {"--href"},
+    ("ads", "add", "ResponsiveAd.AgeLabel"): {"--age-label"},
+    ("ads", "add", "ResponsiveAd.DisplayUrlPath"): {"--display-url-path"},
+    ("ads", "add", "ResponsiveAd.SitelinkSetId"): {"--sitelink-set-id"},
+    ("ads", "add", "ResponsiveAd.AdExtensionIds"): {"--ad-extensions"},
+    ("ads", "add", "ResponsiveAd.PriceExtension"): {
+        "--price-extension-price",
+        "--price-extension-old-price",
+        "--price-extension-price-qualifier",
+        "--price-extension-price-currency",
+    },
+    ("ads", "add", "ResponsiveAd.PriceExtension.Price"): {"--price-extension-price"},
+    ("ads", "add", "ResponsiveAd.PriceExtension.OldPrice"): {
+        "--price-extension-old-price"
+    },
+    ("ads", "add", "ResponsiveAd.PriceExtension.PriceQualifier"): {
+        "--price-extension-price-qualifier"
+    },
+    ("ads", "add", "ResponsiveAd.PriceExtension.PriceCurrency"): {
+        "--price-extension-price-currency"
+    },
+    ("ads", "add", "ResponsiveAd.BusinessId"): {"--business-id"},
+    ("ads", "add", "ResponsiveAd.ErirAdDescription"): {"--erir-ad-description"},
     ("ads", "update", "TextAd"): {"--type"},
     ("ads", "update", "TextAd.VCardId"): {"--vcard-id"},
     ("ads", "update", "TextAd.AdImageHash"): {"--image-hash"},
@@ -1858,11 +1886,6 @@ OPTIONAL_FIELD_DEFAULT_FOLLOWUPS: dict[tuple[str, str], dict[str, str]] = {
 }
 
 OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]] = {
-    ("ads", "add", "ResponsiveAd"): {
-        "status": "missing_followup",
-        "issue": "#274",
-        "note": "RESPONSIVE_AD add fields need typed support or N/A.",
-    },
     ("ads", "add", "ShoppingAd"): {
         "status": "missing_followup",
         "issue": "#275",

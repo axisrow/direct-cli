@@ -1094,6 +1094,194 @@ def test_ads_add_text_image_ad_default_mobile_does_not_leak():
     assert "Mobile" not in ad["TextImageAd"]
 
 
+def test_ads_add_responsive_ad_payload():
+    """Issue #274: RESPONSIVE_AD add builds the documented ResponsiveAd block."""
+    body = _dry_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "RESPONSIVE_AD",
+        "--texts",
+        "Text one,Text two",
+        "--titles",
+        "Title one,Title two",
+        "--image-hashes",
+        "hash-one,hash-two",
+        "--video-extension-ids",
+        "101,102",
+        "--sitelink-set-id",
+        "0",
+        "--ad-extensions",
+        "333,444",
+        "--href",
+        "https://example.com",
+        "--age-label",
+        "age_18",
+        "--display-url-path",
+        "deals",
+        "--price-extension-price",
+        "123.45",
+        "--price-extension-old-price",
+        "150.00",
+        "--price-extension-price-qualifier",
+        "from",
+        "--price-extension-price-currency",
+        "rub",
+        "--business-id",
+        "0",
+        "--erir-ad-description",
+        "Promoted object",
+    )
+    ad = body["params"]["Ads"][0]
+    assert "Type" not in ad
+    assert ad == {
+        "AdGroupId": 12345,
+        "ResponsiveAd": {
+            "Texts": ["Text one", "Text two"],
+            "Titles": ["Title one", "Title two"],
+            "AdImageHashes": ["hash-one", "hash-two"],
+            "VideoExtensionIds": [101, 102],
+            "SitelinkSetId": 0,
+            "AdExtensionIds": [333, 444],
+            "Href": "https://example.com",
+            "AgeLabel": "AGE_18",
+            "DisplayUrlPath": "deals",
+            "PriceExtension": {
+                "Price": 123450000,
+                "OldPrice": 150000000,
+                "PriceQualifier": "FROM",
+                "PriceCurrency": "RUB",
+            },
+            "BusinessId": 0,
+            "ErirAdDescription": "Promoted object",
+        },
+    }
+
+
+def test_ads_add_responsive_ad_requires_texts_and_titles():
+    """Issue #274: ResponsiveAdAdd requires Texts and Titles."""
+    result = _rejected(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "RESPONSIVE_AD",
+        "--texts",
+        "Text one",
+    )
+    assert "RESPONSIVE_AD requires --titles" in result.output
+
+
+def test_ads_add_responsive_ad_empty_texts_rejected():
+    """Issue #274: explicit empty list flags are rejected locally."""
+    result = _rejected(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "RESPONSIVE_AD",
+        "--texts",
+        "",
+        "--titles",
+        "Title one",
+        "--href",
+        "https://example.com",
+    )
+    assert "--texts must contain at least one value." in result.output
+
+
+def test_ads_add_responsive_ad_requires_href_or_business_id():
+    """Issue #274: ResponsiveAdAdd requires Href, BusinessId, or both."""
+    result = _rejected(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "RESPONSIVE_AD",
+        "--texts",
+        "Text one",
+        "--titles",
+        "Title one",
+    )
+    assert "RESPONSIVE_AD requires either --href or --business-id." in result.output
+
+
+def test_ads_add_responsive_ad_accepts_business_id_without_href():
+    """Issue #274: BusinessId alone satisfies the ResponsiveAd destination rule."""
+    body = _dry_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "RESPONSIVE_AD",
+        "--texts",
+        "Text one",
+        "--titles",
+        "Title one",
+        "--business-id",
+        "777",
+    )
+    assert body["params"]["Ads"][0]["ResponsiveAd"] == {
+        "Texts": ["Text one"],
+        "Titles": ["Title one"],
+        "BusinessId": 777,
+    }
+
+
+def test_ads_add_responsive_ad_price_extension_requires_mandatory_fields():
+    """Issue #274: ResponsiveAd.PriceExtension add has required children."""
+    result = _rejected(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "RESPONSIVE_AD",
+        "--texts",
+        "Text one",
+        "--titles",
+        "Title one",
+        "--href",
+        "https://example.com",
+        "--price-extension-old-price",
+        "150.00",
+    )
+    assert "ResponsiveAd.PriceExtension add requires" in result.output
+    assert "--price-extension-price" in result.output
+    assert "--price-extension-price-qualifier" in result.output
+    assert "--price-extension-price-currency" in result.output
+
+
+def test_ads_add_responsive_ad_rejects_other_subtype_flags():
+    """Issue #274: RESPONSIVE_AD add flags must honor subtype allow-lists."""
+    result = _rejected(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "RESPONSIVE_AD",
+        "--texts",
+        "Text one",
+        "--titles",
+        "Title one",
+        "--href",
+        "https://example.com",
+        "--video-extension-creative-id",
+        "777",
+    )
+    assert (
+        "--video-extension-creative-id is not compatible with --type RESPONSIVE_AD"
+        in result.output
+    )
+
+
 def test_ads_update_rejects_status_flag():
     """``--status`` is not part of WSDL ``AdUpdateItem`` (regression for #183).
 
