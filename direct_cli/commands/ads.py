@@ -35,6 +35,36 @@ FEED_BASED_UPDATE_FIELDS = {
 }
 
 
+AD_BUILDER_BASE_UPDATE_FIELDS = {
+    "creative_id",
+    "creative_erir_ad_description",
+    "erir_ad_description",
+}
+
+AD_BUILDER_TYPE_FIELDS = {
+    "TEXT_AD_BUILDER_AD": AD_BUILDER_BASE_UPDATE_FIELDS
+    | {"final_url", "href", "turbo_page_id"},
+    "MOBILE_APP_AD_BUILDER_AD": AD_BUILDER_BASE_UPDATE_FIELDS | {"tracking_url"},
+    "MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD": AD_BUILDER_BASE_UPDATE_FIELDS
+    | {"tracking_url"},
+    "CPC_VIDEO_AD_BUILDER_AD": AD_BUILDER_BASE_UPDATE_FIELDS
+    | {"href", "turbo_page_id"},
+    "CPM_BANNER_AD_BUILDER_AD": AD_BUILDER_BASE_UPDATE_FIELDS
+    | {"href", "tracking_pixels", "turbo_page_id"},
+    "CPM_VIDEO_AD_BUILDER_AD": AD_BUILDER_BASE_UPDATE_FIELDS
+    | {"href", "tracking_pixels", "turbo_page_id"},
+}
+
+AD_BUILDER_UPDATE_BLOCKS = {
+    "TEXT_AD_BUILDER_AD": "TextAdBuilderAd",
+    "MOBILE_APP_AD_BUILDER_AD": "MobileAppAdBuilderAd",
+    "MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD": "MobileAppCpcVideoAdBuilderAd",
+    "CPC_VIDEO_AD_BUILDER_AD": "CpcVideoAdBuilderAd",
+    "CPM_BANNER_AD_BUILDER_AD": "CpmBannerAdBuilderAd",
+    "CPM_VIDEO_AD_BUILDER_AD": "CpmVideoAdBuilderAd",
+}
+
+
 def _reject_incompatible_flags(
     ad_type: str,
     allowed_fields: set[str],
@@ -242,6 +272,47 @@ def _build_feed_based_ad_update(
     parsed_default_texts = _parse_required_csv_strings(default_texts, "--default-texts")
     if parsed_default_texts:
         ad_payload["DefaultTexts"] = parsed_default_texts
+
+    return ad_payload
+
+
+def _build_ad_builder_update(
+    creative_id: Optional[int],
+    creative_erir_ad_description: Optional[str],
+    erir_ad_description: Optional[str],
+    final_url: Optional[str],
+    href: Optional[str],
+    turbo_page_id: Optional[int],
+    tracking_url: Optional[str],
+    tracking_pixels: Optional[str],
+) -> dict[str, object]:
+    """Build an AdBuilder*Update payload from typed flags."""
+    ad_payload: dict[str, object] = {}
+
+    if creative_erir_ad_description and creative_id is None:
+        raise click.UsageError("--creative-erir-ad-description requires --creative-id.")
+    if creative_id is not None:
+        creative: dict[str, object] = {"CreativeId": creative_id}
+        if creative_erir_ad_description:
+            creative["ErirAdDescription"] = creative_erir_ad_description
+        ad_payload["Creative"] = creative
+
+    if erir_ad_description:
+        ad_payload["ErirAdDescription"] = erir_ad_description
+    if final_url:
+        ad_payload["FinalUrl"] = final_url
+    if href:
+        ad_payload["Href"] = href
+    if turbo_page_id is not None:
+        ad_payload["TurboPageId"] = turbo_page_id
+    if tracking_url:
+        ad_payload["TrackingUrl"] = tracking_url
+
+    parsed_tracking_pixels = _parse_required_csv_strings(
+        tracking_pixels, "--tracking-pixels"
+    )
+    if parsed_tracking_pixels:
+        ad_payload["TrackingPixels"] = {"Items": parsed_tracking_pixels}
 
     return ad_payload
 
@@ -637,7 +708,10 @@ def add(
     required=True,
     help=(
         "Ad subtype: TEXT_AD | TEXT_IMAGE_AD | MOBILE_APP_AD | "
-        "DYNAMIC_TEXT_AD | RESPONSIVE_AD | SHOPPING_AD | LISTING_AD"
+        "DYNAMIC_TEXT_AD | RESPONSIVE_AD | SHOPPING_AD | LISTING_AD | "
+        "TEXT_AD_BUILDER_AD | MOBILE_APP_AD_BUILDER_AD | "
+        "MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD | CPC_VIDEO_AD_BUILDER_AD | "
+        "CPM_BANNER_AD_BUILDER_AD | CPM_VIDEO_AD_BUILDER_AD"
     ),
 )
 @click.option(
@@ -651,7 +725,14 @@ def add(
 @click.option("--text", help="Text (TEXT_AD / MOBILE_APP_AD / DYNAMIC_TEXT_AD)")
 @click.option("--titles", help="Comma-separated ResponsiveAd.Titles values")
 @click.option("--texts", help="Comma-separated ResponsiveAd.Texts values")
-@click.option("--href", help="URL (TEXT_AD / TEXT_IMAGE_AD / RESPONSIVE_AD)")
+@click.option(
+    "--href",
+    help=(
+        "URL (TEXT_AD / TEXT_IMAGE_AD / RESPONSIVE_AD / "
+        "TEXT_AD_BUILDER_AD / CPC_VIDEO_AD_BUILDER_AD / "
+        "CPM_BANNER_AD_BUILDER_AD / CPM_VIDEO_AD_BUILDER_AD)"
+    ),
+)
 @click.option(
     "--image-hash",
     help="Image hash (TEXT_AD / TEXT_IMAGE_AD / MOBILE_APP_AD / DYNAMIC_TEXT_AD)",
@@ -664,7 +745,13 @@ def add(
     "--action",
     help="MOBILE_APP_AD call-to-action (MobileAppAdActionEnum, e.g. INSTALL)",
 )
-@click.option("--tracking-url", help="MOBILE_APP_AD tracking URL")
+@click.option(
+    "--tracking-url",
+    help=(
+        "Tracking URL (MOBILE_APP_AD / MOBILE_APP_AD_BUILDER_AD / "
+        "MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD)"
+    ),
+)
 @click.option(
     "--age-label",
     help="Age label (MOBILE_APP_AD MobAppAgeLabelEnum / RESPONSIVE_AD AgeLabelEnum)",
@@ -681,7 +768,13 @@ def add(
     ),
 )
 @click.option(
-    "--turbo-page-id", type=int, help="Turbo page ID (TEXT_AD / TEXT_IMAGE_AD)"
+    "--turbo-page-id",
+    type=int,
+    help=(
+        "Turbo page ID (TEXT_AD / TEXT_IMAGE_AD / TEXT_AD_BUILDER_AD / "
+        "CPC_VIDEO_AD_BUILDER_AD / CPM_BANNER_AD_BUILDER_AD / "
+        "CPM_VIDEO_AD_BUILDER_AD)"
+    ),
 )
 @click.option(
     "--callouts-add",
@@ -756,7 +849,24 @@ def add(
 )
 @click.option(
     "--erir-ad-description",
-    help="ResponsiveAd.ErirAdDescription",
+    help="ErirAdDescription for RESPONSIVE_AD and AdBuilder update subtypes",
+)
+@click.option(
+    "--creative-id",
+    type=int,
+    help="AdBuilder Creative.CreativeId for AdBuilder update subtypes",
+)
+@click.option(
+    "--creative-erir-ad-description",
+    help="AdBuilder Creative.ErirAdDescription; requires --creative-id",
+)
+@click.option(
+    "--final-url",
+    help="TextAdBuilderAd.FinalUrl",
+)
+@click.option(
+    "--tracking-pixels",
+    help="Comma-separated AdBuilder TrackingPixels.Items values",
 )
 @click.option(
     "--feed-filter-condition",
@@ -812,6 +922,10 @@ def update(
     price_extension_price_currency,
     business_id,
     erir_ad_description,
+    creative_id,
+    creative_erir_ad_description,
+    final_url,
+    tracking_pixels,
     feed_filter_conditions,
     title_sources,
     text_sources,
@@ -834,13 +948,17 @@ def update(
         "RESPONSIVE_AD",
         "SHOPPING_AD",
         "LISTING_AD",
+        *AD_BUILDER_UPDATE_BLOCKS,
     }
     if ad_type_norm not in supported_types:
         raise click.UsageError(
             "Invalid value for '--type': "
             f"{ad_type!r} is not one of "
             "'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD', 'DYNAMIC_TEXT_AD', "
-            "'RESPONSIVE_AD', 'SHOPPING_AD', 'LISTING_AD'."
+            "'RESPONSIVE_AD', 'SHOPPING_AD', 'LISTING_AD', "
+            "'TEXT_AD_BUILDER_AD', 'MOBILE_APP_AD_BUILDER_AD', "
+            "'MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD', 'CPC_VIDEO_AD_BUILDER_AD', "
+            "'CPM_BANNER_AD_BUILDER_AD', 'CPM_VIDEO_AD_BUILDER_AD'."
         )
 
     # Per-WSDL-subtype field allow-list: each --type accepts only the
@@ -907,6 +1025,7 @@ def update(
         },
         "SHOPPING_AD": FEED_BASED_UPDATE_FIELDS,
         "LISTING_AD": FEED_BASED_UPDATE_FIELDS,
+        **AD_BUILDER_TYPE_FIELDS,
     }
     provided = {
         "title": title,
@@ -935,6 +1054,10 @@ def update(
         "price_extension_price_currency": price_extension_price_currency,
         "business_id": business_id,
         "erir_ad_description": erir_ad_description,
+        "creative_id": creative_id,
+        "creative_erir_ad_description": creative_erir_ad_description,
+        "final_url": final_url,
+        "tracking_pixels": tracking_pixels,
         "feed_filter_conditions": feed_filter_conditions,
         "title_sources": title_sources,
         "text_sources": text_sources,
@@ -967,6 +1090,10 @@ def update(
         "price_extension_price_currency": "--price-extension-price-currency",
         "business_id": "--business-id",
         "erir_ad_description": "--erir-ad-description",
+        "creative_id": "--creative-id",
+        "creative_erir_ad_description": "--creative-erir-ad-description",
+        "final_url": "--final-url",
+        "tracking_pixels": "--tracking-pixels",
         "feed_filter_conditions": "--feed-filter-condition",
         "title_sources": "--title-sources",
         "text_sources": "--text-sources",
@@ -1089,6 +1216,19 @@ def update(
         if feed_based_ad:
             field_name = "ShoppingAd" if ad_type_norm == "SHOPPING_AD" else "ListingAd"
             ad_data[field_name] = feed_based_ad
+    elif ad_type_norm in AD_BUILDER_UPDATE_BLOCKS:
+        ad_builder_ad = _build_ad_builder_update(
+            creative_id,
+            creative_erir_ad_description,
+            erir_ad_description,
+            final_url,
+            href,
+            turbo_page_id,
+            tracking_url,
+            tracking_pixels,
+        )
+        if ad_builder_ad:
+            ad_data[AD_BUILDER_UPDATE_BLOCKS[ad_type_norm]] = ad_builder_ad
 
     # Reject empty-subtype no-ops: ``{Id: N}`` with no subtype block
     # is a silent no-op on the live API (issue #198 H1).

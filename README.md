@@ -416,6 +416,8 @@ direct ads update --id 99999 --type TEXT_AD --video-extension-creative-id 777 --
 direct ads update --id 99999 --type DYNAMIC_TEXT_AD --text "Updated dynamic text" --callouts-add "111,222"
 direct ads update --id 99999 --type RESPONSIVE_AD --texts "Text one,Text two" --titles "Title one,Title two" --image-hashes hash1,hash2 --video-extension-ids 111,222 --href "https://example.com" --price-extension-price 123450000 --price-extension-price-qualifier FROM --price-extension-price-currency RUB
 direct ads update --id 99999 --type SHOPPING_AD --sitelink-set-id 222 --callouts-set "444,555" --business-id 777 --feed-filter-condition "CATEGORY:EQUALS_ANY:shoes|boots" --title-sources NAME,BRAND --text-sources DESCRIPTION --default-texts "Default product text"
+direct ads update --id 99999 --type TEXT_AD_BUILDER_AD --creative-id 123 --creative-erir-ad-description "Creative object" --href "https://example.com" --turbo-page-id 456
+direct ads update --id 99999 --type CPM_BANNER_AD_BUILDER_AD --creative-id 123 --href "https://example.com" --tracking-pixels "https://pixel.example.com/a,https://pixel.example.com/b"
 direct ads delete --id 99999
 ```
 
@@ -442,6 +444,9 @@ SHOPPING_AD and LISTING_AD update support `--sitelink-set-id`,
 `--callouts-*`, `--business-id`, repeatable `--feed-filter-condition`
 (`OPERAND:OPERATOR:ARG1|ARG2`), `--title-sources`, `--text-sources`, and
 `--default-texts`.
+AdBuilder update subtypes support `--creative-id`, `--creative-erir-ad-description`,
+`--erir-ad-description`, and subtype-specific `--final-url`, `--href`,
+`--turbo-page-id`, `--tracking-url`, and `--tracking-pixels`.
 
 #### Keywords
 
@@ -1158,6 +1163,8 @@ direct ads update --id 99999 --type TEXT_AD --video-extension-creative-id 777 --
 direct ads update --id 99999 --type DYNAMIC_TEXT_AD --text "Обновленный динамический текст" --callouts-add "111,222"
 direct ads update --id 99999 --type RESPONSIVE_AD --texts "Текст один,Текст два" --titles "Заголовок один,Заголовок два" --image-hashes hash1,hash2 --video-extension-ids 111,222 --href "https://example.com" --price-extension-price 123450000 --price-extension-price-qualifier FROM --price-extension-price-currency RUB
 direct ads update --id 99999 --type SHOPPING_AD --sitelink-set-id 222 --callouts-set "444,555" --business-id 777 --feed-filter-condition "CATEGORY:EQUALS_ANY:shoes|boots" --title-sources NAME,BRAND --text-sources DESCRIPTION --default-texts "Текст по умолчанию"
+direct ads update --id 99999 --type TEXT_AD_BUILDER_AD --creative-id 123 --creative-erir-ad-description "Объект креатива" --href "https://example.com" --turbo-page-id 456
+direct ads update --id 99999 --type CPM_BANNER_AD_BUILDER_AD --creative-id 123 --href "https://example.com" --tracking-pixels "https://pixel.example.com/a,https://pixel.example.com/b"
 direct ads delete --id 99999
 ```
 
@@ -1186,6 +1193,10 @@ long-единиц API Яндекс Директа (цена, умноженна�
 `--callouts-*`, `--business-id`, повторяемый `--feed-filter-condition`
 (`OPERAND:OPERATOR:ARG1|ARG2`), `--title-sources`, `--text-sources` и
 `--default-texts`.
+Для AdBuilder subtype в `ads update` доступны `--creative-id`,
+`--creative-erir-ad-description`, `--erir-ad-description` и subtype-specific
+`--final-url`, `--href`, `--turbo-page-id`, `--tracking-url`,
+`--tracking-pixels`.
 
 #### Ключевые слова
 

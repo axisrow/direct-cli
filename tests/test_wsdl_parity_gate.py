@@ -1135,6 +1135,99 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("ads", "update", "ListingAd.TextSources"): {"--text-sources"},
     ("ads", "update", "ListingAd.TextSources.Items"): {"--text-sources"},
     ("ads", "update", "ListingAd.DefaultTexts"): {"--default-texts"},
+    ("ads", "update", "MobileAppCpcVideoAdBuilderAd"): {"--type"},
+    ("ads", "update", "MobileAppCpcVideoAdBuilderAd.Creative"): {
+        "--creative-id",
+        "--creative-erir-ad-description",
+    },
+    ("ads", "update", "MobileAppCpcVideoAdBuilderAd.Creative.CreativeId"): {
+        "--creative-id"
+    },
+    (
+        "ads",
+        "update",
+        "MobileAppCpcVideoAdBuilderAd.Creative.ErirAdDescription",
+    ): {"--creative-erir-ad-description"},
+    ("ads", "update", "MobileAppCpcVideoAdBuilderAd.ErirAdDescription"): {
+        "--erir-ad-description"
+    },
+    ("ads", "update", "MobileAppCpcVideoAdBuilderAd.TrackingUrl"): {"--tracking-url"},
+    ("ads", "update", "TextAdBuilderAd"): {"--type"},
+    ("ads", "update", "TextAdBuilderAd.Creative"): {
+        "--creative-id",
+        "--creative-erir-ad-description",
+    },
+    ("ads", "update", "TextAdBuilderAd.Creative.CreativeId"): {"--creative-id"},
+    ("ads", "update", "TextAdBuilderAd.Creative.ErirAdDescription"): {
+        "--creative-erir-ad-description"
+    },
+    ("ads", "update", "TextAdBuilderAd.ErirAdDescription"): {"--erir-ad-description"},
+    ("ads", "update", "TextAdBuilderAd.FinalUrl"): {"--final-url"},
+    ("ads", "update", "TextAdBuilderAd.Href"): {"--href"},
+    ("ads", "update", "TextAdBuilderAd.TurboPageId"): {"--turbo-page-id"},
+    ("ads", "update", "MobileAppAdBuilderAd"): {"--type"},
+    ("ads", "update", "MobileAppAdBuilderAd.Creative"): {
+        "--creative-id",
+        "--creative-erir-ad-description",
+    },
+    ("ads", "update", "MobileAppAdBuilderAd.Creative.CreativeId"): {"--creative-id"},
+    ("ads", "update", "MobileAppAdBuilderAd.Creative.ErirAdDescription"): {
+        "--creative-erir-ad-description"
+    },
+    ("ads", "update", "MobileAppAdBuilderAd.ErirAdDescription"): {
+        "--erir-ad-description"
+    },
+    ("ads", "update", "MobileAppAdBuilderAd.TrackingUrl"): {"--tracking-url"},
+    ("ads", "update", "CpcVideoAdBuilderAd"): {"--type"},
+    ("ads", "update", "CpcVideoAdBuilderAd.Creative"): {
+        "--creative-id",
+        "--creative-erir-ad-description",
+    },
+    ("ads", "update", "CpcVideoAdBuilderAd.Creative.CreativeId"): {"--creative-id"},
+    ("ads", "update", "CpcVideoAdBuilderAd.Creative.ErirAdDescription"): {
+        "--creative-erir-ad-description"
+    },
+    ("ads", "update", "CpcVideoAdBuilderAd.ErirAdDescription"): {
+        "--erir-ad-description"
+    },
+    ("ads", "update", "CpcVideoAdBuilderAd.Href"): {"--href"},
+    ("ads", "update", "CpcVideoAdBuilderAd.TurboPageId"): {"--turbo-page-id"},
+    ("ads", "update", "CpmBannerAdBuilderAd"): {"--type"},
+    ("ads", "update", "CpmBannerAdBuilderAd.Creative"): {
+        "--creative-id",
+        "--creative-erir-ad-description",
+    },
+    ("ads", "update", "CpmBannerAdBuilderAd.Creative.CreativeId"): {"--creative-id"},
+    ("ads", "update", "CpmBannerAdBuilderAd.Creative.ErirAdDescription"): {
+        "--creative-erir-ad-description"
+    },
+    ("ads", "update", "CpmBannerAdBuilderAd.ErirAdDescription"): {
+        "--erir-ad-description"
+    },
+    ("ads", "update", "CpmBannerAdBuilderAd.Href"): {"--href"},
+    ("ads", "update", "CpmBannerAdBuilderAd.TrackingPixels"): {"--tracking-pixels"},
+    ("ads", "update", "CpmBannerAdBuilderAd.TrackingPixels.Items"): {
+        "--tracking-pixels"
+    },
+    ("ads", "update", "CpmBannerAdBuilderAd.TurboPageId"): {"--turbo-page-id"},
+    ("ads", "update", "CpmVideoAdBuilderAd"): {"--type"},
+    ("ads", "update", "CpmVideoAdBuilderAd.Creative"): {
+        "--creative-id",
+        "--creative-erir-ad-description",
+    },
+    ("ads", "update", "CpmVideoAdBuilderAd.Creative.CreativeId"): {"--creative-id"},
+    ("ads", "update", "CpmVideoAdBuilderAd.Creative.ErirAdDescription"): {
+        "--creative-erir-ad-description"
+    },
+    ("ads", "update", "CpmVideoAdBuilderAd.ErirAdDescription"): {
+        "--erir-ad-description"
+    },
+    ("ads", "update", "CpmVideoAdBuilderAd.Href"): {"--href"},
+    ("ads", "update", "CpmVideoAdBuilderAd.TrackingPixels"): {"--tracking-pixels"},
+    ("ads", "update", "CpmVideoAdBuilderAd.TrackingPixels.Items"): {
+        "--tracking-pixels"
+    },
+    ("ads", "update", "CpmVideoAdBuilderAd.TurboPageId"): {"--turbo-page-id"},
     ("campaigns", "add", "DailyBudget"): {"--budget"},
     ("campaigns", "add", "DailyBudget.Amount"): {"--budget"},
     ("campaigns", "add", "DailyBudget.Mode"): {"--budget"},
@@ -1773,36 +1866,6 @@ OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]
         "status": "missing_followup",
         "issue": "#278",
         "note": "SMART_AD_BUILDER_AD add fields need typed support or N/A.",
-    },
-    ("ads", "update", "TextAdBuilderAd"): {
-        "status": "missing_followup",
-        "issue": "#270",
-        "note": "AdBuilder update subtype fields need typed support or N/A.",
-    },
-    ("ads", "update", "MobileAppAdBuilderAd"): {
-        "status": "missing_followup",
-        "issue": "#270",
-        "note": "AdBuilder update subtype fields need typed support or N/A.",
-    },
-    ("ads", "update", "CpcVideoAdBuilderAd"): {
-        "status": "missing_followup",
-        "issue": "#270",
-        "note": "AdBuilder update subtype fields need typed support or N/A.",
-    },
-    ("ads", "update", "CpmBannerAdBuilderAd"): {
-        "status": "missing_followup",
-        "issue": "#270",
-        "note": "AdBuilder update subtype fields need typed support or N/A.",
-    },
-    ("ads", "update", "CpmVideoAdBuilderAd"): {
-        "status": "missing_followup",
-        "issue": "#270",
-        "note": "AdBuilder update subtype fields need typed support or N/A.",
-    },
-    ("ads", "update", "MobileAppCpcVideoAdBuilderAd"): {
-        "status": "missing_followup",
-        "issue": "#270",
-        "note": "AdBuilder update subtype fields need typed support or N/A.",
     },
     ("ads", "update", "SmartAdBuilderAd"): {
         "status": "missing_followup",
