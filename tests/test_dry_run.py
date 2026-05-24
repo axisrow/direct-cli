@@ -1134,6 +1134,124 @@ def test_ads_update_text_ad_with_vcard_sitelink():
     assert text_ad == {"VCardId": 111, "SitelinkSetId": 222}
 
 
+def test_ads_update_dynamic_text_ad_payload():
+    """Issue #267: DYNAMIC_TEXT_AD update builds DynamicTextAd block only."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "DYNAMIC_TEXT_AD",
+        "--text",
+        "Updated dynamic text",
+        "--vcard-id",
+        "111",
+        "--image-hash",
+        "ygqa6jmlkgsbz7vnewp0",
+        "--sitelink-set-id",
+        "222",
+        "--callouts-add",
+        "333",
+        "--callouts-remove",
+        "444",
+    )
+    ad = body["params"]["Ads"][0]
+    assert ad == {
+        "Id": 999,
+        "DynamicTextAd": {
+            "VCardId": 111,
+            "AdImageHash": "ygqa6jmlkgsbz7vnewp0",
+            "SitelinkSetId": 222,
+            "CalloutSetting": {
+                "AdExtensions": [
+                    {"AdExtensionId": 333, "Operation": "ADD"},
+                    {"AdExtensionId": 444, "Operation": "REMOVE"},
+                ]
+            },
+            "Text": "Updated dynamic text",
+        },
+    }
+    assert "TextAd" not in ad
+
+
+def test_ads_update_dynamic_text_ad_callouts_set_payload():
+    """Issue #267: DynamicTextAd.CalloutSetting supports SET operation."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "DYNAMIC_TEXT_AD",
+        "--callouts-set",
+        "111,222",
+    )
+    assert body["params"]["Ads"][0] == {
+        "Id": 999,
+        "DynamicTextAd": {
+            "CalloutSetting": {
+                "AdExtensions": [
+                    {"AdExtensionId": 111, "Operation": "SET"},
+                    {"AdExtensionId": 222, "Operation": "SET"},
+                ]
+            }
+        },
+    }
+
+
+def test_ads_update_dynamic_text_ad_rejects_text_ad_only_flag():
+    """Issue #267: --type DYNAMIC_TEXT_AD cannot silently drop TextAd fields."""
+    result = _rejected(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "DYNAMIC_TEXT_AD",
+        "--title2",
+        "Text ad only",
+    )
+    assert "--title2 is not compatible with --type DYNAMIC_TEXT_AD" in result.output
+    assert "does not convert an ad between subtypes" in result.output
+
+
+def test_ads_update_dynamic_text_ad_noop_rejected():
+    """Issue #267: DYNAMIC_TEXT_AD update without fields stays a no-op error."""
+    result = _rejected(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "DYNAMIC_TEXT_AD",
+    )
+    assert (
+        "ads update requires at least one updatable field for --type DYNAMIC_TEXT_AD"
+        in result.output
+    )
+
+
+def test_ads_update_dynamic_text_ad_zero_ids_are_not_silently_dropped():
+    """Issue #267: integer flags use presence, not truthiness, in the payload."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "DYNAMIC_TEXT_AD",
+        "--vcard-id",
+        "0",
+        "--sitelink-set-id",
+        "0",
+    )
+    assert body["params"]["Ads"][0] == {
+        "Id": 999,
+        "DynamicTextAd": {"VCardId": 0, "SitelinkSetId": 0},
+    }
+
+
 def test_ads_update_text_ad_with_turbo_page_id():
     """Issue #202: update sets TurboPageId in TextAd."""
     body = _dry_run(

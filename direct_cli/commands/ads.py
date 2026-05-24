@@ -2,6 +2,8 @@
 Ads commands
 """
 
+from typing import Optional
+
 import click
 
 from ..api import create_client
@@ -35,7 +37,7 @@ def _reject_incompatible_flags(
 
 
 def _build_callout_setting(callouts_add, callouts_remove, callouts_set):
-    """Build TextAdUpdateBase.CalloutSetting (ext:AdExtensionSetting).
+    """Build AdExtensionSetting for text-like ad update payloads.
 
     SET is mutually exclusive with ADD/REMOVE per WSDL OperationEnum
     semantics. Returns None when no callout flag was provided.
@@ -68,6 +70,25 @@ def _build_callout_setting(callouts_add, callouts_remove, callouts_set):
     if not items:
         return None
     return {"AdExtensions": items}
+
+
+def _build_text_ad_update_base(
+    vcard_id: Optional[int],
+    image_hash: Optional[str],
+    sitelink_set_id: Optional[int],
+    callout_setting: Optional[dict[str, object]],
+) -> dict[str, object]:
+    """Build fields inherited from WSDL TextAdUpdateBase."""
+    text_ad_base: dict[str, object] = {}
+    if vcard_id is not None:
+        text_ad_base["VCardId"] = vcard_id
+    if image_hash:
+        text_ad_base["AdImageHash"] = image_hash
+    if sitelink_set_id is not None:
+        text_ad_base["SitelinkSetId"] = sitelink_set_id
+    if callout_setting:
+        text_ad_base["CalloutSetting"] = callout_setting
+    return text_ad_base
 
 
 def _build_price_extension(
@@ -478,7 +499,7 @@ def add(
     "--type",
     "ad_type",
     required=True,
-    help="Ad subtype: TEXT_AD | TEXT_IMAGE_AD | MOBILE_APP_AD",
+    help="Ad subtype: TEXT_AD | TEXT_IMAGE_AD | MOBILE_APP_AD | DYNAMIC_TEXT_AD",
 )
 @click.option(
     "--status",
@@ -488,10 +509,11 @@ def add(
     ),
 )
 @click.option("--title", help="Title (TEXT_AD / MOBILE_APP_AD)")
-@click.option("--text", help="Text (TEXT_AD / MOBILE_APP_AD)")
+@click.option("--text", help="Text (TEXT_AD / MOBILE_APP_AD / DYNAMIC_TEXT_AD)")
 @click.option("--href", help="URL (TEXT_AD / TEXT_IMAGE_AD)")
 @click.option(
-    "--image-hash", help="Image hash (TEXT_AD / TEXT_IMAGE_AD / MOBILE_APP_AD)"
+    "--image-hash",
+    help="Image hash (TEXT_AD / TEXT_IMAGE_AD / MOBILE_APP_AD / DYNAMIC_TEXT_AD)",
 )
 @click.option(
     "--action",
@@ -501,8 +523,12 @@ def add(
 @click.option("--age-label", help="MOBILE_APP_AD age label (MobAppAgeLabelEnum)")
 @click.option("--title2", help="Second headline (TEXT_AD)")
 @click.option("--display-url-path", help="Display URL path (TEXT_AD)")
-@click.option("--vcard-id", type=int, help="VCard ID (TEXT_AD)")
-@click.option("--sitelink-set-id", type=int, help="Sitelink set ID (TEXT_AD)")
+@click.option("--vcard-id", type=int, help="VCard ID (TEXT_AD / DYNAMIC_TEXT_AD)")
+@click.option(
+    "--sitelink-set-id",
+    type=int,
+    help="Sitelink set ID (TEXT_AD / DYNAMIC_TEXT_AD)",
+)
 @click.option(
     "--turbo-page-id", type=int, help="Turbo page ID (TEXT_AD / TEXT_IMAGE_AD)"
 )
@@ -510,14 +536,14 @@ def add(
     "--callouts-add",
     help=(
         "Comma-separated CALLOUT ad-extension IDs to attach "
-        "(Operation=ADD). TEXT_AD only."
+        "(Operation=ADD). TEXT_AD / DYNAMIC_TEXT_AD only."
     ),
 )
 @click.option(
     "--callouts-remove",
     help=(
         "Comma-separated CALLOUT ad-extension IDs to detach "
-        "(Operation=REMOVE). TEXT_AD only."
+        "(Operation=REMOVE). TEXT_AD / DYNAMIC_TEXT_AD only."
     ),
 )
 @click.option(
@@ -525,7 +551,7 @@ def add(
     help=(
         "Comma-separated CALLOUT ad-extension IDs that REPLACE the ad's "
         "current callout list (Operation=SET). Mutually exclusive with "
-        "--callouts-add / --callouts-remove. TEXT_AD only."
+        "--callouts-add / --callouts-remove. TEXT_AD / DYNAMIC_TEXT_AD only."
     ),
 )
 @click.option(
@@ -599,12 +625,12 @@ def update(
         )
 
     ad_type_norm = ad_type.upper().replace("-", "_")
-    supported_types = {"TEXT_AD", "TEXT_IMAGE_AD", "MOBILE_APP_AD"}
+    supported_types = {"TEXT_AD", "TEXT_IMAGE_AD", "MOBILE_APP_AD", "DYNAMIC_TEXT_AD"}
     if ad_type_norm not in supported_types:
         raise click.UsageError(
             "Invalid value for '--type': "
             f"{ad_type!r} is not one of "
-            "'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD'."
+            "'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD', 'DYNAMIC_TEXT_AD'."
         )
 
     # Per-WSDL-subtype field allow-list: each --type accepts only the
@@ -631,6 +657,15 @@ def update(
             "price_extension_old_price",
             "price_extension_price_qualifier",
             "price_extension_price_currency",
+        },
+        "DYNAMIC_TEXT_AD": {
+            "text",
+            "image_hash",
+            "vcard_id",
+            "sitelink_set_id",
+            "callouts_add",
+            "callouts_remove",
+            "callouts_set",
         },
         "TEXT_IMAGE_AD": {"image_hash", "href", "turbo_page_id"},
         "MOBILE_APP_AD": {
@@ -712,33 +747,41 @@ def update(
     ad_data = {"Id": ad_id}
 
     if ad_type_norm == "TEXT_AD":
-        text_ad = {}
+        text_ad = _build_text_ad_update_base(
+            vcard_id,
+            image_hash,
+            sitelink_set_id,
+            callout_setting,
+        )
         if title:
             text_ad["Title"] = title
         if text:
             text_ad["Text"] = text
         if href:
             text_ad["Href"] = href
-        if image_hash:
-            text_ad["AdImageHash"] = image_hash
         if title2:
             text_ad["Title2"] = title2
         if display_url_path:
             text_ad["DisplayUrlPath"] = display_url_path
-        if vcard_id:
-            text_ad["VCardId"] = vcard_id
-        if sitelink_set_id:
-            text_ad["SitelinkSetId"] = sitelink_set_id
         if turbo_page_id:
             text_ad["TurboPageId"] = turbo_page_id
-        if callout_setting:
-            text_ad["CalloutSetting"] = callout_setting
         if video_extension_creative_id is not None:
             text_ad["VideoExtension"] = {"CreativeId": video_extension_creative_id}
         if price_extension:
             text_ad["PriceExtension"] = price_extension
         if text_ad:
             ad_data["TextAd"] = text_ad
+    elif ad_type_norm == "DYNAMIC_TEXT_AD":
+        dynamic_text_ad = _build_text_ad_update_base(
+            vcard_id,
+            image_hash,
+            sitelink_set_id,
+            callout_setting,
+        )
+        if text:
+            dynamic_text_ad["Text"] = text
+        if dynamic_text_ad:
+            ad_data["DynamicTextAd"] = dynamic_text_ad
     elif ad_type_norm == "TEXT_IMAGE_AD":
         text_image_ad = {}
         if image_hash:

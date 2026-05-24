@@ -267,7 +267,13 @@ class TestCLI(unittest.TestCase):
         # Click may wrap the help text across lines, so collapse whitespace
         # before searching for the canonical phrase.
         collapsed = " ".join(result.output.split())
-        self.assertIn("Image hash (TEXT_AD / TEXT_IMAGE_AD / MOBILE_APP_AD)", collapsed)
+        self.assertIn(
+            "Image hash (TEXT_AD / TEXT_IMAGE_AD / MOBILE_APP_AD / DYNAMIC_TEXT_AD)",
+            collapsed,
+        )
+        self.assertIn(
+            "TEXT_AD | TEXT_IMAGE_AD | MOBILE_APP_AD | DYNAMIC_TEXT_AD", collapsed
+        )
 
     def test_clients_update_help_documents_erir_organization_flags(self):
         result = self.runner.invoke(cli, ["clients", "update", "--help"])
