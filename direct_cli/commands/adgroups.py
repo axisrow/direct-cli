@@ -20,9 +20,16 @@ _SUPPORTED_ADGROUP_TYPES = (
     "TEXT_AD_GROUP",
     "DYNAMIC_TEXT_AD_GROUP",
     "DYNAMIC_TEXT_FEED_AD_GROUP",
+    "CPM_BANNER_KEYWORDS_AD_GROUP",
+    "CPM_BANNER_USER_PROFILE_AD_GROUP",
+    "CPM_VIDEO_AD_GROUP",
     "SMART_AD_GROUP",
     "MOBILE_APP_AD_GROUP",
 )
+_NEGATIVE_KEYWORDS_UNSUPPORTED_ADGROUP_TYPES = {
+    "CPM_BANNER_USER_PROFILE_AD_GROUP",
+    "CPM_VIDEO_AD_GROUP",
+}
 _TARGET_DEVICE_TYPES = ("DEVICE_TYPE_MOBILE", "DEVICE_TYPE_TABLET")
 _TARGET_CARRIERS = ("WI_FI_ONLY", "WI_FI_AND_CELLULAR")
 _AUTOTARGETING_CATEGORIES = (
@@ -71,6 +78,29 @@ def _validate_tracking_params(tracking_params: Optional[str]) -> None:
         raise click.UsageError(
             "--tracking-params must be at most "
             f"{_TRACKING_PARAMS_MAX_LENGTH} characters"
+        )
+
+
+def _reject_unsupported_negative_keywords(
+    group_type: str,
+    *,
+    negative_keywords: Optional[str],
+    negative_keyword_shared_set_ids: Optional[str],
+) -> None:
+    """Reject negative keyword flags for ad group types that docs disallow."""
+    if group_type not in _NEGATIVE_KEYWORDS_UNSUPPORTED_ADGROUP_TYPES:
+        return
+
+    unsupported_flags = []
+    if negative_keywords is not None:
+        unsupported_flags.append("--negative-keywords")
+    if negative_keyword_shared_set_ids is not None:
+        unsupported_flags.append("--negative-keyword-shared-set-ids")
+
+    if unsupported_flags:
+        raise click.UsageError(
+            f"{', '.join(unsupported_flags)} is not compatible with --type "
+            f"{group_type}."
         )
 
 
@@ -480,7 +510,9 @@ def get(
     default="TEXT_AD_GROUP",
     help=(
         "Ad group type: TEXT_AD_GROUP, DYNAMIC_TEXT_AD_GROUP, "
-        "DYNAMIC_TEXT_FEED_AD_GROUP, SMART_AD_GROUP, or MOBILE_APP_AD_GROUP"
+        "DYNAMIC_TEXT_FEED_AD_GROUP, CPM_BANNER_KEYWORDS_AD_GROUP, "
+        "CPM_BANNER_USER_PROFILE_AD_GROUP, CPM_VIDEO_AD_GROUP, "
+        "SMART_AD_GROUP, or MOBILE_APP_AD_GROUP"
     ),
 )
 @click.option(
@@ -572,13 +604,17 @@ def get(
 )
 @click.option(
     "--negative-keywords",
-    help="Comma-separated ad-group negative keywords for NegativeKeywords.Items",
+    help=(
+        "Comma-separated ad-group negative keywords for NegativeKeywords.Items; "
+        "not compatible with CPM user-profile or video groups"
+    ),
 )
 @click.option(
     "--negative-keyword-shared-set-ids",
     help=(
         "Comma-separated negative keyword shared set IDs for "
-        "NegativeKeywordSharedSetIds.Items"
+        "NegativeKeywordSharedSetIds.Items; not compatible with CPM "
+        "user-profile or video groups"
     ),
 )
 @click.option(
@@ -634,6 +670,9 @@ def add(
             "TEXT_AD_GROUP": set(),
             "DYNAMIC_TEXT_AD_GROUP": _DYNAMIC_TEXT_ADGROUP_FLAGS,
             "DYNAMIC_TEXT_FEED_AD_GROUP": _DYNAMIC_TEXT_FEED_ADGROUP_FLAGS,
+            "CPM_BANNER_KEYWORDS_AD_GROUP": set(),
+            "CPM_BANNER_USER_PROFILE_AD_GROUP": set(),
+            "CPM_VIDEO_AD_GROUP": set(),
             "SMART_AD_GROUP": {"--feed-id", "--ad-title-source", "--ad-body-source"},
             "MOBILE_APP_AD_GROUP": {
                 "--store-url",
@@ -674,6 +713,11 @@ def add(
                 "--target-carrier": target_carrier,
                 "--target-operating-system-version": target_operating_system_version,
             },
+        )
+        _reject_unsupported_negative_keywords(
+            group_type_norm,
+            negative_keywords=negative_keywords,
+            negative_keyword_shared_set_ids=negative_keyword_shared_set_ids,
         )
 
         adgroup_data = {"Name": name, "CampaignId": campaign_id}
@@ -723,6 +767,12 @@ def add(
             )
             if dynamic_text_feed_adgroup:
                 adgroup_data["DynamicTextFeedAdGroup"] = dynamic_text_feed_adgroup
+        elif group_type_norm == "CPM_BANNER_KEYWORDS_AD_GROUP":
+            adgroup_data["CpmBannerKeywordsAdGroup"] = {}
+        elif group_type_norm == "CPM_BANNER_USER_PROFILE_AD_GROUP":
+            adgroup_data["CpmBannerUserProfileAdGroup"] = {}
+        elif group_type_norm == "CPM_VIDEO_AD_GROUP":
+            adgroup_data["CpmVideoAdGroup"] = {}
         elif group_type_norm == "SMART_AD_GROUP":
             if feed_id is None:
                 raise click.UsageError("--feed-id is required for SMART_AD_GROUP")

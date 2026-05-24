@@ -11,9 +11,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2652 |
+| `missing_followup` | 2649 |
 | `not_applicable` | 23 |
-| `supported` | 566 |
+| `supported` | 569 |
 
 ## Confirmed Follow-Ups
 
@@ -30,9 +30,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `adgroups.add` | `DynamicTextFeedAdGroup.AutotargetingSettings.BrandOptions.WithoutBrands` | Official adgroups.add docs for DynamicTextFeedAdGroupAdd list FeedId and AutotargetingCategories only. [#281](https://github.com/axisrow/direct-cli/issues/281); inherited from `DynamicTextFeedAdGroup.AutotargetingSettings` |
 | `adgroups.add` | `DynamicTextFeedAdGroup.AutotargetingSettings.BrandOptions.WithAdvertiserBrand` | Official adgroups.add docs for DynamicTextFeedAdGroupAdd list FeedId and AutotargetingCategories only. [#281](https://github.com/axisrow/direct-cli/issues/281); inherited from `DynamicTextFeedAdGroup.AutotargetingSettings` |
 | `adgroups.add` | `DynamicTextFeedAdGroup.AutotargetingSettings.BrandOptions.WithCompetitorsBrand` | Official adgroups.add docs for DynamicTextFeedAdGroupAdd list FeedId and AutotargetingCategories only. [#281](https://github.com/axisrow/direct-cli/issues/281); inherited from `DynamicTextFeedAdGroup.AutotargetingSettings` |
-| `adgroups.add` | `CpmBannerKeywordsAdGroup` | Rare ad group subtype block is not exposed by --type. [#282](https://github.com/axisrow/direct-cli/issues/282) |
-| `adgroups.add` | `CpmBannerUserProfileAdGroup` | Rare ad group subtype block is not exposed by --type. [#282](https://github.com/axisrow/direct-cli/issues/282) |
-| `adgroups.add` | `CpmVideoAdGroup` | Rare ad group subtype block is not exposed by --type. [#282](https://github.com/axisrow/direct-cli/issues/282) |
 | `adgroups.add` | `UnifiedAdGroup` | Rare ad group subtype block is not exposed by --type. [#283](https://github.com/axisrow/direct-cli/issues/283) |
 | `adgroups.add` | `UnifiedAdGroup.OfferRetargeting` | Rare ad group subtype block is not exposed by --type. [#283](https://github.com/axisrow/direct-cli/issues/283); inherited from `UnifiedAdGroup` |
 | `adgroups.add` | `TextAdGroupFeedParams` | Rare ad group feed params block has no typed add flags. [#284](https://github.com/axisrow/direct-cli/issues/284) |
@@ -2746,9 +2743,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `adgroups.add` | `adgroups.add` | `DynamicTextFeedAdGroup.AutotargetingSettings.BrandOptions.WithAdvertiserBrand` | `YesNoEnum` | 0 | 1 | `not_applicable` | Official adgroups.add docs for DynamicTextFeedAdGroupAdd list FeedId and AutotargetingCategories only. [#281](https://github.com/axisrow/direct-cli/issues/281); inherited from `DynamicTextFeedAdGroup.AutotargetingSettings` |
 | `adgroups.add` | `adgroups.add` | `DynamicTextFeedAdGroup.AutotargetingSettings.BrandOptions.WithCompetitorsBrand` | `YesNoEnum` | 0 | 1 | `not_applicable` | Official adgroups.add docs for DynamicTextFeedAdGroupAdd list FeedId and AutotargetingCategories only. [#281](https://github.com/axisrow/direct-cli/issues/281); inherited from `DynamicTextFeedAdGroup.AutotargetingSettings` |
 | `adgroups.add` | `adgroups.add` | `DynamicTextFeedAdGroup.FeedId` | `long` | 1 | 1 | `supported` | --feed-id |
-| `adgroups.add` | `adgroups.add` | `CpmBannerKeywordsAdGroup` | `CpmBannerKeywordsAdGroupAdd` | 0 | 1 | `missing_followup` | Rare ad group subtype block is not exposed by --type. [#282](https://github.com/axisrow/direct-cli/issues/282) |
-| `adgroups.add` | `adgroups.add` | `CpmBannerUserProfileAdGroup` | `CpmBannerUserProfileAdGroupAdd` | 0 | 1 | `missing_followup` | Rare ad group subtype block is not exposed by --type. [#282](https://github.com/axisrow/direct-cli/issues/282) |
-| `adgroups.add` | `adgroups.add` | `CpmVideoAdGroup` | `CpmVideoAdGroupAdd` | 0 | 1 | `missing_followup` | Rare ad group subtype block is not exposed by --type. [#282](https://github.com/axisrow/direct-cli/issues/282) |
+| `adgroups.add` | `adgroups.add` | `CpmBannerKeywordsAdGroup` | `CpmBannerKeywordsAdGroupAdd` | 0 | 1 | `supported` | --type |
+| `adgroups.add` | `adgroups.add` | `CpmBannerUserProfileAdGroup` | `CpmBannerUserProfileAdGroupAdd` | 0 | 1 | `supported` | --type |
+| `adgroups.add` | `adgroups.add` | `CpmVideoAdGroup` | `CpmVideoAdGroupAdd` | 0 | 1 | `supported` | --type |
 | `adgroups.add` | `adgroups.add` | `SmartAdGroup` | `SmartAdGroupAdd` | 0 | 1 | `supported` | --type |
 | `adgroups.add` | `adgroups.add` | `SmartAdGroup.FeedId` | `long` | 1 | 1 | `supported` | --feed-id |
 | `adgroups.add` | `adgroups.add` | `SmartAdGroup.AdTitleSource` | `string` | 0 | 1 | `supported` | --ad-title-source |
