@@ -382,6 +382,9 @@ direct adgroups get --campaign-ids 1,2,3 --limit 50
 direct adgroups add --name "Group 1" --campaign-id 12345 --region-ids 1,225 --negative-keywords "repair,used" --tracking-params "utm_source=direct" --dry-run
 direct adgroups add --name "Dynamic Group" --campaign-id 12345 --type DYNAMIC_TEXT_AD_GROUP --region-ids 1,225 --domain-url example.com --autotargeting-category EXACT=YES --dry-run
 direct adgroups add --name "Dynamic Feed Group" --campaign-id 12345 --type DYNAMIC_TEXT_FEED_AD_GROUP --region-ids 1,225 --feed-id 170 --autotargeting-category EXACT=YES --dry-run
+direct adgroups add --name "CPM Keywords Group" --campaign-id 12345 --type CPM_BANNER_KEYWORDS_AD_GROUP --region-ids 1,225 --dry-run
+direct adgroups add --name "CPM User Profile Group" --campaign-id 12345 --type CPM_BANNER_USER_PROFILE_AD_GROUP --region-ids 1,225 --dry-run
+direct adgroups add --name "CPM Video Group" --campaign-id 12345 --type CPM_VIDEO_AD_GROUP --region-ids 1,225 --dry-run
 direct adgroups add --name "Smart Group" --campaign-id 12345 --type SMART_AD_GROUP --region-ids 1,225 --feed-id 170 --ad-title-source FEED_NAME --ad-body-source FEED_NAME --dry-run
 direct adgroups add --name "Mobile App Group" --campaign-id 12345 --type MOBILE_APP_AD_GROUP --region-ids 1,225 --store-url https://apps.apple.com/app/id123456789 --target-device-types DEVICE_TYPE_MOBILE,DEVICE_TYPE_TABLET --target-carrier WI_FI_AND_CELLULAR --target-operating-system-version 14.0 --dry-run
 direct adgroups update --id 67890 --negative-keyword-shared-set-ids 10,11 --tracking-params "utm_source=direct"
@@ -1104,6 +1107,9 @@ direct adgroups get --campaign-ids 1,2,3 --limit 50
 direct adgroups add --name "Группа 1" --campaign-id 12345 --region-ids 1,225 --negative-keywords "ремонт,б/у" --tracking-params "utm_source=direct" --dry-run
 direct adgroups add --name "Динамическая группа" --campaign-id 12345 --type DYNAMIC_TEXT_AD_GROUP --region-ids 1,225 --domain-url example.com --autotargeting-category EXACT=YES --dry-run
 direct adgroups add --name "Динамическая группа с фидом" --campaign-id 12345 --type DYNAMIC_TEXT_FEED_AD_GROUP --region-ids 1,225 --feed-id 170 --autotargeting-category EXACT=YES --dry-run
+direct adgroups add --name "CPM группа с ключевыми фразами" --campaign-id 12345 --type CPM_BANNER_KEYWORDS_AD_GROUP --region-ids 1,225 --dry-run
+direct adgroups add --name "CPM группа с профилем пользователя" --campaign-id 12345 --type CPM_BANNER_USER_PROFILE_AD_GROUP --region-ids 1,225 --dry-run
+direct adgroups add --name "CPM видео группа" --campaign-id 12345 --type CPM_VIDEO_AD_GROUP --region-ids 1,225 --dry-run
 direct adgroups add --name "Смарт-группа" --campaign-id 12345 --type SMART_AD_GROUP --region-ids 1,225 --feed-id 170 --ad-title-source FEED_NAME --ad-body-source FEED_NAME --dry-run
 direct adgroups add --name "Группа мобильного приложения" --campaign-id 12345 --type MOBILE_APP_AD_GROUP --region-ids 1,225 --store-url https://apps.apple.com/app/id123456789 --target-device-types DEVICE_TYPE_MOBILE,DEVICE_TYPE_TABLET --target-carrier WI_FI_AND_CELLULAR --target-operating-system-version 14.0 --dry-run
 direct adgroups update --id 67890 --negative-keyword-shared-set-ids 10,11 --tracking-params "utm_source=direct"

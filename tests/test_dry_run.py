@@ -1931,6 +1931,110 @@ def test_adgroups_add_dynamic_feed_rejects_undocumented_settings():
     ) in result.output
 
 
+def test_adgroups_add_cpm_banner_keywords_payload_omits_type():
+    """Issue #282: CPM banner keyword subtype sends an empty block."""
+    body = _dry_run(
+        "adgroups",
+        "add",
+        "--name",
+        "CPM Keywords Group",
+        "--campaign-id",
+        "111",
+        "--type",
+        "CPM_BANNER_KEYWORDS_AD_GROUP",
+        "--region-ids",
+        "1,225",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert "Type" not in group
+    assert group["RegionIds"] == [1, 225]
+    assert group["CpmBannerKeywordsAdGroup"] == {}
+
+
+def test_adgroups_add_cpm_banner_user_profile_payload_omits_type():
+    """Issue #282: CPM user-profile subtype sends an empty block."""
+    body = _dry_run(
+        "adgroups",
+        "add",
+        "--name",
+        "CPM User Profile Group",
+        "--campaign-id",
+        "111",
+        "--type",
+        "CPM_BANNER_USER_PROFILE_AD_GROUP",
+        "--region-ids",
+        "1,225",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert "Type" not in group
+    assert group["RegionIds"] == [1, 225]
+    assert group["CpmBannerUserProfileAdGroup"] == {}
+
+
+def test_adgroups_add_cpm_video_payload_omits_type():
+    """Issue #282: CPM video subtype sends an empty block."""
+    body = _dry_run(
+        "adgroups",
+        "add",
+        "--name",
+        "CPM Video Group",
+        "--campaign-id",
+        "111",
+        "--type",
+        "CPM_VIDEO_AD_GROUP",
+        "--region-ids",
+        "1,225",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert "Type" not in group
+    assert group["RegionIds"] == [1, 225]
+    assert group["CpmVideoAdGroup"] == {}
+
+
+def test_adgroups_add_cpm_user_profile_rejects_negative_keywords():
+    """Issue #282: docs disallow negative keywords for user-profile CPM groups."""
+    result = _rejected(
+        "adgroups",
+        "add",
+        "--name",
+        "CPM User Profile Group",
+        "--campaign-id",
+        "111",
+        "--type",
+        "CPM_BANNER_USER_PROFILE_AD_GROUP",
+        "--region-ids",
+        "225",
+        "--negative-keywords",
+        "used",
+    )
+    assert (
+        "--negative-keywords is not compatible with --type "
+        "CPM_BANNER_USER_PROFILE_AD_GROUP"
+    ) in result.output
+
+
+def test_adgroups_add_cpm_video_rejects_negative_keyword_shared_sets():
+    """Issue #282: docs disallow negative keyword sets for CPM video groups."""
+    result = _rejected(
+        "adgroups",
+        "add",
+        "--name",
+        "CPM Video Group",
+        "--campaign-id",
+        "111",
+        "--type",
+        "CPM_VIDEO_AD_GROUP",
+        "--region-ids",
+        "225",
+        "--negative-keyword-shared-set-ids",
+        "10",
+    )
+    assert (
+        "--negative-keyword-shared-set-ids is not compatible with --type "
+        "CPM_VIDEO_AD_GROUP"
+    ) in result.output
+
+
 def test_adgroups_add_smart_payload_omits_type():
     body = _dry_run(
         "adgroups",
@@ -2147,6 +2251,20 @@ def test_adgroups_add_rejects_incompatible_subtype_flags():
         "--feed-id",
         "77",
     )
+    cpm_result = _rejected(
+        "adgroups",
+        "add",
+        "--name",
+        "CPM Keywords Group",
+        "--campaign-id",
+        "111",
+        "--region-ids",
+        "225",
+        "--type",
+        "CPM_BANNER_KEYWORDS_AD_GROUP",
+        "--domain-url",
+        "example.com",
+    )
 
     assert (
         "--domain-url is not compatible with --type TEXT_AD_GROUP" in text_result.output
@@ -2170,6 +2288,10 @@ def test_adgroups_add_rejects_incompatible_subtype_flags():
     assert (
         "--feed-id is not compatible with --type MOBILE_APP_AD_GROUP"
         in mobile_result.output
+    )
+    assert (
+        "--domain-url is not compatible with --type CPM_BANNER_KEYWORDS_AD_GROUP"
+        in cpm_result.output
     )
 
 

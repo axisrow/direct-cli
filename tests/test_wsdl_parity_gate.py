@@ -680,6 +680,9 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("adgroups", "add", "DynamicTextFeedAdGroup.AutotargetingCategories.Value"): {
         "--autotargeting-category"
     },
+    ("adgroups", "add", "CpmBannerKeywordsAdGroup"): {"--type"},
+    ("adgroups", "add", "CpmBannerUserProfileAdGroup"): {"--type"},
+    ("adgroups", "add", "CpmVideoAdGroup"): {"--type"},
     ("adgroups", "add", "SmartAdGroup"): {"--type"},
     ("adgroups", "add", "SmartAdGroup.FeedId"): {"--feed-id"},
     ("adgroups", "add", "SmartAdGroup.AdTitleSource"): {"--ad-title-source"},
@@ -1810,21 +1813,6 @@ OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
             "Official adgroups.add docs for DynamicTextFeedAdGroupAdd list "
             "FeedId and AutotargetingCategories only."
         ),
-    },
-    ("adgroups", "add", "CpmBannerKeywordsAdGroup"): {
-        "status": "missing_followup",
-        "issue": "#282",
-        "note": "Rare ad group subtype block is not exposed by --type.",
-    },
-    ("adgroups", "add", "CpmBannerUserProfileAdGroup"): {
-        "status": "missing_followup",
-        "issue": "#282",
-        "note": "Rare ad group subtype block is not exposed by --type.",
-    },
-    ("adgroups", "add", "CpmVideoAdGroup"): {
-        "status": "missing_followup",
-        "issue": "#282",
-        "note": "Rare ad group subtype block is not exposed by --type.",
     },
     ("adgroups", "add", "UnifiedAdGroup"): {
         "status": "missing_followup",
