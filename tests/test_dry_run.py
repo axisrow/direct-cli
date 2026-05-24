@@ -2507,6 +2507,30 @@ def test_adgroups_add_rejects_text_feed_category_ids_for_dynamic_group():
     )
 
 
+def test_adgroups_add_rejects_text_feed_category_ids_for_smart_group():
+    """Issue #284: TextAdGroupFeedParams category IDs do not apply to smart."""
+    result = _rejected(
+        "adgroups",
+        "add",
+        "--name",
+        "Smart Group",
+        "--campaign-id",
+        "111",
+        "--type",
+        "SMART_AD_GROUP",
+        "--region-ids",
+        "225",
+        "--feed-id",
+        "170",
+        "--feed-category-ids",
+        "10",
+    )
+    assert (
+        "--feed-category-ids is not compatible with --type SMART_AD_GROUP"
+        in result.output
+    )
+
+
 def test_adgroups_update_payload_name_only():
     body = _dry_run("adgroups", "update", "--id", "222", "--name", "Renamed")
     assert body["method"] == "update"

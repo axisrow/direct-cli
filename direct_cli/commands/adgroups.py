@@ -632,7 +632,8 @@ def get(
     type=int,
     help=(
         "TextAdGroupFeedParams.FeedId, SmartAdGroup.FeedId, or "
-        "DynamicTextFeedAdGroup.FeedId"
+        "DynamicTextFeedAdGroup.FeedId; required for SMART_AD_GROUP and "
+        "DYNAMIC_TEXT_FEED_AD_GROUP"
     ),
 )
 @click.option(
