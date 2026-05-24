@@ -318,6 +318,29 @@ def _reject_incompatible_flags(
         )
 
 
+def _provided_flags(provided_flags: dict[str, object]) -> list[str]:
+    """Return CLI flags that were explicitly provided with meaningful values."""
+    return sorted(
+        flag for flag, value in provided_flags.items() if value not in (None, ())
+    )
+
+
+def _reject_mixed_update_subtype_flags(
+    dynamic_flags: dict[str, object],
+    mobile_flags: dict[str, object],
+) -> None:
+    """Reject update payloads that would target multiple ad group subtypes."""
+    provided_dynamic_flags = _provided_flags(dynamic_flags)
+    provided_mobile_flags = _provided_flags(mobile_flags)
+    if provided_dynamic_flags and provided_mobile_flags:
+        raise click.UsageError(
+            "DynamicTextAdGroup update flags "
+            f"({', '.join(provided_dynamic_flags)}) cannot be combined with "
+            "MobileAppAdGroup update flags "
+            f"({', '.join(provided_mobile_flags)})."
+        )
+
+
 @adgroups.command()
 @click.option("--ids", help="Comma-separated ad group IDs")
 @click.option("--campaign-ids", help="Comma-separated campaign IDs")
@@ -820,6 +843,31 @@ def update(
 ):
     """Update ad group"""
     _validate_tracking_params(tracking_params)
+    _reject_mixed_update_subtype_flags(
+        dynamic_flags={
+            "--domain-url": domain_url,
+            "--autotargeting-category": autotargeting_categories,
+            "--autotargeting-settings-exact": autotargeting_settings_exact,
+            "--autotargeting-settings-narrow": autotargeting_settings_narrow,
+            "--autotargeting-settings-alternative": autotargeting_settings_alternative,
+            "--autotargeting-settings-accessory": autotargeting_settings_accessory,
+            "--autotargeting-settings-broader": autotargeting_settings_broader,
+            "--autotargeting-settings-without-brands": (
+                autotargeting_settings_without_brands
+            ),
+            "--autotargeting-settings-with-advertiser-brand": (
+                autotargeting_settings_with_advertiser_brand
+            ),
+            "--autotargeting-settings-with-competitors-brand": (
+                autotargeting_settings_with_competitors_brand
+            ),
+        },
+        mobile_flags={
+            "--target-device-types": target_device_types,
+            "--target-carrier": target_carrier,
+            "--target-operating-system-version": target_operating_system_version,
+        },
+    )
 
     adgroup_data = {"Id": adgroup_id}
 

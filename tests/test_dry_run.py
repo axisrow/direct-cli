@@ -2208,6 +2208,24 @@ def test_adgroups_update_dynamic_autotargeting_rejects_legacy_mix():
     assert "AutotargetingSettings flags cannot be combined" in result.output
 
 
+def test_adgroups_update_rejects_mixed_dynamic_and_mobile_subtype_flags():
+    """Issue #280: update must not emit two subtype blocks in one item."""
+    result = _rejected(
+        "adgroups",
+        "update",
+        "--id",
+        "222",
+        "--domain-url",
+        "example.com",
+        "--target-device-types",
+        "DEVICE_TYPE_MOBILE",
+    )
+    assert "DynamicTextAdGroup update flags" in result.output
+    assert "--domain-url" in result.output
+    assert "MobileAppAdGroup update flags" in result.output
+    assert "--target-device-types" in result.output
+
+
 def test_adgroups_update_mobile_app_payload_without_type():
     """Issue #279: update sets top-level MobileAppAdGroup without --type."""
     body = _dry_run(
