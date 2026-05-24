@@ -267,7 +267,7 @@ class TestCLI(unittest.TestCase):
         collapsed = " ".join(result.output.split())
         self.assertIn(
             "Ad type: TEXT_AD | TEXT_IMAGE_AD | MOBILE_APP_AD | RESPONSIVE_AD | "
-            "SHOPPING_AD | LISTING_AD",
+            "SHOPPING_AD | LISTING_AD | TEXT_AD_BUILDER_AD",
             collapsed,
         )
         self.assertIn("Comma-separated ResponsiveAd.Titles values", collapsed)
@@ -276,7 +276,7 @@ class TestCLI(unittest.TestCase):
         self.assertIn(
             "Comma-separated ResponsiveAd.VideoExtensionIds values", collapsed
         )
-        self.assertIn("TextAd.FinalUrl (TEXT_AD)", collapsed)
+        self.assertIn("FinalUrl (TEXT_AD / TEXT_AD_BUILDER_AD)", collapsed)
         self.assertIn("TextAd.VideoExtension.CreativeId (TEXT_AD)", collapsed)
         self.assertIn(
             "TextAd/ResponsiveAd.PriceExtension.Price as human-readable money",
@@ -291,7 +291,15 @@ class TestCLI(unittest.TestCase):
         )
         self.assertIn("TextAd.PreferVCardOverBusiness value: YES or NO", collapsed)
         self.assertIn(
-            "TextAd/ResponsiveAd.ErirAdDescription (TEXT_AD / RESPONSIVE_AD)",
+            "ErirAdDescription (TEXT_AD / RESPONSIVE_AD / AdBuilder add subtypes)",
+            collapsed,
+        )
+        self.assertIn(
+            "AdBuilder Creative.CreativeId for AdBuilder add subtypes",
+            collapsed,
+        )
+        self.assertIn(
+            "Comma-separated AdBuilder TrackingPixels.Items values",
             collapsed,
         )
         self.assertIn(

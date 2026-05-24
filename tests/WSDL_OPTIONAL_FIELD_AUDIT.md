@@ -11,9 +11,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2449 |
+| `missing_followup` | 2410 |
 | `not_applicable` | 23 |
-| `supported` | 769 |
+| `supported` | 808 |
 
 ## Confirmed Follow-Ups
 
@@ -60,45 +60,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.add` | `MobileAppImageAd.AdImageHash` | Mobile app image ad add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `MobileAppImageAd` |
 | `ads.add` | `MobileAppImageAd.ErirAdDescription` | Mobile app image ad add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `MobileAppImageAd` |
 | `ads.add` | `MobileAppImageAd.TrackingUrl` | Mobile app image ad add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `MobileAppImageAd` |
-| `ads.add` | `TextAdBuilderAd` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276) |
-| `ads.add` | `TextAdBuilderAd.Creative` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `TextAdBuilderAd` |
-| `ads.add` | `TextAdBuilderAd.Creative.CreativeId` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `TextAdBuilderAd` |
-| `ads.add` | `TextAdBuilderAd.ErirAdDescription` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `TextAdBuilderAd` |
-| `ads.add` | `TextAdBuilderAd.FinalUrl` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `TextAdBuilderAd` |
-| `ads.add` | `TextAdBuilderAd.Href` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `TextAdBuilderAd` |
-| `ads.add` | `TextAdBuilderAd.TurboPageId` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `TextAdBuilderAd` |
-| `ads.add` | `MobileAppAdBuilderAd` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276) |
-| `ads.add` | `MobileAppAdBuilderAd.Creative` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `MobileAppAdBuilderAd` |
-| `ads.add` | `MobileAppAdBuilderAd.Creative.CreativeId` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `MobileAppAdBuilderAd` |
-| `ads.add` | `MobileAppAdBuilderAd.ErirAdDescription` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `MobileAppAdBuilderAd` |
-| `ads.add` | `MobileAppAdBuilderAd.TrackingUrl` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `MobileAppAdBuilderAd` |
-| `ads.add` | `MobileAppCpcVideoAdBuilderAd` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276) |
-| `ads.add` | `MobileAppCpcVideoAdBuilderAd.Creative` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `MobileAppCpcVideoAdBuilderAd` |
-| `ads.add` | `MobileAppCpcVideoAdBuilderAd.Creative.CreativeId` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `MobileAppCpcVideoAdBuilderAd` |
-| `ads.add` | `MobileAppCpcVideoAdBuilderAd.ErirAdDescription` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `MobileAppCpcVideoAdBuilderAd` |
-| `ads.add` | `MobileAppCpcVideoAdBuilderAd.TrackingUrl` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `MobileAppCpcVideoAdBuilderAd` |
-| `ads.add` | `CpmBannerAdBuilderAd` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276) |
-| `ads.add` | `CpmBannerAdBuilderAd.Creative` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpmBannerAdBuilderAd` |
-| `ads.add` | `CpmBannerAdBuilderAd.Creative.CreativeId` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpmBannerAdBuilderAd` |
-| `ads.add` | `CpmBannerAdBuilderAd.ErirAdDescription` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpmBannerAdBuilderAd` |
-| `ads.add` | `CpmBannerAdBuilderAd.Href` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpmBannerAdBuilderAd` |
-| `ads.add` | `CpmBannerAdBuilderAd.TrackingPixels` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpmBannerAdBuilderAd` |
-| `ads.add` | `CpmBannerAdBuilderAd.TrackingPixels.Items` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpmBannerAdBuilderAd` |
-| `ads.add` | `CpmBannerAdBuilderAd.TurboPageId` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpmBannerAdBuilderAd` |
-| `ads.add` | `CpcVideoAdBuilderAd` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276) |
-| `ads.add` | `CpcVideoAdBuilderAd.Creative` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpcVideoAdBuilderAd` |
-| `ads.add` | `CpcVideoAdBuilderAd.Creative.CreativeId` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpcVideoAdBuilderAd` |
-| `ads.add` | `CpcVideoAdBuilderAd.ErirAdDescription` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpcVideoAdBuilderAd` |
-| `ads.add` | `CpcVideoAdBuilderAd.Href` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpcVideoAdBuilderAd` |
-| `ads.add` | `CpcVideoAdBuilderAd.TurboPageId` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpcVideoAdBuilderAd` |
-| `ads.add` | `CpmVideoAdBuilderAd` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276) |
-| `ads.add` | `CpmVideoAdBuilderAd.Creative` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpmVideoAdBuilderAd` |
-| `ads.add` | `CpmVideoAdBuilderAd.Creative.CreativeId` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpmVideoAdBuilderAd` |
-| `ads.add` | `CpmVideoAdBuilderAd.ErirAdDescription` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpmVideoAdBuilderAd` |
-| `ads.add` | `CpmVideoAdBuilderAd.Href` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpmVideoAdBuilderAd` |
-| `ads.add` | `CpmVideoAdBuilderAd.TrackingPixels` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpmVideoAdBuilderAd` |
-| `ads.add` | `CpmVideoAdBuilderAd.TrackingPixels.Items` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpmVideoAdBuilderAd` |
-| `ads.add` | `CpmVideoAdBuilderAd.TurboPageId` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpmVideoAdBuilderAd` |
 | `ads.add` | `SmartAdBuilderAd` | SMART_AD_BUILDER_AD add fields need typed support or N/A. [#278](https://github.com/axisrow/direct-cli/issues/278) |
 | `ads.add` | `SmartAdBuilderAd.LogoExtensionHash` | SMART_AD_BUILDER_AD add fields need typed support or N/A. [#278](https://github.com/axisrow/direct-cli/issues/278); inherited from `SmartAdBuilderAd` |
 | `campaigns.add` | `ClientInfo` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
@@ -2682,45 +2643,45 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.add` | `ads.add` | `MobileAppImageAd.AdImageHash` | `string` | 1 | 1 | `missing_followup` | Mobile app image ad add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `MobileAppImageAd` |
 | `ads.add` | `ads.add` | `MobileAppImageAd.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | Mobile app image ad add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `MobileAppImageAd` |
 | `ads.add` | `ads.add` | `MobileAppImageAd.TrackingUrl` | `string` | 0 | 1 | `missing_followup` | Mobile app image ad add fields need typed support or N/A. [#277](https://github.com/axisrow/direct-cli/issues/277); inherited from `MobileAppImageAd` |
-| `ads.add` | `ads.add` | `TextAdBuilderAd` | `TextAdBuilderAdAdd` | 0 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276) |
-| `ads.add` | `ads.add` | `TextAdBuilderAd.Creative` | `AdBuilderAdAddItem` | 1 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `TextAdBuilderAd` |
-| `ads.add` | `ads.add` | `TextAdBuilderAd.Creative.CreativeId` | `long` | 1 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `TextAdBuilderAd` |
-| `ads.add` | `ads.add` | `TextAdBuilderAd.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `TextAdBuilderAd` |
-| `ads.add` | `ads.add` | `TextAdBuilderAd.FinalUrl` | `string` | 0 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `TextAdBuilderAd` |
-| `ads.add` | `ads.add` | `TextAdBuilderAd.Href` | `string` | 0 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `TextAdBuilderAd` |
-| `ads.add` | `ads.add` | `TextAdBuilderAd.TurboPageId` | `long` | 0 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `TextAdBuilderAd` |
-| `ads.add` | `ads.add` | `MobileAppAdBuilderAd` | `MobileAppAdBuilderAdAdd` | 0 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276) |
-| `ads.add` | `ads.add` | `MobileAppAdBuilderAd.Creative` | `AdBuilderAdAddItem` | 1 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `MobileAppAdBuilderAd` |
-| `ads.add` | `ads.add` | `MobileAppAdBuilderAd.Creative.CreativeId` | `long` | 1 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `MobileAppAdBuilderAd` |
-| `ads.add` | `ads.add` | `MobileAppAdBuilderAd.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `MobileAppAdBuilderAd` |
-| `ads.add` | `ads.add` | `MobileAppAdBuilderAd.TrackingUrl` | `string` | 0 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `MobileAppAdBuilderAd` |
-| `ads.add` | `ads.add` | `MobileAppCpcVideoAdBuilderAd` | `MobileAppCpcVideoAdBuilderAdAdd` | 0 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276) |
-| `ads.add` | `ads.add` | `MobileAppCpcVideoAdBuilderAd.Creative` | `AdBuilderAdAddItem` | 1 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `MobileAppCpcVideoAdBuilderAd` |
-| `ads.add` | `ads.add` | `MobileAppCpcVideoAdBuilderAd.Creative.CreativeId` | `long` | 1 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `MobileAppCpcVideoAdBuilderAd` |
-| `ads.add` | `ads.add` | `MobileAppCpcVideoAdBuilderAd.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `MobileAppCpcVideoAdBuilderAd` |
-| `ads.add` | `ads.add` | `MobileAppCpcVideoAdBuilderAd.TrackingUrl` | `string` | 0 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `MobileAppCpcVideoAdBuilderAd` |
-| `ads.add` | `ads.add` | `CpmBannerAdBuilderAd` | `CpmBannerAdBuilderAdAdd` | 0 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276) |
-| `ads.add` | `ads.add` | `CpmBannerAdBuilderAd.Creative` | `AdBuilderAdAddItem` | 1 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpmBannerAdBuilderAd` |
-| `ads.add` | `ads.add` | `CpmBannerAdBuilderAd.Creative.CreativeId` | `long` | 1 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpmBannerAdBuilderAd` |
-| `ads.add` | `ads.add` | `CpmBannerAdBuilderAd.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpmBannerAdBuilderAd` |
-| `ads.add` | `ads.add` | `CpmBannerAdBuilderAd.Href` | `string` | 0 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpmBannerAdBuilderAd` |
-| `ads.add` | `ads.add` | `CpmBannerAdBuilderAd.TrackingPixels` | `ArrayOfString` | 0 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpmBannerAdBuilderAd` |
-| `ads.add` | `ads.add` | `CpmBannerAdBuilderAd.TrackingPixels.Items` | `string` | 1 | unbounded | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpmBannerAdBuilderAd` |
-| `ads.add` | `ads.add` | `CpmBannerAdBuilderAd.TurboPageId` | `long` | 0 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpmBannerAdBuilderAd` |
-| `ads.add` | `ads.add` | `CpcVideoAdBuilderAd` | `CpcVideoAdBuilderAdAdd` | 0 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276) |
-| `ads.add` | `ads.add` | `CpcVideoAdBuilderAd.Creative` | `AdBuilderAdAddItem` | 1 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpcVideoAdBuilderAd` |
-| `ads.add` | `ads.add` | `CpcVideoAdBuilderAd.Creative.CreativeId` | `long` | 1 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpcVideoAdBuilderAd` |
-| `ads.add` | `ads.add` | `CpcVideoAdBuilderAd.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpcVideoAdBuilderAd` |
-| `ads.add` | `ads.add` | `CpcVideoAdBuilderAd.Href` | `string` | 0 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpcVideoAdBuilderAd` |
-| `ads.add` | `ads.add` | `CpcVideoAdBuilderAd.TurboPageId` | `long` | 0 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpcVideoAdBuilderAd` |
-| `ads.add` | `ads.add` | `CpmVideoAdBuilderAd` | `CpmVideoAdBuilderAdAdd` | 0 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276) |
-| `ads.add` | `ads.add` | `CpmVideoAdBuilderAd.Creative` | `AdBuilderAdAddItem` | 1 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpmVideoAdBuilderAd` |
-| `ads.add` | `ads.add` | `CpmVideoAdBuilderAd.Creative.CreativeId` | `long` | 1 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpmVideoAdBuilderAd` |
-| `ads.add` | `ads.add` | `CpmVideoAdBuilderAd.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpmVideoAdBuilderAd` |
-| `ads.add` | `ads.add` | `CpmVideoAdBuilderAd.Href` | `string` | 0 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpmVideoAdBuilderAd` |
-| `ads.add` | `ads.add` | `CpmVideoAdBuilderAd.TrackingPixels` | `ArrayOfString` | 0 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpmVideoAdBuilderAd` |
-| `ads.add` | `ads.add` | `CpmVideoAdBuilderAd.TrackingPixels.Items` | `string` | 1 | unbounded | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpmVideoAdBuilderAd` |
-| `ads.add` | `ads.add` | `CpmVideoAdBuilderAd.TurboPageId` | `long` | 0 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpmVideoAdBuilderAd` |
+| `ads.add` | `ads.add` | `TextAdBuilderAd` | `TextAdBuilderAdAdd` | 0 | 1 | `supported` | --type |
+| `ads.add` | `ads.add` | `TextAdBuilderAd.Creative` | `AdBuilderAdAddItem` | 1 | 1 | `supported` | --creative-id |
+| `ads.add` | `ads.add` | `TextAdBuilderAd.Creative.CreativeId` | `long` | 1 | 1 | `supported` | --creative-id |
+| `ads.add` | `ads.add` | `TextAdBuilderAd.ErirAdDescription` | `string` | 0 | 1 | `supported` | --erir-ad-description |
+| `ads.add` | `ads.add` | `TextAdBuilderAd.FinalUrl` | `string` | 0 | 1 | `supported` | --final-url |
+| `ads.add` | `ads.add` | `TextAdBuilderAd.Href` | `string` | 0 | 1 | `supported` | --href |
+| `ads.add` | `ads.add` | `TextAdBuilderAd.TurboPageId` | `long` | 0 | 1 | `supported` | --turbo-page-id |
+| `ads.add` | `ads.add` | `MobileAppAdBuilderAd` | `MobileAppAdBuilderAdAdd` | 0 | 1 | `supported` | --type |
+| `ads.add` | `ads.add` | `MobileAppAdBuilderAd.Creative` | `AdBuilderAdAddItem` | 1 | 1 | `supported` | --creative-id |
+| `ads.add` | `ads.add` | `MobileAppAdBuilderAd.Creative.CreativeId` | `long` | 1 | 1 | `supported` | --creative-id |
+| `ads.add` | `ads.add` | `MobileAppAdBuilderAd.ErirAdDescription` | `string` | 0 | 1 | `supported` | --erir-ad-description |
+| `ads.add` | `ads.add` | `MobileAppAdBuilderAd.TrackingUrl` | `string` | 0 | 1 | `supported` | --tracking-url |
+| `ads.add` | `ads.add` | `MobileAppCpcVideoAdBuilderAd` | `MobileAppCpcVideoAdBuilderAdAdd` | 0 | 1 | `supported` | --type |
+| `ads.add` | `ads.add` | `MobileAppCpcVideoAdBuilderAd.Creative` | `AdBuilderAdAddItem` | 1 | 1 | `supported` | --creative-id |
+| `ads.add` | `ads.add` | `MobileAppCpcVideoAdBuilderAd.Creative.CreativeId` | `long` | 1 | 1 | `supported` | --creative-id |
+| `ads.add` | `ads.add` | `MobileAppCpcVideoAdBuilderAd.ErirAdDescription` | `string` | 0 | 1 | `supported` | --erir-ad-description |
+| `ads.add` | `ads.add` | `MobileAppCpcVideoAdBuilderAd.TrackingUrl` | `string` | 0 | 1 | `supported` | --tracking-url |
+| `ads.add` | `ads.add` | `CpmBannerAdBuilderAd` | `CpmBannerAdBuilderAdAdd` | 0 | 1 | `supported` | --type |
+| `ads.add` | `ads.add` | `CpmBannerAdBuilderAd.Creative` | `AdBuilderAdAddItem` | 1 | 1 | `supported` | --creative-id |
+| `ads.add` | `ads.add` | `CpmBannerAdBuilderAd.Creative.CreativeId` | `long` | 1 | 1 | `supported` | --creative-id |
+| `ads.add` | `ads.add` | `CpmBannerAdBuilderAd.ErirAdDescription` | `string` | 0 | 1 | `supported` | --erir-ad-description |
+| `ads.add` | `ads.add` | `CpmBannerAdBuilderAd.Href` | `string` | 0 | 1 | `supported` | --href |
+| `ads.add` | `ads.add` | `CpmBannerAdBuilderAd.TrackingPixels` | `ArrayOfString` | 0 | 1 | `supported` | --tracking-pixels |
+| `ads.add` | `ads.add` | `CpmBannerAdBuilderAd.TrackingPixels.Items` | `string` | 1 | unbounded | `supported` | --tracking-pixels |
+| `ads.add` | `ads.add` | `CpmBannerAdBuilderAd.TurboPageId` | `long` | 0 | 1 | `supported` | --turbo-page-id |
+| `ads.add` | `ads.add` | `CpcVideoAdBuilderAd` | `CpcVideoAdBuilderAdAdd` | 0 | 1 | `supported` | --type |
+| `ads.add` | `ads.add` | `CpcVideoAdBuilderAd.Creative` | `AdBuilderAdAddItem` | 1 | 1 | `supported` | --creative-id |
+| `ads.add` | `ads.add` | `CpcVideoAdBuilderAd.Creative.CreativeId` | `long` | 1 | 1 | `supported` | --creative-id |
+| `ads.add` | `ads.add` | `CpcVideoAdBuilderAd.ErirAdDescription` | `string` | 0 | 1 | `supported` | --erir-ad-description |
+| `ads.add` | `ads.add` | `CpcVideoAdBuilderAd.Href` | `string` | 0 | 1 | `supported` | --href |
+| `ads.add` | `ads.add` | `CpcVideoAdBuilderAd.TurboPageId` | `long` | 0 | 1 | `supported` | --turbo-page-id |
+| `ads.add` | `ads.add` | `CpmVideoAdBuilderAd` | `CpmVideoAdBuilderAdAdd` | 0 | 1 | `supported` | --type |
+| `ads.add` | `ads.add` | `CpmVideoAdBuilderAd.Creative` | `AdBuilderAdAddItem` | 1 | 1 | `supported` | --creative-id |
+| `ads.add` | `ads.add` | `CpmVideoAdBuilderAd.Creative.CreativeId` | `long` | 1 | 1 | `supported` | --creative-id |
+| `ads.add` | `ads.add` | `CpmVideoAdBuilderAd.ErirAdDescription` | `string` | 0 | 1 | `supported` | --erir-ad-description |
+| `ads.add` | `ads.add` | `CpmVideoAdBuilderAd.Href` | `string` | 0 | 1 | `supported` | --href |
+| `ads.add` | `ads.add` | `CpmVideoAdBuilderAd.TrackingPixels` | `ArrayOfString` | 0 | 1 | `supported` | --tracking-pixels |
+| `ads.add` | `ads.add` | `CpmVideoAdBuilderAd.TrackingPixels.Items` | `string` | 1 | unbounded | `supported` | --tracking-pixels |
+| `ads.add` | `ads.add` | `CpmVideoAdBuilderAd.TurboPageId` | `long` | 0 | 1 | `supported` | --turbo-page-id |
 | `ads.add` | `ads.add` | `SmartAdBuilderAd` | `SmartAdBuilderAdAdd` | 0 | 1 | `missing_followup` | SMART_AD_BUILDER_AD add fields need typed support or N/A. [#278](https://github.com/axisrow/direct-cli/issues/278) |
 | `ads.add` | `ads.add` | `SmartAdBuilderAd.LogoExtensionHash` | `string` | 0 | 1 | `missing_followup` | SMART_AD_BUILDER_AD add fields need typed support or N/A. [#278](https://github.com/axisrow/direct-cli/issues/278); inherited from `SmartAdBuilderAd` |
 | `ads.add` | `ads.add` | `ShoppingAd` | `ShoppingAdAdd` | 0 | 1 | `supported` | --type |
