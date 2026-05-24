@@ -3395,6 +3395,49 @@ def test_sitelinks_add_supports_escaped_pipe_in_href():
     }
 
 
+def test_sitelinks_add_pipe_spec_turbo_page_id():
+    """Issue #257: --sitelink exposes Sitelinks.TurboPageId."""
+    body = _dry_run(
+        "sitelinks",
+        "add",
+        "--sitelink",
+        "Docs|https://example.com/docs|API docs|12345",
+    )
+    sitelink = body["params"]["SitelinksSets"][0]["Sitelinks"][0]
+    assert sitelink == {
+        "Title": "Docs",
+        "Href": "https://example.com/docs",
+        "Description": "API docs",
+        "TurboPageId": 12345,
+    }
+
+
+def test_sitelinks_add_pipe_spec_turbo_page_id_without_href():
+    """Yandex API allows Href or TurboPageId on a sitelink."""
+    body = _dry_run(
+        "sitelinks",
+        "add",
+        "--sitelink",
+        "Turbo||Turbo page|12345",
+    )
+    sitelink = body["params"]["SitelinksSets"][0]["Sitelinks"][0]
+    assert sitelink == {
+        "Title": "Turbo",
+        "Description": "Turbo page",
+        "TurboPageId": 12345,
+    }
+
+
+def test_sitelinks_add_pipe_spec_turbo_page_id_invalid_rejected():
+    result = _rejected(
+        "sitelinks",
+        "add",
+        "--sitelink",
+        "Docs|https://example.com/docs|API docs|not-an-id",
+    )
+    assert "TurboPageId must be an integer" in result.output
+
+
 def test_sitelinks_add_pipe_spec_invalid_raises():
     """Unescaped '|' overflowing the 3-part shape must error with a hint."""
     result = _rejected(
@@ -3498,6 +3541,7 @@ def test_sitelinks_add_json_missing_href_rejected():
     )
     assert "Sitelink #1" in result.output
     assert "Href" in result.output
+    assert "TurboPageId" in result.output
 
 
 def test_sitelinks_add_json_not_array_rejected():

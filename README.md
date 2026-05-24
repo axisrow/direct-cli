@@ -516,7 +516,7 @@ direct dynamicfeedadtargets add --adgroup-id 33 --name "Feed slice A" --conditio
 direct dynamicfeedadtargets set-bids --id 789 --bid 6500000 --context-bid 4000000 --dry-run
 
 # Extensions, assets, feeds, and clients
-direct sitelinks add --sitelink "Docs|https://example.com/docs" --sitelink "Help|https://example.com/help|Desk" --dry-run
+direct sitelinks add --sitelink "Docs|https://example.com/docs|API docs|12345" --sitelink "Help|https://example.com/help|Desk" --dry-run
 direct vcards add --campaign-id 555 --country "Russia" --city "Moscow" --company-name "Acme" --work-time 1#5#9#0#18#0 --phone-country-code +7 --phone-city-code 495 --phone-number 1234567 --dry-run
 direct adextensions add --callout-text "Free shipping" --dry-run
 direct adimages add --name banner.png --image-data BASE64DATA --type ICON --dry-run
@@ -1218,7 +1218,7 @@ direct dynamicfeedadtargets add --adgroup-id 33 --name "Срез фида А" --
 direct dynamicfeedadtargets set-bids --id 789 --bid 6500000 --context-bid 4000000 --dry-run
 
 # Расширения, ассеты, фиды и клиенты
-direct sitelinks add --sitelink "Docs|https://example.com/docs" --sitelink "Help|https://example.com/help|Desk" --dry-run
+direct sitelinks add --sitelink "Docs|https://example.com/docs|API docs|12345" --sitelink "Help|https://example.com/help|Desk" --dry-run
 direct vcards add --campaign-id 555 --country "Россия" --city "Москва" --company-name "Acme" --work-time 1#5#9#0#18#0 --phone-country-code +7 --phone-city-code 495 --phone-number 1234567 --dry-run
 direct adextensions add --callout-text "Free shipping" --dry-run
 direct adimages add --name banner.png --image-data BASE64DATA --type ICON --dry-run
