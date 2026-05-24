@@ -11,18 +11,13 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2723 |
-| `supported` | 518 |
+| `missing_followup` | 2714 |
+| `supported` | 527 |
 
 ## Confirmed Follow-Ups
 
 | CLI command | WSDL path | Issue / note |
 |---|---|---|
-| `adgroups.add` | `MobileAppAdGroup` | Rare ad group subtype block is not exposed by --type. [#279](https://github.com/axisrow/direct-cli/issues/279) |
-| `adgroups.add` | `MobileAppAdGroup.StoreUrl` | Rare ad group subtype block is not exposed by --type. [#279](https://github.com/axisrow/direct-cli/issues/279); inherited from `MobileAppAdGroup` |
-| `adgroups.add` | `MobileAppAdGroup.TargetDeviceType` | Rare ad group subtype block is not exposed by --type. [#279](https://github.com/axisrow/direct-cli/issues/279); inherited from `MobileAppAdGroup` |
-| `adgroups.add` | `MobileAppAdGroup.TargetCarrier` | Rare ad group subtype block is not exposed by --type. [#279](https://github.com/axisrow/direct-cli/issues/279); inherited from `MobileAppAdGroup` |
-| `adgroups.add` | `MobileAppAdGroup.TargetOperatingSystemVersion` | Rare ad group subtype block is not exposed by --type. [#279](https://github.com/axisrow/direct-cli/issues/279); inherited from `MobileAppAdGroup` |
 | `adgroups.add` | `DynamicTextAdGroup.AutotargetingCategories` | Dynamic text ad group autotargeting categories are not exposed. [#280](https://github.com/axisrow/direct-cli/issues/280) |
 | `adgroups.add` | `DynamicTextAdGroup.AutotargetingCategories.Category` | Dynamic text ad group autotargeting categories are not exposed. [#280](https://github.com/axisrow/direct-cli/issues/280); inherited from `DynamicTextAdGroup.AutotargetingCategories` |
 | `adgroups.add` | `DynamicTextAdGroup.AutotargetingCategories.Value` | Dynamic text ad group autotargeting categories are not exposed. [#280](https://github.com/axisrow/direct-cli/issues/280); inherited from `DynamicTextAdGroup.AutotargetingCategories` |
@@ -62,10 +57,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `adgroups.add` | `TextAdGroupFeedParams.FeedId` | Rare ad group feed params block has no typed add flags. [#284](https://github.com/axisrow/direct-cli/issues/284); inherited from `TextAdGroupFeedParams` |
 | `adgroups.add` | `TextAdGroupFeedParams.FeedCategoryIds` | Rare ad group feed params block has no typed add flags. [#284](https://github.com/axisrow/direct-cli/issues/284); inherited from `TextAdGroupFeedParams` |
 | `adgroups.add` | `TextAdGroupFeedParams.FeedCategoryIds.Items` | Rare ad group feed params block has no typed add flags. [#284](https://github.com/axisrow/direct-cli/issues/284); inherited from `TextAdGroupFeedParams` |
-| `adgroups.update` | `MobileAppAdGroup` | Rare ad group subtype block is not exposed by update. [#279](https://github.com/axisrow/direct-cli/issues/279) |
-| `adgroups.update` | `MobileAppAdGroup.TargetDeviceType` | Rare ad group subtype block is not exposed by update. [#279](https://github.com/axisrow/direct-cli/issues/279); inherited from `MobileAppAdGroup` |
-| `adgroups.update` | `MobileAppAdGroup.TargetCarrier` | Rare ad group subtype block is not exposed by update. [#279](https://github.com/axisrow/direct-cli/issues/279); inherited from `MobileAppAdGroup` |
-| `adgroups.update` | `MobileAppAdGroup.TargetOperatingSystemVersion` | Rare ad group subtype block is not exposed by update. [#279](https://github.com/axisrow/direct-cli/issues/279); inherited from `MobileAppAdGroup` |
 | `adgroups.update` | `DynamicTextAdGroup` | Dynamic ad group subtype update block has no typed flags. [#280](https://github.com/axisrow/direct-cli/issues/280) |
 | `adgroups.update` | `DynamicTextAdGroup.AutotargetingCategories` | Dynamic ad group subtype update block has no typed flags. [#280](https://github.com/axisrow/direct-cli/issues/280); inherited from `DynamicTextAdGroup` |
 | `adgroups.update` | `DynamicTextAdGroup.AutotargetingCategories.Category` | Dynamic ad group subtype update block has no typed flags. [#280](https://github.com/axisrow/direct-cli/issues/280); inherited from `DynamicTextAdGroup` |
@@ -2756,11 +2747,11 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `adgroups.add` | `adgroups.add` | `NegativeKeywordSharedSetIds` | `ArrayOfLong` | 0 | 1 | `supported` | --negative-keyword-shared-set-ids |
 | `adgroups.add` | `adgroups.add` | `NegativeKeywordSharedSetIds.Items` | `long` | 1 | unbounded | `supported` | --negative-keyword-shared-set-ids |
 | `adgroups.add` | `adgroups.add` | `TrackingParams` | `string` | 0 | 1 | `supported` | --tracking-params |
-| `adgroups.add` | `adgroups.add` | `MobileAppAdGroup` | `MobileAppAdGroupAdd` | 0 | 1 | `missing_followup` | Rare ad group subtype block is not exposed by --type. [#279](https://github.com/axisrow/direct-cli/issues/279) |
-| `adgroups.add` | `adgroups.add` | `MobileAppAdGroup.StoreUrl` | `string` | 1 | 1 | `missing_followup` | Rare ad group subtype block is not exposed by --type. [#279](https://github.com/axisrow/direct-cli/issues/279); inherited from `MobileAppAdGroup` |
-| `adgroups.add` | `adgroups.add` | `MobileAppAdGroup.TargetDeviceType` | `TargetDeviceTypeEnum` | 1 | unbounded | `missing_followup` | Rare ad group subtype block is not exposed by --type. [#279](https://github.com/axisrow/direct-cli/issues/279); inherited from `MobileAppAdGroup` |
-| `adgroups.add` | `adgroups.add` | `MobileAppAdGroup.TargetCarrier` | `TargetCarrierEnum` | 1 | 1 | `missing_followup` | Rare ad group subtype block is not exposed by --type. [#279](https://github.com/axisrow/direct-cli/issues/279); inherited from `MobileAppAdGroup` |
-| `adgroups.add` | `adgroups.add` | `MobileAppAdGroup.TargetOperatingSystemVersion` | `string` | 1 | 1 | `missing_followup` | Rare ad group subtype block is not exposed by --type. [#279](https://github.com/axisrow/direct-cli/issues/279); inherited from `MobileAppAdGroup` |
+| `adgroups.add` | `adgroups.add` | `MobileAppAdGroup` | `MobileAppAdGroupAdd` | 0 | 1 | `supported` | --type |
+| `adgroups.add` | `adgroups.add` | `MobileAppAdGroup.StoreUrl` | `string` | 1 | 1 | `supported` | --store-url |
+| `adgroups.add` | `adgroups.add` | `MobileAppAdGroup.TargetDeviceType` | `TargetDeviceTypeEnum` | 1 | unbounded | `supported` | --target-device-types |
+| `adgroups.add` | `adgroups.add` | `MobileAppAdGroup.TargetCarrier` | `TargetCarrierEnum` | 1 | 1 | `supported` | --target-carrier |
+| `adgroups.add` | `adgroups.add` | `MobileAppAdGroup.TargetOperatingSystemVersion` | `string` | 1 | 1 | `supported` | --target-operating-system-version |
 | `adgroups.add` | `adgroups.add` | `DynamicTextAdGroup` | `DynamicTextAdGroup` | 0 | 1 | `supported` | --type |
 | `adgroups.add` | `adgroups.add` | `DynamicTextAdGroup.AutotargetingCategories` | `AutotargetingCategory` | 0 | unbounded | `missing_followup` | Dynamic text ad group autotargeting categories are not exposed. [#280](https://github.com/axisrow/direct-cli/issues/280) |
 | `adgroups.add` | `adgroups.add` | `DynamicTextAdGroup.AutotargetingCategories.Category` | `AutotargetingCategoriesEnum` | 1 | 1 | `missing_followup` | Dynamic text ad group autotargeting categories are not exposed. [#280](https://github.com/axisrow/direct-cli/issues/280); inherited from `DynamicTextAdGroup.AutotargetingCategories` |
@@ -2814,10 +2805,10 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `adgroups.update` | `adgroups.update` | `TrackingParams` | `string` | 0 | 1 | `supported` | --tracking-params |
 | `adgroups.update` | `adgroups.update` | `Id` | `long` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `adgroups.update` | `adgroups.update` | `Name` | `string` | 0 | 1 | `supported` | --name |
-| `adgroups.update` | `adgroups.update` | `MobileAppAdGroup` | `MobileAppAdGroupUpdate` | 0 | 1 | `missing_followup` | Rare ad group subtype block is not exposed by update. [#279](https://github.com/axisrow/direct-cli/issues/279) |
-| `adgroups.update` | `adgroups.update` | `MobileAppAdGroup.TargetDeviceType` | `TargetDeviceTypeEnum` | 0 | unbounded | `missing_followup` | Rare ad group subtype block is not exposed by update. [#279](https://github.com/axisrow/direct-cli/issues/279); inherited from `MobileAppAdGroup` |
-| `adgroups.update` | `adgroups.update` | `MobileAppAdGroup.TargetCarrier` | `TargetCarrierEnum` | 0 | 1 | `missing_followup` | Rare ad group subtype block is not exposed by update. [#279](https://github.com/axisrow/direct-cli/issues/279); inherited from `MobileAppAdGroup` |
-| `adgroups.update` | `adgroups.update` | `MobileAppAdGroup.TargetOperatingSystemVersion` | `string` | 0 | 1 | `missing_followup` | Rare ad group subtype block is not exposed by update. [#279](https://github.com/axisrow/direct-cli/issues/279); inherited from `MobileAppAdGroup` |
+| `adgroups.update` | `adgroups.update` | `MobileAppAdGroup` | `MobileAppAdGroupUpdate` | 0 | 1 | `supported` | --target-carrier, --target-device-types, --target-operating-system-version |
+| `adgroups.update` | `adgroups.update` | `MobileAppAdGroup.TargetDeviceType` | `TargetDeviceTypeEnum` | 0 | unbounded | `supported` | --target-device-types |
+| `adgroups.update` | `adgroups.update` | `MobileAppAdGroup.TargetCarrier` | `TargetCarrierEnum` | 0 | 1 | `supported` | --target-carrier |
+| `adgroups.update` | `adgroups.update` | `MobileAppAdGroup.TargetOperatingSystemVersion` | `string` | 0 | 1 | `supported` | --target-operating-system-version |
 | `adgroups.update` | `adgroups.update` | `DynamicTextAdGroup` | `DynamicTextAdGroup` | 0 | 1 | `missing_followup` | Dynamic ad group subtype update block has no typed flags. [#280](https://github.com/axisrow/direct-cli/issues/280) |
 | `adgroups.update` | `adgroups.update` | `DynamicTextAdGroup.AutotargetingCategories` | `AutotargetingCategory` | 0 | unbounded | `missing_followup` | Dynamic ad group subtype update block has no typed flags. [#280](https://github.com/axisrow/direct-cli/issues/280); inherited from `DynamicTextAdGroup` |
 | `adgroups.update` | `adgroups.update` | `DynamicTextAdGroup.AutotargetingCategories.Category` | `AutotargetingCategoriesEnum` | 1 | 1 | `missing_followup` | Dynamic ad group subtype update block has no typed flags. [#280](https://github.com/axisrow/direct-cli/issues/280); inherited from `DynamicTextAdGroup` |

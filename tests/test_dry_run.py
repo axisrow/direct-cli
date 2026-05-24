@@ -1751,6 +1751,97 @@ def test_adgroups_add_smart_payload_omits_type():
     }
 
 
+def test_adgroups_add_mobile_app_payload_omits_type():
+    """Issue #279: add builds top-level MobileAppAdGroup payload."""
+    body = _dry_run(
+        "adgroups",
+        "add",
+        "--name",
+        "Mobile App Group",
+        "--campaign-id",
+        "111",
+        "--type",
+        "MOBILE_APP_AD_GROUP",
+        "--region-ids",
+        "1,225",
+        "--store-url",
+        "https://apps.apple.com/app/id123456789",
+        "--target-device-types",
+        "device-type-mobile,DEVICE_TYPE_TABLET",
+        "--target-carrier",
+        "wi-fi-and-cellular",
+        "--target-operating-system-version",
+        "14.0",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert "Type" not in group
+    assert group["MobileAppAdGroup"] == {
+        "StoreUrl": "https://apps.apple.com/app/id123456789",
+        "TargetDeviceType": ["DEVICE_TYPE_MOBILE", "DEVICE_TYPE_TABLET"],
+        "TargetCarrier": "WI_FI_AND_CELLULAR",
+        "TargetOperatingSystemVersion": "14.0",
+    }
+
+
+def test_adgroups_add_mobile_app_requires_documented_fields():
+    """Issue #279: WSDL minOccurs=1 mobile add fields are locally required."""
+    required_options = [
+        ("--store-url", "https://apps.apple.com/app/id123456789"),
+        ("--target-device-types", "DEVICE_TYPE_MOBILE"),
+        ("--target-carrier", "WI_FI_ONLY"),
+        ("--target-operating-system-version", "14.0"),
+    ]
+
+    for missing_option, _ in required_options:
+        args = [
+            "adgroups",
+            "add",
+            "--name",
+            "Mobile App Group",
+            "--campaign-id",
+            "111",
+            "--type",
+            "MOBILE_APP_AD_GROUP",
+            "--region-ids",
+            "225",
+        ]
+        for option, value in required_options:
+            if option != missing_option:
+                args.extend([option, value])
+
+        result = _rejected(*args)
+        assert missing_option in result.output
+        assert "required for MOBILE_APP_AD_GROUP" in result.output
+
+
+def test_adgroups_add_mobile_app_rejects_invalid_device_type():
+    """Issue #279: TargetDeviceType is validated against the API enum."""
+    result = _rejected(
+        "adgroups",
+        "add",
+        "--name",
+        "Mobile App Group",
+        "--campaign-id",
+        "111",
+        "--type",
+        "MOBILE_APP_AD_GROUP",
+        "--region-ids",
+        "225",
+        "--store-url",
+        "https://apps.apple.com/app/id123456789",
+        "--target-device-types",
+        "DEVICE_TYPE_DESKTOP",
+        "--target-carrier",
+        "WI_FI_ONLY",
+        "--target-operating-system-version",
+        "14.0",
+    )
+    assert "--target-device-types has invalid value 'DEVICE_TYPE_DESKTOP'" in (
+        result.output
+    )
+    assert "DEVICE_TYPE_MOBILE, DEVICE_TYPE_TABLET" in result.output
+
+
 def test_adgroups_add_rejects_incompatible_subtype_flags():
     text_result = _rejected(
         "adgroups",
@@ -1798,6 +1889,42 @@ def test_adgroups_add_rejects_incompatible_subtype_flags():
         "--domain-url",
         "example.com",
     )
+    text_mobile_result = _rejected(
+        "adgroups",
+        "add",
+        "--name",
+        "Group A",
+        "--campaign-id",
+        "111",
+        "--region-ids",
+        "225",
+        "--type",
+        "TEXT_AD_GROUP",
+        "--store-url",
+        "https://apps.apple.com/app/id123456789",
+    )
+    mobile_result = _rejected(
+        "adgroups",
+        "add",
+        "--name",
+        "Mobile App Group",
+        "--campaign-id",
+        "111",
+        "--region-ids",
+        "225",
+        "--type",
+        "MOBILE_APP_AD_GROUP",
+        "--store-url",
+        "https://apps.apple.com/app/id123456789",
+        "--target-device-types",
+        "DEVICE_TYPE_MOBILE",
+        "--target-carrier",
+        "WI_FI_ONLY",
+        "--target-operating-system-version",
+        "14.0",
+        "--feed-id",
+        "77",
+    )
 
     assert (
         "--domain-url is not compatible with --type TEXT_AD_GROUP" in text_result.output
@@ -1809,6 +1936,14 @@ def test_adgroups_add_rejects_incompatible_subtype_flags():
     assert (
         "--domain-url is not compatible with --type SMART_AD_GROUP"
         in smart_result.output
+    )
+    assert (
+        "--store-url is not compatible with --type TEXT_AD_GROUP"
+        in text_mobile_result.output
+    )
+    assert (
+        "--feed-id is not compatible with --type MOBILE_APP_AD_GROUP"
+        in mobile_result.output
     )
 
 
@@ -1830,6 +1965,46 @@ def test_adgroups_update_tracking_params_payload():
     )
     group = body["params"]["AdGroups"][0]
     assert group == {"Id": 222, "TrackingParams": "utm_source=direct"}
+
+
+def test_adgroups_update_mobile_app_payload_without_type():
+    """Issue #279: update sets top-level MobileAppAdGroup without --type."""
+    body = _dry_run(
+        "adgroups",
+        "update",
+        "--id",
+        "222",
+        "--target-device-types",
+        "device-type-tablet",
+        "--target-carrier",
+        "wi-fi-only",
+        "--target-operating-system-version",
+        "13.0",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert group == {
+        "Id": 222,
+        "MobileAppAdGroup": {
+            "TargetDeviceType": ["DEVICE_TYPE_TABLET"],
+            "TargetCarrier": "WI_FI_ONLY",
+            "TargetOperatingSystemVersion": "13.0",
+        },
+    }
+
+
+def test_adgroups_update_mobile_app_rejects_invalid_carrier():
+    """Issue #279: TargetCarrier is validated against the API enum."""
+    result = _rejected(
+        "adgroups",
+        "update",
+        "--id",
+        "222",
+        "--target-carrier",
+        "CELLULAR_ONLY",
+    )
+    assert "--target-carrier has invalid value 'CELLULAR_ONLY'" in result.output
+    assert "WI_FI_ONLY or WI_FI_AND_CELLULAR" not in result.output
+    assert "WI_FI_ONLY, WI_FI_AND_CELLULAR" in result.output
 
 
 def test_adgroups_update_negative_keywords_payload():
@@ -1935,6 +2110,9 @@ def test_adgroups_update_without_tracking_params_or_other_fields_rejected():
     assert "--tracking-params" in result.output
     assert "--negative-keywords" in result.output
     assert "--negative-keyword-shared-set-ids" in result.output
+    assert "--target-device-types" in result.output
+    assert "--target-carrier" in result.output
+    assert "--target-operating-system-version" in result.output
     assert "requires at least one updatable field" in result.output
 
 

@@ -16,6 +16,14 @@ from ..utils import (
 )
 
 _TRACKING_PARAMS_MAX_LENGTH = 1024
+_SUPPORTED_ADGROUP_TYPES = (
+    "TEXT_AD_GROUP",
+    "DYNAMIC_TEXT_AD_GROUP",
+    "SMART_AD_GROUP",
+    "MOBILE_APP_AD_GROUP",
+)
+_TARGET_DEVICE_TYPES = ("DEVICE_TYPE_MOBILE", "DEVICE_TYPE_TABLET")
+_TARGET_CARRIERS = ("WI_FI_ONLY", "WI_FI_AND_CELLULAR")
 
 
 @click.group()
@@ -41,6 +49,96 @@ def _parse_ids_option(value: Optional[str], option_name: str) -> Optional[list[i
         return parse_ids(value)
     except ValueError as exc:
         raise click.UsageError(f"{option_name}: {exc}") from exc
+
+
+def _normalize_enum_token(value: str) -> str:
+    """Normalize enum-like CLI tokens to Yandex Direct uppercase constants."""
+    return value.strip().upper().replace("-", "_")
+
+
+def _parse_enum_value(
+    value: Optional[str], option_name: str, allowed_values: tuple[str, ...]
+) -> Optional[str]:
+    """Parse a single enum-like token and report bad input as UsageError."""
+    if not value:
+        return None
+
+    normalized = _normalize_enum_token(value)
+    if not normalized:
+        return None
+
+    if normalized not in allowed_values:
+        raise click.UsageError(
+            f"{option_name} has invalid value {value!r}; allowed values: "
+            f"{', '.join(allowed_values)}"
+        )
+    return normalized
+
+
+def _parse_enum_csv(
+    value: Optional[str], option_name: str, allowed_values: tuple[str, ...]
+) -> Optional[list[str]]:
+    """Parse comma-separated enum-like tokens and report bad input as UsageError."""
+    parsed = parse_csv_strings(value)
+    if not parsed:
+        return None
+
+    normalized_values = []
+    for item in parsed:
+        normalized = _normalize_enum_token(item)
+        if normalized not in allowed_values:
+            raise click.UsageError(
+                f"{option_name} has invalid value {item!r}; allowed values: "
+                f"{', '.join(allowed_values)}"
+            )
+        normalized_values.append(normalized)
+    return normalized_values
+
+
+def _build_mobile_app_adgroup(
+    *,
+    store_url: Optional[str] = None,
+    target_device_types: Optional[str] = None,
+    target_carrier: Optional[str] = None,
+    target_operating_system_version: Optional[str] = None,
+    require_all_fields: bool = False,
+) -> Optional[dict[str, object]]:
+    """Build the MobileAppAdGroup block shared by add/update."""
+    parsed_device_types = _parse_enum_csv(
+        target_device_types, "--target-device-types", _TARGET_DEVICE_TYPES
+    )
+    parsed_carrier = _parse_enum_value(
+        target_carrier, "--target-carrier", _TARGET_CARRIERS
+    )
+
+    if require_all_fields:
+        missing = []
+        if not store_url:
+            missing.append("--store-url")
+        if not parsed_device_types:
+            missing.append("--target-device-types")
+        if not parsed_carrier:
+            missing.append("--target-carrier")
+        if not target_operating_system_version:
+            missing.append("--target-operating-system-version")
+        if missing:
+            raise click.UsageError(
+                f"{', '.join(missing)} required for MOBILE_APP_AD_GROUP"
+            )
+
+    mobile_app_adgroup: dict[str, object] = {}
+    if store_url:
+        mobile_app_adgroup["StoreUrl"] = store_url
+    if parsed_device_types:
+        mobile_app_adgroup["TargetDeviceType"] = parsed_device_types
+    if parsed_carrier:
+        mobile_app_adgroup["TargetCarrier"] = parsed_carrier
+    if target_operating_system_version:
+        mobile_app_adgroup["TargetOperatingSystemVersion"] = (
+            target_operating_system_version
+        )
+
+    return mobile_app_adgroup or None
 
 
 def _reject_incompatible_flags(
@@ -169,7 +267,10 @@ def get(
     "--type",
     "group_type",
     default="TEXT_AD_GROUP",
-    help="Ad group type",
+    help=(
+        "Ad group type: TEXT_AD_GROUP, DYNAMIC_TEXT_AD_GROUP, SMART_AD_GROUP, "
+        "or MOBILE_APP_AD_GROUP"
+    ),
 )
 @click.option(
     "--region-ids",
@@ -180,6 +281,25 @@ def get(
 @click.option("--feed-id", type=int, help="Smart ad group feed ID")
 @click.option("--ad-title-source", help="Smart ad group title source")
 @click.option("--ad-body-source", help="Smart ad group body source")
+@click.option(
+    "--store-url",
+    help="Mobile app ad group app store URL for MobileAppAdGroup.StoreUrl",
+)
+@click.option(
+    "--target-device-types",
+    help=(
+        "Comma-separated MobileAppAdGroup.TargetDeviceType values: "
+        "DEVICE_TYPE_MOBILE, DEVICE_TYPE_TABLET"
+    ),
+)
+@click.option(
+    "--target-carrier",
+    help=("MobileAppAdGroup.TargetCarrier value: " "WI_FI_ONLY or WI_FI_AND_CELLULAR"),
+)
+@click.option(
+    "--target-operating-system-version",
+    help="Minimum OS version for MobileAppAdGroup.TargetOperatingSystemVersion",
+)
 @click.option(
     "--negative-keywords",
     help="Comma-separated ad-group negative keywords for NegativeKeywords.Items",
@@ -211,6 +331,10 @@ def add(
     feed_id,
     ad_title_source,
     ad_body_source,
+    store_url,
+    target_device_types,
+    target_carrier,
+    target_operating_system_version,
     negative_keywords,
     negative_keyword_shared_set_ids,
     tracking_params,
@@ -221,21 +345,22 @@ def add(
         _validate_tracking_params(tracking_params)
 
         group_type_norm = (group_type or "TEXT_AD_GROUP").upper().replace("-", "_")
-        supported_types = {
-            "TEXT_AD_GROUP",
-            "DYNAMIC_TEXT_AD_GROUP",
-            "SMART_AD_GROUP",
-        }
-        if group_type_norm not in supported_types:
+        if group_type_norm not in _SUPPORTED_ADGROUP_TYPES:
             raise click.UsageError(
                 "Invalid value for '--type': "
                 f"{group_type!r} is not one of "
-                "'TEXT_AD_GROUP', 'DYNAMIC_TEXT_AD_GROUP', 'SMART_AD_GROUP'."
+                f"{', '.join(repr(value) for value in _SUPPORTED_ADGROUP_TYPES)}."
             )
         allowed_flags_by_type = {
             "TEXT_AD_GROUP": set(),
             "DYNAMIC_TEXT_AD_GROUP": {"--domain-url"},
             "SMART_AD_GROUP": {"--feed-id", "--ad-title-source", "--ad-body-source"},
+            "MOBILE_APP_AD_GROUP": {
+                "--store-url",
+                "--target-device-types",
+                "--target-carrier",
+                "--target-operating-system-version",
+            },
         }
         _reject_incompatible_flags(
             group_type_norm,
@@ -245,6 +370,10 @@ def add(
                 "--feed-id": feed_id,
                 "--ad-title-source": ad_title_source,
                 "--ad-body-source": ad_body_source,
+                "--store-url": store_url,
+                "--target-device-types": target_device_types,
+                "--target-carrier": target_carrier,
+                "--target-operating-system-version": target_operating_system_version,
             },
         )
 
@@ -280,6 +409,16 @@ def add(
             if ad_body_source:
                 smart_ad_group["AdBodySource"] = ad_body_source
             adgroup_data["SmartAdGroup"] = smart_ad_group
+        elif group_type_norm == "MOBILE_APP_AD_GROUP":
+            mobile_app_adgroup = _build_mobile_app_adgroup(
+                store_url=store_url,
+                target_device_types=target_device_types,
+                target_carrier=target_carrier,
+                target_operating_system_version=target_operating_system_version,
+                require_all_fields=True,
+            )
+            if mobile_app_adgroup:
+                adgroup_data["MobileAppAdGroup"] = mobile_app_adgroup
 
         body = {"method": "add", "params": {"AdGroups": [adgroup_data]}}
 
@@ -327,6 +466,21 @@ def add(
         "(max 1024 chars)"
     ),
 )
+@click.option(
+    "--target-device-types",
+    help=(
+        "Comma-separated MobileAppAdGroup.TargetDeviceType values: "
+        "DEVICE_TYPE_MOBILE, DEVICE_TYPE_TABLET"
+    ),
+)
+@click.option(
+    "--target-carrier",
+    help=("MobileAppAdGroup.TargetCarrier value: " "WI_FI_ONLY or WI_FI_AND_CELLULAR"),
+)
+@click.option(
+    "--target-operating-system-version",
+    help="Minimum OS version for MobileAppAdGroup.TargetOperatingSystemVersion",
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def update(
@@ -338,6 +492,9 @@ def update(
     negative_keywords,
     negative_keyword_shared_set_ids,
     tracking_params,
+    target_device_types,
+    target_carrier,
+    target_operating_system_version,
     dry_run,
 ):
     """Update ad group"""
@@ -364,13 +521,22 @@ def update(
         }
     if tracking_params:
         adgroup_data["TrackingParams"] = tracking_params
+    mobile_app_adgroup = _build_mobile_app_adgroup(
+        target_device_types=target_device_types,
+        target_carrier=target_carrier,
+        target_operating_system_version=target_operating_system_version,
+    )
+    if mobile_app_adgroup:
+        adgroup_data["MobileAppAdGroup"] = mobile_app_adgroup
 
     # Reject empty-payload no-op (issue #198 H5).
     if len(adgroup_data) == 1:
         raise click.UsageError(
             "adgroups update requires at least one updatable field "
             "(--name, --status, --region-ids, --negative-keywords, "
-            "--negative-keyword-shared-set-ids, or --tracking-params)."
+            "--negative-keyword-shared-set-ids, --tracking-params, "
+            "--target-device-types, --target-carrier, or "
+            "--target-operating-system-version)."
         )
 
     try:
