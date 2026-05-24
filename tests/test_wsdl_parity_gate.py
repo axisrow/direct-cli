@@ -550,7 +550,7 @@ WSDL_FIELD_TO_CLI_OPTION: dict[str, set[str]] = {
     "Name": {"--name"},
     "StartDate": {"--start-date"},
     "BusinessType": {"--business-type"},
-    "SourceType": {"--url"},  # derived inside the command
+    "SourceType": {"--url", "--file-feed-path"},  # derived inside the command
     "Id": {"--id"},
     "Keyword": {"--keyword"},
     "ImageData": {"--image-data", "--image-file"},
@@ -602,6 +602,7 @@ INTERNAL_VALIDATION: dict[tuple[str, str, str], str] = {
     ("creatives", "add", "VideoExtensionCreative"): "Missing option '--video-id'",
     ("keywords", "add", "Keyword"): "Provide exactly one of: --keyword",
     ("keywords", "add", "AdGroupId"): "Provide exactly one of: --keyword",
+    ("feeds", "add", "SourceType"): "Provide exactly one of --url or --file-feed-path",
     ("sitelinks", "add", "Sitelinks"): "Provide exactly one of: --sitelink",
 }
 
@@ -923,6 +924,12 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("feeds", "add", "UrlFeed.RemoveUtmTags"): {"--remove-utm-tags"},
     ("feeds", "add", "UrlFeed.Login"): {"--feed-login"},
     ("feeds", "add", "UrlFeed.Password"): {"--feed-password"},
+    ("feeds", "add", "FileFeed"): {"--file-feed-path"},
+    ("feeds", "add", "FileFeed.Data"): {"--file-feed-path"},
+    ("feeds", "add", "FileFeed.Filename"): {
+        "--file-feed-path",
+        "--file-feed-filename",
+    },
     ("feeds", "update", "Name"): {"--name"},
     ("feeds", "update", "UrlFeed"): {"--url"},
     ("feeds", "update", "UrlFeed.Url"): {"--url"},
@@ -931,6 +938,12 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("feeds", "update", "UrlFeed.Password"): {
         "--feed-password",
         "--clear-feed-password",
+    },
+    ("feeds", "update", "FileFeed"): {"--file-feed-path"},
+    ("feeds", "update", "FileFeed.Data"): {"--file-feed-path"},
+    ("feeds", "update", "FileFeed.Filename"): {
+        "--file-feed-path",
+        "--file-feed-filename",
     },
     ("creatives", "add", "VideoExtensionCreative.VideoId"): {"--video-id"},
     ("keywords", "add", "Bid"): {"--bid"},
@@ -1250,14 +1263,6 @@ OPTIONAL_FIELD_DEFAULT_FOLLOWUPS: dict[tuple[str, str], dict[str, str]] = {
     ("dynamicfeedadtargets", "add"): {
         "issue": "#303",
         "note": "dynamicfeedadtargets.add optional WSDL path needs typed support or N/A.",
-    },
-    ("feeds", "add"): {
-        "issue": "#264",
-        "note": "feeds.add optional WSDL path needs typed support or N/A.",
-    },
-    ("feeds", "update"): {
-        "issue": "#264",
-        "note": "feeds.update optional WSDL path needs typed support or N/A.",
     },
     ("retargeting", "add"): {
         "issue": "#256",
@@ -1588,16 +1593,6 @@ OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
             "intentionally reject autotargeting fields."
         ),
     },
-    ("feeds", "add", "FileFeed"): {
-        "status": "missing_followup",
-        "issue": "#264",
-        "note": "FileFeed upload/base64 CLI support is split from #253.",
-    },
-    ("feeds", "update", "FileFeed"): {
-        "status": "missing_followup",
-        "issue": "#264",
-        "note": "FileFeed upload/base64 CLI support is split from #253.",
-    },
     ("adgroups", "add", "MobileAppAdGroup"): {
         "status": "missing_followup",
         "issue": "#279",
@@ -1750,6 +1745,14 @@ INTERNAL_VALIDATION_PROBES: dict[tuple[str, str, str], list[str]] = {
     ("creatives", "add", "VideoExtensionCreative"): ["creatives", "add"],
     ("keywords", "add", "Keyword"): ["keywords", "add"],
     ("keywords", "add", "AdGroupId"): ["keywords", "add"],
+    ("feeds", "add", "SourceType"): [
+        "feeds",
+        "add",
+        "--name",
+        "Feed A",
+        "--business-type",
+        "RETAIL",
+    ],
     ("sitelinks", "add", "Sitelinks"): ["sitelinks", "add"],
 }
 
