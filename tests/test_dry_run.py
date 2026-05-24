@@ -1953,6 +1953,143 @@ def test_ads_update_smart_ad_builder_noop_rejected():
     ) in result.output
 
 
+def test_ads_update_text_ad_residual_optional_payload():
+    """Issue #272: residual TextAdUpdate fields build top-level TextAd keys."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_AD",
+        "--final-url",
+        "https://final.example.com",
+        "--age-label",
+        "age_18",
+        "--business-id",
+        "0",
+        "--prefer-vcard-over-business",
+        "yes",
+        "--erir-ad-description",
+        "Text ad object",
+    )
+    assert body["params"]["Ads"][0] == {
+        "Id": 999,
+        "TextAd": {
+            "FinalUrl": "https://final.example.com",
+            "AgeLabel": "AGE_18",
+            "BusinessId": 0,
+            "PreferVCardOverBusiness": "YES",
+            "ErirAdDescription": "Text ad object",
+        },
+    }
+
+
+def test_ads_update_text_image_ad_residual_optional_payload():
+    """Issue #272: TextImageAdUpdate supports FinalUrl and ErirAdDescription."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_IMAGE_AD",
+        "--final-url",
+        "https://final.example.com",
+        "--erir-ad-description",
+        "Image ad object",
+        "--turbo-page-id",
+        "0",
+    )
+    assert body["params"]["Ads"][0] == {
+        "Id": 999,
+        "TextImageAd": {
+            "FinalUrl": "https://final.example.com",
+            "ErirAdDescription": "Image ad object",
+            "TurboPageId": 0,
+        },
+    }
+
+
+def test_ads_update_mobile_app_ad_residual_optional_payload():
+    """Issue #272: MobileAppAdUpdate supports Features, VideoExtension, and ERIR."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "MOBILE_APP_AD",
+        "--mobile-app-feature",
+        "PRICE=YES",
+        "--mobile-app-feature",
+        "ratings=no",
+        "--video-extension-creative-id",
+        "0",
+        "--erir-ad-description",
+        "Mobile app object",
+    )
+    assert body["params"]["Ads"][0] == {
+        "Id": 999,
+        "MobileAppAd": {
+            "Features": [
+                {"Feature": "PRICE", "Enabled": "YES"},
+                {"Feature": "RATINGS", "Enabled": "NO"},
+            ],
+            "VideoExtension": {"CreativeId": 0},
+            "ErirAdDescription": "Mobile app object",
+        },
+    }
+
+
+def test_ads_update_mobile_app_feature_invalid_format_rejected():
+    """Issue #272: MobileAppAd.Features uses explicit FEATURE=YES|NO grammar."""
+    result = _rejected(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "MOBILE_APP_AD",
+        "--mobile-app-feature",
+        "PRICE",
+    )
+    assert "--mobile-app-feature expects FEATURE=YES|NO" in result.output
+
+
+def test_ads_update_mobile_app_feature_invalid_value_rejected():
+    """Issue #272: MobileAppAd.Features validates YesNoEnum values locally."""
+    result = _rejected(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "MOBILE_APP_AD",
+        "--mobile-app-feature",
+        "PRICE=MAYBE",
+    )
+    assert "Invalid --mobile-app-feature value" in result.output
+
+
+def test_ads_update_residual_flags_reject_unrelated_subtypes():
+    """Issue #272: residual typed flags still honor per-subtype allow-lists."""
+    result = _rejected(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_AD",
+        "--mobile-app-feature",
+        "PRICE=YES",
+    )
+    assert "--mobile-app-feature is not compatible with --type TEXT_AD" in (
+        result.output
+    )
+    assert "does not convert an ad between subtypes" in result.output
+
+
 def test_ads_update_text_ad_with_turbo_page_id():
     """Issue #202: update sets TurboPageId in TextAd."""
     body = _dry_run(

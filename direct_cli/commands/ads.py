@@ -22,6 +22,8 @@ def ads():
     """Manage ads"""
 
 
+MOBILE_APP_FEATURES = ("PRICE", "ICON", "CUSTOMER_RATING", "RATINGS")
+
 FEED_BASED_UPDATE_FIELDS = {
     "sitelink_set_id",
     "callouts_add",
@@ -34,6 +36,51 @@ FEED_BASED_UPDATE_FIELDS = {
     "default_texts",
 }
 
+
+TEXT_AD_UPDATE_FIELDS = {
+    "title",
+    "text",
+    "href",
+    "image_hash",
+    "title2",
+    "display_url_path",
+    "vcard_id",
+    "sitelink_set_id",
+    "turbo_page_id",
+    "callouts_add",
+    "callouts_remove",
+    "callouts_set",
+    "video_extension_creative_id",
+    "price_extension_price",
+    "price_extension_old_price",
+    "price_extension_price_qualifier",
+    "price_extension_price_currency",
+    "final_url",
+    "age_label",
+    "business_id",
+    "prefer_vcard_over_business",
+    "erir_ad_description",
+}
+
+MOBILE_APP_AD_UPDATE_FIELDS = {
+    "title",
+    "text",
+    "image_hash",
+    "action",
+    "tracking_url",
+    "age_label",
+    "mobile_app_features",
+    "video_extension_creative_id",
+    "erir_ad_description",
+}
+
+TEXT_IMAGE_AD_UPDATE_FIELDS = {
+    "image_hash",
+    "final_url",
+    "href",
+    "turbo_page_id",
+    "erir_ad_description",
+}
 
 MOBILE_APP_IMAGE_UPDATE_FIELDS = {
     "image_hash",
@@ -195,6 +242,41 @@ def _parse_required_ids(
     if not ids:
         raise click.UsageError(f"{flag_name} must contain at least one ID.")
     return ids
+
+
+def _parse_mobile_app_features(
+    raw_values: tuple[str, ...],
+) -> Optional[list[dict[str, str]]]:
+    """Parse repeatable MobileAppAd.Features items as FEATURE=YES|NO."""
+    if not raw_values:
+        return None
+
+    items: list[dict[str, str]] = []
+    allowed_features = ", ".join(MOBILE_APP_FEATURES)
+    for raw_value in raw_values:
+        feature_raw, separator, enabled_raw = raw_value.strip().partition("=")
+        if not separator:
+            raise click.UsageError(
+                "--mobile-app-feature expects FEATURE=YES|NO "
+                "(for example PRICE=YES)."
+            )
+
+        feature = feature_raw.strip().upper()
+        enabled = enabled_raw.strip().upper()
+        if feature not in MOBILE_APP_FEATURES:
+            raise click.UsageError(
+                "Invalid --mobile-app-feature feature "
+                f"{feature_raw!r}; allowed: {allowed_features}."
+            )
+        if enabled not in {"YES", "NO"}:
+            raise click.UsageError(
+                "Invalid --mobile-app-feature value "
+                f"{enabled_raw!r}; expected YES or NO."
+            )
+
+        items.append({"Feature": feature, "Enabled": enabled})
+
+    return items
 
 
 def _build_responsive_ad_update(
@@ -802,7 +884,19 @@ def add(
 )
 @click.option(
     "--age-label",
-    help="Age label (MOBILE_APP_AD MobAppAgeLabelEnum / RESPONSIVE_AD AgeLabelEnum)",
+    help=(
+        "Age label (TEXT_AD / RESPONSIVE_AD AgeLabelEnum; "
+        "MOBILE_APP_AD MobAppAgeLabelEnum)"
+    ),
+)
+@click.option(
+    "--mobile-app-feature",
+    "mobile_app_features",
+    multiple=True,
+    help=(
+        "Repeatable MobileAppAd.Features item as FEATURE=YES|NO. "
+        "Features: PRICE, ICON, CUSTOMER_RATING, RATINGS."
+    ),
 )
 @click.option("--title2", help="Second headline (TEXT_AD)")
 @click.option("--display-url-path", help="Display URL path (TEXT_AD / RESPONSIVE_AD)")
@@ -852,7 +946,10 @@ def add(
 @click.option(
     "--video-extension-creative-id",
     type=int,
-    help="Video extension CreativeId for TextAd.VideoExtension. TEXT_AD only.",
+    help=(
+        "Video extension CreativeId for TextAd/MobileAppAd.VideoExtension. "
+        "TEXT_AD / MOBILE_APP_AD only."
+    ),
 )
 @click.option(
     "--video-extension-ids",
@@ -893,13 +990,19 @@ def add(
 @click.option(
     "--business-id",
     type=int,
-    help="BusinessId (RESPONSIVE_AD / SHOPPING_AD / LISTING_AD)",
+    help="BusinessId (TEXT_AD / RESPONSIVE_AD / SHOPPING_AD / LISTING_AD)",
+)
+@click.option(
+    "--prefer-vcard-over-business",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="TextAd.PreferVCardOverBusiness value: YES or NO",
 )
 @click.option(
     "--erir-ad-description",
     help=(
-        "ErirAdDescription for RESPONSIVE_AD, MOBILE_APP_IMAGE_AD, "
-        "SMART_AD_BUILDER_AD, and AdBuilder update subtypes"
+        "ErirAdDescription for TEXT_AD, TEXT_IMAGE_AD, MOBILE_APP_AD, "
+        "RESPONSIVE_AD, MOBILE_APP_IMAGE_AD, SMART_AD_BUILDER_AD, "
+        "and AdBuilder update subtypes"
     ),
 )
 @click.option(
@@ -917,7 +1020,7 @@ def add(
 )
 @click.option(
     "--final-url",
-    help="TextAdBuilderAd.FinalUrl",
+    help="FinalUrl (TEXT_AD / TEXT_IMAGE_AD / TEXT_AD_BUILDER_AD)",
 )
 @click.option(
     "--tracking-pixels",
@@ -961,6 +1064,7 @@ def update(
     action,
     tracking_url,
     age_label,
+    mobile_app_features,
     title2,
     display_url_path,
     vcard_id,
@@ -976,6 +1080,7 @@ def update(
     price_extension_price_qualifier,
     price_extension_price_currency,
     business_id,
+    prefer_vcard_over_business,
     erir_ad_description,
     logo_extension_hash,
     creative_id,
@@ -1026,25 +1131,7 @@ def update(
     # reject up front so the user sees the conflict instead of a no-op
     # (issue #198 H2).
     type_fields = {
-        "TEXT_AD": {
-            "title",
-            "text",
-            "href",
-            "image_hash",
-            "title2",
-            "display_url_path",
-            "vcard_id",
-            "sitelink_set_id",
-            "turbo_page_id",
-            "callouts_add",
-            "callouts_remove",
-            "callouts_set",
-            "video_extension_creative_id",
-            "price_extension_price",
-            "price_extension_old_price",
-            "price_extension_price_qualifier",
-            "price_extension_price_currency",
-        },
+        "TEXT_AD": TEXT_AD_UPDATE_FIELDS,
         "DYNAMIC_TEXT_AD": {
             "text",
             "image_hash",
@@ -1054,15 +1141,8 @@ def update(
             "callouts_remove",
             "callouts_set",
         },
-        "TEXT_IMAGE_AD": {"image_hash", "href", "turbo_page_id"},
-        "MOBILE_APP_AD": {
-            "title",
-            "text",
-            "image_hash",
-            "action",
-            "tracking_url",
-            "age_label",
-        },
+        "TEXT_IMAGE_AD": TEXT_IMAGE_AD_UPDATE_FIELDS,
+        "MOBILE_APP_AD": MOBILE_APP_AD_UPDATE_FIELDS,
         "MOBILE_APP_IMAGE_AD": MOBILE_APP_IMAGE_UPDATE_FIELDS,
         "RESPONSIVE_AD": {
             "texts",
@@ -1099,6 +1179,7 @@ def update(
         "action": action,
         "tracking_url": tracking_url,
         "age_label": age_label,
+        "mobile_app_features": mobile_app_features,
         "title2": title2,
         "display_url_path": display_url_path,
         "vcard_id": vcard_id,
@@ -1114,6 +1195,7 @@ def update(
         "price_extension_price_qualifier": price_extension_price_qualifier,
         "price_extension_price_currency": price_extension_price_currency,
         "business_id": business_id,
+        "prefer_vcard_over_business": prefer_vcard_over_business,
         "erir_ad_description": erir_ad_description,
         "logo_extension_hash": logo_extension_hash,
         "creative_id": creative_id,
@@ -1136,6 +1218,7 @@ def update(
         "action": "--action",
         "tracking_url": "--tracking-url",
         "age_label": "--age-label",
+        "mobile_app_features": "--mobile-app-feature",
         "title2": "--title2",
         "display_url_path": "--display-url-path",
         "vcard_id": "--vcard-id",
@@ -1151,6 +1234,7 @@ def update(
         "price_extension_price_qualifier": "--price-extension-price-qualifier",
         "price_extension_price_currency": "--price-extension-price-currency",
         "business_id": "--business-id",
+        "prefer_vcard_over_business": "--prefer-vcard-over-business",
         "erir_ad_description": "--erir-ad-description",
         "logo_extension_hash": "--logo-extension-hash",
         "creative_id": "--creative-id",
@@ -1184,6 +1268,7 @@ def update(
         price_extension_price_qualifier,
         price_extension_price_currency,
     )
+    parsed_mobile_app_features = _parse_mobile_app_features(mobile_app_features)
 
     ad_data = {"Id": ad_id}
 
@@ -1202,14 +1287,24 @@ def update(
             text_ad["Href"] = href
         if title2:
             text_ad["Title2"] = title2
+        if final_url:
+            text_ad["FinalUrl"] = final_url
         if display_url_path:
             text_ad["DisplayUrlPath"] = display_url_path
-        if turbo_page_id:
+        if age_label:
+            text_ad["AgeLabel"] = age_label.upper()
+        if turbo_page_id is not None:
             text_ad["TurboPageId"] = turbo_page_id
         if video_extension_creative_id is not None:
             text_ad["VideoExtension"] = {"CreativeId": video_extension_creative_id}
         if price_extension:
             text_ad["PriceExtension"] = price_extension
+        if business_id is not None:
+            text_ad["BusinessId"] = business_id
+        if prefer_vcard_over_business:
+            text_ad["PreferVCardOverBusiness"] = prefer_vcard_over_business.upper()
+        if erir_ad_description:
+            text_ad["ErirAdDescription"] = erir_ad_description
         if text_ad:
             ad_data["TextAd"] = text_ad
     elif ad_type_norm == "DYNAMIC_TEXT_AD":
@@ -1227,10 +1322,14 @@ def update(
         text_image_ad = {}
         if image_hash:
             text_image_ad["AdImageHash"] = image_hash
+        if final_url:
+            text_image_ad["FinalUrl"] = final_url
         if href:
             text_image_ad["Href"] = href
-        if turbo_page_id:
+        if turbo_page_id is not None:
             text_image_ad["TurboPageId"] = turbo_page_id
+        if erir_ad_description:
+            text_image_ad["ErirAdDescription"] = erir_ad_description
         if text_image_ad:
             ad_data["TextImageAd"] = text_image_ad
     elif ad_type_norm == "MOBILE_APP_AD":
@@ -1245,8 +1344,16 @@ def update(
             mobile_app_ad["Action"] = action.upper()
         if tracking_url:
             mobile_app_ad["TrackingUrl"] = tracking_url
+        if parsed_mobile_app_features:
+            mobile_app_ad["Features"] = parsed_mobile_app_features
         if age_label:
             mobile_app_ad["AgeLabel"] = age_label.upper()
+        if video_extension_creative_id is not None:
+            mobile_app_ad["VideoExtension"] = {
+                "CreativeId": video_extension_creative_id
+            }
+        if erir_ad_description:
+            mobile_app_ad["ErirAdDescription"] = erir_ad_description
         if mobile_app_ad:
             ad_data["MobileAppAd"] = mobile_app_ad
     elif ad_type_norm == "MOBILE_APP_IMAGE_AD":

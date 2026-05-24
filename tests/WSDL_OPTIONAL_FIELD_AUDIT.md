@@ -11,9 +11,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2517 |
+| `missing_followup` | 2501 |
 | `not_applicable` | 23 |
-| `supported` | 701 |
+| `supported` | 717 |
 
 ## Confirmed Follow-Ups
 
@@ -153,22 +153,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.add` | `ListingAd.TitleSources` | LISTING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ListingAd` |
 | `ads.add` | `ListingAd.TextSources` | LISTING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ListingAd` |
 | `ads.add` | `ListingAd.DefaultTexts` | LISTING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ListingAd` |
-| `ads.update` | `TextAd.CalloutSetting.AdExtensions` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
-| `ads.update` | `TextAd.CalloutSetting.AdExtensions.AdExtensionId` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
-| `ads.update` | `TextAd.CalloutSetting.AdExtensions.Operation` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
-| `ads.update` | `TextAd.FinalUrl` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
-| `ads.update` | `TextAd.AgeLabel` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
-| `ads.update` | `TextAd.BusinessId` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
-| `ads.update` | `TextAd.PreferVCardOverBusiness` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
-| `ads.update` | `TextAd.ErirAdDescription` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
-| `ads.update` | `MobileAppAd.ErirAdDescription` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
-| `ads.update` | `MobileAppAd.Features` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
-| `ads.update` | `MobileAppAd.Features.Feature` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
-| `ads.update` | `MobileAppAd.Features.Enabled` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
-| `ads.update` | `MobileAppAd.VideoExtension` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
-| `ads.update` | `MobileAppAd.VideoExtension.CreativeId` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
-| `ads.update` | `TextImageAd.ErirAdDescription` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
-| `ads.update` | `TextImageAd.FinalUrl` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
 | `campaigns.add` | `ClientInfo` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
 | `campaigns.add` | `Notification` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
 | `campaigns.add` | `Notification.SmsSettings` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
@@ -2821,15 +2805,15 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.update` | `ads.update` | `TextAd.AdImageHash` | `string` | 0 | 1 | `supported` | --image-hash |
 | `ads.update` | `ads.update` | `TextAd.SitelinkSetId` | `long` | 0 | 1 | `supported` | --sitelink-set-id |
 | `ads.update` | `ads.update` | `TextAd.CalloutSetting` | `AdExtensionSetting` | 0 | 1 | `supported` | --callouts-add, --callouts-remove, --callouts-set |
-| `ads.update` | `ads.update` | `TextAd.CalloutSetting.AdExtensions` | `AdExtensionSettingItem` | 1 | unbounded | `missing_followup` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
-| `ads.update` | `ads.update` | `TextAd.CalloutSetting.AdExtensions.AdExtensionId` | `long` | 1 | 1 | `missing_followup` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
-| `ads.update` | `ads.update` | `TextAd.CalloutSetting.AdExtensions.Operation` | `OperationEnum` | 1 | 1 | `missing_followup` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
+| `ads.update` | `ads.update` | `TextAd.CalloutSetting.AdExtensions` | `AdExtensionSettingItem` | 1 | unbounded | `supported` | --callouts-add, --callouts-remove, --callouts-set |
+| `ads.update` | `ads.update` | `TextAd.CalloutSetting.AdExtensions.AdExtensionId` | `long` | 1 | 1 | `supported` | --callouts-add, --callouts-remove, --callouts-set |
+| `ads.update` | `ads.update` | `TextAd.CalloutSetting.AdExtensions.Operation` | `OperationEnum` | 1 | 1 | `supported` | --callouts-add, --callouts-remove, --callouts-set |
 | `ads.update` | `ads.update` | `TextAd.Text` | `string` | 0 | 1 | `supported` | --text |
 | `ads.update` | `ads.update` | `TextAd.Title` | `string` | 0 | 1 | `supported` | --title |
 | `ads.update` | `ads.update` | `TextAd.Title2` | `string` | 0 | 1 | `supported` | --title2 |
-| `ads.update` | `ads.update` | `TextAd.FinalUrl` | `string` | 0 | 1 | `missing_followup` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
+| `ads.update` | `ads.update` | `TextAd.FinalUrl` | `string` | 0 | 1 | `supported` | --final-url |
 | `ads.update` | `ads.update` | `TextAd.Href` | `string` | 0 | 1 | `supported` | --href |
-| `ads.update` | `ads.update` | `TextAd.AgeLabel` | `AgeLabelEnum` | 0 | 1 | `missing_followup` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
+| `ads.update` | `ads.update` | `TextAd.AgeLabel` | `AgeLabelEnum` | 0 | 1 | `supported` | --age-label |
 | `ads.update` | `ads.update` | `TextAd.DisplayUrlPath` | `string` | 0 | 1 | `supported` | --display-url-path |
 | `ads.update` | `ads.update` | `TextAd.VideoExtension` | `VideoExtensionUpdateItem` | 0 | 1 | `supported` | --video-extension-creative-id |
 | `ads.update` | `ads.update` | `TextAd.VideoExtension.CreativeId` | `long` | 0 | 1 | `supported` | --video-extension-creative-id |
@@ -2839,9 +2823,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.update` | `ads.update` | `TextAd.PriceExtension.PriceQualifier` | `PriceQualifierEnum` | 0 | 1 | `supported` | --price-extension-price-qualifier |
 | `ads.update` | `ads.update` | `TextAd.PriceExtension.PriceCurrency` | `PriceCurrencyEnum` | 0 | 1 | `supported` | --price-extension-price-currency |
 | `ads.update` | `ads.update` | `TextAd.TurboPageId` | `long` | 0 | 1 | `supported` | --turbo-page-id |
-| `ads.update` | `ads.update` | `TextAd.BusinessId` | `long` | 0 | 1 | `missing_followup` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
-| `ads.update` | `ads.update` | `TextAd.PreferVCardOverBusiness` | `YesNoEnum` | 0 | 1 | `missing_followup` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
-| `ads.update` | `ads.update` | `TextAd.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
+| `ads.update` | `ads.update` | `TextAd.BusinessId` | `long` | 0 | 1 | `supported` | --business-id |
+| `ads.update` | `ads.update` | `TextAd.PreferVCardOverBusiness` | `YesNoEnum` | 0 | 1 | `supported` | --prefer-vcard-over-business |
+| `ads.update` | `ads.update` | `TextAd.ErirAdDescription` | `string` | 0 | 1 | `supported` | --erir-ad-description |
 | `ads.update` | `ads.update` | `ResponsiveAd` | `ResponsiveAdUpdate` | 0 | 1 | `supported` | --type |
 | `ads.update` | `ads.update` | `ResponsiveAd.Texts` | `string` | 0 | unbounded | `supported` | --texts |
 | `ads.update` | `ads.update` | `ResponsiveAd.Titles` | `string` | 0 | unbounded | `supported` | --titles |
@@ -2879,17 +2863,17 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.update` | `ads.update` | `MobileAppAd.TrackingUrl` | `string` | 0 | 1 | `supported` | --tracking-url |
 | `ads.update` | `ads.update` | `MobileAppAd.Action` | `MobileAppAdActionEnum` | 0 | 1 | `supported` | --action |
 | `ads.update` | `ads.update` | `MobileAppAd.AdImageHash` | `string` | 0 | 1 | `supported` | --image-hash |
-| `ads.update` | `ads.update` | `MobileAppAd.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
-| `ads.update` | `ads.update` | `MobileAppAd.Features` | `MobileAppAdFeatureItem` | 0 | unbounded | `missing_followup` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
-| `ads.update` | `ads.update` | `MobileAppAd.Features.Feature` | `MobileAppFeatureEnum` | 1 | 1 | `missing_followup` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
-| `ads.update` | `ads.update` | `MobileAppAd.Features.Enabled` | `YesNoEnum` | 1 | 1 | `missing_followup` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
+| `ads.update` | `ads.update` | `MobileAppAd.ErirAdDescription` | `string` | 0 | 1 | `supported` | --erir-ad-description |
+| `ads.update` | `ads.update` | `MobileAppAd.Features` | `MobileAppAdFeatureItem` | 0 | unbounded | `supported` | --mobile-app-feature |
+| `ads.update` | `ads.update` | `MobileAppAd.Features.Feature` | `MobileAppFeatureEnum` | 1 | 1 | `supported` | --mobile-app-feature |
+| `ads.update` | `ads.update` | `MobileAppAd.Features.Enabled` | `YesNoEnum` | 1 | 1 | `supported` | --mobile-app-feature |
 | `ads.update` | `ads.update` | `MobileAppAd.AgeLabel` | `MobAppAgeLabelEnum` | 0 | 1 | `supported` | --age-label |
-| `ads.update` | `ads.update` | `MobileAppAd.VideoExtension` | `VideoExtensionUpdateItem` | 0 | 1 | `missing_followup` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
-| `ads.update` | `ads.update` | `MobileAppAd.VideoExtension.CreativeId` | `long` | 0 | 1 | `missing_followup` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
+| `ads.update` | `ads.update` | `MobileAppAd.VideoExtension` | `VideoExtensionUpdateItem` | 0 | 1 | `supported` | --video-extension-creative-id |
+| `ads.update` | `ads.update` | `MobileAppAd.VideoExtension.CreativeId` | `long` | 0 | 1 | `supported` | --video-extension-creative-id |
 | `ads.update` | `ads.update` | `TextImageAd` | `TextImageAdUpdate` | 0 | 1 | `supported` | --type |
 | `ads.update` | `ads.update` | `TextImageAd.AdImageHash` | `string` | 0 | 1 | `supported` | --image-hash |
-| `ads.update` | `ads.update` | `TextImageAd.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
-| `ads.update` | `ads.update` | `TextImageAd.FinalUrl` | `string` | 0 | 1 | `missing_followup` | ads.update residual optional WSDL path needs typed support or N/A. [#272](https://github.com/axisrow/direct-cli/issues/272) |
+| `ads.update` | `ads.update` | `TextImageAd.ErirAdDescription` | `string` | 0 | 1 | `supported` | --erir-ad-description |
+| `ads.update` | `ads.update` | `TextImageAd.FinalUrl` | `string` | 0 | 1 | `supported` | --final-url |
 | `ads.update` | `ads.update` | `TextImageAd.Href` | `string` | 0 | 1 | `supported` | --href |
 | `ads.update` | `ads.update` | `TextImageAd.TurboPageId` | `long` | 0 | 1 | `supported` | --turbo-page-id |
 | `ads.update` | `ads.update` | `MobileAppImageAd` | `MobileAppImageAdUpdate` | 0 | 1 | `supported` | --type |

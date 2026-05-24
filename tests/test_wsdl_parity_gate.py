@@ -946,6 +946,23 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
         "--callouts-remove",
         "--callouts-set",
     },
+    ("ads", "update", "TextAd.CalloutSetting.AdExtensions"): {
+        "--callouts-add",
+        "--callouts-remove",
+        "--callouts-set",
+    },
+    ("ads", "update", "TextAd.CalloutSetting.AdExtensions.AdExtensionId"): {
+        "--callouts-add",
+        "--callouts-remove",
+        "--callouts-set",
+    },
+    ("ads", "update", "TextAd.CalloutSetting.AdExtensions.Operation"): {
+        "--callouts-add",
+        "--callouts-remove",
+        "--callouts-set",
+    },
+    ("ads", "update", "TextAd.FinalUrl"): {"--final-url"},
+    ("ads", "update", "TextAd.AgeLabel"): {"--age-label"},
     ("ads", "update", "TextAd.VideoExtension"): {"--video-extension-creative-id"},
     ("ads", "update", "TextAd.VideoExtension.CreativeId"): {
         "--video-extension-creative-id"
@@ -966,6 +983,11 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("ads", "update", "TextAd.PriceExtension.PriceCurrency"): {
         "--price-extension-price-currency"
     },
+    ("ads", "update", "TextAd.BusinessId"): {"--business-id"},
+    ("ads", "update", "TextAd.PreferVCardOverBusiness"): {
+        "--prefer-vcard-over-business"
+    },
+    ("ads", "update", "TextAd.ErirAdDescription"): {"--erir-ad-description"},
     ("ads", "update", "DynamicTextAd"): {"--type"},
     ("ads", "update", "DynamicTextAd.VCardId"): {"--vcard-id"},
     ("ads", "update", "DynamicTextAd.AdImageHash"): {"--image-hash"},
@@ -997,9 +1019,19 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("ads", "update", "MobileAppAd.Title"): {"--title"},
     ("ads", "update", "MobileAppAd.TrackingUrl"): {"--tracking-url"},
     ("ads", "update", "MobileAppAd.Action"): {"--action"},
+    ("ads", "update", "MobileAppAd.ErirAdDescription"): {"--erir-ad-description"},
+    ("ads", "update", "MobileAppAd.Features"): {"--mobile-app-feature"},
+    ("ads", "update", "MobileAppAd.Features.Feature"): {"--mobile-app-feature"},
+    ("ads", "update", "MobileAppAd.Features.Enabled"): {"--mobile-app-feature"},
     ("ads", "update", "MobileAppAd.AgeLabel"): {"--age-label"},
+    ("ads", "update", "MobileAppAd.VideoExtension"): {"--video-extension-creative-id"},
+    ("ads", "update", "MobileAppAd.VideoExtension.CreativeId"): {
+        "--video-extension-creative-id"
+    },
     ("ads", "update", "TextImageAd"): {"--type"},
     ("ads", "update", "TextImageAd.AdImageHash"): {"--image-hash"},
+    ("ads", "update", "TextImageAd.ErirAdDescription"): {"--erir-ad-description"},
+    ("ads", "update", "TextImageAd.FinalUrl"): {"--final-url"},
     ("ads", "update", "TextImageAd.Href"): {"--href"},
     ("ads", "update", "TextImageAd.TurboPageId"): {"--turbo-page-id"},
     ("ads", "update", "ResponsiveAd"): {"--type"},

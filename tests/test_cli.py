@@ -292,6 +292,13 @@ class TestCLI(unittest.TestCase):
             "Repeatable ShoppingAd/ListingAd FeedFilterConditions item", collapsed
         )
         self.assertIn(
+            "FinalUrl (TEXT_AD / TEXT_IMAGE_AD / TEXT_AD_BUILDER_AD)", collapsed
+        )
+        self.assertIn("TextAd.PreferVCardOverBusiness value: YES or NO", collapsed)
+        self.assertIn(
+            "Repeatable MobileAppAd.Features item as FEATURE=YES|NO", collapsed
+        )
+        self.assertIn(
             "Comma-separated ShoppingAd/ListingAd.TitleSources.Items values",
             collapsed,
         )
