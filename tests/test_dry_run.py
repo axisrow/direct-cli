@@ -1577,6 +1577,264 @@ def test_ads_update_shopping_ad_zero_ids_are_not_silently_dropped():
     }
 
 
+def test_ads_update_text_ad_builder_ad_payload():
+    """Issue #270: TEXT_AD_BUILDER_AD update builds TextAdBuilderAd block."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_AD_BUILDER_AD",
+        "--creative-id",
+        "111",
+        "--creative-erir-ad-description",
+        "Creative object",
+        "--erir-ad-description",
+        "Ad object",
+        "--final-url",
+        "https://final.example.com",
+        "--href",
+        "https://example.com",
+        "--turbo-page-id",
+        "222",
+    )
+    ad = body["params"]["Ads"][0]
+    assert ad == {
+        "Id": 999,
+        "TextAdBuilderAd": {
+            "Creative": {
+                "CreativeId": 111,
+                "ErirAdDescription": "Creative object",
+            },
+            "ErirAdDescription": "Ad object",
+            "FinalUrl": "https://final.example.com",
+            "Href": "https://example.com",
+            "TurboPageId": 222,
+        },
+    }
+    assert "TextAd" not in ad
+
+
+def test_ads_update_mobile_app_ad_builder_ad_payload():
+    """Issue #270: MOBILE_APP_AD_BUILDER_AD update supports TrackingUrl."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "MOBILE_APP_AD_BUILDER_AD",
+        "--creative-id",
+        "111",
+        "--tracking-url",
+        "https://track.example.com",
+        "--erir-ad-description",
+        "Mobile builder",
+    )
+    assert body["params"]["Ads"][0] == {
+        "Id": 999,
+        "MobileAppAdBuilderAd": {
+            "Creative": {"CreativeId": 111},
+            "ErirAdDescription": "Mobile builder",
+            "TrackingUrl": "https://track.example.com",
+        },
+    }
+
+
+def test_ads_update_mobile_app_cpc_video_ad_builder_ad_payload():
+    """Issue #270: MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD uses its own block."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD",
+        "--creative-id",
+        "111",
+        "--tracking-url",
+        "https://track.example.com",
+    )
+    assert body["params"]["Ads"][0] == {
+        "Id": 999,
+        "MobileAppCpcVideoAdBuilderAd": {
+            "Creative": {"CreativeId": 111},
+            "TrackingUrl": "https://track.example.com",
+        },
+    }
+
+
+def test_ads_update_cpc_video_ad_builder_ad_payload():
+    """Issue #270: CPC_VIDEO_AD_BUILDER_AD supports href and TurboPageId."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "CPC_VIDEO_AD_BUILDER_AD",
+        "--creative-id",
+        "111",
+        "--href",
+        "https://example.com",
+        "--turbo-page-id",
+        "222",
+    )
+    assert body["params"]["Ads"][0] == {
+        "Id": 999,
+        "CpcVideoAdBuilderAd": {
+            "Creative": {"CreativeId": 111},
+            "Href": "https://example.com",
+            "TurboPageId": 222,
+        },
+    }
+
+
+def test_ads_update_cpm_banner_ad_builder_ad_payload():
+    """Issue #270: CPM_BANNER_AD_BUILDER_AD wraps TrackingPixels.Items."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "CPM_BANNER_AD_BUILDER_AD",
+        "--creative-id",
+        "111",
+        "--href",
+        "https://example.com",
+        "--tracking-pixels",
+        "https://pixel.example.com/a,https://pixel.example.com/b",
+        "--turbo-page-id",
+        "222",
+    )
+    assert body["params"]["Ads"][0] == {
+        "Id": 999,
+        "CpmBannerAdBuilderAd": {
+            "Creative": {"CreativeId": 111},
+            "Href": "https://example.com",
+            "TrackingPixels": {
+                "Items": [
+                    "https://pixel.example.com/a",
+                    "https://pixel.example.com/b",
+                ]
+            },
+            "TurboPageId": 222,
+        },
+    }
+
+
+def test_ads_update_cpm_video_ad_builder_ad_payload():
+    """Issue #270: CPM_VIDEO_AD_BUILDER_AD wraps TrackingPixels.Items."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "CPM_VIDEO_AD_BUILDER_AD",
+        "--creative-id",
+        "111",
+        "--tracking-pixels",
+        "https://pixel.example.com/a",
+    )
+    assert body["params"]["Ads"][0] == {
+        "Id": 999,
+        "CpmVideoAdBuilderAd": {
+            "Creative": {"CreativeId": 111},
+            "TrackingPixels": {"Items": ["https://pixel.example.com/a"]},
+        },
+    }
+
+
+def test_ads_update_ad_builder_creative_erir_requires_creative_id():
+    """Issue #270: nested Creative.ErirAdDescription requires CreativeId."""
+    result = _rejected(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_AD_BUILDER_AD",
+        "--creative-erir-ad-description",
+        "Creative object",
+    )
+    assert "--creative-erir-ad-description requires --creative-id" in result.output
+
+
+def test_ads_update_ad_builder_rejects_unrelated_flag():
+    """Issue #270: AdBuilder subtypes must not silently drop unrelated flags."""
+    result = _rejected(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "MOBILE_APP_AD_BUILDER_AD",
+        "--href",
+        "https://example.com",
+    )
+    assert (
+        "--href is not compatible with --type MOBILE_APP_AD_BUILDER_AD" in result.output
+    )
+    assert "does not convert an ad between subtypes" in result.output
+
+
+def test_ads_update_ad_builder_empty_tracking_pixels_rejected():
+    """Issue #270: explicit empty TrackingPixels does not create a no-op."""
+    result = _rejected(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "CPM_VIDEO_AD_BUILDER_AD",
+        "--tracking-pixels",
+        "",
+    )
+    assert "--tracking-pixels must contain at least one value." in result.output
+
+
+def test_ads_update_ad_builder_noop_rejected():
+    """Issue #270: AdBuilder update without fields stays a no-op error."""
+    result = _rejected(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "CPM_BANNER_AD_BUILDER_AD",
+    )
+    assert (
+        "ads update requires at least one updatable field for "
+        "--type CPM_BANNER_AD_BUILDER_AD"
+    ) in result.output
+
+
+def test_ads_update_ad_builder_zero_ids_are_not_silently_dropped():
+    """Issue #270: nullable long flags use presence, not truthiness."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_AD_BUILDER_AD",
+        "--creative-id",
+        "0",
+        "--turbo-page-id",
+        "0",
+    )
+    assert body["params"]["Ads"][0] == {
+        "Id": 999,
+        "TextAdBuilderAd": {
+            "Creative": {"CreativeId": 0},
+            "TurboPageId": 0,
+        },
+    }
+
+
 def test_ads_update_text_ad_with_turbo_page_id():
     """Issue #202: update sets TurboPageId in TextAd."""
     body = _dry_run(

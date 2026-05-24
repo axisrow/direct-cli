@@ -11,9 +11,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2569 |
+| `missing_followup` | 2524 |
 | `not_applicable` | 23 |
-| `supported` | 649 |
+| `supported` | 694 |
 
 ## Confirmed Follow-Ups
 
@@ -173,51 +173,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.update` | `MobileAppImageAd.AdImageHash` | MOBILE_APP_IMAGE_AD update fields need typed support or N/A. [#271](https://github.com/axisrow/direct-cli/issues/271); inherited from `MobileAppImageAd` |
 | `ads.update` | `MobileAppImageAd.ErirAdDescription` | MOBILE_APP_IMAGE_AD update fields need typed support or N/A. [#271](https://github.com/axisrow/direct-cli/issues/271); inherited from `MobileAppImageAd` |
 | `ads.update` | `MobileAppImageAd.TrackingUrl` | MOBILE_APP_IMAGE_AD update fields need typed support or N/A. [#271](https://github.com/axisrow/direct-cli/issues/271); inherited from `MobileAppImageAd` |
-| `ads.update` | `MobileAppCpcVideoAdBuilderAd` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270) |
-| `ads.update` | `MobileAppCpcVideoAdBuilderAd.Creative` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `MobileAppCpcVideoAdBuilderAd` |
-| `ads.update` | `MobileAppCpcVideoAdBuilderAd.Creative.CreativeId` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `MobileAppCpcVideoAdBuilderAd` |
-| `ads.update` | `MobileAppCpcVideoAdBuilderAd.Creative.ErirAdDescription` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `MobileAppCpcVideoAdBuilderAd` |
-| `ads.update` | `MobileAppCpcVideoAdBuilderAd.ErirAdDescription` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `MobileAppCpcVideoAdBuilderAd` |
-| `ads.update` | `MobileAppCpcVideoAdBuilderAd.TrackingUrl` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `MobileAppCpcVideoAdBuilderAd` |
-| `ads.update` | `TextAdBuilderAd` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270) |
-| `ads.update` | `TextAdBuilderAd.Creative` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `TextAdBuilderAd` |
-| `ads.update` | `TextAdBuilderAd.Creative.CreativeId` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `TextAdBuilderAd` |
-| `ads.update` | `TextAdBuilderAd.Creative.ErirAdDescription` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `TextAdBuilderAd` |
-| `ads.update` | `TextAdBuilderAd.ErirAdDescription` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `TextAdBuilderAd` |
-| `ads.update` | `TextAdBuilderAd.FinalUrl` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `TextAdBuilderAd` |
-| `ads.update` | `TextAdBuilderAd.Href` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `TextAdBuilderAd` |
-| `ads.update` | `TextAdBuilderAd.TurboPageId` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `TextAdBuilderAd` |
-| `ads.update` | `MobileAppAdBuilderAd` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270) |
-| `ads.update` | `MobileAppAdBuilderAd.Creative` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `MobileAppAdBuilderAd` |
-| `ads.update` | `MobileAppAdBuilderAd.Creative.CreativeId` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `MobileAppAdBuilderAd` |
-| `ads.update` | `MobileAppAdBuilderAd.Creative.ErirAdDescription` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `MobileAppAdBuilderAd` |
-| `ads.update` | `MobileAppAdBuilderAd.ErirAdDescription` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `MobileAppAdBuilderAd` |
-| `ads.update` | `MobileAppAdBuilderAd.TrackingUrl` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `MobileAppAdBuilderAd` |
-| `ads.update` | `CpcVideoAdBuilderAd` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270) |
-| `ads.update` | `CpcVideoAdBuilderAd.Creative` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpcVideoAdBuilderAd` |
-| `ads.update` | `CpcVideoAdBuilderAd.Creative.CreativeId` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpcVideoAdBuilderAd` |
-| `ads.update` | `CpcVideoAdBuilderAd.Creative.ErirAdDescription` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpcVideoAdBuilderAd` |
-| `ads.update` | `CpcVideoAdBuilderAd.ErirAdDescription` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpcVideoAdBuilderAd` |
-| `ads.update` | `CpcVideoAdBuilderAd.Href` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpcVideoAdBuilderAd` |
-| `ads.update` | `CpcVideoAdBuilderAd.TurboPageId` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpcVideoAdBuilderAd` |
-| `ads.update` | `CpmBannerAdBuilderAd` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270) |
-| `ads.update` | `CpmBannerAdBuilderAd.Creative` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpmBannerAdBuilderAd` |
-| `ads.update` | `CpmBannerAdBuilderAd.Creative.CreativeId` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpmBannerAdBuilderAd` |
-| `ads.update` | `CpmBannerAdBuilderAd.Creative.ErirAdDescription` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpmBannerAdBuilderAd` |
-| `ads.update` | `CpmBannerAdBuilderAd.ErirAdDescription` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpmBannerAdBuilderAd` |
-| `ads.update` | `CpmBannerAdBuilderAd.Href` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpmBannerAdBuilderAd` |
-| `ads.update` | `CpmBannerAdBuilderAd.TrackingPixels` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpmBannerAdBuilderAd` |
-| `ads.update` | `CpmBannerAdBuilderAd.TrackingPixels.Items` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpmBannerAdBuilderAd` |
-| `ads.update` | `CpmBannerAdBuilderAd.TurboPageId` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpmBannerAdBuilderAd` |
-| `ads.update` | `CpmVideoAdBuilderAd` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270) |
-| `ads.update` | `CpmVideoAdBuilderAd.Creative` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpmVideoAdBuilderAd` |
-| `ads.update` | `CpmVideoAdBuilderAd.Creative.CreativeId` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpmVideoAdBuilderAd` |
-| `ads.update` | `CpmVideoAdBuilderAd.Creative.ErirAdDescription` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpmVideoAdBuilderAd` |
-| `ads.update` | `CpmVideoAdBuilderAd.ErirAdDescription` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpmVideoAdBuilderAd` |
-| `ads.update` | `CpmVideoAdBuilderAd.Href` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpmVideoAdBuilderAd` |
-| `ads.update` | `CpmVideoAdBuilderAd.TrackingPixels` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpmVideoAdBuilderAd` |
-| `ads.update` | `CpmVideoAdBuilderAd.TrackingPixels.Items` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpmVideoAdBuilderAd` |
-| `ads.update` | `CpmVideoAdBuilderAd.TurboPageId` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpmVideoAdBuilderAd` |
 | `ads.update` | `SmartAdBuilderAd` | SMART_AD_BUILDER_AD update fields need typed support or N/A. [#271](https://github.com/axisrow/direct-cli/issues/271) |
 | `ads.update` | `SmartAdBuilderAd.LogoExtensionHash` | SMART_AD_BUILDER_AD update fields need typed support or N/A. [#271](https://github.com/axisrow/direct-cli/issues/271); inherited from `SmartAdBuilderAd` |
 | `ads.update` | `SmartAdBuilderAd.ErirAdDescription` | SMART_AD_BUILDER_AD update fields need typed support or N/A. [#271](https://github.com/axisrow/direct-cli/issues/271); inherited from `SmartAdBuilderAd` |
@@ -2948,51 +2903,51 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.update` | `ads.update` | `MobileAppImageAd.AdImageHash` | `string` | 0 | 1 | `missing_followup` | MOBILE_APP_IMAGE_AD update fields need typed support or N/A. [#271](https://github.com/axisrow/direct-cli/issues/271); inherited from `MobileAppImageAd` |
 | `ads.update` | `ads.update` | `MobileAppImageAd.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | MOBILE_APP_IMAGE_AD update fields need typed support or N/A. [#271](https://github.com/axisrow/direct-cli/issues/271); inherited from `MobileAppImageAd` |
 | `ads.update` | `ads.update` | `MobileAppImageAd.TrackingUrl` | `string` | 0 | 1 | `missing_followup` | MOBILE_APP_IMAGE_AD update fields need typed support or N/A. [#271](https://github.com/axisrow/direct-cli/issues/271); inherited from `MobileAppImageAd` |
-| `ads.update` | `ads.update` | `MobileAppCpcVideoAdBuilderAd` | `MobileAppCpcVideoAdBuilderAdUpdate` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270) |
-| `ads.update` | `ads.update` | `MobileAppCpcVideoAdBuilderAd.Creative` | `AdBuilderAdUpdateItem` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `MobileAppCpcVideoAdBuilderAd` |
-| `ads.update` | `ads.update` | `MobileAppCpcVideoAdBuilderAd.Creative.CreativeId` | `long` | 1 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `MobileAppCpcVideoAdBuilderAd` |
-| `ads.update` | `ads.update` | `MobileAppCpcVideoAdBuilderAd.Creative.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `MobileAppCpcVideoAdBuilderAd` |
-| `ads.update` | `ads.update` | `MobileAppCpcVideoAdBuilderAd.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `MobileAppCpcVideoAdBuilderAd` |
-| `ads.update` | `ads.update` | `MobileAppCpcVideoAdBuilderAd.TrackingUrl` | `string` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `MobileAppCpcVideoAdBuilderAd` |
-| `ads.update` | `ads.update` | `TextAdBuilderAd` | `TextAdBuilderAdUpdate` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270) |
-| `ads.update` | `ads.update` | `TextAdBuilderAd.Creative` | `AdBuilderAdUpdateItem` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `TextAdBuilderAd` |
-| `ads.update` | `ads.update` | `TextAdBuilderAd.Creative.CreativeId` | `long` | 1 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `TextAdBuilderAd` |
-| `ads.update` | `ads.update` | `TextAdBuilderAd.Creative.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `TextAdBuilderAd` |
-| `ads.update` | `ads.update` | `TextAdBuilderAd.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `TextAdBuilderAd` |
-| `ads.update` | `ads.update` | `TextAdBuilderAd.FinalUrl` | `string` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `TextAdBuilderAd` |
-| `ads.update` | `ads.update` | `TextAdBuilderAd.Href` | `string` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `TextAdBuilderAd` |
-| `ads.update` | `ads.update` | `TextAdBuilderAd.TurboPageId` | `long` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `TextAdBuilderAd` |
-| `ads.update` | `ads.update` | `MobileAppAdBuilderAd` | `MobileAppAdBuilderAdUpdate` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270) |
-| `ads.update` | `ads.update` | `MobileAppAdBuilderAd.Creative` | `AdBuilderAdUpdateItem` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `MobileAppAdBuilderAd` |
-| `ads.update` | `ads.update` | `MobileAppAdBuilderAd.Creative.CreativeId` | `long` | 1 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `MobileAppAdBuilderAd` |
-| `ads.update` | `ads.update` | `MobileAppAdBuilderAd.Creative.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `MobileAppAdBuilderAd` |
-| `ads.update` | `ads.update` | `MobileAppAdBuilderAd.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `MobileAppAdBuilderAd` |
-| `ads.update` | `ads.update` | `MobileAppAdBuilderAd.TrackingUrl` | `string` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `MobileAppAdBuilderAd` |
-| `ads.update` | `ads.update` | `CpcVideoAdBuilderAd` | `CpcVideoAdBuilderAdUpdate` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270) |
-| `ads.update` | `ads.update` | `CpcVideoAdBuilderAd.Creative` | `AdBuilderAdUpdateItem` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpcVideoAdBuilderAd` |
-| `ads.update` | `ads.update` | `CpcVideoAdBuilderAd.Creative.CreativeId` | `long` | 1 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpcVideoAdBuilderAd` |
-| `ads.update` | `ads.update` | `CpcVideoAdBuilderAd.Creative.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpcVideoAdBuilderAd` |
-| `ads.update` | `ads.update` | `CpcVideoAdBuilderAd.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpcVideoAdBuilderAd` |
-| `ads.update` | `ads.update` | `CpcVideoAdBuilderAd.Href` | `string` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpcVideoAdBuilderAd` |
-| `ads.update` | `ads.update` | `CpcVideoAdBuilderAd.TurboPageId` | `long` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpcVideoAdBuilderAd` |
-| `ads.update` | `ads.update` | `CpmBannerAdBuilderAd` | `CpmBannerAdBuilderAdUpdate` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270) |
-| `ads.update` | `ads.update` | `CpmBannerAdBuilderAd.Creative` | `AdBuilderAdUpdateItem` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpmBannerAdBuilderAd` |
-| `ads.update` | `ads.update` | `CpmBannerAdBuilderAd.Creative.CreativeId` | `long` | 1 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpmBannerAdBuilderAd` |
-| `ads.update` | `ads.update` | `CpmBannerAdBuilderAd.Creative.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpmBannerAdBuilderAd` |
-| `ads.update` | `ads.update` | `CpmBannerAdBuilderAd.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpmBannerAdBuilderAd` |
-| `ads.update` | `ads.update` | `CpmBannerAdBuilderAd.Href` | `string` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpmBannerAdBuilderAd` |
-| `ads.update` | `ads.update` | `CpmBannerAdBuilderAd.TrackingPixels` | `ArrayOfString` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpmBannerAdBuilderAd` |
-| `ads.update` | `ads.update` | `CpmBannerAdBuilderAd.TrackingPixels.Items` | `string` | 1 | unbounded | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpmBannerAdBuilderAd` |
-| `ads.update` | `ads.update` | `CpmBannerAdBuilderAd.TurboPageId` | `long` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpmBannerAdBuilderAd` |
-| `ads.update` | `ads.update` | `CpmVideoAdBuilderAd` | `CpmVideoAdBuilderAdUpdate` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270) |
-| `ads.update` | `ads.update` | `CpmVideoAdBuilderAd.Creative` | `AdBuilderAdUpdateItem` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpmVideoAdBuilderAd` |
-| `ads.update` | `ads.update` | `CpmVideoAdBuilderAd.Creative.CreativeId` | `long` | 1 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpmVideoAdBuilderAd` |
-| `ads.update` | `ads.update` | `CpmVideoAdBuilderAd.Creative.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpmVideoAdBuilderAd` |
-| `ads.update` | `ads.update` | `CpmVideoAdBuilderAd.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpmVideoAdBuilderAd` |
-| `ads.update` | `ads.update` | `CpmVideoAdBuilderAd.Href` | `string` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpmVideoAdBuilderAd` |
-| `ads.update` | `ads.update` | `CpmVideoAdBuilderAd.TrackingPixels` | `ArrayOfString` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpmVideoAdBuilderAd` |
-| `ads.update` | `ads.update` | `CpmVideoAdBuilderAd.TrackingPixels.Items` | `string` | 1 | unbounded | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpmVideoAdBuilderAd` |
-| `ads.update` | `ads.update` | `CpmVideoAdBuilderAd.TurboPageId` | `long` | 0 | 1 | `missing_followup` | AdBuilder update subtype fields need typed support or N/A. [#270](https://github.com/axisrow/direct-cli/issues/270); inherited from `CpmVideoAdBuilderAd` |
+| `ads.update` | `ads.update` | `MobileAppCpcVideoAdBuilderAd` | `MobileAppCpcVideoAdBuilderAdUpdate` | 0 | 1 | `supported` | --type |
+| `ads.update` | `ads.update` | `MobileAppCpcVideoAdBuilderAd.Creative` | `AdBuilderAdUpdateItem` | 0 | 1 | `supported` | --creative-erir-ad-description, --creative-id |
+| `ads.update` | `ads.update` | `MobileAppCpcVideoAdBuilderAd.Creative.CreativeId` | `long` | 1 | 1 | `supported` | --creative-id |
+| `ads.update` | `ads.update` | `MobileAppCpcVideoAdBuilderAd.Creative.ErirAdDescription` | `string` | 0 | 1 | `supported` | --creative-erir-ad-description |
+| `ads.update` | `ads.update` | `MobileAppCpcVideoAdBuilderAd.ErirAdDescription` | `string` | 0 | 1 | `supported` | --erir-ad-description |
+| `ads.update` | `ads.update` | `MobileAppCpcVideoAdBuilderAd.TrackingUrl` | `string` | 0 | 1 | `supported` | --tracking-url |
+| `ads.update` | `ads.update` | `TextAdBuilderAd` | `TextAdBuilderAdUpdate` | 0 | 1 | `supported` | --type |
+| `ads.update` | `ads.update` | `TextAdBuilderAd.Creative` | `AdBuilderAdUpdateItem` | 0 | 1 | `supported` | --creative-erir-ad-description, --creative-id |
+| `ads.update` | `ads.update` | `TextAdBuilderAd.Creative.CreativeId` | `long` | 1 | 1 | `supported` | --creative-id |
+| `ads.update` | `ads.update` | `TextAdBuilderAd.Creative.ErirAdDescription` | `string` | 0 | 1 | `supported` | --creative-erir-ad-description |
+| `ads.update` | `ads.update` | `TextAdBuilderAd.ErirAdDescription` | `string` | 0 | 1 | `supported` | --erir-ad-description |
+| `ads.update` | `ads.update` | `TextAdBuilderAd.FinalUrl` | `string` | 0 | 1 | `supported` | --final-url |
+| `ads.update` | `ads.update` | `TextAdBuilderAd.Href` | `string` | 0 | 1 | `supported` | --href |
+| `ads.update` | `ads.update` | `TextAdBuilderAd.TurboPageId` | `long` | 0 | 1 | `supported` | --turbo-page-id |
+| `ads.update` | `ads.update` | `MobileAppAdBuilderAd` | `MobileAppAdBuilderAdUpdate` | 0 | 1 | `supported` | --type |
+| `ads.update` | `ads.update` | `MobileAppAdBuilderAd.Creative` | `AdBuilderAdUpdateItem` | 0 | 1 | `supported` | --creative-erir-ad-description, --creative-id |
+| `ads.update` | `ads.update` | `MobileAppAdBuilderAd.Creative.CreativeId` | `long` | 1 | 1 | `supported` | --creative-id |
+| `ads.update` | `ads.update` | `MobileAppAdBuilderAd.Creative.ErirAdDescription` | `string` | 0 | 1 | `supported` | --creative-erir-ad-description |
+| `ads.update` | `ads.update` | `MobileAppAdBuilderAd.ErirAdDescription` | `string` | 0 | 1 | `supported` | --erir-ad-description |
+| `ads.update` | `ads.update` | `MobileAppAdBuilderAd.TrackingUrl` | `string` | 0 | 1 | `supported` | --tracking-url |
+| `ads.update` | `ads.update` | `CpcVideoAdBuilderAd` | `CpcVideoAdBuilderAdUpdate` | 0 | 1 | `supported` | --type |
+| `ads.update` | `ads.update` | `CpcVideoAdBuilderAd.Creative` | `AdBuilderAdUpdateItem` | 0 | 1 | `supported` | --creative-erir-ad-description, --creative-id |
+| `ads.update` | `ads.update` | `CpcVideoAdBuilderAd.Creative.CreativeId` | `long` | 1 | 1 | `supported` | --creative-id |
+| `ads.update` | `ads.update` | `CpcVideoAdBuilderAd.Creative.ErirAdDescription` | `string` | 0 | 1 | `supported` | --creative-erir-ad-description |
+| `ads.update` | `ads.update` | `CpcVideoAdBuilderAd.ErirAdDescription` | `string` | 0 | 1 | `supported` | --erir-ad-description |
+| `ads.update` | `ads.update` | `CpcVideoAdBuilderAd.Href` | `string` | 0 | 1 | `supported` | --href |
+| `ads.update` | `ads.update` | `CpcVideoAdBuilderAd.TurboPageId` | `long` | 0 | 1 | `supported` | --turbo-page-id |
+| `ads.update` | `ads.update` | `CpmBannerAdBuilderAd` | `CpmBannerAdBuilderAdUpdate` | 0 | 1 | `supported` | --type |
+| `ads.update` | `ads.update` | `CpmBannerAdBuilderAd.Creative` | `AdBuilderAdUpdateItem` | 0 | 1 | `supported` | --creative-erir-ad-description, --creative-id |
+| `ads.update` | `ads.update` | `CpmBannerAdBuilderAd.Creative.CreativeId` | `long` | 1 | 1 | `supported` | --creative-id |
+| `ads.update` | `ads.update` | `CpmBannerAdBuilderAd.Creative.ErirAdDescription` | `string` | 0 | 1 | `supported` | --creative-erir-ad-description |
+| `ads.update` | `ads.update` | `CpmBannerAdBuilderAd.ErirAdDescription` | `string` | 0 | 1 | `supported` | --erir-ad-description |
+| `ads.update` | `ads.update` | `CpmBannerAdBuilderAd.Href` | `string` | 0 | 1 | `supported` | --href |
+| `ads.update` | `ads.update` | `CpmBannerAdBuilderAd.TrackingPixels` | `ArrayOfString` | 0 | 1 | `supported` | --tracking-pixels |
+| `ads.update` | `ads.update` | `CpmBannerAdBuilderAd.TrackingPixels.Items` | `string` | 1 | unbounded | `supported` | --tracking-pixels |
+| `ads.update` | `ads.update` | `CpmBannerAdBuilderAd.TurboPageId` | `long` | 0 | 1 | `supported` | --turbo-page-id |
+| `ads.update` | `ads.update` | `CpmVideoAdBuilderAd` | `CpmVideoAdBuilderAdUpdate` | 0 | 1 | `supported` | --type |
+| `ads.update` | `ads.update` | `CpmVideoAdBuilderAd.Creative` | `AdBuilderAdUpdateItem` | 0 | 1 | `supported` | --creative-erir-ad-description, --creative-id |
+| `ads.update` | `ads.update` | `CpmVideoAdBuilderAd.Creative.CreativeId` | `long` | 1 | 1 | `supported` | --creative-id |
+| `ads.update` | `ads.update` | `CpmVideoAdBuilderAd.Creative.ErirAdDescription` | `string` | 0 | 1 | `supported` | --creative-erir-ad-description |
+| `ads.update` | `ads.update` | `CpmVideoAdBuilderAd.ErirAdDescription` | `string` | 0 | 1 | `supported` | --erir-ad-description |
+| `ads.update` | `ads.update` | `CpmVideoAdBuilderAd.Href` | `string` | 0 | 1 | `supported` | --href |
+| `ads.update` | `ads.update` | `CpmVideoAdBuilderAd.TrackingPixels` | `ArrayOfString` | 0 | 1 | `supported` | --tracking-pixels |
+| `ads.update` | `ads.update` | `CpmVideoAdBuilderAd.TrackingPixels.Items` | `string` | 1 | unbounded | `supported` | --tracking-pixels |
+| `ads.update` | `ads.update` | `CpmVideoAdBuilderAd.TurboPageId` | `long` | 0 | 1 | `supported` | --turbo-page-id |
 | `ads.update` | `ads.update` | `SmartAdBuilderAd` | `SmartAdBuilderAdUpdate` | 0 | 1 | `missing_followup` | SMART_AD_BUILDER_AD update fields need typed support or N/A. [#271](https://github.com/axisrow/direct-cli/issues/271) |
 | `ads.update` | `ads.update` | `SmartAdBuilderAd.LogoExtensionHash` | `string` | 0 | 1 | `missing_followup` | SMART_AD_BUILDER_AD update fields need typed support or N/A. [#271](https://github.com/axisrow/direct-cli/issues/271); inherited from `SmartAdBuilderAd` |
 | `ads.update` | `ads.update` | `SmartAdBuilderAd.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | SMART_AD_BUILDER_AD update fields need typed support or N/A. [#271](https://github.com/axisrow/direct-cli/issues/271); inherited from `SmartAdBuilderAd` |
