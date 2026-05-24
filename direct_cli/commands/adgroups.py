@@ -92,11 +92,9 @@ def _reject_unsupported_negative_keywords(
         return
 
     unsupported_flags = []
-    if parse_csv_strings(negative_keywords):
+    if negative_keywords is not None:
         unsupported_flags.append("--negative-keywords")
-    if _parse_ids_option(
-        negative_keyword_shared_set_ids, "--negative-keyword-shared-set-ids"
-    ):
+    if negative_keyword_shared_set_ids is not None:
         unsupported_flags.append("--negative-keyword-shared-set-ids")
 
     if unsupported_flags:
@@ -606,13 +604,17 @@ def get(
 )
 @click.option(
     "--negative-keywords",
-    help="Comma-separated ad-group negative keywords for NegativeKeywords.Items",
+    help=(
+        "Comma-separated ad-group negative keywords for NegativeKeywords.Items; "
+        "not compatible with CPM user-profile or video groups"
+    ),
 )
 @click.option(
     "--negative-keyword-shared-set-ids",
     help=(
         "Comma-separated negative keyword shared set IDs for "
-        "NegativeKeywordSharedSetIds.Items"
+        "NegativeKeywordSharedSetIds.Items; not compatible with CPM "
+        "user-profile or video groups"
     ),
 )
 @click.option(

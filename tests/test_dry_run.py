@@ -1951,6 +1951,30 @@ def test_adgroups_add_cpm_banner_keywords_payload_omits_type():
     assert group["CpmBannerKeywordsAdGroup"] == {}
 
 
+def test_adgroups_add_cpm_banner_keywords_accepts_negative_keywords():
+    """Issue #282: CPM banner keyword groups still accept negative keywords."""
+    body = _dry_run(
+        "adgroups",
+        "add",
+        "--name",
+        "CPM Keywords Group",
+        "--campaign-id",
+        "111",
+        "--type",
+        "CPM_BANNER_KEYWORDS_AD_GROUP",
+        "--region-ids",
+        "225",
+        "--negative-keywords",
+        "used,repair",
+        "--negative-keyword-shared-set-ids",
+        "10",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert group["CpmBannerKeywordsAdGroup"] == {}
+    assert group["NegativeKeywords"] == {"Items": ["used", "repair"]}
+    assert group["NegativeKeywordSharedSetIds"] == {"Items": [10]}
+
+
 def test_adgroups_add_cpm_banner_user_profile_payload_omits_type():
     """Issue #282: CPM user-profile subtype sends an empty block."""
     body = _dry_run(
@@ -1969,6 +1993,28 @@ def test_adgroups_add_cpm_banner_user_profile_payload_omits_type():
     assert "Type" not in group
     assert group["RegionIds"] == [1, 225]
     assert group["CpmBannerUserProfileAdGroup"] == {}
+
+
+def test_adgroups_add_cpm_user_profile_rejects_empty_negative_keyword_flag():
+    """Issue #282: disallowed negative keyword flags reject even empty values."""
+    result = _rejected(
+        "adgroups",
+        "add",
+        "--name",
+        "CPM User Profile Group",
+        "--campaign-id",
+        "111",
+        "--type",
+        "CPM_BANNER_USER_PROFILE_AD_GROUP",
+        "--region-ids",
+        "225",
+        "--negative-keywords",
+        "",
+    )
+    assert (
+        "--negative-keywords is not compatible with --type "
+        "CPM_BANNER_USER_PROFILE_AD_GROUP"
+    ) in result.output
 
 
 def test_adgroups_add_cpm_video_payload_omits_type():
@@ -2033,6 +2079,29 @@ def test_adgroups_add_cpm_video_rejects_negative_keyword_shared_sets():
         "--negative-keyword-shared-set-ids is not compatible with --type "
         "CPM_VIDEO_AD_GROUP"
     ) in result.output
+
+
+def test_adgroups_add_cpm_video_rejects_negative_keyword_shared_sets_before_parse():
+    """Issue #282: type incompatibility wins over shared-set ID parsing."""
+    result = _rejected(
+        "adgroups",
+        "add",
+        "--name",
+        "CPM Video Group",
+        "--campaign-id",
+        "111",
+        "--type",
+        "CPM_VIDEO_AD_GROUP",
+        "--region-ids",
+        "225",
+        "--negative-keyword-shared-set-ids",
+        "notanumber",
+    )
+    assert (
+        "--negative-keyword-shared-set-ids is not compatible with --type "
+        "CPM_VIDEO_AD_GROUP"
+    ) in result.output
+    assert "Invalid ID" not in result.output
 
 
 def test_adgroups_add_smart_payload_omits_type():
