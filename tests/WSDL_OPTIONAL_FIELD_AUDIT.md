@@ -11,8 +11,8 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2830 |
-| `supported` | 411 |
+| `missing_followup` | 2823 |
+| `supported` | 418 |
 
 ## Confirmed Follow-Ups
 
@@ -223,13 +223,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.update` | `TextAd.CalloutSetting.AdExtensions.Operation` | ads.update optional WSDL path needs typed support or N/A. [#240](https://github.com/axisrow/direct-cli/issues/240) |
 | `ads.update` | `TextAd.FinalUrl` | ads.update optional WSDL path needs typed support or N/A. [#240](https://github.com/axisrow/direct-cli/issues/240) |
 | `ads.update` | `TextAd.AgeLabel` | ads.update optional WSDL path needs typed support or N/A. [#240](https://github.com/axisrow/direct-cli/issues/240) |
-| `ads.update` | `TextAd.VideoExtension` | TEXT_AD video extension update is WSDL-supported but absent. [#245](https://github.com/axisrow/direct-cli/issues/245) |
-| `ads.update` | `TextAd.VideoExtension.CreativeId` | TEXT_AD video extension update is WSDL-supported but absent. [#245](https://github.com/axisrow/direct-cli/issues/245); inherited from `TextAd.VideoExtension` |
-| `ads.update` | `TextAd.PriceExtension` | TEXT_AD price extension update is WSDL-supported but absent. [#245](https://github.com/axisrow/direct-cli/issues/245) |
-| `ads.update` | `TextAd.PriceExtension.Price` | TEXT_AD price extension update is WSDL-supported but absent. [#245](https://github.com/axisrow/direct-cli/issues/245); inherited from `TextAd.PriceExtension` |
-| `ads.update` | `TextAd.PriceExtension.OldPrice` | TEXT_AD price extension update is WSDL-supported but absent. [#245](https://github.com/axisrow/direct-cli/issues/245); inherited from `TextAd.PriceExtension` |
-| `ads.update` | `TextAd.PriceExtension.PriceQualifier` | TEXT_AD price extension update is WSDL-supported but absent. [#245](https://github.com/axisrow/direct-cli/issues/245); inherited from `TextAd.PriceExtension` |
-| `ads.update` | `TextAd.PriceExtension.PriceCurrency` | TEXT_AD price extension update is WSDL-supported but absent. [#245](https://github.com/axisrow/direct-cli/issues/245); inherited from `TextAd.PriceExtension` |
 | `ads.update` | `TextAd.BusinessId` | ads.update optional WSDL path needs typed support or N/A. [#240](https://github.com/axisrow/direct-cli/issues/240) |
 | `ads.update` | `TextAd.PreferVCardOverBusiness` | ads.update optional WSDL path needs typed support or N/A. [#240](https://github.com/axisrow/direct-cli/issues/240) |
 | `ads.update` | `TextAd.ErirAdDescription` | ads.update optional WSDL path needs typed support or N/A. [#240](https://github.com/axisrow/direct-cli/issues/240) |
@@ -3120,13 +3113,13 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.update` | `ads.update` | `TextAd.Href` | `string` | 0 | 1 | `supported` | --href |
 | `ads.update` | `ads.update` | `TextAd.AgeLabel` | `AgeLabelEnum` | 0 | 1 | `missing_followup` | ads.update optional WSDL path needs typed support or N/A. [#240](https://github.com/axisrow/direct-cli/issues/240) |
 | `ads.update` | `ads.update` | `TextAd.DisplayUrlPath` | `string` | 0 | 1 | `supported` | --display-url-path |
-| `ads.update` | `ads.update` | `TextAd.VideoExtension` | `VideoExtensionUpdateItem` | 0 | 1 | `missing_followup` | TEXT_AD video extension update is WSDL-supported but absent. [#245](https://github.com/axisrow/direct-cli/issues/245) |
-| `ads.update` | `ads.update` | `TextAd.VideoExtension.CreativeId` | `long` | 0 | 1 | `missing_followup` | TEXT_AD video extension update is WSDL-supported but absent. [#245](https://github.com/axisrow/direct-cli/issues/245); inherited from `TextAd.VideoExtension` |
-| `ads.update` | `ads.update` | `TextAd.PriceExtension` | `PriceExtensionUpdateItem` | 0 | 1 | `missing_followup` | TEXT_AD price extension update is WSDL-supported but absent. [#245](https://github.com/axisrow/direct-cli/issues/245) |
-| `ads.update` | `ads.update` | `TextAd.PriceExtension.Price` | `long` | 0 | 1 | `missing_followup` | TEXT_AD price extension update is WSDL-supported but absent. [#245](https://github.com/axisrow/direct-cli/issues/245); inherited from `TextAd.PriceExtension` |
-| `ads.update` | `ads.update` | `TextAd.PriceExtension.OldPrice` | `long` | 0 | 1 | `missing_followup` | TEXT_AD price extension update is WSDL-supported but absent. [#245](https://github.com/axisrow/direct-cli/issues/245); inherited from `TextAd.PriceExtension` |
-| `ads.update` | `ads.update` | `TextAd.PriceExtension.PriceQualifier` | `PriceQualifierEnum` | 0 | 1 | `missing_followup` | TEXT_AD price extension update is WSDL-supported but absent. [#245](https://github.com/axisrow/direct-cli/issues/245); inherited from `TextAd.PriceExtension` |
-| `ads.update` | `ads.update` | `TextAd.PriceExtension.PriceCurrency` | `PriceCurrencyEnum` | 0 | 1 | `missing_followup` | TEXT_AD price extension update is WSDL-supported but absent. [#245](https://github.com/axisrow/direct-cli/issues/245); inherited from `TextAd.PriceExtension` |
+| `ads.update` | `ads.update` | `TextAd.VideoExtension` | `VideoExtensionUpdateItem` | 0 | 1 | `supported` | --video-extension-creative-id |
+| `ads.update` | `ads.update` | `TextAd.VideoExtension.CreativeId` | `long` | 0 | 1 | `supported` | --video-extension-creative-id |
+| `ads.update` | `ads.update` | `TextAd.PriceExtension` | `PriceExtensionUpdateItem` | 0 | 1 | `supported` | --price-extension-old-price, --price-extension-price, --price-extension-price-currency, --price-extension-price-qualifier |
+| `ads.update` | `ads.update` | `TextAd.PriceExtension.Price` | `long` | 0 | 1 | `supported` | --price-extension-price |
+| `ads.update` | `ads.update` | `TextAd.PriceExtension.OldPrice` | `long` | 0 | 1 | `supported` | --price-extension-old-price |
+| `ads.update` | `ads.update` | `TextAd.PriceExtension.PriceQualifier` | `PriceQualifierEnum` | 0 | 1 | `supported` | --price-extension-price-qualifier |
+| `ads.update` | `ads.update` | `TextAd.PriceExtension.PriceCurrency` | `PriceCurrencyEnum` | 0 | 1 | `supported` | --price-extension-price-currency |
 | `ads.update` | `ads.update` | `TextAd.TurboPageId` | `long` | 0 | 1 | `supported` | --turbo-page-id |
 | `ads.update` | `ads.update` | `TextAd.BusinessId` | `long` | 0 | 1 | `missing_followup` | ads.update optional WSDL path needs typed support or N/A. [#240](https://github.com/axisrow/direct-cli/issues/240) |
 | `ads.update` | `ads.update` | `TextAd.PreferVCardOverBusiness` | `YesNoEnum` | 0 | 1 | `missing_followup` | ads.update optional WSDL path needs typed support or N/A. [#240](https://github.com/axisrow/direct-cli/issues/240) |

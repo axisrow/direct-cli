@@ -70,6 +70,25 @@ def _build_callout_setting(callouts_add, callouts_remove, callouts_set):
     return {"AdExtensions": items}
 
 
+def _build_price_extension(
+    price_extension_price,
+    price_extension_old_price,
+    price_extension_price_qualifier,
+    price_extension_price_currency,
+):
+    """Build TextAd.PriceExtension update payload from typed flags."""
+    price_extension = {}
+    if price_extension_price is not None:
+        price_extension["Price"] = price_extension_price
+    if price_extension_old_price is not None:
+        price_extension["OldPrice"] = price_extension_old_price
+    if price_extension_price_qualifier:
+        price_extension["PriceQualifier"] = price_extension_price_qualifier.upper()
+    if price_extension_price_currency:
+        price_extension["PriceCurrency"] = price_extension_price_currency.upper()
+    return price_extension or None
+
+
 @ads.command()
 @click.option("--ids", help="Comma-separated ad IDs")
 @click.option("--campaign-ids", help="Comma-separated campaign IDs")
@@ -509,6 +528,40 @@ def add(
         "--callouts-add / --callouts-remove. TEXT_AD only."
     ),
 )
+@click.option(
+    "--video-extension-creative-id",
+    type=int,
+    help="Video extension CreativeId for TextAd.VideoExtension. TEXT_AD only.",
+)
+@click.option(
+    "--price-extension-price",
+    type=int,
+    help=(
+        "PriceExtension.Price as API long units "
+        "(price multiplied by 1,000,000). TEXT_AD only."
+    ),
+)
+@click.option(
+    "--price-extension-old-price",
+    type=int,
+    help=(
+        "PriceExtension.OldPrice as API long units "
+        "(price multiplied by 1,000,000). TEXT_AD only."
+    ),
+)
+@click.option(
+    "--price-extension-price-qualifier",
+    type=click.Choice(["FROM", "UP_TO", "NONE"], case_sensitive=False),
+    help="PriceExtension.PriceQualifier: FROM, UP_TO, or NONE. TEXT_AD only.",
+)
+@click.option(
+    "--price-extension-price-currency",
+    type=click.Choice(
+        ["RUB", "UAH", "BYN", "USD", "EUR", "KZT", "TRY", "CHF", "UZS"],
+        case_sensitive=False,
+    ),
+    help="PriceExtension.PriceCurrency enum value. TEXT_AD only.",
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def update(
@@ -531,6 +584,11 @@ def update(
     callouts_add,
     callouts_remove,
     callouts_set,
+    video_extension_creative_id,
+    price_extension_price,
+    price_extension_old_price,
+    price_extension_price_qualifier,
+    price_extension_price_currency,
     dry_run,
 ):
     """Update ad"""
@@ -568,6 +626,11 @@ def update(
             "callouts_add",
             "callouts_remove",
             "callouts_set",
+            "video_extension_creative_id",
+            "price_extension_price",
+            "price_extension_old_price",
+            "price_extension_price_qualifier",
+            "price_extension_price_currency",
         },
         "TEXT_IMAGE_AD": {"image_hash", "href", "turbo_page_id"},
         "MOBILE_APP_AD": {
@@ -595,6 +658,11 @@ def update(
         "callouts_add": callouts_add,
         "callouts_remove": callouts_remove,
         "callouts_set": callouts_set,
+        "video_extension_creative_id": video_extension_creative_id,
+        "price_extension_price": price_extension_price,
+        "price_extension_old_price": price_extension_old_price,
+        "price_extension_price_qualifier": price_extension_price_qualifier,
+        "price_extension_price_currency": price_extension_price_currency,
     }
     flag_for = {
         "title": "--title",
@@ -612,6 +680,11 @@ def update(
         "callouts_add": "--callouts-add",
         "callouts_remove": "--callouts-remove",
         "callouts_set": "--callouts-set",
+        "video_extension_creative_id": "--video-extension-creative-id",
+        "price_extension_price": "--price-extension-price",
+        "price_extension_old_price": "--price-extension-old-price",
+        "price_extension_price_qualifier": "--price-extension-price-qualifier",
+        "price_extension_price_currency": "--price-extension-price-currency",
     }
     try:
         _reject_incompatible_flags(
@@ -628,6 +701,12 @@ def update(
     # net wrapped around the network call below.
     callout_setting = _build_callout_setting(
         callouts_add, callouts_remove, callouts_set
+    )
+    price_extension = _build_price_extension(
+        price_extension_price,
+        price_extension_old_price,
+        price_extension_price_qualifier,
+        price_extension_price_currency,
     )
 
     ad_data = {"Id": ad_id}
@@ -654,6 +733,10 @@ def update(
             text_ad["TurboPageId"] = turbo_page_id
         if callout_setting:
             text_ad["CalloutSetting"] = callout_setting
+        if video_extension_creative_id is not None:
+            text_ad["VideoExtension"] = {"CreativeId": video_extension_creative_id}
+        if price_extension:
+            text_ad["PriceExtension"] = price_extension
         if text_ad:
             ad_data["TextAd"] = text_ad
     elif ad_type_norm == "TEXT_IMAGE_AD":
