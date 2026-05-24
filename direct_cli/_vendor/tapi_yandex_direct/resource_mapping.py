@@ -10,6 +10,7 @@ RESOURCE_MAPPING_V5 = {
         "docs": "https://yandex.ru/dev/direct/doc/ru/adgroups/adgroups",
         "methods": ["get", "add", "update", "delete"],
     },
+    # Unified performance ad group add/update uses the v501 runtime endpoint.
     "adgroups_v501": {
         "resource": "json/v501/adgroups",
         "docs": "https://yandex.ru/dev/direct/doc/ru/adgroups/adgroups",

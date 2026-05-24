@@ -412,6 +412,9 @@ def _uses_unified_adgroup_endpoint(body: dict[str, Any]) -> bool:
     if not isinstance(adgroups_payload, list):
         return False
 
+    # Yandex docs require v501 for unified performance ad groups even though
+    # the v5 WSDL declares UnifiedAdGroup. CLI add/update commands currently
+    # build a single AdGroups item, so the nested block is enough to route.
     return any(
         isinstance(adgroup, dict) and "UnifiedAdGroup" in adgroup
         for adgroup in adgroups_payload

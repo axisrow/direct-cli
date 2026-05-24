@@ -174,6 +174,8 @@ class TestCLI(unittest.TestCase):
                     "update",
                     "--id",
                     "67890",
+                    "--name",
+                    "Updated Unified",
                     "--offer-retargeting",
                     "NO",
                 ],
@@ -186,6 +188,7 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertEqual(fake_client.calls[0][0], "adgroups_v501")
         adgroup = fake_client.calls[0][1]["params"]["AdGroups"][0]
+        self.assertEqual(adgroup["Name"], "Updated Unified")
         self.assertEqual(adgroup["UnifiedAdGroup"]["OfferRetargeting"], "NO")
 
     def test_adgroups_add_smart_keeps_v5_endpoint(self):
@@ -218,6 +221,39 @@ class TestCLI(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertEqual(fake_client.calls[0][0], "adgroups")
+
+    def test_adgroups_update_smart_keeps_v5_endpoint(self):
+        """Smart-only update payloads keep the regular v5 resource."""
+        fake_client = _FakeAdGroupsClient()
+        adgroups_module = import_module("direct_cli.commands.adgroups")
+
+        with patch.object(adgroups_module, "create_client", return_value=fake_client):
+            result = self.runner.invoke(
+                cli,
+                [
+                    "adgroups",
+                    "update",
+                    "--id",
+                    "67890",
+                    "--ad-title-source",
+                    "FEED_NAME",
+                    "--ad-body-source",
+                    "FEED_DESCRIPTION",
+                ],
+                env={
+                    "YANDEX_DIRECT_TOKEN": "test-token",
+                    "YANDEX_DIRECT_LOGIN": "axisrow",
+                },
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(fake_client.calls[0][0], "adgroups")
+        adgroup = fake_client.calls[0][1]["params"]["AdGroups"][0]
+        self.assertEqual(adgroup["SmartAdGroup"]["AdTitleSource"], "FEED_NAME")
+        self.assertEqual(
+            adgroup["SmartAdGroup"]["AdBodySource"],
+            "FEED_DESCRIPTION",
+        )
 
     def test_auth_help_has_no_docs_url(self):
         """Auth is not a Yandex Direct API resource and has no docs epilog."""
