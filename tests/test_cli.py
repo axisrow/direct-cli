@@ -154,6 +154,12 @@ class TestCLI(unittest.TestCase):
         self.assertIn("--autotargeting-search-bid-is-auto", result.output)
         self.assertIn("--priority", result.output)
 
+    def test_keywords_add_help_documents_scalar_autotargeting_flags(self):
+        result = self.runner.invoke(cli, ["keywords", "add", "--help"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("--autotargeting-search-bid-is-auto", result.output)
+        self.assertIn("--priority", result.output)
+
     def test_canonical_groups_in_help(self):
         """Test canonical transport groups"""
         result = self.runner.invoke(cli, ["--help"])
