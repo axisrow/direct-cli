@@ -64,6 +64,10 @@ _DYNAMIC_TEXT_FEED_ADGROUP_FLAGS = {
     "--feed-id",
     "--autotargeting-category",
 }
+_TEXT_ADGROUP_FEED_PARAMS_FLAGS = {
+    "--feed-id",
+    "--feed-category-ids",
+}
 
 
 @click.group()
@@ -358,6 +362,28 @@ def _build_dynamic_text_feed_adgroup(
     return dynamic_text_feed_adgroup or None
 
 
+def _build_text_adgroup_feed_params(
+    *,
+    feed_id: Optional[int],
+    feed_category_ids: Optional[str],
+) -> Optional[dict[str, object]]:
+    """Build TextAdGroupFeedParams from typed feed flags."""
+    parsed_feed_category_ids = _parse_ids_option(
+        feed_category_ids,
+        "--feed-category-ids",
+    )
+
+    if feed_id is None and parsed_feed_category_ids:
+        raise click.UsageError("--feed-id is required when --feed-category-ids is used")
+    if feed_id is None:
+        return None
+
+    feed_params: dict[str, object] = {"FeedId": feed_id}
+    if parsed_feed_category_ids:
+        feed_params["FeedCategoryIds"] = {"Items": parsed_feed_category_ids}
+    return feed_params
+
+
 def _reject_incompatible_flags(
     group_type: str,
     allowed_flags: set[str],
@@ -605,9 +631,14 @@ def get(
     "--feed-id",
     type=int,
     help=(
-        "SmartAdGroup.FeedId or DynamicTextFeedAdGroup.FeedId; "
-        "required for SMART_AD_GROUP and DYNAMIC_TEXT_FEED_AD_GROUP"
+        "TextAdGroupFeedParams.FeedId, SmartAdGroup.FeedId, or "
+        "DynamicTextFeedAdGroup.FeedId; required for SMART_AD_GROUP and "
+        "DYNAMIC_TEXT_FEED_AD_GROUP"
     ),
+)
+@click.option(
+    "--feed-category-ids",
+    help="Comma-separated TextAdGroupFeedParams.FeedCategoryIds item IDs",
 )
 @click.option("--ad-title-source", help="Smart ad group title source")
 @click.option("--ad-body-source", help="Smart ad group body source")
@@ -677,6 +708,7 @@ def add(
     autotargeting_settings_with_advertiser_brand,
     autotargeting_settings_with_competitors_brand,
     feed_id,
+    feed_category_ids,
     ad_title_source,
     ad_body_source,
     offer_retargeting,
@@ -701,7 +733,7 @@ def add(
                 f"{', '.join(repr(value) for value in _SUPPORTED_ADGROUP_TYPES)}."
             )
         allowed_flags_by_type = {
-            "TEXT_AD_GROUP": set(),
+            "TEXT_AD_GROUP": _TEXT_ADGROUP_FEED_PARAMS_FLAGS,
             "DYNAMIC_TEXT_AD_GROUP": _DYNAMIC_TEXT_ADGROUP_FLAGS,
             "DYNAMIC_TEXT_FEED_AD_GROUP": _DYNAMIC_TEXT_FEED_ADGROUP_FLAGS,
             "CPM_BANNER_KEYWORDS_AD_GROUP": set(),
@@ -741,6 +773,7 @@ def add(
                     autotargeting_settings_with_competitors_brand
                 ),
                 "--feed-id": feed_id,
+                "--feed-category-ids": feed_category_ids,
                 "--ad-title-source": ad_title_source,
                 "--ad-body-source": ad_body_source,
                 "--offer-retargeting": offer_retargeting,
@@ -773,7 +806,14 @@ def add(
             }
         if tracking_params:
             adgroup_data["TrackingParams"] = tracking_params
-        if group_type_norm == "DYNAMIC_TEXT_AD_GROUP":
+        if group_type_norm == "TEXT_AD_GROUP":
+            text_adgroup_feed_params = _build_text_adgroup_feed_params(
+                feed_id=feed_id,
+                feed_category_ids=feed_category_ids,
+            )
+            if text_adgroup_feed_params:
+                adgroup_data["TextAdGroupFeedParams"] = text_adgroup_feed_params
+        elif group_type_norm == "DYNAMIC_TEXT_AD_GROUP":
             dynamic_text_adgroup = _build_dynamic_text_adgroup(
                 domain_url=domain_url,
                 autotargeting_categories=autotargeting_categories,
@@ -892,6 +932,15 @@ def add(
         "(max 1024 chars)"
     ),
 )
+@click.option(
+    "--feed-id",
+    type=int,
+    help="TextAdGroupFeedParams.FeedId update value",
+)
+@click.option(
+    "--feed-category-ids",
+    help="Comma-separated TextAdGroupFeedParams.FeedCategoryIds item IDs",
+)
 @click.option("--ad-title-source", help="SmartAdGroup.AdTitleSource update value")
 @click.option("--ad-body-source", help="SmartAdGroup.AdBodySource update value")
 @click.option(
@@ -979,6 +1028,8 @@ def update(
     negative_keywords,
     negative_keyword_shared_set_ids,
     tracking_params,
+    feed_id,
+    feed_category_ids,
     ad_title_source,
     ad_body_source,
     offer_retargeting,
@@ -1036,6 +1087,10 @@ def update(
             "SmartAdGroup": {
                 "--ad-title-source": ad_title_source,
                 "--ad-body-source": ad_body_source,
+            },
+            "TextAdGroupFeedParams": {
+                "--feed-id": feed_id,
+                "--feed-category-ids": feed_category_ids,
             },
             "UnifiedAdGroup": {
                 "--offer-retargeting": offer_retargeting,
@@ -1100,6 +1155,12 @@ def update(
     )
     if mobile_app_adgroup:
         adgroup_data["MobileAppAdGroup"] = mobile_app_adgroup
+    text_adgroup_feed_params = _build_text_adgroup_feed_params(
+        feed_id=feed_id,
+        feed_category_ids=feed_category_ids,
+    )
+    if text_adgroup_feed_params:
+        adgroup_data["TextAdGroupFeedParams"] = text_adgroup_feed_params
     smart_adgroup = {}
     if ad_title_source:
         smart_adgroup["AdTitleSource"] = ad_title_source
@@ -1119,7 +1180,8 @@ def update(
             "--domain-url, --dynamic-feed, --autotargeting-category, "
             "--autotargeting-settings-* flags, --target-device-types, "
             "--target-carrier, --target-operating-system-version, "
-            "--ad-title-source, --ad-body-source, or --offer-retargeting)."
+            "--feed-id, --feed-category-ids, --ad-title-source, "
+            "--ad-body-source, or --offer-retargeting)."
         )
 
     try:

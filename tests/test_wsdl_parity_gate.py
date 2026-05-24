@@ -689,6 +689,17 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("adgroups", "add", "SmartAdGroup.AdBodySource"): {"--ad-body-source"},
     ("adgroups", "add", "UnifiedAdGroup"): {"--type"},
     ("adgroups", "add", "UnifiedAdGroup.OfferRetargeting"): {"--offer-retargeting"},
+    ("adgroups", "add", "TextAdGroupFeedParams"): {
+        "--feed-id",
+        "--feed-category-ids",
+    },
+    ("adgroups", "add", "TextAdGroupFeedParams.FeedId"): {"--feed-id"},
+    ("adgroups", "add", "TextAdGroupFeedParams.FeedCategoryIds"): {
+        "--feed-category-ids"
+    },
+    ("adgroups", "add", "TextAdGroupFeedParams.FeedCategoryIds.Items"): {
+        "--feed-category-ids"
+    },
     ("adgroups", "add", "MobileAppAdGroup"): {"--type"},
     ("adgroups", "add", "MobileAppAdGroup.StoreUrl"): {"--store-url"},
     ("adgroups", "add", "MobileAppAdGroup.TargetDeviceType"): {"--target-device-types"},
@@ -886,6 +897,17 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("adgroups", "update", "SmartAdGroup.AdBodySource"): {"--ad-body-source"},
     ("adgroups", "update", "UnifiedAdGroup"): {"--offer-retargeting"},
     ("adgroups", "update", "UnifiedAdGroup.OfferRetargeting"): {"--offer-retargeting"},
+    ("adgroups", "update", "TextAdGroupFeedParams"): {
+        "--feed-id",
+        "--feed-category-ids",
+    },
+    ("adgroups", "update", "TextAdGroupFeedParams.FeedId"): {"--feed-id"},
+    ("adgroups", "update", "TextAdGroupFeedParams.FeedCategoryIds"): {
+        "--feed-category-ids"
+    },
+    ("adgroups", "update", "TextAdGroupFeedParams.FeedCategoryIds.Items"): {
+        "--feed-category-ids"
+    },
     ("ads", "add", "TextAd"): {"--type"},
     ("ads", "add", "TextAd.VCardId"): {"--vcard-id"},
     ("ads", "add", "TextAd.AdImageHash"): {"--image-hash"},
@@ -1824,11 +1846,6 @@ OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
             "FeedId and AutotargetingCategories only."
         ),
     },
-    ("adgroups", "add", "TextAdGroupFeedParams"): {
-        "status": "missing_followup",
-        "issue": "#284",
-        "note": "Rare ad group feed params block has no typed add flags.",
-    },
     ("adgroups", "update", "DynamicTextFeedAdGroup.AutotargetingSettings"): {
         "status": "not_applicable",
         "issue": "#281",
@@ -1844,11 +1861,6 @@ OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
             "Official adgroups.update docs for DynamicTextFeedAdGroupUpdate "
             "do not list FeedId."
         ),
-    },
-    ("adgroups", "update", "TextAdGroupFeedParams"): {
-        "status": "missing_followup",
-        "issue": "#284",
-        "note": "Rare ad group feed params block has no typed update flags.",
     },
 }
 

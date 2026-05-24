@@ -1606,6 +1606,65 @@ def test_adgroups_add_payload_omits_type():
     assert group["RegionIds"] == [1, 225]
 
 
+def test_adgroups_add_text_feed_params_payload():
+    """Issue #284: text ad group feed params use a typed top-level block."""
+    body = _dry_run(
+        "adgroups",
+        "add",
+        "--name",
+        "Text Feed Group",
+        "--campaign-id",
+        "111",
+        "--region-ids",
+        "1,225",
+        "--feed-id",
+        "170",
+        "--feed-category-ids",
+        "10,11",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert "Type" not in group
+    assert group["TextAdGroupFeedParams"] == {
+        "FeedId": 170,
+        "FeedCategoryIds": {"Items": [10, 11]},
+    }
+
+
+def test_adgroups_add_text_feed_params_feed_id_only_payload():
+    """Issue #284: category IDs are optional; omitted means all categories."""
+    body = _dry_run(
+        "adgroups",
+        "add",
+        "--name",
+        "Text Feed Group",
+        "--campaign-id",
+        "111",
+        "--region-ids",
+        "225",
+        "--feed-id",
+        "170",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert group["TextAdGroupFeedParams"] == {"FeedId": 170}
+
+
+def test_adgroups_add_text_feed_params_requires_feed_id_for_categories():
+    """Issue #284: FeedId is required when TextAdGroupFeedParams is sent."""
+    result = _rejected(
+        "adgroups",
+        "add",
+        "--name",
+        "Text Feed Group",
+        "--campaign-id",
+        "111",
+        "--region-ids",
+        "225",
+        "--feed-category-ids",
+        "10",
+    )
+    assert "--feed-id is required when --feed-category-ids is used" in result.output
+
+
 def test_adgroups_add_tracking_params_payload():
     body = _dry_run(
         "adgroups",
@@ -2424,6 +2483,54 @@ def test_adgroups_add_rejects_incompatible_subtype_flags():
     )
 
 
+def test_adgroups_add_rejects_text_feed_category_ids_for_dynamic_group():
+    """Issue #284: TextAdGroupFeedParams flags apply only to TEXT_AD_GROUP."""
+    result = _rejected(
+        "adgroups",
+        "add",
+        "--name",
+        "Dynamic Group",
+        "--campaign-id",
+        "111",
+        "--type",
+        "DYNAMIC_TEXT_AD_GROUP",
+        "--region-ids",
+        "225",
+        "--domain-url",
+        "example.com",
+        "--feed-category-ids",
+        "10",
+    )
+    assert (
+        "--feed-category-ids is not compatible with --type DYNAMIC_TEXT_AD_GROUP"
+        in result.output
+    )
+
+
+def test_adgroups_add_rejects_text_feed_category_ids_for_smart_group():
+    """Issue #284: TextAdGroupFeedParams category IDs do not apply to smart."""
+    result = _rejected(
+        "adgroups",
+        "add",
+        "--name",
+        "Smart Group",
+        "--campaign-id",
+        "111",
+        "--type",
+        "SMART_AD_GROUP",
+        "--region-ids",
+        "225",
+        "--feed-id",
+        "170",
+        "--feed-category-ids",
+        "10",
+    )
+    assert (
+        "--feed-category-ids is not compatible with --type SMART_AD_GROUP"
+        in result.output
+    )
+
+
 def test_adgroups_update_payload_name_only():
     body = _dry_run("adgroups", "update", "--id", "222", "--name", "Renamed")
     assert body["method"] == "update"
@@ -2442,6 +2549,55 @@ def test_adgroups_update_tracking_params_payload():
     )
     group = body["params"]["AdGroups"][0]
     assert group == {"Id": 222, "TrackingParams": "utm_source=direct"}
+
+
+def test_adgroups_update_text_feed_params_payload_without_type():
+    """Issue #284: update sets top-level TextAdGroupFeedParams without --type."""
+    body = _dry_run(
+        "adgroups",
+        "update",
+        "--id",
+        "222",
+        "--feed-id",
+        "170",
+        "--feed-category-ids",
+        "10,11",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert group == {
+        "Id": 222,
+        "TextAdGroupFeedParams": {
+            "FeedId": 170,
+            "FeedCategoryIds": {"Items": [10, 11]},
+        },
+    }
+
+
+def test_adgroups_update_text_feed_params_feed_id_only_payload():
+    """Issue #284: TextAdGroupFeedParamsUpdate can update just FeedId."""
+    body = _dry_run(
+        "adgroups",
+        "update",
+        "--id",
+        "222",
+        "--feed-id",
+        "170",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert group == {"Id": 222, "TextAdGroupFeedParams": {"FeedId": 170}}
+
+
+def test_adgroups_update_text_feed_params_requires_feed_id_for_categories():
+    """Issue #284: update cannot send category IDs without FeedId."""
+    result = _rejected(
+        "adgroups",
+        "update",
+        "--id",
+        "222",
+        "--feed-category-ids",
+        "10",
+    )
+    assert "--feed-id is required when --feed-category-ids is used" in result.output
 
 
 def test_adgroups_update_dynamic_domain_url_payload_without_type():
@@ -2734,6 +2890,24 @@ def test_adgroups_update_rejects_mixed_smart_and_unified_subtype_flags():
     assert "--ad-title-source" in result.output
     assert "UnifiedAdGroup update flags" in result.output
     assert "--offer-retargeting" in result.output
+
+
+def test_adgroups_update_rejects_mixed_text_feed_and_smart_subtype_flags():
+    """Issue #284: update must not emit TextAdGroupFeedParams and SmartAdGroup."""
+    result = _rejected(
+        "adgroups",
+        "update",
+        "--id",
+        "222",
+        "--feed-id",
+        "170",
+        "--ad-title-source",
+        "name",
+    )
+    assert "TextAdGroupFeedParams update flags" in result.output
+    assert "--feed-id" in result.output
+    assert "SmartAdGroup update flags" in result.output
+    assert "--ad-title-source" in result.output
 
 
 def test_adgroups_update_negative_keywords_payload():
