@@ -3853,6 +3853,135 @@ def test_vcards_add_uses_typed_flags():
     ]
 
 
+def test_vcards_add_instant_messenger_payload():
+    body = _dry_run(
+        "vcards",
+        "add",
+        "--campaign-id",
+        "555",
+        "--country",
+        "Россия",
+        "--city",
+        "Москва",
+        "--company-name",
+        "Acme",
+        "--work-time",
+        "1#5#9#0#18#0",
+        "--phone-country-code",
+        "+7",
+        "--phone-city-code",
+        "495",
+        "--phone-number",
+        "1234567",
+        "--instant-messenger-client",
+        "telegram",
+        "--instant-messenger-login",
+        "acme_support",
+    )
+    vcard = body["params"]["VCards"][0]
+    assert vcard["InstantMessenger"] == {
+        "MessengerClient": "telegram",
+        "MessengerLogin": "acme_support",
+    }
+
+
+def test_vcards_add_instant_messenger_partial_rejected():
+    result = _rejected(
+        "vcards",
+        "add",
+        "--campaign-id",
+        "555",
+        "--country",
+        "Россия",
+        "--city",
+        "Москва",
+        "--company-name",
+        "Acme",
+        "--work-time",
+        "1#5#9#0#18#0",
+        "--phone-country-code",
+        "+7",
+        "--phone-city-code",
+        "495",
+        "--phone-number",
+        "1234567",
+        "--instant-messenger-client",
+        "telegram",
+    )
+    assert "--instant-messenger-client and --instant-messenger-login" in result.output
+
+
+def test_vcards_add_point_on_map_payload():
+    body = _dry_run(
+        "vcards",
+        "add",
+        "--campaign-id",
+        "555",
+        "--country",
+        "Россия",
+        "--city",
+        "Москва",
+        "--company-name",
+        "Acme",
+        "--work-time",
+        "1#5#9#0#18#0",
+        "--phone-country-code",
+        "+7",
+        "--phone-city-code",
+        "495",
+        "--phone-number",
+        "1234567",
+        "--point-on-map-x",
+        "37.6173",
+        "--point-on-map-y",
+        "55.7558",
+        "--point-on-map-x1",
+        "37.60",
+        "--point-on-map-y1",
+        "55.74",
+        "--point-on-map-x2",
+        "37.63",
+        "--point-on-map-y2",
+        "55.77",
+    )
+    vcard = body["params"]["VCards"][0]
+    assert vcard["PointOnMap"] == {
+        "X": 37.6173,
+        "Y": 55.7558,
+        "X1": 37.60,
+        "Y1": 55.74,
+        "X2": 37.63,
+        "Y2": 55.77,
+    }
+
+
+def test_vcards_add_point_on_map_partial_rejected():
+    result = _rejected(
+        "vcards",
+        "add",
+        "--campaign-id",
+        "555",
+        "--country",
+        "Россия",
+        "--city",
+        "Москва",
+        "--company-name",
+        "Acme",
+        "--work-time",
+        "1#5#9#0#18#0",
+        "--phone-country-code",
+        "+7",
+        "--phone-city-code",
+        "495",
+        "--phone-number",
+        "1234567",
+        "--point-on-map-x",
+        "37.6173",
+    )
+    assert "PointOnMap requires all coordinate flags" in result.output
+    assert "--point-on-map-y" in result.output
+
+
 # ----------------------------------------------------------------------
 # adextensions
 # ----------------------------------------------------------------------

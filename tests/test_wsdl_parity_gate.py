@@ -834,6 +834,16 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("vcards", "add", "Phone.CityCode"): {"--phone-city-code"},
     ("vcards", "add", "Phone.PhoneNumber"): {"--phone-number"},
     ("vcards", "add", "Phone.Extension"): {"--phone-extension"},
+    ("vcards", "add", "InstantMessenger"): {
+        "--instant-messenger-client",
+        "--instant-messenger-login",
+    },
+    ("vcards", "add", "InstantMessenger.MessengerClient"): {
+        "--instant-messenger-client"
+    },
+    ("vcards", "add", "InstantMessenger.MessengerLogin"): {
+        "--instant-messenger-login"
+    },
     ("vcards", "add", "Street"): {"--street"},
     ("vcards", "add", "House"): {"--house"},
     ("vcards", "add", "Building"): {"--building"},
@@ -842,6 +852,20 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("vcards", "add", "ContactEmail"): {"--contact-email"},
     ("vcards", "add", "Ogrn"): {"--ogrn"},
     ("vcards", "add", "MetroStationId"): {"--metro-station-id"},
+    ("vcards", "add", "PointOnMap"): {
+        "--point-on-map-x",
+        "--point-on-map-y",
+        "--point-on-map-x1",
+        "--point-on-map-y1",
+        "--point-on-map-x2",
+        "--point-on-map-y2",
+    },
+    ("vcards", "add", "PointOnMap.X"): {"--point-on-map-x"},
+    ("vcards", "add", "PointOnMap.Y"): {"--point-on-map-y"},
+    ("vcards", "add", "PointOnMap.X1"): {"--point-on-map-x1"},
+    ("vcards", "add", "PointOnMap.Y1"): {"--point-on-map-y1"},
+    ("vcards", "add", "PointOnMap.X2"): {"--point-on-map-x2"},
+    ("vcards", "add", "PointOnMap.Y2"): {"--point-on-map-y2"},
     ("vcards", "add", "ContactPerson"): {"--contact-person"},
 }
 
@@ -1040,16 +1064,6 @@ OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
         "status": "missing_followup",
         "issue": "#245",
         "note": "TEXT_AD price extension update is WSDL-supported but absent.",
-    },
-    ("vcards", "add", "InstantMessenger"): {
-        "status": "missing_followup",
-        "issue": "#246",
-        "note": "VCard InstantMessenger nested object has no typed flags.",
-    },
-    ("vcards", "add", "PointOnMap"): {
-        "status": "missing_followup",
-        "issue": "#246",
-        "note": "VCard PointOnMap nested object has no typed flags.",
     },
     ("adgroups", "add", "MobileAppAdGroup"): {
         "status": "missing_followup",

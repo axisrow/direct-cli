@@ -517,7 +517,7 @@ direct dynamicfeedadtargets set-bids --id 789 --bid 6500000 --context-bid 400000
 
 # Extensions, assets, feeds, and clients
 direct sitelinks add --sitelink "Docs|https://example.com/docs|API docs|12345" --sitelink "Help|https://example.com/help|Desk" --dry-run
-direct vcards add --campaign-id 555 --country "Russia" --city "Moscow" --company-name "Acme" --work-time 1#5#9#0#18#0 --phone-country-code +7 --phone-city-code 495 --phone-number 1234567 --dry-run
+direct vcards add --campaign-id 555 --country "Russia" --city "Moscow" --company-name "Acme" --work-time 1#5#9#0#18#0 --phone-country-code +7 --phone-city-code 495 --phone-number 1234567 --instant-messenger-client telegram --instant-messenger-login acme_support --point-on-map-x 37.6173 --point-on-map-y 55.7558 --point-on-map-x1 37.60 --point-on-map-y1 55.74 --point-on-map-x2 37.63 --point-on-map-y2 55.77 --dry-run
 direct adextensions add --callout-text "Free shipping" --dry-run
 direct adimages add --name banner.png --image-data BASE64DATA --type ICON --dry-run
 direct creatives add --video-id video-id --dry-run
@@ -1219,7 +1219,7 @@ direct dynamicfeedadtargets set-bids --id 789 --bid 6500000 --context-bid 400000
 
 # Расширения, ассеты, фиды и клиенты
 direct sitelinks add --sitelink "Docs|https://example.com/docs|API docs|12345" --sitelink "Help|https://example.com/help|Desk" --dry-run
-direct vcards add --campaign-id 555 --country "Россия" --city "Москва" --company-name "Acme" --work-time 1#5#9#0#18#0 --phone-country-code +7 --phone-city-code 495 --phone-number 1234567 --dry-run
+direct vcards add --campaign-id 555 --country "Россия" --city "Москва" --company-name "Acme" --work-time 1#5#9#0#18#0 --phone-country-code +7 --phone-city-code 495 --phone-number 1234567 --instant-messenger-client telegram --instant-messenger-login acme_support --point-on-map-x 37.6173 --point-on-map-y 55.7558 --point-on-map-x1 37.60 --point-on-map-y1 55.74 --point-on-map-x2 37.63 --point-on-map-y2 55.77 --dry-run
 direct adextensions add --callout-text "Free shipping" --dry-run
 direct adimages add --name banner.png --image-data BASE64DATA --type ICON --dry-run
 direct creatives add --video-id video-id --dry-run

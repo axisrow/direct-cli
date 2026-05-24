@@ -11,8 +11,8 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2840 |
-| `supported` | 401 |
+| `missing_followup` | 2830 |
+| `supported` | 411 |
 
 ## Confirmed Follow-Ups
 
@@ -2848,16 +2848,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `strategies.update` | `PayForConversionMultipleGoals.CustomPeriodBudget.StartDate` | strategies.update optional WSDL path needs typed support or N/A. [#251](https://github.com/axisrow/direct-cli/issues/251) |
 | `strategies.update` | `PayForConversionMultipleGoals.CustomPeriodBudget.EndDate` | strategies.update optional WSDL path needs typed support or N/A. [#251](https://github.com/axisrow/direct-cli/issues/251) |
 | `strategies.update` | `PayForConversionMultipleGoals.CustomPeriodBudget.AutoContinue` | strategies.update optional WSDL path needs typed support or N/A. [#251](https://github.com/axisrow/direct-cli/issues/251) |
-| `vcards.add` | `InstantMessenger` | VCard InstantMessenger nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246) |
-| `vcards.add` | `InstantMessenger.MessengerClient` | VCard InstantMessenger nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246); inherited from `InstantMessenger` |
-| `vcards.add` | `InstantMessenger.MessengerLogin` | VCard InstantMessenger nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246); inherited from `InstantMessenger` |
-| `vcards.add` | `PointOnMap` | VCard PointOnMap nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246) |
-| `vcards.add` | `PointOnMap.X` | VCard PointOnMap nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246); inherited from `PointOnMap` |
-| `vcards.add` | `PointOnMap.Y` | VCard PointOnMap nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246); inherited from `PointOnMap` |
-| `vcards.add` | `PointOnMap.X1` | VCard PointOnMap nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246); inherited from `PointOnMap` |
-| `vcards.add` | `PointOnMap.Y1` | VCard PointOnMap nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246); inherited from `PointOnMap` |
-| `vcards.add` | `PointOnMap.X2` | VCard PointOnMap nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246); inherited from `PointOnMap` |
-| `vcards.add` | `PointOnMap.Y2` | VCard PointOnMap nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246); inherited from `PointOnMap` |
 
 ## Field Table
 
@@ -6089,18 +6079,18 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `vcards.add` | `vcards.add` | `House` | `string` | 0 | 1 | `supported` | --house |
 | `vcards.add` | `vcards.add` | `Building` | `string` | 0 | 1 | `supported` | --building |
 | `vcards.add` | `vcards.add` | `Apartment` | `string` | 0 | 1 | `supported` | --apartment |
-| `vcards.add` | `vcards.add` | `InstantMessenger` | `InstantMessenger` | 0 | 1 | `missing_followup` | VCard InstantMessenger nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246) |
-| `vcards.add` | `vcards.add` | `InstantMessenger.MessengerClient` | `string` | 1 | 1 | `missing_followup` | VCard InstantMessenger nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246); inherited from `InstantMessenger` |
-| `vcards.add` | `vcards.add` | `InstantMessenger.MessengerLogin` | `string` | 1 | 1 | `missing_followup` | VCard InstantMessenger nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246); inherited from `InstantMessenger` |
+| `vcards.add` | `vcards.add` | `InstantMessenger` | `InstantMessenger` | 0 | 1 | `supported` | --instant-messenger-client, --instant-messenger-login |
+| `vcards.add` | `vcards.add` | `InstantMessenger.MessengerClient` | `string` | 1 | 1 | `supported` | --instant-messenger-client |
+| `vcards.add` | `vcards.add` | `InstantMessenger.MessengerLogin` | `string` | 1 | 1 | `supported` | --instant-messenger-login |
 | `vcards.add` | `vcards.add` | `ExtraMessage` | `string` | 0 | 1 | `supported` | --extra-message |
 | `vcards.add` | `vcards.add` | `ContactEmail` | `string` | 0 | 1 | `supported` | --contact-email |
 | `vcards.add` | `vcards.add` | `Ogrn` | `string` | 0 | 1 | `supported` | --ogrn |
 | `vcards.add` | `vcards.add` | `MetroStationId` | `long` | 0 | 1 | `supported` | --metro-station-id |
-| `vcards.add` | `vcards.add` | `PointOnMap` | `MapPoint` | 0 | 1 | `missing_followup` | VCard PointOnMap nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246) |
-| `vcards.add` | `vcards.add` | `PointOnMap.X` | `decimal` | 1 | 1 | `missing_followup` | VCard PointOnMap nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246); inherited from `PointOnMap` |
-| `vcards.add` | `vcards.add` | `PointOnMap.Y` | `decimal` | 1 | 1 | `missing_followup` | VCard PointOnMap nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246); inherited from `PointOnMap` |
-| `vcards.add` | `vcards.add` | `PointOnMap.X1` | `decimal` | 1 | 1 | `missing_followup` | VCard PointOnMap nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246); inherited from `PointOnMap` |
-| `vcards.add` | `vcards.add` | `PointOnMap.Y1` | `decimal` | 1 | 1 | `missing_followup` | VCard PointOnMap nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246); inherited from `PointOnMap` |
-| `vcards.add` | `vcards.add` | `PointOnMap.X2` | `decimal` | 1 | 1 | `missing_followup` | VCard PointOnMap nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246); inherited from `PointOnMap` |
-| `vcards.add` | `vcards.add` | `PointOnMap.Y2` | `decimal` | 1 | 1 | `missing_followup` | VCard PointOnMap nested object has no typed flags. [#246](https://github.com/axisrow/direct-cli/issues/246); inherited from `PointOnMap` |
+| `vcards.add` | `vcards.add` | `PointOnMap` | `MapPoint` | 0 | 1 | `supported` | --point-on-map-x, --point-on-map-x1, --point-on-map-x2, --point-on-map-y, --point-on-map-y1, --point-on-map-y2 |
+| `vcards.add` | `vcards.add` | `PointOnMap.X` | `decimal` | 1 | 1 | `supported` | --point-on-map-x |
+| `vcards.add` | `vcards.add` | `PointOnMap.Y` | `decimal` | 1 | 1 | `supported` | --point-on-map-y |
+| `vcards.add` | `vcards.add` | `PointOnMap.X1` | `decimal` | 1 | 1 | `supported` | --point-on-map-x1 |
+| `vcards.add` | `vcards.add` | `PointOnMap.Y1` | `decimal` | 1 | 1 | `supported` | --point-on-map-y1 |
+| `vcards.add` | `vcards.add` | `PointOnMap.X2` | `decimal` | 1 | 1 | `supported` | --point-on-map-x2 |
+| `vcards.add` | `vcards.add` | `PointOnMap.Y2` | `decimal` | 1 | 1 | `supported` | --point-on-map-y2 |
 | `vcards.add` | `vcards.add` | `ContactPerson` | `string` | 0 | 1 | `supported` | --contact-person |
