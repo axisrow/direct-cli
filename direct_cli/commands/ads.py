@@ -1009,6 +1009,10 @@ def add(
                 raise click.UsageError(
                     "RESPONSIVE_AD requires " + ", ".join(missing_fields)
                 )
+            if not href and business_id is None:
+                raise click.UsageError(
+                    "RESPONSIVE_AD requires either --href or --business-id."
+                )
 
             parsed_texts = _parse_required_csv_strings(texts, "--texts")
             parsed_titles = _parse_required_csv_strings(titles, "--titles")

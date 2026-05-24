@@ -1188,8 +1188,50 @@ def test_ads_add_responsive_ad_empty_texts_rejected():
         "",
         "--titles",
         "Title one",
+        "--href",
+        "https://example.com",
     )
     assert "--texts must contain at least one value." in result.output
+
+
+def test_ads_add_responsive_ad_requires_href_or_business_id():
+    """Issue #274: ResponsiveAdAdd requires Href, BusinessId, or both."""
+    result = _rejected(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "RESPONSIVE_AD",
+        "--texts",
+        "Text one",
+        "--titles",
+        "Title one",
+    )
+    assert "RESPONSIVE_AD requires either --href or --business-id." in result.output
+
+
+def test_ads_add_responsive_ad_accepts_business_id_without_href():
+    """Issue #274: BusinessId alone satisfies the ResponsiveAd destination rule."""
+    body = _dry_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "RESPONSIVE_AD",
+        "--texts",
+        "Text one",
+        "--titles",
+        "Title one",
+        "--business-id",
+        "777",
+    )
+    assert body["params"]["Ads"][0]["ResponsiveAd"] == {
+        "Texts": ["Text one"],
+        "Titles": ["Title one"],
+        "BusinessId": 777,
+    }
 
 
 def test_ads_add_responsive_ad_price_extension_requires_mandatory_fields():
@@ -1205,6 +1247,8 @@ def test_ads_add_responsive_ad_price_extension_requires_mandatory_fields():
         "Text one",
         "--titles",
         "Title one",
+        "--href",
+        "https://example.com",
         "--price-extension-old-price",
         "150.00",
     )
@@ -1227,6 +1271,8 @@ def test_ads_add_responsive_ad_rejects_other_subtype_flags():
         "Text one",
         "--titles",
         "Title one",
+        "--href",
+        "https://example.com",
         "--video-extension-creative-id",
         "777",
     )

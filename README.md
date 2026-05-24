@@ -450,10 +450,10 @@ accepts `--turbo-page-id`, `--final-url`, and `--erir-ad-description`.
 DYNAMIC_TEXT_AD update supports `--text`, `--image-hash`, `--vcard-id`,
 `--sitelink-set-id`, and `--callouts-*`.
 RESPONSIVE_AD `ads add` uses `--texts` and `--titles` as required
-comma-separated lists; optional creation flags include `--image-hashes`,
-`--video-extension-ids`, `--href`, `--age-label`, `--display-url-path`,
-`--sitelink-set-id`, `--ad-extensions`, `--price-extension-*`,
-`--business-id`, and `--erir-ad-description`.
+comma-separated lists and also requires `--href`, `--business-id`, or both.
+Optional creation flags include `--image-hashes`, `--video-extension-ids`,
+`--age-label`, `--display-url-path`, `--sitelink-set-id`, `--ad-extensions`,
+`--price-extension-*`, and `--erir-ad-description`.
 MOBILE_APP_AD update supports `--mobile-app-feature FEATURE=YES|NO`,
 `--video-extension-creative-id`, and `--erir-ad-description`.
 RESPONSIVE_AD update supports `--texts`, `--titles`, `--image-hashes`,
@@ -1221,10 +1221,10 @@ direct ads delete --id 99999
 DYNAMIC_TEXT_AD в `ads update` доступны `--text`, `--image-hash`,
 `--vcard-id`, `--sitelink-set-id` и `--callouts-*`.
 Для RESPONSIVE_AD в `ads add` обязательны `--texts` и `--titles` как списки
-через запятую; дополнительные флаги создания: `--image-hashes`,
-`--video-extension-ids`, `--href`, `--age-label`, `--display-url-path`,
-`--sitelink-set-id`, `--ad-extensions`, `--price-extension-*`,
-`--business-id` и `--erir-ad-description`.
+через запятую, а также `--href`, `--business-id` или оба флага. Дополнительные
+флаги создания: `--image-hashes`, `--video-extension-ids`, `--age-label`,
+`--display-url-path`, `--sitelink-set-id`, `--ad-extensions`,
+`--price-extension-*` и `--erir-ad-description`.
 Для MOBILE_APP_AD в `ads update` доступны `--mobile-app-feature FEATURE=YES|NO`,
 `--video-extension-creative-id` и `--erir-ad-description`.
 Для RESPONSIVE_AD в `ads update` доступны `--texts`, `--titles`,
