@@ -917,7 +917,7 @@ def update(
             "keywords update requires at least one updatable field "
             "(--keyword, --user-param-1, --user-param-2, "
             "--autotargeting-category, --autotargeting-brand-option, "
-            "or AutotargetingSettings flags)."
+            "or --autotargeting-settings-* flags)."
         )
 
     try:

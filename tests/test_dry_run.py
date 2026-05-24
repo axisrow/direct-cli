@@ -2997,6 +2997,7 @@ def test_keywords_update_rejects_noop_payload():
     )
     assert result.exit_code != 0
     assert "requires at least one updatable field" in result.output
+    assert "--autotargeting-settings-* flags" in result.output
 
 
 def test_keywords_update_payload_with_autotargeting_categories():
