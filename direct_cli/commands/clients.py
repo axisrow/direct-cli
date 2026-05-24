@@ -8,6 +8,8 @@ from ..api import create_client
 from ..output import format_output, print_error
 from ..utils import (
     build_client_update_item,
+    build_erir_attributes,
+    build_erir_organization,
     build_notification_update,
     get_default_fields,
     parse_client_setting_specs,
@@ -90,6 +92,24 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
 )
 @click.option("--tin-type", help="TIN type")
 @click.option("--tin", help="Taxpayer identification number")
+@click.option("--erir-organization-name", help="ErirAttributes.Organization.Name")
+@click.option("--erir-organization-kpp", help="ErirAttributes.Organization.Kpp")
+@click.option(
+    "--erir-organization-epay-number",
+    help="ErirAttributes.Organization.EpayNumber",
+)
+@click.option(
+    "--erir-organization-reg-number",
+    help="ErirAttributes.Organization.RegNumber",
+)
+@click.option(
+    "--erir-organization-oksm-number",
+    help="ErirAttributes.Organization.OksmNumber",
+)
+@click.option(
+    "--erir-organization-okved-code",
+    help="ErirAttributes.Organization.OkvedCode",
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def update(
@@ -102,6 +122,12 @@ def update(
     settings,
     tin_type,
     tin,
+    erir_organization_name,
+    erir_organization_kpp,
+    erir_organization_epay_number,
+    erir_organization_reg_number,
+    erir_organization_oksm_number,
+    erir_organization_okved_code,
     dry_run,
 ):
     """Update client settings"""
@@ -117,6 +143,16 @@ def update(
             notification,
             parse_client_setting_specs(list(settings)),
             parse_tin_info(tin_type, tin),
+            erir_attributes=build_erir_attributes(
+                organization=build_erir_organization(
+                    erir_organization_name,
+                    erir_organization_kpp,
+                    erir_organization_epay_number,
+                    erir_organization_reg_number,
+                    erir_organization_oksm_number,
+                    erir_organization_okved_code,
+                )
+            ),
         )
         if not client_data:
             raise click.UsageError("Provide at least one field to update")

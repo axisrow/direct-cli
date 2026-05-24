@@ -529,6 +529,7 @@ direct creatives add --video-id video-id --dry-run
 direct feeds add --name "Feed A" --url "https://example.com/feed.xml" --business-type RETAIL --remove-utm-tags YES --feed-login feedbot --dry-run
 direct feeds update --id 18 --name "Feed A v2" --url "https://example.com/feed-v2.xml" --remove-utm-tags NO --clear-feed-login --clear-feed-password --dry-run
 direct clients update --client-info "Priority client" --phone +70000000000 --notification-email user@example.com --notification-lang EN --email-subscription RECEIVE_RECOMMENDATIONS=YES --setting DISPLAY_STORE_RATING=NO --dry-run
+direct clients update --erir-organization-name "Advertiser LLC" --erir-organization-kpp 770101001 --erir-organization-epay-number epay123 --erir-organization-reg-number 1027700132195 --erir-organization-oksm-number 643 --erir-organization-okved-code 62.01 --dry-run
 direct --login CLIENT_LOGIN clients update --phone +70000000000 --notification-email user@example.com --dry-run
 direct agencyclients add-passport-organization --name "Org" --currency RUB --notification-email ops@example.com --notification-lang EN --no-send-account-news --send-warnings --dry-run
 direct agencyclients add-passport-organization-member --passport-organization-login org-login --role CHIEF --invite-email user@example.com --dry-run
@@ -1237,6 +1238,7 @@ direct creatives add --video-id video-id --dry-run
 direct feeds add --name "Фид A" --url "https://example.com/feed.xml" --business-type RETAIL --remove-utm-tags YES --feed-login feedbot --dry-run
 direct feeds update --id 18 --name "Фид A v2" --url "https://example.com/feed-v2.xml" --remove-utm-tags NO --clear-feed-login --clear-feed-password --dry-run
 direct clients update --client-info "Приоритетный клиент" --phone +70000000000 --notification-email user@example.com --notification-lang EN --email-subscription RECEIVE_RECOMMENDATIONS=YES --setting DISPLAY_STORE_RATING=NO --dry-run
+direct clients update --erir-organization-name "Рекламодатель ООО" --erir-organization-kpp 770101001 --erir-organization-epay-number epay123 --erir-organization-reg-number 1027700132195 --erir-organization-oksm-number 643 --erir-organization-okved-code 62.01 --dry-run
 direct --login CLIENT_LOGIN clients update --phone +70000000000 --notification-email user@example.com --dry-run
 direct agencyclients add-passport-organization --name "Org" --currency RUB --notification-email ops@example.com --notification-lang EN --no-send-account-news --send-warnings --dry-run
 direct agencyclients add-passport-organization-member --passport-organization-login org-login --role CHIEF --invite-email user@example.com --dry-run

@@ -101,6 +101,16 @@ class TestCLI(unittest.TestCase):
         collapsed = " ".join(result.output.split())
         self.assertIn("Image hash (TEXT_AD / TEXT_IMAGE_AD / MOBILE_APP_AD)", collapsed)
 
+    def test_clients_update_help_documents_erir_organization_flags(self):
+        result = self.runner.invoke(cli, ["clients", "update", "--help"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("--erir-organization-name", result.output)
+        self.assertIn("--erir-organization-kpp", result.output)
+        self.assertIn("--erir-organization-epay-number", result.output)
+        self.assertIn("--erir-organization-reg-number", result.output)
+        self.assertIn("--erir-organization-oksm-number", result.output)
+        self.assertIn("--erir-organization-okved-code", result.output)
+
     def test_canonical_groups_in_help(self):
         """Test canonical transport groups"""
         result = self.runner.invoke(cli, ["--help"])

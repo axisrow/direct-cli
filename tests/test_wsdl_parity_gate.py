@@ -791,6 +791,37 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("clients", "update", "TinInfo"): {"--tin", "--tin-type"},
     ("clients", "update", "TinInfo.TinType"): {"--tin-type"},
     ("clients", "update", "TinInfo.Tin"): {"--tin"},
+    ("clients", "update", "ErirAttributes"): {
+        "--erir-organization-name",
+        "--erir-organization-kpp",
+        "--erir-organization-epay-number",
+        "--erir-organization-reg-number",
+        "--erir-organization-oksm-number",
+        "--erir-organization-okved-code",
+    },
+    ("clients", "update", "ErirAttributes.Organization"): {
+        "--erir-organization-name",
+        "--erir-organization-kpp",
+        "--erir-organization-epay-number",
+        "--erir-organization-reg-number",
+        "--erir-organization-oksm-number",
+        "--erir-organization-okved-code",
+    },
+    ("clients", "update", "ErirAttributes.Organization.Name"): {
+        "--erir-organization-name"
+    },
+    ("clients", "update", "ErirAttributes.Organization.EpayNumber"): {
+        "--erir-organization-epay-number"
+    },
+    ("clients", "update", "ErirAttributes.Organization.RegNumber"): {
+        "--erir-organization-reg-number"
+    },
+    ("clients", "update", "ErirAttributes.Organization.OksmNumber"): {
+        "--erir-organization-oksm-number"
+    },
+    ("clients", "update", "ErirAttributes.Organization.OkvedCode"): {
+        "--erir-organization-okved-code"
+    },
     ("dynamicads", "add", "Conditions"): {"--condition"},
     ("dynamicads", "add", "Conditions.Operand"): {"--condition"},
     ("dynamicads", "add", "Conditions.Operator"): {"--condition"},
@@ -1302,16 +1333,6 @@ OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]
         "status": "missing_followup",
         "issue": "#296",
         "note": "CpmBannerCampaign optional fields need typed support or N/A.",
-    },
-    ("clients", "update", "ErirAttributes"): {
-        "status": "missing_followup",
-        "issue": "#306",
-        "note": "ERIR parent wrapper is tracked with the first ERIR child issue.",
-    },
-    ("clients", "update", "ErirAttributes.Organization"): {
-        "status": "missing_followup",
-        "issue": "#306",
-        "note": "ERIR Organization fields need typed support or N/A.",
     },
     ("clients", "update", "ErirAttributes.Contract"): {
         "status": "missing_followup",
