@@ -4,7 +4,10 @@ Utilities for Direct CLI
 
 import base64
 import json
+import math
+import re
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, Iterable, List, Optional, Union
 
 import click
@@ -267,6 +270,29 @@ TIN_TYPES = {
 
 YES_NO_VALUES = {"YES", "NO"}
 
+DECIMAL_RE = re.compile(r"^(?:0|[1-9]\d*)(?:\.\d+)?$")
+
+CONTRACT_TYPES = {
+    "CONTRACT",
+    "INTERMEDIARY_CONTRACT",
+    "ADDITIONAL_AGREEMENT",
+}
+
+CONTRACT_ACTION_TYPES = {
+    "COMMERCIAL",
+    "DISTRIBUTION",
+    "CONCLUDE",
+    "OTHER",
+}
+
+CONTRACT_SUBJECT_TYPES = {
+    "REPRESENTATION",
+    "MEDIATION",
+    "DISTRIBUTION",
+    "ORG_DISTRIBUTION",
+    "OTHER",
+}
+
 
 def parse_yes_no_spec(
     spec: str,
@@ -372,13 +398,84 @@ def build_erir_organization(
     return organization or None
 
 
+def build_erir_contract(
+    number: Optional[str],
+    date: Optional[str],
+    contract_type: Optional[str],
+    action_type: Optional[str],
+    subject_type: Optional[str],
+    is_agency_payment: Optional[str],
+    price_amount: Optional[float],
+    price_including_vat: Optional[str],
+) -> Optional[Dict[str, Any]]:
+    """Build ErirAttributes.Contract from typed flags."""
+    contract = {}
+    if number:
+        contract["Number"] = number
+    if date:
+        contract["Date"] = date
+    if contract_type:
+        contract["Type"] = contract_type.upper()
+    if action_type:
+        contract["ActionType"] = action_type.upper()
+    if subject_type:
+        contract["SubjectType"] = subject_type.upper()
+    if is_agency_payment:
+        contract["IsAgencyPayment"] = is_agency_payment.upper()
+
+    price_fields = {
+        "--erir-contract-price-amount": price_amount,
+        "--erir-contract-price-including-vat": price_including_vat,
+    }
+    provided_price_fields = {
+        option for option, value in price_fields.items() if value is not None
+    }
+    if provided_price_fields and len(provided_price_fields) != len(price_fields):
+        missing = ", ".join(sorted(set(price_fields) - provided_price_fields))
+        raise click.UsageError(f"ErirAttributes.Contract.Price requires {missing}")
+    if price_amount is not None and price_including_vat is not None:
+        contract["Price"] = {
+            "Amount": price_amount,
+            "IncludingVat": price_including_vat.upper(),
+        }
+
+    return contract or None
+
+
+def parse_positive_decimal_amount(value: str, option_name: str) -> float:
+    """Parse a positive finite decimal CLI amount."""
+    normalized = (value or "").strip()
+    if not DECIMAL_RE.fullmatch(normalized):
+        raise click.UsageError(
+            f"{option_name} must be a positive decimal amount, for example 100.50"
+        )
+
+    try:
+        amount = Decimal(normalized)
+    except InvalidOperation as exc:
+        raise click.UsageError(
+            f"{option_name} must be a positive decimal amount, for example 100.50"
+        ) from exc
+
+    if amount <= 0:
+        raise click.UsageError(f"{option_name} must be greater than zero")
+
+    result = float(amount)
+    if not math.isfinite(result):
+        raise click.UsageError(f"{option_name} must be a finite decimal amount")
+    return result
+
+
 def build_erir_attributes(
     organization: Optional[Dict[str, Any]] = None,
+    contract: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
     """Build ErirAttributes from typed child objects."""
     erir_attributes = {}
     if organization:
         erir_attributes["Organization"] = organization
+    if contract:
+        erir_attributes["Contract"] = contract
     return erir_attributes or None
 
 

@@ -9,12 +9,17 @@ from ..output import format_output, print_error
 from ..utils import (
     build_client_update_item,
     build_erir_attributes,
+    build_erir_contract,
     build_erir_organization,
     build_notification_update,
+    CONTRACT_ACTION_TYPES,
+    CONTRACT_SUBJECT_TYPES,
+    CONTRACT_TYPES,
     get_default_fields,
     parse_client_setting_specs,
     parse_email_subscription_specs,
     parse_ids,
+    parse_positive_decimal_amount,
     parse_tin_info,
 )
 
@@ -110,6 +115,37 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
     "--erir-organization-okved-code",
     help="ErirAttributes.Organization.OkvedCode",
 )
+@click.option("--erir-contract-number", help="ErirAttributes.Contract.Number")
+@click.option("--erir-contract-date", help="ErirAttributes.Contract.Date (YYYY-MM-DD)")
+@click.option(
+    "--erir-contract-type",
+    type=click.Choice(sorted(CONTRACT_TYPES), case_sensitive=False),
+    help="ErirAttributes.Contract.Type",
+)
+@click.option(
+    "--erir-contract-action-type",
+    type=click.Choice(sorted(CONTRACT_ACTION_TYPES), case_sensitive=False),
+    help="ErirAttributes.Contract.ActionType",
+)
+@click.option(
+    "--erir-contract-subject-type",
+    type=click.Choice(sorted(CONTRACT_SUBJECT_TYPES), case_sensitive=False),
+    help="ErirAttributes.Contract.SubjectType",
+)
+@click.option(
+    "--erir-contract-is-agency-payment",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="ErirAttributes.Contract.IsAgencyPayment",
+)
+@click.option(
+    "--erir-contract-price-amount",
+    help="ErirAttributes.Contract.Price.Amount",
+)
+@click.option(
+    "--erir-contract-price-including-vat",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="ErirAttributes.Contract.Price.IncludingVat",
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def update(
@@ -128,6 +164,14 @@ def update(
     erir_organization_reg_number,
     erir_organization_oksm_number,
     erir_organization_okved_code,
+    erir_contract_number,
+    erir_contract_date,
+    erir_contract_type,
+    erir_contract_action_type,
+    erir_contract_subject_type,
+    erir_contract_is_agency_payment,
+    erir_contract_price_amount,
+    erir_contract_price_including_vat,
     dry_run,
 ):
     """Update client settings"""
@@ -137,6 +181,12 @@ def update(
             notification_lang,
             parse_email_subscription_specs(list(email_subscriptions)),
         )
+        price_amount = None
+        if erir_contract_price_amount is not None:
+            price_amount = parse_positive_decimal_amount(
+                erir_contract_price_amount,
+                "--erir-contract-price-amount",
+            )
         client_data = build_client_update_item(
             client_info,
             phone,
@@ -151,7 +201,17 @@ def update(
                     erir_organization_reg_number,
                     erir_organization_oksm_number,
                     erir_organization_okved_code,
-                )
+                ),
+                contract=build_erir_contract(
+                    erir_contract_number,
+                    erir_contract_date,
+                    erir_contract_type,
+                    erir_contract_action_type,
+                    erir_contract_subject_type,
+                    erir_contract_is_agency_payment,
+                    price_amount,
+                    erir_contract_price_including_vat,
+                ),
             ),
         )
         if not client_data:

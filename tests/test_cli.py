@@ -111,6 +111,18 @@ class TestCLI(unittest.TestCase):
         self.assertIn("--erir-organization-oksm-number", result.output)
         self.assertIn("--erir-organization-okved-code", result.output)
 
+    def test_clients_update_help_documents_erir_contract_flags(self):
+        result = self.runner.invoke(cli, ["clients", "update", "--help"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("--erir-contract-number", result.output)
+        self.assertIn("--erir-contract-date", result.output)
+        self.assertIn("--erir-contract-type", result.output)
+        self.assertIn("--erir-contract-action-type", result.output)
+        self.assertIn("--erir-contract-subject-type", result.output)
+        self.assertIn("--erir-contract-is-agency-payment", result.output)
+        self.assertIn("--erir-contract-price-amount", result.output)
+        self.assertIn("--erir-contract-price-including-vat", result.output)
+
     def test_canonical_groups_in_help(self):
         """Test canonical transport groups"""
         result = self.runner.invoke(cli, ["--help"])
