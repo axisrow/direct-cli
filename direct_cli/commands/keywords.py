@@ -39,7 +39,7 @@ AUTOTARGETING_CATEGORIES = (
 
 AUTOTARGETING_CATEGORY_HELP = (
     "AutotargetingCategories item as CATEGORY=YES|NO. Categories: "
-    "EXACT, ALTERNATIVE, COMPETITOR, BROADER, ACCESSORY"
+    + ", ".join(AUTOTARGETING_CATEGORIES)
 )
 
 _KEYWORD_ROW_FIELDS: Dict[str, str] = {
@@ -620,7 +620,7 @@ def update(
     autotargeting_categories,
     dry_run,
 ):
-    """Update keyword text or user params (use 'bids set' for bid changes)"""
+    """Update keyword text, user params, or autotargeting categories."""
     keyword_data = {"Id": keyword_id}
     parsed_autotargeting_categories = _parse_autotargeting_categories(
         autotargeting_categories
