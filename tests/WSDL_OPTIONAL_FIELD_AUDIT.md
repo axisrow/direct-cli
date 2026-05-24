@@ -11,9 +11,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2603 |
+| `missing_followup` | 2569 |
 | `not_applicable` | 23 |
-| `supported` | 615 |
+| `supported` | 649 |
 
 ## Confirmed Follow-Ups
 
@@ -221,40 +221,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.update` | `SmartAdBuilderAd` | SMART_AD_BUILDER_AD update fields need typed support or N/A. [#271](https://github.com/axisrow/direct-cli/issues/271) |
 | `ads.update` | `SmartAdBuilderAd.LogoExtensionHash` | SMART_AD_BUILDER_AD update fields need typed support or N/A. [#271](https://github.com/axisrow/direct-cli/issues/271); inherited from `SmartAdBuilderAd` |
 | `ads.update` | `SmartAdBuilderAd.ErirAdDescription` | SMART_AD_BUILDER_AD update fields need typed support or N/A. [#271](https://github.com/axisrow/direct-cli/issues/271); inherited from `SmartAdBuilderAd` |
-| `ads.update` | `ShoppingAd` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269) |
-| `ads.update` | `ShoppingAd.SitelinkSetId` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ShoppingAd` |
-| `ads.update` | `ShoppingAd.CalloutSetting` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ShoppingAd` |
-| `ads.update` | `ShoppingAd.CalloutSetting.AdExtensions` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ShoppingAd` |
-| `ads.update` | `ShoppingAd.CalloutSetting.AdExtensions.AdExtensionId` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ShoppingAd` |
-| `ads.update` | `ShoppingAd.CalloutSetting.AdExtensions.Operation` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ShoppingAd` |
-| `ads.update` | `ShoppingAd.BusinessId` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ShoppingAd` |
-| `ads.update` | `ShoppingAd.FeedFilterConditions` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ShoppingAd` |
-| `ads.update` | `ShoppingAd.FeedFilterConditions.Items` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ShoppingAd` |
-| `ads.update` | `ShoppingAd.FeedFilterConditions.Items.Operand` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ShoppingAd` |
-| `ads.update` | `ShoppingAd.FeedFilterConditions.Items.Operator` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ShoppingAd` |
-| `ads.update` | `ShoppingAd.FeedFilterConditions.Items.Arguments` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ShoppingAd` |
-| `ads.update` | `ShoppingAd.TitleSources` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ShoppingAd` |
-| `ads.update` | `ShoppingAd.TitleSources.Items` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ShoppingAd` |
-| `ads.update` | `ShoppingAd.TextSources` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ShoppingAd` |
-| `ads.update` | `ShoppingAd.TextSources.Items` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ShoppingAd` |
-| `ads.update` | `ShoppingAd.DefaultTexts` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ShoppingAd` |
-| `ads.update` | `ListingAd` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269) |
-| `ads.update` | `ListingAd.SitelinkSetId` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
-| `ads.update` | `ListingAd.CalloutSetting` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
-| `ads.update` | `ListingAd.CalloutSetting.AdExtensions` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
-| `ads.update` | `ListingAd.CalloutSetting.AdExtensions.AdExtensionId` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
-| `ads.update` | `ListingAd.CalloutSetting.AdExtensions.Operation` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
-| `ads.update` | `ListingAd.BusinessId` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
-| `ads.update` | `ListingAd.FeedFilterConditions` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
-| `ads.update` | `ListingAd.FeedFilterConditions.Items` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
-| `ads.update` | `ListingAd.FeedFilterConditions.Items.Operand` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
-| `ads.update` | `ListingAd.FeedFilterConditions.Items.Operator` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
-| `ads.update` | `ListingAd.FeedFilterConditions.Items.Arguments` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
-| `ads.update` | `ListingAd.TitleSources` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
-| `ads.update` | `ListingAd.TitleSources.Items` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
-| `ads.update` | `ListingAd.TextSources` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
-| `ads.update` | `ListingAd.TextSources.Items` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
-| `ads.update` | `ListingAd.DefaultTexts` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
 | `campaigns.add` | `ClientInfo` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
 | `campaigns.add` | `Notification` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
 | `campaigns.add` | `Notification.SmsSettings` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
@@ -3030,40 +2996,40 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.update` | `ads.update` | `SmartAdBuilderAd` | `SmartAdBuilderAdUpdate` | 0 | 1 | `missing_followup` | SMART_AD_BUILDER_AD update fields need typed support or N/A. [#271](https://github.com/axisrow/direct-cli/issues/271) |
 | `ads.update` | `ads.update` | `SmartAdBuilderAd.LogoExtensionHash` | `string` | 0 | 1 | `missing_followup` | SMART_AD_BUILDER_AD update fields need typed support or N/A. [#271](https://github.com/axisrow/direct-cli/issues/271); inherited from `SmartAdBuilderAd` |
 | `ads.update` | `ads.update` | `SmartAdBuilderAd.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | SMART_AD_BUILDER_AD update fields need typed support or N/A. [#271](https://github.com/axisrow/direct-cli/issues/271); inherited from `SmartAdBuilderAd` |
-| `ads.update` | `ads.update` | `ShoppingAd` | `ShoppingAdUpdate` | 0 | 1 | `missing_followup` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269) |
-| `ads.update` | `ads.update` | `ShoppingAd.SitelinkSetId` | `long` | 0 | 1 | `missing_followup` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ShoppingAd` |
-| `ads.update` | `ads.update` | `ShoppingAd.CalloutSetting` | `AdExtensionSetting` | 0 | 1 | `missing_followup` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ShoppingAd` |
-| `ads.update` | `ads.update` | `ShoppingAd.CalloutSetting.AdExtensions` | `AdExtensionSettingItem` | 1 | unbounded | `missing_followup` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ShoppingAd` |
-| `ads.update` | `ads.update` | `ShoppingAd.CalloutSetting.AdExtensions.AdExtensionId` | `long` | 1 | 1 | `missing_followup` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ShoppingAd` |
-| `ads.update` | `ads.update` | `ShoppingAd.CalloutSetting.AdExtensions.Operation` | `OperationEnum` | 1 | 1 | `missing_followup` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ShoppingAd` |
-| `ads.update` | `ads.update` | `ShoppingAd.BusinessId` | `long` | 0 | 1 | `missing_followup` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ShoppingAd` |
-| `ads.update` | `ads.update` | `ShoppingAd.FeedFilterConditions` | `ArrayOfFeedFilterCondition` | 0 | 1 | `missing_followup` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ShoppingAd` |
-| `ads.update` | `ads.update` | `ShoppingAd.FeedFilterConditions.Items` | `FeedFilterConditionItem` | 1 | unbounded | `missing_followup` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ShoppingAd` |
-| `ads.update` | `ads.update` | `ShoppingAd.FeedFilterConditions.Items.Operand` | `string` | 1 | 1 | `missing_followup` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ShoppingAd` |
-| `ads.update` | `ads.update` | `ShoppingAd.FeedFilterConditions.Items.Operator` | `StringConditionOperatorEnum` | 1 | 1 | `missing_followup` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ShoppingAd` |
-| `ads.update` | `ads.update` | `ShoppingAd.FeedFilterConditions.Items.Arguments` | `string` | 1 | unbounded | `missing_followup` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ShoppingAd` |
-| `ads.update` | `ads.update` | `ShoppingAd.TitleSources` | `ArrayOfString` | 0 | 1 | `missing_followup` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ShoppingAd` |
-| `ads.update` | `ads.update` | `ShoppingAd.TitleSources.Items` | `string` | 1 | unbounded | `missing_followup` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ShoppingAd` |
-| `ads.update` | `ads.update` | `ShoppingAd.TextSources` | `ArrayOfString` | 0 | 1 | `missing_followup` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ShoppingAd` |
-| `ads.update` | `ads.update` | `ShoppingAd.TextSources.Items` | `string` | 1 | unbounded | `missing_followup` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ShoppingAd` |
-| `ads.update` | `ads.update` | `ShoppingAd.DefaultTexts` | `string` | 0 | unbounded | `missing_followup` | SHOPPING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ShoppingAd` |
-| `ads.update` | `ads.update` | `ListingAd` | `ListingAdUpdate` | 0 | 1 | `missing_followup` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269) |
-| `ads.update` | `ads.update` | `ListingAd.SitelinkSetId` | `long` | 0 | 1 | `missing_followup` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
-| `ads.update` | `ads.update` | `ListingAd.CalloutSetting` | `AdExtensionSetting` | 0 | 1 | `missing_followup` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
-| `ads.update` | `ads.update` | `ListingAd.CalloutSetting.AdExtensions` | `AdExtensionSettingItem` | 1 | unbounded | `missing_followup` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
-| `ads.update` | `ads.update` | `ListingAd.CalloutSetting.AdExtensions.AdExtensionId` | `long` | 1 | 1 | `missing_followup` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
-| `ads.update` | `ads.update` | `ListingAd.CalloutSetting.AdExtensions.Operation` | `OperationEnum` | 1 | 1 | `missing_followup` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
-| `ads.update` | `ads.update` | `ListingAd.BusinessId` | `long` | 0 | 1 | `missing_followup` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
-| `ads.update` | `ads.update` | `ListingAd.FeedFilterConditions` | `ArrayOfFeedFilterCondition` | 0 | 1 | `missing_followup` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
-| `ads.update` | `ads.update` | `ListingAd.FeedFilterConditions.Items` | `FeedFilterConditionItem` | 1 | unbounded | `missing_followup` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
-| `ads.update` | `ads.update` | `ListingAd.FeedFilterConditions.Items.Operand` | `string` | 1 | 1 | `missing_followup` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
-| `ads.update` | `ads.update` | `ListingAd.FeedFilterConditions.Items.Operator` | `StringConditionOperatorEnum` | 1 | 1 | `missing_followup` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
-| `ads.update` | `ads.update` | `ListingAd.FeedFilterConditions.Items.Arguments` | `string` | 1 | unbounded | `missing_followup` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
-| `ads.update` | `ads.update` | `ListingAd.TitleSources` | `ArrayOfString` | 0 | 1 | `missing_followup` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
-| `ads.update` | `ads.update` | `ListingAd.TitleSources.Items` | `string` | 1 | unbounded | `missing_followup` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
-| `ads.update` | `ads.update` | `ListingAd.TextSources` | `ArrayOfString` | 0 | 1 | `missing_followup` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
-| `ads.update` | `ads.update` | `ListingAd.TextSources.Items` | `string` | 1 | unbounded | `missing_followup` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
-| `ads.update` | `ads.update` | `ListingAd.DefaultTexts` | `string` | 0 | unbounded | `missing_followup` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
+| `ads.update` | `ads.update` | `ShoppingAd` | `ShoppingAdUpdate` | 0 | 1 | `supported` | --type |
+| `ads.update` | `ads.update` | `ShoppingAd.SitelinkSetId` | `long` | 0 | 1 | `supported` | --sitelink-set-id |
+| `ads.update` | `ads.update` | `ShoppingAd.CalloutSetting` | `AdExtensionSetting` | 0 | 1 | `supported` | --callouts-add, --callouts-remove, --callouts-set |
+| `ads.update` | `ads.update` | `ShoppingAd.CalloutSetting.AdExtensions` | `AdExtensionSettingItem` | 1 | unbounded | `supported` | --callouts-add, --callouts-remove, --callouts-set |
+| `ads.update` | `ads.update` | `ShoppingAd.CalloutSetting.AdExtensions.AdExtensionId` | `long` | 1 | 1 | `supported` | --callouts-add, --callouts-remove, --callouts-set |
+| `ads.update` | `ads.update` | `ShoppingAd.CalloutSetting.AdExtensions.Operation` | `OperationEnum` | 1 | 1 | `supported` | --callouts-add, --callouts-remove, --callouts-set |
+| `ads.update` | `ads.update` | `ShoppingAd.BusinessId` | `long` | 0 | 1 | `supported` | --business-id |
+| `ads.update` | `ads.update` | `ShoppingAd.FeedFilterConditions` | `ArrayOfFeedFilterCondition` | 0 | 1 | `supported` | --feed-filter-condition |
+| `ads.update` | `ads.update` | `ShoppingAd.FeedFilterConditions.Items` | `FeedFilterConditionItem` | 1 | unbounded | `supported` | --feed-filter-condition |
+| `ads.update` | `ads.update` | `ShoppingAd.FeedFilterConditions.Items.Operand` | `string` | 1 | 1 | `supported` | --feed-filter-condition |
+| `ads.update` | `ads.update` | `ShoppingAd.FeedFilterConditions.Items.Operator` | `StringConditionOperatorEnum` | 1 | 1 | `supported` | --feed-filter-condition |
+| `ads.update` | `ads.update` | `ShoppingAd.FeedFilterConditions.Items.Arguments` | `string` | 1 | unbounded | `supported` | --feed-filter-condition |
+| `ads.update` | `ads.update` | `ShoppingAd.TitleSources` | `ArrayOfString` | 0 | 1 | `supported` | --title-sources |
+| `ads.update` | `ads.update` | `ShoppingAd.TitleSources.Items` | `string` | 1 | unbounded | `supported` | --title-sources |
+| `ads.update` | `ads.update` | `ShoppingAd.TextSources` | `ArrayOfString` | 0 | 1 | `supported` | --text-sources |
+| `ads.update` | `ads.update` | `ShoppingAd.TextSources.Items` | `string` | 1 | unbounded | `supported` | --text-sources |
+| `ads.update` | `ads.update` | `ShoppingAd.DefaultTexts` | `string` | 0 | unbounded | `supported` | --default-texts |
+| `ads.update` | `ads.update` | `ListingAd` | `ListingAdUpdate` | 0 | 1 | `supported` | --type |
+| `ads.update` | `ads.update` | `ListingAd.SitelinkSetId` | `long` | 0 | 1 | `supported` | --sitelink-set-id |
+| `ads.update` | `ads.update` | `ListingAd.CalloutSetting` | `AdExtensionSetting` | 0 | 1 | `supported` | --callouts-add, --callouts-remove, --callouts-set |
+| `ads.update` | `ads.update` | `ListingAd.CalloutSetting.AdExtensions` | `AdExtensionSettingItem` | 1 | unbounded | `supported` | --callouts-add, --callouts-remove, --callouts-set |
+| `ads.update` | `ads.update` | `ListingAd.CalloutSetting.AdExtensions.AdExtensionId` | `long` | 1 | 1 | `supported` | --callouts-add, --callouts-remove, --callouts-set |
+| `ads.update` | `ads.update` | `ListingAd.CalloutSetting.AdExtensions.Operation` | `OperationEnum` | 1 | 1 | `supported` | --callouts-add, --callouts-remove, --callouts-set |
+| `ads.update` | `ads.update` | `ListingAd.BusinessId` | `long` | 0 | 1 | `supported` | --business-id |
+| `ads.update` | `ads.update` | `ListingAd.FeedFilterConditions` | `ArrayOfFeedFilterCondition` | 0 | 1 | `supported` | --feed-filter-condition |
+| `ads.update` | `ads.update` | `ListingAd.FeedFilterConditions.Items` | `FeedFilterConditionItem` | 1 | unbounded | `supported` | --feed-filter-condition |
+| `ads.update` | `ads.update` | `ListingAd.FeedFilterConditions.Items.Operand` | `string` | 1 | 1 | `supported` | --feed-filter-condition |
+| `ads.update` | `ads.update` | `ListingAd.FeedFilterConditions.Items.Operator` | `StringConditionOperatorEnum` | 1 | 1 | `supported` | --feed-filter-condition |
+| `ads.update` | `ads.update` | `ListingAd.FeedFilterConditions.Items.Arguments` | `string` | 1 | unbounded | `supported` | --feed-filter-condition |
+| `ads.update` | `ads.update` | `ListingAd.TitleSources` | `ArrayOfString` | 0 | 1 | `supported` | --title-sources |
+| `ads.update` | `ads.update` | `ListingAd.TitleSources.Items` | `string` | 1 | unbounded | `supported` | --title-sources |
+| `ads.update` | `ads.update` | `ListingAd.TextSources` | `ArrayOfString` | 0 | 1 | `supported` | --text-sources |
+| `ads.update` | `ads.update` | `ListingAd.TextSources.Items` | `string` | 1 | unbounded | `supported` | --text-sources |
+| `ads.update` | `ads.update` | `ListingAd.DefaultTexts` | `string` | 0 | unbounded | `supported` | --default-texts |
 | `advideos.add` | `advideos.add` | `Url` | `string` | 0 | 1 | `supported` | --url |
 | `advideos.add` | `advideos.add` | `VideoData` | `base64Binary` | 0 | 1 | `supported` | --video-data, --video-file |
 | `advideos.add` | `advideos.add` | `Name` | `string` | 0 | 1 | `supported` | --name |

@@ -1392,6 +1392,191 @@ def test_ads_update_responsive_ad_zero_ids_are_not_silently_dropped():
     }
 
 
+def test_ads_update_shopping_ad_payload():
+    """Issue #269: SHOPPING_AD update builds the documented ShoppingAd block."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "SHOPPING_AD",
+        "--sitelink-set-id",
+        "222",
+        "--callouts-add",
+        "333",
+        "--business-id",
+        "555",
+        "--feed-filter-condition",
+        "CATEGORY:EQUALS_ANY:shoes|boots",
+        "--feed-filter-condition",
+        "PRICE:GREATER_THAN:100",
+        "--title-sources",
+        "NAME,BRAND",
+        "--text-sources",
+        "DESCRIPTION",
+        "--default-texts",
+        "Default one,Default two",
+    )
+    ad = body["params"]["Ads"][0]
+    assert ad == {
+        "Id": 999,
+        "ShoppingAd": {
+            "SitelinkSetId": 222,
+            "CalloutSetting": {
+                "AdExtensions": [{"AdExtensionId": 333, "Operation": "ADD"}]
+            },
+            "BusinessId": 555,
+            "FeedFilterConditions": {
+                "Items": [
+                    {
+                        "Operand": "CATEGORY",
+                        "Operator": "EQUALS_ANY",
+                        "Arguments": ["shoes", "boots"],
+                    },
+                    {
+                        "Operand": "PRICE",
+                        "Operator": "GREATER_THAN",
+                        "Arguments": ["100"],
+                    },
+                ]
+            },
+            "TitleSources": {"Items": ["NAME", "BRAND"]},
+            "TextSources": {"Items": ["DESCRIPTION"]},
+            "DefaultTexts": ["Default one", "Default two"],
+        },
+    }
+    assert "ListingAd" not in ad
+
+
+def test_ads_update_listing_ad_payload():
+    """Issue #269: LISTING_AD update builds the documented ListingAd block."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "LISTING_AD",
+        "--callouts-set",
+        "333,444",
+        "--feed-filter-condition",
+        "CATEGORY:EQUALS_ANY:appliances",
+        "--title-sources",
+        "TITLE",
+        "--text-sources",
+        "DESCRIPTION",
+        "--default-texts",
+        "Fallback text",
+    )
+    assert body["params"]["Ads"][0] == {
+        "Id": 999,
+        "ListingAd": {
+            "CalloutSetting": {
+                "AdExtensions": [
+                    {"AdExtensionId": 333, "Operation": "SET"},
+                    {"AdExtensionId": 444, "Operation": "SET"},
+                ]
+            },
+            "FeedFilterConditions": {
+                "Items": [
+                    {
+                        "Operand": "CATEGORY",
+                        "Operator": "EQUALS_ANY",
+                        "Arguments": ["appliances"],
+                    }
+                ]
+            },
+            "TitleSources": {"Items": ["TITLE"]},
+            "TextSources": {"Items": ["DESCRIPTION"]},
+            "DefaultTexts": ["Fallback text"],
+        },
+    }
+
+
+def test_ads_update_shopping_ad_rejects_unrelated_flag():
+    """Issue #269: SHOPPING_AD must not silently drop unrelated subtype flags."""
+    result = _rejected(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "SHOPPING_AD",
+        "--href",
+        "https://example.com",
+    )
+    assert "--href is not compatible with --type SHOPPING_AD" in result.output
+    assert "does not convert an ad between subtypes" in result.output
+
+
+def test_ads_update_listing_ad_noop_rejected():
+    """Issue #269: LISTING_AD update without fields stays a no-op error."""
+    result = _rejected(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "LISTING_AD",
+    )
+    assert (
+        "ads update requires at least one updatable field for --type LISTING_AD"
+        in result.output
+    )
+
+
+def test_ads_update_shopping_ad_empty_sources_rejected():
+    """Issue #269: explicit empty source lists do not create no-op updates."""
+    result = _rejected(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "SHOPPING_AD",
+        "--title-sources",
+        "",
+    )
+    assert "--title-sources must contain at least one value." in result.output
+
+
+def test_ads_update_listing_ad_invalid_feed_filter_condition_rejected():
+    """Issue #269: feed filter conditions keep the existing typed grammar."""
+    result = _rejected(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "LISTING_AD",
+        "--feed-filter-condition",
+        "CATEGORY",
+    )
+    assert "--feed-filter-condition: Invalid condition" in result.output
+    assert "Expected format: OPERAND:OPERATOR:ARG1|ARG2" in result.output
+
+
+def test_ads_update_shopping_ad_zero_ids_are_not_silently_dropped():
+    """Issue #269: nullable long flags use presence, not truthiness."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "SHOPPING_AD",
+        "--sitelink-set-id",
+        "0",
+        "--business-id",
+        "0",
+    )
+    assert body["params"]["Ads"][0] == {
+        "Id": 999,
+        "ShoppingAd": {"SitelinkSetId": 0, "BusinessId": 0},
+    }
+
+
 def test_ads_update_text_ad_with_turbo_page_id():
     """Issue #202: update sets TurboPageId in TextAd."""
     body = _dry_run(
