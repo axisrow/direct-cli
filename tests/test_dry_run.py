@@ -1484,6 +1484,25 @@ def test_adgroups_add_payload_omits_type():
     assert group["RegionIds"] == [1, 225]
 
 
+def test_adgroups_add_tracking_params_payload():
+    body = _dry_run(
+        "adgroups",
+        "add",
+        "--name",
+        "Group A",
+        "--campaign-id",
+        "111",
+        "--region-ids",
+        "1,225",
+        "--tracking-params",
+        "utm_source=direct",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert group["TrackingParams"] == "utm_source=direct"
+    assert "DynamicTextAdGroup" not in group
+    assert "SmartAdGroup" not in group
+
+
 def test_adgroups_add_case_insensitive_default_type():
     """``--type text_ad_group`` (lowercase) still builds a valid payload.
 
@@ -1625,6 +1644,55 @@ def test_adgroups_update_payload_name_only():
     assert body["method"] == "update"
     group = body["params"]["AdGroups"][0]
     assert group == {"Id": 222, "Name": "Renamed"}
+
+
+def test_adgroups_update_tracking_params_payload():
+    body = _dry_run(
+        "adgroups",
+        "update",
+        "--id",
+        "222",
+        "--tracking-params",
+        "utm_source=direct",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert group == {"Id": 222, "TrackingParams": "utm_source=direct"}
+
+
+def test_adgroups_add_tracking_params_accepts_1024_chars():
+    tracking_params = "x" * 1024
+    body = _dry_run(
+        "adgroups",
+        "add",
+        "--name",
+        "Group A",
+        "--campaign-id",
+        "111",
+        "--region-ids",
+        "225",
+        "--tracking-params",
+        tracking_params,
+    )
+    group = body["params"]["AdGroups"][0]
+    assert group["TrackingParams"] == tracking_params
+
+
+def test_adgroups_update_tracking_params_rejects_1025_chars():
+    result = _rejected(
+        "adgroups",
+        "update",
+        "--id",
+        "222",
+        "--tracking-params",
+        "x" * 1025,
+    )
+    assert "--tracking-params must be at most 1024 characters" in result.output
+
+
+def test_adgroups_update_without_tracking_params_or_other_fields_rejected():
+    result = _rejected("adgroups", "update", "--id", "222")
+    assert "--tracking-params" in result.output
+    assert "requires at least one updatable field" in result.output
 
 
 # ----------------------------------------------------------------------

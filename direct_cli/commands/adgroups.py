@@ -2,16 +2,32 @@
 Ad Groups commands
 """
 
+from typing import Optional
+
 import click
 
 from ..api import create_client
 from ..output import format_output, print_error
 from ..utils import add_criteria_csv, get_default_fields, parse_ids
 
+_TRACKING_PARAMS_MAX_LENGTH = 1024
+
 
 @click.group()
 def adgroups():
     """Manage ad groups"""
+
+
+def _validate_tracking_params(tracking_params: Optional[str]) -> None:
+    """Validate AdGroup*.TrackingParams documented API constraints."""
+    if (
+        tracking_params is not None
+        and len(tracking_params) > _TRACKING_PARAMS_MAX_LENGTH
+    ):
+        raise click.UsageError(
+            "--tracking-params must be at most "
+            f"{_TRACKING_PARAMS_MAX_LENGTH} characters"
+        )
 
 
 def _reject_incompatible_flags(
@@ -151,6 +167,14 @@ def get(
 @click.option("--feed-id", type=int, help="Smart ad group feed ID")
 @click.option("--ad-title-source", help="Smart ad group title source")
 @click.option("--ad-body-source", help="Smart ad group body source")
+@click.option(
+    "--tracking-params",
+    "tracking_params",
+    help=(
+        "Tracking params query-string for AdGroupAddItem.TrackingParams "
+        "(max 1024 chars)"
+    ),
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def add(
@@ -163,10 +187,13 @@ def add(
     feed_id,
     ad_title_source,
     ad_body_source,
+    tracking_params,
     dry_run,
 ):
     """Add new ad group"""
     try:
+        _validate_tracking_params(tracking_params)
+
         group_type_norm = (group_type or "TEXT_AD_GROUP").upper().replace("-", "_")
         supported_types = {
             "TEXT_AD_GROUP",
@@ -199,6 +226,8 @@ def add(
 
         if region_ids:
             adgroup_data["RegionIds"] = parse_ids(region_ids)
+        if tracking_params:
+            adgroup_data["TrackingParams"] = tracking_params
         if group_type_norm == "DYNAMIC_TEXT_AD_GROUP":
             if not domain_url:
                 raise click.UsageError(
@@ -242,10 +271,20 @@ def add(
 @click.option("--name", help="New ad group name")
 @click.option("--status", help="New status")
 @click.option("--region-ids", help="Comma-separated region IDs")
+@click.option(
+    "--tracking-params",
+    "tracking_params",
+    help=(
+        "Tracking params query-string for AdGroupUpdateItem.TrackingParams "
+        "(max 1024 chars)"
+    ),
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def update(ctx, adgroup_id, name, status, region_ids, dry_run):
+def update(ctx, adgroup_id, name, status, region_ids, tracking_params, dry_run):
     """Update ad group"""
+    _validate_tracking_params(tracking_params)
+
     adgroup_data = {"Id": adgroup_id}
 
     if name:
@@ -255,12 +294,14 @@ def update(ctx, adgroup_id, name, status, region_ids, dry_run):
         adgroup_data["Status"] = status
     if region_ids:
         adgroup_data["RegionIds"] = parse_ids(region_ids)
+    if tracking_params:
+        adgroup_data["TrackingParams"] = tracking_params
 
     # Reject empty-payload no-op (issue #198 H5).
     if len(adgroup_data) == 1:
         raise click.UsageError(
             "adgroups update requires at least one updatable field "
-            "(--name, --status, or --region-ids)."
+            "(--name, --status, --region-ids, or --tracking-params)."
         )
 
     try:

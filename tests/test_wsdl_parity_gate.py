@@ -632,8 +632,10 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("adgroups", "add", "SmartAdGroup.FeedId"): {"--feed-id"},
     ("adgroups", "add", "SmartAdGroup.AdTitleSource"): {"--ad-title-source"},
     ("adgroups", "add", "SmartAdGroup.AdBodySource"): {"--ad-body-source"},
+    ("adgroups", "add", "TrackingParams"): {"--tracking-params"},
     ("adgroups", "update", "Name"): {"--name"},
     ("adgroups", "update", "RegionIds"): {"--region-ids"},
+    ("adgroups", "update", "TrackingParams"): {"--tracking-params"},
     ("ads", "add", "TextAd"): {"--type"},
     ("ads", "add", "TextAd.VCardId"): {"--vcard-id"},
     ("ads", "add", "TextAd.AdImageHash"): {"--image-hash"},
@@ -956,16 +958,6 @@ OPTIONAL_FIELD_DEFAULT_FOLLOWUPS: dict[tuple[str, str], dict[str, str]] = {
 }
 
 OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
-    ("adgroups", "add", "TrackingParams"): {
-        "status": "missing_followup",
-        "issue": "#242",
-        "note": "AdGroupAddItem.TrackingParams has no typed flag.",
-    },
-    ("adgroups", "update", "TrackingParams"): {
-        "status": "missing_followup",
-        "issue": "#242",
-        "note": "AdGroupUpdateItem.TrackingParams has no typed flag.",
-    },
     ("adgroups", "add", "NegativeKeywords"): {
         "status": "missing_followup",
         "issue": "#243",
