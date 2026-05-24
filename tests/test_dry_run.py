@@ -5365,6 +5365,8 @@ def test_dynamicfeedadtargets_add_payload():
         "123",
         "--name",
         "Test Target",
+        "--condition",
+        "CATEGORY:EQUALS_ANY:shoes|boots",
         "--bid",
         "1500000",
     )
@@ -5372,6 +5374,15 @@ def test_dynamicfeedadtargets_add_payload():
     target = body["params"]["DynamicFeedAdTargets"][0]
     assert target["AdGroupId"] == 123
     assert target["Name"] == "Test Target"
+    assert target["Conditions"] == {
+        "Items": [
+            {
+                "Operand": "CATEGORY",
+                "Operator": "EQUALS_ANY",
+                "Arguments": ["shoes", "boots"],
+            }
+        ]
+    }
     assert target["Bid"] == 1500000
 
 

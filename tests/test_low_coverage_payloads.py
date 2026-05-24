@@ -663,9 +663,9 @@ def test_dynamicfeedadtargets_add_normalizes_available_items_only():
 
     target = body["params"]["DynamicFeedAdTargets"][0]
     assert target["AvailableItemsOnly"] == "NO"
-    assert target["Conditions"] == [
-        {"Operand": "CATEGORY", "Operator": "EQUALS", "Arguments": ["shoes"]}
-    ]
+    assert target["Conditions"] == {
+        "Items": [{"Operand": "CATEGORY", "Operator": "EQUALS", "Arguments": ["shoes"]}]
+    }
 
 
 def test_audiencetargets_add_requires_target_kind():

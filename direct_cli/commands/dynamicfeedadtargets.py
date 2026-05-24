@@ -126,7 +126,7 @@ def add(
             parse_condition_specs(list(conditions)) if conditions else None
         )
         if parsed_conditions:
-            target_data["Conditions"] = parsed_conditions
+            target_data["Conditions"] = {"Items": parsed_conditions}
         if bid is not None:
             target_data["Bid"] = bid
         if context_bid is not None:
