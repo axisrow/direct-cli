@@ -2851,12 +2851,37 @@ def test_keywords_add_payload_with_autotargeting_categories():
     }
 
 
+def test_keywords_add_payload_with_autotargeting_brand_options():
+    body = _dry_run(
+        "keywords",
+        "add",
+        "--adgroup-id",
+        "12",
+        "--keyword",
+        "---autotargeting",
+        "--autotargeting-brand-option",
+        "without_brands=yes",
+        "--autotargeting-brand-option",
+        "WITH_ADVERTISER_BRAND=NO",
+    )
+    keyword = body["params"]["Keywords"][0]
+    assert keyword == {
+        "AdGroupId": 12,
+        "Keyword": "---autotargeting",
+        "AutotargetingBrandOptions": [
+            {"Option": "WITHOUT_BRANDS", "Value": "YES"},
+            {"Option": "WITH_ADVERTISER_BRAND", "Value": "NO"},
+        ],
+    }
+
+
 def test_keywords_add_rejects_scalar_autotargeting_flags_in_batch_mode(tmp_path):
     path = _write_jsonl(tmp_path, [{"Keyword": "kw", "AdGroupId": 100}])
     for flag, value in (
         ("--priority", "HIGH"),
         ("--autotargeting-search-bid-is-auto", "YES"),
         ("--autotargeting-category", "EXACT=YES"),
+        ("--autotargeting-brand-option", "WITHOUT_BRANDS=YES"),
     ):
         result = CliRunner().invoke(
             cli,
@@ -2960,6 +2985,27 @@ def test_keywords_update_payload_with_autotargeting_categories():
     }
 
 
+def test_keywords_update_payload_with_autotargeting_brand_options():
+    body = _dry_run(
+        "keywords",
+        "update",
+        "--id",
+        "777",
+        "--autotargeting-brand-option",
+        "WITHOUT_BRANDS=NO",
+        "--autotargeting-brand-option",
+        "with_advertiser_brand=yes",
+    )
+    keyword = body["params"]["Keywords"][0]
+    assert keyword == {
+        "Id": 777,
+        "AutotargetingBrandOptions": [
+            {"Option": "WITHOUT_BRANDS", "Value": "NO"},
+            {"Option": "WITH_ADVERTISER_BRAND", "Value": "YES"},
+        ],
+    }
+
+
 def test_keywords_autotargeting_category_requires_category_value_pair():
     result = CliRunner().invoke(
         cli,
@@ -3007,6 +3053,60 @@ def test_keywords_autotargeting_category_rejects_unknown_value():
             "777",
             "--autotargeting-category",
             "EXACT=MAYBE",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "expected YES or NO" in result.output
+
+
+def test_keywords_autotargeting_brand_option_requires_option_value_pair():
+    result = CliRunner().invoke(
+        cli,
+        [
+            "keywords",
+            "add",
+            "--adgroup-id",
+            "12",
+            "--keyword",
+            "---autotargeting",
+            "--autotargeting-brand-option",
+            "WITHOUT_BRANDS",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "OPTION=YES|NO" in result.output
+
+
+def test_keywords_autotargeting_brand_option_rejects_unknown_option():
+    result = CliRunner().invoke(
+        cli,
+        [
+            "keywords",
+            "update",
+            "--id",
+            "777",
+            "--autotargeting-brand-option",
+            "WITH_COMPETITORS_BRAND=YES",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "Invalid --autotargeting-brand-option option" in result.output
+    assert "WITHOUT_BRANDS" in result.output
+
+
+def test_keywords_autotargeting_brand_option_rejects_unknown_value():
+    result = CliRunner().invoke(
+        cli,
+        [
+            "keywords",
+            "update",
+            "--id",
+            "777",
+            "--autotargeting-brand-option",
+            "WITHOUT_BRANDS=MAYBE",
             "--dry-run",
         ],
     )

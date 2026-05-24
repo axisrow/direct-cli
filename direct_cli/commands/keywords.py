@@ -36,10 +36,18 @@ AUTOTARGETING_CATEGORIES = (
     "BROADER",
     "ACCESSORY",
 )
+AUTOTARGETING_BRAND_OPTIONS = (
+    "WITHOUT_BRANDS",
+    "WITH_ADVERTISER_BRAND",
+)
 
 AUTOTARGETING_CATEGORY_HELP = (
     "AutotargetingCategories item as CATEGORY=YES|NO. Categories: "
     + ", ".join(AUTOTARGETING_CATEGORIES)
+)
+AUTOTARGETING_BRAND_OPTION_HELP = (
+    "AutotargetingBrandOptions item as OPTION=YES|NO. Options: "
+    + ", ".join(AUTOTARGETING_BRAND_OPTIONS)
 )
 
 _KEYWORD_ROW_FIELDS: Dict[str, str] = {
@@ -229,6 +237,40 @@ def _parse_autotargeting_categories(
     return items
 
 
+def _parse_autotargeting_brand_options(
+    raw_values: tuple[str, ...],
+) -> Optional[List[Dict[str, str]]]:
+    if not raw_values:
+        return None
+
+    items: List[Dict[str, str]] = []
+    allowed_options = ", ".join(AUTOTARGETING_BRAND_OPTIONS)
+    for raw_value in raw_values:
+        option_raw, separator, value_raw = raw_value.strip().partition("=")
+        if not separator:
+            raise click.UsageError(
+                "--autotargeting-brand-option expects OPTION=YES|NO "
+                "(for example WITHOUT_BRANDS=YES)"
+            )
+
+        option = option_raw.strip().upper()
+        value = value_raw.strip().upper()
+        if option not in AUTOTARGETING_BRAND_OPTIONS:
+            raise click.UsageError(
+                "Invalid --autotargeting-brand-option option "
+                f"{option_raw!r}; allowed: {allowed_options}"
+            )
+        if value not in {"YES", "NO"}:
+            raise click.UsageError(
+                "Invalid --autotargeting-brand-option value "
+                f"{value_raw!r}; expected YES or NO"
+            )
+
+        items.append({"Option": option, "Value": value})
+
+    return items
+
+
 @click.group()
 def keywords():
     """Manage keywords"""
@@ -343,6 +385,12 @@ def get(
     multiple=True,
     help=AUTOTARGETING_CATEGORY_HELP,
 )
+@click.option(
+    "--autotargeting-brand-option",
+    "autotargeting_brand_options",
+    multiple=True,
+    help=AUTOTARGETING_BRAND_OPTION_HELP,
+)
 @click.option("--user-param-1", help="User parameter 1")
 @click.option("--user-param-2", help="User parameter 2")
 @click.option(
@@ -373,6 +421,7 @@ def add(
     autotargeting_search_bid_is_auto,
     priority,
     autotargeting_categories,
+    autotargeting_brand_options,
     user_param_1,
     user_param_2,
     from_file,
@@ -404,6 +453,7 @@ def add(
             "--autotargeting-search-bid-is-auto": autotargeting_search_bid_is_auto,
             "--priority": priority,
             "--autotargeting-category": autotargeting_categories,
+            "--autotargeting-brand-option": autotargeting_brand_options,
             "--user-param-1": user_param_1,
             "--user-param-2": user_param_2,
         }
@@ -431,6 +481,9 @@ def add(
     parsed_autotargeting_categories = _parse_autotargeting_categories(
         autotargeting_categories
     )
+    parsed_autotargeting_brand_options = _parse_autotargeting_brand_options(
+        autotargeting_brand_options
+    )
 
     try:
         keyword_data: Dict[str, Any] = {
@@ -449,6 +502,10 @@ def add(
             keyword_data["StrategyPriority"] = priority.upper()
         if parsed_autotargeting_categories is not None:
             keyword_data["AutotargetingCategories"] = parsed_autotargeting_categories
+        if parsed_autotargeting_brand_options is not None:
+            keyword_data["AutotargetingBrandOptions"] = (
+                parsed_autotargeting_brand_options
+            )
         if user_param_1:
             keyword_data["UserParam1"] = user_param_1
         if user_param_2:
@@ -583,6 +640,12 @@ def _deprecated_bid_option(ctx, param, value):
     help=AUTOTARGETING_CATEGORY_HELP,
 )
 @click.option(
+    "--autotargeting-brand-option",
+    "autotargeting_brand_options",
+    multiple=True,
+    help=AUTOTARGETING_BRAND_OPTION_HELP,
+)
+@click.option(
     "--bid",
     default=None,
     expose_value=False,
@@ -618,12 +681,16 @@ def update(
     user_param_1,
     user_param_2,
     autotargeting_categories,
+    autotargeting_brand_options,
     dry_run,
 ):
-    """Update keyword text, user params, or autotargeting categories."""
+    """Update keyword text, user params, or autotargeting options."""
     keyword_data = {"Id": keyword_id}
     parsed_autotargeting_categories = _parse_autotargeting_categories(
         autotargeting_categories
+    )
+    parsed_autotargeting_brand_options = _parse_autotargeting_brand_options(
+        autotargeting_brand_options
     )
 
     if keyword:
@@ -634,13 +701,15 @@ def update(
         keyword_data["UserParam2"] = user_param_2
     if parsed_autotargeting_categories is not None:
         keyword_data["AutotargetingCategories"] = parsed_autotargeting_categories
+    if parsed_autotargeting_brand_options is not None:
+        keyword_data["AutotargetingBrandOptions"] = parsed_autotargeting_brand_options
 
     # Reject empty-payload no-op (issue #198 H10).
     if len(keyword_data) == 1:
         raise click.UsageError(
             "keywords update requires at least one updatable field "
-            "(--keyword, --user-param-1, --user-param-2, or "
-            "--autotargeting-category)."
+            "(--keyword, --user-param-1, --user-param-2, "
+            "--autotargeting-category, or --autotargeting-brand-option)."
         )
 
     try:
