@@ -3736,7 +3736,7 @@ def test_audiencetargets_add_context_bid():
         "--bid",
         "12000000",
         "--priority",
-        "HIGH",
+        "high",
     )
     assert body["method"] == "add"
     target = body["params"]["AudienceTargets"][0]
@@ -3746,6 +3746,21 @@ def test_audiencetargets_add_context_bid():
         "ContextBid": 12000000,
         "StrategyPriority": "HIGH",
     }
+
+
+def test_audiencetargets_add_rejects_invalid_priority():
+    result = _rejected(
+        "audiencetargets",
+        "add",
+        "--adgroup-id",
+        "100",
+        "--retargeting-list-id",
+        "200",
+        "--priority",
+        "MAX",
+    )
+
+    assert "Invalid value for '--priority'" in result.output
 
 
 def test_audiencetargets_add_accepts_interest_id():

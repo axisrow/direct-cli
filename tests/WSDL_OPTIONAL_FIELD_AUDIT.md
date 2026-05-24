@@ -11,8 +11,8 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2815 |
-| `supported` | 426 |
+| `missing_followup` | 2813 |
+| `supported` | 428 |
 
 ## Confirmed Follow-Ups
 
@@ -351,8 +351,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.update` | `ListingAd.TextSources` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
 | `ads.update` | `ListingAd.TextSources.Items` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
 | `ads.update` | `ListingAd.DefaultTexts` | LISTING_AD update fields need typed support or N/A. [#269](https://github.com/axisrow/direct-cli/issues/269); inherited from `ListingAd` |
-| `audiencetargets.add` | `ContextBid` | target bid optional WSDL path needs typed support or N/A. [#302](https://github.com/axisrow/direct-cli/issues/302) |
-| `audiencetargets.add` | `StrategyPriority` | target bid optional WSDL path needs typed support or N/A. [#302](https://github.com/axisrow/direct-cli/issues/302) |
 | `bids.set` | `CampaignId` | bids.set optional WSDL path needs typed support or N/A. [#301](https://github.com/axisrow/direct-cli/issues/301) |
 | `bids.set` | `AdGroupId` | bids.set optional WSDL path needs typed support or N/A. [#301](https://github.com/axisrow/direct-cli/issues/301) |
 | `bids.set` | `ContextBid` | bids.set optional WSDL path needs typed support or N/A. [#301](https://github.com/axisrow/direct-cli/issues/301) |
@@ -3255,8 +3253,8 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `advideos.add` | `advideos.add` | `Url` | `string` | 0 | 1 | `supported` | --url |
 | `advideos.add` | `advideos.add` | `VideoData` | `base64Binary` | 0 | 1 | `supported` | --video-data, --video-file |
 | `advideos.add` | `advideos.add` | `Name` | `string` | 0 | 1 | `supported` | --name |
-| `audiencetargets.add` | `audiencetargets.add` | `ContextBid` | `long` | 0 | 1 | `missing_followup` | target bid optional WSDL path needs typed support or N/A. [#302](https://github.com/axisrow/direct-cli/issues/302) |
-| `audiencetargets.add` | `audiencetargets.add` | `StrategyPriority` | `PriorityEnum` | 0 | 1 | `missing_followup` | target bid optional WSDL path needs typed support or N/A. [#302](https://github.com/axisrow/direct-cli/issues/302) |
+| `audiencetargets.add` | `audiencetargets.add` | `ContextBid` | `long` | 0 | 1 | `supported` | --bid |
+| `audiencetargets.add` | `audiencetargets.add` | `StrategyPriority` | `PriorityEnum` | 0 | 1 | `supported` | --priority |
 | `audiencetargets.add` | `audiencetargets.add` | `AdGroupId` | `long` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `audiencetargets.add` | `audiencetargets.add` | `RetargetingListId` | `long` | 0 | 1 | `supported` | --retargeting-list-id |
 | `audiencetargets.add` | `audiencetargets.add` | `InterestId` | `long` | 0 | 1 | `supported` | --interest-id |

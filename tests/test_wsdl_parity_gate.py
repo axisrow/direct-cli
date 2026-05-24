@@ -821,6 +821,8 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("negativekeywordsharedsets", "update", "NegativeKeywords"): {"--keywords"},
     ("audiencetargets", "add", "RetargetingListId"): {"--retargeting-list-id"},
     ("audiencetargets", "add", "InterestId"): {"--interest-id"},
+    ("audiencetargets", "add", "ContextBid"): {"--bid"},
+    ("audiencetargets", "add", "StrategyPriority"): {"--priority"},
     ("bids", "set", "KeywordId"): {"--keyword-id"},
     ("bids", "set", "Bid"): {"--bid"},
     ("keywordbids", "set", "KeywordId"): {"--keyword-id"},

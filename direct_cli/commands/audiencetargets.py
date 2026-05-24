@@ -101,8 +101,12 @@ def get(
 @click.option("--adgroup-id", required=True, type=int, help="Ad group ID")
 @click.option("--retargeting-list-id", type=int, help="Retargeting list ID")
 @click.option("--interest-id", type=int, help="Interest ID")
-@click.option("--bid", type=MICRO_RUBLES, help="Context bid in micro-rubles")
-@click.option("--priority", help="Strategy priority")
+@click.option("--bid", type=MICRO_RUBLES, help="ContextBid value in micro-rubles")
+@click.option(
+    "--priority",
+    type=click.Choice(["LOW", "NORMAL", "HIGH"], case_sensitive=False),
+    help="StrategyPriority value for automatic strategies",
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def add(
@@ -132,7 +136,7 @@ def add(
         if bid is not None:
             target_data["ContextBid"] = bid
         if priority:
-            target_data["StrategyPriority"] = priority
+            target_data["StrategyPriority"] = priority.upper()
 
         body = {"method": "add", "params": {"AudienceTargets": [target_data]}}
 
