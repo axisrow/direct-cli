@@ -176,6 +176,24 @@ class TestCLI(unittest.TestCase):
         self.assertIn("--autotargeting-brand-option", add_result.output)
         self.assertIn("--autotargeting-brand-option", update_result.output)
 
+    def test_keywords_help_documents_autotargeting_settings_flags(self):
+        add_result = self.runner.invoke(cli, ["keywords", "add", "--help"])
+        update_result = self.runner.invoke(cli, ["keywords", "update", "--help"])
+        self.assertEqual(add_result.exit_code, 0)
+        self.assertEqual(update_result.exit_code, 0)
+        for option in (
+            "--autotargeting-settings-exact",
+            "--autotargeting-settings-narrow",
+            "--autotargeting-settings-alternative",
+            "--autotargeting-settings-accessory",
+            "--autotargeting-settings-broader",
+            "--autotargeting-settings-without-brands",
+            "--autotargeting-settings-with-advertiser-brand",
+            "--autotargeting-settings-with-competitors-brand",
+        ):
+            self.assertIn(option, add_result.output)
+            self.assertIn(option, update_result.output)
+
     def test_canonical_groups_in_help(self):
         """Test canonical transport groups"""
         result = self.runner.invoke(cli, ["--help"])
