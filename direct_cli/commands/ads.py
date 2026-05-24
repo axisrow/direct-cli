@@ -249,7 +249,7 @@ def _build_price_extension_add(
     price_extension_price_currency,
     container_name="TextAd",
 ):
-    """Build TextAd.PriceExtension add payload from typed flags."""
+    """Build PriceExtension add payload for an ad subtype from typed flags."""
     provided = (
         price_extension_price is not None
         or price_extension_old_price is not None
