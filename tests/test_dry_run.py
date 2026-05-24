@@ -2829,20 +2829,25 @@ def test_keywords_add_payload_with_scalar_autotargeting_fields():
 
 def test_keywords_add_rejects_scalar_autotargeting_flags_in_batch_mode(tmp_path):
     path = _write_jsonl(tmp_path, [{"Keyword": "kw", "AdGroupId": 100}])
-    result = CliRunner().invoke(
-        cli,
-        [
-            "keywords",
-            "add",
-            "--from-file",
-            path,
-            "--priority",
-            "HIGH",
-            "--dry-run",
-        ],
-    )
-    assert result.exit_code != 0
-    assert "single-item mode" in result.output
+    for flag, value in (
+        ("--priority", "HIGH"),
+        ("--autotargeting-search-bid-is-auto", "YES"),
+    ):
+        result = CliRunner().invoke(
+            cli,
+            [
+                "keywords",
+                "add",
+                "--from-file",
+                path,
+                flag,
+                value,
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code != 0
+        assert "single-item mode" in result.output
+        assert flag in result.output
 
 
 def test_keywords_add_rejects_single_item_flags_in_batch_mode(tmp_path):

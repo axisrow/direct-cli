@@ -5574,9 +5574,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `keywords.add` | `keywords.add` | `Keyword` | `string` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `keywords.add` | `keywords.add` | `AdGroupId` | `long` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `keywords.add` | `keywords.add` | `Bid` | `long` | 0 | 1 | `supported` | --bid |
-| `keywords.add` | `keywords.add` | `AutotargetingSearchBidIsAuto` | `YesNoEnum` | 0 | 1 | `supported` | --autotargeting-search-bid-is-auto |
+| `keywords.add` | `keywords.add` | `AutotargetingSearchBidIsAuto` | `YesNoEnum` | 0 | 1 | `supported` | Single-item typed flag is supported; batch/from-file parity is tracked separately. [#289](https://github.com/axisrow/direct-cli/issues/289) |
 | `keywords.add` | `keywords.add` | `ContextBid` | `long` | 0 | 1 | `supported` | --context-bid |
-| `keywords.add` | `keywords.add` | `StrategyPriority` | `PriorityEnum` | 0 | 1 | `supported` | --priority |
+| `keywords.add` | `keywords.add` | `StrategyPriority` | `PriorityEnum` | 0 | 1 | `supported` | Single-item typed flag is supported; batch/from-file parity is tracked separately. [#289](https://github.com/axisrow/direct-cli/issues/289) |
 | `keywords.add` | `keywords.add` | `UserParam1` | `string` | 0 | 1 | `supported` | --user-param-1 |
 | `keywords.add` | `keywords.add` | `UserParam2` | `string` | 0 | 1 | `supported` | --user-param-2 |
 | `keywords.add` | `keywords.add` | `AutotargetingCategories` | `AutotargetingCategory` | 0 | unbounded | `missing_followup` | Keyword autotargeting categories have no typed add flags. [#286](https://github.com/axisrow/direct-cli/issues/286) |

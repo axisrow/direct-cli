@@ -1465,10 +1465,26 @@ OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
         "issue": "#286",
         "note": "Keyword autotargeting categories have no typed add flags.",
     },
+    ("keywords", "add", "AutotargetingSearchBidIsAuto"): {
+        "status": "supported",
+        "issue": "#289",
+        "note": (
+            "Single-item typed flag is supported; batch/from-file parity is "
+            "tracked separately."
+        ),
+    },
     ("keywords", "add", "AutotargetingBrandOptions"): {
         "status": "missing_followup",
         "issue": "#287",
         "note": "Keyword autotargeting brand options have no typed add flags.",
+    },
+    ("keywords", "add", "StrategyPriority"): {
+        "status": "supported",
+        "issue": "#289",
+        "note": (
+            "Single-item typed flag is supported; batch/from-file parity is "
+            "tracked separately."
+        ),
     },
     ("keywords", "add", "AutotargetingSettings"): {
         "status": "missing_followup",
