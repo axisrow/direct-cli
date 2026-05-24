@@ -11,8 +11,8 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2804 |
-| `supported` | 437 |
+| `missing_followup` | 2800 |
+| `supported` | 441 |
 
 ## Confirmed Follow-Ups
 
@@ -2549,11 +2549,7 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `campaigns.update` | `TimeTargeting.HolidaysSchedule.BidPercent` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
 | `campaigns.update` | `TimeTargeting.HolidaysSchedule.StartHour` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
 | `campaigns.update` | `TimeTargeting.HolidaysSchedule.EndHour` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `clients.update` | `Notification.EmailSubscriptions.Option` | Client EmailSubscriptions item parity needs typed support or N/A. [#305](https://github.com/axisrow/direct-cli/issues/305); inherited from `Notification.EmailSubscriptions` |
-| `clients.update` | `Notification.EmailSubscriptions.Value` | Client EmailSubscriptions item parity needs typed support or N/A. [#305](https://github.com/axisrow/direct-cli/issues/305); inherited from `Notification.EmailSubscriptions` |
-| `clients.update` | `Settings.Option` | Client Settings item parity needs typed support or N/A. [#305](https://github.com/axisrow/direct-cli/issues/305); inherited from `Settings` |
-| `clients.update` | `Settings.Value` | Client Settings item parity needs typed support or N/A. [#305](https://github.com/axisrow/direct-cli/issues/305); inherited from `Settings` |
-| `clients.update` | `ErirAttributes` | clients.update item option/value path needs typed support or N/A. [#305](https://github.com/axisrow/direct-cli/issues/305) |
+| `clients.update` | `ErirAttributes` | ERIR parent wrapper is tracked with the first ERIR child issue. [#306](https://github.com/axisrow/direct-cli/issues/306) |
 | `clients.update` | `ErirAttributes.Organization` | ERIR Organization fields need typed support or N/A. [#306](https://github.com/axisrow/direct-cli/issues/306) |
 | `clients.update` | `ErirAttributes.Organization.Name` | ERIR Organization fields need typed support or N/A. [#306](https://github.com/axisrow/direct-cli/issues/306); inherited from `ErirAttributes.Organization` |
 | `clients.update` | `ErirAttributes.Organization.EpayNumber` | ERIR Organization fields need typed support or N/A. [#306](https://github.com/axisrow/direct-cli/issues/306); inherited from `ErirAttributes.Organization` |
@@ -5528,16 +5524,16 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `clients.update` | `clients.update` | `Notification` | `NotificationUpdate` | 0 | 1 | `supported` | --email-subscription, --notification-email, --notification-lang |
 | `clients.update` | `clients.update` | `Notification.Email` | `string` | 0 | 1 | `supported` | --notification-email |
 | `clients.update` | `clients.update` | `Notification.EmailSubscriptions` | `EmailSubscriptionItem` | 0 | unbounded | `supported` | --email-subscription |
-| `clients.update` | `clients.update` | `Notification.EmailSubscriptions.Option` | `EmailSubscriptionEnum` | 1 | 1 | `missing_followup` | Client EmailSubscriptions item parity needs typed support or N/A. [#305](https://github.com/axisrow/direct-cli/issues/305); inherited from `Notification.EmailSubscriptions` |
-| `clients.update` | `clients.update` | `Notification.EmailSubscriptions.Value` | `YesNoEnum` | 1 | 1 | `missing_followup` | Client EmailSubscriptions item parity needs typed support or N/A. [#305](https://github.com/axisrow/direct-cli/issues/305); inherited from `Notification.EmailSubscriptions` |
+| `clients.update` | `clients.update` | `Notification.EmailSubscriptions.Option` | `EmailSubscriptionEnum` | 1 | 1 | `supported` | --email-subscription |
+| `clients.update` | `clients.update` | `Notification.EmailSubscriptions.Value` | `YesNoEnum` | 1 | 1 | `supported` | --email-subscription |
 | `clients.update` | `clients.update` | `Notification.Lang` | `LangEnum` | 0 | 1 | `supported` | --notification-lang |
 | `clients.update` | `clients.update` | `Settings` | `ClientSettingUpdateItem` | 0 | unbounded | `supported` | --setting |
-| `clients.update` | `clients.update` | `Settings.Option` | `ClientSettingUpdateEnum` | 1 | 1 | `missing_followup` | Client Settings item parity needs typed support or N/A. [#305](https://github.com/axisrow/direct-cli/issues/305); inherited from `Settings` |
-| `clients.update` | `clients.update` | `Settings.Value` | `YesNoEnum` | 1 | 1 | `missing_followup` | Client Settings item parity needs typed support or N/A. [#305](https://github.com/axisrow/direct-cli/issues/305); inherited from `Settings` |
+| `clients.update` | `clients.update` | `Settings.Option` | `ClientSettingUpdateEnum` | 1 | 1 | `supported` | --setting |
+| `clients.update` | `clients.update` | `Settings.Value` | `YesNoEnum` | 1 | 1 | `supported` | --setting |
 | `clients.update` | `clients.update` | `TinInfo` | `TinInfoUpdate` | 0 | 1 | `supported` | --tin, --tin-type |
 | `clients.update` | `clients.update` | `TinInfo.TinType` | `TinTypeEnum` | 0 | 1 | `supported` | --tin-type |
 | `clients.update` | `clients.update` | `TinInfo.Tin` | `string` | 0 | 1 | `supported` | --tin |
-| `clients.update` | `clients.update` | `ErirAttributes` | `ErirAttributesUpdate` | 0 | 1 | `missing_followup` | clients.update item option/value path needs typed support or N/A. [#305](https://github.com/axisrow/direct-cli/issues/305) |
+| `clients.update` | `clients.update` | `ErirAttributes` | `ErirAttributesUpdate` | 0 | 1 | `missing_followup` | ERIR parent wrapper is tracked with the first ERIR child issue. [#306](https://github.com/axisrow/direct-cli/issues/306) |
 | `clients.update` | `clients.update` | `ErirAttributes.Organization` | `OrgInfo` | 0 | 1 | `missing_followup` | ERIR Organization fields need typed support or N/A. [#306](https://github.com/axisrow/direct-cli/issues/306) |
 | `clients.update` | `clients.update` | `ErirAttributes.Organization.Name` | `string` | 0 | 1 | `missing_followup` | ERIR Organization fields need typed support or N/A. [#306](https://github.com/axisrow/direct-cli/issues/306); inherited from `ErirAttributes.Organization` |
 | `clients.update` | `clients.update` | `ErirAttributes.Organization.EpayNumber` | `string` | 0 | 1 | `missing_followup` | ERIR Organization fields need typed support or N/A. [#306](https://github.com/axisrow/direct-cli/issues/306); inherited from `ErirAttributes.Organization` |
