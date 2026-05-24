@@ -596,7 +596,9 @@ direct dynamicads set-bids --id 789 --bid 12500000 --context-bid 9000000 --prior
 # Shared bidding strategies
 direct strategies get --limit 5
 direct strategies add --name "Shared Clicks" --type WbMaximumClicks --weekly-spend-limit 1000000000 --bid-ceiling 30000000 --dry-run
+direct strategies add --name "Custom Period Clicks" --type WbMaximumClicks --custom-period-spend-limit 1000000000 --custom-period-start-date 2026-06-01 --custom-period-end-date 2026-06-30 --custom-period-auto-continue YES --dry-run
 direct strategies update --id 42 --type WbMaximumClicks --weekly-spend-limit 35000000 --dry-run
+direct strategies update --id 42 --type WbMaximumClicks --custom-period-spend-limit 35000000 --custom-period-start-date 2026-07-01 --custom-period-end-date 2026-07-31 --custom-period-auto-continue NO --dry-run
 direct strategies archive --id 42 --dry-run
 
 # Dynamic feed ad targets
@@ -1394,7 +1396,9 @@ direct dynamicads set-bids --id 789 --bid 12500000 --context-bid 9000000 --prior
 # Общие стратегии ставок
 direct strategies get --limit 5
 direct strategies add --name "Общая стратегия" --type WbMaximumClicks --weekly-spend-limit 1000000000 --bid-ceiling 30000000 --dry-run
+direct strategies add --name "Периодный бюджет" --type WbMaximumClicks --custom-period-spend-limit 1000000000 --custom-period-start-date 2026-06-01 --custom-period-end-date 2026-06-30 --custom-period-auto-continue YES --dry-run
 direct strategies update --id 42 --type WbMaximumClicks --weekly-spend-limit 35000000 --dry-run
+direct strategies update --id 42 --type WbMaximumClicks --custom-period-spend-limit 35000000 --custom-period-start-date 2026-07-01 --custom-period-end-date 2026-07-31 --custom-period-auto-continue NO --dry-run
 direct strategies archive --id 42 --dry-run
 
 # Динамические таргеты по фиду

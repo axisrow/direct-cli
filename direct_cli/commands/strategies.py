@@ -153,6 +153,13 @@ STRATEGY_UPDATE_FIELD_OPTIONS = {
     for strategy_type, options in STRATEGY_FIELD_OPTIONS.items()
 }
 STRATEGY_UPDATE_FIELD_OPTIONS["PayForConversionMultipleGoals"].pop("goal_id")
+CUSTOM_PERIOD_BUDGET_FIELD_OPTIONS = {
+    "SpendLimit": "--custom-period-spend-limit",
+    "StartDate": "--custom-period-start-date",
+    "EndDate": "--custom-period-end-date",
+    "AutoContinue": "--custom-period-auto-continue",
+}
+CUSTOM_PERIOD_BUDGET_FLAGS = set(CUSTOM_PERIOD_BUDGET_FIELD_OPTIONS.values())
 STRATEGY_FLAG_NAMES = {
     "average_cpc": "--average-cpc",
     "average_cpa": "--average-cpa",
@@ -162,6 +169,43 @@ STRATEGY_FLAG_NAMES = {
     "weekly_spend_limit": "--weekly-spend-limit",
     "bid_ceiling": "--bid-ceiling",
 }
+
+
+def _build_custom_period_budget(
+    custom_period_spend_limit,
+    custom_period_start_date,
+    custom_period_end_date,
+    custom_period_auto_continue,
+    weekly_spend_limit,
+):
+    """Build CustomPeriodBudget from typed flags."""
+    provided = {
+        "--custom-period-spend-limit": custom_period_spend_limit,
+        "--custom-period-start-date": custom_period_start_date,
+        "--custom-period-end-date": custom_period_end_date,
+        "--custom-period-auto-continue": custom_period_auto_continue,
+    }
+    if not any(value is not None for value in provided.values()):
+        return None
+    if weekly_spend_limit is not None:
+        raise click.UsageError(
+            "--weekly-spend-limit cannot be combined with --custom-period-* flags."
+        )
+
+    missing = [
+        flag_name
+        for flag_name, value in provided.items()
+        if value is None or value == ""
+    ]
+    if missing:
+        raise click.UsageError("CustomPeriodBudget requires " + ", ".join(missing))
+
+    return {
+        "SpendLimit": custom_period_spend_limit,
+        "StartDate": custom_period_start_date,
+        "EndDate": custom_period_end_date,
+        "AutoContinue": custom_period_auto_continue.upper(),
+    }
 
 
 def _parse_priority_goal(spec: str) -> dict:
@@ -188,10 +232,20 @@ def _build_strategy_fields(
     spend_limit,
     weekly_spend_limit,
     bid_ceiling,
+    custom_period_spend_limit,
+    custom_period_start_date,
+    custom_period_end_date,
+    custom_period_auto_continue,
     *,
     update=False,
 ):
     """Build typed strategy-specific fields."""
+    custom_period_values = (
+        custom_period_spend_limit,
+        custom_period_start_date,
+        custom_period_end_date,
+        custom_period_auto_continue,
+    )
     if strategy_type is None:
         if any(
             value is not None
@@ -203,12 +257,23 @@ def _build_strategy_fields(
                 spend_limit,
                 weekly_spend_limit,
                 bid_ceiling,
+                *custom_period_values,
             )
         ):
             raise click.UsageError(
                 "Provide --type when setting strategy-specific fields"
             )
         return {}
+
+    if (
+        update
+        and strategy_type == "AverageCpa"
+        and any(value is not None for value in custom_period_values)
+    ):
+        raise click.UsageError(
+            "--custom-period-* flags are not valid for --type AverageCpa "
+            "on strategies update."
+        )
 
     field_options = STRATEGY_UPDATE_FIELD_OPTIONS if update else STRATEGY_FIELD_OPTIONS
     allowed_options = field_options[strategy_type]
@@ -248,6 +313,15 @@ def _build_strategy_fields(
         fields["WeeklySpendLimit"] = weekly_spend_limit
     if bid_ceiling is not None:
         fields["BidCeiling"] = bid_ceiling
+    custom_period_budget = _build_custom_period_budget(
+        custom_period_spend_limit,
+        custom_period_start_date,
+        custom_period_end_date,
+        custom_period_auto_continue,
+        weekly_spend_limit,
+    )
+    if custom_period_budget:
+        fields["CustomPeriodBudget"] = custom_period_budget
     return fields
 
 
@@ -332,6 +406,24 @@ def get(ctx, ids, types, is_archived, limit, fetch_all, output_format, output, f
     help="Weekly spend limit in micro-rubles",
 )
 @click.option("--bid-ceiling", type=MICRO_RUBLES, help="Bid ceiling in micro-rubles")
+@click.option(
+    "--custom-period-spend-limit",
+    type=MICRO_RUBLES,
+    help="CustomPeriodBudget.SpendLimit in micro-rubles",
+)
+@click.option(
+    "--custom-period-start-date",
+    help="CustomPeriodBudget.StartDate (YYYY-MM-DD)",
+)
+@click.option(
+    "--custom-period-end-date",
+    help="CustomPeriodBudget.EndDate (YYYY-MM-DD)",
+)
+@click.option(
+    "--custom-period-auto-continue",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="CustomPeriodBudget.AutoContinue value: YES or NO",
+)
 @click.option("--counter-ids", help="Comma-separated Metrica counter IDs")
 @click.option(
     "--priority-goal",
@@ -360,6 +452,10 @@ def add(
     spend_limit,
     weekly_spend_limit,
     bid_ceiling,
+    custom_period_spend_limit,
+    custom_period_start_date,
+    custom_period_end_date,
+    custom_period_auto_continue,
     counter_ids,
     priority_goals,
     attribution_model,
@@ -378,6 +474,10 @@ def add(
                 spend_limit,
                 weekly_spend_limit,
                 bid_ceiling,
+                custom_period_spend_limit,
+                custom_period_start_date,
+                custom_period_end_date,
+                custom_period_auto_continue,
             ),
         }
         if strategy_type in GOAL_ID_STRATEGY_TYPES and goal_id is None:
@@ -434,6 +534,24 @@ def add(
     help="Weekly spend limit in micro-rubles",
 )
 @click.option("--bid-ceiling", type=MICRO_RUBLES, help="Bid ceiling in micro-rubles")
+@click.option(
+    "--custom-period-spend-limit",
+    type=MICRO_RUBLES,
+    help="CustomPeriodBudget.SpendLimit in micro-rubles",
+)
+@click.option(
+    "--custom-period-start-date",
+    help="CustomPeriodBudget.StartDate (YYYY-MM-DD)",
+)
+@click.option(
+    "--custom-period-end-date",
+    help="CustomPeriodBudget.EndDate (YYYY-MM-DD)",
+)
+@click.option(
+    "--custom-period-auto-continue",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="CustomPeriodBudget.AutoContinue value: YES or NO",
+)
 @click.option("--counter-ids", help="Comma-separated Metrica counter IDs")
 @click.option(
     "--priority-goal",
@@ -463,6 +581,10 @@ def update(
     spend_limit,
     weekly_spend_limit,
     bid_ceiling,
+    custom_period_spend_limit,
+    custom_period_start_date,
+    custom_period_end_date,
+    custom_period_auto_continue,
     counter_ids,
     priority_goals,
     attribution_model,
@@ -482,6 +604,10 @@ def update(
             spend_limit,
             weekly_spend_limit,
             bid_ceiling,
+            custom_period_spend_limit,
+            custom_period_start_date,
+            custom_period_end_date,
+            custom_period_auto_continue,
             update=True,
         )
         if strategy_fields and not strategy_type:

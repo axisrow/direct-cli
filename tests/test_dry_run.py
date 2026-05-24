@@ -9534,6 +9534,154 @@ def test_strategies_update_average_cpa_without_goal_id_is_allowed():
     assert "GoalId" not in s["AverageCpa"]
 
 
+def test_strategies_add_custom_period_budget_payload():
+    body = _dry_run(
+        "strategies",
+        "add",
+        "--name",
+        "Custom Period",
+        "--type",
+        "WbMaximumClicks",
+        "--custom-period-spend-limit",
+        "1000000000",
+        "--custom-period-start-date",
+        "2026-06-01",
+        "--custom-period-end-date",
+        "2026-06-30",
+        "--custom-period-auto-continue",
+        "yes",
+    )
+    s = body["params"]["Strategies"][0]
+    assert s["WbMaximumClicks"] == {
+        "CustomPeriodBudget": {
+            "SpendLimit": 1000000000,
+            "StartDate": "2026-06-01",
+            "EndDate": "2026-06-30",
+            "AutoContinue": "YES",
+        }
+    }
+
+
+def test_strategies_update_custom_period_budget_payload():
+    body = _dry_run(
+        "strategies",
+        "update",
+        "--id",
+        "42",
+        "--type",
+        "AverageCpc",
+        "--custom-period-spend-limit",
+        "500000000",
+        "--custom-period-start-date",
+        "2026-07-01",
+        "--custom-period-end-date",
+        "2026-07-31",
+        "--custom-period-auto-continue",
+        "no",
+    )
+    s = body["params"]["Strategies"][0]
+    assert s["Id"] == 42
+    assert s["AverageCpc"] == {
+        "CustomPeriodBudget": {
+            "SpendLimit": 500000000,
+            "StartDate": "2026-07-01",
+            "EndDate": "2026-07-31",
+            "AutoContinue": "NO",
+        }
+    }
+
+
+def test_strategies_custom_period_budget_requires_all_fields():
+    result = _failing_run(
+        "strategies",
+        "add",
+        "--name",
+        "Custom Period",
+        "--type",
+        "WbMaximumClicks",
+        "--custom-period-spend-limit",
+        "1000000000",
+        "--dry-run",
+    )
+    assert result.exit_code != 0
+    assert "CustomPeriodBudget requires" in result.output
+    assert "--custom-period-start-date" in result.output
+    assert "--custom-period-end-date" in result.output
+    assert "--custom-period-auto-continue" in result.output
+
+
+def test_strategies_update_custom_period_budget_requires_type():
+    result = _failing_run(
+        "strategies",
+        "update",
+        "--id",
+        "42",
+        "--custom-period-spend-limit",
+        "1000000000",
+        "--custom-period-start-date",
+        "2026-06-01",
+        "--custom-period-end-date",
+        "2026-06-30",
+        "--custom-period-auto-continue",
+        "YES",
+        "--dry-run",
+    )
+    assert result.exit_code != 0
+    assert "Provide --type when setting strategy-specific fields" in result.output
+
+
+def test_strategies_update_average_cpa_rejects_custom_period_budget():
+    result = _failing_run(
+        "strategies",
+        "update",
+        "--id",
+        "42",
+        "--type",
+        "AverageCpa",
+        "--custom-period-spend-limit",
+        "1000000000",
+        "--custom-period-start-date",
+        "2026-06-01",
+        "--custom-period-end-date",
+        "2026-06-30",
+        "--custom-period-auto-continue",
+        "YES",
+        "--dry-run",
+    )
+    assert result.exit_code != 0
+    assert (
+        "--custom-period-* flags are not valid for --type AverageCpa "
+        "on strategies update."
+    ) in result.output
+
+
+def test_strategies_custom_period_budget_rejects_weekly_spend_limit():
+    result = _failing_run(
+        "strategies",
+        "add",
+        "--name",
+        "Custom Period",
+        "--type",
+        "WbMaximumClicks",
+        "--weekly-spend-limit",
+        "900000000",
+        "--custom-period-spend-limit",
+        "1000000000",
+        "--custom-period-start-date",
+        "2026-06-01",
+        "--custom-period-end-date",
+        "2026-06-30",
+        "--custom-period-auto-continue",
+        "YES",
+        "--dry-run",
+    )
+    assert result.exit_code != 0
+    assert (
+        "--weekly-spend-limit cannot be combined with --custom-period-* flags"
+        in result.output
+    )
+
+
 def test_strategies_archive_payload():
     body = _dry_run("strategies", "archive", "--id", "10")
     assert body == {

@@ -40,6 +40,8 @@ from direct_cli import wsdl_coverage
 from direct_cli.cli import cli
 from direct_cli.commands.bidmodifiers import _BIDMODIFIER_TYPE_TO_NESTED
 from direct_cli.commands.strategies import (
+    CUSTOM_PERIOD_BUDGET_FIELD_OPTIONS,
+    CUSTOM_PERIOD_BUDGET_FLAGS,
     STRATEGY_FIELD_OPTIONS,
     STRATEGY_FLAG_NAMES,
     STRATEGY_TYPES,
@@ -1871,6 +1873,13 @@ for strategy_type, options in STRATEGY_FIELD_OPTIONS.items():
         OPTIONAL_FIELD_CLI_OPTIONS[
             ("strategies", "add", f"{strategy_type}.{wsdl_field}")
         ] = {STRATEGY_FLAG_NAMES[param_name]}
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("strategies", "add", f"{strategy_type}.CustomPeriodBudget")
+    ] = CUSTOM_PERIOD_BUDGET_FLAGS
+    for wsdl_field, flag_name in CUSTOM_PERIOD_BUDGET_FIELD_OPTIONS.items():
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            ("strategies", "add", f"{strategy_type}.CustomPeriodBudget.{wsdl_field}")
+        ] = {flag_name}
 
 OPTIONAL_FIELD_CLI_OPTIONS.update(
     {
@@ -1888,6 +1897,20 @@ for strategy_type, options in STRATEGY_UPDATE_FIELD_OPTIONS.items():
         OPTIONAL_FIELD_CLI_OPTIONS[
             ("strategies", "update", f"{strategy_type}.{wsdl_field}")
         ] = {STRATEGY_FLAG_NAMES[param_name]}
+    # Cached strategies WSDL does not expose this update path for bare AverageCpa.
+    if strategy_type == "AverageCpa":
+        continue
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("strategies", "update", f"{strategy_type}.CustomPeriodBudget")
+    ] = CUSTOM_PERIOD_BUDGET_FLAGS
+    for wsdl_field, flag_name in CUSTOM_PERIOD_BUDGET_FIELD_OPTIONS.items():
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            (
+                "strategies",
+                "update",
+                f"{strategy_type}.CustomPeriodBudget.{wsdl_field}",
+            )
+        ] = {flag_name}
 
 OPTIONAL_FIELD_CLI_OPTIONS.update(
     {
@@ -2106,16 +2129,6 @@ OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]
 }
 
 OPTIONAL_FIELD_CHILD_COMPONENT_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]] = {
-    ("strategies", "add", "CustomPeriodBudget"): {
-        "status": "missing_followup",
-        "issue": "#297",
-        "note": "Strategy CustomPeriodBudget fields need typed support.",
-    },
-    ("strategies", "update", "CustomPeriodBudget"): {
-        "status": "missing_followup",
-        "issue": "#297",
-        "note": "Strategy CustomPeriodBudget fields need typed support.",
-    },
     ("strategies", "add", "ExplorationBudget"): {
         "status": "missing_followup",
         "issue": "#298",
