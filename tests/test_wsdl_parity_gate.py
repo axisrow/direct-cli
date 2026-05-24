@@ -1576,16 +1576,16 @@ OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
         "status": "supported",
         "issue": "#289",
         "note": (
-            "Single-item typed flag is supported; batch/from-file parity is "
-            "tracked separately."
+            "Single-item typed flag is supported; batch/from-file rows "
+            "intentionally reject autotargeting fields."
         ),
     },
     ("keywords", "add", "StrategyPriority"): {
         "status": "supported",
         "issue": "#289",
         "note": (
-            "Single-item typed flag is supported; batch/from-file parity is "
-            "tracked separately."
+            "Single-item typed flag is supported; batch/from-file rows "
+            "intentionally reject autotargeting fields."
         ),
     },
     ("feeds", "add", "FileFeed"): {
