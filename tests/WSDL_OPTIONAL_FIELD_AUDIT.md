@@ -11,9 +11,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2394 |
+| `missing_followup` | 2390 |
 | `not_applicable` | 23 |
-| `supported` | 824 |
+| `supported` | 828 |
 
 ## Confirmed Follow-Ups
 
@@ -42,10 +42,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `adgroups.update` | `DynamicTextFeedAdGroup.AutotargetingSettings.BrandOptions.WithAdvertiserBrand` | Official adgroups.update docs for DynamicTextFeedAdGroupUpdate list AutotargetingCategories only. [#281](https://github.com/axisrow/direct-cli/issues/281); inherited from `DynamicTextFeedAdGroup.AutotargetingSettings` |
 | `adgroups.update` | `DynamicTextFeedAdGroup.AutotargetingSettings.BrandOptions.WithCompetitorsBrand` | Official adgroups.update docs for DynamicTextFeedAdGroupUpdate list AutotargetingCategories only. [#281](https://github.com/axisrow/direct-cli/issues/281); inherited from `DynamicTextFeedAdGroup.AutotargetingSettings` |
 | `adgroups.update` | `DynamicTextFeedAdGroup.FeedId` | Official adgroups.update docs for DynamicTextFeedAdGroupUpdate do not list FeedId. [#281](https://github.com/axisrow/direct-cli/issues/281) |
-| `ads.add` | `TextImageAd.ErirAdDescription` | ads.add residual optional WSDL path needs typed support or N/A. [#278](https://github.com/axisrow/direct-cli/issues/278) |
-| `ads.add` | `TextImageAd.FinalUrl` | ads.add residual optional WSDL path needs typed support or N/A. [#278](https://github.com/axisrow/direct-cli/issues/278) |
-| `ads.add` | `SmartAdBuilderAd` | SMART_AD_BUILDER_AD add fields need typed support or N/A. [#278](https://github.com/axisrow/direct-cli/issues/278) |
-| `ads.add` | `SmartAdBuilderAd.LogoExtensionHash` | SMART_AD_BUILDER_AD add fields need typed support or N/A. [#278](https://github.com/axisrow/direct-cli/issues/278); inherited from `SmartAdBuilderAd` |
 | `campaigns.add` | `ClientInfo` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
 | `campaigns.add` | `Notification` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
 | `campaigns.add` | `Notification.SmsSettings` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
@@ -2619,8 +2615,8 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.add` | `ads.add` | `MobileAppAd.ErirAdDescription` | `string` | 0 | 1 | `supported` | --erir-ad-description |
 | `ads.add` | `ads.add` | `TextImageAd` | `TextImageAdAdd` | 0 | 1 | `supported` | --type |
 | `ads.add` | `ads.add` | `TextImageAd.AdImageHash` | `string` | 1 | 1 | `supported` | --image-hash |
-| `ads.add` | `ads.add` | `TextImageAd.ErirAdDescription` | `string` | 0 | 1 | `missing_followup` | ads.add residual optional WSDL path needs typed support or N/A. [#278](https://github.com/axisrow/direct-cli/issues/278) |
-| `ads.add` | `ads.add` | `TextImageAd.FinalUrl` | `string` | 0 | 1 | `missing_followup` | ads.add residual optional WSDL path needs typed support or N/A. [#278](https://github.com/axisrow/direct-cli/issues/278) |
+| `ads.add` | `ads.add` | `TextImageAd.ErirAdDescription` | `string` | 0 | 1 | `supported` | --erir-ad-description |
+| `ads.add` | `ads.add` | `TextImageAd.FinalUrl` | `string` | 0 | 1 | `supported` | --final-url |
 | `ads.add` | `ads.add` | `TextImageAd.Href` | `string` | 0 | 1 | `supported` | --href |
 | `ads.add` | `ads.add` | `TextImageAd.TurboPageId` | `long` | 0 | 1 | `supported` | --turbo-page-id |
 | `ads.add` | `ads.add` | `MobileAppImageAd` | `MobileAppImageAdAdd` | 0 | 1 | `supported` | --type |
@@ -2666,8 +2662,8 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.add` | `ads.add` | `CpmVideoAdBuilderAd.TrackingPixels` | `ArrayOfString` | 0 | 1 | `supported` | --tracking-pixels |
 | `ads.add` | `ads.add` | `CpmVideoAdBuilderAd.TrackingPixels.Items` | `string` | 1 | unbounded | `supported` | --tracking-pixels |
 | `ads.add` | `ads.add` | `CpmVideoAdBuilderAd.TurboPageId` | `long` | 0 | 1 | `supported` | --turbo-page-id |
-| `ads.add` | `ads.add` | `SmartAdBuilderAd` | `SmartAdBuilderAdAdd` | 0 | 1 | `missing_followup` | SMART_AD_BUILDER_AD add fields need typed support or N/A. [#278](https://github.com/axisrow/direct-cli/issues/278) |
-| `ads.add` | `ads.add` | `SmartAdBuilderAd.LogoExtensionHash` | `string` | 0 | 1 | `missing_followup` | SMART_AD_BUILDER_AD add fields need typed support or N/A. [#278](https://github.com/axisrow/direct-cli/issues/278); inherited from `SmartAdBuilderAd` |
+| `ads.add` | `ads.add` | `SmartAdBuilderAd` | `SmartAdBuilderAdAdd` | 0 | 1 | `supported` | --type |
+| `ads.add` | `ads.add` | `SmartAdBuilderAd.LogoExtensionHash` | `string` | 0 | 1 | `supported` | --logo-extension-hash |
 | `ads.add` | `ads.add` | `ShoppingAd` | `ShoppingAdAdd` | 0 | 1 | `supported` | --type |
 | `ads.add` | `ads.add` | `ShoppingAd.SitelinkSetId` | `long` | 0 | 1 | `supported` | --sitelink-set-id |
 | `ads.add` | `ads.add` | `ShoppingAd.AdExtensionIds` | `long` | 0 | unbounded | `supported` | --ad-extensions |

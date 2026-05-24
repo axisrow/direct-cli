@@ -74,6 +74,8 @@ MOBILE_APP_IMAGE_AD_ADD_FIELDS = {
     "erir_ad_description",
 }
 
+SMART_AD_BUILDER_ADD_FIELDS = {"logo_extension_hash"}
+
 
 TEXT_AD_UPDATE_FIELDS = {
     "title",
@@ -711,6 +713,18 @@ def _build_mobile_app_image_ad_add(
     return mobile_app_image_ad
 
 
+def _build_smart_ad_builder_ad_add(
+    logo_extension_hash: Optional[str],
+) -> dict[str, object]:
+    """Build SmartAdBuilderAdAdd payload from typed flags."""
+    smart_ad_builder_ad: dict[str, object] = {}
+
+    if logo_extension_hash:
+        smart_ad_builder_ad["LogoExtensionHash"] = logo_extension_hash
+
+    return smart_ad_builder_ad
+
+
 def _build_smart_ad_builder_ad_update(
     logo_extension_hash: Optional[str],
     erir_ad_description: Optional[str],
@@ -876,7 +890,7 @@ def get(
     help=(
         "Ad type: TEXT_AD | TEXT_IMAGE_AD | MOBILE_APP_AD | DYNAMIC_TEXT_AD | "
         "MOBILE_APP_IMAGE_AD | RESPONSIVE_AD | SHOPPING_AD | LISTING_AD | "
-        "TEXT_AD_BUILDER_AD | "
+        "SMART_AD_BUILDER_AD | TEXT_AD_BUILDER_AD | "
         "MOBILE_APP_AD_BUILDER_AD | MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD | "
         "CPC_VIDEO_AD_BUILDER_AD | CPM_BANNER_AD_BUILDER_AD | "
         "CPM_VIDEO_AD_BUILDER_AD"
@@ -962,7 +976,10 @@ def get(
         "(TEXT_AD / DYNAMIC_TEXT_AD / RESPONSIVE_AD / SHOPPING_AD / LISTING_AD)"
     ),
 )
-@click.option("--final-url", help="FinalUrl (TEXT_AD / TEXT_AD_BUILDER_AD)")
+@click.option(
+    "--final-url",
+    help="FinalUrl (TEXT_AD / TEXT_IMAGE_AD / TEXT_AD_BUILDER_AD)",
+)
 @click.option(
     "--video-extension-creative-id",
     type=int,
@@ -1020,18 +1037,22 @@ def get(
 @click.option(
     "--erir-ad-description",
     help=(
-        "ErirAdDescription (TEXT_AD / MOBILE_APP_AD / MOBILE_APP_IMAGE_AD / "
-        "RESPONSIVE_AD / AdBuilder add subtypes)"
+        "ErirAdDescription (TEXT_AD / TEXT_IMAGE_AD / MOBILE_APP_AD / "
+        "MOBILE_APP_IMAGE_AD / RESPONSIVE_AD / non-SMART AdBuilder add subtypes)"
     ),
 )
 @click.option(
     "--creative-id",
     type=int,
-    help="AdBuilder Creative.CreativeId for AdBuilder add subtypes",
+    help="AdBuilder Creative.CreativeId for non-SMART AdBuilder add subtypes",
 )
 @click.option(
     "--tracking-pixels",
     help="Comma-separated AdBuilder TrackingPixels.Items values",
+)
+@click.option(
+    "--logo-extension-hash",
+    help="SmartAdBuilderAd.LogoExtensionHash (SMART_AD_BUILDER_AD)",
 )
 @click.option(
     "--feed-id",
@@ -1095,6 +1116,7 @@ def add(
     erir_ad_description,
     creative_id,
     tracking_pixels,
+    logo_extension_hash,
     feed_id,
     feed_filter_conditions,
     title_sources,
@@ -1114,6 +1136,7 @@ def add(
             "RESPONSIVE_AD",
             "SHOPPING_AD",
             "LISTING_AD",
+            "SMART_AD_BUILDER_AD",
             *AD_BUILDER_ADD_BLOCKS,
         }
         if ad_type_norm not in supported_types:
@@ -1122,7 +1145,8 @@ def add(
                 f"{ad_type!r} is not one of "
                 "'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD', 'DYNAMIC_TEXT_AD', "
                 "'MOBILE_APP_IMAGE_AD', 'RESPONSIVE_AD', 'SHOPPING_AD', 'LISTING_AD', "
-                "'TEXT_AD_BUILDER_AD', 'MOBILE_APP_AD_BUILDER_AD', "
+                "'SMART_AD_BUILDER_AD', 'TEXT_AD_BUILDER_AD', "
+                "'MOBILE_APP_AD_BUILDER_AD', "
                 "'MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD', 'CPC_VIDEO_AD_BUILDER_AD', "
                 "'CPM_BANNER_AD_BUILDER_AD', 'CPM_VIDEO_AD_BUILDER_AD'."
             )
@@ -1162,7 +1186,13 @@ def add(
                 "prefer_vcard_over_business",
                 "erir_ad_description",
             },
-            "TEXT_IMAGE_AD": {"href", "image_hash", "turbo_page_id"},
+            "TEXT_IMAGE_AD": {
+                "href",
+                "image_hash",
+                "turbo_page_id",
+                "final_url",
+                "erir_ad_description",
+            },
             "RESPONSIVE_AD": {
                 "texts",
                 "titles",
@@ -1186,6 +1216,7 @@ def add(
             "DYNAMIC_TEXT_AD": DYNAMIC_TEXT_AD_ADD_FIELDS,
             "MOBILE_APP_AD": MOBILE_APP_AD_ADD_FIELDS,
             "MOBILE_APP_IMAGE_AD": MOBILE_APP_IMAGE_AD_ADD_FIELDS,
+            "SMART_AD_BUILDER_AD": SMART_AD_BUILDER_ADD_FIELDS,
         }
         provided = {
             "title": title,
@@ -1218,6 +1249,7 @@ def add(
             "erir_ad_description": erir_ad_description,
             "creative_id": creative_id,
             "tracking_pixels": tracking_pixels,
+            "logo_extension_hash": logo_extension_hash,
             "feed_id": feed_id,
             "feed_filter_conditions": feed_filter_conditions,
             "title_sources": title_sources,
@@ -1255,6 +1287,7 @@ def add(
             "erir_ad_description": "--erir-ad-description",
             "creative_id": "--creative-id",
             "tracking_pixels": "--tracking-pixels",
+            "logo_extension_hash": "--logo-extension-hash",
             "feed_id": "--feed-id",
             "feed_filter_conditions": "--feed-filter-condition",
             "title_sources": "--title-sources",
@@ -1329,17 +1362,23 @@ def add(
             if title or text:
                 raise click.UsageError(
                     "--title/--text are only valid for TEXT_AD. "
-                    "For TEXT_IMAGE_AD, use --image-hash and --href."
+                    "For TEXT_IMAGE_AD, use --image-hash and "
+                    "--href / --turbo-page-id."
                 )
-            if not image_hash or not href:
+            if not image_hash:
+                raise click.UsageError("TEXT_IMAGE_AD requires --image-hash")
+            if not href and turbo_page_id is None:
                 raise click.UsageError(
-                    "TEXT_IMAGE_AD requires both --image-hash and --href"
+                    "TEXT_IMAGE_AD requires either --href or --turbo-page-id."
                 )
-            text_image_ad = {
-                "AdImageHash": image_hash,
-                "Href": href,
-            }
-            if turbo_page_id:
+            text_image_ad = {"AdImageHash": image_hash}
+            if erir_ad_description:
+                text_image_ad["ErirAdDescription"] = erir_ad_description
+            if final_url:
+                text_image_ad["FinalUrl"] = final_url
+            if href:
+                text_image_ad["Href"] = href
+            if turbo_page_id is not None:
                 text_image_ad["TurboPageId"] = turbo_page_id
             ad_data["TextImageAd"] = text_image_ad
         elif ad_type_norm == "RESPONSIVE_AD":
@@ -1471,6 +1510,10 @@ def add(
                 image_hash,
                 erir_ad_description,
                 tracking_url,
+            )
+        elif ad_type_norm == "SMART_AD_BUILDER_AD":
+            ad_data["SmartAdBuilderAd"] = _build_smart_ad_builder_ad_add(
+                logo_extension_hash,
             )
 
         body = {"method": "add", "params": {"Ads": [ad_data]}}
