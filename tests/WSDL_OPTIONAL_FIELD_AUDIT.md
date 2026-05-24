@@ -11,8 +11,8 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2810 |
-| `supported` | 431 |
+| `missing_followup` | 2804 |
+| `supported` | 437 |
 
 ## Confirmed Follow-Ups
 
@@ -2625,12 +2625,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `keywords.update` | `AutotargetingSettings.BrandOptions.WithoutBrands` | Keyword autotargeting settings have no typed update flags. [#288](https://github.com/axisrow/direct-cli/issues/288); inherited from `AutotargetingSettings` |
 | `keywords.update` | `AutotargetingSettings.BrandOptions.WithAdvertiserBrand` | Keyword autotargeting settings have no typed update flags. [#288](https://github.com/axisrow/direct-cli/issues/288); inherited from `AutotargetingSettings` |
 | `keywords.update` | `AutotargetingSettings.BrandOptions.WithCompetitorsBrand` | Keyword autotargeting settings have no typed update flags. [#288](https://github.com/axisrow/direct-cli/issues/288); inherited from `AutotargetingSettings` |
-| `smartadtargets.add` | `Conditions.Items.Operand` | smartadtargets.add optional WSDL path needs typed support or N/A. [#304](https://github.com/axisrow/direct-cli/issues/304) |
-| `smartadtargets.add` | `Conditions.Items.Operator` | smartadtargets.add optional WSDL path needs typed support or N/A. [#304](https://github.com/axisrow/direct-cli/issues/304) |
-| `smartadtargets.add` | `Conditions.Items.Arguments` | smartadtargets.add optional WSDL path needs typed support or N/A. [#304](https://github.com/axisrow/direct-cli/issues/304) |
-| `smartadtargets.update` | `Conditions.Items.Operand` | smartadtargets.update optional WSDL path needs typed support or N/A. [#304](https://github.com/axisrow/direct-cli/issues/304) |
-| `smartadtargets.update` | `Conditions.Items.Operator` | smartadtargets.update optional WSDL path needs typed support or N/A. [#304](https://github.com/axisrow/direct-cli/issues/304) |
-| `smartadtargets.update` | `Conditions.Items.Arguments` | smartadtargets.update optional WSDL path needs typed support or N/A. [#304](https://github.com/axisrow/direct-cli/issues/304) |
 | `strategies.add` | `PriorityGoals.Items.GoalId` | strategies.add residual optional WSDL path needs typed support or N/A. [#299](https://github.com/axisrow/direct-cli/issues/299) |
 | `strategies.add` | `PriorityGoals.Items.Value` | strategies.add residual optional WSDL path needs typed support or N/A. [#299](https://github.com/axisrow/direct-cli/issues/299) |
 | `strategies.add` | `PriorityGoals.Items.IsMetrikaSourceOfValue` | strategies.add residual optional WSDL path needs typed support or N/A. [#299](https://github.com/axisrow/direct-cli/issues/299) |
@@ -5698,9 +5692,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `smartadtargets.add` | `smartadtargets.add` | `Audience` | `AudienceEnum` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `smartadtargets.add` | `smartadtargets.add` | `Conditions` | `ConditionsArray` | 0 | 1 | `supported` | --condition |
 | `smartadtargets.add` | `smartadtargets.add` | `Conditions.Items` | `ConditionsItem` | 1 | unbounded | `supported` | --condition |
-| `smartadtargets.add` | `smartadtargets.add` | `Conditions.Items.Operand` | `string` | 1 | 1 | `missing_followup` | smartadtargets.add optional WSDL path needs typed support or N/A. [#304](https://github.com/axisrow/direct-cli/issues/304) |
-| `smartadtargets.add` | `smartadtargets.add` | `Conditions.Items.Operator` | `StringConditionOperatorEnum` | 1 | 1 | `missing_followup` | smartadtargets.add optional WSDL path needs typed support or N/A. [#304](https://github.com/axisrow/direct-cli/issues/304) |
-| `smartadtargets.add` | `smartadtargets.add` | `Conditions.Items.Arguments` | `string` | 1 | unbounded | `missing_followup` | smartadtargets.add optional WSDL path needs typed support or N/A. [#304](https://github.com/axisrow/direct-cli/issues/304) |
+| `smartadtargets.add` | `smartadtargets.add` | `Conditions.Items.Operand` | `string` | 1 | 1 | `supported` | --condition |
+| `smartadtargets.add` | `smartadtargets.add` | `Conditions.Items.Operator` | `StringConditionOperatorEnum` | 1 | 1 | `supported` | --condition |
+| `smartadtargets.add` | `smartadtargets.add` | `Conditions.Items.Arguments` | `string` | 1 | unbounded | `supported` | --condition |
 | `smartadtargets.add` | `smartadtargets.add` | `AvailableItemsOnly` | `YesNoEnum` | 0 | 1 | `supported` | --available-items-only |
 | `smartadtargets.update` | `smartadtargets.update` | `Id` | `long` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `smartadtargets.update` | `smartadtargets.update` | `Name` | `string` | 0 | 1 | `supported` | --name |
@@ -5710,9 +5704,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `smartadtargets.update` | `smartadtargets.update` | `Audience` | `AudienceEnum` | 0 | 1 | `supported` | --audience |
 | `smartadtargets.update` | `smartadtargets.update` | `Conditions` | `ConditionsArray` | 0 | 1 | `supported` | --condition |
 | `smartadtargets.update` | `smartadtargets.update` | `Conditions.Items` | `ConditionsItem` | 1 | unbounded | `supported` | --condition |
-| `smartadtargets.update` | `smartadtargets.update` | `Conditions.Items.Operand` | `string` | 1 | 1 | `missing_followup` | smartadtargets.update optional WSDL path needs typed support or N/A. [#304](https://github.com/axisrow/direct-cli/issues/304) |
-| `smartadtargets.update` | `smartadtargets.update` | `Conditions.Items.Operator` | `StringConditionOperatorEnum` | 1 | 1 | `missing_followup` | smartadtargets.update optional WSDL path needs typed support or N/A. [#304](https://github.com/axisrow/direct-cli/issues/304) |
-| `smartadtargets.update` | `smartadtargets.update` | `Conditions.Items.Arguments` | `string` | 1 | unbounded | `missing_followup` | smartadtargets.update optional WSDL path needs typed support or N/A. [#304](https://github.com/axisrow/direct-cli/issues/304) |
+| `smartadtargets.update` | `smartadtargets.update` | `Conditions.Items.Operand` | `string` | 1 | 1 | `supported` | --condition |
+| `smartadtargets.update` | `smartadtargets.update` | `Conditions.Items.Operator` | `StringConditionOperatorEnum` | 1 | 1 | `supported` | --condition |
+| `smartadtargets.update` | `smartadtargets.update` | `Conditions.Items.Arguments` | `string` | 1 | unbounded | `supported` | --condition |
 | `smartadtargets.update` | `smartadtargets.update` | `AvailableItemsOnly` | `YesNoEnum` | 0 | 1 | `supported` | --available-items-only |
 | `strategies.add` | `strategies.add` | `AttributionModel` | `AttributionModelEnum` | 0 | 1 | `supported` | --attribution-model |
 | `strategies.add` | `strategies.add` | `Name` | `string` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
