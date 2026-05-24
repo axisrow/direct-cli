@@ -2,11 +2,39 @@
 Feeds commands
 """
 
+from typing import Dict, Optional
+
 import click
 
 from ..api import create_client
 from ..output import format_output, print_error
 from ..utils import get_default_fields, parse_ids
+
+_YES_NO = ["YES", "NO"]
+
+
+def _url_feed_payload(
+    url: Optional[str] = None,
+    remove_utm_tags: Optional[str] = None,
+    login: Optional[str] = None,
+    password: Optional[str] = None,
+    clear_login: bool = False,
+    clear_password: bool = False,
+) -> Dict[str, object]:
+    payload: Dict[str, object] = {}
+    if url:
+        payload["Url"] = url
+    if remove_utm_tags:
+        payload["RemoveUtmTags"] = remove_utm_tags.upper()
+    if clear_login:
+        payload["Login"] = None
+    elif login:
+        payload["Login"] = login
+    if clear_password:
+        payload["Password"] = None
+    elif password:
+        payload["Password"] = password
+    return payload
 
 
 @click.group()
@@ -71,6 +99,13 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
 @click.option("--name", required=True, help="Feed name")
 @click.option("--url", required=True, help="Feed URL")
 @click.option(
+    "--remove-utm-tags",
+    type=click.Choice(_YES_NO, case_sensitive=False),
+    help="UrlFeed.RemoveUtmTags: delete UTM tags from feed links, YES or NO.",
+)
+@click.option("--feed-login", help="UrlFeed.Login for protected feed URL")
+@click.option("--feed-password", help="UrlFeed.Password for protected feed URL")
+@click.option(
     "--business-type",
     required=True,
     type=click.Choice(
@@ -81,14 +116,18 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def add(ctx, name, url, business_type, dry_run):
+def add(
+    ctx, name, url, remove_utm_tags, feed_login, feed_password, business_type, dry_run
+):
     """Add feed"""
     try:
         feed_data = {
             "Name": name,
             "BusinessType": business_type.upper(),
             "SourceType": "URL",
-            "UrlFeed": {"Url": url},
+            "UrlFeed": _url_feed_payload(
+                url, remove_utm_tags, feed_login, feed_password
+            ),
         }
 
         body = {"method": "add", "params": {"Feeds": [feed_data]}}
@@ -115,19 +154,62 @@ def add(ctx, name, url, business_type, dry_run):
 @click.option("--id", "feed_id", required=True, type=int, help="Feed ID")
 @click.option("--name", help="Feed name")
 @click.option("--url", help="Feed URL")
+@click.option(
+    "--remove-utm-tags",
+    type=click.Choice(_YES_NO, case_sensitive=False),
+    help="UrlFeed.RemoveUtmTags: delete UTM tags from feed links, YES or NO.",
+)
+@click.option("--feed-login", help="UrlFeed.Login for protected feed URL")
+@click.option("--feed-password", help="UrlFeed.Password for protected feed URL")
+@click.option("--clear-feed-login", is_flag=True, help="Set UrlFeed.Login to null")
+@click.option(
+    "--clear-feed-password", is_flag=True, help="Set UrlFeed.Password to null"
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def update(ctx, feed_id, name, url, dry_run):
+def update(
+    ctx,
+    feed_id,
+    name,
+    url,
+    remove_utm_tags,
+    feed_login,
+    feed_password,
+    clear_feed_login,
+    clear_feed_password,
+    dry_run,
+):
     """Update feed"""
     try:
+        if feed_login is not None and clear_feed_login:
+            raise click.UsageError(
+                "Use either --feed-login or --clear-feed-login, not both"
+            )
+        if feed_password is not None and clear_feed_password:
+            raise click.UsageError(
+                "Use either --feed-password or --clear-feed-password, not both"
+            )
+
         feed_data = {"Id": feed_id}
 
         if name:
             feed_data["Name"] = name
-        if url:
-            feed_data["UrlFeed"] = {"Url": url}
+        url_feed = _url_feed_payload(
+            url,
+            remove_utm_tags,
+            feed_login,
+            feed_password,
+            clear_feed_login,
+            clear_feed_password,
+        )
+        if url_feed:
+            feed_data["UrlFeed"] = url_feed
         if len(feed_data) == 1:
-            raise click.UsageError("Provide at least one of --name or --url")
+            raise click.UsageError(
+                "Provide at least one of --name, --url, --remove-utm-tags, "
+                "--feed-login, --feed-password, --clear-feed-login, or "
+                "--clear-feed-password"
+            )
 
         body = {"method": "update", "params": {"Feeds": [feed_data]}}
 
