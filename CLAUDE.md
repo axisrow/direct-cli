@@ -58,7 +58,7 @@ A guard in `tests/test_api_coverage.py::test_dry_run_exclusions_have_no_helper_o
 2. *Silent data loss* — a typed flag that does not belong to the chosen `--type` must raise `UsageError`, not be dropped.
 3. *WSDL `minOccurs=1` not validated* — every required WSDL item field must be enforced either via Click `required=True` *or* a documented `UsageError` body check (listed in `INTERNAL_VALIDATION`).
 4. *Strategy enum drift* — `STRATEGY_TYPES` (`direct_cli/commands/strategies.py`) must equal the subtype-of-one field names in `StrategyAddItem`.
-5. *Optional-field visibility* — `scripts/build_wsdl_optional_field_audit.py --check` compares cached WSDL item fields (including `minOccurs=0`, nested to depth 2) with `tests/WSDL_OPTIONAL_FIELD_AUDIT.md`. Confirmed misses stay soft-gated as `missing_followup` rows linked to GitHub issues; they do not fail CI as missing CLI flags until implemented.
+5. *Optional-field visibility* — `scripts/build_wsdl_optional_field_audit.py --check` compares cached WSDL item fields (including `minOccurs=0`, at unbounded nesting depth) with `tests/WSDL_OPTIONAL_FIELD_AUDIT.md`. Confirmed misses stay soft-gated as `missing_followup` rows linked to GitHub issues; they do not fail CI as missing CLI flags until implemented.
 
 Adding a new mutating command requires extending `COMMAND_WSDL_MAP` in `tests/test_wsdl_parity_gate.py` (the coverage test fails otherwise) and, if the WSDL request has a non-mechanical field name, also `WSDL_FIELD_TO_CLI_OPTION`. Tracked in issue #198.
 

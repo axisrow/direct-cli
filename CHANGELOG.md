@@ -22,7 +22,7 @@
 - WSDL parity now includes a soft optional-field audit for issue #239.
   `scripts/build_wsdl_optional_field_audit.py --check` regenerates and
   compares `tests/WSDL_OPTIONAL_FIELD_AUDIT.md`, covering cached mutating
-  WSDL item fields through nesting depth 2. Confirmed `minOccurs=0`
+  WSDL item fields at unbounded nesting depth. Confirmed `minOccurs=0`
   gaps are tracked as linked `missing_followup` rows instead of being
   invisible to the required-field gate.
 
