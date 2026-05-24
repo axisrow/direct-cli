@@ -525,8 +525,8 @@ direct vcards add --campaign-id 555 --country "Russia" --city "Moscow" --company
 direct adextensions add --callout-text "Free shipping" --dry-run
 direct adimages add --name banner.png --image-data BASE64DATA --type ICON --dry-run
 direct creatives add --video-id video-id --dry-run
-direct feeds add --name "Feed A" --url "https://example.com/feed.xml" --business-type RETAIL --dry-run
-direct feeds update --id 18 --name "Feed A v2" --url "https://example.com/feed-v2.xml" --dry-run
+direct feeds add --name "Feed A" --url "https://example.com/feed.xml" --business-type RETAIL --remove-utm-tags YES --feed-login feedbot --dry-run
+direct feeds update --id 18 --name "Feed A v2" --url "https://example.com/feed-v2.xml" --remove-utm-tags NO --clear-feed-login --clear-feed-password --dry-run
 direct clients update --client-info "Priority client" --phone +70000000000 --notification-email user@example.com --notification-lang EN --email-subscription RECEIVE_RECOMMENDATIONS=YES --setting DISPLAY_STORE_RATING=NO --dry-run
 direct --login CLIENT_LOGIN clients update --phone +70000000000 --notification-email user@example.com --dry-run
 direct agencyclients add-passport-organization --name "Org" --currency RUB --notification-email ops@example.com --notification-lang EN --no-send-account-news --send-warnings --dry-run
@@ -1232,8 +1232,8 @@ direct vcards add --campaign-id 555 --country "Россия" --city "Москв�
 direct adextensions add --callout-text "Free shipping" --dry-run
 direct adimages add --name banner.png --image-data BASE64DATA --type ICON --dry-run
 direct creatives add --video-id video-id --dry-run
-direct feeds add --name "Фид A" --url "https://example.com/feed.xml" --business-type RETAIL --dry-run
-direct feeds update --id 18 --name "Фид A v2" --url "https://example.com/feed-v2.xml" --dry-run
+direct feeds add --name "Фид A" --url "https://example.com/feed.xml" --business-type RETAIL --remove-utm-tags YES --feed-login feedbot --dry-run
+direct feeds update --id 18 --name "Фид A v2" --url "https://example.com/feed-v2.xml" --remove-utm-tags NO --clear-feed-login --clear-feed-password --dry-run
 direct clients update --client-info "Приоритетный клиент" --phone +70000000000 --notification-email user@example.com --notification-lang EN --email-subscription RECEIVE_RECOMMENDATIONS=YES --setting DISPLAY_STORE_RATING=NO --dry-run
 direct --login CLIENT_LOGIN clients update --phone +70000000000 --notification-email user@example.com --dry-run
 direct agencyclients add-passport-organization --name "Org" --currency RUB --notification-email ops@example.com --notification-lang EN --no-send-account-news --send-warnings --dry-run

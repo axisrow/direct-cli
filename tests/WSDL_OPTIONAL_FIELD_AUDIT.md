@@ -11,8 +11,8 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2823 |
-| `supported` | 418 |
+| `missing_followup` | 2817 |
+| `supported` | 424 |
 
 ## Confirmed Follow-Ups
 
@@ -2586,18 +2586,12 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `dynamicfeedadtargets.add` | `Conditions.Items.Operand` | dynamicfeedadtargets.add optional WSDL path needs typed support or N/A. [#252](https://github.com/axisrow/direct-cli/issues/252) |
 | `dynamicfeedadtargets.add` | `Conditions.Items.Operator` | dynamicfeedadtargets.add optional WSDL path needs typed support or N/A. [#252](https://github.com/axisrow/direct-cli/issues/252) |
 | `dynamicfeedadtargets.add` | `Conditions.Items.Arguments` | dynamicfeedadtargets.add optional WSDL path needs typed support or N/A. [#252](https://github.com/axisrow/direct-cli/issues/252) |
-| `feeds.add` | `UrlFeed.RemoveUtmTags` | feeds.add optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.add` | `UrlFeed.Login` | feeds.add optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.add` | `UrlFeed.Password` | feeds.add optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.add` | `FileFeed` | feeds.add optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.add` | `FileFeed.Data` | feeds.add optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.add` | `FileFeed.Filename` | feeds.add optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.update` | `UrlFeed.RemoveUtmTags` | feeds.update optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.update` | `UrlFeed.Login` | feeds.update optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.update` | `UrlFeed.Password` | feeds.update optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.update` | `FileFeed` | feeds.update optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.update` | `FileFeed.Data` | feeds.update optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.update` | `FileFeed.Filename` | feeds.update optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
+| `feeds.add` | `FileFeed` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264) |
+| `feeds.add` | `FileFeed.Data` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
+| `feeds.add` | `FileFeed.Filename` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
+| `feeds.update` | `FileFeed` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264) |
+| `feeds.update` | `FileFeed.Data` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
+| `feeds.update` | `FileFeed.Filename` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
 | `keywordbids.set` | `CampaignId` | keywordbids.set optional WSDL path needs typed support or N/A. [#252](https://github.com/axisrow/direct-cli/issues/252) |
 | `keywordbids.set` | `AdGroupId` | keywordbids.set optional WSDL path needs typed support or N/A. [#252](https://github.com/axisrow/direct-cli/issues/252) |
 | `keywordbids.set` | `AutotargetingSearchBidIsAuto` | keywordbids.set optional WSDL path needs typed support or N/A. [#252](https://github.com/axisrow/direct-cli/issues/252) |
@@ -5607,23 +5601,23 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `feeds.add` | `feeds.add` | `BusinessType` | `BusinessTypeEnum` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `feeds.add` | `feeds.add` | `SourceType` | `SourceTypeEnum` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `feeds.add` | `feeds.add` | `UrlFeed` | `UrlFeedAdd` | 0 | 1 | `supported` | --url |
-| `feeds.add` | `feeds.add` | `UrlFeed.RemoveUtmTags` | `YesNoEnum` | 0 | 1 | `missing_followup` | feeds.add optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
+| `feeds.add` | `feeds.add` | `UrlFeed.RemoveUtmTags` | `YesNoEnum` | 0 | 1 | `supported` | --remove-utm-tags |
 | `feeds.add` | `feeds.add` | `UrlFeed.Url` | `string` | 1 | 1 | `supported` | --url |
-| `feeds.add` | `feeds.add` | `UrlFeed.Login` | `string` | 0 | 1 | `missing_followup` | feeds.add optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.add` | `feeds.add` | `UrlFeed.Password` | `string` | 0 | 1 | `missing_followup` | feeds.add optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.add` | `feeds.add` | `FileFeed` | `FileFeedAdd` | 0 | 1 | `missing_followup` | feeds.add optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.add` | `feeds.add` | `FileFeed.Data` | `base64Binary` | 1 | 1 | `missing_followup` | feeds.add optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.add` | `feeds.add` | `FileFeed.Filename` | `string` | 1 | 1 | `missing_followup` | feeds.add optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
+| `feeds.add` | `feeds.add` | `UrlFeed.Login` | `string` | 0 | 1 | `supported` | --feed-login |
+| `feeds.add` | `feeds.add` | `UrlFeed.Password` | `string` | 0 | 1 | `supported` | --feed-password |
+| `feeds.add` | `feeds.add` | `FileFeed` | `FileFeedAdd` | 0 | 1 | `missing_followup` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264) |
+| `feeds.add` | `feeds.add` | `FileFeed.Data` | `base64Binary` | 1 | 1 | `missing_followup` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
+| `feeds.add` | `feeds.add` | `FileFeed.Filename` | `string` | 1 | 1 | `missing_followup` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
 | `feeds.update` | `feeds.update` | `Id` | `long` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `feeds.update` | `feeds.update` | `Name` | `string` | 0 | 1 | `supported` | --name |
 | `feeds.update` | `feeds.update` | `UrlFeed` | `UrlFeedUpdate` | 0 | 1 | `supported` | --url |
-| `feeds.update` | `feeds.update` | `UrlFeed.RemoveUtmTags` | `YesNoEnum` | 0 | 1 | `missing_followup` | feeds.update optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
+| `feeds.update` | `feeds.update` | `UrlFeed.RemoveUtmTags` | `YesNoEnum` | 0 | 1 | `supported` | --remove-utm-tags |
 | `feeds.update` | `feeds.update` | `UrlFeed.Url` | `string` | 0 | 1 | `supported` | --url |
-| `feeds.update` | `feeds.update` | `UrlFeed.Login` | `string` | 0 | 1 | `missing_followup` | feeds.update optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.update` | `feeds.update` | `UrlFeed.Password` | `string` | 0 | 1 | `missing_followup` | feeds.update optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.update` | `feeds.update` | `FileFeed` | `FileFeedUpdate` | 0 | 1 | `missing_followup` | feeds.update optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.update` | `feeds.update` | `FileFeed.Data` | `base64Binary` | 1 | 1 | `missing_followup` | feeds.update optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
-| `feeds.update` | `feeds.update` | `FileFeed.Filename` | `string` | 1 | 1 | `missing_followup` | feeds.update optional WSDL path needs typed support or N/A. [#253](https://github.com/axisrow/direct-cli/issues/253) |
+| `feeds.update` | `feeds.update` | `UrlFeed.Login` | `string` | 0 | 1 | `supported` | --clear-feed-login, --feed-login |
+| `feeds.update` | `feeds.update` | `UrlFeed.Password` | `string` | 0 | 1 | `supported` | --clear-feed-password, --feed-password |
+| `feeds.update` | `feeds.update` | `FileFeed` | `FileFeedUpdate` | 0 | 1 | `missing_followup` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264) |
+| `feeds.update` | `feeds.update` | `FileFeed.Data` | `base64Binary` | 1 | 1 | `missing_followup` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
+| `feeds.update` | `feeds.update` | `FileFeed.Filename` | `string` | 1 | 1 | `missing_followup` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
 | `keywordbids.set` | `keywordbids.set` | `CampaignId` | `long` | 0 | 1 | `missing_followup` | keywordbids.set optional WSDL path needs typed support or N/A. [#252](https://github.com/axisrow/direct-cli/issues/252) |
 | `keywordbids.set` | `keywordbids.set` | `AdGroupId` | `long` | 0 | 1 | `missing_followup` | keywordbids.set optional WSDL path needs typed support or N/A. [#252](https://github.com/axisrow/direct-cli/issues/252) |
 | `keywordbids.set` | `keywordbids.set` | `KeywordId` | `long` | 0 | 1 | `supported` | --keyword-id |

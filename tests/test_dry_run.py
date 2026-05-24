@@ -3405,6 +3405,33 @@ def test_feeds_add_payload_uses_nested_urlfeed():
     }
 
 
+def test_feeds_add_payload_accepts_urlfeed_details():
+    body = _dry_run(
+        "feeds",
+        "add",
+        "--name",
+        "Feed A",
+        "--url",
+        "https://example.com/feed.xml",
+        "--business-type",
+        "RETAIL",
+        "--remove-utm-tags",
+        "yes",
+        "--feed-login",
+        "feedbot",
+        "--feed-password",
+        "secret",
+    )
+    feed = body["params"]["Feeds"][0]
+    assert feed["SourceType"] == "URL"
+    assert feed["UrlFeed"] == {
+        "Url": "https://example.com/feed.xml",
+        "RemoveUtmTags": "YES",
+        "Login": "feedbot",
+        "Password": "secret",
+    }
+
+
 def test_feeds_update_payload_changes_url():
     body = _dry_run(
         "feeds",
@@ -3416,6 +3443,64 @@ def test_feeds_update_payload_changes_url():
     )
     feed = body["params"]["Feeds"][0]
     assert feed == {"Id": 9, "UrlFeed": {"Url": "https://example.com/feed-v2.xml"}}
+
+
+def test_feeds_update_payload_accepts_urlfeed_details():
+    body = _dry_run(
+        "feeds",
+        "update",
+        "--id",
+        "9",
+        "--remove-utm-tags",
+        "no",
+        "--feed-login",
+        "feedbot",
+        "--feed-password",
+        "secret",
+    )
+    feed = body["params"]["Feeds"][0]
+    assert feed == {
+        "Id": 9,
+        "UrlFeed": {
+            "RemoveUtmTags": "NO",
+            "Login": "feedbot",
+            "Password": "secret",
+        },
+    }
+
+
+def test_feeds_update_payload_can_clear_urlfeed_credentials():
+    body = _dry_run(
+        "feeds",
+        "update",
+        "--id",
+        "9",
+        "--clear-feed-login",
+        "--clear-feed-password",
+    )
+    feed = body["params"]["Feeds"][0]
+    assert feed == {"Id": 9, "UrlFeed": {"Login": None, "Password": None}}
+
+
+def test_feeds_update_rejects_setting_and_clearing_login():
+    result = CliRunner().invoke(
+        cli,
+        [
+            "feeds",
+            "update",
+            "--id",
+            "9",
+            "--feed-login",
+            "feedbot",
+            "--clear-feed-login",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    combined = (result.output or "") + (
+        str(result.exception) if result.exception else ""
+    )
+    assert "Use either --feed-login or --clear-feed-login" in combined
 
 
 def test_feeds_update_without_fields_errors():
@@ -3433,7 +3518,10 @@ def test_feeds_update_without_fields_errors():
     combined = (result.output or "") + (
         str(result.exception) if result.exception else ""
     )
-    assert "--name" in combined or "--url" in combined
+    assert "--name" in combined
+    assert "--url" in combined
+    assert "--remove-utm-tags" in combined
+    assert "--clear-feed-login" in combined
 
 
 # ----------------------------------------------------------------------
