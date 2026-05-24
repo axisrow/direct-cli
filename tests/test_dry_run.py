@@ -4788,6 +4788,103 @@ def test_clients_update_erir_organization_payload():
     }
 
 
+def test_clients_update_erir_contract_payload():
+    body = _dry_run(
+        "clients",
+        "update",
+        "--erir-contract-number",
+        "C-2026-01",
+        "--erir-contract-date",
+        "2026-01-15",
+        "--erir-contract-type",
+        "contract",
+        "--erir-contract-action-type",
+        "commercial",
+        "--erir-contract-subject-type",
+        "representation",
+        "--erir-contract-is-agency-payment",
+        "no",
+        "--erir-contract-price-amount",
+        "120000.5",
+        "--erir-contract-price-including-vat",
+        "yes",
+    )
+    assert body["params"]["Clients"][0] == {
+        "ErirAttributes": {
+            "Contract": {
+                "Number": "C-2026-01",
+                "Date": "2026-01-15",
+                "Type": "CONTRACT",
+                "ActionType": "COMMERCIAL",
+                "SubjectType": "REPRESENTATION",
+                "IsAgencyPayment": "NO",
+                "Price": {"Amount": 120000.5, "IncludingVat": "YES"},
+            }
+        }
+    }
+
+
+def test_clients_update_erir_contract_partial_payload():
+    body = _dry_run(
+        "clients",
+        "update",
+        "--erir-contract-number",
+        "C-2026-01",
+    )
+    assert body["params"]["Clients"][0] == {
+        "ErirAttributes": {"Contract": {"Number": "C-2026-01"}}
+    }
+
+
+def test_clients_update_erir_contract_price_requires_amount_and_vat():
+    for args, missing in (
+        (
+            [
+                "clients",
+                "update",
+                "--erir-contract-price-amount",
+                "120000.5",
+                "--dry-run",
+            ],
+            "--erir-contract-price-including-vat",
+        ),
+        (
+            [
+                "clients",
+                "update",
+                "--erir-contract-price-including-vat",
+                "YES",
+                "--dry-run",
+            ],
+            "--erir-contract-price-amount",
+        ),
+    ):
+        result = CliRunner().invoke(cli, args)
+        assert result.exit_code != 0
+        assert "ErirAttributes.Contract.Price requires" in result.output
+        assert missing in result.output
+
+
+def test_clients_update_erir_contract_price_rejects_non_finite_amount():
+    for value in ("nan", "inf", "-inf"):
+        result = CliRunner().invoke(
+            cli,
+            [
+                "clients",
+                "update",
+                "--erir-contract-price-amount",
+                value,
+                "--erir-contract-price-including-vat",
+                "YES",
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code != 0
+        assert "--erir-contract-price-amount must be a positive decimal amount" in (
+            result.output
+        )
+
+
 def test_clients_update_rejects_invalid_subscription_or_setting():
     invalid_cases = [
         [

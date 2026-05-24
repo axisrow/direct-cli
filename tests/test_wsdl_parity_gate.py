@@ -798,6 +798,14 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
         "--erir-organization-reg-number",
         "--erir-organization-oksm-number",
         "--erir-organization-okved-code",
+        "--erir-contract-number",
+        "--erir-contract-date",
+        "--erir-contract-type",
+        "--erir-contract-action-type",
+        "--erir-contract-subject-type",
+        "--erir-contract-is-agency-payment",
+        "--erir-contract-price-amount",
+        "--erir-contract-price-including-vat",
     },
     ("clients", "update", "ErirAttributes.Organization"): {
         "--erir-organization-name",
@@ -821,6 +829,38 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     },
     ("clients", "update", "ErirAttributes.Organization.OkvedCode"): {
         "--erir-organization-okved-code"
+    },
+    ("clients", "update", "ErirAttributes.Contract"): {
+        "--erir-contract-number",
+        "--erir-contract-date",
+        "--erir-contract-type",
+        "--erir-contract-action-type",
+        "--erir-contract-subject-type",
+        "--erir-contract-is-agency-payment",
+        "--erir-contract-price-amount",
+        "--erir-contract-price-including-vat",
+    },
+    ("clients", "update", "ErirAttributes.Contract.Number"): {"--erir-contract-number"},
+    ("clients", "update", "ErirAttributes.Contract.Date"): {"--erir-contract-date"},
+    ("clients", "update", "ErirAttributes.Contract.Type"): {"--erir-contract-type"},
+    ("clients", "update", "ErirAttributes.Contract.ActionType"): {
+        "--erir-contract-action-type"
+    },
+    ("clients", "update", "ErirAttributes.Contract.SubjectType"): {
+        "--erir-contract-subject-type"
+    },
+    ("clients", "update", "ErirAttributes.Contract.IsAgencyPayment"): {
+        "--erir-contract-is-agency-payment"
+    },
+    ("clients", "update", "ErirAttributes.Contract.Price"): {
+        "--erir-contract-price-amount",
+        "--erir-contract-price-including-vat",
+    },
+    ("clients", "update", "ErirAttributes.Contract.Price.Amount"): {
+        "--erir-contract-price-amount"
+    },
+    ("clients", "update", "ErirAttributes.Contract.Price.IncludingVat"): {
+        "--erir-contract-price-including-vat"
     },
     ("dynamicads", "add", "Conditions"): {"--condition"},
     ("dynamicads", "add", "Conditions.Operand"): {"--condition"},
@@ -1333,11 +1373,6 @@ OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]
         "status": "missing_followup",
         "issue": "#296",
         "note": "CpmBannerCampaign optional fields need typed support or N/A.",
-    },
-    ("clients", "update", "ErirAttributes.Contract"): {
-        "status": "missing_followup",
-        "issue": "#307",
-        "note": "ERIR Contract fields need typed support or N/A.",
     },
     ("clients", "update", "ErirAttributes.Contragent"): {
         "status": "missing_followup",

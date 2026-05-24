@@ -11,8 +11,8 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2793 |
-| `supported` | 448 |
+| `missing_followup` | 2783 |
+| `supported` | 458 |
 
 ## Confirmed Follow-Ups
 
@@ -2549,16 +2549,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `campaigns.update` | `TimeTargeting.HolidaysSchedule.BidPercent` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
 | `campaigns.update` | `TimeTargeting.HolidaysSchedule.StartHour` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
 | `campaigns.update` | `TimeTargeting.HolidaysSchedule.EndHour` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `clients.update` | `ErirAttributes.Contract` | ERIR Contract fields need typed support or N/A. [#307](https://github.com/axisrow/direct-cli/issues/307) |
-| `clients.update` | `ErirAttributes.Contract.Number` | ERIR Contract fields need typed support or N/A. [#307](https://github.com/axisrow/direct-cli/issues/307); inherited from `ErirAttributes.Contract` |
-| `clients.update` | `ErirAttributes.Contract.Date` | ERIR Contract fields need typed support or N/A. [#307](https://github.com/axisrow/direct-cli/issues/307); inherited from `ErirAttributes.Contract` |
-| `clients.update` | `ErirAttributes.Contract.Type` | ERIR Contract fields need typed support or N/A. [#307](https://github.com/axisrow/direct-cli/issues/307); inherited from `ErirAttributes.Contract` |
-| `clients.update` | `ErirAttributes.Contract.ActionType` | ERIR Contract fields need typed support or N/A. [#307](https://github.com/axisrow/direct-cli/issues/307); inherited from `ErirAttributes.Contract` |
-| `clients.update` | `ErirAttributes.Contract.SubjectType` | ERIR Contract fields need typed support or N/A. [#307](https://github.com/axisrow/direct-cli/issues/307); inherited from `ErirAttributes.Contract` |
-| `clients.update` | `ErirAttributes.Contract.IsAgencyPayment` | ERIR Contract fields need typed support or N/A. [#307](https://github.com/axisrow/direct-cli/issues/307); inherited from `ErirAttributes.Contract` |
-| `clients.update` | `ErirAttributes.Contract.Price` | ERIR Contract fields need typed support or N/A. [#307](https://github.com/axisrow/direct-cli/issues/307); inherited from `ErirAttributes.Contract` |
-| `clients.update` | `ErirAttributes.Contract.Price.Amount` | ERIR Contract fields need typed support or N/A. [#307](https://github.com/axisrow/direct-cli/issues/307); inherited from `ErirAttributes.Contract` |
-| `clients.update` | `ErirAttributes.Contract.Price.IncludingVat` | ERIR Contract fields need typed support or N/A. [#307](https://github.com/axisrow/direct-cli/issues/307); inherited from `ErirAttributes.Contract` |
 | `clients.update` | `ErirAttributes.Contragent` | ERIR Contragent fields need typed support or N/A. [#308](https://github.com/axisrow/direct-cli/issues/308) |
 | `clients.update` | `ErirAttributes.Contragent.Name` | ERIR Contragent fields need typed support or N/A. [#308](https://github.com/axisrow/direct-cli/issues/308); inherited from `ErirAttributes.Contragent` |
 | `clients.update` | `ErirAttributes.Contragent.Phone` | ERIR Contragent fields need typed support or N/A. [#308](https://github.com/axisrow/direct-cli/issues/308); inherited from `ErirAttributes.Contragent` |
@@ -5526,23 +5516,23 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `clients.update` | `clients.update` | `TinInfo` | `TinInfoUpdate` | 0 | 1 | `supported` | --tin, --tin-type |
 | `clients.update` | `clients.update` | `TinInfo.TinType` | `TinTypeEnum` | 0 | 1 | `supported` | --tin-type |
 | `clients.update` | `clients.update` | `TinInfo.Tin` | `string` | 0 | 1 | `supported` | --tin |
-| `clients.update` | `clients.update` | `ErirAttributes` | `ErirAttributesUpdate` | 0 | 1 | `supported` | --erir-organization-epay-number, --erir-organization-kpp, --erir-organization-name, --erir-organization-oksm-number, --erir-organization-okved-code, --erir-organization-reg-number |
+| `clients.update` | `clients.update` | `ErirAttributes` | `ErirAttributesUpdate` | 0 | 1 | `supported` | --erir-contract-action-type, --erir-contract-date, --erir-contract-is-agency-payment, --erir-contract-number, --erir-contract-price-amount, --erir-contract-price-including-vat, --erir-contract-subject-type, --erir-contract-type, --erir-organization-epay-number, --erir-organization-kpp, --erir-organization-name, --erir-organization-oksm-number, --erir-organization-okved-code, --erir-organization-reg-number |
 | `clients.update` | `clients.update` | `ErirAttributes.Organization` | `OrgInfo` | 0 | 1 | `supported` | --erir-organization-epay-number, --erir-organization-kpp, --erir-organization-name, --erir-organization-oksm-number, --erir-organization-okved-code, --erir-organization-reg-number |
 | `clients.update` | `clients.update` | `ErirAttributes.Organization.Name` | `string` | 0 | 1 | `supported` | --erir-organization-name |
 | `clients.update` | `clients.update` | `ErirAttributes.Organization.EpayNumber` | `string` | 0 | 1 | `supported` | --erir-organization-epay-number |
 | `clients.update` | `clients.update` | `ErirAttributes.Organization.RegNumber` | `string` | 0 | 1 | `supported` | --erir-organization-reg-number |
 | `clients.update` | `clients.update` | `ErirAttributes.Organization.OksmNumber` | `string` | 0 | 1 | `supported` | --erir-organization-oksm-number |
 | `clients.update` | `clients.update` | `ErirAttributes.Organization.OkvedCode` | `string` | 0 | 1 | `supported` | --erir-organization-okved-code |
-| `clients.update` | `clients.update` | `ErirAttributes.Contract` | `ContractInfoUpdate` | 0 | 1 | `missing_followup` | ERIR Contract fields need typed support or N/A. [#307](https://github.com/axisrow/direct-cli/issues/307) |
-| `clients.update` | `clients.update` | `ErirAttributes.Contract.Number` | `string` | 0 | 1 | `missing_followup` | ERIR Contract fields need typed support or N/A. [#307](https://github.com/axisrow/direct-cli/issues/307); inherited from `ErirAttributes.Contract` |
-| `clients.update` | `clients.update` | `ErirAttributes.Contract.Date` | `string` | 0 | 1 | `missing_followup` | ERIR Contract fields need typed support or N/A. [#307](https://github.com/axisrow/direct-cli/issues/307); inherited from `ErirAttributes.Contract` |
-| `clients.update` | `clients.update` | `ErirAttributes.Contract.Type` | `ContractTypeEnum` | 0 | 1 | `missing_followup` | ERIR Contract fields need typed support or N/A. [#307](https://github.com/axisrow/direct-cli/issues/307); inherited from `ErirAttributes.Contract` |
-| `clients.update` | `clients.update` | `ErirAttributes.Contract.ActionType` | `ContractActionTypeEnum` | 0 | 1 | `missing_followup` | ERIR Contract fields need typed support or N/A. [#307](https://github.com/axisrow/direct-cli/issues/307); inherited from `ErirAttributes.Contract` |
-| `clients.update` | `clients.update` | `ErirAttributes.Contract.SubjectType` | `ContractSubjectTypeEnum` | 0 | 1 | `missing_followup` | ERIR Contract fields need typed support or N/A. [#307](https://github.com/axisrow/direct-cli/issues/307); inherited from `ErirAttributes.Contract` |
-| `clients.update` | `clients.update` | `ErirAttributes.Contract.IsAgencyPayment` | `YesNoEnum` | 0 | 1 | `missing_followup` | ERIR Contract fields need typed support or N/A. [#307](https://github.com/axisrow/direct-cli/issues/307); inherited from `ErirAttributes.Contract` |
-| `clients.update` | `clients.update` | `ErirAttributes.Contract.Price` | `ContractPrice` | 0 | 1 | `missing_followup` | ERIR Contract fields need typed support or N/A. [#307](https://github.com/axisrow/direct-cli/issues/307); inherited from `ErirAttributes.Contract` |
-| `clients.update` | `clients.update` | `ErirAttributes.Contract.Price.Amount` | `decimal` | 1 | 1 | `missing_followup` | ERIR Contract fields need typed support or N/A. [#307](https://github.com/axisrow/direct-cli/issues/307); inherited from `ErirAttributes.Contract` |
-| `clients.update` | `clients.update` | `ErirAttributes.Contract.Price.IncludingVat` | `YesNoEnum` | 1 | 1 | `missing_followup` | ERIR Contract fields need typed support or N/A. [#307](https://github.com/axisrow/direct-cli/issues/307); inherited from `ErirAttributes.Contract` |
+| `clients.update` | `clients.update` | `ErirAttributes.Contract` | `ContractInfoUpdate` | 0 | 1 | `supported` | --erir-contract-action-type, --erir-contract-date, --erir-contract-is-agency-payment, --erir-contract-number, --erir-contract-price-amount, --erir-contract-price-including-vat, --erir-contract-subject-type, --erir-contract-type |
+| `clients.update` | `clients.update` | `ErirAttributes.Contract.Number` | `string` | 0 | 1 | `supported` | --erir-contract-number |
+| `clients.update` | `clients.update` | `ErirAttributes.Contract.Date` | `string` | 0 | 1 | `supported` | --erir-contract-date |
+| `clients.update` | `clients.update` | `ErirAttributes.Contract.Type` | `ContractTypeEnum` | 0 | 1 | `supported` | --erir-contract-type |
+| `clients.update` | `clients.update` | `ErirAttributes.Contract.ActionType` | `ContractActionTypeEnum` | 0 | 1 | `supported` | --erir-contract-action-type |
+| `clients.update` | `clients.update` | `ErirAttributes.Contract.SubjectType` | `ContractSubjectTypeEnum` | 0 | 1 | `supported` | --erir-contract-subject-type |
+| `clients.update` | `clients.update` | `ErirAttributes.Contract.IsAgencyPayment` | `YesNoEnum` | 0 | 1 | `supported` | --erir-contract-is-agency-payment |
+| `clients.update` | `clients.update` | `ErirAttributes.Contract.Price` | `ContractPrice` | 0 | 1 | `supported` | --erir-contract-price-amount, --erir-contract-price-including-vat |
+| `clients.update` | `clients.update` | `ErirAttributes.Contract.Price.Amount` | `decimal` | 1 | 1 | `supported` | --erir-contract-price-amount |
+| `clients.update` | `clients.update` | `ErirAttributes.Contract.Price.IncludingVat` | `YesNoEnum` | 1 | 1 | `supported` | --erir-contract-price-including-vat |
 | `clients.update` | `clients.update` | `ErirAttributes.Contragent` | `ContragentInfoUpdate` | 0 | 1 | `missing_followup` | ERIR Contragent fields need typed support or N/A. [#308](https://github.com/axisrow/direct-cli/issues/308) |
 | `clients.update` | `clients.update` | `ErirAttributes.Contragent.Name` | `string` | 0 | 1 | `missing_followup` | ERIR Contragent fields need typed support or N/A. [#308](https://github.com/axisrow/direct-cli/issues/308); inherited from `ErirAttributes.Contragent` |
 | `clients.update` | `clients.update` | `ErirAttributes.Contragent.Phone` | `string` | 0 | 1 | `missing_followup` | ERIR Contragent fields need typed support or N/A. [#308](https://github.com/axisrow/direct-cli/issues/308); inherited from `ErirAttributes.Contragent` |
