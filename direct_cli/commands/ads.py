@@ -2,6 +2,7 @@
 Ads commands
 """
 
+from decimal import Decimal, InvalidOperation
 from typing import Optional
 
 import click
@@ -207,14 +208,38 @@ def _build_price_extension(
     """Build TextAd.PriceExtension update payload from typed flags."""
     price_extension = {}
     if price_extension_price is not None:
-        price_extension["Price"] = price_extension_price
+        price_extension["Price"] = _parse_price_extension_amount(
+            price_extension_price, "--price-extension-price"
+        )
     if price_extension_old_price is not None:
-        price_extension["OldPrice"] = price_extension_old_price
+        price_extension["OldPrice"] = _parse_price_extension_amount(
+            price_extension_old_price, "--price-extension-old-price"
+        )
     if price_extension_price_qualifier:
         price_extension["PriceQualifier"] = price_extension_price_qualifier.upper()
     if price_extension_price_currency:
         price_extension["PriceCurrency"] = price_extension_price_currency.upper()
     return price_extension or None
+
+
+def _parse_price_extension_amount(value: str, flag_name: str) -> int:
+    """Convert human-readable price-extension money to API long units."""
+    try:
+        amount = Decimal(value)
+    except (InvalidOperation, ValueError):
+        raise click.UsageError(
+            f"{flag_name} must be a human-readable money value, for example 123.45."
+        )
+
+    if not amount.is_finite():
+        raise click.UsageError(f"{flag_name} must be a finite money value.")
+    if amount < 0:
+        raise click.UsageError(f"{flag_name} must be non-negative.")
+    exponent = amount.as_tuple().exponent
+    if not isinstance(exponent, int) or exponent < -2:
+        raise click.UsageError(f"{flag_name} must have at most two decimal places.")
+
+    return int(amount * Decimal("1000000"))
 
 
 def _build_price_extension_add(
@@ -246,12 +271,16 @@ def _build_price_extension_add(
         )
 
     price_extension = {
-        "Price": price_extension_price,
+        "Price": _parse_price_extension_amount(
+            price_extension_price, "--price-extension-price"
+        ),
         "PriceQualifier": price_extension_price_qualifier.upper(),
         "PriceCurrency": price_extension_price_currency.upper(),
     }
     if price_extension_old_price is not None:
-        price_extension["OldPrice"] = price_extension_old_price
+        price_extension["OldPrice"] = _parse_price_extension_amount(
+            price_extension_old_price, "--price-extension-old-price"
+        )
     return price_extension
 
 
@@ -662,18 +691,18 @@ def get(
 )
 @click.option(
     "--price-extension-price",
-    type=int,
     help=(
-        "TextAd.PriceExtension.Price as API long units "
-        "(price multiplied by 1,000,000). Required with PriceExtension add."
+        "TextAd.PriceExtension.Price as human-readable money. "
+        "Required whenever any PriceExtension flag is used."
     ),
 )
 @click.option(
     "--price-extension-old-price",
-    type=int,
     help=(
-        "TextAd.PriceExtension.OldPrice as API long units "
-        "(price multiplied by 1,000,000). TEXT_AD only."
+        "TextAd.PriceExtension.OldPrice as human-readable money. "
+        "Optional; if supplied, PriceExtension add also requires "
+        "--price-extension-price, --price-extension-price-qualifier, "
+        "and --price-extension-price-currency."
     ),
 )
 @click.option(
@@ -681,7 +710,7 @@ def get(
     type=click.Choice(["FROM", "UP_TO", "NONE"], case_sensitive=False),
     help=(
         "TextAd.PriceExtension.PriceQualifier: FROM, UP_TO, or NONE. "
-        "Required with PriceExtension add."
+        "Required whenever any PriceExtension flag is used."
     ),
 )
 @click.option(
@@ -692,7 +721,7 @@ def get(
     ),
     help=(
         "TextAd.PriceExtension.PriceCurrency enum value. "
-        "Required with PriceExtension add."
+        "Required whenever any PriceExtension flag is used."
     ),
 )
 @click.option("--business-id", type=int, help="TextAd.BusinessId (TEXT_AD)")
@@ -1097,18 +1126,16 @@ def add(
 )
 @click.option(
     "--price-extension-price",
-    type=int,
     help=(
-        "PriceExtension.Price as API long units "
-        "(price multiplied by 1,000,000). TEXT_AD / RESPONSIVE_AD only."
+        "PriceExtension.Price as human-readable money; converted to API long "
+        "units. TEXT_AD / RESPONSIVE_AD only."
     ),
 )
 @click.option(
     "--price-extension-old-price",
-    type=int,
     help=(
-        "PriceExtension.OldPrice as API long units "
-        "(price multiplied by 1,000,000). TEXT_AD / RESPONSIVE_AD only."
+        "PriceExtension.OldPrice as human-readable money; converted to API "
+        "long units. TEXT_AD / RESPONSIVE_AD only."
     ),
 )
 @click.option(

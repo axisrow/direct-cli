@@ -851,9 +851,9 @@ def test_ads_add_text_ad_optional_extension_fields_payload():
         "--video-extension-creative-id",
         "0",
         "--price-extension-price",
-        "123450000",
+        "123.45",
         "--price-extension-old-price",
-        "234560000",
+        "234.56",
         "--price-extension-price-qualifier",
         "from",
         "--price-extension-price-currency",
@@ -895,7 +895,7 @@ def test_ads_add_text_ad_price_extension_requires_mandatory_fields():
         "--href",
         "https://example.com",
         "--price-extension-old-price",
-        "234560000",
+        "234.56",
     )
     assert "TextAd.PriceExtension add requires" in result.output
     assert "--price-extension-price" in result.output
@@ -933,7 +933,7 @@ def test_ads_add_text_ad_optional_extension_flags_reject_other_subtypes():
         "--action",
         "INSTALL",
         "--price-extension-price",
-        "123450000",
+        "123.45",
     )
     assert "--final-url is not compatible with --type TEXT_IMAGE_AD" in (
         text_image.output
@@ -1394,9 +1394,9 @@ def test_ads_update_responsive_ad_payload():
         "--display-url-path",
         "deals",
         "--price-extension-price",
-        "123450000",
+        "123.45",
         "--price-extension-old-price",
-        "150000000",
+        "150.00",
         "--price-extension-price-qualifier",
         "from",
         "--price-extension-price-currency",
@@ -2494,9 +2494,9 @@ def test_ads_update_text_ad_price_extension_payload():
         "--type",
         "TEXT_AD",
         "--price-extension-price",
-        "123450000",
+        "123.45",
         "--price-extension-old-price",
-        "150000000",
+        "150.00",
         "--price-extension-price-qualifier",
         "from",
         "--price-extension-price-currency",
@@ -2513,6 +2513,23 @@ def test_ads_update_text_ad_price_extension_payload():
             }
         },
     }
+
+
+def test_ads_update_text_ad_price_extension_rejects_fractional_cents():
+    """PriceExtension money input is human-readable with two decimal places."""
+    result = _rejected(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_AD",
+        "--price-extension-price",
+        "123.456",
+    )
+    assert "--price-extension-price must have at most two decimal places" in (
+        result.output
+    )
 
 
 def test_ads_update_text_ad_price_extension_partial_payload():
@@ -2561,7 +2578,7 @@ def test_ads_update_text_ad_price_extension_flags_rejected_for_mobile_app_ad():
         "--type",
         "MOBILE_APP_AD",
         "--price-extension-price",
-        "123450000",
+        "123.45",
     )
     assert (
         "--price-extension-price is not compatible with --type MOBILE_APP_AD"

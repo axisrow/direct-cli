@@ -267,7 +267,10 @@ class TestCLI(unittest.TestCase):
         collapsed = " ".join(result.output.split())
         self.assertIn("TextAd.FinalUrl (TEXT_AD)", collapsed)
         self.assertIn("TextAd.VideoExtension.CreativeId (TEXT_AD)", collapsed)
-        self.assertIn("TextAd.PriceExtension.Price as API long units", collapsed)
+        self.assertIn("TextAd.PriceExtension.Price as human-readable money", collapsed)
+        self.assertIn(
+            "Optional; if supplied, PriceExtension add also requires", collapsed
+        )
         self.assertIn("TextAd.BusinessId (TEXT_AD)", collapsed)
         self.assertIn("TextAd.PreferVCardOverBusiness value: YES or NO", collapsed)
         self.assertIn("TextAd.ErirAdDescription (TEXT_AD)", collapsed)
