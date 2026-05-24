@@ -2865,6 +2865,8 @@ def test_keywords_add_rejects_single_item_flags_in_batch_mode(tmp_path):
             "5000000",
             "--user-param-1",
             "segment-a",
+            "--user-param-2",
+            "segment-b",
             "--dry-run",
         ],
     )
@@ -2873,6 +2875,7 @@ def test_keywords_add_rejects_single_item_flags_in_batch_mode(tmp_path):
     assert "--bid" in result.output
     assert "--context-bid" in result.output
     assert "--user-param-1" in result.output
+    assert "--user-param-2" in result.output
 
 
 def test_keywords_update_payload_keyword_text():
