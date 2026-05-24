@@ -76,8 +76,8 @@ def _validate_description(description: Optional[str]) -> None:
         and len(description) > _RETARGETING_DESCRIPTION_MAX_LENGTH
     ):
         raise click.UsageError(
-            "--description must be at most 4096 characters for "
-            "RetargetingList*.Description"
+            "--description must be at most "
+            f"{_RETARGETING_DESCRIPTION_MAX_LENGTH} characters"
         )
 
 
@@ -122,7 +122,7 @@ def add(ctx, name, description, list_type, rules, dry_run):
             "Type": list_type,
             "Rules": parse_retargeting_rule_specs(list(rules)),
         }
-        if description:
+        if description is not None:
             list_data["Description"] = description
 
         body = {"method": "add", "params": {"RetargetingLists": [list_data]}}
@@ -177,7 +177,7 @@ def update(ctx, list_id, name, description, list_type, rules, dry_run):
         list_data = {"Id": list_id}
         if name:
             list_data["Name"] = name
-        if description:
+        if description is not None:
             list_data["Description"] = description
         if list_type:
             list_data["Type"] = list_type

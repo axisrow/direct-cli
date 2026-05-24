@@ -3266,6 +3266,21 @@ def test_retargeting_add_description_payload():
     assert rtg["Description"] == "High intent users"
 
 
+def test_retargeting_add_empty_description_payload():
+    body = _dry_run(
+        "retargeting",
+        "add",
+        "--name",
+        "List A",
+        "--description",
+        "",
+        "--rule",
+        "ALL:12345:30",
+    )
+    rtg = body["params"]["RetargetingLists"][0]
+    assert rtg["Description"] == ""
+
+
 def test_retargeting_add_description_accepts_4096_chars():
     description = "x" * 4096
     body = _dry_run(
@@ -4669,9 +4684,9 @@ def test_retargeting_update_description_payload():
     }
 
 
-def test_retargeting_update_empty_description_no_op_rejected():
-    result = _rejected("retargeting", "update", "--id", "55", "--description", "")
-    assert "Provide at least one field to update" in result.output
+def test_retargeting_update_empty_description_payload():
+    body = _dry_run("retargeting", "update", "--id", "55", "--description", "")
+    assert body["params"]["RetargetingLists"][0] == {"Id": 55, "Description": ""}
 
 
 def test_retargeting_update_description_rejects_4097_chars():
