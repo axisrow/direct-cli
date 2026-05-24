@@ -2,6 +2,8 @@
 RetargetingLists commands
 """
 
+from typing import Optional
+
 import click
 
 from ..api import create_client
@@ -64,10 +66,30 @@ def get(ctx, ids, types, limit, fetch_all, output_format, output, fields):
 
 
 _RETARGETING_LIST_TYPES = ["RETARGETING", "AUDIENCE"]
+_RETARGETING_DESCRIPTION_MAX_LENGTH = 4096
+
+
+def _validate_description(description: Optional[str]) -> None:
+    """Validate RetargetingList*.Description documented API constraints."""
+    if (
+        description is not None
+        and len(description) > _RETARGETING_DESCRIPTION_MAX_LENGTH
+    ):
+        raise click.UsageError(
+            "--description must be at most 4096 characters for "
+            "RetargetingList*.Description"
+        )
 
 
 @retargeting.command()
 @click.option("--name", required=True, help="List name")
+@click.option(
+    "--description",
+    help=(
+        "Retargeting list description for RetargetingListAddItem.Description "
+        "(max 4096 chars)"
+    ),
+)
 @click.option(
     "--type",
     "list_type",
@@ -89,9 +111,10 @@ _RETARGETING_LIST_TYPES = ["RETARGETING", "AUDIENCE"]
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def add(ctx, name, list_type, rules, dry_run):
+def add(ctx, name, description, list_type, rules, dry_run):
     """Add new retargeting list"""
     try:
+        _validate_description(description)
         if not rules:
             raise click.UsageError("Provide at least one --rule")
         list_data = {
@@ -99,6 +122,8 @@ def add(ctx, name, list_type, rules, dry_run):
             "Type": list_type,
             "Rules": parse_retargeting_rule_specs(list(rules)),
         }
+        if description:
+            list_data["Description"] = description
 
         body = {"method": "add", "params": {"RetargetingLists": [list_data]}}
 
@@ -125,6 +150,13 @@ def add(ctx, name, list_type, rules, dry_run):
 @click.option("--id", "list_id", required=True, type=int, help="Retargeting list ID")
 @click.option("--name", help="List name")
 @click.option(
+    "--description",
+    help=(
+        "Retargeting list description for RetargetingListUpdateItem.Description "
+        "(max 4096 chars)"
+    ),
+)
+@click.option(
     "--type",
     "list_type",
     type=click.Choice(_RETARGETING_LIST_TYPES, case_sensitive=False),
@@ -138,12 +170,15 @@ def add(ctx, name, list_type, rules, dry_run):
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def update(ctx, list_id, name, list_type, rules, dry_run):
+def update(ctx, list_id, name, description, list_type, rules, dry_run):
     """Update retargeting list"""
     try:
+        _validate_description(description)
         list_data = {"Id": list_id}
         if name:
             list_data["Name"] = name
+        if description:
+            list_data["Description"] = description
         if list_type:
             list_data["Type"] = list_type
         if rules:

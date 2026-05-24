@@ -3251,6 +3251,51 @@ def test_retargeting_add_keeps_list_type():
     }
 
 
+def test_retargeting_add_description_payload():
+    body = _dry_run(
+        "retargeting",
+        "add",
+        "--name",
+        "List A",
+        "--description",
+        "High intent users",
+        "--rule",
+        "ALL:12345:30",
+    )
+    rtg = body["params"]["RetargetingLists"][0]
+    assert rtg["Description"] == "High intent users"
+
+
+def test_retargeting_add_description_accepts_4096_chars():
+    description = "x" * 4096
+    body = _dry_run(
+        "retargeting",
+        "add",
+        "--name",
+        "List A",
+        "--description",
+        description,
+        "--rule",
+        "ALL:12345:30",
+    )
+    rtg = body["params"]["RetargetingLists"][0]
+    assert rtg["Description"] == description
+
+
+def test_retargeting_add_description_rejects_4097_chars():
+    result = _rejected(
+        "retargeting",
+        "add",
+        "--name",
+        "List A",
+        "--description",
+        "x" * 4097,
+        "--rule",
+        "ALL:12345:30",
+    )
+    assert "--description must be at most 4096 characters" in result.output
+
+
 def test_retargeting_add_default_type_is_retargeting():
     """Without ``--type`` the CLI defaults to the API's default RETARGETING.
 
@@ -4607,6 +4652,38 @@ def test_retargeting_update_payload_uses_lists_array():
             }
         ],
     }
+
+
+def test_retargeting_update_description_payload():
+    body = _dry_run(
+        "retargeting",
+        "update",
+        "--id",
+        "55",
+        "--description",
+        "Updated note",
+    )
+    assert body["params"]["RetargetingLists"][0] == {
+        "Id": 55,
+        "Description": "Updated note",
+    }
+
+
+def test_retargeting_update_empty_description_no_op_rejected():
+    result = _rejected("retargeting", "update", "--id", "55", "--description", "")
+    assert "Provide at least one field to update" in result.output
+
+
+def test_retargeting_update_description_rejects_4097_chars():
+    result = _rejected(
+        "retargeting",
+        "update",
+        "--id",
+        "55",
+        "--description",
+        "x" * 4097,
+    )
+    assert "--description must be at most 4096 characters" in result.output
 
 
 def test_smartadtargets_set_bids_payload_uses_average_cpc():
