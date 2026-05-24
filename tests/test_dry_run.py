@@ -1282,6 +1282,186 @@ def test_ads_add_responsive_ad_rejects_other_subtype_flags():
     )
 
 
+def test_ads_add_shopping_ad_payload():
+    """Issue #275: SHOPPING_AD add builds the documented ShoppingAd block."""
+    body = _dry_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "SHOPPING_AD",
+        "--feed-id",
+        "170",
+        "--default-texts",
+        "Default product text",
+        "--sitelink-set-id",
+        "0",
+        "--ad-extensions",
+        "333,444",
+        "--business-id",
+        "0",
+        "--feed-filter-condition",
+        "CATEGORY:EQUALS_ANY:shoes|boots",
+        "--feed-filter-condition",
+        "PRICE:GREATER_THAN:100",
+        "--title-sources",
+        "NAME,BRAND",
+        "--text-sources",
+        "DESCRIPTION",
+    )
+    ad = body["params"]["Ads"][0]
+    assert "Type" not in ad
+    assert ad == {
+        "AdGroupId": 12345,
+        "ShoppingAd": {
+            "FeedId": 170,
+            "DefaultTexts": ["Default product text"],
+            "SitelinkSetId": 0,
+            "AdExtensionIds": [333, 444],
+            "BusinessId": 0,
+            "FeedFilterConditions": [
+                {
+                    "Operand": "CATEGORY",
+                    "Operator": "EQUALS_ANY",
+                    "Arguments": ["shoes", "boots"],
+                },
+                {
+                    "Operand": "PRICE",
+                    "Operator": "GREATER_THAN",
+                    "Arguments": ["100"],
+                },
+            ],
+            "TitleSources": ["NAME", "BRAND"],
+            "TextSources": ["DESCRIPTION"],
+        },
+    }
+
+
+def test_ads_add_listing_ad_payload():
+    """Issue #275: LISTING_AD add builds the documented ListingAd block."""
+    body = _dry_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "LISTING_AD",
+        "--feed-id",
+        "171",
+        "--default-texts",
+        "Default listing text",
+        "--feed-filter-condition",
+        "CATEGORY:EQUALS_ANY:appliances",
+        "--title-sources",
+        "TITLE",
+        "--text-sources",
+        "DESCRIPTION",
+    )
+    assert body["params"]["Ads"][0] == {
+        "AdGroupId": 12345,
+        "ListingAd": {
+            "FeedId": 171,
+            "DefaultTexts": ["Default listing text"],
+            "FeedFilterConditions": [
+                {
+                    "Operand": "CATEGORY",
+                    "Operator": "EQUALS_ANY",
+                    "Arguments": ["appliances"],
+                }
+            ],
+            "TitleSources": ["TITLE"],
+            "TextSources": ["DESCRIPTION"],
+        },
+    }
+
+
+def test_ads_add_shopping_ad_requires_feed_id_and_default_texts():
+    """Issue #275: documented ShoppingAdAdd required fields are local errors."""
+    result = _rejected(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "SHOPPING_AD",
+    )
+    assert "ShoppingAd requires --feed-id, --default-texts" in result.output
+
+
+def test_ads_add_listing_ad_default_texts_preserves_commas():
+    """Issue #275: DefaultTexts is one raw text value, not a CSV list."""
+    body = _dry_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "LISTING_AD",
+        "--feed-id",
+        "171",
+        "--default-texts",
+        "Sale, today",
+    )
+    assert body["params"]["Ads"][0]["ListingAd"]["DefaultTexts"] == ["Sale, today"]
+
+
+def test_ads_add_listing_ad_empty_default_texts_rejected():
+    """Issue #275: required DefaultTexts must be a meaningful text value."""
+    result = _rejected(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "LISTING_AD",
+        "--feed-id",
+        "171",
+        "--default-texts",
+        "",
+    )
+    assert "--default-texts must contain a value." in result.output
+
+
+def test_ads_add_shopping_ad_rejects_invalid_feed_filter_condition():
+    """Issue #275: feed filter conditions keep the typed grammar."""
+    result = _rejected(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "SHOPPING_AD",
+        "--feed-id",
+        "170",
+        "--default-texts",
+        "Default product text",
+        "--feed-filter-condition",
+        "CATEGORY",
+    )
+    assert "--feed-filter-condition: Invalid condition" in result.output
+    assert "Expected format: OPERAND:OPERATOR:ARG1|ARG2" in result.output
+
+
+def test_ads_add_listing_ad_rejects_other_subtype_flags():
+    """Issue #275: LISTING_AD add flags must honor subtype allow-lists."""
+    result = _rejected(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "LISTING_AD",
+        "--feed-id",
+        "171",
+        "--default-texts",
+        "Default listing text",
+        "--href",
+        "https://example.com",
+    )
+    assert "--href is not compatible with --type LISTING_AD" in result.output
+
+
 def test_ads_update_rejects_status_flag():
     """``--status`` is not part of WSDL ``AdUpdateItem`` (regression for #183).
 

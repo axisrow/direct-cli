@@ -11,9 +11,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2473 |
+| `missing_followup` | 2449 |
 | `not_applicable` | 23 |
-| `supported` | 745 |
+| `supported` | 769 |
 
 ## Confirmed Follow-Ups
 
@@ -101,30 +101,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.add` | `CpmVideoAdBuilderAd.TurboPageId` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpmVideoAdBuilderAd` |
 | `ads.add` | `SmartAdBuilderAd` | SMART_AD_BUILDER_AD add fields need typed support or N/A. [#278](https://github.com/axisrow/direct-cli/issues/278) |
 | `ads.add` | `SmartAdBuilderAd.LogoExtensionHash` | SMART_AD_BUILDER_AD add fields need typed support or N/A. [#278](https://github.com/axisrow/direct-cli/issues/278); inherited from `SmartAdBuilderAd` |
-| `ads.add` | `ShoppingAd` | SHOPPING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275) |
-| `ads.add` | `ShoppingAd.SitelinkSetId` | SHOPPING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ShoppingAd` |
-| `ads.add` | `ShoppingAd.AdExtensionIds` | SHOPPING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ShoppingAd` |
-| `ads.add` | `ShoppingAd.BusinessId` | SHOPPING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ShoppingAd` |
-| `ads.add` | `ShoppingAd.FeedId` | SHOPPING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ShoppingAd` |
-| `ads.add` | `ShoppingAd.FeedFilterConditions` | SHOPPING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ShoppingAd` |
-| `ads.add` | `ShoppingAd.FeedFilterConditions.Operand` | SHOPPING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ShoppingAd` |
-| `ads.add` | `ShoppingAd.FeedFilterConditions.Operator` | SHOPPING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ShoppingAd` |
-| `ads.add` | `ShoppingAd.FeedFilterConditions.Arguments` | SHOPPING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ShoppingAd` |
-| `ads.add` | `ShoppingAd.TitleSources` | SHOPPING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ShoppingAd` |
-| `ads.add` | `ShoppingAd.TextSources` | SHOPPING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ShoppingAd` |
-| `ads.add` | `ShoppingAd.DefaultTexts` | SHOPPING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ShoppingAd` |
-| `ads.add` | `ListingAd` | LISTING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275) |
-| `ads.add` | `ListingAd.SitelinkSetId` | LISTING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ListingAd` |
-| `ads.add` | `ListingAd.AdExtensionIds` | LISTING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ListingAd` |
-| `ads.add` | `ListingAd.BusinessId` | LISTING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ListingAd` |
-| `ads.add` | `ListingAd.FeedId` | LISTING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ListingAd` |
-| `ads.add` | `ListingAd.FeedFilterConditions` | LISTING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ListingAd` |
-| `ads.add` | `ListingAd.FeedFilterConditions.Operand` | LISTING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ListingAd` |
-| `ads.add` | `ListingAd.FeedFilterConditions.Operator` | LISTING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ListingAd` |
-| `ads.add` | `ListingAd.FeedFilterConditions.Arguments` | LISTING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ListingAd` |
-| `ads.add` | `ListingAd.TitleSources` | LISTING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ListingAd` |
-| `ads.add` | `ListingAd.TextSources` | LISTING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ListingAd` |
-| `ads.add` | `ListingAd.DefaultTexts` | LISTING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ListingAd` |
 | `campaigns.add` | `ClientInfo` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
 | `campaigns.add` | `Notification` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
 | `campaigns.add` | `Notification.SmsSettings` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
@@ -2747,30 +2723,30 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.add` | `ads.add` | `CpmVideoAdBuilderAd.TurboPageId` | `long` | 0 | 1 | `missing_followup` | AdBuilder add subtype fields need typed support or N/A. [#276](https://github.com/axisrow/direct-cli/issues/276); inherited from `CpmVideoAdBuilderAd` |
 | `ads.add` | `ads.add` | `SmartAdBuilderAd` | `SmartAdBuilderAdAdd` | 0 | 1 | `missing_followup` | SMART_AD_BUILDER_AD add fields need typed support or N/A. [#278](https://github.com/axisrow/direct-cli/issues/278) |
 | `ads.add` | `ads.add` | `SmartAdBuilderAd.LogoExtensionHash` | `string` | 0 | 1 | `missing_followup` | SMART_AD_BUILDER_AD add fields need typed support or N/A. [#278](https://github.com/axisrow/direct-cli/issues/278); inherited from `SmartAdBuilderAd` |
-| `ads.add` | `ads.add` | `ShoppingAd` | `ShoppingAdAdd` | 0 | 1 | `missing_followup` | SHOPPING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275) |
-| `ads.add` | `ads.add` | `ShoppingAd.SitelinkSetId` | `long` | 0 | 1 | `missing_followup` | SHOPPING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ShoppingAd` |
-| `ads.add` | `ads.add` | `ShoppingAd.AdExtensionIds` | `long` | 0 | unbounded | `missing_followup` | SHOPPING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ShoppingAd` |
-| `ads.add` | `ads.add` | `ShoppingAd.BusinessId` | `long` | 0 | 1 | `missing_followup` | SHOPPING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ShoppingAd` |
-| `ads.add` | `ads.add` | `ShoppingAd.FeedId` | `long` | 1 | 1 | `missing_followup` | SHOPPING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ShoppingAd` |
-| `ads.add` | `ads.add` | `ShoppingAd.FeedFilterConditions` | `FeedFilterConditionItem` | 0 | unbounded | `missing_followup` | SHOPPING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ShoppingAd` |
-| `ads.add` | `ads.add` | `ShoppingAd.FeedFilterConditions.Operand` | `string` | 1 | 1 | `missing_followup` | SHOPPING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ShoppingAd` |
-| `ads.add` | `ads.add` | `ShoppingAd.FeedFilterConditions.Operator` | `StringConditionOperatorEnum` | 1 | 1 | `missing_followup` | SHOPPING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ShoppingAd` |
-| `ads.add` | `ads.add` | `ShoppingAd.FeedFilterConditions.Arguments` | `string` | 1 | unbounded | `missing_followup` | SHOPPING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ShoppingAd` |
-| `ads.add` | `ads.add` | `ShoppingAd.TitleSources` | `string` | 0 | unbounded | `missing_followup` | SHOPPING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ShoppingAd` |
-| `ads.add` | `ads.add` | `ShoppingAd.TextSources` | `string` | 0 | unbounded | `missing_followup` | SHOPPING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ShoppingAd` |
-| `ads.add` | `ads.add` | `ShoppingAd.DefaultTexts` | `string` | 1 | unbounded | `missing_followup` | SHOPPING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ShoppingAd` |
-| `ads.add` | `ads.add` | `ListingAd` | `ListingAdAdd` | 0 | 1 | `missing_followup` | LISTING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275) |
-| `ads.add` | `ads.add` | `ListingAd.SitelinkSetId` | `long` | 0 | 1 | `missing_followup` | LISTING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ListingAd` |
-| `ads.add` | `ads.add` | `ListingAd.AdExtensionIds` | `long` | 0 | unbounded | `missing_followup` | LISTING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ListingAd` |
-| `ads.add` | `ads.add` | `ListingAd.BusinessId` | `long` | 0 | 1 | `missing_followup` | LISTING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ListingAd` |
-| `ads.add` | `ads.add` | `ListingAd.FeedId` | `long` | 1 | 1 | `missing_followup` | LISTING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ListingAd` |
-| `ads.add` | `ads.add` | `ListingAd.FeedFilterConditions` | `FeedFilterConditionItem` | 0 | unbounded | `missing_followup` | LISTING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ListingAd` |
-| `ads.add` | `ads.add` | `ListingAd.FeedFilterConditions.Operand` | `string` | 1 | 1 | `missing_followup` | LISTING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ListingAd` |
-| `ads.add` | `ads.add` | `ListingAd.FeedFilterConditions.Operator` | `StringConditionOperatorEnum` | 1 | 1 | `missing_followup` | LISTING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ListingAd` |
-| `ads.add` | `ads.add` | `ListingAd.FeedFilterConditions.Arguments` | `string` | 1 | unbounded | `missing_followup` | LISTING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ListingAd` |
-| `ads.add` | `ads.add` | `ListingAd.TitleSources` | `string` | 0 | unbounded | `missing_followup` | LISTING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ListingAd` |
-| `ads.add` | `ads.add` | `ListingAd.TextSources` | `string` | 0 | unbounded | `missing_followup` | LISTING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ListingAd` |
-| `ads.add` | `ads.add` | `ListingAd.DefaultTexts` | `string` | 1 | unbounded | `missing_followup` | LISTING_AD add fields need typed support or N/A. [#275](https://github.com/axisrow/direct-cli/issues/275); inherited from `ListingAd` |
+| `ads.add` | `ads.add` | `ShoppingAd` | `ShoppingAdAdd` | 0 | 1 | `supported` | --type |
+| `ads.add` | `ads.add` | `ShoppingAd.SitelinkSetId` | `long` | 0 | 1 | `supported` | --sitelink-set-id |
+| `ads.add` | `ads.add` | `ShoppingAd.AdExtensionIds` | `long` | 0 | unbounded | `supported` | --ad-extensions |
+| `ads.add` | `ads.add` | `ShoppingAd.BusinessId` | `long` | 0 | 1 | `supported` | --business-id |
+| `ads.add` | `ads.add` | `ShoppingAd.FeedId` | `long` | 1 | 1 | `supported` | --feed-id |
+| `ads.add` | `ads.add` | `ShoppingAd.FeedFilterConditions` | `FeedFilterConditionItem` | 0 | unbounded | `supported` | --feed-filter-condition |
+| `ads.add` | `ads.add` | `ShoppingAd.FeedFilterConditions.Operand` | `string` | 1 | 1 | `supported` | --feed-filter-condition |
+| `ads.add` | `ads.add` | `ShoppingAd.FeedFilterConditions.Operator` | `StringConditionOperatorEnum` | 1 | 1 | `supported` | --feed-filter-condition |
+| `ads.add` | `ads.add` | `ShoppingAd.FeedFilterConditions.Arguments` | `string` | 1 | unbounded | `supported` | --feed-filter-condition |
+| `ads.add` | `ads.add` | `ShoppingAd.TitleSources` | `string` | 0 | unbounded | `supported` | --title-sources |
+| `ads.add` | `ads.add` | `ShoppingAd.TextSources` | `string` | 0 | unbounded | `supported` | --text-sources |
+| `ads.add` | `ads.add` | `ShoppingAd.DefaultTexts` | `string` | 1 | unbounded | `supported` | --default-texts |
+| `ads.add` | `ads.add` | `ListingAd` | `ListingAdAdd` | 0 | 1 | `supported` | --type |
+| `ads.add` | `ads.add` | `ListingAd.SitelinkSetId` | `long` | 0 | 1 | `supported` | --sitelink-set-id |
+| `ads.add` | `ads.add` | `ListingAd.AdExtensionIds` | `long` | 0 | unbounded | `supported` | --ad-extensions |
+| `ads.add` | `ads.add` | `ListingAd.BusinessId` | `long` | 0 | 1 | `supported` | --business-id |
+| `ads.add` | `ads.add` | `ListingAd.FeedId` | `long` | 1 | 1 | `supported` | --feed-id |
+| `ads.add` | `ads.add` | `ListingAd.FeedFilterConditions` | `FeedFilterConditionItem` | 0 | unbounded | `supported` | --feed-filter-condition |
+| `ads.add` | `ads.add` | `ListingAd.FeedFilterConditions.Operand` | `string` | 1 | 1 | `supported` | --feed-filter-condition |
+| `ads.add` | `ads.add` | `ListingAd.FeedFilterConditions.Operator` | `StringConditionOperatorEnum` | 1 | 1 | `supported` | --feed-filter-condition |
+| `ads.add` | `ads.add` | `ListingAd.FeedFilterConditions.Arguments` | `string` | 1 | unbounded | `supported` | --feed-filter-condition |
+| `ads.add` | `ads.add` | `ListingAd.TitleSources` | `string` | 0 | unbounded | `supported` | --title-sources |
+| `ads.add` | `ads.add` | `ListingAd.TextSources` | `string` | 0 | unbounded | `supported` | --text-sources |
+| `ads.add` | `ads.add` | `ListingAd.DefaultTexts` | `string` | 1 | unbounded | `supported` | --default-texts |
 | `ads.update` | `ads.update` | `Id` | `long` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `ads.update` | `ads.update` | `TextAd` | `TextAdUpdate` | 0 | 1 | `supported` | --type |
 | `ads.update` | `ads.update` | `TextAd.VCardId` | `long` | 0 | 1 | `supported` | --vcard-id |

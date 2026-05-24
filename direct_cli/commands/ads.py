@@ -37,6 +37,17 @@ FEED_BASED_UPDATE_FIELDS = {
     "default_texts",
 }
 
+FEED_BASED_ADD_FIELDS = {
+    "sitelink_set_id",
+    "ad_extensions",
+    "business_id",
+    "feed_id",
+    "feed_filter_conditions",
+    "title_sources",
+    "text_sources",
+    "default_texts",
+}
+
 
 TEXT_AD_UPDATE_FIELDS = {
     "title",
@@ -437,6 +448,66 @@ def _build_feed_based_ad_update(
     return ad_payload
 
 
+def _build_feed_based_ad_add(
+    feed_id: Optional[int],
+    default_texts: Optional[str],
+    sitelink_set_id: Optional[int],
+    ad_extensions: Optional[str],
+    business_id: Optional[int],
+    feed_filter_conditions: tuple[str, ...],
+    title_sources: Optional[str],
+    text_sources: Optional[str],
+    container_name: str,
+) -> dict[str, object]:
+    """Build ShoppingAdAdd / ListingAdAdd payload from typed flags."""
+    missing_fields = []
+    if feed_id is None:
+        missing_fields.append("--feed-id")
+    if default_texts is None:
+        missing_fields.append("--default-texts")
+    if missing_fields:
+        raise click.UsageError(
+            f"{container_name} requires " + ", ".join(missing_fields)
+        )
+
+    default_text = default_texts.strip() if default_texts else ""
+    if not default_text:
+        raise click.UsageError("--default-texts must contain a value.")
+
+    ad_payload: dict[str, object] = {
+        "FeedId": feed_id,
+        "DefaultTexts": [default_text],
+    }
+
+    if sitelink_set_id is not None:
+        ad_payload["SitelinkSetId"] = sitelink_set_id
+    parsed_ad_extensions = _parse_required_ids(ad_extensions, "--ad-extensions")
+    if parsed_ad_extensions:
+        ad_payload["AdExtensionIds"] = parsed_ad_extensions
+    if business_id is not None:
+        ad_payload["BusinessId"] = business_id
+    if feed_filter_conditions:
+        if len(feed_filter_conditions) > 30:
+            raise click.UsageError(
+                f"{container_name}.FeedFilterConditions accepts at most 30 filters."
+            )
+        try:
+            parsed_conditions = parse_condition_specs(list(feed_filter_conditions))
+        except ValueError as exc:
+            raise click.UsageError(f"--feed-filter-condition: {exc}")
+        if parsed_conditions:
+            ad_payload["FeedFilterConditions"] = parsed_conditions
+
+    parsed_title_sources = _parse_required_csv_strings(title_sources, "--title-sources")
+    if parsed_title_sources:
+        ad_payload["TitleSources"] = parsed_title_sources
+    parsed_text_sources = _parse_required_csv_strings(text_sources, "--text-sources")
+    if parsed_text_sources:
+        ad_payload["TextSources"] = parsed_text_sources
+
+    return ad_payload
+
+
 def _build_ad_builder_update(
     creative_id: Optional[int],
     creative_erir_ad_description: Optional[str],
@@ -658,7 +729,10 @@ def get(
     "--type",
     "ad_type",
     default="TEXT_AD",
-    help="Ad type: TEXT_AD | TEXT_IMAGE_AD | MOBILE_APP_AD | RESPONSIVE_AD",
+    help=(
+        "Ad type: TEXT_AD | TEXT_IMAGE_AD | MOBILE_APP_AD | RESPONSIVE_AD | "
+        "SHOPPING_AD | LISTING_AD"
+    ),
 )
 @click.option("--title", help="Ad title (TEXT_AD / MOBILE_APP_AD)")
 @click.option("--text", help="Ad text (TEXT_AD / MOBILE_APP_AD)")
@@ -689,14 +763,19 @@ def get(
 )
 @click.option("--vcard-id", type=int, help="VCard ID (TEXT_AD)")
 @click.option(
-    "--sitelink-set-id", type=int, help="Sitelink set ID (TEXT_AD / RESPONSIVE_AD)"
+    "--sitelink-set-id",
+    type=int,
+    help="Sitelink set ID (TEXT_AD / RESPONSIVE_AD / SHOPPING_AD / LISTING_AD)",
 )
 @click.option(
     "--turbo-page-id", type=int, help="Turbo page ID (TEXT_AD / TEXT_IMAGE_AD)"
 )
 @click.option(
     "--ad-extensions",
-    help="Comma-separated ad extension IDs (TEXT_AD / RESPONSIVE_AD)",
+    help=(
+        "Comma-separated ad extension IDs "
+        "(TEXT_AD / RESPONSIVE_AD / SHOPPING_AD / LISTING_AD)"
+    ),
 )
 @click.option("--final-url", help="TextAd.FinalUrl (TEXT_AD)")
 @click.option(
@@ -746,7 +825,7 @@ def get(
 @click.option(
     "--business-id",
     type=int,
-    help="TextAd/ResponsiveAd.BusinessId (TEXT_AD / RESPONSIVE_AD)",
+    help="BusinessId (TEXT_AD / RESPONSIVE_AD / SHOPPING_AD / LISTING_AD)",
 )
 @click.option(
     "--prefer-vcard-over-business",
@@ -756,6 +835,32 @@ def get(
 @click.option(
     "--erir-ad-description",
     help="TextAd/ResponsiveAd.ErirAdDescription (TEXT_AD / RESPONSIVE_AD)",
+)
+@click.option(
+    "--feed-id",
+    type=int,
+    help="ShoppingAd/ListingAd.FeedId (SHOPPING_AD / LISTING_AD)",
+)
+@click.option(
+    "--feed-filter-condition",
+    "feed_filter_conditions",
+    multiple=True,
+    help=(
+        "Repeatable ShoppingAd/ListingAd.FeedFilterConditions item as "
+        "OPERAND:OPERATOR:ARG1|ARG2"
+    ),
+)
+@click.option(
+    "--title-sources",
+    help="Comma-separated ShoppingAd/ListingAd.TitleSources values",
+)
+@click.option(
+    "--text-sources",
+    help="Comma-separated ShoppingAd/ListingAd.TextSources values",
+)
+@click.option(
+    "--default-texts",
+    help="ShoppingAd/ListingAd.DefaultTexts value (required for SHOPPING_AD/LISTING_AD)",
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
@@ -790,17 +895,30 @@ def add(
     business_id,
     prefer_vcard_over_business,
     erir_ad_description,
+    feed_id,
+    feed_filter_conditions,
+    title_sources,
+    text_sources,
+    default_texts,
     dry_run,
 ):
     """Add new ad"""
     try:
         ad_type_norm = (ad_type or "TEXT_AD").upper().replace("-", "_")
-        supported_types = {"TEXT_AD", "TEXT_IMAGE_AD", "MOBILE_APP_AD", "RESPONSIVE_AD"}
+        supported_types = {
+            "TEXT_AD",
+            "TEXT_IMAGE_AD",
+            "MOBILE_APP_AD",
+            "RESPONSIVE_AD",
+            "SHOPPING_AD",
+            "LISTING_AD",
+        }
         if ad_type_norm not in supported_types:
             raise click.UsageError(
                 "Invalid value for '--type': "
                 f"{ad_type!r} is not one of "
-                "'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD', 'RESPONSIVE_AD'."
+                "'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD', 'RESPONSIVE_AD', "
+                "'SHOPPING_AD', 'LISTING_AD'."
             )
 
         # --mobile has a Click default of "NO" so the value is always present
@@ -856,6 +974,8 @@ def add(
                 "business_id",
                 "erir_ad_description",
             },
+            "SHOPPING_AD": FEED_BASED_ADD_FIELDS,
+            "LISTING_AD": FEED_BASED_ADD_FIELDS,
             "MOBILE_APP_AD": {
                 "title",
                 "text",
@@ -893,6 +1013,11 @@ def add(
             "business_id": business_id,
             "prefer_vcard_over_business": prefer_vcard_over_business,
             "erir_ad_description": erir_ad_description,
+            "feed_id": feed_id,
+            "feed_filter_conditions": feed_filter_conditions,
+            "title_sources": title_sources,
+            "text_sources": text_sources,
+            "default_texts": default_texts,
         }
         flag_for = {
             "title": "--title",
@@ -922,6 +1047,11 @@ def add(
             "business_id": "--business-id",
             "prefer_vcard_over_business": "--prefer-vcard-over-business",
             "erir_ad_description": "--erir-ad-description",
+            "feed_id": "--feed-id",
+            "feed_filter_conditions": "--feed-filter-condition",
+            "title_sources": "--title-sources",
+            "text_sources": "--text-sources",
+            "default_texts": "--default-texts",
         }
         _reject_incompatible_flags(
             ad_type_norm, type_fields[ad_type_norm], provided, flag_for
@@ -1054,6 +1184,19 @@ def add(
             if erir_ad_description:
                 responsive_ad["ErirAdDescription"] = erir_ad_description
             ad_data["ResponsiveAd"] = responsive_ad
+        elif ad_type_norm in {"SHOPPING_AD", "LISTING_AD"}:
+            field_name = "ShoppingAd" if ad_type_norm == "SHOPPING_AD" else "ListingAd"
+            ad_data[field_name] = _build_feed_based_ad_add(
+                feed_id,
+                default_texts,
+                sitelink_set_id,
+                ad_extensions,
+                business_id,
+                feed_filter_conditions,
+                title_sources,
+                text_sources,
+                field_name,
+            )
         elif ad_type_norm == "MOBILE_APP_AD":
             if href:
                 raise click.UsageError(
