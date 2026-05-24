@@ -4730,6 +4730,33 @@ def test_clients_update_notification_only_payload():
     }
 
 
+def test_clients_update_repeated_subscription_and_setting_items():
+    body = _dry_run(
+        "clients",
+        "update",
+        "--email-subscription",
+        "RECEIVE_RECOMMENDATIONS=YES",
+        "--email-subscription",
+        "TRACK_POSITION_CHANGES=NO",
+        "--setting",
+        "DISPLAY_STORE_RATING=NO",
+        "--setting",
+        "CORRECT_TYPOS_AUTOMATICALLY=YES",
+    )
+    assert body["params"]["Clients"][0] == {
+        "Notification": {
+            "EmailSubscriptions": [
+                {"Option": "RECEIVE_RECOMMENDATIONS", "Value": "YES"},
+                {"Option": "TRACK_POSITION_CHANGES", "Value": "NO"},
+            ],
+        },
+        "Settings": [
+            {"Option": "DISPLAY_STORE_RATING", "Value": "NO"},
+            {"Option": "CORRECT_TYPOS_AUTOMATICALLY", "Value": "YES"},
+        ],
+    }
+
+
 def test_clients_update_rejects_invalid_subscription_or_setting():
     invalid_cases = [
         [

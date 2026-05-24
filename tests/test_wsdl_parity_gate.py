@@ -778,8 +778,16 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     },
     ("clients", "update", "Notification.Email"): {"--notification-email"},
     ("clients", "update", "Notification.EmailSubscriptions"): {"--email-subscription"},
+    ("clients", "update", "Notification.EmailSubscriptions.Option"): {
+        "--email-subscription"
+    },
+    ("clients", "update", "Notification.EmailSubscriptions.Value"): {
+        "--email-subscription"
+    },
     ("clients", "update", "Notification.Lang"): {"--notification-lang"},
     ("clients", "update", "Settings"): {"--setting"},
+    ("clients", "update", "Settings.Option"): {"--setting"},
+    ("clients", "update", "Settings.Value"): {"--setting"},
     ("clients", "update", "TinInfo"): {"--tin", "--tin-type"},
     ("clients", "update", "TinInfo.TinType"): {"--tin-type"},
     ("clients", "update", "TinInfo.Tin"): {"--tin"},
@@ -997,10 +1005,6 @@ OPTIONAL_FIELD_DEFAULT_FOLLOWUPS: dict[tuple[str, str], dict[str, str]] = {
     ("campaigns", "update"): {
         "issue": "#291",
         "note": "campaigns.update campaign-level optional path needs typed support or N/A.",
-    },
-    ("clients", "update"): {
-        "issue": "#305",
-        "note": "clients.update item option/value path needs typed support or N/A.",
     },
     ("dynamicads", "add"): {
         "issue": "#303",
@@ -1299,15 +1303,10 @@ OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]
         "issue": "#296",
         "note": "CpmBannerCampaign optional fields need typed support or N/A.",
     },
-    ("clients", "update", "Notification.EmailSubscriptions"): {
+    ("clients", "update", "ErirAttributes"): {
         "status": "missing_followup",
-        "issue": "#305",
-        "note": "Client EmailSubscriptions item parity needs typed support or N/A.",
-    },
-    ("clients", "update", "Settings"): {
-        "status": "missing_followup",
-        "issue": "#305",
-        "note": "Client Settings item parity needs typed support or N/A.",
+        "issue": "#306",
+        "note": "ERIR parent wrapper is tracked with the first ERIR child issue.",
     },
     ("clients", "update", "ErirAttributes.Organization"): {
         "status": "missing_followup",
