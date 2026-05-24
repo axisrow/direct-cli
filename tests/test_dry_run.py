@@ -1389,8 +1389,25 @@ def test_ads_add_shopping_ad_requires_feed_id_and_default_texts():
     assert "ShoppingAd requires --feed-id, --default-texts" in result.output
 
 
-def test_ads_add_listing_ad_default_texts_single_value_only():
-    """Issue #275: DefaultTexts is required but accepts only one value."""
+def test_ads_add_listing_ad_default_texts_preserves_commas():
+    """Issue #275: DefaultTexts is one raw text value, not a CSV list."""
+    body = _dry_run(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "12345",
+        "--type",
+        "LISTING_AD",
+        "--feed-id",
+        "171",
+        "--default-texts",
+        "Sale, today",
+    )
+    assert body["params"]["Ads"][0]["ListingAd"]["DefaultTexts"] == ["Sale, today"]
+
+
+def test_ads_add_listing_ad_empty_default_texts_rejected():
+    """Issue #275: required DefaultTexts must be a meaningful text value."""
     result = _rejected(
         "ads",
         "add",
@@ -1401,9 +1418,9 @@ def test_ads_add_listing_ad_default_texts_single_value_only():
         "--feed-id",
         "171",
         "--default-texts",
-        "One,Two",
+        "",
     )
-    assert "ListingAd.DefaultTexts accepts exactly one value." in result.output
+    assert "--default-texts must contain a value." in result.output
 
 
 def test_ads_add_shopping_ad_rejects_invalid_feed_filter_condition():

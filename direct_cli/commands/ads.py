@@ -470,15 +470,13 @@ def _build_feed_based_ad_add(
             f"{container_name} requires " + ", ".join(missing_fields)
         )
 
-    parsed_default_texts = _parse_required_csv_strings(default_texts, "--default-texts")
-    if parsed_default_texts and len(parsed_default_texts) != 1:
-        raise click.UsageError(
-            f"{container_name}.DefaultTexts accepts exactly one value."
-        )
+    default_text = default_texts.strip() if default_texts else ""
+    if not default_text:
+        raise click.UsageError("--default-texts must contain a value.")
 
     ad_payload: dict[str, object] = {
         "FeedId": feed_id,
-        "DefaultTexts": parsed_default_texts,
+        "DefaultTexts": [default_text],
     }
 
     if sitelink_set_id is not None:
