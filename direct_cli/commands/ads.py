@@ -247,6 +247,7 @@ def _build_price_extension_add(
     price_extension_old_price,
     price_extension_price_qualifier,
     price_extension_price_currency,
+    container_name="TextAd",
 ):
     """Build TextAd.PriceExtension add payload from typed flags."""
     provided = (
@@ -267,7 +268,7 @@ def _build_price_extension_add(
         missing.append("--price-extension-price-currency")
     if missing:
         raise click.UsageError(
-            "TextAd.PriceExtension add requires " + ", ".join(missing)
+            f"{container_name}.PriceExtension add requires " + ", ".join(missing)
         )
 
     price_extension = {
@@ -657,20 +658,29 @@ def get(
     "--type",
     "ad_type",
     default="TEXT_AD",
-    help="Ad type",
+    help="Ad type: TEXT_AD | TEXT_IMAGE_AD | MOBILE_APP_AD | RESPONSIVE_AD",
 )
 @click.option("--title", help="Ad title (TEXT_AD / MOBILE_APP_AD)")
 @click.option("--text", help="Ad text (TEXT_AD / MOBILE_APP_AD)")
-@click.option("--href", help="Ad URL (TEXT_AD / TEXT_IMAGE_AD)")
+@click.option("--titles", help="Comma-separated ResponsiveAd.Titles values")
+@click.option("--texts", help="Comma-separated ResponsiveAd.Texts values")
+@click.option("--href", help="Ad URL (TEXT_AD / TEXT_IMAGE_AD / RESPONSIVE_AD)")
 @click.option("--image-hash", help="Ad image hash (TEXT_IMAGE_AD / MOBILE_APP_AD)")
+@click.option(
+    "--image-hashes",
+    help="Comma-separated ResponsiveAd.AdImageHashes values",
+)
 @click.option(
     "--action",
     help="MOBILE_APP_AD call-to-action (MobileAppAdActionEnum, e.g. INSTALL)",
 )
 @click.option("--tracking-url", help="MOBILE_APP_AD tracking URL")
-@click.option("--age-label", help="MOBILE_APP_AD age label (MobAppAgeLabelEnum)")
+@click.option(
+    "--age-label",
+    help="Age label (MOBILE_APP_AD MobAppAgeLabelEnum / RESPONSIVE_AD AgeLabelEnum)",
+)
 @click.option("--title2", help="Second headline (TEXT_AD)")
-@click.option("--display-url-path", help="Display URL path (TEXT_AD)")
+@click.option("--display-url-path", help="Display URL path (TEXT_AD / RESPONSIVE_AD)")
 @click.option(
     "--mobile",
     type=click.Choice(["YES", "NO"], case_sensitive=False),
@@ -678,11 +688,16 @@ def get(
     help="Mobile-targeted flag (TEXT_AD)",
 )
 @click.option("--vcard-id", type=int, help="VCard ID (TEXT_AD)")
-@click.option("--sitelink-set-id", type=int, help="Sitelink set ID (TEXT_AD)")
+@click.option(
+    "--sitelink-set-id", type=int, help="Sitelink set ID (TEXT_AD / RESPONSIVE_AD)"
+)
 @click.option(
     "--turbo-page-id", type=int, help="Turbo page ID (TEXT_AD / TEXT_IMAGE_AD)"
 )
-@click.option("--ad-extensions", help="Comma-separated ad extension IDs (TEXT_AD)")
+@click.option(
+    "--ad-extensions",
+    help="Comma-separated ad extension IDs (TEXT_AD / RESPONSIVE_AD)",
+)
 @click.option("--final-url", help="TextAd.FinalUrl (TEXT_AD)")
 @click.option(
     "--video-extension-creative-id",
@@ -692,14 +707,14 @@ def get(
 @click.option(
     "--price-extension-price",
     help=(
-        "TextAd.PriceExtension.Price as human-readable money. "
+        "TextAd/ResponsiveAd.PriceExtension.Price as human-readable money. "
         "Required whenever any PriceExtension flag is used."
     ),
 )
 @click.option(
     "--price-extension-old-price",
     help=(
-        "TextAd.PriceExtension.OldPrice as human-readable money. "
+        "TextAd/ResponsiveAd.PriceExtension.OldPrice as human-readable money. "
         "Optional; if supplied, PriceExtension add also requires "
         "--price-extension-price, --price-extension-price-qualifier, "
         "and --price-extension-price-currency."
@@ -709,7 +724,7 @@ def get(
     "--price-extension-price-qualifier",
     type=click.Choice(["FROM", "UP_TO", "NONE"], case_sensitive=False),
     help=(
-        "TextAd.PriceExtension.PriceQualifier: FROM, UP_TO, or NONE. "
+        "TextAd/ResponsiveAd.PriceExtension.PriceQualifier: FROM, UP_TO, or NONE. "
         "Required whenever any PriceExtension flag is used."
     ),
 )
@@ -720,17 +735,28 @@ def get(
         case_sensitive=False,
     ),
     help=(
-        "TextAd.PriceExtension.PriceCurrency enum value. "
+        "TextAd/ResponsiveAd.PriceExtension.PriceCurrency enum value. "
         "Required whenever any PriceExtension flag is used."
     ),
 )
-@click.option("--business-id", type=int, help="TextAd.BusinessId (TEXT_AD)")
+@click.option(
+    "--video-extension-ids",
+    help="Comma-separated ResponsiveAd.VideoExtensionIds values",
+)
+@click.option(
+    "--business-id",
+    type=int,
+    help="TextAd/ResponsiveAd.BusinessId (TEXT_AD / RESPONSIVE_AD)",
+)
 @click.option(
     "--prefer-vcard-over-business",
     type=click.Choice(["YES", "NO"], case_sensitive=False),
     help="TextAd.PreferVCardOverBusiness value: YES or NO",
 )
-@click.option("--erir-ad-description", help="TextAd.ErirAdDescription (TEXT_AD)")
+@click.option(
+    "--erir-ad-description",
+    help="TextAd/ResponsiveAd.ErirAdDescription (TEXT_AD / RESPONSIVE_AD)",
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def add(
@@ -739,8 +765,11 @@ def add(
     ad_type,
     title,
     text,
+    titles,
+    texts,
     href,
     image_hash,
+    image_hashes,
     action,
     tracking_url,
     age_label,
@@ -757,6 +786,7 @@ def add(
     price_extension_old_price,
     price_extension_price_qualifier,
     price_extension_price_currency,
+    video_extension_ids,
     business_id,
     prefer_vcard_over_business,
     erir_ad_description,
@@ -765,12 +795,12 @@ def add(
     """Add new ad"""
     try:
         ad_type_norm = (ad_type or "TEXT_AD").upper().replace("-", "_")
-        supported_types = {"TEXT_AD", "TEXT_IMAGE_AD", "MOBILE_APP_AD"}
+        supported_types = {"TEXT_AD", "TEXT_IMAGE_AD", "MOBILE_APP_AD", "RESPONSIVE_AD"}
         if ad_type_norm not in supported_types:
             raise click.UsageError(
                 "Invalid value for '--type': "
                 f"{ad_type!r} is not one of "
-                "'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD'."
+                "'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD', 'RESPONSIVE_AD'."
             )
 
         # --mobile has a Click default of "NO" so the value is always present
@@ -809,6 +839,23 @@ def add(
                 "erir_ad_description",
             },
             "TEXT_IMAGE_AD": {"href", "image_hash", "turbo_page_id"},
+            "RESPONSIVE_AD": {
+                "texts",
+                "titles",
+                "href",
+                "age_label",
+                "display_url_path",
+                "image_hashes",
+                "sitelink_set_id",
+                "ad_extensions",
+                "video_extension_ids",
+                "price_extension_price",
+                "price_extension_old_price",
+                "price_extension_price_qualifier",
+                "price_extension_price_currency",
+                "business_id",
+                "erir_ad_description",
+            },
             "MOBILE_APP_AD": {
                 "title",
                 "text",
@@ -821,8 +868,11 @@ def add(
         provided = {
             "title": title,
             "text": text,
+            "titles": titles,
+            "texts": texts,
             "href": href,
             "image_hash": image_hash,
+            "image_hashes": image_hashes,
             "action": action,
             "tracking_url": tracking_url,
             "age_label": age_label,
@@ -839,6 +889,7 @@ def add(
             "price_extension_old_price": price_extension_old_price,
             "price_extension_price_qualifier": price_extension_price_qualifier,
             "price_extension_price_currency": price_extension_price_currency,
+            "video_extension_ids": video_extension_ids,
             "business_id": business_id,
             "prefer_vcard_over_business": prefer_vcard_over_business,
             "erir_ad_description": erir_ad_description,
@@ -846,8 +897,11 @@ def add(
         flag_for = {
             "title": "--title",
             "text": "--text",
+            "titles": "--titles",
+            "texts": "--texts",
             "href": "--href",
             "image_hash": "--image-hash",
+            "image_hashes": "--image-hashes",
             "action": "--action",
             "tracking_url": "--tracking-url",
             "age_label": "--age-label",
@@ -864,6 +918,7 @@ def add(
             "price_extension_old_price": "--price-extension-old-price",
             "price_extension_price_qualifier": "--price-extension-price-qualifier",
             "price_extension_price_currency": "--price-extension-price-currency",
+            "video_extension_ids": "--video-extension-ids",
             "business_id": "--business-id",
             "prefer_vcard_over_business": "--prefer-vcard-over-business",
             "erir_ad_description": "--erir-ad-description",
@@ -941,6 +996,60 @@ def add(
             if turbo_page_id:
                 text_image_ad["TurboPageId"] = turbo_page_id
             ad_data["TextImageAd"] = text_image_ad
+        elif ad_type_norm == "RESPONSIVE_AD":
+            missing_fields = [
+                option_name
+                for option_name, value in (
+                    ("--texts", texts),
+                    ("--titles", titles),
+                )
+                if value is None
+            ]
+            if missing_fields:
+                raise click.UsageError(
+                    "RESPONSIVE_AD requires " + ", ".join(missing_fields)
+                )
+
+            parsed_texts = _parse_required_csv_strings(texts, "--texts")
+            parsed_titles = _parse_required_csv_strings(titles, "--titles")
+            responsive_ad = {
+                "Texts": parsed_texts,
+                "Titles": parsed_titles,
+            }
+            parsed_image_hashes = _parse_required_csv_strings(
+                image_hashes, "--image-hashes"
+            )
+            if parsed_image_hashes:
+                responsive_ad["AdImageHashes"] = parsed_image_hashes
+            parsed_video_extension_ids = _parse_required_ids(
+                video_extension_ids, "--video-extension-ids"
+            )
+            if parsed_video_extension_ids:
+                responsive_ad["VideoExtensionIds"] = parsed_video_extension_ids
+            if sitelink_set_id is not None:
+                responsive_ad["SitelinkSetId"] = sitelink_set_id
+            if ad_extensions:
+                responsive_ad["AdExtensionIds"] = parse_ids(ad_extensions)
+            if href:
+                responsive_ad["Href"] = href
+            if age_label:
+                responsive_ad["AgeLabel"] = age_label.upper()
+            if display_url_path:
+                responsive_ad["DisplayUrlPath"] = display_url_path
+            price_extension = _build_price_extension_add(
+                price_extension_price,
+                price_extension_old_price,
+                price_extension_price_qualifier,
+                price_extension_price_currency,
+                container_name="ResponsiveAd",
+            )
+            if price_extension:
+                responsive_ad["PriceExtension"] = price_extension
+            if business_id is not None:
+                responsive_ad["BusinessId"] = business_id
+            if erir_ad_description:
+                responsive_ad["ErirAdDescription"] = erir_ad_description
+            ad_data["ResponsiveAd"] = responsive_ad
         elif ad_type_norm == "MOBILE_APP_AD":
             if href:
                 raise click.UsageError(

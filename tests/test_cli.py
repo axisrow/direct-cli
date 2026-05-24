@@ -265,15 +265,34 @@ class TestCLI(unittest.TestCase):
         result = self.runner.invoke(cli, ["ads", "add", "--help"])
         self.assertEqual(result.exit_code, 0)
         collapsed = " ".join(result.output.split())
+        self.assertIn(
+            "Ad type: TEXT_AD | TEXT_IMAGE_AD | MOBILE_APP_AD | RESPONSIVE_AD",
+            collapsed,
+        )
+        self.assertIn("Comma-separated ResponsiveAd.Titles values", collapsed)
+        self.assertIn("Comma-separated ResponsiveAd.Texts values", collapsed)
+        self.assertIn("Comma-separated ResponsiveAd.AdImageHashes values", collapsed)
+        self.assertIn(
+            "Comma-separated ResponsiveAd.VideoExtensionIds values", collapsed
+        )
         self.assertIn("TextAd.FinalUrl (TEXT_AD)", collapsed)
         self.assertIn("TextAd.VideoExtension.CreativeId (TEXT_AD)", collapsed)
-        self.assertIn("TextAd.PriceExtension.Price as human-readable money", collapsed)
+        self.assertIn(
+            "TextAd/ResponsiveAd.PriceExtension.Price as human-readable money",
+            collapsed,
+        )
         self.assertIn(
             "Optional; if supplied, PriceExtension add also requires", collapsed
         )
-        self.assertIn("TextAd.BusinessId (TEXT_AD)", collapsed)
+        self.assertIn(
+            "TextAd/ResponsiveAd.BusinessId (TEXT_AD / RESPONSIVE_AD)",
+            collapsed,
+        )
         self.assertIn("TextAd.PreferVCardOverBusiness value: YES or NO", collapsed)
-        self.assertIn("TextAd.ErirAdDescription (TEXT_AD)", collapsed)
+        self.assertIn(
+            "TextAd/ResponsiveAd.ErirAdDescription (TEXT_AD / RESPONSIVE_AD)",
+            collapsed,
+        )
 
     def test_ads_update_help_documents_text_ad_image_hash(self):
         result = self.runner.invoke(cli, ["ads", "update", "--help"])
