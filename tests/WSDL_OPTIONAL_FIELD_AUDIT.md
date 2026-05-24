@@ -11,17 +11,13 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2848 |
-| `supported` | 393 |
+| `missing_followup` | 2840 |
+| `supported` | 401 |
 
 ## Confirmed Follow-Ups
 
 | CLI command | WSDL path | Issue / note |
 |---|---|---|
-| `adgroups.add` | `NegativeKeywords` | Ad-group-level negative keywords are not exposed on add. [#243](https://github.com/axisrow/direct-cli/issues/243) |
-| `adgroups.add` | `NegativeKeywords.Items` | Ad-group-level negative keywords are not exposed on add. [#243](https://github.com/axisrow/direct-cli/issues/243); inherited from `NegativeKeywords` |
-| `adgroups.add` | `NegativeKeywordSharedSetIds` | Shared-set IDs are read-filterable but not addable. [#243](https://github.com/axisrow/direct-cli/issues/243) |
-| `adgroups.add` | `NegativeKeywordSharedSetIds.Items` | Shared-set IDs are read-filterable but not addable. [#243](https://github.com/axisrow/direct-cli/issues/243); inherited from `NegativeKeywordSharedSetIds` |
 | `adgroups.add` | `MobileAppAdGroup` | Rare ad group subtype block is not exposed by --type. [#247](https://github.com/axisrow/direct-cli/issues/247) |
 | `adgroups.add` | `MobileAppAdGroup.StoreUrl` | Rare ad group subtype block is not exposed by --type. [#247](https://github.com/axisrow/direct-cli/issues/247); inherited from `MobileAppAdGroup` |
 | `adgroups.add` | `MobileAppAdGroup.TargetDeviceType` | Rare ad group subtype block is not exposed by --type. [#247](https://github.com/axisrow/direct-cli/issues/247); inherited from `MobileAppAdGroup` |
@@ -66,10 +62,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `adgroups.add` | `TextAdGroupFeedParams.FeedId` | Rare ad group feed params block has no typed add flags. [#247](https://github.com/axisrow/direct-cli/issues/247); inherited from `TextAdGroupFeedParams` |
 | `adgroups.add` | `TextAdGroupFeedParams.FeedCategoryIds` | Rare ad group feed params block has no typed add flags. [#247](https://github.com/axisrow/direct-cli/issues/247); inherited from `TextAdGroupFeedParams` |
 | `adgroups.add` | `TextAdGroupFeedParams.FeedCategoryIds.Items` | Rare ad group feed params block has no typed add flags. [#247](https://github.com/axisrow/direct-cli/issues/247); inherited from `TextAdGroupFeedParams` |
-| `adgroups.update` | `NegativeKeywords` | Ad-group-level negative keywords are not exposed on update. [#243](https://github.com/axisrow/direct-cli/issues/243) |
-| `adgroups.update` | `NegativeKeywords.Items` | Ad-group-level negative keywords are not exposed on update. [#243](https://github.com/axisrow/direct-cli/issues/243); inherited from `NegativeKeywords` |
-| `adgroups.update` | `NegativeKeywordSharedSetIds` | Shared-set IDs are read-filterable but not updatable. [#243](https://github.com/axisrow/direct-cli/issues/243) |
-| `adgroups.update` | `NegativeKeywordSharedSetIds.Items` | Shared-set IDs are read-filterable but not updatable. [#243](https://github.com/axisrow/direct-cli/issues/243); inherited from `NegativeKeywordSharedSetIds` |
 | `adgroups.update` | `MobileAppAdGroup` | Rare ad group subtype block is not exposed by update. [#247](https://github.com/axisrow/direct-cli/issues/247) |
 | `adgroups.update` | `MobileAppAdGroup.TargetDeviceType` | Rare ad group subtype block is not exposed by update. [#247](https://github.com/axisrow/direct-cli/issues/247); inherited from `MobileAppAdGroup` |
 | `adgroups.update` | `MobileAppAdGroup.TargetCarrier` | Rare ad group subtype block is not exposed by update. [#247](https://github.com/axisrow/direct-cli/issues/247); inherited from `MobileAppAdGroup` |
@@ -2876,10 +2868,10 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `adgroups.add` | `adgroups.add` | `Name` | `string` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `adgroups.add` | `adgroups.add` | `CampaignId` | `long` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `adgroups.add` | `adgroups.add` | `RegionIds` | `long` | 1 | unbounded | `supported` | covered by minOccurs>=1 parity gate |
-| `adgroups.add` | `adgroups.add` | `NegativeKeywords` | `ArrayOfString` | 0 | 1 | `missing_followup` | Ad-group-level negative keywords are not exposed on add. [#243](https://github.com/axisrow/direct-cli/issues/243) |
-| `adgroups.add` | `adgroups.add` | `NegativeKeywords.Items` | `string` | 1 | unbounded | `missing_followup` | Ad-group-level negative keywords are not exposed on add. [#243](https://github.com/axisrow/direct-cli/issues/243); inherited from `NegativeKeywords` |
-| `adgroups.add` | `adgroups.add` | `NegativeKeywordSharedSetIds` | `ArrayOfLong` | 0 | 1 | `missing_followup` | Shared-set IDs are read-filterable but not addable. [#243](https://github.com/axisrow/direct-cli/issues/243) |
-| `adgroups.add` | `adgroups.add` | `NegativeKeywordSharedSetIds.Items` | `long` | 1 | unbounded | `missing_followup` | Shared-set IDs are read-filterable but not addable. [#243](https://github.com/axisrow/direct-cli/issues/243); inherited from `NegativeKeywordSharedSetIds` |
+| `adgroups.add` | `adgroups.add` | `NegativeKeywords` | `ArrayOfString` | 0 | 1 | `supported` | --negative-keywords |
+| `adgroups.add` | `adgroups.add` | `NegativeKeywords.Items` | `string` | 1 | unbounded | `supported` | --negative-keywords |
+| `adgroups.add` | `adgroups.add` | `NegativeKeywordSharedSetIds` | `ArrayOfLong` | 0 | 1 | `supported` | --negative-keyword-shared-set-ids |
+| `adgroups.add` | `adgroups.add` | `NegativeKeywordSharedSetIds.Items` | `long` | 1 | unbounded | `supported` | --negative-keyword-shared-set-ids |
 | `adgroups.add` | `adgroups.add` | `TrackingParams` | `string` | 0 | 1 | `supported` | --tracking-params |
 | `adgroups.add` | `adgroups.add` | `MobileAppAdGroup` | `MobileAppAdGroupAdd` | 0 | 1 | `missing_followup` | Rare ad group subtype block is not exposed by --type. [#247](https://github.com/axisrow/direct-cli/issues/247) |
 | `adgroups.add` | `adgroups.add` | `MobileAppAdGroup.StoreUrl` | `string` | 1 | 1 | `missing_followup` | Rare ad group subtype block is not exposed by --type. [#247](https://github.com/axisrow/direct-cli/issues/247); inherited from `MobileAppAdGroup` |
@@ -2932,10 +2924,10 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `adgroups.add` | `adgroups.add` | `TextAdGroupFeedParams.FeedCategoryIds` | `ArrayOfLong` | 0 | 1 | `missing_followup` | Rare ad group feed params block has no typed add flags. [#247](https://github.com/axisrow/direct-cli/issues/247); inherited from `TextAdGroupFeedParams` |
 | `adgroups.add` | `adgroups.add` | `TextAdGroupFeedParams.FeedCategoryIds.Items` | `long` | 1 | unbounded | `missing_followup` | Rare ad group feed params block has no typed add flags. [#247](https://github.com/axisrow/direct-cli/issues/247); inherited from `TextAdGroupFeedParams` |
 | `adgroups.update` | `adgroups.update` | `RegionIds` | `long` | 0 | unbounded | `supported` | --region-ids |
-| `adgroups.update` | `adgroups.update` | `NegativeKeywords` | `ArrayOfString` | 0 | 1 | `missing_followup` | Ad-group-level negative keywords are not exposed on update. [#243](https://github.com/axisrow/direct-cli/issues/243) |
-| `adgroups.update` | `adgroups.update` | `NegativeKeywords.Items` | `string` | 1 | unbounded | `missing_followup` | Ad-group-level negative keywords are not exposed on update. [#243](https://github.com/axisrow/direct-cli/issues/243); inherited from `NegativeKeywords` |
-| `adgroups.update` | `adgroups.update` | `NegativeKeywordSharedSetIds` | `ArrayOfLong` | 0 | 1 | `missing_followup` | Shared-set IDs are read-filterable but not updatable. [#243](https://github.com/axisrow/direct-cli/issues/243) |
-| `adgroups.update` | `adgroups.update` | `NegativeKeywordSharedSetIds.Items` | `long` | 1 | unbounded | `missing_followup` | Shared-set IDs are read-filterable but not updatable. [#243](https://github.com/axisrow/direct-cli/issues/243); inherited from `NegativeKeywordSharedSetIds` |
+| `adgroups.update` | `adgroups.update` | `NegativeKeywords` | `ArrayOfString` | 0 | 1 | `supported` | --negative-keywords |
+| `adgroups.update` | `adgroups.update` | `NegativeKeywords.Items` | `string` | 1 | unbounded | `supported` | --negative-keywords |
+| `adgroups.update` | `adgroups.update` | `NegativeKeywordSharedSetIds` | `ArrayOfLong` | 0 | 1 | `supported` | --negative-keyword-shared-set-ids |
+| `adgroups.update` | `adgroups.update` | `NegativeKeywordSharedSetIds.Items` | `long` | 1 | unbounded | `supported` | --negative-keyword-shared-set-ids |
 | `adgroups.update` | `adgroups.update` | `TrackingParams` | `string` | 0 | 1 | `supported` | --tracking-params |
 | `adgroups.update` | `adgroups.update` | `Id` | `long` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `adgroups.update` | `adgroups.update` | `Name` | `string` | 0 | 1 | `supported` | --name |

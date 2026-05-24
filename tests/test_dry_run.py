@@ -1503,6 +1503,40 @@ def test_adgroups_add_tracking_params_payload():
     assert "SmartAdGroup" not in group
 
 
+def test_adgroups_add_negative_keywords_payload():
+    body = _dry_run(
+        "adgroups",
+        "add",
+        "--name",
+        "Group A",
+        "--campaign-id",
+        "111",
+        "--region-ids",
+        "1,225",
+        "--negative-keywords",
+        "word1, word2",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert group["NegativeKeywords"] == {"Items": ["word1", "word2"]}
+
+
+def test_adgroups_add_negative_keyword_shared_set_ids_payload():
+    body = _dry_run(
+        "adgroups",
+        "add",
+        "--name",
+        "Group A",
+        "--campaign-id",
+        "111",
+        "--region-ids",
+        "1,225",
+        "--negative-keyword-shared-set-ids",
+        "10,11",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert group["NegativeKeywordSharedSetIds"] == {"Items": [10, 11]}
+
+
 def test_adgroups_add_case_insensitive_default_type():
     """``--type text_ad_group`` (lowercase) still builds a valid payload.
 
@@ -1659,6 +1693,32 @@ def test_adgroups_update_tracking_params_payload():
     assert group == {"Id": 222, "TrackingParams": "utm_source=direct"}
 
 
+def test_adgroups_update_negative_keywords_payload():
+    body = _dry_run(
+        "adgroups",
+        "update",
+        "--id",
+        "222",
+        "--negative-keywords",
+        "word1, word2",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert group == {"Id": 222, "NegativeKeywords": {"Items": ["word1", "word2"]}}
+
+
+def test_adgroups_update_negative_keyword_shared_set_ids_payload():
+    body = _dry_run(
+        "adgroups",
+        "update",
+        "--id",
+        "222",
+        "--negative-keyword-shared-set-ids",
+        "10,11",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert group == {"Id": 222, "NegativeKeywordSharedSetIds": {"Items": [10, 11]}}
+
+
 def test_adgroups_add_tracking_params_accepts_1024_chars():
     tracking_params = "x" * 1024
     body = _dry_run(
@@ -1708,6 +1768,8 @@ def test_adgroups_update_tracking_params_rejects_1025_chars():
 def test_adgroups_update_without_tracking_params_or_other_fields_rejected():
     result = _rejected("adgroups", "update", "--id", "222")
     assert "--tracking-params" in result.output
+    assert "--negative-keywords" in result.output
+    assert "--negative-keyword-shared-set-ids" in result.output
     assert "requires at least one updatable field" in result.output
 
 
