@@ -29,6 +29,19 @@ KEYWORDS_ADD_MAX_BATCH = 10
 # below just tells the operator before any chunk is sent.
 KEYWORDS_PER_ADGROUP_LIMIT = 200
 
+AUTOTARGETING_CATEGORIES = (
+    "EXACT",
+    "ALTERNATIVE",
+    "COMPETITOR",
+    "BROADER",
+    "ACCESSORY",
+)
+
+AUTOTARGETING_CATEGORY_HELP = (
+    "AutotargetingCategories item as CATEGORY=YES|NO. Categories: "
+    "EXACT, ALTERNATIVE, COMPETITOR, BROADER, ACCESSORY"
+)
+
 _KEYWORD_ROW_FIELDS: Dict[str, str] = {
     "Keyword": "str",
     "AdGroupId": "int",
@@ -182,6 +195,40 @@ def _normalize_add_results(raw: Any) -> List[Any]:
     return [raw]
 
 
+def _parse_autotargeting_categories(
+    raw_values: tuple[str, ...],
+) -> Optional[List[Dict[str, str]]]:
+    if not raw_values:
+        return None
+
+    items: List[Dict[str, str]] = []
+    allowed_categories = ", ".join(AUTOTARGETING_CATEGORIES)
+    for raw_value in raw_values:
+        category_raw, separator, value_raw = raw_value.strip().partition("=")
+        if not separator:
+            raise click.UsageError(
+                "--autotargeting-category expects CATEGORY=YES|NO "
+                "(for example EXACT=YES)"
+            )
+
+        category = category_raw.strip().upper()
+        value = value_raw.strip().upper()
+        if category not in AUTOTARGETING_CATEGORIES:
+            raise click.UsageError(
+                "Invalid --autotargeting-category category "
+                f"{category_raw!r}; allowed: {allowed_categories}"
+            )
+        if value not in {"YES", "NO"}:
+            raise click.UsageError(
+                "Invalid --autotargeting-category value "
+                f"{value_raw!r}; expected YES or NO"
+            )
+
+        items.append({"Category": category, "Value": value})
+
+    return items
+
+
 @click.group()
 def keywords():
     """Manage keywords"""
@@ -290,6 +337,12 @@ def get(
     type=click.Choice(["LOW", "NORMAL", "HIGH"], case_sensitive=False),
     help="StrategyPriority value: LOW, NORMAL, or HIGH",
 )
+@click.option(
+    "--autotargeting-category",
+    "autotargeting_categories",
+    multiple=True,
+    help=AUTOTARGETING_CATEGORY_HELP,
+)
 @click.option("--user-param-1", help="User parameter 1")
 @click.option("--user-param-2", help="User parameter 2")
 @click.option(
@@ -319,6 +372,7 @@ def add(
     context_bid,
     autotargeting_search_bid_is_auto,
     priority,
+    autotargeting_categories,
     user_param_1,
     user_param_2,
     from_file,
@@ -349,11 +403,12 @@ def add(
             "--context-bid": context_bid,
             "--autotargeting-search-bid-is-auto": autotargeting_search_bid_is_auto,
             "--priority": priority,
+            "--autotargeting-category": autotargeting_categories,
             "--user-param-1": user_param_1,
             "--user-param-2": user_param_2,
         }
         unsupported = [
-            flag for flag, value in single_item_flags.items() if value is not None
+            flag for flag, value in single_item_flags.items() if value not in (None, ())
         ]
         if unsupported:
             raise click.UsageError(
@@ -373,6 +428,10 @@ def add(
     if adgroup_id is None:
         raise click.UsageError("Missing option '--adgroup-id'.")
 
+    parsed_autotargeting_categories = _parse_autotargeting_categories(
+        autotargeting_categories
+    )
+
     try:
         keyword_data: Dict[str, Any] = {
             "AdGroupId": adgroup_id,
@@ -388,6 +447,8 @@ def add(
             )
         if priority is not None:
             keyword_data["StrategyPriority"] = priority.upper()
+        if parsed_autotargeting_categories is not None:
+            keyword_data["AutotargetingCategories"] = parsed_autotargeting_categories
         if user_param_1:
             keyword_data["UserParam1"] = user_param_1
         if user_param_2:
@@ -516,6 +577,12 @@ def _deprecated_bid_option(ctx, param, value):
 @click.option("--user-param-1", help="User parameter 1")
 @click.option("--user-param-2", help="User parameter 2")
 @click.option(
+    "--autotargeting-category",
+    "autotargeting_categories",
+    multiple=True,
+    help=AUTOTARGETING_CATEGORY_HELP,
+)
+@click.option(
     "--bid",
     default=None,
     expose_value=False,
@@ -544,9 +611,20 @@ def _deprecated_bid_option(ctx, param, value):
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def update(ctx, keyword_id, keyword, user_param_1, user_param_2, dry_run):
+def update(
+    ctx,
+    keyword_id,
+    keyword,
+    user_param_1,
+    user_param_2,
+    autotargeting_categories,
+    dry_run,
+):
     """Update keyword text or user params (use 'bids set' for bid changes)"""
     keyword_data = {"Id": keyword_id}
+    parsed_autotargeting_categories = _parse_autotargeting_categories(
+        autotargeting_categories
+    )
 
     if keyword:
         keyword_data["Keyword"] = keyword
@@ -554,12 +632,15 @@ def update(ctx, keyword_id, keyword, user_param_1, user_param_2, dry_run):
         keyword_data["UserParam1"] = user_param_1
     if user_param_2 is not None:
         keyword_data["UserParam2"] = user_param_2
+    if parsed_autotargeting_categories is not None:
+        keyword_data["AutotargetingCategories"] = parsed_autotargeting_categories
 
     # Reject empty-payload no-op (issue #198 H10).
     if len(keyword_data) == 1:
         raise click.UsageError(
             "keywords update requires at least one updatable field "
-            "(--keyword, --user-param-1, or --user-param-2)."
+            "(--keyword, --user-param-1, --user-param-2, or "
+            "--autotargeting-category)."
         )
 
     try:

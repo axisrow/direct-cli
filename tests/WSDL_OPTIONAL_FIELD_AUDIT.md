@@ -11,8 +11,8 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2763 |
-| `supported` | 478 |
+| `missing_followup` | 2757 |
+| `supported` | 484 |
 
 ## Confirmed Follow-Ups
 
@@ -2550,9 +2550,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `feeds.update` | `FileFeed` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264) |
 | `feeds.update` | `FileFeed.Data` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
 | `feeds.update` | `FileFeed.Filename` | FileFeed upload/base64 CLI support is split from #253. [#264](https://github.com/axisrow/direct-cli/issues/264); inherited from `FileFeed` |
-| `keywords.add` | `AutotargetingCategories` | Keyword autotargeting categories have no typed add flags. [#286](https://github.com/axisrow/direct-cli/issues/286) |
-| `keywords.add` | `AutotargetingCategories.Category` | Keyword autotargeting categories have no typed add flags. [#286](https://github.com/axisrow/direct-cli/issues/286); inherited from `AutotargetingCategories` |
-| `keywords.add` | `AutotargetingCategories.Value` | Keyword autotargeting categories have no typed add flags. [#286](https://github.com/axisrow/direct-cli/issues/286); inherited from `AutotargetingCategories` |
 | `keywords.add` | `AutotargetingBrandOptions` | Keyword autotargeting brand options have no typed add flags. [#287](https://github.com/axisrow/direct-cli/issues/287) |
 | `keywords.add` | `AutotargetingBrandOptions.Option` | Keyword autotargeting brand options have no typed add flags. [#287](https://github.com/axisrow/direct-cli/issues/287); inherited from `AutotargetingBrandOptions` |
 | `keywords.add` | `AutotargetingBrandOptions.Value` | Keyword autotargeting brand options have no typed add flags. [#287](https://github.com/axisrow/direct-cli/issues/287); inherited from `AutotargetingBrandOptions` |
@@ -2567,9 +2564,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `keywords.add` | `AutotargetingSettings.BrandOptions.WithoutBrands` | Keyword autotargeting settings have no typed add flags. [#288](https://github.com/axisrow/direct-cli/issues/288); inherited from `AutotargetingSettings` |
 | `keywords.add` | `AutotargetingSettings.BrandOptions.WithAdvertiserBrand` | Keyword autotargeting settings have no typed add flags. [#288](https://github.com/axisrow/direct-cli/issues/288); inherited from `AutotargetingSettings` |
 | `keywords.add` | `AutotargetingSettings.BrandOptions.WithCompetitorsBrand` | Keyword autotargeting settings have no typed add flags. [#288](https://github.com/axisrow/direct-cli/issues/288); inherited from `AutotargetingSettings` |
-| `keywords.update` | `AutotargetingCategories` | Keyword autotargeting categories have no typed update flags. [#286](https://github.com/axisrow/direct-cli/issues/286) |
-| `keywords.update` | `AutotargetingCategories.Category` | Keyword autotargeting categories have no typed update flags. [#286](https://github.com/axisrow/direct-cli/issues/286); inherited from `AutotargetingCategories` |
-| `keywords.update` | `AutotargetingCategories.Value` | Keyword autotargeting categories have no typed update flags. [#286](https://github.com/axisrow/direct-cli/issues/286); inherited from `AutotargetingCategories` |
 | `keywords.update` | `AutotargetingBrandOptions` | Keyword autotargeting brand options have no typed update flags. [#287](https://github.com/axisrow/direct-cli/issues/287) |
 | `keywords.update` | `AutotargetingBrandOptions.Option` | Keyword autotargeting brand options have no typed update flags. [#287](https://github.com/axisrow/direct-cli/issues/287); inherited from `AutotargetingBrandOptions` |
 | `keywords.update` | `AutotargetingBrandOptions.Value` | Keyword autotargeting brand options have no typed update flags. [#287](https://github.com/axisrow/direct-cli/issues/287); inherited from `AutotargetingBrandOptions` |
@@ -5579,9 +5573,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `keywords.add` | `keywords.add` | `StrategyPriority` | `PriorityEnum` | 0 | 1 | `supported` | Single-item typed flag is supported; batch/from-file parity is tracked separately. [#289](https://github.com/axisrow/direct-cli/issues/289) |
 | `keywords.add` | `keywords.add` | `UserParam1` | `string` | 0 | 1 | `supported` | --user-param-1 |
 | `keywords.add` | `keywords.add` | `UserParam2` | `string` | 0 | 1 | `supported` | --user-param-2 |
-| `keywords.add` | `keywords.add` | `AutotargetingCategories` | `AutotargetingCategory` | 0 | unbounded | `missing_followup` | Keyword autotargeting categories have no typed add flags. [#286](https://github.com/axisrow/direct-cli/issues/286) |
-| `keywords.add` | `keywords.add` | `AutotargetingCategories.Category` | `AutotargetingCategoriesEnum` | 1 | 1 | `missing_followup` | Keyword autotargeting categories have no typed add flags. [#286](https://github.com/axisrow/direct-cli/issues/286); inherited from `AutotargetingCategories` |
-| `keywords.add` | `keywords.add` | `AutotargetingCategories.Value` | `YesNoEnum` | 1 | 1 | `missing_followup` | Keyword autotargeting categories have no typed add flags. [#286](https://github.com/axisrow/direct-cli/issues/286); inherited from `AutotargetingCategories` |
+| `keywords.add` | `keywords.add` | `AutotargetingCategories` | `AutotargetingCategory` | 0 | unbounded | `supported` | --autotargeting-category |
+| `keywords.add` | `keywords.add` | `AutotargetingCategories.Category` | `AutotargetingCategoriesEnum` | 1 | 1 | `supported` | --autotargeting-category |
+| `keywords.add` | `keywords.add` | `AutotargetingCategories.Value` | `YesNoEnum` | 1 | 1 | `supported` | --autotargeting-category |
 | `keywords.add` | `keywords.add` | `AutotargetingBrandOptions` | `AutotargetingBrandOption` | 0 | unbounded | `missing_followup` | Keyword autotargeting brand options have no typed add flags. [#287](https://github.com/axisrow/direct-cli/issues/287) |
 | `keywords.add` | `keywords.add` | `AutotargetingBrandOptions.Option` | `AutotargetingBrandOptionsEnum` | 1 | 1 | `missing_followup` | Keyword autotargeting brand options have no typed add flags. [#287](https://github.com/axisrow/direct-cli/issues/287); inherited from `AutotargetingBrandOptions` |
 | `keywords.add` | `keywords.add` | `AutotargetingBrandOptions.Value` | `YesNoEnum` | 1 | 1 | `missing_followup` | Keyword autotargeting brand options have no typed add flags. [#287](https://github.com/axisrow/direct-cli/issues/287); inherited from `AutotargetingBrandOptions` |
@@ -5600,9 +5594,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `keywords.update` | `keywords.update` | `Keyword` | `string` | 0 | 1 | `supported` | --keyword |
 | `keywords.update` | `keywords.update` | `UserParam1` | `string` | 0 | 1 | `supported` | --user-param-1 |
 | `keywords.update` | `keywords.update` | `UserParam2` | `string` | 0 | 1 | `supported` | --user-param-2 |
-| `keywords.update` | `keywords.update` | `AutotargetingCategories` | `AutotargetingCategory` | 0 | unbounded | `missing_followup` | Keyword autotargeting categories have no typed update flags. [#286](https://github.com/axisrow/direct-cli/issues/286) |
-| `keywords.update` | `keywords.update` | `AutotargetingCategories.Category` | `AutotargetingCategoriesEnum` | 1 | 1 | `missing_followup` | Keyword autotargeting categories have no typed update flags. [#286](https://github.com/axisrow/direct-cli/issues/286); inherited from `AutotargetingCategories` |
-| `keywords.update` | `keywords.update` | `AutotargetingCategories.Value` | `YesNoEnum` | 1 | 1 | `missing_followup` | Keyword autotargeting categories have no typed update flags. [#286](https://github.com/axisrow/direct-cli/issues/286); inherited from `AutotargetingCategories` |
+| `keywords.update` | `keywords.update` | `AutotargetingCategories` | `AutotargetingCategory` | 0 | unbounded | `supported` | --autotargeting-category |
+| `keywords.update` | `keywords.update` | `AutotargetingCategories.Category` | `AutotargetingCategoriesEnum` | 1 | 1 | `supported` | --autotargeting-category |
+| `keywords.update` | `keywords.update` | `AutotargetingCategories.Value` | `YesNoEnum` | 1 | 1 | `supported` | --autotargeting-category |
 | `keywords.update` | `keywords.update` | `AutotargetingBrandOptions` | `AutotargetingBrandOption` | 0 | unbounded | `missing_followup` | Keyword autotargeting brand options have no typed update flags. [#287](https://github.com/axisrow/direct-cli/issues/287) |
 | `keywords.update` | `keywords.update` | `AutotargetingBrandOptions.Option` | `AutotargetingBrandOptionsEnum` | 1 | 1 | `missing_followup` | Keyword autotargeting brand options have no typed update flags. [#287](https://github.com/axisrow/direct-cli/issues/287); inherited from `AutotargetingBrandOptions` |
 | `keywords.update` | `keywords.update` | `AutotargetingBrandOptions.Value` | `YesNoEnum` | 1 | 1 | `missing_followup` | Keyword autotargeting brand options have no typed update flags. [#287](https://github.com/axisrow/direct-cli/issues/287); inherited from `AutotargetingBrandOptions` |
