@@ -1723,6 +1723,121 @@ def test_adgroups_add_dynamic_payload_omits_type():
     assert group["DynamicTextAdGroup"] == {"DomainUrl": "example.com"}
 
 
+def test_adgroups_add_dynamic_autotargeting_categories_payload():
+    """Issue #280: dynamic add supports legacy AutotargetingCategories."""
+    body = _dry_run(
+        "adgroups",
+        "add",
+        "--name",
+        "Dynamic Group",
+        "--campaign-id",
+        "111",
+        "--type",
+        "DYNAMIC_TEXT_AD_GROUP",
+        "--region-ids",
+        "1,225",
+        "--domain-url",
+        "example.com",
+        "--autotargeting-category",
+        "exact=yes",
+        "--autotargeting-category",
+        "BROADER=NO",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert group["DynamicTextAdGroup"] == {
+        "DomainUrl": "example.com",
+        "AutotargetingCategories": [
+            {"Category": "EXACT", "Value": "YES"},
+            {"Category": "BROADER", "Value": "NO"},
+        ],
+    }
+
+
+def test_adgroups_add_dynamic_autotargeting_settings_payload():
+    """Issue #280: dynamic add supports AutotargetingSettings flags."""
+    body = _dry_run(
+        "adgroups",
+        "add",
+        "--name",
+        "Dynamic Group",
+        "--campaign-id",
+        "111",
+        "--type",
+        "DYNAMIC_TEXT_AD_GROUP",
+        "--region-ids",
+        "1,225",
+        "--domain-url",
+        "example.com",
+        "--autotargeting-settings-exact",
+        "yes",
+        "--autotargeting-settings-narrow",
+        "no",
+        "--autotargeting-settings-without-brands",
+        "YES",
+        "--autotargeting-settings-with-competitors-brand",
+        "no",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert group["DynamicTextAdGroup"] == {
+        "DomainUrl": "example.com",
+        "AutotargetingSettings": {
+            "Categories": {
+                "Exact": "YES",
+                "Narrow": "NO",
+            },
+            "BrandOptions": {
+                "WithoutBrands": "YES",
+                "WithCompetitorsBrand": "NO",
+            },
+        },
+    }
+
+
+def test_adgroups_add_dynamic_autotargeting_rejects_invalid_category():
+    """Issue #280: AutotargetingCategories uses the documented enum."""
+    result = _rejected(
+        "adgroups",
+        "add",
+        "--name",
+        "Dynamic Group",
+        "--campaign-id",
+        "111",
+        "--type",
+        "DYNAMIC_TEXT_AD_GROUP",
+        "--region-ids",
+        "225",
+        "--domain-url",
+        "example.com",
+        "--autotargeting-category",
+        "NARROW=YES",
+    )
+    assert "Invalid --autotargeting-category category 'NARROW'" in result.output
+    assert "EXACT, ALTERNATIVE, COMPETITOR, BROADER, ACCESSORY" in result.output
+
+
+def test_adgroups_add_dynamic_autotargeting_rejects_legacy_mix():
+    """Issue #280: legacy categories and AutotargetingSettings cannot mix."""
+    result = _rejected(
+        "adgroups",
+        "add",
+        "--name",
+        "Dynamic Group",
+        "--campaign-id",
+        "111",
+        "--type",
+        "DYNAMIC_TEXT_AD_GROUP",
+        "--region-ids",
+        "225",
+        "--domain-url",
+        "example.com",
+        "--autotargeting-category",
+        "EXACT=YES",
+        "--autotargeting-settings-exact",
+        "YES",
+    )
+    assert "AutotargetingSettings flags cannot be combined" in result.output
+
+
 def test_adgroups_add_smart_payload_omits_type():
     body = _dry_run(
         "adgroups",
@@ -1889,6 +2004,20 @@ def test_adgroups_add_rejects_incompatible_subtype_flags():
         "--domain-url",
         "example.com",
     )
+    text_autotargeting_result = _rejected(
+        "adgroups",
+        "add",
+        "--name",
+        "Group A",
+        "--campaign-id",
+        "111",
+        "--region-ids",
+        "225",
+        "--type",
+        "TEXT_AD_GROUP",
+        "--autotargeting-category",
+        "EXACT=YES",
+    )
     text_mobile_result = _rejected(
         "adgroups",
         "add",
@@ -1938,6 +2067,10 @@ def test_adgroups_add_rejects_incompatible_subtype_flags():
         in smart_result.output
     )
     assert (
+        "--autotargeting-category is not compatible with --type TEXT_AD_GROUP"
+        in text_autotargeting_result.output
+    )
+    assert (
         "--store-url is not compatible with --type TEXT_AD_GROUP"
         in text_mobile_result.output
     )
@@ -1965,6 +2098,132 @@ def test_adgroups_update_tracking_params_payload():
     )
     group = body["params"]["AdGroups"][0]
     assert group == {"Id": 222, "TrackingParams": "utm_source=direct"}
+
+
+def test_adgroups_update_dynamic_domain_url_payload_without_type():
+    """Issue #280: update sets top-level DynamicTextAdGroup without --type."""
+    body = _dry_run(
+        "adgroups",
+        "update",
+        "--id",
+        "222",
+        "--domain-url",
+        "example.com",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert group == {"Id": 222, "DynamicTextAdGroup": {"DomainUrl": "example.com"}}
+
+
+def test_adgroups_update_dynamic_autotargeting_categories_payload():
+    """Issue #280: update includes DynamicTextAdGroup.AutotargetingCategories."""
+    body = _dry_run(
+        "adgroups",
+        "update",
+        "--id",
+        "222",
+        "--domain-url",
+        "example.com",
+        "--autotargeting-category",
+        "ALTERNATIVE=YES",
+        "--autotargeting-category",
+        "competitor=no",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert group == {
+        "Id": 222,
+        "DynamicTextAdGroup": {
+            "DomainUrl": "example.com",
+            "AutotargetingCategories": [
+                {"Category": "ALTERNATIVE", "Value": "YES"},
+                {"Category": "COMPETITOR", "Value": "NO"},
+            ],
+        },
+    }
+
+
+def test_adgroups_update_dynamic_autotargeting_settings_payload():
+    """Issue #280: update includes DynamicTextAdGroup.AutotargetingSettings."""
+    body = _dry_run(
+        "adgroups",
+        "update",
+        "--id",
+        "222",
+        "--domain-url",
+        "example.com",
+        "--autotargeting-settings-alternative",
+        "YES",
+        "--autotargeting-settings-accessory",
+        "no",
+        "--autotargeting-settings-broader",
+        "yes",
+        "--autotargeting-settings-with-advertiser-brand",
+        "NO",
+    )
+    group = body["params"]["AdGroups"][0]
+    assert group == {
+        "Id": 222,
+        "DynamicTextAdGroup": {
+            "DomainUrl": "example.com",
+            "AutotargetingSettings": {
+                "Categories": {
+                    "Alternative": "YES",
+                    "Accessory": "NO",
+                    "Broader": "YES",
+                },
+                "BrandOptions": {
+                    "WithAdvertiserBrand": "NO",
+                },
+            },
+        },
+    }
+
+
+def test_adgroups_update_dynamic_autotargeting_requires_domain_url():
+    """Issue #280: DynamicTextAdGroupUpdate.DomainUrl is required by docs/WSDL."""
+    result = _rejected(
+        "adgroups",
+        "update",
+        "--id",
+        "222",
+        "--autotargeting-category",
+        "EXACT=YES",
+    )
+    assert "--domain-url is required for DYNAMIC_TEXT_AD_GROUP" in result.output
+
+
+def test_adgroups_update_dynamic_autotargeting_rejects_legacy_mix():
+    """Issue #280: legacy categories and AutotargetingSettings cannot mix."""
+    result = _rejected(
+        "adgroups",
+        "update",
+        "--id",
+        "222",
+        "--domain-url",
+        "example.com",
+        "--autotargeting-category",
+        "EXACT=YES",
+        "--autotargeting-settings-exact",
+        "YES",
+    )
+    assert "AutotargetingSettings flags cannot be combined" in result.output
+
+
+def test_adgroups_update_rejects_mixed_dynamic_and_mobile_subtype_flags():
+    """Issue #280: update must not emit two subtype blocks in one item."""
+    result = _rejected(
+        "adgroups",
+        "update",
+        "--id",
+        "222",
+        "--domain-url",
+        "example.com",
+        "--target-device-types",
+        "DEVICE_TYPE_MOBILE",
+    )
+    assert "DynamicTextAdGroup update flags" in result.output
+    assert "--domain-url" in result.output
+    assert "MobileAppAdGroup update flags" in result.output
+    assert "--target-device-types" in result.output
 
 
 def test_adgroups_update_mobile_app_payload_without_type():
@@ -2110,6 +2369,9 @@ def test_adgroups_update_without_tracking_params_or_other_fields_rejected():
     assert "--tracking-params" in result.output
     assert "--negative-keywords" in result.output
     assert "--negative-keyword-shared-set-ids" in result.output
+    assert "--domain-url" in result.output
+    assert "--autotargeting-category" in result.output
+    assert "--autotargeting-settings-* flags" in result.output
     assert "--target-device-types" in result.output
     assert "--target-carrier" in result.output
     assert "--target-operating-system-version" in result.output
