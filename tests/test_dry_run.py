@@ -3909,6 +3909,7 @@ def test_vcards_add_instant_messenger_partial_rejected():
         "telegram",
     )
     assert "--instant-messenger-client and --instant-messenger-login" in result.output
+    assert result.exit_code == 2
 
 
 def test_vcards_add_point_on_map_payload():
@@ -3980,6 +3981,7 @@ def test_vcards_add_point_on_map_partial_rejected():
     )
     assert "PointOnMap requires all coordinate flags" in result.output
     assert "--point-on-map-y" in result.output
+    assert result.exit_code == 2
 
 
 # ----------------------------------------------------------------------
