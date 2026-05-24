@@ -793,6 +793,7 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("sitelinks", "add", "Sitelinks.Title"): {"--sitelink"},
     ("sitelinks", "add", "Sitelinks.Href"): {"--sitelink"},
     ("sitelinks", "add", "Sitelinks.Description"): {"--sitelink"},
+    ("sitelinks", "add", "Sitelinks.TurboPageId"): {"--sitelink"},
     ("smartadtargets", "add", "StrategyPriority"): {"--priority"},
     ("smartadtargets", "add", "AverageCpc"): {"--average-cpc"},
     ("smartadtargets", "add", "AverageCpa"): {"--average-cpa"},
@@ -1037,11 +1038,6 @@ OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
         "status": "missing_followup",
         "issue": "#245",
         "note": "TEXT_AD price extension update is WSDL-supported but absent.",
-    },
-    ("sitelinks", "add", "Sitelinks.TurboPageId"): {
-        "status": "missing_followup",
-        "issue": "#257",
-        "note": "Sitelink TurboPageId has no typed add flag.",
     },
     ("vcards", "add", "InstantMessenger"): {
         "status": "missing_followup",

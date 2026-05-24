@@ -12,10 +12,20 @@ from ..api import create_client
 from ..output import format_output, print_error
 from ..utils import get_default_fields, parse_ids, parse_sitelink_specs
 
-_SITELINK_FIELDS = ("Title", "Href", "Description")
+_SITELINK_FIELDS = ("Title", "Href", "Description", "TurboPageId")
 
 
-def _normalize_sitelink_row(row: Any, index: int) -> Dict[str, str]:
+def _coerce_turbo_page_id(raw_value: Any, index: int) -> int:
+    if isinstance(raw_value, bool):
+        raise click.UsageError(f"Sitelink #{index}: 'TurboPageId' must be an integer")
+    if isinstance(raw_value, int):
+        return raw_value
+    if isinstance(raw_value, str) and raw_value.strip().isdigit():
+        return int(raw_value.strip())
+    raise click.UsageError(f"Sitelink #{index}: 'TurboPageId' must be an integer")
+
+
+def _normalize_sitelink_row(row: Any, index: int) -> Dict[str, Any]:
     if not isinstance(row, dict):
         raise click.UsageError(
             f"Sitelink #{index}: expected a JSON object, got {type(row).__name__}"
@@ -30,16 +40,23 @@ def _normalize_sitelink_row(row: Any, index: int) -> Dict[str, str]:
 
     if "Title" not in row or not str(row.get("Title") or "").strip():
         raise click.UsageError(f"Sitelink #{index}: missing required field 'Title'")
-    if "Href" not in row or not str(row.get("Href") or "").strip():
-        raise click.UsageError(f"Sitelink #{index}: missing required field 'Href'")
+    href = str(row.get("Href") or "").strip()
+    raw_turbo_page_id = row.get("TurboPageId")
+    if not href and raw_turbo_page_id in (None, ""):
+        raise click.UsageError(
+            f"Sitelink #{index}: provide at least one of 'Href' or 'TurboPageId'"
+        )
 
-    item: Dict[str, str] = {
+    item: Dict[str, Any] = {
         "Title": str(row["Title"]).strip(),
-        "Href": str(row["Href"]).strip(),
     }
+    if href:
+        item["Href"] = href
     description = row.get("Description")
     if description is not None and str(description).strip():
         item["Description"] = str(description).strip()
+    if raw_turbo_page_id not in (None, ""):
+        item["TurboPageId"] = _coerce_turbo_page_id(raw_turbo_page_id, index)
     return item
 
 
@@ -139,7 +156,10 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
     "--sitelink",
     "sitelinks_specs",
     multiple=True,
-    help="Sitelink spec: TITLE|HREF[|DESCRIPTION]. Escape literal '|' as '\\|'.",
+    help=(
+        "Sitelink spec: TITLE|HREF[|DESCRIPTION[|TURBO_PAGE_ID]]. "
+        "Escape literal '|' as '\\|'."
+    ),
 )
 @click.option(
     "--sitelink-json",
