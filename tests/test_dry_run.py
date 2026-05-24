@@ -1252,6 +1252,146 @@ def test_ads_update_dynamic_text_ad_zero_ids_are_not_silently_dropped():
     }
 
 
+def test_ads_update_responsive_ad_payload():
+    """Issue #268: RESPONSIVE_AD update builds the documented ResponsiveAd block."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "RESPONSIVE_AD",
+        "--texts",
+        "Text one,Text two",
+        "--titles",
+        "Title one,Title two",
+        "--image-hashes",
+        "hash-one,hash-two",
+        "--video-extension-ids",
+        "101,102",
+        "--sitelink-set-id",
+        "222",
+        "--callouts-add",
+        "333",
+        "--callouts-remove",
+        "444",
+        "--href",
+        "https://example.com",
+        "--age-label",
+        "age_18",
+        "--display-url-path",
+        "deals",
+        "--price-extension-price",
+        "123450000",
+        "--price-extension-old-price",
+        "150000000",
+        "--price-extension-price-qualifier",
+        "from",
+        "--price-extension-price-currency",
+        "rub",
+        "--business-id",
+        "555",
+        "--erir-ad-description",
+        "Promoted object",
+    )
+    ad = body["params"]["Ads"][0]
+    assert ad == {
+        "Id": 999,
+        "ResponsiveAd": {
+            "Texts": ["Text one", "Text two"],
+            "Titles": ["Title one", "Title two"],
+            "AdImageHashes": {"Items": ["hash-one", "hash-two"]},
+            "VideoExtensionIds": {"Items": [101, 102]},
+            "SitelinkSetId": 222,
+            "CalloutSetting": {
+                "AdExtensions": [
+                    {"AdExtensionId": 333, "Operation": "ADD"},
+                    {"AdExtensionId": 444, "Operation": "REMOVE"},
+                ]
+            },
+            "Href": "https://example.com",
+            "AgeLabel": "AGE_18",
+            "DisplayUrlPath": "deals",
+            "PriceExtension": {
+                "Price": 123450000,
+                "OldPrice": 150000000,
+                "PriceQualifier": "FROM",
+                "PriceCurrency": "RUB",
+            },
+            "BusinessId": 555,
+            "ErirAdDescription": "Promoted object",
+        },
+    }
+    assert "TextAd" not in ad
+
+
+def test_ads_update_responsive_ad_rejects_text_ad_only_flag():
+    """Issue #268: RESPONSIVE_AD must not silently drop TextAd-only flags."""
+    result = _rejected(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "RESPONSIVE_AD",
+        "--text",
+        "Singular text belongs to other subtypes",
+    )
+    assert "--text is not compatible with --type RESPONSIVE_AD" in result.output
+    assert "does not convert an ad between subtypes" in result.output
+
+
+def test_ads_update_responsive_ad_empty_texts_rejected():
+    """Issue #268: explicit empty list flags do not create no-op updates."""
+    result = _rejected(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "RESPONSIVE_AD",
+        "--texts",
+        "",
+    )
+    assert "--texts must contain at least one value." in result.output
+
+
+def test_ads_update_responsive_ad_noop_rejected():
+    """Issue #268: RESPONSIVE_AD update without fields stays a no-op error."""
+    result = _rejected(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "RESPONSIVE_AD",
+    )
+    assert (
+        "ads update requires at least one updatable field for --type RESPONSIVE_AD"
+        in result.output
+    )
+
+
+def test_ads_update_responsive_ad_zero_ids_are_not_silently_dropped():
+    """Issue #268: nullable long flags use presence, not truthiness."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "RESPONSIVE_AD",
+        "--sitelink-set-id",
+        "0",
+        "--business-id",
+        "0",
+    )
+    assert body["params"]["Ads"][0] == {
+        "Id": 999,
+        "ResponsiveAd": {"SitelinkSetId": 0, "BusinessId": 0},
+    }
+
+
 def test_ads_update_text_ad_with_turbo_page_id():
     """Issue #202: update sets TurboPageId in TextAd."""
     body = _dry_run(

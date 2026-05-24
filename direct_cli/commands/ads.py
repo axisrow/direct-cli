@@ -8,7 +8,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import add_criteria_csv, get_default_fields, parse_ids
+from ..utils import add_criteria_csv, get_default_fields, parse_csv_strings, parse_ids
 
 
 @click.group()
@@ -108,6 +108,84 @@ def _build_price_extension(
     if price_extension_price_currency:
         price_extension["PriceCurrency"] = price_extension_price_currency.upper()
     return price_extension or None
+
+
+def _parse_required_csv_strings(
+    csv_value: Optional[str], flag_name: str
+) -> Optional[list[str]]:
+    """Parse a comma-separated string list that must not be empty if present."""
+    if csv_value is None:
+        return None
+    values = parse_csv_strings(csv_value)
+    if not values:
+        raise click.UsageError(f"{flag_name} must contain at least one value.")
+    return values
+
+
+def _parse_required_ids(
+    csv_value: Optional[str], flag_name: str
+) -> Optional[list[int]]:
+    """Parse a comma-separated integer list that must not be empty if present."""
+    if csv_value is None:
+        return None
+    try:
+        ids = parse_ids(csv_value)
+    except ValueError as exc:
+        raise click.UsageError(f"{flag_name}: {exc}")
+    if not ids:
+        raise click.UsageError(f"{flag_name} must contain at least one ID.")
+    return ids
+
+
+def _build_responsive_ad_update(
+    texts: Optional[str],
+    titles: Optional[str],
+    image_hashes: Optional[str],
+    video_extension_ids: Optional[str],
+    sitelink_set_id: Optional[int],
+    callout_setting: Optional[dict[str, object]],
+    href: Optional[str],
+    age_label: Optional[str],
+    display_url_path: Optional[str],
+    price_extension: Optional[dict[str, object]],
+    business_id: Optional[int],
+    erir_ad_description: Optional[str],
+) -> dict[str, object]:
+    """Build ResponsiveAdUpdate payload from typed flags."""
+    responsive_ad: dict[str, object] = {}
+
+    parsed_texts = _parse_required_csv_strings(texts, "--texts")
+    if parsed_texts:
+        responsive_ad["Texts"] = parsed_texts
+    parsed_titles = _parse_required_csv_strings(titles, "--titles")
+    if parsed_titles:
+        responsive_ad["Titles"] = parsed_titles
+    parsed_image_hashes = _parse_required_csv_strings(image_hashes, "--image-hashes")
+    if parsed_image_hashes:
+        responsive_ad["AdImageHashes"] = {"Items": parsed_image_hashes}
+    parsed_video_extension_ids = _parse_required_ids(
+        video_extension_ids, "--video-extension-ids"
+    )
+    if parsed_video_extension_ids:
+        responsive_ad["VideoExtensionIds"] = {"Items": parsed_video_extension_ids}
+    if sitelink_set_id is not None:
+        responsive_ad["SitelinkSetId"] = sitelink_set_id
+    if callout_setting:
+        responsive_ad["CalloutSetting"] = callout_setting
+    if href:
+        responsive_ad["Href"] = href
+    if age_label:
+        responsive_ad["AgeLabel"] = age_label.upper()
+    if display_url_path:
+        responsive_ad["DisplayUrlPath"] = display_url_path
+    if price_extension:
+        responsive_ad["PriceExtension"] = price_extension
+    if business_id is not None:
+        responsive_ad["BusinessId"] = business_id
+    if erir_ad_description:
+        responsive_ad["ErirAdDescription"] = erir_ad_description
+
+    return responsive_ad
 
 
 @ads.command()
@@ -499,7 +577,10 @@ def add(
     "--type",
     "ad_type",
     required=True,
-    help="Ad subtype: TEXT_AD | TEXT_IMAGE_AD | MOBILE_APP_AD | DYNAMIC_TEXT_AD",
+    help=(
+        "Ad subtype: TEXT_AD | TEXT_IMAGE_AD | MOBILE_APP_AD | "
+        "DYNAMIC_TEXT_AD | RESPONSIVE_AD"
+    ),
 )
 @click.option(
     "--status",
@@ -510,24 +591,33 @@ def add(
 )
 @click.option("--title", help="Title (TEXT_AD / MOBILE_APP_AD)")
 @click.option("--text", help="Text (TEXT_AD / MOBILE_APP_AD / DYNAMIC_TEXT_AD)")
-@click.option("--href", help="URL (TEXT_AD / TEXT_IMAGE_AD)")
+@click.option("--titles", help="Comma-separated ResponsiveAd.Titles values")
+@click.option("--texts", help="Comma-separated ResponsiveAd.Texts values")
+@click.option("--href", help="URL (TEXT_AD / TEXT_IMAGE_AD / RESPONSIVE_AD)")
 @click.option(
     "--image-hash",
     help="Image hash (TEXT_AD / TEXT_IMAGE_AD / MOBILE_APP_AD / DYNAMIC_TEXT_AD)",
+)
+@click.option(
+    "--image-hashes",
+    help="Comma-separated ResponsiveAd.AdImageHashes.Items values",
 )
 @click.option(
     "--action",
     help="MOBILE_APP_AD call-to-action (MobileAppAdActionEnum, e.g. INSTALL)",
 )
 @click.option("--tracking-url", help="MOBILE_APP_AD tracking URL")
-@click.option("--age-label", help="MOBILE_APP_AD age label (MobAppAgeLabelEnum)")
+@click.option(
+    "--age-label",
+    help="Age label (MOBILE_APP_AD MobAppAgeLabelEnum / RESPONSIVE_AD AgeLabelEnum)",
+)
 @click.option("--title2", help="Second headline (TEXT_AD)")
-@click.option("--display-url-path", help="Display URL path (TEXT_AD)")
+@click.option("--display-url-path", help="Display URL path (TEXT_AD / RESPONSIVE_AD)")
 @click.option("--vcard-id", type=int, help="VCard ID (TEXT_AD / DYNAMIC_TEXT_AD)")
 @click.option(
     "--sitelink-set-id",
     type=int,
-    help="Sitelink set ID (TEXT_AD / DYNAMIC_TEXT_AD)",
+    help="Sitelink set ID (TEXT_AD / DYNAMIC_TEXT_AD / RESPONSIVE_AD)",
 )
 @click.option(
     "--turbo-page-id", type=int, help="Turbo page ID (TEXT_AD / TEXT_IMAGE_AD)"
@@ -536,14 +626,14 @@ def add(
     "--callouts-add",
     help=(
         "Comma-separated CALLOUT ad-extension IDs to attach "
-        "(Operation=ADD). TEXT_AD / DYNAMIC_TEXT_AD only."
+        "(Operation=ADD). TEXT_AD / DYNAMIC_TEXT_AD / RESPONSIVE_AD only."
     ),
 )
 @click.option(
     "--callouts-remove",
     help=(
         "Comma-separated CALLOUT ad-extension IDs to detach "
-        "(Operation=REMOVE). TEXT_AD / DYNAMIC_TEXT_AD only."
+        "(Operation=REMOVE). TEXT_AD / DYNAMIC_TEXT_AD / RESPONSIVE_AD only."
     ),
 )
 @click.option(
@@ -551,7 +641,8 @@ def add(
     help=(
         "Comma-separated CALLOUT ad-extension IDs that REPLACE the ad's "
         "current callout list (Operation=SET). Mutually exclusive with "
-        "--callouts-add / --callouts-remove. TEXT_AD / DYNAMIC_TEXT_AD only."
+        "--callouts-add / --callouts-remove. TEXT_AD / DYNAMIC_TEXT_AD / "
+        "RESPONSIVE_AD only."
     ),
 )
 @click.option(
@@ -560,11 +651,15 @@ def add(
     help="Video extension CreativeId for TextAd.VideoExtension. TEXT_AD only.",
 )
 @click.option(
+    "--video-extension-ids",
+    help="Comma-separated ResponsiveAd.VideoExtensionIds.Items values",
+)
+@click.option(
     "--price-extension-price",
     type=int,
     help=(
         "PriceExtension.Price as API long units "
-        "(price multiplied by 1,000,000). TEXT_AD only."
+        "(price multiplied by 1,000,000). TEXT_AD / RESPONSIVE_AD only."
     ),
 )
 @click.option(
@@ -572,13 +667,16 @@ def add(
     type=int,
     help=(
         "PriceExtension.OldPrice as API long units "
-        "(price multiplied by 1,000,000). TEXT_AD only."
+        "(price multiplied by 1,000,000). TEXT_AD / RESPONSIVE_AD only."
     ),
 )
 @click.option(
     "--price-extension-price-qualifier",
     type=click.Choice(["FROM", "UP_TO", "NONE"], case_sensitive=False),
-    help="PriceExtension.PriceQualifier: FROM, UP_TO, or NONE. TEXT_AD only.",
+    help=(
+        "PriceExtension.PriceQualifier: FROM, UP_TO, or NONE. "
+        "TEXT_AD / RESPONSIVE_AD only."
+    ),
 )
 @click.option(
     "--price-extension-price-currency",
@@ -586,7 +684,12 @@ def add(
         ["RUB", "UAH", "BYN", "USD", "EUR", "KZT", "TRY", "CHF", "UZS"],
         case_sensitive=False,
     ),
-    help="PriceExtension.PriceCurrency enum value. TEXT_AD only.",
+    help="PriceExtension.PriceCurrency enum value. TEXT_AD / RESPONSIVE_AD only.",
+)
+@click.option("--business-id", type=int, help="ResponsiveAd.BusinessId")
+@click.option(
+    "--erir-ad-description",
+    help="ResponsiveAd.ErirAdDescription",
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
@@ -597,8 +700,11 @@ def update(
     status,
     title,
     text,
+    titles,
+    texts,
     href,
     image_hash,
+    image_hashes,
     action,
     tracking_url,
     age_label,
@@ -611,10 +717,13 @@ def update(
     callouts_remove,
     callouts_set,
     video_extension_creative_id,
+    video_extension_ids,
     price_extension_price,
     price_extension_old_price,
     price_extension_price_qualifier,
     price_extension_price_currency,
+    business_id,
+    erir_ad_description,
     dry_run,
 ):
     """Update ad"""
@@ -625,12 +734,19 @@ def update(
         )
 
     ad_type_norm = ad_type.upper().replace("-", "_")
-    supported_types = {"TEXT_AD", "TEXT_IMAGE_AD", "MOBILE_APP_AD", "DYNAMIC_TEXT_AD"}
+    supported_types = {
+        "TEXT_AD",
+        "TEXT_IMAGE_AD",
+        "MOBILE_APP_AD",
+        "DYNAMIC_TEXT_AD",
+        "RESPONSIVE_AD",
+    }
     if ad_type_norm not in supported_types:
         raise click.UsageError(
             "Invalid value for '--type': "
             f"{ad_type!r} is not one of "
-            "'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD', 'DYNAMIC_TEXT_AD'."
+            "'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD', 'DYNAMIC_TEXT_AD', "
+            "'RESPONSIVE_AD'."
         )
 
     # Per-WSDL-subtype field allow-list: each --type accepts only the
@@ -676,12 +792,34 @@ def update(
             "tracking_url",
             "age_label",
         },
+        "RESPONSIVE_AD": {
+            "texts",
+            "titles",
+            "image_hashes",
+            "video_extension_ids",
+            "sitelink_set_id",
+            "callouts_add",
+            "callouts_remove",
+            "callouts_set",
+            "href",
+            "age_label",
+            "display_url_path",
+            "price_extension_price",
+            "price_extension_old_price",
+            "price_extension_price_qualifier",
+            "price_extension_price_currency",
+            "business_id",
+            "erir_ad_description",
+        },
     }
     provided = {
         "title": title,
         "text": text,
+        "titles": titles,
+        "texts": texts,
         "href": href,
         "image_hash": image_hash,
+        "image_hashes": image_hashes,
         "action": action,
         "tracking_url": tracking_url,
         "age_label": age_label,
@@ -694,16 +832,22 @@ def update(
         "callouts_remove": callouts_remove,
         "callouts_set": callouts_set,
         "video_extension_creative_id": video_extension_creative_id,
+        "video_extension_ids": video_extension_ids,
         "price_extension_price": price_extension_price,
         "price_extension_old_price": price_extension_old_price,
         "price_extension_price_qualifier": price_extension_price_qualifier,
         "price_extension_price_currency": price_extension_price_currency,
+        "business_id": business_id,
+        "erir_ad_description": erir_ad_description,
     }
     flag_for = {
         "title": "--title",
         "text": "--text",
+        "titles": "--titles",
+        "texts": "--texts",
         "href": "--href",
         "image_hash": "--image-hash",
+        "image_hashes": "--image-hashes",
         "action": "--action",
         "tracking_url": "--tracking-url",
         "age_label": "--age-label",
@@ -716,10 +860,13 @@ def update(
         "callouts_remove": "--callouts-remove",
         "callouts_set": "--callouts-set",
         "video_extension_creative_id": "--video-extension-creative-id",
+        "video_extension_ids": "--video-extension-ids",
         "price_extension_price": "--price-extension-price",
         "price_extension_old_price": "--price-extension-old-price",
         "price_extension_price_qualifier": "--price-extension-price-qualifier",
         "price_extension_price_currency": "--price-extension-price-currency",
+        "business_id": "--business-id",
+        "erir_ad_description": "--erir-ad-description",
     }
     try:
         _reject_incompatible_flags(
@@ -808,6 +955,23 @@ def update(
             mobile_app_ad["AgeLabel"] = age_label.upper()
         if mobile_app_ad:
             ad_data["MobileAppAd"] = mobile_app_ad
+    elif ad_type_norm == "RESPONSIVE_AD":
+        responsive_ad = _build_responsive_ad_update(
+            texts,
+            titles,
+            image_hashes,
+            video_extension_ids,
+            sitelink_set_id,
+            callout_setting,
+            href,
+            age_label,
+            display_url_path,
+            price_extension,
+            business_id,
+            erir_ad_description,
+        )
+        if responsive_ad:
+            ad_data["ResponsiveAd"] = responsive_ad
 
     # Reject empty-subtype no-ops: ``{Id: N}`` with no subtype block
     # is a silent no-op on the live API (issue #198 H1).
