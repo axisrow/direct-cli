@@ -1397,6 +1397,127 @@ def test_ads_update_callouts_invalid_id_rejected_with_usage_error():
     assert "Traceback" not in result.output
 
 
+def test_ads_update_text_ad_video_extension_payload():
+    """Issue #245: TEXT_AD update exposes VideoExtension.CreativeId."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_AD",
+        "--video-extension-creative-id",
+        "777",
+    )
+    assert body["params"]["Ads"][0] == {
+        "Id": 999,
+        "TextAd": {"VideoExtension": {"CreativeId": 777}},
+    }
+
+
+def test_ads_update_text_ad_price_extension_payload():
+    """Issue #245: TEXT_AD update exposes PriceExtension fields."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_AD",
+        "--price-extension-price",
+        "123450000",
+        "--price-extension-old-price",
+        "150000000",
+        "--price-extension-price-qualifier",
+        "from",
+        "--price-extension-price-currency",
+        "rub",
+    )
+    assert body["params"]["Ads"][0] == {
+        "Id": 999,
+        "TextAd": {
+            "PriceExtension": {
+                "Price": 123450000,
+                "OldPrice": 150000000,
+                "PriceQualifier": "FROM",
+                "PriceCurrency": "RUB",
+            }
+        },
+    }
+
+
+def test_ads_update_text_ad_price_extension_partial_payload():
+    """PriceExtensionUpdateItem children are optional in WSDL update."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_AD",
+        "--price-extension-price-currency",
+        "USD",
+    )
+    assert body["params"]["Ads"][0] == {
+        "Id": 999,
+        "TextAd": {"PriceExtension": {"PriceCurrency": "USD"}},
+    }
+
+
+def test_ads_update_text_ad_extension_flags_rejected_for_text_image_ad():
+    """Issue #245: TEXT_AD extension flags must not silently drop by subtype."""
+    result = _rejected(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_IMAGE_AD",
+        "--video-extension-creative-id",
+        "777",
+    )
+    assert (
+        "--video-extension-creative-id is not compatible with --type TEXT_IMAGE_AD"
+        in result.output
+    )
+
+
+def test_ads_update_text_ad_price_extension_flags_rejected_for_mobile_app_ad():
+    """Issue #245: PriceExtension flags are TEXT_AD-only in this patch scope."""
+    result = _rejected(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "MOBILE_APP_AD",
+        "--price-extension-price",
+        "123450000",
+    )
+    assert (
+        "--price-extension-price is not compatible with --type MOBILE_APP_AD"
+        in result.output
+    )
+
+
+def test_ads_update_text_ad_extension_flags_count_as_updatable_fields():
+    """Issue #245: extension-only updates must not trip the no-op guard."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_AD",
+        "--price-extension-price-qualifier",
+        "NONE",
+    )
+    assert body["params"]["Ads"][0] == {
+        "Id": 999,
+        "TextAd": {"PriceExtension": {"PriceQualifier": "NONE"}},
+    }
+
+
 def test_ads_update_rejects_title2_on_text_image_ad():
     """Issue #202 (Pattern B): --title2 is TEXT_AD-only in update too."""
     result = CliRunner().invoke(

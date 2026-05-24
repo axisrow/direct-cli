@@ -399,6 +399,7 @@ direct ads update --id 99999 --type TEXT_AD --image-hash abcdefghijklmnopqrst
 direct ads update --id 99999 --type TEXT_AD --title2 "New second headline" --vcard-id 222
 direct ads update --id 99999 --type TEXT_AD --callouts-add "111,222" --callouts-remove "333"
 direct ads update --id 99999 --type TEXT_AD --callouts-set "444,555"
+direct ads update --id 99999 --type TEXT_AD --video-extension-creative-id 777 --price-extension-price 123450000 --price-extension-price-qualifier FROM --price-extension-price-currency RUB
 direct ads delete --id 99999
 ```
 
@@ -409,6 +410,9 @@ Available TEXT_AD typed flags for `ads add` / `ads update`: `--title`, `--text`,
 `TextAdUpdateBase.CalloutSetting` (`ext:AdExtensionSetting`) field on an
 existing ad — `--callouts-set` replaces the whole callout list and is mutually
 exclusive with the incremental `--callouts-add` / `--callouts-remove` pair.
+It also exposes `--video-extension-creative-id` and `--price-extension-*` flags
+for `TextAd.VideoExtension` and `TextAd.PriceExtension`; price values use the
+Yandex Direct API long-unit format (price multiplied by 1,000,000).
 `--mobile` (default `NO`) and `--ad-extensions` are `ads add`-only —
 `TextAdUpdate` does not contain `Mobile`, and on update ad-extensions are
 managed through the `--callouts-*` flags above. TEXT_IMAGE_AD additionally
@@ -1100,6 +1104,7 @@ direct ads update --id 99999 --type TEXT_AD --image-hash abcdefghijklmnopqrst
 direct ads update --id 99999 --type TEXT_AD --title2 "Новый второй заголовок" --vcard-id 222
 direct ads update --id 99999 --type TEXT_AD --callouts-add "111,222" --callouts-remove "333"
 direct ads update --id 99999 --type TEXT_AD --callouts-set "444,555"
+direct ads update --id 99999 --type TEXT_AD --video-extension-creative-id 777 --price-extension-price 123450000 --price-extension-price-qualifier FROM --price-extension-price-currency RUB
 direct ads delete --id 99999
 ```
 
@@ -1110,7 +1115,11 @@ direct ads delete --id 99999
 `--callouts-set` для управления полем `TextAdUpdateBase.CalloutSetting`
 (`ext:AdExtensionSetting`) у существующего объявления — `--callouts-set`
 заменяет весь список выносок и взаимоисключим с инкрементальной парой
-`--callouts-add` / `--callouts-remove`. `--mobile` (default `NO`) и
+`--callouts-add` / `--callouts-remove`. Также доступны
+`--video-extension-creative-id` и флаги `--price-extension-*` для
+`TextAd.VideoExtension` и `TextAd.PriceExtension`; цены передаются в формате
+long-единиц API Яндекс Директа (цена, умноженная на 1 000 000). `--mobile`
+(default `NO`) и
 `--ad-extensions` доступны только в `ads add` — WSDL `TextAdUpdate` не
 содержит `Mobile`, а в `ads update` расширения управляются через флаги
 `--callouts-*` выше. Для TEXT_IMAGE_AD дополнительно доступен

@@ -690,6 +690,26 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
         "--callouts-remove",
         "--callouts-set",
     },
+    ("ads", "update", "TextAd.VideoExtension"): {"--video-extension-creative-id"},
+    ("ads", "update", "TextAd.VideoExtension.CreativeId"): {
+        "--video-extension-creative-id"
+    },
+    ("ads", "update", "TextAd.PriceExtension"): {
+        "--price-extension-price",
+        "--price-extension-old-price",
+        "--price-extension-price-qualifier",
+        "--price-extension-price-currency",
+    },
+    ("ads", "update", "TextAd.PriceExtension.Price"): {"--price-extension-price"},
+    ("ads", "update", "TextAd.PriceExtension.OldPrice"): {
+        "--price-extension-old-price"
+    },
+    ("ads", "update", "TextAd.PriceExtension.PriceQualifier"): {
+        "--price-extension-price-qualifier"
+    },
+    ("ads", "update", "TextAd.PriceExtension.PriceCurrency"): {
+        "--price-extension-price-currency"
+    },
     ("ads", "update", "MobileAppAd"): {"--type"},
     ("ads", "update", "MobileAppAd.AdImageHash"): {"--image-hash"},
     ("ads", "update", "MobileAppAd.Text"): {"--text"},
@@ -1054,16 +1074,6 @@ OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
         "status": "missing_followup",
         "issue": "#244",
         "note": "Keyword autotargeting settings have no typed update flags.",
-    },
-    ("ads", "update", "TextAd.VideoExtension"): {
-        "status": "missing_followup",
-        "issue": "#245",
-        "note": "TEXT_AD video extension update is WSDL-supported but absent.",
-    },
-    ("ads", "update", "TextAd.PriceExtension"): {
-        "status": "missing_followup",
-        "issue": "#245",
-        "note": "TEXT_AD price extension update is WSDL-supported but absent.",
     },
     ("adgroups", "add", "MobileAppAdGroup"): {
         "status": "missing_followup",
