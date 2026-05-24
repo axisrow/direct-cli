@@ -162,6 +162,7 @@ def test_strategies_help_does_not_expose_legacy_json_flags():
         assert "--custom-period-start-date" in result.output
         assert "--custom-period-end-date" in result.output
         assert "--custom-period-auto-continue" in result.output
+        assert "--minimum-exploration-budget" in result.output
 
 
 def test_readme_bash_blocks_do_not_use_deprecated_direct_cli_executable():
