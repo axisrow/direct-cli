@@ -173,6 +173,11 @@ EXPLORATION_BUDGET_STRATEGY_TYPES = {
     "AverageCrr",
     "AverageCpaMultipleGoals",
 }
+PRIORITY_GOAL_FIELD_OPTIONS = {
+    "GoalId": "--priority-goal",
+    "Value": "--priority-goal",
+    "IsMetrikaSourceOfValue": "--priority-goal",
+}
 STRATEGY_FLAG_NAMES = {
     "average_cpc": "--average-cpc",
     "average_cpa": "--average-cpa",
@@ -248,18 +253,32 @@ def _build_exploration_budget(
 
 
 def _parse_priority_goal(spec: str) -> dict:
-    """Parse a priority goal spec in GOAL_ID:VALUE format."""
-    goal_id, separator, value = spec.partition(":")
-    if not separator:
+    """Parse a priority goal spec in GOAL_ID:VALUE[:YES|NO] format."""
+    parts = [part.strip() for part in spec.split(":")]
+    if (
+        len(parts) not in (2, 3)
+        or not parts[0]
+        or not parts[1]
+        or (len(parts) == 3 and not parts[2])
+    ):
         raise click.UsageError(
-            "Invalid --priority-goal. Expected GOAL_ID:VALUE, for example 123:1000000"
+            "Invalid --priority-goal. Expected GOAL_ID:VALUE[:YES|NO], "
+            "for example 123:1000000:YES"
         )
     try:
-        return {"GoalId": int(goal_id.strip()), "Value": int(value.strip())}
+        item = {"GoalId": int(parts[0]), "Value": int(parts[1])}
     except ValueError:
         raise click.UsageError(
             "Invalid --priority-goal. GOAL_ID and VALUE must be integers"
         )
+    if len(parts) == 3:
+        is_metrika_source = parts[2].upper()
+        if is_metrika_source not in {"YES", "NO"}:
+            raise click.UsageError(
+                "Invalid --priority-goal. IsMetrikaSourceOfValue must be YES or NO"
+            )
+        item["IsMetrikaSourceOfValue"] = is_metrika_source
+    return item
 
 
 def _build_strategy_fields(
@@ -485,7 +504,7 @@ def get(ctx, ids, types, is_archived, limit, fetch_all, output_format, output, f
     "--priority-goal",
     "priority_goals",
     multiple=True,
-    help="Priority goal as GOAL_ID:VALUE; may be repeated",
+    help="Priority goal as GOAL_ID:VALUE[:YES|NO]; may be repeated",
 )
 @click.option(
     "--attribution-model",
@@ -623,7 +642,7 @@ def add(
     "--priority-goal",
     "priority_goals",
     multiple=True,
-    help="Priority goal as GOAL_ID:VALUE; may be repeated",
+    help="Priority goal as GOAL_ID:VALUE[:YES|NO]; may be repeated",
 )
 @click.option(
     "--attribution-model",

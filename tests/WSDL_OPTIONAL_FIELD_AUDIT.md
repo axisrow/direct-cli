@@ -11,9 +11,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2199 |
+| `missing_followup` | 2193 |
 | `not_applicable` | 23 |
-| `supported` | 1019 |
+| `supported` | 1025 |
 
 ## Confirmed Follow-Ups
 
@@ -2235,12 +2235,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `campaigns.update` | `TimeTargeting.HolidaysSchedule.BidPercent` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
 | `campaigns.update` | `TimeTargeting.HolidaysSchedule.StartHour` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
 | `campaigns.update` | `TimeTargeting.HolidaysSchedule.EndHour` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `strategies.add` | `PriorityGoals.Items.GoalId` | strategies.add residual optional WSDL path needs typed support or N/A. [#299](https://github.com/axisrow/direct-cli/issues/299) |
-| `strategies.add` | `PriorityGoals.Items.Value` | strategies.add residual optional WSDL path needs typed support or N/A. [#299](https://github.com/axisrow/direct-cli/issues/299) |
-| `strategies.add` | `PriorityGoals.Items.IsMetrikaSourceOfValue` | strategies.add residual optional WSDL path needs typed support or N/A. [#299](https://github.com/axisrow/direct-cli/issues/299) |
-| `strategies.update` | `PriorityGoals.Items.GoalId` | strategies.update residual optional WSDL path needs typed support or N/A. [#300](https://github.com/axisrow/direct-cli/issues/300) |
-| `strategies.update` | `PriorityGoals.Items.Value` | strategies.update residual optional WSDL path needs typed support or N/A. [#300](https://github.com/axisrow/direct-cli/issues/300) |
-| `strategies.update` | `PriorityGoals.Items.IsMetrikaSourceOfValue` | strategies.update residual optional WSDL path needs typed support or N/A. [#300](https://github.com/axisrow/direct-cli/issues/300) |
 
 ## Field Table
 
@@ -5133,9 +5127,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `strategies.add` | `strategies.add` | `CounterIds.Items` | `long` | 1 | unbounded | `supported` | --counter-ids |
 | `strategies.add` | `strategies.add` | `PriorityGoals` | `PriorityGoalsArray` | 0 | 1 | `supported` | --priority-goal |
 | `strategies.add` | `strategies.add` | `PriorityGoals.Items` | `PriorityGoalsItem` | 1 | unbounded | `supported` | --priority-goal |
-| `strategies.add` | `strategies.add` | `PriorityGoals.Items.GoalId` | `long` | 1 | 1 | `missing_followup` | strategies.add residual optional WSDL path needs typed support or N/A. [#299](https://github.com/axisrow/direct-cli/issues/299) |
-| `strategies.add` | `strategies.add` | `PriorityGoals.Items.Value` | `long` | 1 | 1 | `missing_followup` | strategies.add residual optional WSDL path needs typed support or N/A. [#299](https://github.com/axisrow/direct-cli/issues/299) |
-| `strategies.add` | `strategies.add` | `PriorityGoals.Items.IsMetrikaSourceOfValue` | `YesNoEnum` | 0 | 1 | `missing_followup` | strategies.add residual optional WSDL path needs typed support or N/A. [#299](https://github.com/axisrow/direct-cli/issues/299) |
+| `strategies.add` | `strategies.add` | `PriorityGoals.Items.GoalId` | `long` | 1 | 1 | `supported` | --priority-goal |
+| `strategies.add` | `strategies.add` | `PriorityGoals.Items.Value` | `long` | 1 | 1 | `supported` | --priority-goal |
+| `strategies.add` | `strategies.add` | `PriorityGoals.Items.IsMetrikaSourceOfValue` | `YesNoEnum` | 0 | 1 | `supported` | --priority-goal |
 | `strategies.add` | `strategies.add` | `WbMaximumClicks` | `StrategyMaximumClicksAddItem` | 0 | 1 | `supported` | --type |
 | `strategies.add` | `strategies.add` | `WbMaximumClicks.WeeklySpendLimit` | `long` | 0 | 1 | `supported` | --weekly-spend-limit |
 | `strategies.add` | `strategies.add` | `WbMaximumClicks.CustomPeriodBudget` | `CustomPeriodBudget` | 0 | 1 | `supported` | --custom-period-auto-continue, --custom-period-end-date, --custom-period-spend-limit, --custom-period-start-date |
@@ -5302,9 +5296,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `strategies.update` | `strategies.update` | `CounterIds.Items` | `long` | 1 | unbounded | `supported` | --counter-ids |
 | `strategies.update` | `strategies.update` | `PriorityGoals` | `PriorityGoalsArray` | 0 | 1 | `supported` | --priority-goal |
 | `strategies.update` | `strategies.update` | `PriorityGoals.Items` | `PriorityGoalsItem` | 1 | unbounded | `supported` | --priority-goal |
-| `strategies.update` | `strategies.update` | `PriorityGoals.Items.GoalId` | `long` | 1 | 1 | `missing_followup` | strategies.update residual optional WSDL path needs typed support or N/A. [#300](https://github.com/axisrow/direct-cli/issues/300) |
-| `strategies.update` | `strategies.update` | `PriorityGoals.Items.Value` | `long` | 1 | 1 | `missing_followup` | strategies.update residual optional WSDL path needs typed support or N/A. [#300](https://github.com/axisrow/direct-cli/issues/300) |
-| `strategies.update` | `strategies.update` | `PriorityGoals.Items.IsMetrikaSourceOfValue` | `YesNoEnum` | 0 | 1 | `missing_followup` | strategies.update residual optional WSDL path needs typed support or N/A. [#300](https://github.com/axisrow/direct-cli/issues/300) |
+| `strategies.update` | `strategies.update` | `PriorityGoals.Items.GoalId` | `long` | 1 | 1 | `supported` | --priority-goal |
+| `strategies.update` | `strategies.update` | `PriorityGoals.Items.Value` | `long` | 1 | 1 | `supported` | --priority-goal |
+| `strategies.update` | `strategies.update` | `PriorityGoals.Items.IsMetrikaSourceOfValue` | `YesNoEnum` | 0 | 1 | `supported` | --priority-goal |
 | `strategies.update` | `strategies.update` | `WbMaximumClicks` | `StrategyMaximumClicksUpdateItem` | 0 | 1 | `supported` | --type |
 | `strategies.update` | `strategies.update` | `WbMaximumClicks.WeeklySpendLimit` | `long` | 0 | 1 | `supported` | --weekly-spend-limit |
 | `strategies.update` | `strategies.update` | `WbMaximumClicks.CustomPeriodBudget` | `CustomPeriodBudget` | 0 | 1 | `supported` | --custom-period-auto-continue, --custom-period-end-date, --custom-period-spend-limit, --custom-period-start-date |
