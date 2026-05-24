@@ -158,6 +158,10 @@ def test_strategies_help_does_not_expose_legacy_json_flags():
         assert "--params" not in result.output
         assert "--priority-goals" not in result.output
         assert "--priority-goal" in result.output
+        assert "--custom-period-spend-limit" in result.output
+        assert "--custom-period-start-date" in result.output
+        assert "--custom-period-end-date" in result.output
+        assert "--custom-period-auto-continue" in result.output
 
 
 def test_readme_bash_blocks_do_not_use_deprecated_direct_cli_executable():
