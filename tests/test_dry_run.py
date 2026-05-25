@@ -5255,14 +5255,14 @@ def test_campaigns_add_priority_goals_payload():
         "--network-strategy",
         "SERVING_OFF",
         "--priority-goals",
-        "1234567:80,9876543:20",
+        "1234567:80:YES,9876543:20",
         "--bid-ceiling",
         "1000000000",
     )
     text = body["params"]["Campaigns"][0]["TextCampaign"]
     assert text["PriorityGoals"] == {
         "Items": [
-            {"GoalId": 1234567, "Value": 80},
+            {"GoalId": 1234567, "Value": 80, "IsMetrikaSourceOfValue": "YES"},
             {"GoalId": 9876543, "Value": 20},
         ]
     }
@@ -5278,7 +5278,156 @@ def test_campaigns_add_counter_ids_payload():
         "111,222,333",
     )
     text = body["params"]["Campaigns"][0]["TextCampaign"]
-    assert text["CounterIds"] == [111, 222, 333]
+    assert text["CounterIds"] == {"Items": [111, 222, 333]}
+
+
+def test_campaigns_add_text_campaign_optional_controls_payload():
+    body = _dry_run(
+        *_cpa_base_args(),
+        "--setting",
+        "ADD_METRICA_TAG=YES",
+        "--relevant-keywords-budget-percent",
+        "40",
+        "--relevant-keywords-mode",
+        "optimal",
+        "--relevant-keywords-optimize-goal-id",
+        "0",
+        "--attribution-model",
+        "auto",
+        "--negative-keyword-shared-set-ids",
+        "10,11,12",
+    )
+    text = body["params"]["Campaigns"][0]["TextCampaign"]
+    assert text["Settings"] == [{"Option": "ADD_METRICA_TAG", "Value": "YES"}]
+    assert text["RelevantKeywords"] == {
+        "BudgetPercent": 40,
+        "Mode": "OPTIMAL",
+        "OptimizeGoalId": 0,
+    }
+    assert text["AttributionModel"] == "AUTO"
+    assert text["NegativeKeywordSharedSetIds"] == {"Items": [10, 11, 12]}
+
+
+def test_campaigns_add_text_package_bidding_strategy_payload():
+    body = _dry_run(
+        *_cpa_base_args(),
+        "--counter-ids",
+        "111,222",
+        "--attribution-model",
+        "AUTO",
+        "--package-strategy-id",
+        "700",
+        "--package-platform-search-result",
+        "YES",
+        "--package-platform-product-gallery",
+        "NO",
+        "--package-platform-network",
+        "YES",
+        "--package-platform-dynamic-places",
+        "NO",
+    )
+    text = body["params"]["Campaigns"][0]["TextCampaign"]
+    assert "BiddingStrategy" not in text
+    assert text["CounterIds"] == {"Items": [111, 222]}
+    assert text["AttributionModel"] == "AUTO"
+    assert text["PackageBiddingStrategy"] == {
+        "StrategyId": 700,
+        "Platforms": {
+            "SearchResult": "YES",
+            "ProductGallery": "NO",
+            "Network": "YES",
+            "DynamicPlaces": "NO",
+        },
+    }
+
+
+def test_campaigns_update_text_campaign_optional_controls_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "TEXT_CAMPAIGN",
+        "--setting",
+        "ADD_METRICA_TAG=NO",
+        "--counter-ids",
+        "111,222",
+        "--priority-goals",
+        "1234567:80:YES,9876543:20",
+        "--relevant-keywords-mode",
+        "maximum",
+        "--relevant-keywords-optimize-goal-id",
+        "0",
+        "--attribution-model",
+        "AUTO",
+        "--negative-keyword-shared-set-ids",
+        "10,11",
+        "--tracking-params",
+        "utm_source=direct",
+    )
+    campaign = body["params"]["Campaigns"][0]
+    assert campaign == {
+        "Id": 123,
+        "TextCampaign": {
+            "Settings": [{"Option": "ADD_METRICA_TAG", "Value": "NO"}],
+            "CounterIds": {"Items": [111, 222]},
+            "PriorityGoals": {
+                "Items": [
+                    {
+                        "GoalId": 1234567,
+                        "Value": 80,
+                        "IsMetrikaSourceOfValue": "YES",
+                        "Operation": "SET",
+                    },
+                    {"GoalId": 9876543, "Value": 20, "Operation": "SET"},
+                ]
+            },
+            "RelevantKeywords": {
+                "Mode": "MAXIMUM",
+                "OptimizeGoalId": 0,
+            },
+            "AttributionModel": "AUTO",
+            "NegativeKeywordSharedSetIds": {"Items": [10, 11]},
+            "TrackingParams": "utm_source=direct",
+        },
+    }
+
+
+def test_campaigns_update_text_package_bidding_strategy_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "TEXT_CAMPAIGN",
+        "--counter-ids",
+        "111",
+        "--attribution-model",
+        "LC",
+        "--package-strategy-from-campaign-id",
+        "456",
+        "--package-platform-search-result",
+        "YES",
+        "--package-platform-product-gallery",
+        "YES",
+        "--package-platform-network",
+        "NO",
+    )
+    text = body["params"]["Campaigns"][0]["TextCampaign"]
+    assert text == {
+        "CounterIds": {"Items": [111]},
+        "AttributionModel": "LC",
+        "PackageBiddingStrategy": {
+            "StrategyFromCampaignId": 456,
+            "Platforms": {
+                "SearchResult": "YES",
+                "ProductGallery": "YES",
+                "Network": "NO",
+            },
+        },
+    }
 
 
 def test_campaigns_add_notification_payload():
@@ -5518,6 +5667,67 @@ def test_campaigns_rejects_holidays_bid_percent_with_suspend_yes():
     assert "--holidays-bid-percent" in result.output
 
 
+def test_campaigns_add_rejects_relevant_keywords_without_budget_percent():
+    result = _rejected(*_cpa_base_args(), "--relevant-keywords-mode", "OPTIMAL")
+    assert "--relevant-keywords-budget-percent" in result.output
+
+
+def test_campaigns_add_rejects_package_strategy_without_required_platforms():
+    result = _rejected(*_cpa_base_args(), "--package-strategy-id", "700")
+    assert "--package-platform-search-result" in result.output
+    assert "--package-platform-product-gallery" in result.output
+    assert "--package-platform-network" in result.output
+
+
+def test_campaigns_add_rejects_package_strategy_with_strategy_inputs():
+    result = _rejected(
+        *_cpa_base_args(),
+        "--package-strategy-id",
+        "700",
+        "--package-platform-search-result",
+        "YES",
+        "--package-platform-product-gallery",
+        "YES",
+        "--package-platform-network",
+        "YES",
+        "--search-strategy",
+        "AVERAGE_CPA",
+    )
+    assert "PackageBiddingStrategy cannot be combined" in result.output
+    assert "--search-strategy" in result.output
+
+
+def test_campaigns_rejects_too_many_negative_keyword_shared_set_ids():
+    result = _rejected(
+        *_cpa_base_args(),
+        "--negative-keyword-shared-set-ids",
+        "10,11,12,13",
+    )
+    assert (
+        "--negative-keyword-shared-set-ids must contain at most 3 items"
+        in result.output
+    )
+
+
+def test_campaigns_update_text_subtype_fields_require_type():
+    result = _rejected("campaigns", "update", "--id", "123", "--counter-ids", "111")
+    assert "--counter-ids requires --type" in result.output
+
+
+def test_campaigns_update_rejects_partial_package_platforms():
+    result = _rejected(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "TEXT_CAMPAIGN",
+        "--package-platform-dynamic-places",
+        "YES",
+    )
+    assert "--package-platform-search-result" in result.output
+
+
 def test_campaigns_help_exposes_typed_campaign_level_flags_not_json_blobs():
     for command in ("add", "update"):
         result = CliRunner().invoke(cli, ["campaigns", command, "--help"])
@@ -5529,6 +5739,19 @@ def test_campaigns_help_exposes_typed_campaign_level_flags_not_json_blobs():
         assert "--negative-keywords" in result.output
         assert "--blocked-ips" in result.output
         assert "--excluded-sites" in result.output
+
+
+def test_campaigns_help_exposes_text_campaign_optional_flags():
+    for command in ("add", "update"):
+        result = CliRunner().invoke(cli, ["campaigns", command, "--help"])
+        assert result.exit_code == 0
+        assert "--counter-ids" in result.output
+        assert "--priority-goals" in result.output
+        assert "--relevant-keywords-budget-percent" in result.output
+        assert "--attribution-model" in result.output
+        assert "--package-strategy-id" in result.output
+        assert "--package-platform-search-result" in result.output
+        assert "--negative-keyword-shared-set-ids" in result.output
 
 
 def test_campaigns_add_text_tracking_params_payload():

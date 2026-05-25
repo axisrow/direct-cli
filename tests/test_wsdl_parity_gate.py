@@ -1511,9 +1511,85 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
         "--network-strategy",
     },
     ("campaigns", "add", "TextCampaign.Settings"): {"--setting"},
+    ("campaigns", "add", "TextCampaign.Settings.Option"): {"--setting"},
+    ("campaigns", "add", "TextCampaign.Settings.Value"): {"--setting"},
     ("campaigns", "add", "TextCampaign.CounterIds"): {"--counter-ids"},
+    ("campaigns", "add", "TextCampaign.CounterIds.Items"): {"--counter-ids"},
+    ("campaigns", "add", "TextCampaign.RelevantKeywords"): {
+        "--relevant-keywords-budget-percent",
+        "--relevant-keywords-mode",
+        "--relevant-keywords-optimize-goal-id",
+    },
+    ("campaigns", "add", "TextCampaign.RelevantKeywords.BudgetPercent"): {
+        "--relevant-keywords-budget-percent"
+    },
+    ("campaigns", "add", "TextCampaign.RelevantKeywords.Mode"): {
+        "--relevant-keywords-mode"
+    },
+    ("campaigns", "add", "TextCampaign.RelevantKeywords.OptimizeGoalId"): {
+        "--relevant-keywords-optimize-goal-id"
+    },
     ("campaigns", "add", "TextCampaign.PriorityGoals"): {"--priority-goals"},
+    ("campaigns", "add", "TextCampaign.PriorityGoals.Items"): {"--priority-goals"},
+    ("campaigns", "add", "TextCampaign.PriorityGoals.Items.GoalId"): {
+        "--priority-goals"
+    },
+    ("campaigns", "add", "TextCampaign.PriorityGoals.Items.Value"): {
+        "--priority-goals"
+    },
+    (
+        "campaigns",
+        "add",
+        "TextCampaign.PriorityGoals.Items.IsMetrikaSourceOfValue",
+    ): {"--priority-goals"},
     ("campaigns", "add", "TextCampaign.TrackingParams"): {"--tracking-params"},
+    ("campaigns", "add", "TextCampaign.AttributionModel"): {"--attribution-model"},
+    ("campaigns", "add", "TextCampaign.PackageBiddingStrategy"): {
+        "--package-strategy-id",
+        "--package-strategy-from-campaign-id",
+        "--package-platform-search-result",
+        "--package-platform-product-gallery",
+        "--package-platform-network",
+        "--package-platform-dynamic-places",
+    },
+    ("campaigns", "add", "TextCampaign.PackageBiddingStrategy.StrategyId"): {
+        "--package-strategy-id"
+    },
+    (
+        "campaigns",
+        "add",
+        "TextCampaign.PackageBiddingStrategy.StrategyFromCampaignId",
+    ): {"--package-strategy-from-campaign-id"},
+    ("campaigns", "add", "TextCampaign.PackageBiddingStrategy.Platforms"): {
+        "--package-platform-search-result",
+        "--package-platform-product-gallery",
+        "--package-platform-network",
+        "--package-platform-dynamic-places",
+    },
+    (
+        "campaigns",
+        "add",
+        "TextCampaign.PackageBiddingStrategy.Platforms.SearchResult",
+    ): {"--package-platform-search-result"},
+    (
+        "campaigns",
+        "add",
+        "TextCampaign.PackageBiddingStrategy.Platforms.ProductGallery",
+    ): {"--package-platform-product-gallery"},
+    ("campaigns", "add", "TextCampaign.PackageBiddingStrategy.Platforms.Network"): {
+        "--package-platform-network"
+    },
+    (
+        "campaigns",
+        "add",
+        "TextCampaign.PackageBiddingStrategy.Platforms.DynamicPlaces",
+    ): {"--package-platform-dynamic-places"},
+    ("campaigns", "add", "TextCampaign.NegativeKeywordSharedSetIds"): {
+        "--negative-keyword-shared-set-ids"
+    },
+    ("campaigns", "add", "TextCampaign.NegativeKeywordSharedSetIds.Items"): {
+        "--negative-keyword-shared-set-ids"
+    },
     ("campaigns", "add", "DynamicTextCampaign"): {"--type"},
     ("campaigns", "add", "DynamicTextCampaign.BiddingStrategy"): {
         "--search-strategy",
@@ -1620,7 +1696,91 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
         "--holidays-end-hour"
     },
     ("campaigns", "update", "TextCampaign"): {"--type"},
+    ("campaigns", "update", "TextCampaign.Settings"): {"--setting"},
+    ("campaigns", "update", "TextCampaign.Settings.Option"): {"--setting"},
+    ("campaigns", "update", "TextCampaign.Settings.Value"): {"--setting"},
+    ("campaigns", "update", "TextCampaign.CounterIds"): {"--counter-ids"},
+    ("campaigns", "update", "TextCampaign.CounterIds.Items"): {"--counter-ids"},
+    ("campaigns", "update", "TextCampaign.RelevantKeywords"): {
+        "--relevant-keywords-budget-percent",
+        "--relevant-keywords-mode",
+        "--relevant-keywords-optimize-goal-id",
+    },
+    ("campaigns", "update", "TextCampaign.RelevantKeywords.BudgetPercent"): {
+        "--relevant-keywords-budget-percent"
+    },
+    ("campaigns", "update", "TextCampaign.RelevantKeywords.Mode"): {
+        "--relevant-keywords-mode"
+    },
+    ("campaigns", "update", "TextCampaign.RelevantKeywords.OptimizeGoalId"): {
+        "--relevant-keywords-optimize-goal-id"
+    },
+    ("campaigns", "update", "TextCampaign.PriorityGoals"): {"--priority-goals"},
+    ("campaigns", "update", "TextCampaign.PriorityGoals.Items"): {"--priority-goals"},
+    ("campaigns", "update", "TextCampaign.PriorityGoals.Items.GoalId"): {
+        "--priority-goals"
+    },
+    ("campaigns", "update", "TextCampaign.PriorityGoals.Items.Value"): {
+        "--priority-goals"
+    },
+    (
+        "campaigns",
+        "update",
+        "TextCampaign.PriorityGoals.Items.IsMetrikaSourceOfValue",
+    ): {"--priority-goals"},
+    ("campaigns", "update", "TextCampaign.PriorityGoals.Items.Operation"): {
+        "--priority-goals"
+    },
     ("campaigns", "update", "TextCampaign.TrackingParams"): {"--tracking-params"},
+    ("campaigns", "update", "TextCampaign.AttributionModel"): {"--attribution-model"},
+    ("campaigns", "update", "TextCampaign.PackageBiddingStrategy"): {
+        "--package-strategy-id",
+        "--package-strategy-from-campaign-id",
+        "--package-platform-search-result",
+        "--package-platform-product-gallery",
+        "--package-platform-network",
+        "--package-platform-dynamic-places",
+    },
+    ("campaigns", "update", "TextCampaign.PackageBiddingStrategy.StrategyId"): {
+        "--package-strategy-id"
+    },
+    (
+        "campaigns",
+        "update",
+        "TextCampaign.PackageBiddingStrategy.StrategyFromCampaignId",
+    ): {"--package-strategy-from-campaign-id"},
+    ("campaigns", "update", "TextCampaign.PackageBiddingStrategy.Platforms"): {
+        "--package-platform-search-result",
+        "--package-platform-product-gallery",
+        "--package-platform-network",
+        "--package-platform-dynamic-places",
+    },
+    (
+        "campaigns",
+        "update",
+        "TextCampaign.PackageBiddingStrategy.Platforms.SearchResult",
+    ): {"--package-platform-search-result"},
+    (
+        "campaigns",
+        "update",
+        "TextCampaign.PackageBiddingStrategy.Platforms.ProductGallery",
+    ): {"--package-platform-product-gallery"},
+    (
+        "campaigns",
+        "update",
+        "TextCampaign.PackageBiddingStrategy.Platforms.Network",
+    ): {"--package-platform-network"},
+    (
+        "campaigns",
+        "update",
+        "TextCampaign.PackageBiddingStrategy.Platforms.DynamicPlaces",
+    ): {"--package-platform-dynamic-places"},
+    ("campaigns", "update", "TextCampaign.NegativeKeywordSharedSetIds"): {
+        "--negative-keyword-shared-set-ids"
+    },
+    ("campaigns", "update", "TextCampaign.NegativeKeywordSharedSetIds.Items"): {
+        "--negative-keyword-shared-set-ids"
+    },
     ("campaigns", "update", "DynamicTextCampaign"): {"--type"},
     ("campaigns", "update", "DynamicTextCampaign.TrackingParams"): {
         "--tracking-params"
@@ -2238,16 +2398,6 @@ OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]
         "status": "missing_followup",
         "issue": "#290",
         "note": "Shared campaign BiddingStrategy builder needs typed support.",
-    },
-    ("campaigns", "add", "TextCampaign"): {
-        "status": "missing_followup",
-        "issue": "#292",
-        "note": "TextCampaign optional fields need typed support or N/A.",
-    },
-    ("campaigns", "update", "TextCampaign"): {
-        "status": "missing_followup",
-        "issue": "#292",
-        "note": "TextCampaign optional fields need typed support or N/A.",
     },
     ("campaigns", "add", "UnifiedCampaign"): {
         "status": "missing_followup",
