@@ -4,10 +4,9 @@ Direct CLI - Command-line interface for Yandex Direct API
 """
 
 import click
-from dotenv import load_dotenv
 
 from . import __version__
-from .auth import get_active_profile, get_credentials
+from .auth import get_active_profile, get_credentials, load_env_file
 from .utils import get_docs_url
 
 from .commands.campaigns import campaigns
@@ -52,7 +51,7 @@ from .commands.v4tags import v4tags
 from .commands.v4wordstat import v4wordstat
 
 # Load .env file
-load_dotenv()
+load_env_file()
 
 
 CLI_EPILOG = """\b

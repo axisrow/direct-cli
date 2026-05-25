@@ -1,0 +1,100 @@
+"""Tests for Direct CLI .env loading rules."""
+
+import os
+from pathlib import Path
+
+from direct_cli import auth
+
+
+def test_load_env_file_uses_cwd_dotenv_by_default(monkeypatch, tmp_path):
+    """Default .env loading is pinned to the command working directory."""
+    calls = []
+
+    def fake_load_dotenv(dotenv_path):
+        calls.append(Path(dotenv_path))
+        return True
+
+    monkeypatch.setattr(auth, "load_dotenv", fake_load_dotenv)
+    monkeypatch.chdir(tmp_path)
+
+    auth.load_env_file()
+
+    assert calls == [tmp_path / ".env"]
+
+
+def test_load_env_file_uses_explicit_path(monkeypatch, tmp_path):
+    """Explicit env paths are respected exactly."""
+    calls = []
+
+    def fake_load_dotenv(dotenv_path):
+        calls.append(Path(dotenv_path))
+        return True
+
+    env_path = tmp_path / "custom.env"
+    monkeypatch.setattr(auth, "load_dotenv", fake_load_dotenv)
+
+    auth.load_env_file(str(env_path))
+
+    assert calls == [env_path]
+
+
+def test_load_env_file_loads_cwd_dotenv(monkeypatch, tmp_path):
+    """A .env in the command working directory is loaded."""
+    monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
+    monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
+    (tmp_path / ".env").write_text(
+        "YANDEX_DIRECT_TOKEN=cwd-token\n" "YANDEX_DIRECT_LOGIN=cwd-login\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    auth.load_env_file()
+
+    assert os.environ["YANDEX_DIRECT_TOKEN"] == "cwd-token"
+    assert os.environ["YANDEX_DIRECT_LOGIN"] == "cwd-login"
+
+
+def test_load_env_file_does_not_search_from_source_location(monkeypatch, tmp_path):
+    """A source-adjacent .env is ignored when the command runs elsewhere."""
+    source_dir = tmp_path / "source"
+    run_dir = tmp_path / "run"
+    source_dir.mkdir()
+    run_dir.mkdir()
+    source_env = source_dir / ".env"
+    source_env.write_text(
+        "YANDEX_DIRECT_TOKEN=source-token\n" "YANDEX_DIRECT_LOGIN=source-login\n",
+        encoding="utf-8",
+    )
+    calls = []
+
+    def fake_load_dotenv(dotenv_path):
+        path = Path(dotenv_path)
+        calls.append(path)
+        if path == source_env:
+            monkeypatch.setenv("YANDEX_DIRECT_TOKEN", "source-token")
+            monkeypatch.setenv("YANDEX_DIRECT_LOGIN", "source-login")
+        return path.exists()
+
+    monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
+    monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
+    monkeypatch.setattr(auth, "load_dotenv", fake_load_dotenv)
+    monkeypatch.chdir(run_dir)
+
+    auth.load_env_file()
+
+    assert calls == [run_dir / ".env"]
+    assert "YANDEX_DIRECT_TOKEN" not in os.environ
+    assert "YANDEX_DIRECT_LOGIN" not in os.environ
+
+
+def test_cli_routes_early_dotenv_loading_through_auth_helper():
+    """cli.py must not call python-dotenv directly."""
+    repo_root = Path(__file__).resolve().parents[1]
+    cli_source = (repo_root / "direct_cli" / "cli.py").read_text(encoding="utf-8")
+
+    assert "from dotenv import load_dotenv" not in cli_source
+    assert (
+        "from .auth import get_active_profile, get_credentials, load_env_file"
+        in cli_source
+    )
+    assert "load_env_file()" in cli_source

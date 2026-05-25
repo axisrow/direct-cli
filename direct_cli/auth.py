@@ -23,7 +23,7 @@ try:
     from dotenv import load_dotenv
 except ImportError:
 
-    def load_dotenv():
+    def load_dotenv(*args: Any, **kwargs: Any) -> None:
         return None
 
 
@@ -108,12 +108,10 @@ def bw_read(item: str, field: str = "password") -> str:
 
 
 def load_env_file(env_path: Optional[str] = None) -> None:
-    """Load environment variables from .env file"""
+    """Load environment variables from an explicit or current-directory .env."""
     if load_dotenv:
-        if env_path:
-            load_dotenv(env_path)
-        else:
-            load_dotenv()
+        dotenv_path = Path(env_path) if env_path else Path.cwd() / ".env"
+        load_dotenv(dotenv_path)
 
 
 def _profile_suffix(profile: str) -> str:
