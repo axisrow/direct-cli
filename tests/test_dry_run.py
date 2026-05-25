@@ -5933,11 +5933,80 @@ def test_campaigns_update_rejects_unified_notification():
         "UNIFIED_CAMPAIGN",
         "--tracking-params",
         "utm_source=direct",
-        "--notification-email",
-        "ops@example.com",
+        "--notification-send-warnings",
+        "YES",
     )
     assert "UnifiedCampaign cannot be combined" in result.output
-    assert "--notification-email" in result.output
+    assert "--notification-send-warnings" in result.output
+
+
+def test_campaigns_add_unified_allows_supported_email_notification_fields():
+    body = _dry_run(
+        "campaigns",
+        "add",
+        "--name",
+        "Unified Email",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "UNIFIED_CAMPAIGN",
+        "--tracking-params",
+        "utm_source=direct",
+        "--notification-email",
+        "ops@example.com",
+        "--notification-send-account-news",
+        "YES",
+    )
+    campaign = body["params"]["Campaigns"][0]
+    assert campaign["Notification"] == {
+        "EmailSettings": {
+            "Email": "ops@example.com",
+            "SendAccountNews": "YES",
+        }
+    }
+
+
+def test_campaigns_update_unified_allows_supported_email_notification_fields():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "UNIFIED_CAMPAIGN",
+        "--tracking-params",
+        "utm_source=direct",
+        "--notification-email",
+        "ops@example.com",
+        "--notification-send-account-news",
+        "NO",
+    )
+    campaign = body["params"]["Campaigns"][0]
+    assert campaign["Notification"] == {
+        "EmailSettings": {
+            "Email": "ops@example.com",
+            "SendAccountNews": "NO",
+        }
+    }
+
+
+def test_campaigns_add_rejects_unified_sms_notification():
+    result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "Unified SMS",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "UNIFIED_CAMPAIGN",
+        "--tracking-params",
+        "utm_source=direct",
+        "--sms-events",
+        "FINISHED",
+    )
+    assert "UnifiedCampaign cannot be combined" in result.output
+    assert "--sms-events" in result.output
 
 
 def test_campaigns_rejects_too_many_negative_keyword_shared_set_ids():
@@ -5984,7 +6053,7 @@ def test_campaigns_help_exposes_typed_campaign_level_flags_not_json_blobs():
         assert "--excluded-sites" in result.output
 
 
-def test_campaigns_help_exposes_text_campaign_optional_flags():
+def test_campaigns_help_exposes_text_and_unified_campaign_optional_flags():
     for command in ("add", "update"):
         result = CliRunner().invoke(cli, ["campaigns", command, "--help"])
         assert result.exit_code == 0

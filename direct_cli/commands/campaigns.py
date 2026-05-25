@@ -1293,12 +1293,10 @@ def add(
                 "--sms-events": sms_events,
                 "--sms-time-from": sms_time_from,
                 "--sms-time-to": sms_time_to,
-                "--notification-email": notification_email,
                 "--notification-check-position-interval": (
                     notification_check_position_interval
                 ),
                 "--notification-warning-balance": notification_warning_balance,
-                "--notification-send-account-news": notification_send_account_news,
                 "--notification-send-warnings": notification_send_warnings,
             }
             provided = [
@@ -1904,14 +1902,10 @@ def update(
                     "--sms-events": sms_events,
                     "--sms-time-from": sms_time_from,
                     "--sms-time-to": sms_time_to,
-                    "--notification-email": notification_email,
                     "--notification-check-position-interval": (
                         notification_check_position_interval
                     ),
                     "--notification-warning-balance": notification_warning_balance,
-                    "--notification-send-account-news": (
-                        notification_send_account_news
-                    ),
                     "--notification-send-warnings": notification_send_warnings,
                 }
                 provided = [
