@@ -584,6 +584,44 @@ def _build_package_bidding_strategy(
     return package_strategy
 
 
+def _build_smart_package_bidding_strategy(
+    strategy_id: Optional[int],
+    strategy_from_campaign_id: Optional[int],
+    search: Optional[str],
+    network: Optional[str],
+    *,
+    require_platforms: bool,
+) -> Optional[dict]:
+    """Build SmartCampaign.PackageBiddingStrategy from typed flags."""
+    values = (strategy_id, strategy_from_campaign_id, search, network)
+    if not any(value is not None for value in values):
+        return None
+
+    has_platform_flags = search is not None or network is not None
+    if (require_platforms or has_platform_flags) and (
+        search is None or network is None
+    ):
+        raise click.UsageError(
+            "SmartCampaign.PackageBiddingStrategy requires "
+            "--package-platform-search and --package-platform-network"
+        )
+
+    package_strategy: dict = {}
+    if strategy_id is not None:
+        package_strategy["StrategyId"] = strategy_id
+    if strategy_from_campaign_id is not None:
+        package_strategy["StrategyFromCampaignId"] = strategy_from_campaign_id
+    if search is not None or network is not None:
+        assert search is not None
+        assert network is not None
+        package_strategy["Platforms"] = {
+            "Search": search.upper(),
+            "Network": network.upper(),
+        }
+
+    return package_strategy
+
+
 def _priority_goals_update_items(
     priority_goals_items: Optional[List[dict]],
 ) -> Optional[List[dict]]:
@@ -870,20 +908,31 @@ def get(
 @click.option(
     "--attribution-model",
     type=click.Choice(ATTRIBUTION_MODELS, case_sensitive=False),
-    help="TextCampaign/UnifiedCampaign/DynamicTextCampaign.AttributionModel",
+    help=(
+        "TextCampaign/UnifiedCampaign/DynamicTextCampaign/SmartCampaign."
+        "AttributionModel"
+    ),
 )
 @click.option(
     "--package-strategy-id",
     type=int,
-    help="TextCampaign/UnifiedCampaign/DynamicTextCampaign.PackageBiddingStrategy.StrategyId",
+    help=(
+        "TextCampaign/UnifiedCampaign/DynamicTextCampaign/SmartCampaign."
+        "PackageBiddingStrategy.StrategyId"
+    ),
 )
 @click.option(
     "--package-strategy-from-campaign-id",
     type=int,
     help=(
-        "TextCampaign/UnifiedCampaign/DynamicTextCampaign."
+        "TextCampaign/UnifiedCampaign/DynamicTextCampaign/SmartCampaign."
         "PackageBiddingStrategy.StrategyFromCampaignId"
     ),
+)
+@click.option(
+    "--package-platform-search",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="SmartCampaign.PackageBiddingStrategy.Platforms.Search",
 )
 @click.option(
     "--package-platform-search-result",
@@ -908,7 +957,10 @@ def get(
 @click.option(
     "--package-platform-network",
     type=click.Choice(YES_NO, case_sensitive=False),
-    help="TextCampaign/UnifiedCampaign.PackageBiddingStrategy.Platforms.Network",
+    help=(
+        "TextCampaign/UnifiedCampaign/SmartCampaign."
+        "PackageBiddingStrategy.Platforms.Network"
+    ),
 )
 @click.option(
     "--package-platform-dynamic-places",
@@ -1061,6 +1113,7 @@ def add(
     attribution_model,
     package_strategy_id,
     package_strategy_from_campaign_id,
+    package_platform_search,
     package_platform_search_result,
     package_platform_product_gallery,
     package_platform_maps,
@@ -1183,7 +1236,13 @@ def add(
                 "--network-strategy",
                 "--filter-average-cpc",
                 "--counter-id",
+                "--priority-goals",
                 "--tracking-params",
+                "--attribution-model",
+                "--package-strategy-id",
+                "--package-strategy-from-campaign-id",
+                "--package-platform-search",
+                "--package-platform-network",
             },
         }
         _reject_incompatible_flags(
@@ -1212,6 +1271,7 @@ def add(
                 "--package-strategy-from-campaign-id": (
                     package_strategy_from_campaign_id
                 ),
+                "--package-platform-search": package_platform_search,
                 "--package-platform-search-result": package_platform_search_result,
                 "--package-platform-product-gallery": (
                     package_platform_product_gallery
@@ -1283,28 +1343,39 @@ def add(
             relevant_keywords_optimize_goal_id,
             require_budget_percent=True,
         )
-        package_label = (
-            "UnifiedCampaign"
-            if campaign_type_norm == "UNIFIED_CAMPAIGN"
-            else (
-                "DynamicTextCampaign"
-                if campaign_type_norm == "DYNAMIC_TEXT_CAMPAIGN"
-                else "TextCampaign"
+        package_bidding_strategy_obj = None
+        smart_package_bidding_strategy_obj = None
+        if campaign_type_norm == "SMART_CAMPAIGN":
+            smart_package_bidding_strategy_obj = _build_smart_package_bidding_strategy(
+                package_strategy_id,
+                package_strategy_from_campaign_id,
+                package_platform_search,
+                package_platform_network,
+                require_platforms=True,
             )
-        )
-        package_bidding_strategy_obj = _build_package_bidding_strategy(
-            package_strategy_id,
-            package_strategy_from_campaign_id,
-            package_platform_search_result,
-            package_platform_product_gallery,
-            package_platform_maps,
-            package_platform_search_organization_list,
-            package_platform_network,
-            package_platform_dynamic_places,
-            campaign_label=package_label,
-            require_platforms=campaign_type_norm
-            in {"TEXT_CAMPAIGN", "UNIFIED_CAMPAIGN"},
-        )
+        else:
+            package_label = (
+                "UnifiedCampaign"
+                if campaign_type_norm == "UNIFIED_CAMPAIGN"
+                else (
+                    "DynamicTextCampaign"
+                    if campaign_type_norm == "DYNAMIC_TEXT_CAMPAIGN"
+                    else "TextCampaign"
+                )
+            )
+            package_bidding_strategy_obj = _build_package_bidding_strategy(
+                package_strategy_id,
+                package_strategy_from_campaign_id,
+                package_platform_search_result,
+                package_platform_product_gallery,
+                package_platform_maps,
+                package_platform_search_organization_list,
+                package_platform_network,
+                package_platform_dynamic_places,
+                campaign_label=package_label,
+                require_platforms=campaign_type_norm
+                in {"TEXT_CAMPAIGN", "UNIFIED_CAMPAIGN"},
+            )
         negative_keyword_shared_set_ids_obj = _array_of_integer_option(
             "--negative-keyword-shared-set-ids",
             negative_keyword_shared_set_ids,
@@ -1337,6 +1408,24 @@ def add(
                     f"{package_label}.PackageBiddingStrategy cannot be combined with "
                     f"{', '.join(sorted(provided))}"
                 )
+        if smart_package_bidding_strategy_obj is not None:
+            smart_package_incompatible = {
+                "--search-strategy": search_strategy,
+                "--network-strategy": network_strategy,
+                "--filter-average-cpc": filter_average_cpc,
+                "--priority-goals": priority_goals,
+                "--attribution-model": attribution_model,
+            }
+            provided = [
+                flag
+                for flag, value in smart_package_incompatible.items()
+                if value is not None
+            ]
+            if provided:
+                raise click.UsageError(
+                    "SmartCampaign.PackageBiddingStrategy cannot be combined with "
+                    f"{', '.join(sorted(provided))}"
+                )
 
         if campaign_type_norm == "UNIFIED_CAMPAIGN":
             unified_campaign_level_conflicts = {
@@ -1366,6 +1455,12 @@ def add(
                     "a compatible UnifiedCampaign.BiddingStrategy; shared "
                     "BiddingStrategy support is tracked in #290."
                 )
+        if campaign_type_norm == "SMART_CAMPAIGN" and priority_goals is not None:
+            raise click.UsageError(
+                "SmartCampaign.PriorityGoals on campaigns add requires a compatible "
+                "SmartCampaign.BiddingStrategy; shared BiddingStrategy support is "
+                "tracked in #290."
+            )
 
         campaign_data = {"Name": name, "StartDate": start_date}
         parsed_settings = parse_setting_specs(list(settings))
@@ -1473,33 +1568,38 @@ def add(
                     "--counter-id is required for SMART_CAMPAIGN "
                     "(WSDL SmartCampaignAddItem.CounterId minOccurs=1)"
                 )
-            network_strategy_type = network_strategy or "AVERAGE_CPC_PER_FILTER"
-            if (
-                filter_average_cpc is not None
-                and network_strategy_type != "AVERAGE_CPC_PER_FILTER"
-            ):
-                raise click.UsageError(
-                    "--filter-average-cpc is only valid for SMART_CAMPAIGN "
-                    "with AVERAGE_CPC_PER_FILTER network strategy"
+            smart_campaign: Dict[str, object] = {"CounterId": counter_id}
+            if smart_package_bidding_strategy_obj is not None:
+                smart_campaign["PackageBiddingStrategy"] = (
+                    smart_package_bidding_strategy_obj
                 )
-            smart_campaign = {
-                "BiddingStrategy": {
-                    "Search": {"BiddingStrategyType": search_strategy or "SERVING_OFF"},
-                    "Network": {"BiddingStrategyType": network_strategy_type},
-                },
-                "CounterId": counter_id,
-            }
-            if network_strategy_type == "AVERAGE_CPC_PER_FILTER":
-                if filter_average_cpc is None:
+            else:
+                network_strategy_type = network_strategy or "AVERAGE_CPC_PER_FILTER"
+                if (
+                    filter_average_cpc is not None
+                    and network_strategy_type != "AVERAGE_CPC_PER_FILTER"
+                ):
                     raise click.UsageError(
-                        "--filter-average-cpc is required for SMART_CAMPAIGN "
+                        "--filter-average-cpc is only valid for SMART_CAMPAIGN "
                         "with AVERAGE_CPC_PER_FILTER network strategy"
                     )
-                smart_campaign["BiddingStrategy"]["Network"]["AverageCpcPerFilter"] = {
-                    "FilterAverageCpc": filter_average_cpc
+                smart_campaign["BiddingStrategy"] = {
+                    "Search": {"BiddingStrategyType": search_strategy or "SERVING_OFF"},
+                    "Network": {"BiddingStrategyType": network_strategy_type},
                 }
+                if network_strategy_type == "AVERAGE_CPC_PER_FILTER":
+                    if filter_average_cpc is None:
+                        raise click.UsageError(
+                            "--filter-average-cpc is required for SMART_CAMPAIGN "
+                            "with AVERAGE_CPC_PER_FILTER network strategy"
+                        )
+                    smart_campaign["BiddingStrategy"]["Network"][
+                        "AverageCpcPerFilter"
+                    ] = {"FilterAverageCpc": filter_average_cpc}
             if parsed_settings:
                 smart_campaign["Settings"] = parsed_settings
+            if attribution_model:
+                smart_campaign["AttributionModel"] = attribution_model.upper()
             if tracking_params:
                 smart_campaign["TrackingParams"] = tracking_params
             campaign_data["SmartCampaign"] = smart_campaign
@@ -1562,8 +1662,12 @@ def add(
     "--setting",
     "settings",
     multiple=True,
-    help="TextCampaign/UnifiedCampaign/DynamicTextCampaign.Settings spec: OPTION=VALUE",
+    help=(
+        "TextCampaign/UnifiedCampaign/DynamicTextCampaign/SmartCampaign."
+        "Settings spec: OPTION=VALUE"
+    ),
 )
+@click.option("--counter-id", type=int, help="SmartCampaign.CounterId")
 @click.option(
     "--counter-ids",
     help="Comma-separated TextCampaign/UnifiedCampaign/DynamicTextCampaign.CounterIds.Items",
@@ -1582,7 +1686,8 @@ def add(
     "--priority-goals",
     help=(
         "Comma-separated "
-        "TextCampaign/UnifiedCampaign/DynamicTextCampaign.PriorityGoals "
+        "TextCampaign/UnifiedCampaign/DynamicTextCampaign/SmartCampaign."
+        "PriorityGoals "
         "goal_id:value[:YES|NO] pairs"
     ),
 )
@@ -1604,20 +1709,31 @@ def add(
 @click.option(
     "--attribution-model",
     type=click.Choice(ATTRIBUTION_MODELS, case_sensitive=False),
-    help="TextCampaign/UnifiedCampaign/DynamicTextCampaign.AttributionModel",
+    help=(
+        "TextCampaign/UnifiedCampaign/DynamicTextCampaign/SmartCampaign."
+        "AttributionModel"
+    ),
 )
 @click.option(
     "--package-strategy-id",
     type=int,
-    help="TextCampaign/UnifiedCampaign/DynamicTextCampaign.PackageBiddingStrategy.StrategyId",
+    help=(
+        "TextCampaign/UnifiedCampaign/DynamicTextCampaign/SmartCampaign."
+        "PackageBiddingStrategy.StrategyId"
+    ),
 )
 @click.option(
     "--package-strategy-from-campaign-id",
     type=int,
     help=(
-        "TextCampaign/UnifiedCampaign/DynamicTextCampaign."
+        "TextCampaign/UnifiedCampaign/DynamicTextCampaign/SmartCampaign."
         "PackageBiddingStrategy.StrategyFromCampaignId"
     ),
+)
+@click.option(
+    "--package-platform-search",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="SmartCampaign.PackageBiddingStrategy.Platforms.Search",
 )
 @click.option(
     "--package-platform-search-result",
@@ -1642,7 +1758,10 @@ def add(
 @click.option(
     "--package-platform-network",
     type=click.Choice(YES_NO, case_sensitive=False),
-    help="TextCampaign/UnifiedCampaign.PackageBiddingStrategy.Platforms.Network",
+    help=(
+        "TextCampaign/UnifiedCampaign/SmartCampaign."
+        "PackageBiddingStrategy.Platforms.Network"
+    ),
 )
 @click.option(
     "--package-platform-dynamic-places",
@@ -1772,6 +1891,7 @@ def update(
     start_date,
     end_date,
     settings,
+    counter_id,
     counter_ids,
     dynamic_placement_search_results,
     dynamic_placement_product_gallery,
@@ -1782,6 +1902,7 @@ def update(
     attribution_model,
     package_strategy_id,
     package_strategy_from_campaign_id,
+    package_platform_search,
     package_platform_search_result,
     package_platform_product_gallery,
     package_platform_maps,
@@ -1894,6 +2015,7 @@ def update(
         )
         subtype_flag_values = {
             "--setting": list(settings) or None,
+            "--counter-id": counter_id,
             "--counter-ids": counter_ids,
             "--dynamic-placement-search-results": dynamic_placement_search_results,
             "--dynamic-placement-product-gallery": dynamic_placement_product_gallery,
@@ -1906,6 +2028,7 @@ def update(
             "--attribution-model": attribution_model,
             "--package-strategy-id": package_strategy_id,
             "--package-strategy-from-campaign-id": package_strategy_from_campaign_id,
+            "--package-platform-search": package_platform_search,
             "--package-platform-search-result": package_platform_search_result,
             "--package-platform-product-gallery": package_platform_product_gallery,
             "--package-platform-maps": package_platform_maps,
@@ -1982,11 +2105,22 @@ def update(
                 "--negative-keyword-shared-set-ids",
                 "--tracking-params",
             }
+            smart_campaign_flags = {
+                "--setting",
+                "--counter-id",
+                "--priority-goals",
+                "--attribution-model",
+                "--package-strategy-id",
+                "--package-strategy-from-campaign-id",
+                "--package-platform-search",
+                "--package-platform-network",
+                "--tracking-params",
+            }
             allowed_subtype_flags_by_type = {
                 "TEXT_CAMPAIGN": text_campaign_flags,
                 "UNIFIED_CAMPAIGN": unified_campaign_flags,
                 "DYNAMIC_TEXT_CAMPAIGN": dynamic_campaign_flags,
-                "SMART_CAMPAIGN": {"--tracking-params"},
+                "SMART_CAMPAIGN": smart_campaign_flags,
             }
             _reject_incompatible_flags(
                 campaign_type_norm,
@@ -2099,6 +2233,47 @@ def update(
                 if negative_keyword_shared_set_ids_obj is not None:
                     sub_block["NegativeKeywordSharedSetIds"] = (
                         negative_keyword_shared_set_ids_obj
+                    )
+            elif campaign_type_norm == "SMART_CAMPAIGN":
+                parsed_settings = parse_setting_specs(list(settings))
+                if parsed_settings:
+                    sub_block["Settings"] = parsed_settings
+                if counter_id is not None:
+                    sub_block["CounterId"] = counter_id
+                priority_goals_items = _priority_goals_update_items(
+                    parse_priority_goals_spec(priority_goals)
+                )
+                if priority_goals_items is not None:
+                    sub_block["PriorityGoals"] = {"Items": priority_goals_items}
+                if attribution_model:
+                    sub_block["AttributionModel"] = attribution_model.upper()
+                smart_package_bidding_strategy_obj = (
+                    _build_smart_package_bidding_strategy(
+                        package_strategy_id,
+                        package_strategy_from_campaign_id,
+                        package_platform_search,
+                        package_platform_network,
+                        require_platforms=False,
+                    )
+                )
+                if smart_package_bidding_strategy_obj is not None:
+                    package_incompatible = {
+                        "--counter-id": counter_id,
+                        "--priority-goals": priority_goals,
+                        "--attribution-model": attribution_model,
+                    }
+                    provided = [
+                        flag
+                        for flag, value in package_incompatible.items()
+                        if value is not None
+                    ]
+                    if provided:
+                        raise click.UsageError(
+                            "SmartCampaign.PackageBiddingStrategy cannot be "
+                            f"combined with {', '.join(sorted(provided))}"
+                        )
+                    sub_block["PackageBiddingStrategy"] = (
+                        smart_package_bidding_strategy_obj
                     )
             if tracking_params:
                 sub_block["TrackingParams"] = tracking_params

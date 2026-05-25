@@ -2453,6 +2453,62 @@ for _path in (
         "--priority-goals"
     }
 
+for _campaign_op in ("add", "update"):
+    OPTIONAL_FIELD_CLI_OPTIONS[("campaigns", _campaign_op, "SmartCampaign")] = {
+        "--type"
+    }
+    for _path in (
+        "Settings",
+        "Settings.Option",
+        "Settings.Value",
+    ):
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            ("campaigns", _campaign_op, f"SmartCampaign.{_path}")
+        ] = {"--setting"}
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("campaigns", _campaign_op, "SmartCampaign.CounterId")
+    ] = {"--counter-id"}
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("campaigns", _campaign_op, "SmartCampaign.TrackingParams")
+    ] = {"--tracking-params"}
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("campaigns", _campaign_op, "SmartCampaign.AttributionModel")
+    ] = {"--attribution-model"}
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("campaigns", _campaign_op, "SmartCampaign.PackageBiddingStrategy")
+    ] = {
+        "--package-strategy-id",
+        "--package-strategy-from-campaign-id",
+        "--package-platform-search",
+        "--package-platform-network",
+    }
+    for _path, _flag in {
+        "PackageBiddingStrategy.StrategyId": "--package-strategy-id",
+        "PackageBiddingStrategy.StrategyFromCampaignId": (
+            "--package-strategy-from-campaign-id"
+        ),
+        "PackageBiddingStrategy.Platforms.Search": "--package-platform-search",
+        "PackageBiddingStrategy.Platforms.Network": "--package-platform-network",
+    }.items():
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            ("campaigns", _campaign_op, f"SmartCampaign.{_path}")
+        ] = {_flag}
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("campaigns", _campaign_op, "SmartCampaign.PackageBiddingStrategy.Platforms")
+    ] = {"--package-platform-search", "--package-platform-network"}
+
+for _path in (
+    "PriorityGoals",
+    "PriorityGoals.Items",
+    "PriorityGoals.Items.GoalId",
+    "PriorityGoals.Items.Value",
+    "PriorityGoals.Items.IsMetrikaSourceOfValue",
+    "PriorityGoals.Items.Operation",
+):
+    OPTIONAL_FIELD_CLI_OPTIONS[("campaigns", "update", f"SmartCampaign.{_path}")] = {
+        "--priority-goals"
+    }
+
 OPTIONAL_FIELD_DEFAULT_FOLLOWUPS: dict[tuple[str, str], dict[str, str]] = {
     ("ads", "update"): {
         "issue": "#272",
@@ -2541,6 +2597,14 @@ OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]
         "issue": "#290",
         "note": "Shared campaign BiddingStrategy builder needs typed support.",
     },
+    ("campaigns", "add", "SmartCampaign.PriorityGoals"): {
+        "status": "missing_followup",
+        "issue": "#290",
+        "note": (
+            "SmartCampaign.PriorityGoals on add requires compatible "
+            "SmartCampaign.BiddingStrategy typed support."
+        ),
+    },
     ("campaigns", "add", "MobileAppCampaign.BiddingStrategy"): {
         "status": "missing_followup",
         "issue": "#290",
@@ -2560,16 +2624,6 @@ OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]
         "status": "missing_followup",
         "issue": "#290",
         "note": "Shared campaign BiddingStrategy builder needs typed support.",
-    },
-    ("campaigns", "add", "SmartCampaign"): {
-        "status": "missing_followup",
-        "issue": "#295",
-        "note": "SmartCampaign optional fields need typed support or N/A.",
-    },
-    ("campaigns", "update", "SmartCampaign"): {
-        "status": "missing_followup",
-        "issue": "#295",
-        "note": "SmartCampaign optional fields need typed support or N/A.",
     },
     ("campaigns", "add", "MobileAppCampaign"): {
         "status": "missing_followup",
