@@ -494,22 +494,27 @@ def _build_relevant_keywords(
     return relevant_keywords
 
 
-def _build_text_package_bidding_strategy(
+def _build_package_bidding_strategy(
     strategy_id: Optional[int],
     strategy_from_campaign_id: Optional[int],
     search_result: Optional[str],
     product_gallery: Optional[str],
+    maps: Optional[str],
+    search_organization_list: Optional[str],
     network: Optional[str],
     dynamic_places: Optional[str],
     *,
+    campaign_label: str,
     require_platforms: bool,
 ) -> Optional[dict]:
-    """Build TextCampaign.PackageBiddingStrategy from typed flags."""
+    """Build Campaign.PackageBiddingStrategy from typed flags."""
     values = (
         strategy_id,
         strategy_from_campaign_id,
         search_result,
         product_gallery,
+        maps,
+        search_organization_list,
         network,
         dynamic_places,
     )
@@ -518,13 +523,20 @@ def _build_text_package_bidding_strategy(
 
     has_platform_flags = any(
         value is not None
-        for value in (search_result, product_gallery, network, dynamic_places)
+        for value in (
+            search_result,
+            product_gallery,
+            maps,
+            search_organization_list,
+            network,
+            dynamic_places,
+        )
     )
     if (require_platforms or has_platform_flags) and (
         search_result is None or product_gallery is None or network is None
     ):
         raise click.UsageError(
-            "TextCampaign.PackageBiddingStrategy requires "
+            f"{campaign_label}.PackageBiddingStrategy requires "
             "--package-platform-search-result, "
             "--package-platform-product-gallery, and --package-platform-network"
         )
@@ -538,6 +550,8 @@ def _build_text_package_bidding_strategy(
     platform_values = {
         "SearchResult": search_result,
         "ProductGallery": product_gallery,
+        "Maps": maps,
+        "SearchOrganizationList": search_organization_list,
         "Network": network,
         "DynamicPlaces": dynamic_places,
     }
@@ -790,7 +804,7 @@ def get(
     "--counter-ids",
     help=(
         "Comma-separated Metrika counter IDs "
-        "(TextCampaign/DynamicTextCampaign.CounterIds)"
+        "(TextCampaign/UnifiedCampaign/DynamicTextCampaign.CounterIds)"
     ),
 )
 @click.option(
@@ -805,7 +819,7 @@ def get(
     "--priority-goals",
     help=(
         "Comma-separated goal_id:value[:YES|NO] pairs for "
-        "TextCampaign.PriorityGoals (required for "
+        "TextCampaign/UnifiedCampaign.PriorityGoals (required for "
         "AVERAGE_CPA_MULTIPLE_GOALS / PAY_FOR_CONVERSION_MULTIPLE_GOALS)"
     ),
 )
@@ -827,41 +841,56 @@ def get(
 @click.option(
     "--attribution-model",
     type=click.Choice(ATTRIBUTION_MODELS, case_sensitive=False),
-    help="TextCampaign.AttributionModel",
+    help="TextCampaign/UnifiedCampaign.AttributionModel",
 )
 @click.option(
     "--package-strategy-id",
     type=int,
-    help="TextCampaign.PackageBiddingStrategy.StrategyId",
+    help="TextCampaign/UnifiedCampaign.PackageBiddingStrategy.StrategyId",
 )
 @click.option(
     "--package-strategy-from-campaign-id",
     type=int,
-    help="TextCampaign.PackageBiddingStrategy.StrategyFromCampaignId",
+    help="TextCampaign/UnifiedCampaign.PackageBiddingStrategy.StrategyFromCampaignId",
 )
 @click.option(
     "--package-platform-search-result",
     type=click.Choice(YES_NO, case_sensitive=False),
-    help="TextCampaign.PackageBiddingStrategy.Platforms.SearchResult",
+    help="TextCampaign/UnifiedCampaign.PackageBiddingStrategy.Platforms.SearchResult",
 )
 @click.option(
     "--package-platform-product-gallery",
     type=click.Choice(YES_NO, case_sensitive=False),
-    help="TextCampaign.PackageBiddingStrategy.Platforms.ProductGallery",
+    help="TextCampaign/UnifiedCampaign.PackageBiddingStrategy.Platforms.ProductGallery",
+)
+@click.option(
+    "--package-platform-maps",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="UnifiedCampaign.PackageBiddingStrategy.Platforms.Maps",
+)
+@click.option(
+    "--package-platform-search-organization-list",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="UnifiedCampaign.PackageBiddingStrategy.Platforms.SearchOrganizationList",
 )
 @click.option(
     "--package-platform-network",
     type=click.Choice(YES_NO, case_sensitive=False),
-    help="TextCampaign.PackageBiddingStrategy.Platforms.Network",
+    help="TextCampaign/UnifiedCampaign.PackageBiddingStrategy.Platforms.Network",
 )
 @click.option(
     "--package-platform-dynamic-places",
     type=click.Choice(YES_NO, case_sensitive=False),
-    help="TextCampaign.PackageBiddingStrategy.Platforms.DynamicPlaces",
+    help=(
+        "TextCampaign/UnifiedCampaign.PackageBiddingStrategy." "Platforms.DynamicPlaces"
+    ),
 )
 @click.option(
     "--negative-keyword-shared-set-ids",
-    help="Comma-separated TextCampaign.NegativeKeywordSharedSetIds.Items",
+    help=(
+        "Comma-separated "
+        "TextCampaign/UnifiedCampaign.NegativeKeywordSharedSetIds.Items"
+    ),
 )
 @click.option(
     "--average-cpa",
@@ -969,7 +998,8 @@ def get(
     "tracking_params",
     help=(
         "Tracking params query-string for "
-        "TextCampaign/DynamicTextCampaign/SmartCampaign.TrackingParams "
+        "TextCampaign/UnifiedCampaign/DynamicTextCampaign/SmartCampaign."
+        "TrackingParams "
         '(e.g. "utm_source=direct&utm_campaign={campaign_id}")'
     ),
 )
@@ -998,6 +1028,8 @@ def add(
     package_strategy_from_campaign_id,
     package_platform_search_result,
     package_platform_product_gallery,
+    package_platform_maps,
+    package_platform_search_organization_list,
     package_platform_network,
     package_platform_dynamic_places,
     negative_keyword_shared_set_ids,
@@ -1033,6 +1065,7 @@ def add(
         )
         supported_types = {
             "TEXT_CAMPAIGN",
+            "UNIFIED_CAMPAIGN",
             "DYNAMIC_TEXT_CAMPAIGN",
             "SMART_CAMPAIGN",
         }
@@ -1040,7 +1073,8 @@ def add(
             raise click.UsageError(
                 "Invalid value for '--type': "
                 f"{campaign_type!r} is not one of "
-                "'TEXT_CAMPAIGN', 'DYNAMIC_TEXT_CAMPAIGN', 'SMART_CAMPAIGN'."
+                "'TEXT_CAMPAIGN', 'UNIFIED_CAMPAIGN', "
+                "'DYNAMIC_TEXT_CAMPAIGN', 'SMART_CAMPAIGN'."
             )
 
         # Shared flags for TextCampaign / DynamicTextCampaign:
@@ -1079,6 +1113,22 @@ def add(
                 "--negative-keyword-shared-set-ids",
             }
             | text_dynamic_extras,
+            "UNIFIED_CAMPAIGN": {
+                "--setting",
+                "--counter-ids",
+                "--priority-goals",
+                "--tracking-params",
+                "--attribution-model",
+                "--package-strategy-id",
+                "--package-strategy-from-campaign-id",
+                "--package-platform-search-result",
+                "--package-platform-product-gallery",
+                "--package-platform-maps",
+                "--package-platform-search-organization-list",
+                "--package-platform-network",
+                "--package-platform-dynamic-places",
+                "--negative-keyword-shared-set-ids",
+            },
             "DYNAMIC_TEXT_CAMPAIGN": {
                 "--setting",
                 "--search-strategy",
@@ -1120,6 +1170,10 @@ def add(
                 "--package-platform-search-result": package_platform_search_result,
                 "--package-platform-product-gallery": (
                     package_platform_product_gallery
+                ),
+                "--package-platform-maps": package_platform_maps,
+                "--package-platform-search-organization-list": (
+                    package_platform_search_organization_list
                 ),
                 "--package-platform-network": package_platform_network,
                 "--package-platform-dynamic-places": package_platform_dynamic_places,
@@ -1183,13 +1237,21 @@ def add(
             relevant_keywords_optimize_goal_id,
             require_budget_percent=True,
         )
-        package_bidding_strategy_obj = _build_text_package_bidding_strategy(
+        package_label = (
+            "UnifiedCampaign"
+            if campaign_type_norm == "UNIFIED_CAMPAIGN"
+            else "TextCampaign"
+        )
+        package_bidding_strategy_obj = _build_package_bidding_strategy(
             package_strategy_id,
             package_strategy_from_campaign_id,
             package_platform_search_result,
             package_platform_product_gallery,
+            package_platform_maps,
+            package_platform_search_organization_list,
             package_platform_network,
             package_platform_dynamic_places,
+            campaign_label=package_label,
             require_platforms=True,
         )
         negative_keyword_shared_set_ids_obj = _array_of_integer_option(
@@ -1207,6 +1269,13 @@ def add(
                 "--crr": crr,
                 "--bid-ceiling": bid_ceiling,
             }
+            if campaign_type_norm == "UNIFIED_CAMPAIGN":
+                package_incompatible.update(
+                    {
+                        "--counter-ids": counter_ids,
+                        "--attribution-model": attribution_model,
+                    }
+                )
             provided = [
                 flag
                 for flag, value in package_incompatible.items()
@@ -1214,8 +1283,37 @@ def add(
             ]
             if provided:
                 raise click.UsageError(
-                    "TextCampaign.PackageBiddingStrategy cannot be combined with "
+                    f"{package_label}.PackageBiddingStrategy cannot be combined with "
                     f"{', '.join(sorted(provided))}"
+                )
+
+        if campaign_type_norm == "UNIFIED_CAMPAIGN":
+            unified_campaign_level_conflicts = {
+                "--client-info": client_info_obj,
+                "--sms-events": sms_events,
+                "--sms-time-from": sms_time_from,
+                "--sms-time-to": sms_time_to,
+                "--notification-check-position-interval": (
+                    notification_check_position_interval
+                ),
+                "--notification-warning-balance": notification_warning_balance,
+                "--notification-send-warnings": notification_send_warnings,
+            }
+            provided = [
+                flag
+                for flag, value in unified_campaign_level_conflicts.items()
+                if value is not None
+            ]
+            if provided:
+                raise click.UsageError(
+                    "UnifiedCampaign cannot be combined with "
+                    f"{', '.join(sorted(provided))}"
+                )
+            if priority_goals is not None:
+                raise click.UsageError(
+                    "UnifiedCampaign.PriorityGoals on campaigns add requires "
+                    "a compatible UnifiedCampaign.BiddingStrategy; shared "
+                    "BiddingStrategy support is tracked in #290."
                 )
 
         campaign_data = {"Name": name, "StartDate": start_date}
@@ -1257,6 +1355,28 @@ def add(
             if tracking_params:
                 text_block["TrackingParams"] = tracking_params
             campaign_data["TextCampaign"] = text_block
+        elif campaign_type_norm == "UNIFIED_CAMPAIGN":
+            unified_block = {"Settings": parsed_settings or []}
+            if package_bidding_strategy_obj is not None:
+                unified_block["PackageBiddingStrategy"] = package_bidding_strategy_obj
+            else:
+                unified_block["BiddingStrategy"] = {
+                    "Search": {"BiddingStrategyType": "HIGHEST_POSITION"},
+                    "Network": {"BiddingStrategyType": "SERVING_OFF"},
+                }
+            if counter_ids_obj is not None:
+                unified_block["CounterIds"] = counter_ids_obj
+            if priority_goals_items is not None:
+                unified_block["PriorityGoals"] = {"Items": priority_goals_items}
+            if attribution_model:
+                unified_block["AttributionModel"] = attribution_model.upper()
+            if negative_keyword_shared_set_ids_obj is not None:
+                unified_block["NegativeKeywordSharedSetIds"] = (
+                    negative_keyword_shared_set_ids_obj
+                )
+            if tracking_params:
+                unified_block["TrackingParams"] = tracking_params
+            campaign_data["UnifiedCampaign"] = unified_block
         elif campaign_type_norm == "DYNAMIC_TEXT_CAMPAIGN":
             dyn_block = {
                 "BiddingStrategy": {
@@ -1382,15 +1502,18 @@ def add(
     "--setting",
     "settings",
     multiple=True,
-    help="TextCampaign.Settings spec for --type TEXT_CAMPAIGN: OPTION=VALUE",
+    help="TextCampaign/UnifiedCampaign.Settings spec: OPTION=VALUE",
 )
 @click.option(
     "--counter-ids",
-    help="Comma-separated TextCampaign.CounterIds.Items for --type TEXT_CAMPAIGN",
+    help="Comma-separated TextCampaign/UnifiedCampaign.CounterIds.Items",
 )
 @click.option(
     "--priority-goals",
-    help="Comma-separated TextCampaign.PriorityGoals goal_id:value[:YES|NO] pairs",
+    help=(
+        "Comma-separated "
+        "TextCampaign/UnifiedCampaign.PriorityGoals goal_id:value[:YES|NO] pairs"
+    ),
 )
 @click.option(
     "--relevant-keywords-budget-percent",
@@ -1410,41 +1533,56 @@ def add(
 @click.option(
     "--attribution-model",
     type=click.Choice(ATTRIBUTION_MODELS, case_sensitive=False),
-    help="TextCampaign.AttributionModel",
+    help="TextCampaign/UnifiedCampaign.AttributionModel",
 )
 @click.option(
     "--package-strategy-id",
     type=int,
-    help="TextCampaign.PackageBiddingStrategy.StrategyId",
+    help="TextCampaign/UnifiedCampaign.PackageBiddingStrategy.StrategyId",
 )
 @click.option(
     "--package-strategy-from-campaign-id",
     type=int,
-    help="TextCampaign.PackageBiddingStrategy.StrategyFromCampaignId",
+    help="TextCampaign/UnifiedCampaign.PackageBiddingStrategy.StrategyFromCampaignId",
 )
 @click.option(
     "--package-platform-search-result",
     type=click.Choice(YES_NO, case_sensitive=False),
-    help="TextCampaign.PackageBiddingStrategy.Platforms.SearchResult",
+    help="TextCampaign/UnifiedCampaign.PackageBiddingStrategy.Platforms.SearchResult",
 )
 @click.option(
     "--package-platform-product-gallery",
     type=click.Choice(YES_NO, case_sensitive=False),
-    help="TextCampaign.PackageBiddingStrategy.Platforms.ProductGallery",
+    help="TextCampaign/UnifiedCampaign.PackageBiddingStrategy.Platforms.ProductGallery",
+)
+@click.option(
+    "--package-platform-maps",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="UnifiedCampaign.PackageBiddingStrategy.Platforms.Maps",
+)
+@click.option(
+    "--package-platform-search-organization-list",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="UnifiedCampaign.PackageBiddingStrategy.Platforms.SearchOrganizationList",
 )
 @click.option(
     "--package-platform-network",
     type=click.Choice(YES_NO, case_sensitive=False),
-    help="TextCampaign.PackageBiddingStrategy.Platforms.Network",
+    help="TextCampaign/UnifiedCampaign.PackageBiddingStrategy.Platforms.Network",
 )
 @click.option(
     "--package-platform-dynamic-places",
     type=click.Choice(YES_NO, case_sensitive=False),
-    help="TextCampaign.PackageBiddingStrategy.Platforms.DynamicPlaces",
+    help=(
+        "TextCampaign/UnifiedCampaign.PackageBiddingStrategy." "Platforms.DynamicPlaces"
+    ),
 )
 @click.option(
     "--negative-keyword-shared-set-ids",
-    help="Comma-separated TextCampaign.NegativeKeywordSharedSetIds.Items",
+    help=(
+        "Comma-separated "
+        "TextCampaign/UnifiedCampaign.NegativeKeywordSharedSetIds.Items"
+    ),
 )
 @click.option(
     "--notification",
@@ -1534,7 +1672,8 @@ def add(
     "campaign_type",
     help=(
         "Campaign subtype "
-        "(TEXT_CAMPAIGN | DYNAMIC_TEXT_CAMPAIGN | SMART_CAMPAIGN). "
+        "(TEXT_CAMPAIGN | UNIFIED_CAMPAIGN | "
+        "DYNAMIC_TEXT_CAMPAIGN | SMART_CAMPAIGN). "
         "Required when updating subtype-specific fields."
     ),
 )
@@ -1543,7 +1682,8 @@ def add(
     "tracking_params",
     help=(
         "Tracking params query-string for "
-        "TextCampaign/DynamicTextCampaign/SmartCampaign.TrackingParams"
+        "TextCampaign/UnifiedCampaign/DynamicTextCampaign/SmartCampaign."
+        "TrackingParams"
     ),
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
@@ -1567,6 +1707,8 @@ def update(
     package_strategy_from_campaign_id,
     package_platform_search_result,
     package_platform_product_gallery,
+    package_platform_maps,
+    package_platform_search_organization_list,
     package_platform_network,
     package_platform_dynamic_places,
     negative_keyword_shared_set_ids,
@@ -1666,6 +1808,7 @@ def update(
 
         subtype_supported = {
             "TEXT_CAMPAIGN",
+            "UNIFIED_CAMPAIGN",
             "DYNAMIC_TEXT_CAMPAIGN",
             "SMART_CAMPAIGN",
         }
@@ -1686,6 +1829,10 @@ def update(
             "--package-strategy-from-campaign-id": package_strategy_from_campaign_id,
             "--package-platform-search-result": package_platform_search_result,
             "--package-platform-product-gallery": package_platform_product_gallery,
+            "--package-platform-maps": package_platform_maps,
+            "--package-platform-search-organization-list": (
+                package_platform_search_organization_list
+            ),
             "--package-platform-network": package_platform_network,
             "--package-platform-dynamic-places": package_platform_dynamic_places,
             "--negative-keyword-shared-set-ids": negative_keyword_shared_set_ids,
@@ -1701,12 +1848,14 @@ def update(
             raise click.UsageError(
                 "Invalid value for '--type': "
                 f"{campaign_type!r} is not one of "
-                "'TEXT_CAMPAIGN', 'DYNAMIC_TEXT_CAMPAIGN', 'SMART_CAMPAIGN'."
+                "'TEXT_CAMPAIGN', 'UNIFIED_CAMPAIGN', "
+                "'DYNAMIC_TEXT_CAMPAIGN', 'SMART_CAMPAIGN'."
             )
         if subtype_flags_provided and campaign_type_norm is None:
             raise click.UsageError(
                 f"{', '.join(sorted(subtype_flags_provided))} requires --type "
-                "(TEXT_CAMPAIGN | DYNAMIC_TEXT_CAMPAIGN | SMART_CAMPAIGN)."
+                "(TEXT_CAMPAIGN | UNIFIED_CAMPAIGN | "
+                "DYNAMIC_TEXT_CAMPAIGN | SMART_CAMPAIGN)."
             )
         if campaign_type_norm is not None:
             text_campaign_flags = {
@@ -1726,8 +1875,25 @@ def update(
                 "--negative-keyword-shared-set-ids",
                 "--tracking-params",
             }
+            unified_campaign_flags = {
+                "--setting",
+                "--counter-ids",
+                "--priority-goals",
+                "--attribution-model",
+                "--package-strategy-id",
+                "--package-strategy-from-campaign-id",
+                "--package-platform-search-result",
+                "--package-platform-product-gallery",
+                "--package-platform-maps",
+                "--package-platform-search-organization-list",
+                "--package-platform-network",
+                "--package-platform-dynamic-places",
+                "--negative-keyword-shared-set-ids",
+                "--tracking-params",
+            }
             allowed_subtype_flags_by_type = {
                 "TEXT_CAMPAIGN": text_campaign_flags,
+                "UNIFIED_CAMPAIGN": unified_campaign_flags,
                 "DYNAMIC_TEXT_CAMPAIGN": {"--tracking-params"},
                 "SMART_CAMPAIGN": {"--tracking-params"},
             }
@@ -1736,8 +1902,32 @@ def update(
                 allowed_subtype_flags_by_type[campaign_type_norm],
                 subtype_flag_values,
             )
+            if campaign_type_norm == "UNIFIED_CAMPAIGN":
+                unified_campaign_level_conflicts = {
+                    "--client-info": client_info_obj,
+                    "--sms-events": sms_events,
+                    "--sms-time-from": sms_time_from,
+                    "--sms-time-to": sms_time_to,
+                    "--notification-check-position-interval": (
+                        notification_check_position_interval
+                    ),
+                    "--notification-warning-balance": notification_warning_balance,
+                    "--notification-send-warnings": notification_send_warnings,
+                }
+                provided = [
+                    flag
+                    for flag, value in unified_campaign_level_conflicts.items()
+                    if value is not None
+                ]
+                if provided:
+                    raise click.UsageError(
+                        "UnifiedCampaign cannot be combined with "
+                        f"{', '.join(sorted(provided))}"
+                    )
             sub_block: Dict[str, object] = {}
-            if campaign_type_norm == "TEXT_CAMPAIGN":
+            if campaign_type_norm in {"TEXT_CAMPAIGN", "UNIFIED_CAMPAIGN"}:
+                is_unified = campaign_type_norm == "UNIFIED_CAMPAIGN"
+                package_label = "UnifiedCampaign" if is_unified else "TextCampaign"
                 parsed_settings = parse_setting_specs(list(settings))
                 if parsed_settings:
                     sub_block["Settings"] = parsed_settings
@@ -1749,29 +1939,40 @@ def update(
                 )
                 if priority_goals_items is not None:
                     sub_block["PriorityGoals"] = {"Items": priority_goals_items}
-                relevant_keywords_obj = _build_relevant_keywords(
-                    relevant_keywords_budget_percent,
-                    relevant_keywords_mode,
-                    relevant_keywords_optimize_goal_id,
-                    require_budget_percent=False,
-                )
-                if relevant_keywords_obj is not None:
-                    sub_block["RelevantKeywords"] = relevant_keywords_obj
+                if not is_unified:
+                    relevant_keywords_obj = _build_relevant_keywords(
+                        relevant_keywords_budget_percent,
+                        relevant_keywords_mode,
+                        relevant_keywords_optimize_goal_id,
+                        require_budget_percent=False,
+                    )
+                    if relevant_keywords_obj is not None:
+                        sub_block["RelevantKeywords"] = relevant_keywords_obj
                 if attribution_model:
                     sub_block["AttributionModel"] = attribution_model.upper()
-                package_bidding_strategy_obj = _build_text_package_bidding_strategy(
+                package_bidding_strategy_obj = _build_package_bidding_strategy(
                     package_strategy_id,
                     package_strategy_from_campaign_id,
                     package_platform_search_result,
                     package_platform_product_gallery,
+                    package_platform_maps,
+                    package_platform_search_organization_list,
                     package_platform_network,
                     package_platform_dynamic_places,
+                    campaign_label=package_label,
                     require_platforms=False,
                 )
                 if package_bidding_strategy_obj is not None:
                     package_incompatible = {
                         "--priority-goals": priority_goals,
                     }
+                    if is_unified:
+                        package_incompatible.update(
+                            {
+                                "--counter-ids": counter_ids,
+                                "--attribution-model": attribution_model,
+                            }
+                        )
                     provided = [
                         flag
                         for flag, value in package_incompatible.items()
@@ -1779,7 +1980,7 @@ def update(
                     ]
                     if provided:
                         raise click.UsageError(
-                            "TextCampaign.PackageBiddingStrategy cannot be "
+                            f"{package_label}.PackageBiddingStrategy cannot be "
                             f"combined with {', '.join(sorted(provided))}"
                         )
                     sub_block["PackageBiddingStrategy"] = package_bidding_strategy_obj
@@ -1801,6 +2002,7 @@ def update(
                 )
             subtype_container = {
                 "TEXT_CAMPAIGN": "TextCampaign",
+                "UNIFIED_CAMPAIGN": "UnifiedCampaign",
                 "DYNAMIC_TEXT_CAMPAIGN": "DynamicTextCampaign",
                 "SMART_CAMPAIGN": "SmartCampaign",
             }[campaign_type_norm]
