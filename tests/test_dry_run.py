@@ -9334,6 +9334,50 @@ def test_vcards_add_point_on_map_partial_rejected():
 # ----------------------------------------------------------------------
 
 
+def test_adextensions_get_callout_field_names_payload():
+    body = _read_dry_run(
+        "adextensions",
+        "get",
+        "--types",
+        "CALLOUT",
+        "--fields",
+        "Id,Type,State,Status",
+        "--callout-field-names",
+        "CalloutText",
+    )
+
+    assert body["params"]["SelectionCriteria"] == {"Types": ["CALLOUT"]}
+    assert body["params"]["FieldNames"] == ["Id", "Type", "State", "Status"]
+    assert "CalloutText" not in body["params"]["FieldNames"]
+    assert body["params"]["CalloutFieldNames"] == ["CalloutText"]
+
+
+def test_adextensions_get_help_exposes_callout_field_names():
+    result = CliRunner().invoke(cli, ["adextensions", "get", "--help"])
+
+    assert result.exit_code == 0
+    assert "--callout-field-names" in result.output
+
+
+def test_adextensions_get_rejects_empty_callout_field_names():
+    result = CliRunner().invoke(
+        cli,
+        [
+            "adextensions",
+            "get",
+            "--callout-field-names",
+            ",",
+            "--dry-run",
+        ],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+
+    assert result.exit_code != 0
+    assert (
+        "Provide a non-empty comma-separated CalloutFieldNames list." in result.output
+    )
+
+
 def test_adextensions_add_does_not_send_type_field():
     body = _dry_run(
         "adextensions",

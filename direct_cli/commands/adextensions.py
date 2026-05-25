@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import add_criteria_csv, get_default_fields, parse_ids
+from ..utils import add_criteria_csv, get_default_fields, parse_csv_strings, parse_ids
 
 
 @click.group()
@@ -25,6 +25,10 @@ def adextensions():
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.option("--fields", help="Comma-separated field names")
+@click.option(
+    "--callout-field-names",
+    help="Comma-separated CalloutFieldNames (e.g. CalloutText)",
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def get(
@@ -39,6 +43,7 @@ def get(
     output_format,
     output,
     fields,
+    callout_field_names,
     dry_run,
 ):
     """Get ad extensions"""
@@ -49,9 +54,12 @@ def get(
             sandbox=ctx.obj.get("sandbox"),
         )
 
-        field_names = (
-            fields.split(",") if fields else get_default_fields("adextensions")
-        )
+        field_names = parse_csv_strings(fields) or get_default_fields("adextensions")
+        parsed_callout_field_names = parse_csv_strings(callout_field_names)
+        if callout_field_names is not None and not parsed_callout_field_names:
+            raise click.UsageError(
+                "Provide a non-empty comma-separated CalloutFieldNames list."
+            )
 
         criteria = {}
         if ids:
@@ -64,6 +72,8 @@ def get(
             criteria["ModifiedSince"] = modified_since
 
         params = {"SelectionCriteria": criteria, "FieldNames": field_names}
+        if parsed_callout_field_names:
+            params["CalloutFieldNames"] = parsed_callout_field_names
 
         if limit:
             params["Page"] = {"Limit": limit}
@@ -85,6 +95,8 @@ def get(
             data = result().extract()
             format_output(data, output_format, output)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
