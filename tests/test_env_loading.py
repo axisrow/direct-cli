@@ -2,6 +2,8 @@
 
 import ast
 import os
+import subprocess
+import sys
 from pathlib import Path
 
 from direct_cli import auth
@@ -39,20 +41,35 @@ def test_load_env_file_uses_explicit_path(monkeypatch, tmp_path):
     assert calls == [env_path]
 
 
-def test_load_env_file_loads_cwd_dotenv(monkeypatch, tmp_path):
+def test_load_env_file_loads_cwd_dotenv(tmp_path):
     """A .env in the command working directory is loaded."""
-    monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
-    monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
+    repo_root = Path(__file__).resolve().parents[1]
     (tmp_path / ".env").write_text(
         "YANDEX_DIRECT_TOKEN=cwd-token\n" "YANDEX_DIRECT_LOGIN=cwd-login\n",
         encoding="utf-8",
     )
-    monkeypatch.chdir(tmp_path)
+    env = os.environ.copy()
+    env.pop("YANDEX_DIRECT_TOKEN", None)
+    env.pop("YANDEX_DIRECT_LOGIN", None)
+    env["PYTHONPATH"] = str(repo_root)
+    script = (
+        "import os\n"
+        "from direct_cli import auth\n"
+        "auth.load_env_file()\n"
+        "print(os.environ.get('YANDEX_DIRECT_TOKEN'))\n"
+        "print(os.environ.get('YANDEX_DIRECT_LOGIN'))\n"
+    )
 
-    auth.load_env_file()
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=tmp_path,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
 
-    assert os.environ["YANDEX_DIRECT_TOKEN"] == "cwd-token"
-    assert os.environ["YANDEX_DIRECT_LOGIN"] == "cwd-login"
+    assert result.stdout.splitlines() == ["cwd-token", "cwd-login"]
 
 
 def test_load_env_file_does_not_search_from_source_location(monkeypatch, tmp_path):
