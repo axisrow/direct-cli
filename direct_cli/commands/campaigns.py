@@ -2,7 +2,8 @@
 Campaigns commands
 """
 
-from typing import Dict, List, Optional
+import re
+from typing import Dict, List, Optional, Sequence
 
 import click
 
@@ -16,7 +17,6 @@ from ..utils import (
     MICRO_RUBLES,
     parse_ids,
     parse_csv_strings,
-    parse_json,
     parse_priority_goals_spec,
     parse_setting_specs,
 )
@@ -70,62 +70,31 @@ _STRATEGY_REQUIRED_TYPED_FLAGS: Dict[str, Dict[str, str]] = {
     "PayForConversionMultipleGoals": {"PriorityGoals": "--priority-goals"},
 }
 
-_NOTIFICATION_KEYS = {"SmsSettings", "EmailSettings"}
-_SMS_SETTINGS_KEYS = {"Events", "TimeFrom", "TimeTo"}
-_EMAIL_SETTINGS_KEYS = {
-    "Email",
-    "CheckPositionInterval",
-    "WarningBalance",
-    "SendAccountNews",
-    "SendWarnings",
-}
-_TIME_TARGETING_KEYS = {
-    "Schedule",
-    "ConsiderWorkingWeekends",
-    "HolidaysSchedule",
-}
-_HOLIDAYS_SCHEDULE_KEYS = {
-    "SuspendOnHolidays",
-    "BidPercent",
-    "StartHour",
-    "EndHour",
+SMS_EVENTS = {"MONITORING", "MODERATION", "MONEY_IN", "MONEY_OUT", "FINISHED"}
+YES_NO = ["YES", "NO"]
+CLIENT_INFO_MAX_LENGTH = 255
+BLOCKED_IPS_MAX_ITEMS = 25
+EXCLUDED_SITES_MAX_ITEMS = 1000
+EXCLUDED_SITE_MAX_LENGTH = 255
+TIME_TARGETING_SCHEDULE_MAX_ITEMS = 7
+HH_MM_RE = re.compile(r"^(?:[01]\d|2[0-3]):(?:00|15|30|45)$")
+_DEPRECATED_CAMPAIGNS_STRUCTURED_OPTIONS = {
+    "notification": (
+        "--notification is no longer accepted on 'campaigns add/update'; "
+        "use typed flags such as --sms-events, --notification-email, "
+        "and --notification-send-warnings."
+    ),
+    "time_targeting": (
+        "--time-targeting is no longer accepted on 'campaigns add/update'; "
+        "use typed flags such as --time-targeting-schedule, "
+        "--consider-working-weekends, and --holidays-suspend-on-holidays."
+    ),
 }
 
 
-def _validate_notification_shape(notification: object) -> None:
-    """Reject malformed --notification JSON before sending to API."""
-    if not isinstance(notification, dict) or not notification:
-        raise click.UsageError(
-            "--notification must be a non-empty JSON object with "
-            f"keys from {sorted(_NOTIFICATION_KEYS)}"
-        )
-    unknown = set(notification) - _NOTIFICATION_KEYS
-    if unknown:
-        raise click.UsageError(
-            f"--notification contains unknown key(s) {sorted(unknown)}; "
-            f"allowed: {sorted(_NOTIFICATION_KEYS)}"
-        )
-    sms = notification.get("SmsSettings")
-    if sms is not None:
-        if not isinstance(sms, dict):
-            raise click.UsageError("--notification.SmsSettings must be a JSON object")
-        unknown_sms = set(sms) - _SMS_SETTINGS_KEYS
-        if unknown_sms:
-            raise click.UsageError(
-                "--notification.SmsSettings contains unknown key(s) "
-                f"{sorted(unknown_sms)}; allowed: {sorted(_SMS_SETTINGS_KEYS)}"
-            )
-    email = notification.get("EmailSettings")
-    if email is not None:
-        if not isinstance(email, dict):
-            raise click.UsageError("--notification.EmailSettings must be a JSON object")
-        unknown_email = set(email) - _EMAIL_SETTINGS_KEYS
-        if unknown_email:
-            raise click.UsageError(
-                "--notification.EmailSettings contains unknown key(s) "
-                f"{sorted(unknown_email)}; allowed: "
-                f"{sorted(_EMAIL_SETTINGS_KEYS)}"
-            )
+def _deprecated_campaigns_structured_option(ctx, param, value):
+    if value is not None:
+        raise click.UsageError(_DEPRECATED_CAMPAIGNS_STRUCTURED_OPTIONS[param.name])
 
 
 def _apply_cpa_strategy_fields(
@@ -278,34 +247,6 @@ def _apply_cpa_strategy_fields(
         _place("Network", network_subtype)
 
 
-def _validate_time_targeting_shape(time_targeting: object) -> None:
-    """Reject malformed --time-targeting JSON before sending to API."""
-    if not isinstance(time_targeting, dict) or not time_targeting:
-        raise click.UsageError(
-            "--time-targeting must be a non-empty JSON object with "
-            f"keys from {sorted(_TIME_TARGETING_KEYS)}"
-        )
-    unknown = set(time_targeting) - _TIME_TARGETING_KEYS
-    if unknown:
-        raise click.UsageError(
-            f"--time-targeting contains unknown key(s) {sorted(unknown)}; "
-            f"allowed: {sorted(_TIME_TARGETING_KEYS)}"
-        )
-    holidays = time_targeting.get("HolidaysSchedule")
-    if holidays is not None:
-        if not isinstance(holidays, dict):
-            raise click.UsageError(
-                "--time-targeting.HolidaysSchedule must be a JSON object"
-            )
-        unknown_h = set(holidays) - _HOLIDAYS_SCHEDULE_KEYS
-        if unknown_h:
-            raise click.UsageError(
-                "--time-targeting.HolidaysSchedule contains unknown "
-                f"key(s) {sorted(unknown_h)}; allowed: "
-                f"{sorted(_HOLIDAYS_SCHEDULE_KEYS)}"
-            )
-
-
 @click.group()
 def campaigns():
     """Manage campaigns"""
@@ -317,6 +258,195 @@ def _parse_csv_option(option_name: str, value: Optional[str]) -> Optional[List[s
     if value is not None and not parsed:
         raise click.UsageError(f"{option_name} must contain at least one value")
     return parsed
+
+
+def _array_of_string_option(
+    option_name: str,
+    value: Optional[str],
+    *,
+    max_items: Optional[int] = None,
+    max_item_length: Optional[int] = None,
+) -> Optional[dict]:
+    """Build a WSDL ArrayOfString payload from a comma-separated flag."""
+    parsed = _parse_csv_option(option_name, value)
+    if parsed and max_items is not None and len(parsed) > max_items:
+        raise click.UsageError(f"{option_name} must contain at most {max_items} items")
+    if parsed and max_item_length is not None:
+        too_long = [item for item in parsed if len(item) > max_item_length]
+        if too_long:
+            raise click.UsageError(
+                f"{option_name} items must be at most " f"{max_item_length} characters"
+            )
+    return {"Items": parsed} if parsed else None
+
+
+def _time_targeting_schedule_option(values: Sequence[str]) -> Optional[dict]:
+    """Build TimeTargeting.Schedule without splitting comma-bearing rows."""
+    if not values:
+        return None
+    items = [value.strip() for value in values if value.strip()]
+    if len(items) != len(values):
+        raise click.UsageError(
+            "--time-targeting-schedule must contain at least one value"
+        )
+    if len(items) > TIME_TARGETING_SCHEDULE_MAX_ITEMS:
+        raise click.UsageError(
+            "--time-targeting-schedule must contain at most "
+            f"{TIME_TARGETING_SCHEDULE_MAX_ITEMS} items"
+        )
+    return {"Items": items}
+
+
+def _upper_yes_no(value: Optional[str]) -> Optional[str]:
+    """Normalize Click YesNoEnum values."""
+    return value.upper() if value is not None else None
+
+
+def _validate_max_length(
+    option_name: str,
+    value: Optional[str],
+    max_length: int,
+) -> Optional[str]:
+    """Reject string options longer than the documented maximum."""
+    if value is not None and len(value) > max_length:
+        raise click.UsageError(f"{option_name} must be at most {max_length} characters")
+    return value
+
+
+def _validate_sms_time(option_name: str, value: Optional[str]) -> Optional[str]:
+    """Validate documented HH:MM values with 15-minute steps."""
+    if value is None:
+        return None
+    if not HH_MM_RE.fullmatch(value):
+        raise click.UsageError(
+            f"{option_name} must use HH:MM with minutes 00, 15, 30, or 45"
+        )
+    return value
+
+
+def _build_notification(
+    sms_events: Optional[str],
+    sms_time_from: Optional[str],
+    sms_time_to: Optional[str],
+    notification_email: Optional[str],
+    notification_check_position_interval: Optional[str],
+    notification_warning_balance: Optional[int],
+    notification_send_account_news: Optional[str],
+    notification_send_warnings: Optional[str],
+) -> Optional[dict]:
+    """Build CampaignBase.Notification from typed flags."""
+    notification: Dict[str, dict] = {}
+
+    sms_settings: dict = {}
+    parsed_sms_events = _parse_csv_option("--sms-events", sms_events)
+    if parsed_sms_events:
+        normalized_events = [event.upper() for event in parsed_sms_events]
+        invalid = sorted(set(normalized_events) - SMS_EVENTS)
+        if invalid:
+            raise click.UsageError(
+                "--sms-events contains invalid value(s) "
+                f"{invalid}; allowed: {sorted(SMS_EVENTS)}"
+            )
+        sms_settings["Events"] = normalized_events
+    validated_sms_time_from = _validate_sms_time("--sms-time-from", sms_time_from)
+    if validated_sms_time_from:
+        sms_settings["TimeFrom"] = validated_sms_time_from
+    validated_sms_time_to = _validate_sms_time("--sms-time-to", sms_time_to)
+    if validated_sms_time_to:
+        sms_settings["TimeTo"] = validated_sms_time_to
+    if sms_settings:
+        notification["SmsSettings"] = sms_settings
+
+    email_settings: dict = {}
+    if notification_email:
+        email_settings["Email"] = notification_email
+    if notification_check_position_interval is not None:
+        email_settings["CheckPositionInterval"] = int(
+            notification_check_position_interval
+        )
+    if notification_warning_balance is not None:
+        email_settings["WarningBalance"] = notification_warning_balance
+    send_account_news = _upper_yes_no(notification_send_account_news)
+    if send_account_news is not None:
+        email_settings["SendAccountNews"] = send_account_news
+    send_warnings = _upper_yes_no(notification_send_warnings)
+    if send_warnings is not None:
+        email_settings["SendWarnings"] = send_warnings
+    if email_settings:
+        notification["EmailSettings"] = email_settings
+
+    return notification or None
+
+
+def _build_time_targeting(
+    time_targeting_schedule: Sequence[str],
+    consider_working_weekends: Optional[str],
+    holidays_suspend_on_holidays: Optional[str],
+    holidays_bid_percent: Optional[int],
+    holidays_start_hour: Optional[int],
+    holidays_end_hour: Optional[int],
+) -> Optional[dict]:
+    """Build CampaignAddItem/UpdateItem.TimeTargeting from typed flags."""
+    schedule = _time_targeting_schedule_option(time_targeting_schedule)
+    has_holidays = any(
+        value is not None
+        for value in (
+            holidays_suspend_on_holidays,
+            holidays_bid_percent,
+            holidays_start_hour,
+            holidays_end_hour,
+        )
+    )
+    has_time_targeting = (
+        schedule is not None or consider_working_weekends is not None or has_holidays
+    )
+    if not has_time_targeting:
+        return None
+    if consider_working_weekends is None:
+        raise click.UsageError(
+            "TimeTargeting requires --consider-working-weekends when any "
+            "time-targeting flag is provided."
+        )
+
+    time_targeting: dict = {
+        "ConsiderWorkingWeekends": consider_working_weekends.upper()
+    }
+    if schedule is not None:
+        time_targeting["Schedule"] = schedule
+
+    if has_holidays:
+        if holidays_suspend_on_holidays is None:
+            raise click.UsageError(
+                "TimeTargeting.HolidaysSchedule requires "
+                "--holidays-suspend-on-holidays when any --holidays-* flag "
+                "is provided."
+            )
+        suspend_on_holidays = holidays_suspend_on_holidays.upper()
+        if suspend_on_holidays == "YES" and any(
+            value is not None
+            for value in (
+                holidays_bid_percent,
+                holidays_start_hour,
+                holidays_end_hour,
+            )
+        ):
+            raise click.UsageError(
+                "--holidays-bid-percent, --holidays-start-hour, and "
+                "--holidays-end-hour can be provided only when "
+                "--holidays-suspend-on-holidays is NO."
+            )
+        if holidays_bid_percent is not None and holidays_bid_percent % 10 != 0:
+            raise click.UsageError("--holidays-bid-percent must be a multiple of 10")
+        holidays: dict = {"SuspendOnHolidays": suspend_on_holidays}
+        if holidays_bid_percent is not None:
+            holidays["BidPercent"] = holidays_bid_percent
+        if holidays_start_hour is not None:
+            holidays["StartHour"] = holidays_start_hour
+        if holidays_end_hour is not None:
+            holidays["EndHour"] = holidays_end_hour
+        time_targeting["HolidaysSchedule"] = holidays
+
+    return time_targeting
 
 
 def _reject_incompatible_flags(
@@ -587,19 +717,86 @@ def get(
 )
 @click.option(
     "--notification",
-    "notification_json",
-    help=(
-        "JSON for CampaignBase.Notification "
-        '({"SmsSettings":{...}, "EmailSettings":{...}})'
-    ),
+    default=None,
+    expose_value=False,
+    callback=_deprecated_campaigns_structured_option,
+    is_eager=True,
+    hidden=True,
+    help="Removed: use typed Notification flags",
 )
 @click.option(
     "--time-targeting",
-    "time_targeting_json",
-    help=(
-        "JSON for CampaignAddItem.TimeTargeting "
-        '({"Schedule":[...], "ConsiderWorkingWeekends":"YES|NO", ...})'
-    ),
+    default=None,
+    expose_value=False,
+    callback=_deprecated_campaigns_structured_option,
+    is_eager=True,
+    hidden=True,
+    help="Removed: use typed TimeTargeting flags",
+)
+@click.option(
+    "--client-info",
+    help="CampaignBase.ClientInfo client name, max 255 characters",
+)
+@click.option(
+    "--sms-events",
+    help="Comma-separated Notification.SmsSettings.Events values",
+)
+@click.option("--sms-time-from", help="Notification.SmsSettings.TimeFrom")
+@click.option("--sms-time-to", help="Notification.SmsSettings.TimeTo")
+@click.option("--notification-email", help="Notification.EmailSettings.Email")
+@click.option(
+    "--notification-check-position-interval",
+    type=click.Choice(["15", "30", "60"]),
+    help="Notification.EmailSettings.CheckPositionInterval",
+)
+@click.option(
+    "--notification-warning-balance",
+    type=click.IntRange(1, 50),
+    help="Notification.EmailSettings.WarningBalance",
+)
+@click.option(
+    "--notification-send-account-news",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="Notification.EmailSettings.SendAccountNews: YES or NO",
+)
+@click.option(
+    "--notification-send-warnings",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="Notification.EmailSettings.SendWarnings: YES or NO",
+)
+@click.option("--time-zone", help="CampaignBase.TimeZone")
+@click.option("--negative-keywords", help="Comma-separated NegativeKeywords.Items")
+@click.option("--blocked-ips", help="Comma-separated BlockedIps.Items")
+@click.option("--excluded-sites", help="Comma-separated ExcludedSites.Items")
+@click.option(
+    "--time-targeting-schedule",
+    multiple=True,
+    help="Repeatable TimeTargeting.Schedule.Items row",
+)
+@click.option(
+    "--consider-working-weekends",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="TimeTargeting.ConsiderWorkingWeekends: YES or NO",
+)
+@click.option(
+    "--holidays-suspend-on-holidays",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="TimeTargeting.HolidaysSchedule.SuspendOnHolidays: YES or NO",
+)
+@click.option(
+    "--holidays-bid-percent",
+    type=click.IntRange(0, 200),
+    help="TimeTargeting.HolidaysSchedule.BidPercent",
+)
+@click.option(
+    "--holidays-start-hour",
+    type=click.IntRange(0, 23),
+    help="TimeTargeting.HolidaysSchedule.StartHour",
+)
+@click.option(
+    "--holidays-end-hour",
+    type=click.IntRange(0, 24),
+    help="TimeTargeting.HolidaysSchedule.EndHour",
 )
 @click.option(
     "--tracking-params",
@@ -630,8 +827,25 @@ def add(
     average_cpa,
     crr,
     bid_ceiling,
-    notification_json,
-    time_targeting_json,
+    client_info,
+    sms_events,
+    sms_time_from,
+    sms_time_to,
+    notification_email,
+    notification_check_position_interval,
+    notification_warning_balance,
+    notification_send_account_news,
+    notification_send_warnings,
+    time_zone,
+    negative_keywords,
+    blocked_ips,
+    excluded_sites,
+    time_targeting_schedule,
+    consider_working_weekends,
+    holidays_suspend_on_holidays,
+    holidays_bid_percent,
+    holidays_start_hour,
+    holidays_end_hour,
     tracking_params,
     dry_run,
 ):
@@ -712,23 +926,45 @@ def add(
             },
         )
 
-        # Parse cross-cutting structured inputs up front so any
-        # UsageError fires before we start composing the payload.
-        notification_obj = None
-        if notification_json is not None:
-            try:
-                notification_obj = parse_json(notification_json)
-            except ValueError as exc:
-                raise click.UsageError(f"--notification: {exc}")
-            _validate_notification_shape(notification_obj)
-
-        time_targeting_obj = None
-        if time_targeting_json is not None:
-            try:
-                time_targeting_obj = parse_json(time_targeting_json)
-            except ValueError as exc:
-                raise click.UsageError(f"--time-targeting: {exc}")
-            _validate_time_targeting_shape(time_targeting_obj)
+        # Build cross-cutting structured inputs from typed flags up front so
+        # any UsageError fires before we start composing the payload.
+        notification_obj = _build_notification(
+            sms_events,
+            sms_time_from,
+            sms_time_to,
+            notification_email,
+            notification_check_position_interval,
+            notification_warning_balance,
+            notification_send_account_news,
+            notification_send_warnings,
+        )
+        time_targeting_obj = _build_time_targeting(
+            time_targeting_schedule,
+            consider_working_weekends,
+            holidays_suspend_on_holidays,
+            holidays_bid_percent,
+            holidays_start_hour,
+            holidays_end_hour,
+        )
+        client_info_obj = _validate_max_length(
+            "--client-info",
+            client_info,
+            CLIENT_INFO_MAX_LENGTH,
+        )
+        negative_keywords_obj = _array_of_string_option(
+            "--negative-keywords", negative_keywords
+        )
+        blocked_ips_obj = _array_of_string_option(
+            "--blocked-ips",
+            blocked_ips,
+            max_items=BLOCKED_IPS_MAX_ITEMS,
+        )
+        excluded_sites_obj = _array_of_string_option(
+            "--excluded-sites",
+            excluded_sites,
+            max_items=EXCLUDED_SITES_MAX_ITEMS,
+            max_item_length=EXCLUDED_SITE_MAX_LENGTH,
+        )
 
         counter_ids_list = None
         if counter_ids is not None:
@@ -846,11 +1082,19 @@ def add(
         if end_date:
             campaign_data["EndDate"] = end_date
 
-        # CampaignBase.Notification + CampaignAddItem.TimeTargeting are
-        # campaign-level (siblings of TextCampaign/DynamicTextCampaign/
-        # SmartCampaign), so apply them after the subtype block.
+        # Campaign-level fields are siblings of the subtype block.
+        if client_info_obj:
+            campaign_data["ClientInfo"] = client_info_obj
         if notification_obj is not None:
             campaign_data["Notification"] = notification_obj
+        if time_zone:
+            campaign_data["TimeZone"] = time_zone
+        if negative_keywords_obj is not None:
+            campaign_data["NegativeKeywords"] = negative_keywords_obj
+        if blocked_ips_obj is not None:
+            campaign_data["BlockedIps"] = blocked_ips_obj
+        if excluded_sites_obj is not None:
+            campaign_data["ExcludedSites"] = excluded_sites_obj
         if time_targeting_obj is not None:
             campaign_data["TimeTargeting"] = time_targeting_obj
 
@@ -884,6 +1128,89 @@ def add(
 @click.option("--start-date", help="New start date (YYYY-MM-DD)")
 @click.option("--end-date", help="New end date (YYYY-MM-DD)")
 @click.option(
+    "--notification",
+    default=None,
+    expose_value=False,
+    callback=_deprecated_campaigns_structured_option,
+    is_eager=True,
+    hidden=True,
+    help="Removed: use typed Notification flags",
+)
+@click.option(
+    "--time-targeting",
+    default=None,
+    expose_value=False,
+    callback=_deprecated_campaigns_structured_option,
+    is_eager=True,
+    hidden=True,
+    help="Removed: use typed TimeTargeting flags",
+)
+@click.option(
+    "--client-info",
+    help="CampaignBase.ClientInfo client name, max 255 characters",
+)
+@click.option(
+    "--sms-events",
+    help="Comma-separated Notification.SmsSettings.Events values",
+)
+@click.option("--sms-time-from", help="Notification.SmsSettings.TimeFrom")
+@click.option("--sms-time-to", help="Notification.SmsSettings.TimeTo")
+@click.option("--notification-email", help="Notification.EmailSettings.Email")
+@click.option(
+    "--notification-check-position-interval",
+    type=click.Choice(["15", "30", "60"]),
+    help="Notification.EmailSettings.CheckPositionInterval",
+)
+@click.option(
+    "--notification-warning-balance",
+    type=click.IntRange(1, 50),
+    help="Notification.EmailSettings.WarningBalance",
+)
+@click.option(
+    "--notification-send-account-news",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="Notification.EmailSettings.SendAccountNews: YES or NO",
+)
+@click.option(
+    "--notification-send-warnings",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="Notification.EmailSettings.SendWarnings: YES or NO",
+)
+@click.option("--time-zone", help="CampaignBase.TimeZone")
+@click.option("--negative-keywords", help="Comma-separated NegativeKeywords.Items")
+@click.option("--blocked-ips", help="Comma-separated BlockedIps.Items")
+@click.option("--excluded-sites", help="Comma-separated ExcludedSites.Items")
+@click.option(
+    "--time-targeting-schedule",
+    multiple=True,
+    help="Repeatable TimeTargeting.Schedule.Items row",
+)
+@click.option(
+    "--consider-working-weekends",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="TimeTargeting.ConsiderWorkingWeekends: YES or NO",
+)
+@click.option(
+    "--holidays-suspend-on-holidays",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="TimeTargeting.HolidaysSchedule.SuspendOnHolidays: YES or NO",
+)
+@click.option(
+    "--holidays-bid-percent",
+    type=click.IntRange(0, 200),
+    help="TimeTargeting.HolidaysSchedule.BidPercent",
+)
+@click.option(
+    "--holidays-start-hour",
+    type=click.IntRange(0, 23),
+    help="TimeTargeting.HolidaysSchedule.StartHour",
+)
+@click.option(
+    "--holidays-end-hour",
+    type=click.IntRange(0, 24),
+    help="TimeTargeting.HolidaysSchedule.EndHour",
+)
+@click.option(
     "--type",
     "campaign_type",
     help=(
@@ -910,6 +1237,25 @@ def update(
     budget,
     start_date,
     end_date,
+    client_info,
+    sms_events,
+    sms_time_from,
+    sms_time_to,
+    notification_email,
+    notification_check_position_interval,
+    notification_warning_balance,
+    notification_send_account_news,
+    notification_send_warnings,
+    time_zone,
+    negative_keywords,
+    blocked_ips,
+    excluded_sites,
+    time_targeting_schedule,
+    consider_working_weekends,
+    holidays_suspend_on_holidays,
+    holidays_bid_percent,
+    holidays_start_hour,
+    holidays_end_hour,
     campaign_type,
     tracking_params,
     dry_run,
@@ -933,6 +1279,57 @@ def update(
             campaign_data["StartDate"] = start_date
         if end_date:
             campaign_data["EndDate"] = end_date
+        notification_obj = _build_notification(
+            sms_events,
+            sms_time_from,
+            sms_time_to,
+            notification_email,
+            notification_check_position_interval,
+            notification_warning_balance,
+            notification_send_account_news,
+            notification_send_warnings,
+        )
+        time_targeting_obj = _build_time_targeting(
+            time_targeting_schedule,
+            consider_working_weekends,
+            holidays_suspend_on_holidays,
+            holidays_bid_percent,
+            holidays_start_hour,
+            holidays_end_hour,
+        )
+        client_info_obj = _validate_max_length(
+            "--client-info",
+            client_info,
+            CLIENT_INFO_MAX_LENGTH,
+        )
+        negative_keywords_obj = _array_of_string_option(
+            "--negative-keywords", negative_keywords
+        )
+        blocked_ips_obj = _array_of_string_option(
+            "--blocked-ips",
+            blocked_ips,
+            max_items=BLOCKED_IPS_MAX_ITEMS,
+        )
+        excluded_sites_obj = _array_of_string_option(
+            "--excluded-sites",
+            excluded_sites,
+            max_items=EXCLUDED_SITES_MAX_ITEMS,
+            max_item_length=EXCLUDED_SITE_MAX_LENGTH,
+        )
+        if client_info_obj:
+            campaign_data["ClientInfo"] = client_info_obj
+        if notification_obj is not None:
+            campaign_data["Notification"] = notification_obj
+        if time_zone:
+            campaign_data["TimeZone"] = time_zone
+        if negative_keywords_obj is not None:
+            campaign_data["NegativeKeywords"] = negative_keywords_obj
+        if blocked_ips_obj is not None:
+            campaign_data["BlockedIps"] = blocked_ips_obj
+        if excluded_sites_obj is not None:
+            campaign_data["ExcludedSites"] = excluded_sites_obj
+        if time_targeting_obj is not None:
+            campaign_data["TimeTargeting"] = time_targeting_obj
 
         subtype_supported = {
             "TEXT_CAMPAIGN",

@@ -1428,6 +1428,83 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("campaigns", "add", "DailyBudget.Amount"): {"--budget"},
     ("campaigns", "add", "DailyBudget.Mode"): {"--budget"},
     ("campaigns", "add", "EndDate"): {"--end-date"},
+    ("campaigns", "add", "ClientInfo"): {"--client-info"},
+    ("campaigns", "add", "Notification"): {
+        "--sms-events",
+        "--sms-time-from",
+        "--sms-time-to",
+        "--notification-email",
+        "--notification-check-position-interval",
+        "--notification-warning-balance",
+        "--notification-send-account-news",
+        "--notification-send-warnings",
+    },
+    ("campaigns", "add", "Notification.SmsSettings"): {
+        "--sms-events",
+        "--sms-time-from",
+        "--sms-time-to",
+    },
+    ("campaigns", "add", "Notification.SmsSettings.Events"): {"--sms-events"},
+    ("campaigns", "add", "Notification.SmsSettings.TimeFrom"): {"--sms-time-from"},
+    ("campaigns", "add", "Notification.SmsSettings.TimeTo"): {"--sms-time-to"},
+    ("campaigns", "add", "Notification.EmailSettings"): {
+        "--notification-email",
+        "--notification-check-position-interval",
+        "--notification-warning-balance",
+        "--notification-send-account-news",
+        "--notification-send-warnings",
+    },
+    ("campaigns", "add", "Notification.EmailSettings.Email"): {"--notification-email"},
+    ("campaigns", "add", "Notification.EmailSettings.CheckPositionInterval"): {
+        "--notification-check-position-interval"
+    },
+    ("campaigns", "add", "Notification.EmailSettings.WarningBalance"): {
+        "--notification-warning-balance"
+    },
+    ("campaigns", "add", "Notification.EmailSettings.SendAccountNews"): {
+        "--notification-send-account-news"
+    },
+    ("campaigns", "add", "Notification.EmailSettings.SendWarnings"): {
+        "--notification-send-warnings"
+    },
+    ("campaigns", "add", "TimeZone"): {"--time-zone"},
+    ("campaigns", "add", "NegativeKeywords"): {"--negative-keywords"},
+    ("campaigns", "add", "NegativeKeywords.Items"): {"--negative-keywords"},
+    ("campaigns", "add", "BlockedIps"): {"--blocked-ips"},
+    ("campaigns", "add", "BlockedIps.Items"): {"--blocked-ips"},
+    ("campaigns", "add", "ExcludedSites"): {"--excluded-sites"},
+    ("campaigns", "add", "ExcludedSites.Items"): {"--excluded-sites"},
+    ("campaigns", "add", "TimeTargeting"): {
+        "--time-targeting-schedule",
+        "--consider-working-weekends",
+        "--holidays-suspend-on-holidays",
+        "--holidays-bid-percent",
+        "--holidays-start-hour",
+        "--holidays-end-hour",
+    },
+    ("campaigns", "add", "TimeTargeting.Schedule"): {"--time-targeting-schedule"},
+    ("campaigns", "add", "TimeTargeting.Schedule.Items"): {"--time-targeting-schedule"},
+    ("campaigns", "add", "TimeTargeting.ConsiderWorkingWeekends"): {
+        "--consider-working-weekends"
+    },
+    ("campaigns", "add", "TimeTargeting.HolidaysSchedule"): {
+        "--holidays-suspend-on-holidays",
+        "--holidays-bid-percent",
+        "--holidays-start-hour",
+        "--holidays-end-hour",
+    },
+    ("campaigns", "add", "TimeTargeting.HolidaysSchedule.SuspendOnHolidays"): {
+        "--holidays-suspend-on-holidays"
+    },
+    ("campaigns", "add", "TimeTargeting.HolidaysSchedule.BidPercent"): {
+        "--holidays-bid-percent"
+    },
+    ("campaigns", "add", "TimeTargeting.HolidaysSchedule.StartHour"): {
+        "--holidays-start-hour"
+    },
+    ("campaigns", "add", "TimeTargeting.HolidaysSchedule.EndHour"): {
+        "--holidays-end-hour"
+    },
     ("campaigns", "add", "TextCampaign"): {"--type"},
     ("campaigns", "add", "TextCampaign.BiddingStrategy"): {
         "--search-strategy",
@@ -1461,6 +1538,87 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("campaigns", "update", "DailyBudget.Mode"): {"--budget"},
     ("campaigns", "update", "StartDate"): {"--start-date"},
     ("campaigns", "update", "EndDate"): {"--end-date"},
+    ("campaigns", "update", "ClientInfo"): {"--client-info"},
+    ("campaigns", "update", "Notification"): {
+        "--sms-events",
+        "--sms-time-from",
+        "--sms-time-to",
+        "--notification-email",
+        "--notification-check-position-interval",
+        "--notification-warning-balance",
+        "--notification-send-account-news",
+        "--notification-send-warnings",
+    },
+    ("campaigns", "update", "Notification.SmsSettings"): {
+        "--sms-events",
+        "--sms-time-from",
+        "--sms-time-to",
+    },
+    ("campaigns", "update", "Notification.SmsSettings.Events"): {"--sms-events"},
+    ("campaigns", "update", "Notification.SmsSettings.TimeFrom"): {"--sms-time-from"},
+    ("campaigns", "update", "Notification.SmsSettings.TimeTo"): {"--sms-time-to"},
+    ("campaigns", "update", "Notification.EmailSettings"): {
+        "--notification-email",
+        "--notification-check-position-interval",
+        "--notification-warning-balance",
+        "--notification-send-account-news",
+        "--notification-send-warnings",
+    },
+    ("campaigns", "update", "Notification.EmailSettings.Email"): {
+        "--notification-email"
+    },
+    ("campaigns", "update", "Notification.EmailSettings.CheckPositionInterval"): {
+        "--notification-check-position-interval"
+    },
+    ("campaigns", "update", "Notification.EmailSettings.WarningBalance"): {
+        "--notification-warning-balance"
+    },
+    ("campaigns", "update", "Notification.EmailSettings.SendAccountNews"): {
+        "--notification-send-account-news"
+    },
+    ("campaigns", "update", "Notification.EmailSettings.SendWarnings"): {
+        "--notification-send-warnings"
+    },
+    ("campaigns", "update", "TimeZone"): {"--time-zone"},
+    ("campaigns", "update", "NegativeKeywords"): {"--negative-keywords"},
+    ("campaigns", "update", "NegativeKeywords.Items"): {"--negative-keywords"},
+    ("campaigns", "update", "BlockedIps"): {"--blocked-ips"},
+    ("campaigns", "update", "BlockedIps.Items"): {"--blocked-ips"},
+    ("campaigns", "update", "ExcludedSites"): {"--excluded-sites"},
+    ("campaigns", "update", "ExcludedSites.Items"): {"--excluded-sites"},
+    ("campaigns", "update", "TimeTargeting"): {
+        "--time-targeting-schedule",
+        "--consider-working-weekends",
+        "--holidays-suspend-on-holidays",
+        "--holidays-bid-percent",
+        "--holidays-start-hour",
+        "--holidays-end-hour",
+    },
+    ("campaigns", "update", "TimeTargeting.Schedule"): {"--time-targeting-schedule"},
+    ("campaigns", "update", "TimeTargeting.Schedule.Items"): {
+        "--time-targeting-schedule"
+    },
+    ("campaigns", "update", "TimeTargeting.ConsiderWorkingWeekends"): {
+        "--consider-working-weekends"
+    },
+    ("campaigns", "update", "TimeTargeting.HolidaysSchedule"): {
+        "--holidays-suspend-on-holidays",
+        "--holidays-bid-percent",
+        "--holidays-start-hour",
+        "--holidays-end-hour",
+    },
+    ("campaigns", "update", "TimeTargeting.HolidaysSchedule.SuspendOnHolidays"): {
+        "--holidays-suspend-on-holidays"
+    },
+    ("campaigns", "update", "TimeTargeting.HolidaysSchedule.BidPercent"): {
+        "--holidays-bid-percent"
+    },
+    ("campaigns", "update", "TimeTargeting.HolidaysSchedule.StartHour"): {
+        "--holidays-start-hour"
+    },
+    ("campaigns", "update", "TimeTargeting.HolidaysSchedule.EndHour"): {
+        "--holidays-end-hour"
+    },
     ("campaigns", "update", "TextCampaign"): {"--type"},
     ("campaigns", "update", "TextCampaign.TrackingParams"): {"--tracking-params"},
     ("campaigns", "update", "DynamicTextCampaign"): {"--type"},
@@ -1993,14 +2151,6 @@ OPTIONAL_FIELD_DEFAULT_FOLLOWUPS: dict[tuple[str, str], dict[str, str]] = {
     ("bidmodifiers", "add"): {
         "issue": "#254",
         "note": "bidmodifiers.add optional WSDL path needs typed support or N/A.",
-    },
-    ("campaigns", "add"): {
-        "issue": "#291",
-        "note": "campaigns.add campaign-level optional path needs typed support or N/A.",
-    },
-    ("campaigns", "update"): {
-        "issue": "#291",
-        "note": "campaigns.update campaign-level optional path needs typed support or N/A.",
     },
     ("dynamicads", "add"): {
         "issue": "#303",

@@ -11,9 +11,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2193 |
+| `missing_followup` | 2137 |
 | `not_applicable` | 23 |
-| `supported` | 1025 |
+| `supported` | 1081 |
 
 ## Confirmed Follow-Ups
 
@@ -42,25 +42,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `adgroups.update` | `DynamicTextFeedAdGroup.AutotargetingSettings.BrandOptions.WithAdvertiserBrand` | Official adgroups.update docs for DynamicTextFeedAdGroupUpdate list AutotargetingCategories only. [#281](https://github.com/axisrow/direct-cli/issues/281); inherited from `DynamicTextFeedAdGroup.AutotargetingSettings` |
 | `adgroups.update` | `DynamicTextFeedAdGroup.AutotargetingSettings.BrandOptions.WithCompetitorsBrand` | Official adgroups.update docs for DynamicTextFeedAdGroupUpdate list AutotargetingCategories only. [#281](https://github.com/axisrow/direct-cli/issues/281); inherited from `DynamicTextFeedAdGroup.AutotargetingSettings` |
 | `adgroups.update` | `DynamicTextFeedAdGroup.FeedId` | Official adgroups.update docs for DynamicTextFeedAdGroupUpdate do not list FeedId. [#281](https://github.com/axisrow/direct-cli/issues/281) |
-| `campaigns.add` | `ClientInfo` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `Notification` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `Notification.SmsSettings` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `Notification.SmsSettings.Events` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `Notification.SmsSettings.TimeFrom` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `Notification.SmsSettings.TimeTo` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `Notification.EmailSettings` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `Notification.EmailSettings.Email` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `Notification.EmailSettings.CheckPositionInterval` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `Notification.EmailSettings.WarningBalance` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `Notification.EmailSettings.SendAccountNews` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `Notification.EmailSettings.SendWarnings` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `TimeZone` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `NegativeKeywords` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `NegativeKeywords.Items` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `BlockedIps` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `BlockedIps.Items` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `ExcludedSites` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `ExcludedSites.Items` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
 | `campaigns.add` | `TextCampaign.BiddingStrategy.Search` | Shared campaign BiddingStrategy builder needs typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `TextCampaign.BiddingStrategy` |
 | `campaigns.add` | `TextCampaign.BiddingStrategy.Search.WbMaximumClicks` | Shared campaign BiddingStrategy builder needs typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `TextCampaign.BiddingStrategy` |
 | `campaigns.add` | `TextCampaign.BiddingStrategy.Search.WbMaximumClicks.WeeklySpendLimit` | Shared campaign BiddingStrategy builder needs typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `TextCampaign.BiddingStrategy` |
@@ -1082,34 +1063,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `campaigns.add` | `SmartCampaign.PackageBiddingStrategy.Platforms` | SmartCampaign optional fields need typed support or N/A. [#295](https://github.com/axisrow/direct-cli/issues/295); inherited from `SmartCampaign` |
 | `campaigns.add` | `SmartCampaign.PackageBiddingStrategy.Platforms.Search` | SmartCampaign optional fields need typed support or N/A. [#295](https://github.com/axisrow/direct-cli/issues/295); inherited from `SmartCampaign` |
 | `campaigns.add` | `SmartCampaign.PackageBiddingStrategy.Platforms.Network` | SmartCampaign optional fields need typed support or N/A. [#295](https://github.com/axisrow/direct-cli/issues/295); inherited from `SmartCampaign` |
-| `campaigns.add` | `TimeTargeting` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `TimeTargeting.Schedule` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `TimeTargeting.Schedule.Items` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `TimeTargeting.ConsiderWorkingWeekends` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `TimeTargeting.HolidaysSchedule` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `TimeTargeting.HolidaysSchedule.SuspendOnHolidays` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `TimeTargeting.HolidaysSchedule.BidPercent` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `TimeTargeting.HolidaysSchedule.StartHour` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `TimeTargeting.HolidaysSchedule.EndHour` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `ClientInfo` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `Notification` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `Notification.SmsSettings` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `Notification.SmsSettings.Events` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `Notification.SmsSettings.TimeFrom` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `Notification.SmsSettings.TimeTo` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `Notification.EmailSettings` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `Notification.EmailSettings.Email` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `Notification.EmailSettings.CheckPositionInterval` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `Notification.EmailSettings.WarningBalance` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `Notification.EmailSettings.SendAccountNews` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `Notification.EmailSettings.SendWarnings` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `TimeZone` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `NegativeKeywords` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `NegativeKeywords.Items` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `BlockedIps` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `BlockedIps.Items` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `ExcludedSites` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `ExcludedSites.Items` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
 | `campaigns.update` | `TextCampaign.CounterIds` | TextCampaign optional fields need typed support or N/A. [#292](https://github.com/axisrow/direct-cli/issues/292); inherited from `TextCampaign` |
 | `campaigns.update` | `TextCampaign.CounterIds.Items` | TextCampaign optional fields need typed support or N/A. [#292](https://github.com/axisrow/direct-cli/issues/292); inherited from `TextCampaign` |
 | `campaigns.update` | `TextCampaign.RelevantKeywords` | TextCampaign optional fields need typed support or N/A. [#292](https://github.com/axisrow/direct-cli/issues/292); inherited from `TextCampaign` |
@@ -2226,15 +2179,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `campaigns.update` | `SmartCampaign.PackageBiddingStrategy.Platforms` | SmartCampaign optional fields need typed support or N/A. [#295](https://github.com/axisrow/direct-cli/issues/295); inherited from `SmartCampaign` |
 | `campaigns.update` | `SmartCampaign.PackageBiddingStrategy.Platforms.Search` | SmartCampaign optional fields need typed support or N/A. [#295](https://github.com/axisrow/direct-cli/issues/295); inherited from `SmartCampaign` |
 | `campaigns.update` | `SmartCampaign.PackageBiddingStrategy.Platforms.Network` | SmartCampaign optional fields need typed support or N/A. [#295](https://github.com/axisrow/direct-cli/issues/295); inherited from `SmartCampaign` |
-| `campaigns.update` | `TimeTargeting` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `TimeTargeting.Schedule` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `TimeTargeting.Schedule.Items` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `TimeTargeting.ConsiderWorkingWeekends` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `TimeTargeting.HolidaysSchedule` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `TimeTargeting.HolidaysSchedule.SuspendOnHolidays` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `TimeTargeting.HolidaysSchedule.BidPercent` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `TimeTargeting.HolidaysSchedule.StartHour` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `TimeTargeting.HolidaysSchedule.EndHour` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
 
 ## Field Table
 
@@ -2707,31 +2651,31 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `bids.set` | `bids.set` | `ContextBid` | `long` | 0 | 1 | `supported` | --context-bid |
 | `bids.set` | `bids.set` | `AutotargetingSearchBidIsAuto` | `YesNoEnum` | 0 | 1 | `supported` | --autotargeting-search-bid-is-auto |
 | `bids.set` | `bids.set` | `StrategyPriority` | `PriorityEnum` | 0 | 1 | `supported` | --priority |
-| `campaigns.add` | `campaigns.add` | `ClientInfo` | `string` | 0 | 1 | `missing_followup` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `campaigns.add` | `Notification` | `Notification` | 0 | 1 | `missing_followup` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `campaigns.add` | `Notification.SmsSettings` | `SmsSettings` | 0 | 1 | `missing_followup` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `campaigns.add` | `Notification.SmsSettings.Events` | `SmsEventsEnum` | 0 | unbounded | `missing_followup` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `campaigns.add` | `Notification.SmsSettings.TimeFrom` | `string` | 0 | 1 | `missing_followup` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `campaigns.add` | `Notification.SmsSettings.TimeTo` | `string` | 0 | 1 | `missing_followup` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `campaigns.add` | `Notification.EmailSettings` | `EmailSettings` | 0 | 1 | `missing_followup` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `campaigns.add` | `Notification.EmailSettings.Email` | `string` | 0 | 1 | `missing_followup` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `campaigns.add` | `Notification.EmailSettings.CheckPositionInterval` | `int` | 0 | 1 | `missing_followup` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `campaigns.add` | `Notification.EmailSettings.WarningBalance` | `int` | 0 | 1 | `missing_followup` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `campaigns.add` | `Notification.EmailSettings.SendAccountNews` | `YesNoEnum` | 0 | 1 | `missing_followup` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `campaigns.add` | `Notification.EmailSettings.SendWarnings` | `YesNoEnum` | 0 | 1 | `missing_followup` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `campaigns.add` | `TimeZone` | `string` | 0 | 1 | `missing_followup` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
+| `campaigns.add` | `campaigns.add` | `ClientInfo` | `string` | 0 | 1 | `supported` | --client-info |
+| `campaigns.add` | `campaigns.add` | `Notification` | `Notification` | 0 | 1 | `supported` | --notification-check-position-interval, --notification-email, --notification-send-account-news, --notification-send-warnings, --notification-warning-balance, --sms-events, --sms-time-from, --sms-time-to |
+| `campaigns.add` | `campaigns.add` | `Notification.SmsSettings` | `SmsSettings` | 0 | 1 | `supported` | --sms-events, --sms-time-from, --sms-time-to |
+| `campaigns.add` | `campaigns.add` | `Notification.SmsSettings.Events` | `SmsEventsEnum` | 0 | unbounded | `supported` | --sms-events |
+| `campaigns.add` | `campaigns.add` | `Notification.SmsSettings.TimeFrom` | `string` | 0 | 1 | `supported` | --sms-time-from |
+| `campaigns.add` | `campaigns.add` | `Notification.SmsSettings.TimeTo` | `string` | 0 | 1 | `supported` | --sms-time-to |
+| `campaigns.add` | `campaigns.add` | `Notification.EmailSettings` | `EmailSettings` | 0 | 1 | `supported` | --notification-check-position-interval, --notification-email, --notification-send-account-news, --notification-send-warnings, --notification-warning-balance |
+| `campaigns.add` | `campaigns.add` | `Notification.EmailSettings.Email` | `string` | 0 | 1 | `supported` | --notification-email |
+| `campaigns.add` | `campaigns.add` | `Notification.EmailSettings.CheckPositionInterval` | `int` | 0 | 1 | `supported` | --notification-check-position-interval |
+| `campaigns.add` | `campaigns.add` | `Notification.EmailSettings.WarningBalance` | `int` | 0 | 1 | `supported` | --notification-warning-balance |
+| `campaigns.add` | `campaigns.add` | `Notification.EmailSettings.SendAccountNews` | `YesNoEnum` | 0 | 1 | `supported` | --notification-send-account-news |
+| `campaigns.add` | `campaigns.add` | `Notification.EmailSettings.SendWarnings` | `YesNoEnum` | 0 | 1 | `supported` | --notification-send-warnings |
+| `campaigns.add` | `campaigns.add` | `TimeZone` | `string` | 0 | 1 | `supported` | --time-zone |
 | `campaigns.add` | `campaigns.add` | `Name` | `string` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `campaigns.add` | `campaigns.add` | `StartDate` | `string` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `campaigns.add` | `campaigns.add` | `DailyBudget` | `DailyBudget` | 0 | 1 | `supported` | --budget |
 | `campaigns.add` | `campaigns.add` | `DailyBudget.Amount` | `long` | 1 | 1 | `supported` | --budget |
 | `campaigns.add` | `campaigns.add` | `DailyBudget.Mode` | `DailyBudgetModeEnum` | 1 | 1 | `supported` | --budget |
 | `campaigns.add` | `campaigns.add` | `EndDate` | `string` | 0 | 1 | `supported` | --end-date |
-| `campaigns.add` | `campaigns.add` | `NegativeKeywords` | `ArrayOfString` | 0 | 1 | `missing_followup` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `campaigns.add` | `NegativeKeywords.Items` | `string` | 1 | unbounded | `missing_followup` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `campaigns.add` | `BlockedIps` | `ArrayOfString` | 0 | 1 | `missing_followup` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `campaigns.add` | `BlockedIps.Items` | `string` | 1 | unbounded | `missing_followup` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `campaigns.add` | `ExcludedSites` | `ArrayOfString` | 0 | 1 | `missing_followup` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `campaigns.add` | `ExcludedSites.Items` | `string` | 1 | unbounded | `missing_followup` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
+| `campaigns.add` | `campaigns.add` | `NegativeKeywords` | `ArrayOfString` | 0 | 1 | `supported` | --negative-keywords |
+| `campaigns.add` | `campaigns.add` | `NegativeKeywords.Items` | `string` | 1 | unbounded | `supported` | --negative-keywords |
+| `campaigns.add` | `campaigns.add` | `BlockedIps` | `ArrayOfString` | 0 | 1 | `supported` | --blocked-ips |
+| `campaigns.add` | `campaigns.add` | `BlockedIps.Items` | `string` | 1 | unbounded | `supported` | --blocked-ips |
+| `campaigns.add` | `campaigns.add` | `ExcludedSites` | `ArrayOfString` | 0 | 1 | `supported` | --excluded-sites |
+| `campaigns.add` | `campaigns.add` | `ExcludedSites.Items` | `string` | 1 | unbounded | `supported` | --excluded-sites |
 | `campaigns.add` | `campaigns.add` | `TextCampaign` | `TextCampaignAddItem` | 0 | 1 | `supported` | --type |
 | `campaigns.add` | `campaigns.add` | `TextCampaign.BiddingStrategy` | `TextCampaignStrategyAdd` | 0 | 1 | `supported` | --network-strategy, --search-strategy |
 | `campaigns.add` | `campaigns.add` | `TextCampaign.BiddingStrategy.Search` | `TextCampaignSearchStrategyAdd` | 1 | 1 | `missing_followup` | Shared campaign BiddingStrategy builder needs typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `TextCampaign.BiddingStrategy` |
@@ -3770,28 +3714,28 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `campaigns.add` | `campaigns.add` | `SmartCampaign.PackageBiddingStrategy.Platforms` | `SmartCampaignPlatforms` | 1 | 1 | `missing_followup` | SmartCampaign optional fields need typed support or N/A. [#295](https://github.com/axisrow/direct-cli/issues/295); inherited from `SmartCampaign` |
 | `campaigns.add` | `campaigns.add` | `SmartCampaign.PackageBiddingStrategy.Platforms.Search` | `YesNoEnum` | 1 | 1 | `missing_followup` | SmartCampaign optional fields need typed support or N/A. [#295](https://github.com/axisrow/direct-cli/issues/295); inherited from `SmartCampaign` |
 | `campaigns.add` | `campaigns.add` | `SmartCampaign.PackageBiddingStrategy.Platforms.Network` | `YesNoEnum` | 1 | 1 | `missing_followup` | SmartCampaign optional fields need typed support or N/A. [#295](https://github.com/axisrow/direct-cli/issues/295); inherited from `SmartCampaign` |
-| `campaigns.add` | `campaigns.add` | `TimeTargeting` | `TimeTargetingAdd` | 0 | 1 | `missing_followup` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `campaigns.add` | `TimeTargeting.Schedule` | `ArrayOfString` | 0 | 1 | `missing_followup` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `campaigns.add` | `TimeTargeting.Schedule.Items` | `string` | 1 | unbounded | `missing_followup` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `campaigns.add` | `TimeTargeting.ConsiderWorkingWeekends` | `YesNoEnum` | 1 | 1 | `missing_followup` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `campaigns.add` | `TimeTargeting.HolidaysSchedule` | `TimeTargetingOnPublicHolidays` | 0 | 1 | `missing_followup` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `campaigns.add` | `TimeTargeting.HolidaysSchedule.SuspendOnHolidays` | `YesNoEnum` | 1 | 1 | `missing_followup` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `campaigns.add` | `TimeTargeting.HolidaysSchedule.BidPercent` | `int` | 0 | 1 | `missing_followup` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `campaigns.add` | `TimeTargeting.HolidaysSchedule.StartHour` | `int` | 0 | 1 | `missing_followup` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.add` | `campaigns.add` | `TimeTargeting.HolidaysSchedule.EndHour` | `int` | 0 | 1 | `missing_followup` | campaigns.add campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `campaigns.update` | `ClientInfo` | `string` | 0 | 1 | `missing_followup` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `campaigns.update` | `Notification` | `Notification` | 0 | 1 | `missing_followup` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `campaigns.update` | `Notification.SmsSettings` | `SmsSettings` | 0 | 1 | `missing_followup` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `campaigns.update` | `Notification.SmsSettings.Events` | `SmsEventsEnum` | 0 | unbounded | `missing_followup` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `campaigns.update` | `Notification.SmsSettings.TimeFrom` | `string` | 0 | 1 | `missing_followup` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `campaigns.update` | `Notification.SmsSettings.TimeTo` | `string` | 0 | 1 | `missing_followup` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `campaigns.update` | `Notification.EmailSettings` | `EmailSettings` | 0 | 1 | `missing_followup` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `campaigns.update` | `Notification.EmailSettings.Email` | `string` | 0 | 1 | `missing_followup` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `campaigns.update` | `Notification.EmailSettings.CheckPositionInterval` | `int` | 0 | 1 | `missing_followup` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `campaigns.update` | `Notification.EmailSettings.WarningBalance` | `int` | 0 | 1 | `missing_followup` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `campaigns.update` | `Notification.EmailSettings.SendAccountNews` | `YesNoEnum` | 0 | 1 | `missing_followup` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `campaigns.update` | `Notification.EmailSettings.SendWarnings` | `YesNoEnum` | 0 | 1 | `missing_followup` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `campaigns.update` | `TimeZone` | `string` | 0 | 1 | `missing_followup` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
+| `campaigns.add` | `campaigns.add` | `TimeTargeting` | `TimeTargetingAdd` | 0 | 1 | `supported` | --consider-working-weekends, --holidays-bid-percent, --holidays-end-hour, --holidays-start-hour, --holidays-suspend-on-holidays, --time-targeting-schedule |
+| `campaigns.add` | `campaigns.add` | `TimeTargeting.Schedule` | `ArrayOfString` | 0 | 1 | `supported` | --time-targeting-schedule |
+| `campaigns.add` | `campaigns.add` | `TimeTargeting.Schedule.Items` | `string` | 1 | unbounded | `supported` | --time-targeting-schedule |
+| `campaigns.add` | `campaigns.add` | `TimeTargeting.ConsiderWorkingWeekends` | `YesNoEnum` | 1 | 1 | `supported` | --consider-working-weekends |
+| `campaigns.add` | `campaigns.add` | `TimeTargeting.HolidaysSchedule` | `TimeTargetingOnPublicHolidays` | 0 | 1 | `supported` | --holidays-bid-percent, --holidays-end-hour, --holidays-start-hour, --holidays-suspend-on-holidays |
+| `campaigns.add` | `campaigns.add` | `TimeTargeting.HolidaysSchedule.SuspendOnHolidays` | `YesNoEnum` | 1 | 1 | `supported` | --holidays-suspend-on-holidays |
+| `campaigns.add` | `campaigns.add` | `TimeTargeting.HolidaysSchedule.BidPercent` | `int` | 0 | 1 | `supported` | --holidays-bid-percent |
+| `campaigns.add` | `campaigns.add` | `TimeTargeting.HolidaysSchedule.StartHour` | `int` | 0 | 1 | `supported` | --holidays-start-hour |
+| `campaigns.add` | `campaigns.add` | `TimeTargeting.HolidaysSchedule.EndHour` | `int` | 0 | 1 | `supported` | --holidays-end-hour |
+| `campaigns.update` | `campaigns.update` | `ClientInfo` | `string` | 0 | 1 | `supported` | --client-info |
+| `campaigns.update` | `campaigns.update` | `Notification` | `Notification` | 0 | 1 | `supported` | --notification-check-position-interval, --notification-email, --notification-send-account-news, --notification-send-warnings, --notification-warning-balance, --sms-events, --sms-time-from, --sms-time-to |
+| `campaigns.update` | `campaigns.update` | `Notification.SmsSettings` | `SmsSettings` | 0 | 1 | `supported` | --sms-events, --sms-time-from, --sms-time-to |
+| `campaigns.update` | `campaigns.update` | `Notification.SmsSettings.Events` | `SmsEventsEnum` | 0 | unbounded | `supported` | --sms-events |
+| `campaigns.update` | `campaigns.update` | `Notification.SmsSettings.TimeFrom` | `string` | 0 | 1 | `supported` | --sms-time-from |
+| `campaigns.update` | `campaigns.update` | `Notification.SmsSettings.TimeTo` | `string` | 0 | 1 | `supported` | --sms-time-to |
+| `campaigns.update` | `campaigns.update` | `Notification.EmailSettings` | `EmailSettings` | 0 | 1 | `supported` | --notification-check-position-interval, --notification-email, --notification-send-account-news, --notification-send-warnings, --notification-warning-balance |
+| `campaigns.update` | `campaigns.update` | `Notification.EmailSettings.Email` | `string` | 0 | 1 | `supported` | --notification-email |
+| `campaigns.update` | `campaigns.update` | `Notification.EmailSettings.CheckPositionInterval` | `int` | 0 | 1 | `supported` | --notification-check-position-interval |
+| `campaigns.update` | `campaigns.update` | `Notification.EmailSettings.WarningBalance` | `int` | 0 | 1 | `supported` | --notification-warning-balance |
+| `campaigns.update` | `campaigns.update` | `Notification.EmailSettings.SendAccountNews` | `YesNoEnum` | 0 | 1 | `supported` | --notification-send-account-news |
+| `campaigns.update` | `campaigns.update` | `Notification.EmailSettings.SendWarnings` | `YesNoEnum` | 0 | 1 | `supported` | --notification-send-warnings |
+| `campaigns.update` | `campaigns.update` | `TimeZone` | `string` | 0 | 1 | `supported` | --time-zone |
 | `campaigns.update` | `campaigns.update` | `Id` | `long` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `campaigns.update` | `campaigns.update` | `Name` | `string` | 0 | 1 | `supported` | --name |
 | `campaigns.update` | `campaigns.update` | `StartDate` | `string` | 0 | 1 | `supported` | --start-date |
@@ -3799,12 +3743,12 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `campaigns.update` | `campaigns.update` | `DailyBudget.Amount` | `long` | 1 | 1 | `supported` | --budget |
 | `campaigns.update` | `campaigns.update` | `DailyBudget.Mode` | `DailyBudgetModeEnum` | 1 | 1 | `supported` | --budget |
 | `campaigns.update` | `campaigns.update` | `EndDate` | `string` | 0 | 1 | `supported` | --end-date |
-| `campaigns.update` | `campaigns.update` | `NegativeKeywords` | `ArrayOfString` | 0 | 1 | `missing_followup` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `campaigns.update` | `NegativeKeywords.Items` | `string` | 1 | unbounded | `missing_followup` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `campaigns.update` | `BlockedIps` | `ArrayOfString` | 0 | 1 | `missing_followup` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `campaigns.update` | `BlockedIps.Items` | `string` | 1 | unbounded | `missing_followup` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `campaigns.update` | `ExcludedSites` | `ArrayOfString` | 0 | 1 | `missing_followup` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `campaigns.update` | `ExcludedSites.Items` | `string` | 1 | unbounded | `missing_followup` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
+| `campaigns.update` | `campaigns.update` | `NegativeKeywords` | `ArrayOfString` | 0 | 1 | `supported` | --negative-keywords |
+| `campaigns.update` | `campaigns.update` | `NegativeKeywords.Items` | `string` | 1 | unbounded | `supported` | --negative-keywords |
+| `campaigns.update` | `campaigns.update` | `BlockedIps` | `ArrayOfString` | 0 | 1 | `supported` | --blocked-ips |
+| `campaigns.update` | `campaigns.update` | `BlockedIps.Items` | `string` | 1 | unbounded | `supported` | --blocked-ips |
+| `campaigns.update` | `campaigns.update` | `ExcludedSites` | `ArrayOfString` | 0 | 1 | `supported` | --excluded-sites |
+| `campaigns.update` | `campaigns.update` | `ExcludedSites.Items` | `string` | 1 | unbounded | `supported` | --excluded-sites |
 | `campaigns.update` | `campaigns.update` | `TextCampaign` | `TextCampaignUpdateItem` | 0 | 1 | `supported` | --type |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.CounterIds` | `ArrayOfInteger` | 0 | 1 | `missing_followup` | TextCampaign optional fields need typed support or N/A. [#292](https://github.com/axisrow/direct-cli/issues/292); inherited from `TextCampaign` |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.CounterIds.Items` | `int` | 1 | unbounded | `missing_followup` | TextCampaign optional fields need typed support or N/A. [#292](https://github.com/axisrow/direct-cli/issues/292); inherited from `TextCampaign` |
@@ -4927,15 +4871,15 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `campaigns.update` | `campaigns.update` | `SmartCampaign.PackageBiddingStrategy.Platforms` | `SmartCampaignPlatforms` | 0 | 1 | `missing_followup` | SmartCampaign optional fields need typed support or N/A. [#295](https://github.com/axisrow/direct-cli/issues/295); inherited from `SmartCampaign` |
 | `campaigns.update` | `campaigns.update` | `SmartCampaign.PackageBiddingStrategy.Platforms.Search` | `YesNoEnum` | 1 | 1 | `missing_followup` | SmartCampaign optional fields need typed support or N/A. [#295](https://github.com/axisrow/direct-cli/issues/295); inherited from `SmartCampaign` |
 | `campaigns.update` | `campaigns.update` | `SmartCampaign.PackageBiddingStrategy.Platforms.Network` | `YesNoEnum` | 1 | 1 | `missing_followup` | SmartCampaign optional fields need typed support or N/A. [#295](https://github.com/axisrow/direct-cli/issues/295); inherited from `SmartCampaign` |
-| `campaigns.update` | `campaigns.update` | `TimeTargeting` | `TimeTargeting` | 0 | 1 | `missing_followup` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `campaigns.update` | `TimeTargeting.Schedule` | `ArrayOfString` | 0 | 1 | `missing_followup` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `campaigns.update` | `TimeTargeting.Schedule.Items` | `string` | 1 | unbounded | `missing_followup` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `campaigns.update` | `TimeTargeting.ConsiderWorkingWeekends` | `YesNoEnum` | 1 | 1 | `missing_followup` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `campaigns.update` | `TimeTargeting.HolidaysSchedule` | `TimeTargetingOnPublicHolidays` | 0 | 1 | `missing_followup` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `campaigns.update` | `TimeTargeting.HolidaysSchedule.SuspendOnHolidays` | `YesNoEnum` | 1 | 1 | `missing_followup` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `campaigns.update` | `TimeTargeting.HolidaysSchedule.BidPercent` | `int` | 0 | 1 | `missing_followup` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `campaigns.update` | `TimeTargeting.HolidaysSchedule.StartHour` | `int` | 0 | 1 | `missing_followup` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
-| `campaigns.update` | `campaigns.update` | `TimeTargeting.HolidaysSchedule.EndHour` | `int` | 0 | 1 | `missing_followup` | campaigns.update campaign-level optional path needs typed support or N/A. [#291](https://github.com/axisrow/direct-cli/issues/291) |
+| `campaigns.update` | `campaigns.update` | `TimeTargeting` | `TimeTargeting` | 0 | 1 | `supported` | --consider-working-weekends, --holidays-bid-percent, --holidays-end-hour, --holidays-start-hour, --holidays-suspend-on-holidays, --time-targeting-schedule |
+| `campaigns.update` | `campaigns.update` | `TimeTargeting.Schedule` | `ArrayOfString` | 0 | 1 | `supported` | --time-targeting-schedule |
+| `campaigns.update` | `campaigns.update` | `TimeTargeting.Schedule.Items` | `string` | 1 | unbounded | `supported` | --time-targeting-schedule |
+| `campaigns.update` | `campaigns.update` | `TimeTargeting.ConsiderWorkingWeekends` | `YesNoEnum` | 1 | 1 | `supported` | --consider-working-weekends |
+| `campaigns.update` | `campaigns.update` | `TimeTargeting.HolidaysSchedule` | `TimeTargetingOnPublicHolidays` | 0 | 1 | `supported` | --holidays-bid-percent, --holidays-end-hour, --holidays-start-hour, --holidays-suspend-on-holidays |
+| `campaigns.update` | `campaigns.update` | `TimeTargeting.HolidaysSchedule.SuspendOnHolidays` | `YesNoEnum` | 1 | 1 | `supported` | --holidays-suspend-on-holidays |
+| `campaigns.update` | `campaigns.update` | `TimeTargeting.HolidaysSchedule.BidPercent` | `int` | 0 | 1 | `supported` | --holidays-bid-percent |
+| `campaigns.update` | `campaigns.update` | `TimeTargeting.HolidaysSchedule.StartHour` | `int` | 0 | 1 | `supported` | --holidays-start-hour |
+| `campaigns.update` | `campaigns.update` | `TimeTargeting.HolidaysSchedule.EndHour` | `int` | 0 | 1 | `supported` | --holidays-end-hour |
 | `clients.update` | `clients.update` | `ClientInfo` | `string` | 0 | 1 | `supported` | --client-info |
 | `clients.update` | `clients.update` | `Phone` | `string` | 0 | 1 | `supported` | --phone |
 | `clients.update` | `clients.update` | `Notification` | `NotificationUpdate` | 0 | 1 | `supported` | --email-subscription, --notification-email, --notification-lang |
