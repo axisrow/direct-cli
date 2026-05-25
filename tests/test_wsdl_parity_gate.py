@@ -2315,16 +2315,6 @@ for _campaign_op in ("add", "update"):
         OPTIONAL_FIELD_CLI_OPTIONS[
             ("campaigns", _campaign_op, f"UnifiedCampaign.{_path}")
         ] = {"--counter-ids"}
-    for _path in (
-        "PriorityGoals",
-        "PriorityGoals.Items",
-        "PriorityGoals.Items.GoalId",
-        "PriorityGoals.Items.Value",
-        "PriorityGoals.Items.IsMetrikaSourceOfValue",
-    ):
-        OPTIONAL_FIELD_CLI_OPTIONS[
-            ("campaigns", _campaign_op, f"UnifiedCampaign.{_path}")
-        ] = {"--priority-goals"}
     OPTIONAL_FIELD_CLI_OPTIONS[
         ("campaigns", _campaign_op, "UnifiedCampaign.TrackingParams")
     ] = {"--tracking-params"}
@@ -2384,9 +2374,17 @@ for _campaign_op in ("add", "update"):
             ("campaigns", _campaign_op, f"UnifiedCampaign.{_path}")
         ] = {"--negative-keyword-shared-set-ids"}
 
-OPTIONAL_FIELD_CLI_OPTIONS[
-    ("campaigns", "update", "UnifiedCampaign.PriorityGoals.Items.Operation")
-] = {"--priority-goals"}
+for _path in (
+    "PriorityGoals",
+    "PriorityGoals.Items",
+    "PriorityGoals.Items.GoalId",
+    "PriorityGoals.Items.Value",
+    "PriorityGoals.Items.IsMetrikaSourceOfValue",
+    "PriorityGoals.Items.Operation",
+):
+    OPTIONAL_FIELD_CLI_OPTIONS[("campaigns", "update", f"UnifiedCampaign.{_path}")] = {
+        "--priority-goals"
+    }
 
 OPTIONAL_FIELD_DEFAULT_FOLLOWUPS: dict[tuple[str, str], dict[str, str]] = {
     ("ads", "update"): {
@@ -2447,6 +2445,14 @@ OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]
         "status": "missing_followup",
         "issue": "#290",
         "note": "Shared campaign BiddingStrategy builder needs typed support.",
+    },
+    ("campaigns", "add", "UnifiedCampaign.PriorityGoals"): {
+        "status": "missing_followup",
+        "issue": "#290",
+        "note": (
+            "UnifiedCampaign.PriorityGoals on add requires compatible "
+            "UnifiedCampaign.BiddingStrategy typed support."
+        ),
     },
     ("campaigns", "add", "DynamicTextCampaign.BiddingStrategy"): {
         "status": "missing_followup",

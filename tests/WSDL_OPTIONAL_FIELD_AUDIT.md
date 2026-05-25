@@ -11,9 +11,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 2038 |
+| `missing_followup` | 2043 |
 | `not_applicable` | 23 |
-| `supported` | 1180 |
+| `supported` | 1175 |
 
 ## Confirmed Follow-Ups
 
@@ -485,6 +485,11 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `campaigns.add` | `UnifiedCampaign.BiddingStrategy.Network.MaxProfit.ExplorationBudget.MinimumExplorationBudget` | Shared campaign BiddingStrategy builder needs typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `UnifiedCampaign.BiddingStrategy` |
 | `campaigns.add` | `UnifiedCampaign.BiddingStrategy.Network.MaxProfit.ExplorationBudget.IsMinimumExplorationBudgetCustom` | Shared campaign BiddingStrategy builder needs typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `UnifiedCampaign.BiddingStrategy` |
 | `campaigns.add` | `UnifiedCampaign.BiddingStrategy.Network.BiddingStrategyType` | Shared campaign BiddingStrategy builder needs typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `UnifiedCampaign.BiddingStrategy` |
+| `campaigns.add` | `UnifiedCampaign.PriorityGoals` | UnifiedCampaign.PriorityGoals on add requires compatible UnifiedCampaign.BiddingStrategy typed support. [#290](https://github.com/axisrow/direct-cli/issues/290) |
+| `campaigns.add` | `UnifiedCampaign.PriorityGoals.Items` | UnifiedCampaign.PriorityGoals on add requires compatible UnifiedCampaign.BiddingStrategy typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `UnifiedCampaign.PriorityGoals` |
+| `campaigns.add` | `UnifiedCampaign.PriorityGoals.Items.GoalId` | UnifiedCampaign.PriorityGoals on add requires compatible UnifiedCampaign.BiddingStrategy typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `UnifiedCampaign.PriorityGoals` |
+| `campaigns.add` | `UnifiedCampaign.PriorityGoals.Items.Value` | UnifiedCampaign.PriorityGoals on add requires compatible UnifiedCampaign.BiddingStrategy typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `UnifiedCampaign.PriorityGoals` |
+| `campaigns.add` | `UnifiedCampaign.PriorityGoals.Items.IsMetrikaSourceOfValue` | UnifiedCampaign.PriorityGoals on add requires compatible UnifiedCampaign.BiddingStrategy typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `UnifiedCampaign.PriorityGoals` |
 | `campaigns.add` | `MobileAppCampaign` | MobileAppCampaign optional fields need typed support or N/A. [#296](https://github.com/axisrow/direct-cli/issues/296) |
 | `campaigns.add` | `MobileAppCampaign.BiddingStrategy` | Shared campaign BiddingStrategy builder needs typed support. [#290](https://github.com/axisrow/direct-cli/issues/290) |
 | `campaigns.add` | `MobileAppCampaign.BiddingStrategy.Search` | Shared campaign BiddingStrategy builder needs typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `MobileAppCampaign.BiddingStrategy` |
@@ -3054,11 +3059,11 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `campaigns.add` | `campaigns.add` | `UnifiedCampaign.Settings.Value` | `YesNoEnum` | 1 | 1 | `supported` | --setting |
 | `campaigns.add` | `campaigns.add` | `UnifiedCampaign.CounterIds` | `ArrayOfInteger` | 0 | 1 | `supported` | --counter-ids |
 | `campaigns.add` | `campaigns.add` | `UnifiedCampaign.CounterIds.Items` | `int` | 1 | unbounded | `supported` | --counter-ids |
-| `campaigns.add` | `campaigns.add` | `UnifiedCampaign.PriorityGoals` | `PriorityGoalsArray` | 0 | 1 | `supported` | --priority-goals |
-| `campaigns.add` | `campaigns.add` | `UnifiedCampaign.PriorityGoals.Items` | `PriorityGoalsItem` | 1 | unbounded | `supported` | --priority-goals |
-| `campaigns.add` | `campaigns.add` | `UnifiedCampaign.PriorityGoals.Items.GoalId` | `long` | 1 | 1 | `supported` | --priority-goals |
-| `campaigns.add` | `campaigns.add` | `UnifiedCampaign.PriorityGoals.Items.Value` | `long` | 1 | 1 | `supported` | --priority-goals |
-| `campaigns.add` | `campaigns.add` | `UnifiedCampaign.PriorityGoals.Items.IsMetrikaSourceOfValue` | `YesNoEnum` | 0 | 1 | `supported` | --priority-goals |
+| `campaigns.add` | `campaigns.add` | `UnifiedCampaign.PriorityGoals` | `PriorityGoalsArray` | 0 | 1 | `missing_followup` | UnifiedCampaign.PriorityGoals on add requires compatible UnifiedCampaign.BiddingStrategy typed support. [#290](https://github.com/axisrow/direct-cli/issues/290) |
+| `campaigns.add` | `campaigns.add` | `UnifiedCampaign.PriorityGoals.Items` | `PriorityGoalsItem` | 1 | unbounded | `missing_followup` | UnifiedCampaign.PriorityGoals on add requires compatible UnifiedCampaign.BiddingStrategy typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `UnifiedCampaign.PriorityGoals` |
+| `campaigns.add` | `campaigns.add` | `UnifiedCampaign.PriorityGoals.Items.GoalId` | `long` | 1 | 1 | `missing_followup` | UnifiedCampaign.PriorityGoals on add requires compatible UnifiedCampaign.BiddingStrategy typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `UnifiedCampaign.PriorityGoals` |
+| `campaigns.add` | `campaigns.add` | `UnifiedCampaign.PriorityGoals.Items.Value` | `long` | 1 | 1 | `missing_followup` | UnifiedCampaign.PriorityGoals on add requires compatible UnifiedCampaign.BiddingStrategy typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `UnifiedCampaign.PriorityGoals` |
+| `campaigns.add` | `campaigns.add` | `UnifiedCampaign.PriorityGoals.Items.IsMetrikaSourceOfValue` | `YesNoEnum` | 0 | 1 | `missing_followup` | UnifiedCampaign.PriorityGoals on add requires compatible UnifiedCampaign.BiddingStrategy typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `UnifiedCampaign.PriorityGoals` |
 | `campaigns.add` | `campaigns.add` | `UnifiedCampaign.TrackingParams` | `string` | 0 | 1 | `supported` | --tracking-params |
 | `campaigns.add` | `campaigns.add` | `UnifiedCampaign.AttributionModel` | `AttributionModelEnum` | 0 | 1 | `supported` | --attribution-model |
 | `campaigns.add` | `campaigns.add` | `UnifiedCampaign.PackageBiddingStrategy` | `UnifiedCampaignPackageBiddingStrategyAdd` | 0 | 1 | `supported` | --package-platform-dynamic-places, --package-platform-maps, --package-platform-network, --package-platform-product-gallery, --package-platform-search-organization-list, --package-platform-search-result, --package-strategy-from-campaign-id, --package-strategy-id |

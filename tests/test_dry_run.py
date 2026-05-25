@@ -5355,8 +5355,6 @@ def test_campaigns_add_unified_campaign_optional_controls_payload():
         "ADD_METRICA_TAG=YES",
         "--counter-ids",
         "111,222",
-        "--priority-goals",
-        "1234567:80:YES,9876543:20",
         "--tracking-params",
         "utm_source=direct",
         "--attribution-model",
@@ -5372,12 +5370,6 @@ def test_campaigns_add_unified_campaign_optional_controls_payload():
             "Network": {"BiddingStrategyType": "SERVING_OFF"},
         },
         "CounterIds": {"Items": [111, 222]},
-        "PriorityGoals": {
-            "Items": [
-                {"GoalId": 1234567, "Value": 80, "IsMetrikaSourceOfValue": "YES"},
-                {"GoalId": 9876543, "Value": 20},
-            ]
-        },
         "AttributionModel": "AUTO",
         "NegativeKeywordSharedSetIds": {"Items": [10, 11]},
         "TrackingParams": "utm_source=direct",
@@ -5887,6 +5879,24 @@ def test_campaigns_add_rejects_unified_package_strategy_with_counter_ids():
     )
     assert "UnifiedCampaign.PackageBiddingStrategy cannot be combined" in result.output
     assert "--counter-ids" in result.output
+
+
+def test_campaigns_add_rejects_unified_priority_goals_without_bidding_strategy():
+    result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "Unified Goals",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "UNIFIED_CAMPAIGN",
+        "--priority-goals",
+        "1:50,2:50",
+    )
+    assert "UnifiedCampaign.PriorityGoals" in result.output
+    assert "BiddingStrategy" in result.output
+    assert "#290" in result.output
 
 
 def test_campaigns_update_rejects_unified_package_strategy_with_priority_goals():

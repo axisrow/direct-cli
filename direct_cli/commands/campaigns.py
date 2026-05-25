@@ -1309,6 +1309,12 @@ def add(
                     "UnifiedCampaign cannot be combined with "
                     f"{', '.join(sorted(provided))}"
                 )
+            if priority_goals is not None:
+                raise click.UsageError(
+                    "UnifiedCampaign.PriorityGoals on campaigns add requires "
+                    "a compatible UnifiedCampaign.BiddingStrategy; shared "
+                    "BiddingStrategy support is tracked in #290."
+                )
 
         campaign_data = {"Name": name, "StartDate": start_date}
         parsed_settings = parse_setting_specs(list(settings))
