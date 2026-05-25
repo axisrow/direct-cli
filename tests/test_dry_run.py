@@ -5341,6 +5341,92 @@ def test_campaigns_add_text_package_bidding_strategy_payload():
     }
 
 
+def test_campaigns_add_unified_campaign_optional_controls_payload():
+    body = _dry_run(
+        "campaigns",
+        "add",
+        "--name",
+        "Unified",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "UNIFIED_CAMPAIGN",
+        "--setting",
+        "ADD_METRICA_TAG=YES",
+        "--counter-ids",
+        "111,222",
+        "--priority-goals",
+        "1234567:80:YES,9876543:20",
+        "--tracking-params",
+        "utm_source=direct",
+        "--attribution-model",
+        "AUTO",
+        "--negative-keyword-shared-set-ids",
+        "10,11",
+    )
+    unified = body["params"]["Campaigns"][0]["UnifiedCampaign"]
+    assert unified == {
+        "Settings": [{"Option": "ADD_METRICA_TAG", "Value": "YES"}],
+        "BiddingStrategy": {
+            "Search": {"BiddingStrategyType": "HIGHEST_POSITION"},
+            "Network": {"BiddingStrategyType": "SERVING_OFF"},
+        },
+        "CounterIds": {"Items": [111, 222]},
+        "PriorityGoals": {
+            "Items": [
+                {"GoalId": 1234567, "Value": 80, "IsMetrikaSourceOfValue": "YES"},
+                {"GoalId": 9876543, "Value": 20},
+            ]
+        },
+        "AttributionModel": "AUTO",
+        "NegativeKeywordSharedSetIds": {"Items": [10, 11]},
+        "TrackingParams": "utm_source=direct",
+    }
+
+
+def test_campaigns_add_unified_package_bidding_strategy_payload():
+    body = _dry_run(
+        "campaigns",
+        "add",
+        "--name",
+        "Unified Package",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "UNIFIED_CAMPAIGN",
+        "--package-strategy-id",
+        "700",
+        "--package-platform-search-result",
+        "YES",
+        "--package-platform-product-gallery",
+        "NO",
+        "--package-platform-maps",
+        "YES",
+        "--package-platform-search-organization-list",
+        "NO",
+        "--package-platform-network",
+        "YES",
+        "--package-platform-dynamic-places",
+        "NO",
+    )
+    unified = body["params"]["Campaigns"][0]["UnifiedCampaign"]
+    assert "BiddingStrategy" not in unified
+    assert unified == {
+        "Settings": [],
+        "PackageBiddingStrategy": {
+            "StrategyId": 700,
+            "Platforms": {
+                "SearchResult": "YES",
+                "ProductGallery": "NO",
+                "Maps": "YES",
+                "SearchOrganizationList": "NO",
+                "Network": "YES",
+                "DynamicPlaces": "NO",
+            },
+        },
+    }
+
+
 def test_campaigns_update_text_campaign_optional_controls_payload():
     body = _dry_run(
         "campaigns",
@@ -5394,6 +5480,51 @@ def test_campaigns_update_text_campaign_optional_controls_payload():
     }
 
 
+def test_campaigns_update_unified_campaign_optional_controls_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "UNIFIED_CAMPAIGN",
+        "--setting",
+        "ADD_METRICA_TAG=NO",
+        "--counter-ids",
+        "111,222",
+        "--priority-goals",
+        "1234567:80:YES,9876543:20",
+        "--tracking-params",
+        "utm_source=direct",
+        "--attribution-model",
+        "AUTO",
+        "--negative-keyword-shared-set-ids",
+        "10,11",
+    )
+    campaign = body["params"]["Campaigns"][0]
+    assert campaign == {
+        "Id": 123,
+        "UnifiedCampaign": {
+            "Settings": [{"Option": "ADD_METRICA_TAG", "Value": "NO"}],
+            "CounterIds": {"Items": [111, 222]},
+            "PriorityGoals": {
+                "Items": [
+                    {
+                        "GoalId": 1234567,
+                        "Value": 80,
+                        "IsMetrikaSourceOfValue": "YES",
+                        "Operation": "SET",
+                    },
+                    {"GoalId": 9876543, "Value": 20, "Operation": "SET"},
+                ]
+            },
+            "AttributionModel": "AUTO",
+            "NegativeKeywordSharedSetIds": {"Items": [10, 11]},
+            "TrackingParams": "utm_source=direct",
+        },
+    }
+
+
 def test_campaigns_update_text_package_bidding_strategy_payload():
     body = _dry_run(
         "campaigns",
@@ -5424,6 +5555,42 @@ def test_campaigns_update_text_package_bidding_strategy_payload():
             "Platforms": {
                 "SearchResult": "YES",
                 "ProductGallery": "YES",
+                "Network": "NO",
+            },
+        },
+    }
+
+
+def test_campaigns_update_unified_package_bidding_strategy_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "UNIFIED_CAMPAIGN",
+        "--package-strategy-from-campaign-id",
+        "456",
+        "--package-platform-search-result",
+        "YES",
+        "--package-platform-product-gallery",
+        "YES",
+        "--package-platform-maps",
+        "NO",
+        "--package-platform-search-organization-list",
+        "YES",
+        "--package-platform-network",
+        "NO",
+    )
+    unified = body["params"]["Campaigns"][0]["UnifiedCampaign"]
+    assert unified == {
+        "PackageBiddingStrategy": {
+            "StrategyFromCampaignId": 456,
+            "Platforms": {
+                "SearchResult": "YES",
+                "ProductGallery": "YES",
+                "Maps": "NO",
+                "SearchOrganizationList": "YES",
                 "Network": "NO",
             },
         },
@@ -5697,6 +5864,82 @@ def test_campaigns_add_rejects_package_strategy_with_strategy_inputs():
     assert "--search-strategy" in result.output
 
 
+def test_campaigns_add_rejects_unified_package_strategy_with_counter_ids():
+    result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "Unified Package Conflict",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "UNIFIED_CAMPAIGN",
+        "--package-strategy-id",
+        "700",
+        "--package-platform-search-result",
+        "YES",
+        "--package-platform-product-gallery",
+        "YES",
+        "--package-platform-network",
+        "YES",
+        "--counter-ids",
+        "111",
+    )
+    assert "UnifiedCampaign.PackageBiddingStrategy cannot be combined" in result.output
+    assert "--counter-ids" in result.output
+
+
+def test_campaigns_update_rejects_unified_package_strategy_with_priority_goals():
+    result = _rejected(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "UNIFIED_CAMPAIGN",
+        "--package-strategy-id",
+        "700",
+        "--priority-goals",
+        "1:50",
+    )
+    assert "UnifiedCampaign.PackageBiddingStrategy cannot be combined" in result.output
+    assert "--priority-goals" in result.output
+
+
+def test_campaigns_add_rejects_unified_client_info():
+    result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "Unified",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "UNIFIED_CAMPAIGN",
+        "--client-info",
+        "Client A",
+    )
+    assert "UnifiedCampaign cannot be combined" in result.output
+    assert "--client-info" in result.output
+
+
+def test_campaigns_update_rejects_unified_notification():
+    result = _rejected(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "UNIFIED_CAMPAIGN",
+        "--tracking-params",
+        "utm_source=direct",
+        "--notification-email",
+        "ops@example.com",
+    )
+    assert "UnifiedCampaign cannot be combined" in result.output
+    assert "--notification-email" in result.output
+
+
 def test_campaigns_rejects_too_many_negative_keyword_shared_set_ids():
     result = _rejected(
         *_cpa_base_args(),
@@ -5751,6 +5994,8 @@ def test_campaigns_help_exposes_text_campaign_optional_flags():
         assert "--attribution-model" in result.output
         assert "--package-strategy-id" in result.output
         assert "--package-platform-search-result" in result.output
+        assert "--package-platform-maps" in result.output
+        assert "--package-platform-search-organization-list" in result.output
         assert "--negative-keyword-shared-set-ids" in result.output
 
 
@@ -5800,6 +6045,23 @@ def test_campaigns_add_smart_tracking_params_payload():
     )
     smart = body["params"]["Campaigns"][0]["SmartCampaign"]
     assert smart["TrackingParams"] == "utm_source=direct"
+
+
+def test_campaigns_add_unified_tracking_params_payload():
+    body = _dry_run(
+        "campaigns",
+        "add",
+        "--name",
+        "Unified Track",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "UNIFIED_CAMPAIGN",
+        "--tracking-params",
+        "utm_source=direct&utm_medium=cpc",
+    )
+    unified = body["params"]["Campaigns"][0]["UnifiedCampaign"]
+    assert unified["TrackingParams"] == "utm_source=direct&utm_medium=cpc"
 
 
 def test_campaigns_add_tracking_params_on_unsupported_type_rejected():
@@ -5868,6 +6130,21 @@ def test_campaigns_update_smart_tracking_params_payload():
     )
     campaign = body["params"]["Campaigns"][0]
     assert campaign["SmartCampaign"] == {"TrackingParams": "utm_source=direct"}
+
+
+def test_campaigns_update_unified_tracking_params_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "UNIFIED_CAMPAIGN",
+        "--tracking-params",
+        "utm_source=direct",
+    )
+    campaign = body["params"]["Campaigns"][0]
+    assert campaign["UnifiedCampaign"] == {"TrackingParams": "utm_source=direct"}
 
 
 def test_campaigns_update_tracking_params_without_type_rejected():

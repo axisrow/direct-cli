@@ -363,11 +363,13 @@ direct campaigns add --name "Multi-Goal CPA" --start-date 2026-06-01 --type TEXT
 direct campaigns add --name "Text Controls" --start-date 2026-06-01 --type TEXT_CAMPAIGN --counter-ids 111,222 --relevant-keywords-budget-percent 40 --relevant-keywords-mode OPTIMAL --attribution-model AUTO --negative-keyword-shared-set-ids 10,11 --dry-run
 direct campaigns update --id 12345 --type TEXT_CAMPAIGN --setting ADD_METRICA_TAG=NO --priority-goals 1234567:80:YES --tracking-params "utm_source=direct" --dry-run
 direct campaigns add --name "Package Text" --start-date 2026-06-01 --type TEXT_CAMPAIGN --package-strategy-id 700 --package-platform-search-result YES --package-platform-product-gallery YES --package-platform-network NO --dry-run
+direct campaigns add --name "Unified Controls" --start-date 2026-06-01 --type UNIFIED_CAMPAIGN --setting ADD_METRICA_TAG=YES --counter-ids 111,222 --priority-goals 1234567:80:YES --tracking-params "utm_source=direct" --attribution-model AUTO --negative-keyword-shared-set-ids 10,11 --dry-run
+direct campaigns add --name "Unified Package" --start-date 2026-06-01 --type UNIFIED_CAMPAIGN --package-strategy-id 700 --package-platform-search-result YES --package-platform-product-gallery YES --package-platform-maps NO --package-platform-search-organization-list YES --package-platform-network YES --dry-run
 
 # Notification (Sms/Email) and TimeTargeting via typed CLI flags
 direct campaigns add --name "Notify+Schedule" --start-date 2026-06-01 --type TEXT_CAMPAIGN --search-strategy HIGHEST_POSITION --network-strategy SERVING_OFF --notification-email ops@example.com --notification-send-warnings YES --time-targeting-schedule 1A0123456789ABCDEFGHIJKL --consider-working-weekends YES --dry-run
 
-# TrackingParams (campaign-level UTM / tracking query string)
+# TrackingParams (campaign subtype UTM / tracking query string)
 direct campaigns add --name "UTM" --start-date 2026-06-01 --type TEXT_CAMPAIGN --tracking-params "utm_source=direct&utm_campaign={campaign_id}" --dry-run
 
 # Update / lifecycle
@@ -1169,11 +1171,13 @@ direct campaigns add --name "Мульти-целевой CPA" --start-date 2026-
 direct campaigns add --name "Текстовые настройки" --start-date 2026-06-01 --type TEXT_CAMPAIGN --counter-ids 111,222 --relevant-keywords-budget-percent 40 --relevant-keywords-mode OPTIMAL --attribution-model AUTO --negative-keyword-shared-set-ids 10,11 --dry-run
 direct campaigns update --id 12345 --type TEXT_CAMPAIGN --setting ADD_METRICA_TAG=NO --priority-goals 1234567:80:YES --tracking-params "utm_source=direct" --dry-run
 direct campaigns add --name "Пакетная текстовая" --start-date 2026-06-01 --type TEXT_CAMPAIGN --package-strategy-id 700 --package-platform-search-result YES --package-platform-product-gallery YES --package-platform-network NO --dry-run
+direct campaigns add --name "Единая настройки" --start-date 2026-06-01 --type UNIFIED_CAMPAIGN --setting ADD_METRICA_TAG=YES --counter-ids 111,222 --priority-goals 1234567:80:YES --tracking-params "utm_source=direct" --attribution-model AUTO --negative-keyword-shared-set-ids 10,11 --dry-run
+direct campaigns add --name "Единая пакетная" --start-date 2026-06-01 --type UNIFIED_CAMPAIGN --package-strategy-id 700 --package-platform-search-result YES --package-platform-product-gallery YES --package-platform-maps NO --package-platform-search-organization-list YES --package-platform-network YES --dry-run
 
 # Notification (Sms/Email) и TimeTargeting через явные CLI-флаги
 direct campaigns add --name "Уведомления+Расписание" --start-date 2026-06-01 --type TEXT_CAMPAIGN --search-strategy HIGHEST_POSITION --network-strategy SERVING_OFF --notification-email ops@example.com --notification-send-warnings YES --time-targeting-schedule 1A0123456789ABCDEFGHIJKL --consider-working-weekends YES --dry-run
 
-# TrackingParams — UTM/трекинг на уровне кампании (TextCampaign/DynamicTextCampaign/SmartCampaign.TrackingParams)
+# TrackingParams — UTM/трекинг в подтипе кампании (TextCampaign/UnifiedCampaign/DynamicTextCampaign/SmartCampaign.TrackingParams)
 direct campaigns add --name "UTM" --start-date 2026-06-01 --type TEXT_CAMPAIGN --tracking-params "utm_source=direct&utm_campaign={campaign_id}" --dry-run
 
 # Обновление и управление статусом

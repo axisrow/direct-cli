@@ -2299,6 +2299,95 @@ OPTIONAL_FIELD_CLI_OPTIONS.update(
     }
 )
 
+for _campaign_op in ("add", "update"):
+    OPTIONAL_FIELD_CLI_OPTIONS[("campaigns", _campaign_op, "UnifiedCampaign")] = {
+        "--type"
+    }
+    for _path in (
+        "Settings",
+        "Settings.Option",
+        "Settings.Value",
+    ):
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            ("campaigns", _campaign_op, f"UnifiedCampaign.{_path}")
+        ] = {"--setting"}
+    for _path in ("CounterIds", "CounterIds.Items"):
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            ("campaigns", _campaign_op, f"UnifiedCampaign.{_path}")
+        ] = {"--counter-ids"}
+    for _path in (
+        "PriorityGoals",
+        "PriorityGoals.Items",
+        "PriorityGoals.Items.GoalId",
+        "PriorityGoals.Items.Value",
+        "PriorityGoals.Items.IsMetrikaSourceOfValue",
+    ):
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            ("campaigns", _campaign_op, f"UnifiedCampaign.{_path}")
+        ] = {"--priority-goals"}
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("campaigns", _campaign_op, "UnifiedCampaign.TrackingParams")
+    ] = {"--tracking-params"}
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("campaigns", _campaign_op, "UnifiedCampaign.AttributionModel")
+    ] = {"--attribution-model"}
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("campaigns", _campaign_op, "UnifiedCampaign.PackageBiddingStrategy")
+    ] = {
+        "--package-strategy-id",
+        "--package-strategy-from-campaign-id",
+        "--package-platform-search-result",
+        "--package-platform-product-gallery",
+        "--package-platform-maps",
+        "--package-platform-search-organization-list",
+        "--package-platform-network",
+        "--package-platform-dynamic-places",
+    }
+    for _path, _flag in {
+        "PackageBiddingStrategy.StrategyId": "--package-strategy-id",
+        "PackageBiddingStrategy.StrategyFromCampaignId": (
+            "--package-strategy-from-campaign-id"
+        ),
+        "PackageBiddingStrategy.Platforms.SearchResult": (
+            "--package-platform-search-result"
+        ),
+        "PackageBiddingStrategy.Platforms.ProductGallery": (
+            "--package-platform-product-gallery"
+        ),
+        "PackageBiddingStrategy.Platforms.Maps": "--package-platform-maps",
+        "PackageBiddingStrategy.Platforms.SearchOrganizationList": (
+            "--package-platform-search-organization-list"
+        ),
+        "PackageBiddingStrategy.Platforms.Network": "--package-platform-network",
+        "PackageBiddingStrategy.Platforms.DynamicPlaces": (
+            "--package-platform-dynamic-places"
+        ),
+    }.items():
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            ("campaigns", _campaign_op, f"UnifiedCampaign.{_path}")
+        ] = {_flag}
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("campaigns", _campaign_op, "UnifiedCampaign.PackageBiddingStrategy.Platforms")
+    ] = {
+        "--package-platform-search-result",
+        "--package-platform-product-gallery",
+        "--package-platform-maps",
+        "--package-platform-search-organization-list",
+        "--package-platform-network",
+        "--package-platform-dynamic-places",
+    }
+    for _path in (
+        "NegativeKeywordSharedSetIds",
+        "NegativeKeywordSharedSetIds.Items",
+    ):
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            ("campaigns", _campaign_op, f"UnifiedCampaign.{_path}")
+        ] = {"--negative-keyword-shared-set-ids"}
+
+OPTIONAL_FIELD_CLI_OPTIONS[
+    ("campaigns", "update", "UnifiedCampaign.PriorityGoals.Items.Operation")
+] = {"--priority-goals"}
+
 OPTIONAL_FIELD_DEFAULT_FOLLOWUPS: dict[tuple[str, str], dict[str, str]] = {
     ("ads", "update"): {
         "issue": "#272",
@@ -2398,16 +2487,6 @@ OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]
         "status": "missing_followup",
         "issue": "#290",
         "note": "Shared campaign BiddingStrategy builder needs typed support.",
-    },
-    ("campaigns", "add", "UnifiedCampaign"): {
-        "status": "missing_followup",
-        "issue": "#293",
-        "note": "UnifiedCampaign optional fields need typed support or N/A.",
-    },
-    ("campaigns", "update", "UnifiedCampaign"): {
-        "status": "missing_followup",
-        "issue": "#293",
-        "note": "UnifiedCampaign optional fields need typed support or N/A.",
     },
     ("campaigns", "add", "DynamicTextCampaign"): {
         "status": "missing_followup",
