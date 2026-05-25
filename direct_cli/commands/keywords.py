@@ -88,8 +88,7 @@ def _coerce_keyword_field(field: str, raw_value: Any, row_index: int) -> Any:
             return int(raw_value)
         except (TypeError, ValueError):
             raise click.UsageError(
-                f"Row {row_index} field {field!r}: expected integer, "
-                f"got {raw_value!r}"
+                f"Row {row_index} field {field!r}: expected integer, got {raw_value!r}"
             )
     if kind == "micro":
         try:

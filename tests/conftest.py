@@ -86,9 +86,7 @@ def _before_record_request(request):
     body = getattr(request, "body", None)
     redacted = False
     if body and "VideoData" in (body if isinstance(body, str) else ""):
-        request.body = re.sub(
-            r'"VideoData":"[^"]*"', '"VideoData":"<REDACTED>"', body
-        )
+        request.body = re.sub(r'"VideoData":"[^"]*"', '"VideoData":"<REDACTED>"', body)
         redacted = True
     elif isinstance(body, bytes) and b"VideoData" in body:
         request.body = re.sub(
@@ -106,7 +104,9 @@ def _before_record_request(request):
         redacted = True
     if redacted:
         new_body = request.body
-        new_len = str(len(new_body.encode("utf-8") if isinstance(new_body, str) else new_body))
+        new_len = str(
+            len(new_body.encode("utf-8") if isinstance(new_body, str) else new_body)
+        )
         for k in list(request.headers.keys()):
             if k.lower() == "content-length":
                 request.headers[k] = new_len
@@ -119,7 +119,9 @@ def _before_record_response(response):
         body = response.get("body", {})
         data = body.get("string")
         if isinstance(data, bytes):
-            body["string"] = _scrub_login(data.decode("utf-8", errors="replace")).encode("utf-8")
+            body["string"] = _scrub_login(
+                data.decode("utf-8", errors="replace")
+            ).encode("utf-8")
         elif isinstance(data, str):
             body["string"] = _scrub_login(data)
 
@@ -131,7 +133,9 @@ def _before_record_response(response):
             continue
         if low == "x-accel-info":
             headers[key] = [
-                re.sub(r"reqid:\d+", "reqid:0000000000000000000", v) if isinstance(v, str) else v
+                re.sub(r"reqid:\d+", "reqid:0000000000000000000", v)
+                if isinstance(v, str)
+                else v
                 for v in headers[key]
             ]
             continue
@@ -285,8 +289,8 @@ def unique_suffix() -> str:
 _SANDBOX_ERROR_PATTERNS = (
     "Object not found",
     "Operation not supported",  # sandbox returns this for features unavailable in test env
-    "Not supported",            # sandbox returns this for unsupported campaign types
-    "не поддерживается",        # Russian variant of the above
+    "Not supported",  # sandbox returns this for unsupported campaign types
+    "не поддерживается",  # Russian variant of the above
     "Campaign not found",
     "Ad group not found",
     "not accessible",
@@ -294,13 +298,26 @@ _SANDBOX_ERROR_PATTERNS = (
 
 # Named extra_patterns for per-resource sandbox quirks.
 # Import these in tests instead of repeating inline tuples.
-_CAMPAIGN_STATUS_PATTERNS = ("DRAFT", "has not been saved", "is draft", "Invalid object status")
+_CAMPAIGN_STATUS_PATTERNS = (
+    "DRAFT",
+    "has not been saved",
+    "is draft",
+    "Invalid object status",
+)
 _ARCHIVE_PATTERNS = ("Cannot archive", "Cannot unarchive", "Invalid object status")
 _KEYWORD_PATTERNS = ("Keyword not found",)
 _SITELINK_PATTERNS = ("temporarily unavailable",)
 _IMAGE_PATTERNS = ("Invalid format",)
-_SMART_AD_PATTERNS = ("Неподходящий тип группы объявлений", "SelectionCriteria filtration")
-_RETARGETING_PATTERNS = ("required field", "is omitted", "Invalid request", "Not specified")
+_SMART_AD_PATTERNS = (
+    "Неподходящий тип группы объявлений",
+    "SelectionCriteria filtration",
+)
+_RETARGETING_PATTERNS = (
+    "required field",
+    "is omitted",
+    "Invalid request",
+    "Not specified",
+)
 
 
 def _is_sandbox_error(output: str, extra_patterns: tuple = ()) -> bool:
@@ -354,9 +371,12 @@ def sandbox_campaign(unique_suffix):
     """Create a TEXT_CAMPAIGN in sandbox, yield its ID, delete on teardown."""
     name = f"claude-test-{unique_suffix}"
     result = _fixture_invoke(
-        "campaigns", "add",
-        "--name", name,
-        "--start-date", tomorrow(),
+        "campaigns",
+        "add",
+        "--name",
+        name,
+        "--start-date",
+        tomorrow(),
         label="campaigns add",
     )
     campaign_id = _fixture_parse(result)
@@ -371,10 +391,14 @@ def sandbox_adgroup(sandbox_campaign):
     """Create a TEXT_AD_GROUP in sandbox, yield its ID, delete on teardown."""
     campaign_id = sandbox_campaign
     result = _fixture_invoke(
-        "adgroups", "add",
-        "--name", "test-group",
-        "--campaign-id", str(campaign_id),
-        "--region-ids", "1,225",
+        "adgroups",
+        "add",
+        "--name",
+        "test-group",
+        "--campaign-id",
+        str(campaign_id),
+        "--region-ids",
+        "1,225",
         label="adgroups add",
     )
     adgroup_id = _fixture_parse(result)
@@ -389,11 +413,16 @@ def sandbox_ad(sandbox_adgroup):
     """Create a TEXT_AD in sandbox, yield its ID, delete on teardown."""
     adgroup_id = sandbox_adgroup
     result = _fixture_invoke(
-        "ads", "add",
-        "--adgroup-id", str(adgroup_id),
-        "--title", "Test Ad",
-        "--text", "Test ad text",
-        "--href", "https://example.com",
+        "ads",
+        "add",
+        "--adgroup-id",
+        str(adgroup_id),
+        "--title",
+        "Test Ad",
+        "--text",
+        "Test ad text",
+        "--href",
+        "https://example.com",
         label="ads add",
     )
     ad_id = _fixture_parse(result)
@@ -408,9 +437,12 @@ def sandbox_keyword(sandbox_adgroup):
     """Create a keyword in sandbox, yield its ID, delete on teardown."""
     adgroup_id = sandbox_adgroup
     result = _fixture_invoke(
-        "keywords", "add",
-        "--adgroup-id", str(adgroup_id),
-        "--keyword", "тестовое ключевое слово",
+        "keywords",
+        "add",
+        "--adgroup-id",
+        str(adgroup_id),
+        "--keyword",
+        "тестовое ключевое слово",
         label="keywords add",
     )
     keyword_id = _fixture_parse(result)
@@ -424,14 +456,20 @@ def sandbox_keyword(sandbox_adgroup):
 def sandbox_retargeting_list(unique_suffix):
     """Create a retargeting list from typed ``--rule`` flags in sandbox."""
     result = _invoke(
-        "retargeting", "add",
-        "--name", f"test-rtg-{unique_suffix}",
-        "--type", "RETARGETING",
-        "--rule", "ALL:12345:30",
+        "retargeting",
+        "add",
+        "--name",
+        f"test-rtg-{unique_suffix}",
+        "--type",
+        "RETARGETING",
+        "--rule",
+        "ALL:12345:30",
     )
     if result.exit_code != 0:
         if _is_sandbox_error(result.output, extra_patterns=_RETARGETING_PATTERNS):
-            pytest.skip(f"retargeting add not supported (sandbox): {result.output[:200]}")
+            pytest.skip(
+                f"retargeting add not supported (sandbox): {result.output[:200]}"
+            )
         pytest.fail(f"retargeting add failed (CLI regression?): {result.output[:500]}")
 
     # Parse response body — sandbox may return exit 0 with Errors
@@ -459,10 +497,14 @@ def sandbox_retargeting_list(unique_suffix):
 def sandbox_feed(unique_suffix):
     """Create a feed in sandbox, yield its ID, delete on teardown."""
     result = _invoke(
-        "feeds", "add",
-        "--name", f"test-feed-{unique_suffix}",
-        "--url", "https://example.com/feed.xml",
-        "--business-type", "RETAIL",
+        "feeds",
+        "add",
+        "--name",
+        f"test-feed-{unique_suffix}",
+        "--url",
+        "https://example.com/feed.xml",
+        "--business-type",
+        "RETAIL",
     )
     if result.exit_code != 0:
         if _is_sandbox_error(result.output):
@@ -484,25 +526,38 @@ def sandbox_dynamic_adgroup(unique_suffix):
     """
     # Step 1: create DYNAMIC_TEXT_CAMPAIGN
     campaign_result = _fixture_invoke(
-        "campaigns", "add",
-        "--name", f"claude-dynamic-{unique_suffix}",
-        "--start-date", tomorrow(),
-        "--type", "DYNAMIC_TEXT_CAMPAIGN",
-        "--setting", "ADD_METRICA_TAG=NO",
-        "--search-strategy", "HIGHEST_POSITION",
-        "--network-strategy", "SERVING_OFF",
+        "campaigns",
+        "add",
+        "--name",
+        f"claude-dynamic-{unique_suffix}",
+        "--start-date",
+        tomorrow(),
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--setting",
+        "ADD_METRICA_TAG=NO",
+        "--search-strategy",
+        "HIGHEST_POSITION",
+        "--network-strategy",
+        "SERVING_OFF",
         label="campaigns add (dynamic)",
     )
     campaign_id = _fixture_parse(campaign_result)
 
     # Step 2: create DYNAMIC_TEXT_AD_GROUP
     adgroup_result = _fixture_invoke(
-        "adgroups", "add",
-        "--name", "dynamic-test-group",
-        "--campaign-id", str(campaign_id),
-        "--region-ids", "1,225",
-        "--type", "DYNAMIC_TEXT_AD_GROUP",
-        "--domain-url", "example.com",
+        "adgroups",
+        "add",
+        "--name",
+        "dynamic-test-group",
+        "--campaign-id",
+        str(campaign_id),
+        "--region-ids",
+        "1,225",
+        "--type",
+        "DYNAMIC_TEXT_AD_GROUP",
+        "--domain-url",
+        "example.com",
         label="adgroups add (dynamic)",
     )
     adgroup_id = _fixture_parse(adgroup_result)
@@ -526,25 +581,38 @@ def sandbox_smart_adgroup(unique_suffix, sandbox_feed):
     # Sandbox accepts any positive integer; replays match on body so the value
     # just needs to be stable.
     campaign_result = _fixture_invoke(
-        "campaigns", "add",
-        "--name", f"claude-smart-{unique_suffix}",
-        "--start-date", tomorrow(),
-        "--type", "SMART_CAMPAIGN",
-        "--counter-id", "12345678",
-        "--network-strategy", "AVERAGE_CPC_PER_FILTER",
-        "--filter-average-cpc", "1000000",
+        "campaigns",
+        "add",
+        "--name",
+        f"claude-smart-{unique_suffix}",
+        "--start-date",
+        tomorrow(),
+        "--type",
+        "SMART_CAMPAIGN",
+        "--counter-id",
+        "12345678",
+        "--network-strategy",
+        "AVERAGE_CPC_PER_FILTER",
+        "--filter-average-cpc",
+        "1000000",
         label="campaigns add (smart)",
     )
     campaign_id = _fixture_parse(campaign_result)
 
     # Step 2: create SMART_AD_GROUP (FeedId is required per API docs)
     adgroup_result = _fixture_invoke(
-        "adgroups", "add",
-        "--name", "smart-test-group",
-        "--campaign-id", str(campaign_id),
-        "--region-ids", "1,225",
-        "--type", "SMART_AD_GROUP",
-        "--feed-id", str(sandbox_feed),
+        "adgroups",
+        "add",
+        "--name",
+        "smart-test-group",
+        "--campaign-id",
+        str(campaign_id),
+        "--region-ids",
+        "1,225",
+        "--type",
+        "SMART_AD_GROUP",
+        "--feed-id",
+        str(sandbox_feed),
         label="adgroups add (smart)",
     )
     adgroup_id = _fixture_parse(adgroup_result)

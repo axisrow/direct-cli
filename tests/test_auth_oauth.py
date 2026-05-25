@@ -2,6 +2,7 @@
 
 import io
 import json
+import os
 import stat
 import urllib.parse
 from urllib.error import HTTPError, URLError
@@ -14,6 +15,7 @@ from direct_cli.auth import (
     DEFAULT_OAUTH_CLIENT_ID,
     exchange_oauth_code,
     get_credentials,
+    load_env_file,
     load_auth_store,
     refresh_access_token,
     save_auth_store,
@@ -184,6 +186,115 @@ class TestAuthOAuth:
         )
         assert "env-token" not in result.output
         assert "env-login" not in result.output
+
+    @patch("direct_cli.commands.campaigns.create_client")
+    def test_cli_command_prefers_active_profile_over_cwd_dotenv(
+        self, mock_create_client, isolated_auth_store, monkeypatch, tmp_path
+    ):
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("YANDEX_DIRECT_TOKEN", None)
+            os.environ.pop("YANDEX_DIRECT_LOGIN", None)
+            (tmp_path / ".env").write_text(
+                "YANDEX_DIRECT_TOKEN=dotenv-token\nYANDEX_DIRECT_LOGIN=dotenv-login\n",
+                encoding="utf-8",
+            )
+            monkeypatch.chdir(tmp_path)
+            load_env_file()
+            save_oauth_profile(
+                profile="agency1",
+                token="oauth-token-1",
+                login="client-login-1",
+                refresh_token="refresh-1",
+                expires_at=4_100_000_000.0,
+                client_id=DEFAULT_OAUTH_CLIENT_ID,
+            )
+            runner = CliRunner()
+
+            result = runner.invoke(
+                cli, ["campaigns", "get", "--ids", "123", "--dry-run"]
+            )
+
+        assert result.exit_code == 0
+        mock_create_client.assert_called_once_with(
+            token="oauth-token-1", login="client-login-1", sandbox=False
+        )
+        assert "dotenv-token" not in result.output
+        assert "dotenv-login" not in result.output
+        assert "oauth-token-1" not in result.output
+        assert "client-login-1" not in result.output
+
+    @patch("direct_cli.commands.campaigns.create_client")
+    def test_cli_command_uses_cwd_dotenv_without_active_profile(
+        self, mock_create_client, isolated_auth_store, monkeypatch, tmp_path
+    ):
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("YANDEX_DIRECT_TOKEN", None)
+            os.environ.pop("YANDEX_DIRECT_LOGIN", None)
+            (tmp_path / ".env").write_text(
+                "YANDEX_DIRECT_TOKEN=dotenv-token\nYANDEX_DIRECT_LOGIN=dotenv-login\n",
+                encoding="utf-8",
+            )
+            monkeypatch.chdir(tmp_path)
+            load_env_file()
+            runner = CliRunner()
+
+            result = runner.invoke(
+                cli, ["campaigns", "get", "--ids", "123", "--dry-run"]
+            )
+
+        assert result.exit_code == 0
+        mock_create_client.assert_called_once_with(
+            token="dotenv-token", login="dotenv-login", sandbox=False
+        )
+        assert "dotenv-token" not in result.output
+        assert "dotenv-login" not in result.output
+
+    @patch("direct_cli.commands.campaigns.create_client")
+    def test_cli_explicit_credentials_override_profile_and_cwd_dotenv(
+        self, mock_create_client, isolated_auth_store, monkeypatch, tmp_path
+    ):
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("YANDEX_DIRECT_TOKEN", None)
+            os.environ.pop("YANDEX_DIRECT_LOGIN", None)
+            (tmp_path / ".env").write_text(
+                "YANDEX_DIRECT_TOKEN=dotenv-token\nYANDEX_DIRECT_LOGIN=dotenv-login\n",
+                encoding="utf-8",
+            )
+            monkeypatch.chdir(tmp_path)
+            load_env_file()
+            save_oauth_profile(
+                profile="agency1",
+                token="oauth-token-1",
+                login="client-login-1",
+                refresh_token="refresh-1",
+                expires_at=4_100_000_000.0,
+                client_id=DEFAULT_OAUTH_CLIENT_ID,
+            )
+            runner = CliRunner()
+
+            result = runner.invoke(
+                cli,
+                [
+                    "--token",
+                    "cli-token",
+                    "--login",
+                    "cli-login",
+                    "campaigns",
+                    "get",
+                    "--ids",
+                    "123",
+                    "--dry-run",
+                ],
+            )
+
+        assert result.exit_code == 0
+        mock_create_client.assert_called_once_with(
+            token="cli-token", login="cli-login", sandbox=False
+        )
+        assert "dotenv-token" not in result.output
+        assert "oauth-token-1" not in result.output
+        assert "cli-token" not in result.output
+        assert "cli-login" not in result.output
 
     def test_auth_login_oauth_token_mode(self, isolated_auth_store):
         runner = CliRunner()

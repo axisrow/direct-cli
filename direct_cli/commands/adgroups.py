@@ -660,7 +660,7 @@ def get(
 )
 @click.option(
     "--target-carrier",
-    help=("MobileAppAdGroup.TargetCarrier value: " "WI_FI_ONLY or WI_FI_AND_CELLULAR"),
+    help=("MobileAppAdGroup.TargetCarrier value: WI_FI_ONLY or WI_FI_AND_CELLULAR"),
 )
 @click.option(
     "--target-operating-system-version",
@@ -911,7 +911,7 @@ def add(
 @click.option(
     "--dynamic-feed",
     is_flag=True,
-    help=("Build DynamicTextFeedAdGroup update block for " "--autotargeting-category"),
+    help=("Build DynamicTextFeedAdGroup update block for --autotargeting-category"),
 )
 @click.option(
     "--negative-keywords",
@@ -957,7 +957,7 @@ def add(
 )
 @click.option(
     "--target-carrier",
-    help=("MobileAppAdGroup.TargetCarrier value: " "WI_FI_ONLY or WI_FI_AND_CELLULAR"),
+    help=("MobileAppAdGroup.TargetCarrier value: WI_FI_ONLY or WI_FI_AND_CELLULAR"),
 )
 @click.option(
     "--target-operating-system-version",

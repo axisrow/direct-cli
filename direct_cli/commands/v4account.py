@@ -219,9 +219,7 @@ def _validate_action(action: str) -> str:
     return normalized
 
 
-def _flag_supplied(
-    ctx: click.Context, name: str, value: Any
-) -> bool:
+def _flag_supplied(ctx: click.Context, name: str, value: Any) -> bool:
     """Detect whether an action-specific Click parameter was supplied by the user.
 
     Values sourced from envvars or defaults are NOT counted as "supplied" —
@@ -249,7 +247,9 @@ def _reject_disallowed_flags(
         if name not in allowed and _flag_supplied(ctx, name, value)
     )
     if offenders:
-        valid_flags = sorted(_PARAM_TO_FLAG[name] for name in allowed if name in _PARAM_TO_FLAG)
+        valid_flags = sorted(
+            _PARAM_TO_FLAG[name] for name in allowed if name in _PARAM_TO_FLAG
+        )
         raise click.UsageError(
             f"{', '.join(offenders)} not valid for --action {action}. "
             f"Valid flags for {action}: {', '.join(valid_flags)}"
@@ -272,9 +272,7 @@ def _account_selection_criteria(
         if not parsed_ids:
             raise click.UsageError("--account-ids must not be empty when provided")
         if any(account_id <= 0 for account_id in parsed_ids):
-            raise click.UsageError(
-                "--account-ids must contain only positive integers"
-            )
+            raise click.UsageError("--account-ids must contain only positive integers")
     else:
         parsed_ids = None
 
@@ -291,9 +289,7 @@ def _account_selection_criteria(
     return criteria or None
 
 
-def _account_get_param(
-    logins: Optional[str], account_ids: Optional[str]
-) -> dict:
+def _account_get_param(logins: Optional[str], account_ids: Optional[str]) -> dict:
     """Build the Get param object."""
     criteria = _account_selection_criteria(logins, account_ids)
     param: dict = {"Action": "Get"}
@@ -366,9 +362,7 @@ def _account_update_param(
     return {"Action": action, "Accounts": [account]}
 
 
-def _parse_account_payments(
-    payments: tuple[str, ...], currency: str
-) -> list[dict]:
+def _parse_account_payments(payments: tuple[str, ...], currency: str) -> list[dict]:
     """Parse repeated --payment ACCOUNT_ID=AMOUNT into PayCampElement-shaped items."""
     if not payments:
         raise click.UsageError("--payment is required")
@@ -425,9 +419,7 @@ def _account_deposit_param(
     return {"Action": "Deposit", "Payments": items}
 
 
-def _account_invoice_param(
-    payments: tuple[str, ...], currency: str
-) -> dict:
+def _account_invoice_param(payments: tuple[str, ...], currency: str) -> dict:
     """Build the Invoice param object."""
     return {
         "Action": "Invoice",
@@ -443,9 +435,7 @@ def _account_transfer_param(
 ) -> dict:
     """Build the TransferMoney param object (single transfer per call)."""
     if from_account_id == to_account_id:
-        raise click.UsageError(
-            "--from-account-id and --to-account-id must differ"
-        )
+        raise click.UsageError("--from-account-id and --to-account-id must differ")
     return {
         "Action": "TransferMoney",
         "Transfers": [
@@ -535,9 +525,7 @@ def enable_shared_account(ctx, client_login, dry_run, output_format, output):
 @click.option(
     "--sms-time-from", help="SMS notification start time, HH:MM (Update only)"
 )
-@click.option(
-    "--sms-time-to", help="SMS notification end time, HH:MM (Update only)"
-)
+@click.option("--sms-time-to", help="SMS notification end time, HH:MM (Update only)")
 @click.option("--email", help="Notification email (Update only)")
 @click.option(
     "--money-warning-value",
@@ -554,8 +542,7 @@ def enable_shared_account(ctx, client_login, dry_run, output_format, output):
     "payments",
     multiple=True,
     help=(
-        "Payment as ACCOUNT_ID=AMOUNT; repeat for multiple accounts "
-        "(Deposit / Invoice)"
+        "Payment as ACCOUNT_ID=AMOUNT; repeat for multiple accounts (Deposit / Invoice)"
     ),
 )
 @click.option(
@@ -579,9 +566,7 @@ def enable_shared_account(ctx, client_login, dry_run, output_format, output):
     type=click.IntRange(min=1),
     help="Destination account ID (TransferMoney only)",
 )
-@click.option(
-    "--amount", help="Positive amount, e.g. 100.50 (TransferMoney only)"
-)
+@click.option("--amount", help="Positive amount, e.g. 100.50 (TransferMoney only)")
 @click.option(
     "--finance-token",
     envvar="YANDEX_DIRECT_FINANCE_TOKEN",
@@ -684,7 +669,9 @@ def account_management(
 
     if action == "Get":
         param = _account_get_param(logins, account_ids)
-        _emit_or_call_v4(ctx, "AccountManagement", param, dry_run, output_format, output)
+        _emit_or_call_v4(
+            ctx, "AccountManagement", param, dry_run, output_format, output
+        )
         return
 
     _require_dry_run_or_sandbox(dry_run, ctx.obj.get("sandbox"))
@@ -704,14 +691,14 @@ def account_management(
             money_warning_value,
             paused_by_day_budget,
         )
-        _emit_or_call_v4(ctx, "AccountManagement", param, dry_run, output_format, output)
+        _emit_or_call_v4(
+            ctx, "AccountManagement", param, dry_run, output_format, output
+        )
         return
 
     # Deposit / Invoice / TransferMoney — financial sub-actions.
     if currency is None:
-        raise click.UsageError(
-            f"--currency is required for --action {action}"
-        )
+        raise click.UsageError(f"--currency is required for --action {action}")
     resolved_token, resolved_op_num = _finance_credentials(
         finance_token,
         master_token,

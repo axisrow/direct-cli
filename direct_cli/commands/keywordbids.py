@@ -221,9 +221,9 @@ def set_auto(
                 "TargetTrafficVolume": target_traffic_volume
             }
             if increase_percent is not None:
-                bidding_rule["SearchByTrafficVolume"][
-                    "IncreasePercent"
-                ] = increase_percent
+                bidding_rule["SearchByTrafficVolume"]["IncreasePercent"] = (
+                    increase_percent
+                )
             if bid_ceiling is not None:
                 bidding_rule["SearchByTrafficVolume"]["BidCeiling"] = bid_ceiling
         if target_coverage is not None:

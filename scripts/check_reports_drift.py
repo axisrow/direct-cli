@@ -86,11 +86,13 @@ def compute_drift(cached: dict, live: dict, missing_cache_count: int = 0) -> dic
     added_headers = sorted(live_headers - cached_headers)
     removed_headers = sorted(cached_headers - live_headers)
     if added_headers or removed_headers:
-        drift.append({
-            "section": "request_headers",
-            "added": added_headers,
-            "removed": removed_headers,
-        })
+        drift.append(
+            {
+                "section": "request_headers",
+                "added": added_headers,
+                "removed": removed_headers,
+            }
+        )
 
     return {
         "sources_checked": len(REPORTS_SPEC_URLS),

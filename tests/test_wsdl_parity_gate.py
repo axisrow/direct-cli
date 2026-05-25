@@ -115,7 +115,7 @@ def test_empty_payload_no_op_rejected(
 ) -> None:
     result = CliRunner().invoke(cli, argv + ["--dry-run"])
     assert result.exit_code != 0, (
-        f"{command_key}: empty payload accepted as no-op. " f"Output: {result.output!r}"
+        f"{command_key}: empty payload accepted as no-op. Output: {result.output!r}"
     )
     assert expected_error.lower() in result.output.lower(), (
         f"{command_key}: rejection happened but the error message lacks the "
@@ -517,7 +517,7 @@ def test_silent_data_loss_rejected(
 ) -> None:
     result = CliRunner().invoke(cli, argv + ["--dry-run"])
     assert result.exit_code != 0, (
-        f"{probe_id}: incompatible flag silently dropped. " f"Output: {result.output!r}"
+        f"{probe_id}: incompatible flag silently dropped. Output: {result.output!r}"
     )
     assert expected_error.lower() in result.output.lower(), (
         f"{probe_id}: rejection happened but the error message does not "
@@ -2683,9 +2683,9 @@ OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]
     },
 }
 
-OPTIONAL_FIELD_CHILD_COMPONENT_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]] = (
-    {}
-)
+OPTIONAL_FIELD_CHILD_COMPONENT_FOLLOWUPS: dict[
+    tuple[str, str, str], dict[str, str]
+] = {}
 
 OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
     ("keywords", "add", "AutotargetingSearchBidIsAuto"): {
@@ -2883,9 +2883,9 @@ def test_optional_field_audit_entries_reference_real_wsdl_paths() -> None:
                 missing_issues.append((cli_group, cli_op, wsdl_path, issue))
 
     assert not bad_statuses, f"Invalid optional-field audit statuses: {bad_statuses}"
-    assert (
-        not stale_entries
-    ), f"Optional-field audit entries no longer in WSDL: {stale_entries}"
+    assert not stale_entries, (
+        f"Optional-field audit entries no longer in WSDL: {stale_entries}"
+    )
     assert not missing_issues, (
         "Optional-field missing_followup entries must link a GitHub issue: "
         f"{missing_issues}"
@@ -2937,7 +2937,7 @@ def test_optional_field_supported_options_reference_click_options() -> None:
             bad_options.append((cli_group, cli_op, wsdl_path, missing))
 
     assert not stale_paths, (
-        "Optional-field supported entries no longer exist in WSDL: " f"{stale_paths}"
+        f"Optional-field supported entries no longer exist in WSDL: {stale_paths}"
     )
     assert not bad_options, (
         "Optional-field supported entries reference missing Click options: "

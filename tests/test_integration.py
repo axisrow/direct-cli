@@ -241,8 +241,7 @@ class TestReadOnlyAds(unittest.TestCase):
             self.assertIn(
                 "TextAd",
                 ad,
-                f"TEXT_AD {ad['Id']} missing TextAd — "
-                "TextAdFieldNames may not be sent",
+                f"TEXT_AD {ad['Id']} missing TextAd — TextAdFieldNames may not be sent",
             )
             self.assertIn("Title", ad["TextAd"])
             self.assertIn("Text", ad["TextAd"])
@@ -661,6 +660,7 @@ class TestReadOnlyBalance(unittest.TestCase):
         # 3500 limitation does not apply to this invocation path.
         result = invoke_get("balance", "--format", "json")
         assert_success(result, "balance")
+
 
 @pytest.mark.integration
 @skip_if_no_token

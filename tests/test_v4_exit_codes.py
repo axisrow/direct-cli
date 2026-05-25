@@ -83,12 +83,15 @@ def test_usage_error_from_call_v4_yields_exit_code_2(module_name, argv):
     """If call_v4 raises UsageError, Click must format it and exit with 2."""
     sentinel = "v4 shape validation failed: bogus"
 
-    with patch(
-        f"direct_cli.commands.{module_name}.call_v4",
-        side_effect=click.UsageError(sentinel),
-    ), patch(
-        f"direct_cli.commands.{module_name}.create_v4_client",
-        return_value=object(),
+    with (
+        patch(
+            f"direct_cli.commands.{module_name}.call_v4",
+            side_effect=click.UsageError(sentinel),
+        ),
+        patch(
+            f"direct_cli.commands.{module_name}.create_v4_client",
+            return_value=object(),
+        ),
     ):
         result = _invoke(*argv)
 
@@ -109,12 +112,15 @@ def test_usage_error_from_call_v4_yields_exit_code_2(module_name, argv):
 )
 def test_runtime_error_from_call_v4_still_exits_with_abort(module_name, argv):
     """Non-Click exceptions must still go through print_error + Abort (exit 1)."""
-    with patch(
-        f"direct_cli.commands.{module_name}.call_v4",
-        side_effect=RuntimeError("boom"),
-    ), patch(
-        f"direct_cli.commands.{module_name}.create_v4_client",
-        return_value=object(),
+    with (
+        patch(
+            f"direct_cli.commands.{module_name}.call_v4",
+            side_effect=RuntimeError("boom"),
+        ),
+        patch(
+            f"direct_cli.commands.{module_name}.create_v4_client",
+            return_value=object(),
+        ),
     ):
         result = _invoke(*argv)
 

@@ -282,9 +282,9 @@ def test_v4_live_wordstat_lifecycle_opt_in_write():
         "CreateNewWordstatReport",
         {"Phrases": ["купить ноутбук"], "GeoID": [0]},
     )
-    assert (
-        isinstance(report_id, int) and report_id > 0
-    ), f"unexpected CreateNewWordstatReport response: {report_id!r}"
+    assert isinstance(report_id, int) and report_id > 0, (
+        f"unexpected CreateNewWordstatReport response: {report_id!r}"
+    )
     _orphan_store.add("v4wordstat", report_id)
     try:
         reports = call_v4(client, "GetWordstatReportList")
@@ -320,9 +320,9 @@ def test_v4_live_forecast_lifecycle_opt_in_write():
         "CreateNewForecast",
         {"Phrases": ["купить ноутбук"], "GeoID": [213], "Currency": "RUB"},
     )
-    assert (
-        isinstance(forecast_id, int) and forecast_id > 0
-    ), f"unexpected CreateNewForecast response: {forecast_id!r}"
+    assert isinstance(forecast_id, int) and forecast_id > 0, (
+        f"unexpected CreateNewForecast response: {forecast_id!r}"
+    )
     _orphan_store.add("v4forecast", forecast_id)
     try:
         forecasts = call_v4(client, "GetForecastList")

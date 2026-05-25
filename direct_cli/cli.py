@@ -4,6 +4,7 @@ Direct CLI - Command-line interface for Yandex Direct API
 """
 
 import click
+from click.core import ParameterSource
 
 from . import __version__
 from .auth import get_active_profile, get_credentials, load_env_file
@@ -65,6 +66,13 @@ API errors:
   Error 8800 usually means the object is not available under the current
   Client-Login/account.
 """
+
+
+def _command_line_option_value(ctx, name, value):
+    """Return only values explicitly supplied on the command line."""
+    if ctx.get_parameter_source(name) is ParameterSource.COMMANDLINE:
+        return value
+    return None
 
 
 def _command_has_option(cmd: click.Command, option_name: str) -> bool:
@@ -214,6 +222,27 @@ def cli(
     if ctx.invoked_subcommand != "auth":
         active_profile = get_active_profile()
 
+    explicit_token = _command_line_option_value(ctx, "token", token)
+    explicit_login = _command_line_option_value(ctx, "login", login)
+    if (
+        explicit_login is None
+        and active_profile is None
+        and ctx.get_parameter_source("login") is ParameterSource.ENVIRONMENT
+    ):
+        explicit_login = login
+    explicit_op_token_ref = _command_line_option_value(
+        ctx, "op_token_ref", op_token_ref
+    )
+    explicit_op_login_ref = _command_line_option_value(
+        ctx, "op_login_ref", op_login_ref
+    )
+    explicit_bw_token_ref = _command_line_option_value(
+        ctx, "bw_token_ref", bw_token_ref
+    )
+    explicit_bw_login_ref = _command_line_option_value(
+        ctx, "bw_login_ref", bw_login_ref
+    )
+
     # Resolve credentials early so all subcommands get the final values
     has_refs = (
         token
@@ -228,13 +257,13 @@ def cli(
     if has_refs:
         try:
             resolved_token, resolved_login = get_credentials(
-                token=token,
-                login=login,
+                token=explicit_token,
+                login=explicit_login,
                 profile=profile,
-                op_token_ref=op_token_ref,
-                op_login_ref=op_login_ref,
-                bw_token_ref=bw_token_ref,
-                bw_login_ref=bw_login_ref,
+                op_token_ref=explicit_op_token_ref,
+                op_login_ref=explicit_op_login_ref,
+                bw_token_ref=explicit_bw_token_ref,
+                bw_login_ref=explicit_bw_login_ref,
             )
             ctx.obj["token"] = resolved_token
             ctx.obj["login"] = resolved_login
@@ -245,11 +274,11 @@ def cli(
                 # Explicit profile selected but not found — surface the error
                 raise click.ClickException(str(e))
             # No credential source at all — let subcommands fail naturally
-            ctx.obj["token"] = token
-            ctx.obj["login"] = login
+            ctx.obj["token"] = explicit_token
+            ctx.obj["login"] = explicit_login
     else:
-        ctx.obj["token"] = token
-        ctx.obj["login"] = login
+        ctx.obj["token"] = explicit_token
+        ctx.obj["login"] = explicit_login
 
 
 def _register_command(command: click.Command) -> None:

@@ -488,7 +488,7 @@ class LiveSandboxRunner:
                 command=matrix_command,
                 status=NOT_COVERED,
                 detail=(
-                    "set YANDEX_DIRECT_V4ACCOUNT_CLIENT_LOGIN or " "YANDEX_DIRECT_LOGIN"
+                    "set YANDEX_DIRECT_V4ACCOUNT_CLIENT_LOGIN or YANDEX_DIRECT_LOGIN"
                 ),
             )
 

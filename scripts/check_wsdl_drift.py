@@ -98,11 +98,7 @@ def main() -> int:
         "imported_xsd_drift": xsd_drift,
     }
     print(json.dumps(report, indent=2, ensure_ascii=False))
-    return (
-        1
-        if (drift or missing_cache or xsd_drift or xsd_missing_cache)
-        else 0
-    )
+    return 1 if (drift or missing_cache or xsd_drift or xsd_missing_cache) else 0
 
 
 if __name__ == "__main__":
