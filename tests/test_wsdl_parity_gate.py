@@ -1590,15 +1590,10 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("campaigns", "add", "TextCampaign.NegativeKeywordSharedSetIds.Items"): {
         "--negative-keyword-shared-set-ids"
     },
-    ("campaigns", "add", "DynamicTextCampaign"): {"--type"},
     ("campaigns", "add", "DynamicTextCampaign.BiddingStrategy"): {
         "--search-strategy",
         "--network-strategy",
     },
-    ("campaigns", "add", "DynamicTextCampaign.Settings"): {"--setting"},
-    ("campaigns", "add", "DynamicTextCampaign.CounterIds"): {"--counter-ids"},
-    ("campaigns", "add", "DynamicTextCampaign.PriorityGoals"): {"--priority-goals"},
-    ("campaigns", "add", "DynamicTextCampaign.TrackingParams"): {"--tracking-params"},
     ("campaigns", "add", "SmartCampaign"): {"--type"},
     ("campaigns", "add", "SmartCampaign.CounterId"): {"--counter-id"},
     ("campaigns", "add", "SmartCampaign.BiddingStrategy"): {
@@ -1780,10 +1775,6 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     },
     ("campaigns", "update", "TextCampaign.NegativeKeywordSharedSetIds.Items"): {
         "--negative-keyword-shared-set-ids"
-    },
-    ("campaigns", "update", "DynamicTextCampaign"): {"--type"},
-    ("campaigns", "update", "DynamicTextCampaign.TrackingParams"): {
-        "--tracking-params"
     },
     ("campaigns", "update", "SmartCampaign"): {"--type"},
     ("campaigns", "update", "SmartCampaign.TrackingParams"): {"--tracking-params"},
@@ -2374,6 +2365,82 @@ for _campaign_op in ("add", "update"):
             ("campaigns", _campaign_op, f"UnifiedCampaign.{_path}")
         ] = {"--negative-keyword-shared-set-ids"}
 
+for _campaign_op in ("add", "update"):
+    OPTIONAL_FIELD_CLI_OPTIONS[("campaigns", _campaign_op, "DynamicTextCampaign")] = {
+        "--type"
+    }
+    for _path in (
+        "Settings",
+        "Settings.Option",
+        "Settings.Value",
+    ):
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            ("campaigns", _campaign_op, f"DynamicTextCampaign.{_path}")
+        ] = {"--setting"}
+    for _path in (
+        "PlacementTypes",
+        "PlacementTypes.Type",
+        "PlacementTypes.Value",
+    ):
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            ("campaigns", _campaign_op, f"DynamicTextCampaign.{_path}")
+        ] = {
+            "--dynamic-placement-search-results",
+            "--dynamic-placement-product-gallery",
+        }
+    for _path in ("CounterIds", "CounterIds.Items"):
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            ("campaigns", _campaign_op, f"DynamicTextCampaign.{_path}")
+        ] = {"--counter-ids"}
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("campaigns", _campaign_op, "DynamicTextCampaign.TrackingParams")
+    ] = {"--tracking-params"}
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("campaigns", _campaign_op, "DynamicTextCampaign.AttributionModel")
+    ] = {"--attribution-model"}
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("campaigns", _campaign_op, "DynamicTextCampaign.PackageBiddingStrategy")
+    ] = {"--package-strategy-id", "--package-strategy-from-campaign-id"}
+    for _path, _flag in {
+        "PackageBiddingStrategy.StrategyId": "--package-strategy-id",
+        "PackageBiddingStrategy.StrategyFromCampaignId": (
+            "--package-strategy-from-campaign-id"
+        ),
+    }.items():
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            ("campaigns", _campaign_op, f"DynamicTextCampaign.{_path}")
+        ] = {_flag}
+    for _path in (
+        "NegativeKeywordSharedSetIds",
+        "NegativeKeywordSharedSetIds.Items",
+    ):
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            ("campaigns", _campaign_op, f"DynamicTextCampaign.{_path}")
+        ] = {"--negative-keyword-shared-set-ids"}
+
+for _path in (
+    "PriorityGoals",
+    "PriorityGoals.Items",
+    "PriorityGoals.Items.GoalId",
+    "PriorityGoals.Items.Value",
+    "PriorityGoals.Items.IsMetrikaSourceOfValue",
+):
+    OPTIONAL_FIELD_CLI_OPTIONS[("campaigns", "add", f"DynamicTextCampaign.{_path}")] = {
+        "--priority-goals"
+    }
+
+for _path in (
+    "PriorityGoals",
+    "PriorityGoals.Items",
+    "PriorityGoals.Items.GoalId",
+    "PriorityGoals.Items.Value",
+    "PriorityGoals.Items.IsMetrikaSourceOfValue",
+    "PriorityGoals.Items.Operation",
+):
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("campaigns", "update", f"DynamicTextCampaign.{_path}")
+    ] = {"--priority-goals"}
+
 for _path in (
     "PriorityGoals",
     "PriorityGoals.Items",
@@ -2493,16 +2560,6 @@ OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]
         "status": "missing_followup",
         "issue": "#290",
         "note": "Shared campaign BiddingStrategy builder needs typed support.",
-    },
-    ("campaigns", "add", "DynamicTextCampaign"): {
-        "status": "missing_followup",
-        "issue": "#294",
-        "note": "DynamicTextCampaign optional fields need typed support or N/A.",
-    },
-    ("campaigns", "update", "DynamicTextCampaign"): {
-        "status": "missing_followup",
-        "issue": "#294",
-        "note": "DynamicTextCampaign optional fields need typed support or N/A.",
     },
     ("campaigns", "add", "SmartCampaign"): {
         "status": "missing_followup",

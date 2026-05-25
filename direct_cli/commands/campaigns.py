@@ -494,6 +494,24 @@ def _build_relevant_keywords(
     return relevant_keywords
 
 
+def _build_dynamic_placement_types(
+    search_results: Optional[str],
+    product_gallery: Optional[str],
+) -> Optional[List[dict]]:
+    """Build DynamicTextCampaign.PlacementTypes from explicit YES/NO flags."""
+    if search_results is None and product_gallery is None:
+        return None
+
+    placement_types = []
+    for placement_type, value in (
+        ("SEARCH_RESULTS", search_results),
+        ("PRODUCT_GALLERY", product_gallery),
+    ):
+        if value is not None:
+            placement_types.append({"Type": placement_type, "Value": value.upper()})
+    return placement_types
+
+
 def _build_package_bidding_strategy(
     strategy_id: Optional[int],
     strategy_from_campaign_id: Optional[int],
@@ -808,6 +826,16 @@ def get(
     ),
 )
 @click.option(
+    "--dynamic-placement-search-results",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="DynamicTextCampaign.PlacementTypes SEARCH_RESULTS: YES or NO",
+)
+@click.option(
+    "--dynamic-placement-product-gallery",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="DynamicTextCampaign.PlacementTypes PRODUCT_GALLERY: YES or NO",
+)
+@click.option(
     "--goal-id",
     type=int,
     help=(
@@ -819,8 +847,9 @@ def get(
     "--priority-goals",
     help=(
         "Comma-separated goal_id:value[:YES|NO] pairs for "
-        "TextCampaign/UnifiedCampaign.PriorityGoals (required for "
-        "AVERAGE_CPA_MULTIPLE_GOALS / PAY_FOR_CONVERSION_MULTIPLE_GOALS)"
+        "TextCampaign/UnifiedCampaign/DynamicTextCampaign.PriorityGoals "
+        "(required for AVERAGE_CPA_MULTIPLE_GOALS / "
+        "PAY_FOR_CONVERSION_MULTIPLE_GOALS)"
     ),
 )
 @click.option(
@@ -841,17 +870,20 @@ def get(
 @click.option(
     "--attribution-model",
     type=click.Choice(ATTRIBUTION_MODELS, case_sensitive=False),
-    help="TextCampaign/UnifiedCampaign.AttributionModel",
+    help="TextCampaign/UnifiedCampaign/DynamicTextCampaign.AttributionModel",
 )
 @click.option(
     "--package-strategy-id",
     type=int,
-    help="TextCampaign/UnifiedCampaign.PackageBiddingStrategy.StrategyId",
+    help="TextCampaign/UnifiedCampaign/DynamicTextCampaign.PackageBiddingStrategy.StrategyId",
 )
 @click.option(
     "--package-strategy-from-campaign-id",
     type=int,
-    help="TextCampaign/UnifiedCampaign.PackageBiddingStrategy.StrategyFromCampaignId",
+    help=(
+        "TextCampaign/UnifiedCampaign/DynamicTextCampaign."
+        "PackageBiddingStrategy.StrategyFromCampaignId"
+    ),
 )
 @click.option(
     "--package-platform-search-result",
@@ -889,7 +921,8 @@ def get(
     "--negative-keyword-shared-set-ids",
     help=(
         "Comma-separated "
-        "TextCampaign/UnifiedCampaign.NegativeKeywordSharedSetIds.Items"
+        "TextCampaign/UnifiedCampaign/DynamicTextCampaign."
+        "NegativeKeywordSharedSetIds.Items"
     ),
 )
 @click.option(
@@ -1018,6 +1051,8 @@ def add(
     filter_average_cpc,
     counter_id,
     counter_ids,
+    dynamic_placement_search_results,
+    dynamic_placement_product_gallery,
     goal_id,
     priority_goals,
     relevant_keywords_budget_percent,
@@ -1134,6 +1169,12 @@ def add(
                 "--search-strategy",
                 "--network-strategy",
                 "--tracking-params",
+                "--dynamic-placement-search-results",
+                "--dynamic-placement-product-gallery",
+                "--attribution-model",
+                "--package-strategy-id",
+                "--package-strategy-from-campaign-id",
+                "--negative-keyword-shared-set-ids",
             }
             | text_dynamic_extras,
             "SMART_CAMPAIGN": {
@@ -1155,6 +1196,10 @@ def add(
                 "--filter-average-cpc": filter_average_cpc,
                 "--counter-id": counter_id,
                 "--counter-ids": counter_ids,
+                "--dynamic-placement-search-results": dynamic_placement_search_results,
+                "--dynamic-placement-product-gallery": (
+                    dynamic_placement_product_gallery
+                ),
                 "--goal-id": goal_id,
                 "--priority-goals": priority_goals,
                 "--relevant-keywords-budget-percent": relevant_keywords_budget_percent,
@@ -1226,8 +1271,9 @@ def add(
         )
 
         counter_ids_obj = _array_of_integer_option("--counter-ids", counter_ids)
-        counter_ids_list = (
-            counter_ids_obj["Items"] if counter_ids_obj is not None else None
+        dynamic_placement_types = _build_dynamic_placement_types(
+            dynamic_placement_search_results,
+            dynamic_placement_product_gallery,
         )
 
         priority_goals_items = parse_priority_goals_spec(priority_goals)
@@ -1240,7 +1286,11 @@ def add(
         package_label = (
             "UnifiedCampaign"
             if campaign_type_norm == "UNIFIED_CAMPAIGN"
-            else "TextCampaign"
+            else (
+                "DynamicTextCampaign"
+                if campaign_type_norm == "DYNAMIC_TEXT_CAMPAIGN"
+                else "TextCampaign"
+            )
         )
         package_bidding_strategy_obj = _build_package_bidding_strategy(
             package_strategy_id,
@@ -1252,7 +1302,8 @@ def add(
             package_platform_network,
             package_platform_dynamic_places,
             campaign_label=package_label,
-            require_platforms=True,
+            require_platforms=campaign_type_norm
+            in {"TEXT_CAMPAIGN", "UNIFIED_CAMPAIGN"},
         )
         negative_keyword_shared_set_ids_obj = _array_of_integer_option(
             "--negative-keyword-shared-set-ids",
@@ -1378,30 +1429,39 @@ def add(
                 unified_block["TrackingParams"] = tracking_params
             campaign_data["UnifiedCampaign"] = unified_block
         elif campaign_type_norm == "DYNAMIC_TEXT_CAMPAIGN":
-            dyn_block = {
-                "BiddingStrategy": {
+            dyn_block: Dict[str, object] = {"Settings": parsed_settings or []}
+            if package_bidding_strategy_obj is not None:
+                dyn_block["PackageBiddingStrategy"] = package_bidding_strategy_obj
+            else:
+                dyn_block["BiddingStrategy"] = {
                     "Search": {
                         "BiddingStrategyType": (search_strategy or "HIGHEST_POSITION")
                     },
                     "Network": {
                         "BiddingStrategyType": (network_strategy or "SERVING_OFF")
                     },
-                },
-                "Settings": parsed_settings or [],
-            }
-            if counter_ids_list:
-                dyn_block["CounterIds"] = counter_ids_list
-            _apply_cpa_strategy_fields(
-                dyn_block["BiddingStrategy"],
-                search_strategy=search_strategy,
-                network_strategy=network_strategy,
-                goal_id=goal_id,
-                average_cpa=average_cpa,
-                crr=crr,
-                bid_ceiling=bid_ceiling,
-                priority_goals_items=priority_goals_items,
-                sub_campaign_block=dyn_block,
-            )
+                }
+                _apply_cpa_strategy_fields(
+                    dyn_block["BiddingStrategy"],
+                    search_strategy=search_strategy,
+                    network_strategy=network_strategy,
+                    goal_id=goal_id,
+                    average_cpa=average_cpa,
+                    crr=crr,
+                    bid_ceiling=bid_ceiling,
+                    priority_goals_items=priority_goals_items,
+                    sub_campaign_block=dyn_block,
+                )
+            if counter_ids_obj is not None:
+                dyn_block["CounterIds"] = counter_ids_obj
+            if dynamic_placement_types is not None:
+                dyn_block["PlacementTypes"] = dynamic_placement_types
+            if attribution_model:
+                dyn_block["AttributionModel"] = attribution_model.upper()
+            if negative_keyword_shared_set_ids_obj is not None:
+                dyn_block["NegativeKeywordSharedSetIds"] = (
+                    negative_keyword_shared_set_ids_obj
+                )
             if tracking_params:
                 dyn_block["TrackingParams"] = tracking_params
             campaign_data["DynamicTextCampaign"] = dyn_block
@@ -1502,17 +1562,28 @@ def add(
     "--setting",
     "settings",
     multiple=True,
-    help="TextCampaign/UnifiedCampaign.Settings spec: OPTION=VALUE",
+    help="TextCampaign/UnifiedCampaign/DynamicTextCampaign.Settings spec: OPTION=VALUE",
 )
 @click.option(
     "--counter-ids",
-    help="Comma-separated TextCampaign/UnifiedCampaign.CounterIds.Items",
+    help="Comma-separated TextCampaign/UnifiedCampaign/DynamicTextCampaign.CounterIds.Items",
+)
+@click.option(
+    "--dynamic-placement-search-results",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="DynamicTextCampaign.PlacementTypes SEARCH_RESULTS: YES or NO",
+)
+@click.option(
+    "--dynamic-placement-product-gallery",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="DynamicTextCampaign.PlacementTypes PRODUCT_GALLERY: YES or NO",
 )
 @click.option(
     "--priority-goals",
     help=(
         "Comma-separated "
-        "TextCampaign/UnifiedCampaign.PriorityGoals goal_id:value[:YES|NO] pairs"
+        "TextCampaign/UnifiedCampaign/DynamicTextCampaign.PriorityGoals "
+        "goal_id:value[:YES|NO] pairs"
     ),
 )
 @click.option(
@@ -1533,17 +1604,20 @@ def add(
 @click.option(
     "--attribution-model",
     type=click.Choice(ATTRIBUTION_MODELS, case_sensitive=False),
-    help="TextCampaign/UnifiedCampaign.AttributionModel",
+    help="TextCampaign/UnifiedCampaign/DynamicTextCampaign.AttributionModel",
 )
 @click.option(
     "--package-strategy-id",
     type=int,
-    help="TextCampaign/UnifiedCampaign.PackageBiddingStrategy.StrategyId",
+    help="TextCampaign/UnifiedCampaign/DynamicTextCampaign.PackageBiddingStrategy.StrategyId",
 )
 @click.option(
     "--package-strategy-from-campaign-id",
     type=int,
-    help="TextCampaign/UnifiedCampaign.PackageBiddingStrategy.StrategyFromCampaignId",
+    help=(
+        "TextCampaign/UnifiedCampaign/DynamicTextCampaign."
+        "PackageBiddingStrategy.StrategyFromCampaignId"
+    ),
 )
 @click.option(
     "--package-platform-search-result",
@@ -1581,7 +1655,8 @@ def add(
     "--negative-keyword-shared-set-ids",
     help=(
         "Comma-separated "
-        "TextCampaign/UnifiedCampaign.NegativeKeywordSharedSetIds.Items"
+        "TextCampaign/UnifiedCampaign/DynamicTextCampaign."
+        "NegativeKeywordSharedSetIds.Items"
     ),
 )
 @click.option(
@@ -1698,6 +1773,8 @@ def update(
     end_date,
     settings,
     counter_ids,
+    dynamic_placement_search_results,
+    dynamic_placement_product_gallery,
     priority_goals,
     relevant_keywords_budget_percent,
     relevant_keywords_mode,
@@ -1818,6 +1895,8 @@ def update(
         subtype_flag_values = {
             "--setting": list(settings) or None,
             "--counter-ids": counter_ids,
+            "--dynamic-placement-search-results": dynamic_placement_search_results,
+            "--dynamic-placement-product-gallery": dynamic_placement_product_gallery,
             "--priority-goals": priority_goals,
             "--relevant-keywords-budget-percent": relevant_keywords_budget_percent,
             "--relevant-keywords-mode": relevant_keywords_mode,
@@ -1875,6 +1954,18 @@ def update(
                 "--negative-keyword-shared-set-ids",
                 "--tracking-params",
             }
+            dynamic_campaign_flags = {
+                "--setting",
+                "--counter-ids",
+                "--dynamic-placement-search-results",
+                "--dynamic-placement-product-gallery",
+                "--priority-goals",
+                "--attribution-model",
+                "--package-strategy-id",
+                "--package-strategy-from-campaign-id",
+                "--negative-keyword-shared-set-ids",
+                "--tracking-params",
+            }
             unified_campaign_flags = {
                 "--setting",
                 "--counter-ids",
@@ -1894,7 +1985,7 @@ def update(
             allowed_subtype_flags_by_type = {
                 "TEXT_CAMPAIGN": text_campaign_flags,
                 "UNIFIED_CAMPAIGN": unified_campaign_flags,
-                "DYNAMIC_TEXT_CAMPAIGN": {"--tracking-params"},
+                "DYNAMIC_TEXT_CAMPAIGN": dynamic_campaign_flags,
                 "SMART_CAMPAIGN": {"--tracking-params"},
             }
             _reject_incompatible_flags(
@@ -1925,12 +2016,28 @@ def update(
                         f"{', '.join(sorted(provided))}"
                     )
             sub_block: Dict[str, object] = {}
-            if campaign_type_norm in {"TEXT_CAMPAIGN", "UNIFIED_CAMPAIGN"}:
+            if campaign_type_norm in {
+                "TEXT_CAMPAIGN",
+                "UNIFIED_CAMPAIGN",
+                "DYNAMIC_TEXT_CAMPAIGN",
+            }:
                 is_unified = campaign_type_norm == "UNIFIED_CAMPAIGN"
-                package_label = "UnifiedCampaign" if is_unified else "TextCampaign"
+                is_dynamic = campaign_type_norm == "DYNAMIC_TEXT_CAMPAIGN"
+                package_label = (
+                    "UnifiedCampaign"
+                    if is_unified
+                    else "DynamicTextCampaign" if is_dynamic else "TextCampaign"
+                )
                 parsed_settings = parse_setting_specs(list(settings))
                 if parsed_settings:
                     sub_block["Settings"] = parsed_settings
+                if is_dynamic:
+                    dynamic_placement_types = _build_dynamic_placement_types(
+                        dynamic_placement_search_results,
+                        dynamic_placement_product_gallery,
+                    )
+                    if dynamic_placement_types is not None:
+                        sub_block["PlacementTypes"] = dynamic_placement_types
                 counter_ids_obj = _array_of_integer_option("--counter-ids", counter_ids)
                 if counter_ids_obj is not None:
                     sub_block["CounterIds"] = counter_ids_obj
@@ -1939,7 +2046,7 @@ def update(
                 )
                 if priority_goals_items is not None:
                     sub_block["PriorityGoals"] = {"Items": priority_goals_items}
-                if not is_unified:
+                if not is_unified and not is_dynamic:
                     relevant_keywords_obj = _build_relevant_keywords(
                         relevant_keywords_budget_percent,
                         relevant_keywords_mode,
