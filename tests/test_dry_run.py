@@ -5127,6 +5127,73 @@ def test_campaigns_add_smart_payload():
     }
 
 
+def test_campaigns_add_smart_campaign_optional_controls_payload():
+    body = _dry_run(
+        "campaigns",
+        "add",
+        "--name",
+        "Smart Controls",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--counter-id",
+        "123",
+        "--filter-average-cpc",
+        "1000000",
+        "--setting",
+        "ADD_TO_FAVORITES=YES",
+        "--tracking-params",
+        "utm_source=direct",
+        "--attribution-model",
+        "AUTO",
+    )
+    smart = body["params"]["Campaigns"][0]["SmartCampaign"]
+    assert smart == {
+        "CounterId": 123,
+        "BiddingStrategy": {
+            "Search": {"BiddingStrategyType": "SERVING_OFF"},
+            "Network": {
+                "BiddingStrategyType": "AVERAGE_CPC_PER_FILTER",
+                "AverageCpcPerFilter": {"FilterAverageCpc": 1000000},
+            },
+        },
+        "Settings": [{"Option": "ADD_TO_FAVORITES", "Value": "YES"}],
+        "AttributionModel": "AUTO",
+        "TrackingParams": "utm_source=direct",
+    }
+
+
+def test_campaigns_add_smart_package_bidding_strategy_payload():
+    body = _dry_run(
+        "campaigns",
+        "add",
+        "--name",
+        "Smart Package",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--counter-id",
+        "123",
+        "--package-strategy-id",
+        "700",
+        "--package-platform-search",
+        "YES",
+        "--package-platform-network",
+        "NO",
+    )
+    smart = body["params"]["Campaigns"][0]["SmartCampaign"]
+    assert "BiddingStrategy" not in smart
+    assert smart == {
+        "CounterId": 123,
+        "PackageBiddingStrategy": {
+            "StrategyId": 700,
+            "Platforms": {"Search": "YES", "Network": "NO"},
+        },
+    }
+
+
 def test_campaigns_add_smart_requires_filter_average_cpc():
     result = CliRunner().invoke(
         cli,
@@ -5149,6 +5216,46 @@ def test_campaigns_add_smart_requires_filter_average_cpc():
         str(result.exception) if result.exception else ""
     )
     assert "--filter-average-cpc" in combined or "AVERAGE_CPC_PER_FILTER" in combined
+
+
+def test_campaigns_add_rejects_smart_priority_goals_without_bidding_strategy():
+    result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "Smart Bad",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--counter-id",
+        "123",
+        "--filter-average-cpc",
+        "1000000",
+        "--priority-goals",
+        "1234567:80,9876543:20",
+    )
+    assert "SmartCampaign.PriorityGoals" in result.output
+    assert "#290" in result.output
+
+
+def test_campaigns_add_rejects_smart_package_without_required_platforms():
+    result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "Smart Package Bad",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--counter-id",
+        "123",
+        "--package-strategy-id",
+        "700",
+    )
+    assert "--package-platform-search" in result.output
+    assert "--package-platform-network" in result.output
 
 
 def test_campaigns_add_rejects_incompatible_subtype_flags():
@@ -6362,6 +6469,89 @@ def test_campaigns_update_smart_tracking_params_payload():
     )
     campaign = body["params"]["Campaigns"][0]
     assert campaign["SmartCampaign"] == {"TrackingParams": "utm_source=direct"}
+
+
+def test_campaigns_update_smart_campaign_optional_controls_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--setting",
+        "ADD_TO_FAVORITES=YES",
+        "--counter-id",
+        "456",
+        "--priority-goals",
+        "1234567:80:YES,9876543:20:NO",
+        "--attribution-model",
+        "AUTO",
+        "--tracking-params",
+        "utm_source=direct",
+    )
+    campaign = body["params"]["Campaigns"][0]
+    assert campaign["SmartCampaign"] == {
+        "Settings": [{"Option": "ADD_TO_FAVORITES", "Value": "YES"}],
+        "CounterId": 456,
+        "PriorityGoals": {
+            "Items": [
+                {
+                    "GoalId": 1234567,
+                    "Value": 80,
+                    "IsMetrikaSourceOfValue": "YES",
+                    "Operation": "SET",
+                },
+                {
+                    "GoalId": 9876543,
+                    "Value": 20,
+                    "IsMetrikaSourceOfValue": "NO",
+                    "Operation": "SET",
+                },
+            ]
+        },
+        "AttributionModel": "AUTO",
+        "TrackingParams": "utm_source=direct",
+    }
+
+
+def test_campaigns_update_smart_package_bidding_strategy_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--package-strategy-from-campaign-id",
+        "700",
+        "--package-platform-search",
+        "YES",
+        "--package-platform-network",
+        "NO",
+    )
+    campaign = body["params"]["Campaigns"][0]
+    assert campaign["SmartCampaign"] == {
+        "PackageBiddingStrategy": {
+            "StrategyFromCampaignId": 700,
+            "Platforms": {"Search": "YES", "Network": "NO"},
+        },
+    }
+
+
+def test_campaigns_update_rejects_smart_text_package_platforms():
+    result = _rejected(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--package-platform-search-result",
+        "YES",
+    )
+    assert "--package-platform-search-result" in result.output
+    assert "SMART_CAMPAIGN" in result.output
 
 
 def test_campaigns_update_unified_tracking_params_payload():
