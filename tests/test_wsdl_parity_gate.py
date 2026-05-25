@@ -2509,6 +2509,58 @@ for _path in (
         "--priority-goals"
     }
 
+for _campaign_op in ("add", "update"):
+    OPTIONAL_FIELD_CLI_OPTIONS[("campaigns", _campaign_op, "MobileAppCampaign")] = {
+        "--type"
+    }
+    for _path in (
+        "Settings",
+        "Settings.Option",
+        "Settings.Value",
+    ):
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            ("campaigns", _campaign_op, f"MobileAppCampaign.{_path}")
+        ] = {"--setting"}
+    for _path in (
+        "NegativeKeywordSharedSetIds",
+        "NegativeKeywordSharedSetIds.Items",
+    ):
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            ("campaigns", _campaign_op, f"MobileAppCampaign.{_path}")
+        ] = {"--negative-keyword-shared-set-ids"}
+
+for _campaign_op in ("add", "update"):
+    OPTIONAL_FIELD_CLI_OPTIONS[("campaigns", _campaign_op, "CpmBannerCampaign")] = {
+        "--type"
+    }
+    for _path in (
+        "Settings",
+        "Settings.Option",
+        "Settings.Value",
+    ):
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            ("campaigns", _campaign_op, f"CpmBannerCampaign.{_path}")
+        ] = {"--setting"}
+    for _path in (
+        "CounterIds",
+        "CounterIds.Items",
+    ):
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            ("campaigns", _campaign_op, f"CpmBannerCampaign.{_path}")
+        ] = {"--counter-ids"}
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("campaigns", _campaign_op, "CpmBannerCampaign.FrequencyCap")
+    ] = {"--frequency-cap-impressions", "--frequency-cap-period-days"}
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("campaigns", _campaign_op, "CpmBannerCampaign.FrequencyCap.Impressions")
+    ] = {"--frequency-cap-impressions"}
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("campaigns", _campaign_op, "CpmBannerCampaign.FrequencyCap.PeriodDays")
+    ] = {"--frequency-cap-period-days"}
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("campaigns", _campaign_op, "CpmBannerCampaign.VideoTarget")
+    ] = {"--video-target"}
+
 OPTIONAL_FIELD_DEFAULT_FOLLOWUPS: dict[tuple[str, str], dict[str, str]] = {
     ("ads", "update"): {
         "issue": "#272",
@@ -2624,26 +2676,6 @@ OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]
         "status": "missing_followup",
         "issue": "#290",
         "note": "Shared campaign BiddingStrategy builder needs typed support.",
-    },
-    ("campaigns", "add", "MobileAppCampaign"): {
-        "status": "missing_followup",
-        "issue": "#296",
-        "note": "MobileAppCampaign optional fields need typed support or N/A.",
-    },
-    ("campaigns", "update", "MobileAppCampaign"): {
-        "status": "missing_followup",
-        "issue": "#296",
-        "note": "MobileAppCampaign optional fields need typed support or N/A.",
-    },
-    ("campaigns", "add", "CpmBannerCampaign"): {
-        "status": "missing_followup",
-        "issue": "#296",
-        "note": "CpmBannerCampaign optional fields need typed support or N/A.",
-    },
-    ("campaigns", "update", "CpmBannerCampaign"): {
-        "status": "missing_followup",
-        "issue": "#296",
-        "note": "CpmBannerCampaign optional fields need typed support or N/A.",
     },
 }
 
