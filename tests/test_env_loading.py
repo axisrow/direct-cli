@@ -1,5 +1,6 @@
 """Tests for Direct CLI .env loading rules."""
 
+import ast
 import os
 from pathlib import Path
 
@@ -91,10 +92,28 @@ def test_cli_routes_early_dotenv_loading_through_auth_helper():
     """cli.py must not call python-dotenv directly."""
     repo_root = Path(__file__).resolve().parents[1]
     cli_source = (repo_root / "direct_cli" / "cli.py").read_text(encoding="utf-8")
+    cli_tree = ast.parse(cli_source)
 
-    assert "from dotenv import load_dotenv" not in cli_source
-    assert (
-        "from .auth import get_active_profile, get_credentials, load_env_file"
-        in cli_source
+    imports_dotenv_loader = any(
+        isinstance(node, ast.ImportFrom)
+        and node.module == "dotenv"
+        and any(alias.name == "load_dotenv" for alias in node.names)
+        for node in ast.walk(cli_tree)
     )
-    assert "load_env_file()" in cli_source
+    imports_auth_env_loader = any(
+        isinstance(node, ast.ImportFrom)
+        and node.level == 1
+        and node.module == "auth"
+        and any(alias.name == "load_env_file" for alias in node.names)
+        for node in ast.walk(cli_tree)
+    )
+    calls_auth_env_loader = any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "load_env_file"
+        for node in ast.walk(cli_tree)
+    )
+
+    assert not imports_dotenv_loader
+    assert imports_auth_env_loader
+    assert calls_auth_env_loader
