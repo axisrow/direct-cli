@@ -65,18 +65,18 @@ def test_ads_update_unknown_mobile_hints_at_ads_add():
 
 def test_campaigns_update_unknown_option_hints_at_campaigns_add():
     """campaigns add carries many flags absent from campaigns update —
-    --counter-ids is one of them."""
+    --filter-average-cpc is one of them."""
     result = _invoke(
         "campaigns",
         "update",
         "--id",
         "1",
-        "--counter-ids",
-        "1,2",
+        "--filter-average-cpc",
+        "1000000",
     )
     assert result.exit_code == 2
     assert "No such option" in result.output
-    assert "--counter-ids" in result.output
+    assert "--filter-average-cpc" in result.output
     assert "Hint:" in result.output
     assert "`direct campaigns add`" in result.output
 

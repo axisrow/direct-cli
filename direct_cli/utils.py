@@ -229,8 +229,8 @@ def parse_setting_specs(specs: Optional[List[str]]) -> Optional[List[Dict[str, s
 
 def parse_priority_goals_spec(
     value: Optional[str],
-) -> Optional[List[Dict[str, int]]]:
-    """Parse `goal_id:value,...` into WSDL PriorityGoalsItem[] (GoalId/Value)."""
+) -> Optional[List[Dict[str, Any]]]:
+    """Parse goal_id:value[:YES|NO] into WSDL PriorityGoalsItem[] items."""
     if not value:
         return None
 
@@ -242,19 +242,26 @@ def parse_priority_goals_spec(
                 "--priority-goals must be a comma-separated list of "
                 "goal_id:value pairs"
             )
-        goal_part, separator, value_part = pair.partition(":")
-        if not separator:
+        parts = [part.strip() for part in pair.split(":")]
+        if len(parts) not in (2, 3):
             raise click.UsageError(
                 f"Invalid --priority-goals item: '{pair}'. "
-                "Expected format: goal_id:value"
+                "Expected format: goal_id:value[:YES|NO]"
             )
-        goal_part = goal_part.strip()
-        value_part = value_part.strip()
+        goal_part, value_part = parts[0], parts[1]
         if not goal_part or not value_part:
             raise click.UsageError(
                 f"Invalid --priority-goals item: '{pair}'. "
                 "Both goal_id and value are required"
             )
+        metrika_source = None
+        if len(parts) == 3:
+            metrika_source = parts[2].upper()
+            if metrika_source not in {"YES", "NO"}:
+                raise click.UsageError(
+                    f"Invalid --priority-goals item: '{pair}'. "
+                    "IsMetrikaSourceOfValue must be YES or NO"
+                )
         try:
             goal_id = int(goal_part)
             value_int = int(value_part)
@@ -263,7 +270,10 @@ def parse_priority_goals_spec(
                 f"Invalid --priority-goals item: '{pair}'. "
                 "goal_id and value must be integers"
             )
-        items.append({"GoalId": goal_id, "Value": value_int})
+        item: Dict[str, Any] = {"GoalId": goal_id, "Value": value_int}
+        if metrika_source is not None:
+            item["IsMetrikaSourceOfValue"] = metrika_source
+        items.append(item)
 
     if not items:
         raise click.UsageError(

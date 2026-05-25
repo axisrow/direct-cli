@@ -359,6 +359,11 @@ direct campaigns add --name "CPA Campaign" --start-date 2026-06-01 --type TEXT_C
 # Multi-goal CPA via PriorityGoals (goal_id:value pairs, WSDL PriorityGoalsItem)
 direct campaigns add --name "Multi-Goal CPA" --start-date 2026-06-01 --type TEXT_CAMPAIGN --search-strategy AVERAGE_CPA_MULTIPLE_GOALS --network-strategy SERVING_OFF --priority-goals 1234567:80,9876543:20 --bid-ceiling 1000000000 --dry-run
 
+# TextCampaign optional controls
+direct campaigns add --name "Text Controls" --start-date 2026-06-01 --type TEXT_CAMPAIGN --counter-ids 111,222 --relevant-keywords-budget-percent 40 --relevant-keywords-mode OPTIMAL --attribution-model AUTO --negative-keyword-shared-set-ids 10,11 --dry-run
+direct campaigns update --id 12345 --type TEXT_CAMPAIGN --setting ADD_METRICA_TAG=NO --priority-goals 1234567:80:YES --tracking-params "utm_source=direct" --dry-run
+direct campaigns add --name "Package Text" --start-date 2026-06-01 --type TEXT_CAMPAIGN --package-strategy-id 700 --package-platform-search-result YES --package-platform-product-gallery YES --package-platform-network NO --dry-run
+
 # Notification (Sms/Email) and TimeTargeting via typed CLI flags
 direct campaigns add --name "Notify+Schedule" --start-date 2026-06-01 --type TEXT_CAMPAIGN --search-strategy HIGHEST_POSITION --network-strategy SERVING_OFF --notification-email ops@example.com --notification-send-warnings YES --time-targeting-schedule 1A0123456789ABCDEFGHIJKL --consider-working-weekends YES --dry-run
 
@@ -1159,6 +1164,11 @@ direct campaigns add --name "CPA-кампания" --start-date 2026-06-01 --typ
 
 # Мульти-целевой CPA через PriorityGoals (пары goal_id:value, WSDL PriorityGoalsItem)
 direct campaigns add --name "Мульти-целевой CPA" --start-date 2026-06-01 --type TEXT_CAMPAIGN --search-strategy AVERAGE_CPA_MULTIPLE_GOALS --network-strategy SERVING_OFF --priority-goals 1234567:80,9876543:20 --bid-ceiling 1000000000 --dry-run
+
+# Дополнительные настройки TextCampaign
+direct campaigns add --name "Текстовые настройки" --start-date 2026-06-01 --type TEXT_CAMPAIGN --counter-ids 111,222 --relevant-keywords-budget-percent 40 --relevant-keywords-mode OPTIMAL --attribution-model AUTO --negative-keyword-shared-set-ids 10,11 --dry-run
+direct campaigns update --id 12345 --type TEXT_CAMPAIGN --setting ADD_METRICA_TAG=NO --priority-goals 1234567:80:YES --tracking-params "utm_source=direct" --dry-run
+direct campaigns add --name "Пакетная текстовая" --start-date 2026-06-01 --type TEXT_CAMPAIGN --package-strategy-id 700 --package-platform-search-result YES --package-platform-product-gallery YES --package-platform-network NO --dry-run
 
 # Notification (Sms/Email) и TimeTargeting через явные CLI-флаги
 direct campaigns add --name "Уведомления+Расписание" --start-date 2026-06-01 --type TEXT_CAMPAIGN --search-strategy HIGHEST_POSITION --network-strategy SERVING_OFF --notification-email ops@example.com --notification-send-warnings YES --time-targeting-schedule 1A0123456789ABCDEFGHIJKL --consider-working-weekends YES --dry-run

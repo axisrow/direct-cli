@@ -72,11 +72,14 @@ _STRATEGY_REQUIRED_TYPED_FLAGS: Dict[str, Dict[str, str]] = {
 
 SMS_EVENTS = {"MONITORING", "MODERATION", "MONEY_IN", "MONEY_OUT", "FINISHED"}
 YES_NO = ["YES", "NO"]
+ATTRIBUTION_MODELS = ["FC", "LC", "LSC", "LYDC", "FCCD", "LSCCD", "LYDCCD", "AUTO"]
+RELEVANT_KEYWORDS_MODES = ["MINIMUM", "OPTIMAL", "MAXIMUM"]
 CLIENT_INFO_MAX_LENGTH = 255
 BLOCKED_IPS_MAX_ITEMS = 25
 EXCLUDED_SITES_MAX_ITEMS = 1000
 EXCLUDED_SITE_MAX_LENGTH = 255
 TIME_TARGETING_SCHEDULE_MAX_ITEMS = 7
+NEGATIVE_KEYWORD_SHARED_SET_IDS_MAX_ITEMS = 3
 HH_MM_RE = re.compile(r"^(?:[01]\d|2[0-3]):(?:00|15|30|45)$")
 _DEPRECATED_CAMPAIGNS_STRUCTURED_OPTIONS = {
     "notification": (
@@ -280,6 +283,23 @@ def _array_of_string_option(
     return {"Items": parsed} if parsed else None
 
 
+def _array_of_integer_option(
+    option_name: str,
+    value: Optional[str],
+    *,
+    max_items: Optional[int] = None,
+) -> Optional[dict]:
+    """Build a WSDL ArrayOfInteger/ArrayOfLong payload from CSV IDs."""
+    if value is None:
+        return None
+    parsed = parse_ids(value)
+    if not parsed:
+        raise click.UsageError(f"{option_name} must contain at least one integer")
+    if max_items is not None and len(parsed) > max_items:
+        raise click.UsageError(f"{option_name} must contain at most {max_items} items")
+    return {"Items": parsed}
+
+
 def _time_targeting_schedule_option(values: Sequence[str]) -> Optional[dict]:
     """Build TimeTargeting.Schedule without splitting comma-bearing rows."""
     if not values:
@@ -447,6 +467,98 @@ def _build_time_targeting(
         time_targeting["HolidaysSchedule"] = holidays
 
     return time_targeting
+
+
+def _build_relevant_keywords(
+    budget_percent: Optional[int],
+    mode: Optional[str],
+    optimize_goal_id: Optional[int],
+    *,
+    require_budget_percent: bool,
+) -> Optional[dict]:
+    """Build TextCampaign.RelevantKeywords from typed flags."""
+    if budget_percent is None and mode is None and optimize_goal_id is None:
+        return None
+    if require_budget_percent and budget_percent is None:
+        raise click.UsageError(
+            "--relevant-keywords-budget-percent is required when adding "
+            "TextCampaign.RelevantKeywords"
+        )
+    relevant_keywords: dict = {}
+    if budget_percent is not None:
+        relevant_keywords["BudgetPercent"] = budget_percent
+    if mode is not None:
+        relevant_keywords["Mode"] = mode.upper()
+    if optimize_goal_id is not None:
+        relevant_keywords["OptimizeGoalId"] = optimize_goal_id
+    return relevant_keywords
+
+
+def _build_text_package_bidding_strategy(
+    strategy_id: Optional[int],
+    strategy_from_campaign_id: Optional[int],
+    search_result: Optional[str],
+    product_gallery: Optional[str],
+    network: Optional[str],
+    dynamic_places: Optional[str],
+    *,
+    require_platforms: bool,
+) -> Optional[dict]:
+    """Build TextCampaign.PackageBiddingStrategy from typed flags."""
+    values = (
+        strategy_id,
+        strategy_from_campaign_id,
+        search_result,
+        product_gallery,
+        network,
+        dynamic_places,
+    )
+    if not any(value is not None for value in values):
+        return None
+
+    has_platform_flags = any(
+        value is not None
+        for value in (search_result, product_gallery, network, dynamic_places)
+    )
+    if (require_platforms or has_platform_flags) and (
+        search_result is None or product_gallery is None or network is None
+    ):
+        raise click.UsageError(
+            "TextCampaign.PackageBiddingStrategy requires "
+            "--package-platform-search-result, "
+            "--package-platform-product-gallery, and --package-platform-network"
+        )
+
+    package_strategy: dict = {}
+    if strategy_id is not None:
+        package_strategy["StrategyId"] = strategy_id
+    if strategy_from_campaign_id is not None:
+        package_strategy["StrategyFromCampaignId"] = strategy_from_campaign_id
+
+    platform_values = {
+        "SearchResult": search_result,
+        "ProductGallery": product_gallery,
+        "Network": network,
+        "DynamicPlaces": dynamic_places,
+    }
+    platforms = {
+        key: value.upper()
+        for key, value in platform_values.items()
+        if value is not None
+    }
+    if platforms:
+        package_strategy["Platforms"] = platforms
+
+    return package_strategy
+
+
+def _priority_goals_update_items(
+    priority_goals_items: Optional[List[dict]],
+) -> Optional[List[dict]]:
+    """Add the WSDL-required SET operation for campaign priority goal updates."""
+    if priority_goals_items is None:
+        return None
+    return [dict(item, Operation="SET") for item in priority_goals_items]
 
 
 def _reject_incompatible_flags(
@@ -692,10 +804,64 @@ def get(
 @click.option(
     "--priority-goals",
     help=(
-        "Comma-separated goal_id:value pairs for "
+        "Comma-separated goal_id:value[:YES|NO] pairs for "
         "TextCampaign.PriorityGoals (required for "
         "AVERAGE_CPA_MULTIPLE_GOALS / PAY_FOR_CONVERSION_MULTIPLE_GOALS)"
     ),
+)
+@click.option(
+    "--relevant-keywords-budget-percent",
+    type=click.IntRange(1, 100),
+    help="TextCampaign.RelevantKeywords.BudgetPercent",
+)
+@click.option(
+    "--relevant-keywords-mode",
+    type=click.Choice(RELEVANT_KEYWORDS_MODES, case_sensitive=False),
+    help="TextCampaign.RelevantKeywords.Mode",
+)
+@click.option(
+    "--relevant-keywords-optimize-goal-id",
+    type=int,
+    help="TextCampaign.RelevantKeywords.OptimizeGoalId",
+)
+@click.option(
+    "--attribution-model",
+    type=click.Choice(ATTRIBUTION_MODELS, case_sensitive=False),
+    help="TextCampaign.AttributionModel",
+)
+@click.option(
+    "--package-strategy-id",
+    type=int,
+    help="TextCampaign.PackageBiddingStrategy.StrategyId",
+)
+@click.option(
+    "--package-strategy-from-campaign-id",
+    type=int,
+    help="TextCampaign.PackageBiddingStrategy.StrategyFromCampaignId",
+)
+@click.option(
+    "--package-platform-search-result",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="TextCampaign.PackageBiddingStrategy.Platforms.SearchResult",
+)
+@click.option(
+    "--package-platform-product-gallery",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="TextCampaign.PackageBiddingStrategy.Platforms.ProductGallery",
+)
+@click.option(
+    "--package-platform-network",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="TextCampaign.PackageBiddingStrategy.Platforms.Network",
+)
+@click.option(
+    "--package-platform-dynamic-places",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="TextCampaign.PackageBiddingStrategy.Platforms.DynamicPlaces",
+)
+@click.option(
+    "--negative-keyword-shared-set-ids",
+    help="Comma-separated TextCampaign.NegativeKeywordSharedSetIds.Items",
 )
 @click.option(
     "--average-cpa",
@@ -824,6 +990,17 @@ def add(
     counter_ids,
     goal_id,
     priority_goals,
+    relevant_keywords_budget_percent,
+    relevant_keywords_mode,
+    relevant_keywords_optimize_goal_id,
+    attribution_model,
+    package_strategy_id,
+    package_strategy_from_campaign_id,
+    package_platform_search_result,
+    package_platform_product_gallery,
+    package_platform_network,
+    package_platform_dynamic_places,
+    negative_keyword_shared_set_ids,
     average_cpa,
     crr,
     bid_ceiling,
@@ -889,6 +1066,17 @@ def add(
                 "--search-strategy",
                 "--network-strategy",
                 "--tracking-params",
+                "--relevant-keywords-budget-percent",
+                "--relevant-keywords-mode",
+                "--relevant-keywords-optimize-goal-id",
+                "--attribution-model",
+                "--package-strategy-id",
+                "--package-strategy-from-campaign-id",
+                "--package-platform-search-result",
+                "--package-platform-product-gallery",
+                "--package-platform-network",
+                "--package-platform-dynamic-places",
+                "--negative-keyword-shared-set-ids",
             }
             | text_dynamic_extras,
             "DYNAMIC_TEXT_CAMPAIGN": {
@@ -919,6 +1107,23 @@ def add(
                 "--counter-ids": counter_ids,
                 "--goal-id": goal_id,
                 "--priority-goals": priority_goals,
+                "--relevant-keywords-budget-percent": relevant_keywords_budget_percent,
+                "--relevant-keywords-mode": relevant_keywords_mode,
+                "--relevant-keywords-optimize-goal-id": (
+                    relevant_keywords_optimize_goal_id
+                ),
+                "--attribution-model": attribution_model,
+                "--package-strategy-id": package_strategy_id,
+                "--package-strategy-from-campaign-id": (
+                    package_strategy_from_campaign_id
+                ),
+                "--package-platform-search-result": package_platform_search_result,
+                "--package-platform-product-gallery": (
+                    package_platform_product_gallery
+                ),
+                "--package-platform-network": package_platform_network,
+                "--package-platform-dynamic-places": package_platform_dynamic_places,
+                "--negative-keyword-shared-set-ids": negative_keyword_shared_set_ids,
                 "--average-cpa": average_cpa,
                 "--crr": crr,
                 "--bid-ceiling": bid_ceiling,
@@ -966,43 +1171,91 @@ def add(
             max_item_length=EXCLUDED_SITE_MAX_LENGTH,
         )
 
-        counter_ids_list = None
-        if counter_ids is not None:
-            counter_ids_list = parse_ids(counter_ids)
-            if not counter_ids_list:
-                raise click.UsageError(
-                    "--counter-ids must contain at least one integer"
-                )
+        counter_ids_obj = _array_of_integer_option("--counter-ids", counter_ids)
+        counter_ids_list = (
+            counter_ids_obj["Items"] if counter_ids_obj is not None else None
+        )
 
         priority_goals_items = parse_priority_goals_spec(priority_goals)
+        relevant_keywords_obj = _build_relevant_keywords(
+            relevant_keywords_budget_percent,
+            relevant_keywords_mode,
+            relevant_keywords_optimize_goal_id,
+            require_budget_percent=True,
+        )
+        package_bidding_strategy_obj = _build_text_package_bidding_strategy(
+            package_strategy_id,
+            package_strategy_from_campaign_id,
+            package_platform_search_result,
+            package_platform_product_gallery,
+            package_platform_network,
+            package_platform_dynamic_places,
+            require_platforms=True,
+        )
+        negative_keyword_shared_set_ids_obj = _array_of_integer_option(
+            "--negative-keyword-shared-set-ids",
+            negative_keyword_shared_set_ids,
+            max_items=NEGATIVE_KEYWORD_SHARED_SET_IDS_MAX_ITEMS,
+        )
+        if package_bidding_strategy_obj is not None:
+            package_incompatible = {
+                "--search-strategy": search_strategy,
+                "--network-strategy": network_strategy,
+                "--counter-ids": counter_ids,
+                "--priority-goals": priority_goals,
+                "--goal-id": goal_id,
+                "--average-cpa": average_cpa,
+                "--crr": crr,
+                "--bid-ceiling": bid_ceiling,
+                "--attribution-model": attribution_model,
+            }
+            provided = [
+                flag
+                for flag, value in package_incompatible.items()
+                if value is not None
+            ]
+            if provided:
+                raise click.UsageError(
+                    "TextCampaign.PackageBiddingStrategy cannot be combined with "
+                    f"{', '.join(sorted(provided))}"
+                )
 
         campaign_data = {"Name": name, "StartDate": start_date}
         parsed_settings = parse_setting_specs(list(settings))
         if campaign_type_norm == "TEXT_CAMPAIGN":
-            text_block = {
-                "BiddingStrategy": {
+            text_block = {"Settings": parsed_settings or []}
+            if package_bidding_strategy_obj is not None:
+                text_block["PackageBiddingStrategy"] = package_bidding_strategy_obj
+            else:
+                text_block["BiddingStrategy"] = {
                     "Search": {
                         "BiddingStrategyType": (search_strategy or "HIGHEST_POSITION")
                     },
                     "Network": {
                         "BiddingStrategyType": (network_strategy or "SERVING_OFF")
                     },
-                },
-                "Settings": parsed_settings or [],
-            }
-            if counter_ids_list:
-                text_block["CounterIds"] = counter_ids_list
-            _apply_cpa_strategy_fields(
-                text_block["BiddingStrategy"],
-                search_strategy=search_strategy,
-                network_strategy=network_strategy,
-                goal_id=goal_id,
-                average_cpa=average_cpa,
-                crr=crr,
-                bid_ceiling=bid_ceiling,
-                priority_goals_items=priority_goals_items,
-                sub_campaign_block=text_block,
-            )
+                }
+                _apply_cpa_strategy_fields(
+                    text_block["BiddingStrategy"],
+                    search_strategy=search_strategy,
+                    network_strategy=network_strategy,
+                    goal_id=goal_id,
+                    average_cpa=average_cpa,
+                    crr=crr,
+                    bid_ceiling=bid_ceiling,
+                    priority_goals_items=priority_goals_items,
+                    sub_campaign_block=text_block,
+                )
+            if counter_ids_obj is not None:
+                text_block["CounterIds"] = counter_ids_obj
+            if relevant_keywords_obj is not None:
+                text_block["RelevantKeywords"] = relevant_keywords_obj
+            if attribution_model:
+                text_block["AttributionModel"] = attribution_model.upper()
+            if negative_keyword_shared_set_ids_obj is not None:
+                text_block["NegativeKeywordSharedSetIds"] = (
+                    negative_keyword_shared_set_ids_obj
+                )
             if tracking_params:
                 text_block["TrackingParams"] = tracking_params
             campaign_data["TextCampaign"] = text_block
@@ -1128,6 +1381,74 @@ def add(
 @click.option("--start-date", help="New start date (YYYY-MM-DD)")
 @click.option("--end-date", help="New end date (YYYY-MM-DD)")
 @click.option(
+    "--setting",
+    "settings",
+    multiple=True,
+    help="TextCampaign.Settings spec for --type TEXT_CAMPAIGN: OPTION=VALUE",
+)
+@click.option(
+    "--counter-ids",
+    help="Comma-separated TextCampaign.CounterIds.Items for --type TEXT_CAMPAIGN",
+)
+@click.option(
+    "--priority-goals",
+    help="Comma-separated TextCampaign.PriorityGoals goal_id:value[:YES|NO] pairs",
+)
+@click.option(
+    "--relevant-keywords-budget-percent",
+    type=click.IntRange(1, 100),
+    help="TextCampaign.RelevantKeywords.BudgetPercent",
+)
+@click.option(
+    "--relevant-keywords-mode",
+    type=click.Choice(RELEVANT_KEYWORDS_MODES, case_sensitive=False),
+    help="TextCampaign.RelevantKeywords.Mode",
+)
+@click.option(
+    "--relevant-keywords-optimize-goal-id",
+    type=int,
+    help="TextCampaign.RelevantKeywords.OptimizeGoalId",
+)
+@click.option(
+    "--attribution-model",
+    type=click.Choice(ATTRIBUTION_MODELS, case_sensitive=False),
+    help="TextCampaign.AttributionModel",
+)
+@click.option(
+    "--package-strategy-id",
+    type=int,
+    help="TextCampaign.PackageBiddingStrategy.StrategyId",
+)
+@click.option(
+    "--package-strategy-from-campaign-id",
+    type=int,
+    help="TextCampaign.PackageBiddingStrategy.StrategyFromCampaignId",
+)
+@click.option(
+    "--package-platform-search-result",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="TextCampaign.PackageBiddingStrategy.Platforms.SearchResult",
+)
+@click.option(
+    "--package-platform-product-gallery",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="TextCampaign.PackageBiddingStrategy.Platforms.ProductGallery",
+)
+@click.option(
+    "--package-platform-network",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="TextCampaign.PackageBiddingStrategy.Platforms.Network",
+)
+@click.option(
+    "--package-platform-dynamic-places",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="TextCampaign.PackageBiddingStrategy.Platforms.DynamicPlaces",
+)
+@click.option(
+    "--negative-keyword-shared-set-ids",
+    help="Comma-separated TextCampaign.NegativeKeywordSharedSetIds.Items",
+)
+@click.option(
     "--notification",
     default=None,
     expose_value=False,
@@ -1237,6 +1558,20 @@ def update(
     budget,
     start_date,
     end_date,
+    settings,
+    counter_ids,
+    priority_goals,
+    relevant_keywords_budget_percent,
+    relevant_keywords_mode,
+    relevant_keywords_optimize_goal_id,
+    attribution_model,
+    package_strategy_id,
+    package_strategy_from_campaign_id,
+    package_platform_search_result,
+    package_platform_product_gallery,
+    package_platform_network,
+    package_platform_dynamic_places,
+    negative_keyword_shared_set_ids,
     client_info,
     sms_events,
     sms_time_from,
@@ -1340,6 +1675,22 @@ def update(
             campaign_type.upper().replace("-", "_") if campaign_type else None
         )
         subtype_flag_values = {
+            "--setting": list(settings) or None,
+            "--counter-ids": counter_ids,
+            "--priority-goals": priority_goals,
+            "--relevant-keywords-budget-percent": relevant_keywords_budget_percent,
+            "--relevant-keywords-mode": relevant_keywords_mode,
+            "--relevant-keywords-optimize-goal-id": (
+                relevant_keywords_optimize_goal_id
+            ),
+            "--attribution-model": attribution_model,
+            "--package-strategy-id": package_strategy_id,
+            "--package-strategy-from-campaign-id": package_strategy_from_campaign_id,
+            "--package-platform-search-result": package_platform_search_result,
+            "--package-platform-product-gallery": package_platform_product_gallery,
+            "--package-platform-network": package_platform_network,
+            "--package-platform-dynamic-places": package_platform_dynamic_places,
+            "--negative-keyword-shared-set-ids": negative_keyword_shared_set_ids,
             "--tracking-params": tracking_params,
         }
         subtype_flags_provided = [
@@ -1360,8 +1711,25 @@ def update(
                 "(TEXT_CAMPAIGN | DYNAMIC_TEXT_CAMPAIGN | SMART_CAMPAIGN)."
             )
         if campaign_type_norm is not None:
+            text_campaign_flags = {
+                "--setting",
+                "--counter-ids",
+                "--priority-goals",
+                "--relevant-keywords-budget-percent",
+                "--relevant-keywords-mode",
+                "--relevant-keywords-optimize-goal-id",
+                "--attribution-model",
+                "--package-strategy-id",
+                "--package-strategy-from-campaign-id",
+                "--package-platform-search-result",
+                "--package-platform-product-gallery",
+                "--package-platform-network",
+                "--package-platform-dynamic-places",
+                "--negative-keyword-shared-set-ids",
+                "--tracking-params",
+            }
             allowed_subtype_flags_by_type = {
-                "TEXT_CAMPAIGN": {"--tracking-params"},
+                "TEXT_CAMPAIGN": text_campaign_flags,
                 "DYNAMIC_TEXT_CAMPAIGN": {"--tracking-params"},
                 "SMART_CAMPAIGN": {"--tracking-params"},
             }
@@ -1371,6 +1739,63 @@ def update(
                 subtype_flag_values,
             )
             sub_block: Dict[str, object] = {}
+            if campaign_type_norm == "TEXT_CAMPAIGN":
+                parsed_settings = parse_setting_specs(list(settings))
+                if parsed_settings:
+                    sub_block["Settings"] = parsed_settings
+                counter_ids_obj = _array_of_integer_option("--counter-ids", counter_ids)
+                if counter_ids_obj is not None:
+                    sub_block["CounterIds"] = counter_ids_obj
+                priority_goals_items = _priority_goals_update_items(
+                    parse_priority_goals_spec(priority_goals)
+                )
+                if priority_goals_items is not None:
+                    sub_block["PriorityGoals"] = {"Items": priority_goals_items}
+                relevant_keywords_obj = _build_relevant_keywords(
+                    relevant_keywords_budget_percent,
+                    relevant_keywords_mode,
+                    relevant_keywords_optimize_goal_id,
+                    require_budget_percent=False,
+                )
+                if relevant_keywords_obj is not None:
+                    sub_block["RelevantKeywords"] = relevant_keywords_obj
+                if attribution_model:
+                    sub_block["AttributionModel"] = attribution_model.upper()
+                package_bidding_strategy_obj = _build_text_package_bidding_strategy(
+                    package_strategy_id,
+                    package_strategy_from_campaign_id,
+                    package_platform_search_result,
+                    package_platform_product_gallery,
+                    package_platform_network,
+                    package_platform_dynamic_places,
+                    require_platforms=False,
+                )
+                if package_bidding_strategy_obj is not None:
+                    package_incompatible = {
+                        "--counter-ids": counter_ids,
+                        "--priority-goals": priority_goals,
+                        "--attribution-model": attribution_model,
+                    }
+                    provided = [
+                        flag
+                        for flag, value in package_incompatible.items()
+                        if value is not None
+                    ]
+                    if provided:
+                        raise click.UsageError(
+                            "TextCampaign.PackageBiddingStrategy cannot be "
+                            f"combined with {', '.join(sorted(provided))}"
+                        )
+                    sub_block["PackageBiddingStrategy"] = package_bidding_strategy_obj
+                negative_keyword_shared_set_ids_obj = _array_of_integer_option(
+                    "--negative-keyword-shared-set-ids",
+                    negative_keyword_shared_set_ids,
+                    max_items=NEGATIVE_KEYWORD_SHARED_SET_IDS_MAX_ITEMS,
+                )
+                if negative_keyword_shared_set_ids_obj is not None:
+                    sub_block["NegativeKeywordSharedSetIds"] = (
+                        negative_keyword_shared_set_ids_obj
+                    )
             if tracking_params:
                 sub_block["TrackingParams"] = tracking_params
             if not sub_block:
