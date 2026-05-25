@@ -29,7 +29,9 @@ def main():
         print("\nFailed services:")
         for service, exc in sorted(errors.items()):
             print(f"  {service}: {exc}")
-        print(f"\n{len(CANONICAL_API_SERVICES) - len(errors)} succeeded, {len(errors)} failed.")
+        print(
+            f"\n{len(CANONICAL_API_SERVICES) - len(errors)} succeeded, {len(errors)} failed."
+        )
         sys.exit(1)
     else:
         print(f"All {len(CANONICAL_API_SERVICES)} services refreshed successfully.")

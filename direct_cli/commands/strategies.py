@@ -236,7 +236,7 @@ def _build_exploration_budget(
         return None
     if strategy_type not in EXPLORATION_BUDGET_STRATEGY_TYPES:
         raise click.UsageError(
-            "--minimum-exploration-budget is not valid for " f"--type {strategy_type}."
+            f"--minimum-exploration-budget is not valid for --type {strategy_type}."
         )
     if (
         weekly_spend_limit is not None

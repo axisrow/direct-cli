@@ -81,8 +81,7 @@ def patch_line(line: str, path: Path, line_number: int, vendor_dir: Path) -> str
         captured = match.group(2)
         _validate_captured(captured, path, line_number, line)
         return (
-            f"from {_relative_from(vendor_dir, path, match.group(1))} "
-            f"import {captured}"
+            f"from {_relative_from(vendor_dir, path, match.group(1))} import {captured}"
         )
 
     if line.startswith("import tapi_yandex_direct"):

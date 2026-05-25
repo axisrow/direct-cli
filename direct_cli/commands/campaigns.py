@@ -279,7 +279,7 @@ def _array_of_string_option(
         too_long = [item for item in parsed if len(item) > max_item_length]
         if too_long:
             raise click.UsageError(
-                f"{option_name} items must be at most " f"{max_item_length} characters"
+                f"{option_name} items must be at most {max_item_length} characters"
             )
     return {"Items": parsed} if parsed else None
 
@@ -997,7 +997,7 @@ def get(
     "--package-platform-dynamic-places",
     type=click.Choice(YES_NO, case_sensitive=False),
     help=(
-        "TextCampaign/UnifiedCampaign.PackageBiddingStrategy." "Platforms.DynamicPlaces"
+        "TextCampaign/UnifiedCampaign.PackageBiddingStrategy.Platforms.DynamicPlaces"
     ),
 )
 @click.option(
@@ -1900,7 +1900,7 @@ def add(
     "--package-platform-dynamic-places",
     type=click.Choice(YES_NO, case_sensitive=False),
     help=(
-        "TextCampaign/UnifiedCampaign.PackageBiddingStrategy." "Platforms.DynamicPlaces"
+        "TextCampaign/UnifiedCampaign.PackageBiddingStrategy.Platforms.DynamicPlaces"
     ),
 )
 @click.option(
@@ -2340,7 +2340,9 @@ def update(
                 package_label = (
                     "UnifiedCampaign"
                     if is_unified
-                    else "DynamicTextCampaign" if is_dynamic else "TextCampaign"
+                    else "DynamicTextCampaign"
+                    if is_dynamic
+                    else "TextCampaign"
                 )
                 parsed_settings = parse_setting_specs(list(settings))
                 if parsed_settings:

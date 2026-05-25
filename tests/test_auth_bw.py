@@ -78,7 +78,9 @@ class TestGetCredentialsBw:
     @patch("direct_cli.auth.load_env_file")
     @patch("direct_cli.auth.get_active_profile", return_value=None)
     @patch("direct_cli.auth.bw_read", return_value="bw-token-value")
-    def test_get_credentials_bw_fallback(self, mock_bw_read, mock_profile, mock_load, monkeypatch):
+    def test_get_credentials_bw_fallback(
+        self, mock_bw_read, mock_profile, mock_load, monkeypatch
+    ):
         monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_OP_TOKEN_REF", raising=False)

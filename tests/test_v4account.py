@@ -420,9 +420,7 @@ def test_v4account_commands_declare_v4_contracts():
 
 
 def test_account_management_get_dry_run_omits_selection_criteria_when_no_filters():
-    result = _invoke(
-        "v4account", "account-management", "--action", "Get", "--dry-run"
-    )
+    result = _invoke("v4account", "account-management", "--action", "Get", "--dry-run")
 
     assert result.exit_code == 0
     assert json.loads(result.output) == {
@@ -623,9 +621,7 @@ def test_account_management_deposit_dry_run_masks_finance_token():
         "method": "AccountManagement",
         "param": {
             "Action": "Deposit",
-            "Payments": [
-                {"AccountID": 1327944, "Amount": 100.5, "Currency": "RUB"}
-            ],
+            "Payments": [{"AccountID": 1327944, "Amount": 100.5, "Currency": "RUB"}],
         },
         "finance_token": "<redacted>",
         "operation_num": 42,
@@ -918,8 +914,7 @@ def test_account_management_transfer_requires_all_three_flags():
 
     assert result.exit_code != 0
     assert (
-        "--from-account-id, --to-account-id, and --amount are required"
-        in result.output
+        "--from-account-id, --to-account-id, and --amount are required" in result.output
     )
     build_body.assert_not_called()
 

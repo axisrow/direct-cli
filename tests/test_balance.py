@@ -21,9 +21,13 @@ def test_balance_dry_run_with_logins_emits_v4_request_body():
 
 
 def test_balance_omitted_logins_uses_configured_login():
-    result = CliRunner(env={"YANDEX_DIRECT_LOGIN": "client-login"}).invoke(
-        cli, ["balance", "--dry-run"]
-    )
+    with patch("direct_cli.cli.get_active_profile", return_value=None):
+        result = CliRunner(
+            env={
+                "YANDEX_DIRECT_TOKEN": "",
+                "YANDEX_DIRECT_LOGIN": "client-login",
+            }
+        ).invoke(cli, ["balance", "--dry-run"])
 
     assert result.exit_code == 0
     assert json.loads(result.output) == {

@@ -57,7 +57,9 @@ class TestGetCredentialsOp:
     @patch("direct_cli.auth.load_env_file")
     @patch("direct_cli.auth.get_active_profile", return_value=None)
     @patch("direct_cli.auth.op_read", return_value="op-token-value")
-    def test_get_credentials_op_fallback(self, mock_op_read, mock_profile, mock_load, monkeypatch):
+    def test_get_credentials_op_fallback(
+        self, mock_op_read, mock_profile, mock_load, monkeypatch
+    ):
         monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
         monkeypatch.setenv("YANDEX_DIRECT_OP_TOKEN_REF", "op://vault/item/token")

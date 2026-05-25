@@ -268,8 +268,7 @@ def set_bids(
             )
         if not bid_fields:
             raise click.UsageError(
-                "Provide at least one bid field"
-                " (--bid, --context-bid, or --priority)"
+                "Provide at least one bid field (--bid, --context-bid, or --priority)"
             )
 
         body = {"method": "setBids", "params": {"Bids": [bid_data]}}

@@ -138,9 +138,7 @@ def test_account_management_deposit_contract_uses_payments_with_origin():
 def test_account_management_invoice_contract_uses_payments():
     param = {
         "Action": "Invoice",
-        "Payments": [
-            {"AccountID": 1327944, "Amount": 100.5, "Currency": "RUB"}
-        ],
+        "Payments": [{"AccountID": 1327944, "Amount": 100.5, "Currency": "RUB"}],
     }
 
     assert build_v4_body("AccountManagement", param) == {

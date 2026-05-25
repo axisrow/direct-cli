@@ -571,9 +571,9 @@ class TestWriteBidModifiersSet:
             "bidmodifiers set unexpectedly succeeded without --id; it must "
             "reject the legacy CampaignId + Type shape locally."
         )
-        assert (
-            "legacy --campaign-id/--type shape is not supported" in r.output
-        ), f"Unexpected failure mode from bidmodifiers set: {r.output[:500]}"
+        assert "legacy --campaign-id/--type shape is not supported" in r.output, (
+            f"Unexpected failure mode from bidmodifiers set: {r.output[:500]}"
+        )
 
 
 # ── feeds ────────────────────────────────────────────────────────────────
@@ -610,7 +610,9 @@ class TestWriteFeeds:
             )
             if r.exit_code != 0:
                 if _is_sandbox_error(r.output):
-                    pytest.skip(f"feeds update not supported in sandbox: {r.output[:200]}")
+                    pytest.skip(
+                        f"feeds update not supported in sandbox: {r.output[:200]}"
+                    )
                 pytest.fail(f"feeds update failed (CLI regression?): {r.output[:500]}")
         finally:
             _invoke("feeds", "delete", "--id", str(fid))
@@ -874,9 +876,9 @@ class TestWriteAdImages:
             pytest.fail(f"adimages add failed (CLI regression?): {r.output[:500]}")
 
         data = json.loads(r.output)
-        assert (
-            isinstance(data, list) and data
-        ), f"adimages add returned empty result: {r.output[:200]}"
+        assert isinstance(data, list) and data, (
+            f"adimages add returned empty result: {r.output[:200]}"
+        )
         first = data[0]
         if "Errors" in first and first["Errors"]:
             err_text = str(first["Errors"])

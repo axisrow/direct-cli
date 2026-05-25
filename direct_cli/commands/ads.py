@@ -394,8 +394,7 @@ def _parse_mobile_app_features(
         feature_raw, separator, enabled_raw = raw_value.strip().partition("=")
         if not separator:
             raise click.UsageError(
-                "--mobile-app-feature expects FEATURE=YES|NO "
-                "(for example PRICE=YES)."
+                "--mobile-app-feature expects FEATURE=YES|NO (for example PRICE=YES)."
             )
 
         feature = feature_raw.strip().upper()

@@ -173,7 +173,7 @@ def parse_datetime(datetime_str: str) -> str:
         return f"{datetime_str}Z"
     except ValueError:
         raise ValueError(
-            "Invalid datetime format: " f"{datetime_str}. Expected: YYYY-MM-DDTHH:MM:SS"
+            f"Invalid datetime format: {datetime_str}. Expected: YYYY-MM-DDTHH:MM:SS"
         )
 
 
@@ -239,8 +239,7 @@ def parse_priority_goals_spec(
         pair = pair.strip()
         if not pair:
             raise click.UsageError(
-                "--priority-goals must be a comma-separated list of "
-                "goal_id:value pairs"
+                "--priority-goals must be a comma-separated list of goal_id:value pairs"
             )
         parts = [part.strip() for part in pair.split(":")]
         if len(parts) not in (2, 3):

@@ -45,7 +45,7 @@ def test_load_env_file_loads_cwd_dotenv(tmp_path):
     """A .env in the command working directory is loaded."""
     repo_root = Path(__file__).resolve().parents[1]
     (tmp_path / ".env").write_text(
-        "YANDEX_DIRECT_TOKEN=cwd-token\n" "YANDEX_DIRECT_LOGIN=cwd-login\n",
+        "YANDEX_DIRECT_TOKEN=cwd-token\nYANDEX_DIRECT_LOGIN=cwd-login\n",
         encoding="utf-8",
     )
     env = os.environ.copy()
@@ -80,7 +80,7 @@ def test_load_env_file_does_not_search_from_source_location(monkeypatch, tmp_pat
     run_dir.mkdir()
     source_env = source_dir / ".env"
     source_env.write_text(
-        "YANDEX_DIRECT_TOKEN=source-token\n" "YANDEX_DIRECT_LOGIN=source-login\n",
+        "YANDEX_DIRECT_TOKEN=source-token\nYANDEX_DIRECT_LOGIN=source-login\n",
         encoding="utf-8",
     )
     calls = []

@@ -350,8 +350,7 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
         group="forecast",
         param_shape=PARAM_SCALAR,
         login_placement=(
-            "param is the scalar forecast ID; global --login uses "
-            "Client-Login header"
+            "param is the scalar forecast ID; global --login uses Client-Login header"
         ),
         safety=SAFETY_READ,
         source_status=SOURCE_DOCS,
@@ -364,8 +363,7 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
         group="forecast",
         param_shape=PARAM_SCALAR,
         login_placement=(
-            "param is the scalar forecast ID; global --login uses "
-            "Client-Login header"
+            "param is the scalar forecast ID; global --login uses Client-Login header"
         ),
         safety=SAFETY_WRITE,
         source_status=SOURCE_DOCS,
@@ -426,8 +424,7 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
         group="tags",
         param_shape=PARAM_ARRAY,
         login_placement=(
-            "param is a list of BannerTagsInfo; global --login uses "
-            "Client-Login header"
+            "param is a list of BannerTagsInfo; global --login uses Client-Login header"
         ),
         safety=SAFETY_WRITE,
         source_status=SOURCE_DOCS,
