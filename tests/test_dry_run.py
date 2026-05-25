@@ -5472,6 +5472,30 @@ def test_campaigns_rejects_invalid_sms_time_step():
     assert "--sms-time-from" in result.output
 
 
+def test_campaigns_rejects_non_canonical_sms_time_format():
+    result = _rejected(*_cpa_base_args(), "--sms-time-from", "9:00")
+    assert "--sms-time-from" in result.output
+    assert "HH:MM" in result.output
+
+
+def test_campaigns_rejects_legacy_notification_blob_with_guidance():
+    result = _rejected(*_cpa_base_args(), "--notification", "{}")
+    assert "--notification is no longer accepted" in result.output
+    assert "--notification-email" in result.output
+
+
+def test_campaigns_update_rejects_legacy_notification_blob_with_guidance():
+    result = _rejected("campaigns", "update", "--id", "123", "--notification", "{}")
+    assert "--notification is no longer accepted" in result.output
+    assert "--notification-email" in result.output
+
+
+def test_campaigns_rejects_legacy_time_targeting_blob_with_guidance():
+    result = _rejected(*_cpa_base_args(), "--time-targeting", "{}")
+    assert "--time-targeting is no longer accepted" in result.output
+    assert "--time-targeting-schedule" in result.output
+
+
 def test_campaigns_rejects_too_many_blocked_ips():
     result = _rejected(
         *_cpa_base_args(),

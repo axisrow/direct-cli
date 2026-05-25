@@ -2,6 +2,7 @@
 Campaigns commands
 """
 
+import re
 from typing import Dict, List, Optional, Sequence
 
 import click
@@ -76,7 +77,24 @@ BLOCKED_IPS_MAX_ITEMS = 25
 EXCLUDED_SITES_MAX_ITEMS = 1000
 EXCLUDED_SITE_MAX_LENGTH = 255
 TIME_TARGETING_SCHEDULE_MAX_ITEMS = 7
-SMS_TIME_MINUTES = {"00", "15", "30", "45"}
+HH_MM_RE = re.compile(r"^(?:[01]\d|2[0-3]):(?:00|15|30|45)$")
+_DEPRECATED_CAMPAIGNS_STRUCTURED_OPTIONS = {
+    "notification": (
+        "--notification is no longer accepted on 'campaigns add/update'; "
+        "use typed flags such as --sms-events, --notification-email, "
+        "and --notification-send-warnings."
+    ),
+    "time_targeting": (
+        "--time-targeting is no longer accepted on 'campaigns add/update'; "
+        "use typed flags such as --time-targeting-schedule, "
+        "--consider-working-weekends, and --holidays-suspend-on-holidays."
+    ),
+}
+
+
+def _deprecated_campaigns_structured_option(ctx, param, value):
+    if value is not None:
+        raise click.UsageError(_DEPRECATED_CAMPAIGNS_STRUCTURED_OPTIONS[param.name])
 
 
 def _apply_cpa_strategy_fields(
@@ -299,14 +317,7 @@ def _validate_sms_time(option_name: str, value: Optional[str]) -> Optional[str]:
     """Validate documented HH:MM values with 15-minute steps."""
     if value is None:
         return None
-    try:
-        hour_text, minute_text = value.split(":")
-        hour = int(hour_text)
-    except ValueError:
-        raise click.UsageError(
-            f"{option_name} must use HH:MM with minutes 00, 15, 30, or 45"
-        )
-    if not 0 <= hour <= 23 or minute_text not in SMS_TIME_MINUTES:
+    if not HH_MM_RE.fullmatch(value):
         raise click.UsageError(
             f"{option_name} must use HH:MM with minutes 00, 15, 30, or 45"
         )
@@ -705,6 +716,24 @@ def get(
     help="Bid ceiling in micro-rubles for the chosen CPA strategy",
 )
 @click.option(
+    "--notification",
+    default=None,
+    expose_value=False,
+    callback=_deprecated_campaigns_structured_option,
+    is_eager=True,
+    hidden=True,
+    help="Removed: use typed Notification flags",
+)
+@click.option(
+    "--time-targeting",
+    default=None,
+    expose_value=False,
+    callback=_deprecated_campaigns_structured_option,
+    is_eager=True,
+    hidden=True,
+    help="Removed: use typed TimeTargeting flags",
+)
+@click.option(
     "--client-info",
     help="CampaignBase.ClientInfo client name, max 255 characters",
 )
@@ -1098,6 +1127,24 @@ def add(
 @click.option("--budget", type=MICRO_RUBLES, help="New daily budget in micro-rubles")
 @click.option("--start-date", help="New start date (YYYY-MM-DD)")
 @click.option("--end-date", help="New end date (YYYY-MM-DD)")
+@click.option(
+    "--notification",
+    default=None,
+    expose_value=False,
+    callback=_deprecated_campaigns_structured_option,
+    is_eager=True,
+    hidden=True,
+    help="Removed: use typed Notification flags",
+)
+@click.option(
+    "--time-targeting",
+    default=None,
+    expose_value=False,
+    callback=_deprecated_campaigns_structured_option,
+    is_eager=True,
+    hidden=True,
+    help="Removed: use typed TimeTargeting flags",
+)
 @click.option(
     "--client-info",
     help="CampaignBase.ClientInfo client name, max 255 characters",
