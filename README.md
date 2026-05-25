@@ -72,15 +72,18 @@ Credential resolution priority:
 | 1 | Explicit CLI options | `direct --token TOKEN --login LOGIN campaigns get` |
 | 2 | OAuth profile storage | `direct --profile agency1 campaigns get` |
 | 3 | Profile-specific env vars | `YANDEX_DIRECT_TOKEN_AGENCY1`, `YANDEX_DIRECT_LOGIN_AGENCY1` |
-| 4 | Base env vars or project `.env` | `YANDEX_DIRECT_TOKEN`, `YANDEX_DIRECT_LOGIN` |
+| 4 | Base env vars or current working directory `.env` | `YANDEX_DIRECT_TOKEN`, `YANDEX_DIRECT_LOGIN` |
 | 5 | 1Password references | `--op-token-ref`, `YANDEX_DIRECT_OP_TOKEN_REF` |
 | 6 | Bitwarden references | `--bw-token-ref`, `YANDEX_DIRECT_BW_TOKEN_REF` |
 
-The project `.env` file is loaded automatically. If a profile is selected
-with `--profile` or `direct auth use --profile NAME`, Direct CLI does not
-fall back to base `YANDEX_DIRECT_LOGIN`; this prevents mixing a profile token
-with a login from the project `.env`. For multi-account setups, prefer OAuth
-profiles or profile-specific env vars instead of base credentials.
+Direct CLI automatically loads only the `.env` file from the current working
+directory, i.e. the directory where you run `direct`. It does not search for
+`.env` from the installed package or source-code location. If a profile is
+selected with `--profile` or `direct auth use --profile NAME`, Direct CLI does
+not fall back to base `YANDEX_DIRECT_LOGIN`; this prevents mixing a profile
+token with a login from the current working directory `.env`. For multi-account
+setups, prefer OAuth profiles or profile-specific env vars instead of base
+credentials.
 
 > **Tests use the inverted order.** Live-API test suites (e.g. `tests/test_v4_live_contracts.py`) read `YANDEX_DIRECT_TOKEN` / `YANDEX_DIRECT_LOGIN` from the environment first, only then fall back to the active `direct auth` profile, and skip the test if neither is set. This is intentional: a developer machine with an active profile must not silently hit production on a plain `pytest` invocation. See `CLAUDE.md` for the contract.
 
@@ -968,15 +971,17 @@ direct --profile agency1 campaigns get
 | 1 | Явные CLI-опции | `direct --token TOKEN --login LOGIN campaigns get` |
 | 2 | OAuth profile storage | `direct --profile agency1 campaigns get` |
 | 3 | Профильные env vars | `YANDEX_DIRECT_TOKEN_AGENCY1`, `YANDEX_DIRECT_LOGIN_AGENCY1` |
-| 4 | Базовые env vars или project `.env` | `YANDEX_DIRECT_TOKEN`, `YANDEX_DIRECT_LOGIN` |
+| 4 | Базовые env vars или `.env` из папки запуска | `YANDEX_DIRECT_TOKEN`, `YANDEX_DIRECT_LOGIN` |
 | 5 | 1Password references | `--op-token-ref`, `YANDEX_DIRECT_OP_TOKEN_REF` |
 | 6 | Bitwarden references | `--bw-token-ref`, `YANDEX_DIRECT_BW_TOKEN_REF` |
 
-Файл `.env` в проекте загружается автоматически. Если профиль выбран через
-`--profile` или `direct auth use --profile NAME`, Direct CLI не подставляет
-base `YANDEX_DIRECT_LOGIN`; это защищает от смешивания токена из профиля с
-логином из project `.env`. Для нескольких аккаунтов используйте OAuth profiles
-или профильные env vars, а не базовые credentials.
+Direct CLI автоматически читает только `.env` из текущей рабочей папки, то есть
+из папки, где запущена команда `direct`. Он не ищет `.env` от папки
+установленного пакета или исходного кода. Если профиль выбран через `--profile`
+или `direct auth use --profile NAME`, Direct CLI не подставляет base
+`YANDEX_DIRECT_LOGIN`; это защищает от смешивания токена из профиля с логином из
+`.env` текущей рабочей папки. Для нескольких аккаунтов используйте OAuth
+profiles или профильные env vars, а не базовые credentials.
 
 > **В тестах порядок инвертирован.** Live-API тесты (например `tests/test_v4_live_contracts.py`) сначала читают `YANDEX_DIRECT_TOKEN` / `YANDEX_DIRECT_LOGIN` из окружения, затем падают на активный профиль `direct auth`, и скипают тест если ни того ни другого нет. Это сделано специально: на машине разработчика с активным профилем обычный `pytest` не должен молча идти в боевой API. Контракт зафиксирован в `CLAUDE.md`.
 
