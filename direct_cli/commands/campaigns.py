@@ -1201,13 +1201,11 @@ def add(
             package_incompatible = {
                 "--search-strategy": search_strategy,
                 "--network-strategy": network_strategy,
-                "--counter-ids": counter_ids,
                 "--priority-goals": priority_goals,
                 "--goal-id": goal_id,
                 "--average-cpa": average_cpa,
                 "--crr": crr,
                 "--bid-ceiling": bid_ceiling,
-                "--attribution-model": attribution_model,
             }
             provided = [
                 flag
@@ -1772,9 +1770,7 @@ def update(
                 )
                 if package_bidding_strategy_obj is not None:
                     package_incompatible = {
-                        "--counter-ids": counter_ids,
                         "--priority-goals": priority_goals,
-                        "--attribution-model": attribution_model,
                     }
                     provided = [
                         flag

@@ -5311,6 +5311,10 @@ def test_campaigns_add_text_campaign_optional_controls_payload():
 def test_campaigns_add_text_package_bidding_strategy_payload():
     body = _dry_run(
         *_cpa_base_args(),
+        "--counter-ids",
+        "111,222",
+        "--attribution-model",
+        "AUTO",
         "--package-strategy-id",
         "700",
         "--package-platform-search-result",
@@ -5324,6 +5328,8 @@ def test_campaigns_add_text_package_bidding_strategy_payload():
     )
     text = body["params"]["Campaigns"][0]["TextCampaign"]
     assert "BiddingStrategy" not in text
+    assert text["CounterIds"] == {"Items": [111, 222]}
+    assert text["AttributionModel"] == "AUTO"
     assert text["PackageBiddingStrategy"] == {
         "StrategyId": 700,
         "Platforms": {
@@ -5396,6 +5402,10 @@ def test_campaigns_update_text_package_bidding_strategy_payload():
         "123",
         "--type",
         "TEXT_CAMPAIGN",
+        "--counter-ids",
+        "111",
+        "--attribution-model",
+        "LC",
         "--package-strategy-from-campaign-id",
         "456",
         "--package-platform-search-result",
@@ -5407,6 +5417,8 @@ def test_campaigns_update_text_package_bidding_strategy_payload():
     )
     text = body["params"]["Campaigns"][0]["TextCampaign"]
     assert text == {
+        "CounterIds": {"Items": [111]},
+        "AttributionModel": "LC",
         "PackageBiddingStrategy": {
             "StrategyFromCampaignId": 456,
             "Platforms": {
@@ -5414,7 +5426,7 @@ def test_campaigns_update_text_package_bidding_strategy_payload():
                 "ProductGallery": "YES",
                 "Network": "NO",
             },
-        }
+        },
     }
 
 
@@ -5667,7 +5679,7 @@ def test_campaigns_add_rejects_package_strategy_without_required_platforms():
     assert "--package-platform-network" in result.output
 
 
-def test_campaigns_add_rejects_package_strategy_with_bidding_inputs():
+def test_campaigns_add_rejects_package_strategy_with_strategy_inputs():
     result = _rejected(
         *_cpa_base_args(),
         "--package-strategy-id",
@@ -5678,11 +5690,11 @@ def test_campaigns_add_rejects_package_strategy_with_bidding_inputs():
         "YES",
         "--package-platform-network",
         "YES",
-        "--counter-ids",
-        "111",
+        "--search-strategy",
+        "AVERAGE_CPA",
     )
     assert "PackageBiddingStrategy cannot be combined" in result.output
-    assert "--counter-ids" in result.output
+    assert "--search-strategy" in result.output
 
 
 def test_campaigns_rejects_too_many_negative_keyword_shared_set_ids():
