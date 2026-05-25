@@ -74,6 +74,7 @@ SMS_EVENTS = {"MONITORING", "MODERATION", "MONEY_IN", "MONEY_OUT", "FINISHED"}
 YES_NO = ["YES", "NO"]
 ATTRIBUTION_MODELS = ["FC", "LC", "LSC", "LYDC", "FCCD", "LSCCD", "LYDCCD", "AUTO"]
 RELEVANT_KEYWORDS_MODES = ["MINIMUM", "OPTIMAL", "MAXIMUM"]
+VIDEO_TARGETS = ["VIEWS", "CLICKS"]
 CLIENT_INFO_MAX_LENGTH = 255
 BLOCKED_IPS_MAX_ITEMS = 25
 EXCLUDED_SITES_MAX_ITEMS = 1000
@@ -512,6 +513,35 @@ def _build_dynamic_placement_types(
     return placement_types
 
 
+def _build_frequency_cap(
+    impressions: Optional[int],
+    period_days: Optional[int],
+    period_all: bool,
+) -> Optional[dict]:
+    """Build CpmBannerCampaign.FrequencyCap from paired typed flags."""
+    if impressions is None and period_days is None and not period_all:
+        return None
+    if period_days is not None and period_all:
+        raise click.UsageError(
+            "--frequency-cap-period-days and --frequency-cap-period-all "
+            "are mutually exclusive"
+        )
+    if impressions is None:
+        raise click.UsageError(
+            "--frequency-cap-impressions is required with "
+            "--frequency-cap-period-days or --frequency-cap-period-all"
+        )
+    if period_days is None and not period_all:
+        raise click.UsageError(
+            "--frequency-cap-impressions requires --frequency-cap-period-days "
+            "or --frequency-cap-period-all"
+        )
+    return {
+        "Impressions": impressions,
+        "PeriodDays": None if period_all else period_days,
+    }
+
+
 def _build_package_bidding_strategy(
     strategy_id: Optional[int],
     strategy_from_campaign_id: Optional[int],
@@ -860,7 +890,8 @@ def get(
     "--counter-ids",
     help=(
         "Comma-separated Metrika counter IDs "
-        "(TextCampaign/UnifiedCampaign/DynamicTextCampaign.CounterIds)"
+        "(TextCampaign/UnifiedCampaign/DynamicTextCampaign/"
+        "CpmBannerCampaign.CounterIds.Items)"
     ),
 )
 @click.option(
@@ -973,9 +1004,29 @@ def get(
     "--negative-keyword-shared-set-ids",
     help=(
         "Comma-separated "
-        "TextCampaign/UnifiedCampaign/DynamicTextCampaign."
+        "TextCampaign/UnifiedCampaign/DynamicTextCampaign/MobileAppCampaign."
         "NegativeKeywordSharedSetIds.Items"
     ),
+)
+@click.option(
+    "--frequency-cap-impressions",
+    type=click.IntRange(1),
+    help="CpmBannerCampaign.FrequencyCap.Impressions",
+)
+@click.option(
+    "--frequency-cap-period-days",
+    type=click.IntRange(1, 30),
+    help="CpmBannerCampaign.FrequencyCap.PeriodDays, 1-30",
+)
+@click.option(
+    "--frequency-cap-period-all",
+    is_flag=True,
+    help="Set CpmBannerCampaign.FrequencyCap.PeriodDays to null",
+)
+@click.option(
+    "--video-target",
+    type=click.Choice(VIDEO_TARGETS, case_sensitive=False),
+    help="CpmBannerCampaign.VideoTarget: VIEWS or CLICKS",
 )
 @click.option(
     "--average-cpa",
@@ -1121,6 +1172,10 @@ def add(
     package_platform_network,
     package_platform_dynamic_places,
     negative_keyword_shared_set_ids,
+    frequency_cap_impressions,
+    frequency_cap_period_days,
+    frequency_cap_period_all,
+    video_target,
     average_cpa,
     crr,
     bid_ceiling,
@@ -1156,13 +1211,16 @@ def add(
             "UNIFIED_CAMPAIGN",
             "DYNAMIC_TEXT_CAMPAIGN",
             "SMART_CAMPAIGN",
+            "MOBILE_APP_CAMPAIGN",
+            "CPM_BANNER_CAMPAIGN",
         }
         if campaign_type_norm not in supported_types:
             raise click.UsageError(
                 "Invalid value for '--type': "
                 f"{campaign_type!r} is not one of "
                 "'TEXT_CAMPAIGN', 'UNIFIED_CAMPAIGN', "
-                "'DYNAMIC_TEXT_CAMPAIGN', 'SMART_CAMPAIGN'."
+                "'DYNAMIC_TEXT_CAMPAIGN', 'SMART_CAMPAIGN', "
+                "'MOBILE_APP_CAMPAIGN', 'CPM_BANNER_CAMPAIGN'."
             )
 
         # Shared flags for TextCampaign / DynamicTextCampaign:
@@ -1244,6 +1302,18 @@ def add(
                 "--package-platform-search",
                 "--package-platform-network",
             },
+            "MOBILE_APP_CAMPAIGN": {
+                "--setting",
+                "--negative-keyword-shared-set-ids",
+            },
+            "CPM_BANNER_CAMPAIGN": {
+                "--setting",
+                "--counter-ids",
+                "--frequency-cap-impressions",
+                "--frequency-cap-period-days",
+                "--frequency-cap-period-all",
+                "--video-target",
+            },
         }
         _reject_incompatible_flags(
             campaign_type_norm,
@@ -1283,6 +1353,10 @@ def add(
                 "--package-platform-network": package_platform_network,
                 "--package-platform-dynamic-places": package_platform_dynamic_places,
                 "--negative-keyword-shared-set-ids": negative_keyword_shared_set_ids,
+                "--frequency-cap-impressions": frequency_cap_impressions,
+                "--frequency-cap-period-days": frequency_cap_period_days,
+                "--frequency-cap-period-all": frequency_cap_period_all or None,
+                "--video-target": video_target,
                 "--average-cpa": average_cpa,
                 "--crr": crr,
                 "--bid-ceiling": bid_ceiling,
@@ -1334,6 +1408,11 @@ def add(
         dynamic_placement_types = _build_dynamic_placement_types(
             dynamic_placement_search_results,
             dynamic_placement_product_gallery,
+        )
+        frequency_cap_obj = _build_frequency_cap(
+            frequency_cap_impressions,
+            frequency_cap_period_days,
+            frequency_cap_period_all,
         )
 
         priority_goals_items = parse_priority_goals_spec(priority_goals)
@@ -1461,6 +1540,24 @@ def add(
                 "SmartCampaign.BiddingStrategy; shared BiddingStrategy support is "
                 "tracked in #290."
             )
+        if campaign_type_norm in {"MOBILE_APP_CAMPAIGN", "CPM_BANNER_CAMPAIGN"}:
+            strategy_followup_flags = {
+                "--goal-id": goal_id,
+                "--priority-goals": priority_goals,
+                "--average-cpa": average_cpa,
+                "--crr": crr,
+                "--bid-ceiling": bid_ceiling,
+            }
+            provided = [
+                flag
+                for flag, value in strategy_followup_flags.items()
+                if value is not None
+            ]
+            if provided:
+                raise click.UsageError(
+                    f"{campaign_type_norm} BiddingStrategy typed parameters are "
+                    f"tracked in #290; got {', '.join(sorted(provided))}"
+                )
 
         campaign_data = {"Name": name, "StartDate": start_date}
         parsed_settings = parse_setting_specs(list(settings))
@@ -1603,6 +1700,42 @@ def add(
             if tracking_params:
                 smart_campaign["TrackingParams"] = tracking_params
             campaign_data["SmartCampaign"] = smart_campaign
+        elif campaign_type_norm == "MOBILE_APP_CAMPAIGN":
+            mobile_campaign: Dict[str, object] = {
+                "BiddingStrategy": {
+                    "Search": {
+                        "BiddingStrategyType": search_strategy or "HIGHEST_POSITION"
+                    },
+                    "Network": {
+                        "BiddingStrategyType": network_strategy or "SERVING_OFF"
+                    },
+                }
+            }
+            if parsed_settings:
+                mobile_campaign["Settings"] = parsed_settings
+            if negative_keyword_shared_set_ids_obj is not None:
+                mobile_campaign["NegativeKeywordSharedSetIds"] = (
+                    negative_keyword_shared_set_ids_obj
+                )
+            campaign_data["MobileAppCampaign"] = mobile_campaign
+        elif campaign_type_norm == "CPM_BANNER_CAMPAIGN":
+            cpm_campaign: Dict[str, object] = {
+                "BiddingStrategy": {
+                    "Search": {"BiddingStrategyType": search_strategy or "SERVING_OFF"},
+                    "Network": {
+                        "BiddingStrategyType": network_strategy or "MANUAL_CPM"
+                    },
+                }
+            }
+            if parsed_settings:
+                cpm_campaign["Settings"] = parsed_settings
+            if counter_ids_obj is not None:
+                cpm_campaign["CounterIds"] = counter_ids_obj
+            if frequency_cap_obj is not None:
+                cpm_campaign["FrequencyCap"] = frequency_cap_obj
+            if video_target:
+                cpm_campaign["VideoTarget"] = video_target.upper()
+            campaign_data["CpmBannerCampaign"] = cpm_campaign
 
         if budget:
             campaign_data["DailyBudget"] = {
@@ -1662,15 +1795,15 @@ def add(
     "--setting",
     "settings",
     multiple=True,
-    help=(
-        "TextCampaign/UnifiedCampaign/DynamicTextCampaign/SmartCampaign."
-        "Settings spec: OPTION=VALUE"
-    ),
+    help="Campaign subtype Settings spec: OPTION=VALUE",
 )
 @click.option("--counter-id", type=int, help="SmartCampaign.CounterId")
 @click.option(
     "--counter-ids",
-    help="Comma-separated TextCampaign/UnifiedCampaign/DynamicTextCampaign.CounterIds.Items",
+    help=(
+        "Comma-separated TextCampaign/UnifiedCampaign/DynamicTextCampaign/"
+        "CpmBannerCampaign.CounterIds.Items"
+    ),
 )
 @click.option(
     "--dynamic-placement-search-results",
@@ -1774,9 +1907,29 @@ def add(
     "--negative-keyword-shared-set-ids",
     help=(
         "Comma-separated "
-        "TextCampaign/UnifiedCampaign/DynamicTextCampaign."
+        "TextCampaign/UnifiedCampaign/DynamicTextCampaign/MobileAppCampaign."
         "NegativeKeywordSharedSetIds.Items"
     ),
+)
+@click.option(
+    "--frequency-cap-impressions",
+    type=click.IntRange(1),
+    help="CpmBannerCampaign.FrequencyCap.Impressions",
+)
+@click.option(
+    "--frequency-cap-period-days",
+    type=click.IntRange(1, 30),
+    help="CpmBannerCampaign.FrequencyCap.PeriodDays, 1-30",
+)
+@click.option(
+    "--frequency-cap-period-all",
+    is_flag=True,
+    help="Set CpmBannerCampaign.FrequencyCap.PeriodDays to null",
+)
+@click.option(
+    "--video-target",
+    type=click.Choice(VIDEO_TARGETS, case_sensitive=False),
+    help="CpmBannerCampaign.VideoTarget: VIEWS or CLICKS",
 )
 @click.option(
     "--notification",
@@ -1867,7 +2020,8 @@ def add(
     help=(
         "Campaign subtype "
         "(TEXT_CAMPAIGN | UNIFIED_CAMPAIGN | "
-        "DYNAMIC_TEXT_CAMPAIGN | SMART_CAMPAIGN). "
+        "DYNAMIC_TEXT_CAMPAIGN | SMART_CAMPAIGN | "
+        "MOBILE_APP_CAMPAIGN | CPM_BANNER_CAMPAIGN). "
         "Required when updating subtype-specific fields."
     ),
 )
@@ -1910,6 +2064,10 @@ def update(
     package_platform_network,
     package_platform_dynamic_places,
     negative_keyword_shared_set_ids,
+    frequency_cap_impressions,
+    frequency_cap_period_days,
+    frequency_cap_period_all,
+    video_target,
     client_info,
     sms_events,
     sms_time_from,
@@ -2009,6 +2167,8 @@ def update(
             "UNIFIED_CAMPAIGN",
             "DYNAMIC_TEXT_CAMPAIGN",
             "SMART_CAMPAIGN",
+            "MOBILE_APP_CAMPAIGN",
+            "CPM_BANNER_CAMPAIGN",
         }
         campaign_type_norm = (
             campaign_type.upper().replace("-", "_") if campaign_type else None
@@ -2038,6 +2198,10 @@ def update(
             "--package-platform-network": package_platform_network,
             "--package-platform-dynamic-places": package_platform_dynamic_places,
             "--negative-keyword-shared-set-ids": negative_keyword_shared_set_ids,
+            "--frequency-cap-impressions": frequency_cap_impressions,
+            "--frequency-cap-period-days": frequency_cap_period_days,
+            "--frequency-cap-period-all": frequency_cap_period_all or None,
+            "--video-target": video_target,
             "--tracking-params": tracking_params,
         }
         subtype_flags_provided = [
@@ -2051,13 +2215,15 @@ def update(
                 "Invalid value for '--type': "
                 f"{campaign_type!r} is not one of "
                 "'TEXT_CAMPAIGN', 'UNIFIED_CAMPAIGN', "
-                "'DYNAMIC_TEXT_CAMPAIGN', 'SMART_CAMPAIGN'."
+                "'DYNAMIC_TEXT_CAMPAIGN', 'SMART_CAMPAIGN', "
+                "'MOBILE_APP_CAMPAIGN', 'CPM_BANNER_CAMPAIGN'."
             )
         if subtype_flags_provided and campaign_type_norm is None:
             raise click.UsageError(
                 f"{', '.join(sorted(subtype_flags_provided))} requires --type "
                 "(TEXT_CAMPAIGN | UNIFIED_CAMPAIGN | "
-                "DYNAMIC_TEXT_CAMPAIGN | SMART_CAMPAIGN)."
+                "DYNAMIC_TEXT_CAMPAIGN | SMART_CAMPAIGN | "
+                "MOBILE_APP_CAMPAIGN | CPM_BANNER_CAMPAIGN)."
             )
         if campaign_type_norm is not None:
             text_campaign_flags = {
@@ -2116,11 +2282,25 @@ def update(
                 "--package-platform-network",
                 "--tracking-params",
             }
+            mobile_app_campaign_flags = {
+                "--setting",
+                "--negative-keyword-shared-set-ids",
+            }
+            cpm_banner_campaign_flags = {
+                "--setting",
+                "--counter-ids",
+                "--frequency-cap-impressions",
+                "--frequency-cap-period-days",
+                "--frequency-cap-period-all",
+                "--video-target",
+            }
             allowed_subtype_flags_by_type = {
                 "TEXT_CAMPAIGN": text_campaign_flags,
                 "UNIFIED_CAMPAIGN": unified_campaign_flags,
                 "DYNAMIC_TEXT_CAMPAIGN": dynamic_campaign_flags,
                 "SMART_CAMPAIGN": smart_campaign_flags,
+                "MOBILE_APP_CAMPAIGN": mobile_app_campaign_flags,
+                "CPM_BANNER_CAMPAIGN": cpm_banner_campaign_flags,
             }
             _reject_incompatible_flags(
                 campaign_type_norm,
@@ -2275,6 +2455,35 @@ def update(
                     sub_block["PackageBiddingStrategy"] = (
                         smart_package_bidding_strategy_obj
                     )
+            elif campaign_type_norm == "MOBILE_APP_CAMPAIGN":
+                parsed_settings = parse_setting_specs(list(settings))
+                if parsed_settings:
+                    sub_block["Settings"] = parsed_settings
+                negative_keyword_shared_set_ids_obj = _array_of_integer_option(
+                    "--negative-keyword-shared-set-ids",
+                    negative_keyword_shared_set_ids,
+                    max_items=NEGATIVE_KEYWORD_SHARED_SET_IDS_MAX_ITEMS,
+                )
+                if negative_keyword_shared_set_ids_obj is not None:
+                    sub_block["NegativeKeywordSharedSetIds"] = (
+                        negative_keyword_shared_set_ids_obj
+                    )
+            elif campaign_type_norm == "CPM_BANNER_CAMPAIGN":
+                parsed_settings = parse_setting_specs(list(settings))
+                if parsed_settings:
+                    sub_block["Settings"] = parsed_settings
+                counter_ids_obj = _array_of_integer_option("--counter-ids", counter_ids)
+                if counter_ids_obj is not None:
+                    sub_block["CounterIds"] = counter_ids_obj
+                frequency_cap_obj = _build_frequency_cap(
+                    frequency_cap_impressions,
+                    frequency_cap_period_days,
+                    frequency_cap_period_all,
+                )
+                if frequency_cap_obj is not None:
+                    sub_block["FrequencyCap"] = frequency_cap_obj
+                if video_target:
+                    sub_block["VideoTarget"] = video_target.upper()
             if tracking_params:
                 sub_block["TrackingParams"] = tracking_params
             if not sub_block:
@@ -2287,6 +2496,8 @@ def update(
                 "UNIFIED_CAMPAIGN": "UnifiedCampaign",
                 "DYNAMIC_TEXT_CAMPAIGN": "DynamicTextCampaign",
                 "SMART_CAMPAIGN": "SmartCampaign",
+                "MOBILE_APP_CAMPAIGN": "MobileAppCampaign",
+                "CPM_BANNER_CAMPAIGN": "CpmBannerCampaign",
             }[campaign_type_norm]
             campaign_data[subtype_container] = sub_block
 
