@@ -5589,6 +5589,159 @@ def test_campaigns_update_unified_package_bidding_strategy_payload():
     }
 
 
+def test_campaigns_add_dynamic_campaign_optional_controls_payload():
+    body = _dry_run(
+        "campaigns",
+        "add",
+        "--name",
+        "Dynamic Controls",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--setting",
+        "ADD_METRICA_TAG=YES",
+        "--dynamic-placement-search-results",
+        "YES",
+        "--dynamic-placement-product-gallery",
+        "NO",
+        "--counter-ids",
+        "111,222",
+        "--tracking-params",
+        "utm_source=direct",
+        "--attribution-model",
+        "AUTO",
+        "--negative-keyword-shared-set-ids",
+        "10,11",
+    )
+    dynamic = body["params"]["Campaigns"][0]["DynamicTextCampaign"]
+    assert dynamic == {
+        "Settings": [{"Option": "ADD_METRICA_TAG", "Value": "YES"}],
+        "BiddingStrategy": {
+            "Search": {"BiddingStrategyType": "HIGHEST_POSITION"},
+            "Network": {"BiddingStrategyType": "SERVING_OFF"},
+        },
+        "CounterIds": {"Items": [111, 222]},
+        "PlacementTypes": [
+            {"Type": "SEARCH_RESULTS", "Value": "YES"},
+            {"Type": "PRODUCT_GALLERY", "Value": "NO"},
+        ],
+        "AttributionModel": "AUTO",
+        "NegativeKeywordSharedSetIds": {"Items": [10, 11]},
+        "TrackingParams": "utm_source=direct",
+    }
+
+
+def test_campaigns_update_dynamic_campaign_optional_controls_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--setting",
+        "ADD_METRICA_TAG=NO",
+        "--dynamic-placement-search-results",
+        "NO",
+        "--dynamic-placement-product-gallery",
+        "YES",
+        "--counter-ids",
+        "111,222",
+        "--priority-goals",
+        "1234567:80:YES,9876543:20",
+        "--tracking-params",
+        "utm_source=direct",
+        "--attribution-model",
+        "LC",
+        "--negative-keyword-shared-set-ids",
+        "10,11",
+    )
+    campaign = body["params"]["Campaigns"][0]
+    assert campaign == {
+        "Id": 123,
+        "DynamicTextCampaign": {
+            "Settings": [{"Option": "ADD_METRICA_TAG", "Value": "NO"}],
+            "PlacementTypes": [
+                {"Type": "SEARCH_RESULTS", "Value": "NO"},
+                {"Type": "PRODUCT_GALLERY", "Value": "YES"},
+            ],
+            "CounterIds": {"Items": [111, 222]},
+            "PriorityGoals": {
+                "Items": [
+                    {
+                        "GoalId": 1234567,
+                        "Value": 80,
+                        "IsMetrikaSourceOfValue": "YES",
+                        "Operation": "SET",
+                    },
+                    {"GoalId": 9876543, "Value": 20, "Operation": "SET"},
+                ]
+            },
+            "AttributionModel": "LC",
+            "NegativeKeywordSharedSetIds": {"Items": [10, 11]},
+            "TrackingParams": "utm_source=direct",
+        },
+    }
+
+
+def test_campaigns_add_dynamic_package_bidding_strategy_payload():
+    body = _dry_run(
+        "campaigns",
+        "add",
+        "--name",
+        "Dynamic Package",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--package-strategy-id",
+        "700",
+    )
+    dynamic = body["params"]["Campaigns"][0]["DynamicTextCampaign"]
+    assert "BiddingStrategy" not in dynamic
+    assert dynamic == {
+        "Settings": [],
+        "PackageBiddingStrategy": {"StrategyId": 700},
+    }
+
+
+def test_campaigns_update_dynamic_package_bidding_strategy_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--package-strategy-from-campaign-id",
+        "456",
+    )
+    dynamic = body["params"]["Campaigns"][0]["DynamicTextCampaign"]
+    assert dynamic == {
+        "PackageBiddingStrategy": {"StrategyFromCampaignId": 456},
+    }
+
+
+def test_campaigns_add_rejects_dynamic_package_platforms():
+    result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "Dynamic Package",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--package-strategy-id",
+        "700",
+        "--package-platform-search-result",
+        "YES",
+    )
+    assert "--package-platform-search-result" in result.output
+    assert "DYNAMIC_TEXT_CAMPAIGN" in result.output
+
+
 def test_campaigns_add_notification_payload():
     body = _dry_run(
         *_cpa_base_args(),
@@ -6305,7 +6458,7 @@ def test_campaigns_add_dynamic_text_campaign_with_cpa():
     search = dyn["BiddingStrategy"]["Search"]
     assert search["BiddingStrategyType"] == "AVERAGE_CPA"
     assert search["AverageCpa"] == {"AverageCpa": 200000000, "GoalId": 42}
-    assert dyn["CounterIds"] == [555]
+    assert dyn["CounterIds"] == {"Items": [555]}
 
 
 def test_campaigns_add_smart_campaign_keeps_counter_id_singular():
