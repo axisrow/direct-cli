@@ -654,17 +654,20 @@ PAYLOAD_CASES = [
             "HIGHEST_POSITION",
             "--network-strategy",
             "SERVING_OFF",
-            "--notification",
-            (
-                '{"SmsSettings":{"Events":["FINISHED"],"TimeFrom":"09:00",'
-                '"TimeTo":"18:00"},"EmailSettings":'
-                '{"Email":"ops@example.com","SendWarnings":"YES"}}'
-            ),
-            "--time-targeting",
-            (
-                '{"Schedule":["1A0123456789ABCDEFGHIJKL"],'
-                '"ConsiderWorkingWeekends":"YES"}'
-            ),
+            "--sms-events",
+            "FINISHED",
+            "--sms-time-from",
+            "09:00",
+            "--sms-time-to",
+            "18:00",
+            "--notification-email",
+            "ops@example.com",
+            "--notification-send-warnings",
+            "YES",
+            "--time-targeting-schedule",
+            "1A0123456789ABCDEFGHIJKL",
+            "--consider-working-weekends",
+            "YES",
         ],
     ),
     (

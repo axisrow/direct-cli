@@ -5282,20 +5282,37 @@ def test_campaigns_add_counter_ids_payload():
 
 
 def test_campaigns_add_notification_payload():
-    notification = (
-        '{"SmsSettings":{"Events":["FINISHED"],"TimeFrom":"09:00","TimeTo":"18:00"},'
-        '"EmailSettings":{"Email":"ops@example.com","SendWarnings":"YES"}}'
+    body = _dry_run(
+        *_cpa_base_args(),
+        "--sms-events",
+        "FINISHED,moderation",
+        "--sms-time-from",
+        "09:00",
+        "--sms-time-to",
+        "18:00",
+        "--notification-email",
+        "ops@example.com",
+        "--notification-check-position-interval",
+        "15",
+        "--notification-warning-balance",
+        "20",
+        "--notification-send-account-news",
+        "no",
+        "--notification-send-warnings",
+        "YES",
     )
-    body = _dry_run(*_cpa_base_args(), "--notification", notification)
     campaign = body["params"]["Campaigns"][0]
     assert campaign["Notification"] == {
         "SmsSettings": {
-            "Events": ["FINISHED"],
+            "Events": ["FINISHED", "MODERATION"],
             "TimeFrom": "09:00",
             "TimeTo": "18:00",
         },
         "EmailSettings": {
             "Email": "ops@example.com",
+            "CheckPositionInterval": 15,
+            "WarningBalance": 20,
+            "SendAccountNews": "NO",
             "SendWarnings": "YES",
         },
     }
@@ -5304,16 +5321,25 @@ def test_campaigns_add_notification_payload():
 
 
 def test_campaigns_add_time_targeting_payload():
-    tt = (
-        '{"Schedule":["1A0123456789ABCDEFGHIJKL"],'
-        '"ConsiderWorkingWeekends":"YES",'
-        '"HolidaysSchedule":{"SuspendOnHolidays":"NO","BidPercent":50,'
-        '"StartHour":10,"EndHour":20}}'
+    schedule_row = "1,0,0,50,50,100,100,150,200,200,150,100,100,80,70,100,100,100,50,50,40,30,0,0,0"
+    body = _dry_run(
+        *_cpa_base_args(),
+        "--time-targeting-schedule",
+        schedule_row,
+        "--consider-working-weekends",
+        "YES",
+        "--holidays-suspend-on-holidays",
+        "no",
+        "--holidays-bid-percent",
+        "50",
+        "--holidays-start-hour",
+        "10",
+        "--holidays-end-hour",
+        "20",
     )
-    body = _dry_run(*_cpa_base_args(), "--time-targeting", tt)
     campaign = body["params"]["Campaigns"][0]
     assert campaign["TimeTargeting"] == {
-        "Schedule": ["1A0123456789ABCDEFGHIJKL"],
+        "Schedule": {"Items": [schedule_row]},
         "ConsiderWorkingWeekends": "YES",
         "HolidaysSchedule": {
             "SuspendOnHolidays": "NO",
@@ -5323,6 +5349,162 @@ def test_campaigns_add_time_targeting_payload():
         },
     }
     assert "TimeTargeting" not in campaign["TextCampaign"]
+
+
+def test_campaigns_add_campaign_level_controls_payload():
+    body = _dry_run(
+        *_cpa_base_args(),
+        "--client-info",
+        "Client A",
+        "--time-zone",
+        "Europe/Moscow",
+        "--negative-keywords",
+        "used,repair",
+        "--blocked-ips",
+        "192.0.2.1,198.51.100.2",
+        "--excluded-sites",
+        "example.com,example.net",
+    )
+    campaign = body["params"]["Campaigns"][0]
+    assert campaign["ClientInfo"] == "Client A"
+    assert campaign["TimeZone"] == "Europe/Moscow"
+    assert campaign["NegativeKeywords"] == {"Items": ["used", "repair"]}
+    assert campaign["BlockedIps"] == {"Items": ["192.0.2.1", "198.51.100.2"]}
+    assert campaign["ExcludedSites"] == {"Items": ["example.com", "example.net"]}
+
+
+def test_campaigns_update_campaign_level_controls_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--client-info",
+        "Client B",
+        "--sms-events",
+        "FINISHED",
+        "--notification-email",
+        "ops@example.com",
+        "--notification-send-warnings",
+        "NO",
+        "--time-zone",
+        "Asia/Bangkok",
+        "--negative-keywords",
+        "used",
+        "--blocked-ips",
+        "192.0.2.1",
+        "--excluded-sites",
+        "example.com",
+        "--time-targeting-schedule",
+        "1A0123456789ABCDEFGHIJKL",
+        "--consider-working-weekends",
+        "NO",
+    )
+    campaign = body["params"]["Campaigns"][0]
+    assert campaign == {
+        "Id": 123,
+        "ClientInfo": "Client B",
+        "Notification": {
+            "SmsSettings": {"Events": ["FINISHED"]},
+            "EmailSettings": {
+                "Email": "ops@example.com",
+                "SendWarnings": "NO",
+            },
+        },
+        "TimeZone": "Asia/Bangkok",
+        "NegativeKeywords": {"Items": ["used"]},
+        "BlockedIps": {"Items": ["192.0.2.1"]},
+        "ExcludedSites": {"Items": ["example.com"]},
+        "TimeTargeting": {
+            "Schedule": {"Items": ["1A0123456789ABCDEFGHIJKL"]},
+            "ConsiderWorkingWeekends": "NO",
+        },
+    }
+
+
+def test_campaigns_time_targeting_requires_consider_working_weekends():
+    result = _rejected(
+        *_cpa_base_args(),
+        "--time-targeting-schedule",
+        "1A0123456789ABCDEFGHIJKL",
+    )
+    assert "--consider-working-weekends" in result.output
+
+
+def test_campaigns_holidays_requires_suspend_on_holidays():
+    result = _rejected(
+        *_cpa_base_args(),
+        "--consider-working-weekends",
+        "YES",
+        "--holidays-bid-percent",
+        "50",
+    )
+    assert "--holidays-suspend-on-holidays" in result.output
+
+
+def test_campaigns_rejects_invalid_sms_events():
+    result = _rejected(*_cpa_base_args(), "--sms-events", "BROKEN")
+    assert "--sms-events" in result.output
+    assert "invalid value" in result.output
+
+
+def test_campaigns_rejects_empty_negative_keywords():
+    result = _rejected(*_cpa_base_args(), "--negative-keywords", ",")
+    assert "--negative-keywords" in result.output
+
+
+def test_campaigns_rejects_too_long_client_info():
+    result = _rejected(*_cpa_base_args(), "--client-info", "x" * 256)
+    assert "--client-info must be at most 255 characters" in result.output
+
+
+def test_campaigns_rejects_invalid_notification_interval():
+    result = _rejected(
+        *_cpa_base_args(),
+        "--notification-check-position-interval",
+        "10",
+    )
+    assert "--notification-check-position-interval" in result.output
+
+
+def test_campaigns_rejects_invalid_sms_time_step():
+    result = _rejected(*_cpa_base_args(), "--sms-time-from", "09:10")
+    assert "--sms-time-from" in result.output
+
+
+def test_campaigns_rejects_too_many_blocked_ips():
+    result = _rejected(
+        *_cpa_base_args(),
+        "--blocked-ips",
+        ",".join(f"192.0.2.{index}" for index in range(26)),
+    )
+    assert "--blocked-ips must contain at most 25 items" in result.output
+
+
+def test_campaigns_rejects_holidays_bid_percent_with_suspend_yes():
+    result = _rejected(
+        *_cpa_base_args(),
+        "--consider-working-weekends",
+        "YES",
+        "--holidays-suspend-on-holidays",
+        "YES",
+        "--holidays-bid-percent",
+        "50",
+    )
+    assert "--holidays-bid-percent" in result.output
+
+
+def test_campaigns_help_exposes_typed_campaign_level_flags_not_json_blobs():
+    for command in ("add", "update"):
+        result = CliRunner().invoke(cli, ["campaigns", command, "--help"])
+        assert result.exit_code == 0
+        assert "--notification " not in result.output
+        assert "--time-targeting " not in result.output
+        assert "--notification-email" in result.output
+        assert "--time-targeting-schedule" in result.output
+        assert "--negative-keywords" in result.output
+        assert "--blocked-ips" in result.output
+        assert "--excluded-sites" in result.output
 
 
 def test_campaigns_add_text_tracking_params_payload():
@@ -5627,67 +5809,6 @@ def test_campaigns_add_rejects_priority_goals_no_separator():
         "1:80,broken",
     )
     assert "--priority-goals" in result.output
-
-
-def test_campaigns_add_rejects_notification_bad_json():
-    result = _rejected(*_cpa_base_args(), "--notification", "not-json")
-    assert "--notification" in result.output
-
-
-def test_campaigns_add_rejects_notification_unknown_top_level_key():
-    result = _rejected(*_cpa_base_args(), "--notification", '{"Foo":1}')
-    assert "--notification" in result.output and "unknown key" in result.output
-
-
-def test_campaigns_add_rejects_notification_empty_object():
-    result = _rejected(*_cpa_base_args(), "--notification", "{}")
-    assert "non-empty" in result.output
-
-
-def test_campaigns_add_rejects_notification_unknown_sms_key():
-    result = _rejected(
-        *_cpa_base_args(),
-        "--notification",
-        '{"SmsSettings":{"Foo":1}}',
-    )
-    assert "SmsSettings" in result.output and "unknown key" in result.output
-
-
-def test_campaigns_add_rejects_notification_unknown_email_key():
-    result = _rejected(
-        *_cpa_base_args(),
-        "--notification",
-        '{"EmailSettings":{"Foo":1}}',
-    )
-    assert "EmailSettings" in result.output and "unknown key" in result.output
-
-
-def test_campaigns_add_rejects_time_targeting_bad_json():
-    result = _rejected(*_cpa_base_args(), "--time-targeting", "x")
-    assert "--time-targeting" in result.output
-
-
-def test_campaigns_add_rejects_time_targeting_unknown_key():
-    result = _rejected(
-        *_cpa_base_args(),
-        "--time-targeting",
-        '{"Foo":1}',
-    )
-    assert "--time-targeting" in result.output and "unknown key" in result.output
-
-
-def test_campaigns_add_rejects_time_targeting_empty():
-    result = _rejected(*_cpa_base_args(), "--time-targeting", "{}")
-    assert "non-empty" in result.output
-
-
-def test_campaigns_add_rejects_time_targeting_unknown_holidays_key():
-    result = _rejected(
-        *_cpa_base_args(),
-        "--time-targeting",
-        '{"HolidaysSchedule":{"Foo":1}}',
-    )
-    assert "HolidaysSchedule" in result.output and "unknown key" in result.output
 
 
 def test_campaigns_add_rejects_counter_ids_for_smart_campaign():

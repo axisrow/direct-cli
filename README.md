@@ -359,8 +359,8 @@ direct campaigns add --name "CPA Campaign" --start-date 2026-06-01 --type TEXT_C
 # Multi-goal CPA via PriorityGoals (goal_id:value pairs, WSDL PriorityGoalsItem)
 direct campaigns add --name "Multi-Goal CPA" --start-date 2026-06-01 --type TEXT_CAMPAIGN --search-strategy AVERAGE_CPA_MULTIPLE_GOALS --network-strategy SERVING_OFF --priority-goals 1234567:80,9876543:20 --bid-ceiling 1000000000 --dry-run
 
-# Notification (Sms/Email) and TimeTargeting accept JSON with WSDL CamelCase keys
-direct campaigns add --name "Notify+Schedule" --start-date 2026-06-01 --type TEXT_CAMPAIGN --search-strategy HIGHEST_POSITION --network-strategy SERVING_OFF --notification '{"EmailSettings":{"Email":"ops@example.com","SendWarnings":"YES"}}' --time-targeting '{"Schedule":["1A0123456789ABCDEFGHIJKL"],"ConsiderWorkingWeekends":"YES"}' --dry-run
+# Notification (Sms/Email) and TimeTargeting via typed CLI flags
+direct campaigns add --name "Notify+Schedule" --start-date 2026-06-01 --type TEXT_CAMPAIGN --search-strategy HIGHEST_POSITION --network-strategy SERVING_OFF --notification-email ops@example.com --notification-send-warnings YES --time-targeting-schedule 1A0123456789ABCDEFGHIJKL --consider-working-weekends YES --dry-run
 
 # TrackingParams (campaign-level UTM / tracking query string)
 direct campaigns add --name "UTM" --start-date 2026-06-01 --type TEXT_CAMPAIGN --tracking-params "utm_source=direct&utm_campaign={campaign_id}" --dry-run
@@ -1160,8 +1160,8 @@ direct campaigns add --name "CPA-кампания" --start-date 2026-06-01 --typ
 # Мульти-целевой CPA через PriorityGoals (пары goal_id:value, WSDL PriorityGoalsItem)
 direct campaigns add --name "Мульти-целевой CPA" --start-date 2026-06-01 --type TEXT_CAMPAIGN --search-strategy AVERAGE_CPA_MULTIPLE_GOALS --network-strategy SERVING_OFF --priority-goals 1234567:80,9876543:20 --bid-ceiling 1000000000 --dry-run
 
-# Notification (Sms/Email) и TimeTargeting принимают JSON с CamelCase ключами WSDL
-direct campaigns add --name "Уведомления+Расписание" --start-date 2026-06-01 --type TEXT_CAMPAIGN --search-strategy HIGHEST_POSITION --network-strategy SERVING_OFF --notification '{"EmailSettings":{"Email":"ops@example.com","SendWarnings":"YES"}}' --time-targeting '{"Schedule":["1A0123456789ABCDEFGHIJKL"],"ConsiderWorkingWeekends":"YES"}' --dry-run
+# Notification (Sms/Email) и TimeTargeting через явные CLI-флаги
+direct campaigns add --name "Уведомления+Расписание" --start-date 2026-06-01 --type TEXT_CAMPAIGN --search-strategy HIGHEST_POSITION --network-strategy SERVING_OFF --notification-email ops@example.com --notification-send-warnings YES --time-targeting-schedule 1A0123456789ABCDEFGHIJKL --consider-working-weekends YES --dry-run
 
 # TrackingParams — UTM/трекинг на уровне кампании (TextCampaign/DynamicTextCampaign/SmartCampaign.TrackingParams)
 direct campaigns add --name "UTM" --start-date 2026-06-01 --type TEXT_CAMPAIGN --tracking-params "utm_source=direct&utm_campaign={campaign_id}" --dry-run
