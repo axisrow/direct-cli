@@ -1271,9 +1271,6 @@ def add(
         )
 
         counter_ids_obj = _array_of_integer_option("--counter-ids", counter_ids)
-        counter_ids_list = (
-            counter_ids_obj["Items"] if counter_ids_obj is not None else None
-        )
         dynamic_placement_types = _build_dynamic_placement_types(
             dynamic_placement_search_results,
             dynamic_placement_product_gallery,
@@ -1455,7 +1452,7 @@ def add(
                     priority_goals_items=priority_goals_items,
                     sub_campaign_block=dyn_block,
                 )
-            if counter_ids_list:
+            if counter_ids_obj is not None:
                 dyn_block["CounterIds"] = counter_ids_obj
             if dynamic_placement_types is not None:
                 dyn_block["PlacementTypes"] = dynamic_placement_types

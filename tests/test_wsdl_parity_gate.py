@@ -1590,15 +1590,10 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("campaigns", "add", "TextCampaign.NegativeKeywordSharedSetIds.Items"): {
         "--negative-keyword-shared-set-ids"
     },
-    ("campaigns", "add", "DynamicTextCampaign"): {"--type"},
     ("campaigns", "add", "DynamicTextCampaign.BiddingStrategy"): {
         "--search-strategy",
         "--network-strategy",
     },
-    ("campaigns", "add", "DynamicTextCampaign.Settings"): {"--setting"},
-    ("campaigns", "add", "DynamicTextCampaign.CounterIds"): {"--counter-ids"},
-    ("campaigns", "add", "DynamicTextCampaign.PriorityGoals"): {"--priority-goals"},
-    ("campaigns", "add", "DynamicTextCampaign.TrackingParams"): {"--tracking-params"},
     ("campaigns", "add", "SmartCampaign"): {"--type"},
     ("campaigns", "add", "SmartCampaign.CounterId"): {"--counter-id"},
     ("campaigns", "add", "SmartCampaign.BiddingStrategy"): {
@@ -1780,10 +1775,6 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     },
     ("campaigns", "update", "TextCampaign.NegativeKeywordSharedSetIds.Items"): {
         "--negative-keyword-shared-set-ids"
-    },
-    ("campaigns", "update", "DynamicTextCampaign"): {"--type"},
-    ("campaigns", "update", "DynamicTextCampaign.TrackingParams"): {
-        "--tracking-params"
     },
     ("campaigns", "update", "SmartCampaign"): {"--type"},
     ("campaigns", "update", "SmartCampaign.TrackingParams"): {"--tracking-params"},
