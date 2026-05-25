@@ -516,16 +516,30 @@ def _build_dynamic_placement_types(
 def _build_frequency_cap(
     impressions: Optional[int],
     period_days: Optional[int],
+    period_all: bool,
 ) -> Optional[dict]:
     """Build CpmBannerCampaign.FrequencyCap from paired typed flags."""
-    if impressions is None and period_days is None:
+    if impressions is None and period_days is None and not period_all:
         return None
-    if impressions is None or period_days is None:
+    if period_days is not None and period_all:
         raise click.UsageError(
-            "--frequency-cap-impressions and --frequency-cap-period-days "
-            "must be provided together"
+            "--frequency-cap-period-days and --frequency-cap-period-all "
+            "are mutually exclusive"
         )
-    return {"Impressions": impressions, "PeriodDays": period_days}
+    if impressions is None:
+        raise click.UsageError(
+            "--frequency-cap-impressions is required with "
+            "--frequency-cap-period-days or --frequency-cap-period-all"
+        )
+    if period_days is None and not period_all:
+        raise click.UsageError(
+            "--frequency-cap-impressions requires --frequency-cap-period-days "
+            "or --frequency-cap-period-all"
+        )
+    return {
+        "Impressions": impressions,
+        "PeriodDays": None if period_all else period_days,
+    }
 
 
 def _build_package_bidding_strategy(
@@ -877,7 +891,7 @@ def get(
     help=(
         "Comma-separated Metrika counter IDs "
         "(TextCampaign/UnifiedCampaign/DynamicTextCampaign/"
-        "CpmBannerCampaign.CounterIds)"
+        "CpmBannerCampaign.CounterIds.Items)"
     ),
 )
 @click.option(
@@ -1003,6 +1017,11 @@ def get(
     "--frequency-cap-period-days",
     type=click.IntRange(1, 30),
     help="CpmBannerCampaign.FrequencyCap.PeriodDays, 1-30",
+)
+@click.option(
+    "--frequency-cap-period-all",
+    is_flag=True,
+    help="Set CpmBannerCampaign.FrequencyCap.PeriodDays to null",
 )
 @click.option(
     "--video-target",
@@ -1155,6 +1174,7 @@ def add(
     negative_keyword_shared_set_ids,
     frequency_cap_impressions,
     frequency_cap_period_days,
+    frequency_cap_period_all,
     video_target,
     average_cpa,
     crr,
@@ -1284,17 +1304,14 @@ def add(
             },
             "MOBILE_APP_CAMPAIGN": {
                 "--setting",
-                "--search-strategy",
-                "--network-strategy",
                 "--negative-keyword-shared-set-ids",
             },
             "CPM_BANNER_CAMPAIGN": {
                 "--setting",
-                "--search-strategy",
-                "--network-strategy",
                 "--counter-ids",
                 "--frequency-cap-impressions",
                 "--frequency-cap-period-days",
+                "--frequency-cap-period-all",
                 "--video-target",
             },
         }
@@ -1338,6 +1355,7 @@ def add(
                 "--negative-keyword-shared-set-ids": negative_keyword_shared_set_ids,
                 "--frequency-cap-impressions": frequency_cap_impressions,
                 "--frequency-cap-period-days": frequency_cap_period_days,
+                "--frequency-cap-period-all": frequency_cap_period_all or None,
                 "--video-target": video_target,
                 "--average-cpa": average_cpa,
                 "--crr": crr,
@@ -1394,6 +1412,7 @@ def add(
         frequency_cap_obj = _build_frequency_cap(
             frequency_cap_impressions,
             frequency_cap_period_days,
+            frequency_cap_period_all,
         )
 
         priority_goals_items = parse_priority_goals_spec(priority_goals)
@@ -1903,6 +1922,11 @@ def add(
     help="CpmBannerCampaign.FrequencyCap.PeriodDays, 1-30",
 )
 @click.option(
+    "--frequency-cap-period-all",
+    is_flag=True,
+    help="Set CpmBannerCampaign.FrequencyCap.PeriodDays to null",
+)
+@click.option(
     "--video-target",
     type=click.Choice(VIDEO_TARGETS, case_sensitive=False),
     help="CpmBannerCampaign.VideoTarget: VIEWS or CLICKS",
@@ -2042,6 +2066,7 @@ def update(
     negative_keyword_shared_set_ids,
     frequency_cap_impressions,
     frequency_cap_period_days,
+    frequency_cap_period_all,
     video_target,
     client_info,
     sms_events,
@@ -2175,6 +2200,7 @@ def update(
             "--negative-keyword-shared-set-ids": negative_keyword_shared_set_ids,
             "--frequency-cap-impressions": frequency_cap_impressions,
             "--frequency-cap-period-days": frequency_cap_period_days,
+            "--frequency-cap-period-all": frequency_cap_period_all or None,
             "--video-target": video_target,
             "--tracking-params": tracking_params,
         }
@@ -2265,6 +2291,7 @@ def update(
                 "--counter-ids",
                 "--frequency-cap-impressions",
                 "--frequency-cap-period-days",
+                "--frequency-cap-period-all",
                 "--video-target",
             }
             allowed_subtype_flags_by_type = {
@@ -2451,6 +2478,7 @@ def update(
                 frequency_cap_obj = _build_frequency_cap(
                     frequency_cap_impressions,
                     frequency_cap_period_days,
+                    frequency_cap_period_all,
                 )
                 if frequency_cap_obj is not None:
                     sub_block["FrequencyCap"] = frequency_cap_obj

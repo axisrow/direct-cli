@@ -3301,9 +3301,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `campaigns.add` | `campaigns.add` | `CpmBannerCampaign.Settings.Value` | `YesNoEnum` | 1 | 1 | `supported` | --setting |
 | `campaigns.add` | `campaigns.add` | `CpmBannerCampaign.CounterIds` | `ArrayOfInteger` | 0 | 1 | `supported` | --counter-ids |
 | `campaigns.add` | `campaigns.add` | `CpmBannerCampaign.CounterIds.Items` | `int` | 1 | unbounded | `supported` | --counter-ids |
-| `campaigns.add` | `campaigns.add` | `CpmBannerCampaign.FrequencyCap` | `FrequencyCapSetting` | 0 | 1 | `supported` | --frequency-cap-impressions, --frequency-cap-period-days |
+| `campaigns.add` | `campaigns.add` | `CpmBannerCampaign.FrequencyCap` | `FrequencyCapSetting` | 0 | 1 | `supported` | --frequency-cap-impressions, --frequency-cap-period-all, --frequency-cap-period-days |
 | `campaigns.add` | `campaigns.add` | `CpmBannerCampaign.FrequencyCap.Impressions` | `int` | 1 | 1 | `supported` | --frequency-cap-impressions |
-| `campaigns.add` | `campaigns.add` | `CpmBannerCampaign.FrequencyCap.PeriodDays` | `int` | 1 | 1 | `supported` | --frequency-cap-period-days |
+| `campaigns.add` | `campaigns.add` | `CpmBannerCampaign.FrequencyCap.PeriodDays` | `int` | 1 | 1 | `supported` | --frequency-cap-period-all, --frequency-cap-period-days |
 | `campaigns.add` | `campaigns.add` | `CpmBannerCampaign.VideoTarget` | `VideoTargetEnum` | 0 | 1 | `supported` | --video-target |
 | `campaigns.add` | `campaigns.add` | `SmartCampaign` | `SmartCampaignAddItem` | 0 | 1 | `supported` | --type |
 | `campaigns.add` | `campaigns.add` | `SmartCampaign.BiddingStrategy` | `SmartCampaignStrategyAdd` | 0 | 1 | `supported` | --filter-average-cpc, --network-strategy, --search-strategy |
@@ -4404,9 +4404,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `campaigns.update` | `campaigns.update` | `CpmBannerCampaign` | `CpmBannerCampaignUpdateItem` | 0 | 1 | `supported` | --type |
 | `campaigns.update` | `campaigns.update` | `CpmBannerCampaign.CounterIds` | `ArrayOfInteger` | 0 | 1 | `supported` | --counter-ids |
 | `campaigns.update` | `campaigns.update` | `CpmBannerCampaign.CounterIds.Items` | `int` | 1 | unbounded | `supported` | --counter-ids |
-| `campaigns.update` | `campaigns.update` | `CpmBannerCampaign.FrequencyCap` | `FrequencyCapSetting` | 0 | 1 | `supported` | --frequency-cap-impressions, --frequency-cap-period-days |
+| `campaigns.update` | `campaigns.update` | `CpmBannerCampaign.FrequencyCap` | `FrequencyCapSetting` | 0 | 1 | `supported` | --frequency-cap-impressions, --frequency-cap-period-all, --frequency-cap-period-days |
 | `campaigns.update` | `campaigns.update` | `CpmBannerCampaign.FrequencyCap.Impressions` | `int` | 1 | 1 | `supported` | --frequency-cap-impressions |
-| `campaigns.update` | `campaigns.update` | `CpmBannerCampaign.FrequencyCap.PeriodDays` | `int` | 1 | 1 | `supported` | --frequency-cap-period-days |
+| `campaigns.update` | `campaigns.update` | `CpmBannerCampaign.FrequencyCap.PeriodDays` | `int` | 1 | 1 | `supported` | --frequency-cap-period-all, --frequency-cap-period-days |
 | `campaigns.update` | `campaigns.update` | `CpmBannerCampaign.BiddingStrategy` | `CpmBannerCampaignStrategy` | 0 | 1 | `missing_followup` | Shared campaign BiddingStrategy builder needs typed support. [#290](https://github.com/axisrow/direct-cli/issues/290) |
 | `campaigns.update` | `campaigns.update` | `CpmBannerCampaign.BiddingStrategy.Search` | `CpmBannerCampaignSearchStrategy` | 0 | 1 | `missing_followup` | Shared campaign BiddingStrategy builder needs typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `CpmBannerCampaign.BiddingStrategy` |
 | `campaigns.update` | `campaigns.update` | `CpmBannerCampaign.BiddingStrategy.Search.BiddingStrategyType` | `CpmBannerCampaignSearchStrategyTypeEnum` | 1 | 1 | `missing_followup` | Shared campaign BiddingStrategy builder needs typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `CpmBannerCampaign.BiddingStrategy` |

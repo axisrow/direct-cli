@@ -2550,13 +2550,17 @@ for _campaign_op in ("add", "update"):
         ] = {"--counter-ids"}
     OPTIONAL_FIELD_CLI_OPTIONS[
         ("campaigns", _campaign_op, "CpmBannerCampaign.FrequencyCap")
-    ] = {"--frequency-cap-impressions", "--frequency-cap-period-days"}
+    ] = {
+        "--frequency-cap-impressions",
+        "--frequency-cap-period-days",
+        "--frequency-cap-period-all",
+    }
     OPTIONAL_FIELD_CLI_OPTIONS[
         ("campaigns", _campaign_op, "CpmBannerCampaign.FrequencyCap.Impressions")
     ] = {"--frequency-cap-impressions"}
     OPTIONAL_FIELD_CLI_OPTIONS[
         ("campaigns", _campaign_op, "CpmBannerCampaign.FrequencyCap.PeriodDays")
-    ] = {"--frequency-cap-period-days"}
+    ] = {"--frequency-cap-period-days", "--frequency-cap-period-all"}
     OPTIONAL_FIELD_CLI_OPTIONS[
         ("campaigns", _campaign_op, "CpmBannerCampaign.VideoTarget")
     ] = {"--video-target"}

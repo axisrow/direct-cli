@@ -6336,8 +6336,15 @@ def test_campaigns_help_exposes_text_and_unified_campaign_optional_flags():
         assert "--package-platform-maps" in result.output
         assert "--package-platform-search-organization-list" in result.output
         assert "--negative-keyword-shared-set-ids" in result.output
+
+
+def test_campaigns_help_exposes_cpm_banner_optional_flags():
+    for command in ("add", "update"):
+        result = CliRunner().invoke(cli, ["campaigns", command, "--help"])
+        assert result.exit_code == 0
         assert "--frequency-cap-impressions" in result.output
         assert "--frequency-cap-period-days" in result.output
+        assert "--frequency-cap-period-all" in result.output
         assert "--video-target" in result.output
 
 
@@ -6449,6 +6456,24 @@ def test_campaigns_add_cpm_banner_campaign_optional_controls_payload():
     }
 
 
+def test_campaigns_add_cpm_banner_campaign_frequency_cap_all_payload():
+    body = _dry_run(
+        "campaigns",
+        "add",
+        "--name",
+        "CPM Banner Controls",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "CPM_BANNER_CAMPAIGN",
+        "--frequency-cap-impressions",
+        "5",
+        "--frequency-cap-period-all",
+    )
+    cpm = body["params"]["Campaigns"][0]["CpmBannerCampaign"]
+    assert cpm["FrequencyCap"] == {"Impressions": 5, "PeriodDays": None}
+
+
 def test_campaigns_add_rejects_partial_frequency_cap():
     result = _rejected(
         "campaigns",
@@ -6464,6 +6489,23 @@ def test_campaigns_add_rejects_partial_frequency_cap():
     )
     assert "--frequency-cap-impressions" in result.output
     assert "--frequency-cap-period-days" in result.output
+
+
+def test_campaigns_add_cpm_banner_rejects_bidding_strategy_flags():
+    result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "CPM Banner Controls",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "CPM_BANNER_CAMPAIGN",
+        "--search-strategy",
+        "HIGHEST_POSITION",
+    )
+    assert "--search-strategy" in result.output
+    assert "CPM_BANNER_CAMPAIGN" in result.output
 
 
 def test_campaigns_add_unified_tracking_params_payload():
@@ -6646,6 +6688,27 @@ def test_campaigns_update_cpm_banner_campaign_optional_controls_payload():
     }
 
 
+def test_campaigns_update_cpm_banner_campaign_frequency_cap_all_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "CPM_BANNER_CAMPAIGN",
+        "--frequency-cap-impressions",
+        "5",
+        "--frequency-cap-period-all",
+    )
+    campaign = body["params"]["Campaigns"][0]
+    assert campaign == {
+        "Id": 123,
+        "CpmBannerCampaign": {
+            "FrequencyCap": {"Impressions": 5, "PeriodDays": None},
+        },
+    }
+
+
 def test_campaigns_update_rejects_partial_frequency_cap():
     result = _rejected(
         "campaigns",
@@ -6659,6 +6722,24 @@ def test_campaigns_update_rejects_partial_frequency_cap():
     )
     assert "--frequency-cap-impressions" in result.output
     assert "--frequency-cap-period-days" in result.output
+
+
+def test_campaigns_update_rejects_conflicting_frequency_cap_period_flags():
+    result = _rejected(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "CPM_BANNER_CAMPAIGN",
+        "--frequency-cap-impressions",
+        "5",
+        "--frequency-cap-period-days",
+        "7",
+        "--frequency-cap-period-all",
+    )
+    assert "--frequency-cap-period-days" in result.output
+    assert "--frequency-cap-period-all" in result.output
 
 
 def test_campaigns_update_smart_package_bidding_strategy_payload():
@@ -6728,7 +6809,7 @@ def test_campaigns_update_tracking_params_without_type_rejected():
     assert "--type" in result.output
 
 
-def test_campaigns_update_tracking_params_on_unsupported_type_rejected():
+def test_campaigns_update_tracking_params_on_cpm_banner_rejected():
     result = _rejected(
         "campaigns",
         "update",
