@@ -15,6 +15,7 @@ from ..utils import (
     add_criteria_csv,
     get_default_fields,
     MICRO_RUBLES,
+    RUBLES_TO_MICRO_RUBLES,
     parse_ids,
     parse_csv_strings,
     parse_priority_goals_spec,
@@ -75,6 +76,16 @@ YES_NO = ["YES", "NO"]
 ATTRIBUTION_MODELS = ["FC", "LC", "LSC", "LYDC", "FCCD", "LSCCD", "LYDCCD", "AUTO"]
 RELEVANT_KEYWORDS_MODES = ["MINIMUM", "OPTIMAL", "MAXIMUM"]
 VIDEO_TARGETS = ["VIEWS", "CLICKS"]
+CPM_BANNER_SEARCH_STRATEGIES = ["SERVING_OFF"]
+CPM_BANNER_NETWORK_STRATEGIES = [
+    "MANUAL_CPM",
+    "CP_DECREASED_PRICE_FOR_REPEATED_IMPRESSIONS",
+    "WB_DECREASED_PRICE_FOR_REPEATED_IMPRESSIONS",
+    "CP_MAXIMUM_IMPRESSIONS",
+    "WB_MAXIMUM_IMPRESSIONS",
+    "CP_AVERAGE_CPV",
+    "WB_AVERAGE_CPV",
+]
 CLIENT_INFO_MAX_LENGTH = 255
 BLOCKED_IPS_MAX_ITEMS = 25
 EXCLUDED_SITES_MAX_ITEMS = 1000
@@ -540,6 +551,191 @@ def _build_frequency_cap(
         "Impressions": impressions,
         "PeriodDays": None if period_all else period_days,
     }
+
+
+def _build_cpm_banner_bidding_strategy(
+    search_strategy: Optional[str],
+    network_strategy: Optional[str],
+    average_cpm: Optional[int],
+    average_cpv: Optional[int],
+    spend_limit: Optional[int],
+    start_date: Optional[str],
+    end_date: Optional[str],
+    auto_continue: Optional[str],
+    *,
+    include_defaults: bool,
+) -> Optional[dict]:
+    """Build CpmBannerCampaign.BiddingStrategy from typed flags."""
+    has_details = any(
+        value is not None
+        for value in (
+            average_cpm,
+            average_cpv,
+            spend_limit,
+            start_date,
+            end_date,
+            auto_continue,
+        )
+    )
+    if not include_defaults and search_strategy is None and network_strategy is None:
+        if has_details:
+            raise click.UsageError(
+                "CpmBannerCampaign strategy detail flags require " "--network-strategy"
+            )
+        return None
+
+    normalized_search = (search_strategy or "SERVING_OFF").upper()
+    normalized_network = (network_strategy or "MANUAL_CPM").upper()
+    if normalized_search not in CPM_BANNER_SEARCH_STRATEGIES:
+        raise click.UsageError(
+            "--search-strategy for CPM_BANNER_CAMPAIGN must be SERVING_OFF"
+        )
+    if normalized_network not in CPM_BANNER_NETWORK_STRATEGIES:
+        raise click.UsageError(
+            "--network-strategy for CPM_BANNER_CAMPAIGN must be one of "
+            f"{', '.join(CPM_BANNER_NETWORK_STRATEGIES)}"
+        )
+    if has_details and network_strategy is None:
+        raise click.UsageError(
+            "CpmBannerCampaign strategy detail flags require --network-strategy"
+        )
+
+    strategy: dict = {}
+    if include_defaults or search_strategy is not None:
+        strategy["Search"] = {"BiddingStrategyType": normalized_search}
+
+    if include_defaults or network_strategy is not None:
+        network: dict = {"BiddingStrategyType": normalized_network}
+        weekly_blocks = {
+            "WB_MAXIMUM_IMPRESSIONS": ("WbMaximumImpressions", "AverageCpm"),
+            "WB_DECREASED_PRICE_FOR_REPEATED_IMPRESSIONS": (
+                "WbDecreasedPriceForRepeatedImpressions",
+                "AverageCpm",
+            ),
+            "WB_AVERAGE_CPV": ("WbAverageCpv", "AverageCpv"),
+        }
+        custom_period_blocks = {
+            "CP_MAXIMUM_IMPRESSIONS": ("CpMaximumImpressions", "AverageCpm"),
+            "CP_DECREASED_PRICE_FOR_REPEATED_IMPRESSIONS": (
+                "CpDecreasedPriceForRepeatedImpressions",
+                "AverageCpm",
+            ),
+            "CP_AVERAGE_CPV": ("CpAverageCpv", "AverageCpv"),
+        }
+        if normalized_network == "MANUAL_CPM":
+            provided = {
+                "--average-cpm": average_cpm,
+                "--average-cpv": average_cpv,
+                "--strategy-spend-limit": spend_limit,
+                "--strategy-start-date": start_date,
+                "--strategy-end-date": end_date,
+                "--strategy-auto-continue": auto_continue,
+            }
+            invalid = [flag for flag, value in provided.items() if value is not None]
+            if invalid:
+                raise click.UsageError(
+                    "MANUAL_CPM does not accept strategy detail flags: "
+                    f"{', '.join(sorted(invalid))}"
+                )
+        elif normalized_network in weekly_blocks:
+            block_name, amount_field = weekly_blocks[normalized_network]
+            amount = average_cpv if amount_field == "AverageCpv" else average_cpm
+            amount_flag = (
+                "--average-cpv" if amount_field == "AverageCpv" else "--average-cpm"
+            )
+            missing = [
+                flag
+                for flag, value in (
+                    (amount_flag, amount),
+                    ("--strategy-spend-limit", spend_limit),
+                )
+                if value is None
+            ]
+            if missing:
+                raise click.UsageError(
+                    f"{normalized_network} requires {', '.join(missing)}"
+                )
+            invalid = [
+                flag
+                for flag, value in (
+                    (
+                        "--average-cpm",
+                        average_cpm if amount_field == "AverageCpv" else None,
+                    ),
+                    (
+                        "--average-cpv",
+                        average_cpv if amount_field == "AverageCpm" else None,
+                    ),
+                    ("--strategy-start-date", start_date),
+                    ("--strategy-end-date", end_date),
+                    ("--strategy-auto-continue", auto_continue),
+                )
+                if value is not None
+            ]
+            if invalid:
+                raise click.UsageError(
+                    f"{normalized_network} does not accept "
+                    f"{', '.join(sorted(invalid))}"
+                )
+            network[block_name] = {
+                amount_field: amount,
+                "SpendLimit": spend_limit,
+            }
+        elif normalized_network in custom_period_blocks:
+            block_name, amount_field = custom_period_blocks[normalized_network]
+            amount = average_cpv if amount_field == "AverageCpv" else average_cpm
+            amount_flag = (
+                "--average-cpv" if amount_field == "AverageCpv" else "--average-cpm"
+            )
+            missing = [
+                flag
+                for flag, value in (
+                    (amount_flag, amount),
+                    ("--strategy-spend-limit", spend_limit),
+                    ("--strategy-start-date", start_date),
+                    ("--strategy-end-date", end_date),
+                    ("--strategy-auto-continue", auto_continue),
+                )
+                if value is None
+            ]
+            if missing:
+                raise click.UsageError(
+                    f"{normalized_network} requires {', '.join(missing)}"
+                )
+            invalid = [
+                flag
+                for flag, value in (
+                    (
+                        "--average-cpm",
+                        average_cpm if amount_field == "AverageCpv" else None,
+                    ),
+                    (
+                        "--average-cpv",
+                        average_cpv if amount_field == "AverageCpm" else None,
+                    ),
+                )
+                if value is not None
+            ]
+            if invalid:
+                raise click.UsageError(
+                    f"{normalized_network} does not accept "
+                    f"{', '.join(sorted(invalid))}"
+                )
+            assert amount is not None
+            assert spend_limit is not None
+            assert start_date is not None
+            assert end_date is not None
+            assert auto_continue is not None
+            network[block_name] = {
+                amount_field: amount,
+                "SpendLimit": spend_limit,
+                "StartDate": start_date,
+                "EndDate": end_date,
+                "AutoContinue": auto_continue.upper(),
+            }
+        strategy["Network"] = network
+
+    return strategy
 
 
 def _build_package_bidding_strategy(
@@ -1029,6 +1225,28 @@ def get(
     help="CpmBannerCampaign.VideoTarget: VIEWS or CLICKS",
 )
 @click.option(
+    "--average-cpm",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="CpmBannerCampaign strategy AverageCpm in rubles",
+)
+@click.option(
+    "--average-cpv",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="CpmBannerCampaign strategy AverageCpv in rubles",
+)
+@click.option(
+    "--strategy-spend-limit",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="CpmBannerCampaign strategy SpendLimit in rubles",
+)
+@click.option("--strategy-start-date", help="CpmBannerCampaign strategy StartDate")
+@click.option("--strategy-end-date", help="CpmBannerCampaign strategy EndDate")
+@click.option(
+    "--strategy-auto-continue",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="CpmBannerCampaign strategy AutoContinue: YES or NO",
+)
+@click.option(
     "--average-cpa",
     type=MICRO_RUBLES,
     help="Target CPA in micro-rubles (AVERAGE_CPA)",
@@ -1176,6 +1394,12 @@ def add(
     frequency_cap_period_days,
     frequency_cap_period_all,
     video_target,
+    average_cpm,
+    average_cpv,
+    strategy_spend_limit,
+    strategy_start_date,
+    strategy_end_date,
+    strategy_auto_continue,
     average_cpa,
     crr,
     bid_ceiling,
@@ -1313,6 +1537,14 @@ def add(
                 "--frequency-cap-period-days",
                 "--frequency-cap-period-all",
                 "--video-target",
+                "--search-strategy",
+                "--network-strategy",
+                "--average-cpm",
+                "--average-cpv",
+                "--strategy-spend-limit",
+                "--strategy-start-date",
+                "--strategy-end-date",
+                "--strategy-auto-continue",
             },
         }
         _reject_incompatible_flags(
@@ -1357,6 +1589,12 @@ def add(
                 "--frequency-cap-period-days": frequency_cap_period_days,
                 "--frequency-cap-period-all": frequency_cap_period_all or None,
                 "--video-target": video_target,
+                "--average-cpm": average_cpm,
+                "--average-cpv": average_cpv,
+                "--strategy-spend-limit": strategy_spend_limit,
+                "--strategy-start-date": strategy_start_date,
+                "--strategy-end-date": strategy_end_date,
+                "--strategy-auto-continue": strategy_auto_continue,
                 "--average-cpa": average_cpa,
                 "--crr": crr,
                 "--bid-ceiling": bid_ceiling,
@@ -1720,12 +1958,17 @@ def add(
             campaign_data["MobileAppCampaign"] = mobile_campaign
         elif campaign_type_norm == "CPM_BANNER_CAMPAIGN":
             cpm_campaign: Dict[str, object] = {
-                "BiddingStrategy": {
-                    "Search": {"BiddingStrategyType": search_strategy or "SERVING_OFF"},
-                    "Network": {
-                        "BiddingStrategyType": network_strategy or "MANUAL_CPM"
-                    },
-                }
+                "BiddingStrategy": _build_cpm_banner_bidding_strategy(
+                    search_strategy,
+                    network_strategy,
+                    average_cpm,
+                    average_cpv,
+                    strategy_spend_limit,
+                    strategy_start_date,
+                    strategy_end_date,
+                    strategy_auto_continue,
+                    include_defaults=True,
+                )
             }
             if parsed_settings:
                 cpm_campaign["Settings"] = parsed_settings
@@ -1797,6 +2040,8 @@ def add(
     multiple=True,
     help="Campaign subtype Settings spec: OPTION=VALUE",
 )
+@click.option("--search-strategy", help="Search bidding strategy type")
+@click.option("--network-strategy", help="Network bidding strategy type")
 @click.option("--counter-id", type=int, help="SmartCampaign.CounterId")
 @click.option(
     "--counter-ids",
@@ -1932,6 +2177,28 @@ def add(
     help="CpmBannerCampaign.VideoTarget: VIEWS or CLICKS",
 )
 @click.option(
+    "--average-cpm",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="CpmBannerCampaign strategy AverageCpm in rubles",
+)
+@click.option(
+    "--average-cpv",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="CpmBannerCampaign strategy AverageCpv in rubles",
+)
+@click.option(
+    "--strategy-spend-limit",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="CpmBannerCampaign strategy SpendLimit in rubles",
+)
+@click.option("--strategy-start-date", help="CpmBannerCampaign strategy StartDate")
+@click.option("--strategy-end-date", help="CpmBannerCampaign strategy EndDate")
+@click.option(
+    "--strategy-auto-continue",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="CpmBannerCampaign strategy AutoContinue: YES or NO",
+)
+@click.option(
     "--notification",
     default=None,
     expose_value=False,
@@ -2045,6 +2312,8 @@ def update(
     start_date,
     end_date,
     settings,
+    search_strategy,
+    network_strategy,
     counter_id,
     counter_ids,
     dynamic_placement_search_results,
@@ -2068,6 +2337,12 @@ def update(
     frequency_cap_period_days,
     frequency_cap_period_all,
     video_target,
+    average_cpm,
+    average_cpv,
+    strategy_spend_limit,
+    strategy_start_date,
+    strategy_end_date,
+    strategy_auto_continue,
     client_info,
     sms_events,
     sms_time_from,
@@ -2175,6 +2450,8 @@ def update(
         )
         subtype_flag_values = {
             "--setting": list(settings) or None,
+            "--search-strategy": search_strategy,
+            "--network-strategy": network_strategy,
             "--counter-id": counter_id,
             "--counter-ids": counter_ids,
             "--dynamic-placement-search-results": dynamic_placement_search_results,
@@ -2202,6 +2479,12 @@ def update(
             "--frequency-cap-period-days": frequency_cap_period_days,
             "--frequency-cap-period-all": frequency_cap_period_all or None,
             "--video-target": video_target,
+            "--average-cpm": average_cpm,
+            "--average-cpv": average_cpv,
+            "--strategy-spend-limit": strategy_spend_limit,
+            "--strategy-start-date": strategy_start_date,
+            "--strategy-end-date": strategy_end_date,
+            "--strategy-auto-continue": strategy_auto_continue,
             "--tracking-params": tracking_params,
         }
         subtype_flags_provided = [
@@ -2288,11 +2571,19 @@ def update(
             }
             cpm_banner_campaign_flags = {
                 "--setting",
+                "--search-strategy",
+                "--network-strategy",
                 "--counter-ids",
                 "--frequency-cap-impressions",
                 "--frequency-cap-period-days",
                 "--frequency-cap-period-all",
                 "--video-target",
+                "--average-cpm",
+                "--average-cpv",
+                "--strategy-spend-limit",
+                "--strategy-start-date",
+                "--strategy-end-date",
+                "--strategy-auto-continue",
             }
             allowed_subtype_flags_by_type = {
                 "TEXT_CAMPAIGN": text_campaign_flags,
@@ -2340,9 +2631,7 @@ def update(
                 package_label = (
                     "UnifiedCampaign"
                     if is_unified
-                    else "DynamicTextCampaign"
-                    if is_dynamic
-                    else "TextCampaign"
+                    else "DynamicTextCampaign" if is_dynamic else "TextCampaign"
                 )
                 parsed_settings = parse_setting_specs(list(settings))
                 if parsed_settings:
@@ -2474,6 +2763,19 @@ def update(
                 parsed_settings = parse_setting_specs(list(settings))
                 if parsed_settings:
                     sub_block["Settings"] = parsed_settings
+                cpm_bidding_strategy = _build_cpm_banner_bidding_strategy(
+                    search_strategy,
+                    network_strategy,
+                    average_cpm,
+                    average_cpv,
+                    strategy_spend_limit,
+                    strategy_start_date,
+                    strategy_end_date,
+                    strategy_auto_continue,
+                    include_defaults=False,
+                )
+                if cpm_bidding_strategy is not None:
+                    sub_block["BiddingStrategy"] = cpm_bidding_strategy
                 counter_ids_obj = _array_of_integer_option("--counter-ids", counter_ids)
                 if counter_ids_obj is not None:
                     sub_block["CounterIds"] = counter_ids_obj
