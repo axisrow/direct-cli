@@ -8845,17 +8845,54 @@ def test_campaigns_update_text_search_max_profit_requires_priority_goals():
     assert "MaxProfit" in result.output
 
 
-def test_campaigns_update_text_search_average_roi_partial_payload():
-    """Update path tolerates partial Strategy*Add fields (only specified ones)."""
+def test_campaigns_update_text_search_average_roi_payload():
+    """Switching to AVERAGE_ROI on update requires all
+    minOccurs=1 fields per Yandex docs (ReserveReturn + RoiCoef +
+    GoalId); additional optional fields land in the subtype block."""
     body = _text_search_update(
         "--search-strategy",
         "AVERAGE_ROI",
+        "--text-search-reserve-return",
+        "20",
+        "--text-search-roi-coef",
+        "100",
+        "--goal-id",
+        "42",
         "--text-search-profitability",
         "25",
     )
     search = _text_search_extract(body)
-    # On update only the provided field lands in the subtype block.
-    assert search["AverageRoi"] == {"Profitability": 25}
+    assert search["AverageRoi"] == {
+        "ReserveReturn": 20,
+        "RoiCoef": 100,
+        "GoalId": 42,
+        "Profitability": 25,
+    }
+
+
+def test_campaigns_update_text_search_average_roi_rejects_partial():
+    """Switching --search-strategy AVERAGE_ROI without RoiCoef/GoalId/
+    ReserveReturn is a documented invalid update — CLI must reject."""
+    result = CliRunner().invoke(
+        cli,
+        [
+            "campaigns",
+            "update",
+            "--id",
+            "123",
+            "--type",
+            "TEXT_CAMPAIGN",
+            "--search-strategy",
+            "AVERAGE_ROI",
+            "--text-search-profitability",
+            "25",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "--text-search-reserve-return" in result.output
+    assert "--text-search-roi-coef" in result.output
+    assert "--goal-id" in result.output
 
 
 def test_campaigns_update_text_search_priority_goals_independent_of_strategy():
@@ -8925,6 +8962,30 @@ def test_campaigns_update_text_search_average_crr_payload():
     assert search["AverageCrr"] == {"Crr": 15, "GoalId": 5}
 
 
+def test_campaigns_update_text_search_average_crr_rejects_partial():
+    """Switching --search-strategy AVERAGE_CRR without Crr/GoalId is
+    a documented invalid update — CLI must reject."""
+    result = CliRunner().invoke(
+        cli,
+        [
+            "campaigns",
+            "update",
+            "--id",
+            "123",
+            "--type",
+            "TEXT_CAMPAIGN",
+            "--search-strategy",
+            "AVERAGE_CRR",
+            "--text-search-weekly-spend-limit",
+            "100",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "--crr" in result.output
+    assert "--goal-id" in result.output
+
+
 def test_campaigns_update_text_search_pay_for_conversion_crr_payload():
     body = _text_search_update(
         "--search-strategy",
@@ -8936,6 +8997,30 @@ def test_campaigns_update_text_search_pay_for_conversion_crr_payload():
     )
     search = _text_search_extract(body)
     assert search["PayForConversionCrr"] == {"Crr": 10, "GoalId": 3}
+
+
+def test_campaigns_update_text_search_pay_conv_crr_rejects_partial():
+    """Switching --search-strategy PAY_FOR_CONVERSION_CRR without
+    Crr/GoalId is a documented invalid update — CLI must reject."""
+    result = CliRunner().invoke(
+        cli,
+        [
+            "campaigns",
+            "update",
+            "--id",
+            "123",
+            "--type",
+            "TEXT_CAMPAIGN",
+            "--search-strategy",
+            "PAY_FOR_CONVERSION_CRR",
+            "--text-search-weekly-spend-limit",
+            "100",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "--crr" in result.output
+    assert "--goal-id" in result.output
 
 
 def test_campaigns_update_text_search_weekly_click_package_payload():

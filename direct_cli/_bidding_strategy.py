@@ -1540,22 +1540,26 @@ def build_text_campaign_search_strategy(
                 f"(per Yandex Direct API docs)"
             )
     else:
-        # On update we let users patch individual fields, but if the
-        # user is switching to one of the priority-goals-requiring
-        # strategies they must also pass ``--priority-goals`` (per docs:
-        # "Be sure to simultaneously pass the PriorityGoals array").
-        # The existing campaign value cannot be relied on across a
-        # strategy-type switch.
-        if (
-            subtype in _TEXT_SEARCH_REQUIRES_PRIORITY_GOALS
-            and search_strategy is not None
-            and priority_goals_items is None
-        ):
-            raise click.UsageError(
-                f"Search strategy {subtype} requires --priority-goals when "
-                f"switching --search-strategy on update (per Yandex Direct "
-                f"API docs)"
-            )
+        # On update we let users patch individual subtype fields, but
+        # when the user is switching the strategy type
+        # (``--search-strategy`` is explicitly provided) every
+        # documented required field for the new subtype must be
+        # supplied — the existing campaign value cannot be relied on
+        # across a strategy-type switch.
+        if search_strategy is not None:
+            required = _TEXT_SEARCH_REQUIRED_TYPED_FLAGS.get(subtype, {})
+            missing = [
+                flag
+                for wsdl_field, flag in required.items()
+                if provided_lookup.get(wsdl_field) is None
+            ]
+            if missing:
+                raise click.UsageError(
+                    f"Search strategy {subtype} requires "
+                    f"{', '.join(sorted(missing))} when switching "
+                    "--search-strategy on update (per Yandex Direct "
+                    "API docs)"
+                )
 
     # Build the WSDL Strategy*Add block. Element order in the dict
     # follows WSDL sequence order for readability — JSON-RPC does not
