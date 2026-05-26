@@ -749,7 +749,7 @@ class TestCLI(unittest.TestCase):
     def test_changes_help_uses_canonical_datetime_format(self):
         result = self.runner.invoke(cli, ["changes", "check-campaigns", "--help"])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("YYYY-MM-DDTHH:MM:SS", result.output)
+        self.assertIn("YYYY-MM-DDTHH:MM:SSZ", result.output)
         self.assertNotIn("ISO format", result.output)
 
     def test_keywordsresearch_help_uses_canonical_names(self):

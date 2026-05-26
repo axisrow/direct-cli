@@ -304,19 +304,20 @@ lines with `\`.
 
 #### Datetime Rules
 
-- Datetime parameters must be passed in the format `YYYY-MM-DDTHH:MM:SS`.
+- Changes timestamps must match Yandex Direct API format `YYYY-MM-DDTHH:MM:SSZ`.
+- Other datetime parameters use their method-specific documented format.
 - Datetime values must be passed as a single shell token.
-- Canonical examples must not use timezone suffixes like `Z`.
+- Canonical `changes` examples must use the `Z` suffix.
 - Canonical examples must not use quoted space-separated datetime values.
 
 Use:
 
 ```bash
-direct changes check-campaigns --timestamp 2026-04-14T00:00:00
+direct changes check-campaigns --timestamp 2026-04-14T00:00:00Z
 ```
 
-Do not use: a timestamp with a `Z` suffix, or a quoted timestamp that contains
-a space between the date and time.
+Do not use: a `changes` timestamp without the `Z` suffix, or a quoted timestamp
+that contains a space between the date and time.
 
 #### Documentation Contract
 
@@ -331,7 +332,7 @@ Valid canonical examples:
 
 ```bash
 direct campaigns get --ids 1,2,3
-direct changes check-campaigns --timestamp 2026-04-14T00:00:00
+direct changes check-campaigns --timestamp 2026-04-14T00:00:00Z
 direct keywordsresearch has-search-volume --keywords "buy laptop,buy desktop"
 direct smartadtargets update --id 456 --priority HIGH
 direct dynamicads set-bids --id 789 --bid 12500000 --context-bid 9000000 --priority HIGH
@@ -339,7 +340,7 @@ direct dictionaries get-geo-regions --name Moscow --region-ids 225,187 --exact-n
 ```
 
 Invalid examples include command lines that pass raw JSON flags, use shell
-line continuations, add timezone suffixes to CLI datetimes, or quote
+line continuations, omit the `Z` suffix from `changes` datetimes, or quote
 space-separated datetime values.
 
 #### Campaigns
@@ -580,8 +581,8 @@ direct dictionaries get-geo-regions --name Moscow --region-ids 225,187 --exact-n
 direct clients get --fields ClientId,Login,Currency
 
 # Changes
-direct changes check --campaign-ids 1,2,3 --timestamp 2026-04-14T00:00:00 --fields CampaignIds,AdGroupIds,AdIds,CampaignsStat
-direct changes check-campaigns --timestamp 2026-04-14T00:00:00
+direct changes check --campaign-ids 1,2,3 --timestamp 2026-04-14T00:00:00Z --fields CampaignIds,AdGroupIds,AdIds,CampaignsStat
+direct changes check-campaigns --timestamp 2026-04-14T00:00:00Z
 direct changes check-dictionaries
 
 # Keyword research and retargeting
@@ -1124,19 +1125,20 @@ lines with `\`.
 
 #### Datetime Rules
 
-- Datetime parameters must be passed in the format `YYYY-MM-DDTHH:MM:SS`.
+- Changes timestamps must match Yandex Direct API format `YYYY-MM-DDTHH:MM:SSZ`.
+- Other datetime parameters use their method-specific documented format.
 - Datetime values must be passed as a single shell token.
-- Canonical examples must not use timezone suffixes like `Z`.
+- Canonical `changes` examples must use the `Z` suffix.
 - Canonical examples must not use quoted space-separated datetime values.
 
 Use:
 
 ```bash
-direct changes check-campaigns --timestamp 2026-04-14T00:00:00
+direct changes check-campaigns --timestamp 2026-04-14T00:00:00Z
 ```
 
-Do not use: a timestamp with a `Z` suffix, or a quoted timestamp that contains
-a space between the date and time.
+Do not use: a `changes` timestamp without the `Z` suffix, or a quoted timestamp
+that contains a space between the date and time.
 
 #### Documentation Contract
 
@@ -1151,14 +1153,14 @@ Valid canonical examples:
 
 ```bash
 direct campaigns get --ids 1,2,3
-direct changes check-campaigns --timestamp 2026-04-14T00:00:00
+direct changes check-campaigns --timestamp 2026-04-14T00:00:00Z
 direct keywordsresearch has-search-volume --keywords "buy laptop,buy desktop"
 direct dynamicads set-bids --id 789 --bid 12500000
 direct dictionaries get-geo-regions --region-ids 225 --fields GeoRegionId,GeoRegionName
 ```
 
 Invalid examples include command lines that pass raw JSON flags, use shell
-line continuations, add timezone suffixes to CLI datetimes, or quote
+line continuations, omit the `Z` suffix from `changes` datetimes, or quote
 space-separated datetime values.
 
 #### Кампании
@@ -1402,8 +1404,8 @@ direct dictionaries get-geo-regions --name Москва --region-ids 225,187 --e
 direct clients get --fields ClientId,Login,Currency
 
 # Изменения
-direct changes check --campaign-ids 1,2,3 --timestamp 2026-04-14T00:00:00 --fields CampaignIds,AdGroupIds,AdIds,CampaignsStat
-direct changes check-campaigns --timestamp 2026-04-14T00:00:00
+direct changes check --campaign-ids 1,2,3 --timestamp 2026-04-14T00:00:00Z --fields CampaignIds,AdGroupIds,AdIds,CampaignsStat
+direct changes check-campaigns --timestamp 2026-04-14T00:00:00Z
 direct changes check-dictionaries
 
 # Исследование ключевых слов и ретаргетинг

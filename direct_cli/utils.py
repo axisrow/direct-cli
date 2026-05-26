@@ -167,13 +167,13 @@ def parse_date(date_str: str) -> str:
 
 
 def parse_datetime(datetime_str: str) -> str:
-    """Parse canonical CLI datetime and normalize it for the API."""
+    """Parse Yandex Direct Changes datetime in API wire format."""
     try:
-        datetime.strptime(datetime_str, "%Y-%m-%dT%H:%M:%S")
-        return f"{datetime_str}Z"
+        datetime.strptime(datetime_str, "%Y-%m-%dT%H:%M:%SZ")
+        return datetime_str
     except ValueError:
         raise ValueError(
-            f"Invalid datetime format: {datetime_str}. Expected: YYYY-MM-DDTHH:MM:SS"
+            f"Invalid datetime format: {datetime_str}. Expected: YYYY-MM-DDTHH:MM:SSZ"
         )
 
 

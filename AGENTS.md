@@ -73,21 +73,21 @@ direct dictionaries get-geo-regions \
 
 ### Datetime Rules
 
-- Datetime parameters must be passed in the format `YYYY-MM-DDTHH:MM:SS`.
+- Changes timestamps must match Yandex Direct API format `YYYY-MM-DDTHH:MM:SSZ`.
+- Other datetime parameters use their method-specific documented format.
 - Datetime values must be passed as a single shell token.
-- Canonical examples must not use timezone suffixes like `Z`.
+- Canonical `changes` examples must use the `Z` suffix.
 - Canonical examples must not use quoted space-separated datetime values.
 
 Use:
 
 ```bash
-direct changes check-campaigns --timestamp 2026-04-14T00:00:00
+direct changes check-campaigns --timestamp 2026-04-14T00:00:00Z
 ```
 
 Do not use:
 
 ```bash
-direct changes check-campaigns --timestamp 2026-04-14T00:00:00Z
 direct changes check-campaigns --timestamp "2026-04-14 00:00:00"
 ```
 
@@ -104,7 +104,7 @@ Valid canonical examples:
 
 ```bash
 direct campaigns get --ids 1,2,3
-direct changes check-campaigns --timestamp 2026-04-14T00:00:00
+direct changes check-campaigns --timestamp 2026-04-14T00:00:00Z
 direct keywordsresearch has-search-volume --keywords "buy laptop,buy desktop"
 direct smartadtargets update --id 456 --priority HIGH
 direct dynamicads set-bids --id 789 --bid 12.5
@@ -119,7 +119,6 @@ direct dynamicads set-bids --id 789 --bid 12.5 --json '{"StrategyPriority":"HIGH
 direct dictionaries get-geo-regions \
   --region-ids 225 \
   --fields GeoRegionId,GeoRegionName
-direct changes check-campaigns --timestamp 2026-04-14T00:00:00Z
 direct changes check-campaigns --timestamp "2026-04-14 00:00:00"
 ```
 

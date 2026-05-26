@@ -584,7 +584,7 @@ class TestReadOnlyAgencyClients(unittest.TestCase):
 def _recent_timestamp() -> str:
     """Return an ISO timestamp 1 hour in the past for changes.check* probes."""
     ts = datetime.now(timezone.utc) - timedelta(hours=1)
-    return ts.strftime("%Y-%m-%dT%H:%M:%S")
+    return ts.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 @pytest.mark.integration
