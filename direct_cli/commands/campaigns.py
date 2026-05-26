@@ -1027,17 +1027,17 @@ def get(
 )
 @click.option(
     "--dyn-network-reserve-return",
-    type=int,
-    help="DynamicTextCampaign Network AverageRoi.ReserveReturn",
+    type=click.IntRange(0, 100),
+    help="DynamicTextCampaign Network AverageRoi.ReserveReturn percentage (0-100)",
 )
 @click.option(
     "--dyn-network-roi-coef",
-    type=int,
+    type=click.IntRange(0),
     help="DynamicTextCampaign Network AverageRoi.RoiCoef",
 )
 @click.option(
     "--dyn-network-profitability",
-    type=int,
+    type=click.IntRange(0),
     help="DynamicTextCampaign Network AverageRoi.Profitability",
 )
 @click.option(
@@ -2502,17 +2502,17 @@ def add(
 )
 @click.option(
     "--dyn-network-reserve-return",
-    type=int,
-    help="DynamicTextCampaign Network AverageRoi.ReserveReturn",
+    type=click.IntRange(0, 100),
+    help="DynamicTextCampaign Network AverageRoi.ReserveReturn percentage (0-100)",
 )
 @click.option(
     "--dyn-network-roi-coef",
-    type=int,
+    type=click.IntRange(0),
     help="DynamicTextCampaign Network AverageRoi.RoiCoef",
 )
 @click.option(
     "--dyn-network-profitability",
-    type=int,
+    type=click.IntRange(0),
     help="DynamicTextCampaign Network AverageRoi.Profitability",
 )
 @click.option(

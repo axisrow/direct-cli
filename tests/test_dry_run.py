@@ -8902,6 +8902,29 @@ def test_campaigns_add_dynamic_text_network_wb_maximum_conversion_rate_only_goal
     }
 
 
+def test_campaigns_add_dynamic_text_network_rejects_reserve_return_over_100():
+    """#365: --dyn-network-reserve-return is constrained to 0..100."""
+    result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "Dyn Roi Bad Reserve",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--network-strategy",
+        "AVERAGE_ROI",
+        "--dyn-network-reserve-return",
+        "150",
+        "--dyn-network-roi-coef",
+        "1",
+        "--dyn-network-goal-id",
+        "1",
+    )
+    assert "Invalid value for '--dyn-network-reserve-return'" in result.output
+
+
 def test_campaigns_add_dynamic_text_network_rejects_wb_maximum_conversion_rate_without_goal():
     """#365: WSDL minOccurs=1 GoalId on WbMaximumConversionRate is enforced."""
     result = _rejected(
