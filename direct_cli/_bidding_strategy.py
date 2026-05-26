@@ -1063,16 +1063,18 @@ _TEXT_SEARCH_SUPPORTS_EXPLORATION_BUDGET = {
     "AverageCpaMultipleGoals",
     "MaxProfit",
 }
+# Per official Yandex update-text-campaign docs ``BudgetType`` is
+# declared only on the listed subtypes; ``WbMaximumClicks``,
+# ``WbMaximumConversionRate``, ``AverageCpaMultipleGoals`` and
+# ``WeeklyClickPackage`` do NOT carry it and the CLI must reject the
+# flag for those — sending it would emit an undocumented payload.
 _TEXT_SEARCH_SUPPORTS_BUDGET_TYPE = {
-    "WbMaximumClicks",
-    "WbMaximumConversionRate",
     "AverageCpc",
     "AverageCpa",
     "PayForConversion",
     "AverageRoi",
     "AverageCrr",
     "PayForConversionCrr",
-    "AverageCpaMultipleGoals",
     "PayForConversionMultipleGoals",
     "MaxProfit",
 }

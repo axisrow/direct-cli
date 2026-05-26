@@ -2314,6 +2314,12 @@ for _campaign_op in ("add", "update"):
             "WeeklySpendLimit": "--text-search-weekly-spend-limit",
         },
     }
+    # Per official Yandex update-text-campaign docs ``BudgetType`` is
+    # declared only on the listed subtypes. ``WbMaximumClicks``,
+    # ``WbMaximumConversionRate`` and ``AverageCpaMultipleGoals`` are
+    # intentionally excluded — the CLI rejects --text-search-budget-type
+    # for those subtypes (see ``_TEXT_SEARCH_SUPPORTS_BUDGET_TYPE`` in
+    # direct_cli/_bidding_strategy.py).
     _text_search_update_only_field_options: dict[str, dict[str, str]] = (
         {
             "AverageCpc": {"BudgetType": "--text-search-budget-type"},
@@ -2322,17 +2328,10 @@ for _campaign_op in ("add", "update"):
             "AverageRoi": {"BudgetType": "--text-search-budget-type"},
             "AverageCrr": {"BudgetType": "--text-search-budget-type"},
             "PayForConversionCrr": {"BudgetType": "--text-search-budget-type"},
-            "AverageCpaMultipleGoals": {"BudgetType": "--text-search-budget-type"},
             "PayForConversionMultipleGoals": {
                 "BudgetType": "--text-search-budget-type"
             },
             "MaxProfit": {"BudgetType": "--text-search-budget-type"},
-            # StrategyMaximumClicks / StrategyMaximumConversionRate also
-            # carry BudgetType on the non-Add side (extension of
-            # ``StrategyWeeklyBudgetBase`` via the per-subtype Update
-            # variants in WSDL).
-            "WbMaximumClicks": {"BudgetType": "--text-search-budget-type"},
-            "WbMaximumConversionRate": {"BudgetType": "--text-search-budget-type"},
         }
         if _campaign_op == "update"
         else {}

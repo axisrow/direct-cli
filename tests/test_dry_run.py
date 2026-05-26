@@ -8395,7 +8395,7 @@ def test_campaigns_add_text_search_average_roi_payload():
         "--text-search-reserve-return",
         "30",
         "--text-search-roi-coef",
-        "100",
+        "1",
         "--goal-id",
         "42",
         "--text-search-weekly-spend-limit",
@@ -8405,11 +8405,12 @@ def test_campaigns_add_text_search_average_roi_payload():
     )
     search = _text_search_extract(body)
     assert search["BiddingStrategyType"] == "AVERAGE_ROI"
+    # RoiCoef and Profitability are percent × 1,000,000 per Yandex docs.
     assert search["AverageRoi"] == {
         "ReserveReturn": 30,
-        "RoiCoef": 100,
+        "RoiCoef": 1000000,
         "GoalId": 42,
-        "Profitability": 20,
+        "Profitability": 20000000,
         "WeeklySpendLimit": 500000000,
     }
 
@@ -8440,12 +8441,13 @@ def test_campaigns_add_text_search_average_roi_accepts_zero_reserve_return():
         "--text-search-reserve-return",
         "0",
         "--text-search-roi-coef",
-        "100",
+        "1",
         "--goal-id",
         "1",
     )
     search = _text_search_extract(body)
     assert search["AverageRoi"]["ReserveReturn"] == 0
+    assert search["AverageRoi"]["RoiCoef"] == 1000000
 
 
 def test_campaigns_add_text_search_average_roi_requires_reserve_return_and_roi():
@@ -8848,14 +8850,15 @@ def test_campaigns_update_text_search_max_profit_requires_priority_goals():
 def test_campaigns_update_text_search_average_roi_payload():
     """Switching to AVERAGE_ROI on update requires all
     minOccurs=1 fields per Yandex docs (ReserveReturn + RoiCoef +
-    GoalId); additional optional fields land in the subtype block."""
+    GoalId); additional optional fields land in the subtype block.
+    RoiCoef and Profitability are percent × 1,000,000 on the wire."""
     body = _text_search_update(
         "--search-strategy",
         "AVERAGE_ROI",
         "--text-search-reserve-return",
         "20",
         "--text-search-roi-coef",
-        "100",
+        "1",
         "--goal-id",
         "42",
         "--text-search-profitability",
@@ -8864,9 +8867,9 @@ def test_campaigns_update_text_search_average_roi_payload():
     search = _text_search_extract(body)
     assert search["AverageRoi"] == {
         "ReserveReturn": 20,
-        "RoiCoef": 100,
+        "RoiCoef": 1000000,
         "GoalId": 42,
-        "Profitability": 25,
+        "Profitability": 25000000,
     }
 
 
@@ -9098,44 +9101,79 @@ def test_campaigns_update_text_search_max_profit_with_priority_goals_payload():
     assert search["MaxProfit"] == {}
 
 
-def test_campaigns_update_text_search_wb_maximum_clicks_budget_type_payload():
-    """WbMaximumClicks accepts BudgetType per non-Add WSDL StrategyMaximumClicks."""
-    body = _text_search_update(
-        "--search-strategy",
-        "WB_MAXIMUM_CLICKS",
-        "--text-search-weekly-spend-limit",
-        "400",
-        "--text-search-budget-type",
-        "WEEKLY_BUDGET",
+def test_campaigns_update_text_search_wb_maximum_clicks_rejects_budget_type():
+    """Yandex update docs: WbMaximumClicks does not declare BudgetType."""
+    result = CliRunner().invoke(
+        cli,
+        [
+            "campaigns",
+            "update",
+            "--id",
+            "123",
+            "--type",
+            "TEXT_CAMPAIGN",
+            "--search-strategy",
+            "WB_MAXIMUM_CLICKS",
+            "--text-search-weekly-spend-limit",
+            "400",
+            "--text-search-budget-type",
+            "WEEKLY_BUDGET",
+            "--dry-run",
+        ],
     )
-    search = _text_search_extract(body)
-    assert search["BiddingStrategyType"] == "WB_MAXIMUM_CLICKS"
-    assert search["WbMaximumClicks"] == {
-        "WeeklySpendLimit": 400000000,
-        "CustomPeriodBudget": None,
-        "BudgetType": "WEEKLY_BUDGET",
-    }
+    assert result.exit_code != 0
+    assert "--text-search-budget-type" in result.output
+    assert "WbMaximumClicks" in result.output
 
 
-def test_campaigns_update_text_search_wb_max_conv_rate_budget_type_payload():
-    """WbMaximumConversionRate also carries BudgetType on the update side."""
-    body = _text_search_update(
-        "--search-strategy",
-        "WB_MAXIMUM_CONVERSION_RATE",
-        "--goal-id",
-        "8",
-        "--text-search-weekly-spend-limit",
-        "250",
-        "--text-search-budget-type",
-        "WEEKLY_BUDGET",
+def test_campaigns_update_text_search_wb_max_conv_rate_rejects_budget_type():
+    """Yandex update docs: WbMaximumConversionRate does not declare BudgetType."""
+    result = CliRunner().invoke(
+        cli,
+        [
+            "campaigns",
+            "update",
+            "--id",
+            "123",
+            "--type",
+            "TEXT_CAMPAIGN",
+            "--search-strategy",
+            "WB_MAXIMUM_CONVERSION_RATE",
+            "--goal-id",
+            "8",
+            "--text-search-weekly-spend-limit",
+            "250",
+            "--text-search-budget-type",
+            "WEEKLY_BUDGET",
+            "--dry-run",
+        ],
     )
-    search = _text_search_extract(body)
-    assert search["WbMaximumConversionRate"] == {
-        "GoalId": 8,
-        "WeeklySpendLimit": 250000000,
-        "CustomPeriodBudget": None,
-        "BudgetType": "WEEKLY_BUDGET",
-    }
+    assert result.exit_code != 0
+    assert "--text-search-budget-type" in result.output
+
+
+def test_campaigns_update_text_search_average_cpa_multi_goals_rejects_budget_type():
+    """Yandex update docs: AverageCpaMultipleGoals does not declare BudgetType."""
+    result = CliRunner().invoke(
+        cli,
+        [
+            "campaigns",
+            "update",
+            "--id",
+            "123",
+            "--type",
+            "TEXT_CAMPAIGN",
+            "--search-strategy",
+            "AVERAGE_CPA_MULTIPLE_GOALS",
+            "--priority-goals",
+            "1:60,2:40",
+            "--text-search-budget-type",
+            "WEEKLY_BUDGET",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "--text-search-budget-type" in result.output
 
 
 def test_campaigns_add_text_search_rejects_with_package_bidding_strategy():

@@ -11,9 +11,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 1495 |
+| `missing_followup` | 1498 |
 | `not_applicable` | 23 |
-| `supported` | 1723 |
+| `supported` | 1720 |
 
 ## Confirmed Follow-Ups
 
@@ -761,6 +761,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `campaigns.add` | `SmartCampaign.PriorityGoals.Items.GoalId` | SmartCampaign.PriorityGoals on add requires compatible SmartCampaign.BiddingStrategy typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `SmartCampaign.PriorityGoals` |
 | `campaigns.add` | `SmartCampaign.PriorityGoals.Items.Value` | SmartCampaign.PriorityGoals on add requires compatible SmartCampaign.BiddingStrategy typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `SmartCampaign.PriorityGoals` |
 | `campaigns.add` | `SmartCampaign.PriorityGoals.Items.IsMetrikaSourceOfValue` | SmartCampaign.PriorityGoals on add requires compatible SmartCampaign.BiddingStrategy typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `SmartCampaign.PriorityGoals` |
+| `campaigns.update` | `TextCampaign.BiddingStrategy.Search.WbMaximumClicks.BudgetType` | TextCampaign Search strategy subtype fields need typed support. [#361](https://github.com/axisrow/direct-cli/issues/361); inherited from `TextCampaign.BiddingStrategy.Search.WbMaximumClicks` |
+| `campaigns.update` | `TextCampaign.BiddingStrategy.Search.WbMaximumConversionRate.BudgetType` | TextCampaign Search strategy subtype fields need typed support. [#361](https://github.com/axisrow/direct-cli/issues/361); inherited from `TextCampaign.BiddingStrategy.Search.WbMaximumConversionRate` |
+| `campaigns.update` | `TextCampaign.BiddingStrategy.Search.AverageCpaMultipleGoals.BudgetType` | TextCampaign Search strategy subtype fields need typed support. [#361](https://github.com/axisrow/direct-cli/issues/361); inherited from `TextCampaign.BiddingStrategy.Search.AverageCpaMultipleGoals` |
 | `campaigns.update` | `TextCampaign.BiddingStrategy.Network` | TextCampaign Network BiddingStrategy needs typed support. [#364](https://github.com/axisrow/direct-cli/issues/364) |
 | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.WbMaximumClicks` | TextCampaign Network BiddingStrategy needs typed support. [#364](https://github.com/axisrow/direct-cli/issues/364); inherited from `TextCampaign.BiddingStrategy.Network` |
 | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.WbMaximumClicks.WeeklySpendLimit` | TextCampaign Network BiddingStrategy needs typed support. [#364](https://github.com/axisrow/direct-cli/issues/364); inherited from `TextCampaign.BiddingStrategy.Network` |
@@ -3119,7 +3122,7 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `campaigns.update` | `campaigns.update` | `TextCampaign.NegativeKeywordSharedSetIds.Items` | `long` | 1 | unbounded | `supported` | --negative-keyword-shared-set-ids |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy` | `TextCampaignStrategy` | 0 | 1 | `supported` | --search-placement-dynamic-places, --search-placement-product-gallery, --search-placement-search-results, --search-strategy |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search` | `TextCampaignSearchStrategy` | 0 | 1 | `supported` | --search-placement-dynamic-places, --search-placement-product-gallery, --search-placement-search-results, --search-strategy |
-| `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.WbMaximumClicks` | `StrategyMaximumClicks` | 0 | 1 | `supported` | --bid-ceiling, --search-strategy, --text-search-budget-type, --text-search-weekly-spend-limit |
+| `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.WbMaximumClicks` | `StrategyMaximumClicks` | 0 | 1 | `supported` | --bid-ceiling, --search-strategy, --text-search-weekly-spend-limit |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.WbMaximumClicks.WeeklySpendLimit` | `long` | 0 | 1 | `supported` | --text-search-weekly-spend-limit |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.WbMaximumClicks.BidCeiling` | `long` | 0 | 1 | `supported` | --bid-ceiling |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.WbMaximumClicks.CustomPeriodBudget` | `CustomPeriodBudget` | 0 | 1 | `supported` | --text-search-custom-period-auto-continue, --text-search-custom-period-end-date, --text-search-custom-period-spend-limit, --text-search-custom-period-start-date |
@@ -3127,8 +3130,8 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.WbMaximumClicks.CustomPeriodBudget.StartDate` | `string` | 1 | 1 | `supported` | --text-search-custom-period-start-date |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.WbMaximumClicks.CustomPeriodBudget.EndDate` | `string` | 1 | 1 | `supported` | --text-search-custom-period-end-date |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.WbMaximumClicks.CustomPeriodBudget.AutoContinue` | `YesNoEnum` | 1 | 1 | `supported` | --text-search-custom-period-auto-continue |
-| `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.WbMaximumClicks.BudgetType` | `BudgetTypeEnum` | 0 | 1 | `supported` | --text-search-budget-type |
-| `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.WbMaximumConversionRate` | `StrategyMaximumConversionRate` | 0 | 1 | `supported` | --bid-ceiling, --goal-id, --search-strategy, --text-search-budget-type, --text-search-weekly-spend-limit |
+| `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.WbMaximumClicks.BudgetType` | `BudgetTypeEnum` | 0 | 1 | `missing_followup` | TextCampaign Search strategy subtype fields need typed support. [#361](https://github.com/axisrow/direct-cli/issues/361); inherited from `TextCampaign.BiddingStrategy.Search.WbMaximumClicks` |
+| `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.WbMaximumConversionRate` | `StrategyMaximumConversionRate` | 0 | 1 | `supported` | --bid-ceiling, --goal-id, --search-strategy, --text-search-weekly-spend-limit |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.WbMaximumConversionRate.WeeklySpendLimit` | `long` | 0 | 1 | `supported` | --text-search-weekly-spend-limit |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.WbMaximumConversionRate.BidCeiling` | `long` | 0 | 1 | `supported` | --bid-ceiling |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.WbMaximumConversionRate.GoalId` | `long` | 0 | 1 | `supported` | --goal-id |
@@ -3137,7 +3140,7 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.WbMaximumConversionRate.CustomPeriodBudget.StartDate` | `string` | 1 | 1 | `supported` | --text-search-custom-period-start-date |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.WbMaximumConversionRate.CustomPeriodBudget.EndDate` | `string` | 1 | 1 | `supported` | --text-search-custom-period-end-date |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.WbMaximumConversionRate.CustomPeriodBudget.AutoContinue` | `YesNoEnum` | 1 | 1 | `supported` | --text-search-custom-period-auto-continue |
-| `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.WbMaximumConversionRate.BudgetType` | `BudgetTypeEnum` | 0 | 1 | `supported` | --text-search-budget-type |
+| `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.WbMaximumConversionRate.BudgetType` | `BudgetTypeEnum` | 0 | 1 | `missing_followup` | TextCampaign Search strategy subtype fields need typed support. [#361](https://github.com/axisrow/direct-cli/issues/361); inherited from `TextCampaign.BiddingStrategy.Search.WbMaximumConversionRate` |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.AverageCpc` | `StrategyAverageCpc` | 0 | 1 | `supported` | --search-strategy, --text-search-average-cpc, --text-search-budget-type, --text-search-weekly-spend-limit |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.AverageCpc.AverageCpc` | `long` | 0 | 1 | `supported` | --text-search-average-cpc |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.AverageCpc.WeeklySpendLimit` | `long` | 0 | 1 | `supported` | --text-search-weekly-spend-limit |
@@ -3214,7 +3217,7 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.PayForConversionCrr.CustomPeriodBudget.EndDate` | `string` | 1 | 1 | `supported` | --text-search-custom-period-end-date |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.PayForConversionCrr.CustomPeriodBudget.AutoContinue` | `YesNoEnum` | 1 | 1 | `supported` | --text-search-custom-period-auto-continue |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.PayForConversionCrr.BudgetType` | `BudgetTypeEnum` | 0 | 1 | `supported` | --text-search-budget-type |
-| `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.AverageCpaMultipleGoals` | `StrategyAverageCpaMultipleGoals` | 0 | 1 | `supported` | --bid-ceiling, --search-strategy, --text-search-budget-type, --text-search-weekly-spend-limit |
+| `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.AverageCpaMultipleGoals` | `StrategyAverageCpaMultipleGoals` | 0 | 1 | `supported` | --bid-ceiling, --search-strategy, --text-search-weekly-spend-limit |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.AverageCpaMultipleGoals.WeeklySpendLimit` | `long` | 0 | 1 | `supported` | --text-search-weekly-spend-limit |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.AverageCpaMultipleGoals.CustomPeriodBudget` | `CustomPeriodBudget` | 0 | 1 | `supported` | --text-search-custom-period-auto-continue, --text-search-custom-period-end-date, --text-search-custom-period-spend-limit, --text-search-custom-period-start-date |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.AverageCpaMultipleGoals.CustomPeriodBudget.SpendLimit` | `long` | 1 | 1 | `supported` | --text-search-custom-period-spend-limit |
@@ -3225,7 +3228,7 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.AverageCpaMultipleGoals.ExplorationBudget` | `ExplorationBudget` | 0 | 1 | `supported` | --text-search-exploration-is-custom, --text-search-exploration-min-budget |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.AverageCpaMultipleGoals.ExplorationBudget.MinimumExplorationBudget` | `long` | 1 | 1 | `supported` | --text-search-exploration-min-budget |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.AverageCpaMultipleGoals.ExplorationBudget.IsMinimumExplorationBudgetCustom` | `YesNoEnum` | 1 | 1 | `supported` | --text-search-exploration-is-custom |
-| `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.AverageCpaMultipleGoals.BudgetType` | `BudgetTypeEnum` | 0 | 1 | `supported` | --text-search-budget-type |
+| `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.AverageCpaMultipleGoals.BudgetType` | `BudgetTypeEnum` | 0 | 1 | `missing_followup` | TextCampaign Search strategy subtype fields need typed support. [#361](https://github.com/axisrow/direct-cli/issues/361); inherited from `TextCampaign.BiddingStrategy.Search.AverageCpaMultipleGoals` |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.PayForConversionMultipleGoals` | `StrategyPayForConversionMultipleGoals` | 0 | 1 | `supported` | --search-strategy, --text-search-budget-type, --text-search-weekly-spend-limit |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.PayForConversionMultipleGoals.WeeklySpendLimit` | `long` | 0 | 1 | `supported` | --text-search-weekly-spend-limit |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.PayForConversionMultipleGoals.CustomPeriodBudget` | `CustomPeriodBudget` | 0 | 1 | `supported` | --text-search-custom-period-auto-continue, --text-search-custom-period-end-date, --text-search-custom-period-spend-limit, --text-search-custom-period-start-date |

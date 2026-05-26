@@ -1028,13 +1028,21 @@ def get(
 )
 @click.option(
     "--text-search-roi-coef",
-    type=int,
-    help="TextCampaign Search AVERAGE_ROI RoiCoef",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help=(
+        "TextCampaign Search AVERAGE_ROI RoiCoef as a ratio (sales profit "
+        "/ promotion costs). Input is multiplied by 1,000,000 to match the "
+        "Yandex API wire format (e.g. 1 → 1000000)."
+    ),
 )
 @click.option(
     "--text-search-profitability",
-    type=int,
-    help="TextCampaign Search AVERAGE_ROI Profitability",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help=(
+        "TextCampaign Search AVERAGE_ROI Profitability percentage. Input "
+        "is multiplied by 1,000,000 to match the Yandex API wire format "
+        "(e.g. 20 → 20000000)."
+    ),
 )
 @click.option(
     "--text-search-exploration-min-budget",
@@ -2458,13 +2466,21 @@ def add(
 )
 @click.option(
     "--text-search-roi-coef",
-    type=int,
-    help="TextCampaign Search AVERAGE_ROI RoiCoef",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help=(
+        "TextCampaign Search AVERAGE_ROI RoiCoef as a ratio (sales profit "
+        "/ promotion costs). Input is multiplied by 1,000,000 to match the "
+        "Yandex API wire format (e.g. 1 → 1000000)."
+    ),
 )
 @click.option(
     "--text-search-profitability",
-    type=int,
-    help="TextCampaign Search AVERAGE_ROI Profitability",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help=(
+        "TextCampaign Search AVERAGE_ROI Profitability percentage. Input "
+        "is multiplied by 1,000,000 to match the Yandex API wire format "
+        "(e.g. 20 → 20000000)."
+    ),
 )
 @click.option(
     "--text-search-exploration-min-budget",
