@@ -538,18 +538,19 @@ direct keywords delete --id 88888
 direct keywords add --adgroup-id 12345 --from-file keywords.jsonl
 
 # Inline JSON array
-direct keywords add --keywords-json '[{"Keyword":"buy laptop","Bid":10000000},{"Keyword":"buy desktop"}]'
+direct keywords add --adgroup-id 12345 --keywords-json '[{"Keyword":"buy laptop"},{"Keyword":"buy desktop"}]'
 ```
 
 Example `keywords.jsonl`:
 
 ```jsonl
-{"Keyword":"buy laptop","Bid":10000000,"UserParam1":"src=ad1"}
-{"Keyword":"buy desktop","ContextBid":5000000}
+{"Keyword":"buy laptop","UserParam1":"src=ad1"}
+{"Keyword":"buy desktop","UserParam2":"src=ad2"}
 {"Keyword":"купить ноутбук","AdGroupId":99999}
 ```
 
 - Row keys use WSDL CamelCase: `Keyword`, `AdGroupId`, `Bid`, `ContextBid`, `UserParam1`, `UserParam2`.
+- `Bid` and `ContextBid` are documented `Keywords.add` fields, but they are strategy-dependent: `Bid` is only for manual strategies, and `ContextBid` is only for manual strategies with independent ad-network bid management. For automatic strategies, Yandex ignores these values and returns warning `10160`, so omit them from JSONL for auto-strategy / ad-network flows.
 - Autotargeting row fields are intentionally not accepted in batch mode; use single-item typed flags such as `--autotargeting-search-bid-is-auto`, `--priority`, `--autotargeting-category`, `--autotargeting-brand-option`, or `--autotargeting-settings-*`.
 - `--adgroup-id` provides the default group ID; rows can override it via per-row `AdGroupId`.
 - Each effective row must resolve `Keyword` and `AdGroupId`; unknown fields are rejected with the row number.
@@ -1363,18 +1364,19 @@ direct keywords delete --id 88888
 direct keywords add --adgroup-id 12345 --from-file keywords.jsonl
 
 # Inline JSON-массив
-direct keywords add --keywords-json '[{"Keyword":"купить ноутбук","Bid":10000000},{"Keyword":"купить ПК"}]'
+direct keywords add --adgroup-id 12345 --keywords-json '[{"Keyword":"купить ноутбук"},{"Keyword":"купить ПК"}]'
 ```
 
 Пример `keywords.jsonl`:
 
 ```jsonl
-{"Keyword":"купить ноутбук","Bid":10000000,"UserParam1":"src=ad1"}
-{"Keyword":"купить ПК","ContextBid":5000000}
+{"Keyword":"купить ноутбук","UserParam1":"src=ad1"}
+{"Keyword":"купить ПК","UserParam2":"src=ad2"}
 {"Keyword":"buy laptop","AdGroupId":99999}
 ```
 
 - Ключи строки — WSDL CamelCase: `Keyword`, `AdGroupId`, `Bid`, `ContextBid`, `UserParam1`, `UserParam2`.
+- `Bid` и `ContextBid` — документированные поля `Keywords.add`, но они зависят от стратегии: `Bid` только для ручных стратегий, `ContextBid` только для ручных стратегий с независимым управлением ставками в сетях. Для автоматических стратегий Яндекс игнорирует эти значения и возвращает предупреждение `10160`, поэтому не передавайте их в JSONL для auto-strategy / РСЯ-сценариев.
 - Поля автотаргетинга намеренно не принимаются в batch-режиме; используйте single-item typed flags: `--autotargeting-search-bid-is-auto`, `--priority`, `--autotargeting-category`, `--autotargeting-brand-option` или `--autotargeting-settings-*`.
 - `--adgroup-id` задаёт значение по умолчанию; в строке можно переопределить через `AdGroupId`.
 - В каждой строке должны разрешаться `Keyword` и `AdGroupId`; неизвестные поля отклоняются с указанием номера строки.
