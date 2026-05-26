@@ -23,16 +23,6 @@ from ..utils import (
 )
 from .._bidding_strategy import (
     BUDGET_TYPES,
-    CPM_BANNER_NETWORK_STRATEGIES,
-    CPM_BANNER_SEARCH_STRATEGIES,
-    MOBILE_APP_NETWORK_STRATEGIES,
-    MOBILE_APP_SEARCH_DISABLED_STRATEGIES,
-    MOBILE_APP_SEARCH_STRATEGIES,
-    TEXT_CAMPAIGN_SEARCH_STRATEGIES,
-    apply_cpa_strategy_fields as _apply_cpa_strategy_fields,
-    build_cpm_banner_bidding_strategy as _build_cpm_banner_bidding_strategy,
-    build_mobile_app_bidding_strategy as _build_mobile_app_bidding_strategy,
-    build_text_campaign_search_base as _build_text_campaign_search_base,
     get_bidding_strategy_builder,
 )
 
@@ -65,7 +55,6 @@ _DEPRECATED_CAMPAIGNS_STRUCTURED_OPTIONS = {
 def _deprecated_campaigns_structured_option(ctx, param, value):
     if value is not None:
         raise click.UsageError(_DEPRECATED_CAMPAIGNS_STRUCTURED_OPTIONS[param.name])
-
 
 
 @click.group()
@@ -1626,30 +1615,50 @@ def add(
             if package_bidding_strategy_obj is not None:
                 text_block["PackageBiddingStrategy"] = package_bidding_strategy_obj
             else:
-                text_search = _build_text_campaign_search_base(
-                    search_strategy=search_strategy,
-                    search_placement_search_results=search_placement_search_results,
-                    search_placement_product_gallery=(search_placement_product_gallery),
-                    search_placement_dynamic_places=search_placement_dynamic_places,
-                    include_default=True,
+                search_base_builder = get_bidding_strategy_builder(
+                    "TEXT_CAMPAIGN", "add", "search_base"
                 )
+                if search_base_builder is not None:
+                    text_search = search_base_builder(
+                        search_strategy=search_strategy,
+                        search_placement_search_results=(
+                            search_placement_search_results
+                        ),
+                        search_placement_product_gallery=(
+                            search_placement_product_gallery
+                        ),
+                        search_placement_dynamic_places=(
+                            search_placement_dynamic_places
+                        ),
+                        include_default=True,
+                    )
+                else:
+                    text_search = {
+                        "BiddingStrategyType": (
+                            (search_strategy or "HIGHEST_POSITION").upper()
+                        )
+                    }
                 text_block["BiddingStrategy"] = {
                     "Search": text_search,
                     "Network": {
                         "BiddingStrategyType": (network_strategy or "SERVING_OFF")
                     },
                 }
-                _apply_cpa_strategy_fields(
-                    text_block["BiddingStrategy"],
-                    search_strategy=search_strategy,
-                    network_strategy=network_strategy,
-                    goal_id=goal_id,
-                    average_cpa=average_cpa,
-                    crr=crr,
-                    bid_ceiling=bid_ceiling,
-                    priority_goals_items=priority_goals_items,
-                    sub_campaign_block=text_block,
+                priority_goals_builder = get_bidding_strategy_builder(
+                    "TEXT_CAMPAIGN", "add", "priority_goals"
                 )
+                if priority_goals_builder is not None:
+                    priority_goals_builder(
+                        text_block["BiddingStrategy"],
+                        search_strategy=search_strategy,
+                        network_strategy=network_strategy,
+                        goal_id=goal_id,
+                        average_cpa=average_cpa,
+                        crr=crr,
+                        bid_ceiling=bid_ceiling,
+                        priority_goals_items=priority_goals_items,
+                        sub_campaign_block=text_block,
+                    )
             if counter_ids_obj is not None:
                 text_block["CounterIds"] = counter_ids_obj
             if relevant_keywords_obj is not None:
@@ -1698,17 +1707,21 @@ def add(
                         "BiddingStrategyType": (network_strategy or "SERVING_OFF")
                     },
                 }
-                _apply_cpa_strategy_fields(
-                    dyn_block["BiddingStrategy"],
-                    search_strategy=search_strategy,
-                    network_strategy=network_strategy,
-                    goal_id=goal_id,
-                    average_cpa=average_cpa,
-                    crr=crr,
-                    bid_ceiling=bid_ceiling,
-                    priority_goals_items=priority_goals_items,
-                    sub_campaign_block=dyn_block,
+                priority_goals_builder = get_bidding_strategy_builder(
+                    "DYNAMIC_TEXT_CAMPAIGN", "add", "priority_goals"
                 )
+                if priority_goals_builder is not None:
+                    priority_goals_builder(
+                        dyn_block["BiddingStrategy"],
+                        search_strategy=search_strategy,
+                        network_strategy=network_strategy,
+                        goal_id=goal_id,
+                        average_cpa=average_cpa,
+                        crr=crr,
+                        bid_ceiling=bid_ceiling,
+                        priority_goals_items=priority_goals_items,
+                        sub_campaign_block=dyn_block,
+                    )
             if counter_ids_obj is not None:
                 dyn_block["CounterIds"] = counter_ids_obj
             if dynamic_placement_types is not None:
@@ -1766,8 +1779,11 @@ def add(
                 smart_campaign["TrackingParams"] = tracking_params
             campaign_data["SmartCampaign"] = smart_campaign
         elif campaign_type_norm == "MOBILE_APP_CAMPAIGN":
-            mobile_campaign: Dict[str, object] = {
-                "BiddingStrategy": _build_mobile_app_bidding_strategy(
+            mobile_builder = get_bidding_strategy_builder(
+                "MOBILE_APP_CAMPAIGN", "add", "full"
+            )
+            if mobile_builder is not None:
+                mobile_bidding_strategy = mobile_builder(
                     search_strategy,
                     mobile_search_weekly_spend_limit,
                     mobile_search_bid_ceiling,
@@ -1794,6 +1810,21 @@ def add(
                     include_defaults=True,
                     is_update=False,
                 )
+            else:
+                mobile_bidding_strategy = {
+                    "Search": {
+                        "BiddingStrategyType": (
+                            (search_strategy or "HIGHEST_POSITION").upper()
+                        )
+                    },
+                    "Network": {
+                        "BiddingStrategyType": (
+                            (network_strategy or "SERVING_OFF").upper()
+                        )
+                    },
+                }
+            mobile_campaign: Dict[str, object] = {
+                "BiddingStrategy": mobile_bidding_strategy
             }
             if parsed_settings:
                 mobile_campaign["Settings"] = parsed_settings
@@ -1803,8 +1834,11 @@ def add(
                 )
             campaign_data["MobileAppCampaign"] = mobile_campaign
         elif campaign_type_norm == "CPM_BANNER_CAMPAIGN":
-            cpm_campaign: Dict[str, object] = {
-                "BiddingStrategy": _build_cpm_banner_bidding_strategy(
+            cpm_builder = get_bidding_strategy_builder(
+                "CPM_BANNER_CAMPAIGN", "add", "full"
+            )
+            if cpm_builder is not None:
+                cpm_bidding_strategy = cpm_builder(
                     search_strategy,
                     network_strategy,
                     average_cpm,
@@ -1815,6 +1849,21 @@ def add(
                     strategy_auto_continue,
                     include_defaults=True,
                 )
+            else:
+                cpm_bidding_strategy = {
+                    "Search": {
+                        "BiddingStrategyType": (
+                            (search_strategy or "SERVING_OFF").upper()
+                        )
+                    },
+                    "Network": {
+                        "BiddingStrategyType": (
+                            (network_strategy or "MANUAL_CPM").upper()
+                        )
+                    },
+                }
+            cpm_campaign: Dict[str, object] = {
+                "BiddingStrategy": cpm_bidding_strategy
             }
             if parsed_settings:
                 cpm_campaign["Settings"] = parsed_settings
@@ -2765,19 +2814,33 @@ def update(
                         )
                     sub_block["PackageBiddingStrategy"] = package_bidding_strategy_obj
                 elif not is_unified and not is_dynamic:
-                    text_search = _build_text_campaign_search_base(
-                        search_strategy=search_strategy,
-                        search_placement_search_results=(
-                            search_placement_search_results
-                        ),
-                        search_placement_product_gallery=(
-                            search_placement_product_gallery
-                        ),
-                        search_placement_dynamic_places=(
-                            search_placement_dynamic_places
-                        ),
-                        include_default=False,
+                    search_base_builder = get_bidding_strategy_builder(
+                        "TEXT_CAMPAIGN", "update", "search_base"
                     )
+                    if search_base_builder is not None:
+                        text_search = search_base_builder(
+                            search_strategy=search_strategy,
+                            search_placement_search_results=(
+                                search_placement_search_results
+                            ),
+                            search_placement_product_gallery=(
+                                search_placement_product_gallery
+                            ),
+                            search_placement_dynamic_places=(
+                                search_placement_dynamic_places
+                            ),
+                            include_default=False,
+                        )
+                    else:
+                        text_search = (
+                            {
+                                "BiddingStrategyType": (
+                                    search_strategy.upper()
+                                )
+                            }
+                            if search_strategy is not None
+                            else None
+                        )
                     if text_search is not None:
                         sub_block["BiddingStrategy"] = {"Search": text_search}
                 negative_keyword_shared_set_ids_obj = _array_of_integer_option(
@@ -2834,33 +2897,47 @@ def update(
                 parsed_settings = parse_setting_specs(list(settings))
                 if parsed_settings:
                     sub_block["Settings"] = parsed_settings
-                mobile_bidding_strategy = _build_mobile_app_bidding_strategy(
-                    search_strategy,
-                    mobile_search_weekly_spend_limit,
-                    mobile_search_bid_ceiling,
-                    mobile_search_custom_period_spend_limit,
-                    mobile_search_custom_period_start_date,
-                    mobile_search_custom_period_end_date,
-                    mobile_search_custom_period_auto_continue,
-                    mobile_search_average_cpc,
-                    mobile_search_average_cpi,
-                    mobile_search_clicks_per_week,
-                    mobile_search_budget_type,
-                    network_strategy,
-                    mobile_network_weekly_spend_limit,
-                    mobile_network_bid_ceiling,
-                    mobile_network_custom_period_spend_limit,
-                    mobile_network_custom_period_start_date,
-                    mobile_network_custom_period_end_date,
-                    mobile_network_custom_period_auto_continue,
-                    mobile_network_average_cpc,
-                    mobile_network_average_cpi,
-                    mobile_network_clicks_per_week,
-                    mobile_network_limit_percent,
-                    mobile_network_budget_type,
-                    include_defaults=False,
-                    is_update=True,
+                mobile_builder = get_bidding_strategy_builder(
+                    "MOBILE_APP_CAMPAIGN", "update", "full"
                 )
+                if mobile_builder is not None:
+                    mobile_bidding_strategy = mobile_builder(
+                        search_strategy,
+                        mobile_search_weekly_spend_limit,
+                        mobile_search_bid_ceiling,
+                        mobile_search_custom_period_spend_limit,
+                        mobile_search_custom_period_start_date,
+                        mobile_search_custom_period_end_date,
+                        mobile_search_custom_period_auto_continue,
+                        mobile_search_average_cpc,
+                        mobile_search_average_cpi,
+                        mobile_search_clicks_per_week,
+                        mobile_search_budget_type,
+                        network_strategy,
+                        mobile_network_weekly_spend_limit,
+                        mobile_network_bid_ceiling,
+                        mobile_network_custom_period_spend_limit,
+                        mobile_network_custom_period_start_date,
+                        mobile_network_custom_period_end_date,
+                        mobile_network_custom_period_auto_continue,
+                        mobile_network_average_cpc,
+                        mobile_network_average_cpi,
+                        mobile_network_clicks_per_week,
+                        mobile_network_limit_percent,
+                        mobile_network_budget_type,
+                        include_defaults=False,
+                        is_update=True,
+                    )
+                else:
+                    mobile_bidding_strategy = (
+                        {
+                            "Search": {
+                                "BiddingStrategyType": search_strategy.upper()
+                            }
+                        }
+                        if search_strategy is not None
+                        else None
+                    )
                 if mobile_bidding_strategy is not None:
                     sub_block["BiddingStrategy"] = mobile_bidding_strategy
                 negative_keyword_shared_set_ids_obj = _array_of_integer_option(
@@ -2876,17 +2953,33 @@ def update(
                 parsed_settings = parse_setting_specs(list(settings))
                 if parsed_settings:
                     sub_block["Settings"] = parsed_settings
-                cpm_bidding_strategy = _build_cpm_banner_bidding_strategy(
-                    search_strategy,
-                    network_strategy,
-                    average_cpm,
-                    average_cpv,
-                    strategy_spend_limit,
-                    strategy_start_date,
-                    strategy_end_date,
-                    strategy_auto_continue,
-                    include_defaults=False,
+                cpm_builder = get_bidding_strategy_builder(
+                    "CPM_BANNER_CAMPAIGN", "update", "full"
                 )
+                if cpm_builder is not None:
+                    cpm_bidding_strategy = cpm_builder(
+                        search_strategy,
+                        network_strategy,
+                        average_cpm,
+                        average_cpv,
+                        strategy_spend_limit,
+                        strategy_start_date,
+                        strategy_end_date,
+                        strategy_auto_continue,
+                        include_defaults=False,
+                    )
+                else:
+                    cpm_bidding_strategy = None
+                    if search_strategy is not None or network_strategy is not None:
+                        cpm_bidding_strategy = {}
+                        if search_strategy is not None:
+                            cpm_bidding_strategy["Search"] = {
+                                "BiddingStrategyType": search_strategy.upper()
+                            }
+                        if network_strategy is not None:
+                            cpm_bidding_strategy["Network"] = {
+                                "BiddingStrategyType": network_strategy.upper()
+                            }
                 if cpm_bidding_strategy is not None:
                     sub_block["BiddingStrategy"] = cpm_bidding_strategy
                 counter_ids_obj = _array_of_integer_option("--counter-ids", counter_ids)
