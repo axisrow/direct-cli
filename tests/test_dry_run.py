@@ -6377,6 +6377,30 @@ def test_campaigns_help_exposes_mobile_app_search_strategy_flags():
     assert "--mobile-search-budget-type" in update_help
 
 
+def test_campaigns_help_exposes_mobile_app_network_strategy_flags():
+    common_flags = {
+        "--mobile-network-weekly-spend-limit",
+        "--mobile-network-bid-ceiling",
+        "--mobile-network-custom-period-spend-limit",
+        "--mobile-network-custom-period-start-date",
+        "--mobile-network-custom-period-end-date",
+        "--mobile-network-custom-period-auto-continue",
+        "--mobile-network-average-cpc",
+        "--mobile-network-average-cpi",
+        "--mobile-network-clicks-per-week",
+        "--mobile-network-limit-percent",
+    }
+    for command in ("add", "update"):
+        result = CliRunner().invoke(cli, ["campaigns", command, "--help"])
+        assert result.exit_code == 0
+        for flag in common_flags:
+            assert flag in result.output
+    add_help = CliRunner().invoke(cli, ["campaigns", "add", "--help"]).output
+    update_help = CliRunner().invoke(cli, ["campaigns", "update", "--help"]).output
+    assert "--mobile-network-budget-type" not in add_help
+    assert "--mobile-network-budget-type" in update_help
+
+
 def test_campaigns_add_text_tracking_params_payload():
     body = _dry_run(
         *_cpa_base_args(),
@@ -6639,6 +6663,234 @@ def test_campaigns_add_mobile_app_rejects_weekly_click_package_bid_conflict():
         "10",
     )
     assert "cannot combine --mobile-search-average-cpc" in result.output
+
+
+def test_campaigns_add_mobile_app_average_cpi_network_payload():
+    body = _dry_run(
+        "campaigns",
+        "add",
+        "--name",
+        "Mobile App Network CPI",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "MOBILE_APP_CAMPAIGN",
+        "--network-strategy",
+        "AVERAGE_CPI",
+        "--mobile-network-average-cpi",
+        "5",
+        "--mobile-network-weekly-spend-limit",
+        "1000",
+        "--mobile-network-bid-ceiling",
+        "12.5",
+    )
+    mobile = body["params"]["Campaigns"][0]["MobileAppCampaign"]
+    assert mobile["BiddingStrategy"] == {
+        "Search": {"BiddingStrategyType": "HIGHEST_POSITION"},
+        "Network": {
+            "BiddingStrategyType": "AVERAGE_CPI",
+            "AverageCpi": {
+                "AverageCpi": 5000000,
+                "WeeklySpendLimit": 1000000000,
+                "BidCeiling": 12500000,
+            },
+        },
+    }
+
+
+def test_campaigns_add_mobile_app_network_default_payload():
+    body = _dry_run(
+        "campaigns",
+        "add",
+        "--name",
+        "Mobile App Network Default",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "MOBILE_APP_CAMPAIGN",
+        "--network-strategy",
+        "NETWORK_DEFAULT",
+        "--mobile-network-limit-percent",
+        "30",
+    )
+    network = body["params"]["Campaigns"][0]["MobileAppCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "NETWORK_DEFAULT",
+        "NetworkDefault": {"LimitPercent": 30},
+    }
+
+
+def test_campaigns_add_mobile_app_network_wb_maximum_clicks_custom_period_payload():
+    body = _dry_run(
+        "campaigns",
+        "add",
+        "--name",
+        "Mobile App Network Custom Period",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "MOBILE_APP_CAMPAIGN",
+        "--network-strategy",
+        "WB_MAXIMUM_CLICKS",
+        "--mobile-network-custom-period-spend-limit",
+        "1000",
+        "--mobile-network-custom-period-start-date",
+        "2026-06-01",
+        "--mobile-network-custom-period-end-date",
+        "2026-06-30",
+        "--mobile-network-custom-period-auto-continue",
+        "NO",
+    )
+    network = body["params"]["Campaigns"][0]["MobileAppCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "WB_MAXIMUM_CLICKS",
+        "WbMaximumClicks": {
+            "CustomPeriodBudget": {
+                "SpendLimit": 1000000000,
+                "StartDate": "2026-06-01",
+                "EndDate": "2026-06-30",
+                "AutoContinue": "NO",
+            }
+        },
+    }
+
+
+def test_campaigns_add_mobile_app_average_cpi_network_custom_period_payload():
+    body = _dry_run(
+        "campaigns",
+        "add",
+        "--name",
+        "Mobile App Network CPI Custom Period",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "MOBILE_APP_CAMPAIGN",
+        "--network-strategy",
+        "AVERAGE_CPI",
+        "--mobile-network-average-cpi",
+        "5",
+        "--mobile-network-custom-period-spend-limit",
+        "1000",
+        "--mobile-network-custom-period-start-date",
+        "2026-06-01",
+        "--mobile-network-custom-period-end-date",
+        "2026-06-30",
+        "--mobile-network-custom-period-auto-continue",
+        "YES",
+    )
+    network = body["params"]["Campaigns"][0]["MobileAppCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "AVERAGE_CPI",
+        "AverageCpi": {
+            "AverageCpi": 5000000,
+            "CustomPeriodBudget": {
+                "SpendLimit": 1000000000,
+                "StartDate": "2026-06-01",
+                "EndDate": "2026-06-30",
+                "AutoContinue": "YES",
+            },
+        },
+    }
+
+
+def test_campaigns_add_mobile_app_rejects_missing_required_network_field():
+    result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "Mobile App Missing Network CPI",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "MOBILE_APP_CAMPAIGN",
+        "--network-strategy",
+        "PAY_FOR_INSTALL",
+    )
+    assert "PAY_FOR_INSTALL requires --mobile-network-average-cpi" in result.output
+
+
+def test_campaigns_add_mobile_app_rejects_network_detail_without_strategy():
+    result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "Mobile App Network Detail",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "MOBILE_APP_CAMPAIGN",
+        "--mobile-network-average-cpc",
+        "5",
+    )
+    assert "MobileAppCampaign network detail flags require --network-strategy" in (
+        result.output
+    )
+
+
+def test_campaigns_add_mobile_app_rejects_network_default_non_limit_detail():
+    result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "Mobile App Network Default Detail",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "MOBILE_APP_CAMPAIGN",
+        "--network-strategy",
+        "NETWORK_DEFAULT",
+        "--mobile-network-average-cpc",
+        "5",
+    )
+    assert "NETWORK_DEFAULT does not accept --mobile-network-average-cpc" in (
+        result.output
+    )
+
+
+def test_campaigns_add_mobile_app_rejects_network_default_limit_percent_step():
+    result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "Mobile App Network Default Limit",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "MOBILE_APP_CAMPAIGN",
+        "--network-strategy",
+        "NETWORK_DEFAULT",
+        "--mobile-network-limit-percent",
+        "25",
+    )
+    assert "must be a multiple of 10 from 10 to 100" in result.output
+
+
+def test_campaigns_add_mobile_app_rejects_network_weekly_click_package_bid_conflict():
+    result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "Mobile App Network Click Conflict",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "MOBILE_APP_CAMPAIGN",
+        "--network-strategy",
+        "WEEKLY_CLICK_PACKAGE",
+        "--mobile-network-clicks-per-week",
+        "100",
+        "--mobile-network-average-cpc",
+        "7.25",
+        "--mobile-network-bid-ceiling",
+        "10",
+    )
+    assert "cannot combine --mobile-network-average-cpc" in result.output
 
 
 def test_campaigns_add_cpm_banner_campaign_optional_controls_payload():
@@ -7084,6 +7336,169 @@ def test_campaigns_update_mobile_app_rejects_budget_type_without_supported_strat
         "WEEKLY_BUDGET",
     )
     assert "AVERAGE_CPI does not accept --mobile-search-budget-type" in result.output
+
+
+def test_campaigns_update_mobile_app_wb_maximum_clicks_network_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "MOBILE_APP_CAMPAIGN",
+        "--network-strategy",
+        "WB_MAXIMUM_CLICKS",
+        "--mobile-network-custom-period-spend-limit",
+        "1000",
+        "--mobile-network-custom-period-start-date",
+        "2026-06-01",
+        "--mobile-network-custom-period-end-date",
+        "2026-06-30",
+        "--mobile-network-custom-period-auto-continue",
+        "YES",
+        "--mobile-network-budget-type",
+        "CUSTOM_PERIOD_BUDGET",
+    )
+    campaign = body["params"]["Campaigns"][0]
+    assert campaign == {
+        "Id": 123,
+        "MobileAppCampaign": {
+            "BiddingStrategy": {
+                "Network": {
+                    "BiddingStrategyType": "WB_MAXIMUM_CLICKS",
+                    "WbMaximumClicks": {
+                        "CustomPeriodBudget": {
+                            "SpendLimit": 1000000000,
+                            "StartDate": "2026-06-01",
+                            "EndDate": "2026-06-30",
+                            "AutoContinue": "YES",
+                        },
+                        "WeeklySpendLimit": None,
+                        "BudgetType": "CUSTOM_PERIOD_BUDGET",
+                    },
+                }
+            }
+        },
+    }
+
+
+def test_campaigns_update_mobile_app_average_cpc_network_weekly_budget_clears_custom_period():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "MOBILE_APP_CAMPAIGN",
+        "--network-strategy",
+        "AVERAGE_CPC",
+        "--mobile-network-average-cpc",
+        "5",
+        "--mobile-network-weekly-spend-limit",
+        "1000",
+        "--mobile-network-budget-type",
+        "WEEKLY_BUDGET",
+    )
+    campaign = body["params"]["Campaigns"][0]
+    assert campaign == {
+        "Id": 123,
+        "MobileAppCampaign": {
+            "BiddingStrategy": {
+                "Network": {
+                    "BiddingStrategyType": "AVERAGE_CPC",
+                    "AverageCpc": {
+                        "AverageCpc": 5000000,
+                        "WeeklySpendLimit": 1000000000,
+                        "CustomPeriodBudget": None,
+                        "BudgetType": "WEEKLY_BUDGET",
+                    },
+                }
+            }
+        },
+    }
+
+
+def test_campaigns_update_mobile_app_average_cpi_network_custom_period_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "MOBILE_APP_CAMPAIGN",
+        "--network-strategy",
+        "AVERAGE_CPI",
+        "--mobile-network-average-cpi",
+        "5",
+        "--mobile-network-custom-period-spend-limit",
+        "1000",
+        "--mobile-network-custom-period-start-date",
+        "2026-06-01",
+        "--mobile-network-custom-period-end-date",
+        "2026-06-30",
+        "--mobile-network-custom-period-auto-continue",
+        "YES",
+        "--mobile-network-budget-type",
+        "CUSTOM_PERIOD_BUDGET",
+    )
+    campaign = body["params"]["Campaigns"][0]
+    assert campaign == {
+        "Id": 123,
+        "MobileAppCampaign": {
+            "BiddingStrategy": {
+                "Network": {
+                    "BiddingStrategyType": "AVERAGE_CPI",
+                    "AverageCpi": {
+                        "AverageCpi": 5000000,
+                        "CustomPeriodBudget": {
+                            "SpendLimit": 1000000000,
+                            "StartDate": "2026-06-01",
+                            "EndDate": "2026-06-30",
+                            "AutoContinue": "YES",
+                        },
+                        "WeeklySpendLimit": None,
+                        "BudgetType": "CUSTOM_PERIOD_BUDGET",
+                    },
+                }
+            }
+        },
+    }
+
+
+def test_campaigns_update_mobile_app_rejects_network_budget_type_without_matching_budget():
+    result = _rejected(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "MOBILE_APP_CAMPAIGN",
+        "--network-strategy",
+        "WB_MAXIMUM_CLICKS",
+        "--mobile-network-budget-type",
+        "WEEKLY_BUDGET",
+    )
+    assert "WEEKLY_BUDGET requires --mobile-network-weekly-spend-limit" in (
+        result.output
+    )
+
+
+def test_campaigns_update_mobile_app_rejects_network_budget_type_without_supported_strategy():
+    result = _rejected(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "MOBILE_APP_CAMPAIGN",
+        "--network-strategy",
+        "WEEKLY_CLICK_PACKAGE",
+        "--mobile-network-budget-type",
+        "WEEKLY_BUDGET",
+    )
+    assert "WEEKLY_CLICK_PACKAGE does not accept --mobile-network-budget-type" in (
+        result.output
+    )
 
 
 def test_campaigns_update_cpm_banner_campaign_optional_controls_payload():

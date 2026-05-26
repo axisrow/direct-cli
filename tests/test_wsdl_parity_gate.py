@@ -2642,6 +2642,131 @@ for _campaign_op in ("add", "update"):
             OPTIONAL_FIELD_CLI_OPTIONS[
                 ("campaigns", _campaign_op, f"MobileAppCampaign.{_path}")
             ] = {"--mobile-search-budget-type"}
+    _mobile_network_flags = {
+        "--network-strategy",
+        "--mobile-network-weekly-spend-limit",
+        "--mobile-network-bid-ceiling",
+        "--mobile-network-custom-period-spend-limit",
+        "--mobile-network-custom-period-start-date",
+        "--mobile-network-custom-period-end-date",
+        "--mobile-network-custom-period-auto-continue",
+        "--mobile-network-average-cpc",
+        "--mobile-network-average-cpi",
+        "--mobile-network-clicks-per-week",
+        "--mobile-network-limit-percent",
+    }
+    if _campaign_op == "update":
+        _mobile_network_flags |= {"--mobile-network-budget-type"}
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("campaigns", _campaign_op, "MobileAppCampaign.BiddingStrategy.Network")
+    ] = _mobile_network_flags
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        (
+            "campaigns",
+            _campaign_op,
+            "MobileAppCampaign.BiddingStrategy.Network.BiddingStrategyType",
+        )
+    ] = {"--network-strategy"}
+    for _path in (
+        "BiddingStrategy.Network.WbMaximumClicks",
+        "BiddingStrategy.Network.WbMaximumAppInstalls",
+        "BiddingStrategy.Network.AverageCpc",
+        "BiddingStrategy.Network.AverageCpi",
+        "BiddingStrategy.Network.WeeklyClickPackage",
+        "BiddingStrategy.Network.PayForInstall",
+        "BiddingStrategy.Network.NetworkDefault",
+    ):
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            ("campaigns", _campaign_op, f"MobileAppCampaign.{_path}")
+        ] = _mobile_network_flags
+    for _path, _flag in {
+        "BiddingStrategy.Network.WbMaximumClicks.WeeklySpendLimit": (
+            "--mobile-network-weekly-spend-limit"
+        ),
+        "BiddingStrategy.Network.WbMaximumClicks.BidCeiling": (
+            "--mobile-network-bid-ceiling"
+        ),
+        "BiddingStrategy.Network.WbMaximumClicks.CustomPeriodBudget": (
+            "--mobile-network-custom-period-spend-limit"
+        ),
+        "BiddingStrategy.Network.WbMaximumClicks.CustomPeriodBudget.SpendLimit": (
+            "--mobile-network-custom-period-spend-limit"
+        ),
+        "BiddingStrategy.Network.WbMaximumClicks.CustomPeriodBudget.StartDate": (
+            "--mobile-network-custom-period-start-date"
+        ),
+        "BiddingStrategy.Network.WbMaximumClicks.CustomPeriodBudget.EndDate": (
+            "--mobile-network-custom-period-end-date"
+        ),
+        "BiddingStrategy.Network.WbMaximumClicks.CustomPeriodBudget.AutoContinue": (
+            "--mobile-network-custom-period-auto-continue"
+        ),
+        "BiddingStrategy.Network.WbMaximumAppInstalls.WeeklySpendLimit": (
+            "--mobile-network-weekly-spend-limit"
+        ),
+        "BiddingStrategy.Network.WbMaximumAppInstalls.BidCeiling": (
+            "--mobile-network-bid-ceiling"
+        ),
+        "BiddingStrategy.Network.AverageCpc.AverageCpc": (
+            "--mobile-network-average-cpc"
+        ),
+        "BiddingStrategy.Network.AverageCpc.WeeklySpendLimit": (
+            "--mobile-network-weekly-spend-limit"
+        ),
+        "BiddingStrategy.Network.AverageCpc.CustomPeriodBudget": (
+            "--mobile-network-custom-period-spend-limit"
+        ),
+        "BiddingStrategy.Network.AverageCpc.CustomPeriodBudget.SpendLimit": (
+            "--mobile-network-custom-period-spend-limit"
+        ),
+        "BiddingStrategy.Network.AverageCpc.CustomPeriodBudget.StartDate": (
+            "--mobile-network-custom-period-start-date"
+        ),
+        "BiddingStrategy.Network.AverageCpc.CustomPeriodBudget.EndDate": (
+            "--mobile-network-custom-period-end-date"
+        ),
+        "BiddingStrategy.Network.AverageCpc.CustomPeriodBudget.AutoContinue": (
+            "--mobile-network-custom-period-auto-continue"
+        ),
+        "BiddingStrategy.Network.AverageCpi.AverageCpi": (
+            "--mobile-network-average-cpi"
+        ),
+        "BiddingStrategy.Network.AverageCpi.WeeklySpendLimit": (
+            "--mobile-network-weekly-spend-limit"
+        ),
+        "BiddingStrategy.Network.AverageCpi.BidCeiling": (
+            "--mobile-network-bid-ceiling"
+        ),
+        "BiddingStrategy.Network.WeeklyClickPackage.ClicksPerWeek": (
+            "--mobile-network-clicks-per-week"
+        ),
+        "BiddingStrategy.Network.WeeklyClickPackage.AverageCpc": (
+            "--mobile-network-average-cpc"
+        ),
+        "BiddingStrategy.Network.WeeklyClickPackage.BidCeiling": (
+            "--mobile-network-bid-ceiling"
+        ),
+        "BiddingStrategy.Network.PayForInstall.AverageCpi": (
+            "--mobile-network-average-cpi"
+        ),
+        "BiddingStrategy.Network.PayForInstall.WeeklySpendLimit": (
+            "--mobile-network-weekly-spend-limit"
+        ),
+        "BiddingStrategy.Network.NetworkDefault.LimitPercent": (
+            "--mobile-network-limit-percent"
+        ),
+    }.items():
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            ("campaigns", _campaign_op, f"MobileAppCampaign.{_path}")
+        ] = {_flag}
+    if _campaign_op == "update":
+        for _path in (
+            "BiddingStrategy.Network.WbMaximumClicks.BudgetType",
+            "BiddingStrategy.Network.AverageCpc.BudgetType",
+        ):
+            OPTIONAL_FIELD_CLI_OPTIONS[
+                ("campaigns", _campaign_op, f"MobileAppCampaign.{_path}")
+            ] = {"--mobile-network-budget-type"}
 
 for _campaign_op in ("add", "update"):
     OPTIONAL_FIELD_CLI_OPTIONS[("campaigns", _campaign_op, "CpmBannerCampaign")] = {
