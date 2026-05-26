@@ -1105,7 +1105,16 @@ _TEXT_SEARCH_REQUIRED_TYPED_FLAGS: Dict[str, Dict[str, str]] = {
     "AverageCpc": {"AverageCpc": "--text-search-average-cpc"},
     "AverageCpa": {"AverageCpa": "--average-cpa", "GoalId": "--goal-id"},
     "PayForConversion": {"Cpa": "--text-search-pay-cpa", "GoalId": "--goal-id"},
-    "WbMaximumConversionRate": {"GoalId": "--goal-id"},
+    # Per official Yandex docs WeeklySpendLimit is required for the
+    # ``Wb*`` strategies even though WSDL marks the underlying
+    # ``StrategyWeeklyBudgetAddBase`` field minOccurs=0.
+    "WbMaximumClicks": {
+        "WeeklySpendLimit": "--text-search-weekly-spend-limit",
+    },
+    "WbMaximumConversionRate": {
+        "GoalId": "--goal-id",
+        "WeeklySpendLimit": "--text-search-weekly-spend-limit",
+    },
     "WeeklyClickPackage": {"ClicksPerWeek": "--text-search-clicks-per-week"},
     "AverageRoi": {
         "ReserveReturn": "--text-search-reserve-return",
@@ -1119,6 +1128,12 @@ _TEXT_SEARCH_REQUIRED_TYPED_FLAGS: Dict[str, Dict[str, str]] = {
     # Per official docs MAX_PROFIT requires PriorityGoals with the
     # target profit per conversion as the ``Value``.
     "MaxProfit": {"PriorityGoals": "--priority-goals"},
+}
+
+# Subtypes that require at least N priority goals per official docs.
+_TEXT_SEARCH_MIN_PRIORITY_GOALS: Dict[str, int] = {
+    "AverageCpaMultipleGoals": 2,
+    "PayForConversionMultipleGoals": 2,
 }
 
 
@@ -1460,8 +1475,16 @@ def build_text_campaign_search_strategy(
             raise click.UsageError(
                 "--priority-goals is only valid with "
                 "AVERAGE_CPA_MULTIPLE_GOALS / "
-                "PAY_FOR_CONVERSION_MULTIPLE_GOALS strategies; "
+                "PAY_FOR_CONVERSION_MULTIPLE_GOALS / MAX_PROFIT strategies; "
                 f"got --search-strategy={search_strategy!r}"
+            )
+        # Per official Yandex docs *_MULTIPLE_GOALS subtypes require
+        # at least two priority goals; reject one-goal payloads up-front.
+        min_required = _TEXT_SEARCH_MIN_PRIORITY_GOALS.get(subtype)
+        if min_required is not None and len(priority_goals_items) < min_required:
+            raise click.UsageError(
+                f"--priority-goals requires at least {min_required} entries "
+                f"for {search_strategy} per Yandex Direct API docs"
             )
         if not is_update:
             sub_campaign_block["PriorityGoals"] = {"Items": priority_goals_items}
@@ -1481,6 +1504,7 @@ def build_text_campaign_search_strategy(
             "ReserveReturn": reserve_return,
             "RoiCoef": roi_coef,
             "PriorityGoals": priority_goals_items,
+            "WeeklySpendLimit": weekly_spend_limit,
         }
         missing = [
             flag
@@ -1490,7 +1514,7 @@ def build_text_campaign_search_strategy(
         if missing:
             raise click.UsageError(
                 f"Search strategy {subtype} requires {', '.join(sorted(missing))} "
-                f"(WSDL Strategy{subtype}Add minOccurs=1)"
+                f"(per Yandex Direct API docs)"
             )
 
     # Build the WSDL Strategy*Add block. Element order in the dict

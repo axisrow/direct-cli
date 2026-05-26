@@ -8212,6 +8212,28 @@ def test_campaigns_add_text_search_wb_maximum_conversion_rate_requires_goal_id()
     assert "WbMaximumConversionRate" in result.output
 
 
+def test_campaigns_add_text_search_wb_maximum_clicks_requires_weekly_spend_limit():
+    """Yandex docs: WeeklySpendLimit is required for WB_MAXIMUM_CLICKS."""
+    result = _rejected(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "WB_MAXIMUM_CLICKS",
+    )
+    assert "--text-search-weekly-spend-limit" in result.output
+
+
+def test_campaigns_add_text_search_wb_max_conv_rate_requires_weekly_spend_limit():
+    """Yandex docs: WeeklySpendLimit is required for WB_MAXIMUM_CONVERSION_RATE."""
+    result = _rejected(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "WB_MAXIMUM_CONVERSION_RATE",
+        "--goal-id",
+        "1",
+    )
+    assert "--text-search-weekly-spend-limit" in result.output
+
+
 def test_campaigns_add_text_search_average_cpc_payload():
     body = _dry_run(
         *_cpa_base_args(),
@@ -8441,6 +8463,30 @@ def test_campaigns_add_text_search_average_cpa_multiple_goals_with_exploration()
             "IsMinimumExplorationBudgetCustom": "YES",
         },
     }
+
+
+def test_campaigns_add_text_search_average_cpa_multi_goals_requires_two_items():
+    """Per docs *_MULTIPLE_GOALS strategies require ≥2 priority goals."""
+    result = _rejected(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "AVERAGE_CPA_MULTIPLE_GOALS",
+        "--priority-goals",
+        "111:100",
+    )
+    assert "at least 2" in result.output
+
+
+def test_campaigns_add_text_search_pay_conv_multi_goals_requires_two_items():
+    """Per docs PAY_FOR_CONVERSION_MULTIPLE_GOALS requires ≥2 priority goals."""
+    result = _rejected(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
+        "--priority-goals",
+        "111:100",
+    )
+    assert "at least 2" in result.output
 
 
 def test_campaigns_add_text_search_pay_for_conversion_multiple_goals_payload():
