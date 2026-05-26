@@ -114,9 +114,9 @@ def test_empty_payload_no_op_rejected(
     command_key: str, argv: list[str], expected_error: str
 ) -> None:
     result = CliRunner().invoke(cli, argv + ["--dry-run"])
-    assert result.exit_code != 0, (
-        f"{command_key}: empty payload accepted as no-op. Output: {result.output!r}"
-    )
+    assert (
+        result.exit_code != 0
+    ), f"{command_key}: empty payload accepted as no-op. Output: {result.output!r}"
     assert expected_error.lower() in result.output.lower(), (
         f"{command_key}: rejection happened but the error message lacks the "
         f"guard substring {expected_error!r}. The command must have a real "
@@ -516,9 +516,9 @@ def test_silent_data_loss_rejected(
     probe_id: str, argv: list[str], expected_error: str
 ) -> None:
     result = CliRunner().invoke(cli, argv + ["--dry-run"])
-    assert result.exit_code != 0, (
-        f"{probe_id}: incompatible flag silently dropped. Output: {result.output!r}"
-    )
+    assert (
+        result.exit_code != 0
+    ), f"{probe_id}: incompatible flag silently dropped. Output: {result.output!r}"
     assert expected_error.lower() in result.output.lower(), (
         f"{probe_id}: rejection happened but the error message does not "
         f"reference the offending flag {expected_error!r}. The command must "
@@ -2533,6 +2533,124 @@ for _campaign_op in ("add", "update"):
     OPTIONAL_FIELD_CLI_OPTIONS[("campaigns", _campaign_op, "CpmBannerCampaign")] = {
         "--type"
     }
+    _cpm_strategy_flags = {
+        "--search-strategy",
+        "--network-strategy",
+        "--average-cpm",
+        "--average-cpv",
+        "--strategy-spend-limit",
+        "--strategy-start-date",
+        "--strategy-end-date",
+        "--strategy-auto-continue",
+    }
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("campaigns", _campaign_op, "CpmBannerCampaign.BiddingStrategy")
+    ] = _cpm_strategy_flags
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("campaigns", _campaign_op, "CpmBannerCampaign.BiddingStrategy.Search")
+    ] = {"--search-strategy"}
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        (
+            "campaigns",
+            _campaign_op,
+            "CpmBannerCampaign.BiddingStrategy.Search.BiddingStrategyType",
+        )
+    ] = {"--search-strategy"}
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("campaigns", _campaign_op, "CpmBannerCampaign.BiddingStrategy.Network")
+    ] = _cpm_strategy_flags - {"--search-strategy"}
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        (
+            "campaigns",
+            _campaign_op,
+            "CpmBannerCampaign.BiddingStrategy.Network.BiddingStrategyType",
+        )
+    ] = {"--network-strategy"}
+    for _path in (
+        "BiddingStrategy.Network.WbMaximumImpressions",
+        "BiddingStrategy.Network.WbDecreasedPriceForRepeatedImpressions",
+    ):
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            ("campaigns", _campaign_op, f"CpmBannerCampaign.{_path}")
+        ] = {"--network-strategy", "--average-cpm", "--strategy-spend-limit"}
+    for _path in (
+        "BiddingStrategy.Network.CpMaximumImpressions",
+        "BiddingStrategy.Network.CpDecreasedPriceForRepeatedImpressions",
+    ):
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            ("campaigns", _campaign_op, f"CpmBannerCampaign.{_path}")
+        ] = {
+            "--network-strategy",
+            "--average-cpm",
+            "--strategy-spend-limit",
+            "--strategy-start-date",
+            "--strategy-end-date",
+            "--strategy-auto-continue",
+        }
+    for _path in (
+        "BiddingStrategy.Network.WbAverageCpv",
+        "BiddingStrategy.Network.CpAverageCpv",
+    ):
+        _flags = {"--network-strategy", "--average-cpv", "--strategy-spend-limit"}
+        if ".Cp" in _path:
+            _flags |= {
+                "--strategy-start-date",
+                "--strategy-end-date",
+                "--strategy-auto-continue",
+            }
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            ("campaigns", _campaign_op, f"CpmBannerCampaign.{_path}")
+        ] = _flags
+    for _path, _flag in {
+        "BiddingStrategy.Network.WbMaximumImpressions.AverageCpm": "--average-cpm",
+        "BiddingStrategy.Network.WbMaximumImpressions.SpendLimit": (
+            "--strategy-spend-limit"
+        ),
+        "BiddingStrategy.Network.CpMaximumImpressions.AverageCpm": "--average-cpm",
+        "BiddingStrategy.Network.CpMaximumImpressions.SpendLimit": (
+            "--strategy-spend-limit"
+        ),
+        "BiddingStrategy.Network.CpMaximumImpressions.StartDate": (
+            "--strategy-start-date"
+        ),
+        "BiddingStrategy.Network.CpMaximumImpressions.EndDate": ("--strategy-end-date"),
+        "BiddingStrategy.Network.CpMaximumImpressions.AutoContinue": (
+            "--strategy-auto-continue"
+        ),
+        "BiddingStrategy.Network.WbDecreasedPriceForRepeatedImpressions.AverageCpm": (
+            "--average-cpm"
+        ),
+        "BiddingStrategy.Network.WbDecreasedPriceForRepeatedImpressions.SpendLimit": (
+            "--strategy-spend-limit"
+        ),
+        "BiddingStrategy.Network.CpDecreasedPriceForRepeatedImpressions.AverageCpm": (
+            "--average-cpm"
+        ),
+        "BiddingStrategy.Network.CpDecreasedPriceForRepeatedImpressions.SpendLimit": (
+            "--strategy-spend-limit"
+        ),
+        "BiddingStrategy.Network.CpDecreasedPriceForRepeatedImpressions.StartDate": (
+            "--strategy-start-date"
+        ),
+        "BiddingStrategy.Network.CpDecreasedPriceForRepeatedImpressions.EndDate": (
+            "--strategy-end-date"
+        ),
+        "BiddingStrategy.Network.CpDecreasedPriceForRepeatedImpressions.AutoContinue": (
+            "--strategy-auto-continue"
+        ),
+        "BiddingStrategy.Network.WbAverageCpv.AverageCpv": "--average-cpv",
+        "BiddingStrategy.Network.WbAverageCpv.SpendLimit": ("--strategy-spend-limit"),
+        "BiddingStrategy.Network.CpAverageCpv.AverageCpv": "--average-cpv",
+        "BiddingStrategy.Network.CpAverageCpv.SpendLimit": ("--strategy-spend-limit"),
+        "BiddingStrategy.Network.CpAverageCpv.StartDate": "--strategy-start-date",
+        "BiddingStrategy.Network.CpAverageCpv.EndDate": "--strategy-end-date",
+        "BiddingStrategy.Network.CpAverageCpv.AutoContinue": (
+            "--strategy-auto-continue"
+        ),
+    }.items():
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            ("campaigns", _campaign_op, f"CpmBannerCampaign.{_path}")
+        ] = {_flag}
     for _path in (
         "Settings",
         "Settings.Option",
@@ -2683,9 +2801,9 @@ OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]
     },
 }
 
-OPTIONAL_FIELD_CHILD_COMPONENT_FOLLOWUPS: dict[
-    tuple[str, str, str], dict[str, str]
-] = {}
+OPTIONAL_FIELD_CHILD_COMPONENT_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]] = (
+    {}
+)
 
 OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
     ("keywords", "add", "AutotargetingSearchBidIsAuto"): {
@@ -2883,9 +3001,9 @@ def test_optional_field_audit_entries_reference_real_wsdl_paths() -> None:
                 missing_issues.append((cli_group, cli_op, wsdl_path, issue))
 
     assert not bad_statuses, f"Invalid optional-field audit statuses: {bad_statuses}"
-    assert not stale_entries, (
-        f"Optional-field audit entries no longer in WSDL: {stale_entries}"
-    )
+    assert (
+        not stale_entries
+    ), f"Optional-field audit entries no longer in WSDL: {stale_entries}"
     assert not missing_issues, (
         "Optional-field missing_followup entries must link a GitHub issue: "
         f"{missing_issues}"
@@ -2936,9 +3054,9 @@ def test_optional_field_supported_options_reference_click_options() -> None:
         if missing:
             bad_options.append((cli_group, cli_op, wsdl_path, missing))
 
-    assert not stale_paths, (
-        f"Optional-field supported entries no longer exist in WSDL: {stale_paths}"
-    )
+    assert (
+        not stale_paths
+    ), f"Optional-field supported entries no longer exist in WSDL: {stale_paths}"
     assert not bad_options, (
         "Optional-field supported entries reference missing Click options: "
         f"{bad_options}"

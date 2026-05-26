@@ -375,6 +375,7 @@ direct campaigns add --name "Smart Controls" --start-date 2026-06-01 --type SMAR
 direct campaigns add --name "Smart Package" --start-date 2026-06-01 --type SMART_CAMPAIGN --counter-id 123 --package-strategy-id 700 --package-platform-search YES --package-platform-network NO --dry-run
 direct campaigns add --name "Mobile App Controls" --start-date 2026-06-01 --type MOBILE_APP_CAMPAIGN --setting ADD_TO_FAVORITES=YES --negative-keyword-shared-set-ids 10,11 --dry-run
 direct campaigns add --name "CPM Banner Controls" --start-date 2026-06-01 --type CPM_BANNER_CAMPAIGN --setting ADD_METRICA_TAG=YES --counter-ids 111,222 --frequency-cap-impressions 5 --frequency-cap-period-days 7 --video-target VIEWS --dry-run
+direct campaigns add --name "CPM Banner Strategy" --start-date 2026-06-01 --type CPM_BANNER_CAMPAIGN --network-strategy WB_MAXIMUM_IMPRESSIONS --average-cpm 120 --strategy-spend-limit 1000 --dry-run
 direct campaigns update --id 12345 --type CPM_BANNER_CAMPAIGN --frequency-cap-impressions 5 --frequency-cap-period-all --dry-run
 
 # Notification (Sms/Email) and TimeTargeting via typed CLI flags
@@ -1193,6 +1194,7 @@ direct campaigns add --name "Смарт-настройки" --start-date 2026-06
 direct campaigns add --name "Смарт-пакетная" --start-date 2026-06-01 --type SMART_CAMPAIGN --counter-id 123 --package-strategy-id 700 --package-platform-search YES --package-platform-network NO --dry-run
 direct campaigns add --name "Мобильные настройки" --start-date 2026-06-01 --type MOBILE_APP_CAMPAIGN --setting ADD_TO_FAVORITES=YES --negative-keyword-shared-set-ids 10,11 --dry-run
 direct campaigns add --name "CPM-настройки" --start-date 2026-06-01 --type CPM_BANNER_CAMPAIGN --setting ADD_METRICA_TAG=YES --counter-ids 111,222 --frequency-cap-impressions 5 --frequency-cap-period-days 7 --video-target VIEWS --dry-run
+direct campaigns add --name "CPM-стратегия" --start-date 2026-06-01 --type CPM_BANNER_CAMPAIGN --network-strategy WB_MAXIMUM_IMPRESSIONS --average-cpm 120 --strategy-spend-limit 1000 --dry-run
 direct campaigns update --id 12345 --type CPM_BANNER_CAMPAIGN --frequency-cap-impressions 5 --frequency-cap-period-all --dry-run
 
 # Notification (Sms/Email) и TimeTargeting через явные CLI-флаги

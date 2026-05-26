@@ -6342,6 +6342,12 @@ def test_campaigns_help_exposes_cpm_banner_optional_flags():
     for command in ("add", "update"):
         result = CliRunner().invoke(cli, ["campaigns", command, "--help"])
         assert result.exit_code == 0
+        assert "--average-cpm" in result.output
+        assert "--average-cpv" in result.output
+        assert "--strategy-spend-limit" in result.output
+        assert "--strategy-start-date" in result.output
+        assert "--strategy-end-date" in result.output
+        assert "--strategy-auto-continue" in result.output
         assert "--frequency-cap-impressions" in result.output
         assert "--frequency-cap-period-days" in result.output
         assert "--frequency-cap-period-all" in result.output
@@ -6456,6 +6462,74 @@ def test_campaigns_add_cpm_banner_campaign_optional_controls_payload():
     }
 
 
+def test_campaigns_add_cpm_banner_wb_maximum_impressions_payload():
+    body = _dry_run(
+        "campaigns",
+        "add",
+        "--name",
+        "CPM Banner Strategy",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "CPM_BANNER_CAMPAIGN",
+        "--network-strategy",
+        "WB_MAXIMUM_IMPRESSIONS",
+        "--average-cpm",
+        "120.5",
+        "--strategy-spend-limit",
+        "1000.25",
+    )
+    cpm = body["params"]["Campaigns"][0]["CpmBannerCampaign"]
+    assert cpm["BiddingStrategy"] == {
+        "Search": {"BiddingStrategyType": "SERVING_OFF"},
+        "Network": {
+            "BiddingStrategyType": "WB_MAXIMUM_IMPRESSIONS",
+            "WbMaximumImpressions": {
+                "AverageCpm": 120500000,
+                "SpendLimit": 1000250000,
+            },
+        },
+    }
+
+
+def test_campaigns_add_cpm_banner_cp_average_cpv_payload():
+    body = _dry_run(
+        "campaigns",
+        "add",
+        "--name",
+        "CPM Banner CPV",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "CPM_BANNER_CAMPAIGN",
+        "--network-strategy",
+        "CP_AVERAGE_CPV",
+        "--average-cpv",
+        "5",
+        "--strategy-spend-limit",
+        "1000",
+        "--strategy-start-date",
+        "2026-06-01",
+        "--strategy-end-date",
+        "2026-06-30",
+        "--strategy-auto-continue",
+        "YES",
+    )
+    network = body["params"]["Campaigns"][0]["CpmBannerCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "CP_AVERAGE_CPV",
+        "CpAverageCpv": {
+            "AverageCpv": 5000000,
+            "SpendLimit": 1000000000,
+            "StartDate": "2026-06-01",
+            "EndDate": "2026-06-30",
+            "AutoContinue": "YES",
+        },
+    }
+
+
 def test_campaigns_add_cpm_banner_campaign_frequency_cap_all_payload():
     body = _dry_run(
         "campaigns",
@@ -6501,11 +6575,39 @@ def test_campaigns_add_cpm_banner_rejects_bidding_strategy_flags():
         "2026-06-01",
         "--type",
         "CPM_BANNER_CAMPAIGN",
-        "--search-strategy",
-        "HIGHEST_POSITION",
+        "--network-strategy",
+        "WB_MAXIMUM_IMPRESSIONS",
+        "--average-cpm",
+        "120",
+        "--average-cpv",
+        "5",
+        "--strategy-spend-limit",
+        "1000",
     )
-    assert "--search-strategy" in result.output
-    assert "CPM_BANNER_CAMPAIGN" in result.output
+    assert "WB_MAXIMUM_IMPRESSIONS does not accept --average-cpv" in result.output
+
+
+def test_campaigns_add_cpm_banner_rejects_missing_strategy_fields():
+    result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "CPM Banner Controls",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "CPM_BANNER_CAMPAIGN",
+        "--network-strategy",
+        "CP_MAXIMUM_IMPRESSIONS",
+        "--average-cpm",
+        "120",
+        "--strategy-spend-limit",
+        "1000",
+    )
+    assert "CP_MAXIMUM_IMPRESSIONS requires" in result.output
+    assert "--strategy-start-date" in result.output
+    assert "--strategy-end-date" in result.output
+    assert "--strategy-auto-continue" in result.output
 
 
 def test_campaigns_add_unified_tracking_params_payload():
@@ -6688,6 +6790,62 @@ def test_campaigns_update_cpm_banner_campaign_optional_controls_payload():
     }
 
 
+def test_campaigns_update_cpm_banner_strategy_search_only_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "CPM_BANNER_CAMPAIGN",
+        "--search-strategy",
+        "SERVING_OFF",
+    )
+    campaign = body["params"]["Campaigns"][0]
+    assert campaign == {
+        "Id": 123,
+        "CpmBannerCampaign": {
+            "BiddingStrategy": {
+                "Search": {"BiddingStrategyType": "SERVING_OFF"},
+            },
+        },
+    }
+
+
+def test_campaigns_update_cpm_banner_wb_decreased_price_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "CPM_BANNER_CAMPAIGN",
+        "--network-strategy",
+        "WB_DECREASED_PRICE_FOR_REPEATED_IMPRESSIONS",
+        "--average-cpm",
+        "120",
+        "--strategy-spend-limit",
+        "1000",
+    )
+    campaign = body["params"]["Campaigns"][0]
+    assert campaign == {
+        "Id": 123,
+        "CpmBannerCampaign": {
+            "BiddingStrategy": {
+                "Network": {
+                    "BiddingStrategyType": (
+                        "WB_DECREASED_PRICE_FOR_REPEATED_IMPRESSIONS"
+                    ),
+                    "WbDecreasedPriceForRepeatedImpressions": {
+                        "AverageCpm": 120000000,
+                        "SpendLimit": 1000000000,
+                    },
+                },
+            },
+        },
+    }
+
+
 def test_campaigns_update_cpm_banner_campaign_frequency_cap_all_payload():
     body = _dry_run(
         "campaigns",
@@ -6722,6 +6880,22 @@ def test_campaigns_update_rejects_partial_frequency_cap():
     )
     assert "--frequency-cap-impressions" in result.output
     assert "--frequency-cap-period-days" in result.output
+
+
+def test_campaigns_update_cpm_banner_strategy_details_require_network_strategy():
+    result = _rejected(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "CPM_BANNER_CAMPAIGN",
+        "--average-cpm",
+        "120",
+        "--strategy-spend-limit",
+        "1000",
+    )
+    assert "strategy detail flags require --network-strategy" in result.output
 
 
 def test_campaigns_update_rejects_conflicting_frequency_cap_period_flags():
