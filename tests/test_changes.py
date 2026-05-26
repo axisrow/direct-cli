@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 from click.testing import CliRunner
 
 from direct_cli.cli import cli
-from direct_cli.utils import parse_datetime
+from direct_cli.utils import parse_changes_datetime
 
 TIMESTAMP = "2026-05-21T12:00:00Z"
 
@@ -81,22 +81,22 @@ def test_check_with_campaign_ids_sends_campaign_ids_field():
     assert body["params"]["Timestamp"] == TIMESTAMP
 
 
-def test_parse_datetime_accepts_yandex_changes_timestamp():
-    assert parse_datetime("2026-04-14T00:00:00Z") == "2026-04-14T00:00:00Z"
+def test_parse_changes_datetime_accepts_yandex_changes_timestamp():
+    assert parse_changes_datetime("2026-04-14T00:00:00Z") == "2026-04-14T00:00:00Z"
 
 
-def test_parse_datetime_rejects_bare_timestamp():
+def test_parse_changes_datetime_rejects_bare_timestamp():
     try:
-        parse_datetime("2026-04-14T00:00:00")
+        parse_changes_datetime("2026-04-14T00:00:00")
     except ValueError as exc:
         assert "Expected: YYYY-MM-DDTHH:MM:SSZ" in str(exc)
     else:
         raise AssertionError("bare timestamp must be rejected")
 
 
-def test_parse_datetime_rejects_malformed_timestamp():
+def test_parse_changes_datetime_rejects_malformed_timestamp():
     try:
-        parse_datetime("2026-04-14 00:00:00Z")
+        parse_changes_datetime("2026-04-14 00:00:00Z")
     except ValueError as exc:
         assert "Expected: YYYY-MM-DDTHH:MM:SSZ" in str(exc)
     else:

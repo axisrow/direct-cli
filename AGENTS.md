@@ -88,6 +88,7 @@ direct changes check-campaigns --timestamp 2026-04-14T00:00:00Z
 Do not use:
 
 ```bash
+direct changes check-campaigns --timestamp 2026-04-14T00:00:00
 direct changes check-campaigns --timestamp "2026-04-14 00:00:00"
 ```
 

@@ -166,7 +166,7 @@ def parse_date(date_str: str) -> str:
         raise ValueError(f"Invalid date format: {date_str}. Expected: YYYY-MM-DD")
 
 
-def parse_datetime(datetime_str: str) -> str:
+def parse_changes_datetime(datetime_str: str) -> str:
     """Parse Yandex Direct Changes datetime in API wire format."""
     try:
         datetime.strptime(datetime_str, "%Y-%m-%dT%H:%M:%SZ")
