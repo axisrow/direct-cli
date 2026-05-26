@@ -86,6 +86,23 @@ CPM_BANNER_NETWORK_STRATEGIES = [
     "CP_AVERAGE_CPV",
     "WB_AVERAGE_CPV",
 ]
+TEXT_CAMPAIGN_SEARCH_STRATEGIES = [
+    "AVERAGE_CPC",
+    "AVERAGE_CPA",
+    "PAY_FOR_CONVERSION",
+    "WB_MAXIMUM_CONVERSION_RATE",
+    "HIGHEST_POSITION",
+    "IMPRESSIONS_BELOW_SEARCH",
+    "SERVING_OFF",
+    "WB_MAXIMUM_CLICKS",
+    "WEEKLY_CLICK_PACKAGE",
+    "AVERAGE_ROI",
+    "AVERAGE_CRR",
+    "PAY_FOR_CONVERSION_CRR",
+    "AVERAGE_CPA_MULTIPLE_GOALS",
+    "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
+    "MAX_PROFIT",
+]
 MOBILE_APP_SEARCH_STRATEGIES = [
     "HIGHEST_POSITION",
     "WB_MAXIMUM_CLICKS",
@@ -346,6 +363,52 @@ def _apply_cpa_strategy_fields(
         _place_multiple_goals("Network", network_subtype)
     else:
         _place("Network", network_subtype)
+
+
+def _build_text_campaign_search_base(
+    *,
+    search_strategy: Optional[str],
+    search_placement_search_results: Optional[str],
+    search_placement_product_gallery: Optional[str],
+    search_placement_dynamic_places: Optional[str],
+    include_default: bool,
+) -> Optional[dict]:
+    """Build the base TextCampaign.BiddingStrategy.Search container."""
+    placement_values = {
+        "--search-placement-search-results": search_placement_search_results,
+        "--search-placement-product-gallery": search_placement_product_gallery,
+        "--search-placement-dynamic-places": search_placement_dynamic_places,
+    }
+    has_placement = any(value is not None for value in placement_values.values())
+    if not include_default and search_strategy is None:
+        if has_placement:
+            raise click.UsageError(
+                "TextCampaign search placement flags require --search-strategy"
+            )
+        return None
+    if has_placement and search_strategy is None:
+        raise click.UsageError(
+            "TextCampaign search placement flags require --search-strategy"
+        )
+
+    normalized_strategy = (search_strategy or "HIGHEST_POSITION").upper()
+    if normalized_strategy not in TEXT_CAMPAIGN_SEARCH_STRATEGIES:
+        raise click.UsageError(
+            "--search-strategy for TEXT_CAMPAIGN must be one of "
+            f"{', '.join(TEXT_CAMPAIGN_SEARCH_STRATEGIES)}"
+        )
+
+    search: dict = {"BiddingStrategyType": normalized_strategy}
+    placement_types: dict = {}
+    if search_placement_search_results is not None:
+        placement_types["SearchResults"] = search_placement_search_results.upper()
+    if search_placement_product_gallery is not None:
+        placement_types["ProductGallery"] = search_placement_product_gallery.upper()
+    if search_placement_dynamic_places is not None:
+        placement_types["DynamicPlaces"] = search_placement_dynamic_places.upper()
+    if placement_types:
+        search["PlacementTypes"] = placement_types
+    return search
 
 
 @click.group()
@@ -1645,6 +1708,21 @@ def get(
 @click.option("--search-strategy", help="Search bidding strategy type")
 @click.option("--network-strategy", help="Network bidding strategy type")
 @click.option(
+    "--search-placement-search-results",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="TextCampaign Search PlacementTypes.SearchResults",
+)
+@click.option(
+    "--search-placement-product-gallery",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="TextCampaign Search PlacementTypes.ProductGallery",
+)
+@click.option(
+    "--search-placement-dynamic-places",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="TextCampaign Search PlacementTypes.DynamicPlaces",
+)
+@click.option(
     "--filter-average-cpc",
     type=MICRO_RUBLES,
     help="Smart campaign filter average CPC in micro-rubles",
@@ -2028,6 +2106,9 @@ def add(
     settings,
     search_strategy,
     network_strategy,
+    search_placement_search_results,
+    search_placement_product_gallery,
+    search_placement_dynamic_places,
     filter_average_cpc,
     counter_id,
     counter_ids,
@@ -2147,6 +2228,9 @@ def add(
                 "--setting",
                 "--search-strategy",
                 "--network-strategy",
+                "--search-placement-search-results",
+                "--search-placement-product-gallery",
+                "--search-placement-dynamic-places",
                 "--tracking-params",
                 "--relevant-keywords-budget-percent",
                 "--relevant-keywords-mode",
@@ -2253,6 +2337,11 @@ def add(
                 "--setting": list(settings) or None,
                 "--search-strategy": search_strategy,
                 "--network-strategy": network_strategy,
+                "--search-placement-search-results": search_placement_search_results,
+                "--search-placement-product-gallery": (
+                    search_placement_product_gallery
+                ),
+                "--search-placement-dynamic-places": search_placement_dynamic_places,
                 "--filter-average-cpc": filter_average_cpc,
                 "--counter-id": counter_id,
                 "--counter-ids": counter_ids,
@@ -2440,6 +2529,11 @@ def add(
             package_incompatible = {
                 "--search-strategy": search_strategy,
                 "--network-strategy": network_strategy,
+                "--search-placement-search-results": search_placement_search_results,
+                "--search-placement-product-gallery": (
+                    search_placement_product_gallery
+                ),
+                "--search-placement-dynamic-places": search_placement_dynamic_places,
                 "--priority-goals": priority_goals,
                 "--goal-id": goal_id,
                 "--average-cpa": average_cpa,
@@ -2542,10 +2636,15 @@ def add(
             if package_bidding_strategy_obj is not None:
                 text_block["PackageBiddingStrategy"] = package_bidding_strategy_obj
             else:
+                text_search = _build_text_campaign_search_base(
+                    search_strategy=search_strategy,
+                    search_placement_search_results=search_placement_search_results,
+                    search_placement_product_gallery=(search_placement_product_gallery),
+                    search_placement_dynamic_places=search_placement_dynamic_places,
+                    include_default=True,
+                )
                 text_block["BiddingStrategy"] = {
-                    "Search": {
-                        "BiddingStrategyType": (search_strategy or "HIGHEST_POSITION")
-                    },
+                    "Search": text_search,
                     "Network": {
                         "BiddingStrategyType": (network_strategy or "SERVING_OFF")
                     },
@@ -2799,6 +2898,21 @@ def add(
 )
 @click.option("--search-strategy", help="Search bidding strategy type")
 @click.option("--network-strategy", help="Network bidding strategy type")
+@click.option(
+    "--search-placement-search-results",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="TextCampaign Search PlacementTypes.SearchResults",
+)
+@click.option(
+    "--search-placement-product-gallery",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="TextCampaign Search PlacementTypes.ProductGallery",
+)
+@click.option(
+    "--search-placement-dynamic-places",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="TextCampaign Search PlacementTypes.DynamicPlaces",
+)
 @click.option("--counter-id", type=int, help="SmartCampaign.CounterId")
 @click.option(
     "--counter-ids",
@@ -3172,6 +3286,9 @@ def update(
     settings,
     search_strategy,
     network_strategy,
+    search_placement_search_results,
+    search_placement_product_gallery,
+    search_placement_dynamic_places,
     counter_id,
     counter_ids,
     dynamic_placement_search_results,
@@ -3331,6 +3448,9 @@ def update(
             "--setting": list(settings) or None,
             "--search-strategy": search_strategy,
             "--network-strategy": network_strategy,
+            "--search-placement-search-results": search_placement_search_results,
+            "--search-placement-product-gallery": search_placement_product_gallery,
+            "--search-placement-dynamic-places": search_placement_dynamic_places,
             "--counter-id": counter_id,
             "--counter-ids": counter_ids,
             "--dynamic-placement-search-results": dynamic_placement_search_results,
@@ -3427,6 +3547,10 @@ def update(
         if campaign_type_norm is not None:
             text_campaign_flags = {
                 "--setting",
+                "--search-strategy",
+                "--search-placement-search-results",
+                "--search-placement-product-gallery",
+                "--search-placement-dynamic-places",
                 "--counter-ids",
                 "--priority-goals",
                 "--relevant-keywords-budget-percent",
@@ -3617,6 +3741,21 @@ def update(
                     package_incompatible = {
                         "--priority-goals": priority_goals,
                     }
+                    if not is_unified and not is_dynamic:
+                        package_incompatible.update(
+                            {
+                                "--search-strategy": search_strategy,
+                                "--search-placement-search-results": (
+                                    search_placement_search_results
+                                ),
+                                "--search-placement-product-gallery": (
+                                    search_placement_product_gallery
+                                ),
+                                "--search-placement-dynamic-places": (
+                                    search_placement_dynamic_places
+                                ),
+                            }
+                        )
                     if is_unified:
                         package_incompatible.update(
                             {
@@ -3635,6 +3774,22 @@ def update(
                             f"combined with {', '.join(sorted(provided))}"
                         )
                     sub_block["PackageBiddingStrategy"] = package_bidding_strategy_obj
+                elif not is_unified and not is_dynamic:
+                    text_search = _build_text_campaign_search_base(
+                        search_strategy=search_strategy,
+                        search_placement_search_results=(
+                            search_placement_search_results
+                        ),
+                        search_placement_product_gallery=(
+                            search_placement_product_gallery
+                        ),
+                        search_placement_dynamic_places=(
+                            search_placement_dynamic_places
+                        ),
+                        include_default=False,
+                    )
+                    if text_search is not None:
+                        sub_block["BiddingStrategy"] = {"Search": text_search}
                 negative_keyword_shared_set_ids_obj = _array_of_integer_option(
                     "--negative-keyword-shared-set-ids",
                     negative_keyword_shared_set_ids,

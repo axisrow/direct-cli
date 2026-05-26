@@ -2180,6 +2180,51 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("vcards", "add", "ContactPerson"): {"--contact-person"},
 }
 
+for _campaign_op in ("add", "update"):
+    _text_search_placement_flags = {
+        "--search-placement-search-results",
+        "--search-placement-product-gallery",
+        "--search-placement-dynamic-places",
+    }
+    _text_search_flags = {"--search-strategy"} | _text_search_placement_flags
+    _text_bidding_strategy_flags = set(_text_search_flags)
+    if _campaign_op == "add":
+        _text_bidding_strategy_flags |= {"--network-strategy"}
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("campaigns", _campaign_op, "TextCampaign.BiddingStrategy")
+    ] = _text_bidding_strategy_flags
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("campaigns", _campaign_op, "TextCampaign.BiddingStrategy.Search")
+    ] = _text_search_flags
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        (
+            "campaigns",
+            _campaign_op,
+            "TextCampaign.BiddingStrategy.Search.BiddingStrategyType",
+        )
+    ] = {"--search-strategy"}
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        (
+            "campaigns",
+            _campaign_op,
+            "TextCampaign.BiddingStrategy.Search.PlacementTypes",
+        )
+    ] = _text_search_placement_flags
+    for _path, _flag in {
+        "BiddingStrategy.Search.PlacementTypes.SearchResults": (
+            "--search-placement-search-results"
+        ),
+        "BiddingStrategy.Search.PlacementTypes.ProductGallery": (
+            "--search-placement-product-gallery"
+        ),
+        "BiddingStrategy.Search.PlacementTypes.DynamicPlaces": (
+            "--search-placement-dynamic-places"
+        ),
+    }.items():
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            ("campaigns", _campaign_op, f"TextCampaign.{_path}")
+        ] = {_flag}
+
 for strategy_type, options in STRATEGY_FIELD_OPTIONS.items():
     OPTIONAL_FIELD_CLI_OPTIONS[("strategies", "add", strategy_type)] = {"--type"}
     for param_name, wsdl_field in options.items():
@@ -2962,15 +3007,15 @@ OPTIONAL_FIELD_DEFAULT_FOLLOWUPS: dict[tuple[str, str], dict[str, str]] = {
 }
 
 OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]] = {
-    ("campaigns", "add", "TextCampaign.BiddingStrategy"): {
+    ("campaigns", "add", "TextCampaign.BiddingStrategy.Network"): {
         "status": "missing_followup",
-        "issue": "#290",
-        "note": "Shared campaign BiddingStrategy builder needs typed support.",
+        "issue": "#364",
+        "note": "TextCampaign Network BiddingStrategy needs typed support.",
     },
-    ("campaigns", "update", "TextCampaign.BiddingStrategy"): {
+    ("campaigns", "update", "TextCampaign.BiddingStrategy.Network"): {
         "status": "missing_followup",
-        "issue": "#290",
-        "note": "Shared campaign BiddingStrategy builder needs typed support.",
+        "issue": "#364",
+        "note": "TextCampaign Network BiddingStrategy needs typed support.",
     },
     ("campaigns", "add", "UnifiedCampaign.BiddingStrategy"): {
         "status": "missing_followup",
@@ -3039,6 +3084,33 @@ OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]
         "note": "Shared campaign BiddingStrategy builder needs typed support.",
     },
 }
+
+for _campaign_op in ("add", "update"):
+    for _strategy_subtype in (
+        "WbMaximumClicks",
+        "WbMaximumConversionRate",
+        "AverageCpc",
+        "AverageCpa",
+        "PayForConversion",
+        "WeeklyClickPackage",
+        "AverageRoi",
+        "AverageCrr",
+        "PayForConversionCrr",
+        "AverageCpaMultipleGoals",
+        "PayForConversionMultipleGoals",
+        "MaxProfit",
+    ):
+        OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS[
+            (
+                "campaigns",
+                _campaign_op,
+                f"TextCampaign.BiddingStrategy.Search.{_strategy_subtype}",
+            )
+        ] = {
+            "status": "missing_followup",
+            "issue": "#361",
+            "note": "TextCampaign Search strategy subtype fields need typed support.",
+        }
 
 OPTIONAL_FIELD_CHILD_COMPONENT_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]] = (
     {}

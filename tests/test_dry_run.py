@@ -5378,6 +5378,69 @@ def test_campaigns_add_priority_goals_payload():
     assert search["AverageCpaMultipleGoals"] == {"BidCeiling": 1000000000}
 
 
+def test_campaigns_add_text_search_placement_payload():
+    body = _dry_run(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "HIGHEST_POSITION",
+        "--search-placement-search-results",
+        "YES",
+        "--search-placement-product-gallery",
+        "NO",
+        "--search-placement-dynamic-places",
+        "YES",
+    )
+    search = body["params"]["Campaigns"][0]["TextCampaign"]["BiddingStrategy"]["Search"]
+    assert search == {
+        "BiddingStrategyType": "HIGHEST_POSITION",
+        "PlacementTypes": {
+            "SearchResults": "YES",
+            "ProductGallery": "NO",
+            "DynamicPlaces": "YES",
+        },
+    }
+
+
+def test_campaigns_update_text_search_placement_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "TEXT_CAMPAIGN",
+        "--search-strategy",
+        "SERVING_OFF",
+        "--search-placement-product-gallery",
+        "NO",
+    )
+    text = body["params"]["Campaigns"][0]["TextCampaign"]
+    assert text["BiddingStrategy"]["Search"] == {
+        "BiddingStrategyType": "SERVING_OFF",
+        "PlacementTypes": {"ProductGallery": "NO"},
+    }
+
+
+def test_campaigns_add_text_search_placement_requires_strategy():
+    result = _rejected(
+        *_cpa_base_args(),
+        "--search-placement-search-results",
+        "YES",
+    )
+    assert (
+        "TextCampaign search placement flags require --search-strategy" in result.output
+    )
+
+
+def test_campaigns_add_text_search_rejects_unknown_strategy():
+    result = _rejected(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "BROKEN",
+    )
+    assert "--search-strategy for TEXT_CAMPAIGN must be one of" in result.output
+
+
 def test_campaigns_add_counter_ids_payload():
     body = _dry_run(
         *_cpa_base_args(),
@@ -6399,6 +6462,27 @@ def test_campaigns_help_exposes_mobile_app_network_strategy_flags():
     update_help = CliRunner().invoke(cli, ["campaigns", "update", "--help"]).output
     assert "--mobile-network-budget-type" not in add_help
     assert "--mobile-network-budget-type" in update_help
+
+
+def test_campaigns_help_exposes_text_search_placement_flags():
+    placement_flags = {
+        "--search-placement-search-results",
+        "--search-placement-product-gallery",
+        "--search-placement-dynamic-places",
+    }
+    out_of_scope_flags = {
+        "--search-weekly-spend-limit",
+        "--search-budget-type",
+        "--search-average-cpa",
+        "--search-crr",
+    }
+    for command in ("add", "update"):
+        result = CliRunner().invoke(cli, ["campaigns", command, "--help"])
+        assert result.exit_code == 0
+        for flag in placement_flags:
+            assert flag in result.output
+        for flag in out_of_scope_flags:
+            assert flag not in result.output
 
 
 def test_campaigns_add_text_tracking_params_payload():
