@@ -88,6 +88,7 @@ CPM_BANNER_NETWORK_STRATEGIES = [
 ]
 MOBILE_APP_SEARCH_STRATEGIES = [
     "HIGHEST_POSITION",
+    "IMPRESSIONS_BELOW_SEARCH",
     "WB_MAXIMUM_CLICKS",
     "WB_MAXIMUM_APP_INSTALLS",
     "AVERAGE_CPC",
@@ -889,6 +890,17 @@ def _build_mobile_app_search_strategy(
             raise click.UsageError(
                 f"{normalized_strategy} does not accept --mobile-search-budget-type"
             )
+        normalized_budget_type = budget_type.upper()
+        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET" and not custom_period_flags:
+            raise click.UsageError(
+                "--mobile-search-budget-type CUSTOM_PERIOD_BUDGET requires "
+                "full CustomPeriodBudget flags"
+            )
+        if normalized_budget_type == "WEEKLY_BUDGET" and weekly_spend_limit is None:
+            raise click.UsageError(
+                "--mobile-search-budget-type WEEKLY_BUDGET requires "
+                "--mobile-search-weekly-spend-limit"
+            )
     if (
         subtype == "WeeklyClickPackage"
         and average_cpc is not None
@@ -948,7 +960,12 @@ def _build_mobile_app_search_strategy(
             "AutoContinue": custom_period_auto_continue.upper(),
         }
     if budget_type is not None:
-        block["BudgetType"] = budget_type.upper()
+        normalized_budget_type = budget_type.upper()
+        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET":
+            block["WeeklySpendLimit"] = None
+        elif normalized_budget_type == "WEEKLY_BUDGET":
+            block["CustomPeriodBudget"] = None
+        block["BudgetType"] = normalized_budget_type
     if block:
         search[subtype] = block
     return search

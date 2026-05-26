@@ -6550,6 +6550,28 @@ def test_campaigns_add_mobile_app_wb_maximum_clicks_custom_period_payload():
     }
 
 
+def test_campaigns_update_mobile_app_impressions_below_search_strategy_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "MOBILE_APP_CAMPAIGN",
+        "--search-strategy",
+        "IMPRESSIONS_BELOW_SEARCH",
+    )
+    campaign = body["params"]["Campaigns"][0]
+    assert campaign == {
+        "Id": 123,
+        "MobileAppCampaign": {
+            "BiddingStrategy": {
+                "Search": {"BiddingStrategyType": "IMPRESSIONS_BELOW_SEARCH"}
+            }
+        },
+    }
+
+
 def test_campaigns_add_mobile_app_rejects_missing_required_search_field():
     result = _rejected(
         "campaigns",
@@ -6993,12 +7015,67 @@ def test_campaigns_update_mobile_app_wb_maximum_clicks_search_payload():
                             "EndDate": "2026-06-30",
                             "AutoContinue": "YES",
                         },
+                        "WeeklySpendLimit": None,
                         "BudgetType": "CUSTOM_PERIOD_BUDGET",
                     },
                 }
             }
         },
     }
+
+
+def test_campaigns_update_mobile_app_average_cpc_weekly_budget_clears_custom_period():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "MOBILE_APP_CAMPAIGN",
+        "--search-strategy",
+        "AVERAGE_CPC",
+        "--mobile-search-average-cpc",
+        "5",
+        "--mobile-search-weekly-spend-limit",
+        "1000",
+        "--mobile-search-budget-type",
+        "WEEKLY_BUDGET",
+    )
+    campaign = body["params"]["Campaigns"][0]
+    assert campaign == {
+        "Id": 123,
+        "MobileAppCampaign": {
+            "BiddingStrategy": {
+                "Search": {
+                    "BiddingStrategyType": "AVERAGE_CPC",
+                    "AverageCpc": {
+                        "AverageCpc": 5000000,
+                        "WeeklySpendLimit": 1000000000,
+                        "CustomPeriodBudget": None,
+                        "BudgetType": "WEEKLY_BUDGET",
+                    },
+                }
+            }
+        },
+    }
+
+
+def test_campaigns_update_mobile_app_rejects_budget_type_without_matching_budget():
+    result = _rejected(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "MOBILE_APP_CAMPAIGN",
+        "--search-strategy",
+        "WB_MAXIMUM_CLICKS",
+        "--mobile-search-budget-type",
+        "WEEKLY_BUDGET",
+    )
+    assert "WEEKLY_BUDGET requires --mobile-search-weekly-spend-limit" in (
+        result.output
+    )
 
 
 def test_campaigns_update_mobile_app_rejects_budget_type_without_supported_strategy():
