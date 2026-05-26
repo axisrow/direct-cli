@@ -2528,6 +2528,120 @@ for _campaign_op in ("add", "update"):
         OPTIONAL_FIELD_CLI_OPTIONS[
             ("campaigns", _campaign_op, f"MobileAppCampaign.{_path}")
         ] = {"--negative-keyword-shared-set-ids"}
+    _mobile_search_flags = {
+        "--search-strategy",
+        "--mobile-search-weekly-spend-limit",
+        "--mobile-search-bid-ceiling",
+        "--mobile-search-custom-period-spend-limit",
+        "--mobile-search-custom-period-start-date",
+        "--mobile-search-custom-period-end-date",
+        "--mobile-search-custom-period-auto-continue",
+        "--mobile-search-average-cpc",
+        "--mobile-search-average-cpi",
+        "--mobile-search-clicks-per-week",
+    }
+    if _campaign_op == "update":
+        _mobile_search_flags |= {"--mobile-search-budget-type"}
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("campaigns", _campaign_op, "MobileAppCampaign.BiddingStrategy.Search")
+    ] = _mobile_search_flags
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        (
+            "campaigns",
+            _campaign_op,
+            "MobileAppCampaign.BiddingStrategy.Search.BiddingStrategyType",
+        )
+    ] = {"--search-strategy"}
+    for _path in (
+        "BiddingStrategy.Search.WbMaximumClicks",
+        "BiddingStrategy.Search.WbMaximumAppInstalls",
+        "BiddingStrategy.Search.AverageCpc",
+        "BiddingStrategy.Search.AverageCpi",
+        "BiddingStrategy.Search.WeeklyClickPackage",
+        "BiddingStrategy.Search.PayForInstall",
+    ):
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            ("campaigns", _campaign_op, f"MobileAppCampaign.{_path}")
+        ] = _mobile_search_flags
+    for _path, _flag in {
+        "BiddingStrategy.Search.WbMaximumClicks.WeeklySpendLimit": (
+            "--mobile-search-weekly-spend-limit"
+        ),
+        "BiddingStrategy.Search.WbMaximumClicks.BidCeiling": (
+            "--mobile-search-bid-ceiling"
+        ),
+        "BiddingStrategy.Search.WbMaximumClicks.CustomPeriodBudget": (
+            "--mobile-search-custom-period-spend-limit"
+        ),
+        "BiddingStrategy.Search.WbMaximumClicks.CustomPeriodBudget.SpendLimit": (
+            "--mobile-search-custom-period-spend-limit"
+        ),
+        "BiddingStrategy.Search.WbMaximumClicks.CustomPeriodBudget.StartDate": (
+            "--mobile-search-custom-period-start-date"
+        ),
+        "BiddingStrategy.Search.WbMaximumClicks.CustomPeriodBudget.EndDate": (
+            "--mobile-search-custom-period-end-date"
+        ),
+        "BiddingStrategy.Search.WbMaximumClicks.CustomPeriodBudget.AutoContinue": (
+            "--mobile-search-custom-period-auto-continue"
+        ),
+        "BiddingStrategy.Search.WbMaximumAppInstalls.WeeklySpendLimit": (
+            "--mobile-search-weekly-spend-limit"
+        ),
+        "BiddingStrategy.Search.WbMaximumAppInstalls.BidCeiling": (
+            "--mobile-search-bid-ceiling"
+        ),
+        "BiddingStrategy.Search.AverageCpc.AverageCpc": ("--mobile-search-average-cpc"),
+        "BiddingStrategy.Search.AverageCpc.WeeklySpendLimit": (
+            "--mobile-search-weekly-spend-limit"
+        ),
+        "BiddingStrategy.Search.AverageCpc.CustomPeriodBudget": (
+            "--mobile-search-custom-period-spend-limit"
+        ),
+        "BiddingStrategy.Search.AverageCpc.CustomPeriodBudget.SpendLimit": (
+            "--mobile-search-custom-period-spend-limit"
+        ),
+        "BiddingStrategy.Search.AverageCpc.CustomPeriodBudget.StartDate": (
+            "--mobile-search-custom-period-start-date"
+        ),
+        "BiddingStrategy.Search.AverageCpc.CustomPeriodBudget.EndDate": (
+            "--mobile-search-custom-period-end-date"
+        ),
+        "BiddingStrategy.Search.AverageCpc.CustomPeriodBudget.AutoContinue": (
+            "--mobile-search-custom-period-auto-continue"
+        ),
+        "BiddingStrategy.Search.AverageCpi.AverageCpi": ("--mobile-search-average-cpi"),
+        "BiddingStrategy.Search.AverageCpi.WeeklySpendLimit": (
+            "--mobile-search-weekly-spend-limit"
+        ),
+        "BiddingStrategy.Search.AverageCpi.BidCeiling": ("--mobile-search-bid-ceiling"),
+        "BiddingStrategy.Search.WeeklyClickPackage.ClicksPerWeek": (
+            "--mobile-search-clicks-per-week"
+        ),
+        "BiddingStrategy.Search.WeeklyClickPackage.AverageCpc": (
+            "--mobile-search-average-cpc"
+        ),
+        "BiddingStrategy.Search.WeeklyClickPackage.BidCeiling": (
+            "--mobile-search-bid-ceiling"
+        ),
+        "BiddingStrategy.Search.PayForInstall.AverageCpi": (
+            "--mobile-search-average-cpi"
+        ),
+        "BiddingStrategy.Search.PayForInstall.WeeklySpendLimit": (
+            "--mobile-search-weekly-spend-limit"
+        ),
+    }.items():
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            ("campaigns", _campaign_op, f"MobileAppCampaign.{_path}")
+        ] = {_flag}
+    if _campaign_op == "update":
+        for _path in (
+            "BiddingStrategy.Search.WbMaximumClicks.BudgetType",
+            "BiddingStrategy.Search.AverageCpc.BudgetType",
+        ):
+            OPTIONAL_FIELD_CLI_OPTIONS[
+                ("campaigns", _campaign_op, f"MobileAppCampaign.{_path}")
+            ] = {"--mobile-search-budget-type"}
 
 for _campaign_op in ("add", "update"):
     OPTIONAL_FIELD_CLI_OPTIONS[("campaigns", _campaign_op, "CpmBannerCampaign")] = {

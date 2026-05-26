@@ -6354,6 +6354,29 @@ def test_campaigns_help_exposes_cpm_banner_optional_flags():
         assert "--video-target" in result.output
 
 
+def test_campaigns_help_exposes_mobile_app_search_strategy_flags():
+    common_flags = {
+        "--mobile-search-weekly-spend-limit",
+        "--mobile-search-bid-ceiling",
+        "--mobile-search-custom-period-spend-limit",
+        "--mobile-search-custom-period-start-date",
+        "--mobile-search-custom-period-end-date",
+        "--mobile-search-custom-period-auto-continue",
+        "--mobile-search-average-cpc",
+        "--mobile-search-average-cpi",
+        "--mobile-search-clicks-per-week",
+    }
+    for command in ("add", "update"):
+        result = CliRunner().invoke(cli, ["campaigns", command, "--help"])
+        assert result.exit_code == 0
+        for flag in common_flags:
+            assert flag in result.output
+    add_help = CliRunner().invoke(cli, ["campaigns", "add", "--help"]).output
+    update_help = CliRunner().invoke(cli, ["campaigns", "update", "--help"]).output
+    assert "--mobile-search-budget-type" not in add_help
+    assert "--mobile-search-budget-type" in update_help
+
+
 def test_campaigns_add_text_tracking_params_payload():
     body = _dry_run(
         *_cpa_base_args(),
@@ -6426,6 +6449,182 @@ def test_campaigns_add_mobile_app_campaign_optional_controls_payload():
         "Settings": [{"Option": "ADD_TO_FAVORITES", "Value": "YES"}],
         "NegativeKeywordSharedSetIds": {"Items": [10, 11]},
     }
+
+
+def test_campaigns_add_mobile_app_average_cpi_search_payload():
+    body = _dry_run(
+        "campaigns",
+        "add",
+        "--name",
+        "Mobile App CPI",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "MOBILE_APP_CAMPAIGN",
+        "--search-strategy",
+        "AVERAGE_CPI",
+        "--mobile-search-average-cpi",
+        "5",
+        "--mobile-search-weekly-spend-limit",
+        "1000",
+        "--mobile-search-bid-ceiling",
+        "12.5",
+    )
+    mobile = body["params"]["Campaigns"][0]["MobileAppCampaign"]
+    assert mobile["BiddingStrategy"] == {
+        "Search": {
+            "BiddingStrategyType": "AVERAGE_CPI",
+            "AverageCpi": {
+                "AverageCpi": 5000000,
+                "WeeklySpendLimit": 1000000000,
+                "BidCeiling": 12500000,
+            },
+        },
+        "Network": {"BiddingStrategyType": "SERVING_OFF"},
+    }
+
+
+def test_campaigns_add_mobile_app_weekly_click_package_search_payload():
+    body = _dry_run(
+        "campaigns",
+        "add",
+        "--name",
+        "Mobile App Click Package",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "MOBILE_APP_CAMPAIGN",
+        "--search-strategy",
+        "WEEKLY_CLICK_PACKAGE",
+        "--mobile-search-clicks-per-week",
+        "100",
+        "--mobile-search-average-cpc",
+        "7.25",
+    )
+    search = body["params"]["Campaigns"][0]["MobileAppCampaign"]["BiddingStrategy"][
+        "Search"
+    ]
+    assert search == {
+        "BiddingStrategyType": "WEEKLY_CLICK_PACKAGE",
+        "WeeklyClickPackage": {
+            "ClicksPerWeek": 100,
+            "AverageCpc": 7250000,
+        },
+    }
+
+
+def test_campaigns_add_mobile_app_wb_maximum_clicks_custom_period_payload():
+    body = _dry_run(
+        "campaigns",
+        "add",
+        "--name",
+        "Mobile App Custom Period",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "MOBILE_APP_CAMPAIGN",
+        "--search-strategy",
+        "WB_MAXIMUM_CLICKS",
+        "--mobile-search-custom-period-spend-limit",
+        "1000",
+        "--mobile-search-custom-period-start-date",
+        "2026-06-01",
+        "--mobile-search-custom-period-end-date",
+        "2026-06-30",
+        "--mobile-search-custom-period-auto-continue",
+        "NO",
+    )
+    search = body["params"]["Campaigns"][0]["MobileAppCampaign"]["BiddingStrategy"][
+        "Search"
+    ]
+    assert search == {
+        "BiddingStrategyType": "WB_MAXIMUM_CLICKS",
+        "WbMaximumClicks": {
+            "CustomPeriodBudget": {
+                "SpendLimit": 1000000000,
+                "StartDate": "2026-06-01",
+                "EndDate": "2026-06-30",
+                "AutoContinue": "NO",
+            }
+        },
+    }
+
+
+def test_campaigns_add_mobile_app_rejects_missing_required_search_field():
+    result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "Mobile App Missing CPI",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "MOBILE_APP_CAMPAIGN",
+        "--search-strategy",
+        "PAY_FOR_INSTALL",
+    )
+    assert "PAY_FOR_INSTALL requires --mobile-search-average-cpi" in result.output
+
+
+def test_campaigns_add_mobile_app_rejects_search_detail_without_strategy():
+    result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "Mobile App Detail",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "MOBILE_APP_CAMPAIGN",
+        "--mobile-search-average-cpc",
+        "5",
+    )
+    assert "MobileAppCampaign search detail flags require --search-strategy" in (
+        result.output
+    )
+
+
+def test_campaigns_add_mobile_app_rejects_partial_custom_period_budget():
+    result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "Mobile App Partial Custom Period",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "MOBILE_APP_CAMPAIGN",
+        "--search-strategy",
+        "AVERAGE_CPC",
+        "--mobile-search-average-cpc",
+        "5",
+        "--mobile-search-custom-period-spend-limit",
+        "1000",
+    )
+    assert "CustomPeriodBudget requires all custom-period flags" in result.output
+    assert "--mobile-search-custom-period-start-date" in result.output
+
+
+def test_campaigns_add_mobile_app_rejects_weekly_click_package_bid_conflict():
+    result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "Mobile App Click Conflict",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "MOBILE_APP_CAMPAIGN",
+        "--search-strategy",
+        "WEEKLY_CLICK_PACKAGE",
+        "--mobile-search-clicks-per-week",
+        "100",
+        "--mobile-search-average-cpc",
+        "7.25",
+        "--mobile-search-bid-ceiling",
+        "10",
+    )
+    assert "cannot combine --mobile-search-average-cpc" in result.output
 
 
 def test_campaigns_add_cpm_banner_campaign_optional_controls_payload():
@@ -6757,6 +6956,65 @@ def test_campaigns_update_mobile_app_campaign_optional_controls_payload():
             "NegativeKeywordSharedSetIds": {"Items": [10, 11]},
         },
     }
+
+
+def test_campaigns_update_mobile_app_wb_maximum_clicks_search_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "MOBILE_APP_CAMPAIGN",
+        "--search-strategy",
+        "WB_MAXIMUM_CLICKS",
+        "--mobile-search-custom-period-spend-limit",
+        "1000",
+        "--mobile-search-custom-period-start-date",
+        "2026-06-01",
+        "--mobile-search-custom-period-end-date",
+        "2026-06-30",
+        "--mobile-search-custom-period-auto-continue",
+        "YES",
+        "--mobile-search-budget-type",
+        "CUSTOM_PERIOD_BUDGET",
+    )
+    campaign = body["params"]["Campaigns"][0]
+    assert campaign == {
+        "Id": 123,
+        "MobileAppCampaign": {
+            "BiddingStrategy": {
+                "Search": {
+                    "BiddingStrategyType": "WB_MAXIMUM_CLICKS",
+                    "WbMaximumClicks": {
+                        "CustomPeriodBudget": {
+                            "SpendLimit": 1000000000,
+                            "StartDate": "2026-06-01",
+                            "EndDate": "2026-06-30",
+                            "AutoContinue": "YES",
+                        },
+                        "BudgetType": "CUSTOM_PERIOD_BUDGET",
+                    },
+                }
+            }
+        },
+    }
+
+
+def test_campaigns_update_mobile_app_rejects_budget_type_without_supported_strategy():
+    result = _rejected(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "MOBILE_APP_CAMPAIGN",
+        "--search-strategy",
+        "AVERAGE_CPI",
+        "--mobile-search-budget-type",
+        "WEEKLY_BUDGET",
+    )
+    assert "AVERAGE_CPI does not accept --mobile-search-budget-type" in result.output
 
 
 def test_campaigns_update_cpm_banner_campaign_optional_controls_payload():
