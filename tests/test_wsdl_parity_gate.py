@@ -1818,6 +1818,7 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
         "--smart-search-cp-auto-continue",
         "--smart-search-exploration-min",
         "--smart-search-exploration-min-custom",
+        "--smart-search-budget-type",
     },
     ("advideos", "add", "Url"): {"--url"},
     ("advideos", "add", "VideoData"): {"--video-data", "--video-file"},
@@ -2623,9 +2624,16 @@ _smart_search_flags = {
     "--smart-search-exploration-min-custom",
 }
 for _campaign_op in ("add", "update"):
+    # --smart-search-budget-type only exists on update (WSDL BudgetType lives
+    # on get-side Strategy* used by SmartCampaignUpdateItem).
+    _ops_flags = (
+        _smart_search_flags | {"--smart-search-budget-type"}
+        if _campaign_op == "update"
+        else _smart_search_flags
+    )
     OPTIONAL_FIELD_CLI_OPTIONS[
         ("campaigns", _campaign_op, "SmartCampaign.BiddingStrategy.Search")
-    ] = _smart_search_flags
+    ] = _ops_flags
     OPTIONAL_FIELD_CLI_OPTIONS[
         (
             "campaigns",
@@ -2650,7 +2658,18 @@ for _campaign_op in ("add", "update"):
                 _campaign_op,
                 f"SmartCampaign.BiddingStrategy.Search.{_subtype}",
             )
-        ] = _smart_search_flags
+        ] = _ops_flags
+        # BudgetType on update-only get-side Strategy* (campaigns.xml
+        # 858-929). Each subtype exposes a BudgetType leaf.
+        if _campaign_op == "update":
+            OPTIONAL_FIELD_CLI_OPTIONS[
+                (
+                    "campaigns",
+                    _campaign_op,
+                    f"SmartCampaign.BiddingStrategy.Search.{_subtype}."
+                    "BudgetType",
+                )
+            ] = {"--smart-search-budget-type"}
     # Subtype-leaf paths → owning CLI flag (per-field).
     for _subtype_path, _flag in {
         # AverageCpcPerCampaign

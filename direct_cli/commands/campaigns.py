@@ -1719,6 +1719,29 @@ def add(
                 "--filter-average-cpc": filter_average_cpc,
                 "--priority-goals": priority_goals,
                 "--attribution-model": attribution_model,
+                # SmartCampaign.BiddingStrategy.Search typed flags (#367) —
+                # mutually exclusive with PackageBiddingStrategy. Without these
+                # entries the add path silently drops user input.
+                "--smart-search-average-cpc": smart_search_average_cpc,
+                "--smart-search-filter-average-cpc": smart_search_filter_average_cpc,
+                "--smart-search-average-cpa": smart_search_average_cpa,
+                "--smart-search-filter-average-cpa": smart_search_filter_average_cpa,
+                "--smart-search-cpa": smart_search_cpa,
+                "--smart-search-goal-id": smart_search_goal_id,
+                "--smart-search-weekly-spend-limit": smart_search_weekly_spend_limit,
+                "--smart-search-bid-ceiling": smart_search_bid_ceiling,
+                "--smart-search-reserve-return": smart_search_reserve_return,
+                "--smart-search-roi-coef": smart_search_roi_coef,
+                "--smart-search-profitability": smart_search_profitability,
+                "--smart-search-crr": smart_search_crr,
+                "--smart-search-cp-spend-limit": smart_search_cp_spend_limit,
+                "--smart-search-cp-start-date": smart_search_cp_start_date,
+                "--smart-search-cp-end-date": smart_search_cp_end_date,
+                "--smart-search-cp-auto-continue": smart_search_cp_auto_continue,
+                "--smart-search-exploration-min": smart_search_exploration_min,
+                "--smart-search-exploration-min-custom": (
+                    smart_search_exploration_min_custom
+                ),
             }
             provided = [
                 flag
@@ -1961,6 +1984,9 @@ def add(
                         smart_search_cp_auto_continue,
                         smart_search_exploration_min,
                         smart_search_exploration_min_custom,
+                        # --smart-search-budget-type is update-only, not
+                        # available on the add Click command. Pass None.
+                        None,
                         include_default=True,
                         is_update=False,
                     )
@@ -2538,6 +2564,14 @@ def add(
     ),
 )
 @click.option(
+    "--smart-search-budget-type",
+    type=click.Choice(BUDGET_TYPES, case_sensitive=False),
+    help=(
+        "SmartCampaign Search Strategy*.BudgetType (update-only WSDL field "
+        "on get-side Strategy*; campaigns.xml 858-929) (#367)"
+    ),
+)
+@click.option(
     "--notification",
     default=None,
     expose_value=False,
@@ -2724,6 +2758,7 @@ def update(
     smart_search_cp_auto_continue,
     smart_search_exploration_min,
     smart_search_exploration_min_custom,
+    smart_search_budget_type,
     client_info,
     sms_events,
     sms_time_from,
@@ -2927,6 +2962,7 @@ def update(
             "--smart-search-exploration-min-custom": (
                 smart_search_exploration_min_custom
             ),
+            "--smart-search-budget-type": smart_search_budget_type,
             "--tracking-params": tracking_params,
         }
         subtype_flags_provided = [
@@ -3030,6 +3066,7 @@ def update(
                 "--smart-search-cp-auto-continue",
                 "--smart-search-exploration-min",
                 "--smart-search-exploration-min-custom",
+                "--smart-search-budget-type",
             }
             mobile_app_campaign_flags = {
                 "--setting",
@@ -3290,6 +3327,7 @@ def update(
                         smart_search_cp_auto_continue,
                         smart_search_exploration_min,
                         smart_search_exploration_min_custom,
+                        smart_search_budget_type,
                         include_default=False,
                         is_update=True,
                     )

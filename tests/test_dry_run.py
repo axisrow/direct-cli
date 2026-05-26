@@ -5921,6 +5921,132 @@ def test_campaigns_update_smart_search_rejects_detail_without_strategy():
     assert "SmartCampaign search detail flags" in result.output
 
 
+def test_campaigns_add_rejects_smart_search_with_package_strategy():
+    # Regression for codex adversarial review: --smart-search-* flags must
+    # not be silently dropped when PackageBiddingStrategy is in use.
+    result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "Smart Package + Search bad",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--counter-id",
+        "123",
+        "--package-strategy-id",
+        "700",
+        "--package-platform-search",
+        "YES",
+        "--package-platform-network",
+        "YES",
+        "--smart-search-average-cpc",
+        "5000000",
+    )
+    assert "PackageBiddingStrategy" in result.output
+    assert "--smart-search-average-cpc" in result.output
+
+
+def test_campaigns_update_smart_search_budget_type_weekly_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "55",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--search-strategy",
+        "AVERAGE_CPC_PER_CAMPAIGN",
+        "--smart-search-weekly-spend-limit",
+        "40000000",
+        "--smart-search-budget-type",
+        "WEEKLY_BUDGET",
+    )
+    search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"]["Search"]
+    assert search == {
+        "BiddingStrategyType": "AVERAGE_CPC_PER_CAMPAIGN",
+        "AverageCpcPerCampaign": {
+            "WeeklySpendLimit": 40000000,
+            "CustomPeriodBudget": None,
+            "BudgetType": "WEEKLY_BUDGET",
+        },
+    }
+
+
+def test_campaigns_update_smart_search_budget_type_custom_period_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "55",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--search-strategy",
+        "AVERAGE_CPA_PER_FILTER",
+        "--smart-search-cp-spend-limit",
+        "100000000",
+        "--smart-search-cp-start-date",
+        "2026-06-01",
+        "--smart-search-cp-end-date",
+        "2026-06-30",
+        "--smart-search-cp-auto-continue",
+        "YES",
+        "--smart-search-budget-type",
+        "CUSTOM_PERIOD_BUDGET",
+    )
+    search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"]["Search"]
+    assert search == {
+        "BiddingStrategyType": "AVERAGE_CPA_PER_FILTER",
+        "AverageCpaPerFilter": {
+            "CustomPeriodBudget": {
+                "SpendLimit": 100000000,
+                "StartDate": "2026-06-01",
+                "EndDate": "2026-06-30",
+                "AutoContinue": "YES",
+            },
+            "WeeklySpendLimit": None,
+            "BudgetType": "CUSTOM_PERIOD_BUDGET",
+        },
+    }
+
+
+def test_campaigns_update_smart_search_budget_type_rejects_inconsistency():
+    result = _rejected(
+        "campaigns",
+        "update",
+        "--id",
+        "55",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--search-strategy",
+        "AVERAGE_CPC_PER_CAMPAIGN",
+        # WEEKLY_BUDGET but no --smart-search-weekly-spend-limit
+        "--smart-search-budget-type",
+        "WEEKLY_BUDGET",
+    )
+    assert "--smart-search-weekly-spend-limit" in result.output
+
+
+def test_campaigns_add_smart_search_budget_type_is_update_only():
+    result = _rejected(
+        *_smart_search_base(),
+        "--search-strategy",
+        "AVERAGE_CPC_PER_CAMPAIGN",
+        "--smart-search-average-cpc",
+        "5000000",
+        "--smart-search-budget-type",
+        "WEEKLY_BUDGET",
+    )
+    # The add command doesn't even register the flag (mirrors how
+    # --mobile-search-budget-type is update-only). Click rejects it as
+    # "No such option".
+    assert (
+        "--smart-search-budget-type" in result.output
+        or "No such option" in result.output
+    )
+
+
 def test_campaigns_add_rejects_smart_package_without_required_platforms():
     result = _rejected(
         "campaigns",

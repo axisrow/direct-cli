@@ -1258,6 +1258,7 @@ def build_smart_campaign_search_strategy(
     custom_period_auto_continue: Optional[str],
     exploration_min_budget: Optional[int],
     exploration_min_budget_custom: Optional[str],
+    budget_type: Optional[str] = None,
     *,
     include_default: bool,
     is_update: bool,
@@ -1296,6 +1297,7 @@ def build_smart_campaign_search_strategy(
         "--smart-search-cp-auto-continue": custom_period_auto_continue,
         "--smart-search-exploration-min": exploration_min_budget,
         "--smart-search-exploration-min-custom": exploration_min_budget_custom,
+        "--smart-search-budget-type": budget_type,
     }
     has_details = any(value is not None for value in detail_values.values())
     if not include_default and search_strategy is None:
@@ -1371,10 +1373,11 @@ def build_smart_campaign_search_strategy(
         missing = [
             flag for flag, value in exploration_values.items() if value is None
         ]
+        missing_str = ", ".join(sorted(missing))
         raise click.UsageError(
             "SmartCampaign Search ExplorationBudget requires both "
-            f"--smart-search-exploration-min and "
-            f"--smart-search-exploration-min-custom; missing {', '.join(sorted(missing))}"
+            "--smart-search-exploration-min and "
+            f"--smart-search-exploration-min-custom; missing {missing_str}"
         )
     if exploration_flags and subtype not in SMART_CAMPAIGN_SEARCH_FIELD_SUPPORT[
         "ExplorationBudget"
@@ -1475,6 +1478,32 @@ def build_smart_campaign_search_strategy(
                 exploration_min_budget_custom.upper()
             ),
         }
+    # BudgetType is only on the get-side Strategy* WSDL types
+    # (campaigns.xml 858-929), which SmartCampaignUpdateItem uses. The
+    # Strategy*Add types used by add do NOT declare BudgetType, so this
+    # flag is update-only.
+    if budget_type is not None:
+        if not is_update:
+            raise click.UsageError(
+                "--smart-search-budget-type is update-only "
+                "(WSDL BudgetType lives only on get-side Strategy*)"
+            )
+        normalized_budget_type = budget_type.upper()
+        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET" and not custom_period_flags:
+            raise click.UsageError(
+                "--smart-search-budget-type CUSTOM_PERIOD_BUDGET requires "
+                "full CustomPeriodBudget flags"
+            )
+        if normalized_budget_type == "WEEKLY_BUDGET" and weekly_spend_limit is None:
+            raise click.UsageError(
+                "--smart-search-budget-type WEEKLY_BUDGET requires "
+                "--smart-search-weekly-spend-limit"
+            )
+        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET":
+            block["WeeklySpendLimit"] = None
+        elif normalized_budget_type == "WEEKLY_BUDGET":
+            block["CustomPeriodBudget"] = None
+        block["BudgetType"] = normalized_budget_type
     if block:
         search[subtype] = block
     return search
