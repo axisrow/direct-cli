@@ -3112,6 +3112,52 @@ for _campaign_op in ("add", "update"):
             "note": "TextCampaign Search strategy subtype fields need typed support.",
         }
 
+# DynamicTextCampaign.BiddingStrategy.Network typed support landed in #365.
+# Mark the Network root and every Strategy*Add subtype prefix as supported so
+# the audit no longer routes Network rows to the parent #290 epic.
+for _campaign_op in ("add", "update"):
+    OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS[
+        (
+            "campaigns",
+            _campaign_op,
+            "DynamicTextCampaign.BiddingStrategy.Network",
+        )
+    ] = {
+        "status": "supported",
+        "issue": "#365",
+        "note": (
+            "DynamicTextCampaign.BiddingStrategy.Network typed flags "
+            "(--network-strategy + --dyn-network-*) cover every "
+            "DynamicTextCampaignNetworkStrategyTypeEnum value."
+        ),
+    }
+    for _strategy_subtype in (
+        "NetworkDefault",
+        "WbMaximumClicks",
+        "WbMaximumConversionRate",
+        "AverageCpc",
+        "AverageCpa",
+        "PayForConversion",
+        "WeeklyClickPackage",
+        "AverageRoi",
+        "AverageCrr",
+        "PayForConversionCrr",
+    ):
+        OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS[
+            (
+                "campaigns",
+                _campaign_op,
+                f"DynamicTextCampaign.BiddingStrategy.Network.{_strategy_subtype}",
+            )
+        ] = {
+            "status": "supported",
+            "issue": "#365",
+            "note": (
+                "DynamicTextCampaign Network strategy subtype fields "
+                "covered by typed --dyn-network-* flags."
+            ),
+        }
+
 OPTIONAL_FIELD_CHILD_COMPONENT_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]] = (
     {}
 )

@@ -8590,6 +8590,267 @@ def test_campaigns_update_dynamic_text_network_rejects_partial_strategy():
     assert dyn["BiddingStrategy"]["Network"] == {"BiddingStrategyType": "SERVING_OFF"}
 
 
+def test_campaigns_update_dynamic_text_network_default_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "2002",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--network-strategy",
+        "NETWORK_DEFAULT",
+        "--dyn-network-limit-percent",
+        "50",
+    )
+    network = body["params"]["Campaigns"][0]["DynamicTextCampaign"][
+        "BiddingStrategy"
+    ]["Network"]
+    assert network == {
+        "BiddingStrategyType": "NETWORK_DEFAULT",
+        "NetworkDefault": {"LimitPercent": 50},
+    }
+
+
+def test_campaigns_update_dynamic_text_network_wb_maximum_clicks_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "2003",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--network-strategy",
+        "WB_MAXIMUM_CLICKS",
+        "--dyn-network-weekly-spend-limit",
+        "700",
+        "--dyn-network-bid-ceiling",
+        "20",
+    )
+    network = body["params"]["Campaigns"][0]["DynamicTextCampaign"][
+        "BiddingStrategy"
+    ]["Network"]
+    assert network == {
+        "BiddingStrategyType": "WB_MAXIMUM_CLICKS",
+        "WbMaximumClicks": {
+            "WeeklySpendLimit": 700000000,
+            "BidCeiling": 20000000,
+        },
+    }
+
+
+def test_campaigns_update_dynamic_text_network_wb_maximum_conversion_rate_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "2004",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--network-strategy",
+        "WB_MAXIMUM_CONVERSION_RATE",
+        "--dyn-network-goal-id",
+        "111",
+        "--dyn-network-weekly-spend-limit",
+        "1200",
+    )
+    network = body["params"]["Campaigns"][0]["DynamicTextCampaign"][
+        "BiddingStrategy"
+    ]["Network"]
+    assert network == {
+        "BiddingStrategyType": "WB_MAXIMUM_CONVERSION_RATE",
+        "WbMaximumConversionRate": {
+            "GoalId": 111,
+            "WeeklySpendLimit": 1200000000,
+        },
+    }
+
+
+def test_campaigns_update_dynamic_text_network_average_cpa_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "2005",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--network-strategy",
+        "AVERAGE_CPA",
+        "--dyn-network-average-cpa",
+        "180",
+        "--dyn-network-goal-id",
+        "22",
+        "--dyn-network-bid-ceiling",
+        "15",
+    )
+    network = body["params"]["Campaigns"][0]["DynamicTextCampaign"][
+        "BiddingStrategy"
+    ]["Network"]
+    assert network == {
+        "BiddingStrategyType": "AVERAGE_CPA",
+        "AverageCpa": {
+            "AverageCpa": 180000000,
+            "GoalId": 22,
+            "BidCeiling": 15000000,
+        },
+    }
+
+
+def test_campaigns_update_dynamic_text_network_pay_for_conversion_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "2006",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--network-strategy",
+        "PAY_FOR_CONVERSION",
+        "--dyn-network-cpa",
+        "250",
+        "--dyn-network-goal-id",
+        "33",
+    )
+    network = body["params"]["Campaigns"][0]["DynamicTextCampaign"][
+        "BiddingStrategy"
+    ]["Network"]
+    assert network == {
+        "BiddingStrategyType": "PAY_FOR_CONVERSION",
+        "PayForConversion": {
+            "Cpa": 250000000,
+            "GoalId": 33,
+        },
+    }
+
+
+def test_campaigns_update_dynamic_text_network_average_roi_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "2007",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--network-strategy",
+        "AVERAGE_ROI",
+        "--dyn-network-reserve-return",
+        "40",
+        "--dyn-network-roi-coef",
+        "120",
+        "--dyn-network-goal-id",
+        "44",
+    )
+    network = body["params"]["Campaigns"][0]["DynamicTextCampaign"][
+        "BiddingStrategy"
+    ]["Network"]
+    assert network == {
+        "BiddingStrategyType": "AVERAGE_ROI",
+        "AverageRoi": {
+            "ReserveReturn": 40,
+            "RoiCoef": 120,
+            "GoalId": 44,
+        },
+    }
+
+
+def test_campaigns_update_dynamic_text_network_average_crr_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "2008",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--network-strategy",
+        "AVERAGE_CRR",
+        "--dyn-network-crr",
+        "20",
+        "--dyn-network-goal-id",
+        "55",
+    )
+    network = body["params"]["Campaigns"][0]["DynamicTextCampaign"][
+        "BiddingStrategy"
+    ]["Network"]
+    assert network == {
+        "BiddingStrategyType": "AVERAGE_CRR",
+        "AverageCrr": {
+            "Crr": 20,
+            "GoalId": 55,
+        },
+    }
+
+
+def test_campaigns_update_dynamic_text_network_pay_for_conversion_crr_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "2009",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--network-strategy",
+        "PAY_FOR_CONVERSION_CRR",
+        "--dyn-network-crr",
+        "15",
+        "--dyn-network-goal-id",
+        "66",
+    )
+    network = body["params"]["Campaigns"][0]["DynamicTextCampaign"][
+        "BiddingStrategy"
+    ]["Network"]
+    assert network == {
+        "BiddingStrategyType": "PAY_FOR_CONVERSION_CRR",
+        "PayForConversionCrr": {
+            "Crr": 15,
+            "GoalId": 66,
+        },
+    }
+
+
+def test_campaigns_update_dynamic_text_network_weekly_click_package_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "2010",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--network-strategy",
+        "WEEKLY_CLICK_PACKAGE",
+        "--dyn-network-clicks-per-week",
+        "350",
+        "--dyn-network-bid-ceiling",
+        "8",
+    )
+    network = body["params"]["Campaigns"][0]["DynamicTextCampaign"][
+        "BiddingStrategy"
+    ]["Network"]
+    assert network == {
+        "BiddingStrategyType": "WEEKLY_CLICK_PACKAGE",
+        "WeeklyClickPackage": {
+            "ClicksPerWeek": 350,
+            "BidCeiling": 8000000,
+        },
+    }
+
+
+def test_campaigns_update_dynamic_text_network_maximum_coverage_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "2011",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--network-strategy",
+        "MAXIMUM_COVERAGE",
+    )
+    network = body["params"]["Campaigns"][0]["DynamicTextCampaign"][
+        "BiddingStrategy"
+    ]["Network"]
+    assert network == {"BiddingStrategyType": "MAXIMUM_COVERAGE"}
+
+
 def test_campaigns_add_dynamic_text_network_rejects_dyn_flag_for_text_campaign():
     """#365: --dyn-network-* must be DynamicText-only (silent-data-loss gate)."""
     result = _rejected(
