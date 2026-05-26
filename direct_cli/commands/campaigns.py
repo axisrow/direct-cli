@@ -1642,6 +1642,42 @@ def add(
                 "--crr": crr,
                 "--bid-ceiling": bid_ceiling,
             }
+            if campaign_type_norm == "TEXT_CAMPAIGN":
+                # Issue #361: every typed Search-strategy detail flag must
+                # also conflict with PackageBiddingStrategy on TEXT_CAMPAIGN,
+                # otherwise text-search-* input would silently disappear
+                # when the user opts into a package strategy.
+                package_incompatible.update(
+                    {
+                        "--text-search-weekly-spend-limit": (
+                            text_search_weekly_spend_limit
+                        ),
+                        "--text-search-custom-period-spend-limit": (
+                            text_search_custom_period_spend_limit
+                        ),
+                        "--text-search-custom-period-start-date": (
+                            text_search_custom_period_start_date
+                        ),
+                        "--text-search-custom-period-end-date": (
+                            text_search_custom_period_end_date
+                        ),
+                        "--text-search-custom-period-auto-continue": (
+                            text_search_custom_period_auto_continue
+                        ),
+                        "--text-search-average-cpc": text_search_average_cpc,
+                        "--text-search-pay-cpa": text_search_pay_cpa,
+                        "--text-search-clicks-per-week": (text_search_clicks_per_week),
+                        "--text-search-reserve-return": (text_search_reserve_return),
+                        "--text-search-roi-coef": text_search_roi_coef,
+                        "--text-search-profitability": text_search_profitability,
+                        "--text-search-exploration-min-budget": (
+                            text_search_exploration_min_budget
+                        ),
+                        "--text-search-exploration-is-custom": (
+                            text_search_exploration_is_custom
+                        ),
+                    }
+                )
             if campaign_type_norm == "UNIFIED_CAMPAIGN":
                 package_incompatible.update(
                     {
@@ -3086,6 +3122,49 @@ def update(
                                 ),
                                 "--search-placement-dynamic-places": (
                                     search_placement_dynamic_places
+                                ),
+                                # Issue #361: TextCampaign Search-strategy
+                                # detail flags and the legacy CPA flags must
+                                # also conflict with PackageBiddingStrategy
+                                # on update so user input is never silently
+                                # dropped.
+                                "--goal-id": goal_id,
+                                "--average-cpa": average_cpa,
+                                "--crr": crr,
+                                "--bid-ceiling": bid_ceiling,
+                                "--text-search-weekly-spend-limit": (
+                                    text_search_weekly_spend_limit
+                                ),
+                                "--text-search-custom-period-spend-limit": (
+                                    text_search_custom_period_spend_limit
+                                ),
+                                "--text-search-custom-period-start-date": (
+                                    text_search_custom_period_start_date
+                                ),
+                                "--text-search-custom-period-end-date": (
+                                    text_search_custom_period_end_date
+                                ),
+                                "--text-search-custom-period-auto-continue": (
+                                    text_search_custom_period_auto_continue
+                                ),
+                                "--text-search-budget-type": (text_search_budget_type),
+                                "--text-search-average-cpc": (text_search_average_cpc),
+                                "--text-search-pay-cpa": text_search_pay_cpa,
+                                "--text-search-clicks-per-week": (
+                                    text_search_clicks_per_week
+                                ),
+                                "--text-search-reserve-return": (
+                                    text_search_reserve_return
+                                ),
+                                "--text-search-roi-coef": text_search_roi_coef,
+                                "--text-search-profitability": (
+                                    text_search_profitability
+                                ),
+                                "--text-search-exploration-min-budget": (
+                                    text_search_exploration_min_budget
+                                ),
+                                "--text-search-exploration-is-custom": (
+                                    text_search_exploration_is_custom
                                 ),
                             }
                         )

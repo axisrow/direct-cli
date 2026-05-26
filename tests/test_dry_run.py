@@ -8704,6 +8704,112 @@ def test_campaigns_update_text_search_detail_without_strategy_rejected():
     assert "--search-strategy" in result.output
 
 
+def test_campaigns_update_text_search_wb_maximum_clicks_budget_type_payload():
+    """WbMaximumClicks accepts BudgetType per non-Add WSDL StrategyMaximumClicks."""
+    body = _text_search_update(
+        "--search-strategy",
+        "WB_MAXIMUM_CLICKS",
+        "--text-search-weekly-spend-limit",
+        "400",
+        "--text-search-budget-type",
+        "WEEKLY_BUDGET",
+    )
+    search = _text_search_extract(body)
+    assert search["BiddingStrategyType"] == "WB_MAXIMUM_CLICKS"
+    assert search["WbMaximumClicks"] == {
+        "WeeklySpendLimit": 400000000,
+        "CustomPeriodBudget": None,
+        "BudgetType": "WEEKLY_BUDGET",
+    }
+
+
+def test_campaigns_update_text_search_wb_max_conv_rate_budget_type_payload():
+    """WbMaximumConversionRate also carries BudgetType on the update side."""
+    body = _text_search_update(
+        "--search-strategy",
+        "WB_MAXIMUM_CONVERSION_RATE",
+        "--goal-id",
+        "8",
+        "--text-search-weekly-spend-limit",
+        "250",
+        "--text-search-budget-type",
+        "WEEKLY_BUDGET",
+    )
+    search = _text_search_extract(body)
+    assert search["WbMaximumConversionRate"] == {
+        "GoalId": 8,
+        "WeeklySpendLimit": 250000000,
+        "CustomPeriodBudget": None,
+        "BudgetType": "WEEKLY_BUDGET",
+    }
+
+
+def test_campaigns_add_text_search_rejects_with_package_bidding_strategy():
+    """text-search-* flag input must not silently disappear when the user
+    opts into PackageBiddingStrategy — the conflict has to surface."""
+    result = _rejected(
+        *_cpa_base_args(),
+        "--package-strategy-id",
+        "700",
+        "--package-platform-search-result",
+        "YES",
+        "--package-platform-product-gallery",
+        "NO",
+        "--package-platform-network",
+        "YES",
+        "--package-platform-dynamic-places",
+        "NO",
+        "--text-search-weekly-spend-limit",
+        "100",
+    )
+    assert "PackageBiddingStrategy" in result.output
+    assert "--text-search-weekly-spend-limit" in result.output
+
+
+def test_campaigns_update_text_search_rejects_with_package_bidding_strategy():
+    result = CliRunner().invoke(
+        cli,
+        [
+            "campaigns",
+            "update",
+            "--id",
+            "123",
+            "--type",
+            "TEXT_CAMPAIGN",
+            "--package-strategy-id",
+            "700",
+            "--text-search-weekly-spend-limit",
+            "100",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "PackageBiddingStrategy" in result.output
+    assert "--text-search-weekly-spend-limit" in result.output
+
+
+def test_campaigns_update_text_search_rejects_budget_type_with_package_strategy():
+    result = CliRunner().invoke(
+        cli,
+        [
+            "campaigns",
+            "update",
+            "--id",
+            "123",
+            "--type",
+            "TEXT_CAMPAIGN",
+            "--package-strategy-id",
+            "700",
+            "--text-search-budget-type",
+            "WEEKLY_BUDGET",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "PackageBiddingStrategy" in result.output
+    assert "--text-search-budget-type" in result.output
+
+
 def test_campaigns_text_search_flags_rejected_for_other_campaign_types():
     """text-search-* flags must NOT be accepted under --type != TEXT_CAMPAIGN."""
     result = CliRunner().invoke(

@@ -1064,6 +1064,8 @@ _TEXT_SEARCH_SUPPORTS_EXPLORATION_BUDGET = {
     "MaxProfit",
 }
 _TEXT_SEARCH_SUPPORTS_BUDGET_TYPE = {
+    "WbMaximumClicks",
+    "WbMaximumConversionRate",
     "AverageCpc",
     "AverageCpa",
     "PayForConversion",
