@@ -20,7 +20,6 @@ from typing import Callable, Dict, List, Optional
 
 import click
 
-
 # WSDL: BiddingStrategyType enum value → Strategy*Add subtype field name
 # in TextCampaignSearch/Network/SmartCampaign… containers.
 # Only CPA-shaped subtypes that accept --average-cpa / --goal-id /
@@ -183,6 +182,102 @@ MOBILE_APP_NETWORK_AVERAGE_CPC_SUBTYPES = {"AverageCpc", "WeeklyClickPackage"}
 MOBILE_APP_NETWORK_AVERAGE_CPI_SUBTYPES = {"AverageCpi", "PayForInstall"}
 MOBILE_APP_NETWORK_CLICKS_PER_WEEK_SUBTYPES = {"WeeklyClickPackage"}
 BUDGET_TYPES = ["WEEKLY_BUDGET", "CUSTOM_PERIOD_BUDGET"]
+
+# DynamicTextCampaign.BiddingStrategy.Network — strategy families from
+# DynamicTextCampaignNetworkStrategyTypeEnum (campaigns WSDL line 361).
+# Issue #365.
+DYNAMIC_TEXT_NETWORK_STRATEGIES = [
+    "NETWORK_DEFAULT",
+    "MAXIMUM_COVERAGE",
+    "WB_MAXIMUM_CONVERSION_RATE",
+    "WB_MAXIMUM_CLICKS",
+    "AVERAGE_CPC",
+    "AVERAGE_CPA",
+    "PAY_FOR_CONVERSION",
+    "AVERAGE_ROI",
+    "AVERAGE_CRR",
+    "PAY_FOR_CONVERSION_CRR",
+    "WEEKLY_CLICK_PACKAGE",
+    "SERVING_OFF",
+]
+# Maps DynamicTextCampaignNetworkStrategyTypeEnum -> nested Strategy*Add
+# subtype field name on DynamicTextCampaignNetworkStrategyAdd. Subtypes
+# without a nested block (MAXIMUM_COVERAGE, SERVING_OFF) are absent here
+# and must reject detail flags.
+DYNAMIC_TEXT_NETWORK_STRATEGY_TO_WSDL_SUBTYPE = {
+    "NETWORK_DEFAULT": "NetworkDefault",
+    "WB_MAXIMUM_CLICKS": "WbMaximumClicks",
+    "WB_MAXIMUM_CONVERSION_RATE": "WbMaximumConversionRate",
+    "AVERAGE_CPC": "AverageCpc",
+    "AVERAGE_CPA": "AverageCpa",
+    "PAY_FOR_CONVERSION": "PayForConversion",
+    "AVERAGE_ROI": "AverageRoi",
+    "AVERAGE_CRR": "AverageCrr",
+    "PAY_FOR_CONVERSION_CRR": "PayForConversionCrr",
+    "WEEKLY_CLICK_PACKAGE": "WeeklyClickPackage",
+}
+# Per-subtype WSDL field support (campaigns WSDL lines 1339-1514). Empty
+# string set = the field is not declared on that Strategy*Add subtype and
+# must raise a CLI UsageError instead of being silently dropped.
+_DYN_NETWORK_WEEKLY_SPEND_LIMIT_SUBTYPES = {
+    "WbMaximumClicks",
+    "WbMaximumConversionRate",
+    "AverageCpc",
+    "AverageCpa",
+    "PayForConversion",
+    "AverageRoi",
+    "AverageCrr",
+    "PayForConversionCrr",
+}
+_DYN_NETWORK_BID_CEILING_SUBTYPES = {
+    "WbMaximumClicks",
+    "WbMaximumConversionRate",
+    "AverageCpa",
+    "AverageRoi",
+    "WeeklyClickPackage",
+}
+_DYN_NETWORK_CUSTOM_PERIOD_SUBTYPES = {
+    "WbMaximumClicks",
+    "WbMaximumConversionRate",
+    "AverageCpc",
+    "AverageCpa",
+    "PayForConversion",
+    "AverageRoi",
+    "AverageCrr",
+    "PayForConversionCrr",
+}
+_DYN_NETWORK_GOAL_ID_SUBTYPES = {
+    "WbMaximumConversionRate",
+    "AverageCpa",
+    "PayForConversion",
+    "AverageRoi",
+    "AverageCrr",
+    "PayForConversionCrr",
+}
+_DYN_NETWORK_AVERAGE_CPA_SUBTYPES = {"AverageCpa"}
+_DYN_NETWORK_CPA_SUBTYPES = {"PayForConversion"}
+_DYN_NETWORK_AVERAGE_CPC_SUBTYPES = {"AverageCpc", "WeeklyClickPackage"}
+_DYN_NETWORK_CRR_SUBTYPES = {"AverageCrr", "PayForConversionCrr"}
+_DYN_NETWORK_CLICKS_PER_WEEK_SUBTYPES = {"WeeklyClickPackage"}
+_DYN_NETWORK_RESERVE_RETURN_SUBTYPES = {"AverageRoi"}
+_DYN_NETWORK_ROI_COEF_SUBTYPES = {"AverageRoi"}
+_DYN_NETWORK_PROFITABILITY_SUBTYPES = {"AverageRoi"}
+_DYN_NETWORK_EXPLORATION_BUDGET_SUBTYPES = {
+    "AverageCpa",
+    "AverageRoi",
+    "AverageCrr",
+}
+_DYN_NETWORK_LIMIT_PERCENT_SUBTYPES = {"NetworkDefault"}
+_DYN_NETWORK_BUDGET_TYPE_SUBTYPES = {
+    "WbMaximumClicks",
+    "WbMaximumConversionRate",
+    "AverageCpc",
+    "AverageCpa",
+    "PayForConversion",
+    "AverageRoi",
+    "AverageCrr",
+    "PayForConversionCrr",
+}
 
 
 def apply_cpa_strategy_fields(
@@ -1048,6 +1143,333 @@ def build_mobile_app_bidding_strategy(
     return strategy
 
 
+def build_dynamic_text_network_strategy(
+    network_strategy: Optional[str],
+    weekly_spend_limit: Optional[int],
+    bid_ceiling: Optional[int],
+    custom_period_spend_limit: Optional[int],
+    custom_period_start_date: Optional[str],
+    custom_period_end_date: Optional[str],
+    custom_period_auto_continue: Optional[str],
+    average_cpc: Optional[int],
+    average_cpa: Optional[int],
+    cpa: Optional[int],
+    goal_id: Optional[int],
+    crr: Optional[int],
+    clicks_per_week: Optional[int],
+    limit_percent: Optional[int],
+    reserve_return: Optional[int],
+    roi_coef: Optional[int],
+    profitability: Optional[int],
+    exploration_budget: Optional[int],
+    exploration_budget_custom: Optional[str],
+    budget_type: Optional[str],
+    *,
+    include_default: bool,
+    is_update: bool,
+) -> Optional[dict]:
+    """Build DynamicTextCampaign.BiddingStrategy.Network from typed flags.
+
+    Mirrors ``DynamicTextCampaignNetworkStrategyAdd`` (campaigns WSDL
+    line 1753) and ``DynamicTextCampaignNetworkStrategy`` (line 1203).
+    Strategy families and their nested Strategy*Add subtypes follow the
+    cached WSDL enum ``DynamicTextCampaignNetworkStrategyTypeEnum`` and
+    ``DynamicTextCampaignStrategyAddBase``. Issue #365.
+    """
+    detail_values = {
+        "--dyn-network-weekly-spend-limit": weekly_spend_limit,
+        "--dyn-network-bid-ceiling": bid_ceiling,
+        "--dyn-network-custom-period-spend-limit": custom_period_spend_limit,
+        "--dyn-network-custom-period-start-date": custom_period_start_date,
+        "--dyn-network-custom-period-end-date": custom_period_end_date,
+        "--dyn-network-custom-period-auto-continue": custom_period_auto_continue,
+        "--dyn-network-average-cpc": average_cpc,
+        "--dyn-network-average-cpa": average_cpa,
+        "--dyn-network-cpa": cpa,
+        "--dyn-network-goal-id": goal_id,
+        "--dyn-network-crr": crr,
+        "--dyn-network-clicks-per-week": clicks_per_week,
+        "--dyn-network-limit-percent": limit_percent,
+        "--dyn-network-reserve-return": reserve_return,
+        "--dyn-network-roi-coef": roi_coef,
+        "--dyn-network-profitability": profitability,
+        "--dyn-network-exploration-budget": exploration_budget,
+        "--dyn-network-exploration-budget-custom": exploration_budget_custom,
+        "--dyn-network-budget-type": budget_type,
+    }
+    has_details = any(value is not None for value in detail_values.values())
+    if not include_default and network_strategy is None:
+        if has_details:
+            raise click.UsageError(
+                "DynamicTextCampaign network detail flags require " "--network-strategy"
+            )
+        return None
+    if has_details and network_strategy is None:
+        raise click.UsageError(
+            "DynamicTextCampaign network detail flags require --network-strategy"
+        )
+
+    normalized_strategy = (network_strategy or "SERVING_OFF").upper()
+    if normalized_strategy not in DYNAMIC_TEXT_NETWORK_STRATEGIES:
+        raise click.UsageError(
+            "--network-strategy for DYNAMIC_TEXT_CAMPAIGN must be one of "
+            f"{', '.join(DYNAMIC_TEXT_NETWORK_STRATEGIES)}"
+        )
+
+    subtype = DYNAMIC_TEXT_NETWORK_STRATEGY_TO_WSDL_SUBTYPE.get(normalized_strategy)
+    network: dict = {"BiddingStrategyType": normalized_strategy}
+    if subtype is None:
+        invalid = [flag for flag, value in detail_values.items() if value is not None]
+        if invalid:
+            raise click.UsageError(
+                f"{normalized_strategy} does not accept DynamicTextCampaign "
+                f"network detail flags: {', '.join(sorted(invalid))}"
+            )
+        return network
+
+    # ExplorationBudget: both subfields must be supplied together (WSDL
+    # ExplorationBudget MinimumExplorationBudget/IsMinimumExplorationBudgetCustom
+    # are both minOccurs=1).
+    exploration_provided = [
+        flag
+        for flag, value in (
+            ("--dyn-network-exploration-budget", exploration_budget),
+            ("--dyn-network-exploration-budget-custom", exploration_budget_custom),
+        )
+        if value is not None
+    ]
+    if exploration_provided and len(exploration_provided) != 2:
+        missing = (
+            "--dyn-network-exploration-budget-custom"
+            if exploration_budget is not None
+            else "--dyn-network-exploration-budget"
+        )
+        raise click.UsageError(
+            "DynamicTextCampaign ExplorationBudget requires both "
+            "--dyn-network-exploration-budget and "
+            f"--dyn-network-exploration-budget-custom; missing {missing}"
+        )
+    if exploration_provided and subtype not in _DYN_NETWORK_EXPLORATION_BUDGET_SUBTYPES:
+        raise click.UsageError(
+            f"{normalized_strategy} does not accept "
+            "--dyn-network-exploration-budget / "
+            "--dyn-network-exploration-budget-custom"
+        )
+
+    # CustomPeriodBudget: all four subfields required together (WSDL
+    # CustomPeriodBudget minOccurs=1).
+    custom_period_values = {
+        "--dyn-network-custom-period-spend-limit": custom_period_spend_limit,
+        "--dyn-network-custom-period-start-date": custom_period_start_date,
+        "--dyn-network-custom-period-end-date": custom_period_end_date,
+        "--dyn-network-custom-period-auto-continue": custom_period_auto_continue,
+    }
+    custom_period_flags = [
+        flag for flag, value in custom_period_values.items() if value is not None
+    ]
+    if custom_period_flags and len(custom_period_flags) != len(custom_period_values):
+        missing = [
+            flag for flag, value in custom_period_values.items() if value is None
+        ]
+        raise click.UsageError(
+            "DynamicTextCampaign CustomPeriodBudget requires all custom-period "
+            f"flags; missing {', '.join(sorted(missing))}"
+        )
+    if custom_period_flags and subtype not in _DYN_NETWORK_CUSTOM_PERIOD_SUBTYPES:
+        raise click.UsageError(
+            f"{normalized_strategy} does not accept DynamicTextCampaign "
+            "CustomPeriodBudget flags"
+        )
+    if weekly_spend_limit is not None and custom_period_flags:
+        raise click.UsageError(
+            "--dyn-network-weekly-spend-limit cannot be combined with "
+            "--dyn-network-custom-period-spend-limit"
+        )
+
+    if limit_percent is not None:
+        if limit_percent < 10 or limit_percent > 100 or limit_percent % 10 != 0:
+            raise click.UsageError(
+                "--dyn-network-limit-percent must be a multiple of 10 " "from 10 to 100"
+            )
+        if subtype not in _DYN_NETWORK_LIMIT_PERCENT_SUBTYPES:
+            raise click.UsageError(
+                f"{normalized_strategy} does not accept " "--dyn-network-limit-percent"
+            )
+
+    # WSDL minOccurs=1 enforcement on the create path: a strategy whose
+    # subtype declares required fields (AverageCpc, AverageCpa, GoalId,
+    # Crr, Cpa, ClicksPerWeek, ReserveReturn, RoiCoef) must have them
+    # supplied or rejected at CLI level.
+    if not is_update:
+        required_map = {
+            "WbMaximumClicks": [
+                (
+                    "--dyn-network-weekly-spend-limit or full CustomPeriodBudget",
+                    weekly_spend_limit if not custom_period_flags else 1,
+                )
+            ],
+            "WbMaximumConversionRate": [
+                (
+                    "--dyn-network-weekly-spend-limit or full CustomPeriodBudget",
+                    weekly_spend_limit if not custom_period_flags else 1,
+                ),
+                ("--dyn-network-goal-id", goal_id),
+            ],
+            "AverageCpc": [("--dyn-network-average-cpc", average_cpc)],
+            "AverageCpa": [
+                ("--dyn-network-average-cpa", average_cpa),
+                ("--dyn-network-goal-id", goal_id),
+            ],
+            "PayForConversion": [
+                ("--dyn-network-cpa", cpa),
+                ("--dyn-network-goal-id", goal_id),
+            ],
+            "AverageRoi": [
+                ("--dyn-network-reserve-return", reserve_return),
+                ("--dyn-network-roi-coef", roi_coef),
+                ("--dyn-network-goal-id", goal_id),
+            ],
+            "AverageCrr": [
+                ("--dyn-network-crr", crr),
+                ("--dyn-network-goal-id", goal_id),
+            ],
+            "PayForConversionCrr": [
+                ("--dyn-network-crr", crr),
+                ("--dyn-network-goal-id", goal_id),
+            ],
+            "WeeklyClickPackage": [
+                ("--dyn-network-clicks-per-week", clicks_per_week),
+            ],
+            "NetworkDefault": [],
+        }[subtype]
+        missing = [flag for flag, value in required_map if value is None]
+        if missing:
+            raise click.UsageError(
+                f"{normalized_strategy} requires {', '.join(sorted(missing))}"
+            )
+
+    if budget_type is not None:
+        if not is_update:
+            raise click.UsageError("--dyn-network-budget-type is update-only")
+        if subtype not in _DYN_NETWORK_BUDGET_TYPE_SUBTYPES:
+            raise click.UsageError(
+                f"{normalized_strategy} does not accept " "--dyn-network-budget-type"
+            )
+        normalized_budget_type = budget_type.upper()
+        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET" and not custom_period_flags:
+            raise click.UsageError(
+                "--dyn-network-budget-type CUSTOM_PERIOD_BUDGET requires "
+                "full CustomPeriodBudget flags"
+            )
+        if normalized_budget_type == "WEEKLY_BUDGET" and weekly_spend_limit is None:
+            raise click.UsageError(
+                "--dyn-network-budget-type WEEKLY_BUDGET requires "
+                "--dyn-network-weekly-spend-limit"
+            )
+
+    # WeeklyClickPackage rule: AverageCpc and BidCeiling are exclusive
+    # alternatives (WSDL StrategyWeeklyClickPackageAdd documents them as
+    # optional ceilings; only one shapes the bid policy).
+    if (
+        subtype == "WeeklyClickPackage"
+        and average_cpc is not None
+        and bid_ceiling is not None
+    ):
+        raise click.UsageError(
+            "WEEKLY_CLICK_PACKAGE cannot combine --dyn-network-average-cpc "
+            "with --dyn-network-bid-ceiling"
+        )
+
+    field_support = {
+        "--dyn-network-weekly-spend-limit": (
+            weekly_spend_limit,
+            _DYN_NETWORK_WEEKLY_SPEND_LIMIT_SUBTYPES,
+        ),
+        "--dyn-network-bid-ceiling": (bid_ceiling, _DYN_NETWORK_BID_CEILING_SUBTYPES),
+        "--dyn-network-average-cpc": (
+            average_cpc,
+            _DYN_NETWORK_AVERAGE_CPC_SUBTYPES,
+        ),
+        "--dyn-network-average-cpa": (
+            average_cpa,
+            _DYN_NETWORK_AVERAGE_CPA_SUBTYPES,
+        ),
+        "--dyn-network-cpa": (cpa, _DYN_NETWORK_CPA_SUBTYPES),
+        "--dyn-network-goal-id": (goal_id, _DYN_NETWORK_GOAL_ID_SUBTYPES),
+        "--dyn-network-crr": (crr, _DYN_NETWORK_CRR_SUBTYPES),
+        "--dyn-network-clicks-per-week": (
+            clicks_per_week,
+            _DYN_NETWORK_CLICKS_PER_WEEK_SUBTYPES,
+        ),
+        "--dyn-network-reserve-return": (
+            reserve_return,
+            _DYN_NETWORK_RESERVE_RETURN_SUBTYPES,
+        ),
+        "--dyn-network-roi-coef": (roi_coef, _DYN_NETWORK_ROI_COEF_SUBTYPES),
+        "--dyn-network-profitability": (
+            profitability,
+            _DYN_NETWORK_PROFITABILITY_SUBTYPES,
+        ),
+    }
+    for flag, (value, supported_subtypes) in field_support.items():
+        if value is not None and subtype not in supported_subtypes:
+            raise click.UsageError(f"{normalized_strategy} does not accept {flag}")
+
+    block: dict = {}
+    if limit_percent is not None:
+        block["LimitPercent"] = limit_percent
+    if reserve_return is not None:
+        block["ReserveReturn"] = reserve_return
+    if roi_coef is not None:
+        block["RoiCoef"] = roi_coef
+    if average_cpa is not None:
+        block["AverageCpa"] = average_cpa
+    if cpa is not None:
+        block["Cpa"] = cpa
+    if crr is not None:
+        block["Crr"] = crr
+    if goal_id is not None:
+        block["GoalId"] = goal_id
+    if average_cpc is not None:
+        block["AverageCpc"] = average_cpc
+    if clicks_per_week is not None:
+        block["ClicksPerWeek"] = clicks_per_week
+    if weekly_spend_limit is not None:
+        block["WeeklySpendLimit"] = weekly_spend_limit
+    if bid_ceiling is not None:
+        block["BidCeiling"] = bid_ceiling
+    if profitability is not None:
+        block["Profitability"] = profitability
+    if custom_period_flags:
+        assert custom_period_spend_limit is not None
+        assert custom_period_start_date is not None
+        assert custom_period_end_date is not None
+        assert custom_period_auto_continue is not None
+        block["CustomPeriodBudget"] = {
+            "SpendLimit": custom_period_spend_limit,
+            "StartDate": custom_period_start_date,
+            "EndDate": custom_period_end_date,
+            "AutoContinue": custom_period_auto_continue.upper(),
+        }
+    if exploration_provided:
+        assert exploration_budget is not None
+        assert exploration_budget_custom is not None
+        block["ExplorationBudget"] = {
+            "MinimumExplorationBudget": exploration_budget,
+            "IsMinimumExplorationBudgetCustom": exploration_budget_custom.upper(),
+        }
+    if budget_type is not None:
+        normalized_budget_type = budget_type.upper()
+        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET":
+            block["WeeklySpendLimit"] = None
+        elif normalized_budget_type == "WEEKLY_BUDGET":
+            block["CustomPeriodBudget"] = None
+        block["BudgetType"] = normalized_budget_type
+    if block:
+        network[subtype] = block
+    return network
+
+
 # Dispatch registry for bidding-strategy builders. Keyed on
 # ``(campaign_type, operation, branch)`` where:
 #   - campaign_type: "TEXT_CAMPAIGN", "DYNAMIC_TEXT_CAMPAIGN",
@@ -1078,9 +1500,7 @@ def register_bidding_strategy_builder(
     """
     key = (campaign_type, operation, branch)
     if key in CAMPAIGN_TYPE_BUILDERS:
-        raise ValueError(
-            f"Bidding-strategy builder already registered for {key}"
-        )
+        raise ValueError(f"Bidding-strategy builder already registered for {key}")
     CAMPAIGN_TYPE_BUILDERS[key] = fn
 
 
@@ -1124,4 +1544,10 @@ register_bidding_strategy_builder(
 )
 register_bidding_strategy_builder(
     "MOBILE_APP_CAMPAIGN", "update", "full", build_mobile_app_bidding_strategy
+)
+register_bidding_strategy_builder(
+    "DYNAMIC_TEXT_CAMPAIGN", "add", "network", build_dynamic_text_network_strategy
+)
+register_bidding_strategy_builder(
+    "DYNAMIC_TEXT_CAMPAIGN", "update", "network", build_dynamic_text_network_strategy
 )
