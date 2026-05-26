@@ -36,7 +36,10 @@ _CHECK_FIELD_NAMES = frozenset({"CampaignIds", "AdGroupIds", "AdIds", "Campaigns
 @click.option(
     "--timestamp",
     required=True,
-    help="Timestamp for Changes.check (YYYY-MM-DDTHH:MM:SSZ)",
+    help=(
+        "Timestamp for Changes.check "
+        "(YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DDTHH:MM:SS+03:00)"
+    ),
 )
 @click.option(
     "--fields",
@@ -126,7 +129,10 @@ def check(
 @click.option(
     "--timestamp",
     required=True,
-    help="Timestamp for Changes.checkCampaigns (YYYY-MM-DDTHH:MM:SSZ)",
+    help=(
+        "Timestamp for Changes.checkCampaigns "
+        "(YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DDTHH:MM:SS+03:00)"
+    ),
 )
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
