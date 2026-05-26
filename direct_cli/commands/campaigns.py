@@ -123,6 +123,54 @@ MOBILE_APP_SEARCH_BUDGET_TYPE_SUBTYPES = {"WbMaximumClicks", "AverageCpc"}
 MOBILE_APP_SEARCH_AVERAGE_CPC_SUBTYPES = {"AverageCpc", "WeeklyClickPackage"}
 MOBILE_APP_SEARCH_AVERAGE_CPI_SUBTYPES = {"AverageCpi", "PayForInstall"}
 MOBILE_APP_SEARCH_CLICKS_PER_WEEK_SUBTYPES = {"WeeklyClickPackage"}
+MOBILE_APP_NETWORK_STRATEGIES = [
+    "NETWORK_DEFAULT",
+    "MAXIMUM_COVERAGE",
+    "WB_MAXIMUM_CLICKS",
+    "WB_MAXIMUM_APP_INSTALLS",
+    "AVERAGE_CPC",
+    "AVERAGE_CPI",
+    "WEEKLY_CLICK_PACKAGE",
+    "PAY_FOR_INSTALL",
+    "SERVING_OFF",
+]
+MOBILE_APP_NETWORK_STRATEGY_TO_WSDL_SUBTYPE = {
+    "NETWORK_DEFAULT": "NetworkDefault",
+    "WB_MAXIMUM_CLICKS": "WbMaximumClicks",
+    "WB_MAXIMUM_APP_INSTALLS": "WbMaximumAppInstalls",
+    "AVERAGE_CPC": "AverageCpc",
+    "AVERAGE_CPI": "AverageCpi",
+    "WEEKLY_CLICK_PACKAGE": "WeeklyClickPackage",
+    "PAY_FOR_INSTALL": "PayForInstall",
+}
+MOBILE_APP_NETWORK_WEEKLY_SPEND_SUBTYPES = {
+    "WbMaximumClicks",
+    "WbMaximumAppInstalls",
+    "AverageCpc",
+    "AverageCpi",
+    "PayForInstall",
+}
+MOBILE_APP_NETWORK_BID_CEILING_SUBTYPES = {
+    "WbMaximumClicks",
+    "WbMaximumAppInstalls",
+    "AverageCpi",
+    "WeeklyClickPackage",
+}
+MOBILE_APP_NETWORK_CUSTOM_PERIOD_SUBTYPES = {
+    "WbMaximumClicks",
+    "AverageCpc",
+    "AverageCpi",
+    "PayForInstall",
+}
+MOBILE_APP_NETWORK_BUDGET_TYPE_SUBTYPES = {
+    "WbMaximumClicks",
+    "AverageCpc",
+    "AverageCpi",
+    "PayForInstall",
+}
+MOBILE_APP_NETWORK_AVERAGE_CPC_SUBTYPES = {"AverageCpc", "WeeklyClickPackage"}
+MOBILE_APP_NETWORK_AVERAGE_CPI_SUBTYPES = {"AverageCpi", "PayForInstall"}
+MOBILE_APP_NETWORK_CLICKS_PER_WEEK_SUBTYPES = {"WeeklyClickPackage"}
 BUDGET_TYPES = ["WEEKLY_BUDGET", "CUSTOM_PERIOD_BUDGET"]
 CLIENT_INFO_MAX_LENGTH = 255
 BLOCKED_IPS_MAX_ITEMS = 25
@@ -976,8 +1024,8 @@ def _build_mobile_app_search_strategy(
     return search
 
 
-def _build_mobile_app_bidding_strategy(
-    search_strategy: Optional[str],
+def _build_mobile_app_network_strategy(
+    network_strategy: Optional[str],
     weekly_spend_limit: Optional[int],
     bid_ceiling: Optional[int],
     custom_period_spend_limit: Optional[int],
@@ -987,32 +1035,274 @@ def _build_mobile_app_bidding_strategy(
     average_cpc: Optional[int],
     average_cpi: Optional[int],
     clicks_per_week: Optional[int],
+    limit_percent: Optional[int],
     budget_type: Optional[str],
+    *,
+    include_default: bool,
+    is_update: bool,
+) -> Optional[dict]:
+    """Build MobileAppCampaign.BiddingStrategy.Network from typed flags."""
+    detail_values = {
+        "--mobile-network-weekly-spend-limit": weekly_spend_limit,
+        "--mobile-network-bid-ceiling": bid_ceiling,
+        "--mobile-network-custom-period-spend-limit": custom_period_spend_limit,
+        "--mobile-network-custom-period-start-date": custom_period_start_date,
+        "--mobile-network-custom-period-end-date": custom_period_end_date,
+        "--mobile-network-custom-period-auto-continue": custom_period_auto_continue,
+        "--mobile-network-average-cpc": average_cpc,
+        "--mobile-network-average-cpi": average_cpi,
+        "--mobile-network-clicks-per-week": clicks_per_week,
+        "--mobile-network-limit-percent": limit_percent,
+        "--mobile-network-budget-type": budget_type,
+    }
+    has_details = any(value is not None for value in detail_values.values())
+    if not include_default and network_strategy is None:
+        if has_details:
+            raise click.UsageError(
+                "MobileAppCampaign network detail flags require --network-strategy"
+            )
+        return None
+    if has_details and network_strategy is None:
+        raise click.UsageError(
+            "MobileAppCampaign network detail flags require --network-strategy"
+        )
+
+    normalized_strategy = (network_strategy or "SERVING_OFF").upper()
+    if normalized_strategy not in MOBILE_APP_NETWORK_STRATEGIES:
+        raise click.UsageError(
+            "--network-strategy for MOBILE_APP_CAMPAIGN must be one of "
+            f"{', '.join(MOBILE_APP_NETWORK_STRATEGIES)}"
+        )
+
+    subtype = MOBILE_APP_NETWORK_STRATEGY_TO_WSDL_SUBTYPE.get(normalized_strategy)
+    network: dict = {"BiddingStrategyType": normalized_strategy}
+    if subtype is None:
+        invalid = [flag for flag, value in detail_values.items() if value is not None]
+        if invalid:
+            raise click.UsageError(
+                f"{normalized_strategy} does not accept mobile network detail flags: "
+                f"{', '.join(sorted(invalid))}"
+            )
+        return network
+
+    if limit_percent is not None:
+        if limit_percent < 10 or limit_percent > 100 or limit_percent % 10 != 0:
+            raise click.UsageError(
+                "--mobile-network-limit-percent must be a multiple of 10 "
+                "from 10 to 100"
+            )
+        if subtype != "NetworkDefault":
+            raise click.UsageError(
+                f"{normalized_strategy} does not accept "
+                "--mobile-network-limit-percent"
+            )
+
+    custom_period_values = {
+        "--mobile-network-custom-period-spend-limit": custom_period_spend_limit,
+        "--mobile-network-custom-period-start-date": custom_period_start_date,
+        "--mobile-network-custom-period-end-date": custom_period_end_date,
+        "--mobile-network-custom-period-auto-continue": custom_period_auto_continue,
+    }
+    custom_period_flags = [
+        flag for flag, value in custom_period_values.items() if value is not None
+    ]
+    if custom_period_flags and len(custom_period_flags) != len(custom_period_values):
+        missing = [
+            flag for flag, value in custom_period_values.items() if value is None
+        ]
+        raise click.UsageError(
+            "MobileAppCampaign CustomPeriodBudget requires all custom-period "
+            f"flags; missing {', '.join(sorted(missing))}"
+        )
+    if custom_period_flags and subtype not in MOBILE_APP_NETWORK_CUSTOM_PERIOD_SUBTYPES:
+        raise click.UsageError(
+            f"{normalized_strategy} does not accept MobileAppCampaign "
+            "CustomPeriodBudget flags"
+        )
+    if weekly_spend_limit is not None and custom_period_flags:
+        raise click.UsageError(
+            "--mobile-network-weekly-spend-limit cannot be combined with "
+            "--mobile-network-custom-period-spend-limit"
+        )
+    if not is_update:
+        required = {
+            "NetworkDefault": {},
+            "WbMaximumClicks": {
+                "--mobile-network-weekly-spend-limit or full CustomPeriodBudget": (
+                    weekly_spend_limit if not custom_period_flags else 1
+                )
+            },
+            "WbMaximumAppInstalls": {
+                "--mobile-network-weekly-spend-limit": weekly_spend_limit
+            },
+            "AverageCpc": {"--mobile-network-average-cpc": average_cpc},
+            "AverageCpi": {"--mobile-network-average-cpi": average_cpi},
+            "WeeklyClickPackage": {"--mobile-network-clicks-per-week": clicks_per_week},
+            "PayForInstall": {"--mobile-network-average-cpi": average_cpi},
+        }[subtype]
+        missing = [flag for flag, value in required.items() if value is None]
+        if missing:
+            raise click.UsageError(
+                f"{normalized_strategy} requires {', '.join(sorted(missing))}"
+            )
+
+    if budget_type is not None:
+        if not is_update:
+            raise click.UsageError("--mobile-network-budget-type is update-only")
+        if subtype not in MOBILE_APP_NETWORK_BUDGET_TYPE_SUBTYPES:
+            raise click.UsageError(
+                f"{normalized_strategy} does not accept --mobile-network-budget-type"
+            )
+        normalized_budget_type = budget_type.upper()
+        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET" and not custom_period_flags:
+            raise click.UsageError(
+                "--mobile-network-budget-type CUSTOM_PERIOD_BUDGET requires "
+                "full CustomPeriodBudget flags"
+            )
+        if normalized_budget_type == "WEEKLY_BUDGET" and weekly_spend_limit is None:
+            raise click.UsageError(
+                "--mobile-network-budget-type WEEKLY_BUDGET requires "
+                "--mobile-network-weekly-spend-limit"
+            )
+    if (
+        subtype == "WeeklyClickPackage"
+        and average_cpc is not None
+        and bid_ceiling is not None
+    ):
+        raise click.UsageError(
+            "WEEKLY_CLICK_PACKAGE cannot combine --mobile-network-average-cpc "
+            "with --mobile-network-bid-ceiling"
+        )
+
+    field_support = {
+        "--mobile-network-weekly-spend-limit": (
+            weekly_spend_limit,
+            MOBILE_APP_NETWORK_WEEKLY_SPEND_SUBTYPES,
+        ),
+        "--mobile-network-bid-ceiling": (
+            bid_ceiling,
+            MOBILE_APP_NETWORK_BID_CEILING_SUBTYPES,
+        ),
+        "--mobile-network-average-cpc": (
+            average_cpc,
+            MOBILE_APP_NETWORK_AVERAGE_CPC_SUBTYPES,
+        ),
+        "--mobile-network-average-cpi": (
+            average_cpi,
+            MOBILE_APP_NETWORK_AVERAGE_CPI_SUBTYPES,
+        ),
+        "--mobile-network-clicks-per-week": (
+            clicks_per_week,
+            MOBILE_APP_NETWORK_CLICKS_PER_WEEK_SUBTYPES,
+        ),
+    }
+    for flag, (value, supported_subtypes) in field_support.items():
+        if value is not None and subtype not in supported_subtypes:
+            raise click.UsageError(f"{normalized_strategy} does not accept {flag}")
+
+    block: dict = {}
+    if limit_percent is not None:
+        block["LimitPercent"] = limit_percent
+    if weekly_spend_limit is not None:
+        block["WeeklySpendLimit"] = weekly_spend_limit
+    if bid_ceiling is not None:
+        block["BidCeiling"] = bid_ceiling
+    if average_cpc is not None:
+        block["AverageCpc"] = average_cpc
+    if average_cpi is not None:
+        block["AverageCpi"] = average_cpi
+    if clicks_per_week is not None:
+        block["ClicksPerWeek"] = clicks_per_week
+    if custom_period_flags:
+        assert custom_period_spend_limit is not None
+        assert custom_period_start_date is not None
+        assert custom_period_end_date is not None
+        assert custom_period_auto_continue is not None
+        block["CustomPeriodBudget"] = {
+            "SpendLimit": custom_period_spend_limit,
+            "StartDate": custom_period_start_date,
+            "EndDate": custom_period_end_date,
+            "AutoContinue": custom_period_auto_continue.upper(),
+        }
+    if budget_type is not None:
+        normalized_budget_type = budget_type.upper()
+        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET":
+            block["WeeklySpendLimit"] = None
+        elif normalized_budget_type == "WEEKLY_BUDGET":
+            block["CustomPeriodBudget"] = None
+        block["BudgetType"] = normalized_budget_type
+    if block:
+        network[subtype] = block
+    return network
+
+
+def _build_mobile_app_bidding_strategy(
+    search_strategy: Optional[str],
+    mobile_search_weekly_spend_limit: Optional[int],
+    mobile_search_bid_ceiling: Optional[int],
+    mobile_search_custom_period_spend_limit: Optional[int],
+    mobile_search_custom_period_start_date: Optional[str],
+    mobile_search_custom_period_end_date: Optional[str],
+    mobile_search_custom_period_auto_continue: Optional[str],
+    mobile_search_average_cpc: Optional[int],
+    mobile_search_average_cpi: Optional[int],
+    mobile_search_clicks_per_week: Optional[int],
+    mobile_search_budget_type: Optional[str],
+    network_strategy: Optional[str],
+    mobile_network_weekly_spend_limit: Optional[int],
+    mobile_network_bid_ceiling: Optional[int],
+    mobile_network_custom_period_spend_limit: Optional[int],
+    mobile_network_custom_period_start_date: Optional[str],
+    mobile_network_custom_period_end_date: Optional[str],
+    mobile_network_custom_period_auto_continue: Optional[str],
+    mobile_network_average_cpc: Optional[int],
+    mobile_network_average_cpi: Optional[int],
+    mobile_network_clicks_per_week: Optional[int],
+    mobile_network_limit_percent: Optional[int],
+    mobile_network_budget_type: Optional[str],
     *,
     include_defaults: bool,
     is_update: bool,
 ) -> Optional[dict]:
-    """Build MobileAppCampaign.BiddingStrategy from typed search flags."""
+    """Build MobileAppCampaign.BiddingStrategy from typed flags."""
     search = _build_mobile_app_search_strategy(
         search_strategy,
-        weekly_spend_limit,
-        bid_ceiling,
-        custom_period_spend_limit,
-        custom_period_start_date,
-        custom_period_end_date,
-        custom_period_auto_continue,
-        average_cpc,
-        average_cpi,
-        clicks_per_week,
-        budget_type,
+        mobile_search_weekly_spend_limit,
+        mobile_search_bid_ceiling,
+        mobile_search_custom_period_spend_limit,
+        mobile_search_custom_period_start_date,
+        mobile_search_custom_period_end_date,
+        mobile_search_custom_period_auto_continue,
+        mobile_search_average_cpc,
+        mobile_search_average_cpi,
+        mobile_search_clicks_per_week,
+        mobile_search_budget_type,
         include_default=include_defaults,
         is_update=is_update,
     )
-    if search is None:
+    network = _build_mobile_app_network_strategy(
+        network_strategy,
+        mobile_network_weekly_spend_limit,
+        mobile_network_bid_ceiling,
+        mobile_network_custom_period_spend_limit,
+        mobile_network_custom_period_start_date,
+        mobile_network_custom_period_end_date,
+        mobile_network_custom_period_auto_continue,
+        mobile_network_average_cpc,
+        mobile_network_average_cpi,
+        mobile_network_clicks_per_week,
+        mobile_network_limit_percent,
+        mobile_network_budget_type,
+        include_default=include_defaults,
+        is_update=is_update,
+    )
+    if search is None and network is None:
         return None
-    strategy = {"Search": search}
-    if include_defaults:
-        strategy["Network"] = {"BiddingStrategyType": "SERVING_OFF"}
+    strategy = {}
+    if search is not None:
+        strategy["Search"] = search
+    if network is not None:
+        strategy["Network"] = network
     return strategy
 
 
@@ -1568,6 +1858,54 @@ def get(
     help="MobileAppCampaign Search strategy ClicksPerWeek",
 )
 @click.option(
+    "--mobile-network-weekly-spend-limit",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="MobileAppCampaign Network strategy WeeklySpendLimit in rubles",
+)
+@click.option(
+    "--mobile-network-bid-ceiling",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="MobileAppCampaign Network strategy BidCeiling in rubles",
+)
+@click.option(
+    "--mobile-network-custom-period-spend-limit",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="MobileAppCampaign Network CustomPeriodBudget.SpendLimit in rubles",
+)
+@click.option(
+    "--mobile-network-custom-period-start-date",
+    help="MobileAppCampaign Network CustomPeriodBudget.StartDate",
+)
+@click.option(
+    "--mobile-network-custom-period-end-date",
+    help="MobileAppCampaign Network CustomPeriodBudget.EndDate",
+)
+@click.option(
+    "--mobile-network-custom-period-auto-continue",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="MobileAppCampaign Network CustomPeriodBudget.AutoContinue: YES or NO",
+)
+@click.option(
+    "--mobile-network-average-cpc",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="MobileAppCampaign Network strategy AverageCpc in rubles",
+)
+@click.option(
+    "--mobile-network-average-cpi",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="MobileAppCampaign Network strategy AverageCpi in rubles",
+)
+@click.option(
+    "--mobile-network-clicks-per-week",
+    type=click.IntRange(1),
+    help="MobileAppCampaign Network strategy ClicksPerWeek",
+)
+@click.option(
+    "--mobile-network-limit-percent",
+    type=click.IntRange(10, 100),
+    help="MobileAppCampaign NetworkDefault.LimitPercent, 10-100 by tens",
+)
+@click.option(
     "--average-cpa",
     type=MICRO_RUBLES,
     help="Target CPA in micro-rubles (AVERAGE_CPA)",
@@ -1730,6 +2068,16 @@ def add(
     mobile_search_average_cpc,
     mobile_search_average_cpi,
     mobile_search_clicks_per_week,
+    mobile_network_weekly_spend_limit,
+    mobile_network_bid_ceiling,
+    mobile_network_custom_period_spend_limit,
+    mobile_network_custom_period_start_date,
+    mobile_network_custom_period_end_date,
+    mobile_network_custom_period_auto_continue,
+    mobile_network_average_cpc,
+    mobile_network_average_cpi,
+    mobile_network_clicks_per_week,
+    mobile_network_limit_percent,
     average_cpa,
     crr,
     bid_ceiling,
@@ -1859,6 +2207,7 @@ def add(
             "MOBILE_APP_CAMPAIGN": {
                 "--setting",
                 "--search-strategy",
+                "--network-strategy",
                 "--mobile-search-weekly-spend-limit",
                 "--mobile-search-bid-ceiling",
                 "--mobile-search-custom-period-spend-limit",
@@ -1868,6 +2217,16 @@ def add(
                 "--mobile-search-average-cpc",
                 "--mobile-search-average-cpi",
                 "--mobile-search-clicks-per-week",
+                "--mobile-network-weekly-spend-limit",
+                "--mobile-network-bid-ceiling",
+                "--mobile-network-custom-period-spend-limit",
+                "--mobile-network-custom-period-start-date",
+                "--mobile-network-custom-period-end-date",
+                "--mobile-network-custom-period-auto-continue",
+                "--mobile-network-average-cpc",
+                "--mobile-network-average-cpi",
+                "--mobile-network-clicks-per-week",
+                "--mobile-network-limit-percent",
                 "--negative-keyword-shared-set-ids",
             },
             "CPM_BANNER_CAMPAIGN": {
@@ -1954,6 +2313,26 @@ def add(
                 "--mobile-search-average-cpc": mobile_search_average_cpc,
                 "--mobile-search-average-cpi": mobile_search_average_cpi,
                 "--mobile-search-clicks-per-week": mobile_search_clicks_per_week,
+                "--mobile-network-weekly-spend-limit": (
+                    mobile_network_weekly_spend_limit
+                ),
+                "--mobile-network-bid-ceiling": mobile_network_bid_ceiling,
+                "--mobile-network-custom-period-spend-limit": (
+                    mobile_network_custom_period_spend_limit
+                ),
+                "--mobile-network-custom-period-start-date": (
+                    mobile_network_custom_period_start_date
+                ),
+                "--mobile-network-custom-period-end-date": (
+                    mobile_network_custom_period_end_date
+                ),
+                "--mobile-network-custom-period-auto-continue": (
+                    mobile_network_custom_period_auto_continue
+                ),
+                "--mobile-network-average-cpc": mobile_network_average_cpc,
+                "--mobile-network-average-cpi": mobile_network_average_cpi,
+                "--mobile-network-clicks-per-week": mobile_network_clicks_per_week,
+                "--mobile-network-limit-percent": mobile_network_limit_percent,
                 "--average-cpa": average_cpa,
                 "--crr": crr,
                 "--bid-ceiling": bid_ceiling,
@@ -2311,6 +2690,18 @@ def add(
                     mobile_search_average_cpi,
                     mobile_search_clicks_per_week,
                     None,
+                    network_strategy,
+                    mobile_network_weekly_spend_limit,
+                    mobile_network_bid_ceiling,
+                    mobile_network_custom_period_spend_limit,
+                    mobile_network_custom_period_start_date,
+                    mobile_network_custom_period_end_date,
+                    mobile_network_custom_period_auto_continue,
+                    mobile_network_average_cpc,
+                    mobile_network_average_cpi,
+                    mobile_network_clicks_per_week,
+                    mobile_network_limit_percent,
+                    None,
                     include_defaults=True,
                     is_update=False,
                 )
@@ -2613,6 +3004,59 @@ def add(
     help="MobileAppCampaign Search strategy BudgetType for update",
 )
 @click.option(
+    "--mobile-network-weekly-spend-limit",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="MobileAppCampaign Network strategy WeeklySpendLimit in rubles",
+)
+@click.option(
+    "--mobile-network-bid-ceiling",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="MobileAppCampaign Network strategy BidCeiling in rubles",
+)
+@click.option(
+    "--mobile-network-custom-period-spend-limit",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="MobileAppCampaign Network CustomPeriodBudget.SpendLimit in rubles",
+)
+@click.option(
+    "--mobile-network-custom-period-start-date",
+    help="MobileAppCampaign Network CustomPeriodBudget.StartDate",
+)
+@click.option(
+    "--mobile-network-custom-period-end-date",
+    help="MobileAppCampaign Network CustomPeriodBudget.EndDate",
+)
+@click.option(
+    "--mobile-network-custom-period-auto-continue",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="MobileAppCampaign Network CustomPeriodBudget.AutoContinue: YES or NO",
+)
+@click.option(
+    "--mobile-network-average-cpc",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="MobileAppCampaign Network strategy AverageCpc in rubles",
+)
+@click.option(
+    "--mobile-network-average-cpi",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="MobileAppCampaign Network strategy AverageCpi in rubles",
+)
+@click.option(
+    "--mobile-network-clicks-per-week",
+    type=click.IntRange(1),
+    help="MobileAppCampaign Network strategy ClicksPerWeek",
+)
+@click.option(
+    "--mobile-network-limit-percent",
+    type=click.IntRange(10, 100),
+    help="MobileAppCampaign NetworkDefault.LimitPercent, 10-100 by tens",
+)
+@click.option(
+    "--mobile-network-budget-type",
+    type=click.Choice(BUDGET_TYPES, case_sensitive=False),
+    help="MobileAppCampaign Network strategy BudgetType for update",
+)
+@click.option(
     "--notification",
     default=None,
     expose_value=False,
@@ -2767,6 +3211,17 @@ def update(
     mobile_search_average_cpi,
     mobile_search_clicks_per_week,
     mobile_search_budget_type,
+    mobile_network_weekly_spend_limit,
+    mobile_network_bid_ceiling,
+    mobile_network_custom_period_spend_limit,
+    mobile_network_custom_period_start_date,
+    mobile_network_custom_period_end_date,
+    mobile_network_custom_period_auto_continue,
+    mobile_network_average_cpc,
+    mobile_network_average_cpi,
+    mobile_network_clicks_per_week,
+    mobile_network_limit_percent,
+    mobile_network_budget_type,
     client_info,
     sms_events,
     sms_time_from,
@@ -2927,6 +3382,25 @@ def update(
             "--mobile-search-average-cpi": mobile_search_average_cpi,
             "--mobile-search-clicks-per-week": mobile_search_clicks_per_week,
             "--mobile-search-budget-type": mobile_search_budget_type,
+            "--mobile-network-weekly-spend-limit": (mobile_network_weekly_spend_limit),
+            "--mobile-network-bid-ceiling": mobile_network_bid_ceiling,
+            "--mobile-network-custom-period-spend-limit": (
+                mobile_network_custom_period_spend_limit
+            ),
+            "--mobile-network-custom-period-start-date": (
+                mobile_network_custom_period_start_date
+            ),
+            "--mobile-network-custom-period-end-date": (
+                mobile_network_custom_period_end_date
+            ),
+            "--mobile-network-custom-period-auto-continue": (
+                mobile_network_custom_period_auto_continue
+            ),
+            "--mobile-network-average-cpc": mobile_network_average_cpc,
+            "--mobile-network-average-cpi": mobile_network_average_cpi,
+            "--mobile-network-clicks-per-week": mobile_network_clicks_per_week,
+            "--mobile-network-limit-percent": mobile_network_limit_percent,
+            "--mobile-network-budget-type": mobile_network_budget_type,
             "--tracking-params": tracking_params,
         }
         subtype_flags_provided = [
@@ -3010,6 +3484,7 @@ def update(
             mobile_app_campaign_flags = {
                 "--setting",
                 "--search-strategy",
+                "--network-strategy",
                 "--mobile-search-weekly-spend-limit",
                 "--mobile-search-bid-ceiling",
                 "--mobile-search-custom-period-spend-limit",
@@ -3020,6 +3495,17 @@ def update(
                 "--mobile-search-average-cpi",
                 "--mobile-search-clicks-per-week",
                 "--mobile-search-budget-type",
+                "--mobile-network-weekly-spend-limit",
+                "--mobile-network-bid-ceiling",
+                "--mobile-network-custom-period-spend-limit",
+                "--mobile-network-custom-period-start-date",
+                "--mobile-network-custom-period-end-date",
+                "--mobile-network-custom-period-auto-continue",
+                "--mobile-network-average-cpc",
+                "--mobile-network-average-cpi",
+                "--mobile-network-clicks-per-week",
+                "--mobile-network-limit-percent",
+                "--mobile-network-budget-type",
                 "--negative-keyword-shared-set-ids",
             }
             cpm_banner_campaign_flags = {
@@ -3215,6 +3701,18 @@ def update(
                     mobile_search_average_cpi,
                     mobile_search_clicks_per_week,
                     mobile_search_budget_type,
+                    network_strategy,
+                    mobile_network_weekly_spend_limit,
+                    mobile_network_bid_ceiling,
+                    mobile_network_custom_period_spend_limit,
+                    mobile_network_custom_period_start_date,
+                    mobile_network_custom_period_end_date,
+                    mobile_network_custom_period_auto_continue,
+                    mobile_network_average_cpc,
+                    mobile_network_average_cpi,
+                    mobile_network_clicks_per_week,
+                    mobile_network_limit_percent,
+                    mobile_network_budget_type,
                     include_defaults=False,
                     is_update=True,
                 )
