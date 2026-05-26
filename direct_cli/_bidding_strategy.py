@@ -1107,13 +1107,19 @@ _TEXT_SEARCH_REQUIRED_TYPED_FLAGS: Dict[str, Dict[str, str]] = {
     "PayForConversion": {"Cpa": "--text-search-pay-cpa", "GoalId": "--goal-id"},
     # Per official Yandex docs WeeklySpendLimit is required for the
     # ``Wb*`` strategies even though WSDL marks the underlying
-    # ``StrategyWeeklyBudgetAddBase`` field minOccurs=0.
+    # ``StrategyWeeklyBudgetAddBase`` field minOccurs=0. The runtime
+    # check accepts either ``--text-search-weekly-spend-limit`` or a
+    # full ``CustomPeriodBudget`` (placed as the alternate budget slice).
     "WbMaximumClicks": {
-        "WeeklySpendLimit": "--text-search-weekly-spend-limit",
+        "WeeklySpendLimit": (
+            "--text-search-weekly-spend-limit or full CustomPeriodBudget"
+        ),
     },
     "WbMaximumConversionRate": {
         "GoalId": "--goal-id",
-        "WeeklySpendLimit": "--text-search-weekly-spend-limit",
+        "WeeklySpendLimit": (
+            "--text-search-weekly-spend-limit or full CustomPeriodBudget"
+        ),
     },
     "WeeklyClickPackage": {"ClicksPerWeek": "--text-search-clicks-per-week"},
     "AverageRoi": {
@@ -1394,6 +1400,13 @@ def build_text_campaign_search_strategy(
                 f"WSDL field is declared only on {sorted(supported)}"
             )
 
+    # ReserveReturn doc constraint: 0-100 percentage as a multiple of 10.
+    if reserve_return is not None and reserve_return % 10 != 0:
+        raise click.UsageError(
+            "--text-search-reserve-return must be a multiple of 10 "
+            "(0-100), per Yandex Direct API docs"
+        )
+
     # CustomPeriodBudget and ExplorationBudget are container-level checks
     # — all-or-none. Build the nested dicts (or None) up-front and then
     # validate they belong to the chosen subtype.
@@ -1492,20 +1505,30 @@ def build_text_campaign_search_strategy(
     # WSDL minOccurs=1 fields — fail-fast on add. On update the API
     # tolerates partial blocks (matches the legacy CPA strategy behavior
     # for AVERAGE_CPA on update, see existing dry-run fixtures).
+    # For Wb* strategies, CustomPeriodBudget acts as the alternative
+    # budget slice that also satisfies the WeeklySpendLimit-required
+    # constraint from the Yandex docs. Treating ``custom_period`` as
+    # equivalent for the required-flag check keeps both budget paths
+    # reachable for ``WB_MAXIMUM_CLICKS`` / ``WB_MAXIMUM_CONVERSION_RATE``.
+    weekly_or_custom_period = (
+        weekly_spend_limit
+        if weekly_spend_limit is not None
+        else (1 if custom_period is not None else None)
+    )
+    provided_lookup = {
+        "AverageCpc": average_cpc,
+        "AverageCpa": average_cpa,
+        "Cpa": pay_cpa,
+        "GoalId": goal_id,
+        "Crr": crr,
+        "ClicksPerWeek": clicks_per_week,
+        "ReserveReturn": reserve_return,
+        "RoiCoef": roi_coef,
+        "PriorityGoals": priority_goals_items,
+        "WeeklySpendLimit": weekly_or_custom_period,
+    }
     if not is_update:
         required = _TEXT_SEARCH_REQUIRED_TYPED_FLAGS.get(subtype, {})
-        provided_lookup = {
-            "AverageCpc": average_cpc,
-            "AverageCpa": average_cpa,
-            "Cpa": pay_cpa,
-            "GoalId": goal_id,
-            "Crr": crr,
-            "ClicksPerWeek": clicks_per_week,
-            "ReserveReturn": reserve_return,
-            "RoiCoef": roi_coef,
-            "PriorityGoals": priority_goals_items,
-            "WeeklySpendLimit": weekly_spend_limit,
-        }
         missing = [
             flag
             for wsdl_field, flag in required.items()
@@ -1515,6 +1538,23 @@ def build_text_campaign_search_strategy(
             raise click.UsageError(
                 f"Search strategy {subtype} requires {', '.join(sorted(missing))} "
                 f"(per Yandex Direct API docs)"
+            )
+    else:
+        # On update we let users patch individual fields, but if the
+        # user is switching to one of the priority-goals-requiring
+        # strategies they must also pass ``--priority-goals`` (per docs:
+        # "Be sure to simultaneously pass the PriorityGoals array").
+        # The existing campaign value cannot be relied on across a
+        # strategy-type switch.
+        if (
+            subtype in _TEXT_SEARCH_REQUIRES_PRIORITY_GOALS
+            and search_strategy is not None
+            and priority_goals_items is None
+        ):
+            raise click.UsageError(
+                f"Search strategy {subtype} requires --priority-goals when "
+                f"switching --search-strategy on update (per Yandex Direct "
+                f"API docs)"
             )
 
     # Build the WSDL Strategy*Add block. Element order in the dict

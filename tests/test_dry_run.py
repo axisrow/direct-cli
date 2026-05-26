@@ -8234,6 +8234,62 @@ def test_campaigns_add_text_search_wb_max_conv_rate_requires_weekly_spend_limit(
     assert "--text-search-weekly-spend-limit" in result.output
 
 
+def test_campaigns_add_text_search_wb_max_clicks_with_custom_period_payload():
+    """CustomPeriodBudget satisfies the WeeklySpendLimit requirement
+    for WB_MAXIMUM_CLICKS on add, per Yandex docs (alternate budget
+    slice)."""
+    body = _dry_run(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "WB_MAXIMUM_CLICKS",
+        "--text-search-custom-period-spend-limit",
+        "300",
+        "--text-search-custom-period-start-date",
+        "2026-07-01",
+        "--text-search-custom-period-end-date",
+        "2026-07-31",
+        "--text-search-custom-period-auto-continue",
+        "NO",
+    )
+    search = _text_search_extract(body)
+    assert search["WbMaximumClicks"] == {
+        "CustomPeriodBudget": {
+            "SpendLimit": 300000000,
+            "StartDate": "2026-07-01",
+            "EndDate": "2026-07-31",
+            "AutoContinue": "NO",
+        }
+    }
+
+
+def test_campaigns_add_text_search_wb_max_conv_rate_custom_period_payload():
+    body = _dry_run(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "WB_MAXIMUM_CONVERSION_RATE",
+        "--goal-id",
+        "42",
+        "--text-search-custom-period-spend-limit",
+        "200",
+        "--text-search-custom-period-start-date",
+        "2026-09-01",
+        "--text-search-custom-period-end-date",
+        "2026-09-30",
+        "--text-search-custom-period-auto-continue",
+        "YES",
+    )
+    search = _text_search_extract(body)
+    assert search["WbMaximumConversionRate"] == {
+        "GoalId": 42,
+        "CustomPeriodBudget": {
+            "SpendLimit": 200000000,
+            "StartDate": "2026-09-01",
+            "EndDate": "2026-09-30",
+            "AutoContinue": "YES",
+        },
+    }
+
+
 def test_campaigns_add_text_search_average_cpc_payload():
     body = _dry_run(
         *_cpa_base_args(),
@@ -8356,6 +8412,40 @@ def test_campaigns_add_text_search_average_roi_payload():
         "Profitability": 20,
         "WeeklySpendLimit": 500000000,
     }
+
+
+def test_campaigns_add_text_search_average_roi_rejects_non_decimal_reserve_return():
+    """Yandex docs: ReserveReturn must be a multiple of 10."""
+    result = _rejected(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "AVERAGE_ROI",
+        "--text-search-reserve-return",
+        "37",
+        "--text-search-roi-coef",
+        "100",
+        "--goal-id",
+        "1",
+    )
+    assert "--text-search-reserve-return" in result.output
+    assert "multiple of 10" in result.output
+
+
+def test_campaigns_add_text_search_average_roi_accepts_zero_reserve_return():
+    """ReserveReturn=0 is a documented valid value."""
+    body = _dry_run(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "AVERAGE_ROI",
+        "--text-search-reserve-return",
+        "0",
+        "--text-search-roi-coef",
+        "100",
+        "--goal-id",
+        "1",
+    )
+    search = _text_search_extract(body)
+    assert search["AverageRoi"]["ReserveReturn"] == 0
 
 
 def test_campaigns_add_text_search_average_roi_requires_reserve_return_and_roi():
@@ -8712,18 +8802,47 @@ def test_campaigns_update_text_search_budget_type_switch_payload():
     }
 
 
-def test_campaigns_update_text_search_max_profit_minimal_payload():
-    """Update tolerates partial Strategy*Add fields, including bare
-    BiddingStrategyType=MAX_PROFIT (no required-typed-flag check)."""
+def test_campaigns_update_text_search_max_profit_with_weekly_spend_payload():
+    """Switching to MAX_PROFIT on update requires --priority-goals per docs;
+    additional optional fields land in the subtype block."""
     body = _text_search_update(
         "--search-strategy",
         "MAX_PROFIT",
+        "--priority-goals",
+        "9:1000",
         "--text-search-weekly-spend-limit",
         "999",
     )
-    search = _text_search_extract(body)
-    assert search["BiddingStrategyType"] == "MAX_PROFIT"
+    text = body["params"]["Campaigns"][0]["TextCampaign"]
+    assert text["PriorityGoals"] == {
+        "Items": [{"GoalId": 9, "Value": 1000, "Operation": "SET"}]
+    }
+    search = text["BiddingStrategy"]["Search"]
     assert search["MaxProfit"] == {"WeeklySpendLimit": 999000000}
+
+
+def test_campaigns_update_text_search_max_profit_requires_priority_goals():
+    """Switching --search-strategy MAX_PROFIT on update without
+    --priority-goals is rejected per the Yandex docs."""
+    result = CliRunner().invoke(
+        cli,
+        [
+            "campaigns",
+            "update",
+            "--id",
+            "123",
+            "--type",
+            "TEXT_CAMPAIGN",
+            "--search-strategy",
+            "MAX_PROFIT",
+            "--text-search-weekly-spend-limit",
+            "999",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "--priority-goals" in result.output
+    assert "MaxProfit" in result.output
 
 
 def test_campaigns_update_text_search_average_roi_partial_payload():

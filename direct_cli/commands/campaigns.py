@@ -1020,8 +1020,11 @@ def get(
 )
 @click.option(
     "--text-search-reserve-return",
-    type=click.IntRange(1, 100),
-    help="TextCampaign Search AVERAGE_ROI ReserveReturn percentage",
+    type=click.IntRange(0, 100),
+    help=(
+        "TextCampaign Search AVERAGE_ROI ReserveReturn percentage "
+        "(0-100, multiple of 10)"
+    ),
 )
 @click.option(
     "--text-search-roi-coef",
@@ -2447,8 +2450,11 @@ def add(
 )
 @click.option(
     "--text-search-reserve-return",
-    type=click.IntRange(1, 100),
-    help="TextCampaign Search AVERAGE_ROI ReserveReturn percentage",
+    type=click.IntRange(0, 100),
+    help=(
+        "TextCampaign Search AVERAGE_ROI ReserveReturn percentage "
+        "(0-100, multiple of 10)"
+    ),
 )
 @click.option(
     "--text-search-roi-coef",
