@@ -963,6 +963,124 @@ def get(
     help="MobileAppCampaign NetworkDefault.LimitPercent, 10-100 by tens",
 )
 @click.option(
+    "--smart-search-average-cpc",
+    type=MICRO_RUBLES,
+    help=(
+        "SmartCampaign Search StrategyAverageCpcPerCampaignAdd.AverageCpc "
+        "in micro-rubles (#367)"
+    ),
+)
+@click.option(
+    "--smart-search-filter-average-cpc",
+    type=MICRO_RUBLES,
+    help=(
+        "SmartCampaign Search StrategyAverageCpcPerFilterAdd.FilterAverageCpc "
+        "in micro-rubles (#367)"
+    ),
+)
+@click.option(
+    "--smart-search-average-cpa",
+    type=MICRO_RUBLES,
+    help=(
+        "SmartCampaign Search StrategyAverageCpaPerCampaignAdd.AverageCpa "
+        "in micro-rubles (#367)"
+    ),
+)
+@click.option(
+    "--smart-search-filter-average-cpa",
+    type=MICRO_RUBLES,
+    help=(
+        "SmartCampaign Search StrategyAverageCpaPerFilterAdd.FilterAverageCpa "
+        "in micro-rubles (#367)"
+    ),
+)
+@click.option(
+    "--smart-search-cpa",
+    type=MICRO_RUBLES,
+    help=(
+        "SmartCampaign Search PayForConversion[Per{Campaign,Filter}].Cpa "
+        "in micro-rubles (#367)"
+    ),
+)
+@click.option(
+    "--smart-search-goal-id",
+    type=int,
+    help="SmartCampaign Search Strategy*Add.GoalId Metrika goal ID (#367)",
+)
+@click.option(
+    "--smart-search-weekly-spend-limit",
+    type=MICRO_RUBLES,
+    help="SmartCampaign Search Strategy*Add.WeeklySpendLimit in micro-rubles (#367)",
+)
+@click.option(
+    "--smart-search-bid-ceiling",
+    type=MICRO_RUBLES,
+    help="SmartCampaign Search Strategy*Add.BidCeiling in micro-rubles (#367)",
+)
+@click.option(
+    "--smart-search-reserve-return",
+    type=int,
+    help="SmartCampaign Search StrategyAverageRoiAdd.ReserveReturn (#367)",
+)
+@click.option(
+    "--smart-search-roi-coef",
+    type=MICRO_RUBLES,
+    help="SmartCampaign Search StrategyAverageRoiAdd.RoiCoef in micro-rubles (#367)",
+)
+@click.option(
+    "--smart-search-profitability",
+    type=MICRO_RUBLES,
+    help=(
+        "SmartCampaign Search StrategyAverageRoiAdd.Profitability in "
+        "micro-rubles (#367)"
+    ),
+)
+@click.option(
+    "--smart-search-crr",
+    type=int,
+    help=(
+        "SmartCampaign Search StrategyAverageCrrAdd.Crr / "
+        "StrategyPayForConversionCrrAdd.Crr percentage (#367)"
+    ),
+)
+@click.option(
+    "--smart-search-cp-spend-limit",
+    type=MICRO_RUBLES,
+    help=(
+        "SmartCampaign Search CustomPeriodBudget.SpendLimit in "
+        "micro-rubles (#367)"
+    ),
+)
+@click.option(
+    "--smart-search-cp-start-date",
+    help="SmartCampaign Search CustomPeriodBudget.StartDate (#367)",
+)
+@click.option(
+    "--smart-search-cp-end-date",
+    help="SmartCampaign Search CustomPeriodBudget.EndDate (#367)",
+)
+@click.option(
+    "--smart-search-cp-auto-continue",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="SmartCampaign Search CustomPeriodBudget.AutoContinue: YES or NO (#367)",
+)
+@click.option(
+    "--smart-search-exploration-min",
+    type=MICRO_RUBLES,
+    help=(
+        "SmartCampaign Search ExplorationBudget.MinimumExplorationBudget "
+        "in micro-rubles (#367)"
+    ),
+)
+@click.option(
+    "--smart-search-exploration-min-custom",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help=(
+        "SmartCampaign Search ExplorationBudget.IsMinimumExplorationBudgetCustom: "
+        "YES or NO (#367)"
+    ),
+)
+@click.option(
     "--average-cpa",
     type=MICRO_RUBLES,
     help="Target CPA in micro-rubles (AVERAGE_CPA)",
@@ -1138,6 +1256,24 @@ def add(
     mobile_network_average_cpi,
     mobile_network_clicks_per_week,
     mobile_network_limit_percent,
+    smart_search_average_cpc,
+    smart_search_filter_average_cpc,
+    smart_search_average_cpa,
+    smart_search_filter_average_cpa,
+    smart_search_cpa,
+    smart_search_goal_id,
+    smart_search_weekly_spend_limit,
+    smart_search_bid_ceiling,
+    smart_search_reserve_return,
+    smart_search_roi_coef,
+    smart_search_profitability,
+    smart_search_crr,
+    smart_search_cp_spend_limit,
+    smart_search_cp_start_date,
+    smart_search_cp_end_date,
+    smart_search_cp_auto_continue,
+    smart_search_exploration_min,
+    smart_search_exploration_min_custom,
     average_cpa,
     crr,
     bid_ceiling,
@@ -1266,6 +1402,25 @@ def add(
                 "--package-strategy-from-campaign-id",
                 "--package-platform-search",
                 "--package-platform-network",
+                # SmartCampaign.BiddingStrategy.Search typed flags (#367)
+                "--smart-search-average-cpc",
+                "--smart-search-filter-average-cpc",
+                "--smart-search-average-cpa",
+                "--smart-search-filter-average-cpa",
+                "--smart-search-cpa",
+                "--smart-search-goal-id",
+                "--smart-search-weekly-spend-limit",
+                "--smart-search-bid-ceiling",
+                "--smart-search-reserve-return",
+                "--smart-search-roi-coef",
+                "--smart-search-profitability",
+                "--smart-search-crr",
+                "--smart-search-cp-spend-limit",
+                "--smart-search-cp-start-date",
+                "--smart-search-cp-end-date",
+                "--smart-search-cp-auto-continue",
+                "--smart-search-exploration-min",
+                "--smart-search-exploration-min-custom",
             },
             "MOBILE_APP_CAMPAIGN": {
                 "--setting",
@@ -1401,6 +1556,27 @@ def add(
                 "--mobile-network-average-cpi": mobile_network_average_cpi,
                 "--mobile-network-clicks-per-week": mobile_network_clicks_per_week,
                 "--mobile-network-limit-percent": mobile_network_limit_percent,
+                # SmartCampaign.BiddingStrategy.Search typed flags (#367)
+                "--smart-search-average-cpc": smart_search_average_cpc,
+                "--smart-search-filter-average-cpc": smart_search_filter_average_cpc,
+                "--smart-search-average-cpa": smart_search_average_cpa,
+                "--smart-search-filter-average-cpa": smart_search_filter_average_cpa,
+                "--smart-search-cpa": smart_search_cpa,
+                "--smart-search-goal-id": smart_search_goal_id,
+                "--smart-search-weekly-spend-limit": smart_search_weekly_spend_limit,
+                "--smart-search-bid-ceiling": smart_search_bid_ceiling,
+                "--smart-search-reserve-return": smart_search_reserve_return,
+                "--smart-search-roi-coef": smart_search_roi_coef,
+                "--smart-search-profitability": smart_search_profitability,
+                "--smart-search-crr": smart_search_crr,
+                "--smart-search-cp-spend-limit": smart_search_cp_spend_limit,
+                "--smart-search-cp-start-date": smart_search_cp_start_date,
+                "--smart-search-cp-end-date": smart_search_cp_end_date,
+                "--smart-search-cp-auto-continue": smart_search_cp_auto_continue,
+                "--smart-search-exploration-min": smart_search_exploration_min,
+                "--smart-search-exploration-min-custom": (
+                    smart_search_exploration_min_custom
+                ),
                 "--average-cpa": average_cpa,
                 "--crr": crr,
                 "--bid-ceiling": bid_ceiling,
@@ -1758,8 +1934,42 @@ def add(
                         "--filter-average-cpc is only valid for SMART_CAMPAIGN "
                         "with AVERAGE_CPC_PER_FILTER network strategy"
                     )
+                # SmartCampaign.BiddingStrategy.Search via shared builder (#367).
+                # Returns ONLY the Search block. Network is built separately
+                # (this PR's scope is search-only; #368 owns the Network refactor).
+                smart_search_builder = get_bidding_strategy_builder(
+                    "SMART_CAMPAIGN", "add", "search"
+                )
+                if smart_search_builder is not None:
+                    search_block = smart_search_builder(
+                        search_strategy,
+                        smart_search_average_cpc,
+                        smart_search_filter_average_cpc,
+                        smart_search_average_cpa,
+                        smart_search_filter_average_cpa,
+                        smart_search_cpa,
+                        smart_search_goal_id,
+                        smart_search_weekly_spend_limit,
+                        smart_search_bid_ceiling,
+                        smart_search_reserve_return,
+                        smart_search_roi_coef,
+                        smart_search_profitability,
+                        smart_search_crr,
+                        smart_search_cp_spend_limit,
+                        smart_search_cp_start_date,
+                        smart_search_cp_end_date,
+                        smart_search_cp_auto_continue,
+                        smart_search_exploration_min,
+                        smart_search_exploration_min_custom,
+                        include_default=True,
+                        is_update=False,
+                    )
+                else:
+                    search_block = {
+                        "BiddingStrategyType": search_strategy or "SERVING_OFF"
+                    }
                 smart_campaign["BiddingStrategy"] = {
-                    "Search": {"BiddingStrategyType": search_strategy or "SERVING_OFF"},
+                    "Search": search_block,
                     "Network": {"BiddingStrategyType": network_strategy_type},
                 }
                 if network_strategy_type == "AVERAGE_CPC_PER_FILTER":
@@ -2210,6 +2420,124 @@ def add(
     help="MobileAppCampaign Network strategy BudgetType for update",
 )
 @click.option(
+    "--smart-search-average-cpc",
+    type=MICRO_RUBLES,
+    help=(
+        "SmartCampaign Search StrategyAverageCpcPerCampaign.AverageCpc "
+        "in micro-rubles (#367)"
+    ),
+)
+@click.option(
+    "--smart-search-filter-average-cpc",
+    type=MICRO_RUBLES,
+    help=(
+        "SmartCampaign Search StrategyAverageCpcPerFilter.FilterAverageCpc "
+        "in micro-rubles (#367)"
+    ),
+)
+@click.option(
+    "--smart-search-average-cpa",
+    type=MICRO_RUBLES,
+    help=(
+        "SmartCampaign Search StrategyAverageCpaPerCampaign.AverageCpa "
+        "in micro-rubles (#367)"
+    ),
+)
+@click.option(
+    "--smart-search-filter-average-cpa",
+    type=MICRO_RUBLES,
+    help=(
+        "SmartCampaign Search StrategyAverageCpaPerFilter.FilterAverageCpa "
+        "in micro-rubles (#367)"
+    ),
+)
+@click.option(
+    "--smart-search-cpa",
+    type=MICRO_RUBLES,
+    help=(
+        "SmartCampaign Search PayForConversion[Per{Campaign,Filter}].Cpa "
+        "in micro-rubles (#367)"
+    ),
+)
+@click.option(
+    "--smart-search-goal-id",
+    type=int,
+    help="SmartCampaign Search Strategy*.GoalId Metrika goal ID (#367)",
+)
+@click.option(
+    "--smart-search-weekly-spend-limit",
+    type=MICRO_RUBLES,
+    help="SmartCampaign Search Strategy*.WeeklySpendLimit in micro-rubles (#367)",
+)
+@click.option(
+    "--smart-search-bid-ceiling",
+    type=MICRO_RUBLES,
+    help="SmartCampaign Search Strategy*.BidCeiling in micro-rubles (#367)",
+)
+@click.option(
+    "--smart-search-reserve-return",
+    type=int,
+    help="SmartCampaign Search StrategyAverageRoi.ReserveReturn (#367)",
+)
+@click.option(
+    "--smart-search-roi-coef",
+    type=MICRO_RUBLES,
+    help="SmartCampaign Search StrategyAverageRoi.RoiCoef in micro-rubles (#367)",
+)
+@click.option(
+    "--smart-search-profitability",
+    type=MICRO_RUBLES,
+    help=(
+        "SmartCampaign Search StrategyAverageRoi.Profitability in "
+        "micro-rubles (#367)"
+    ),
+)
+@click.option(
+    "--smart-search-crr",
+    type=int,
+    help=(
+        "SmartCampaign Search StrategyAverageCrr.Crr / "
+        "StrategyPayForConversionCrr.Crr percentage (#367)"
+    ),
+)
+@click.option(
+    "--smart-search-cp-spend-limit",
+    type=MICRO_RUBLES,
+    help=(
+        "SmartCampaign Search CustomPeriodBudget.SpendLimit in "
+        "micro-rubles (#367)"
+    ),
+)
+@click.option(
+    "--smart-search-cp-start-date",
+    help="SmartCampaign Search CustomPeriodBudget.StartDate (#367)",
+)
+@click.option(
+    "--smart-search-cp-end-date",
+    help="SmartCampaign Search CustomPeriodBudget.EndDate (#367)",
+)
+@click.option(
+    "--smart-search-cp-auto-continue",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="SmartCampaign Search CustomPeriodBudget.AutoContinue: YES or NO (#367)",
+)
+@click.option(
+    "--smart-search-exploration-min",
+    type=MICRO_RUBLES,
+    help=(
+        "SmartCampaign Search ExplorationBudget.MinimumExplorationBudget "
+        "in micro-rubles (#367)"
+    ),
+)
+@click.option(
+    "--smart-search-exploration-min-custom",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help=(
+        "SmartCampaign Search ExplorationBudget.IsMinimumExplorationBudgetCustom: "
+        "YES or NO (#367)"
+    ),
+)
+@click.option(
     "--notification",
     default=None,
     expose_value=False,
@@ -2378,6 +2706,24 @@ def update(
     mobile_network_clicks_per_week,
     mobile_network_limit_percent,
     mobile_network_budget_type,
+    smart_search_average_cpc,
+    smart_search_filter_average_cpc,
+    smart_search_average_cpa,
+    smart_search_filter_average_cpa,
+    smart_search_cpa,
+    smart_search_goal_id,
+    smart_search_weekly_spend_limit,
+    smart_search_bid_ceiling,
+    smart_search_reserve_return,
+    smart_search_roi_coef,
+    smart_search_profitability,
+    smart_search_crr,
+    smart_search_cp_spend_limit,
+    smart_search_cp_start_date,
+    smart_search_cp_end_date,
+    smart_search_cp_auto_continue,
+    smart_search_exploration_min,
+    smart_search_exploration_min_custom,
     client_info,
     sms_events,
     sms_time_from,
@@ -2560,6 +2906,27 @@ def update(
             "--mobile-network-clicks-per-week": mobile_network_clicks_per_week,
             "--mobile-network-limit-percent": mobile_network_limit_percent,
             "--mobile-network-budget-type": mobile_network_budget_type,
+            # SmartCampaign.BiddingStrategy.Search typed flags (#367)
+            "--smart-search-average-cpc": smart_search_average_cpc,
+            "--smart-search-filter-average-cpc": smart_search_filter_average_cpc,
+            "--smart-search-average-cpa": smart_search_average_cpa,
+            "--smart-search-filter-average-cpa": smart_search_filter_average_cpa,
+            "--smart-search-cpa": smart_search_cpa,
+            "--smart-search-goal-id": smart_search_goal_id,
+            "--smart-search-weekly-spend-limit": smart_search_weekly_spend_limit,
+            "--smart-search-bid-ceiling": smart_search_bid_ceiling,
+            "--smart-search-reserve-return": smart_search_reserve_return,
+            "--smart-search-roi-coef": smart_search_roi_coef,
+            "--smart-search-profitability": smart_search_profitability,
+            "--smart-search-crr": smart_search_crr,
+            "--smart-search-cp-spend-limit": smart_search_cp_spend_limit,
+            "--smart-search-cp-start-date": smart_search_cp_start_date,
+            "--smart-search-cp-end-date": smart_search_cp_end_date,
+            "--smart-search-cp-auto-continue": smart_search_cp_auto_continue,
+            "--smart-search-exploration-min": smart_search_exploration_min,
+            "--smart-search-exploration-min-custom": (
+                smart_search_exploration_min_custom
+            ),
             "--tracking-params": tracking_params,
         }
         subtype_flags_provided = [
@@ -2643,6 +3010,26 @@ def update(
                 "--package-platform-search",
                 "--package-platform-network",
                 "--tracking-params",
+                "--search-strategy",
+                # SmartCampaign.BiddingStrategy.Search typed flags (#367)
+                "--smart-search-average-cpc",
+                "--smart-search-filter-average-cpc",
+                "--smart-search-average-cpa",
+                "--smart-search-filter-average-cpa",
+                "--smart-search-cpa",
+                "--smart-search-goal-id",
+                "--smart-search-weekly-spend-limit",
+                "--smart-search-bid-ceiling",
+                "--smart-search-reserve-return",
+                "--smart-search-roi-coef",
+                "--smart-search-profitability",
+                "--smart-search-crr",
+                "--smart-search-cp-spend-limit",
+                "--smart-search-cp-start-date",
+                "--smart-search-cp-end-date",
+                "--smart-search-cp-auto-continue",
+                "--smart-search-exploration-min",
+                "--smart-search-exploration-min-custom",
             }
             mobile_app_campaign_flags = {
                 "--setting",
@@ -2874,17 +3261,55 @@ def update(
                         require_platforms=False,
                     )
                 )
+                # SmartCampaign.BiddingStrategy.Search via shared builder (#367).
+                # Returns ONLY the Search block; Network is not in this PR's
+                # scope (owned by #368). On update, omit BiddingStrategy entirely
+                # when no Search-related flag is present.
+                smart_search_builder = get_bidding_strategy_builder(
+                    "SMART_CAMPAIGN", "update", "search"
+                )
+                smart_search_block = None
+                if smart_search_builder is not None:
+                    smart_search_block = smart_search_builder(
+                        search_strategy,
+                        smart_search_average_cpc,
+                        smart_search_filter_average_cpc,
+                        smart_search_average_cpa,
+                        smart_search_filter_average_cpa,
+                        smart_search_cpa,
+                        smart_search_goal_id,
+                        smart_search_weekly_spend_limit,
+                        smart_search_bid_ceiling,
+                        smart_search_reserve_return,
+                        smart_search_roi_coef,
+                        smart_search_profitability,
+                        smart_search_crr,
+                        smart_search_cp_spend_limit,
+                        smart_search_cp_start_date,
+                        smart_search_cp_end_date,
+                        smart_search_cp_auto_continue,
+                        smart_search_exploration_min,
+                        smart_search_exploration_min_custom,
+                        include_default=False,
+                        is_update=True,
+                    )
                 if smart_package_bidding_strategy_obj is not None:
                     package_incompatible = {
                         "--counter-id": counter_id,
                         "--priority-goals": priority_goals,
                         "--attribution-model": attribution_model,
+                        "--search-strategy": search_strategy,
                     }
                     provided = [
                         flag
                         for flag, value in package_incompatible.items()
                         if value is not None
                     ]
+                    # PackageBiddingStrategy is mutually exclusive with any
+                    # typed Search flag (WSDL: SmartCampaignUpdateItem allows
+                    # only one of BiddingStrategy / PackageBiddingStrategy).
+                    if smart_search_block is not None:
+                        provided.append("SmartCampaign.BiddingStrategy.Search")
                     if provided:
                         raise click.UsageError(
                             "SmartCampaign.PackageBiddingStrategy cannot be "
@@ -2893,6 +3318,8 @@ def update(
                     sub_block["PackageBiddingStrategy"] = (
                         smart_package_bidding_strategy_obj
                     )
+                elif smart_search_block is not None:
+                    sub_block["BiddingStrategy"] = {"Search": smart_search_block}
             elif campaign_type_norm == "MOBILE_APP_CAMPAIGN":
                 parsed_settings = parse_setting_specs(list(settings))
                 if parsed_settings:

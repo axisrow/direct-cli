@@ -5239,6 +5239,688 @@ def test_campaigns_add_rejects_smart_priority_goals_without_bidding_strategy():
     assert "#290" in result.output
 
 
+# ----------------------------------------------------------------------
+# campaigns add: SmartCampaign.BiddingStrategy.Search families (issue #367)
+# WSDL ref: tests/wsdl_cache/campaigns.xml lines 1401-1481, 1789-1820,
+# SmartCampaignSearchStrategyTypeEnum lines 396-410.
+# ----------------------------------------------------------------------
+
+
+def _smart_search_base():
+    return [
+        "campaigns",
+        "add",
+        "--name",
+        "Smart Search",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--counter-id",
+        "123",
+        # Network defaults to AVERAGE_CPC_PER_FILTER + filter-average-cpc
+        # (this PR's scope is Search; Network is owned by #368).
+        "--filter-average-cpc",
+        "1000000",
+    ]
+
+
+def test_campaigns_add_smart_search_average_cpc_per_campaign_payload():
+    body = _dry_run(
+        *_smart_search_base(),
+        "--search-strategy",
+        "AVERAGE_CPC_PER_CAMPAIGN",
+        "--smart-search-average-cpc",
+        "5000000",
+        "--smart-search-bid-ceiling",
+        "9000000",
+        "--smart-search-weekly-spend-limit",
+        "50000000",
+    )
+    search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"]["Search"]
+    assert search == {
+        "BiddingStrategyType": "AVERAGE_CPC_PER_CAMPAIGN",
+        "AverageCpcPerCampaign": {
+            "AverageCpc": 5000000,
+            "WeeklySpendLimit": 50000000,
+            "BidCeiling": 9000000,
+        },
+    }
+
+
+def test_campaigns_add_smart_search_average_cpc_per_filter_payload():
+    body = _dry_run(
+        *_smart_search_base(),
+        "--search-strategy",
+        "AVERAGE_CPC_PER_FILTER",
+        "--smart-search-filter-average-cpc",
+        "3000000",
+    )
+    search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"]["Search"]
+    assert search == {
+        "BiddingStrategyType": "AVERAGE_CPC_PER_FILTER",
+        "AverageCpcPerFilter": {"FilterAverageCpc": 3000000},
+    }
+
+
+def test_campaigns_add_smart_search_average_cpc_per_filter_minimal_payload():
+    # WSDL: StrategyAverageCpcPerFilterAdd.FilterAverageCpc is minOccurs=0,
+    # so an empty payload subtype block is legal.
+    body = _dry_run(
+        *_smart_search_base(),
+        "--search-strategy",
+        "AVERAGE_CPC_PER_FILTER",
+    )
+    search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"]["Search"]
+    assert search == {"BiddingStrategyType": "AVERAGE_CPC_PER_FILTER"}
+
+
+def test_campaigns_add_smart_search_average_cpa_per_campaign_payload():
+    body = _dry_run(
+        *_smart_search_base(),
+        "--search-strategy",
+        "AVERAGE_CPA_PER_CAMPAIGN",
+        "--smart-search-average-cpa",
+        "4000000",
+        "--smart-search-goal-id",
+        "111",
+        "--smart-search-bid-ceiling",
+        "9000000",
+    )
+    search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"]["Search"]
+    assert search == {
+        "BiddingStrategyType": "AVERAGE_CPA_PER_CAMPAIGN",
+        "AverageCpaPerCampaign": {
+            "AverageCpa": 4000000,
+            "GoalId": 111,
+            "BidCeiling": 9000000,
+        },
+    }
+
+
+def test_campaigns_add_smart_search_average_cpa_per_filter_payload():
+    body = _dry_run(
+        *_smart_search_base(),
+        "--search-strategy",
+        "AVERAGE_CPA_PER_FILTER",
+        "--smart-search-filter-average-cpa",
+        "4500000",
+        "--smart-search-goal-id",
+        "222",
+        "--smart-search-cp-spend-limit",
+        "100000000",
+        "--smart-search-cp-start-date",
+        "2026-06-01",
+        "--smart-search-cp-end-date",
+        "2026-06-30",
+        "--smart-search-cp-auto-continue",
+        "YES",
+    )
+    search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"]["Search"]
+    assert search == {
+        "BiddingStrategyType": "AVERAGE_CPA_PER_FILTER",
+        "AverageCpaPerFilter": {
+            "FilterAverageCpa": 4500000,
+            "GoalId": 222,
+            "CustomPeriodBudget": {
+                "SpendLimit": 100000000,
+                "StartDate": "2026-06-01",
+                "EndDate": "2026-06-30",
+                "AutoContinue": "YES",
+            },
+        },
+    }
+
+
+def test_campaigns_add_smart_search_pay_for_conversion_per_campaign_payload():
+    body = _dry_run(
+        *_smart_search_base(),
+        "--search-strategy",
+        "PAY_FOR_CONVERSION_PER_CAMPAIGN",
+        "--smart-search-cpa",
+        "6000000",
+        "--smart-search-goal-id",
+        "333",
+        "--smart-search-weekly-spend-limit",
+        "50000000",
+    )
+    search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"]["Search"]
+    assert search == {
+        "BiddingStrategyType": "PAY_FOR_CONVERSION_PER_CAMPAIGN",
+        "PayForConversionPerCampaign": {
+            "Cpa": 6000000,
+            "GoalId": 333,
+            "WeeklySpendLimit": 50000000,
+        },
+    }
+
+
+def test_campaigns_add_smart_search_pay_for_conversion_per_filter_payload():
+    body = _dry_run(
+        *_smart_search_base(),
+        "--search-strategy",
+        "PAY_FOR_CONVERSION_PER_FILTER",
+        "--smart-search-cpa",
+        "5500000",
+        "--smart-search-goal-id",
+        "444",
+    )
+    search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"]["Search"]
+    assert search == {
+        "BiddingStrategyType": "PAY_FOR_CONVERSION_PER_FILTER",
+        "PayForConversionPerFilter": {"Cpa": 5500000, "GoalId": 444},
+    }
+
+
+def test_campaigns_add_smart_search_average_roi_payload():
+    body = _dry_run(
+        *_smart_search_base(),
+        "--search-strategy",
+        "AVERAGE_ROI",
+        "--smart-search-reserve-return",
+        "30",
+        "--smart-search-roi-coef",
+        "1500000",
+        "--smart-search-goal-id",
+        "555",
+        "--smart-search-profitability",
+        "200000",
+        "--smart-search-bid-ceiling",
+        "10000000",
+        "--smart-search-exploration-min",
+        "20000000",
+        "--smart-search-exploration-min-custom",
+        "YES",
+    )
+    search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"]["Search"]
+    assert search == {
+        "BiddingStrategyType": "AVERAGE_ROI",
+        "AverageRoi": {
+            "ReserveReturn": 30,
+            "RoiCoef": 1500000,
+            "GoalId": 555,
+            "BidCeiling": 10000000,
+            "Profitability": 200000,
+            "ExplorationBudget": {
+                "MinimumExplorationBudget": 20000000,
+                "IsMinimumExplorationBudgetCustom": "YES",
+            },
+        },
+    }
+
+
+def test_campaigns_add_smart_search_average_crr_payload():
+    body = _dry_run(
+        *_smart_search_base(),
+        "--search-strategy",
+        "AVERAGE_CRR",
+        "--smart-search-crr",
+        "25",
+        "--smart-search-goal-id",
+        "666",
+        "--smart-search-weekly-spend-limit",
+        "40000000",
+    )
+    search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"]["Search"]
+    assert search == {
+        "BiddingStrategyType": "AVERAGE_CRR",
+        "AverageCrr": {
+            "Crr": 25,
+            "GoalId": 666,
+            "WeeklySpendLimit": 40000000,
+        },
+    }
+
+
+def test_campaigns_add_smart_search_pay_for_conversion_crr_payload():
+    body = _dry_run(
+        *_smart_search_base(),
+        "--search-strategy",
+        "PAY_FOR_CONVERSION_CRR",
+        "--smart-search-crr",
+        "15",
+        "--smart-search-goal-id",
+        "777",
+    )
+    search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"]["Search"]
+    assert search == {
+        "BiddingStrategyType": "PAY_FOR_CONVERSION_CRR",
+        "PayForConversionCrr": {"Crr": 15, "GoalId": 777},
+    }
+
+
+def test_campaigns_add_smart_search_serving_off_payload():
+    body = _dry_run(
+        *_smart_search_base(),
+        "--search-strategy",
+        "SERVING_OFF",
+    )
+    search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"]["Search"]
+    assert search == {"BiddingStrategyType": "SERVING_OFF"}
+
+
+def test_campaigns_add_smart_search_default_serving_off_payload():
+    # No --search-strategy at all → SERVING_OFF default; preserved from
+    # pre-#367 behavior.
+    body = _dry_run(*_smart_search_base())
+    search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"]["Search"]
+    assert search == {"BiddingStrategyType": "SERVING_OFF"}
+
+
+def test_campaigns_add_smart_search_requires_average_cpc():
+    result = _rejected(
+        *_smart_search_base(),
+        "--search-strategy",
+        "AVERAGE_CPC_PER_CAMPAIGN",
+    )
+    assert "--smart-search-average-cpc" in result.output
+
+
+def test_campaigns_add_smart_search_requires_filter_average_cpa_and_goal():
+    result = _rejected(
+        *_smart_search_base(),
+        "--search-strategy",
+        "AVERAGE_CPA_PER_FILTER",
+    )
+    assert "--smart-search-filter-average-cpa" in result.output
+    assert "--smart-search-goal-id" in result.output
+
+
+def test_campaigns_add_smart_search_rejects_wrong_subtype_flag():
+    # --smart-search-average-cpa belongs only to AverageCpaPerCampaign;
+    # using it with AVERAGE_CPC_PER_CAMPAIGN must raise.
+    result = _rejected(
+        *_smart_search_base(),
+        "--search-strategy",
+        "AVERAGE_CPC_PER_CAMPAIGN",
+        "--smart-search-average-cpc",
+        "5000000",
+        "--smart-search-average-cpa",
+        "4000000",
+    )
+    assert "--smart-search-average-cpa" in result.output
+
+
+def test_campaigns_add_smart_search_rejects_bid_ceiling_on_crr():
+    # WSDL StrategyAverageCrrAdd has no BidCeiling field.
+    result = _rejected(
+        *_smart_search_base(),
+        "--search-strategy",
+        "AVERAGE_CRR",
+        "--smart-search-crr",
+        "15",
+        "--smart-search-goal-id",
+        "777",
+        "--smart-search-bid-ceiling",
+        "100",
+    )
+    assert "--smart-search-bid-ceiling" in result.output
+
+
+def test_campaigns_add_smart_search_rejects_exploration_on_cpc_per_campaign():
+    # WSDL StrategyAverageCpcPerCampaignAdd has no ExplorationBudget.
+    result = _rejected(
+        *_smart_search_base(),
+        "--search-strategy",
+        "AVERAGE_CPC_PER_CAMPAIGN",
+        "--smart-search-average-cpc",
+        "5000000",
+        "--smart-search-exploration-min",
+        "1000000",
+        "--smart-search-exploration-min-custom",
+        "YES",
+    )
+    assert "ExplorationBudget" in result.output
+
+
+def test_campaigns_add_smart_search_rejects_partial_custom_period_budget():
+    result = _rejected(
+        *_smart_search_base(),
+        "--search-strategy",
+        "AVERAGE_CPC_PER_CAMPAIGN",
+        "--smart-search-average-cpc",
+        "5000000",
+        "--smart-search-cp-spend-limit",
+        "100000000",
+        # Missing start-date / end-date / auto-continue.
+    )
+    assert "CustomPeriodBudget" in result.output
+
+
+def test_campaigns_add_smart_search_rejects_partial_exploration_budget():
+    result = _rejected(
+        *_smart_search_base(),
+        "--search-strategy",
+        "AVERAGE_ROI",
+        "--smart-search-reserve-return",
+        "30",
+        "--smart-search-roi-coef",
+        "1500000",
+        "--smart-search-goal-id",
+        "555",
+        "--smart-search-exploration-min",
+        "20000000",
+        # missing --smart-search-exploration-min-custom
+    )
+    assert "ExplorationBudget" in result.output
+
+
+def test_campaigns_add_smart_search_rejects_detail_without_strategy():
+    # When --search-strategy is omitted but typed flags are present, the
+    # builder must fail rather than silently picking SERVING_OFF.
+    result = _rejected(
+        *_smart_search_base(),
+        "--smart-search-average-cpc",
+        "5000000",
+    )
+    assert "SmartCampaign search detail flags" in result.output
+
+
+def test_campaigns_add_smart_search_rejects_serving_off_with_details():
+    result = _rejected(
+        *_smart_search_base(),
+        "--search-strategy",
+        "SERVING_OFF",
+        "--smart-search-average-cpc",
+        "5000000",
+    )
+    assert "SERVING_OFF" in result.output
+
+
+def test_campaigns_add_smart_search_rejects_invalid_strategy():
+    result = _rejected(
+        *_smart_search_base(),
+        "--search-strategy",
+        "BOGUS_STRATEGY",
+    )
+    assert "SMART_CAMPAIGN" in result.output
+
+
+# ----------------------------------------------------------------------
+# campaigns update: SmartCampaign.BiddingStrategy.Search families (#367)
+# ----------------------------------------------------------------------
+
+
+def test_campaigns_update_smart_search_average_cpc_per_campaign_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "55",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--search-strategy",
+        "AVERAGE_CPC_PER_CAMPAIGN",
+        "--smart-search-average-cpc",
+        "5000000",
+    )
+    campaign = body["params"]["Campaigns"][0]
+    assert campaign == {
+        "Id": 55,
+        "SmartCampaign": {
+            "BiddingStrategy": {
+                "Search": {
+                    "BiddingStrategyType": "AVERAGE_CPC_PER_CAMPAIGN",
+                    "AverageCpcPerCampaign": {"AverageCpc": 5000000},
+                }
+            }
+        },
+    }
+
+
+def test_campaigns_update_smart_search_average_cpc_per_filter_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "55",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--search-strategy",
+        "AVERAGE_CPC_PER_FILTER",
+        "--smart-search-filter-average-cpc",
+        "3000000",
+    )
+    search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"]["Search"]
+    assert search == {
+        "BiddingStrategyType": "AVERAGE_CPC_PER_FILTER",
+        "AverageCpcPerFilter": {"FilterAverageCpc": 3000000},
+    }
+
+
+def test_campaigns_update_smart_search_average_cpa_per_campaign_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "55",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--search-strategy",
+        "AVERAGE_CPA_PER_CAMPAIGN",
+        "--smart-search-average-cpa",
+        "4000000",
+        "--smart-search-goal-id",
+        "111",
+    )
+    search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"]["Search"]
+    assert search == {
+        "BiddingStrategyType": "AVERAGE_CPA_PER_CAMPAIGN",
+        "AverageCpaPerCampaign": {"AverageCpa": 4000000, "GoalId": 111},
+    }
+
+
+def test_campaigns_update_smart_search_average_cpa_per_filter_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "55",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--search-strategy",
+        "AVERAGE_CPA_PER_FILTER",
+        "--smart-search-filter-average-cpa",
+        "4500000",
+        "--smart-search-goal-id",
+        "222",
+    )
+    search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"]["Search"]
+    assert search == {
+        "BiddingStrategyType": "AVERAGE_CPA_PER_FILTER",
+        "AverageCpaPerFilter": {"FilterAverageCpa": 4500000, "GoalId": 222},
+    }
+
+
+def test_campaigns_update_smart_search_pay_for_conversion_per_campaign_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "55",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--search-strategy",
+        "PAY_FOR_CONVERSION_PER_CAMPAIGN",
+        "--smart-search-cpa",
+        "6000000",
+        "--smart-search-goal-id",
+        "333",
+    )
+    search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"]["Search"]
+    assert search == {
+        "BiddingStrategyType": "PAY_FOR_CONVERSION_PER_CAMPAIGN",
+        "PayForConversionPerCampaign": {"Cpa": 6000000, "GoalId": 333},
+    }
+
+
+def test_campaigns_update_smart_search_pay_for_conversion_per_filter_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "55",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--search-strategy",
+        "PAY_FOR_CONVERSION_PER_FILTER",
+        "--smart-search-cpa",
+        "5500000",
+        "--smart-search-goal-id",
+        "444",
+    )
+    search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"]["Search"]
+    assert search == {
+        "BiddingStrategyType": "PAY_FOR_CONVERSION_PER_FILTER",
+        "PayForConversionPerFilter": {"Cpa": 5500000, "GoalId": 444},
+    }
+
+
+def test_campaigns_update_smart_search_average_roi_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "55",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--search-strategy",
+        "AVERAGE_ROI",
+        "--smart-search-reserve-return",
+        "30",
+        "--smart-search-roi-coef",
+        "1500000",
+        "--smart-search-goal-id",
+        "555",
+    )
+    search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"]["Search"]
+    assert search == {
+        "BiddingStrategyType": "AVERAGE_ROI",
+        "AverageRoi": {
+            "ReserveReturn": 30,
+            "RoiCoef": 1500000,
+            "GoalId": 555,
+        },
+    }
+
+
+def test_campaigns_update_smart_search_average_crr_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "55",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--search-strategy",
+        "AVERAGE_CRR",
+        "--smart-search-crr",
+        "25",
+        "--smart-search-goal-id",
+        "666",
+    )
+    search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"]["Search"]
+    assert search == {
+        "BiddingStrategyType": "AVERAGE_CRR",
+        "AverageCrr": {"Crr": 25, "GoalId": 666},
+    }
+
+
+def test_campaigns_update_smart_search_pay_for_conversion_crr_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "55",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--search-strategy",
+        "PAY_FOR_CONVERSION_CRR",
+        "--smart-search-crr",
+        "15",
+        "--smart-search-goal-id",
+        "777",
+    )
+    search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"]["Search"]
+    assert search == {
+        "BiddingStrategyType": "PAY_FOR_CONVERSION_CRR",
+        "PayForConversionCrr": {"Crr": 15, "GoalId": 777},
+    }
+
+
+def test_campaigns_update_smart_search_partial_field_no_required_check():
+    # On update, WSDL minOccurs=1 required-field validation is skipped so
+    # users can change a single field. The builder must still accept the
+    # subtype without rejecting (matches CpmBanner / MobileApp update
+    # semantics).
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "55",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--search-strategy",
+        "AVERAGE_CPA_PER_CAMPAIGN",
+        # Only --smart-search-average-cpa, no --smart-search-goal-id
+        "--smart-search-average-cpa",
+        "4000000",
+    )
+    search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"]["Search"]
+    assert search == {
+        "BiddingStrategyType": "AVERAGE_CPA_PER_CAMPAIGN",
+        "AverageCpaPerCampaign": {"AverageCpa": 4000000},
+    }
+
+
+def test_campaigns_update_smart_search_omits_bidding_strategy_when_unused():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "55",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--counter-id",
+        "123",
+    )
+    smart = body["params"]["Campaigns"][0]["SmartCampaign"]
+    assert "BiddingStrategy" not in smart
+    assert smart == {"CounterId": 123}
+
+
+def test_campaigns_update_smart_search_rejects_package_with_search_flags():
+    result = _rejected(
+        "campaigns",
+        "update",
+        "--id",
+        "55",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--package-strategy-id",
+        "700",
+        "--search-strategy",
+        "AVERAGE_CPC_PER_CAMPAIGN",
+        "--smart-search-average-cpc",
+        "5000000",
+    )
+    assert "PackageBiddingStrategy" in result.output
+
+
+def test_campaigns_update_smart_search_rejects_detail_without_strategy():
+    result = _rejected(
+        "campaigns",
+        "update",
+        "--id",
+        "55",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--smart-search-average-cpc",
+        "5000000",
+    )
+    assert "SmartCampaign search detail flags" in result.output
+
+
 def test_campaigns_add_rejects_smart_package_without_required_platforms():
     result = _rejected(
         "campaigns",
