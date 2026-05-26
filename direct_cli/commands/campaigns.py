@@ -86,6 +86,44 @@ CPM_BANNER_NETWORK_STRATEGIES = [
     "CP_AVERAGE_CPV",
     "WB_AVERAGE_CPV",
 ]
+MOBILE_APP_SEARCH_STRATEGIES = [
+    "HIGHEST_POSITION",
+    "WB_MAXIMUM_CLICKS",
+    "WB_MAXIMUM_APP_INSTALLS",
+    "AVERAGE_CPC",
+    "AVERAGE_CPI",
+    "WEEKLY_CLICK_PACKAGE",
+    "PAY_FOR_INSTALL",
+    "SERVING_OFF",
+]
+MOBILE_APP_SEARCH_DISABLED_STRATEGIES = {"IMPRESSIONS_BELOW_SEARCH"}
+MOBILE_APP_SEARCH_STRATEGY_TO_WSDL_SUBTYPE = {
+    "WB_MAXIMUM_CLICKS": "WbMaximumClicks",
+    "WB_MAXIMUM_APP_INSTALLS": "WbMaximumAppInstalls",
+    "AVERAGE_CPC": "AverageCpc",
+    "AVERAGE_CPI": "AverageCpi",
+    "WEEKLY_CLICK_PACKAGE": "WeeklyClickPackage",
+    "PAY_FOR_INSTALL": "PayForInstall",
+}
+MOBILE_APP_SEARCH_WEEKLY_SPEND_SUBTYPES = {
+    "WbMaximumClicks",
+    "WbMaximumAppInstalls",
+    "AverageCpc",
+    "AverageCpi",
+    "PayForInstall",
+}
+MOBILE_APP_SEARCH_BID_CEILING_SUBTYPES = {
+    "WbMaximumClicks",
+    "WbMaximumAppInstalls",
+    "AverageCpi",
+    "WeeklyClickPackage",
+}
+MOBILE_APP_SEARCH_CUSTOM_PERIOD_SUBTYPES = {"WbMaximumClicks", "AverageCpc"}
+MOBILE_APP_SEARCH_BUDGET_TYPE_SUBTYPES = {"WbMaximumClicks", "AverageCpc"}
+MOBILE_APP_SEARCH_AVERAGE_CPC_SUBTYPES = {"AverageCpc", "WeeklyClickPackage"}
+MOBILE_APP_SEARCH_AVERAGE_CPI_SUBTYPES = {"AverageCpi", "PayForInstall"}
+MOBILE_APP_SEARCH_CLICKS_PER_WEEK_SUBTYPES = {"WeeklyClickPackage"}
+BUDGET_TYPES = ["WEEKLY_BUDGET", "CUSTOM_PERIOD_BUDGET"]
 CLIENT_INFO_MAX_LENGTH = 255
 BLOCKED_IPS_MAX_ITEMS = 25
 EXCLUDED_SITES_MAX_ITEMS = 1000
@@ -738,6 +776,246 @@ def _build_cpm_banner_bidding_strategy(
     return strategy
 
 
+def _build_mobile_app_search_strategy(
+    search_strategy: Optional[str],
+    weekly_spend_limit: Optional[int],
+    bid_ceiling: Optional[int],
+    custom_period_spend_limit: Optional[int],
+    custom_period_start_date: Optional[str],
+    custom_period_end_date: Optional[str],
+    custom_period_auto_continue: Optional[str],
+    average_cpc: Optional[int],
+    average_cpi: Optional[int],
+    clicks_per_week: Optional[int],
+    budget_type: Optional[str],
+    *,
+    include_default: bool,
+    is_update: bool,
+) -> Optional[dict]:
+    """Build MobileAppCampaign.BiddingStrategy.Search from typed flags."""
+    detail_values = {
+        "--mobile-search-weekly-spend-limit": weekly_spend_limit,
+        "--mobile-search-bid-ceiling": bid_ceiling,
+        "--mobile-search-custom-period-spend-limit": custom_period_spend_limit,
+        "--mobile-search-custom-period-start-date": custom_period_start_date,
+        "--mobile-search-custom-period-end-date": custom_period_end_date,
+        "--mobile-search-custom-period-auto-continue": custom_period_auto_continue,
+        "--mobile-search-average-cpc": average_cpc,
+        "--mobile-search-average-cpi": average_cpi,
+        "--mobile-search-clicks-per-week": clicks_per_week,
+        "--mobile-search-budget-type": budget_type,
+    }
+    has_details = any(value is not None for value in detail_values.values())
+    if not include_default and search_strategy is None:
+        if has_details:
+            raise click.UsageError(
+                "MobileAppCampaign search detail flags require --search-strategy"
+            )
+        return None
+    if has_details and search_strategy is None:
+        raise click.UsageError(
+            "MobileAppCampaign search detail flags require --search-strategy"
+        )
+
+    normalized_strategy = (search_strategy or "HIGHEST_POSITION").upper()
+    if normalized_strategy in MOBILE_APP_SEARCH_DISABLED_STRATEGIES:
+        raise click.UsageError(
+            f"{normalized_strategy} is disabled in the Yandex Direct "
+            "Campaigns service"
+        )
+    if normalized_strategy not in MOBILE_APP_SEARCH_STRATEGIES:
+        raise click.UsageError(
+            "--search-strategy for MOBILE_APP_CAMPAIGN must be one of "
+            f"{', '.join(MOBILE_APP_SEARCH_STRATEGIES)}"
+        )
+
+    subtype = MOBILE_APP_SEARCH_STRATEGY_TO_WSDL_SUBTYPE.get(normalized_strategy)
+    search: dict = {"BiddingStrategyType": normalized_strategy}
+    if subtype is None:
+        invalid = [flag for flag, value in detail_values.items() if value is not None]
+        if invalid:
+            raise click.UsageError(
+                f"{normalized_strategy} does not accept mobile search detail flags: "
+                f"{', '.join(sorted(invalid))}"
+            )
+        return search
+
+    custom_period_values = {
+        "--mobile-search-custom-period-spend-limit": custom_period_spend_limit,
+        "--mobile-search-custom-period-start-date": custom_period_start_date,
+        "--mobile-search-custom-period-end-date": custom_period_end_date,
+        "--mobile-search-custom-period-auto-continue": custom_period_auto_continue,
+    }
+    custom_period_flags = [
+        flag for flag, value in custom_period_values.items() if value is not None
+    ]
+    if custom_period_flags and len(custom_period_flags) != len(custom_period_values):
+        missing = [
+            flag for flag, value in custom_period_values.items() if value is None
+        ]
+        raise click.UsageError(
+            "MobileAppCampaign CustomPeriodBudget requires all custom-period "
+            f"flags; missing {', '.join(sorted(missing))}"
+        )
+    if custom_period_flags and subtype not in MOBILE_APP_SEARCH_CUSTOM_PERIOD_SUBTYPES:
+        raise click.UsageError(
+            f"{normalized_strategy} does not accept MobileAppCampaign "
+            "CustomPeriodBudget flags"
+        )
+    if weekly_spend_limit is not None and custom_period_flags:
+        raise click.UsageError(
+            "--mobile-search-weekly-spend-limit cannot be combined with "
+            "--mobile-search-custom-period-spend-limit"
+        )
+    if not is_update:
+        required = {
+            "WbMaximumClicks": {
+                "--mobile-search-weekly-spend-limit or full CustomPeriodBudget": (
+                    weekly_spend_limit if not custom_period_flags else 1
+                )
+            },
+            "WbMaximumAppInstalls": {
+                "--mobile-search-weekly-spend-limit": weekly_spend_limit
+            },
+            "AverageCpc": {"--mobile-search-average-cpc": average_cpc},
+            "AverageCpi": {"--mobile-search-average-cpi": average_cpi},
+            "WeeklyClickPackage": {"--mobile-search-clicks-per-week": clicks_per_week},
+            "PayForInstall": {"--mobile-search-average-cpi": average_cpi},
+        }[subtype]
+        missing = [flag for flag, value in required.items() if value is None]
+        if missing:
+            raise click.UsageError(
+                f"{normalized_strategy} requires {', '.join(sorted(missing))}"
+            )
+
+    if budget_type is not None:
+        if not is_update:
+            raise click.UsageError("--mobile-search-budget-type is update-only")
+        if subtype not in MOBILE_APP_SEARCH_BUDGET_TYPE_SUBTYPES:
+            raise click.UsageError(
+                f"{normalized_strategy} does not accept --mobile-search-budget-type"
+            )
+        normalized_budget_type = budget_type.upper()
+        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET" and not custom_period_flags:
+            raise click.UsageError(
+                "--mobile-search-budget-type CUSTOM_PERIOD_BUDGET requires "
+                "full CustomPeriodBudget flags"
+            )
+        if normalized_budget_type == "WEEKLY_BUDGET" and weekly_spend_limit is None:
+            raise click.UsageError(
+                "--mobile-search-budget-type WEEKLY_BUDGET requires "
+                "--mobile-search-weekly-spend-limit"
+            )
+    if (
+        subtype == "WeeklyClickPackage"
+        and average_cpc is not None
+        and bid_ceiling is not None
+    ):
+        raise click.UsageError(
+            "WEEKLY_CLICK_PACKAGE cannot combine --mobile-search-average-cpc "
+            "with --mobile-search-bid-ceiling"
+        )
+
+    field_support = {
+        "--mobile-search-weekly-spend-limit": (
+            weekly_spend_limit,
+            MOBILE_APP_SEARCH_WEEKLY_SPEND_SUBTYPES,
+        ),
+        "--mobile-search-bid-ceiling": (
+            bid_ceiling,
+            MOBILE_APP_SEARCH_BID_CEILING_SUBTYPES,
+        ),
+        "--mobile-search-average-cpc": (
+            average_cpc,
+            MOBILE_APP_SEARCH_AVERAGE_CPC_SUBTYPES,
+        ),
+        "--mobile-search-average-cpi": (
+            average_cpi,
+            MOBILE_APP_SEARCH_AVERAGE_CPI_SUBTYPES,
+        ),
+        "--mobile-search-clicks-per-week": (
+            clicks_per_week,
+            MOBILE_APP_SEARCH_CLICKS_PER_WEEK_SUBTYPES,
+        ),
+    }
+    for flag, (value, supported_subtypes) in field_support.items():
+        if value is not None and subtype not in supported_subtypes:
+            raise click.UsageError(f"{normalized_strategy} does not accept {flag}")
+
+    block: dict = {}
+    if weekly_spend_limit is not None:
+        block["WeeklySpendLimit"] = weekly_spend_limit
+    if bid_ceiling is not None:
+        block["BidCeiling"] = bid_ceiling
+    if average_cpc is not None:
+        block["AverageCpc"] = average_cpc
+    if average_cpi is not None:
+        block["AverageCpi"] = average_cpi
+    if clicks_per_week is not None:
+        block["ClicksPerWeek"] = clicks_per_week
+    if custom_period_flags:
+        assert custom_period_spend_limit is not None
+        assert custom_period_start_date is not None
+        assert custom_period_end_date is not None
+        assert custom_period_auto_continue is not None
+        block["CustomPeriodBudget"] = {
+            "SpendLimit": custom_period_spend_limit,
+            "StartDate": custom_period_start_date,
+            "EndDate": custom_period_end_date,
+            "AutoContinue": custom_period_auto_continue.upper(),
+        }
+    if budget_type is not None:
+        normalized_budget_type = budget_type.upper()
+        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET":
+            block["WeeklySpendLimit"] = None
+        elif normalized_budget_type == "WEEKLY_BUDGET":
+            block["CustomPeriodBudget"] = None
+        block["BudgetType"] = normalized_budget_type
+    if block:
+        search[subtype] = block
+    return search
+
+
+def _build_mobile_app_bidding_strategy(
+    search_strategy: Optional[str],
+    weekly_spend_limit: Optional[int],
+    bid_ceiling: Optional[int],
+    custom_period_spend_limit: Optional[int],
+    custom_period_start_date: Optional[str],
+    custom_period_end_date: Optional[str],
+    custom_period_auto_continue: Optional[str],
+    average_cpc: Optional[int],
+    average_cpi: Optional[int],
+    clicks_per_week: Optional[int],
+    budget_type: Optional[str],
+    *,
+    include_defaults: bool,
+    is_update: bool,
+) -> Optional[dict]:
+    """Build MobileAppCampaign.BiddingStrategy from typed search flags."""
+    search = _build_mobile_app_search_strategy(
+        search_strategy,
+        weekly_spend_limit,
+        bid_ceiling,
+        custom_period_spend_limit,
+        custom_period_start_date,
+        custom_period_end_date,
+        custom_period_auto_continue,
+        average_cpc,
+        average_cpi,
+        clicks_per_week,
+        budget_type,
+        include_default=include_defaults,
+        is_update=is_update,
+    )
+    if search is None:
+        return None
+    strategy = {"Search": search}
+    if include_defaults:
+        strategy["Network"] = {"BiddingStrategyType": "SERVING_OFF"}
+    return strategy
+
+
 def _build_package_bidding_strategy(
     strategy_id: Optional[int],
     strategy_from_campaign_id: Optional[int],
@@ -1247,6 +1525,49 @@ def get(
     help="CpmBannerCampaign strategy AutoContinue: YES or NO",
 )
 @click.option(
+    "--mobile-search-weekly-spend-limit",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="MobileAppCampaign Search strategy WeeklySpendLimit in rubles",
+)
+@click.option(
+    "--mobile-search-bid-ceiling",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="MobileAppCampaign Search strategy BidCeiling in rubles",
+)
+@click.option(
+    "--mobile-search-custom-period-spend-limit",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="MobileAppCampaign Search CustomPeriodBudget.SpendLimit in rubles",
+)
+@click.option(
+    "--mobile-search-custom-period-start-date",
+    help="MobileAppCampaign Search CustomPeriodBudget.StartDate",
+)
+@click.option(
+    "--mobile-search-custom-period-end-date",
+    help="MobileAppCampaign Search CustomPeriodBudget.EndDate",
+)
+@click.option(
+    "--mobile-search-custom-period-auto-continue",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="MobileAppCampaign Search CustomPeriodBudget.AutoContinue: YES or NO",
+)
+@click.option(
+    "--mobile-search-average-cpc",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="MobileAppCampaign Search strategy AverageCpc in rubles",
+)
+@click.option(
+    "--mobile-search-average-cpi",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="MobileAppCampaign Search strategy AverageCpi in rubles",
+)
+@click.option(
+    "--mobile-search-clicks-per-week",
+    type=click.IntRange(1),
+    help="MobileAppCampaign Search strategy ClicksPerWeek",
+)
+@click.option(
     "--average-cpa",
     type=MICRO_RUBLES,
     help="Target CPA in micro-rubles (AVERAGE_CPA)",
@@ -1400,6 +1721,15 @@ def add(
     strategy_start_date,
     strategy_end_date,
     strategy_auto_continue,
+    mobile_search_weekly_spend_limit,
+    mobile_search_bid_ceiling,
+    mobile_search_custom_period_spend_limit,
+    mobile_search_custom_period_start_date,
+    mobile_search_custom_period_end_date,
+    mobile_search_custom_period_auto_continue,
+    mobile_search_average_cpc,
+    mobile_search_average_cpi,
+    mobile_search_clicks_per_week,
     average_cpa,
     crr,
     bid_ceiling,
@@ -1528,6 +1858,16 @@ def add(
             },
             "MOBILE_APP_CAMPAIGN": {
                 "--setting",
+                "--search-strategy",
+                "--mobile-search-weekly-spend-limit",
+                "--mobile-search-bid-ceiling",
+                "--mobile-search-custom-period-spend-limit",
+                "--mobile-search-custom-period-start-date",
+                "--mobile-search-custom-period-end-date",
+                "--mobile-search-custom-period-auto-continue",
+                "--mobile-search-average-cpc",
+                "--mobile-search-average-cpi",
+                "--mobile-search-clicks-per-week",
                 "--negative-keyword-shared-set-ids",
             },
             "CPM_BANNER_CAMPAIGN": {
@@ -1595,6 +1935,25 @@ def add(
                 "--strategy-start-date": strategy_start_date,
                 "--strategy-end-date": strategy_end_date,
                 "--strategy-auto-continue": strategy_auto_continue,
+                "--mobile-search-weekly-spend-limit": (
+                    mobile_search_weekly_spend_limit
+                ),
+                "--mobile-search-bid-ceiling": mobile_search_bid_ceiling,
+                "--mobile-search-custom-period-spend-limit": (
+                    mobile_search_custom_period_spend_limit
+                ),
+                "--mobile-search-custom-period-start-date": (
+                    mobile_search_custom_period_start_date
+                ),
+                "--mobile-search-custom-period-end-date": (
+                    mobile_search_custom_period_end_date
+                ),
+                "--mobile-search-custom-period-auto-continue": (
+                    mobile_search_custom_period_auto_continue
+                ),
+                "--mobile-search-average-cpc": mobile_search_average_cpc,
+                "--mobile-search-average-cpi": mobile_search_average_cpi,
+                "--mobile-search-clicks-per-week": mobile_search_clicks_per_week,
                 "--average-cpa": average_cpa,
                 "--crr": crr,
                 "--bid-ceiling": bid_ceiling,
@@ -1940,14 +2299,21 @@ def add(
             campaign_data["SmartCampaign"] = smart_campaign
         elif campaign_type_norm == "MOBILE_APP_CAMPAIGN":
             mobile_campaign: Dict[str, object] = {
-                "BiddingStrategy": {
-                    "Search": {
-                        "BiddingStrategyType": search_strategy or "HIGHEST_POSITION"
-                    },
-                    "Network": {
-                        "BiddingStrategyType": network_strategy or "SERVING_OFF"
-                    },
-                }
+                "BiddingStrategy": _build_mobile_app_bidding_strategy(
+                    search_strategy,
+                    mobile_search_weekly_spend_limit,
+                    mobile_search_bid_ceiling,
+                    mobile_search_custom_period_spend_limit,
+                    mobile_search_custom_period_start_date,
+                    mobile_search_custom_period_end_date,
+                    mobile_search_custom_period_auto_continue,
+                    mobile_search_average_cpc,
+                    mobile_search_average_cpi,
+                    mobile_search_clicks_per_week,
+                    None,
+                    include_defaults=True,
+                    is_update=False,
+                )
             }
             if parsed_settings:
                 mobile_campaign["Settings"] = parsed_settings
@@ -2199,6 +2565,54 @@ def add(
     help="CpmBannerCampaign strategy AutoContinue: YES or NO",
 )
 @click.option(
+    "--mobile-search-weekly-spend-limit",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="MobileAppCampaign Search strategy WeeklySpendLimit in rubles",
+)
+@click.option(
+    "--mobile-search-bid-ceiling",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="MobileAppCampaign Search strategy BidCeiling in rubles",
+)
+@click.option(
+    "--mobile-search-custom-period-spend-limit",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="MobileAppCampaign Search CustomPeriodBudget.SpendLimit in rubles",
+)
+@click.option(
+    "--mobile-search-custom-period-start-date",
+    help="MobileAppCampaign Search CustomPeriodBudget.StartDate",
+)
+@click.option(
+    "--mobile-search-custom-period-end-date",
+    help="MobileAppCampaign Search CustomPeriodBudget.EndDate",
+)
+@click.option(
+    "--mobile-search-custom-period-auto-continue",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="MobileAppCampaign Search CustomPeriodBudget.AutoContinue: YES or NO",
+)
+@click.option(
+    "--mobile-search-average-cpc",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="MobileAppCampaign Search strategy AverageCpc in rubles",
+)
+@click.option(
+    "--mobile-search-average-cpi",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="MobileAppCampaign Search strategy AverageCpi in rubles",
+)
+@click.option(
+    "--mobile-search-clicks-per-week",
+    type=click.IntRange(1),
+    help="MobileAppCampaign Search strategy ClicksPerWeek",
+)
+@click.option(
+    "--mobile-search-budget-type",
+    type=click.Choice(BUDGET_TYPES, case_sensitive=False),
+    help="MobileAppCampaign Search strategy BudgetType for update",
+)
+@click.option(
     "--notification",
     default=None,
     expose_value=False,
@@ -2343,6 +2757,16 @@ def update(
     strategy_start_date,
     strategy_end_date,
     strategy_auto_continue,
+    mobile_search_weekly_spend_limit,
+    mobile_search_bid_ceiling,
+    mobile_search_custom_period_spend_limit,
+    mobile_search_custom_period_start_date,
+    mobile_search_custom_period_end_date,
+    mobile_search_custom_period_auto_continue,
+    mobile_search_average_cpc,
+    mobile_search_average_cpi,
+    mobile_search_clicks_per_week,
+    mobile_search_budget_type,
     client_info,
     sms_events,
     sms_time_from,
@@ -2485,6 +2909,24 @@ def update(
             "--strategy-start-date": strategy_start_date,
             "--strategy-end-date": strategy_end_date,
             "--strategy-auto-continue": strategy_auto_continue,
+            "--mobile-search-weekly-spend-limit": (mobile_search_weekly_spend_limit),
+            "--mobile-search-bid-ceiling": mobile_search_bid_ceiling,
+            "--mobile-search-custom-period-spend-limit": (
+                mobile_search_custom_period_spend_limit
+            ),
+            "--mobile-search-custom-period-start-date": (
+                mobile_search_custom_period_start_date
+            ),
+            "--mobile-search-custom-period-end-date": (
+                mobile_search_custom_period_end_date
+            ),
+            "--mobile-search-custom-period-auto-continue": (
+                mobile_search_custom_period_auto_continue
+            ),
+            "--mobile-search-average-cpc": mobile_search_average_cpc,
+            "--mobile-search-average-cpi": mobile_search_average_cpi,
+            "--mobile-search-clicks-per-week": mobile_search_clicks_per_week,
+            "--mobile-search-budget-type": mobile_search_budget_type,
             "--tracking-params": tracking_params,
         }
         subtype_flags_provided = [
@@ -2567,6 +3009,17 @@ def update(
             }
             mobile_app_campaign_flags = {
                 "--setting",
+                "--search-strategy",
+                "--mobile-search-weekly-spend-limit",
+                "--mobile-search-bid-ceiling",
+                "--mobile-search-custom-period-spend-limit",
+                "--mobile-search-custom-period-start-date",
+                "--mobile-search-custom-period-end-date",
+                "--mobile-search-custom-period-auto-continue",
+                "--mobile-search-average-cpc",
+                "--mobile-search-average-cpi",
+                "--mobile-search-clicks-per-week",
+                "--mobile-search-budget-type",
                 "--negative-keyword-shared-set-ids",
             }
             cpm_banner_campaign_flags = {
@@ -2750,6 +3203,23 @@ def update(
                 parsed_settings = parse_setting_specs(list(settings))
                 if parsed_settings:
                     sub_block["Settings"] = parsed_settings
+                mobile_bidding_strategy = _build_mobile_app_bidding_strategy(
+                    search_strategy,
+                    mobile_search_weekly_spend_limit,
+                    mobile_search_bid_ceiling,
+                    mobile_search_custom_period_spend_limit,
+                    mobile_search_custom_period_start_date,
+                    mobile_search_custom_period_end_date,
+                    mobile_search_custom_period_auto_continue,
+                    mobile_search_average_cpc,
+                    mobile_search_average_cpi,
+                    mobile_search_clicks_per_week,
+                    mobile_search_budget_type,
+                    include_defaults=False,
+                    is_update=True,
+                )
+                if mobile_bidding_strategy is not None:
+                    sub_block["BiddingStrategy"] = mobile_bidding_strategy
                 negative_keyword_shared_set_ids_obj = _array_of_integer_option(
                     "--negative-keyword-shared-set-ids",
                     negative_keyword_shared_set_ids,
