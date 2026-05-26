@@ -8382,31 +8382,33 @@ def test_campaigns_add_text_search_average_crr_requires_crr_and_goal_id():
 
 
 def test_campaigns_add_text_search_max_profit_payload():
-    """StrategyMaxProfitAdd has only optional fields — empty container OK."""
+    """MAX_PROFIT requires PriorityGoals per Yandex docs even though
+    StrategyMaxProfitAdd has no minOccurs=1 WSDL fields."""
     body = _dry_run(
         *_cpa_base_args(),
         "--search-strategy",
         "MAX_PROFIT",
+        "--priority-goals",
+        "1:500",
         "--text-search-weekly-spend-limit",
         "1000",
     )
-    search = _text_search_extract(body)
+    text = body["params"]["Campaigns"][0]["TextCampaign"]
+    assert text["PriorityGoals"] == {"Items": [{"GoalId": 1, "Value": 500}]}
+    search = text["BiddingStrategy"]["Search"]
     assert search["BiddingStrategyType"] == "MAX_PROFIT"
     assert search["MaxProfit"] == {"WeeklySpendLimit": 1000000000}
 
 
-def test_campaigns_add_text_search_max_profit_no_required_fields():
-    """MAX_PROFIT has no minOccurs=1 fields — CLI must allow bare strategy."""
-    body = _dry_run(
+def test_campaigns_add_text_search_max_profit_rejects_without_priority_goals():
+    """Yandex docs: MAX_PROFIT must be combined with PriorityGoals."""
+    result = _rejected(
         *_cpa_base_args(),
         "--search-strategy",
         "MAX_PROFIT",
     )
-    search = _text_search_extract(body)
-    assert search["BiddingStrategyType"] == "MAX_PROFIT"
-    # No subtype block emitted when no detail flags provided (avoids empty
-    # MaxProfit element).
-    assert "MaxProfit" not in search
+    assert "--priority-goals" in result.output
+    assert "MaxProfit" in result.output
 
 
 def test_campaigns_add_text_search_average_cpa_multiple_goals_with_exploration():
@@ -8532,11 +8534,34 @@ def test_campaigns_add_text_search_exploration_partial_rejected():
     result = _rejected(
         *_cpa_base_args(),
         "--search-strategy",
-        "MAX_PROFIT",
+        "AVERAGE_CPA",
+        "--average-cpa",
+        "100000000",
+        "--goal-id",
+        "1",
         "--text-search-exploration-min-budget",
         "50",
     )
     assert "ExplorationBudget" in result.output
+
+
+def test_campaigns_add_text_search_exploration_is_custom_no_rejected():
+    """Yandex docs: IsMinimumExplorationBudgetCustom=NO makes the API error."""
+    result = _rejected(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "AVERAGE_CPA",
+        "--average-cpa",
+        "100000000",
+        "--goal-id",
+        "1",
+        "--text-search-exploration-min-budget",
+        "50",
+        "--text-search-exploration-is-custom",
+        "NO",
+    )
+    assert "IsMinimumExplorationBudgetCustom" in result.output
+    assert "YES" in result.output
 
 
 def test_campaigns_add_text_search_silent_data_loss_invariant():
@@ -8642,6 +8667,8 @@ def test_campaigns_update_text_search_budget_type_switch_payload():
 
 
 def test_campaigns_update_text_search_max_profit_minimal_payload():
+    """Update tolerates partial Strategy*Add fields, including bare
+    BiddingStrategyType=MAX_PROFIT (no required-typed-flag check)."""
     body = _text_search_update(
         "--search-strategy",
         "MAX_PROFIT",
@@ -8702,6 +8729,123 @@ def test_campaigns_update_text_search_detail_without_strategy_rejected():
     )
     assert result.exit_code != 0
     assert "--search-strategy" in result.output
+
+
+def test_campaigns_update_text_search_average_cpc_payload():
+    body = _text_search_update(
+        "--search-strategy",
+        "AVERAGE_CPC",
+        "--text-search-average-cpc",
+        "9",
+        "--text-search-weekly-spend-limit",
+        "300",
+    )
+    search = _text_search_extract(body)
+    assert search["AverageCpc"] == {
+        "AverageCpc": 9000000,
+        "WeeklySpendLimit": 300000000,
+    }
+
+
+def test_campaigns_update_text_search_average_crr_payload():
+    body = _text_search_update(
+        "--search-strategy",
+        "AVERAGE_CRR",
+        "--crr",
+        "15",
+        "--goal-id",
+        "5",
+    )
+    search = _text_search_extract(body)
+    assert search["AverageCrr"] == {"Crr": 15, "GoalId": 5}
+
+
+def test_campaigns_update_text_search_pay_for_conversion_crr_payload():
+    body = _text_search_update(
+        "--search-strategy",
+        "PAY_FOR_CONVERSION_CRR",
+        "--crr",
+        "10",
+        "--goal-id",
+        "3",
+    )
+    search = _text_search_extract(body)
+    assert search["PayForConversionCrr"] == {"Crr": 10, "GoalId": 3}
+
+
+def test_campaigns_update_text_search_weekly_click_package_payload():
+    body = _text_search_update(
+        "--search-strategy",
+        "WEEKLY_CLICK_PACKAGE",
+        "--text-search-clicks-per-week",
+        "1500",
+        "--text-search-average-cpc",
+        "4",
+    )
+    search = _text_search_extract(body)
+    assert search["WeeklyClickPackage"] == {
+        "ClicksPerWeek": 1500,
+        "AverageCpc": 4000000,
+    }
+
+
+def test_campaigns_update_text_search_average_cpa_multiple_goals_payload():
+    body = _text_search_update(
+        "--search-strategy",
+        "AVERAGE_CPA_MULTIPLE_GOALS",
+        "--priority-goals",
+        "100:60,200:40",
+        "--bid-ceiling",
+        "5000000",
+    )
+    text = body["params"]["Campaigns"][0]["TextCampaign"]
+    # On update PriorityGoals uses the UpdateSetting shape; the
+    # BiddingStrategy carries the subtype container.
+    assert text["PriorityGoals"] == {
+        "Items": [
+            {"GoalId": 100, "Value": 60, "Operation": "SET"},
+            {"GoalId": 200, "Value": 40, "Operation": "SET"},
+        ]
+    }
+    search = text["BiddingStrategy"]["Search"]
+    assert search["AverageCpaMultipleGoals"] == {"BidCeiling": 5000000}
+
+
+def test_campaigns_update_text_search_pay_for_conversion_multiple_goals_payload():
+    body = _text_search_update(
+        "--search-strategy",
+        "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
+        "--priority-goals",
+        "1:60,2:40",
+        "--text-search-weekly-spend-limit",
+        "800",
+    )
+    text = body["params"]["Campaigns"][0]["TextCampaign"]
+    assert text["PriorityGoals"] == {
+        "Items": [
+            {"GoalId": 1, "Value": 60, "Operation": "SET"},
+            {"GoalId": 2, "Value": 40, "Operation": "SET"},
+        ]
+    }
+    search = text["BiddingStrategy"]["Search"]
+    assert search["PayForConversionMultipleGoals"] == {
+        "WeeklySpendLimit": 800000000,
+    }
+
+
+def test_campaigns_update_text_search_max_profit_with_priority_goals_payload():
+    body = _text_search_update(
+        "--search-strategy",
+        "MAX_PROFIT",
+        "--priority-goals",
+        "9:1000",
+    )
+    text = body["params"]["Campaigns"][0]["TextCampaign"]
+    assert text["PriorityGoals"] == {
+        "Items": [{"GoalId": 9, "Value": 1000, "Operation": "SET"}]
+    }
+    search = text["BiddingStrategy"]["Search"]
+    assert search["MaxProfit"] == {}
 
 
 def test_campaigns_update_text_search_wb_maximum_clicks_budget_type_payload():

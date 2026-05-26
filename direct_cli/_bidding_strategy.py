@@ -1076,10 +1076,25 @@ _TEXT_SEARCH_SUPPORTS_BUDGET_TYPE = {
     "PayForConversionMultipleGoals",
     "MaxProfit",
 }
+# Per official Yandex Direct docs
+# (https://yandex.com/dev/direct/doc/en/campaigns/add-text-campaign):
+# ``PriorityGoals`` is required when ``BiddingStrategyType`` is
+# ``AVERAGE_CPA_MULTIPLE_GOALS``, ``PAY_FOR_CONVERSION_MULTIPLE_GOALS`` or
+# ``MAX_PROFIT``. WSDL declares ``PriorityGoals`` as a sibling field on
+# ``TextCampaignAddItem`` (minOccurs=0), so the requirement is a
+# documented-API constraint enforced here on the CLI.
 _TEXT_SEARCH_REQUIRES_PRIORITY_GOALS = {
     "AverageCpaMultipleGoals",
     "PayForConversionMultipleGoals",
+    "MaxProfit",
 }
+# Strategies that allow ``PriorityGoals`` even though it is not strictly
+# required. The docs additionally accept it for ``AverageCrr`` and
+# ``PayForConversionCrr`` (used together with
+# ``IsMetrikaSourceOfValue``), but we keep the CLI strict on the
+# required set for now — the supported set is the same as the required
+# set in this PR.
+_TEXT_SEARCH_ACCEPTS_PRIORITY_GOALS = _TEXT_SEARCH_REQUIRES_PRIORITY_GOALS
 
 # WSDL ``minOccurs=1`` fields per Strategy*Add subtype for TextCampaign
 # Search. Maps subtype → {WSDL field name → CLI option string}.
@@ -1101,6 +1116,9 @@ _TEXT_SEARCH_REQUIRED_TYPED_FLAGS: Dict[str, Dict[str, str]] = {
     "PayForConversionCrr": {"Crr": "--crr", "GoalId": "--goal-id"},
     "AverageCpaMultipleGoals": {"PriorityGoals": "--priority-goals"},
     "PayForConversionMultipleGoals": {"PriorityGoals": "--priority-goals"},
+    # Per official docs MAX_PROFIT requires PriorityGoals with the
+    # target profit per conversion as the ``Value``.
+    "MaxProfit": {"PriorityGoals": "--priority-goals"},
 }
 
 
@@ -1149,7 +1167,9 @@ def _build_text_search_exploration_budget(
     """Build an ExplorationBudget block from the two typed flags.
 
     Both fields are WSDL minOccurs=1; returns ``None`` when none are
-    provided.
+    provided. Per official Yandex docs only ``YES`` is accepted for
+    ``IsMinimumExplorationBudgetCustom`` — passing ``NO`` makes the API
+    raise an error, so the CLI rejects it up-front.
     """
     values = {
         "--text-search-exploration-min-budget": min_budget,
@@ -1166,9 +1186,15 @@ def _build_text_search_exploration_budget(
         )
     assert min_budget is not None
     assert is_custom is not None
+    normalized_is_custom = is_custom.upper()
+    if normalized_is_custom != "YES":
+        raise click.UsageError(
+            "--text-search-exploration-is-custom must be YES; the Yandex "
+            "Direct API rejects NO for IsMinimumExplorationBudgetCustom"
+        )
     return {
         "MinimumExplorationBudget": min_budget,
-        "IsMinimumExplorationBudgetCustom": is_custom.upper(),
+        "IsMinimumExplorationBudgetCustom": normalized_is_custom,
     }
 
 
