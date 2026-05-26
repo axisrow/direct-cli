@@ -9152,6 +9152,40 @@ def test_campaigns_update_text_search_wb_max_conv_rate_rejects_budget_type():
     assert "--text-search-budget-type" in result.output
 
 
+def test_campaigns_add_text_network_strategy_without_detail_flags_payload():
+    """``--network-strategy AVERAGE_CPA`` without typed CPA flags must
+    serialize Network as ``{BiddingStrategyType: AVERAGE_CPA}`` (matches
+    pre-#361 behavior — the legacy network-side subtype block is
+    intentionally not built because ``_NETWORK_STRATEGY_TO_WSDL_SUBTYPE``
+    is empty until #290 wires Network branches)."""
+    body = _dry_run(
+        *_cpa_base_args(),
+        "--network-strategy",
+        "AVERAGE_CPA",
+    )
+    network = body["params"]["Campaigns"][0]["TextCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {"BiddingStrategyType": "AVERAGE_CPA"}
+
+
+def test_campaigns_add_text_network_cpa_with_detail_flags_rejected():
+    """``--network-strategy AVERAGE_CPA --average-cpa ...`` must be
+    rejected: the Network-side CPA flag path is not in #361 scope, so
+    typed CPA flags only apply to Search subtypes."""
+    result = _rejected(
+        *_cpa_base_args(),
+        "--network-strategy",
+        "AVERAGE_CPA",
+        "--average-cpa",
+        "100000000",
+        "--goal-id",
+        "1",
+    )
+    assert "--average-cpa" in result.output
+    assert "CPA-shaped" in result.output
+
+
 def test_campaigns_update_text_search_average_cpa_multi_goals_rejects_budget_type():
     """Yandex update docs: AverageCpaMultipleGoals does not declare BudgetType."""
     result = CliRunner().invoke(

@@ -3353,6 +3353,52 @@ OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
             "do not list FeedId."
         ),
     },
+    # Issue #361: official Yandex update-text-campaign docs do NOT
+    # declare ``BudgetType`` on these subtypes; the WSDL inherits it via
+    # ``StrategyWeeklyBudgetBase`` but emitting it would produce an
+    # undocumented payload. The CLI explicitly rejects
+    # ``--text-search-budget-type`` for these subtypes (see
+    # ``_TEXT_SEARCH_SUPPORTS_BUDGET_TYPE`` in
+    # ``direct_cli/_bidding_strategy.py``).
+    (
+        "campaigns",
+        "update",
+        "TextCampaign.BiddingStrategy.Search.WbMaximumClicks.BudgetType",
+    ): {
+        "status": "not_applicable",
+        "issue": "#361",
+        "note": (
+            "Official Yandex update-text-campaign docs do not declare "
+            "BudgetType on WbMaximumClicks; CLI rejects "
+            "--text-search-budget-type for this subtype."
+        ),
+    },
+    (
+        "campaigns",
+        "update",
+        "TextCampaign.BiddingStrategy.Search.WbMaximumConversionRate.BudgetType",
+    ): {
+        "status": "not_applicable",
+        "issue": "#361",
+        "note": (
+            "Official Yandex update-text-campaign docs do not declare "
+            "BudgetType on WbMaximumConversionRate; CLI rejects "
+            "--text-search-budget-type for this subtype."
+        ),
+    },
+    (
+        "campaigns",
+        "update",
+        "TextCampaign.BiddingStrategy.Search.AverageCpaMultipleGoals.BudgetType",
+    ): {
+        "status": "not_applicable",
+        "issue": "#361",
+        "note": (
+            "Official Yandex update-text-campaign docs do not declare "
+            "BudgetType on AverageCpaMultipleGoals; CLI rejects "
+            "--text-search-budget-type for this subtype."
+        ),
+    },
 }
 
 
