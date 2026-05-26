@@ -5241,8 +5241,24 @@ def test_campaigns_add_rejects_smart_priority_goals_without_bidding_strategy():
 
 # ----------------------------------------------------------------------
 # campaigns add: SmartCampaign.BiddingStrategy.Search families (issue #367)
-# WSDL ref: tests/wsdl_cache/campaigns.xml lines 1401-1481, 1789-1820,
-# SmartCampaignSearchStrategyTypeEnum lines 396-410.
+#
+# Documentation source: the cached SOAP WSDL at
+# ``tests/wsdl_cache/campaigns.xml`` is the canonical, version-pinned
+# source of truth for the Yandex Direct v5 SmartCampaign request shape.
+# The public Yandex docs URLs (``yandex.ru/dev/direct/doc/ref-v5/
+# campaigns/SmartCampaignAdd.html``, ``yandex.com/dev/direct/doc/
+# objects/strategies.html``, etc.) returned HTTP 404 during the
+# implementation of #367 — confirmed manually with WebFetch — so this
+# block deliberately cites the WSDL line ranges below as the official
+# evidence trail.
+#
+# WSDL ref: tests/wsdl_cache/campaigns.xml lines 1401-1481
+# (``Strategy*Add`` add-side subtypes), 851-929 (``Strategy*`` get-side
+# subtypes used by update — these carry ``BudgetType``), 1789-1820
+# (``SmartCampaignStrategyAddBase`` / ``SmartCampaignSearchStrategyAdd``
+# containers), 1965-1978 (``CustomPeriodBudget`` /
+# ``ExplorationBudget``), 396-410
+# (``SmartCampaignSearchStrategyTypeEnum``).
 # ----------------------------------------------------------------------
 
 
@@ -5266,16 +5282,17 @@ def _smart_search_base():
 
 
 def test_campaigns_add_smart_search_average_cpc_per_campaign_payload():
+    # CLI takes rubles (5 = 5_000_000 micro-rubles).
     body = _dry_run(
         *_smart_search_base(),
         "--search-strategy",
         "AVERAGE_CPC_PER_CAMPAIGN",
         "--smart-search-average-cpc",
-        "5000000",
+        "5",
         "--smart-search-bid-ceiling",
-        "9000000",
+        "9",
         "--smart-search-weekly-spend-limit",
-        "50000000",
+        "50",
     )
     search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"]["Search"]
     assert search == {
@@ -5294,7 +5311,7 @@ def test_campaigns_add_smart_search_average_cpc_per_filter_payload():
         "--search-strategy",
         "AVERAGE_CPC_PER_FILTER",
         "--smart-search-filter-average-cpc",
-        "3000000",
+        "3",
     )
     search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"]["Search"]
     assert search == {
@@ -5321,11 +5338,11 @@ def test_campaigns_add_smart_search_average_cpa_per_campaign_payload():
         "--search-strategy",
         "AVERAGE_CPA_PER_CAMPAIGN",
         "--smart-search-average-cpa",
-        "4000000",
+        "4",
         "--smart-search-goal-id",
         "111",
         "--smart-search-bid-ceiling",
-        "9000000",
+        "9",
     )
     search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"]["Search"]
     assert search == {
@@ -5344,11 +5361,11 @@ def test_campaigns_add_smart_search_average_cpa_per_filter_payload():
         "--search-strategy",
         "AVERAGE_CPA_PER_FILTER",
         "--smart-search-filter-average-cpa",
-        "4500000",
+        "4.5",
         "--smart-search-goal-id",
         "222",
         "--smart-search-cp-spend-limit",
-        "100000000",
+        "100",
         "--smart-search-cp-start-date",
         "2026-06-01",
         "--smart-search-cp-end-date",
@@ -5378,11 +5395,11 @@ def test_campaigns_add_smart_search_pay_for_conversion_per_campaign_payload():
         "--search-strategy",
         "PAY_FOR_CONVERSION_PER_CAMPAIGN",
         "--smart-search-cpa",
-        "6000000",
+        "6",
         "--smart-search-goal-id",
         "333",
         "--smart-search-weekly-spend-limit",
-        "50000000",
+        "50",
     )
     search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"]["Search"]
     assert search == {
@@ -5401,7 +5418,7 @@ def test_campaigns_add_smart_search_pay_for_conversion_per_filter_payload():
         "--search-strategy",
         "PAY_FOR_CONVERSION_PER_FILTER",
         "--smart-search-cpa",
-        "5500000",
+        "5.5",
         "--smart-search-goal-id",
         "444",
     )
@@ -5420,15 +5437,15 @@ def test_campaigns_add_smart_search_average_roi_payload():
         "--smart-search-reserve-return",
         "30",
         "--smart-search-roi-coef",
-        "1500000",
+        "1.5",
         "--smart-search-goal-id",
         "555",
         "--smart-search-profitability",
-        "200000",
+        "0.2",
         "--smart-search-bid-ceiling",
-        "10000000",
+        "10",
         "--smart-search-exploration-min",
-        "20000000",
+        "20",
         "--smart-search-exploration-min-custom",
         "YES",
     )
@@ -5459,7 +5476,7 @@ def test_campaigns_add_smart_search_average_crr_payload():
         "--smart-search-goal-id",
         "666",
         "--smart-search-weekly-spend-limit",
-        "40000000",
+        "40",
     )
     search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"]["Search"]
     assert search == {
@@ -5534,9 +5551,9 @@ def test_campaigns_add_smart_search_rejects_wrong_subtype_flag():
         "--search-strategy",
         "AVERAGE_CPC_PER_CAMPAIGN",
         "--smart-search-average-cpc",
-        "5000000",
+        "5",
         "--smart-search-average-cpa",
-        "4000000",
+        "4",
     )
     assert "--smart-search-average-cpa" in result.output
 
@@ -5552,7 +5569,7 @@ def test_campaigns_add_smart_search_rejects_bid_ceiling_on_crr():
         "--smart-search-goal-id",
         "777",
         "--smart-search-bid-ceiling",
-        "100",
+        "10",
     )
     assert "--smart-search-bid-ceiling" in result.output
 
@@ -5564,9 +5581,9 @@ def test_campaigns_add_smart_search_rejects_exploration_on_cpc_per_campaign():
         "--search-strategy",
         "AVERAGE_CPC_PER_CAMPAIGN",
         "--smart-search-average-cpc",
-        "5000000",
+        "5",
         "--smart-search-exploration-min",
-        "1000000",
+        "1",
         "--smart-search-exploration-min-custom",
         "YES",
     )
@@ -5579,9 +5596,9 @@ def test_campaigns_add_smart_search_rejects_partial_custom_period_budget():
         "--search-strategy",
         "AVERAGE_CPC_PER_CAMPAIGN",
         "--smart-search-average-cpc",
-        "5000000",
+        "5",
         "--smart-search-cp-spend-limit",
-        "100000000",
+        "100",
         # Missing start-date / end-date / auto-continue.
     )
     assert "CustomPeriodBudget" in result.output
@@ -5595,11 +5612,11 @@ def test_campaigns_add_smart_search_rejects_partial_exploration_budget():
         "--smart-search-reserve-return",
         "30",
         "--smart-search-roi-coef",
-        "1500000",
+        "1.5",
         "--smart-search-goal-id",
         "555",
         "--smart-search-exploration-min",
-        "20000000",
+        "20",
         # missing --smart-search-exploration-min-custom
     )
     assert "ExplorationBudget" in result.output
@@ -5611,7 +5628,7 @@ def test_campaigns_add_smart_search_rejects_detail_without_strategy():
     result = _rejected(
         *_smart_search_base(),
         "--smart-search-average-cpc",
-        "5000000",
+        "5",
     )
     assert "SmartCampaign search detail flags" in result.output
 
@@ -5622,7 +5639,7 @@ def test_campaigns_add_smart_search_rejects_serving_off_with_details():
         "--search-strategy",
         "SERVING_OFF",
         "--smart-search-average-cpc",
-        "5000000",
+        "5",
     )
     assert "SERVING_OFF" in result.output
 
@@ -5652,7 +5669,7 @@ def test_campaigns_update_smart_search_average_cpc_per_campaign_payload():
         "--search-strategy",
         "AVERAGE_CPC_PER_CAMPAIGN",
         "--smart-search-average-cpc",
-        "5000000",
+        "5",
     )
     campaign = body["params"]["Campaigns"][0]
     assert campaign == {
@@ -5679,7 +5696,7 @@ def test_campaigns_update_smart_search_average_cpc_per_filter_payload():
         "--search-strategy",
         "AVERAGE_CPC_PER_FILTER",
         "--smart-search-filter-average-cpc",
-        "3000000",
+        "3",
     )
     search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"]["Search"]
     assert search == {
@@ -5699,7 +5716,7 @@ def test_campaigns_update_smart_search_average_cpa_per_campaign_payload():
         "--search-strategy",
         "AVERAGE_CPA_PER_CAMPAIGN",
         "--smart-search-average-cpa",
-        "4000000",
+        "4",
         "--smart-search-goal-id",
         "111",
     )
@@ -5721,7 +5738,7 @@ def test_campaigns_update_smart_search_average_cpa_per_filter_payload():
         "--search-strategy",
         "AVERAGE_CPA_PER_FILTER",
         "--smart-search-filter-average-cpa",
-        "4500000",
+        "4.5",
         "--smart-search-goal-id",
         "222",
     )
@@ -5743,7 +5760,7 @@ def test_campaigns_update_smart_search_pay_for_conversion_per_campaign_payload()
         "--search-strategy",
         "PAY_FOR_CONVERSION_PER_CAMPAIGN",
         "--smart-search-cpa",
-        "6000000",
+        "6",
         "--smart-search-goal-id",
         "333",
     )
@@ -5765,7 +5782,7 @@ def test_campaigns_update_smart_search_pay_for_conversion_per_filter_payload():
         "--search-strategy",
         "PAY_FOR_CONVERSION_PER_FILTER",
         "--smart-search-cpa",
-        "5500000",
+        "5.5",
         "--smart-search-goal-id",
         "444",
     )
@@ -5789,7 +5806,7 @@ def test_campaigns_update_smart_search_average_roi_payload():
         "--smart-search-reserve-return",
         "30",
         "--smart-search-roi-coef",
-        "1500000",
+        "1.5",
         "--smart-search-goal-id",
         "555",
     )
@@ -5864,7 +5881,7 @@ def test_campaigns_update_smart_search_partial_field_no_required_check():
         "AVERAGE_CPA_PER_CAMPAIGN",
         # Only --smart-search-average-cpa, no --smart-search-goal-id
         "--smart-search-average-cpa",
-        "4000000",
+        "4",
     )
     search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"]["Search"]
     assert search == {
@@ -5902,7 +5919,7 @@ def test_campaigns_update_smart_search_rejects_package_with_search_flags():
         "--search-strategy",
         "AVERAGE_CPC_PER_CAMPAIGN",
         "--smart-search-average-cpc",
-        "5000000",
+        "5",
     )
     assert "PackageBiddingStrategy" in result.output
 
@@ -5916,7 +5933,7 @@ def test_campaigns_update_smart_search_rejects_detail_without_strategy():
         "--type",
         "SMART_CAMPAIGN",
         "--smart-search-average-cpc",
-        "5000000",
+        "5",
     )
     assert "SmartCampaign search detail flags" in result.output
 
@@ -5942,7 +5959,7 @@ def test_campaigns_add_rejects_smart_search_with_package_strategy():
         "--package-platform-network",
         "YES",
         "--smart-search-average-cpc",
-        "5000000",
+        "5",
     )
     assert "PackageBiddingStrategy" in result.output
     assert "--smart-search-average-cpc" in result.output
@@ -5959,7 +5976,7 @@ def test_campaigns_update_smart_search_budget_type_weekly_payload():
         "--search-strategy",
         "AVERAGE_CPC_PER_CAMPAIGN",
         "--smart-search-weekly-spend-limit",
-        "40000000",
+        "40",
         "--smart-search-budget-type",
         "WEEKLY_BUDGET",
     )
@@ -5985,7 +6002,7 @@ def test_campaigns_update_smart_search_budget_type_custom_period_payload():
         "--search-strategy",
         "AVERAGE_CPA_PER_FILTER",
         "--smart-search-cp-spend-limit",
-        "100000000",
+        "100",
         "--smart-search-cp-start-date",
         "2026-06-01",
         "--smart-search-cp-end-date",
@@ -6034,7 +6051,7 @@ def test_campaigns_add_smart_search_budget_type_is_update_only():
         "--search-strategy",
         "AVERAGE_CPC_PER_CAMPAIGN",
         "--smart-search-average-cpc",
-        "5000000",
+        "5",
         "--smart-search-budget-type",
         "WEEKLY_BUDGET",
     )

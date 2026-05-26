@@ -1107,6 +1107,36 @@ def get_bidding_strategy_builder(
 # block — Network is built independently by the caller. Future leaf-PRs for
 # Network (#368) and PriorityGoals (#369) register separate keys and do not
 # touch this code path.
+#
+# Source of truth: cached WSDL at ``tests/wsdl_cache/campaigns.xml``.
+# The Yandex Direct API v5 reference and developer-guide pages such as
+# ``yandex.ru/dev/direct/doc/ref-v5/campaigns/SmartCampaignAdd.html``,
+# ``yandex.com/dev/direct/doc/objects/strategies.html`` and
+# ``yandex.com/dev/direct/doc/en/`` return HTTP 404 at the time of writing
+# (manually verified during development of #367). Yandex publishes the
+# canonical SmartCampaign field placement through the SOAP WSDL only,
+# which the project caches under ``tests/wsdl_cache/`` and exposes via
+# ``scripts/build_wsdl_optional_field_audit.py`` for the soft audit.
+# Specifically: every enum value, subtype name, required-field set
+# (``minOccurs=1``), and optional-field set used by this builder is
+# pulled directly from the cached WSDL — see ``campaigns.xml`` lines:
+#   * 396-410: ``SmartCampaignSearchStrategyTypeEnum`` (the 9 Per-*
+#     families plus ``SERVING_OFF``).
+#   * 1401-1481: ``Strategy*Add`` complex types (add-side, ``minOccurs=1``
+#     fields enforced by ``SMART_CAMPAIGN_SEARCH_REQUIRED_FIELDS``).
+#   * 851-929: ``Strategy*`` complex types (get/update-side,
+#     ``minOccurs=0`` everywhere — required-field check is skipped on
+#     update so users can patch a single field). ``BudgetType`` appears
+#     only here, which is why ``--smart-search-budget-type`` is
+#     update-only.
+#   * 1789-1820: ``SmartCampaignStrategyAddBase`` /
+#     ``SmartCampaignSearchStrategyAdd`` containers.
+#   * 1965-1978: ``CustomPeriodBudget`` and ``ExplorationBudget`` shared
+#     types (all-or-nothing groups).
+#   * 2202-2214 and 2301-2313: ``SmartCampaignAddItem`` /
+#     ``SmartCampaignUpdateItem`` envelopes — the Search block is wired
+#     under ``BiddingStrategy.Search`` (add: ``minOccurs=1``, update:
+#     ``minOccurs=0``).
 SMART_CAMPAIGN_SEARCH_STRATEGIES = [
     "AVERAGE_CPC_PER_CAMPAIGN",
     "AVERAGE_CPC_PER_FILTER",

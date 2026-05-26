@@ -658,7 +658,7 @@ PAYLOAD_CASES = [
             "--search-strategy",
             "AVERAGE_CPA_PER_CAMPAIGN",
             "--smart-search-average-cpa",
-            "4000000",
+            "4",
             "--smart-search-goal-id",
             "111",
         ],
