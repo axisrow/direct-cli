@@ -85,6 +85,10 @@ def test_parse_changes_datetime_accepts_yandex_changes_timestamp():
     assert parse_changes_datetime("2026-04-14T00:00:00Z") == "2026-04-14T00:00:00Z"
 
 
+def test_parse_changes_datetime_normalizes_explicit_offset_to_utc():
+    assert parse_changes_datetime("2025-06-01T00:00:00+03:00") == "2025-05-31T21:00:00Z"
+
+
 def test_parse_changes_datetime_rejects_bare_timestamp():
     try:
         parse_changes_datetime("2026-04-14T00:00:00")

@@ -304,10 +304,12 @@ lines with `\`.
 
 #### Datetime Rules
 
-- Changes timestamps must match Yandex Direct API format `YYYY-MM-DDTHH:MM:SSZ`.
+- Changes timestamps must include an explicit timezone: `YYYY-MM-DDTHH:MM:SSZ`
+  or an offset such as `YYYY-MM-DDTHH:MM:SS+03:00`.
 - Other datetime parameters use their method-specific documented format.
 - Datetime values must be passed as a single shell token.
-- Canonical `changes` examples must use the `Z` suffix.
+- Canonical `changes` examples should use the `Z` suffix; explicit offsets are
+  accepted and normalized to UTC.
 - Canonical examples must not use quoted space-separated datetime values.
 
 Use:
@@ -316,8 +318,8 @@ Use:
 direct changes check-campaigns --timestamp 2026-04-14T00:00:00Z
 ```
 
-Do not use: a `changes` timestamp without the `Z` suffix, or a quoted timestamp
-that contains a space between the date and time.
+Do not use: a `changes` timestamp without a timezone suffix, or a quoted
+timestamp that contains a space between the date and time.
 
 #### Documentation Contract
 
@@ -340,7 +342,7 @@ direct dictionaries get-geo-regions --name Moscow --region-ids 225,187 --exact-n
 ```
 
 Invalid examples include command lines that pass raw JSON flags, use shell
-line continuations, omit the `Z` suffix from `changes` datetimes, or quote
+line continuations, omit the timezone suffix from `changes` datetimes, or quote
 space-separated datetime values.
 
 #### Campaigns
@@ -1125,10 +1127,12 @@ lines with `\`.
 
 #### Datetime Rules
 
-- Changes timestamps must match Yandex Direct API format `YYYY-MM-DDTHH:MM:SSZ`.
+- Changes timestamps must include an explicit timezone: `YYYY-MM-DDTHH:MM:SSZ`
+  or an offset such as `YYYY-MM-DDTHH:MM:SS+03:00`.
 - Other datetime parameters use their method-specific documented format.
 - Datetime values must be passed as a single shell token.
-- Canonical `changes` examples must use the `Z` suffix.
+- Canonical `changes` examples should use the `Z` suffix; explicit offsets are
+  accepted and normalized to UTC.
 - Canonical examples must not use quoted space-separated datetime values.
 
 Use:
@@ -1137,8 +1141,8 @@ Use:
 direct changes check-campaigns --timestamp 2026-04-14T00:00:00Z
 ```
 
-Do not use: a `changes` timestamp without the `Z` suffix, or a quoted timestamp
-that contains a space between the date and time.
+Do not use: a `changes` timestamp without a timezone suffix, or a quoted
+timestamp that contains a space between the date and time.
 
 #### Documentation Contract
 
@@ -1160,7 +1164,7 @@ direct dictionaries get-geo-regions --region-ids 225 --fields GeoRegionId,GeoReg
 ```
 
 Invalid examples include command lines that pass raw JSON flags, use shell
-line continuations, omit the `Z` suffix from `changes` datetimes, or quote
+line continuations, omit the timezone suffix from `changes` datetimes, or quote
 space-separated datetime values.
 
 #### Кампании

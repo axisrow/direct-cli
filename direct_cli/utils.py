@@ -6,7 +6,7 @@ import base64
 import json
 import math
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, Iterable, List, Optional, Union
 
@@ -168,12 +168,24 @@ def parse_date(date_str: str) -> str:
 
 def parse_changes_datetime(datetime_str: str) -> str:
     """Parse Yandex Direct Changes datetime in API wire format."""
+    if not re.fullmatch(
+        r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})",
+        datetime_str,
+    ):
+        raise ValueError(
+            f"Invalid datetime format: {datetime_str}. "
+            "Expected: YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DDTHH:MM:SS+03:00"
+        )
     try:
-        datetime.strptime(datetime_str, "%Y-%m-%dT%H:%M:%SZ")
-        return datetime_str
+        if datetime_str.endswith("Z"):
+            datetime.strptime(datetime_str, "%Y-%m-%dT%H:%M:%SZ")
+            return datetime_str
+        parsed = datetime.strptime(datetime_str, "%Y-%m-%dT%H:%M:%S%z")
+        return parsed.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     except ValueError:
         raise ValueError(
-            f"Invalid datetime format: {datetime_str}. Expected: YYYY-MM-DDTHH:MM:SSZ"
+            f"Invalid datetime format: {datetime_str}. "
+            "Expected: YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DDTHH:MM:SS+03:00"
         )
 
 
