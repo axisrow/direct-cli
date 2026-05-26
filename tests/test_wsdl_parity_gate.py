@@ -2225,6 +2225,203 @@ for _campaign_op in ("add", "update"):
             ("campaigns", _campaign_op, f"TextCampaign.{_path}")
         ] = {_flag}
 
+    # Issue #361: TextCampaign Search strategy subtypes — 12 families.
+    # WSDL reference: ``TextCampaignStrategyAddBase`` /
+    # ``TextCampaignSearchStrategyAdd`` in tests/wsdl_cache/campaigns.xml
+    # (lines 1581-1630). Required minOccurs=1 leaves are validated either
+    # via Click ``required=True`` or fail-fast UsageError inside
+    # ``_bidding_strategy.build_text_campaign_search_strategy``.
+    _text_search_custom_period_flags = {
+        "--text-search-custom-period-spend-limit",
+        "--text-search-custom-period-start-date",
+        "--text-search-custom-period-end-date",
+        "--text-search-custom-period-auto-continue",
+    }
+    _text_search_exploration_flags = {
+        "--text-search-exploration-min-budget",
+        "--text-search-exploration-is-custom",
+    }
+    _text_search_custom_period_field_options = {
+        "SpendLimit": "--text-search-custom-period-spend-limit",
+        "StartDate": "--text-search-custom-period-start-date",
+        "EndDate": "--text-search-custom-period-end-date",
+        "AutoContinue": "--text-search-custom-period-auto-continue",
+    }
+    _text_search_exploration_field_options = {
+        "MinimumExplorationBudget": "--text-search-exploration-min-budget",
+        "IsMinimumExplorationBudgetCustom": "--text-search-exploration-is-custom",
+    }
+    # WSDL ``BudgetType`` only appears on the non-Add Strategy* types
+    # (used by ``TextCampaignUpdateItem``). It is NOT declared on
+    # ``Strategy*Add``, so the campaigns.add audit must not list it as a
+    # supported child of any subtype block.
+    _text_search_subtype_field_options: dict[str, dict[str, str]] = {
+        "WbMaximumClicks": {
+            "WeeklySpendLimit": "--text-search-weekly-spend-limit",
+            "BidCeiling": "--bid-ceiling",
+        },
+        "WbMaximumConversionRate": {
+            "WeeklySpendLimit": "--text-search-weekly-spend-limit",
+            "BidCeiling": "--bid-ceiling",
+            "GoalId": "--goal-id",
+        },
+        "AverageCpc": {
+            "AverageCpc": "--text-search-average-cpc",
+            "WeeklySpendLimit": "--text-search-weekly-spend-limit",
+        },
+        "AverageCpa": {
+            "AverageCpa": "--average-cpa",
+            "GoalId": "--goal-id",
+            "WeeklySpendLimit": "--text-search-weekly-spend-limit",
+            "BidCeiling": "--bid-ceiling",
+        },
+        "PayForConversion": {
+            "Cpa": "--text-search-pay-cpa",
+            "GoalId": "--goal-id",
+            "WeeklySpendLimit": "--text-search-weekly-spend-limit",
+        },
+        "WeeklyClickPackage": {
+            "ClicksPerWeek": "--text-search-clicks-per-week",
+            "AverageCpc": "--text-search-average-cpc",
+            "BidCeiling": "--bid-ceiling",
+        },
+        "AverageRoi": {
+            "ReserveReturn": "--text-search-reserve-return",
+            "RoiCoef": "--text-search-roi-coef",
+            "GoalId": "--goal-id",
+            "WeeklySpendLimit": "--text-search-weekly-spend-limit",
+            "BidCeiling": "--bid-ceiling",
+            "Profitability": "--text-search-profitability",
+        },
+        "AverageCrr": {
+            "Crr": "--crr",
+            "GoalId": "--goal-id",
+            "WeeklySpendLimit": "--text-search-weekly-spend-limit",
+        },
+        "PayForConversionCrr": {
+            "Crr": "--crr",
+            "GoalId": "--goal-id",
+            "WeeklySpendLimit": "--text-search-weekly-spend-limit",
+        },
+        "AverageCpaMultipleGoals": {
+            "WeeklySpendLimit": "--text-search-weekly-spend-limit",
+            "BidCeiling": "--bid-ceiling",
+        },
+        "PayForConversionMultipleGoals": {
+            "WeeklySpendLimit": "--text-search-weekly-spend-limit",
+        },
+        "MaxProfit": {
+            "WeeklySpendLimit": "--text-search-weekly-spend-limit",
+        },
+    }
+    _text_search_update_only_field_options: dict[str, dict[str, str]] = (
+        {
+            "AverageCpc": {"BudgetType": "--text-search-budget-type"},
+            "AverageCpa": {"BudgetType": "--text-search-budget-type"},
+            "PayForConversion": {"BudgetType": "--text-search-budget-type"},
+            "AverageRoi": {"BudgetType": "--text-search-budget-type"},
+            "AverageCrr": {"BudgetType": "--text-search-budget-type"},
+            "PayForConversionCrr": {"BudgetType": "--text-search-budget-type"},
+            "AverageCpaMultipleGoals": {"BudgetType": "--text-search-budget-type"},
+            "PayForConversionMultipleGoals": {
+                "BudgetType": "--text-search-budget-type"
+            },
+            "MaxProfit": {"BudgetType": "--text-search-budget-type"},
+            # StrategyMaximumClicks / StrategyMaximumConversionRate also
+            # carry BudgetType on the non-Add side (extension of
+            # ``StrategyWeeklyBudgetBase`` via the per-subtype Update
+            # variants in WSDL).
+            "WbMaximumClicks": {"BudgetType": "--text-search-budget-type"},
+            "WbMaximumConversionRate": {"BudgetType": "--text-search-budget-type"},
+        }
+        if _campaign_op == "update"
+        else {}
+    )
+    # Subtypes that carry a CustomPeriodBudget element per WSDL (every
+    # 12-family entry except WeeklyClickPackage).
+    _text_search_subtypes_with_custom_period = {
+        "WbMaximumClicks",
+        "WbMaximumConversionRate",
+        "AverageCpc",
+        "AverageCpa",
+        "PayForConversion",
+        "AverageRoi",
+        "AverageCrr",
+        "PayForConversionCrr",
+        "AverageCpaMultipleGoals",
+        "PayForConversionMultipleGoals",
+        "MaxProfit",
+    }
+    # Subtypes that carry an ExplorationBudget element per WSDL.
+    _text_search_subtypes_with_exploration = {
+        "AverageCpa",
+        "AverageRoi",
+        "AverageCrr",
+        "AverageCpaMultipleGoals",
+        "MaxProfit",
+    }
+    for _subtype, _fields in _text_search_subtype_field_options.items():
+        _update_extras = _text_search_update_only_field_options.get(_subtype, {})
+        _all_fields = {**_fields, **_update_extras}
+        # The subtype container itself is "supported" once any flag that
+        # can place it is provided.
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            (
+                "campaigns",
+                _campaign_op,
+                f"TextCampaign.BiddingStrategy.Search.{_subtype}",
+            )
+        ] = {"--search-strategy"} | set(_all_fields.values())
+        for _wsdl_field, _flag in _all_fields.items():
+            OPTIONAL_FIELD_CLI_OPTIONS[
+                (
+                    "campaigns",
+                    _campaign_op,
+                    f"TextCampaign.BiddingStrategy.Search.{_subtype}.{_wsdl_field}",
+                )
+            ] = {_flag}
+        if _subtype in _text_search_subtypes_with_custom_period:
+            OPTIONAL_FIELD_CLI_OPTIONS[
+                (
+                    "campaigns",
+                    _campaign_op,
+                    f"TextCampaign.BiddingStrategy.Search.{_subtype}.CustomPeriodBudget",
+                )
+            ] = _text_search_custom_period_flags
+            for (
+                _cpb_field,
+                _cpb_flag,
+            ) in _text_search_custom_period_field_options.items():
+                OPTIONAL_FIELD_CLI_OPTIONS[
+                    (
+                        "campaigns",
+                        _campaign_op,
+                        (
+                            "TextCampaign.BiddingStrategy.Search."
+                            f"{_subtype}.CustomPeriodBudget.{_cpb_field}"
+                        ),
+                    )
+                ] = {_cpb_flag}
+        if _subtype in _text_search_subtypes_with_exploration:
+            OPTIONAL_FIELD_CLI_OPTIONS[
+                (
+                    "campaigns",
+                    _campaign_op,
+                    f"TextCampaign.BiddingStrategy.Search.{_subtype}.ExplorationBudget",
+                )
+            ] = _text_search_exploration_flags
+            for _eb_field, _eb_flag in _text_search_exploration_field_options.items():
+                OPTIONAL_FIELD_CLI_OPTIONS[
+                    (
+                        "campaigns",
+                        _campaign_op,
+                        (
+                            "TextCampaign.BiddingStrategy.Search."
+                            f"{_subtype}.ExplorationBudget.{_eb_field}"
+                        ),
+                    )
+                ] = {_eb_flag}
+
 for strategy_type, options in STRATEGY_FIELD_OPTIONS.items():
     OPTIONAL_FIELD_CLI_OPTIONS[("strategies", "add", strategy_type)] = {"--type"}
     for param_name, wsdl_field in options.items():

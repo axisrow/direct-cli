@@ -981,6 +981,72 @@ def get(
     help="Bid ceiling in micro-rubles for the chosen CPA strategy",
 )
 @click.option(
+    "--text-search-weekly-spend-limit",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="TextCampaign Search strategy WeeklySpendLimit in rubles",
+)
+@click.option(
+    "--text-search-custom-period-spend-limit",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="TextCampaign Search CustomPeriodBudget.SpendLimit in rubles",
+)
+@click.option(
+    "--text-search-custom-period-start-date",
+    help="TextCampaign Search CustomPeriodBudget.StartDate",
+)
+@click.option(
+    "--text-search-custom-period-end-date",
+    help="TextCampaign Search CustomPeriodBudget.EndDate",
+)
+@click.option(
+    "--text-search-custom-period-auto-continue",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="TextCampaign Search CustomPeriodBudget.AutoContinue: YES or NO",
+)
+@click.option(
+    "--text-search-average-cpc",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="TextCampaign Search strategy AverageCpc in rubles",
+)
+@click.option(
+    "--text-search-pay-cpa",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="TextCampaign Search StrategyPayForConversionAdd.Cpa in rubles",
+)
+@click.option(
+    "--text-search-clicks-per-week",
+    type=click.IntRange(1),
+    help="TextCampaign Search WEEKLY_CLICK_PACKAGE ClicksPerWeek",
+)
+@click.option(
+    "--text-search-reserve-return",
+    type=click.IntRange(1, 100),
+    help="TextCampaign Search AVERAGE_ROI ReserveReturn percentage",
+)
+@click.option(
+    "--text-search-roi-coef",
+    type=int,
+    help="TextCampaign Search AVERAGE_ROI RoiCoef",
+)
+@click.option(
+    "--text-search-profitability",
+    type=int,
+    help="TextCampaign Search AVERAGE_ROI Profitability",
+)
+@click.option(
+    "--text-search-exploration-min-budget",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="TextCampaign Search ExplorationBudget.MinimumExplorationBudget in rubles",
+)
+@click.option(
+    "--text-search-exploration-is-custom",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help=(
+        "TextCampaign Search ExplorationBudget."
+        "IsMinimumExplorationBudgetCustom: YES or NO"
+    ),
+)
+@click.option(
     "--notification",
     default=None,
     expose_value=False,
@@ -1141,6 +1207,19 @@ def add(
     average_cpa,
     crr,
     bid_ceiling,
+    text_search_weekly_spend_limit,
+    text_search_custom_period_spend_limit,
+    text_search_custom_period_start_date,
+    text_search_custom_period_end_date,
+    text_search_custom_period_auto_continue,
+    text_search_average_cpc,
+    text_search_pay_cpa,
+    text_search_clicks_per_week,
+    text_search_reserve_return,
+    text_search_roi_coef,
+    text_search_profitability,
+    text_search_exploration_min_budget,
+    text_search_exploration_is_custom,
     client_info,
     sms_events,
     sms_time_from,
@@ -1202,6 +1281,24 @@ def add(
             "--crr",
             "--bid-ceiling",
         }
+        # TextCampaign Search strategy detail flags (issue #361). Only
+        # accepted under --type TEXT_CAMPAIGN; other campaign types must
+        # reject them as silent-data-loss invariants.
+        text_search_extras = {
+            "--text-search-weekly-spend-limit",
+            "--text-search-custom-period-spend-limit",
+            "--text-search-custom-period-start-date",
+            "--text-search-custom-period-end-date",
+            "--text-search-custom-period-auto-continue",
+            "--text-search-average-cpc",
+            "--text-search-pay-cpa",
+            "--text-search-clicks-per-week",
+            "--text-search-reserve-return",
+            "--text-search-roi-coef",
+            "--text-search-profitability",
+            "--text-search-exploration-min-budget",
+            "--text-search-exploration-is-custom",
+        }
         allowed_flags_by_type = {
             "TEXT_CAMPAIGN": {
                 "--setting",
@@ -1223,7 +1320,8 @@ def add(
                 "--package-platform-dynamic-places",
                 "--negative-keyword-shared-set-ids",
             }
-            | text_dynamic_extras,
+            | text_dynamic_extras
+            | text_search_extras,
             "UNIFIED_CAMPAIGN": {
                 "--setting",
                 "--counter-ids",
@@ -1404,6 +1502,31 @@ def add(
                 "--average-cpa": average_cpa,
                 "--crr": crr,
                 "--bid-ceiling": bid_ceiling,
+                "--text-search-weekly-spend-limit": (text_search_weekly_spend_limit),
+                "--text-search-custom-period-spend-limit": (
+                    text_search_custom_period_spend_limit
+                ),
+                "--text-search-custom-period-start-date": (
+                    text_search_custom_period_start_date
+                ),
+                "--text-search-custom-period-end-date": (
+                    text_search_custom_period_end_date
+                ),
+                "--text-search-custom-period-auto-continue": (
+                    text_search_custom_period_auto_continue
+                ),
+                "--text-search-average-cpc": text_search_average_cpc,
+                "--text-search-pay-cpa": text_search_pay_cpa,
+                "--text-search-clicks-per-week": text_search_clicks_per_week,
+                "--text-search-reserve-return": text_search_reserve_return,
+                "--text-search-roi-coef": text_search_roi_coef,
+                "--text-search-profitability": text_search_profitability,
+                "--text-search-exploration-min-budget": (
+                    text_search_exploration_min_budget
+                ),
+                "--text-search-exploration-is-custom": (
+                    text_search_exploration_is_custom
+                ),
                 "--tracking-params": tracking_params,
             },
         )
@@ -1615,11 +1738,17 @@ def add(
             if package_bidding_strategy_obj is not None:
                 text_block["PackageBiddingStrategy"] = package_bidding_strategy_obj
             else:
-                search_base_builder = get_bidding_strategy_builder(
-                    "TEXT_CAMPAIGN", "add", "search_base"
+                # Issue #361: full typed-flag support for all 12 strategy
+                # families on TextCampaign.BiddingStrategy.Search. The
+                # branch="search" builder owns the entire Search payload
+                # (subtype block, PlacementTypes, PriorityGoals sibling
+                # placement). The legacy branch="priority_goals" builder
+                # is kept only for DYNAMIC_TEXT_CAMPAIGN.
+                search_builder = get_bidding_strategy_builder(
+                    "TEXT_CAMPAIGN", "add", "search"
                 )
-                if search_base_builder is not None:
-                    text_search = search_base_builder(
+                if search_builder is not None:
+                    text_search = search_builder(
                         search_strategy=search_strategy,
                         search_placement_search_results=(
                             search_placement_search_results
@@ -1630,7 +1759,32 @@ def add(
                         search_placement_dynamic_places=(
                             search_placement_dynamic_places
                         ),
+                        goal_id=goal_id,
+                        average_cpa=average_cpa,
+                        crr=crr,
+                        bid_ceiling=bid_ceiling,
+                        weekly_spend_limit=text_search_weekly_spend_limit,
+                        custom_period_spend_limit=(
+                            text_search_custom_period_spend_limit
+                        ),
+                        custom_period_start_date=(text_search_custom_period_start_date),
+                        custom_period_end_date=text_search_custom_period_end_date,
+                        custom_period_auto_continue=(
+                            text_search_custom_period_auto_continue
+                        ),
+                        budget_type=None,
+                        average_cpc=text_search_average_cpc,
+                        pay_cpa=text_search_pay_cpa,
+                        clicks_per_week=text_search_clicks_per_week,
+                        reserve_return=text_search_reserve_return,
+                        roi_coef=text_search_roi_coef,
+                        profitability=text_search_profitability,
+                        exploration_min_budget=(text_search_exploration_min_budget),
+                        exploration_is_custom=(text_search_exploration_is_custom),
+                        priority_goals_items=priority_goals_items,
+                        sub_campaign_block=text_block,
                         include_default=True,
+                        is_update=False,
                     )
                 else:
                     text_search = {
@@ -1644,21 +1798,6 @@ def add(
                         "BiddingStrategyType": (network_strategy or "SERVING_OFF")
                     },
                 }
-                priority_goals_builder = get_bidding_strategy_builder(
-                    "TEXT_CAMPAIGN", "add", "priority_goals"
-                )
-                if priority_goals_builder is not None:
-                    priority_goals_builder(
-                        text_block["BiddingStrategy"],
-                        search_strategy=search_strategy,
-                        network_strategy=network_strategy,
-                        goal_id=goal_id,
-                        average_cpa=average_cpa,
-                        crr=crr,
-                        bid_ceiling=bid_ceiling,
-                        priority_goals_items=priority_goals_items,
-                        sub_campaign_block=text_block,
-                    )
             if counter_ids_obj is not None:
                 text_block["CounterIds"] = counter_ids_obj
             if relevant_keywords_obj is not None:
@@ -1862,9 +2001,7 @@ def add(
                         )
                     },
                 }
-            cpm_campaign: Dict[str, object] = {
-                "BiddingStrategy": cpm_bidding_strategy
-            }
+            cpm_campaign: Dict[str, object] = {"BiddingStrategy": cpm_bidding_strategy}
             if parsed_settings:
                 cpm_campaign["Settings"] = parsed_settings
             if counter_ids_obj is not None:
@@ -2210,6 +2347,97 @@ def add(
     help="MobileAppCampaign Network strategy BudgetType for update",
 )
 @click.option(
+    "--goal-id",
+    type=int,
+    help="Single Metrika goal ID for CPA-shaped Search strategies",
+)
+@click.option(
+    "--average-cpa",
+    type=MICRO_RUBLES,
+    help="Target CPA in micro-rubles for AVERAGE_CPA Search strategy",
+)
+@click.option(
+    "--crr",
+    type=int,
+    help="CRR percentage for AVERAGE_CRR / PAY_FOR_CONVERSION_CRR strategies",
+)
+@click.option(
+    "--bid-ceiling",
+    type=MICRO_RUBLES,
+    help="Bid ceiling in micro-rubles for the chosen Search strategy",
+)
+@click.option(
+    "--text-search-weekly-spend-limit",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="TextCampaign Search strategy WeeklySpendLimit in rubles",
+)
+@click.option(
+    "--text-search-custom-period-spend-limit",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="TextCampaign Search CustomPeriodBudget.SpendLimit in rubles",
+)
+@click.option(
+    "--text-search-custom-period-start-date",
+    help="TextCampaign Search CustomPeriodBudget.StartDate",
+)
+@click.option(
+    "--text-search-custom-period-end-date",
+    help="TextCampaign Search CustomPeriodBudget.EndDate",
+)
+@click.option(
+    "--text-search-custom-period-auto-continue",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="TextCampaign Search CustomPeriodBudget.AutoContinue: YES or NO",
+)
+@click.option(
+    "--text-search-budget-type",
+    type=click.Choice(BUDGET_TYPES, case_sensitive=False),
+    help="TextCampaign Search strategy BudgetType for update",
+)
+@click.option(
+    "--text-search-average-cpc",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="TextCampaign Search strategy AverageCpc in rubles",
+)
+@click.option(
+    "--text-search-pay-cpa",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="TextCampaign Search StrategyPayForConversionAdd.Cpa in rubles",
+)
+@click.option(
+    "--text-search-clicks-per-week",
+    type=click.IntRange(1),
+    help="TextCampaign Search WEEKLY_CLICK_PACKAGE ClicksPerWeek",
+)
+@click.option(
+    "--text-search-reserve-return",
+    type=click.IntRange(1, 100),
+    help="TextCampaign Search AVERAGE_ROI ReserveReturn percentage",
+)
+@click.option(
+    "--text-search-roi-coef",
+    type=int,
+    help="TextCampaign Search AVERAGE_ROI RoiCoef",
+)
+@click.option(
+    "--text-search-profitability",
+    type=int,
+    help="TextCampaign Search AVERAGE_ROI Profitability",
+)
+@click.option(
+    "--text-search-exploration-min-budget",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="TextCampaign Search ExplorationBudget.MinimumExplorationBudget in rubles",
+)
+@click.option(
+    "--text-search-exploration-is-custom",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help=(
+        "TextCampaign Search ExplorationBudget."
+        "IsMinimumExplorationBudgetCustom: YES or NO"
+    ),
+)
+@click.option(
     "--notification",
     default=None,
     expose_value=False,
@@ -2378,6 +2606,24 @@ def update(
     mobile_network_clicks_per_week,
     mobile_network_limit_percent,
     mobile_network_budget_type,
+    goal_id,
+    average_cpa,
+    crr,
+    bid_ceiling,
+    text_search_weekly_spend_limit,
+    text_search_custom_period_spend_limit,
+    text_search_custom_period_start_date,
+    text_search_custom_period_end_date,
+    text_search_custom_period_auto_continue,
+    text_search_budget_type,
+    text_search_average_cpc,
+    text_search_pay_cpa,
+    text_search_clicks_per_week,
+    text_search_reserve_return,
+    text_search_roi_coef,
+    text_search_profitability,
+    text_search_exploration_min_budget,
+    text_search_exploration_is_custom,
     client_info,
     sms_events,
     sms_time_from,
@@ -2560,6 +2806,34 @@ def update(
             "--mobile-network-clicks-per-week": mobile_network_clicks_per_week,
             "--mobile-network-limit-percent": mobile_network_limit_percent,
             "--mobile-network-budget-type": mobile_network_budget_type,
+            "--goal-id": goal_id,
+            "--average-cpa": average_cpa,
+            "--crr": crr,
+            "--bid-ceiling": bid_ceiling,
+            "--text-search-weekly-spend-limit": text_search_weekly_spend_limit,
+            "--text-search-custom-period-spend-limit": (
+                text_search_custom_period_spend_limit
+            ),
+            "--text-search-custom-period-start-date": (
+                text_search_custom_period_start_date
+            ),
+            "--text-search-custom-period-end-date": (
+                text_search_custom_period_end_date
+            ),
+            "--text-search-custom-period-auto-continue": (
+                text_search_custom_period_auto_continue
+            ),
+            "--text-search-budget-type": text_search_budget_type,
+            "--text-search-average-cpc": text_search_average_cpc,
+            "--text-search-pay-cpa": text_search_pay_cpa,
+            "--text-search-clicks-per-week": text_search_clicks_per_week,
+            "--text-search-reserve-return": text_search_reserve_return,
+            "--text-search-roi-coef": text_search_roi_coef,
+            "--text-search-profitability": text_search_profitability,
+            "--text-search-exploration-min-budget": (
+                text_search_exploration_min_budget
+            ),
+            "--text-search-exploration-is-custom": (text_search_exploration_is_custom),
             "--tracking-params": tracking_params,
         }
         subtype_flags_provided = [
@@ -2604,6 +2878,26 @@ def update(
                 "--package-platform-dynamic-places",
                 "--negative-keyword-shared-set-ids",
                 "--tracking-params",
+                # Legacy CPA flags (also accepted on add, see #361 / #290).
+                "--goal-id",
+                "--average-cpa",
+                "--crr",
+                "--bid-ceiling",
+                # Issue #361: TextCampaign Search strategy detail flags
+                "--text-search-weekly-spend-limit",
+                "--text-search-custom-period-spend-limit",
+                "--text-search-custom-period-start-date",
+                "--text-search-custom-period-end-date",
+                "--text-search-custom-period-auto-continue",
+                "--text-search-budget-type",
+                "--text-search-average-cpc",
+                "--text-search-pay-cpa",
+                "--text-search-clicks-per-week",
+                "--text-search-reserve-return",
+                "--text-search-roi-coef",
+                "--text-search-profitability",
+                "--text-search-exploration-min-budget",
+                "--text-search-exploration-is-custom",
             }
             dynamic_campaign_flags = {
                 "--setting",
@@ -2814,11 +3108,18 @@ def update(
                         )
                     sub_block["PackageBiddingStrategy"] = package_bidding_strategy_obj
                 elif not is_unified and not is_dynamic:
-                    search_base_builder = get_bidding_strategy_builder(
-                        "TEXT_CAMPAIGN", "update", "search_base"
+                    # Issue #361: full typed-flag support for the 12
+                    # strategy families on TextCampaign.BiddingStrategy.Search
+                    # update. The branch="search" builder owns the entire
+                    # Search payload (PlacementTypes, subtype block,
+                    # PriorityGoals scope validation — placement on update
+                    # is handled separately above via
+                    # ``PriorityGoalsUpdateSetting``).
+                    search_builder = get_bidding_strategy_builder(
+                        "TEXT_CAMPAIGN", "update", "search"
                     )
-                    if search_base_builder is not None:
-                        text_search = search_base_builder(
+                    if search_builder is not None:
+                        text_search = search_builder(
                             search_strategy=search_strategy,
                             search_placement_search_results=(
                                 search_placement_search_results
@@ -2829,15 +3130,38 @@ def update(
                             search_placement_dynamic_places=(
                                 search_placement_dynamic_places
                             ),
+                            goal_id=goal_id,
+                            average_cpa=average_cpa,
+                            crr=crr,
+                            bid_ceiling=bid_ceiling,
+                            weekly_spend_limit=text_search_weekly_spend_limit,
+                            custom_period_spend_limit=(
+                                text_search_custom_period_spend_limit
+                            ),
+                            custom_period_start_date=(
+                                text_search_custom_period_start_date
+                            ),
+                            custom_period_end_date=(text_search_custom_period_end_date),
+                            custom_period_auto_continue=(
+                                text_search_custom_period_auto_continue
+                            ),
+                            budget_type=text_search_budget_type,
+                            average_cpc=text_search_average_cpc,
+                            pay_cpa=text_search_pay_cpa,
+                            clicks_per_week=text_search_clicks_per_week,
+                            reserve_return=text_search_reserve_return,
+                            roi_coef=text_search_roi_coef,
+                            profitability=text_search_profitability,
+                            exploration_min_budget=(text_search_exploration_min_budget),
+                            exploration_is_custom=(text_search_exploration_is_custom),
+                            priority_goals_items=priority_goals_items,
+                            sub_campaign_block=sub_block,
                             include_default=False,
+                            is_update=True,
                         )
                     else:
                         text_search = (
-                            {
-                                "BiddingStrategyType": (
-                                    search_strategy.upper()
-                                )
-                            }
+                            {"BiddingStrategyType": (search_strategy.upper())}
                             if search_strategy is not None
                             else None
                         )
@@ -2930,11 +3254,7 @@ def update(
                     )
                 else:
                     mobile_bidding_strategy = (
-                        {
-                            "Search": {
-                                "BiddingStrategyType": search_strategy.upper()
-                            }
-                        }
+                        {"Search": {"BiddingStrategyType": search_strategy.upper()}}
                         if search_strategy is not None
                         else None
                     )
