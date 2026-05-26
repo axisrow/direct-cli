@@ -8413,8 +8413,9 @@ def test_campaigns_add_dynamic_text_network_rejects_partial_custom_period():
     )
 
 
-def test_campaigns_add_dynamic_text_network_rejects_weekly_click_package_combo():
-    result = _rejected(
+def test_campaigns_add_dynamic_text_network_weekly_click_package_combined_ceilings_payload():
+    """#365: WSDL StrategyWeeklyClickPackageAdd allows AverageCpc + BidCeiling."""
+    body = _dry_run(
         "campaigns",
         "add",
         "--name",
@@ -8432,10 +8433,17 @@ def test_campaigns_add_dynamic_text_network_rejects_weekly_click_package_combo()
         "--dyn-network-bid-ceiling",
         "10",
     )
-    assert (
-        "WEEKLY_CLICK_PACKAGE cannot combine --dyn-network-average-cpc with "
-        "--dyn-network-bid-ceiling"
-    ) in result.output
+    network = body["params"]["Campaigns"][0]["DynamicTextCampaign"][
+        "BiddingStrategy"
+    ]["Network"]
+    assert network == {
+        "BiddingStrategyType": "WEEKLY_CLICK_PACKAGE",
+        "WeeklyClickPackage": {
+            "AverageCpc": 5000000,
+            "BidCeiling": 10000000,
+            "ClicksPerWeek": 100,
+        },
+    }
 
 
 def test_campaigns_add_dynamic_text_network_rejects_partial_exploration_budget():

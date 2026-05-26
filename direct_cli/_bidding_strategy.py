@@ -1364,19 +1364,6 @@ def build_dynamic_text_network_strategy(
                 "--dyn-network-weekly-spend-limit"
             )
 
-    # WeeklyClickPackage rule: AverageCpc and BidCeiling are exclusive
-    # alternatives (WSDL StrategyWeeklyClickPackageAdd documents them as
-    # optional ceilings; only one shapes the bid policy).
-    if (
-        subtype == "WeeklyClickPackage"
-        and average_cpc is not None
-        and bid_ceiling is not None
-    ):
-        raise click.UsageError(
-            "WEEKLY_CLICK_PACKAGE cannot combine --dyn-network-average-cpc "
-            "with --dyn-network-bid-ceiling"
-        )
-
     field_support = {
         "--dyn-network-weekly-spend-limit": (
             weekly_spend_limit,
