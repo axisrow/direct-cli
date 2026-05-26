@@ -88,7 +88,6 @@ CPM_BANNER_NETWORK_STRATEGIES = [
 ]
 MOBILE_APP_SEARCH_STRATEGIES = [
     "HIGHEST_POSITION",
-    "IMPRESSIONS_BELOW_SEARCH",
     "WB_MAXIMUM_CLICKS",
     "WB_MAXIMUM_APP_INSTALLS",
     "AVERAGE_CPC",
@@ -97,6 +96,7 @@ MOBILE_APP_SEARCH_STRATEGIES = [
     "PAY_FOR_INSTALL",
     "SERVING_OFF",
 ]
+MOBILE_APP_SEARCH_DISABLED_STRATEGIES = {"IMPRESSIONS_BELOW_SEARCH"}
 MOBILE_APP_SEARCH_STRATEGY_TO_WSDL_SUBTYPE = {
     "WB_MAXIMUM_CLICKS": "WbMaximumClicks",
     "WB_MAXIMUM_APP_INSTALLS": "WbMaximumAppInstalls",
@@ -818,6 +818,11 @@ def _build_mobile_app_search_strategy(
         )
 
     normalized_strategy = (search_strategy or "HIGHEST_POSITION").upper()
+    if normalized_strategy in MOBILE_APP_SEARCH_DISABLED_STRATEGIES:
+        raise click.UsageError(
+            f"{normalized_strategy} is disabled in the Yandex Direct "
+            "Campaigns service"
+        )
     if normalized_strategy not in MOBILE_APP_SEARCH_STRATEGIES:
         raise click.UsageError(
             "--search-strategy for MOBILE_APP_CAMPAIGN must be one of "

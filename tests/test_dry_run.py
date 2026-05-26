@@ -6550,8 +6550,8 @@ def test_campaigns_add_mobile_app_wb_maximum_clicks_custom_period_payload():
     }
 
 
-def test_campaigns_update_mobile_app_impressions_below_search_strategy_payload():
-    body = _dry_run(
+def test_campaigns_update_mobile_app_rejects_impressions_below_search_strategy():
+    result = _rejected(
         "campaigns",
         "update",
         "--id",
@@ -6561,15 +6561,7 @@ def test_campaigns_update_mobile_app_impressions_below_search_strategy_payload()
         "--search-strategy",
         "IMPRESSIONS_BELOW_SEARCH",
     )
-    campaign = body["params"]["Campaigns"][0]
-    assert campaign == {
-        "Id": 123,
-        "MobileAppCampaign": {
-            "BiddingStrategy": {
-                "Search": {"BiddingStrategyType": "IMPRESSIONS_BELOW_SEARCH"}
-            }
-        },
-    }
+    assert "IMPRESSIONS_BELOW_SEARCH is disabled" in result.output
 
 
 def test_campaigns_add_mobile_app_rejects_missing_required_search_field():
