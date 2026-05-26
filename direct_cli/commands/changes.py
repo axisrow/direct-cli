@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import get_default_fields, parse_datetime, parse_ids
+from ..utils import get_default_fields, parse_changes_datetime, parse_ids
 
 
 @click.group()
@@ -36,7 +36,7 @@ _CHECK_FIELD_NAMES = frozenset({"CampaignIds", "AdGroupIds", "AdIds", "Campaigns
 @click.option(
     "--timestamp",
     required=True,
-    help="Timestamp for changes check (YYYY-MM-DDTHH:MM:SS)",
+    help="Timestamp for Changes.check (YYYY-MM-DDTHH:MM:SSZ)",
 )
 @click.option(
     "--fields",
@@ -108,7 +108,7 @@ def check(
 
         params = {
             id_field: id_value,
-            "Timestamp": parse_datetime(timestamp),
+            "Timestamp": parse_changes_datetime(timestamp),
             "FieldNames": field_names,
         }
 
@@ -126,7 +126,7 @@ def check(
 @click.option(
     "--timestamp",
     required=True,
-    help="Timestamp for changes check (YYYY-MM-DDTHH:MM:SS)",
+    help="Timestamp for Changes.checkCampaigns (YYYY-MM-DDTHH:MM:SSZ)",
 )
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
@@ -140,7 +140,7 @@ def check_campaigns(ctx, timestamp, output_format, output):
             sandbox=ctx.obj.get("sandbox"),
         )
 
-        params = {"Timestamp": parse_datetime(timestamp)}
+        params = {"Timestamp": parse_changes_datetime(timestamp)}
 
         body = {"method": "checkCampaigns", "params": params}
 

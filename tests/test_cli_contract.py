@@ -11,6 +11,9 @@ from direct_cli.smoke_matrix import SMOKE_MATRIX
 GROUP_NAME_RE = re.compile(r"^[a-z0-9]+$")
 COMMAND_NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 DATETIME_WITH_Z_RE = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z")
+CHANGES_BARE_DATETIME_RE = re.compile(
+    r"^direct changes .*--timestamp \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\s|$)"
+)
 QUOTED_SPACE_DATETIME_RE = re.compile(r'"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}"')
 
 MUTATING_COMMANDS = {
@@ -142,8 +145,10 @@ def test_readme_direct_examples_are_single_line_canonical_commands():
             offenders.append(f"line continuation: {line}")
         if "--json" in line:
             offenders.append(f"json flag: {line}")
-        if DATETIME_WITH_Z_RE.search(line):
+        if DATETIME_WITH_Z_RE.search(line) and not line.startswith("direct changes "):
             offenders.append(f"timezone datetime: {line}")
+        if CHANGES_BARE_DATETIME_RE.search(line):
+            offenders.append(f"bare changes datetime: {line}")
         if QUOTED_SPACE_DATETIME_RE.search(line):
             offenders.append(f"quoted space datetime: {line}")
 

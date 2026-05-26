@@ -64,7 +64,7 @@ def test_changes_check_builds_canonical_payload():
             "--campaign-ids",
             "1,2",
             "--timestamp",
-            "2026-04-14T00:00:00",
+            "2026-04-14T00:00:00Z",
             "--fields",
             "CampaignIds,CampaignsStat",
         ],
@@ -88,7 +88,7 @@ def test_changes_check_campaigns_builds_canonical_payload():
             "changes",
             "check-campaigns",
             "--timestamp",
-            "2026-04-14T00:00:00",
+            "2026-04-14T00:00:00Z",
         ],
     )
 
@@ -108,16 +108,28 @@ def test_changes_check_dictionaries_builds_canonical_payload():
     assert body == {"method": "checkDictionaries", "params": {}}
 
 
-def test_changes_rejects_noncanonical_datetime():
+def test_changes_rejects_bare_datetime():
     result = _failing_run(
         "changes",
         "check-campaigns",
         "--timestamp",
-        "2026-04-14T00:00:00Z",
+        "2026-04-14T00:00:00",
     )
 
     assert result.exit_code != 0
-    assert "Expected: YYYY-MM-DDTHH:MM:SS" in result.output
+    assert "Expected: YYYY-MM-DDTHH:MM:SSZ" in result.output
+
+
+def test_changes_rejects_malformed_datetime():
+    result = _failing_run(
+        "changes",
+        "check-campaigns",
+        "--timestamp",
+        "2026-04-14 00:00:00Z",
+    )
+
+    assert result.exit_code != 0
+    assert "Expected: YYYY-MM-DDTHH:MM:SSZ" in result.output
 
 
 def test_keywordsresearch_has_search_volume_builds_typed_payload():

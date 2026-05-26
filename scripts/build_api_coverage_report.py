@@ -37,7 +37,7 @@ FIELD_OPERATION_CAPTURE_OPTION_FIXTURES = {
         "--campaign-ids",
         "1",
         "--timestamp",
-        "2026-04-14T00:00:00",
+        "2026-04-14T00:00:00Z",
     ],
     ("dictionaries", "getGeoRegions"): ["--fields", "GeoRegionId"],
     ("dynamicfeedadtargets", "get"): ["--ids", "1"],

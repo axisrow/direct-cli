@@ -302,7 +302,7 @@ run_v4forecast_contracts
 run_v4tags_contracts
 
 if [ -n "$CAMPAIGN_ID" ]; then
-  run_test "changes check-campaigns (env auth)"    direct changes check-campaigns --timestamp 2026-04-23T00:00:00
+  run_test "changes check-campaigns (env auth)"    direct changes check-campaigns --timestamp 2026-04-23T00:00:00Z
   run_test "dynamicads get (env auth)"             direct dynamicads get --adgroup-ids "${ADGROUP_ID:-0}"
   run_test "v4goals get-stat-goals (env auth)"     direct v4goals get-stat-goals --campaign-ids "$CAMPAIGN_ID"
   run_test "v4goals get-retargeting-goals (env auth)" direct v4goals get-retargeting-goals --campaign-ids "$CAMPAIGN_ID"
