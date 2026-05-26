@@ -9101,6 +9101,39 @@ def test_campaigns_update_text_search_max_profit_with_priority_goals_payload():
     assert search["MaxProfit"] == {}
 
 
+def test_campaigns_update_text_search_wb_maximum_clicks_partial_payload():
+    """Update WSDL ``StrategyMaximumClicks`` declares every field as
+    minOccurs=0, so patching only ``BidCeiling`` on a WB_MAXIMUM_CLICKS
+    campaign must succeed."""
+    body = _text_search_update(
+        "--search-strategy",
+        "WB_MAXIMUM_CLICKS",
+        "--bid-ceiling",
+        "750000",
+    )
+    search = _text_search_extract(body)
+    assert search["BiddingStrategyType"] == "WB_MAXIMUM_CLICKS"
+    assert search["WbMaximumClicks"] == {"BidCeiling": 750000}
+
+
+def test_campaigns_update_text_search_wb_max_conv_rate_partial_payload():
+    """Update path treats every ``StrategyMaximumConversionRate`` field
+    as optional EXCEPT the docs-required ``GoalId`` on strategy switch."""
+    body = _text_search_update(
+        "--search-strategy",
+        "WB_MAXIMUM_CONVERSION_RATE",
+        "--goal-id",
+        "42",
+        "--bid-ceiling",
+        "400000",
+    )
+    search = _text_search_extract(body)
+    assert search["WbMaximumConversionRate"] == {
+        "GoalId": 42,
+        "BidCeiling": 400000,
+    }
+
+
 def test_campaigns_update_text_search_wb_maximum_clicks_rejects_budget_type():
     """Yandex update docs: WbMaximumClicks does not declare BudgetType."""
     result = CliRunner().invoke(

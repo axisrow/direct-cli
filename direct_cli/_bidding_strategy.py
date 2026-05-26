@@ -1144,6 +1144,32 @@ _TEXT_SEARCH_MIN_PRIORITY_GOALS: Dict[str, int] = {
     "PayForConversionMultipleGoals": 2,
 }
 
+# On update, required-typed-flag enforcement is narrower: only fields
+# that are conceptually required to define the NEW strategy must be
+# supplied when ``--search-strategy`` is being switched. Fields that the
+# campaign may already carry (e.g. WeeklySpendLimit on Wb* — docs require
+# it on add but the update WSDL keeps it minOccurs=0) are intentionally
+# omitted so partial updates remain legitimate.
+_TEXT_SEARCH_REQUIRED_TYPED_FLAGS_UPDATE: Dict[str, Dict[str, str]] = {
+    "AverageCpc": {"AverageCpc": "--text-search-average-cpc"},
+    "AverageCpa": {"AverageCpa": "--average-cpa", "GoalId": "--goal-id"},
+    "PayForConversion": {"Cpa": "--text-search-pay-cpa", "GoalId": "--goal-id"},
+    "WbMaximumConversionRate": {"GoalId": "--goal-id"},
+    "WeeklyClickPackage": {"ClicksPerWeek": "--text-search-clicks-per-week"},
+    "AverageRoi": {
+        "ReserveReturn": "--text-search-reserve-return",
+        "RoiCoef": "--text-search-roi-coef",
+        "GoalId": "--goal-id",
+    },
+    "AverageCrr": {"Crr": "--crr", "GoalId": "--goal-id"},
+    "PayForConversionCrr": {"Crr": "--crr", "GoalId": "--goal-id"},
+    "AverageCpaMultipleGoals": {"PriorityGoals": "--priority-goals"},
+    "PayForConversionMultipleGoals": {"PriorityGoals": "--priority-goals"},
+    "MaxProfit": {"PriorityGoals": "--priority-goals"},
+    # ``WbMaximumClicks`` intentionally omitted: docs declare every
+    # field optional on update so a partial patch is legitimate.
+}
+
 
 def _build_text_search_custom_period_budget(
     spend_limit: Optional[int],
@@ -1550,11 +1576,14 @@ def build_text_campaign_search_strategy(
         # On update we let users patch individual subtype fields, but
         # when the user is switching the strategy type
         # (``--search-strategy`` is explicitly provided) every
-        # documented required field for the new subtype must be
-        # supplied — the existing campaign value cannot be relied on
-        # across a strategy-type switch.
+        # *conceptually-required* field for the new subtype must be
+        # supplied (Crr/GoalId for CRR strategies, PriorityGoals for
+        # MAX_PROFIT and *_MULTIPLE_GOALS, etc.). Fields that the
+        # campaign may already carry — e.g. ``WeeklySpendLimit`` on
+        # ``WbMaximumClicks`` — are NOT re-required, matching the
+        # update WSDL ``minOccurs=0`` and the official update docs.
         if search_strategy is not None:
-            required = _TEXT_SEARCH_REQUIRED_TYPED_FLAGS.get(subtype, {})
+            required = _TEXT_SEARCH_REQUIRED_TYPED_FLAGS_UPDATE.get(subtype, {})
             missing = [
                 flag
                 for wsdl_field, flag in required.items()
