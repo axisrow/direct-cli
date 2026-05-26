@@ -535,7 +535,7 @@ direct keywords delete --id 88888
 direct keywords add --adgroup-id 12345 --from-file keywords.jsonl
 
 # Inline JSON array
-direct keywords add --keywords-json '[{"Keyword":"buy laptop"},{"Keyword":"buy desktop"}]'
+direct keywords add --adgroup-id 12345 --keywords-json '[{"Keyword":"buy laptop"},{"Keyword":"buy desktop"}]'
 ```
 
 Example `keywords.jsonl`:
@@ -1358,7 +1358,7 @@ direct keywords delete --id 88888
 direct keywords add --adgroup-id 12345 --from-file keywords.jsonl
 
 # Inline JSON-массив
-direct keywords add --keywords-json '[{"Keyword":"купить ноутбук"},{"Keyword":"купить ПК"}]'
+direct keywords add --adgroup-id 12345 --keywords-json '[{"Keyword":"купить ноутбук"},{"Keyword":"купить ПК"}]'
 ```
 
 Пример `keywords.jsonl`:
@@ -1370,7 +1370,7 @@ direct keywords add --keywords-json '[{"Keyword":"купить ноутбук"},
 ```
 
 - Ключи строки — WSDL CamelCase: `Keyword`, `AdGroupId`, `Bid`, `ContextBid`, `UserParam1`, `UserParam2`.
-- `Bid` и `ContextBid` — документированные поля `Keywords.add`, но они зависят от стратегии: `Bid` только для ручных стратегий, `ContextBid` только для ручных стратегий с независимым управлением ставками в сетях. Для автоматических стратегий Яндекс игнорирует эти значения и возвращает warning `10160`, поэтому не передавайте их в JSONL для auto-strategy / РСЯ-сценариев.
+- `Bid` и `ContextBid` — документированные поля `Keywords.add`, но они зависят от стратегии: `Bid` только для ручных стратегий, `ContextBid` только для ручных стратегий с независимым управлением ставками в сетях. Для автоматических стратегий Яндекс игнорирует эти значения и возвращает предупреждение `10160`, поэтому не передавайте их в JSONL для auto-strategy / РСЯ-сценариев.
 - Поля автотаргетинга намеренно не принимаются в batch-режиме; используйте single-item typed flags: `--autotargeting-search-bid-is-auto`, `--priority`, `--autotargeting-category`, `--autotargeting-brand-option` или `--autotargeting-settings-*`.
 - `--adgroup-id` задаёт значение по умолчанию; в строке можно переопределить через `AdGroupId`.
 - В каждой строке должны разрешаться `Keyword` и `AdGroupId`; неизвестные поля отклоняются с указанием номера строки.
