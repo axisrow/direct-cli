@@ -1301,18 +1301,15 @@ def build_dynamic_text_network_strategy(
     # Crr, Cpa, ClicksPerWeek, ReserveReturn, RoiCoef) must have them
     # supplied or rejected at CLI level.
     if not is_update:
+        # Strict WSDL minOccurs=1 enforcement only — no inferred budget
+        # requirements (campaigns WSDL: StrategyWeeklyBudgetAddBase has
+        # WeeklySpendLimit minOccurs=0, StrategyMaximumClicksAdd /
+        # StrategyMaximumConversionRateAdd add CustomPeriodBudget
+        # minOccurs=0). Only fields declared minOccurs=1 in the relevant
+        # Strategy*Add subtype are gated here.
         required_map = {
-            "WbMaximumClicks": [
-                (
-                    "--dyn-network-weekly-spend-limit or full CustomPeriodBudget",
-                    weekly_spend_limit if not custom_period_flags else 1,
-                )
-            ],
+            "WbMaximumClicks": [],
             "WbMaximumConversionRate": [
-                (
-                    "--dyn-network-weekly-spend-limit or full CustomPeriodBudget",
-                    weekly_spend_limit if not custom_period_flags else 1,
-                ),
                 ("--dyn-network-goal-id", goal_id),
             ],
             "AverageCpc": [("--dyn-network-average-cpc", average_cpc)],

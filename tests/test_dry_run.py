@@ -8851,6 +8851,79 @@ def test_campaigns_update_dynamic_text_network_maximum_coverage_payload():
     assert network == {"BiddingStrategyType": "MAXIMUM_COVERAGE"}
 
 
+def test_campaigns_add_dynamic_text_network_wb_maximum_clicks_bare_payload():
+    """#365: WSDL StrategyMaximumClicksAdd has only minOccurs=0 fields.
+
+    WeeklySpendLimit/BidCeiling/CustomPeriodBudget are all optional
+    per the cached WSDL (StrategyWeeklyBudgetAddBase line 1333). The
+    bare ``--network-strategy WB_MAXIMUM_CLICKS`` add request must
+    therefore round-trip with no nested block.
+    """
+    body = _dry_run(
+        "campaigns",
+        "add",
+        "--name",
+        "Dyn Net WbClicks Bare",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--network-strategy",
+        "WB_MAXIMUM_CLICKS",
+    )
+    network = body["params"]["Campaigns"][0]["DynamicTextCampaign"][
+        "BiddingStrategy"
+    ]["Network"]
+    assert network == {"BiddingStrategyType": "WB_MAXIMUM_CLICKS"}
+
+
+def test_campaigns_add_dynamic_text_network_wb_maximum_conversion_rate_only_goal_payload():
+    """#365: only GoalId is WSDL-required for WbMaximumConversionRate."""
+    body = _dry_run(
+        "campaigns",
+        "add",
+        "--name",
+        "Dyn Net WbConv MinGoal",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--network-strategy",
+        "WB_MAXIMUM_CONVERSION_RATE",
+        "--dyn-network-goal-id",
+        "9",
+    )
+    network = body["params"]["Campaigns"][0]["DynamicTextCampaign"][
+        "BiddingStrategy"
+    ]["Network"]
+    assert network == {
+        "BiddingStrategyType": "WB_MAXIMUM_CONVERSION_RATE",
+        "WbMaximumConversionRate": {"GoalId": 9},
+    }
+
+
+def test_campaigns_add_dynamic_text_network_rejects_wb_maximum_conversion_rate_without_goal():
+    """#365: WSDL minOccurs=1 GoalId on WbMaximumConversionRate is enforced."""
+    result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "Dyn WbConv Missing Goal",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--network-strategy",
+        "WB_MAXIMUM_CONVERSION_RATE",
+        "--dyn-network-weekly-spend-limit",
+        "1000",
+    )
+    assert (
+        "WB_MAXIMUM_CONVERSION_RATE requires --dyn-network-goal-id"
+        in result.output
+    )
+
+
 def test_campaigns_add_dynamic_text_network_rejects_dyn_flag_for_text_campaign():
     """#365: --dyn-network-* must be DynamicText-only (silent-data-loss gate)."""
     result = _rejected(

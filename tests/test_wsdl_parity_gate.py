@@ -3128,7 +3128,10 @@ for _campaign_op in ("add", "update"):
         "note": (
             "DynamicTextCampaign.BiddingStrategy.Network typed flags "
             "(--network-strategy + --dyn-network-*) cover every "
-            "DynamicTextCampaignNetworkStrategyTypeEnum value."
+            "settable DynamicTextCampaignNetworkStrategyTypeEnum value "
+            "(UNKNOWN is a read-side sentinel and is not exposed on "
+            "add/update — same convention as TextCampaign/MobileApp/"
+            "CpmBanner network strategy enums)."
         ),
     }
     for _strategy_subtype in (
