@@ -1098,6 +1098,447 @@ def get_bidding_strategy_builder(
     return CAMPAIGN_TYPE_BUILDERS.get((campaign_type, operation, branch))
 
 
+# ---------------------------------------------------------------------------
+# SmartCampaign.BiddingStrategy.Search (issue #367)
+# ---------------------------------------------------------------------------
+# Per-Campaign / Per-Filter strategies live ONLY on
+# SmartCampaignStrategyAddBase (WSDL ``campaigns.xml`` lines 1789-1809), not
+# on TextCampaign / DynamicTextCampaign. The builder returns ONLY the Search
+# block — Network is built independently by the caller. Future leaf-PRs for
+# Network (#368) and PriorityGoals (#369) register separate keys and do not
+# touch this code path.
+#
+# Source of truth: cached WSDL at ``tests/wsdl_cache/campaigns.xml``.
+# The Yandex Direct API v5 reference and developer-guide pages such as
+# ``yandex.ru/dev/direct/doc/ref-v5/campaigns/SmartCampaignAdd.html``,
+# ``yandex.com/dev/direct/doc/objects/strategies.html`` and
+# ``yandex.com/dev/direct/doc/en/`` return HTTP 404 at the time of writing
+# (manually verified during development of #367). Yandex publishes the
+# canonical SmartCampaign field placement through the SOAP WSDL only,
+# which the project caches under ``tests/wsdl_cache/`` and exposes via
+# ``scripts/build_wsdl_optional_field_audit.py`` for the soft audit.
+# Specifically: every enum value, subtype name, required-field set
+# (``minOccurs=1``), and optional-field set used by this builder is
+# pulled directly from the cached WSDL — see ``campaigns.xml`` lines:
+#   * 396-410: ``SmartCampaignSearchStrategyTypeEnum`` (the 9 Per-*
+#     families plus ``SERVING_OFF``).
+#   * 1401-1481: ``Strategy*Add`` complex types (add-side, ``minOccurs=1``
+#     fields enforced by ``SMART_CAMPAIGN_SEARCH_REQUIRED_FIELDS``).
+#   * 851-929: ``Strategy*`` complex types (get/update-side,
+#     ``minOccurs=0`` everywhere — required-field check is skipped on
+#     update so users can patch a single field). ``BudgetType`` appears
+#     only here, which is why ``--smart-search-budget-type`` is
+#     update-only.
+#   * 1789-1820: ``SmartCampaignStrategyAddBase`` /
+#     ``SmartCampaignSearchStrategyAdd`` containers.
+#   * 1965-1978: ``CustomPeriodBudget`` and ``ExplorationBudget`` shared
+#     types (all-or-nothing groups).
+#   * 2202-2214 and 2301-2313: ``SmartCampaignAddItem`` /
+#     ``SmartCampaignUpdateItem`` envelopes — the Search block is wired
+#     under ``BiddingStrategy.Search`` (add: ``minOccurs=1``, update:
+#     ``minOccurs=0``).
+SMART_CAMPAIGN_SEARCH_STRATEGIES = [
+    "AVERAGE_CPC_PER_CAMPAIGN",
+    "AVERAGE_CPC_PER_FILTER",
+    "AVERAGE_CPA_PER_CAMPAIGN",
+    "AVERAGE_CPA_PER_FILTER",
+    "PAY_FOR_CONVERSION_PER_CAMPAIGN",
+    "PAY_FOR_CONVERSION_PER_FILTER",
+    "AVERAGE_ROI",
+    "AVERAGE_CRR",
+    "PAY_FOR_CONVERSION_CRR",
+    "SERVING_OFF",
+]
+# Maps Search strategy enum value → WSDL Strategy*Add subtype field name on
+# SmartCampaignStrategyAddBase. SERVING_OFF has no subtype block (only the
+# BiddingStrategyType field). All other values map to a typed subtype.
+SMART_CAMPAIGN_SEARCH_STRATEGY_TO_SUBTYPE = {
+    "AVERAGE_CPC_PER_CAMPAIGN": "AverageCpcPerCampaign",
+    "AVERAGE_CPC_PER_FILTER": "AverageCpcPerFilter",
+    "AVERAGE_CPA_PER_CAMPAIGN": "AverageCpaPerCampaign",
+    "AVERAGE_CPA_PER_FILTER": "AverageCpaPerFilter",
+    "PAY_FOR_CONVERSION_PER_CAMPAIGN": "PayForConversionPerCampaign",
+    "PAY_FOR_CONVERSION_PER_FILTER": "PayForConversionPerFilter",
+    "AVERAGE_ROI": "AverageRoi",
+    "AVERAGE_CRR": "AverageCrr",
+    "PAY_FOR_CONVERSION_CRR": "PayForConversionCrr",
+}
+# WSDL `minOccurs=1` fields on Strategy*Add subtypes (campaigns.xml 1401-1481).
+# Each tuple lists (WSDL field name, CLI option string, value-resolver key).
+# Resolver key matches the kwarg name in build_smart_campaign_search_strategy.
+SMART_CAMPAIGN_SEARCH_REQUIRED_FIELDS: Dict[str, List[tuple]] = {
+    "AverageCpcPerCampaign": [
+        ("AverageCpc", "--smart-search-average-cpc", "average_cpc"),
+    ],
+    "AverageCpcPerFilter": [
+        # No required fields per WSDL; FilterAverageCpc is minOccurs=0.
+    ],
+    "AverageCpaPerCampaign": [
+        ("AverageCpa", "--smart-search-average-cpa", "average_cpa"),
+        ("GoalId", "--smart-search-goal-id", "goal_id"),
+    ],
+    "AverageCpaPerFilter": [
+        ("FilterAverageCpa", "--smart-search-filter-average-cpa", "filter_average_cpa"),
+        ("GoalId", "--smart-search-goal-id", "goal_id"),
+    ],
+    "PayForConversionPerCampaign": [
+        ("Cpa", "--smart-search-cpa", "cpa"),
+        ("GoalId", "--smart-search-goal-id", "goal_id"),
+    ],
+    "PayForConversionPerFilter": [
+        ("Cpa", "--smart-search-cpa", "cpa"),
+        ("GoalId", "--smart-search-goal-id", "goal_id"),
+    ],
+    "AverageRoi": [
+        ("ReserveReturn", "--smart-search-reserve-return", "reserve_return"),
+        ("RoiCoef", "--smart-search-roi-coef", "roi_coef"),
+        ("GoalId", "--smart-search-goal-id", "goal_id"),
+    ],
+    "AverageCrr": [
+        ("Crr", "--smart-search-crr", "crr"),
+        ("GoalId", "--smart-search-goal-id", "goal_id"),
+    ],
+    "PayForConversionCrr": [
+        ("Crr", "--smart-search-crr", "crr"),
+        ("GoalId", "--smart-search-goal-id", "goal_id"),
+    ],
+}
+# Which subtypes accept which numeric/typed fields. Used to fail-fast at the
+# CLI when a user passes a flag that does not belong to the chosen subtype.
+# Mirrors WSDL element presence on Strategy*Add subtypes.
+SMART_CAMPAIGN_SEARCH_FIELD_SUPPORT: Dict[str, set] = {
+    "AverageCpc": {"AverageCpcPerCampaign"},
+    "FilterAverageCpc": {"AverageCpcPerFilter"},
+    "AverageCpa": {"AverageCpaPerCampaign"},
+    "FilterAverageCpa": {"AverageCpaPerFilter"},
+    "Cpa": {"PayForConversionPerCampaign", "PayForConversionPerFilter"},
+    "GoalId": {
+        "AverageCpaPerCampaign",
+        "AverageCpaPerFilter",
+        "PayForConversionPerCampaign",
+        "PayForConversionPerFilter",
+        "AverageRoi",
+        "AverageCrr",
+        "PayForConversionCrr",
+    },
+    "WeeklySpendLimit": {
+        "AverageCpcPerCampaign",
+        "AverageCpcPerFilter",
+        "AverageCpaPerCampaign",
+        "AverageCpaPerFilter",
+        "PayForConversionPerCampaign",
+        "PayForConversionPerFilter",
+        "AverageRoi",
+        "AverageCrr",
+        "PayForConversionCrr",
+    },
+    "BidCeiling": {
+        "AverageCpcPerCampaign",
+        "AverageCpcPerFilter",
+        "AverageCpaPerCampaign",
+        "AverageCpaPerFilter",
+        "AverageRoi",
+        # NOTE: PayForConversion*, AverageCrr, PayForConversionCrr have no
+        # BidCeiling in WSDL (campaigns.xml 1411-1432, 1465-1481).
+    },
+    "ReserveReturn": {"AverageRoi"},
+    "RoiCoef": {"AverageRoi"},
+    "Profitability": {"AverageRoi"},
+    "Crr": {"AverageCrr", "PayForConversionCrr"},
+    # CustomPeriodBudget is supported by every subtype (campaigns.xml grep).
+    "CustomPeriodBudget": {
+        "AverageCpcPerCampaign",
+        "AverageCpcPerFilter",
+        "AverageCpaPerCampaign",
+        "AverageCpaPerFilter",
+        "PayForConversionPerCampaign",
+        "PayForConversionPerFilter",
+        "AverageRoi",
+        "AverageCrr",
+        "PayForConversionCrr",
+    },
+    # ExplorationBudget is on AverageCpa{Per,PerFilter}, AverageRoi,
+    # AverageCrr. NOT on AverageCpc* or PayForConversion* (per WSDL).
+    "ExplorationBudget": {
+        "AverageCpaPerCampaign",
+        "AverageCpaPerFilter",
+        "AverageRoi",
+        "AverageCrr",
+    },
+}
+
+
+def build_smart_campaign_search_strategy(
+    search_strategy: Optional[str],
+    average_cpc: Optional[int],
+    filter_average_cpc: Optional[int],
+    average_cpa: Optional[int],
+    filter_average_cpa: Optional[int],
+    cpa: Optional[int],
+    goal_id: Optional[int],
+    weekly_spend_limit: Optional[int],
+    bid_ceiling: Optional[int],
+    reserve_return: Optional[int],
+    roi_coef: Optional[int],
+    profitability: Optional[int],
+    crr: Optional[int],
+    custom_period_spend_limit: Optional[int],
+    custom_period_start_date: Optional[str],
+    custom_period_end_date: Optional[str],
+    custom_period_auto_continue: Optional[str],
+    exploration_min_budget: Optional[int],
+    exploration_min_budget_custom: Optional[str],
+    budget_type: Optional[str] = None,
+    *,
+    include_default: bool,
+    is_update: bool,
+) -> Optional[dict]:
+    """Build SmartCampaign.BiddingStrategy.Search from typed CLI flags.
+
+    Returns ``None`` when no Search-related flag is present and
+    ``include_default`` is ``False`` (update path). On the add path the
+    caller passes ``include_default=True`` and gets a default
+    ``{"BiddingStrategyType": "SERVING_OFF"}`` Search container so the
+    SmartCampaignStrategyAdd ``Search`` minOccurs=1 contract is satisfied
+    without forcing the user to set both Search and Network families.
+
+    Per-Filter / Per-Campaign subtypes are owned by this helper and live
+    only on SmartCampaignStrategyAddBase (WSDL campaigns.xml 1789-1809).
+    Future leaf-PRs for SmartCampaign.Network (#368) and PriorityGoals
+    (#369) register independent builders and do not share state with
+    this code path.
+    """
+    detail_values = {
+        "--smart-search-average-cpc": average_cpc,
+        "--smart-search-filter-average-cpc": filter_average_cpc,
+        "--smart-search-average-cpa": average_cpa,
+        "--smart-search-filter-average-cpa": filter_average_cpa,
+        "--smart-search-cpa": cpa,
+        "--smart-search-goal-id": goal_id,
+        "--smart-search-weekly-spend-limit": weekly_spend_limit,
+        "--smart-search-bid-ceiling": bid_ceiling,
+        "--smart-search-reserve-return": reserve_return,
+        "--smart-search-roi-coef": roi_coef,
+        "--smart-search-profitability": profitability,
+        "--smart-search-crr": crr,
+        "--smart-search-cp-spend-limit": custom_period_spend_limit,
+        "--smart-search-cp-start-date": custom_period_start_date,
+        "--smart-search-cp-end-date": custom_period_end_date,
+        "--smart-search-cp-auto-continue": custom_period_auto_continue,
+        "--smart-search-exploration-min": exploration_min_budget,
+        "--smart-search-exploration-min-custom": exploration_min_budget_custom,
+        "--smart-search-budget-type": budget_type,
+    }
+    has_details = any(value is not None for value in detail_values.values())
+    if not include_default and search_strategy is None:
+        if has_details:
+            raise click.UsageError(
+                "SmartCampaign search detail flags require --search-strategy"
+            )
+        return None
+    if has_details and search_strategy is None:
+        raise click.UsageError(
+            "SmartCampaign search detail flags require --search-strategy"
+        )
+
+    normalized_strategy = (search_strategy or "SERVING_OFF").upper()
+    if normalized_strategy not in SMART_CAMPAIGN_SEARCH_STRATEGIES:
+        raise click.UsageError(
+            "--search-strategy for SMART_CAMPAIGN must be one of "
+            f"{', '.join(SMART_CAMPAIGN_SEARCH_STRATEGIES)}"
+        )
+
+    subtype = SMART_CAMPAIGN_SEARCH_STRATEGY_TO_SUBTYPE.get(normalized_strategy)
+    search: dict = {"BiddingStrategyType": normalized_strategy}
+    if subtype is None:
+        # SERVING_OFF carries no nested block — every typed flag is invalid.
+        invalid = [flag for flag, value in detail_values.items() if value is not None]
+        if invalid:
+            raise click.UsageError(
+                f"{normalized_strategy} does not accept SmartCampaign search "
+                f"detail flags: {', '.join(sorted(invalid))}"
+            )
+        return search
+
+    # CustomPeriodBudget is all-or-nothing (4 WSDL minOccurs=1 fields).
+    custom_period_values = {
+        "--smart-search-cp-spend-limit": custom_period_spend_limit,
+        "--smart-search-cp-start-date": custom_period_start_date,
+        "--smart-search-cp-end-date": custom_period_end_date,
+        "--smart-search-cp-auto-continue": custom_period_auto_continue,
+    }
+    custom_period_flags = [
+        flag for flag, value in custom_period_values.items() if value is not None
+    ]
+    if custom_period_flags and len(custom_period_flags) != len(custom_period_values):
+        missing = [
+            flag for flag, value in custom_period_values.items() if value is None
+        ]
+        raise click.UsageError(
+            "SmartCampaign Search CustomPeriodBudget requires all custom-period "
+            f"flags; missing {', '.join(sorted(missing))}"
+        )
+    if custom_period_flags and subtype not in SMART_CAMPAIGN_SEARCH_FIELD_SUPPORT[
+        "CustomPeriodBudget"
+    ]:
+        raise click.UsageError(
+            f"{normalized_strategy} does not accept SmartCampaign Search "
+            "CustomPeriodBudget flags"
+        )
+    if weekly_spend_limit is not None and custom_period_flags:
+        raise click.UsageError(
+            "--smart-search-weekly-spend-limit cannot be combined with "
+            "--smart-search-cp-spend-limit"
+        )
+
+    # ExplorationBudget is all-or-nothing (2 WSDL minOccurs=1 fields).
+    exploration_values = {
+        "--smart-search-exploration-min": exploration_min_budget,
+        "--smart-search-exploration-min-custom": exploration_min_budget_custom,
+    }
+    exploration_flags = [
+        flag for flag, value in exploration_values.items() if value is not None
+    ]
+    if exploration_flags and len(exploration_flags) != len(exploration_values):
+        missing = [
+            flag for flag, value in exploration_values.items() if value is None
+        ]
+        missing_str = ", ".join(sorted(missing))
+        raise click.UsageError(
+            "SmartCampaign Search ExplorationBudget requires both "
+            "--smart-search-exploration-min and "
+            f"--smart-search-exploration-min-custom; missing {missing_str}"
+        )
+    if exploration_flags and subtype not in SMART_CAMPAIGN_SEARCH_FIELD_SUPPORT[
+        "ExplorationBudget"
+    ]:
+        raise click.UsageError(
+            f"{normalized_strategy} does not accept SmartCampaign Search "
+            "ExplorationBudget flags"
+        )
+
+    # Required-field check (WSDL minOccurs=1). Skipped on update so users can
+    # partial-update a single field (matches CpmBanner / MobileApp semantics).
+    if not is_update:
+        required = SMART_CAMPAIGN_SEARCH_REQUIRED_FIELDS.get(subtype, [])
+        missing = []
+        provided_lookup = {
+            "average_cpc": average_cpc,
+            "filter_average_cpc": filter_average_cpc,
+            "average_cpa": average_cpa,
+            "filter_average_cpa": filter_average_cpa,
+            "cpa": cpa,
+            "goal_id": goal_id,
+            "reserve_return": reserve_return,
+            "roi_coef": roi_coef,
+            "crr": crr,
+        }
+        for _wsdl_field, cli_flag, resolver in required:
+            if provided_lookup.get(resolver) is None:
+                missing.append(cli_flag)
+        if missing:
+            raise click.UsageError(
+                f"{normalized_strategy} requires {', '.join(sorted(missing))}"
+            )
+
+    # Per-field support check: a typed flag that does not belong to the
+    # chosen subtype must raise, not be silently dropped.
+    field_support = {
+        "--smart-search-average-cpc": ("AverageCpc", average_cpc),
+        "--smart-search-filter-average-cpc": ("FilterAverageCpc", filter_average_cpc),
+        "--smart-search-average-cpa": ("AverageCpa", average_cpa),
+        "--smart-search-filter-average-cpa": ("FilterAverageCpa", filter_average_cpa),
+        "--smart-search-cpa": ("Cpa", cpa),
+        "--smart-search-goal-id": ("GoalId", goal_id),
+        "--smart-search-weekly-spend-limit": ("WeeklySpendLimit", weekly_spend_limit),
+        "--smart-search-bid-ceiling": ("BidCeiling", bid_ceiling),
+        "--smart-search-reserve-return": ("ReserveReturn", reserve_return),
+        "--smart-search-roi-coef": ("RoiCoef", roi_coef),
+        "--smart-search-profitability": ("Profitability", profitability),
+        "--smart-search-crr": ("Crr", crr),
+    }
+    for flag, (wsdl_field, value) in field_support.items():
+        if value is not None and subtype not in SMART_CAMPAIGN_SEARCH_FIELD_SUPPORT[
+            wsdl_field
+        ]:
+            raise click.UsageError(f"{normalized_strategy} does not accept {flag}")
+
+    block: dict = {}
+    if average_cpc is not None:
+        block["AverageCpc"] = average_cpc
+    if filter_average_cpc is not None:
+        block["FilterAverageCpc"] = filter_average_cpc
+    if average_cpa is not None:
+        block["AverageCpa"] = average_cpa
+    if filter_average_cpa is not None:
+        block["FilterAverageCpa"] = filter_average_cpa
+    if cpa is not None:
+        block["Cpa"] = cpa
+    if goal_id is not None:
+        block["GoalId"] = goal_id
+    if weekly_spend_limit is not None:
+        block["WeeklySpendLimit"] = weekly_spend_limit
+    if bid_ceiling is not None:
+        block["BidCeiling"] = bid_ceiling
+    if reserve_return is not None:
+        block["ReserveReturn"] = reserve_return
+    if roi_coef is not None:
+        block["RoiCoef"] = roi_coef
+    if profitability is not None:
+        block["Profitability"] = profitability
+    if crr is not None:
+        block["Crr"] = crr
+    if custom_period_flags:
+        assert custom_period_spend_limit is not None
+        assert custom_period_start_date is not None
+        assert custom_period_end_date is not None
+        assert custom_period_auto_continue is not None
+        block["CustomPeriodBudget"] = {
+            "SpendLimit": custom_period_spend_limit,
+            "StartDate": custom_period_start_date,
+            "EndDate": custom_period_end_date,
+            "AutoContinue": custom_period_auto_continue.upper(),
+        }
+    if exploration_flags:
+        assert exploration_min_budget is not None
+        assert exploration_min_budget_custom is not None
+        block["ExplorationBudget"] = {
+            "MinimumExplorationBudget": exploration_min_budget,
+            "IsMinimumExplorationBudgetCustom": (
+                exploration_min_budget_custom.upper()
+            ),
+        }
+    # BudgetType is only on the get-side Strategy* WSDL types
+    # (campaigns.xml 858-929), which SmartCampaignUpdateItem uses. The
+    # Strategy*Add types used by add do NOT declare BudgetType, so this
+    # flag is update-only.
+    if budget_type is not None:
+        if not is_update:
+            raise click.UsageError(
+                "--smart-search-budget-type is update-only "
+                "(WSDL BudgetType lives only on get-side Strategy*)"
+            )
+        normalized_budget_type = budget_type.upper()
+        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET" and not custom_period_flags:
+            raise click.UsageError(
+                "--smart-search-budget-type CUSTOM_PERIOD_BUDGET requires "
+                "full CustomPeriodBudget flags"
+            )
+        if normalized_budget_type == "WEEKLY_BUDGET" and weekly_spend_limit is None:
+            raise click.UsageError(
+                "--smart-search-budget-type WEEKLY_BUDGET requires "
+                "--smart-search-weekly-spend-limit"
+            )
+        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET":
+            block["WeeklySpendLimit"] = None
+        elif normalized_budget_type == "WEEKLY_BUDGET":
+            block["CustomPeriodBudget"] = None
+        block["BudgetType"] = normalized_budget_type
+    if block:
+        search[subtype] = block
+    return search
+
+
 # Register currently-implemented combos. These mirror the direct function
 # calls previously inlined in ``campaigns.add()`` / ``campaigns.update()``.
 # Adding a new strategy belongs to a leaf-PR, not this foundation PR.
@@ -1124,4 +1565,10 @@ register_bidding_strategy_builder(
 )
 register_bidding_strategy_builder(
     "MOBILE_APP_CAMPAIGN", "update", "full", build_mobile_app_bidding_strategy
+)
+register_bidding_strategy_builder(
+    "SMART_CAMPAIGN", "add", "search", build_smart_campaign_search_strategy
+)
+register_bidding_strategy_builder(
+    "SMART_CAMPAIGN", "update", "search", build_smart_campaign_search_strategy
 )
