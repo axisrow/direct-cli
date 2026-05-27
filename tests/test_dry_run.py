@@ -12038,9 +12038,13 @@ def test_campaigns_update_text_network_rejects_budget_type_without_weekly():
     assert "--text-network-budget-type WEEKLY_BUDGET requires" in result.output
 
 
-def test_campaigns_update_text_network_rejects_budget_type_for_wb_max_clicks():
-    """#364: WbMaximumClicks does not declare BudgetType per docs."""
-    result = _rejected(
+def test_campaigns_update_text_network_wb_maximum_clicks_budget_type_payload():
+    """#364: WSDL ``StrategyMaximumClicks`` (campaigns.xml lines 789-797)
+    declares ``BudgetType`` on the get-side type used by
+    ``TextCampaignUpdateItem``, so the CLI must emit ``BudgetType`` and
+    null the alternate budget slice when the user switches budget on
+    update."""
+    body = _dry_run(
         "campaigns",
         "update",
         "--id",
@@ -12054,7 +12058,17 @@ def test_campaigns_update_text_network_rejects_budget_type_for_wb_max_clicks():
         "--text-network-budget-type",
         "WEEKLY_BUDGET",
     )
-    assert "--text-network-budget-type" in result.output
+    network = body["params"]["Campaigns"][0]["TextCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "WB_MAXIMUM_CLICKS",
+        "WbMaximumClicks": {
+            "WeeklySpendLimit": 300000000,
+            "CustomPeriodBudget": None,
+            "BudgetType": "WEEKLY_BUDGET",
+        },
+    }
 
 
 def test_campaigns_update_text_network_partial_strategy_payload():
@@ -12097,6 +12111,379 @@ def test_campaigns_update_text_network_average_cpa_payload():
         "AverageCpa": {
             "AverageCpa": 100000000,
             "GoalId": 5,
+        },
+    }
+
+
+def test_campaigns_update_text_network_wb_maximum_clicks_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "3001",
+        "--type",
+        "TEXT_CAMPAIGN",
+        "--network-strategy",
+        "WB_MAXIMUM_CLICKS",
+        "--text-network-weekly-spend-limit",
+        "700",
+        "--bid-ceiling",
+        "20000000",
+    )
+    network = body["params"]["Campaigns"][0]["TextCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "WB_MAXIMUM_CLICKS",
+        "WbMaximumClicks": {
+            "WeeklySpendLimit": 700000000,
+            "BidCeiling": 20000000,
+        },
+    }
+
+
+def test_campaigns_update_text_network_wb_maximum_conversion_rate_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "3002",
+        "--type",
+        "TEXT_CAMPAIGN",
+        "--network-strategy",
+        "WB_MAXIMUM_CONVERSION_RATE",
+        "--goal-id",
+        "111",
+        "--text-network-weekly-spend-limit",
+        "1200",
+    )
+    network = body["params"]["Campaigns"][0]["TextCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "WB_MAXIMUM_CONVERSION_RATE",
+        "WbMaximumConversionRate": {
+            "GoalId": 111,
+            "WeeklySpendLimit": 1200000000,
+        },
+    }
+
+
+def test_campaigns_update_text_network_pay_for_conversion_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "3003",
+        "--type",
+        "TEXT_CAMPAIGN",
+        "--network-strategy",
+        "PAY_FOR_CONVERSION",
+        "--text-network-pay-cpa",
+        "150",
+        "--goal-id",
+        "44",
+    )
+    network = body["params"]["Campaigns"][0]["TextCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "PAY_FOR_CONVERSION",
+        "PayForConversion": {
+            "Cpa": 150000000,
+            "GoalId": 44,
+        },
+    }
+
+
+def test_campaigns_update_text_network_average_roi_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "3004",
+        "--type",
+        "TEXT_CAMPAIGN",
+        "--network-strategy",
+        "AVERAGE_ROI",
+        "--text-network-reserve-return",
+        "40",
+        "--text-network-roi-coef",
+        "200",
+        "--goal-id",
+        "9",
+    )
+    network = body["params"]["Campaigns"][0]["TextCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "AVERAGE_ROI",
+        "AverageRoi": {
+            "ReserveReturn": 40,
+            "RoiCoef": 200000000,
+            "GoalId": 9,
+        },
+    }
+
+
+def test_campaigns_update_text_network_average_crr_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "3005",
+        "--type",
+        "TEXT_CAMPAIGN",
+        "--network-strategy",
+        "AVERAGE_CRR",
+        "--crr",
+        "20",
+        "--goal-id",
+        "33",
+    )
+    network = body["params"]["Campaigns"][0]["TextCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "AVERAGE_CRR",
+        "AverageCrr": {
+            "Crr": 20,
+            "GoalId": 33,
+        },
+    }
+
+
+def test_campaigns_update_text_network_pay_for_conversion_crr_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "3006",
+        "--type",
+        "TEXT_CAMPAIGN",
+        "--network-strategy",
+        "PAY_FOR_CONVERSION_CRR",
+        "--crr",
+        "15",
+        "--goal-id",
+        "21",
+    )
+    network = body["params"]["Campaigns"][0]["TextCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "PAY_FOR_CONVERSION_CRR",
+        "PayForConversionCrr": {
+            "Crr": 15,
+            "GoalId": 21,
+        },
+    }
+
+
+def test_campaigns_update_text_network_weekly_click_package_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "3007",
+        "--type",
+        "TEXT_CAMPAIGN",
+        "--network-strategy",
+        "WEEKLY_CLICK_PACKAGE",
+        "--text-network-clicks-per-week",
+        "120",
+    )
+    network = body["params"]["Campaigns"][0]["TextCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "WEEKLY_CLICK_PACKAGE",
+        "WeeklyClickPackage": {"ClicksPerWeek": 120},
+    }
+
+
+def test_campaigns_update_text_network_max_profit_payload():
+    """MAX_PROFIT update with bare strategy switch — PriorityGoals goes
+    through the dedicated PriorityGoalsUpdateSetting path so the Network
+    block is just the typed-marker."""
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "3008",
+        "--type",
+        "TEXT_CAMPAIGN",
+        "--network-strategy",
+        "MAX_PROFIT",
+        "--priority-goals",
+        "1:60,2:40",
+    )
+    text = body["params"]["Campaigns"][0]["TextCampaign"]
+    assert text["BiddingStrategy"]["Network"] == {
+        "BiddingStrategyType": "MAX_PROFIT",
+        "MaxProfit": {},
+    }
+
+
+def test_campaigns_update_text_network_average_cpa_multiple_goals_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "3009",
+        "--type",
+        "TEXT_CAMPAIGN",
+        "--network-strategy",
+        "AVERAGE_CPA_MULTIPLE_GOALS",
+        "--priority-goals",
+        "10:70,20:30",
+        "--bid-ceiling",
+        "200000000",
+    )
+    network = body["params"]["Campaigns"][0]["TextCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "AVERAGE_CPA_MULTIPLE_GOALS",
+        "AverageCpaMultipleGoals": {"BidCeiling": 200000000},
+    }
+
+
+def test_campaigns_update_text_network_pay_for_conversion_multiple_goals_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "3010",
+        "--type",
+        "TEXT_CAMPAIGN",
+        "--network-strategy",
+        "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
+        "--priority-goals",
+        "11:55,22:45",
+        "--text-network-weekly-spend-limit",
+        "400",
+    )
+    network = body["params"]["Campaigns"][0]["TextCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
+        "PayForConversionMultipleGoals": {"WeeklySpendLimit": 400000000},
+    }
+
+
+def test_campaigns_update_text_network_network_default_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "3011",
+        "--type",
+        "TEXT_CAMPAIGN",
+        "--network-strategy",
+        "NETWORK_DEFAULT",
+        "--text-network-limit-percent",
+        "50",
+    )
+    network = body["params"]["Campaigns"][0]["TextCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "NETWORK_DEFAULT",
+        "NetworkDefault": {"LimitPercent": 50},
+    }
+
+
+def test_campaigns_update_text_network_maximum_coverage_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "3012",
+        "--type",
+        "TEXT_CAMPAIGN",
+        "--network-strategy",
+        "MAXIMUM_COVERAGE",
+    )
+    network = body["params"]["Campaigns"][0]["TextCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {"BiddingStrategyType": "MAXIMUM_COVERAGE"}
+
+
+def test_campaigns_update_text_network_average_cpa_multiple_goals_budget_type_payload():
+    """#364: WSDL StrategyAverageCpaMultipleGoals (campaigns.xml 946-953)
+    declares BudgetType; CLI must emit it on update."""
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "3013",
+        "--type",
+        "TEXT_CAMPAIGN",
+        "--network-strategy",
+        "AVERAGE_CPA_MULTIPLE_GOALS",
+        "--priority-goals",
+        "1:60,2:40",
+        "--text-network-weekly-spend-limit",
+        "500",
+        "--text-network-budget-type",
+        "WEEKLY_BUDGET",
+    )
+    network = body["params"]["Campaigns"][0]["TextCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "AVERAGE_CPA_MULTIPLE_GOALS",
+        "AverageCpaMultipleGoals": {
+            "WeeklySpendLimit": 500000000,
+            "CustomPeriodBudget": None,
+            "BudgetType": "WEEKLY_BUDGET",
+        },
+    }
+
+
+def test_campaigns_update_text_network_wb_maximum_conversion_rate_budget_type_payload():
+    """#364: WSDL StrategyMaximumConversionRate (campaigns.xml 798-806)
+    declares BudgetType; CLI must emit it on update."""
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "3014",
+        "--type",
+        "TEXT_CAMPAIGN",
+        "--network-strategy",
+        "WB_MAXIMUM_CONVERSION_RATE",
+        "--goal-id",
+        "55",
+        "--text-network-custom-period-spend-limit",
+        "1000",
+        "--text-network-custom-period-start-date",
+        "2026-07-01",
+        "--text-network-custom-period-end-date",
+        "2026-07-31",
+        "--text-network-custom-period-auto-continue",
+        "YES",
+        "--text-network-budget-type",
+        "CUSTOM_PERIOD_BUDGET",
+    )
+    network = body["params"]["Campaigns"][0]["TextCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "WB_MAXIMUM_CONVERSION_RATE",
+        "WbMaximumConversionRate": {
+            "GoalId": 55,
+            "CustomPeriodBudget": {
+                "SpendLimit": 1000000000,
+                "StartDate": "2026-07-01",
+                "EndDate": "2026-07-31",
+                "AutoContinue": "YES",
+            },
+            "WeeklySpendLimit": None,
+            "BudgetType": "CUSTOM_PERIOD_BUDGET",
         },
     }
 

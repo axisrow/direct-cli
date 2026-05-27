@@ -2582,14 +2582,21 @@ for _campaign_op in ("add", "update"):
             "LimitPercent": "--text-network-limit-percent",
         },
     }
+    # Cached WSDL declares ``BudgetType`` on every Network Strategy* type
+    # except ``StrategyWeeklyClickPackage`` (campaigns.xml 789-958). Source
+    # is ``tests/wsdl_cache/campaigns.xml``; Yandex public docs are
+    # showcaptcha-blocked and were not used to scope this set.
     _text_network_update_only_field_options: dict[str, dict[str, str]] = (
         {
+            "WbMaximumClicks": {"BudgetType": "--text-network-budget-type"},
+            "WbMaximumConversionRate": {"BudgetType": "--text-network-budget-type"},
             "AverageCpc": {"BudgetType": "--text-network-budget-type"},
             "AverageCpa": {"BudgetType": "--text-network-budget-type"},
             "PayForConversion": {"BudgetType": "--text-network-budget-type"},
             "AverageRoi": {"BudgetType": "--text-network-budget-type"},
             "AverageCrr": {"BudgetType": "--text-network-budget-type"},
             "PayForConversionCrr": {"BudgetType": "--text-network-budget-type"},
+            "AverageCpaMultipleGoals": {"BudgetType": "--text-network-budget-type"},
             "PayForConversionMultipleGoals": {
                 "BudgetType": "--text-network-budget-type"
             },
@@ -3950,52 +3957,6 @@ OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
             "Official Yandex update-text-campaign docs do not declare "
             "BudgetType on AverageCpaMultipleGoals; CLI rejects "
             "--text-search-budget-type for this subtype."
-        ),
-    },
-    # Issue #364: mirror the #361 not_applicable entries for the Network
-    # branch. Official Yandex update-text-campaign docs do not declare
-    # ``BudgetType`` on these subtypes; the WSDL inherits it via
-    # ``StrategyWeeklyBudgetBase`` but emitting it would be undocumented.
-    # The CLI rejects ``--text-network-budget-type`` for these subtypes
-    # (see ``_TEXT_NETWORK_BUDGET_TYPE_SUBTYPES`` in
-    # ``direct_cli/_bidding_strategy.py``).
-    (
-        "campaigns",
-        "update",
-        "TextCampaign.BiddingStrategy.Network.WbMaximumClicks.BudgetType",
-    ): {
-        "status": "not_applicable",
-        "issue": "#364",
-        "note": (
-            "Official Yandex update-text-campaign docs do not declare "
-            "BudgetType on WbMaximumClicks; CLI rejects "
-            "--text-network-budget-type for this subtype."
-        ),
-    },
-    (
-        "campaigns",
-        "update",
-        "TextCampaign.BiddingStrategy.Network.WbMaximumConversionRate.BudgetType",
-    ): {
-        "status": "not_applicable",
-        "issue": "#364",
-        "note": (
-            "Official Yandex update-text-campaign docs do not declare "
-            "BudgetType on WbMaximumConversionRate; CLI rejects "
-            "--text-network-budget-type for this subtype."
-        ),
-    },
-    (
-        "campaigns",
-        "update",
-        "TextCampaign.BiddingStrategy.Network.AverageCpaMultipleGoals.BudgetType",
-    ): {
-        "status": "not_applicable",
-        "issue": "#364",
-        "note": (
-            "Official Yandex update-text-campaign docs do not declare "
-            "BudgetType on AverageCpaMultipleGoals; CLI rejects "
-            "--text-network-budget-type for this subtype."
         ),
     },
 }

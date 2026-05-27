@@ -12,8 +12,8 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | Status | Count |
 |---|---:|
 | `missing_followup` | 846 |
-| `not_applicable` | 29 |
-| `supported` | 2366 |
+| `not_applicable` | 26 |
+| `supported` | 2369 |
 
 ## Confirmed Follow-Ups
 
@@ -454,9 +454,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.WbMaximumClicks.BudgetType` | Official Yandex update-text-campaign docs do not declare BudgetType on WbMaximumClicks; CLI rejects --text-search-budget-type for this subtype. [#361](https://github.com/axisrow/direct-cli/issues/361) |
 | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.WbMaximumConversionRate.BudgetType` | Official Yandex update-text-campaign docs do not declare BudgetType on WbMaximumConversionRate; CLI rejects --text-search-budget-type for this subtype. [#361](https://github.com/axisrow/direct-cli/issues/361) |
 | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.AverageCpaMultipleGoals.BudgetType` | Official Yandex update-text-campaign docs do not declare BudgetType on AverageCpaMultipleGoals; CLI rejects --text-search-budget-type for this subtype. [#361](https://github.com/axisrow/direct-cli/issues/361) |
-| `campaigns.update` | `TextCampaign.BiddingStrategy.Network.WbMaximumClicks.BudgetType` | Official Yandex update-text-campaign docs do not declare BudgetType on WbMaximumClicks; CLI rejects --text-network-budget-type for this subtype. [#364](https://github.com/axisrow/direct-cli/issues/364) |
-| `campaigns.update` | `TextCampaign.BiddingStrategy.Network.WbMaximumConversionRate.BudgetType` | Official Yandex update-text-campaign docs do not declare BudgetType on WbMaximumConversionRate; CLI rejects --text-network-budget-type for this subtype. [#364](https://github.com/axisrow/direct-cli/issues/364) |
-| `campaigns.update` | `TextCampaign.BiddingStrategy.Network.AverageCpaMultipleGoals.BudgetType` | Official Yandex update-text-campaign docs do not declare BudgetType on AverageCpaMultipleGoals; CLI rejects --text-network-budget-type for this subtype. [#364](https://github.com/axisrow/direct-cli/issues/364) |
 | `campaigns.update` | `UnifiedCampaign.BiddingStrategy` | Shared campaign BiddingStrategy builder needs typed support. [#290](https://github.com/axisrow/direct-cli/issues/290) |
 | `campaigns.update` | `UnifiedCampaign.BiddingStrategy.Search` | Shared campaign BiddingStrategy builder needs typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `UnifiedCampaign.BiddingStrategy` |
 | `campaigns.update` | `UnifiedCampaign.BiddingStrategy.Search.WbMaximumClicks` | Shared campaign BiddingStrategy builder needs typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `UnifiedCampaign.BiddingStrategy` |
@@ -2608,7 +2605,7 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.PlacementTypes.ProductGallery` | `YesNoEnum` | 0 | 1 | `supported` | --search-placement-product-gallery |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.PlacementTypes.DynamicPlaces` | `YesNoEnum` | 0 | 1 | `supported` | --search-placement-dynamic-places |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network` | `TextCampaignNetworkStrategy` | 0 | 1 | `supported` | --network-strategy, --text-network-average-cpc, --text-network-budget-type, --text-network-clicks-per-week, --text-network-custom-period-auto-continue, --text-network-custom-period-end-date, --text-network-custom-period-spend-limit, --text-network-custom-period-start-date, --text-network-exploration-is-custom, --text-network-exploration-min-budget, --text-network-limit-percent, --text-network-pay-cpa, --text-network-profitability, --text-network-reserve-return, --text-network-roi-coef, --text-network-weekly-spend-limit |
-| `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.WbMaximumClicks` | `StrategyMaximumClicks` | 0 | 1 | `supported` | --bid-ceiling, --network-strategy, --text-network-weekly-spend-limit |
+| `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.WbMaximumClicks` | `StrategyMaximumClicks` | 0 | 1 | `supported` | --bid-ceiling, --network-strategy, --text-network-budget-type, --text-network-weekly-spend-limit |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.WbMaximumClicks.WeeklySpendLimit` | `long` | 0 | 1 | `supported` | --text-network-weekly-spend-limit |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.WbMaximumClicks.BidCeiling` | `long` | 0 | 1 | `supported` | --bid-ceiling |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.WbMaximumClicks.CustomPeriodBudget` | `CustomPeriodBudget` | 0 | 1 | `supported` | --text-network-custom-period-auto-continue, --text-network-custom-period-end-date, --text-network-custom-period-spend-limit, --text-network-custom-period-start-date |
@@ -2616,8 +2613,8 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.WbMaximumClicks.CustomPeriodBudget.StartDate` | `string` | 1 | 1 | `supported` | --text-network-custom-period-start-date |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.WbMaximumClicks.CustomPeriodBudget.EndDate` | `string` | 1 | 1 | `supported` | --text-network-custom-period-end-date |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.WbMaximumClicks.CustomPeriodBudget.AutoContinue` | `YesNoEnum` | 1 | 1 | `supported` | --text-network-custom-period-auto-continue |
-| `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.WbMaximumClicks.BudgetType` | `BudgetTypeEnum` | 0 | 1 | `not_applicable` | Official Yandex update-text-campaign docs do not declare BudgetType on WbMaximumClicks; CLI rejects --text-network-budget-type for this subtype. [#364](https://github.com/axisrow/direct-cli/issues/364) |
-| `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.WbMaximumConversionRate` | `StrategyMaximumConversionRate` | 0 | 1 | `supported` | --bid-ceiling, --goal-id, --network-strategy, --text-network-weekly-spend-limit |
+| `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.WbMaximumClicks.BudgetType` | `BudgetTypeEnum` | 0 | 1 | `supported` | --text-network-budget-type |
+| `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.WbMaximumConversionRate` | `StrategyMaximumConversionRate` | 0 | 1 | `supported` | --bid-ceiling, --goal-id, --network-strategy, --text-network-budget-type, --text-network-weekly-spend-limit |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.WbMaximumConversionRate.WeeklySpendLimit` | `long` | 0 | 1 | `supported` | --text-network-weekly-spend-limit |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.WbMaximumConversionRate.BidCeiling` | `long` | 0 | 1 | `supported` | --bid-ceiling |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.WbMaximumConversionRate.GoalId` | `long` | 0 | 1 | `supported` | --goal-id |
@@ -2626,7 +2623,7 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.WbMaximumConversionRate.CustomPeriodBudget.StartDate` | `string` | 1 | 1 | `supported` | --text-network-custom-period-start-date |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.WbMaximumConversionRate.CustomPeriodBudget.EndDate` | `string` | 1 | 1 | `supported` | --text-network-custom-period-end-date |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.WbMaximumConversionRate.CustomPeriodBudget.AutoContinue` | `YesNoEnum` | 1 | 1 | `supported` | --text-network-custom-period-auto-continue |
-| `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.WbMaximumConversionRate.BudgetType` | `BudgetTypeEnum` | 0 | 1 | `not_applicable` | Official Yandex update-text-campaign docs do not declare BudgetType on WbMaximumConversionRate; CLI rejects --text-network-budget-type for this subtype. [#364](https://github.com/axisrow/direct-cli/issues/364) |
+| `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.WbMaximumConversionRate.BudgetType` | `BudgetTypeEnum` | 0 | 1 | `supported` | --text-network-budget-type |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.AverageCpc` | `StrategyAverageCpc` | 0 | 1 | `supported` | --network-strategy, --text-network-average-cpc, --text-network-budget-type, --text-network-weekly-spend-limit |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.AverageCpc.AverageCpc` | `long` | 0 | 1 | `supported` | --text-network-average-cpc |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.AverageCpc.WeeklySpendLimit` | `long` | 0 | 1 | `supported` | --text-network-weekly-spend-limit |
@@ -2703,7 +2700,7 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.PayForConversionCrr.CustomPeriodBudget.EndDate` | `string` | 1 | 1 | `supported` | --text-network-custom-period-end-date |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.PayForConversionCrr.CustomPeriodBudget.AutoContinue` | `YesNoEnum` | 1 | 1 | `supported` | --text-network-custom-period-auto-continue |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.PayForConversionCrr.BudgetType` | `BudgetTypeEnum` | 0 | 1 | `supported` | --text-network-budget-type |
-| `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.AverageCpaMultipleGoals` | `StrategyAverageCpaMultipleGoals` | 0 | 1 | `supported` | --bid-ceiling, --network-strategy, --text-network-weekly-spend-limit |
+| `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.AverageCpaMultipleGoals` | `StrategyAverageCpaMultipleGoals` | 0 | 1 | `supported` | --bid-ceiling, --network-strategy, --text-network-budget-type, --text-network-weekly-spend-limit |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.AverageCpaMultipleGoals.WeeklySpendLimit` | `long` | 0 | 1 | `supported` | --text-network-weekly-spend-limit |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.AverageCpaMultipleGoals.CustomPeriodBudget` | `CustomPeriodBudget` | 0 | 1 | `supported` | --text-network-custom-period-auto-continue, --text-network-custom-period-end-date, --text-network-custom-period-spend-limit, --text-network-custom-period-start-date |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.AverageCpaMultipleGoals.CustomPeriodBudget.SpendLimit` | `long` | 1 | 1 | `supported` | --text-network-custom-period-spend-limit |
@@ -2714,7 +2711,7 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.AverageCpaMultipleGoals.ExplorationBudget` | `ExplorationBudget` | 0 | 1 | `supported` | --text-network-exploration-is-custom, --text-network-exploration-min-budget |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.AverageCpaMultipleGoals.ExplorationBudget.MinimumExplorationBudget` | `long` | 1 | 1 | `supported` | --text-network-exploration-min-budget |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.AverageCpaMultipleGoals.ExplorationBudget.IsMinimumExplorationBudgetCustom` | `YesNoEnum` | 1 | 1 | `supported` | --text-network-exploration-is-custom |
-| `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.AverageCpaMultipleGoals.BudgetType` | `BudgetTypeEnum` | 0 | 1 | `not_applicable` | Official Yandex update-text-campaign docs do not declare BudgetType on AverageCpaMultipleGoals; CLI rejects --text-network-budget-type for this subtype. [#364](https://github.com/axisrow/direct-cli/issues/364) |
+| `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.AverageCpaMultipleGoals.BudgetType` | `BudgetTypeEnum` | 0 | 1 | `supported` | --text-network-budget-type |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.PayForConversionMultipleGoals` | `StrategyPayForConversionMultipleGoals` | 0 | 1 | `supported` | --network-strategy, --text-network-budget-type, --text-network-weekly-spend-limit |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.PayForConversionMultipleGoals.WeeklySpendLimit` | `long` | 0 | 1 | `supported` | --text-network-weekly-spend-limit |
 | `campaigns.update` | `campaigns.update` | `TextCampaign.BiddingStrategy.Network.PayForConversionMultipleGoals.CustomPeriodBudget` | `CustomPeriodBudget` | 0 | 1 | `supported` | --text-network-custom-period-auto-continue, --text-network-custom-period-end-date, --text-network-custom-period-spend-limit, --text-network-custom-period-start-date |

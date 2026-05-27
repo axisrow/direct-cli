@@ -2739,19 +2739,22 @@ _TEXT_NETWORK_EXPLORATION_BUDGET_SUBTYPES = {
     "MaxProfit",
 }
 _TEXT_NETWORK_LIMIT_PERCENT_SUBTYPES = {"NetworkDefault"}
-# Per official Yandex update-text-campaign docs ``BudgetType`` is declared
-# only on the listed subtypes; ``WbMaximumClicks``,
-# ``WbMaximumConversionRate``, ``AverageCpaMultipleGoals`` and
-# ``WeeklyClickPackage`` do NOT carry it. The CLI rejects
-# ``--text-network-budget-type`` for those, mirroring the Search branch
-# (issue #361 / PR #388).
+# Cached WSDL declares ``BudgetType`` on the get-side ``Strategy*`` types
+# used by ``TextCampaignUpdateItem`` for every subtype in this set
+# (campaigns.xml lines 789-958). Only ``StrategyWeeklyClickPackage`` (line
+# 932) has no ``BudgetType`` leaf — that subtype is intentionally excluded.
+# Source of truth is ``tests/wsdl_cache/campaigns.xml``; the Yandex public
+# docs are showcaptcha-blocked and were not used to scope this set.
 _TEXT_NETWORK_BUDGET_TYPE_SUBTYPES = {
+    "WbMaximumClicks",
+    "WbMaximumConversionRate",
     "AverageCpc",
     "AverageCpa",
     "PayForConversion",
     "AverageRoi",
     "AverageCrr",
     "PayForConversionCrr",
+    "AverageCpaMultipleGoals",
     "PayForConversionMultipleGoals",
     "MaxProfit",
 }
