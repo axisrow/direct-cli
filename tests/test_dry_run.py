@@ -19327,13 +19327,29 @@ def test_campaigns_add_unified_search_wb_maximum_clicks_payload():
     }
 
 
-def test_campaigns_add_unified_search_wb_maximum_clicks_requires_weekly_spend_limit():
-    result = _rejected(
+def test_campaigns_add_unified_search_wb_maximum_clicks_bare_payload():
+    """WbMaximumClicks has NO required typed fields per WSDL: the type
+    extends StrategyWeeklyBudgetAddBase whose WeeklySpendLimit /
+    BidCeiling are minOccurs=0 and the appended CustomPeriodBudget is
+    also minOccurs=0 (campaigns.xml L1339-1347). The canonical WSDL is
+    the source of truth for this PR (#363), so a bare
+    ``--search-strategy WB_MAXIMUM_CLICKS`` is accepted. This diverges
+    from the doc-strict TextCampaign Search precedent (#388)."""
+    body = _dry_run(
         *_unified_base_args(),
         "--search-strategy",
         "WB_MAXIMUM_CLICKS",
     )
-    assert "--unified-search-weekly-spend-limit" in result.output
+    search = _unified_search_extract(body)
+    assert search["BiddingStrategyType"] == "WB_MAXIMUM_CLICKS"
+    # *_MULTIPLE_GOALS / MAX_PROFIT subtypes always emit an empty
+    # container so the API can discriminate; WbMaximumClicks does NOT
+    # need that signal (it's a regular subtype with no required fields),
+    # so an empty WbMaximumClicks block is emitted only when at least
+    # one optional field was supplied. With no fields, the builder
+    # emits only BiddingStrategyType — which is exactly the WSDL-valid
+    # minimum payload.
+    assert "WbMaximumClicks" not in search
 
 
 def test_campaigns_add_unified_search_wb_max_conversion_rate_payload():
@@ -19355,16 +19371,33 @@ def test_campaigns_add_unified_search_wb_max_conversion_rate_payload():
 
 
 def test_campaigns_add_unified_search_wb_max_conversion_rate_requires_goal_id():
-    """StrategyMaximumConversionRateAdd.GoalId is WSDL minOccurs=1."""
+    """StrategyMaximumConversionRateAdd.GoalId is WSDL minOccurs=1
+    (campaigns.xml L1352). WeeklySpendLimit / CustomPeriodBudget are
+    minOccurs=0, so a bare ``--search-strategy WB_MAXIMUM_CONVERSION_RATE
+    --goal-id N`` is sufficient (no budget required) — but omitting the
+    GoalId is still rejected."""
     result = _rejected(
         *_unified_base_args(),
         "--search-strategy",
         "WB_MAXIMUM_CONVERSION_RATE",
-        "--unified-search-weekly-spend-limit",
-        "100",
     )
     assert "--goal-id" in result.output
     assert "WbMaximumConversionRate" in result.output
+
+
+def test_campaigns_add_unified_search_wb_max_conversion_rate_bare_goal_id_payload():
+    """Per WSDL, only GoalId is required for WB_MAXIMUM_CONVERSION_RATE;
+    WeeklySpendLimit / CustomPeriodBudget are minOccurs=0."""
+    body = _dry_run(
+        *_unified_base_args(),
+        "--search-strategy",
+        "WB_MAXIMUM_CONVERSION_RATE",
+        "--goal-id",
+        "42",
+    )
+    search = _unified_search_extract(body)
+    assert search["BiddingStrategyType"] == "WB_MAXIMUM_CONVERSION_RATE"
+    assert search["WbMaximumConversionRate"] == {"GoalId": 42}
 
 
 def test_campaigns_add_unified_search_wb_max_clicks_with_custom_period_payload():
@@ -20079,3 +20112,29 @@ def test_campaigns_update_unified_search_avg_cpa_multi_goals_budget_type_payload
     ]
     block = search["AverageCpaMultipleGoals"]
     assert block["BudgetType"] == "WEEKLY_BUDGET"
+
+
+def test_campaigns_update_unified_search_standalone_budget_type_payload():
+    """BudgetType can be patched standalone — the WSDL get-side
+    Strategy* types declare it as an independent optional element
+    (campaigns.xml L817, L827, etc.). Asking the user to re-supply the
+    full WeeklySpendLimit / CustomPeriodBudget block to flip a
+    pre-configured campaign's budget slice was a doc-strict TextCampaign
+    Search (#388) constraint not present in the cached WSDL."""
+    body = _unified_search_update(
+        "--search-strategy",
+        "AVERAGE_CPC",
+        "--unified-search-average-cpc",
+        "5",
+        "--unified-search-budget-type",
+        "CUSTOM_PERIOD_BUDGET",
+    )
+    search = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Search"
+    ]
+    block = search["AverageCpc"]
+    assert block["BudgetType"] == "CUSTOM_PERIOD_BUDGET"
+    # The alternate-slice nulling stays — switching to CUSTOM_PERIOD_BUDGET
+    # explicitly clears the stored WeeklySpendLimit, mirroring the
+    # TextCampaign/MobileApp builder convention.
+    assert block["WeeklySpendLimit"] is None

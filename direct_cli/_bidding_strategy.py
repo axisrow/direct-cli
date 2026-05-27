@@ -4436,36 +4436,32 @@ _UNIFIED_SEARCH_REQUIRES_PRIORITY_GOALS = {
 }
 
 # WSDL ``minOccurs=1`` fields per Strategy*Add subtype for UnifiedCampaign
-# Search. Maps subtype → {WSDL field → CLI flag string}.
+# Search. Maps subtype → {WSDL field → CLI flag string}. The cached WSDL
+# is the canonical source for this PR (#363); no doc-stricter constraint
+# beyond minOccurs=1 is enforced.
+#
+# Notable divergences from the TextCampaign Search precedent (#388):
+#   * WbMaximumClicks has NO required fields (StrategyMaximumClicksAdd
+#     extends StrategyWeeklyBudgetAddBase whose WeeklySpendLimit /
+#     BidCeiling are minOccurs=0, plus CustomPeriodBudget minOccurs=0);
+#   * WbMaximumConversionRate only requires GoalId (WSDL L1352);
+#     WeeklySpendLimit / CustomPeriodBudget are minOccurs=0.
+# #388 enforced a docs-strict "WeeklySpendLimit or CustomPeriodBudget"
+# requirement that is not in the cached WSDL; per the issue body for
+# #363 the cached WSDL takes precedence.
 _UNIFIED_SEARCH_REQUIRED_TYPED_FLAGS: Dict[str, Dict[str, str]] = {
     "AverageCpc": {"AverageCpc": "--unified-search-average-cpc"},
     "AverageCpa": {"AverageCpa": "--average-cpa", "GoalId": "--goal-id"},
     "PayForConversion": {"Cpa": "--unified-search-pay-cpa", "GoalId": "--goal-id"},
-    # Per the WB_MAXIMUM_CLICKS / WB_MAXIMUM_CONVERSION_RATE docs the
-    # WeeklySpendLimit is required even though the underlying WSDL base
-    # marks it minOccurs=0; a full CustomPeriodBudget block is accepted
-    # as the alternate budget slice (mirror #388).
-    "WbMaximumClicks": {
-        "WeeklySpendLimit": (
-            "--unified-search-weekly-spend-limit or full CustomPeriodBudget"
-        ),
-    },
-    "WbMaximumConversionRate": {
-        "GoalId": "--goal-id",
-        "WeeklySpendLimit": (
-            "--unified-search-weekly-spend-limit or full CustomPeriodBudget"
-        ),
-    },
+    # WbMaximumClicks: no required fields per WSDL L1339-1347.
+    "WbMaximumConversionRate": {"GoalId": "--goal-id"},
     "AverageCrr": {"Crr": "--crr", "GoalId": "--goal-id"},
     "PayForConversionCrr": {"Crr": "--crr", "GoalId": "--goal-id"},
-    # ``*_MULTIPLE_GOALS`` / ``MAX_PROFIT`` require PriorityGoals per the
-    # official docs. PriorityGoals lives on UnifiedCampaignAddItem (not on
-    # BiddingStrategy.Search); the typed-flag wiring is owned by #373.
-    # The required check is **skipped** here on add until #373 ships,
-    # mirroring the TextCampaign Search behaviour where the *Items* list
-    # is forwarded by the caller. The Add path in commands/campaigns.py
-    # passes the items in when #373 lands; the scope-check below still
-    # rejects ``--priority-goals`` for non-MultipleGoals subtypes.
+    # ``*_MULTIPLE_GOALS`` / ``MAX_PROFIT`` — PriorityGoals lives on
+    # UnifiedCampaignAddItem (not on BiddingStrategy.Search); the typed-
+    # flag wiring is owned by #373. The required check is **skipped**
+    # here on add until #373 ships; the scope-check below still rejects
+    # ``--priority-goals`` for non-MultipleGoals subtypes.
 }
 
 # Min PriorityGoals items per subtype (mirror #388).
@@ -4830,6 +4826,11 @@ def build_unified_campaign_search_strategy(
 
     # BudgetType is an update-only switch; on add the budget slice is
     # implied by which of WeeklySpendLimit / CustomPeriodBudget is set.
+    # WSDL get-side Strategy* types (campaigns.xml L789-957) declare
+    # BudgetType as an INDEPENDENT optional element — the field can be
+    # patched standalone without re-supplying the stored budget values
+    # (mirror the DynamicTextCampaign Search precedent, diverges from
+    # the doc-strict #388 TextCampaign behaviour).
     if budget_type is not None:
         if not is_update:
             raise click.UsageError("--unified-search-budget-type is update-only")
@@ -4838,16 +4839,6 @@ def build_unified_campaign_search_strategy(
             raise click.UsageError(
                 "--unified-search-budget-type must be one of "
                 f"{', '.join(_UNIFIED_CAMPAIGN_SEARCH_BUDGET_TYPES)}"
-            )
-        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET" and custom_period is None:
-            raise click.UsageError(
-                "--unified-search-budget-type CUSTOM_PERIOD_BUDGET requires "
-                "the full CustomPeriodBudget flag set"
-            )
-        if normalized_budget_type == "WEEKLY_BUDGET" and weekly_spend_limit is None:
-            raise click.UsageError(
-                "--unified-search-budget-type WEEKLY_BUDGET requires "
-                "--unified-search-weekly-spend-limit"
             )
 
     # PriorityGoals scope check. UnifiedCampaign.PriorityGoals typed-flag
