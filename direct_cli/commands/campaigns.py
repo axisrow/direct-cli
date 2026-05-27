@@ -2433,26 +2433,38 @@ def add(
                     default="search",
                 )
 
-                # PriorityGoals is also routed per-side: the WSDL parent
-                # ``TextCampaignAddItem.PriorityGoals`` is a single sibling,
-                # but conceptually it belongs to whichever side picks a
-                # multi-goals strategy. When BOTH sides do (atypical but
-                # legal in WSDL) we keep the pre-#364 behavior of forwarding
-                # to Search.
+                # PriorityGoals is the single
+                # ``TextCampaignAddItem.PriorityGoals`` sibling on the
+                # parent block (WSDL minOccurs=0), but each side's builder
+                # must see it for its own required-field check whenever its
+                # strategy belongs to the multi-goals family. When BOTH
+                # sides pick a multi-goals strategy the same items satisfy
+                # both builders simultaneously; the Search builder writes
+                # ``sub_campaign_block["PriorityGoals"]`` first, and the
+                # Network builder is invoked second with the same items so
+                # its required-field check passes (the parent placement is
+                # idempotent — same value either way).
                 _multi_goal_subtypes = _TEXT_NETWORK_REQUIRES_PRIORITY_GOALS
                 _search_uses_priority_goals = (
                     _search_subtype_for_routing in _multi_goal_subtypes
                 )
                 _network_uses_priority_goals = (
                     _network_subtype_for_routing in _multi_goal_subtypes
-                    and not _search_uses_priority_goals
                 )
-                _search_priority_goals_items = (
-                    None if _network_uses_priority_goals else priority_goals_items
-                )
-                _network_priority_goals_items = (
-                    priority_goals_items if _network_uses_priority_goals else None
-                )
+                if _search_uses_priority_goals or _network_uses_priority_goals:
+                    _search_priority_goals_items = (
+                        priority_goals_items if _search_uses_priority_goals else None
+                    )
+                    _network_priority_goals_items = (
+                        priority_goals_items if _network_uses_priority_goals else None
+                    )
+                else:
+                    # Neither side accepts ``--priority-goals``. Forward to
+                    # Search so the canonical "AVERAGE_CPA_MULTIPLE_GOALS /
+                    # ..." error surfaces from the Search builder
+                    # (preserves pre-#364 behavior on misuse).
+                    _search_priority_goals_items = priority_goals_items
+                    _network_priority_goals_items = None
                 # Issue #361: full typed-flag support for all 12 strategy
                 # families on TextCampaign.BiddingStrategy.Search. The
                 # branch="search" builder owns the entire Search payload
@@ -4690,20 +4702,34 @@ def update(
                         default="search",
                     )
 
+                    # PriorityGoals routing on update mirrors add: both
+                    # sides may simultaneously belong to the multi-goals
+                    # family and must each see the items for their own
+                    # required-field check (the parent placement on update
+                    # is handled by the dedicated PriorityGoalsUpdateSetting
+                    # shape earlier in this branch, so the builders only
+                    # validate scope without writing to sub_block here).
                     _multi_goal_subtypes = _TEXT_NETWORK_REQUIRES_PRIORITY_GOALS
                     _search_uses_priority_goals = (
                         _search_subtype_for_routing in _multi_goal_subtypes
                     )
                     _network_uses_priority_goals = (
                         _network_subtype_for_routing in _multi_goal_subtypes
-                        and not _search_uses_priority_goals
                     )
-                    _search_priority_goals_items = (
-                        None if _network_uses_priority_goals else priority_goals_items
-                    )
-                    _network_priority_goals_items = (
-                        priority_goals_items if _network_uses_priority_goals else None
-                    )
+                    if _search_uses_priority_goals or _network_uses_priority_goals:
+                        _search_priority_goals_items = (
+                            priority_goals_items
+                            if _search_uses_priority_goals
+                            else None
+                        )
+                        _network_priority_goals_items = (
+                            priority_goals_items
+                            if _network_uses_priority_goals
+                            else None
+                        )
+                    else:
+                        _search_priority_goals_items = priority_goals_items
+                        _network_priority_goals_items = None
 
                     search_builder = get_bidding_strategy_builder(
                         "TEXT_CAMPAIGN", "update", "search"

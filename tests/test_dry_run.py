@@ -11903,6 +11903,38 @@ def test_campaigns_add_text_network_rejects_priority_goals_for_pure_cpa_network(
     assert "--priority-goals is only valid" in result.output
 
 
+def test_campaigns_add_text_network_both_sides_multi_goals_payload():
+    """#364: WSDL ``TextCampaignAddItem.PriorityGoals`` is a single sibling
+    on the parent block, so when both Search AND Network pick a
+    multi-goals strategy the same items must satisfy both builders'
+    required-field checks. Both sides emit the marker subtype container
+    and the parent receives PriorityGoals once."""
+    body = _dry_run(
+        *_text_network_base_args(),
+        "--search-strategy",
+        "AVERAGE_CPA_MULTIPLE_GOALS",
+        "--network-strategy",
+        "AVERAGE_CPA_MULTIPLE_GOALS",
+        "--priority-goals",
+        "1:60,2:40",
+    )
+    body_camp = body["params"]["Campaigns"][0]["TextCampaign"]
+    assert body_camp["BiddingStrategy"]["Search"] == {
+        "BiddingStrategyType": "AVERAGE_CPA_MULTIPLE_GOALS",
+        "AverageCpaMultipleGoals": {},
+    }
+    assert body_camp["BiddingStrategy"]["Network"] == {
+        "BiddingStrategyType": "AVERAGE_CPA_MULTIPLE_GOALS",
+        "AverageCpaMultipleGoals": {},
+    }
+    assert body_camp["PriorityGoals"] == {
+        "Items": [
+            {"GoalId": 1, "Value": 60},
+            {"GoalId": 2, "Value": 40},
+        ]
+    }
+
+
 def test_campaigns_add_text_network_rejects_one_priority_goal_for_multi():
     """#364: AverageCpaMultipleGoals requires at least 2 priority goals."""
     result = _rejected(
