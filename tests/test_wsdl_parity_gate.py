@@ -1619,6 +1619,26 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
         "--smart-search-cp-auto-continue",
         "--smart-search-exploration-min",
         "--smart-search-exploration-min-custom",
+        # SmartCampaign.BiddingStrategy.Network typed flags (#368)
+        "--smart-network-average-cpc",
+        "--smart-network-filter-average-cpc",
+        "--smart-network-average-cpa",
+        "--smart-network-filter-average-cpa",
+        "--smart-network-cpa",
+        "--smart-network-goal-id",
+        "--smart-network-weekly-spend-limit",
+        "--smart-network-bid-ceiling",
+        "--smart-network-reserve-return",
+        "--smart-network-roi-coef",
+        "--smart-network-profitability",
+        "--smart-network-crr",
+        "--smart-network-limit-percent",
+        "--smart-network-cp-spend-limit",
+        "--smart-network-cp-start-date",
+        "--smart-network-cp-end-date",
+        "--smart-network-cp-auto-continue",
+        "--smart-network-exploration-min",
+        "--smart-network-exploration-min-custom",
     },
     ("campaigns", "add", "SmartCampaign.Settings"): {"--setting"},
     ("campaigns", "add", "SmartCampaign.TrackingParams"): {"--tracking-params"},
@@ -1799,6 +1819,7 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("campaigns", "update", "SmartCampaign.TrackingParams"): {"--tracking-params"},
     ("campaigns", "update", "SmartCampaign.BiddingStrategy"): {
         "--search-strategy",
+        "--network-strategy",
         # SmartCampaign.BiddingStrategy.Search typed flags (#367)
         "--smart-search-average-cpc",
         "--smart-search-filter-average-cpc",
@@ -1819,6 +1840,27 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
         "--smart-search-exploration-min",
         "--smart-search-exploration-min-custom",
         "--smart-search-budget-type",
+        # SmartCampaign.BiddingStrategy.Network typed flags (#368)
+        "--smart-network-average-cpc",
+        "--smart-network-filter-average-cpc",
+        "--smart-network-average-cpa",
+        "--smart-network-filter-average-cpa",
+        "--smart-network-cpa",
+        "--smart-network-goal-id",
+        "--smart-network-weekly-spend-limit",
+        "--smart-network-bid-ceiling",
+        "--smart-network-reserve-return",
+        "--smart-network-roi-coef",
+        "--smart-network-profitability",
+        "--smart-network-crr",
+        "--smart-network-limit-percent",
+        "--smart-network-cp-spend-limit",
+        "--smart-network-cp-start-date",
+        "--smart-network-cp-end-date",
+        "--smart-network-cp-auto-continue",
+        "--smart-network-exploration-min",
+        "--smart-network-exploration-min-custom",
+        "--smart-network-budget-type",
     },
     ("advideos", "add", "Url"): {"--url"},
     ("advideos", "add", "VideoData"): {"--video-data", "--video-file"},
@@ -3204,6 +3246,232 @@ for _campaign_op in ("add", "update"):
                 )
             ] = {_eb_flag}
 
+# SmartCampaign.BiddingStrategy.Network typed-flag coverage (issue #368).
+# Mirrors WSDL Strategy*Add subtypes (campaigns.xml 1401-1481, get-side
+# Strategy* 851-929, SmartCampaignNetworkStrategyTypeEnum 411-426) — all
+# nine Per-Campaign / Per-Filter / AverageRoi / AverageCrr /
+# PayForConversionCrr subtypes are shared with the Search branch and owned
+# by the same SmartCampaignStrategyAddBase. NetworkDefault is the
+# Network-only subtype on StrategyNetworkDefaultAdd (1510-1514, single
+# optional LimitPercent). See build_smart_campaign_network_strategy in
+# direct_cli/_bidding_strategy.py.
+_smart_network_flags = {
+    "--network-strategy",
+    "--smart-network-average-cpc",
+    "--smart-network-filter-average-cpc",
+    "--smart-network-average-cpa",
+    "--smart-network-filter-average-cpa",
+    "--smart-network-cpa",
+    "--smart-network-goal-id",
+    "--smart-network-weekly-spend-limit",
+    "--smart-network-bid-ceiling",
+    "--smart-network-reserve-return",
+    "--smart-network-roi-coef",
+    "--smart-network-profitability",
+    "--smart-network-crr",
+    "--smart-network-limit-percent",
+    "--smart-network-cp-spend-limit",
+    "--smart-network-cp-start-date",
+    "--smart-network-cp-end-date",
+    "--smart-network-cp-auto-continue",
+    "--smart-network-exploration-min",
+    "--smart-network-exploration-min-custom",
+}
+for _campaign_op in ("add", "update"):
+    # --smart-network-budget-type only exists on update (WSDL BudgetType lives
+    # on get-side Strategy* used by SmartCampaignUpdateItem).
+    _ops_flags = (
+        _smart_network_flags | {"--smart-network-budget-type"}
+        if _campaign_op == "update"
+        else _smart_network_flags
+    )
+    # --filter-average-cpc is a legacy add-only bridge that still maps onto
+    # SmartCampaign.BiddingStrategy.Network.AverageCpcPerFilter via the
+    # builder.
+    if _campaign_op == "add":
+        _ops_flags = _ops_flags | {"--filter-average-cpc"}
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("campaigns", _campaign_op, "SmartCampaign.BiddingStrategy.Network")
+    ] = _ops_flags
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        (
+            "campaigns",
+            _campaign_op,
+            "SmartCampaign.BiddingStrategy.Network.BiddingStrategyType",
+        )
+    ] = {"--network-strategy"}
+    # NetworkDefault subtype + its single optional leaf.
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        (
+            "campaigns",
+            _campaign_op,
+            "SmartCampaign.BiddingStrategy.Network.NetworkDefault",
+        )
+    ] = _ops_flags
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        (
+            "campaigns",
+            _campaign_op,
+            "SmartCampaign.BiddingStrategy.Network.NetworkDefault.LimitPercent",
+        )
+    ] = {"--smart-network-limit-percent"}
+    for _subtype in (
+        "AverageCpcPerCampaign",
+        "AverageCpcPerFilter",
+        "AverageCpaPerCampaign",
+        "AverageCpaPerFilter",
+        "PayForConversionPerCampaign",
+        "PayForConversionPerFilter",
+        "AverageRoi",
+        "AverageCrr",
+        "PayForConversionCrr",
+    ):
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            (
+                "campaigns",
+                _campaign_op,
+                f"SmartCampaign.BiddingStrategy.Network.{_subtype}",
+            )
+        ] = _ops_flags
+        # BudgetType on update-only get-side Strategy* (campaigns.xml
+        # 858-929). Each subtype exposes a BudgetType leaf.
+        if _campaign_op == "update":
+            OPTIONAL_FIELD_CLI_OPTIONS[
+                (
+                    "campaigns",
+                    _campaign_op,
+                    f"SmartCampaign.BiddingStrategy.Network.{_subtype}." "BudgetType",
+                )
+            ] = {"--smart-network-budget-type"}
+    # Subtype-leaf paths → owning CLI flag (per-field). Mirrors the Search
+    # branch with `--smart-network-*` flags. Per-Filter ``FilterAverageCpc``
+    # also accepts the legacy ``--filter-average-cpc`` add-only bridge.
+    for _subtype_path, _flag in {
+        # AverageCpcPerCampaign
+        "AverageCpcPerCampaign.AverageCpc": "--smart-network-average-cpc",
+        "AverageCpcPerCampaign.WeeklySpendLimit": (
+            "--smart-network-weekly-spend-limit"
+        ),
+        "AverageCpcPerCampaign.BidCeiling": "--smart-network-bid-ceiling",
+        # AverageCpcPerFilter
+        "AverageCpcPerFilter.WeeklySpendLimit": ("--smart-network-weekly-spend-limit"),
+        "AverageCpcPerFilter.BidCeiling": "--smart-network-bid-ceiling",
+        # AverageCpaPerCampaign
+        "AverageCpaPerCampaign.AverageCpa": "--smart-network-average-cpa",
+        "AverageCpaPerCampaign.GoalId": "--smart-network-goal-id",
+        "AverageCpaPerCampaign.WeeklySpendLimit": (
+            "--smart-network-weekly-spend-limit"
+        ),
+        "AverageCpaPerCampaign.BidCeiling": "--smart-network-bid-ceiling",
+        # AverageCpaPerFilter
+        "AverageCpaPerFilter.FilterAverageCpa": ("--smart-network-filter-average-cpa"),
+        "AverageCpaPerFilter.GoalId": "--smart-network-goal-id",
+        "AverageCpaPerFilter.WeeklySpendLimit": ("--smart-network-weekly-spend-limit"),
+        "AverageCpaPerFilter.BidCeiling": "--smart-network-bid-ceiling",
+        # PayForConversionPerCampaign
+        "PayForConversionPerCampaign.Cpa": "--smart-network-cpa",
+        "PayForConversionPerCampaign.GoalId": "--smart-network-goal-id",
+        "PayForConversionPerCampaign.WeeklySpendLimit": (
+            "--smart-network-weekly-spend-limit"
+        ),
+        # PayForConversionPerFilter
+        "PayForConversionPerFilter.Cpa": "--smart-network-cpa",
+        "PayForConversionPerFilter.GoalId": "--smart-network-goal-id",
+        "PayForConversionPerFilter.WeeklySpendLimit": (
+            "--smart-network-weekly-spend-limit"
+        ),
+        # AverageRoi
+        "AverageRoi.ReserveReturn": "--smart-network-reserve-return",
+        "AverageRoi.RoiCoef": "--smart-network-roi-coef",
+        "AverageRoi.GoalId": "--smart-network-goal-id",
+        "AverageRoi.WeeklySpendLimit": "--smart-network-weekly-spend-limit",
+        "AverageRoi.BidCeiling": "--smart-network-bid-ceiling",
+        "AverageRoi.Profitability": "--smart-network-profitability",
+        # AverageCrr
+        "AverageCrr.Crr": "--smart-network-crr",
+        "AverageCrr.GoalId": "--smart-network-goal-id",
+        "AverageCrr.WeeklySpendLimit": "--smart-network-weekly-spend-limit",
+        # PayForConversionCrr
+        "PayForConversionCrr.Crr": "--smart-network-crr",
+        "PayForConversionCrr.GoalId": "--smart-network-goal-id",
+        "PayForConversionCrr.WeeklySpendLimit": ("--smart-network-weekly-spend-limit"),
+    }.items():
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            (
+                "campaigns",
+                _campaign_op,
+                f"SmartCampaign.BiddingStrategy.Network.{_subtype_path}",
+            )
+        ] = {_flag}
+    # AverageCpcPerFilter.FilterAverageCpc accepts both the new typed flag
+    # and the legacy ``--filter-average-cpc`` bridge (add only).
+    _filter_avg_cpc_path = (
+        "campaigns",
+        _campaign_op,
+        "SmartCampaign.BiddingStrategy.Network.AverageCpcPerFilter.FilterAverageCpc",
+    )
+    if _campaign_op == "add":
+        OPTIONAL_FIELD_CLI_OPTIONS[_filter_avg_cpc_path] = {
+            "--smart-network-filter-average-cpc",
+            "--filter-average-cpc",
+        }
+    else:
+        OPTIONAL_FIELD_CLI_OPTIONS[_filter_avg_cpc_path] = {
+            "--smart-network-filter-average-cpc"
+        }
+    # CustomPeriodBudget appears on every Network subtype that supports it
+    # (campaigns.xml 1401-1481 — same set as Search).
+    for _subtype in (
+        "AverageCpcPerCampaign",
+        "AverageCpcPerFilter",
+        "AverageCpaPerCampaign",
+        "AverageCpaPerFilter",
+        "PayForConversionPerCampaign",
+        "PayForConversionPerFilter",
+        "AverageRoi",
+        "AverageCrr",
+        "PayForConversionCrr",
+    ):
+        for _cp_leaf, _cp_flag in {
+            "": "--smart-network-cp-spend-limit",
+            ".SpendLimit": "--smart-network-cp-spend-limit",
+            ".StartDate": "--smart-network-cp-start-date",
+            ".EndDate": "--smart-network-cp-end-date",
+            ".AutoContinue": "--smart-network-cp-auto-continue",
+        }.items():
+            OPTIONAL_FIELD_CLI_OPTIONS[
+                (
+                    "campaigns",
+                    _campaign_op,
+                    f"SmartCampaign.BiddingStrategy.Network.{_subtype}."
+                    f"CustomPeriodBudget{_cp_leaf}",
+                )
+            ] = {_cp_flag}
+    # ExplorationBudget appears on AverageCpa{Per,PerFilter}, AverageRoi,
+    # AverageCrr. NOT on AverageCpc* or PayForConversion* (per WSDL
+    # campaigns.xml 1411-1432, 1474-1481).
+    for _subtype in (
+        "AverageCpaPerCampaign",
+        "AverageCpaPerFilter",
+        "AverageRoi",
+        "AverageCrr",
+    ):
+        for _eb_leaf, _eb_flag in {
+            "": "--smart-network-exploration-min",
+            ".MinimumExplorationBudget": "--smart-network-exploration-min",
+            ".IsMinimumExplorationBudgetCustom": (
+                "--smart-network-exploration-min-custom"
+            ),
+        }.items():
+            OPTIONAL_FIELD_CLI_OPTIONS[
+                (
+                    "campaigns",
+                    _campaign_op,
+                    f"SmartCampaign.BiddingStrategy.Network.{_subtype}."
+                    f"ExplorationBudget{_eb_leaf}",
+                )
+            ] = {_eb_flag}
+
 for _campaign_op in ("add", "update"):
     OPTIONAL_FIELD_CLI_OPTIONS[("campaigns", _campaign_op, "MobileAppCampaign")] = {
         "--type"
@@ -3768,6 +4036,55 @@ for _campaign_op in ("add", "update"):
             "status": "missing_followup",
             "issue": "#361",
             "note": "TextCampaign Search strategy subtype fields need typed support.",
+        }
+
+# SmartCampaign.BiddingStrategy.Network typed support landed in #368.
+# Mark the Network root and every Strategy*Add subtype prefix as supported so
+# the audit no longer routes Network rows to the parent #290 epic.
+for _campaign_op in ("add", "update"):
+    OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS[
+        (
+            "campaigns",
+            _campaign_op,
+            "SmartCampaign.BiddingStrategy.Network",
+        )
+    ] = {
+        "status": "supported",
+        "issue": "#368",
+        "note": (
+            "SmartCampaign.BiddingStrategy.Network typed flags "
+            "(--network-strategy + --smart-network-*) cover every "
+            "settable SmartCampaignNetworkStrategyTypeEnum value "
+            "(UNKNOWN is a read-side sentinel and is not exposed on "
+            "add/update — same convention as Search / DynamicText / "
+            "MobileApp / CpmBanner network strategy enums)."
+        ),
+    }
+    for _strategy_subtype in (
+        "NetworkDefault",
+        "AverageCpcPerCampaign",
+        "AverageCpcPerFilter",
+        "AverageCpaPerCampaign",
+        "AverageCpaPerFilter",
+        "PayForConversionPerCampaign",
+        "PayForConversionPerFilter",
+        "AverageRoi",
+        "AverageCrr",
+        "PayForConversionCrr",
+    ):
+        OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS[
+            (
+                "campaigns",
+                _campaign_op,
+                f"SmartCampaign.BiddingStrategy.Network.{_strategy_subtype}",
+            )
+        ] = {
+            "status": "supported",
+            "issue": "#368",
+            "note": (
+                "SmartCampaign Network strategy subtype fields covered "
+                "by typed --smart-network-* flags."
+            ),
         }
 
 # DynamicTextCampaign.BiddingStrategy.Network typed support landed in #365.
