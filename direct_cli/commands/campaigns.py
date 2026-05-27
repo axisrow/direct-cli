@@ -2475,12 +2475,6 @@ def add(
                 # Strategy*Add subtype block and PlacementTypes.
                 # ``include_default=True`` mirrors the WSDL minOccurs=1
                 # contract on add.
-                # ``dyn_search_typed_provided`` (computed below) gates the
-                # required-flag check: if the user mixed the legacy CPA-shape
-                # flags (--average-cpa / --goal-id / --crr / --bid-ceiling)
-                # without any new --dyn-search-* flag, ``apply_cpa_strategy_fields``
-                # below fills the subtype block, so the new builder must
-                # not pre-fail on missing minOccurs=1 fields.
                 _dyn_search_typed_for_required = any(
                     value is not None
                     for value in (
@@ -2502,6 +2496,23 @@ def add(
                         dyn_search_exploration_budget,
                         dyn_search_exploration_budget_custom,
                     )
+                )
+                # The legacy ``apply_cpa_strategy_fields`` builder (called
+                # below) fills only the CPA-shape subtypes that overlap
+                # with TextCampaign: ``AVERAGE_CPA`` and
+                # ``PAY_FOR_CONVERSION_CRR``. For every other strategy the
+                # new builder is the sole writer, so the WSDL minOccurs=1
+                # required-field check must run on add — strategy-only
+                # creates of e.g. AVERAGE_CPC / AVERAGE_ROI must NOT emit
+                # an empty Strategy*Add block (the API would reject it).
+                _legacy_search_subtypes = {
+                    "AVERAGE_CPA",
+                    "PAY_FOR_CONVERSION_CRR",
+                }
+                _strategy_normalized = (search_strategy or "").upper()
+                _legacy_can_fill = (
+                    _strategy_normalized in _legacy_search_subtypes
+                    and not _dyn_search_typed_for_required
                 )
                 dyn_search_builder = get_bidding_strategy_builder(
                     "DYNAMIC_TEXT_CAMPAIGN", "add", "search"
@@ -2531,7 +2542,13 @@ def add(
                         dyn_search_exploration_budget_custom,
                         budget_type=None,
                         include_default=True,
-                        is_update=not _dyn_search_typed_for_required,
+                        # Relax the WSDL minOccurs=1 check only when the
+                        # legacy ``apply_cpa_strategy_fields`` path can
+                        # fill the subtype (AVERAGE_CPA /
+                        # PAY_FOR_CONVERSION_CRR) AND the user has not
+                        # opted into the typed --dyn-search-* shape. For
+                        # every other strategy the new builder enforces.
+                        is_update=_legacy_can_fill,
                     )
                 else:
                     dyn_search_block = {

@@ -16080,6 +16080,77 @@ def test_campaigns_add_dynamic_text_search_required_average_cpa_when_typed_used(
     assert "AVERAGE_CPA requires" in result.output
 
 
+def test_campaigns_add_dynamic_text_search_strict_required_for_non_legacy_subtypes():
+    """#362 regression guard: strategy-only creates of non-CPA-shape Search
+    families must NOT bypass WSDL minOccurs=1 validation, because the
+    legacy ``apply_cpa_strategy_fields`` path only fills AVERAGE_CPA and
+    PAY_FOR_CONVERSION_CRR. Without this guard the campaigns.add call
+    would emit a schema-invalid Strategy*Add block to Yandex.
+    """
+    cases = [
+        ("AVERAGE_CPC", "AVERAGE_CPC requires --dyn-search-average-cpc"),
+        ("AVERAGE_ROI", "AVERAGE_ROI requires"),
+        (
+            "WEEKLY_CLICK_PACKAGE",
+            "WEEKLY_CLICK_PACKAGE requires --dyn-search-clicks-per-week",
+        ),
+        (
+            "WB_MAXIMUM_CONVERSION_RATE",
+            "WB_MAXIMUM_CONVERSION_RATE requires --dyn-search-goal-id",
+        ),
+        (
+            "PAY_FOR_CONVERSION",
+            "PAY_FOR_CONVERSION requires --dyn-search-cpa, --dyn-search-goal-id",
+        ),
+        ("AVERAGE_CRR", "AVERAGE_CRR requires"),
+    ]
+    for strategy, expected in cases:
+        result = _failing_run(
+            "campaigns",
+            "add",
+            "--name",
+            "Bad",
+            "--start-date",
+            "2026-06-01",
+            "--type",
+            "DYNAMIC_TEXT_CAMPAIGN",
+            "--search-strategy",
+            strategy,
+            "--network-strategy",
+            "SERVING_OFF",
+        )
+        assert result.exit_code != 0, f"strategy {strategy} unexpectedly accepted"
+        assert (
+            expected in result.output
+        ), f"strategy {strategy}: expected '{expected}' in output, got: {result.output}"
+
+
+def test_campaigns_add_dynamic_text_search_wb_maximum_clicks_strategy_only_payload():
+    """#362: WB_MAXIMUM_CLICKS has no minOccurs=1 fields beyond
+    BiddingStrategyType (StrategyMaximumClicksAdd extends
+    StrategyWeeklyBudgetAddBase, both members minOccurs=0). Strategy-only
+    create must succeed without typed detail flags.
+    """
+    body = _dry_run(
+        "campaigns",
+        "add",
+        "--name",
+        "Dyn WbClicks bare",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--search-strategy",
+        "WB_MAXIMUM_CLICKS",
+        "--network-strategy",
+        "SERVING_OFF",
+    )
+    search = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
+        "Search"
+    ]
+    assert search == {"BiddingStrategyType": "WB_MAXIMUM_CLICKS"}
+
+
 def test_campaigns_add_dynamic_text_search_rejects_serving_off_with_details():
     """#362: SERVING_OFF / HIGHEST_POSITION / IMPRESSIONS_BELOW_SEARCH
     do not accept Strategy*Add fields.
