@@ -2293,6 +2293,40 @@ def add(
                 "--smart-search-exploration-min-custom": (
                     smart_search_exploration_min_custom
                 ),
+                # SmartCampaign.BiddingStrategy.Network typed flags (#368) —
+                # same mutex contract as Search. Without these entries the
+                # package path silently drops user-provided Network flags.
+                "--smart-network-average-cpc": smart_network_average_cpc,
+                "--smart-network-filter-average-cpc": (
+                    smart_network_filter_average_cpc
+                ),
+                "--smart-network-average-cpa": smart_network_average_cpa,
+                "--smart-network-filter-average-cpa": (
+                    smart_network_filter_average_cpa
+                ),
+                "--smart-network-cpa": smart_network_cpa,
+                "--smart-network-goal-id": smart_network_goal_id,
+                "--smart-network-weekly-spend-limit": (
+                    smart_network_weekly_spend_limit
+                ),
+                "--smart-network-bid-ceiling": smart_network_bid_ceiling,
+                "--smart-network-reserve-return": smart_network_reserve_return,
+                "--smart-network-roi-coef": smart_network_roi_coef,
+                "--smart-network-profitability": smart_network_profitability,
+                "--smart-network-crr": smart_network_crr,
+                "--smart-network-limit-percent": smart_network_limit_percent,
+                "--smart-network-cp-spend-limit": smart_network_cp_spend_limit,
+                "--smart-network-cp-start-date": smart_network_cp_start_date,
+                "--smart-network-cp-end-date": smart_network_cp_end_date,
+                "--smart-network-cp-auto-continue": (
+                    smart_network_cp_auto_continue
+                ),
+                "--smart-network-exploration-min": (
+                    smart_network_exploration_min
+                ),
+                "--smart-network-exploration-min-custom": (
+                    smart_network_exploration_min_custom
+                ),
             }
             provided = [
                 flag

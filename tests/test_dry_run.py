@@ -7124,6 +7124,39 @@ def test_campaigns_add_rejects_smart_network_with_package_strategy():
     )
 
 
+def test_campaigns_add_rejects_smart_network_detail_flag_with_package_strategy():
+    # Adversarial regression: when PackageBiddingStrategy is in use the
+    # SmartCampaign add path takes a branch that bypasses the per-subtype
+    # builder altogether. Without an explicit entry in the package
+    # incompatibility map, a bare --smart-network-* detail flag (no
+    # --network-strategy, no --filter-average-cpc) would be silently
+    # dropped — the user would expect their bid intent applied but the
+    # API would only receive the package strategy. The mutex must list
+    # every #368 typed flag.
+    result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "Smart Package + Network detail bad",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--counter-id",
+        "123",
+        "--package-strategy-id",
+        "700",
+        "--package-platform-search",
+        "YES",
+        "--package-platform-network",
+        "YES",
+        "--smart-network-average-cpc",
+        "5",
+    )
+    assert "PackageBiddingStrategy" in result.output
+    assert "--smart-network-average-cpc" in result.output
+
+
 def test_campaigns_add_rejects_smart_package_without_required_platforms():
     result = _rejected(
         "campaigns",
