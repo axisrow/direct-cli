@@ -29,6 +29,7 @@ from .._bidding_strategy import (
     _TEXT_NETWORK_AVERAGE_CPA_SUBTYPES,
     _TEXT_NETWORK_BID_CEILING_SUBTYPES,
     _TEXT_NETWORK_CRR_SUBTYPES,
+    _STRATEGY_REQUIRES_PRIORITY_GOALS,
     _TEXT_NETWORK_GOAL_ID_SUBTYPES,
     _TEXT_NETWORK_REQUIRES_PRIORITY_GOALS,
     _TEXT_SEARCH_SUPPORTS_AVERAGE_CPA,
@@ -3103,12 +3104,10 @@ def add(
                     )
                 )
                 _network_allows = (
-                    _unified_network_subtype
-                    in _UNIFIED_NETWORK_REQUIRES_PRIORITY_GOALS
+                    _unified_network_subtype in _UNIFIED_NETWORK_REQUIRES_PRIORITY_GOALS
                 )
                 _search_allows = (
-                    _unified_search_subtype
-                    in _UNIFIED_SEARCH_REQUIRES_PRIORITY_GOALS
+                    _unified_search_subtype in _UNIFIED_SEARCH_REQUIRES_PRIORITY_GOALS
                 )
                 _network_chosen = network_strategy is not None
                 _search_chosen = search_strategy is not None
@@ -3125,14 +3124,10 @@ def add(
                     and not _search_allows
                 )
                 _only_network_explicit_and_incompatible = (
-                    _network_chosen
-                    and not _search_chosen
-                    and not _network_allows
+                    _network_chosen and not _search_chosen and not _network_allows
                 )
                 _only_search_explicit_and_incompatible = (
-                    _search_chosen
-                    and not _network_chosen
-                    and not _search_allows
+                    _search_chosen and not _network_chosen and not _search_allows
                 )
                 if (
                     _both_explicit_and_incompatible
@@ -3498,14 +3493,10 @@ def add(
                     in _UNIFIED_NETWORK_REQUIRES_PRIORITY_GOALS
                 )
                 _u_search_priority_goals_items = (
-                    priority_goals_items
-                    if _u_search_uses_priority_goals
-                    else None
+                    priority_goals_items if _u_search_uses_priority_goals else None
                 )
                 _u_network_priority_goals_items = (
-                    priority_goals_items
-                    if _u_network_uses_priority_goals
-                    else None
+                    priority_goals_items if _u_network_uses_priority_goals else None
                 )
 
                 unified_search_builder = get_bidding_strategy_builder(
@@ -3762,6 +3753,24 @@ def add(
                             f"{', '.join(sorted(legacy_provided))}; use the "
                             "matching --dyn-search-* equivalent"
                         )
+                # WSDL DynamicTextCampaignAddItem.PriorityGoals (line 2186)
+                # is an optional sub-campaign field independent of the
+                # BiddingStrategy subtype — same shape as Unified/Smart.
+                # When --priority-goals is supplied without a multi-goal
+                # strategy (issue #397), withhold the items from the
+                # legacy builder (which would raise) and place them on
+                # the parent sub-campaign block instead. The legacy
+                # builder still runs for its other job — placing
+                # AverageCpa/GoalId/Crr/BidCeiling into the strategy
+                # subtype block for AVERAGE_CPA / PAY_FOR_CONVERSION_CRR.
+                _strategy_is_multi_goal = (
+                    search_strategy or ""
+                ).upper() in _STRATEGY_REQUIRES_PRIORITY_GOALS or (
+                    network_strategy or ""
+                ).upper() in _STRATEGY_REQUIRES_PRIORITY_GOALS
+                _legacy_priority_goals_items = (
+                    priority_goals_items if _strategy_is_multi_goal else None
+                )
                 priority_goals_builder = get_bidding_strategy_builder(
                     "DYNAMIC_TEXT_CAMPAIGN", "add", "priority_goals"
                 )
@@ -3774,14 +3783,10 @@ def add(
                         average_cpa=average_cpa,
                         crr=crr,
                         bid_ceiling=bid_ceiling,
-                        priority_goals_items=priority_goals_items,
+                        priority_goals_items=_legacy_priority_goals_items,
                         sub_campaign_block=dyn_block,
                     )
-                elif dyn_search_typed_provided and priority_goals_items is not None:
-                    # PriorityGoals still belongs to the sub-campaign block
-                    # (WSDL DynamicTextCampaignAddItem.PriorityGoals,
-                    # line 2186); the legacy builder would otherwise have
-                    # placed it. Honor the user's input here.
+                if priority_goals_items is not None and not _strategy_is_multi_goal:
                     dyn_block["PriorityGoals"] = {"Items": priority_goals_items}
             if counter_ids_obj is not None:
                 dyn_block["CounterIds"] = counter_ids_obj
@@ -6651,14 +6656,10 @@ def update(
                     )
                     if _u_search_uses_pg_up or _u_network_uses_pg_up:
                         _u_search_pg_items_up = (
-                            priority_goals_items
-                            if _u_search_uses_pg_up
-                            else None
+                            priority_goals_items if _u_search_uses_pg_up else None
                         )
                         _u_network_pg_items_up = (
-                            priority_goals_items
-                            if _u_network_uses_pg_up
-                            else None
+                            priority_goals_items if _u_network_uses_pg_up else None
                         )
                     else:
                         _u_search_pg_items_up = None
