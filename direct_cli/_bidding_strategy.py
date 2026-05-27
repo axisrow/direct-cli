@@ -4825,6 +4825,27 @@ def build_unified_campaign_search_strategy(
                 "--unified-search-budget-type must be one of "
                 f"{', '.join(_UNIFIED_CAMPAIGN_SEARCH_BUDGET_TYPES)}"
             )
+        # Silent-data-loss guard: the alternate-slice nulling below would
+        # discard a user-supplied budget value that contradicts the
+        # selected BudgetType. Reject the mismatch up-front rather than
+        # quietly dropping the input.
+        if normalized_budget_type == "WEEKLY_BUDGET" and custom_period is not None:
+            raise click.UsageError(
+                "--unified-search-budget-type WEEKLY_BUDGET cannot be "
+                "combined with --unified-search-custom-period-* flags; "
+                "the selected BudgetType would silently null out the "
+                "provided CustomPeriodBudget"
+            )
+        if (
+            normalized_budget_type == "CUSTOM_PERIOD_BUDGET"
+            and weekly_spend_limit is not None
+        ):
+            raise click.UsageError(
+                "--unified-search-budget-type CUSTOM_PERIOD_BUDGET cannot "
+                "be combined with --unified-search-weekly-spend-limit; "
+                "the selected BudgetType would silently null out the "
+                "provided WeeklySpendLimit"
+            )
 
     # PriorityGoals scope check. UnifiedCampaign.PriorityGoals typed-flag
     # wiring is owned by #373; this PR rejects --priority-goals for

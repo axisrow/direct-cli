@@ -20172,3 +20172,51 @@ def test_campaigns_update_unified_search_budget_type_only_per_subtype(
     ]
     assert search["BiddingStrategyType"] == strategy
     assert search[subtype]["BudgetType"] == "WEEKLY_BUDGET"
+
+
+def test_campaigns_update_unified_search_budget_type_weekly_rejects_custom_period():
+    """Silent-data-loss guard: WEEKLY_BUDGET would null out a provided
+    CustomPeriodBudget block."""
+    result = _rejected(
+        "campaigns",
+        "update",
+        "--id",
+        "777",
+        "--type",
+        "UNIFIED_CAMPAIGN",
+        "--search-strategy",
+        "AVERAGE_CPC",
+        "--unified-search-budget-type",
+        "WEEKLY_BUDGET",
+        "--unified-search-custom-period-spend-limit",
+        "200",
+        "--unified-search-custom-period-start-date",
+        "2026-09-01",
+        "--unified-search-custom-period-end-date",
+        "2026-09-30",
+        "--unified-search-custom-period-auto-continue",
+        "YES",
+    )
+    assert "WEEKLY_BUDGET" in result.output
+    assert "custom-period" in result.output
+
+
+def test_campaigns_update_unified_search_budget_type_custom_period_rejects_weekly():
+    """Silent-data-loss guard: CUSTOM_PERIOD_BUDGET would null out a
+    provided WeeklySpendLimit value."""
+    result = _rejected(
+        "campaigns",
+        "update",
+        "--id",
+        "777",
+        "--type",
+        "UNIFIED_CAMPAIGN",
+        "--search-strategy",
+        "AVERAGE_CPC",
+        "--unified-search-budget-type",
+        "CUSTOM_PERIOD_BUDGET",
+        "--unified-search-weekly-spend-limit",
+        "100",
+    )
+    assert "CUSTOM_PERIOD_BUDGET" in result.output
+    assert "weekly-spend-limit" in result.output
