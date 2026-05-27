@@ -8172,31 +8172,66 @@ def test_campaigns_add_rejects_unified_package_strategy_with_counter_ids():
     assert "--counter-ids" in result.output
 
 
-def test_campaigns_add_rejects_unified_priority_goals_without_bidding_strategy():
-    """UnifiedCampaign.PriorityGoals scope guard (issue #373).
+def test_campaigns_add_unified_priority_goals_standalone_payload():
+    """Issue #373: PriorityGoals on UnifiedCampaign add WITHOUT any
+    BiddingStrategy / PackageBiddingStrategy choice.
 
-    Yandex Direct accepts ``UnifiedCampaignAddItem.PriorityGoals`` (WSDL
-    ``tests/wsdl_cache/campaigns.xml`` line 2165) only when the chosen
-    BiddingStrategy subtype is AVERAGE_CPA_MULTIPLE_GOALS /
-    PAY_FOR_CONVERSION_MULTIPLE_GOALS / MAX_PROFIT on either the Search
-    branch (``UnifiedCampaignStrategyAddBase`` lines 1631-1654) or the
-    Network branch. Without any --network-strategy / --search-strategy
-    the CLI rejects the call rather than silently dropping the goals or
-    relying on the API to error.
+    The canonical WSDL declares ``UnifiedCampaignAddItem.PriorityGoals``
+    (line 2165) as an independent ``minOccurs=0`` sibling alongside
+    ``BiddingStrategy`` (line 2162, also ``minOccurs=0``) and
+    ``PackageBiddingStrategy`` (line 2168, ``minOccurs=0``) on a plain
+    ``xsd:sequence`` — no ``xsd:choice`` wrapper exists. The payload
+    must therefore carry PriorityGoals on its own and let the
+    per-side BiddingStrategy fall back to its HIGHEST_POSITION /
+    SERVING_OFF defaults.
     """
-    result = _rejected(
+    body = _dry_run(
         "campaigns",
         "add",
         "--name",
-        "Unified Goals",
+        "Unified Goals Standalone",
         "--start-date",
         "2026-06-01",
         "--type",
         "UNIFIED_CAMPAIGN",
         "--priority-goals",
-        "1:50,2:50",
+        "1234567:80,9876543:20:YES",
     )
-    assert "UnifiedCampaign.PriorityGoals" in result.output
+    unified = body["params"]["Campaigns"][0]["UnifiedCampaign"]
+    assert unified["PriorityGoals"] == {
+        "Items": [
+            {"GoalId": 1234567, "Value": 80},
+            {"GoalId": 9876543, "Value": 20, "IsMetrikaSourceOfValue": "YES"},
+        ]
+    }
+    # The default per-side BiddingStrategy is still emitted.
+    bidding = unified["BiddingStrategy"]
+    assert bidding["Search"]["BiddingStrategyType"] == "HIGHEST_POSITION"
+    assert bidding["Network"]["BiddingStrategyType"] == "SERVING_OFF"
+
+
+def test_campaigns_add_rejects_unified_priority_goals_with_incompatible_strategy():
+    """Issue #373: a per-side strategy explicitly chosen with a subtype
+    builder that does not consume PriorityGoals must be rejected
+    up-front — otherwise the subtype builder would silently drop the
+    user's goals."""
+    result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "Unified Goals + AVERAGE_CPC",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "UNIFIED_CAMPAIGN",
+        "--network-strategy",
+        "AVERAGE_CPC",
+        "--unified-network-average-cpc",
+        "5",
+        "--priority-goals",
+        "1:50",
+    )
+    assert "--priority-goals on UnifiedCampaign is only valid with" in result.output
     assert "AVERAGE_CPA_MULTIPLE_GOALS" in result.output
 
 
@@ -20620,9 +20655,11 @@ def test_campaigns_add_unified_network_max_profit_with_priority_goals_payload():
 
 
 def test_campaigns_add_unified_network_rejects_priority_goals_for_non_multi_goal_strategy():
-    """#366: --priority-goals + non-multi-goal --network-strategy must
-    raise the new gate (#290/#363/#373) rather than silently dropping
-    PriorityGoals."""
+    """#373 (refines #366): an explicit per-side --network-strategy whose
+    subtype builder does not consume PriorityGoals must be rejected
+    up-front so the items are not silently dropped. WSDL-valid
+    standalone PriorityGoals are covered separately by the
+    ``..._standalone_payload`` test."""
     result = _rejected(
         *_unified_network_add_base(),
         "--network-strategy",
@@ -20632,7 +20669,7 @@ def test_campaigns_add_unified_network_rejects_priority_goals_for_non_multi_goal
         "--priority-goals",
         "1:500",
     )
-    assert "UnifiedCampaign.PriorityGoals on campaigns add requires" in result.output
+    assert "--priority-goals on UnifiedCampaign is only valid with" in result.output
     assert "AVERAGE_CPA_MULTIPLE_GOALS" in result.output
 
 

@@ -4725,11 +4725,15 @@ OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]
         "note": (
             "UnifiedCampaign.PriorityGoals on campaigns add is a top-level "
             "sibling on UnifiedCampaignAddItem (WSDL line 2165) and is set "
-            "via the shared --priority-goals flag. The CLI enforces the "
-            "documented Yandex constraint that PriorityGoals is only "
-            "accepted with AVERAGE_CPA_MULTIPLE_GOALS / "
-            "PAY_FOR_CONVERSION_MULTIPLE_GOALS / MAX_PROFIT subtypes on "
-            "either Search or Network branch."
+            "via the shared --priority-goals flag. Per the canonical WSDL "
+            "the field is declared as an independent minOccurs=0 element "
+            "alongside BiddingStrategy (line 2162) and PackageBiddingStrategy "
+            "(line 2168); no xsd:choice wrapper exists. The CLI therefore "
+            "accepts --priority-goals standalone, with --package-strategy-id, "
+            "or with --network-strategy/--search-strategy. When a per-side "
+            "strategy is explicitly chosen with a subtype builder that does "
+            "not consume PriorityGoals, the CLI rejects up-front to avoid "
+            "silent data loss."
         ),
     },
     ("campaigns", "add", "DynamicTextCampaign.BiddingStrategy"): {
