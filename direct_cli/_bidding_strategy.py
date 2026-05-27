@@ -4264,6 +4264,590 @@ register_bidding_strategy_builder(
 
 
 # ---------------------------------------------------------------------------
+# UnifiedCampaign.BiddingStrategy.Network (issue #366)
+# ---------------------------------------------------------------------------
+# Source of truth: cached WSDL ``tests/wsdl_cache/campaigns.xml``:
+#   * Lines 299-315 — ``UnifiedCampaignNetworkStrategyTypeEnum`` (13 values:
+#     10 subtype-bearing strategies + ``NETWORK_DEFAULT`` / ``SERVING_OFF``
+#     bare-marker values + ``UNKNOWN`` read-side sentinel). Note that
+#     ``MAXIMUM_COVERAGE`` is intentionally absent — that value exists on
+#     TextCampaign / DynamicTextCampaign / SmartCampaign network enums but
+#     not on Unified.
+#   * Lines 1631-1654 — ``UnifiedCampaignStrategyAddBase`` declares 10
+#     ``Strategy*Add`` subtype fields, all ``minOccurs=0``: WbMaximumClicks,
+#     WbMaximumConversionRate, AverageCpc, AverageCpa, PayForConversion,
+#     AverageCrr, PayForConversionCrr, AverageCpaMultipleGoals,
+#     PayForConversionMultipleGoals, MaxProfit.
+#   * Lines 1655-1664 — ``UnifiedCampaignNetworkStrategyAdd`` extends the
+#     base and adds ``BiddingStrategyType`` (minOccurs=1).
+#   * Lines 1339-1514 — per-subtype ``Strategy*Add`` complex types (shared
+#     with TextCampaign / DynamicTextCampaign / SmartCampaign; the
+#     ``minOccurs=1`` set is enforced by
+#     ``_UNIFIED_NETWORK_REQUIRED_TYPED_FLAGS``).
+#   * Lines 1965-1978 — ``CustomPeriodBudget`` and ``ExplorationBudget``
+#     shared types (all-or-nothing groups).
+#
+# Differences vs ``build_text_campaign_network_strategy`` (#364, PR #391):
+#   * ``UnifiedCampaignStrategyAddBase`` does NOT declare ``AverageRoi``,
+#     ``WeeklyClickPackage`` or ``NetworkDefault`` subtype fields. Even
+#     though the enum allows ``NETWORK_DEFAULT``, the WSDL provides no
+#     nested ``NetworkDefault`` element on Unified.Network, so the CLI
+#     treats it as a bare-marker (no ``--unified-network-limit-percent`` —
+#     would have no field to write to). ``AverageRoi`` mentioned in the
+#     issue body (#366) is also NOT in the WSDL; we follow the WSDL.
+#   * No ``--unified-network-pay-cpa`` collision: the WSDL ``PayForConversion``
+#     subtype carries ``Cpa`` which we expose as ``--unified-network-cpa``
+#     (matching ``--dyn-network-cpa`` from #365).
+#   * ``BudgetType`` lives only on the get-side ``Strategy*`` types used by
+#     ``UnifiedCampaignUpdateItem`` (campaigns.xml 789-958, shared across
+#     campaign types), so ``--unified-network-budget-type`` is update-only.
+#
+# The Yandex public docs were not used: yandex.ru/dev pages return
+# showcaptcha at the time of writing. The WSDL is canonical.
+# WSDL UnifiedCampaignNetworkStrategyTypeEnum (campaigns.xml 299-315) —
+# 13 enum values: 10 settable subtype-bearing strategies + NETWORK_DEFAULT
+# and SERVING_OFF bare markers + UNKNOWN read-side sentinel.
+# NOTE: MAXIMUM_COVERAGE is NOT a member of this enum (it exists on
+# TextCampaign / DynamicTextCampaign / SmartCampaign network enums but
+# the WSDL excludes it from UnifiedCampaign), so the CLI must reject it
+# rather than silently emitting an API-invalid payload.
+UNIFIED_CAMPAIGN_NETWORK_STRATEGIES = [
+    "WB_MAXIMUM_CLICKS",
+    "WB_MAXIMUM_CONVERSION_RATE",
+    "AVERAGE_CPC",
+    "AVERAGE_CPA",
+    "PAY_FOR_CONVERSION",
+    "AVERAGE_CRR",
+    "PAY_FOR_CONVERSION_CRR",
+    "MAX_PROFIT",
+    "AVERAGE_CPA_MULTIPLE_GOALS",
+    "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
+    "NETWORK_DEFAULT",
+    "SERVING_OFF",
+]
+# Maps ``UnifiedCampaignNetworkStrategyTypeEnum`` value → nested
+# ``Strategy*Add`` field name on ``UnifiedCampaignStrategyAddBase``. The 2
+# bare-marker values (``NETWORK_DEFAULT`` / ``SERVING_OFF``) are absent
+# here — they emit ``BiddingStrategyType`` only. ``MAXIMUM_COVERAGE`` is
+# not in the Unified enum at all (see comment block above).
+UNIFIED_CAMPAIGN_NETWORK_STRATEGY_TO_WSDL_SUBTYPE: Dict[str, str] = {
+    "WB_MAXIMUM_CLICKS": "WbMaximumClicks",
+    "WB_MAXIMUM_CONVERSION_RATE": "WbMaximumConversionRate",
+    "AVERAGE_CPC": "AverageCpc",
+    "AVERAGE_CPA": "AverageCpa",
+    "PAY_FOR_CONVERSION": "PayForConversion",
+    "AVERAGE_CRR": "AverageCrr",
+    "PAY_FOR_CONVERSION_CRR": "PayForConversionCrr",
+    "AVERAGE_CPA_MULTIPLE_GOALS": "AverageCpaMultipleGoals",
+    "PAY_FOR_CONVERSION_MULTIPLE_GOALS": "PayForConversionMultipleGoals",
+    "MAX_PROFIT": "MaxProfit",
+}
+
+# Per-subtype WSDL field support tables. Sources: ``Strategy*Add`` complex
+# types in ``tests/wsdl_cache/campaigns.xml`` lines 1339-1514. These mirror
+# the TextCampaign Network sets (#364) for the 10 subtypes that exist on
+# both campaign types — the WSDL types themselves are shared.
+_UNIFIED_NETWORK_WEEKLY_SPEND_LIMIT_SUBTYPES = {
+    "WbMaximumClicks",
+    "WbMaximumConversionRate",
+    "AverageCpc",
+    "AverageCpa",
+    "PayForConversion",
+    "AverageCrr",
+    "PayForConversionCrr",
+    "MaxProfit",
+    "AverageCpaMultipleGoals",
+    "PayForConversionMultipleGoals",
+}
+_UNIFIED_NETWORK_CUSTOM_PERIOD_SUBTYPES = _UNIFIED_NETWORK_WEEKLY_SPEND_LIMIT_SUBTYPES
+_UNIFIED_NETWORK_BID_CEILING_SUBTYPES = {
+    "WbMaximumClicks",
+    "WbMaximumConversionRate",
+    "AverageCpa",
+    "AverageCpaMultipleGoals",
+}
+_UNIFIED_NETWORK_AVERAGE_CPC_SUBTYPES = {"AverageCpc"}
+_UNIFIED_NETWORK_AVERAGE_CPA_SUBTYPES = {"AverageCpa"}
+_UNIFIED_NETWORK_CPA_SUBTYPES = {"PayForConversion"}  # WSDL field name is "Cpa"
+_UNIFIED_NETWORK_GOAL_ID_SUBTYPES = {
+    "WbMaximumConversionRate",
+    "AverageCpa",
+    "PayForConversion",
+    "AverageCrr",
+    "PayForConversionCrr",
+}
+_UNIFIED_NETWORK_CRR_SUBTYPES = {"AverageCrr", "PayForConversionCrr"}
+_UNIFIED_NETWORK_EXPLORATION_BUDGET_SUBTYPES = {
+    "AverageCpa",
+    "AverageCrr",
+    "AverageCpaMultipleGoals",
+    "MaxProfit",
+}
+# Cached WSDL declares ``BudgetType`` on the get-side ``Strategy*`` types
+# used by ``UnifiedCampaignUpdateItem`` for every subtype in this set
+# (campaigns.xml lines 789-958, shared across campaign types). All 10
+# Unified.Network subtypes carry ``BudgetType`` on the get side.
+_UNIFIED_NETWORK_BUDGET_TYPE_SUBTYPES = {
+    "WbMaximumClicks",
+    "WbMaximumConversionRate",
+    "AverageCpc",
+    "AverageCpa",
+    "PayForConversion",
+    "AverageCrr",
+    "PayForConversionCrr",
+    "AverageCpaMultipleGoals",
+    "PayForConversionMultipleGoals",
+    "MaxProfit",
+}
+# Subtypes that require ``PriorityGoals`` per Yandex docs convention (same
+# set as TextCampaign Network — ``MAX_PROFIT`` + the two ``*_MULTIPLE_GOALS``
+# strategies). PriorityGoals are placed on the parent
+# ``UnifiedCampaignAddItem.PriorityGoals`` sibling, NOT inside the
+# Strategy*Add block (WSDL declares the field at campaigns.xml line 2165).
+_UNIFIED_NETWORK_REQUIRES_PRIORITY_GOALS = {
+    "AverageCpaMultipleGoals",
+    "PayForConversionMultipleGoals",
+    "MaxProfit",
+}
+# Minimum number of ``--priority-goals`` entries per multi-goal subtype
+# (mirrors TextCampaign Network — the ``*_MULTIPLE_GOALS`` API requires at
+# least two goals, while ``MAX_PROFIT`` is satisfied by one).
+_UNIFIED_NETWORK_MIN_PRIORITY_GOALS: Dict[str, int] = {
+    "AverageCpaMultipleGoals": 2,
+    "PayForConversionMultipleGoals": 2,
+}
+
+# WSDL ``minOccurs=1`` fields per Strategy*Add subtype on the add path.
+# Maps subtype → {WSDL field name → CLI option string}. Strictly mirrors
+# campaigns.xml (lines 1339-1514). ``StrategyMaximumClicksAdd`` (1339),
+# ``StrategyMaxProfitAdd`` (1489), ``StrategyAverageCpaMultipleGoalsAdd``
+# (1496) and ``StrategyPayForConversionMultipleGoalsAdd`` (1504) are fully
+# optional in the WSDL; no required-flag enforcement.
+_UNIFIED_NETWORK_REQUIRED_TYPED_FLAGS: Dict[str, Dict[str, str]] = {
+    "AverageCpc": {"AverageCpc": "--unified-network-average-cpc"},
+    "AverageCpa": {"AverageCpa": "--average-cpa", "GoalId": "--goal-id"},
+    "PayForConversion": {"Cpa": "--unified-network-cpa", "GoalId": "--goal-id"},
+    "WbMaximumConversionRate": {"GoalId": "--goal-id"},
+    "AverageCrr": {"Crr": "--crr", "GoalId": "--goal-id"},
+    "PayForConversionCrr": {"Crr": "--crr", "GoalId": "--goal-id"},
+}
+# Update mirror — on update we additionally require ``PriorityGoals`` for
+# multi-goal/MaxProfit strategy switches (mirrors TextCampaign Network
+# convention; the API itself rejects a switch into these strategies without
+# goals attached to the campaign).
+_UNIFIED_NETWORK_REQUIRED_TYPED_FLAGS_UPDATE: Dict[str, Dict[str, str]] = {
+    **_UNIFIED_NETWORK_REQUIRED_TYPED_FLAGS,
+    "AverageCpaMultipleGoals": {"PriorityGoals": "--priority-goals"},
+    "PayForConversionMultipleGoals": {"PriorityGoals": "--priority-goals"},
+    "MaxProfit": {"PriorityGoals": "--priority-goals"},
+}
+
+
+def _build_unified_network_custom_period_budget(
+    spend_limit: Optional[int],
+    start_date: Optional[str],
+    end_date: Optional[str],
+    auto_continue: Optional[str],
+) -> Optional[dict]:
+    """Build a CustomPeriodBudget block from the four
+    ``--unified-network-custom-period-*`` flags. All four are required
+    together (WSDL ``CustomPeriodBudget`` minOccurs=1 on each leaf —
+    campaigns.xml 1965-1971)."""
+    values = {
+        "--unified-network-custom-period-spend-limit": spend_limit,
+        "--unified-network-custom-period-start-date": start_date,
+        "--unified-network-custom-period-end-date": end_date,
+        "--unified-network-custom-period-auto-continue": auto_continue,
+    }
+    provided = [flag for flag, value in values.items() if value is not None]
+    if not provided:
+        return None
+    missing = [flag for flag, value in values.items() if value is None]
+    if missing:
+        raise click.UsageError(
+            "UnifiedCampaign Network CustomPeriodBudget requires all four "
+            f"custom-period flags; missing {', '.join(sorted(missing))}"
+        )
+    assert spend_limit is not None
+    assert start_date is not None
+    assert end_date is not None
+    assert auto_continue is not None
+    return {
+        "SpendLimit": spend_limit,
+        "StartDate": start_date,
+        "EndDate": end_date,
+        "AutoContinue": auto_continue.upper(),
+    }
+
+
+def _build_unified_network_exploration_budget(
+    min_budget: Optional[int],
+    is_custom: Optional[str],
+) -> Optional[dict]:
+    """Build an ExplorationBudget block. Both fields are WSDL
+    ``minOccurs=1`` (campaigns.xml 1973-1977); the typed flag
+    ``IsMinimumExplorationBudgetCustom`` accepts any value from
+    ``general:YesNoEnum`` (``YES``/``NO``)."""
+    values = {
+        "--unified-network-exploration-min-budget": min_budget,
+        "--unified-network-exploration-is-custom": is_custom,
+    }
+    provided = [flag for flag, value in values.items() if value is not None]
+    if not provided:
+        return None
+    missing = [flag for flag, value in values.items() if value is None]
+    if missing:
+        raise click.UsageError(
+            "UnifiedCampaign Network ExplorationBudget requires both "
+            f"ExplorationBudget flags; missing {', '.join(sorted(missing))}"
+        )
+    assert min_budget is not None
+    assert is_custom is not None
+    return {
+        "MinimumExplorationBudget": min_budget,
+        "IsMinimumExplorationBudgetCustom": is_custom.upper(),
+    }
+
+
+def build_unified_campaign_network_strategy(
+    *,
+    network_strategy: Optional[str],
+    goal_id: Optional[int],
+    average_cpa: Optional[int],
+    crr: Optional[int],
+    bid_ceiling: Optional[int],
+    weekly_spend_limit: Optional[int],
+    custom_period_spend_limit: Optional[int],
+    custom_period_start_date: Optional[str],
+    custom_period_end_date: Optional[str],
+    custom_period_auto_continue: Optional[str],
+    budget_type: Optional[str],
+    average_cpc: Optional[int],
+    cpa: Optional[int],
+    exploration_min_budget: Optional[int],
+    exploration_is_custom: Optional[str],
+    priority_goals_items: Optional[List[dict]],
+    sub_campaign_block: dict,
+    include_default: bool,
+    is_update: bool,
+) -> Optional[dict]:
+    """Build the full ``UnifiedCampaign.BiddingStrategy.Network`` payload.
+
+    Covers all 10 settable subtype-bearing
+    ``UnifiedCampaignNetworkStrategyTypeEnum`` values that map to a nested
+    ``Strategy*Add`` subtype on ``UnifiedCampaignStrategyAddBase``
+    (campaigns WSDL line 1631-1654), plus the two no-subtype values
+    ``NETWORK_DEFAULT`` / ``SERVING_OFF`` (BiddingStrategyType only — the
+    WSDL provides no nested element for them on the Unified.Network
+    branch). ``MAXIMUM_COVERAGE`` is intentionally NOT supported because
+    the WSDL enum (campaigns.xml 299-315) does not list it for Unified.
+
+    PriorityGoals scope is validated but NOT written: Unified.PriorityGoals
+    placement is tracked in #373/T4. The caller at ``campaigns.add()``
+    already raises a UsageError for any UnifiedCampaign + ``--priority-goals``
+    combo (gate predating #366), so reaching this builder with non-None
+    ``priority_goals_items`` is only possible on update through the
+    dedicated ``PriorityGoalsUpdateSetting`` shape (which lives outside
+    this builder). Issue #366.
+    """
+    typed_detail_values = {
+        "--unified-network-weekly-spend-limit": weekly_spend_limit,
+        "--unified-network-custom-period-spend-limit": custom_period_spend_limit,
+        "--unified-network-custom-period-start-date": custom_period_start_date,
+        "--unified-network-custom-period-end-date": custom_period_end_date,
+        "--unified-network-custom-period-auto-continue": custom_period_auto_continue,
+        "--unified-network-budget-type": budget_type,
+        "--unified-network-average-cpc": average_cpc,
+        "--unified-network-cpa": cpa,
+        "--unified-network-exploration-min-budget": exploration_min_budget,
+        "--unified-network-exploration-is-custom": exploration_is_custom,
+        "--bid-ceiling": bid_ceiling,
+        "--average-cpa": average_cpa,
+        "--crr": crr,
+        "--goal-id": goal_id,
+    }
+    has_detail_flags = any(value is not None for value in typed_detail_values.values())
+
+    if not include_default and network_strategy is None:
+        if has_detail_flags:
+            raise click.UsageError(
+                "UnifiedCampaign network strategy detail flags require "
+                "--network-strategy"
+            )
+        return None
+    if has_detail_flags and network_strategy is None:
+        raise click.UsageError(
+            "UnifiedCampaign network strategy detail flags require "
+            "--network-strategy"
+        )
+
+    normalized_strategy = (network_strategy or "SERVING_OFF").upper()
+    if normalized_strategy not in UNIFIED_CAMPAIGN_NETWORK_STRATEGIES:
+        raise click.UsageError(
+            "--network-strategy for UNIFIED_CAMPAIGN must be one of "
+            f"{', '.join(UNIFIED_CAMPAIGN_NETWORK_STRATEGIES)}"
+        )
+
+    subtype = UNIFIED_CAMPAIGN_NETWORK_STRATEGY_TO_WSDL_SUBTYPE.get(normalized_strategy)
+    network: dict = {"BiddingStrategyType": normalized_strategy}
+
+    # NETWORK_DEFAULT / SERVING_OFF carry no subtype block (WSDL
+    # UnifiedCampaignStrategyAddBase does not declare a NetworkDefault
+    # element on Unified). Reject any detail flag for those.
+    if subtype is None:
+        provided = [
+            flag for flag, value in typed_detail_values.items() if value is not None
+        ]
+        if provided:
+            legacy_cpa_flags = {
+                "--average-cpa",
+                "--goal-id",
+                "--crr",
+                "--bid-ceiling",
+            }
+            legacy_provided = [flag for flag in provided if flag in legacy_cpa_flags]
+            if legacy_provided and not any(
+                flag for flag in provided if flag not in legacy_cpa_flags
+            ):
+                raise click.UsageError(
+                    f"{', '.join(sorted(legacy_provided))} are only "
+                    "valid with a CPA-shaped --network-strategy "
+                    "(e.g. AVERAGE_CPA, PAY_FOR_CONVERSION_CRR, "
+                    "AVERAGE_CPA_MULTIPLE_GOALS); "
+                    f"got --network-strategy={network_strategy!r}"
+                )
+            raise click.UsageError(
+                f"{normalized_strategy} does not accept UnifiedCampaign network "
+                f"strategy detail flags: {', '.join(sorted(provided))}"
+            )
+        if priority_goals_items is not None and not is_update:
+            raise click.UsageError(
+                f"{normalized_strategy} does not accept --priority-goals"
+            )
+        return network
+
+    # Per-subtype "supported field" enforcement (silent data loss invariant
+    # #2 in test_wsdl_parity_gate).
+    field_support = {
+        "--unified-network-weekly-spend-limit": (
+            weekly_spend_limit,
+            _UNIFIED_NETWORK_WEEKLY_SPEND_LIMIT_SUBTYPES,
+        ),
+        "--unified-network-budget-type": (
+            budget_type,
+            _UNIFIED_NETWORK_BUDGET_TYPE_SUBTYPES,
+        ),
+        "--unified-network-average-cpc": (
+            average_cpc,
+            _UNIFIED_NETWORK_AVERAGE_CPC_SUBTYPES,
+        ),
+        "--unified-network-cpa": (
+            cpa,
+            _UNIFIED_NETWORK_CPA_SUBTYPES,
+        ),
+        "--bid-ceiling": (bid_ceiling, _UNIFIED_NETWORK_BID_CEILING_SUBTYPES),
+        "--average-cpa": (average_cpa, _UNIFIED_NETWORK_AVERAGE_CPA_SUBTYPES),
+        "--crr": (crr, _UNIFIED_NETWORK_CRR_SUBTYPES),
+        "--goal-id": (goal_id, _UNIFIED_NETWORK_GOAL_ID_SUBTYPES),
+    }
+    for flag, (value, supported) in field_support.items():
+        if value is not None and subtype not in supported:
+            raise click.UsageError(
+                f"{flag} is not valid for UnifiedCampaign Network strategy "
+                f"{normalized_strategy} (subtype Strategy{subtype}Add); "
+                f"WSDL field is declared only on {sorted(supported)}"
+            )
+
+    # CustomPeriodBudget and ExplorationBudget are all-or-none; build them
+    # first and then validate subtype compatibility.
+    custom_period = _build_unified_network_custom_period_budget(
+        custom_period_spend_limit,
+        custom_period_start_date,
+        custom_period_end_date,
+        custom_period_auto_continue,
+    )
+    if (
+        custom_period is not None
+        and subtype not in _UNIFIED_NETWORK_CUSTOM_PERIOD_SUBTYPES
+    ):
+        raise click.UsageError(
+            f"UnifiedCampaign Network CustomPeriodBudget is not valid for "
+            f"{normalized_strategy}"
+        )
+    exploration_budget = _build_unified_network_exploration_budget(
+        exploration_min_budget,
+        exploration_is_custom,
+    )
+    if (
+        exploration_budget is not None
+        and subtype not in _UNIFIED_NETWORK_EXPLORATION_BUDGET_SUBTYPES
+    ):
+        raise click.UsageError(
+            f"UnifiedCampaign Network ExplorationBudget is not valid for "
+            f"{normalized_strategy}"
+        )
+
+    # WeeklySpendLimit + CustomPeriodBudget conflict per shared
+    # convention (mirrors TextCampaign / DynamicTextCampaign / SmartCampaign).
+    if weekly_spend_limit is not None and custom_period is not None:
+        raise click.UsageError(
+            "--unified-network-weekly-spend-limit cannot be combined with "
+            "--unified-network-custom-period-spend-limit"
+        )
+
+    # BudgetType is update-only (lives only on get-side Strategy*
+    # — see _UNIFIED_NETWORK_BUDGET_TYPE_SUBTYPES comment above).
+    if budget_type is not None:
+        if not is_update:
+            raise click.UsageError("--unified-network-budget-type is update-only")
+        normalized_budget_type = budget_type.upper()
+        if normalized_budget_type not in BUDGET_TYPES:
+            raise click.UsageError(
+                "--unified-network-budget-type must be one of "
+                f"{', '.join(BUDGET_TYPES)}"
+            )
+        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET" and custom_period is None:
+            raise click.UsageError(
+                "--unified-network-budget-type CUSTOM_PERIOD_BUDGET requires the "
+                "full CustomPeriodBudget flag set"
+            )
+        if normalized_budget_type == "WEEKLY_BUDGET" and weekly_spend_limit is None:
+            raise click.UsageError(
+                "--unified-network-budget-type WEEKLY_BUDGET requires "
+                "--unified-network-weekly-spend-limit"
+            )
+
+    # PriorityGoals scope check. On add we place items onto the parent
+    # ``UnifiedCampaignAddItem.PriorityGoals`` (WSDL campaigns.xml 2165) —
+    # the same pattern as TextCampaign Network. On update PriorityGoals
+    # flows through ``UnifiedCampaignUpdateItem.PriorityGoals`` (WSDL
+    # campaigns.xml within UnifiedCampaignUpdateItem); the outer caller
+    # writes it via ``sub_block["PriorityGoals"]`` so this builder only
+    # validates the strategy/subtype combination and the minimum-goals
+    # count.
+    if priority_goals_items is not None:
+        if subtype not in _UNIFIED_NETWORK_REQUIRES_PRIORITY_GOALS:
+            raise click.UsageError(
+                "--priority-goals is only valid with "
+                "AVERAGE_CPA_MULTIPLE_GOALS / "
+                "PAY_FOR_CONVERSION_MULTIPLE_GOALS / MAX_PROFIT strategies; "
+                f"got --network-strategy={network_strategy!r}"
+            )
+        min_required = _UNIFIED_NETWORK_MIN_PRIORITY_GOALS.get(subtype)
+        if min_required is not None and len(priority_goals_items) < min_required:
+            raise click.UsageError(
+                f"--priority-goals requires at least {min_required} entries "
+                f"for {network_strategy} per Yandex Direct API docs"
+            )
+        if not is_update:
+            sub_campaign_block["PriorityGoals"] = {"Items": priority_goals_items}
+
+    weekly_or_custom_period = (
+        weekly_spend_limit
+        if weekly_spend_limit is not None
+        else (1 if custom_period is not None else None)
+    )
+    provided_lookup = {
+        "AverageCpc": average_cpc,
+        "AverageCpa": average_cpa,
+        "Cpa": cpa,
+        "GoalId": goal_id,
+        "Crr": crr,
+        "PriorityGoals": priority_goals_items,
+        "WeeklySpendLimit": weekly_or_custom_period,
+    }
+    if not is_update:
+        required = _UNIFIED_NETWORK_REQUIRED_TYPED_FLAGS.get(subtype, {})
+        missing = [
+            flag
+            for wsdl_field, flag in required.items()
+            if provided_lookup.get(wsdl_field) is None
+        ]
+        if missing:
+            raise click.UsageError(
+                f"Network strategy {subtype} requires "
+                f"{', '.join(sorted(missing))} "
+                f"(per Yandex Direct API docs)"
+            )
+    else:
+        if network_strategy is not None:
+            required = _UNIFIED_NETWORK_REQUIRED_TYPED_FLAGS_UPDATE.get(subtype, {})
+            missing = [
+                flag
+                for wsdl_field, flag in required.items()
+                if provided_lookup.get(wsdl_field) is None
+            ]
+            if missing:
+                raise click.UsageError(
+                    f"Network strategy {subtype} requires "
+                    f"{', '.join(sorted(missing))} when switching "
+                    "--network-strategy on update (per Yandex Direct "
+                    "API docs)"
+                )
+
+    # Build the WSDL Strategy*Add block. Element order follows WSDL
+    # sequence order for readability (mirrors TextCampaign Network).
+    block: dict = {}
+    if subtype == "AverageCpc":
+        if average_cpc is not None:
+            block["AverageCpc"] = average_cpc
+    elif subtype == "AverageCpa":
+        if average_cpa is not None:
+            block["AverageCpa"] = average_cpa
+        if goal_id is not None:
+            block["GoalId"] = goal_id
+    elif subtype == "PayForConversion":
+        if cpa is not None:
+            block["Cpa"] = cpa
+        if goal_id is not None:
+            block["GoalId"] = goal_id
+    elif subtype == "WbMaximumConversionRate":
+        if goal_id is not None:
+            block["GoalId"] = goal_id
+    elif subtype in {"AverageCrr", "PayForConversionCrr"}:
+        if crr is not None:
+            block["Crr"] = crr
+        if goal_id is not None:
+            block["GoalId"] = goal_id
+    # WbMaximumClicks / MaxProfit / *MultipleGoals only carry the shared
+    # WeeklySpendLimit/BidCeiling/CustomPeriodBudget/ExplorationBudget
+    # tail handled next.
+
+    if weekly_spend_limit is not None:
+        block["WeeklySpendLimit"] = weekly_spend_limit
+    if custom_period is not None:
+        block["CustomPeriodBudget"] = custom_period
+    if bid_ceiling is not None:
+        block["BidCeiling"] = bid_ceiling
+    if exploration_budget is not None:
+        block["ExplorationBudget"] = exploration_budget
+    if budget_type is not None:
+        normalized_budget_type = budget_type.upper()
+        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET":
+            block["WeeklySpendLimit"] = None
+        elif normalized_budget_type == "WEEKLY_BUDGET":
+            block["CustomPeriodBudget"] = None
+        block["BudgetType"] = normalized_budget_type
+
+    # ``*_MULTIPLE_GOALS`` subtypes must emit the container even with no
+    # numeric fields — PriorityGoals lives on the parent block (#373) and
+    # the subtype block is the only signal the API uses to discriminate
+    # the strategy on add (mirrors TextCampaign Network).
+    if block or subtype in _UNIFIED_NETWORK_REQUIRES_PRIORITY_GOALS:
+        network[subtype] = block
+
+    return network
+
+
+register_bidding_strategy_builder(
+    "UNIFIED_CAMPAIGN", "add", "network", build_unified_campaign_network_strategy
+)
+register_bidding_strategy_builder(
+    "UNIFIED_CAMPAIGN", "update", "network", build_unified_campaign_network_strategy
+)
+
+
+# ---------------------------------------------------------------------------
 # UnifiedCampaign.BiddingStrategy.Search (issue #363)
 # ---------------------------------------------------------------------------
 # WSDL reference: ``tests/wsdl_cache/campaigns.xml``:

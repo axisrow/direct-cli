@@ -19292,6 +19292,1271 @@ def test_campaigns_update_dynamic_text_search_average_cpa_with_exploration_paylo
     }
 
 
+# ---------------------------------------------------------------------------
+# #366: UnifiedCampaign.BiddingStrategy.Network typed-flag dry-run coverage.
+# WSDL reference: ``UnifiedCampaignNetworkStrategyAdd`` (campaigns.xml
+# 1655-1664) + ``UnifiedCampaignStrategyAddBase`` (1631-1654) + per-subtype
+# ``Strategy*Add`` complex types (1339-1514).
+#
+# Differences vs TextCampaign / SmartCampaign / DynamicText Network:
+#   * No AverageRoi, WeeklyClickPackage, NetworkDefault subtype blocks on
+#     UnifiedCampaignStrategyAddBase (the enum permits NETWORK_DEFAULT but
+#     the WSDL provides no nested element, so it is a bare-marker only).
+#   * Strategy*Add complex types are SHARED with the other campaign types,
+#     so the on-the-wire subtype payload mirrors TextCampaign behaviour
+#     exactly for the 10 families present on Unified.
+# ---------------------------------------------------------------------------
+def _unified_network_add_base():
+    return [
+        "campaigns",
+        "add",
+        "--name",
+        "Unified Network",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "UNIFIED_CAMPAIGN",
+    ]
+
+
+def _unified_network_update_base(campaign_id="9001"):
+    return [
+        "campaigns",
+        "update",
+        "--id",
+        campaign_id,
+        "--type",
+        "UNIFIED_CAMPAIGN",
+    ]
+
+
+def test_campaigns_add_unified_network_serving_off_default_payload():
+    """#366: implicit default (no Network flags) emits SERVING_OFF only —
+    matches the pre-#366 baseline so existing payloads keep working."""
+    body = _dry_run(*_unified_network_add_base())
+    network = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {"BiddingStrategyType": "SERVING_OFF"}
+
+
+def test_campaigns_add_unified_network_serving_off_explicit_payload():
+    body = _dry_run(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "SERVING_OFF",
+    )
+    network = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {"BiddingStrategyType": "SERVING_OFF"}
+
+
+def test_campaigns_add_unified_network_rejects_maximum_coverage():
+    """#366: ``MAXIMUM_COVERAGE`` is NOT a member of
+    ``UnifiedCampaignNetworkStrategyTypeEnum`` (campaigns.xml 299-315).
+    The CLI must reject it rather than emit an API-invalid payload."""
+    result = _rejected(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "MAXIMUM_COVERAGE",
+    )
+    assert "UNIFIED_CAMPAIGN" in result.output
+
+
+def test_campaigns_add_unified_network_network_default_payload():
+    """#366: NETWORK_DEFAULT is enum-allowed but
+    ``UnifiedCampaignStrategyAddBase`` declares no nested element for it
+    (campaigns.xml 1631-1654) — emit BiddingStrategyType only."""
+    body = _dry_run(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "NETWORK_DEFAULT",
+    )
+    network = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {"BiddingStrategyType": "NETWORK_DEFAULT"}
+
+
+def test_campaigns_add_unified_network_wb_maximum_clicks_bare_payload():
+    """#366: WSDL ``StrategyMaximumClicksAdd`` (campaigns.xml 1339-1347)
+    has all fields ``minOccurs=0``; a bare WB_MAXIMUM_CLICKS add with
+    only the strategy name must succeed."""
+    body = _dry_run(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "WB_MAXIMUM_CLICKS",
+    )
+    network = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {"BiddingStrategyType": "WB_MAXIMUM_CLICKS"}
+
+
+def test_campaigns_add_unified_network_wb_maximum_clicks_weekly_payload():
+    body = _dry_run(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "WB_MAXIMUM_CLICKS",
+        "--unified-network-weekly-spend-limit",
+        "1000",
+        "--bid-ceiling",
+        "100000000",
+    )
+    network = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "WB_MAXIMUM_CLICKS",
+        "WbMaximumClicks": {
+            "WeeklySpendLimit": 1000000000,
+            "BidCeiling": 100000000,
+        },
+    }
+
+
+def test_campaigns_add_unified_network_wb_maximum_clicks_custom_period_payload():
+    body = _dry_run(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "WB_MAXIMUM_CLICKS",
+        "--unified-network-custom-period-spend-limit",
+        "5000",
+        "--unified-network-custom-period-start-date",
+        "2026-06-01",
+        "--unified-network-custom-period-end-date",
+        "2026-06-30",
+        "--unified-network-custom-period-auto-continue",
+        "NO",
+    )
+    network = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "WB_MAXIMUM_CLICKS",
+        "WbMaximumClicks": {
+            "CustomPeriodBudget": {
+                "SpendLimit": 5000000000,
+                "StartDate": "2026-06-01",
+                "EndDate": "2026-06-30",
+                "AutoContinue": "NO",
+            }
+        },
+    }
+
+
+def test_campaigns_add_unified_network_wb_maximum_conversion_rate_payload():
+    """#366: WSDL ``StrategyMaximumConversionRateAdd`` (campaigns.xml
+    1348-1357) requires GoalId (minOccurs=1)."""
+    body = _dry_run(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "WB_MAXIMUM_CONVERSION_RATE",
+        "--goal-id",
+        "77",
+        "--unified-network-weekly-spend-limit",
+        "2000",
+        "--bid-ceiling",
+        "50000000",
+    )
+    network = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "WB_MAXIMUM_CONVERSION_RATE",
+        "WbMaximumConversionRate": {
+            "GoalId": 77,
+            "WeeklySpendLimit": 2000000000,
+            "BidCeiling": 50000000,
+        },
+    }
+
+
+def test_campaigns_add_unified_network_average_cpc_payload():
+    body = _dry_run(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "AVERAGE_CPC",
+        "--unified-network-average-cpc",
+        "7",
+        "--unified-network-weekly-spend-limit",
+        "500",
+    )
+    network = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "AVERAGE_CPC",
+        "AverageCpc": {
+            "AverageCpc": 7000000,
+            "WeeklySpendLimit": 500000000,
+        },
+    }
+
+
+def test_campaigns_add_unified_network_average_cpa_payload():
+    body = _dry_run(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "AVERAGE_CPA",
+        "--average-cpa",
+        "150000000",
+        "--goal-id",
+        "12",
+        "--bid-ceiling",
+        "20000000",
+        "--unified-network-exploration-min-budget",
+        "300",
+        "--unified-network-exploration-is-custom",
+        "YES",
+    )
+    network = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "AVERAGE_CPA",
+        "AverageCpa": {
+            "AverageCpa": 150000000,
+            "GoalId": 12,
+            "BidCeiling": 20000000,
+            "ExplorationBudget": {
+                "MinimumExplorationBudget": 300000000,
+                "IsMinimumExplorationBudgetCustom": "YES",
+            },
+        },
+    }
+
+
+def test_campaigns_add_unified_network_pay_for_conversion_payload():
+    body = _dry_run(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "PAY_FOR_CONVERSION",
+        "--unified-network-cpa",
+        "300",
+        "--goal-id",
+        "55",
+        "--unified-network-weekly-spend-limit",
+        "2500",
+    )
+    network = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "PAY_FOR_CONVERSION",
+        "PayForConversion": {
+            "Cpa": 300000000,
+            "GoalId": 55,
+            "WeeklySpendLimit": 2500000000,
+        },
+    }
+
+
+def test_campaigns_add_unified_network_average_crr_payload():
+    body = _dry_run(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "AVERAGE_CRR",
+        "--crr",
+        "30",
+        "--goal-id",
+        "61",
+        "--unified-network-weekly-spend-limit",
+        "800",
+    )
+    network = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "AVERAGE_CRR",
+        "AverageCrr": {
+            "Crr": 30,
+            "GoalId": 61,
+            "WeeklySpendLimit": 800000000,
+        },
+    }
+
+
+def test_campaigns_add_unified_network_pay_for_conversion_crr_payload():
+    body = _dry_run(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "PAY_FOR_CONVERSION_CRR",
+        "--crr",
+        "25",
+        "--goal-id",
+        "44",
+    )
+    network = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "PAY_FOR_CONVERSION_CRR",
+        "PayForConversionCrr": {
+            "Crr": 25,
+            "GoalId": 44,
+        },
+    }
+
+
+def test_campaigns_add_unified_network_max_profit_payload():
+    """#366: WSDL ``StrategyMaxProfitAdd`` (campaigns.xml 1489-1495) is
+    fully optional. On UnifiedCampaign add, --priority-goals is gated
+    elsewhere (#290/#373), so MAX_PROFIT add emits an empty subtype block
+    — the API uses the presence of the MaxProfit child as the
+    discriminator (mirrors TextCampaign behaviour)."""
+    body = _dry_run(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "MAX_PROFIT",
+    )
+    network = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "MAX_PROFIT",
+        "MaxProfit": {},
+    }
+
+
+def test_campaigns_add_unified_network_average_cpa_multiple_goals_payload():
+    """#366: WSDL ``StrategyAverageCpaMultipleGoalsAdd`` (campaigns.xml
+    1496-1503) allows BidCeiling/WeeklySpendLimit. PriorityGoals is gated
+    outside the builder on Unified add (#290/#373)."""
+    body = _dry_run(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "AVERAGE_CPA_MULTIPLE_GOALS",
+        "--bid-ceiling",
+        "200000000",
+    )
+    network = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "AVERAGE_CPA_MULTIPLE_GOALS",
+        "AverageCpaMultipleGoals": {"BidCeiling": 200000000},
+    }
+
+
+def test_campaigns_add_unified_network_pay_for_conversion_multiple_goals_payload():
+    body = _dry_run(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
+        "--unified-network-weekly-spend-limit",
+        "400",
+    )
+    network = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
+        "PayForConversionMultipleGoals": {"WeeklySpendLimit": 400000000},
+    }
+
+
+# ----------------------------------------------------------------------
+# Negative / reject tests for UnifiedCampaign Network add path.
+# ----------------------------------------------------------------------
+
+
+def test_campaigns_add_unified_network_rejects_detail_without_strategy():
+    """Typed --unified-network-* flag without --network-strategy must
+    fail rather than silently picking a default subtype."""
+    result = _rejected(
+        *_unified_network_add_base(),
+        "--unified-network-average-cpc",
+        "5",
+    )
+    assert "UnifiedCampaign network strategy detail flags require" in result.output
+
+
+def test_campaigns_add_unified_network_rejects_serving_off_with_details():
+    result = _rejected(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "SERVING_OFF",
+        "--unified-network-average-cpc",
+        "5",
+    )
+    assert "SERVING_OFF does not accept" in result.output
+
+
+def test_campaigns_add_unified_network_rejects_maximum_coverage_even_with_details():
+    """#366: MAXIMUM_COVERAGE is enum-invalid on Unified; even with detail
+    flags the strategy validator rejects it first."""
+    result = _rejected(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "MAXIMUM_COVERAGE",
+        "--unified-network-weekly-spend-limit",
+        "1000",
+    )
+    assert "UNIFIED_CAMPAIGN" in result.output
+
+
+def test_campaigns_add_unified_network_rejects_network_default_with_details():
+    """#366: NETWORK_DEFAULT on Unified is a bare-marker (WSDL declares
+    no nested NetworkDefault element on UnifiedCampaignStrategyAddBase)."""
+    result = _rejected(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "NETWORK_DEFAULT",
+        "--unified-network-weekly-spend-limit",
+        "1000",
+    )
+    assert "NETWORK_DEFAULT does not accept" in result.output
+
+
+def test_campaigns_add_unified_network_rejects_invalid_strategy():
+    result = _rejected(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "AVERAGE_ROI",  # not declared on UnifiedCampaignStrategyAddBase
+    )
+    assert "UNIFIED_CAMPAIGN" in result.output
+
+
+def test_campaigns_add_unified_network_rejects_required_average_cpc():
+    """#366: WSDL ``StrategyAverageCpcAdd.AverageCpc`` minOccurs=1
+    (campaigns.xml 1421-1428)."""
+    result = _rejected(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "AVERAGE_CPC",
+    )
+    assert "AverageCpc requires" in result.output
+    assert "--unified-network-average-cpc" in result.output
+
+
+def test_campaigns_add_unified_network_rejects_required_average_cpa_and_goal():
+    """#366: WSDL ``StrategyAverageCpaAdd.AverageCpa`` + ``GoalId``
+    are both minOccurs=1 (campaigns.xml 1430-1444)."""
+    result = _rejected(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "AVERAGE_CPA",
+    )
+    assert "AverageCpa requires" in result.output
+    assert "--average-cpa" in result.output
+    assert "--goal-id" in result.output
+
+
+def test_campaigns_add_unified_network_rejects_required_pay_for_conversion():
+    result = _rejected(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "PAY_FOR_CONVERSION",
+    )
+    assert "PayForConversion requires" in result.output
+    assert "--unified-network-cpa" in result.output
+    assert "--goal-id" in result.output
+
+
+def test_campaigns_add_unified_network_rejects_required_wb_maximum_conversion_rate_goal():
+    result = _rejected(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "WB_MAXIMUM_CONVERSION_RATE",
+    )
+    assert "WbMaximumConversionRate requires" in result.output
+    assert "--goal-id" in result.output
+
+
+def test_campaigns_add_unified_network_rejects_required_average_crr():
+    result = _rejected(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "AVERAGE_CRR",
+    )
+    assert "AverageCrr requires" in result.output
+    assert "--crr" in result.output
+    assert "--goal-id" in result.output
+
+
+def test_campaigns_add_unified_network_rejects_required_pay_for_conversion_crr():
+    result = _rejected(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "PAY_FOR_CONVERSION_CRR",
+    )
+    assert "PayForConversionCrr requires" in result.output
+
+
+def test_campaigns_add_unified_network_rejects_wrong_subtype_flag():
+    """#366: --unified-network-cpa belongs only to PayForConversion;
+    using it with AVERAGE_CPA must raise."""
+    result = _rejected(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "AVERAGE_CPA",
+        "--average-cpa",
+        "100000000",
+        "--goal-id",
+        "1",
+        "--unified-network-cpa",
+        "5",
+    )
+    assert "--unified-network-cpa is not valid" in result.output
+
+
+def test_campaigns_add_unified_network_rejects_bid_ceiling_on_crr():
+    """#366: WSDL StrategyAverageCrrAdd has no BidCeiling field."""
+    result = _rejected(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "AVERAGE_CRR",
+        "--crr",
+        "15",
+        "--goal-id",
+        "777",
+        "--bid-ceiling",
+        "10000000",
+    )
+    assert "--bid-ceiling is not valid" in result.output
+
+
+def test_campaigns_add_unified_network_rejects_exploration_on_average_cpc():
+    """#366: WSDL StrategyAverageCpcAdd has no ExplorationBudget."""
+    result = _rejected(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "AVERAGE_CPC",
+        "--unified-network-average-cpc",
+        "5",
+        "--unified-network-exploration-min-budget",
+        "1",
+        "--unified-network-exploration-is-custom",
+        "YES",
+    )
+    assert "ExplorationBudget is not valid" in result.output
+
+
+def test_campaigns_add_unified_network_rejects_partial_custom_period_budget():
+    result = _rejected(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "WB_MAXIMUM_CLICKS",
+        "--unified-network-custom-period-spend-limit",
+        "1000",
+    )
+    assert (
+        "UnifiedCampaign Network CustomPeriodBudget requires all four" in result.output
+    )
+
+
+def test_campaigns_add_unified_network_rejects_partial_exploration_budget():
+    result = _rejected(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "AVERAGE_CPA",
+        "--average-cpa",
+        "100000000",
+        "--goal-id",
+        "1",
+        "--unified-network-exploration-min-budget",
+        "100",
+    )
+    assert "UnifiedCampaign Network ExplorationBudget requires both" in result.output
+
+
+def test_campaigns_add_unified_network_rejects_weekly_combined_with_custom_period():
+    result = _rejected(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "AVERAGE_CPC",
+        "--unified-network-average-cpc",
+        "5",
+        "--unified-network-weekly-spend-limit",
+        "100",
+        "--unified-network-custom-period-spend-limit",
+        "200",
+        "--unified-network-custom-period-start-date",
+        "2026-06-01",
+        "--unified-network-custom-period-end-date",
+        "2026-06-30",
+        "--unified-network-custom-period-auto-continue",
+        "NO",
+    )
+    assert "--unified-network-weekly-spend-limit cannot be combined" in result.output
+
+
+def test_campaigns_add_unified_network_rejects_budget_type_on_add():
+    """#366: --unified-network-budget-type is update-only (only the
+    get-side Strategy* types used by UnifiedCampaignUpdateItem declare
+    ``BudgetType``). On add the Click parser must reject the option."""
+    result = CliRunner().invoke(
+        cli,
+        [
+            *_unified_network_add_base(),
+            "--network-strategy",
+            "AVERAGE_CPC",
+            "--unified-network-average-cpc",
+            "5",
+            "--unified-network-budget-type",
+            "WEEKLY_BUDGET",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert (
+        "no such option" in result.output.lower()
+        or "--unified-network-budget-type" in result.output
+    )
+
+
+def test_campaigns_add_unified_network_rejects_package_with_typed_flag():
+    """#366: --package-strategy-id (UnifiedCampaign PackageBiddingStrategy)
+    must conflict with the typed Network flags on add — mirrors the
+    existing CounterIds/PriorityGoals collision behaviour."""
+    result = _rejected(
+        *_unified_network_add_base(),
+        "--package-strategy-id",
+        "700",
+        "--package-platform-search-result",
+        "YES",
+        "--package-platform-product-gallery",
+        "YES",
+        "--package-platform-maps",
+        "NO",
+        "--package-platform-search-organization-list",
+        "NO",
+        "--package-platform-network",
+        "YES",
+        "--package-platform-dynamic-places",
+        "NO",
+        "--network-strategy",
+        "AVERAGE_CPC",
+        "--unified-network-average-cpc",
+        "5",
+    )
+    assert "UnifiedCampaign.PackageBiddingStrategy cannot be combined" in result.output
+
+
+def test_campaigns_add_unified_network_rejects_typed_flag_for_text_type():
+    """#366: --unified-network-* must reject for other --type values
+    (silent-data-loss invariant)."""
+    result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "Wrong type",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "TEXT_CAMPAIGN",
+        "--search-strategy",
+        "HIGHEST_POSITION",
+        "--network-strategy",
+        "SERVING_OFF",
+        "--unified-network-average-cpc",
+        "5",
+    )
+    assert "--unified-network-average-cpc" in result.output
+
+
+# ----------------------------------------------------------------------
+# campaigns update: UnifiedCampaign.BiddingStrategy.Network families.
+# ----------------------------------------------------------------------
+
+
+def test_campaigns_update_unified_network_serving_off_payload():
+    """#366: partial update with only --network-strategy SERVING_OFF still
+    emits a Network block (no silent no-op)."""
+    body = _dry_run(
+        *_unified_network_update_base("9000"),
+        "--network-strategy",
+        "SERVING_OFF",
+    )
+    campaign = body["params"]["Campaigns"][0]
+    assert campaign == {
+        "Id": 9000,
+        "UnifiedCampaign": {
+            "BiddingStrategy": {
+                "Network": {"BiddingStrategyType": "SERVING_OFF"},
+            }
+        },
+    }
+
+
+def test_campaigns_update_unified_network_rejects_maximum_coverage():
+    """#366: MAXIMUM_COVERAGE rejected on update too (not in
+    UnifiedCampaignNetworkStrategyTypeEnum)."""
+    result = _rejected(
+        *_unified_network_update_base("9001"),
+        "--network-strategy",
+        "MAXIMUM_COVERAGE",
+    )
+    assert "UNIFIED_CAMPAIGN" in result.output
+
+
+def test_campaigns_update_unified_network_network_default_payload():
+    body = _dry_run(
+        *_unified_network_update_base("9002"),
+        "--network-strategy",
+        "NETWORK_DEFAULT",
+    )
+    network = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {"BiddingStrategyType": "NETWORK_DEFAULT"}
+
+
+def test_campaigns_update_unified_network_wb_maximum_clicks_payload():
+    body = _dry_run(
+        *_unified_network_update_base("9003"),
+        "--network-strategy",
+        "WB_MAXIMUM_CLICKS",
+        "--unified-network-weekly-spend-limit",
+        "500",
+    )
+    network = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "WB_MAXIMUM_CLICKS",
+        "WbMaximumClicks": {"WeeklySpendLimit": 500000000},
+    }
+
+
+def test_campaigns_update_unified_network_wb_maximum_conversion_rate_payload():
+    body = _dry_run(
+        *_unified_network_update_base("9004"),
+        "--network-strategy",
+        "WB_MAXIMUM_CONVERSION_RATE",
+        "--goal-id",
+        "33",
+    )
+    network = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "WB_MAXIMUM_CONVERSION_RATE",
+        "WbMaximumConversionRate": {"GoalId": 33},
+    }
+
+
+def test_campaigns_update_unified_network_average_cpc_payload():
+    body = _dry_run(
+        *_unified_network_update_base("9005"),
+        "--network-strategy",
+        "AVERAGE_CPC",
+        "--unified-network-average-cpc",
+        "8",
+        "--unified-network-weekly-spend-limit",
+        "1500",
+    )
+    network = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "AVERAGE_CPC",
+        "AverageCpc": {
+            "AverageCpc": 8000000,
+            "WeeklySpendLimit": 1500000000,
+        },
+    }
+
+
+def test_campaigns_update_unified_network_average_cpa_payload():
+    body = _dry_run(
+        *_unified_network_update_base("9006"),
+        "--network-strategy",
+        "AVERAGE_CPA",
+        "--average-cpa",
+        "120000000",
+        "--goal-id",
+        "21",
+    )
+    network = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "AVERAGE_CPA",
+        "AverageCpa": {
+            "AverageCpa": 120000000,
+            "GoalId": 21,
+        },
+    }
+
+
+def test_campaigns_update_unified_network_pay_for_conversion_payload():
+    body = _dry_run(
+        *_unified_network_update_base("9007"),
+        "--network-strategy",
+        "PAY_FOR_CONVERSION",
+        "--unified-network-cpa",
+        "9",
+        "--goal-id",
+        "12",
+    )
+    network = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "PAY_FOR_CONVERSION",
+        "PayForConversion": {"Cpa": 9000000, "GoalId": 12},
+    }
+
+
+def test_campaigns_update_unified_network_average_crr_payload():
+    body = _dry_run(
+        *_unified_network_update_base("9008"),
+        "--network-strategy",
+        "AVERAGE_CRR",
+        "--crr",
+        "25",
+        "--goal-id",
+        "10",
+    )
+    network = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "AVERAGE_CRR",
+        "AverageCrr": {"Crr": 25, "GoalId": 10},
+    }
+
+
+def test_campaigns_update_unified_network_pay_for_conversion_crr_payload():
+    body = _dry_run(
+        *_unified_network_update_base("9009"),
+        "--network-strategy",
+        "PAY_FOR_CONVERSION_CRR",
+        "--crr",
+        "12",
+        "--goal-id",
+        "44",
+    )
+    network = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "PAY_FOR_CONVERSION_CRR",
+        "PayForConversionCrr": {"Crr": 12, "GoalId": 44},
+    }
+
+
+def test_campaigns_update_unified_network_max_profit_payload():
+    """#366: switching to MAX_PROFIT on update requires --priority-goals
+    (mirrors TextCampaign Network — Yandex API rejects the switch
+    otherwise)."""
+    body = _dry_run(
+        *_unified_network_update_base("9010"),
+        "--network-strategy",
+        "MAX_PROFIT",
+        "--priority-goals",
+        "1:100",
+    )
+    campaign = body["params"]["Campaigns"][0]["UnifiedCampaign"]
+    assert campaign["BiddingStrategy"]["Network"] == {
+        "BiddingStrategyType": "MAX_PROFIT",
+        "MaxProfit": {},
+    }
+    assert campaign["PriorityGoals"] == {
+        "Items": [{"GoalId": 1, "Value": 100, "Operation": "SET"}]
+    }
+
+
+def test_campaigns_update_unified_network_average_cpa_multiple_goals_payload():
+    """#366: switching to AVERAGE_CPA_MULTIPLE_GOALS requires at least
+    two priority goals."""
+    body = _dry_run(
+        *_unified_network_update_base("9011"),
+        "--network-strategy",
+        "AVERAGE_CPA_MULTIPLE_GOALS",
+        "--priority-goals",
+        "10:70,20:30",
+        "--bid-ceiling",
+        "200000000",
+    )
+    campaign = body["params"]["Campaigns"][0]["UnifiedCampaign"]
+    assert campaign["BiddingStrategy"]["Network"] == {
+        "BiddingStrategyType": "AVERAGE_CPA_MULTIPLE_GOALS",
+        "AverageCpaMultipleGoals": {"BidCeiling": 200000000},
+    }
+    assert campaign["PriorityGoals"] == {
+        "Items": [
+            {"GoalId": 10, "Value": 70, "Operation": "SET"},
+            {"GoalId": 20, "Value": 30, "Operation": "SET"},
+        ]
+    }
+
+
+def test_campaigns_update_unified_network_pay_for_conversion_multiple_goals_payload():
+    body = _dry_run(
+        *_unified_network_update_base("9012"),
+        "--network-strategy",
+        "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
+        "--priority-goals",
+        "11:55,22:45",
+        "--unified-network-weekly-spend-limit",
+        "400",
+    )
+    campaign = body["params"]["Campaigns"][0]["UnifiedCampaign"]
+    assert campaign["BiddingStrategy"]["Network"] == {
+        "BiddingStrategyType": "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
+        "PayForConversionMultipleGoals": {"WeeklySpendLimit": 400000000},
+    }
+    assert campaign["PriorityGoals"] == {
+        "Items": [
+            {"GoalId": 11, "Value": 55, "Operation": "SET"},
+            {"GoalId": 22, "Value": 45, "Operation": "SET"},
+        ]
+    }
+
+
+def test_campaigns_update_unified_network_rejects_multi_goal_without_priority_goals():
+    """#366: switching to a multi-goal strategy on update without
+    --priority-goals must reject (mirrors TextCampaign Network)."""
+    result = _rejected(
+        *_unified_network_update_base("9013"),
+        "--network-strategy",
+        "AVERAGE_CPA_MULTIPLE_GOALS",
+    )
+    assert "AverageCpaMultipleGoals requires" in result.output
+    assert "--priority-goals" in result.output
+
+
+def test_campaigns_update_unified_network_rejects_max_profit_without_priority_goals():
+    result = _rejected(
+        *_unified_network_update_base("9014"),
+        "--network-strategy",
+        "MAX_PROFIT",
+    )
+    assert "MaxProfit requires" in result.output
+    assert "--priority-goals" in result.output
+
+
+def test_campaigns_add_unified_network_rejects_multi_goal_with_single_goal():
+    """#366: ``*_MULTIPLE_GOALS`` strategies require at least 2 entries
+    (mirrors TextCampaign Network)."""
+    result = _rejected(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "AVERAGE_CPA_MULTIPLE_GOALS",
+        "--priority-goals",
+        "1:100",
+    )
+    assert "at least 2 entries" in result.output
+
+
+def test_campaigns_update_unified_network_rejects_multi_goal_with_single_goal():
+    result = _rejected(
+        *_unified_network_update_base("9015"),
+        "--network-strategy",
+        "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
+        "--priority-goals",
+        "1:100",
+    )
+    assert "at least 2 entries" in result.output
+
+
+def test_campaigns_update_unified_network_budget_type_weekly_payload():
+    """#366: BudgetType WEEKLY_BUDGET nulls CustomPeriodBudget."""
+    body = _dry_run(
+        *_unified_network_update_base("9020"),
+        "--network-strategy",
+        "AVERAGE_CPC",
+        "--unified-network-average-cpc",
+        "5",
+        "--unified-network-weekly-spend-limit",
+        "300",
+        "--unified-network-budget-type",
+        "WEEKLY_BUDGET",
+    )
+    network = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "AVERAGE_CPC",
+        "AverageCpc": {
+            "AverageCpc": 5000000,
+            "WeeklySpendLimit": 300000000,
+            "CustomPeriodBudget": None,
+            "BudgetType": "WEEKLY_BUDGET",
+        },
+    }
+
+
+def test_campaigns_update_unified_network_budget_type_custom_period_payload():
+    body = _dry_run(
+        *_unified_network_update_base("9021"),
+        "--network-strategy",
+        "AVERAGE_CPC",
+        "--unified-network-average-cpc",
+        "5",
+        "--unified-network-custom-period-spend-limit",
+        "1000",
+        "--unified-network-custom-period-start-date",
+        "2026-07-01",
+        "--unified-network-custom-period-end-date",
+        "2026-07-31",
+        "--unified-network-custom-period-auto-continue",
+        "YES",
+        "--unified-network-budget-type",
+        "CUSTOM_PERIOD_BUDGET",
+    )
+    network = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "AVERAGE_CPC",
+        "AverageCpc": {
+            "AverageCpc": 5000000,
+            "CustomPeriodBudget": {
+                "SpendLimit": 1000000000,
+                "StartDate": "2026-07-01",
+                "EndDate": "2026-07-31",
+                "AutoContinue": "YES",
+            },
+            "WeeklySpendLimit": None,
+            "BudgetType": "CUSTOM_PERIOD_BUDGET",
+        },
+    }
+
+
+def test_campaigns_update_unified_network_rejects_budget_type_without_weekly():
+    result = _rejected(
+        *_unified_network_update_base("9022"),
+        "--network-strategy",
+        "AVERAGE_CPC",
+        "--unified-network-average-cpc",
+        "5",
+        "--unified-network-budget-type",
+        "WEEKLY_BUDGET",
+    )
+    assert "--unified-network-budget-type WEEKLY_BUDGET requires" in result.output
+
+
+def test_campaigns_update_unified_network_rejects_budget_type_without_custom_period():
+    result = _rejected(
+        *_unified_network_update_base("9023"),
+        "--network-strategy",
+        "AVERAGE_CPC",
+        "--unified-network-average-cpc",
+        "5",
+        "--unified-network-budget-type",
+        "CUSTOM_PERIOD_BUDGET",
+    )
+    assert (
+        "--unified-network-budget-type CUSTOM_PERIOD_BUDGET requires" in result.output
+    )
+
+
+def test_campaigns_update_unified_network_no_op_when_no_flags_payload():
+    """#366: update with --type UNIFIED_CAMPAIGN and no Network-side or
+    Search-side typed flags must NOT emit a BiddingStrategy block (Network
+    is left untouched). Same convention as TextCampaign / DynamicText /
+    Smart update paths."""
+    body = _dry_run(
+        *_unified_network_update_base("9024"),
+        "--tracking-params",
+        "utm_source=direct",
+    )
+    campaign = body["params"]["Campaigns"][0]
+    assert "BiddingStrategy" not in campaign["UnifiedCampaign"]
+    assert campaign["UnifiedCampaign"]["TrackingParams"] == "utm_source=direct"
+
+
+def test_campaigns_update_unified_network_rejects_package_with_typed_flag():
+    """#366: --package-strategy-id must conflict with typed Network flags
+    on update (mirrors DynamicTextCampaign behaviour)."""
+    result = _rejected(
+        *_unified_network_update_base("9025"),
+        "--package-strategy-from-campaign-id",
+        "456",
+        "--package-platform-search-result",
+        "YES",
+        "--package-platform-product-gallery",
+        "NO",
+        "--package-platform-maps",
+        "NO",
+        "--package-platform-search-organization-list",
+        "NO",
+        "--package-platform-network",
+        "YES",
+        "--network-strategy",
+        "AVERAGE_CPC",
+        "--unified-network-average-cpc",
+        "5",
+    )
+    assert "PackageBiddingStrategy cannot be combined" in result.output
+
+
+def test_campaigns_update_unified_network_wb_maximum_clicks_budget_type_payload():
+    """#366: WSDL ``StrategyMaximumClicks`` (campaigns.xml 789-797) declares
+    ``BudgetType`` on the get-side type used by ``UnifiedCampaignUpdateItem``,
+    so the CLI must emit ``BudgetType`` and null the alternate budget slice
+    when the user switches budget on update."""
+    body = _dry_run(
+        *_unified_network_update_base("9026"),
+        "--network-strategy",
+        "WB_MAXIMUM_CLICKS",
+        "--unified-network-weekly-spend-limit",
+        "300",
+        "--unified-network-budget-type",
+        "WEEKLY_BUDGET",
+    )
+    network = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "WB_MAXIMUM_CLICKS",
+        "WbMaximumClicks": {
+            "WeeklySpendLimit": 300000000,
+            "CustomPeriodBudget": None,
+            "BudgetType": "WEEKLY_BUDGET",
+        },
+    }
+
+
+def test_campaigns_add_unified_network_rejects_package_with_typed_flag_no_strategy():
+    """#366: --package-strategy-id must conflict with typed --unified-network-*
+    flags on add EVEN WITHOUT --network-strategy. Without this guard, the
+    package-strategy branch silently wins and the user's detail flags are
+    dropped. Adversarial-review finding (gh issue #366 review iteration)."""
+    result = _rejected(
+        *_unified_network_add_base(),
+        "--package-strategy-id",
+        "700",
+        "--package-platform-search-result",
+        "YES",
+        "--package-platform-product-gallery",
+        "YES",
+        "--package-platform-maps",
+        "NO",
+        "--package-platform-search-organization-list",
+        "NO",
+        "--package-platform-network",
+        "YES",
+        "--package-platform-dynamic-places",
+        "NO",
+        "--unified-network-average-cpc",
+        "5",
+    )
+    assert "UnifiedCampaign.PackageBiddingStrategy cannot be combined" in result.output
+    assert "--unified-network-average-cpc" in result.output
+
+
+def test_campaigns_add_unified_network_average_cpa_multiple_goals_with_priority_goals_payload():
+    """#366: ``AVERAGE_CPA_MULTIPLE_GOALS`` is a settable Strategy*Add
+    subtype on ``UnifiedCampaignStrategyAddBase`` (campaigns.xml 1631-1654)
+    and ``UnifiedCampaignAddItem.PriorityGoals`` is a real WSDL field
+    (campaigns.xml 2165). On add the CLI emits both the subtype block and
+    the parent PriorityGoals container."""
+    body = _dry_run(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "AVERAGE_CPA_MULTIPLE_GOALS",
+        "--priority-goals",
+        "10:70,20:30",
+        "--bid-ceiling",
+        "200000000",
+    )
+    campaign = body["params"]["Campaigns"][0]["UnifiedCampaign"]
+    assert campaign["BiddingStrategy"]["Network"] == {
+        "BiddingStrategyType": "AVERAGE_CPA_MULTIPLE_GOALS",
+        "AverageCpaMultipleGoals": {"BidCeiling": 200000000},
+    }
+    assert campaign["PriorityGoals"] == {
+        "Items": [
+            {"GoalId": 10, "Value": 70},
+            {"GoalId": 20, "Value": 30},
+        ]
+    }
+
+
+def test_campaigns_add_unified_network_pay_for_conversion_multiple_goals_with_priority_goals_payload():
+    body = _dry_run(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
+        "--priority-goals",
+        "11:55,22:45",
+        "--unified-network-weekly-spend-limit",
+        "400",
+    )
+    campaign = body["params"]["Campaigns"][0]["UnifiedCampaign"]
+    assert campaign["BiddingStrategy"]["Network"] == {
+        "BiddingStrategyType": "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
+        "PayForConversionMultipleGoals": {"WeeklySpendLimit": 400000000},
+    }
+    assert campaign["PriorityGoals"] == {
+        "Items": [
+            {"GoalId": 11, "Value": 55},
+            {"GoalId": 22, "Value": 45},
+        ]
+    }
+
+
+def test_campaigns_add_unified_network_max_profit_with_priority_goals_payload():
+    body = _dry_run(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "MAX_PROFIT",
+        "--priority-goals",
+        "1:60,2:40",
+    )
+    campaign = body["params"]["Campaigns"][0]["UnifiedCampaign"]
+    assert campaign["BiddingStrategy"]["Network"] == {
+        "BiddingStrategyType": "MAX_PROFIT",
+        "MaxProfit": {},
+    }
+    assert campaign["PriorityGoals"] == {
+        "Items": [
+            {"GoalId": 1, "Value": 60},
+            {"GoalId": 2, "Value": 40},
+        ]
+    }
+
+
+def test_campaigns_add_unified_network_rejects_priority_goals_for_non_multi_goal_strategy():
+    """#366: --priority-goals + non-multi-goal --network-strategy must
+    raise the new gate (#290/#363/#373) rather than silently dropping
+    PriorityGoals."""
+    result = _rejected(
+        *_unified_network_add_base(),
+        "--network-strategy",
+        "AVERAGE_CPC",
+        "--unified-network-average-cpc",
+        "5",
+        "--priority-goals",
+        "1:500",
+    )
+    assert "UnifiedCampaign.PriorityGoals on campaigns add requires" in result.output
+    assert "AVERAGE_CPA_MULTIPLE_GOALS" in result.output
+
+
+def test_campaigns_add_unified_network_rejects_priority_goals_with_package():
+    """#366: --priority-goals + --package-strategy-id rejected on Unified
+    add (Package wins over the typed Network branch)."""
+    result = _rejected(
+        *_unified_network_add_base(),
+        "--package-strategy-id",
+        "700",
+        "--package-platform-search-result",
+        "YES",
+        "--package-platform-product-gallery",
+        "YES",
+        "--package-platform-maps",
+        "NO",
+        "--package-platform-search-organization-list",
+        "NO",
+        "--package-platform-network",
+        "YES",
+        "--package-platform-dynamic-places",
+        "NO",
+        "--priority-goals",
+        "1:500",
+    )
+    # Either the priority-goals gate or the package-incompatible gate is
+    # acceptable; both protect against silent data loss.
+    assert "PriorityGoals" in result.output or "PackageBiddingStrategy" in result.output
+
+
 # ----------------------------------------------------------------------
 # UnifiedCampaign.BiddingStrategy.Search — typed payload shape (#363).
 # WSDL: tests/wsdl_cache/campaigns.xml UnifiedCampaignStrategyAddBase

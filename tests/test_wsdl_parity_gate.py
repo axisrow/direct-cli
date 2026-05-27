@@ -2754,6 +2754,218 @@ for _campaign_op in ("add", "update"):
                     )
                 ] = {_eb_flag}
 
+# Issue #366: UnifiedCampaign Network strategy subtypes — 10 settable
+# families plus SERVING_OFF / MAXIMUM_COVERAGE / NETWORK_DEFAULT bare
+# markers. WSDL reference: ``UnifiedCampaignStrategyAddBase`` /
+# ``UnifiedCampaignNetworkStrategyAdd`` in tests/wsdl_cache/campaigns.xml
+# (lines 1631-1664). UnifiedCampaignStrategyAddBase does NOT declare
+# AverageRoi, WeeklyClickPackage or NetworkDefault subtype fields (unlike
+# TextCampaign.Network) — these are intentionally absent from the audit.
+for _campaign_op in ("add", "update"):
+    _unified_network_flags = {
+        "--network-strategy",
+        "--unified-network-weekly-spend-limit",
+        "--unified-network-custom-period-spend-limit",
+        "--unified-network-custom-period-start-date",
+        "--unified-network-custom-period-end-date",
+        "--unified-network-custom-period-auto-continue",
+        "--unified-network-average-cpc",
+        "--unified-network-cpa",
+        "--unified-network-exploration-min-budget",
+        "--unified-network-exploration-is-custom",
+    }
+    if _campaign_op == "update":
+        _unified_network_flags = _unified_network_flags | {
+            "--unified-network-budget-type"
+        }
+    # NOTE: ``UnifiedCampaign.BiddingStrategy`` root stays under #290
+    # (parent epic) because Search-side typed support is still tracked in
+    # #363 (T3). Only the Network branch and below flip to "supported"
+    # here.
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("campaigns", _campaign_op, "UnifiedCampaign.BiddingStrategy.Network")
+    ] = _unified_network_flags
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        (
+            "campaigns",
+            _campaign_op,
+            "UnifiedCampaign.BiddingStrategy.Network.BiddingStrategyType",
+        )
+    ] = {"--network-strategy"}
+    _unified_network_custom_period_flags = {
+        "--unified-network-custom-period-spend-limit",
+        "--unified-network-custom-period-start-date",
+        "--unified-network-custom-period-end-date",
+        "--unified-network-custom-period-auto-continue",
+    }
+    _unified_network_exploration_flags = {
+        "--unified-network-exploration-min-budget",
+        "--unified-network-exploration-is-custom",
+    }
+    _unified_network_custom_period_field_options = {
+        "SpendLimit": "--unified-network-custom-period-spend-limit",
+        "StartDate": "--unified-network-custom-period-start-date",
+        "EndDate": "--unified-network-custom-period-end-date",
+        "AutoContinue": "--unified-network-custom-period-auto-continue",
+    }
+    _unified_network_exploration_field_options = {
+        "MinimumExplorationBudget": "--unified-network-exploration-min-budget",
+        "IsMinimumExplorationBudgetCustom": "--unified-network-exploration-is-custom",
+    }
+    # WSDL field-support table per subtype. Source of truth: the per-subtype
+    # Strategy*Add complex types in campaigns.xml lines 1339-1514 (shared
+    # with TextCampaign / DynamicTextCampaign / SmartCampaign — the WSDL
+    # types themselves are shared). ``BudgetType`` lives on the get-side
+    # Strategy* types (campaigns.xml 789-958) and is therefore listed only
+    # for ``_campaign_op == "update"``.
+    _unified_network_subtype_field_options: dict[str, dict[str, str]] = {
+        "WbMaximumClicks": {
+            "WeeklySpendLimit": "--unified-network-weekly-spend-limit",
+            "BidCeiling": "--bid-ceiling",
+        },
+        "WbMaximumConversionRate": {
+            "WeeklySpendLimit": "--unified-network-weekly-spend-limit",
+            "BidCeiling": "--bid-ceiling",
+            "GoalId": "--goal-id",
+        },
+        "AverageCpc": {
+            "AverageCpc": "--unified-network-average-cpc",
+            "WeeklySpendLimit": "--unified-network-weekly-spend-limit",
+        },
+        "AverageCpa": {
+            "AverageCpa": "--average-cpa",
+            "GoalId": "--goal-id",
+            "WeeklySpendLimit": "--unified-network-weekly-spend-limit",
+            "BidCeiling": "--bid-ceiling",
+        },
+        "PayForConversion": {
+            "Cpa": "--unified-network-cpa",
+            "GoalId": "--goal-id",
+            "WeeklySpendLimit": "--unified-network-weekly-spend-limit",
+        },
+        "AverageCrr": {
+            "Crr": "--crr",
+            "GoalId": "--goal-id",
+            "WeeklySpendLimit": "--unified-network-weekly-spend-limit",
+        },
+        "PayForConversionCrr": {
+            "Crr": "--crr",
+            "GoalId": "--goal-id",
+            "WeeklySpendLimit": "--unified-network-weekly-spend-limit",
+        },
+        "AverageCpaMultipleGoals": {
+            "WeeklySpendLimit": "--unified-network-weekly-spend-limit",
+            "BidCeiling": "--bid-ceiling",
+        },
+        "PayForConversionMultipleGoals": {
+            "WeeklySpendLimit": "--unified-network-weekly-spend-limit",
+        },
+        "MaxProfit": {
+            "WeeklySpendLimit": "--unified-network-weekly-spend-limit",
+        },
+    }
+    _unified_network_update_only_field_options: dict[str, dict[str, str]] = (
+        {
+            "WbMaximumClicks": {"BudgetType": "--unified-network-budget-type"},
+            "WbMaximumConversionRate": {"BudgetType": "--unified-network-budget-type"},
+            "AverageCpc": {"BudgetType": "--unified-network-budget-type"},
+            "AverageCpa": {"BudgetType": "--unified-network-budget-type"},
+            "PayForConversion": {"BudgetType": "--unified-network-budget-type"},
+            "AverageCrr": {"BudgetType": "--unified-network-budget-type"},
+            "PayForConversionCrr": {"BudgetType": "--unified-network-budget-type"},
+            "AverageCpaMultipleGoals": {"BudgetType": "--unified-network-budget-type"},
+            "PayForConversionMultipleGoals": {
+                "BudgetType": "--unified-network-budget-type"
+            },
+            "MaxProfit": {"BudgetType": "--unified-network-budget-type"},
+        }
+        if _campaign_op == "update"
+        else {}
+    )
+    # All 10 subtypes carry CustomPeriodBudget per WSDL.
+    _unified_network_subtypes_with_custom_period = set(
+        _unified_network_subtype_field_options.keys()
+    )
+    # Subtypes with ExplorationBudget per WSDL (matches TextCampaign
+    # Network exactly minus AverageRoi which Unified does not have).
+    _unified_network_subtypes_with_exploration = {
+        "AverageCpa",
+        "AverageCrr",
+        "AverageCpaMultipleGoals",
+        "MaxProfit",
+    }
+    for _subtype, _fields in _unified_network_subtype_field_options.items():
+        _update_extras = _unified_network_update_only_field_options.get(_subtype, {})
+        _all_fields = {**_fields, **_update_extras}
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            (
+                "campaigns",
+                _campaign_op,
+                f"UnifiedCampaign.BiddingStrategy.Network.{_subtype}",
+            )
+        ] = {"--network-strategy"} | set(_all_fields.values())
+        for _wsdl_field, _flag in _all_fields.items():
+            OPTIONAL_FIELD_CLI_OPTIONS[
+                (
+                    "campaigns",
+                    _campaign_op,
+                    (
+                        "UnifiedCampaign.BiddingStrategy.Network."
+                        f"{_subtype}.{_wsdl_field}"
+                    ),
+                )
+            ] = {_flag}
+        if _subtype in _unified_network_subtypes_with_custom_period:
+            OPTIONAL_FIELD_CLI_OPTIONS[
+                (
+                    "campaigns",
+                    _campaign_op,
+                    (
+                        "UnifiedCampaign.BiddingStrategy.Network."
+                        f"{_subtype}.CustomPeriodBudget"
+                    ),
+                )
+            ] = _unified_network_custom_period_flags
+            for (
+                _cpb_field,
+                _cpb_flag,
+            ) in _unified_network_custom_period_field_options.items():
+                OPTIONAL_FIELD_CLI_OPTIONS[
+                    (
+                        "campaigns",
+                        _campaign_op,
+                        (
+                            "UnifiedCampaign.BiddingStrategy.Network."
+                            f"{_subtype}.CustomPeriodBudget.{_cpb_field}"
+                        ),
+                    )
+                ] = {_cpb_flag}
+        if _subtype in _unified_network_subtypes_with_exploration:
+            OPTIONAL_FIELD_CLI_OPTIONS[
+                (
+                    "campaigns",
+                    _campaign_op,
+                    (
+                        "UnifiedCampaign.BiddingStrategy.Network."
+                        f"{_subtype}.ExplorationBudget"
+                    ),
+                )
+            ] = _unified_network_exploration_flags
+            for (
+                _eb_field,
+                _eb_flag,
+            ) in _unified_network_exploration_field_options.items():
+                OPTIONAL_FIELD_CLI_OPTIONS[
+                    (
+                        "campaigns",
+                        _campaign_op,
+                        (
+                            "UnifiedCampaign.BiddingStrategy.Network."
+                            f"{_subtype}.ExplorationBudget.{_eb_field}"
+                        ),
+                    )
+                ] = {_eb_flag}
+
 for strategy_type, options in STRATEGY_FIELD_OPTIONS.items():
     OPTIONAL_FIELD_CLI_OPTIONS[("strategies", "add", strategy_type)] = {"--type"}
     for param_name, wsdl_field in options.items():
@@ -4828,6 +5040,62 @@ for _campaign_op in ("add", "update"):
             "note": (
                 "DynamicTextCampaign Search strategy subtype fields "
                 "covered by typed --dyn-search-* flags."
+            ),
+        }
+
+# UnifiedCampaign.BiddingStrategy.Network typed support landed in #366.
+# Mark the Network root and every Strategy*Add subtype prefix as supported
+# so the audit no longer routes Network rows to the parent #290 epic.
+# UnifiedCampaign.BiddingStrategy.Search is still tracked in #363 (T3) and
+# stays under #290 until that lands.
+for _campaign_op in ("add", "update"):
+    OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS[
+        (
+            "campaigns",
+            _campaign_op,
+            "UnifiedCampaign.BiddingStrategy.Network",
+        )
+    ] = {
+        "status": "supported",
+        "issue": "#366",
+        "note": (
+            "UnifiedCampaign.BiddingStrategy.Network typed flags "
+            "(--network-strategy + --unified-network-*) cover every "
+            "settable UnifiedCampaignNetworkStrategyTypeEnum subtype "
+            "value (10 Strategy*Add families plus SERVING_OFF / "
+            "MAXIMUM_COVERAGE / NETWORK_DEFAULT bare markers — UNKNOWN "
+            "is a read-side sentinel and is not exposed on add/update; "
+            "AverageRoi/WeeklyClickPackage/NetworkDefault subtype blocks "
+            "are NOT declared on UnifiedCampaignStrategyAddBase in the "
+            "WSDL — same canonical source as TextCampaign/Smart/"
+            "DynamicText Network branches)."
+        ),
+    }
+    for _strategy_subtype in (
+        "WbMaximumClicks",
+        "WbMaximumConversionRate",
+        "AverageCpc",
+        "AverageCpa",
+        "PayForConversion",
+        "AverageCrr",
+        "PayForConversionCrr",
+        "AverageCpaMultipleGoals",
+        "PayForConversionMultipleGoals",
+        "MaxProfit",
+    ):
+        OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS[
+            (
+                "campaigns",
+                _campaign_op,
+                ("UnifiedCampaign.BiddingStrategy.Network." f"{_strategy_subtype}"),
+            )
+        ] = {
+            "status": "supported",
+            "issue": "#366",
+            "note": (
+                "UnifiedCampaign Network strategy subtype fields "
+                "covered by typed --unified-network-* / shared "
+                "(--average-cpa, --crr, --goal-id, --bid-ceiling) flags."
             ),
         }
 
