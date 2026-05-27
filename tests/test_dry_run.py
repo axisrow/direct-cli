@@ -5254,11 +5254,16 @@ def test_campaigns_add_smart_priority_goals_payload():
     assert network["BiddingStrategyType"] == "AVERAGE_CPC_PER_FILTER"
 
 
-def test_campaigns_add_smart_priority_goals_rejected_with_package_strategy():
-    # PackageBiddingStrategy on SmartCampaign already rejects --priority-goals
-    # via the shared guard (smart_package_incompatible). Cover the contract
-    # so the conflict cannot regress with the new top-level placement.
-    result = _rejected(
+def test_campaigns_add_smart_priority_goals_with_package_strategy_payload():
+    # SmartCampaign.PriorityGoals (#369) and SmartCampaign.PackageBiddingStrategy
+    # are declared as independent ``minOccurs=0`` siblings on the
+    # SmartCampaignAddItem complexType (WSDL tests/wsdl_cache/campaigns.xml
+    # lines 2202-2214 — no ``xsd:choice`` wrapping them), so combining
+    # --priority-goals with --package-strategy-id must produce a payload
+    # carrying BOTH fields. The shared smart_package_incompatible guard
+    # documents the mutex it does enforce and intentionally excludes
+    # --priority-goals.
+    body = _dry_run(
         "campaigns",
         "add",
         "--name",
@@ -5278,8 +5283,9 @@ def test_campaigns_add_smart_priority_goals_rejected_with_package_strategy():
         "--priority-goals",
         "1234567:80",
     )
-    assert "SmartCampaign.PackageBiddingStrategy cannot be combined" in result.output
-    assert "--priority-goals" in result.output
+    smart = body["params"]["Campaigns"][0]["SmartCampaign"]
+    assert "PackageBiddingStrategy" in smart
+    assert smart["PriorityGoals"] == {"Items": [{"GoalId": 1234567, "Value": 80}]}
 
 
 # ----------------------------------------------------------------------

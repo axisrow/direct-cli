@@ -750,7 +750,10 @@ def get(
         "Comma-separated goal_id:value[:YES|NO] pairs for "
         "TextCampaign/UnifiedCampaign/DynamicTextCampaign.PriorityGoals "
         "(required for AVERAGE_CPA_MULTIPLE_GOALS / "
-        "PAY_FOR_CONVERSION_MULTIPLE_GOALS)"
+        "PAY_FOR_CONVERSION_MULTIPLE_GOALS); also accepted on "
+        "SmartCampaign.PriorityGoals (#369) as a campaign-level "
+        "setting independent of the SmartCampaign.BiddingStrategy "
+        "subtype"
     ),
 )
 @click.option(
@@ -2648,11 +2651,18 @@ def add(
                     f"{', '.join(sorted(provided))}"
                 )
         if smart_package_bidding_strategy_obj is not None:
+            # SmartCampaign.PriorityGoals (#369) is a top-level sibling on
+            # SmartCampaignAddItem (WSDL line 2209) independent of the
+            # BiddingStrategy / PackageBiddingStrategy choice — both
+            # PriorityGoals and PackageBiddingStrategy are declared as
+            # ``minOccurs=0`` siblings on SmartCampaignAddItem (no
+            # ``xsd:choice``), so combining --priority-goals with
+            # PackageBiddingStrategy is WSDL-valid and intentionally
+            # allowed.
             smart_package_incompatible = {
                 "--search-strategy": search_strategy,
                 "--network-strategy": network_strategy,
                 "--filter-average-cpc": filter_average_cpc,
-                "--priority-goals": priority_goals,
                 "--attribution-model": attribution_model,
                 # SmartCampaign.BiddingStrategy.Search typed flags (#367) —
                 # mutually exclusive with PackageBiddingStrategy. Without these
