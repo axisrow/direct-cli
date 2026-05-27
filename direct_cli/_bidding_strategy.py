@@ -4386,18 +4386,35 @@ _UNIFIED_SEARCH_SUPPORTS_EXPLORATION_BUDGET = {
 }
 # BudgetType (WEEKLY_BUDGET / CUSTOM_PERIOD_BUDGET) is an update-only
 # switch; on add the budget slice is implied by which of WeeklySpendLimit /
-# CustomPeriodBudget is set. Per the get-side ``Strategy*`` schemas
-# (campaigns.xml L789-957) BudgetType appears on every subtype that
-# carries both WeeklySpendLimit and CustomPeriodBudget. The CLI mirrors
-# the TextCampaign Search precedent (#388) of excluding the "Wb*" and
-# "*MultipleGoals" CPA-shape subtypes which the official update-text-
-# campaign reference does not document for BudgetType.
+# CustomPeriodBudget is set. The cached WSDL is the canonical source for
+# this PR (Yandex public docs are showcaptcha-blocked, see #363 issue
+# body). Per the get-side ``Strategy*`` types (campaigns.xml L789-957)
+# BudgetType is declared on EVERY UnifiedCampaign Search subtype that
+# inherits from ``StrategyWeeklyBudgetBase`` or carries both WeeklySpend-
+# Limit and CustomPeriodBudget — line-by-line:
+#   * StrategyMaximumClicks            — L793  BudgetType
+#   * StrategyMaximumConversionRate    — L803  BudgetType
+#   * StrategyAverageCpc               — L817  BudgetType
+#   * StrategyAverageCpa               — L827  BudgetType
+#   * StrategyPayForConversion         — L835  BudgetType
+#   * StrategyAverageCrr               — L921  BudgetType
+#   * StrategyPayForConversionCrr      — L929  BudgetType
+#   * StrategyMaxProfit                — L943  BudgetType
+#   * StrategyAverageCpaMultipleGoals  — L951  BudgetType
+#   * StrategyPayForConversionMultipleGoals — L957  BudgetType
+# This intentionally diverges from the TextCampaign Search precedent
+# (#388) which deferred to a Yandex public-docs subset for Wb* and
+# *MultipleGoals; per the user instructions on this issue, WSDL is the
+# canonical source, so all WSDL-declared rows are supported.
 _UNIFIED_SEARCH_SUPPORTS_BUDGET_TYPE = {
+    "WbMaximumClicks",
+    "WbMaximumConversionRate",
     "AverageCpc",
     "AverageCpa",
     "PayForConversion",
     "AverageCrr",
     "PayForConversionCrr",
+    "AverageCpaMultipleGoals",
     "PayForConversionMultipleGoals",
     "MaxProfit",
 }
@@ -4521,9 +4538,13 @@ def _build_unified_search_exploration_budget(
     """Build an ExplorationBudget block from the two typed flags.
 
     Both fields are WSDL minOccurs=1; returns ``None`` when none are
-    provided. Per official Yandex docs only ``YES`` is accepted for
-    ``IsMinimumExplorationBudgetCustom`` — passing ``NO`` makes the API
-    raise an error, so the CLI rejects it up-front (mirrors #388).
+    provided. The cached WSDL declares ``IsMinimumExplorationBudgetCustom``
+    as ``general:YesNoEnum`` with NO restriction on which value is
+    accepted (campaigns.xml L1973-1977), and per the issue body the
+    cached WSDL is the canonical source. Both ``YES`` and ``NO`` are
+    serialized as-is — this intentionally diverges from the TextCampaign
+    Search precedent (#388) which deferred to a Yandex public-docs
+    YES-only constraint.
     """
     values = {
         "--unified-search-exploration-min-budget": min_budget,
@@ -4540,15 +4561,9 @@ def _build_unified_search_exploration_budget(
         )
     assert min_budget is not None
     assert is_custom is not None
-    normalized_is_custom = is_custom.upper()
-    if normalized_is_custom != "YES":
-        raise click.UsageError(
-            "--unified-search-exploration-is-custom must be YES; the Yandex "
-            "Direct API rejects NO for IsMinimumExplorationBudgetCustom"
-        )
     return {
         "MinimumExplorationBudget": min_budget,
-        "IsMinimumExplorationBudgetCustom": normalized_is_custom,
+        "IsMinimumExplorationBudgetCustom": is_custom.upper(),
     }
 
 

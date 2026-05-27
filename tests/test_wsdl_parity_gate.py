@@ -3072,15 +3072,22 @@ for _campaign_op in ("add", "update"):
             "WeeklySpendLimit": "--unified-search-weekly-spend-limit",
         },
     }
-    # Per official Yandex update-text-campaign docs ``BudgetType`` is
-    # declared only on the listed subtypes (mirror #388 / TextCampaign).
+    # WSDL get-side ``Strategy*`` types (campaigns.xml L789-957) declare
+    # BudgetType on every UnifiedCampaign Search subtype. The cached WSDL
+    # is canonical for this PR (#363) since Yandex public docs are
+    # showcaptcha-blocked, so all 10 subtypes carry BudgetType on update
+    # (diverges from the TextCampaign Search precedent #388 which
+    # deferred to a docs-subset).
     _unified_update_only_field_options: dict[str, dict[str, str]] = (
         {
+            "WbMaximumClicks": {"BudgetType": "--unified-search-budget-type"},
+            "WbMaximumConversionRate": {"BudgetType": "--unified-search-budget-type"},
             "AverageCpc": {"BudgetType": "--unified-search-budget-type"},
             "AverageCpa": {"BudgetType": "--unified-search-budget-type"},
             "PayForConversion": {"BudgetType": "--unified-search-budget-type"},
             "AverageCrr": {"BudgetType": "--unified-search-budget-type"},
             "PayForConversionCrr": {"BudgetType": "--unified-search-budget-type"},
+            "AverageCpaMultipleGoals": {"BudgetType": "--unified-search-budget-type"},
             "PayForConversionMultipleGoals": {
                 "BudgetType": "--unified-search-budget-type"
             },
@@ -4882,50 +4889,6 @@ OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
             "Official Yandex update-text-campaign docs do not declare "
             "BudgetType on AverageCpaMultipleGoals; CLI rejects "
             "--text-search-budget-type for this subtype."
-        ),
-    },
-    # Issue #363: same exclusion set as #361 / #388 for UnifiedCampaign
-    # Search. The CLI rejects --unified-search-budget-type for the same
-    # WSDL Strategy*Add subtypes that the official update-text-campaign
-    # reference does not declare BudgetType on (mirror
-    # _UNIFIED_SEARCH_SUPPORTS_BUDGET_TYPE in _bidding_strategy.py).
-    (
-        "campaigns",
-        "update",
-        "UnifiedCampaign.BiddingStrategy.Search.WbMaximumClicks.BudgetType",
-    ): {
-        "status": "not_applicable",
-        "issue": "#363",
-        "note": (
-            "Official Yandex update-text-campaign docs do not declare "
-            "BudgetType on WbMaximumClicks; CLI rejects "
-            "--unified-search-budget-type for this subtype."
-        ),
-    },
-    (
-        "campaigns",
-        "update",
-        "UnifiedCampaign.BiddingStrategy.Search.WbMaximumConversionRate.BudgetType",
-    ): {
-        "status": "not_applicable",
-        "issue": "#363",
-        "note": (
-            "Official Yandex update-text-campaign docs do not declare "
-            "BudgetType on WbMaximumConversionRate; CLI rejects "
-            "--unified-search-budget-type for this subtype."
-        ),
-    },
-    (
-        "campaigns",
-        "update",
-        "UnifiedCampaign.BiddingStrategy.Search.AverageCpaMultipleGoals.BudgetType",
-    ): {
-        "status": "not_applicable",
-        "issue": "#363",
-        "note": (
-            "Official Yandex update-text-campaign docs do not declare "
-            "BudgetType on AverageCpaMultipleGoals; CLI rejects "
-            "--unified-search-budget-type for this subtype."
         ),
     },
 }

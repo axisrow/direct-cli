@@ -19610,9 +19610,13 @@ def test_campaigns_add_unified_search_rejects_partial_exploration_budget():
     assert "ExplorationBudget" in result.output
 
 
-def test_campaigns_add_unified_search_rejects_no_for_exploration_is_custom():
-    """Yandex API rejects NO for IsMinimumExplorationBudgetCustom."""
-    result = _rejected(
+def test_campaigns_add_unified_search_exploration_is_custom_accepts_no():
+    """Cached WSDL declares ``IsMinimumExplorationBudgetCustom`` as
+    ``general:YesNoEnum`` with no restriction (campaigns.xml L1973-1977),
+    so the CLI accepts both YES and NO — the canonical source for this
+    PR is the WSDL, not Yandex public docs (showcaptcha-blocked, see
+    #363 issue body)."""
+    body = _dry_run(
         *_unified_base_args(),
         "--search-strategy",
         "AVERAGE_CPA",
@@ -19625,7 +19629,11 @@ def test_campaigns_add_unified_search_rejects_no_for_exploration_is_custom():
         "--unified-search-exploration-is-custom",
         "NO",
     )
-    assert "must be YES" in result.output
+    search = _unified_search_extract(body)
+    assert search["AverageCpa"]["ExplorationBudget"] == {
+        "MinimumExplorationBudget": 100000000,
+        "IsMinimumExplorationBudgetCustom": "NO",
+    }
 
 
 def test_campaigns_add_unified_search_rejects_detail_without_strategy():
@@ -19982,3 +19990,92 @@ def test_campaigns_update_unified_search_package_strategy_conflicts():
         "100",
     )
     assert "PackageBiddingStrategy" in result.output
+
+
+def test_campaigns_add_unified_search_package_strategy_conflicts():
+    """PackageBiddingStrategy on add must also reject every typed
+    ``--unified-search-*`` flag — otherwise input is silently dropped."""
+    result = _rejected(
+        *_unified_base_args(),
+        "--package-strategy-id",
+        "1",
+        "--package-strategy-from-campaign-id",
+        "2",
+        "--package-platform-search-result",
+        "YES",
+        "--package-platform-product-gallery",
+        "YES",
+        "--package-platform-network",
+        "YES",
+        "--unified-search-weekly-spend-limit",
+        "100",
+    )
+    assert "PackageBiddingStrategy" in result.output
+
+
+# ---------------- BudgetType on every WSDL-declared subtype (#363) ----------------
+# Per the cached WSDL (canonical source for this PR), BudgetType is
+# declared on ALL UnifiedCampaign Search subtypes that carry both
+# WeeklySpendLimit and CustomPeriodBudget. The CLI exposes
+# --unified-search-budget-type on update for every one of those subtypes;
+# the four "extra" rows below (WbMaximumClicks / WbMaximumConversionRate /
+# AverageCpaMultipleGoals / PayForConversionMultipleGoals) intentionally
+# diverge from the TextCampaign Search precedent (#388).
+
+
+def test_campaigns_update_unified_search_wb_max_clicks_budget_type_payload():
+    body = _unified_search_update(
+        "--search-strategy",
+        "WB_MAXIMUM_CLICKS",
+        "--unified-search-weekly-spend-limit",
+        "100",
+        "--unified-search-budget-type",
+        "WEEKLY_BUDGET",
+    )
+    search = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Search"
+    ]
+    block = search["WbMaximumClicks"]
+    assert block["BudgetType"] == "WEEKLY_BUDGET"
+    assert block["CustomPeriodBudget"] is None
+
+
+def test_campaigns_update_unified_search_wb_max_conv_rate_budget_type_payload():
+    body = _unified_search_update(
+        "--search-strategy",
+        "WB_MAXIMUM_CONVERSION_RATE",
+        "--goal-id",
+        "1",
+        "--unified-search-custom-period-spend-limit",
+        "200",
+        "--unified-search-custom-period-start-date",
+        "2026-10-01",
+        "--unified-search-custom-period-end-date",
+        "2026-10-31",
+        "--unified-search-custom-period-auto-continue",
+        "YES",
+        "--unified-search-budget-type",
+        "CUSTOM_PERIOD_BUDGET",
+    )
+    search = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Search"
+    ]
+    block = search["WbMaximumConversionRate"]
+    assert block["BudgetType"] == "CUSTOM_PERIOD_BUDGET"
+    assert block["WeeklySpendLimit"] is None
+
+
+def test_campaigns_update_unified_search_avg_cpa_multi_goals_budget_type_payload():
+    body = _unified_search_update(
+        "--search-strategy",
+        "AVERAGE_CPA_MULTIPLE_GOALS",
+        "--unified-search-weekly-spend-limit",
+        "500",
+        "--unified-search-budget-type",
+        "WEEKLY_BUDGET",
+    )
+    search = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Search"
+    ]
+    block = search["AverageCpaMultipleGoals"]
+    assert block["BudgetType"] == "WEEKLY_BUDGET"

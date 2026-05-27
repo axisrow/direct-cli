@@ -2689,10 +2689,43 @@ def add(
                     }
                 )
             if campaign_type_norm == "UNIFIED_CAMPAIGN":
+                # Issue #363: every typed UnifiedCampaign Search-strategy
+                # detail flag must also conflict with PackageBiddingStrategy
+                # on add, otherwise --unified-search-* input would silently
+                # disappear when the user opts into a package strategy.
                 package_incompatible.update(
                     {
                         "--counter-ids": counter_ids,
                         "--attribution-model": attribution_model,
+                        "--unified-search-placement-maps": (
+                            unified_search_placement_maps
+                        ),
+                        "--unified-search-placement-search-organization-list": (
+                            unified_search_placement_search_organization_list
+                        ),
+                        "--unified-search-weekly-spend-limit": (
+                            unified_search_weekly_spend_limit
+                        ),
+                        "--unified-search-custom-period-spend-limit": (
+                            unified_search_custom_period_spend_limit
+                        ),
+                        "--unified-search-custom-period-start-date": (
+                            unified_search_custom_period_start_date
+                        ),
+                        "--unified-search-custom-period-end-date": (
+                            unified_search_custom_period_end_date
+                        ),
+                        "--unified-search-custom-period-auto-continue": (
+                            unified_search_custom_period_auto_continue
+                        ),
+                        "--unified-search-average-cpc": (unified_search_average_cpc),
+                        "--unified-search-pay-cpa": unified_search_pay_cpa,
+                        "--unified-search-exploration-min-budget": (
+                            unified_search_exploration_min_budget
+                        ),
+                        "--unified-search-exploration-is-custom": (
+                            unified_search_exploration_is_custom
+                        ),
                     }
                 )
             if campaign_type_norm == "DYNAMIC_TEXT_CAMPAIGN":
