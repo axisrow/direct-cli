@@ -279,6 +279,117 @@ _DYN_NETWORK_BUDGET_TYPE_SUBTYPES = {
     "PayForConversionCrr",
 }
 
+# DynamicTextCampaign.BiddingStrategy.Search — strategy families from
+# DynamicTextCampaignSearchStrategyTypeEnum (campaigns WSDL line 344-360).
+# Issue #362.
+#
+# Settable values mirror the WSDL enum. ``UNKNOWN`` is a read-side sentinel
+# (same convention as TextCampaign / MobileApp / CpmBanner enums on add)
+# and is intentionally not exposed on the CLI.
+DYNAMIC_TEXT_SEARCH_STRATEGIES = [
+    "HIGHEST_POSITION",
+    "WB_MAXIMUM_CONVERSION_RATE",
+    "WB_MAXIMUM_CLICKS",
+    "AVERAGE_CPC",
+    "AVERAGE_CPA",
+    "PAY_FOR_CONVERSION",
+    "PAY_FOR_CONVERSION_CRR",
+    "WEEKLY_CLICK_PACKAGE",
+    "AVERAGE_ROI",
+    "AVERAGE_CRR",
+    "IMPRESSIONS_BELOW_SEARCH",
+    "SERVING_OFF",
+]
+# Maps DynamicTextCampaignSearchStrategyTypeEnum -> nested Strategy*Add
+# field name on DynamicTextCampaignSearchStrategyAdd (campaigns WSDL line
+# 1712-1733). Subtypes without a nested Strategy*Add block
+# (HIGHEST_POSITION, IMPRESSIONS_BELOW_SEARCH, SERVING_OFF) are absent
+# here — the API discriminates only by BiddingStrategyType for those.
+DYNAMIC_TEXT_SEARCH_STRATEGY_TO_WSDL_SUBTYPE: Dict[str, str] = {
+    "WB_MAXIMUM_CLICKS": "WbMaximumClicks",
+    "WB_MAXIMUM_CONVERSION_RATE": "WbMaximumConversionRate",
+    "AVERAGE_CPC": "AverageCpc",
+    "AVERAGE_CPA": "AverageCpa",
+    "PAY_FOR_CONVERSION": "PayForConversion",
+    "AVERAGE_ROI": "AverageRoi",
+    "AVERAGE_CRR": "AverageCrr",
+    "PAY_FOR_CONVERSION_CRR": "PayForConversionCrr",
+    "WEEKLY_CLICK_PACKAGE": "WeeklyClickPackage",
+}
+# Per-subtype WSDL field support for DynamicTextCampaign.Search subtypes.
+# WSDL references campaigns.xml lines 1339-1488 (Strategy*Add types) plus
+# the Wb*-shared StrategyWeeklyBudgetAddBase (lines 1333-1338). Empty set
+# = the field is not declared on that Strategy*Add subtype and must
+# UsageError instead of being silently dropped.
+_DYN_SEARCH_WEEKLY_SPEND_LIMIT_SUBTYPES = {
+    "WbMaximumClicks",
+    "WbMaximumConversionRate",
+    "AverageCpc",
+    "AverageCpa",
+    "PayForConversion",
+    "AverageRoi",
+    "AverageCrr",
+    "PayForConversionCrr",
+}
+_DYN_SEARCH_BID_CEILING_SUBTYPES = {
+    "WbMaximumClicks",
+    "WbMaximumConversionRate",
+    "AverageCpa",
+    "AverageRoi",
+    "WeeklyClickPackage",
+}
+_DYN_SEARCH_CUSTOM_PERIOD_SUBTYPES = {
+    "WbMaximumClicks",
+    "WbMaximumConversionRate",
+    "AverageCpc",
+    "AverageCpa",
+    "PayForConversion",
+    "AverageRoi",
+    "AverageCrr",
+    "PayForConversionCrr",
+}
+_DYN_SEARCH_GOAL_ID_SUBTYPES = {
+    "WbMaximumConversionRate",
+    "AverageCpa",
+    "PayForConversion",
+    "AverageRoi",
+    "AverageCrr",
+    "PayForConversionCrr",
+}
+_DYN_SEARCH_AVERAGE_CPA_SUBTYPES = {"AverageCpa"}
+_DYN_SEARCH_CPA_SUBTYPES = {"PayForConversion"}
+_DYN_SEARCH_AVERAGE_CPC_SUBTYPES = {"AverageCpc", "WeeklyClickPackage"}
+_DYN_SEARCH_CRR_SUBTYPES = {"AverageCrr", "PayForConversionCrr"}
+_DYN_SEARCH_CLICKS_PER_WEEK_SUBTYPES = {"WeeklyClickPackage"}
+_DYN_SEARCH_RESERVE_RETURN_SUBTYPES = {"AverageRoi"}
+_DYN_SEARCH_ROI_COEF_SUBTYPES = {"AverageRoi"}
+_DYN_SEARCH_PROFITABILITY_SUBTYPES = {"AverageRoi"}
+# ExplorationBudget is declared on StrategyAverageCpaAdd (line 1377),
+# StrategyAverageRoiAdd (line 1462) and StrategyAverageCrrAdd (line
+# 1471) only — not on PayForConversionCrrAdd / others.
+_DYN_SEARCH_EXPLORATION_BUDGET_SUBTYPES = {
+    "AverageCpa",
+    "AverageRoi",
+    "AverageCrr",
+}
+# BudgetType (WEEKLY_BUDGET / CUSTOM_PERIOD_BUDGET) is an update-only
+# switch; on add the budget slice is implied by WeeklySpendLimit vs
+# CustomPeriodBudget presence. Per the official Yandex update docs
+# (cross-referenced with WSDL) BudgetType is settable only on the
+# strategies that carry both WeeklySpendLimit and CustomPeriodBudget,
+# i.e. the eight Wb*/AverageCp*/AverageRoi/AverageCrr/PayFor*Crr
+# subtypes (mirrors the DynamicText Network audit in #386).
+_DYN_SEARCH_BUDGET_TYPE_SUBTYPES = {
+    "WbMaximumClicks",
+    "WbMaximumConversionRate",
+    "AverageCpc",
+    "AverageCpa",
+    "PayForConversion",
+    "AverageRoi",
+    "AverageCrr",
+    "PayForConversionCrr",
+}
+
 
 def apply_cpa_strategy_fields(
     bidding_strategy: dict,
@@ -2145,6 +2256,345 @@ def build_dynamic_text_network_strategy(
     return network
 
 
+def build_dynamic_text_search_strategy(
+    search_strategy: Optional[str],
+    search_placement_search_results: Optional[str],
+    search_placement_product_gallery: Optional[str],
+    search_placement_dynamic_places: Optional[str],
+    weekly_spend_limit: Optional[int],
+    bid_ceiling: Optional[int],
+    custom_period_spend_limit: Optional[int],
+    custom_period_start_date: Optional[str],
+    custom_period_end_date: Optional[str],
+    custom_period_auto_continue: Optional[str],
+    average_cpc: Optional[int],
+    average_cpa: Optional[int],
+    cpa: Optional[int],
+    goal_id: Optional[int],
+    crr: Optional[int],
+    clicks_per_week: Optional[int],
+    reserve_return: Optional[int],
+    roi_coef: Optional[int],
+    profitability: Optional[int],
+    exploration_budget: Optional[int],
+    exploration_budget_custom: Optional[str],
+    budget_type: Optional[str],
+    *,
+    include_default: bool,
+    is_update: bool,
+) -> Optional[dict]:
+    """Build DynamicTextCampaign.BiddingStrategy.Search from typed flags.
+
+    Mirrors ``DynamicTextCampaignSearchStrategyAdd`` (campaigns WSDL
+    line 1741-1752) and ``DynamicTextCampaignSearchStrategy`` (line
+    1191-1202). Strategy families and their nested Strategy*Add subtypes
+    follow the cached WSDL enum
+    ``DynamicTextCampaignSearchStrategyTypeEnum`` (line 344-360) and
+    ``DynamicTextCampaignStrategyAddBase`` (line 1712-1733).
+
+    PlacementTypes mirrors ``DynamicTextCampaignSearchStrategyPlacementTypesAdd``
+    (line 1734-1740) — three YesNoEnum siblings (SearchResults,
+    ProductGallery, DynamicPlaces), all minOccurs=0.
+
+    Issue #362.
+    """
+    placement_values = {
+        "--search-placement-search-results": search_placement_search_results,
+        "--search-placement-product-gallery": search_placement_product_gallery,
+        "--search-placement-dynamic-places": search_placement_dynamic_places,
+    }
+    has_placement = any(value is not None for value in placement_values.values())
+    detail_values = {
+        "--dyn-search-weekly-spend-limit": weekly_spend_limit,
+        "--dyn-search-bid-ceiling": bid_ceiling,
+        "--dyn-search-custom-period-spend-limit": custom_period_spend_limit,
+        "--dyn-search-custom-period-start-date": custom_period_start_date,
+        "--dyn-search-custom-period-end-date": custom_period_end_date,
+        "--dyn-search-custom-period-auto-continue": custom_period_auto_continue,
+        "--dyn-search-average-cpc": average_cpc,
+        "--dyn-search-average-cpa": average_cpa,
+        "--dyn-search-cpa": cpa,
+        "--dyn-search-goal-id": goal_id,
+        "--dyn-search-crr": crr,
+        "--dyn-search-clicks-per-week": clicks_per_week,
+        "--dyn-search-reserve-return": reserve_return,
+        "--dyn-search-roi-coef": roi_coef,
+        "--dyn-search-profitability": profitability,
+        "--dyn-search-exploration-budget": exploration_budget,
+        "--dyn-search-exploration-budget-custom": exploration_budget_custom,
+        "--dyn-search-budget-type": budget_type,
+    }
+    has_details = any(value is not None for value in detail_values.values())
+
+    if not include_default and search_strategy is None:
+        if has_details:
+            raise click.UsageError(
+                "DynamicTextCampaign search detail flags require --search-strategy"
+            )
+        if has_placement:
+            raise click.UsageError(
+                "DynamicTextCampaign search placement flags require --search-strategy"
+            )
+        return None
+    if has_details and search_strategy is None:
+        raise click.UsageError(
+            "DynamicTextCampaign search detail flags require --search-strategy"
+        )
+    if has_placement and search_strategy is None:
+        raise click.UsageError(
+            "DynamicTextCampaign search placement flags require --search-strategy"
+        )
+
+    normalized_strategy = (search_strategy or "HIGHEST_POSITION").upper()
+    if normalized_strategy not in DYNAMIC_TEXT_SEARCH_STRATEGIES:
+        raise click.UsageError(
+            "--search-strategy for DYNAMIC_TEXT_CAMPAIGN must be one of "
+            f"{', '.join(DYNAMIC_TEXT_SEARCH_STRATEGIES)}"
+        )
+
+    subtype = DYNAMIC_TEXT_SEARCH_STRATEGY_TO_WSDL_SUBTYPE.get(normalized_strategy)
+    search: dict = {"BiddingStrategyType": normalized_strategy}
+    placement_types: dict = {}
+    if search_placement_search_results is not None:
+        placement_types["SearchResults"] = search_placement_search_results.upper()
+    if search_placement_product_gallery is not None:
+        placement_types["ProductGallery"] = search_placement_product_gallery.upper()
+    if search_placement_dynamic_places is not None:
+        placement_types["DynamicPlaces"] = search_placement_dynamic_places.upper()
+    if placement_types:
+        search["PlacementTypes"] = placement_types
+
+    # Legacy/sentinel strategies (HIGHEST_POSITION, IMPRESSIONS_BELOW_SEARCH,
+    # SERVING_OFF) carry no Strategy*Add block — reject silent data loss.
+    if subtype is None:
+        invalid = [flag for flag, value in detail_values.items() if value is not None]
+        if invalid:
+            raise click.UsageError(
+                f"{normalized_strategy} does not accept DynamicTextCampaign "
+                f"search detail flags: {', '.join(sorted(invalid))}"
+            )
+        return search
+
+    # ExplorationBudget: both subfields together (WSDL ExplorationBudget
+    # MinimumExplorationBudget / IsMinimumExplorationBudgetCustom are both
+    # minOccurs=1).
+    exploration_provided = [
+        flag
+        for flag, value in (
+            ("--dyn-search-exploration-budget", exploration_budget),
+            ("--dyn-search-exploration-budget-custom", exploration_budget_custom),
+        )
+        if value is not None
+    ]
+    if exploration_provided and len(exploration_provided) != 2:
+        missing = (
+            "--dyn-search-exploration-budget-custom"
+            if exploration_budget is not None
+            else "--dyn-search-exploration-budget"
+        )
+        raise click.UsageError(
+            "DynamicTextCampaign Search ExplorationBudget requires both "
+            "--dyn-search-exploration-budget and "
+            f"--dyn-search-exploration-budget-custom; missing {missing}"
+        )
+    if exploration_provided and subtype not in _DYN_SEARCH_EXPLORATION_BUDGET_SUBTYPES:
+        raise click.UsageError(
+            f"{normalized_strategy} does not accept "
+            "--dyn-search-exploration-budget / "
+            "--dyn-search-exploration-budget-custom"
+        )
+
+    # CustomPeriodBudget: all four subfields together (WSDL
+    # CustomPeriodBudget minOccurs=1 on every field).
+    custom_period_values = {
+        "--dyn-search-custom-period-spend-limit": custom_period_spend_limit,
+        "--dyn-search-custom-period-start-date": custom_period_start_date,
+        "--dyn-search-custom-period-end-date": custom_period_end_date,
+        "--dyn-search-custom-period-auto-continue": custom_period_auto_continue,
+    }
+    custom_period_flags = [
+        flag for flag, value in custom_period_values.items() if value is not None
+    ]
+    if custom_period_flags and len(custom_period_flags) != len(custom_period_values):
+        missing = [
+            flag for flag, value in custom_period_values.items() if value is None
+        ]
+        raise click.UsageError(
+            "DynamicTextCampaign Search CustomPeriodBudget requires all "
+            f"custom-period flags; missing {', '.join(sorted(missing))}"
+        )
+    if custom_period_flags and subtype not in _DYN_SEARCH_CUSTOM_PERIOD_SUBTYPES:
+        raise click.UsageError(
+            f"{normalized_strategy} does not accept DynamicTextCampaign Search "
+            "CustomPeriodBudget flags"
+        )
+    if weekly_spend_limit is not None and custom_period_flags:
+        raise click.UsageError(
+            "--dyn-search-weekly-spend-limit cannot be combined with "
+            "--dyn-search-custom-period-spend-limit"
+        )
+
+    # WSDL minOccurs=1 enforcement on the create path: every Strategy*Add
+    # subtype with a required leaf must have it supplied or rejected at
+    # CLI level. References:
+    #   StrategyMaximumConversionRateAdd.GoalId (line 1352, minOccurs=1)
+    #   StrategyAverageCpcAdd.AverageCpc (line 1365, minOccurs=1)
+    #   StrategyAverageCpaAdd.AverageCpa+GoalId (lines 1372-1373)
+    #   StrategyPayForConversionAdd.Cpa+GoalId (lines 1382-1383)
+    #   StrategyAverageRoiAdd.ReserveReturn+RoiCoef+GoalId (1455-1457)
+    #   StrategyAverageCrrAdd.Crr+GoalId (1467-1468)
+    #   StrategyPayForConversionCrrAdd.Crr+GoalId (1476-1477)
+    #   StrategyWeeklyClickPackageAdd.ClicksPerWeek (1484, minOccurs=1)
+    if not is_update:
+        required_map = {
+            "WbMaximumClicks": [],
+            "WbMaximumConversionRate": [
+                ("--dyn-search-goal-id", goal_id),
+            ],
+            "AverageCpc": [("--dyn-search-average-cpc", average_cpc)],
+            "AverageCpa": [
+                ("--dyn-search-average-cpa", average_cpa),
+                ("--dyn-search-goal-id", goal_id),
+            ],
+            "PayForConversion": [
+                ("--dyn-search-cpa", cpa),
+                ("--dyn-search-goal-id", goal_id),
+            ],
+            "AverageRoi": [
+                ("--dyn-search-reserve-return", reserve_return),
+                ("--dyn-search-roi-coef", roi_coef),
+                ("--dyn-search-goal-id", goal_id),
+            ],
+            "AverageCrr": [
+                ("--dyn-search-crr", crr),
+                ("--dyn-search-goal-id", goal_id),
+            ],
+            "PayForConversionCrr": [
+                ("--dyn-search-crr", crr),
+                ("--dyn-search-goal-id", goal_id),
+            ],
+            "WeeklyClickPackage": [
+                ("--dyn-search-clicks-per-week", clicks_per_week),
+            ],
+        }[subtype]
+        missing = [flag for flag, value in required_map if value is None]
+        if missing:
+            raise click.UsageError(
+                f"{normalized_strategy} requires {', '.join(sorted(missing))}"
+            )
+
+    # BudgetType is update-only — on add the budget slice is implied by
+    # which of WeeklySpendLimit / CustomPeriodBudget is set. On update,
+    # WSDL ``StrategyMaximumClicks`` / ``StrategyAverageCpc`` / etc. all
+    # declare ``BudgetType`` as an independent optional element
+    # (campaigns WSDL lines 789-804, 813-827, ...). The CLI therefore
+    # accepts the standalone switch — e.g. an update that flips an
+    # already-configured campaign between WEEKLY_BUDGET and
+    # CUSTOM_PERIOD_BUDGET without re-supplying the slice. Yandex
+    # rejects inconsistent combinations at the wire; we surface that
+    # round-trip error to the user instead of inventing a tighter local
+    # contract than the WSDL declares (#362 adversarial-review feedback).
+    if budget_type is not None:
+        if not is_update:
+            raise click.UsageError("--dyn-search-budget-type is update-only")
+        if subtype not in _DYN_SEARCH_BUDGET_TYPE_SUBTYPES:
+            raise click.UsageError(
+                f"{normalized_strategy} does not accept --dyn-search-budget-type"
+            )
+
+    # Per-subtype field support — silent-data-loss invariant #2 in
+    # tests/test_wsdl_parity_gate.py. Each flag whose value is not None
+    # must belong to the WSDL Strategy*Add type for the chosen subtype.
+    field_support = {
+        "--dyn-search-weekly-spend-limit": (
+            weekly_spend_limit,
+            _DYN_SEARCH_WEEKLY_SPEND_LIMIT_SUBTYPES,
+        ),
+        "--dyn-search-bid-ceiling": (bid_ceiling, _DYN_SEARCH_BID_CEILING_SUBTYPES),
+        "--dyn-search-average-cpc": (
+            average_cpc,
+            _DYN_SEARCH_AVERAGE_CPC_SUBTYPES,
+        ),
+        "--dyn-search-average-cpa": (
+            average_cpa,
+            _DYN_SEARCH_AVERAGE_CPA_SUBTYPES,
+        ),
+        "--dyn-search-cpa": (cpa, _DYN_SEARCH_CPA_SUBTYPES),
+        "--dyn-search-goal-id": (goal_id, _DYN_SEARCH_GOAL_ID_SUBTYPES),
+        "--dyn-search-crr": (crr, _DYN_SEARCH_CRR_SUBTYPES),
+        "--dyn-search-clicks-per-week": (
+            clicks_per_week,
+            _DYN_SEARCH_CLICKS_PER_WEEK_SUBTYPES,
+        ),
+        "--dyn-search-reserve-return": (
+            reserve_return,
+            _DYN_SEARCH_RESERVE_RETURN_SUBTYPES,
+        ),
+        "--dyn-search-roi-coef": (roi_coef, _DYN_SEARCH_ROI_COEF_SUBTYPES),
+        "--dyn-search-profitability": (
+            profitability,
+            _DYN_SEARCH_PROFITABILITY_SUBTYPES,
+        ),
+    }
+    for flag, (value, supported_subtypes) in field_support.items():
+        if value is not None and subtype not in supported_subtypes:
+            raise click.UsageError(f"{normalized_strategy} does not accept {flag}")
+
+    block: dict = {}
+    if reserve_return is not None:
+        block["ReserveReturn"] = reserve_return
+    if roi_coef is not None:
+        block["RoiCoef"] = roi_coef
+    if average_cpa is not None:
+        block["AverageCpa"] = average_cpa
+    if cpa is not None:
+        block["Cpa"] = cpa
+    if crr is not None:
+        block["Crr"] = crr
+    if goal_id is not None:
+        block["GoalId"] = goal_id
+    if average_cpc is not None:
+        block["AverageCpc"] = average_cpc
+    if clicks_per_week is not None:
+        block["ClicksPerWeek"] = clicks_per_week
+    if weekly_spend_limit is not None:
+        block["WeeklySpendLimit"] = weekly_spend_limit
+    if bid_ceiling is not None:
+        block["BidCeiling"] = bid_ceiling
+    if profitability is not None:
+        block["Profitability"] = profitability
+    if custom_period_flags:
+        assert custom_period_spend_limit is not None
+        assert custom_period_start_date is not None
+        assert custom_period_end_date is not None
+        assert custom_period_auto_continue is not None
+        block["CustomPeriodBudget"] = {
+            "SpendLimit": custom_period_spend_limit,
+            "StartDate": custom_period_start_date,
+            "EndDate": custom_period_end_date,
+            "AutoContinue": custom_period_auto_continue.upper(),
+        }
+    if exploration_provided:
+        assert exploration_budget is not None
+        assert exploration_budget_custom is not None
+        block["ExplorationBudget"] = {
+            "MinimumExplorationBudget": exploration_budget,
+            "IsMinimumExplorationBudgetCustom": exploration_budget_custom.upper(),
+        }
+    if budget_type is not None:
+        normalized_budget_type = budget_type.upper()
+        # Mirror the Network/MobileApp/TextSearch builders: switching the
+        # budget slice on update nulls the other slice explicitly.
+        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET":
+            block["WeeklySpendLimit"] = None
+        elif normalized_budget_type == "WEEKLY_BUDGET":
+            block["CustomPeriodBudget"] = None
+        block["BudgetType"] = normalized_budget_type
+    if block:
+        search[subtype] = block
+    return search
+
+
 # Dispatch registry for bidding-strategy builders. Keyed on
 # ``(campaign_type, operation, branch)`` where:
 #   - campaign_type: "TEXT_CAMPAIGN", "DYNAMIC_TEXT_CAMPAIGN",
@@ -3157,4 +3607,10 @@ register_bidding_strategy_builder(
 )
 register_bidding_strategy_builder(
     "DYNAMIC_TEXT_CAMPAIGN", "update", "network", build_dynamic_text_network_strategy
+)
+register_bidding_strategy_builder(
+    "DYNAMIC_TEXT_CAMPAIGN", "add", "search", build_dynamic_text_search_strategy
+)
+register_bidding_strategy_builder(
+    "DYNAMIC_TEXT_CAMPAIGN", "update", "search", build_dynamic_text_search_strategy
 )
