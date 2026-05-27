@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.13
+
+**Breaking changes:**
+
+- `direct campaigns add` and `direct campaigns update` now require all
+  bidding-strategy money flags to be passed directly in micro-rubles,
+  matching the existing `--budget`, `--average-cpa`, `--bid-ceiling`, and
+  `--filter-average-cpc` contract. The CLI no longer accepts decimal currency
+  values or performs unit conversion for campaign money
+  inputs. Closes #399.
+- `direct ads add` and `direct ads update` now apply the same API-native
+  micro-ruble contract to `--price-extension-price` and
+  `--price-extension-old-price`; price-extension values are no longer parsed
+  as decimal currency amounts.
+
 ## 0.3.12
 
 **Added:**

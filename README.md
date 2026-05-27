@@ -294,7 +294,7 @@ lines with `\`.
 #### Flag Design Rules
 
 - List inputs use comma-separated CLI syntax where appropriate.
-- Money and bid values are passed in micro-rubles (API-native format). Values below 100,000 trigger a validation hint suggesting the correct scale.
+- Money and bid values are passed only in micro-rubles, exactly as Yandex Direct API long fields define them. The CLI does not accept decimal currency amounts or convert currency units; values below 100,000 trigger a validation hint suggesting the correct scale.
 - Selector fields remain explicit flags, for example:
   - `--id`
   - `--campaign-id`
@@ -428,8 +428,8 @@ direct ads get --campaign-ids 1,2,3
 direct ads get --adgroup-ids 45678 --format table
 direct ads add --adgroup-id 12345 --type TEXT_AD --title "Title" --text "Ad text" --href "https://example.com" --dry-run
 direct ads add --adgroup-id 12345 --type TEXT_AD --title "Title" --text "Ad text" --href "https://example.com" --title2 "Second headline" --display-url-path "deals" --mobile YES --vcard-id 111 --sitelink-set-id 222 --turbo-page-id 333 --ad-extensions "444,555" --dry-run
-direct ads add --adgroup-id 12345 --type TEXT_AD --title "Title" --text "Ad text" --href "https://example.com" --final-url "https://final.example.com" --video-extension-creative-id 777 --price-extension-price 123.45 --price-extension-price-qualifier FROM --price-extension-price-currency RUB --business-id 777 --prefer-vcard-over-business NO --erir-ad-description "Text ad object" --dry-run
-direct ads add --adgroup-id 12345 --type RESPONSIVE_AD --texts "Text one,Text two" --titles "Title one,Title two" --image-hashes hash1,hash2 --video-extension-ids 111,222 --href "https://example.com" --price-extension-price 123.45 --price-extension-price-qualifier FROM --price-extension-price-currency RUB --business-id 777 --erir-ad-description "Responsive ad object" --dry-run
+direct ads add --adgroup-id 12345 --type TEXT_AD --title "Title" --text "Ad text" --href "https://example.com" --final-url "https://final.example.com" --video-extension-creative-id 777 --price-extension-price 123450000 --price-extension-price-qualifier FROM --price-extension-price-currency RUB --business-id 777 --prefer-vcard-over-business NO --erir-ad-description "Text ad object" --dry-run
+direct ads add --adgroup-id 12345 --type RESPONSIVE_AD --texts "Text one,Text two" --titles "Title one,Title two" --image-hashes hash1,hash2 --video-extension-ids 111,222 --href "https://example.com" --price-extension-price 123450000 --price-extension-price-qualifier FROM --price-extension-price-currency RUB --business-id 777 --erir-ad-description "Responsive ad object" --dry-run
 direct ads add --adgroup-id 12345 --type SHOPPING_AD --feed-id 170 --default-texts "Default product text" --sitelink-set-id 222 --ad-extensions "333,444" --business-id 777 --feed-filter-condition "CATEGORY:EQUALS_ANY:shoes|boots" --title-sources NAME,BRAND --text-sources DESCRIPTION --dry-run
 direct ads add --adgroup-id 12345 --type LISTING_AD --feed-id 171 --default-texts "Default listing text" --feed-filter-condition "CATEGORY:EQUALS_ANY:appliances" --title-sources TITLE --text-sources DESCRIPTION --dry-run
 direct ads add --adgroup-id 12345 --type TEXT_AD_BUILDER_AD --creative-id 123 --href "https://example.com" --turbo-page-id 456 --erir-ad-description "Builder ad object" --dry-run
@@ -445,11 +445,11 @@ direct ads update --id 99999 --type TEXT_AD --image-hash abcdefghijklmnopqrst
 direct ads update --id 99999 --type TEXT_AD --title2 "New second headline" --vcard-id 222
 direct ads update --id 99999 --type TEXT_AD --callouts-add "111,222" --callouts-remove "333"
 direct ads update --id 99999 --type TEXT_AD --callouts-set "444,555"
-direct ads update --id 99999 --type TEXT_AD --video-extension-creative-id 777 --price-extension-price 123.45 --price-extension-price-qualifier FROM --price-extension-price-currency RUB
+direct ads update --id 99999 --type TEXT_AD --video-extension-creative-id 777 --price-extension-price 123450000 --price-extension-price-qualifier FROM --price-extension-price-currency RUB
 direct ads update --id 99999 --type TEXT_AD --final-url "https://final.example.com" --age-label AGE_18 --business-id 777 --prefer-vcard-over-business NO --erir-ad-description "Text ad object"
 direct ads update --id 99999 --type DYNAMIC_TEXT_AD --text "Updated dynamic text" --callouts-add "111,222"
 direct ads update --id 99999 --type MOBILE_APP_AD --mobile-app-feature PRICE=YES --mobile-app-feature CUSTOMER_RATING=NO --video-extension-creative-id 777 --erir-ad-description "Mobile app object"
-direct ads update --id 99999 --type RESPONSIVE_AD --texts "Text one,Text two" --titles "Title one,Title two" --image-hashes hash1,hash2 --video-extension-ids 111,222 --href "https://example.com" --price-extension-price 123.45 --price-extension-price-qualifier FROM --price-extension-price-currency RUB
+direct ads update --id 99999 --type RESPONSIVE_AD --texts "Text one,Text two" --titles "Title one,Title two" --image-hashes hash1,hash2 --video-extension-ids 111,222 --href "https://example.com" --price-extension-price 123450000 --price-extension-price-qualifier FROM --price-extension-price-currency RUB
 direct ads update --id 99999 --type TEXT_IMAGE_AD --final-url "https://final.example.com" --erir-ad-description "Image ad object"
 direct ads update --id 99999 --type SHOPPING_AD --sitelink-set-id 222 --callouts-set "444,555" --business-id 777 --feed-filter-condition "CATEGORY:EQUALS_ANY:shoes|boots" --title-sources NAME,BRAND --text-sources DESCRIPTION --default-texts "Default product text"
 direct ads update --id 99999 --type MOBILE_APP_IMAGE_AD --image-hash abcdefghijklmnopqrst --tracking-url "https://track.example.com" --erir-ad-description "Mobile image ad"
@@ -471,8 +471,8 @@ when any price-extension flag is used. `ads update` additionally exposes
 `TextAdUpdateBase.CalloutSetting` (`ext:AdExtensionSetting`) field on an
 existing ad — `--callouts-set` replaces the whole callout list and is mutually
 exclusive with the incremental `--callouts-add` / `--callouts-remove` pair.
-Price-extension values are human-readable money amounts and are converted to
-the Yandex Direct API long-unit format internally. `ads update` also supports
+Price-extension values are passed in micro-rubles, matching the Yandex Direct
+API long-unit format directly. `ads update` also supports
 `--age-label`.
 `--mobile` (default `NO`) and `--ad-extensions` are `ads add`-only —
 `TextAdUpdate` does not contain `Mobile`, and on update ad-extensions are
@@ -1118,7 +1118,7 @@ lines with `\`.
 #### Flag Design Rules
 
 - List inputs use comma-separated CLI syntax where appropriate.
-- Money and bid values are passed in micro-rubles (API-native format). Values below 100,000 trigger a validation hint suggesting the correct scale.
+- Money and bid values are passed only in micro-rubles, exactly as Yandex Direct API long fields define them. The CLI does not accept decimal currency amounts or convert currency units; values below 100,000 trigger a validation hint suggesting the correct scale.
 - Selector fields remain explicit flags, for example:
   - `--id`
   - `--campaign-id`
@@ -1182,7 +1182,7 @@ direct campaigns add --name "Моя кампания" --start-date 2024-02-01 --
 direct campaigns add --name "Динамическая кампания" --start-date 2024-02-01 --type DYNAMIC_TEXT_CAMPAIGN --setting ADD_METRICA_TAG=NO --search-strategy HIGHEST_POSITION --network-strategy SERVING_OFF --dry-run
 direct campaigns add --name "Смарт-кампания" --start-date 2024-02-01 --type SMART_CAMPAIGN --network-strategy AVERAGE_CPC_PER_FILTER --filter-average-cpc 1000000 --counter-id 123 --dry-run
 
-# CPA-стратегия (одна цель): --goal-id обязателен, --average-cpa/--bid-ceiling — micro-рубли
+# CPA-стратегия (одна цель): --goal-id обязателен, --average-cpa/--bid-ceiling — micro-rubles
 direct campaigns add --name "CPA-кампания" --start-date 2026-06-01 --type TEXT_CAMPAIGN --search-strategy AVERAGE_CPA --network-strategy SERVING_OFF --goal-id 1234567 --average-cpa 500000000 --bid-ceiling 1000000000 --counter-ids 111,222 --dry-run
 
 # Мульти-целевой CPA через PriorityGoals (пары goal_id:value, WSDL PriorityGoalsItem)
@@ -1251,8 +1251,8 @@ direct ads get --campaign-ids 1,2,3
 direct ads get --adgroup-ids 45678 --format table
 direct ads add --adgroup-id 12345 --type TEXT_AD --title "Заголовок" --text "Текст объявления" --href "https://example.com" --dry-run
 direct ads add --adgroup-id 12345 --type TEXT_AD --title "Заголовок" --text "Текст" --href "https://example.com" --title2 "Второй заголовок" --display-url-path "deals" --mobile YES --vcard-id 111 --sitelink-set-id 222 --turbo-page-id 333 --ad-extensions "444,555" --dry-run
-direct ads add --adgroup-id 12345 --type TEXT_AD --title "Заголовок" --text "Текст объявления" --href "https://example.com" --final-url "https://final.example.com" --video-extension-creative-id 777 --price-extension-price 123.45 --price-extension-price-qualifier FROM --price-extension-price-currency RUB --business-id 777 --prefer-vcard-over-business NO --erir-ad-description "Объект текстового объявления" --dry-run
-direct ads add --adgroup-id 12345 --type RESPONSIVE_AD --texts "Текст один,Текст два" --titles "Заголовок один,Заголовок два" --image-hashes hash1,hash2 --video-extension-ids 111,222 --href "https://example.com" --price-extension-price 123.45 --price-extension-price-qualifier FROM --price-extension-price-currency RUB --business-id 777 --erir-ad-description "Объект адаптивного объявления" --dry-run
+direct ads add --adgroup-id 12345 --type TEXT_AD --title "Заголовок" --text "Текст объявления" --href "https://example.com" --final-url "https://final.example.com" --video-extension-creative-id 777 --price-extension-price 123450000 --price-extension-price-qualifier FROM --price-extension-price-currency RUB --business-id 777 --prefer-vcard-over-business NO --erir-ad-description "Объект текстового объявления" --dry-run
+direct ads add --adgroup-id 12345 --type RESPONSIVE_AD --texts "Текст один,Текст два" --titles "Заголовок один,Заголовок два" --image-hashes hash1,hash2 --video-extension-ids 111,222 --href "https://example.com" --price-extension-price 123450000 --price-extension-price-qualifier FROM --price-extension-price-currency RUB --business-id 777 --erir-ad-description "Объект адаптивного объявления" --dry-run
 direct ads add --adgroup-id 12345 --type SHOPPING_AD --feed-id 170 --default-texts "Текст по умолчанию" --sitelink-set-id 222 --ad-extensions "333,444" --business-id 777 --feed-filter-condition "CATEGORY:EQUALS_ANY:shoes|boots" --title-sources NAME,BRAND --text-sources DESCRIPTION --dry-run
 direct ads add --adgroup-id 12345 --type LISTING_AD --feed-id 171 --default-texts "Текст листинга по умолчанию" --feed-filter-condition "CATEGORY:EQUALS_ANY:appliances" --title-sources TITLE --text-sources DESCRIPTION --dry-run
 direct ads add --adgroup-id 12345 --type TEXT_AD_BUILDER_AD --creative-id 123 --href "https://example.com" --turbo-page-id 456 --erir-ad-description "Объект объявления из конструктора" --dry-run
@@ -1268,11 +1268,11 @@ direct ads update --id 99999 --type TEXT_AD --image-hash abcdefghijklmnopqrst
 direct ads update --id 99999 --type TEXT_AD --title2 "Новый второй заголовок" --vcard-id 222
 direct ads update --id 99999 --type TEXT_AD --callouts-add "111,222" --callouts-remove "333"
 direct ads update --id 99999 --type TEXT_AD --callouts-set "444,555"
-direct ads update --id 99999 --type TEXT_AD --video-extension-creative-id 777 --price-extension-price 123.45 --price-extension-price-qualifier FROM --price-extension-price-currency RUB
+direct ads update --id 99999 --type TEXT_AD --video-extension-creative-id 777 --price-extension-price 123450000 --price-extension-price-qualifier FROM --price-extension-price-currency RUB
 direct ads update --id 99999 --type TEXT_AD --final-url "https://final.example.com" --age-label AGE_18 --business-id 777 --prefer-vcard-over-business NO --erir-ad-description "Объект текстового объявления"
 direct ads update --id 99999 --type DYNAMIC_TEXT_AD --text "Обновленный динамический текст" --callouts-add "111,222"
 direct ads update --id 99999 --type MOBILE_APP_AD --mobile-app-feature PRICE=YES --mobile-app-feature CUSTOMER_RATING=NO --video-extension-creative-id 777 --erir-ad-description "Объект мобильного объявления"
-direct ads update --id 99999 --type RESPONSIVE_AD --texts "Текст один,Текст два" --titles "Заголовок один,Заголовок два" --image-hashes hash1,hash2 --video-extension-ids 111,222 --href "https://example.com" --price-extension-price 123.45 --price-extension-price-qualifier FROM --price-extension-price-currency RUB
+direct ads update --id 99999 --type RESPONSIVE_AD --texts "Текст один,Текст два" --titles "Заголовок один,Заголовок два" --image-hashes hash1,hash2 --video-extension-ids 111,222 --href "https://example.com" --price-extension-price 123450000 --price-extension-price-qualifier FROM --price-extension-price-currency RUB
 direct ads update --id 99999 --type TEXT_IMAGE_AD --final-url "https://final.example.com" --erir-ad-description "Объект графического объявления"
 direct ads update --id 99999 --type SHOPPING_AD --sitelink-set-id 222 --callouts-set "444,555" --business-id 777 --feed-filter-condition "CATEGORY:EQUALS_ANY:shoes|boots" --title-sources NAME,BRAND --text-sources DESCRIPTION --default-texts "Текст по умолчанию"
 direct ads update --id 99999 --type MOBILE_APP_IMAGE_AD --image-hash abcdefghijklmnopqrst --tracking-url "https://track.example.com" --erir-ad-description "Мобильное графическое объявление"
@@ -1294,9 +1294,8 @@ direct ads delete --id 99999
 `--callouts-set` для управления полем `TextAdUpdateBase.CalloutSetting`
 (`ext:AdExtensionSetting`) у существующего объявления — `--callouts-set`
 заменяет весь список выносок и взаимоисключим с инкрементальной парой
-`--callouts-add` / `--callouts-remove`. Значения price-extension передаются как
-человекочитаемые суммы и внутри CLI конвертируются в long-единицы API Яндекс
-Директа. В `ads update` также поддерживается `--age-label`.
+`--callouts-add` / `--callouts-remove`. Значения price-extension передаются в micro-rubles напрямую, в том же
+long-формате, который ожидает API Яндекс Директа. В `ads update` также поддерживается `--age-label`.
 `--mobile` (по умолчанию `NO`) и
 `--ad-extensions` доступны только в `ads add` — WSDL `TextAdUpdate` не
 содержит `Mobile`, а в `ads update` расширения управляются через флаги

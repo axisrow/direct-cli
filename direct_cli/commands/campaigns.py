@@ -15,7 +15,6 @@ from ..utils import (
     add_criteria_csv,
     get_default_fields,
     MICRO_RUBLES,
-    RUBLES_TO_MICRO_RUBLES,
     parse_ids,
     parse_csv_strings,
     parse_priority_goals_spec,
@@ -886,18 +885,18 @@ def get(
 )
 @click.option(
     "--average-cpm",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="CpmBannerCampaign strategy AverageCpm in rubles",
+    type=MICRO_RUBLES,
+    help="CpmBannerCampaign strategy AverageCpm in micro-rubles",
 )
 @click.option(
     "--average-cpv",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="CpmBannerCampaign strategy AverageCpv in rubles",
+    type=MICRO_RUBLES,
+    help="CpmBannerCampaign strategy AverageCpv in micro-rubles",
 )
 @click.option(
     "--strategy-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="CpmBannerCampaign strategy SpendLimit in rubles",
+    type=MICRO_RUBLES,
+    help="CpmBannerCampaign strategy SpendLimit in micro-rubles",
 )
 @click.option("--strategy-start-date", help="CpmBannerCampaign strategy StartDate")
 @click.option("--strategy-end-date", help="CpmBannerCampaign strategy EndDate")
@@ -908,18 +907,18 @@ def get(
 )
 @click.option(
     "--mobile-search-weekly-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="MobileAppCampaign Search strategy WeeklySpendLimit in rubles",
+    type=MICRO_RUBLES,
+    help="MobileAppCampaign Search strategy WeeklySpendLimit in micro-rubles",
 )
 @click.option(
     "--mobile-search-bid-ceiling",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="MobileAppCampaign Search strategy BidCeiling in rubles",
+    type=MICRO_RUBLES,
+    help="MobileAppCampaign Search strategy BidCeiling in micro-rubles",
 )
 @click.option(
     "--mobile-search-custom-period-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="MobileAppCampaign Search CustomPeriodBudget.SpendLimit in rubles",
+    type=MICRO_RUBLES,
+    help="MobileAppCampaign Search CustomPeriodBudget.SpendLimit in micro-rubles",
 )
 @click.option(
     "--mobile-search-custom-period-start-date",
@@ -936,13 +935,13 @@ def get(
 )
 @click.option(
     "--mobile-search-average-cpc",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="MobileAppCampaign Search strategy AverageCpc in rubles",
+    type=MICRO_RUBLES,
+    help="MobileAppCampaign Search strategy AverageCpc in micro-rubles",
 )
 @click.option(
     "--mobile-search-average-cpi",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="MobileAppCampaign Search strategy AverageCpi in rubles",
+    type=MICRO_RUBLES,
+    help="MobileAppCampaign Search strategy AverageCpi in micro-rubles",
 )
 @click.option(
     "--mobile-search-clicks-per-week",
@@ -951,18 +950,18 @@ def get(
 )
 @click.option(
     "--mobile-network-weekly-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="MobileAppCampaign Network strategy WeeklySpendLimit in rubles",
+    type=MICRO_RUBLES,
+    help="MobileAppCampaign Network strategy WeeklySpendLimit in micro-rubles",
 )
 @click.option(
     "--mobile-network-bid-ceiling",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="MobileAppCampaign Network strategy BidCeiling in rubles",
+    type=MICRO_RUBLES,
+    help="MobileAppCampaign Network strategy BidCeiling in micro-rubles",
 )
 @click.option(
     "--mobile-network-custom-period-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="MobileAppCampaign Network CustomPeriodBudget.SpendLimit in rubles",
+    type=MICRO_RUBLES,
+    help="MobileAppCampaign Network CustomPeriodBudget.SpendLimit in micro-rubles",
 )
 @click.option(
     "--mobile-network-custom-period-start-date",
@@ -979,13 +978,13 @@ def get(
 )
 @click.option(
     "--mobile-network-average-cpc",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="MobileAppCampaign Network strategy AverageCpc in rubles",
+    type=MICRO_RUBLES,
+    help="MobileAppCampaign Network strategy AverageCpc in micro-rubles",
 )
 @click.option(
     "--mobile-network-average-cpi",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="MobileAppCampaign Network strategy AverageCpi in rubles",
+    type=MICRO_RUBLES,
+    help="MobileAppCampaign Network strategy AverageCpi in micro-rubles",
 )
 @click.option(
     "--mobile-network-clicks-per-week",
@@ -999,18 +998,18 @@ def get(
 )
 @click.option(
     "--dyn-network-weekly-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="DynamicTextCampaign Network strategy WeeklySpendLimit in rubles",
+    type=MICRO_RUBLES,
+    help="DynamicTextCampaign Network strategy WeeklySpendLimit in micro-rubles",
 )
 @click.option(
     "--dyn-network-bid-ceiling",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="DynamicTextCampaign Network strategy BidCeiling in rubles",
+    type=MICRO_RUBLES,
+    help="DynamicTextCampaign Network strategy BidCeiling in micro-rubles",
 )
 @click.option(
     "--dyn-network-custom-period-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="DynamicTextCampaign Network CustomPeriodBudget.SpendLimit in rubles",
+    type=MICRO_RUBLES,
+    help="DynamicTextCampaign Network CustomPeriodBudget.SpendLimit in micro-rubles",
 )
 @click.option(
     "--dyn-network-custom-period-start-date",
@@ -1027,18 +1026,18 @@ def get(
 )
 @click.option(
     "--dyn-network-average-cpc",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="DynamicTextCampaign Network strategy AverageCpc in rubles",
+    type=MICRO_RUBLES,
+    help="DynamicTextCampaign Network strategy AverageCpc in micro-rubles",
 )
 @click.option(
     "--dyn-network-average-cpa",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="DynamicTextCampaign Network AverageCpa.AverageCpa in rubles",
+    type=MICRO_RUBLES,
+    help="DynamicTextCampaign Network AverageCpa.AverageCpa in micro-rubles",
 )
 @click.option(
     "--dyn-network-cpa",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="DynamicTextCampaign Network PayForConversion.Cpa in rubles",
+    type=MICRO_RUBLES,
+    help="DynamicTextCampaign Network PayForConversion.Cpa in micro-rubles",
 )
 @click.option(
     "--dyn-network-goal-id",
@@ -1077,10 +1076,10 @@ def get(
 )
 @click.option(
     "--dyn-network-exploration-budget",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "DynamicTextCampaign Network "
-        "ExplorationBudget.MinimumExplorationBudget in rubles"
+        "ExplorationBudget.MinimumExplorationBudget in micro-rubles"
     ),
 )
 @click.option(
@@ -1096,18 +1095,18 @@ def get(
 # DynamicTextCampaignSearchStrategyAdd PlacementTypes (line 1741-1752).
 @click.option(
     "--dyn-search-weekly-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="DynamicTextCampaign Search strategy WeeklySpendLimit in rubles",
+    type=MICRO_RUBLES,
+    help="DynamicTextCampaign Search strategy WeeklySpendLimit in micro-rubles",
 )
 @click.option(
     "--dyn-search-bid-ceiling",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="DynamicTextCampaign Search strategy BidCeiling in rubles",
+    type=MICRO_RUBLES,
+    help="DynamicTextCampaign Search strategy BidCeiling in micro-rubles",
 )
 @click.option(
     "--dyn-search-custom-period-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="DynamicTextCampaign Search CustomPeriodBudget.SpendLimit in rubles",
+    type=MICRO_RUBLES,
+    help="DynamicTextCampaign Search CustomPeriodBudget.SpendLimit in micro-rubles",
 )
 @click.option(
     "--dyn-search-custom-period-start-date",
@@ -1124,18 +1123,18 @@ def get(
 )
 @click.option(
     "--dyn-search-average-cpc",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="DynamicTextCampaign Search strategy AverageCpc in rubles",
+    type=MICRO_RUBLES,
+    help="DynamicTextCampaign Search strategy AverageCpc in micro-rubles",
 )
 @click.option(
     "--dyn-search-average-cpa",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="DynamicTextCampaign Search AverageCpa.AverageCpa in rubles",
+    type=MICRO_RUBLES,
+    help="DynamicTextCampaign Search AverageCpa.AverageCpa in micro-rubles",
 )
 @click.option(
     "--dyn-search-cpa",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="DynamicTextCampaign Search PayForConversion.Cpa in rubles",
+    type=MICRO_RUBLES,
+    help="DynamicTextCampaign Search PayForConversion.Cpa in micro-rubles",
 )
 @click.option(
     "--dyn-search-goal-id",
@@ -1169,10 +1168,10 @@ def get(
 )
 @click.option(
     "--dyn-search-exploration-budget",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "DynamicTextCampaign Search "
-        "ExplorationBudget.MinimumExplorationBudget in rubles"
+        "ExplorationBudget.MinimumExplorationBudget in micro-rubles"
     ),
 )
 @click.option(
@@ -1185,42 +1184,42 @@ def get(
 )
 @click.option(
     "--smart-search-average-cpc",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "SmartCampaign Search StrategyAverageCpcPerCampaignAdd.AverageCpc "
-        "in rubles (#367)"
+        "in micro-rubles (#367)"
     ),
 )
 @click.option(
     "--smart-search-filter-average-cpc",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "SmartCampaign Search StrategyAverageCpcPerFilterAdd.FilterAverageCpc "
-        "in rubles (#367)"
+        "in micro-rubles (#367)"
     ),
 )
 @click.option(
     "--smart-search-average-cpa",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "SmartCampaign Search StrategyAverageCpaPerCampaignAdd.AverageCpa "
-        "in rubles (#367)"
+        "in micro-rubles (#367)"
     ),
 )
 @click.option(
     "--smart-search-filter-average-cpa",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "SmartCampaign Search StrategyAverageCpaPerFilterAdd.FilterAverageCpa "
-        "in rubles (#367)"
+        "in micro-rubles (#367)"
     ),
 )
 @click.option(
     "--smart-search-cpa",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "SmartCampaign Search PayForConversion[Per{Campaign,Filter}].Cpa "
-        "in rubles (#367)"
+        "in micro-rubles (#367)"
     ),
 )
 @click.option(
@@ -1230,13 +1229,13 @@ def get(
 )
 @click.option(
     "--smart-search-weekly-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="SmartCampaign Search Strategy*Add.WeeklySpendLimit in rubles (#367)",
+    type=MICRO_RUBLES,
+    help="SmartCampaign Search Strategy*Add.WeeklySpendLimit in micro-rubles (#367)",
 )
 @click.option(
     "--smart-search-bid-ceiling",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="SmartCampaign Search Strategy*Add.BidCeiling in rubles (#367)",
+    type=MICRO_RUBLES,
+    help="SmartCampaign Search Strategy*Add.BidCeiling in micro-rubles (#367)",
 )
 @click.option(
     "--smart-search-reserve-return",
@@ -1245,14 +1244,15 @@ def get(
 )
 @click.option(
     "--smart-search-roi-coef",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="SmartCampaign Search StrategyAverageRoiAdd.RoiCoef in rubles (#367)",
+    type=MICRO_RUBLES,
+    help="SmartCampaign Search StrategyAverageRoiAdd.RoiCoef in micro-rubles (#367)",
 )
 @click.option(
     "--smart-search-profitability",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
-        "SmartCampaign Search StrategyAverageRoiAdd.Profitability in " "rubles (#367)"
+        "SmartCampaign Search StrategyAverageRoiAdd.Profitability in "
+        "micro-rubles (#367)"
     ),
 )
 @click.option(
@@ -1265,8 +1265,8 @@ def get(
 )
 @click.option(
     "--smart-search-cp-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help=("SmartCampaign Search CustomPeriodBudget.SpendLimit in rubles (#367)"),
+    type=MICRO_RUBLES,
+    help=("SmartCampaign Search CustomPeriodBudget.SpendLimit in micro-rubles (#367)"),
 )
 @click.option(
     "--smart-search-cp-start-date",
@@ -1283,10 +1283,10 @@ def get(
 )
 @click.option(
     "--smart-search-exploration-min",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "SmartCampaign Search ExplorationBudget.MinimumExplorationBudget "
-        "in rubles (#367)"
+        "in micro-rubles (#367)"
     ),
 )
 @click.option(
@@ -1299,42 +1299,42 @@ def get(
 )
 @click.option(
     "--smart-network-average-cpc",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "SmartCampaign Network StrategyAverageCpcPerCampaignAdd.AverageCpc "
-        "in rubles (#368)"
+        "in micro-rubles (#368)"
     ),
 )
 @click.option(
     "--smart-network-filter-average-cpc",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "SmartCampaign Network StrategyAverageCpcPerFilterAdd.FilterAverageCpc "
-        "in rubles (#368)"
+        "in micro-rubles (#368)"
     ),
 )
 @click.option(
     "--smart-network-average-cpa",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "SmartCampaign Network StrategyAverageCpaPerCampaignAdd.AverageCpa "
-        "in rubles (#368)"
+        "in micro-rubles (#368)"
     ),
 )
 @click.option(
     "--smart-network-filter-average-cpa",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "SmartCampaign Network StrategyAverageCpaPerFilterAdd.FilterAverageCpa "
-        "in rubles (#368)"
+        "in micro-rubles (#368)"
     ),
 )
 @click.option(
     "--smart-network-cpa",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "SmartCampaign Network PayForConversion[Per{Campaign,Filter}].Cpa "
-        "in rubles (#368)"
+        "in micro-rubles (#368)"
     ),
 )
 @click.option(
@@ -1344,13 +1344,13 @@ def get(
 )
 @click.option(
     "--smart-network-weekly-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="SmartCampaign Network Strategy*Add.WeeklySpendLimit in rubles (#368)",
+    type=MICRO_RUBLES,
+    help="SmartCampaign Network Strategy*Add.WeeklySpendLimit in micro-rubles (#368)",
 )
 @click.option(
     "--smart-network-bid-ceiling",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="SmartCampaign Network Strategy*Add.BidCeiling in rubles (#368)",
+    type=MICRO_RUBLES,
+    help="SmartCampaign Network Strategy*Add.BidCeiling in micro-rubles (#368)",
 )
 @click.option(
     "--smart-network-reserve-return",
@@ -1359,14 +1359,15 @@ def get(
 )
 @click.option(
     "--smart-network-roi-coef",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="SmartCampaign Network StrategyAverageRoiAdd.RoiCoef in rubles (#368)",
+    type=MICRO_RUBLES,
+    help="SmartCampaign Network StrategyAverageRoiAdd.RoiCoef in micro-rubles (#368)",
 )
 @click.option(
     "--smart-network-profitability",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
-        "SmartCampaign Network StrategyAverageRoiAdd.Profitability in " "rubles (#368)"
+        "SmartCampaign Network StrategyAverageRoiAdd.Profitability in "
+        "micro-rubles (#368)"
     ),
 )
 @click.option(
@@ -1387,8 +1388,8 @@ def get(
 )
 @click.option(
     "--smart-network-cp-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help=("SmartCampaign Network CustomPeriodBudget.SpendLimit in rubles (#368)"),
+    type=MICRO_RUBLES,
+    help=("SmartCampaign Network CustomPeriodBudget.SpendLimit in micro-rubles (#368)"),
 )
 @click.option(
     "--smart-network-cp-start-date",
@@ -1405,10 +1406,10 @@ def get(
 )
 @click.option(
     "--smart-network-exploration-min",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "SmartCampaign Network ExplorationBudget.MinimumExplorationBudget "
-        "in rubles (#368)"
+        "in micro-rubles (#368)"
     ),
 )
 @click.option(
@@ -1439,13 +1440,13 @@ def get(
 )
 @click.option(
     "--text-search-weekly-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="TextCampaign Search strategy WeeklySpendLimit in rubles",
+    type=MICRO_RUBLES,
+    help="TextCampaign Search strategy WeeklySpendLimit in micro-rubles",
 )
 @click.option(
     "--text-search-custom-period-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="TextCampaign Search CustomPeriodBudget.SpendLimit in rubles",
+    type=MICRO_RUBLES,
+    help="TextCampaign Search CustomPeriodBudget.SpendLimit in micro-rubles",
 )
 @click.option(
     "--text-search-custom-period-start-date",
@@ -1462,13 +1463,13 @@ def get(
 )
 @click.option(
     "--text-search-average-cpc",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="TextCampaign Search strategy AverageCpc in rubles",
+    type=MICRO_RUBLES,
+    help="TextCampaign Search strategy AverageCpc in micro-rubles",
 )
 @click.option(
     "--text-search-pay-cpa",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="TextCampaign Search StrategyPayForConversionAdd.Cpa in rubles",
+    type=MICRO_RUBLES,
+    help="TextCampaign Search StrategyPayForConversionAdd.Cpa in micro-rubles",
 )
 @click.option(
     "--text-search-clicks-per-week",
@@ -1485,26 +1486,26 @@ def get(
 )
 @click.option(
     "--text-search-roi-coef",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "TextCampaign Search AVERAGE_ROI RoiCoef as a ratio (sales profit "
-        "/ promotion costs). Input is multiplied by 1,000,000 to match the "
-        "Yandex API wire format (e.g. 1 → 1000000)."
+        "/ promotion costs), supplied directly in micro-rubles wire format "
+        "(e.g. a 1.0 ratio is 1000000)."
     ),
 )
 @click.option(
     "--text-search-profitability",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
-        "TextCampaign Search AVERAGE_ROI Profitability percentage. Input "
-        "is multiplied by 1,000,000 to match the Yandex API wire format "
-        "(e.g. 20 → 20000000)."
+        "TextCampaign Search AVERAGE_ROI Profitability percentage, "
+        "supplied directly in micro-rubles wire format "
+        "(e.g. 20% is 20000000)."
     ),
 )
 @click.option(
     "--text-search-exploration-min-budget",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="TextCampaign Search ExplorationBudget.MinimumExplorationBudget in rubles",
+    type=MICRO_RUBLES,
+    help="TextCampaign Search ExplorationBudget.MinimumExplorationBudget in micro-rubles",
 )
 @click.option(
     "--text-search-exploration-is-custom",
@@ -1533,13 +1534,13 @@ def get(
 )
 @click.option(
     "--unified-search-weekly-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="UnifiedCampaign Search strategy WeeklySpendLimit in rubles (#363)",
+    type=MICRO_RUBLES,
+    help="UnifiedCampaign Search strategy WeeklySpendLimit in micro-rubles (#363)",
 )
 @click.option(
     "--unified-search-custom-period-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="UnifiedCampaign Search CustomPeriodBudget.SpendLimit in rubles (#363)",
+    type=MICRO_RUBLES,
+    help="UnifiedCampaign Search CustomPeriodBudget.SpendLimit in micro-rubles (#363)",
 )
 @click.option(
     "--unified-search-custom-period-start-date",
@@ -1556,20 +1557,20 @@ def get(
 )
 @click.option(
     "--unified-search-average-cpc",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="UnifiedCampaign Search strategy AverageCpc in rubles (#363)",
+    type=MICRO_RUBLES,
+    help="UnifiedCampaign Search strategy AverageCpc in micro-rubles (#363)",
 )
 @click.option(
     "--unified-search-pay-cpa",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="UnifiedCampaign Search StrategyPayForConversionAdd.Cpa in rubles (#363)",
+    type=MICRO_RUBLES,
+    help="UnifiedCampaign Search StrategyPayForConversionAdd.Cpa in micro-rubles (#363)",
 )
 @click.option(
     "--unified-search-exploration-min-budget",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "UnifiedCampaign Search ExplorationBudget.MinimumExplorationBudget "
-        "in rubles (#363)"
+        "in micro-rubles (#363)"
     ),
 )
 @click.option(
@@ -1582,13 +1583,13 @@ def get(
 )
 @click.option(
     "--text-network-weekly-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="TextCampaign Network strategy WeeklySpendLimit in rubles (#364)",
+    type=MICRO_RUBLES,
+    help="TextCampaign Network strategy WeeklySpendLimit in micro-rubles (#364)",
 )
 @click.option(
     "--text-network-custom-period-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="TextCampaign Network CustomPeriodBudget.SpendLimit in rubles (#364)",
+    type=MICRO_RUBLES,
+    help="TextCampaign Network CustomPeriodBudget.SpendLimit in micro-rubles (#364)",
 )
 @click.option(
     "--text-network-custom-period-start-date",
@@ -1605,13 +1606,13 @@ def get(
 )
 @click.option(
     "--text-network-average-cpc",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="TextCampaign Network strategy AverageCpc in rubles (#364)",
+    type=MICRO_RUBLES,
+    help="TextCampaign Network strategy AverageCpc in micro-rubles (#364)",
 )
 @click.option(
     "--text-network-pay-cpa",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="TextCampaign Network StrategyPayForConversionAdd.Cpa in rubles (#364)",
+    type=MICRO_RUBLES,
+    help="TextCampaign Network StrategyPayForConversionAdd.Cpa in micro-rubles (#364)",
 )
 @click.option(
     "--text-network-clicks-per-week",
@@ -1628,28 +1629,28 @@ def get(
 )
 @click.option(
     "--text-network-roi-coef",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "TextCampaign Network AVERAGE_ROI RoiCoef as a ratio (sales profit "
-        "/ promotion costs). Input is multiplied by 1,000,000 to match the "
-        "Yandex API wire format (e.g. 1 → 1000000) (#364)."
+        "/ promotion costs), supplied directly in micro-rubles wire format "
+        "(e.g. a 1.0 ratio is 1000000) (#364)."
     ),
 )
 @click.option(
     "--text-network-profitability",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
-        "TextCampaign Network AVERAGE_ROI Profitability percentage. Input "
-        "is multiplied by 1,000,000 to match the Yandex API wire format "
-        "(e.g. 20 → 20000000) (#364)."
+        "TextCampaign Network AVERAGE_ROI Profitability percentage, "
+        "supplied directly in micro-rubles wire format "
+        "(e.g. 20% is 20000000) (#364)."
     ),
 )
 @click.option(
     "--text-network-exploration-min-budget",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "TextCampaign Network ExplorationBudget.MinimumExplorationBudget "
-        "in rubles (#364)"
+        "in micro-rubles (#364)"
     ),
 )
 @click.option(
@@ -1671,13 +1672,13 @@ def get(
 # NetworkDefault subtype on Unified.Network, unlike TextCampaign.Network.
 @click.option(
     "--unified-network-weekly-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="UnifiedCampaign Network strategy WeeklySpendLimit in rubles (#366)",
+    type=MICRO_RUBLES,
+    help="UnifiedCampaign Network strategy WeeklySpendLimit in micro-rubles (#366)",
 )
 @click.option(
     "--unified-network-custom-period-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="UnifiedCampaign Network CustomPeriodBudget.SpendLimit in rubles (#366)",
+    type=MICRO_RUBLES,
+    help="UnifiedCampaign Network CustomPeriodBudget.SpendLimit in micro-rubles (#366)",
 )
 @click.option(
     "--unified-network-custom-period-start-date",
@@ -1694,20 +1695,22 @@ def get(
 )
 @click.option(
     "--unified-network-average-cpc",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="UnifiedCampaign Network StrategyAverageCpcAdd.AverageCpc in rubles (#366)",
+    type=MICRO_RUBLES,
+    help="UnifiedCampaign Network StrategyAverageCpcAdd.AverageCpc in micro-rubles (#366)",
 )
 @click.option(
     "--unified-network-cpa",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help=("UnifiedCampaign Network StrategyPayForConversionAdd.Cpa in rubles (#366)"),
+    type=MICRO_RUBLES,
+    help=(
+        "UnifiedCampaign Network StrategyPayForConversionAdd.Cpa in micro-rubles (#366)"
+    ),
 )
 @click.option(
     "--unified-network-exploration-min-budget",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "UnifiedCampaign Network ExplorationBudget.MinimumExplorationBudget "
-        "in rubles (#366)"
+        "in micro-rubles (#366)"
     ),
 )
 @click.option(
@@ -4302,18 +4305,18 @@ def add(
 )
 @click.option(
     "--average-cpm",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="CpmBannerCampaign strategy AverageCpm in rubles",
+    type=MICRO_RUBLES,
+    help="CpmBannerCampaign strategy AverageCpm in micro-rubles",
 )
 @click.option(
     "--average-cpv",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="CpmBannerCampaign strategy AverageCpv in rubles",
+    type=MICRO_RUBLES,
+    help="CpmBannerCampaign strategy AverageCpv in micro-rubles",
 )
 @click.option(
     "--strategy-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="CpmBannerCampaign strategy SpendLimit in rubles",
+    type=MICRO_RUBLES,
+    help="CpmBannerCampaign strategy SpendLimit in micro-rubles",
 )
 @click.option("--strategy-start-date", help="CpmBannerCampaign strategy StartDate")
 @click.option("--strategy-end-date", help="CpmBannerCampaign strategy EndDate")
@@ -4324,18 +4327,18 @@ def add(
 )
 @click.option(
     "--mobile-search-weekly-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="MobileAppCampaign Search strategy WeeklySpendLimit in rubles",
+    type=MICRO_RUBLES,
+    help="MobileAppCampaign Search strategy WeeklySpendLimit in micro-rubles",
 )
 @click.option(
     "--mobile-search-bid-ceiling",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="MobileAppCampaign Search strategy BidCeiling in rubles",
+    type=MICRO_RUBLES,
+    help="MobileAppCampaign Search strategy BidCeiling in micro-rubles",
 )
 @click.option(
     "--mobile-search-custom-period-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="MobileAppCampaign Search CustomPeriodBudget.SpendLimit in rubles",
+    type=MICRO_RUBLES,
+    help="MobileAppCampaign Search CustomPeriodBudget.SpendLimit in micro-rubles",
 )
 @click.option(
     "--mobile-search-custom-period-start-date",
@@ -4352,13 +4355,13 @@ def add(
 )
 @click.option(
     "--mobile-search-average-cpc",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="MobileAppCampaign Search strategy AverageCpc in rubles",
+    type=MICRO_RUBLES,
+    help="MobileAppCampaign Search strategy AverageCpc in micro-rubles",
 )
 @click.option(
     "--mobile-search-average-cpi",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="MobileAppCampaign Search strategy AverageCpi in rubles",
+    type=MICRO_RUBLES,
+    help="MobileAppCampaign Search strategy AverageCpi in micro-rubles",
 )
 @click.option(
     "--mobile-search-clicks-per-week",
@@ -4372,18 +4375,18 @@ def add(
 )
 @click.option(
     "--mobile-network-weekly-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="MobileAppCampaign Network strategy WeeklySpendLimit in rubles",
+    type=MICRO_RUBLES,
+    help="MobileAppCampaign Network strategy WeeklySpendLimit in micro-rubles",
 )
 @click.option(
     "--mobile-network-bid-ceiling",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="MobileAppCampaign Network strategy BidCeiling in rubles",
+    type=MICRO_RUBLES,
+    help="MobileAppCampaign Network strategy BidCeiling in micro-rubles",
 )
 @click.option(
     "--mobile-network-custom-period-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="MobileAppCampaign Network CustomPeriodBudget.SpendLimit in rubles",
+    type=MICRO_RUBLES,
+    help="MobileAppCampaign Network CustomPeriodBudget.SpendLimit in micro-rubles",
 )
 @click.option(
     "--mobile-network-custom-period-start-date",
@@ -4400,13 +4403,13 @@ def add(
 )
 @click.option(
     "--mobile-network-average-cpc",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="MobileAppCampaign Network strategy AverageCpc in rubles",
+    type=MICRO_RUBLES,
+    help="MobileAppCampaign Network strategy AverageCpc in micro-rubles",
 )
 @click.option(
     "--mobile-network-average-cpi",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="MobileAppCampaign Network strategy AverageCpi in rubles",
+    type=MICRO_RUBLES,
+    help="MobileAppCampaign Network strategy AverageCpi in micro-rubles",
 )
 @click.option(
     "--mobile-network-clicks-per-week",
@@ -4445,13 +4448,13 @@ def add(
 )
 @click.option(
     "--text-search-weekly-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="TextCampaign Search strategy WeeklySpendLimit in rubles",
+    type=MICRO_RUBLES,
+    help="TextCampaign Search strategy WeeklySpendLimit in micro-rubles",
 )
 @click.option(
     "--text-search-custom-period-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="TextCampaign Search CustomPeriodBudget.SpendLimit in rubles",
+    type=MICRO_RUBLES,
+    help="TextCampaign Search CustomPeriodBudget.SpendLimit in micro-rubles",
 )
 @click.option(
     "--text-search-custom-period-start-date",
@@ -4473,13 +4476,13 @@ def add(
 )
 @click.option(
     "--text-search-average-cpc",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="TextCampaign Search strategy AverageCpc in rubles",
+    type=MICRO_RUBLES,
+    help="TextCampaign Search strategy AverageCpc in micro-rubles",
 )
 @click.option(
     "--text-search-pay-cpa",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="TextCampaign Search StrategyPayForConversionAdd.Cpa in rubles",
+    type=MICRO_RUBLES,
+    help="TextCampaign Search StrategyPayForConversionAdd.Cpa in micro-rubles",
 )
 @click.option(
     "--text-search-clicks-per-week",
@@ -4496,26 +4499,26 @@ def add(
 )
 @click.option(
     "--text-search-roi-coef",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "TextCampaign Search AVERAGE_ROI RoiCoef as a ratio (sales profit "
-        "/ promotion costs). Input is multiplied by 1,000,000 to match the "
-        "Yandex API wire format (e.g. 1 → 1000000)."
+        "/ promotion costs), supplied directly in micro-rubles wire format "
+        "(e.g. a 1.0 ratio is 1000000)."
     ),
 )
 @click.option(
     "--text-search-profitability",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
-        "TextCampaign Search AVERAGE_ROI Profitability percentage. Input "
-        "is multiplied by 1,000,000 to match the Yandex API wire format "
-        "(e.g. 20 → 20000000)."
+        "TextCampaign Search AVERAGE_ROI Profitability percentage, "
+        "supplied directly in micro-rubles wire format "
+        "(e.g. 20% is 20000000)."
     ),
 )
 @click.option(
     "--text-search-exploration-min-budget",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="TextCampaign Search ExplorationBudget.MinimumExplorationBudget in rubles",
+    type=MICRO_RUBLES,
+    help="TextCampaign Search ExplorationBudget.MinimumExplorationBudget in micro-rubles",
 )
 @click.option(
     "--text-search-exploration-is-custom",
@@ -4541,13 +4544,13 @@ def add(
 )
 @click.option(
     "--unified-search-weekly-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="UnifiedCampaign Search strategy WeeklySpendLimit in rubles (#363)",
+    type=MICRO_RUBLES,
+    help="UnifiedCampaign Search strategy WeeklySpendLimit in micro-rubles (#363)",
 )
 @click.option(
     "--unified-search-custom-period-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="UnifiedCampaign Search CustomPeriodBudget.SpendLimit in rubles (#363)",
+    type=MICRO_RUBLES,
+    help="UnifiedCampaign Search CustomPeriodBudget.SpendLimit in micro-rubles (#363)",
 )
 @click.option(
     "--unified-search-custom-period-start-date",
@@ -4569,20 +4572,20 @@ def add(
 )
 @click.option(
     "--unified-search-average-cpc",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="UnifiedCampaign Search strategy AverageCpc in rubles (#363)",
+    type=MICRO_RUBLES,
+    help="UnifiedCampaign Search strategy AverageCpc in micro-rubles (#363)",
 )
 @click.option(
     "--unified-search-pay-cpa",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="UnifiedCampaign Search StrategyPayForConversionAdd.Cpa in rubles (#363)",
+    type=MICRO_RUBLES,
+    help="UnifiedCampaign Search StrategyPayForConversionAdd.Cpa in micro-rubles (#363)",
 )
 @click.option(
     "--unified-search-exploration-min-budget",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "UnifiedCampaign Search ExplorationBudget.MinimumExplorationBudget "
-        "in rubles (#363)"
+        "in micro-rubles (#363)"
     ),
 )
 @click.option(
@@ -4595,13 +4598,13 @@ def add(
 )
 @click.option(
     "--text-network-weekly-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="TextCampaign Network strategy WeeklySpendLimit in rubles (#364)",
+    type=MICRO_RUBLES,
+    help="TextCampaign Network strategy WeeklySpendLimit in micro-rubles (#364)",
 )
 @click.option(
     "--text-network-custom-period-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="TextCampaign Network CustomPeriodBudget.SpendLimit in rubles (#364)",
+    type=MICRO_RUBLES,
+    help="TextCampaign Network CustomPeriodBudget.SpendLimit in micro-rubles (#364)",
 )
 @click.option(
     "--text-network-custom-period-start-date",
@@ -4623,13 +4626,13 @@ def add(
 )
 @click.option(
     "--text-network-average-cpc",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="TextCampaign Network strategy AverageCpc in rubles (#364)",
+    type=MICRO_RUBLES,
+    help="TextCampaign Network strategy AverageCpc in micro-rubles (#364)",
 )
 @click.option(
     "--text-network-pay-cpa",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="TextCampaign Network StrategyPayForConversionAdd.Cpa in rubles (#364)",
+    type=MICRO_RUBLES,
+    help="TextCampaign Network StrategyPayForConversionAdd.Cpa in micro-rubles (#364)",
 )
 @click.option(
     "--text-network-clicks-per-week",
@@ -4646,28 +4649,28 @@ def add(
 )
 @click.option(
     "--text-network-roi-coef",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "TextCampaign Network AVERAGE_ROI RoiCoef as a ratio (sales profit "
-        "/ promotion costs). Input is multiplied by 1,000,000 to match the "
-        "Yandex API wire format (e.g. 1 → 1000000) (#364)."
+        "/ promotion costs), supplied directly in micro-rubles wire format "
+        "(e.g. a 1.0 ratio is 1000000) (#364)."
     ),
 )
 @click.option(
     "--text-network-profitability",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
-        "TextCampaign Network AVERAGE_ROI Profitability percentage. Input "
-        "is multiplied by 1,000,000 to match the Yandex API wire format "
-        "(e.g. 20 → 20000000) (#364)."
+        "TextCampaign Network AVERAGE_ROI Profitability percentage, "
+        "supplied directly in micro-rubles wire format "
+        "(e.g. 20% is 20000000) (#364)."
     ),
 )
 @click.option(
     "--text-network-exploration-min-budget",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "TextCampaign Network ExplorationBudget.MinimumExplorationBudget "
-        "in rubles (#364)"
+        "in micro-rubles (#364)"
     ),
 )
 @click.option(
@@ -4686,13 +4689,13 @@ def add(
 # UnifiedCampaign.BiddingStrategy.Network typed flags on update (#366).
 @click.option(
     "--unified-network-weekly-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="UnifiedCampaign Network strategy WeeklySpendLimit in rubles (#366)",
+    type=MICRO_RUBLES,
+    help="UnifiedCampaign Network strategy WeeklySpendLimit in micro-rubles (#366)",
 )
 @click.option(
     "--unified-network-custom-period-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="UnifiedCampaign Network CustomPeriodBudget.SpendLimit in rubles (#366)",
+    type=MICRO_RUBLES,
+    help="UnifiedCampaign Network CustomPeriodBudget.SpendLimit in micro-rubles (#366)",
 )
 @click.option(
     "--unified-network-custom-period-start-date",
@@ -4709,20 +4712,22 @@ def add(
 )
 @click.option(
     "--unified-network-average-cpc",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="UnifiedCampaign Network StrategyAverageCpcAdd.AverageCpc in rubles (#366)",
+    type=MICRO_RUBLES,
+    help="UnifiedCampaign Network StrategyAverageCpcAdd.AverageCpc in micro-rubles (#366)",
 )
 @click.option(
     "--unified-network-cpa",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help=("UnifiedCampaign Network StrategyPayForConversionAdd.Cpa in rubles (#366)"),
+    type=MICRO_RUBLES,
+    help=(
+        "UnifiedCampaign Network StrategyPayForConversionAdd.Cpa in micro-rubles (#366)"
+    ),
 )
 @click.option(
     "--unified-network-exploration-min-budget",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "UnifiedCampaign Network ExplorationBudget.MinimumExplorationBudget "
-        "in rubles (#366)"
+        "in micro-rubles (#366)"
     ),
 )
 @click.option(
@@ -4740,18 +4745,18 @@ def add(
 )
 @click.option(
     "--dyn-network-weekly-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="DynamicTextCampaign Network strategy WeeklySpendLimit in rubles",
+    type=MICRO_RUBLES,
+    help="DynamicTextCampaign Network strategy WeeklySpendLimit in micro-rubles",
 )
 @click.option(
     "--dyn-network-bid-ceiling",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="DynamicTextCampaign Network strategy BidCeiling in rubles",
+    type=MICRO_RUBLES,
+    help="DynamicTextCampaign Network strategy BidCeiling in micro-rubles",
 )
 @click.option(
     "--dyn-network-custom-period-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="DynamicTextCampaign Network CustomPeriodBudget.SpendLimit in rubles",
+    type=MICRO_RUBLES,
+    help="DynamicTextCampaign Network CustomPeriodBudget.SpendLimit in micro-rubles",
 )
 @click.option(
     "--dyn-network-custom-period-start-date",
@@ -4768,18 +4773,18 @@ def add(
 )
 @click.option(
     "--dyn-network-average-cpc",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="DynamicTextCampaign Network strategy AverageCpc in rubles",
+    type=MICRO_RUBLES,
+    help="DynamicTextCampaign Network strategy AverageCpc in micro-rubles",
 )
 @click.option(
     "--dyn-network-average-cpa",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="DynamicTextCampaign Network AverageCpa.AverageCpa in rubles",
+    type=MICRO_RUBLES,
+    help="DynamicTextCampaign Network AverageCpa.AverageCpa in micro-rubles",
 )
 @click.option(
     "--dyn-network-cpa",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="DynamicTextCampaign Network PayForConversion.Cpa in rubles",
+    type=MICRO_RUBLES,
+    help="DynamicTextCampaign Network PayForConversion.Cpa in micro-rubles",
 )
 @click.option(
     "--dyn-network-goal-id",
@@ -4818,10 +4823,10 @@ def add(
 )
 @click.option(
     "--dyn-network-exploration-budget",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "DynamicTextCampaign Network "
-        "ExplorationBudget.MinimumExplorationBudget in rubles"
+        "ExplorationBudget.MinimumExplorationBudget in micro-rubles"
     ),
 )
 @click.option(
@@ -4840,18 +4845,18 @@ def add(
 # DynamicTextCampaign.BiddingStrategy.Search typed flags on update (#362).
 @click.option(
     "--dyn-search-weekly-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="DynamicTextCampaign Search strategy WeeklySpendLimit in rubles",
+    type=MICRO_RUBLES,
+    help="DynamicTextCampaign Search strategy WeeklySpendLimit in micro-rubles",
 )
 @click.option(
     "--dyn-search-bid-ceiling",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="DynamicTextCampaign Search strategy BidCeiling in rubles",
+    type=MICRO_RUBLES,
+    help="DynamicTextCampaign Search strategy BidCeiling in micro-rubles",
 )
 @click.option(
     "--dyn-search-custom-period-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="DynamicTextCampaign Search CustomPeriodBudget.SpendLimit in rubles",
+    type=MICRO_RUBLES,
+    help="DynamicTextCampaign Search CustomPeriodBudget.SpendLimit in micro-rubles",
 )
 @click.option(
     "--dyn-search-custom-period-start-date",
@@ -4868,18 +4873,18 @@ def add(
 )
 @click.option(
     "--dyn-search-average-cpc",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="DynamicTextCampaign Search strategy AverageCpc in rubles",
+    type=MICRO_RUBLES,
+    help="DynamicTextCampaign Search strategy AverageCpc in micro-rubles",
 )
 @click.option(
     "--dyn-search-average-cpa",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="DynamicTextCampaign Search AverageCpa.AverageCpa in rubles",
+    type=MICRO_RUBLES,
+    help="DynamicTextCampaign Search AverageCpa.AverageCpa in micro-rubles",
 )
 @click.option(
     "--dyn-search-cpa",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="DynamicTextCampaign Search PayForConversion.Cpa in rubles",
+    type=MICRO_RUBLES,
+    help="DynamicTextCampaign Search PayForConversion.Cpa in micro-rubles",
 )
 @click.option(
     "--dyn-search-goal-id",
@@ -4913,10 +4918,10 @@ def add(
 )
 @click.option(
     "--dyn-search-exploration-budget",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "DynamicTextCampaign Search "
-        "ExplorationBudget.MinimumExplorationBudget in rubles"
+        "ExplorationBudget.MinimumExplorationBudget in micro-rubles"
     ),
 )
 @click.option(
@@ -4934,42 +4939,42 @@ def add(
 )
 @click.option(
     "--smart-search-average-cpc",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "SmartCampaign Search StrategyAverageCpcPerCampaign.AverageCpc "
-        "in rubles (#367)"
+        "in micro-rubles (#367)"
     ),
 )
 @click.option(
     "--smart-search-filter-average-cpc",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "SmartCampaign Search StrategyAverageCpcPerFilter.FilterAverageCpc "
-        "in rubles (#367)"
+        "in micro-rubles (#367)"
     ),
 )
 @click.option(
     "--smart-search-average-cpa",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "SmartCampaign Search StrategyAverageCpaPerCampaign.AverageCpa "
-        "in rubles (#367)"
+        "in micro-rubles (#367)"
     ),
 )
 @click.option(
     "--smart-search-filter-average-cpa",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "SmartCampaign Search StrategyAverageCpaPerFilter.FilterAverageCpa "
-        "in rubles (#367)"
+        "in micro-rubles (#367)"
     ),
 )
 @click.option(
     "--smart-search-cpa",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "SmartCampaign Search PayForConversion[Per{Campaign,Filter}].Cpa "
-        "in rubles (#367)"
+        "in micro-rubles (#367)"
     ),
 )
 @click.option(
@@ -4979,13 +4984,13 @@ def add(
 )
 @click.option(
     "--smart-search-weekly-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="SmartCampaign Search Strategy*.WeeklySpendLimit in rubles (#367)",
+    type=MICRO_RUBLES,
+    help="SmartCampaign Search Strategy*.WeeklySpendLimit in micro-rubles (#367)",
 )
 @click.option(
     "--smart-search-bid-ceiling",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="SmartCampaign Search Strategy*.BidCeiling in rubles (#367)",
+    type=MICRO_RUBLES,
+    help="SmartCampaign Search Strategy*.BidCeiling in micro-rubles (#367)",
 )
 @click.option(
     "--smart-search-reserve-return",
@@ -4994,13 +4999,15 @@ def add(
 )
 @click.option(
     "--smart-search-roi-coef",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="SmartCampaign Search StrategyAverageRoi.RoiCoef in rubles (#367)",
+    type=MICRO_RUBLES,
+    help="SmartCampaign Search StrategyAverageRoi.RoiCoef in micro-rubles (#367)",
 )
 @click.option(
     "--smart-search-profitability",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help=("SmartCampaign Search StrategyAverageRoi.Profitability in rubles (#367)"),
+    type=MICRO_RUBLES,
+    help=(
+        "SmartCampaign Search StrategyAverageRoi.Profitability in micro-rubles (#367)"
+    ),
 )
 @click.option(
     "--smart-search-crr",
@@ -5012,8 +5019,8 @@ def add(
 )
 @click.option(
     "--smart-search-cp-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help=("SmartCampaign Search CustomPeriodBudget.SpendLimit in rubles (#367)"),
+    type=MICRO_RUBLES,
+    help=("SmartCampaign Search CustomPeriodBudget.SpendLimit in micro-rubles (#367)"),
 )
 @click.option(
     "--smart-search-cp-start-date",
@@ -5030,10 +5037,10 @@ def add(
 )
 @click.option(
     "--smart-search-exploration-min",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "SmartCampaign Search ExplorationBudget.MinimumExplorationBudget "
-        "in rubles (#367)"
+        "in micro-rubles (#367)"
     ),
 )
 @click.option(
@@ -5054,42 +5061,42 @@ def add(
 )
 @click.option(
     "--smart-network-average-cpc",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "SmartCampaign Network StrategyAverageCpcPerCampaign.AverageCpc "
-        "in rubles (#368)"
+        "in micro-rubles (#368)"
     ),
 )
 @click.option(
     "--smart-network-filter-average-cpc",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "SmartCampaign Network StrategyAverageCpcPerFilter.FilterAverageCpc "
-        "in rubles (#368)"
+        "in micro-rubles (#368)"
     ),
 )
 @click.option(
     "--smart-network-average-cpa",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "SmartCampaign Network StrategyAverageCpaPerCampaign.AverageCpa "
-        "in rubles (#368)"
+        "in micro-rubles (#368)"
     ),
 )
 @click.option(
     "--smart-network-filter-average-cpa",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "SmartCampaign Network StrategyAverageCpaPerFilter.FilterAverageCpa "
-        "in rubles (#368)"
+        "in micro-rubles (#368)"
     ),
 )
 @click.option(
     "--smart-network-cpa",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "SmartCampaign Network PayForConversion[Per{Campaign,Filter}].Cpa "
-        "in rubles (#368)"
+        "in micro-rubles (#368)"
     ),
 )
 @click.option(
@@ -5099,13 +5106,13 @@ def add(
 )
 @click.option(
     "--smart-network-weekly-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="SmartCampaign Network Strategy*.WeeklySpendLimit in rubles (#368)",
+    type=MICRO_RUBLES,
+    help="SmartCampaign Network Strategy*.WeeklySpendLimit in micro-rubles (#368)",
 )
 @click.option(
     "--smart-network-bid-ceiling",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="SmartCampaign Network Strategy*.BidCeiling in rubles (#368)",
+    type=MICRO_RUBLES,
+    help="SmartCampaign Network Strategy*.BidCeiling in micro-rubles (#368)",
 )
 @click.option(
     "--smart-network-reserve-return",
@@ -5114,13 +5121,15 @@ def add(
 )
 @click.option(
     "--smart-network-roi-coef",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help="SmartCampaign Network StrategyAverageRoi.RoiCoef in rubles (#368)",
+    type=MICRO_RUBLES,
+    help="SmartCampaign Network StrategyAverageRoi.RoiCoef in micro-rubles (#368)",
 )
 @click.option(
     "--smart-network-profitability",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help=("SmartCampaign Network StrategyAverageRoi.Profitability in rubles (#368)"),
+    type=MICRO_RUBLES,
+    help=(
+        "SmartCampaign Network StrategyAverageRoi.Profitability in micro-rubles (#368)"
+    ),
 )
 @click.option(
     "--smart-network-crr",
@@ -5140,8 +5149,8 @@ def add(
 )
 @click.option(
     "--smart-network-cp-spend-limit",
-    type=RUBLES_TO_MICRO_RUBLES,
-    help=("SmartCampaign Network CustomPeriodBudget.SpendLimit in rubles (#368)"),
+    type=MICRO_RUBLES,
+    help=("SmartCampaign Network CustomPeriodBudget.SpendLimit in micro-rubles (#368)"),
 )
 @click.option(
     "--smart-network-cp-start-date",
@@ -5158,10 +5167,10 @@ def add(
 )
 @click.option(
     "--smart-network-exploration-min",
-    type=RUBLES_TO_MICRO_RUBLES,
+    type=MICRO_RUBLES,
     help=(
         "SmartCampaign Network ExplorationBudget.MinimumExplorationBudget "
-        "in rubles (#368)"
+        "in micro-rubles (#368)"
     ),
 )
 @click.option(

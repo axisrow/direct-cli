@@ -217,34 +217,6 @@ class MicroRublesParamType(click.ParamType):
 MICRO_RUBLES = MicroRublesParamType()
 
 
-class RublesToMicroRublesParamType(click.ParamType):
-    """Click type that accepts rubles and returns API micro-rubles."""
-
-    name = "RUBLES"
-
-    def convert(self, value, param, ctx):
-        normalized = str(value or "").strip()
-        if not DECIMAL_RE.fullmatch(normalized):
-            self.fail(f"Expected decimal ruble amount, got '{value}'")
-        try:
-            amount = Decimal(normalized)
-        except (InvalidOperation, ValueError):
-            self.fail(f"Expected decimal ruble amount, got '{value}'")
-            return  # unreachable; satisfies type checkers
-        if amount < 0:
-            self.fail(f"Amount must be non-negative, got {normalized}")
-        micros = amount * Decimal("1000000")
-        if micros != micros.to_integral_value():
-            self.fail(
-                f"{normalized} has more than 6 decimal places; "
-                "micro-ruble precision is the smallest supported unit"
-            )
-        return int(micros)
-
-
-RUBLES_TO_MICRO_RUBLES = RublesToMicroRublesParamType()
-
-
 def load_base64_file(file_path: str) -> str:
     """Read a file and return its base64-encoded contents."""
     with open(file_path, "rb") as file_obj:

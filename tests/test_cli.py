@@ -294,7 +294,7 @@ class TestCLI(unittest.TestCase):
             collapsed,
         )
         self.assertIn(
-            "TextAd/ResponsiveAd.PriceExtension.Price as human-readable money",
+            "TextAd/ResponsiveAd.PriceExtension.Price in micro-rubles",
             collapsed,
         )
         self.assertIn(
@@ -604,8 +604,7 @@ class TestCLI(unittest.TestCase):
         """Earlier chunk OK, later chunk fails: diagnostic shows both. See #211."""
 
         good_chunk_result = [
-            {"Id": idx}
-            for idx in range(1, 11)  # KEYWORDS_ADD_MAX_BATCH = 10
+            {"Id": idx} for idx in range(1, 11)  # KEYWORDS_ADD_MAX_BATCH = 10
         ]
         # Mixed chunk: one item succeeds, one fails. The success item must
         # land in partial-success diagnostic; the failure item must not.
