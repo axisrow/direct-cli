@@ -759,7 +759,10 @@ def get(
         "Comma-separated goal_id:value[:YES|NO] pairs for "
         "TextCampaign/UnifiedCampaign/DynamicTextCampaign.PriorityGoals "
         "(required for AVERAGE_CPA_MULTIPLE_GOALS / "
-        "PAY_FOR_CONVERSION_MULTIPLE_GOALS)"
+        "PAY_FOR_CONVERSION_MULTIPLE_GOALS); also accepted on "
+        "SmartCampaign.PriorityGoals (#369) as a campaign-level "
+        "setting independent of the SmartCampaign.BiddingStrategy "
+        "subtype"
     ),
 )
 @click.option(
@@ -2815,11 +2818,18 @@ def add(
                     f"{', '.join(sorted(provided))}"
                 )
         if smart_package_bidding_strategy_obj is not None:
+            # SmartCampaign.PriorityGoals (#369) is a top-level sibling on
+            # SmartCampaignAddItem (WSDL line 2209) independent of the
+            # BiddingStrategy / PackageBiddingStrategy choice — both
+            # PriorityGoals and PackageBiddingStrategy are declared as
+            # ``minOccurs=0`` siblings on SmartCampaignAddItem (no
+            # ``xsd:choice``), so combining --priority-goals with
+            # PackageBiddingStrategy is WSDL-valid and intentionally
+            # allowed.
             smart_package_incompatible = {
                 "--search-strategy": search_strategy,
                 "--network-strategy": network_strategy,
                 "--filter-average-cpc": filter_average_cpc,
-                "--priority-goals": priority_goals,
                 "--attribution-model": attribution_model,
                 # SmartCampaign.BiddingStrategy.Search typed flags (#367) —
                 # mutually exclusive with PackageBiddingStrategy. Without these
@@ -2915,12 +2925,6 @@ def add(
                     "(this PR, #363) only validates priority-goals scope, "
                     "not sibling placement on UnifiedCampaignAddItem."
                 )
-        if campaign_type_norm == "SMART_CAMPAIGN" and priority_goals is not None:
-            raise click.UsageError(
-                "SmartCampaign.PriorityGoals on campaigns add requires a compatible "
-                "SmartCampaign.BiddingStrategy; shared BiddingStrategy support is "
-                "tracked in #290."
-            )
         if campaign_type_norm in {"MOBILE_APP_CAMPAIGN", "CPM_BANNER_CAMPAIGN"}:
             strategy_followup_flags = {
                 "--goal-id": goal_id,
@@ -3612,6 +3616,17 @@ def add(
                 }
             if parsed_settings:
                 smart_campaign["Settings"] = parsed_settings
+            # SmartCampaignAddItem.PriorityGoals (#369) — top-level sibling on
+            # the SmartCampaign block (WSDL tests/wsdl_cache/campaigns.xml
+            # line 2209: ``PriorityGoalsArray`` minOccurs=0 maxOccurs=1).
+            # Unlike Text/DynamicText, PriorityGoals on SmartCampaign is NOT
+            # constrained to *_MULTIPLE_GOALS subtypes (no such subtypes exist
+            # in SmartCampaignSearch/NetworkStrategyTypeEnum, lines 396-426):
+            # it is an independent campaign-level setting accepted with any
+            # SmartCampaign.BiddingStrategy. PackageBiddingStrategy already
+            # excludes --priority-goals via the shared guard above.
+            if priority_goals_items is not None:
+                smart_campaign["PriorityGoals"] = {"Items": priority_goals_items}
             if attribution_model:
                 smart_campaign["AttributionModel"] = attribution_model.upper()
             if tracking_params:

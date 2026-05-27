@@ -11,9 +11,9 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 
 | Status | Count |
 |---|---:|
-| `missing_followup` | 220 |
+| `missing_followup` | 215 |
 | `not_applicable` | 26 |
-| `supported` | 2995 |
+| `supported` | 3000 |
 
 ## Confirmed Follow-Ups
 
@@ -147,11 +147,6 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `campaigns.add` | `UnifiedCampaign.PriorityGoals.Items.Value` | UnifiedCampaign.PriorityGoals on add requires compatible UnifiedCampaign.BiddingStrategy typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `UnifiedCampaign.PriorityGoals` |
 | `campaigns.add` | `UnifiedCampaign.PriorityGoals.Items.IsMetrikaSourceOfValue` | UnifiedCampaign.PriorityGoals on add requires compatible UnifiedCampaign.BiddingStrategy typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `UnifiedCampaign.PriorityGoals` |
 | `campaigns.add` | `MobileAppCampaign.BiddingStrategy` | Shared campaign BiddingStrategy builder needs typed support. [#290](https://github.com/axisrow/direct-cli/issues/290) |
-| `campaigns.add` | `SmartCampaign.PriorityGoals` | SmartCampaign.PriorityGoals on add requires compatible SmartCampaign.BiddingStrategy typed support. [#290](https://github.com/axisrow/direct-cli/issues/290) |
-| `campaigns.add` | `SmartCampaign.PriorityGoals.Items` | SmartCampaign.PriorityGoals on add requires compatible SmartCampaign.BiddingStrategy typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `SmartCampaign.PriorityGoals` |
-| `campaigns.add` | `SmartCampaign.PriorityGoals.Items.GoalId` | SmartCampaign.PriorityGoals on add requires compatible SmartCampaign.BiddingStrategy typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `SmartCampaign.PriorityGoals` |
-| `campaigns.add` | `SmartCampaign.PriorityGoals.Items.Value` | SmartCampaign.PriorityGoals on add requires compatible SmartCampaign.BiddingStrategy typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `SmartCampaign.PriorityGoals` |
-| `campaigns.add` | `SmartCampaign.PriorityGoals.Items.IsMetrikaSourceOfValue` | SmartCampaign.PriorityGoals on add requires compatible SmartCampaign.BiddingStrategy typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `SmartCampaign.PriorityGoals` |
 | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.WbMaximumClicks.BudgetType` | Official Yandex update-text-campaign docs do not declare BudgetType on WbMaximumClicks; CLI rejects --text-search-budget-type for this subtype. [#361](https://github.com/axisrow/direct-cli/issues/361) |
 | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.WbMaximumConversionRate.BudgetType` | Official Yandex update-text-campaign docs do not declare BudgetType on WbMaximumConversionRate; CLI rejects --text-search-budget-type for this subtype. [#361](https://github.com/axisrow/direct-cli/issues/361) |
 | `campaigns.update` | `TextCampaign.BiddingStrategy.Search.AverageCpaMultipleGoals.BudgetType` | Official Yandex update-text-campaign docs do not declare BudgetType on AverageCpaMultipleGoals; CLI rejects --text-search-budget-type for this subtype. [#361](https://github.com/axisrow/direct-cli/issues/361) |
@@ -1787,11 +1782,11 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `campaigns.add` | `campaigns.add` | `SmartCampaign.Settings.Option` | `SmartCampaignSettingsEnum` | 1 | 1 | `supported` | --setting |
 | `campaigns.add` | `campaigns.add` | `SmartCampaign.Settings.Value` | `YesNoEnum` | 1 | 1 | `supported` | --setting |
 | `campaigns.add` | `campaigns.add` | `SmartCampaign.CounterId` | `long` | 1 | 1 | `supported` | --counter-id |
-| `campaigns.add` | `campaigns.add` | `SmartCampaign.PriorityGoals` | `PriorityGoalsArray` | 0 | 1 | `missing_followup` | SmartCampaign.PriorityGoals on add requires compatible SmartCampaign.BiddingStrategy typed support. [#290](https://github.com/axisrow/direct-cli/issues/290) |
-| `campaigns.add` | `campaigns.add` | `SmartCampaign.PriorityGoals.Items` | `PriorityGoalsItem` | 1 | unbounded | `missing_followup` | SmartCampaign.PriorityGoals on add requires compatible SmartCampaign.BiddingStrategy typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `SmartCampaign.PriorityGoals` |
-| `campaigns.add` | `campaigns.add` | `SmartCampaign.PriorityGoals.Items.GoalId` | `long` | 1 | 1 | `missing_followup` | SmartCampaign.PriorityGoals on add requires compatible SmartCampaign.BiddingStrategy typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `SmartCampaign.PriorityGoals` |
-| `campaigns.add` | `campaigns.add` | `SmartCampaign.PriorityGoals.Items.Value` | `long` | 1 | 1 | `missing_followup` | SmartCampaign.PriorityGoals on add requires compatible SmartCampaign.BiddingStrategy typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `SmartCampaign.PriorityGoals` |
-| `campaigns.add` | `campaigns.add` | `SmartCampaign.PriorityGoals.Items.IsMetrikaSourceOfValue` | `YesNoEnum` | 0 | 1 | `missing_followup` | SmartCampaign.PriorityGoals on add requires compatible SmartCampaign.BiddingStrategy typed support. [#290](https://github.com/axisrow/direct-cli/issues/290); inherited from `SmartCampaign.PriorityGoals` |
+| `campaigns.add` | `campaigns.add` | `SmartCampaign.PriorityGoals` | `PriorityGoalsArray` | 0 | 1 | `supported` | --priority-goals |
+| `campaigns.add` | `campaigns.add` | `SmartCampaign.PriorityGoals.Items` | `PriorityGoalsItem` | 1 | unbounded | `supported` | --priority-goals |
+| `campaigns.add` | `campaigns.add` | `SmartCampaign.PriorityGoals.Items.GoalId` | `long` | 1 | 1 | `supported` | --priority-goals |
+| `campaigns.add` | `campaigns.add` | `SmartCampaign.PriorityGoals.Items.Value` | `long` | 1 | 1 | `supported` | --priority-goals |
+| `campaigns.add` | `campaigns.add` | `SmartCampaign.PriorityGoals.Items.IsMetrikaSourceOfValue` | `YesNoEnum` | 0 | 1 | `supported` | --priority-goals |
 | `campaigns.add` | `campaigns.add` | `SmartCampaign.TrackingParams` | `string` | 0 | 1 | `supported` | --tracking-params |
 | `campaigns.add` | `campaigns.add` | `SmartCampaign.AttributionModel` | `AttributionModelEnum` | 0 | 1 | `supported` | --attribution-model |
 | `campaigns.add` | `campaigns.add` | `SmartCampaign.PackageBiddingStrategy` | `SmartCampaignPackageBiddingStrategyAdd` | 0 | 1 | `supported` | --package-platform-network, --package-platform-search, --package-strategy-from-campaign-id, --package-strategy-id |

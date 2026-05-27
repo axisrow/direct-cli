@@ -1642,6 +1642,21 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     },
     ("campaigns", "add", "SmartCampaign.Settings"): {"--setting"},
     ("campaigns", "add", "SmartCampaign.TrackingParams"): {"--tracking-params"},
+    # SmartCampaign.PriorityGoals (#369): top-level sibling on
+    # SmartCampaignAddItem; reuses the shared --priority-goals parser.
+    ("campaigns", "add", "SmartCampaign.PriorityGoals"): {"--priority-goals"},
+    ("campaigns", "add", "SmartCampaign.PriorityGoals.Items"): {"--priority-goals"},
+    ("campaigns", "add", "SmartCampaign.PriorityGoals.Items.GoalId"): {
+        "--priority-goals"
+    },
+    ("campaigns", "add", "SmartCampaign.PriorityGoals.Items.Value"): {
+        "--priority-goals"
+    },
+    (
+        "campaigns",
+        "add",
+        "SmartCampaign.PriorityGoals.Items.IsMetrikaSourceOfValue",
+    ): {"--priority-goals"},
     ("campaigns", "update", "Name"): {"--name"},
     ("campaigns", "update", "DailyBudget"): {"--budget"},
     ("campaigns", "update", "DailyBudget.Amount"): {"--budget"},
@@ -3561,6 +3576,21 @@ for _path in (
         "--priority-goals"
     }
 
+# SmartCampaign.PriorityGoals on add (#369). The add-side schema
+# (``PriorityGoalsArray`` -> ``PriorityGoalsItem``) does not carry
+# ``Operation`` — that field lives on the update-only
+# ``PriorityGoalsUpdateItem``.
+for _path in (
+    "PriorityGoals",
+    "PriorityGoals.Items",
+    "PriorityGoals.Items.GoalId",
+    "PriorityGoals.Items.Value",
+    "PriorityGoals.Items.IsMetrikaSourceOfValue",
+):
+    OPTIONAL_FIELD_CLI_OPTIONS[("campaigns", "add", f"SmartCampaign.{_path}")] = {
+        "--priority-goals"
+    }
+
 # SmartCampaign.BiddingStrategy.Search typed-flag coverage (issue #367).
 # Mirrors WSDL Strategy*Add subtypes (tests/wsdl_cache/campaigns.xml
 # 1401-1481, get-side Strategy* 851-929, SmartCampaignSearchStrategyTypeEnum
@@ -4493,11 +4523,12 @@ OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]
         "note": "Shared campaign BiddingStrategy builder needs typed support.",
     },
     ("campaigns", "add", "SmartCampaign.PriorityGoals"): {
-        "status": "missing_followup",
-        "issue": "#290",
+        "status": "supported",
+        "issue": "#369",
         "note": (
-            "SmartCampaign.PriorityGoals on add requires compatible "
-            "SmartCampaign.BiddingStrategy typed support."
+            "SmartCampaign.PriorityGoals on campaigns add is a top-level "
+            "sibling on SmartCampaignAddItem (WSDL line 2209) and is set "
+            "via the shared --priority-goals flag."
         ),
     },
     ("campaigns", "add", "MobileAppCampaign.BiddingStrategy"): {
