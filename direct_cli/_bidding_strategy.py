@@ -2772,25 +2772,24 @@ _TEXT_NETWORK_MIN_PRIORITY_GOALS: Dict[str, int] = {
     "PayForConversionMultipleGoals": 2,
 }
 # WSDL ``minOccurs=1`` fields per Strategy*Add subtype on the add path.
-# Maps subtype → {WSDL field name → CLI option string}. The ``WeeklySpendLimit``
-# row on ``Wb*`` strategies follows the Search precedent: docs require the
-# budget slice on add even though WSDL marks it ``minOccurs=0``; ``CustomPeriodBudget``
-# is accepted as the alternate budget slice.
+# Maps subtype → {WSDL field name → CLI option string}. Strictly mirrors
+# campaigns.xml (lines 1339-1514): only fields that the WSDL marks
+# ``minOccurs=1`` (or the implicit parent ``StrategyWeeklyBudgetAddBase``
+# attributes that are minOccurs=1 there) are gated here. WSDL declares
+# ``StrategyMaximumClicksAdd`` (1339) and ``StrategyMaxProfitAdd`` (1489)
+# as fully optional, so no required flags are enforced for them; the user
+# can ship the bare-marker subtype. ``WbMaximumConversionRate`` only
+# requires ``GoalId`` per WSDL line 1352. ``StrategyAverageCpaMultipleGoalsAdd``
+# (1496) / ``StrategyPayForConversionMultipleGoalsAdd`` (1504) are also
+# fully optional; ``--priority-goals`` is therefore not gated as required
+# at the strategy-builder level (the Yandex API enforces PriorityGoals at
+# the wire when the multi-goals strategy is selected, but the WSDL does
+# not, so the CLI stays consistent with the strict-WSDL contract).
 _TEXT_NETWORK_REQUIRED_TYPED_FLAGS: Dict[str, Dict[str, str]] = {
     "AverageCpc": {"AverageCpc": "--text-network-average-cpc"},
     "AverageCpa": {"AverageCpa": "--average-cpa", "GoalId": "--goal-id"},
     "PayForConversion": {"Cpa": "--text-network-pay-cpa", "GoalId": "--goal-id"},
-    "WbMaximumClicks": {
-        "WeeklySpendLimit": (
-            "--text-network-weekly-spend-limit or full CustomPeriodBudget"
-        ),
-    },
-    "WbMaximumConversionRate": {
-        "GoalId": "--goal-id",
-        "WeeklySpendLimit": (
-            "--text-network-weekly-spend-limit or full CustomPeriodBudget"
-        ),
-    },
+    "WbMaximumConversionRate": {"GoalId": "--goal-id"},
     "WeeklyClickPackage": {"ClicksPerWeek": "--text-network-clicks-per-week"},
     "AverageRoi": {
         "ReserveReturn": "--text-network-reserve-return",
@@ -2799,9 +2798,8 @@ _TEXT_NETWORK_REQUIRED_TYPED_FLAGS: Dict[str, Dict[str, str]] = {
     },
     "AverageCrr": {"Crr": "--crr", "GoalId": "--goal-id"},
     "PayForConversionCrr": {"Crr": "--crr", "GoalId": "--goal-id"},
-    "AverageCpaMultipleGoals": {"PriorityGoals": "--priority-goals"},
-    "PayForConversionMultipleGoals": {"PriorityGoals": "--priority-goals"},
-    "MaxProfit": {"PriorityGoals": "--priority-goals"},
+    # WbMaximumClicks / MaxProfit / *MultipleGoals: all fields are
+    # minOccurs=0 in campaigns.xml. No required-flag enforcement.
 }
 # On update we only enforce the fields that conceptually define the NEW
 # strategy when ``--network-strategy`` is being switched. Fields the
@@ -2868,9 +2866,9 @@ def _build_text_network_exploration_budget(
     is_custom: Optional[str],
 ) -> Optional[dict]:
     """Build an ExplorationBudget block. Both fields are WSDL
-    ``minOccurs=1``. Per Yandex docs only ``YES`` is accepted for
-    ``IsMinimumExplorationBudgetCustom`` — passing ``NO`` triggers a
-    runtime API error, so the CLI rejects it up-front."""
+    ``minOccurs=1`` (campaigns.xml lines 1973-1977); the typed flag
+    ``IsMinimumExplorationBudgetCustom`` accepts any value from
+    ``general:YesNoEnum`` (``YES``/``NO``)."""
     values = {
         "--text-network-exploration-min-budget": min_budget,
         "--text-network-exploration-is-custom": is_custom,
@@ -2886,15 +2884,9 @@ def _build_text_network_exploration_budget(
         )
     assert min_budget is not None
     assert is_custom is not None
-    normalized_is_custom = is_custom.upper()
-    if normalized_is_custom != "YES":
-        raise click.UsageError(
-            "--text-network-exploration-is-custom must be YES; the Yandex "
-            "Direct API rejects NO for IsMinimumExplorationBudgetCustom"
-        )
     return {
         "MinimumExplorationBudget": min_budget,
-        "IsMinimumExplorationBudgetCustom": normalized_is_custom,
+        "IsMinimumExplorationBudgetCustom": is_custom.upper(),
     }
 
 

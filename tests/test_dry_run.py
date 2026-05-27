@@ -11287,6 +11287,40 @@ def test_campaigns_add_text_network_network_default_payload():
     }
 
 
+def test_campaigns_add_text_network_wb_maximum_clicks_bare_payload():
+    """#364: WSDL ``StrategyMaximumClicksAdd`` (campaigns.xml 1339-1347)
+    has all fields ``minOccurs=0``, so a bare ``WB_MAXIMUM_CLICKS`` add
+    with only the strategy name is valid."""
+    body = _dry_run(
+        *_text_network_base_args(),
+        "--network-strategy",
+        "WB_MAXIMUM_CLICKS",
+    )
+    network = body["params"]["Campaigns"][0]["TextCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {"BiddingStrategyType": "WB_MAXIMUM_CLICKS"}
+
+
+def test_campaigns_add_text_network_wb_maximum_conversion_rate_bare_payload():
+    """#364: WSDL ``StrategyMaximumConversionRateAdd`` (campaigns.xml
+    1348-1357) makes only ``GoalId`` required (minOccurs=1)."""
+    body = _dry_run(
+        *_text_network_base_args(),
+        "--network-strategy",
+        "WB_MAXIMUM_CONVERSION_RATE",
+        "--goal-id",
+        "42",
+    )
+    network = body["params"]["Campaigns"][0]["TextCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "WB_MAXIMUM_CONVERSION_RATE",
+        "WbMaximumConversionRate": {"GoalId": 42},
+    }
+
+
 def test_campaigns_add_text_network_wb_maximum_clicks_weekly_payload():
     body = _dry_run(
         *_text_network_base_args(),
@@ -11991,8 +12025,11 @@ def test_campaigns_add_text_network_rejects_reserve_return_off_step():
     assert "--text-network-reserve-return must be a multiple of 10" in result.output
 
 
-def test_campaigns_add_text_network_rejects_exploration_is_custom_no():
-    result = _rejected(
+def test_campaigns_add_text_network_exploration_is_custom_no_payload():
+    """#364: WSDL ``IsMinimumExplorationBudgetCustom`` is a
+    ``general:YesNoEnum`` (campaigns.xml lines 1973-1977), so NO is
+    a valid value."""
+    body = _dry_run(
         *_text_network_base_args(),
         "--network-strategy",
         "AVERAGE_CPA",
@@ -12005,7 +12042,13 @@ def test_campaigns_add_text_network_rejects_exploration_is_custom_no():
         "--text-network-exploration-is-custom",
         "NO",
     )
-    assert "--text-network-exploration-is-custom must be YES" in result.output
+    network = body["params"]["Campaigns"][0]["TextCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network["AverageCpa"]["ExplorationBudget"] == {
+        "MinimumExplorationBudget": 300000000,
+        "IsMinimumExplorationBudgetCustom": "NO",
+    }
 
 
 def test_campaigns_add_text_network_rejects_package_with_network_flag():
