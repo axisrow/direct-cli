@@ -10,7 +10,12 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import get_default_fields, parse_ids, parse_sitelink_specs
+from ..utils import (
+    get_default_fields,
+    parse_csv_strings,
+    parse_ids,
+    parse_sitelink_specs,
+)
 
 _SITELINK_FIELDS = ("Title", "Href", "Description", "TurboPageId")
 
@@ -104,10 +109,29 @@ def sitelinks():
 @click.option("--fetch-all", is_flag=True, help="Fetch all pages")
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
-@click.option("--fields", help="Comma-separated field names")
+@click.option("--fields", help="Comma-separated SitelinksSet FieldNames")
+@click.option(
+    "--sitelink-field-names",
+    help=(
+        "Comma-separated SitelinkFieldNames controlling nested "
+        "Sitelinks[] item field selection (e.g. Title,Href,Description,"
+        "TurboPageId). Sent as a separate top-level request parameter "
+        "alongside FieldNames per the SitelinksGetRequest WSDL."
+    ),
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
+def get(
+    ctx,
+    ids,
+    limit,
+    fetch_all,
+    output_format,
+    output,
+    fields,
+    sitelink_field_names,
+    dry_run,
+):
     """Get sitelinks"""
     try:
         client = create_client(
@@ -116,7 +140,12 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
             sandbox=ctx.obj.get("sandbox"),
         )
 
-        field_names = fields.split(",") if fields else get_default_fields("sitelinks")
+        field_names = parse_csv_strings(fields) or get_default_fields("sitelinks")
+        parsed_sitelink_field_names = parse_csv_strings(sitelink_field_names)
+        if sitelink_field_names is not None and not parsed_sitelink_field_names:
+            raise click.UsageError(
+                "Provide a non-empty comma-separated SitelinkFieldNames list."
+            )
 
         criteria = {}
         if ids:
@@ -125,6 +154,8 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
         params = {"FieldNames": field_names}
         if criteria:
             params["SelectionCriteria"] = criteria
+        if parsed_sitelink_field_names:
+            params["SitelinkFieldNames"] = parsed_sitelink_field_names
 
         if limit:
             params["Page"] = {"Limit": limit}
@@ -146,6 +177,8 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
             data = result().extract()
             format_output(data, output_format, output)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()

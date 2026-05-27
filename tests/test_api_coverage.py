@@ -15,6 +15,7 @@ import importlib.util
 import re
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pytest
@@ -2450,3 +2451,191 @@ class TestReportsBuildRequestExtra:
             date_range_type="LAST_7_DAYS",
         )
         assert result["params"]["DateRangeType"] == "LAST_7_DAYS"
+
+
+# ----------------------------------------------------------------------
+# FieldNames parity: every nested ``*FieldNames`` request parameter
+# (e.g. ``CalloutFieldNames``, ``SitelinkFieldNames``,
+# ``SearchFieldNames``, ``NetworkFieldNames``) must be exposed by an
+# explicit CLI option separate from ``--fields``. Folding them into the
+# top-level ``--fields`` flag silently drops projections.
+#
+# Reference cases:
+# - CalloutFieldNames -> --callout-field-names (PR #359)
+# - SitelinkFieldNames -> --sitelink-field-names (issue #360)
+# - SearchFieldNames / NetworkFieldNames -> --search-field-names /
+#   --network-field-names on ``keywordbids get`` (issue #360)
+# ----------------------------------------------------------------------
+
+
+# Acknowledged exclusions. Each row points at the GitHub issue tracking
+# the wave of work that will close it. Add a row here ONLY with a
+# tracking issue — do not silently exclude a gap. To close a row,
+# add the corresponding kebab-case CLI option and delete the entry.
+NESTED_FIELDNAMES_EXCLUSIONS: dict[tuple[str, str, str], str] = {
+    ("adgroups", "get", "AutotargetingSettingsBrandOptionsFieldNames"): "#402",
+    ("adgroups", "get", "AutotargetingSettingsCategoriesFieldNames"): "#402",
+    ("adgroups", "get", "DynamicTextAdGroupFieldNames"): "#402",
+    ("adgroups", "get", "DynamicTextFeedAdGroupFieldNames"): "#402",
+    ("adgroups", "get", "MobileAppAdGroupFieldNames"): "#402",
+    ("adgroups", "get", "SmartAdGroupFieldNames"): "#402",
+    ("adgroups", "get", "TextAdGroupFeedParamsFieldNames"): "#402",
+    ("adgroups", "get", "UnifiedAdGroupFieldNames"): "#402",
+    ("ads", "get", "CpcVideoAdBuilderAdFieldNames"): "#402",
+    ("ads", "get", "CpmBannerAdBuilderAdFieldNames"): "#402",
+    ("ads", "get", "CpmVideoAdBuilderAdFieldNames"): "#402",
+    ("ads", "get", "DynamicTextAdFieldNames"): "#402",
+    ("ads", "get", "ListingAdFieldNames"): "#402",
+    ("ads", "get", "MobileAppAdBuilderAdFieldNames"): "#402",
+    ("ads", "get", "MobileAppAdFieldNames"): "#402",
+    ("ads", "get", "MobileAppCpcVideoAdBuilderAdFieldNames"): "#402",
+    ("ads", "get", "MobileAppImageAdFieldNames"): "#402",
+    ("ads", "get", "ResponsiveAdFieldNames"): "#402",
+    ("ads", "get", "ShoppingAdFieldNames"): "#402",
+    ("ads", "get", "SmartAdBuilderAdFieldNames"): "#402",
+    ("ads", "get", "TextAdBuilderAdFieldNames"): "#402",
+    ("ads", "get", "TextAdFieldNames"): "#402",
+    ("ads", "get", "TextAdPriceExtensionFieldNames"): "#402",
+    ("ads", "get", "TextImageAdFieldNames"): "#402",
+    ("agencyclients", "get", "ContractFieldNames"): "#402",
+    ("agencyclients", "get", "ContragentFieldNames"): "#402",
+    ("agencyclients", "get", "ContragentTinInfoFieldNames"): "#402",
+    ("agencyclients", "get", "OrganizationFieldNames"): "#402",
+    ("agencyclients", "get", "TinInfoFieldNames"): "#402",
+    ("bidmodifiers", "get", "AdGroupAdjustmentFieldNames"): "#402",
+    ("bidmodifiers", "get", "DemographicsAdjustmentFieldNames"): "#402",
+    ("bidmodifiers", "get", "DesktopAdjustmentFieldNames"): "#402",
+    ("bidmodifiers", "get", "DesktopOnlyAdjustmentFieldNames"): "#402",
+    ("bidmodifiers", "get", "IncomeGradeAdjustmentFieldNames"): "#402",
+    ("bidmodifiers", "get", "MobileAdjustmentFieldNames"): "#402",
+    ("bidmodifiers", "get", "RegionalAdjustmentFieldNames"): "#402",
+    ("bidmodifiers", "get", "RetargetingAdjustmentFieldNames"): "#402",
+    ("bidmodifiers", "get", "SerpLayoutAdjustmentFieldNames"): "#402",
+    ("bidmodifiers", "get", "SmartAdAdjustmentFieldNames"): "#402",
+    ("bidmodifiers", "get", "SmartTvAdjustmentFieldNames"): "#402",
+    ("bidmodifiers", "get", "TabletAdjustmentFieldNames"): "#402",
+    ("bidmodifiers", "get", "VideoAdjustmentFieldNames"): "#402",
+    ("campaigns", "get", "CpmBannerCampaignFieldNames"): "#402",
+    ("campaigns", "get", "DynamicTextCampaignFieldNames"): "#402",
+    ("campaigns", "get", "DynamicTextCampaignSearchStrategyPlacementTypesFieldNames"): "#402",  # noqa: E501
+    ("campaigns", "get", "MobileAppCampaignFieldNames"): "#402",
+    ("campaigns", "get", "SmartCampaignFieldNames"): "#402",
+    ("campaigns", "get", "TextCampaignFieldNames"): "#402",
+    ("campaigns", "get", "TextCampaignSearchStrategyPlacementTypesFieldNames"): "#402",
+    ("campaigns", "get", "UnifiedCampaignFieldNames"): "#402",
+    ("campaigns", "get", "UnifiedCampaignPackageBiddingStrategyPlatformsFieldNames"): "#402",  # noqa: E501
+    ("campaigns", "get", "UnifiedCampaignSearchStrategyPlacementTypesFieldNames"): "#402",  # noqa: E501
+    ("clients", "get", "ContractFieldNames"): "#402",
+    ("clients", "get", "ContragentFieldNames"): "#402",
+    ("clients", "get", "ContragentTinInfoFieldNames"): "#402",
+    ("clients", "get", "OrganizationFieldNames"): "#402",
+    ("clients", "get", "TinInfoFieldNames"): "#402",
+    ("creatives", "get", "CpcVideoCreativeFieldNames"): "#402",
+    ("creatives", "get", "CpmVideoCreativeFieldNames"): "#402",
+    ("creatives", "get", "SmartCreativeFieldNames"): "#402",
+    ("creatives", "get", "VideoExtensionCreativeFieldNames"): "#402",
+    ("feeds", "get", "FileFeedFieldNames"): "#402",
+    ("feeds", "get", "UrlFeedFieldNames"): "#402",
+    ("keywords", "get", "AutotargetingSettingsBrandOptionsFieldNames"): "#402",
+    ("keywords", "get", "AutotargetingSettingsCategoriesFieldNames"): "#402",
+    ("strategies", "get", "StrategyAverageCpaFieldNames"): "#402",
+    ("strategies", "get", "StrategyAverageCpaMultipleGoalsFieldNames"): "#402",
+    ("strategies", "get", "StrategyAverageCpaPerCampaignFieldNames"): "#402",
+    ("strategies", "get", "StrategyAverageCpaPerFilterFieldNames"): "#402",
+    ("strategies", "get", "StrategyAverageCpcFieldNames"): "#402",
+    ("strategies", "get", "StrategyAverageCpcPerCampaignFieldNames"): "#402",
+    ("strategies", "get", "StrategyAverageCpcPerFilterFieldNames"): "#402",
+    ("strategies", "get", "StrategyAverageCrrFieldNames"): "#402",
+    ("strategies", "get", "StrategyMaxProfitFieldNames"): "#402",
+    ("strategies", "get", "StrategyMaximumClicksFieldNames"): "#402",
+    ("strategies", "get", "StrategyMaximumConversionRateFieldNames"): "#402",
+    ("strategies", "get", "StrategyPayForConversionCrrFieldNames"): "#402",
+    ("strategies", "get", "StrategyPayForConversionFieldNames"): "#402",
+    ("strategies", "get", "StrategyPayForConversionMultipleGoalsFieldNames"): "#402",
+    ("strategies", "get", "StrategyPayForConversionPerCampaignFieldNames"): "#402",
+    ("strategies", "get", "StrategyPayForConversionPerFilterFieldNames"): "#402",
+}
+
+
+def _camel_to_kebab(name: str) -> str:
+    """Convert CamelCase parameter name to kebab-case CLI option."""
+    out = []
+    for i, ch in enumerate(name):
+        if ch.isupper() and i > 0 and not name[i - 1].isupper():
+            out.append("-")
+        out.append(ch.lower())
+    return "".join(out)
+
+
+def _cli_options_for_subcommand(cli_group_name: str, subcommand: str) -> set[str]:
+    group = cli.commands.get(cli_group_name)
+    if group is None:
+        return set()
+    sub = group.commands.get(subcommand)
+    if sub is None:
+        return set()
+    options: set[str] = set()
+    for param in sub.params:
+        for opt in getattr(param, "opts", []):
+            options.add(opt)
+        for opt in getattr(param, "secondary_opts", []):
+            options.add(opt)
+    return options
+
+
+def _iter_get_operation_fieldnames():
+    """Yield (cli_group, api_service, operation, wsdl_param_name)."""
+    for cli_group, api_service in CLI_TO_API_SERVICE.items():
+        cache_file = CACHE_DIR / f"{api_service}.xml"
+        if not cache_file.exists():
+            continue
+        wsdl_xml = cache_file.read_text()
+        # Inspect ``get`` operations only — that's where Yandex declares
+        # the field-projection parameters. ``add``/``update``/``delete``
+        # bodies don't carry ``*FieldNames``.
+        for operation in ("get",):
+            try:
+                enums = get_operation_field_name_enums(wsdl_xml, operation)
+            except (KeyError, ValueError, ET.ParseError):
+                continue
+            for param_name in enums:
+                yield cli_group, api_service, operation, param_name
+
+
+def test_every_nested_fieldnames_param_has_cli_option():
+    """Each WSDL ``*FieldNames`` request param must map to a CLI option.
+
+    The base ``FieldNames`` parameter is covered by ``--fields`` (verified
+    elsewhere). Every additional ``*FieldNames`` (e.g.
+    ``CalloutFieldNames``) must have a dedicated option whose kebab-case
+    name matches the parameter — otherwise the projection silently
+    disappears or gets conflated with ``--fields``.
+    """
+    missing: list[str] = []
+
+    for cli_group, api_service, operation, param_name in (
+        _iter_get_operation_fieldnames()
+    ):
+        if param_name == "FieldNames":
+            # Handled by the top-level ``--fields`` option on every get
+            # subcommand. Coverage for ``--fields`` is enforced by the
+            # dry-run tests in test_dry_run.py.
+            continue
+
+        key = (cli_group, operation, param_name)
+        if key in NESTED_FIELDNAMES_EXCLUSIONS:
+            continue
+
+        expected_option = "--" + _camel_to_kebab(param_name)
+        options = _cli_options_for_subcommand(cli_group, operation)
+        if expected_option not in options:
+            missing.append(
+                f"{cli_group} {operation}: WSDL request param "
+                f"'{param_name}' ({api_service}) has no matching CLI "
+                f"option '{expected_option}'. Either add the flag (see "
+                f"adextensions get --callout-field-names for the "
+                f"reference pattern) or register an exclusion with a "
+                f"tracking issue in NESTED_FIELDNAMES_EXCLUSIONS."
+            )
+
+    assert not missing, "\n".join(missing)

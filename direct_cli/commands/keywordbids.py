@@ -10,6 +10,7 @@ from ..utils import (
     add_criteria_csv,
     add_single_id_selector,
     get_default_fields,
+    parse_csv_strings,
     parse_ids,
     MICRO_RUBLES,
 )
@@ -29,6 +30,33 @@ def keywordbids():
 @click.option("--fetch-all", is_flag=True, help="Fetch all pages")
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
+@click.option(
+    "--fields",
+    help=(
+        "Comma-separated top-level KeywordBidFieldEnum "
+        "(KeywordId, AdGroupId, CampaignId, ServingStatus, "
+        "StrategyPriority). Defaults to all five."
+    ),
+)
+@click.option(
+    "--search-field-names",
+    help=(
+        "Comma-separated KeywordBidSearchFieldEnum "
+        "(Bid, AutotargetingSearchBidIsAuto, AuctionBids). "
+        "Sent as separate top-level request parameter "
+        "SearchFieldNames per the KeywordBidsGetRequest WSDL. "
+        "Defaults to ['Bid']."
+    ),
+)
+@click.option(
+    "--network-field-names",
+    help=(
+        "Comma-separated KeywordBidNetworkFieldEnum "
+        "(Bid, Coverage). Sent as separate top-level request "
+        "parameter NetworkFieldNames per the KeywordBidsGetRequest "
+        "WSDL. Defaults to ['Bid']."
+    ),
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def get(
@@ -41,6 +69,9 @@ def get(
     fetch_all,
     output_format,
     output,
+    fields,
+    search_field_names,
+    network_field_names,
     dry_run,
 ):
     """Get keyword bids"""
@@ -50,6 +81,22 @@ def get(
             login=ctx.obj.get("login"),
             sandbox=ctx.obj.get("sandbox"),
         )
+
+        parsed_fields = parse_csv_strings(fields)
+        if fields is not None and not parsed_fields:
+            raise click.UsageError(
+                "Provide a non-empty comma-separated FieldNames list."
+            )
+        parsed_search_field_names = parse_csv_strings(search_field_names)
+        if search_field_names is not None and not parsed_search_field_names:
+            raise click.UsageError(
+                "Provide a non-empty comma-separated SearchFieldNames list."
+            )
+        parsed_network_field_names = parse_csv_strings(network_field_names)
+        if network_field_names is not None and not parsed_network_field_names:
+            raise click.UsageError(
+                "Provide a non-empty comma-separated NetworkFieldNames list."
+            )
 
         criteria = {}
         if keyword_ids:
@@ -62,9 +109,18 @@ def get(
 
         params = {
             "SelectionCriteria": criteria,
-            "FieldNames": get_default_fields("keywordbids", "FieldNames"),
-            "SearchFieldNames": get_default_fields("keywordbids", "SearchFieldNames"),
-            "NetworkFieldNames": get_default_fields("keywordbids", "NetworkFieldNames"),
+            "FieldNames": (
+                parsed_fields
+                or get_default_fields("keywordbids", "FieldNames")
+            ),
+            "SearchFieldNames": (
+                parsed_search_field_names
+                or get_default_fields("keywordbids", "SearchFieldNames")
+            ),
+            "NetworkFieldNames": (
+                parsed_network_field_names
+                or get_default_fields("keywordbids", "NetworkFieldNames")
+            ),
         }
 
         if limit:
@@ -87,6 +143,8 @@ def get(
             data = result().extract()
             format_output(data, output_format, output)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
