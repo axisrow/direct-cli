@@ -3096,8 +3096,9 @@ def add(
                         "requires --network-strategy or --search-strategy "
                         "in {AVERAGE_CPA_MULTIPLE_GOALS, "
                         "PAY_FOR_CONVERSION_MULTIPLE_GOALS, MAX_PROFIT} "
-                        "(other BiddingStrategy combinations are tracked "
-                        "in #290 / #373)."
+                        "and is incompatible with "
+                        "--package-strategy-id/--package-strategy-from-"
+                        "campaign-id (#373)."
                     )
         if campaign_type_norm in {"MOBILE_APP_CAMPAIGN", "CPM_BANNER_CAMPAIGN"}:
             strategy_followup_flags = {

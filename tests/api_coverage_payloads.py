@@ -749,6 +749,30 @@ PAYLOAD_CASES = [
             "1234567:80,9876543:20:YES",
         ],
     ),
+    # --- issue #373: UnifiedCampaign.PriorityGoals ---
+    # ``UnifiedCampaignAddItem.PriorityGoals`` (WSDL
+    # ``tests/wsdl_cache/campaigns.xml`` line 2165) is a top-level sibling
+    # populated via the shared --priority-goals flag whenever the chosen
+    # BiddingStrategy subtype consumes it (MAX_PROFIT here; covers GoalId,
+    # Value and IsMetrikaSourceOfValue per PriorityGoalsItem 1928-1934).
+    (
+        "campaigns",
+        "add",
+        [
+            "campaigns",
+            "add",
+            "--name",
+            "Test Unified PriorityGoals",
+            "--start-date",
+            "2026-06-01",
+            "--type",
+            "UNIFIED_CAMPAIGN",
+            "--network-strategy",
+            "MAX_PROFIT",
+            "--priority-goals",
+            "1234567:80,9876543:20:YES",
+        ],
+    ),
     # --- issue #367: SmartCampaign.BiddingStrategy.Search typed flags ---
     (
         "campaigns",

@@ -3732,6 +3732,27 @@ for _path in (
         "--priority-goals"
     }
 
+# UnifiedCampaign.PriorityGoals on campaigns add (#373). Top-level sibling on
+# ``UnifiedCampaignAddItem`` (WSDL ``tests/wsdl_cache/campaigns.xml`` line
+# 2165, type ``PriorityGoalsArray`` -> ``PriorityGoalsItem`` lines 1928-1934).
+# The add-side schema does not carry ``Operation`` — that field lives on the
+# update-only ``PriorityGoalsUpdateItem``. The shared ``--priority-goals``
+# flag (parser ``parse_priority_goals_spec``) populates the items; the
+# Unified Search (#363) / Network (#366) builders route the items to the
+# parent sub-campaign block when the chosen subtype accepts PriorityGoals
+# (AVERAGE_CPA_MULTIPLE_GOALS / PAY_FOR_CONVERSION_MULTIPLE_GOALS /
+# MAX_PROFIT).
+for _path in (
+    "PriorityGoals",
+    "PriorityGoals.Items",
+    "PriorityGoals.Items.GoalId",
+    "PriorityGoals.Items.Value",
+    "PriorityGoals.Items.IsMetrikaSourceOfValue",
+):
+    OPTIONAL_FIELD_CLI_OPTIONS[("campaigns", "add", f"UnifiedCampaign.{_path}")] = {
+        "--priority-goals"
+    }
+
 for _campaign_op in ("add", "update"):
     OPTIONAL_FIELD_CLI_OPTIONS[("campaigns", _campaign_op, "SmartCampaign")] = {
         "--type"
@@ -4699,11 +4720,16 @@ OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]
         ),
     },
     ("campaigns", "add", "UnifiedCampaign.PriorityGoals"): {
-        "status": "missing_followup",
-        "issue": "#290",
+        "status": "supported",
+        "issue": "#373",
         "note": (
-            "UnifiedCampaign.PriorityGoals on add requires compatible "
-            "UnifiedCampaign.BiddingStrategy typed support."
+            "UnifiedCampaign.PriorityGoals on campaigns add is a top-level "
+            "sibling on UnifiedCampaignAddItem (WSDL line 2165) and is set "
+            "via the shared --priority-goals flag. The CLI enforces the "
+            "documented Yandex constraint that PriorityGoals is only "
+            "accepted with AVERAGE_CPA_MULTIPLE_GOALS / "
+            "PAY_FOR_CONVERSION_MULTIPLE_GOALS / MAX_PROFIT subtypes on "
+            "either Search or Network branch."
         ),
     },
     ("campaigns", "add", "DynamicTextCampaign.BiddingStrategy"): {

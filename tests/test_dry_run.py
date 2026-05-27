@@ -8173,13 +8173,16 @@ def test_campaigns_add_rejects_unified_package_strategy_with_counter_ids():
 
 
 def test_campaigns_add_rejects_unified_priority_goals_without_bidding_strategy():
-    """UnifiedCampaign.PriorityGoals typed-flag wiring is owned by #373.
+    """UnifiedCampaign.PriorityGoals scope guard (issue #373).
 
-    Issue #363 (UnifiedCampaign.BiddingStrategy.Search) introduced the
-    Search builder which validates priority-goals scope/min-count, but
-    sibling placement onto UnifiedCampaignAddItem.PriorityGoals stays
-    behind #373's flag. The CLI rejects --priority-goals on add until
-    #373 ships and points users at the tracking issue.
+    Yandex Direct accepts ``UnifiedCampaignAddItem.PriorityGoals`` (WSDL
+    ``tests/wsdl_cache/campaigns.xml`` line 2165) only when the chosen
+    BiddingStrategy subtype is AVERAGE_CPA_MULTIPLE_GOALS /
+    PAY_FOR_CONVERSION_MULTIPLE_GOALS / MAX_PROFIT on either the Search
+    branch (``UnifiedCampaignStrategyAddBase`` lines 1631-1654) or the
+    Network branch. Without any --network-strategy / --search-strategy
+    the CLI rejects the call rather than silently dropping the goals or
+    relying on the API to error.
     """
     result = _rejected(
         "campaigns",
@@ -8194,7 +8197,82 @@ def test_campaigns_add_rejects_unified_priority_goals_without_bidding_strategy()
         "1:50,2:50",
     )
     assert "UnifiedCampaign.PriorityGoals" in result.output
-    assert "#373" in result.output
+    assert "AVERAGE_CPA_MULTIPLE_GOALS" in result.output
+
+
+def test_campaigns_add_unified_priority_goals_payload():
+    """Issue #373: UnifiedCampaignAddItem.PriorityGoals payload shape.
+
+    WSDL evidence (``tests/wsdl_cache/campaigns.xml``):
+    * ``UnifiedCampaignAddItem.PriorityGoals`` — line 2165, typed as
+      ``PriorityGoalsArray`` (minOccurs=0, maxOccurs=1).
+    * ``PriorityGoalsItem`` (lines 1928-1934) — fields GoalId (xsd:long,
+      minOccurs=1), Value (xsd:long, minOccurs=1) and the optional
+      IsMetrikaSourceOfValue (general:YesNoEnum, minOccurs=0).
+
+    PriorityGoals lives on the UnifiedCampaign parent block, not on the
+    BiddingStrategy subtype — the Search (#363) / Network (#366)
+    builders route the items to ``sub_campaign_block["PriorityGoals"]``
+    when the chosen subtype accepts them.
+    """
+    body = _dry_run(
+        "campaigns",
+        "add",
+        "--name",
+        "Unified Priority Goals",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "UNIFIED_CAMPAIGN",
+        "--network-strategy",
+        "MAX_PROFIT",
+        "--priority-goals",
+        "1234567:80,9876543:20:YES",
+    )
+    unified = body["params"]["Campaigns"][0]["UnifiedCampaign"]
+    assert unified["PriorityGoals"] == {
+        "Items": [
+            {"GoalId": 1234567, "Value": 80},
+            {"GoalId": 9876543, "Value": 20, "IsMetrikaSourceOfValue": "YES"},
+        ]
+    }
+    network = unified["BiddingStrategy"]["Network"]
+    assert network["BiddingStrategyType"] == "MAX_PROFIT"
+
+
+def test_campaigns_add_rejects_unified_priority_goals_with_package_strategy():
+    """Issue #373: PriorityGoals cannot combine with PackageBiddingStrategy.
+
+    ``UnifiedCampaignAddItem.PriorityGoals`` and
+    ``UnifiedCampaignAddItem.PackageBiddingStrategy`` are declared as
+    independent ``minOccurs=0`` siblings on the WSDL (campaigns.xml
+    lines 2160-2172, no ``xsd:choice`` wrapper). However Yandex's
+    package strategies own their own bidding configuration and the
+    documented CLI contract rejects the combination so users do not
+    submit a payload the API will refuse.
+    """
+    result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "Unified PG+Pkg",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "UNIFIED_CAMPAIGN",
+        "--package-strategy-id",
+        "42",
+        "--package-platform-search-result",
+        "yes",
+        "--package-platform-product-gallery",
+        "yes",
+        "--package-platform-network",
+        "yes",
+        "--priority-goals",
+        "1:50,2:50",
+    )
+    assert "UnifiedCampaign.PackageBiddingStrategy cannot be combined" in result.output
+    assert "--priority-goals" in result.output
 
 
 def test_campaigns_update_rejects_unified_package_strategy_with_priority_goals():
