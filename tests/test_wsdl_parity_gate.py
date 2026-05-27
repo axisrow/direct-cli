@@ -2229,9 +2229,27 @@ for _campaign_op in ("add", "update"):
         "--search-placement-dynamic-places",
     }
     _text_search_flags = {"--search-strategy"} | _text_search_placement_flags
-    _text_bidding_strategy_flags = set(_text_search_flags)
-    if _campaign_op == "add":
-        _text_bidding_strategy_flags |= {"--network-strategy"}
+    # Issue #364: TextCampaign Network typed-flag coverage.
+    _text_network_flags = {
+        "--network-strategy",
+        "--text-network-weekly-spend-limit",
+        "--text-network-custom-period-spend-limit",
+        "--text-network-custom-period-start-date",
+        "--text-network-custom-period-end-date",
+        "--text-network-custom-period-auto-continue",
+        "--text-network-average-cpc",
+        "--text-network-pay-cpa",
+        "--text-network-clicks-per-week",
+        "--text-network-reserve-return",
+        "--text-network-roi-coef",
+        "--text-network-profitability",
+        "--text-network-exploration-min-budget",
+        "--text-network-exploration-is-custom",
+        "--text-network-limit-percent",
+    }
+    if _campaign_op == "update":
+        _text_network_flags = _text_network_flags | {"--text-network-budget-type"}
+    _text_bidding_strategy_flags = set(_text_search_flags) | _text_network_flags
     OPTIONAL_FIELD_CLI_OPTIONS[
         ("campaigns", _campaign_op, "TextCampaign.BiddingStrategy")
     ] = _text_bidding_strategy_flags
@@ -2458,6 +2476,215 @@ for _campaign_op in ("add", "update"):
                         _campaign_op,
                         (
                             "TextCampaign.BiddingStrategy.Search."
+                            f"{_subtype}.ExplorationBudget.{_eb_field}"
+                        ),
+                    )
+                ] = {_eb_flag}
+
+    # Issue #364: TextCampaign Network strategy subtypes — 13 families.
+    # WSDL reference: ``TextCampaignStrategyAddBase`` /
+    # ``TextCampaignNetworkStrategyAdd`` in tests/wsdl_cache/campaigns.xml
+    # (lines 1581-1620). Required minOccurs=1 leaves are validated either
+    # via Click ``required=True`` or fail-fast UsageError inside
+    # ``_bidding_strategy.build_text_campaign_network_strategy``.
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("campaigns", _campaign_op, "TextCampaign.BiddingStrategy.Network")
+    ] = _text_network_flags
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        (
+            "campaigns",
+            _campaign_op,
+            "TextCampaign.BiddingStrategy.Network.BiddingStrategyType",
+        )
+    ] = {"--network-strategy"}
+    _text_network_custom_period_flags = {
+        "--text-network-custom-period-spend-limit",
+        "--text-network-custom-period-start-date",
+        "--text-network-custom-period-end-date",
+        "--text-network-custom-period-auto-continue",
+    }
+    _text_network_exploration_flags = {
+        "--text-network-exploration-min-budget",
+        "--text-network-exploration-is-custom",
+    }
+    _text_network_custom_period_field_options = {
+        "SpendLimit": "--text-network-custom-period-spend-limit",
+        "StartDate": "--text-network-custom-period-start-date",
+        "EndDate": "--text-network-custom-period-end-date",
+        "AutoContinue": "--text-network-custom-period-auto-continue",
+    }
+    _text_network_exploration_field_options = {
+        "MinimumExplorationBudget": "--text-network-exploration-min-budget",
+        "IsMinimumExplorationBudgetCustom": "--text-network-exploration-is-custom",
+    }
+    # ``BudgetType`` lives only on the get-side ``Strategy*`` types used by
+    # ``TextCampaignUpdateItem`` (campaigns.xml 789-958); ``Strategy*Add``
+    # does NOT carry it. Hence the audit only lists it on update.
+    _text_network_subtype_field_options: dict[str, dict[str, str]] = {
+        "WbMaximumClicks": {
+            "WeeklySpendLimit": "--text-network-weekly-spend-limit",
+            "BidCeiling": "--bid-ceiling",
+        },
+        "WbMaximumConversionRate": {
+            "WeeklySpendLimit": "--text-network-weekly-spend-limit",
+            "BidCeiling": "--bid-ceiling",
+            "GoalId": "--goal-id",
+        },
+        "AverageCpc": {
+            "AverageCpc": "--text-network-average-cpc",
+            "WeeklySpendLimit": "--text-network-weekly-spend-limit",
+        },
+        "AverageCpa": {
+            "AverageCpa": "--average-cpa",
+            "GoalId": "--goal-id",
+            "WeeklySpendLimit": "--text-network-weekly-spend-limit",
+            "BidCeiling": "--bid-ceiling",
+        },
+        "PayForConversion": {
+            "Cpa": "--text-network-pay-cpa",
+            "GoalId": "--goal-id",
+            "WeeklySpendLimit": "--text-network-weekly-spend-limit",
+        },
+        "WeeklyClickPackage": {
+            "ClicksPerWeek": "--text-network-clicks-per-week",
+            "AverageCpc": "--text-network-average-cpc",
+            "BidCeiling": "--bid-ceiling",
+        },
+        "AverageRoi": {
+            "ReserveReturn": "--text-network-reserve-return",
+            "RoiCoef": "--text-network-roi-coef",
+            "GoalId": "--goal-id",
+            "WeeklySpendLimit": "--text-network-weekly-spend-limit",
+            "BidCeiling": "--bid-ceiling",
+            "Profitability": "--text-network-profitability",
+        },
+        "AverageCrr": {
+            "Crr": "--crr",
+            "GoalId": "--goal-id",
+            "WeeklySpendLimit": "--text-network-weekly-spend-limit",
+        },
+        "PayForConversionCrr": {
+            "Crr": "--crr",
+            "GoalId": "--goal-id",
+            "WeeklySpendLimit": "--text-network-weekly-spend-limit",
+        },
+        "AverageCpaMultipleGoals": {
+            "WeeklySpendLimit": "--text-network-weekly-spend-limit",
+            "BidCeiling": "--bid-ceiling",
+        },
+        "PayForConversionMultipleGoals": {
+            "WeeklySpendLimit": "--text-network-weekly-spend-limit",
+        },
+        "MaxProfit": {
+            "WeeklySpendLimit": "--text-network-weekly-spend-limit",
+        },
+        "NetworkDefault": {
+            "LimitPercent": "--text-network-limit-percent",
+        },
+    }
+    _text_network_update_only_field_options: dict[str, dict[str, str]] = (
+        {
+            "AverageCpc": {"BudgetType": "--text-network-budget-type"},
+            "AverageCpa": {"BudgetType": "--text-network-budget-type"},
+            "PayForConversion": {"BudgetType": "--text-network-budget-type"},
+            "AverageRoi": {"BudgetType": "--text-network-budget-type"},
+            "AverageCrr": {"BudgetType": "--text-network-budget-type"},
+            "PayForConversionCrr": {"BudgetType": "--text-network-budget-type"},
+            "PayForConversionMultipleGoals": {
+                "BudgetType": "--text-network-budget-type"
+            },
+            "MaxProfit": {"BudgetType": "--text-network-budget-type"},
+        }
+        if _campaign_op == "update"
+        else {}
+    )
+    _text_network_subtypes_with_custom_period = {
+        "WbMaximumClicks",
+        "WbMaximumConversionRate",
+        "AverageCpc",
+        "AverageCpa",
+        "PayForConversion",
+        "AverageRoi",
+        "AverageCrr",
+        "PayForConversionCrr",
+        "AverageCpaMultipleGoals",
+        "PayForConversionMultipleGoals",
+        "MaxProfit",
+    }
+    _text_network_subtypes_with_exploration = {
+        "AverageCpa",
+        "AverageRoi",
+        "AverageCrr",
+        "AverageCpaMultipleGoals",
+        "MaxProfit",
+    }
+    for _subtype, _fields in _text_network_subtype_field_options.items():
+        _update_extras = _text_network_update_only_field_options.get(_subtype, {})
+        _all_fields = {**_fields, **_update_extras}
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            (
+                "campaigns",
+                _campaign_op,
+                f"TextCampaign.BiddingStrategy.Network.{_subtype}",
+            )
+        ] = {"--network-strategy"} | set(_all_fields.values())
+        for _wsdl_field, _flag in _all_fields.items():
+            OPTIONAL_FIELD_CLI_OPTIONS[
+                (
+                    "campaigns",
+                    _campaign_op,
+                    (
+                        "TextCampaign.BiddingStrategy.Network."
+                        f"{_subtype}.{_wsdl_field}"
+                    ),
+                )
+            ] = {_flag}
+        if _subtype in _text_network_subtypes_with_custom_period:
+            OPTIONAL_FIELD_CLI_OPTIONS[
+                (
+                    "campaigns",
+                    _campaign_op,
+                    (
+                        "TextCampaign.BiddingStrategy.Network."
+                        f"{_subtype}.CustomPeriodBudget"
+                    ),
+                )
+            ] = _text_network_custom_period_flags
+            for (
+                _cpb_field,
+                _cpb_flag,
+            ) in _text_network_custom_period_field_options.items():
+                OPTIONAL_FIELD_CLI_OPTIONS[
+                    (
+                        "campaigns",
+                        _campaign_op,
+                        (
+                            "TextCampaign.BiddingStrategy.Network."
+                            f"{_subtype}.CustomPeriodBudget.{_cpb_field}"
+                        ),
+                    )
+                ] = {_cpb_flag}
+        if _subtype in _text_network_subtypes_with_exploration:
+            OPTIONAL_FIELD_CLI_OPTIONS[
+                (
+                    "campaigns",
+                    _campaign_op,
+                    (
+                        "TextCampaign.BiddingStrategy.Network."
+                        f"{_subtype}.ExplorationBudget"
+                    ),
+                )
+            ] = _text_network_exploration_flags
+            for (
+                _eb_field,
+                _eb_flag,
+            ) in _text_network_exploration_field_options.items():
+                OPTIONAL_FIELD_CLI_OPTIONS[
+                    (
+                        "campaigns",
+                        _campaign_op,
+                        (
+                            "TextCampaign.BiddingStrategy.Network."
                             f"{_subtype}.ExplorationBudget.{_eb_field}"
                         ),
                     )
@@ -2862,41 +3089,28 @@ for _campaign_op in ("add", "update"):
                 (
                     "campaigns",
                     _campaign_op,
-                    f"SmartCampaign.BiddingStrategy.Search.{_subtype}."
-                    "BudgetType",
+                    f"SmartCampaign.BiddingStrategy.Search.{_subtype}." "BudgetType",
                 )
             ] = {"--smart-search-budget-type"}
     # Subtype-leaf paths → owning CLI flag (per-field).
     for _subtype_path, _flag in {
         # AverageCpcPerCampaign
         "AverageCpcPerCampaign.AverageCpc": "--smart-search-average-cpc",
-        "AverageCpcPerCampaign.WeeklySpendLimit": (
-            "--smart-search-weekly-spend-limit"
-        ),
+        "AverageCpcPerCampaign.WeeklySpendLimit": ("--smart-search-weekly-spend-limit"),
         "AverageCpcPerCampaign.BidCeiling": "--smart-search-bid-ceiling",
         # AverageCpcPerFilter
-        "AverageCpcPerFilter.FilterAverageCpc": (
-            "--smart-search-filter-average-cpc"
-        ),
-        "AverageCpcPerFilter.WeeklySpendLimit": (
-            "--smart-search-weekly-spend-limit"
-        ),
+        "AverageCpcPerFilter.FilterAverageCpc": ("--smart-search-filter-average-cpc"),
+        "AverageCpcPerFilter.WeeklySpendLimit": ("--smart-search-weekly-spend-limit"),
         "AverageCpcPerFilter.BidCeiling": "--smart-search-bid-ceiling",
         # AverageCpaPerCampaign
         "AverageCpaPerCampaign.AverageCpa": "--smart-search-average-cpa",
         "AverageCpaPerCampaign.GoalId": "--smart-search-goal-id",
-        "AverageCpaPerCampaign.WeeklySpendLimit": (
-            "--smart-search-weekly-spend-limit"
-        ),
+        "AverageCpaPerCampaign.WeeklySpendLimit": ("--smart-search-weekly-spend-limit"),
         "AverageCpaPerCampaign.BidCeiling": "--smart-search-bid-ceiling",
         # AverageCpaPerFilter
-        "AverageCpaPerFilter.FilterAverageCpa": (
-            "--smart-search-filter-average-cpa"
-        ),
+        "AverageCpaPerFilter.FilterAverageCpa": ("--smart-search-filter-average-cpa"),
         "AverageCpaPerFilter.GoalId": "--smart-search-goal-id",
-        "AverageCpaPerFilter.WeeklySpendLimit": (
-            "--smart-search-weekly-spend-limit"
-        ),
+        "AverageCpaPerFilter.WeeklySpendLimit": ("--smart-search-weekly-spend-limit"),
         "AverageCpaPerFilter.BidCeiling": "--smart-search-bid-ceiling",
         # PayForConversionPerCampaign
         "PayForConversionPerCampaign.Cpa": "--smart-search-cpa",
@@ -2924,9 +3138,7 @@ for _campaign_op in ("add", "update"):
         # PayForConversionCrr
         "PayForConversionCrr.Crr": "--smart-search-crr",
         "PayForConversionCrr.GoalId": "--smart-search-goal-id",
-        "PayForConversionCrr.WeeklySpendLimit": (
-            "--smart-search-weekly-spend-limit"
-        ),
+        "PayForConversionCrr.WeeklySpendLimit": ("--smart-search-weekly-spend-limit"),
     }.items():
         OPTIONAL_FIELD_CLI_OPTIONS[
             (
@@ -3598,6 +3810,57 @@ for _campaign_op in ("add", "update"):
             ),
         }
 
+# TextCampaign.BiddingStrategy.Network typed support landed in #364.
+# Mark the Network root and every Strategy*Add subtype prefix as supported.
+for _campaign_op in ("add", "update"):
+    OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS[
+        (
+            "campaigns",
+            _campaign_op,
+            "TextCampaign.BiddingStrategy.Network",
+        )
+    ] = {
+        "status": "supported",
+        "issue": "#364",
+        "note": (
+            "TextCampaign.BiddingStrategy.Network typed flags "
+            "(--network-strategy + --text-network-*) cover every "
+            "settable TextCampaignNetworkStrategyTypeEnum value "
+            "(UNKNOWN is a read-side sentinel and is not exposed on "
+            "add/update — same convention as DynamicTextCampaign/MobileApp/"
+            "CpmBanner network strategy enums)."
+        ),
+    }
+    for _strategy_subtype in (
+        "NetworkDefault",
+        "WbMaximumClicks",
+        "WbMaximumConversionRate",
+        "AverageCpc",
+        "AverageCpa",
+        "PayForConversion",
+        "WeeklyClickPackage",
+        "AverageRoi",
+        "AverageCrr",
+        "PayForConversionCrr",
+        "AverageCpaMultipleGoals",
+        "PayForConversionMultipleGoals",
+        "MaxProfit",
+    ):
+        OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS[
+            (
+                "campaigns",
+                _campaign_op,
+                f"TextCampaign.BiddingStrategy.Network.{_strategy_subtype}",
+            )
+        ] = {
+            "status": "supported",
+            "issue": "#364",
+            "note": (
+                "TextCampaign Network strategy subtype fields "
+                "covered by typed --text-network-* flags."
+            ),
+        }
+
 OPTIONAL_FIELD_CHILD_COMPONENT_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]] = (
     {}
 )
@@ -3687,6 +3950,52 @@ OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
             "Official Yandex update-text-campaign docs do not declare "
             "BudgetType on AverageCpaMultipleGoals; CLI rejects "
             "--text-search-budget-type for this subtype."
+        ),
+    },
+    # Issue #364: mirror the #361 not_applicable entries for the Network
+    # branch. Official Yandex update-text-campaign docs do not declare
+    # ``BudgetType`` on these subtypes; the WSDL inherits it via
+    # ``StrategyWeeklyBudgetBase`` but emitting it would be undocumented.
+    # The CLI rejects ``--text-network-budget-type`` for these subtypes
+    # (see ``_TEXT_NETWORK_BUDGET_TYPE_SUBTYPES`` in
+    # ``direct_cli/_bidding_strategy.py``).
+    (
+        "campaigns",
+        "update",
+        "TextCampaign.BiddingStrategy.Network.WbMaximumClicks.BudgetType",
+    ): {
+        "status": "not_applicable",
+        "issue": "#364",
+        "note": (
+            "Official Yandex update-text-campaign docs do not declare "
+            "BudgetType on WbMaximumClicks; CLI rejects "
+            "--text-network-budget-type for this subtype."
+        ),
+    },
+    (
+        "campaigns",
+        "update",
+        "TextCampaign.BiddingStrategy.Network.WbMaximumConversionRate.BudgetType",
+    ): {
+        "status": "not_applicable",
+        "issue": "#364",
+        "note": (
+            "Official Yandex update-text-campaign docs do not declare "
+            "BudgetType on WbMaximumConversionRate; CLI rejects "
+            "--text-network-budget-type for this subtype."
+        ),
+    },
+    (
+        "campaigns",
+        "update",
+        "TextCampaign.BiddingStrategy.Network.AverageCpaMultipleGoals.BudgetType",
+    ): {
+        "status": "not_applicable",
+        "issue": "#364",
+        "note": (
+            "Official Yandex update-text-campaign docs do not declare "
+            "BudgetType on AverageCpaMultipleGoals; CLI rejects "
+            "--text-network-budget-type for this subtype."
         ),
     },
 }
