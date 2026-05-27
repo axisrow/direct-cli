@@ -29,7 +29,6 @@ from .._bidding_strategy import (
     _TEXT_NETWORK_AVERAGE_CPA_SUBTYPES,
     _TEXT_NETWORK_BID_CEILING_SUBTYPES,
     _TEXT_NETWORK_CRR_SUBTYPES,
-    _STRATEGY_REQUIRES_PRIORITY_GOALS,
     _TEXT_NETWORK_GOAL_ID_SUBTYPES,
     _TEXT_NETWORK_REQUIRES_PRIORITY_GOALS,
     _TEXT_SEARCH_SUPPORTS_AVERAGE_CPA,
@@ -3756,21 +3755,15 @@ def add(
                 # WSDL DynamicTextCampaignAddItem.PriorityGoals (line 2186)
                 # is an optional sub-campaign field independent of the
                 # BiddingStrategy subtype — same shape as Unified/Smart.
-                # When --priority-goals is supplied without a multi-goal
-                # strategy (issue #397), withhold the items from the
-                # legacy builder (which would raise) and place them on
-                # the parent sub-campaign block instead. The legacy
-                # builder still runs for its other job — placing
-                # AverageCpa/GoalId/Crr/BidCeiling into the strategy
-                # subtype block for AVERAGE_CPA / PAY_FOR_CONVERSION_CRR.
-                _strategy_is_multi_goal = (
-                    search_strategy or ""
-                ).upper() in _STRATEGY_REQUIRES_PRIORITY_GOALS or (
-                    network_strategy or ""
-                ).upper() in _STRATEGY_REQUIRES_PRIORITY_GOALS
-                _legacy_priority_goals_items = (
-                    priority_goals_items if _strategy_is_multi_goal else None
-                )
+                # DynamicTextCampaignStrategyAddBase declares 9 subtypes
+                # and neither DynamicTextCampaign{Search,Network}StrategyTypeEnum
+                # includes AVERAGE_CPA_MULTIPLE_GOALS or
+                # PAY_FOR_CONVERSION_MULTIPLE_GOALS, so PriorityGoals
+                # always belongs on the parent block. The legacy builder
+                # is still called with priority_goals_items=None for its
+                # other job — placing AverageCpa/GoalId/Crr/BidCeiling
+                # into the AVERAGE_CPA / PAY_FOR_CONVERSION_CRR subtype
+                # block (issue #397).
                 priority_goals_builder = get_bidding_strategy_builder(
                     "DYNAMIC_TEXT_CAMPAIGN", "add", "priority_goals"
                 )
@@ -3783,10 +3776,10 @@ def add(
                         average_cpa=average_cpa,
                         crr=crr,
                         bid_ceiling=bid_ceiling,
-                        priority_goals_items=_legacy_priority_goals_items,
+                        priority_goals_items=None,
                         sub_campaign_block=dyn_block,
                     )
-                if priority_goals_items is not None and not _strategy_is_multi_goal:
+                if priority_goals_items is not None:
                     dyn_block["PriorityGoals"] = {"Items": priority_goals_items}
             if counter_ids_obj is not None:
                 dyn_block["CounterIds"] = counter_ids_obj
