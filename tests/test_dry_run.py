@@ -8235,6 +8235,41 @@ def test_campaigns_add_rejects_unified_priority_goals_with_incompatible_strategy
     assert "AVERAGE_CPA_MULTIPLE_GOALS" in result.output
 
 
+def test_campaigns_add_unified_priority_goals_with_mixed_strategy_sides_payload():
+    """Issue #373: PriorityGoals is accepted when only ONE side's chosen
+    subtype consumes it. Per WSDL ``UnifiedCampaignAddItem`` exposes
+    ``BiddingStrategy``, ``PriorityGoals`` and
+    ``PackageBiddingStrategy`` as independent ``minOccurs=0`` siblings
+    (lines 2160-2172). The MAX_PROFIT Network side consumes the items
+    via ``sub_campaign_block``; the Search side keeps its AVERAGE_CPC
+    subtype payload untouched."""
+    body = _dry_run(
+        "campaigns",
+        "add",
+        "--name",
+        "Unified Mixed PG",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "UNIFIED_CAMPAIGN",
+        "--search-strategy",
+        "AVERAGE_CPC",
+        "--unified-search-average-cpc",
+        "5",
+        "--network-strategy",
+        "MAX_PROFIT",
+        "--priority-goals",
+        "1234567:80",
+    )
+    unified = body["params"]["Campaigns"][0]["UnifiedCampaign"]
+    assert unified["PriorityGoals"] == {
+        "Items": [{"GoalId": 1234567, "Value": 80}]
+    }
+    bidding = unified["BiddingStrategy"]
+    assert bidding["Search"]["BiddingStrategyType"] == "AVERAGE_CPC"
+    assert bidding["Network"]["BiddingStrategyType"] == "MAX_PROFIT"
+
+
 def test_campaigns_add_unified_priority_goals_payload():
     """Issue #373: UnifiedCampaignAddItem.PriorityGoals payload shape.
 

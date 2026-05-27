@@ -3112,19 +3112,40 @@ def add(
                 )
                 _network_chosen = network_strategy is not None
                 _search_chosen = search_strategy is not None
-                if _network_chosen and not _network_allows:
+                # Only reject when EVERY explicitly chosen per-side
+                # strategy is incompatible. PriorityGoals on the
+                # parent sibling is still emitted (line 3550-3551),
+                # so a single compatible side is enough — and the
+                # standalone case (no per-side strategy at all) is
+                # also valid per the WSDL.
+                _both_explicit_and_incompatible = (
+                    _network_chosen
+                    and _search_chosen
+                    and not _network_allows
+                    and not _search_allows
+                )
+                _only_network_explicit_and_incompatible = (
+                    _network_chosen
+                    and not _search_chosen
+                    and not _network_allows
+                )
+                _only_search_explicit_and_incompatible = (
+                    _search_chosen
+                    and not _network_chosen
+                    and not _search_allows
+                )
+                if (
+                    _both_explicit_and_incompatible
+                    or _only_network_explicit_and_incompatible
+                    or _only_search_explicit_and_incompatible
+                ):
                     raise click.UsageError(
                         "--priority-goals on UnifiedCampaign is only valid "
-                        "with --network-strategy in {AVERAGE_CPA_MULTIPLE_"
-                        "GOALS, PAY_FOR_CONVERSION_MULTIPLE_GOALS, "
-                        f"MAX_PROFIT}}; got --network-strategy={network_strategy!r}"
-                    )
-                if _search_chosen and not _search_allows:
-                    raise click.UsageError(
-                        "--priority-goals on UnifiedCampaign is only valid "
-                        "with --search-strategy in {AVERAGE_CPA_MULTIPLE_"
-                        "GOALS, PAY_FOR_CONVERSION_MULTIPLE_GOALS, "
-                        f"MAX_PROFIT}}; got --search-strategy={search_strategy!r}"
+                        "with --network-strategy or --search-strategy in "
+                        "{AVERAGE_CPA_MULTIPLE_GOALS, "
+                        "PAY_FOR_CONVERSION_MULTIPLE_GOALS, MAX_PROFIT}; "
+                        f"got --network-strategy={network_strategy!r}, "
+                        f"--search-strategy={search_strategy!r}"
                     )
         if campaign_type_norm in {"MOBILE_APP_CAMPAIGN", "CPM_BANNER_CAMPAIGN"}:
             strategy_followup_flags = {
