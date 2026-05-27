@@ -2701,6 +2701,234 @@ for _campaign_op in ("add", "update"):
             ("campaigns", _campaign_op, f"DynamicTextCampaign.{_path}")
         ] = {"--negative-keyword-shared-set-ids"}
 
+# Issue #362: DynamicTextCampaign.BiddingStrategy.Search typed support.
+# WSDL reference: DynamicTextCampaignSearchStrategyAdd (campaigns WSDL
+# line 1741-1752) extending DynamicTextCampaignStrategyAddBase (line
+# 1712-1733); subtypes Strategy*Add WSDL lines 1339-1488. PlacementTypes:
+# DynamicTextCampaignSearchStrategyPlacementTypesAdd (line 1734-1740).
+for _campaign_op in ("add", "update"):
+    _dyn_search_placement_flags = {
+        "--search-placement-search-results",
+        "--search-placement-product-gallery",
+        "--search-placement-dynamic-places",
+    }
+    _dyn_search_flags = {"--search-strategy"} | _dyn_search_placement_flags
+    _dyn_bidding_strategy_flags = (
+        set(_dyn_search_flags) | {"--network-strategy"}
+        if _campaign_op == "add"
+        else set(_dyn_search_flags) | {"--network-strategy"}
+    )
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("campaigns", _campaign_op, "DynamicTextCampaign.BiddingStrategy")
+    ] = _dyn_bidding_strategy_flags
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("campaigns", _campaign_op, "DynamicTextCampaign.BiddingStrategy.Search")
+    ] = _dyn_search_flags
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        (
+            "campaigns",
+            _campaign_op,
+            "DynamicTextCampaign.BiddingStrategy.Search.BiddingStrategyType",
+        )
+    ] = {"--search-strategy"}
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        (
+            "campaigns",
+            _campaign_op,
+            "DynamicTextCampaign.BiddingStrategy.Search.PlacementTypes",
+        )
+    ] = _dyn_search_placement_flags
+    for _path, _flag in {
+        "BiddingStrategy.Search.PlacementTypes.SearchResults": (
+            "--search-placement-search-results"
+        ),
+        "BiddingStrategy.Search.PlacementTypes.ProductGallery": (
+            "--search-placement-product-gallery"
+        ),
+        "BiddingStrategy.Search.PlacementTypes.DynamicPlaces": (
+            "--search-placement-dynamic-places"
+        ),
+    }.items():
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            ("campaigns", _campaign_op, f"DynamicTextCampaign.{_path}")
+        ] = {_flag}
+
+    _dyn_search_custom_period_flags = {
+        "--dyn-search-custom-period-spend-limit",
+        "--dyn-search-custom-period-start-date",
+        "--dyn-search-custom-period-end-date",
+        "--dyn-search-custom-period-auto-continue",
+    }
+    _dyn_search_exploration_flags = {
+        "--dyn-search-exploration-budget",
+        "--dyn-search-exploration-budget-custom",
+    }
+    _dyn_search_custom_period_field_options = {
+        "SpendLimit": "--dyn-search-custom-period-spend-limit",
+        "StartDate": "--dyn-search-custom-period-start-date",
+        "EndDate": "--dyn-search-custom-period-end-date",
+        "AutoContinue": "--dyn-search-custom-period-auto-continue",
+    }
+    _dyn_search_exploration_field_options = {
+        "MinimumExplorationBudget": "--dyn-search-exploration-budget",
+        "IsMinimumExplorationBudgetCustom": "--dyn-search-exploration-budget-custom",
+    }
+    # WSDL ``BudgetType`` is declared on the non-Add Strategy* types only
+    # (used by the update path). It is NOT declared on Strategy*Add, so
+    # the campaigns.add audit must not list it as a supported child of any
+    # subtype block.
+    _dyn_search_subtype_field_options: dict[str, dict[str, str]] = {
+        "WbMaximumClicks": {
+            "WeeklySpendLimit": "--dyn-search-weekly-spend-limit",
+            "BidCeiling": "--dyn-search-bid-ceiling",
+        },
+        "WbMaximumConversionRate": {
+            "WeeklySpendLimit": "--dyn-search-weekly-spend-limit",
+            "BidCeiling": "--dyn-search-bid-ceiling",
+            "GoalId": "--dyn-search-goal-id",
+        },
+        "AverageCpc": {
+            "AverageCpc": "--dyn-search-average-cpc",
+            "WeeklySpendLimit": "--dyn-search-weekly-spend-limit",
+        },
+        "AverageCpa": {
+            "AverageCpa": "--dyn-search-average-cpa",
+            "GoalId": "--dyn-search-goal-id",
+            "WeeklySpendLimit": "--dyn-search-weekly-spend-limit",
+            "BidCeiling": "--dyn-search-bid-ceiling",
+        },
+        "PayForConversion": {
+            "Cpa": "--dyn-search-cpa",
+            "GoalId": "--dyn-search-goal-id",
+            "WeeklySpendLimit": "--dyn-search-weekly-spend-limit",
+        },
+        "WeeklyClickPackage": {
+            "ClicksPerWeek": "--dyn-search-clicks-per-week",
+            "AverageCpc": "--dyn-search-average-cpc",
+            "BidCeiling": "--dyn-search-bid-ceiling",
+        },
+        "AverageRoi": {
+            "ReserveReturn": "--dyn-search-reserve-return",
+            "RoiCoef": "--dyn-search-roi-coef",
+            "GoalId": "--dyn-search-goal-id",
+            "WeeklySpendLimit": "--dyn-search-weekly-spend-limit",
+            "BidCeiling": "--dyn-search-bid-ceiling",
+            "Profitability": "--dyn-search-profitability",
+        },
+        "AverageCrr": {
+            "Crr": "--dyn-search-crr",
+            "GoalId": "--dyn-search-goal-id",
+            "WeeklySpendLimit": "--dyn-search-weekly-spend-limit",
+        },
+        "PayForConversionCrr": {
+            "Crr": "--dyn-search-crr",
+            "GoalId": "--dyn-search-goal-id",
+            "WeeklySpendLimit": "--dyn-search-weekly-spend-limit",
+        },
+    }
+    _dyn_search_update_only_field_options: dict[str, dict[str, str]] = (
+        {
+            "WbMaximumClicks": {"BudgetType": "--dyn-search-budget-type"},
+            "WbMaximumConversionRate": {"BudgetType": "--dyn-search-budget-type"},
+            "AverageCpc": {"BudgetType": "--dyn-search-budget-type"},
+            "AverageCpa": {"BudgetType": "--dyn-search-budget-type"},
+            "PayForConversion": {"BudgetType": "--dyn-search-budget-type"},
+            "AverageRoi": {"BudgetType": "--dyn-search-budget-type"},
+            "AverageCrr": {"BudgetType": "--dyn-search-budget-type"},
+            "PayForConversionCrr": {"BudgetType": "--dyn-search-budget-type"},
+        }
+        if _campaign_op == "update"
+        else {}
+    )
+    # Subtypes that carry CustomPeriodBudget per WSDL. All nine families
+    # except WeeklyClickPackage (StrategyWeeklyClickPackageAdd has no
+    # CustomPeriodBudget element, lines 1482-1488).
+    _dyn_search_subtypes_with_custom_period = {
+        "WbMaximumClicks",
+        "WbMaximumConversionRate",
+        "AverageCpc",
+        "AverageCpa",
+        "PayForConversion",
+        "AverageRoi",
+        "AverageCrr",
+        "PayForConversionCrr",
+    }
+    # Subtypes that carry ExplorationBudget per WSDL (lines 1377, 1462,
+    # 1471). PayForConversionCrr does NOT carry ExplorationBudget.
+    _dyn_search_subtypes_with_exploration = {
+        "AverageCpa",
+        "AverageRoi",
+        "AverageCrr",
+    }
+    for _subtype, _fields in _dyn_search_subtype_field_options.items():
+        _update_extras = _dyn_search_update_only_field_options.get(_subtype, {})
+        _all_fields = {**_fields, **_update_extras}
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            (
+                "campaigns",
+                _campaign_op,
+                f"DynamicTextCampaign.BiddingStrategy.Search.{_subtype}",
+            )
+        ] = {"--search-strategy"} | set(_all_fields.values())
+        for _wsdl_field, _flag in _all_fields.items():
+            OPTIONAL_FIELD_CLI_OPTIONS[
+                (
+                    "campaigns",
+                    _campaign_op,
+                    (
+                        f"DynamicTextCampaign.BiddingStrategy.Search."
+                        f"{_subtype}.{_wsdl_field}"
+                    ),
+                )
+            ] = {_flag}
+        if _subtype in _dyn_search_subtypes_with_custom_period:
+            OPTIONAL_FIELD_CLI_OPTIONS[
+                (
+                    "campaigns",
+                    _campaign_op,
+                    (
+                        "DynamicTextCampaign.BiddingStrategy.Search."
+                        f"{_subtype}.CustomPeriodBudget"
+                    ),
+                )
+            ] = _dyn_search_custom_period_flags
+            for (
+                _cpb_field,
+                _cpb_flag,
+            ) in _dyn_search_custom_period_field_options.items():
+                OPTIONAL_FIELD_CLI_OPTIONS[
+                    (
+                        "campaigns",
+                        _campaign_op,
+                        (
+                            "DynamicTextCampaign.BiddingStrategy.Search."
+                            f"{_subtype}.CustomPeriodBudget.{_cpb_field}"
+                        ),
+                    )
+                ] = {_cpb_flag}
+        if _subtype in _dyn_search_subtypes_with_exploration:
+            OPTIONAL_FIELD_CLI_OPTIONS[
+                (
+                    "campaigns",
+                    _campaign_op,
+                    (
+                        "DynamicTextCampaign.BiddingStrategy.Search."
+                        f"{_subtype}.ExplorationBudget"
+                    ),
+                )
+            ] = _dyn_search_exploration_flags
+            for _eb_field, _eb_flag in _dyn_search_exploration_field_options.items():
+                OPTIONAL_FIELD_CLI_OPTIONS[
+                    (
+                        "campaigns",
+                        _campaign_op,
+                        (
+                            "DynamicTextCampaign.BiddingStrategy.Search."
+                            f"{_subtype}.ExplorationBudget.{_eb_field}"
+                        ),
+                    )
+                ] = {_eb_flag}
+
 for _path in (
     "PriorityGoals",
     "PriorityGoals.Items",
@@ -2862,41 +3090,28 @@ for _campaign_op in ("add", "update"):
                 (
                     "campaigns",
                     _campaign_op,
-                    f"SmartCampaign.BiddingStrategy.Search.{_subtype}."
-                    "BudgetType",
+                    f"SmartCampaign.BiddingStrategy.Search.{_subtype}." "BudgetType",
                 )
             ] = {"--smart-search-budget-type"}
     # Subtype-leaf paths → owning CLI flag (per-field).
     for _subtype_path, _flag in {
         # AverageCpcPerCampaign
         "AverageCpcPerCampaign.AverageCpc": "--smart-search-average-cpc",
-        "AverageCpcPerCampaign.WeeklySpendLimit": (
-            "--smart-search-weekly-spend-limit"
-        ),
+        "AverageCpcPerCampaign.WeeklySpendLimit": ("--smart-search-weekly-spend-limit"),
         "AverageCpcPerCampaign.BidCeiling": "--smart-search-bid-ceiling",
         # AverageCpcPerFilter
-        "AverageCpcPerFilter.FilterAverageCpc": (
-            "--smart-search-filter-average-cpc"
-        ),
-        "AverageCpcPerFilter.WeeklySpendLimit": (
-            "--smart-search-weekly-spend-limit"
-        ),
+        "AverageCpcPerFilter.FilterAverageCpc": ("--smart-search-filter-average-cpc"),
+        "AverageCpcPerFilter.WeeklySpendLimit": ("--smart-search-weekly-spend-limit"),
         "AverageCpcPerFilter.BidCeiling": "--smart-search-bid-ceiling",
         # AverageCpaPerCampaign
         "AverageCpaPerCampaign.AverageCpa": "--smart-search-average-cpa",
         "AverageCpaPerCampaign.GoalId": "--smart-search-goal-id",
-        "AverageCpaPerCampaign.WeeklySpendLimit": (
-            "--smart-search-weekly-spend-limit"
-        ),
+        "AverageCpaPerCampaign.WeeklySpendLimit": ("--smart-search-weekly-spend-limit"),
         "AverageCpaPerCampaign.BidCeiling": "--smart-search-bid-ceiling",
         # AverageCpaPerFilter
-        "AverageCpaPerFilter.FilterAverageCpa": (
-            "--smart-search-filter-average-cpa"
-        ),
+        "AverageCpaPerFilter.FilterAverageCpa": ("--smart-search-filter-average-cpa"),
         "AverageCpaPerFilter.GoalId": "--smart-search-goal-id",
-        "AverageCpaPerFilter.WeeklySpendLimit": (
-            "--smart-search-weekly-spend-limit"
-        ),
+        "AverageCpaPerFilter.WeeklySpendLimit": ("--smart-search-weekly-spend-limit"),
         "AverageCpaPerFilter.BidCeiling": "--smart-search-bid-ceiling",
         # PayForConversionPerCampaign
         "PayForConversionPerCampaign.Cpa": "--smart-search-cpa",
@@ -2924,9 +3139,7 @@ for _campaign_op in ("add", "update"):
         # PayForConversionCrr
         "PayForConversionCrr.Crr": "--smart-search-crr",
         "PayForConversionCrr.GoalId": "--smart-search-goal-id",
-        "PayForConversionCrr.WeeklySpendLimit": (
-            "--smart-search-weekly-spend-limit"
-        ),
+        "PayForConversionCrr.WeeklySpendLimit": ("--smart-search-weekly-spend-limit"),
     }.items():
         OPTIONAL_FIELD_CLI_OPTIONS[
             (
@@ -3473,14 +3686,22 @@ OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]
         ),
     },
     ("campaigns", "add", "DynamicTextCampaign.BiddingStrategy"): {
-        "status": "missing_followup",
-        "issue": "#290",
-        "note": "Shared campaign BiddingStrategy builder needs typed support.",
+        "status": "supported",
+        "issue": "#362",
+        "note": (
+            "DynamicTextCampaign.BiddingStrategy is split into "
+            "BiddingStrategy.Network (#365) and BiddingStrategy.Search "
+            "(#362); both branches are now covered by typed flags."
+        ),
     },
     ("campaigns", "update", "DynamicTextCampaign.BiddingStrategy"): {
-        "status": "missing_followup",
-        "issue": "#290",
-        "note": "Shared campaign BiddingStrategy builder needs typed support.",
+        "status": "supported",
+        "issue": "#362",
+        "note": (
+            "DynamicTextCampaign.BiddingStrategy is split into "
+            "BiddingStrategy.Network (#365) and BiddingStrategy.Search "
+            "(#362); both branches are now covered by typed flags."
+        ),
     },
     ("campaigns", "add", "SmartCampaign.BiddingStrategy"): {
         "status": "missing_followup",
@@ -3595,6 +3816,54 @@ for _campaign_op in ("add", "update"):
             "note": (
                 "DynamicTextCampaign Network strategy subtype fields "
                 "covered by typed --dyn-network-* flags."
+            ),
+        }
+
+# DynamicTextCampaign.BiddingStrategy.Search typed support landed in #362.
+# Mark the Search root and every Strategy*Add subtype prefix as supported so
+# the audit no longer routes Search rows to the parent #290 epic.
+for _campaign_op in ("add", "update"):
+    OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS[
+        (
+            "campaigns",
+            _campaign_op,
+            "DynamicTextCampaign.BiddingStrategy.Search",
+        )
+    ] = {
+        "status": "supported",
+        "issue": "#362",
+        "note": (
+            "DynamicTextCampaign.BiddingStrategy.Search typed flags "
+            "(--search-strategy + --search-placement-* + --dyn-search-*) "
+            "cover every settable DynamicTextCampaignSearchStrategyTypeEnum "
+            "value (UNKNOWN is a read-side sentinel and is not exposed on "
+            "add/update — same convention as the Network branch and other "
+            "campaign-type strategy enums)."
+        ),
+    }
+    for _strategy_subtype in (
+        "WbMaximumClicks",
+        "WbMaximumConversionRate",
+        "AverageCpc",
+        "AverageCpa",
+        "PayForConversion",
+        "WeeklyClickPackage",
+        "AverageRoi",
+        "AverageCrr",
+        "PayForConversionCrr",
+    ):
+        OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS[
+            (
+                "campaigns",
+                _campaign_op,
+                f"DynamicTextCampaign.BiddingStrategy.Search.{_strategy_subtype}",
+            )
+        ] = {
+            "status": "supported",
+            "issue": "#362",
+            "note": (
+                "DynamicTextCampaign Search strategy subtype fields "
+                "covered by typed --dyn-search-* flags."
             ),
         }
 
