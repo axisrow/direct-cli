@@ -2993,8 +2993,18 @@ def build_smart_campaign_network_strategy(
             "ExplorationBudget flags"
         )
 
-    # LimitPercent must be a multiple of 10 from 10 to 100 (Yandex convention,
-    # matches MobileApp / DynamicTextCampaign NetworkDefault helpers).
+    # LimitPercent: documented local CLI constraint (multiple of 10 in
+    # 10..100). The cached WSDL only declares
+    # ``StrategyNetworkDefaultAdd.LimitPercent`` as ``xsd:int`` minOccurs=0
+    # (campaigns.xml 1510-1513) with no range or step. The CLI mirrors
+    # the existing sibling Network helpers
+    # ``build_mobile_app_network_strategy`` and
+    # ``build_dynamic_text_network_strategy`` (both gate
+    # ``--mobile-network-limit-percent`` / ``--dyn-network-limit-percent``
+    # with the same range + modulo on top of Click's ``IntRange(10, 100)``)
+    # to keep a single project-wide contract across every network-bearing
+    # campaign type. Per issue #368 acceptance criterion "validate only
+    # documented local constraints", this is the locally documented one.
     if limit_percent is not None:
         if limit_percent < 10 or limit_percent > 100 or limit_percent % 10 != 0:
             raise click.UsageError(
