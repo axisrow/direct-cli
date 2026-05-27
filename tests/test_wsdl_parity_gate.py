@@ -2924,6 +2924,264 @@ for _campaign_op in ("add", "update"):
             ("campaigns", _campaign_op, f"UnifiedCampaign.{_path}")
         ] = {"--negative-keyword-shared-set-ids"}
 
+# Issue #363: UnifiedCampaign.BiddingStrategy.Search typed flags. WSDL
+# reference: tests/wsdl_cache/campaigns.xml lines 1631-1674
+# (UnifiedCampaignStrategyAddBase / UnifiedCampaignSearchStrategyAdd) +
+# 1339-1509 (Strategy*Add subtypes) + 172-180 / 636-644 (PlacementTypes).
+# UnifiedCampaign does NOT carry WeeklyClickPackage or AverageRoi subtypes
+# (unlike TextCampaign/DynamicTextCampaign).
+for _campaign_op in ("add", "update"):
+    _unified_search_flags = {
+        "--search-strategy",
+        "--search-placement-search-results",
+        "--search-placement-product-gallery",
+        "--search-placement-dynamic-places",
+        "--unified-search-placement-maps",
+        "--unified-search-placement-search-organization-list",
+        "--unified-search-weekly-spend-limit",
+        "--unified-search-custom-period-spend-limit",
+        "--unified-search-custom-period-start-date",
+        "--unified-search-custom-period-end-date",
+        "--unified-search-custom-period-auto-continue",
+        "--unified-search-average-cpc",
+        "--unified-search-pay-cpa",
+        "--unified-search-exploration-min-budget",
+        "--unified-search-exploration-is-custom",
+        "--average-cpa",
+        "--crr",
+        "--bid-ceiling",
+        "--goal-id",
+    }
+    if _campaign_op == "update":
+        _unified_search_flags = _unified_search_flags | {
+            "--unified-search-budget-type",
+        }
+    _unified_search_placement_flags = {
+        "--search-placement-search-results",
+        "--search-placement-product-gallery",
+        "--search-placement-dynamic-places",
+        "--unified-search-placement-maps",
+        "--unified-search-placement-search-organization-list",
+    }
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("campaigns", _campaign_op, "UnifiedCampaign.BiddingStrategy.Search")
+    ] = _unified_search_flags
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        (
+            "campaigns",
+            _campaign_op,
+            "UnifiedCampaign.BiddingStrategy.Search.BiddingStrategyType",
+        )
+    ] = {"--search-strategy"}
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        (
+            "campaigns",
+            _campaign_op,
+            "UnifiedCampaign.BiddingStrategy.Search.PlacementTypes",
+        )
+    ] = _unified_search_placement_flags
+    for _path, _flag in {
+        "BiddingStrategy.Search.PlacementTypes.SearchResults": (
+            "--search-placement-search-results"
+        ),
+        "BiddingStrategy.Search.PlacementTypes.ProductGallery": (
+            "--search-placement-product-gallery"
+        ),
+        "BiddingStrategy.Search.PlacementTypes.DynamicPlaces": (
+            "--search-placement-dynamic-places"
+        ),
+        "BiddingStrategy.Search.PlacementTypes.Maps": (
+            "--unified-search-placement-maps"
+        ),
+        "BiddingStrategy.Search.PlacementTypes.SearchOrganizationList": (
+            "--unified-search-placement-search-organization-list"
+        ),
+    }.items():
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            ("campaigns", _campaign_op, f"UnifiedCampaign.{_path}")
+        ] = {_flag}
+
+    _unified_custom_period_flags = {
+        "--unified-search-custom-period-spend-limit",
+        "--unified-search-custom-period-start-date",
+        "--unified-search-custom-period-end-date",
+        "--unified-search-custom-period-auto-continue",
+    }
+    _unified_exploration_flags = {
+        "--unified-search-exploration-min-budget",
+        "--unified-search-exploration-is-custom",
+    }
+    _unified_custom_period_field_options = {
+        "SpendLimit": "--unified-search-custom-period-spend-limit",
+        "StartDate": "--unified-search-custom-period-start-date",
+        "EndDate": "--unified-search-custom-period-end-date",
+        "AutoContinue": "--unified-search-custom-period-auto-continue",
+    }
+    _unified_exploration_field_options = {
+        "MinimumExplorationBudget": "--unified-search-exploration-min-budget",
+        "IsMinimumExplorationBudgetCustom": ("--unified-search-exploration-is-custom"),
+    }
+    # Per-subtype field map (WSDL Strategy*Add types, L1339-1509). The
+    # CLI mirrors the TextCampaign Search precedent (#388) — BudgetType
+    # is intentionally update-only and is omitted on the "Wb*" /
+    # "AverageCpaMultipleGoals" subtypes per the official update-text-
+    # campaign docs (mirror _UNIFIED_SEARCH_SUPPORTS_BUDGET_TYPE).
+    _unified_subtype_field_options: dict[str, dict[str, str]] = {
+        "WbMaximumClicks": {
+            "WeeklySpendLimit": "--unified-search-weekly-spend-limit",
+            "BidCeiling": "--bid-ceiling",
+        },
+        "WbMaximumConversionRate": {
+            "WeeklySpendLimit": "--unified-search-weekly-spend-limit",
+            "BidCeiling": "--bid-ceiling",
+            "GoalId": "--goal-id",
+        },
+        "AverageCpc": {
+            "AverageCpc": "--unified-search-average-cpc",
+            "WeeklySpendLimit": "--unified-search-weekly-spend-limit",
+        },
+        "AverageCpa": {
+            "AverageCpa": "--average-cpa",
+            "GoalId": "--goal-id",
+            "WeeklySpendLimit": "--unified-search-weekly-spend-limit",
+            "BidCeiling": "--bid-ceiling",
+        },
+        "PayForConversion": {
+            "Cpa": "--unified-search-pay-cpa",
+            "GoalId": "--goal-id",
+            "WeeklySpendLimit": "--unified-search-weekly-spend-limit",
+        },
+        "AverageCrr": {
+            "Crr": "--crr",
+            "GoalId": "--goal-id",
+            "WeeklySpendLimit": "--unified-search-weekly-spend-limit",
+        },
+        "PayForConversionCrr": {
+            "Crr": "--crr",
+            "GoalId": "--goal-id",
+            "WeeklySpendLimit": "--unified-search-weekly-spend-limit",
+        },
+        "AverageCpaMultipleGoals": {
+            "WeeklySpendLimit": "--unified-search-weekly-spend-limit",
+            "BidCeiling": "--bid-ceiling",
+        },
+        "PayForConversionMultipleGoals": {
+            "WeeklySpendLimit": "--unified-search-weekly-spend-limit",
+        },
+        "MaxProfit": {
+            "WeeklySpendLimit": "--unified-search-weekly-spend-limit",
+        },
+    }
+    # Per official Yandex update-text-campaign docs ``BudgetType`` is
+    # declared only on the listed subtypes (mirror #388 / TextCampaign).
+    _unified_update_only_field_options: dict[str, dict[str, str]] = (
+        {
+            "AverageCpc": {"BudgetType": "--unified-search-budget-type"},
+            "AverageCpa": {"BudgetType": "--unified-search-budget-type"},
+            "PayForConversion": {"BudgetType": "--unified-search-budget-type"},
+            "AverageCrr": {"BudgetType": "--unified-search-budget-type"},
+            "PayForConversionCrr": {"BudgetType": "--unified-search-budget-type"},
+            "PayForConversionMultipleGoals": {
+                "BudgetType": "--unified-search-budget-type"
+            },
+            "MaxProfit": {"BudgetType": "--unified-search-budget-type"},
+        }
+        if _campaign_op == "update"
+        else {}
+    )
+    # Subtypes that carry a CustomPeriodBudget per WSDL (all 10 typed
+    # families — Unified has no WeeklyClickPackage).
+    _unified_subtypes_with_custom_period = {
+        "WbMaximumClicks",
+        "WbMaximumConversionRate",
+        "AverageCpc",
+        "AverageCpa",
+        "PayForConversion",
+        "AverageCrr",
+        "PayForConversionCrr",
+        "AverageCpaMultipleGoals",
+        "PayForConversionMultipleGoals",
+        "MaxProfit",
+    }
+    # Subtypes that carry an ExplorationBudget per WSDL.
+    _unified_subtypes_with_exploration = {
+        "AverageCpa",
+        "AverageCrr",
+        "AverageCpaMultipleGoals",
+        "MaxProfit",
+    }
+    for _subtype, _fields in _unified_subtype_field_options.items():
+        _update_extras = _unified_update_only_field_options.get(_subtype, {})
+        _all_fields = {**_fields, **_update_extras}
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            (
+                "campaigns",
+                _campaign_op,
+                f"UnifiedCampaign.BiddingStrategy.Search.{_subtype}",
+            )
+        ] = {"--search-strategy"} | set(_all_fields.values())
+        for _wsdl_field, _flag in _all_fields.items():
+            OPTIONAL_FIELD_CLI_OPTIONS[
+                (
+                    "campaigns",
+                    _campaign_op,
+                    (
+                        "UnifiedCampaign.BiddingStrategy.Search."
+                        f"{_subtype}.{_wsdl_field}"
+                    ),
+                )
+            ] = {_flag}
+        if _subtype in _unified_subtypes_with_custom_period:
+            OPTIONAL_FIELD_CLI_OPTIONS[
+                (
+                    "campaigns",
+                    _campaign_op,
+                    (
+                        "UnifiedCampaign.BiddingStrategy.Search."
+                        f"{_subtype}.CustomPeriodBudget"
+                    ),
+                )
+            ] = _unified_custom_period_flags
+            for (
+                _cpb_field,
+                _cpb_flag,
+            ) in _unified_custom_period_field_options.items():
+                OPTIONAL_FIELD_CLI_OPTIONS[
+                    (
+                        "campaigns",
+                        _campaign_op,
+                        (
+                            "UnifiedCampaign.BiddingStrategy.Search."
+                            f"{_subtype}.CustomPeriodBudget.{_cpb_field}"
+                        ),
+                    )
+                ] = {_cpb_flag}
+        if _subtype in _unified_subtypes_with_exploration:
+            OPTIONAL_FIELD_CLI_OPTIONS[
+                (
+                    "campaigns",
+                    _campaign_op,
+                    (
+                        "UnifiedCampaign.BiddingStrategy.Search."
+                        f"{_subtype}.ExplorationBudget"
+                    ),
+                )
+            ] = _unified_exploration_flags
+            for (
+                _eb_field,
+                _eb_flag,
+            ) in _unified_exploration_field_options.items():
+                OPTIONAL_FIELD_CLI_OPTIONS[
+                    (
+                        "campaigns",
+                        _campaign_op,
+                        (
+                            "UnifiedCampaign.BiddingStrategy.Search."
+                            f"{_subtype}.ExplorationBudget.{_eb_field}"
+                        ),
+                    )
+                ] = {_eb_flag}
+
 for _campaign_op in ("add", "update"):
     OPTIONAL_FIELD_CLI_OPTIONS[("campaigns", _campaign_op, "DynamicTextCampaign")] = {
         "--type"
@@ -4169,15 +4427,27 @@ OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]
         "issue": "#364",
         "note": "TextCampaign Network BiddingStrategy needs typed support.",
     },
+    # UnifiedCampaign.BiddingStrategy split-progress (parent #290):
+    #   - Search branch typed support landed in #363 (this row);
+    #   - Network branch typed support is tracked separately in #366;
+    #   - PriorityGoals sibling on UnifiedCampaignAddItem in #373.
+    # Until Network ships, the BiddingStrategy parent row still routes to
+    # the Network follow-up to surface the remaining gap in the audit.
     ("campaigns", "add", "UnifiedCampaign.BiddingStrategy"): {
         "status": "missing_followup",
-        "issue": "#290",
-        "note": "Shared campaign BiddingStrategy builder needs typed support.",
+        "issue": "#366",
+        "note": (
+            "UnifiedCampaign.BiddingStrategy.Search typed support landed "
+            "in #363; Network branch is tracked in #366."
+        ),
     },
     ("campaigns", "update", "UnifiedCampaign.BiddingStrategy"): {
         "status": "missing_followup",
-        "issue": "#290",
-        "note": "Shared campaign BiddingStrategy builder needs typed support.",
+        "issue": "#366",
+        "note": (
+            "UnifiedCampaign.BiddingStrategy.Search typed support landed "
+            "in #363; Network branch is tracked in #366."
+        ),
     },
     ("campaigns", "add", "UnifiedCampaign.PriorityGoals"): {
         "status": "missing_followup",
@@ -4270,6 +4540,60 @@ for _campaign_op in ("add", "update"):
             "status": "missing_followup",
             "issue": "#361",
             "note": "TextCampaign Search strategy subtype fields need typed support.",
+        }
+
+# UnifiedCampaign.BiddingStrategy.Search typed support landed in #363.
+# Mark the Search root and every Strategy*Add subtype prefix as supported
+# so the audit no longer routes Search rows to the parent #290 epic.
+# Network branch is still tracked in #366; PriorityGoals sibling in #373.
+for _campaign_op in ("add", "update"):
+    OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS[
+        (
+            "campaigns",
+            _campaign_op,
+            "UnifiedCampaign.BiddingStrategy.Search",
+        )
+    ] = {
+        "status": "supported",
+        "issue": "#363",
+        "note": (
+            "UnifiedCampaign.BiddingStrategy.Search typed flags "
+            "(--search-strategy + --search-placement-* + "
+            "--unified-search-* + shared --average-cpa/--crr/"
+            "--goal-id/--bid-ceiling) cover every settable "
+            "UnifiedCampaignSearchStrategyTypeEnum value (UNKNOWN "
+            "is a read-side sentinel and is not exposed on "
+            "add/update — same convention as TextCampaign / "
+            "DynamicTextCampaign / SmartCampaign / MobileApp / "
+            "CpmBanner Search/Network strategy enums)."
+        ),
+    }
+    for _strategy_subtype in (
+        "WbMaximumClicks",
+        "WbMaximumConversionRate",
+        "AverageCpc",
+        "AverageCpa",
+        "PayForConversion",
+        "AverageCrr",
+        "PayForConversionCrr",
+        "AverageCpaMultipleGoals",
+        "PayForConversionMultipleGoals",
+        "MaxProfit",
+    ):
+        OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS[
+            (
+                "campaigns",
+                _campaign_op,
+                f"UnifiedCampaign.BiddingStrategy.Search.{_strategy_subtype}",
+            )
+        ] = {
+            "status": "supported",
+            "issue": "#363",
+            "note": (
+                "UnifiedCampaign Search strategy subtype fields "
+                "covered by typed --unified-search-* / shared CPA "
+                "flags."
+            ),
         }
 
 # SmartCampaign.BiddingStrategy.Network typed support landed in #368.
@@ -4558,6 +4882,50 @@ OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
             "Official Yandex update-text-campaign docs do not declare "
             "BudgetType on AverageCpaMultipleGoals; CLI rejects "
             "--text-search-budget-type for this subtype."
+        ),
+    },
+    # Issue #363: same exclusion set as #361 / #388 for UnifiedCampaign
+    # Search. The CLI rejects --unified-search-budget-type for the same
+    # WSDL Strategy*Add subtypes that the official update-text-campaign
+    # reference does not declare BudgetType on (mirror
+    # _UNIFIED_SEARCH_SUPPORTS_BUDGET_TYPE in _bidding_strategy.py).
+    (
+        "campaigns",
+        "update",
+        "UnifiedCampaign.BiddingStrategy.Search.WbMaximumClicks.BudgetType",
+    ): {
+        "status": "not_applicable",
+        "issue": "#363",
+        "note": (
+            "Official Yandex update-text-campaign docs do not declare "
+            "BudgetType on WbMaximumClicks; CLI rejects "
+            "--unified-search-budget-type for this subtype."
+        ),
+    },
+    (
+        "campaigns",
+        "update",
+        "UnifiedCampaign.BiddingStrategy.Search.WbMaximumConversionRate.BudgetType",
+    ): {
+        "status": "not_applicable",
+        "issue": "#363",
+        "note": (
+            "Official Yandex update-text-campaign docs do not declare "
+            "BudgetType on WbMaximumConversionRate; CLI rejects "
+            "--unified-search-budget-type for this subtype."
+        ),
+    },
+    (
+        "campaigns",
+        "update",
+        "UnifiedCampaign.BiddingStrategy.Search.AverageCpaMultipleGoals.BudgetType",
+    ): {
+        "status": "not_applicable",
+        "issue": "#363",
+        "note": (
+            "Official Yandex update-text-campaign docs do not declare "
+            "BudgetType on AverageCpaMultipleGoals; CLI rejects "
+            "--unified-search-budget-type for this subtype."
         ),
     },
 }

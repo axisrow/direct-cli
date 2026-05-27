@@ -8123,6 +8123,14 @@ def test_campaigns_add_rejects_unified_package_strategy_with_counter_ids():
 
 
 def test_campaigns_add_rejects_unified_priority_goals_without_bidding_strategy():
+    """UnifiedCampaign.PriorityGoals typed-flag wiring is owned by #373.
+
+    Issue #363 (UnifiedCampaign.BiddingStrategy.Search) introduced the
+    Search builder which validates priority-goals scope/min-count, but
+    sibling placement onto UnifiedCampaignAddItem.PriorityGoals stays
+    behind #373's flag. The CLI rejects --priority-goals on add until
+    #373 ships and points users at the tracking issue.
+    """
     result = _rejected(
         "campaigns",
         "add",
@@ -8136,8 +8144,7 @@ def test_campaigns_add_rejects_unified_priority_goals_without_bidding_strategy()
         "1:50,2:50",
     )
     assert "UnifiedCampaign.PriorityGoals" in result.output
-    assert "BiddingStrategy" in result.output
-    assert "#290" in result.output
+    assert "#373" in result.output
 
 
 def test_campaigns_update_rejects_unified_package_strategy_with_priority_goals():
@@ -19233,3 +19240,745 @@ def test_campaigns_update_dynamic_text_search_average_cpa_with_exploration_paylo
             },
         },
     }
+
+
+# ----------------------------------------------------------------------
+# UnifiedCampaign.BiddingStrategy.Search — typed payload shape (#363).
+# WSDL: tests/wsdl_cache/campaigns.xml UnifiedCampaignStrategyAddBase
+# (lines 1631-1654) + UnifiedCampaignSearchStrategyAdd (1665-1674) +
+# Strategy*Add types (1339-1509) + UnifiedCampaignSearchStrategyPlacementTypes
+# (636-644) + UnifiedCampaignSearchStrategyTypeEnum (262-278). UnifiedCampaign
+# omits WeeklyClickPackage / AverageRoi vs TextCampaign.
+# ----------------------------------------------------------------------
+
+
+def _unified_base_args():
+    return [
+        "campaigns",
+        "add",
+        "--name",
+        "Unified Campaign",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "UNIFIED_CAMPAIGN",
+    ]
+
+
+def _unified_search_extract(body: dict) -> dict:
+    return body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Search"
+    ]
+
+
+def _unified_search_update(*extra: str) -> dict:
+    return _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "777",
+        "--type",
+        "UNIFIED_CAMPAIGN",
+        *extra,
+    )
+
+
+def test_campaigns_add_unified_search_default_highest_position_payload():
+    """Default container: Search = HIGHEST_POSITION (no subtype block),
+    Network = SERVING_OFF (placeholder, #366 owns Network)."""
+    body = _dry_run(*_unified_base_args())
+    bs = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"]
+    assert bs["Search"] == {"BiddingStrategyType": "HIGHEST_POSITION"}
+    assert bs["Network"] == {"BiddingStrategyType": "SERVING_OFF"}
+
+
+def test_campaigns_add_unified_search_serving_off_no_details():
+    body = _dry_run(*_unified_base_args(), "--search-strategy", "SERVING_OFF")
+    assert _unified_search_extract(body) == {"BiddingStrategyType": "SERVING_OFF"}
+
+
+def test_campaigns_add_unified_search_serving_off_rejects_detail_flags():
+    """SERVING_OFF carries no subtype block; detail flags must be rejected."""
+    result = _rejected(
+        *_unified_base_args(),
+        "--search-strategy",
+        "SERVING_OFF",
+        "--unified-search-weekly-spend-limit",
+        "100",
+    )
+    assert "SERVING_OFF" in result.output
+
+
+def test_campaigns_add_unified_search_wb_maximum_clicks_payload():
+    body = _dry_run(
+        *_unified_base_args(),
+        "--search-strategy",
+        "WB_MAXIMUM_CLICKS",
+        "--unified-search-weekly-spend-limit",
+        "300",
+        "--bid-ceiling",
+        "5000000",
+    )
+    search = _unified_search_extract(body)
+    assert search["BiddingStrategyType"] == "WB_MAXIMUM_CLICKS"
+    assert search["WbMaximumClicks"] == {
+        "WeeklySpendLimit": 300000000,
+        "BidCeiling": 5000000,
+    }
+
+
+def test_campaigns_add_unified_search_wb_maximum_clicks_requires_weekly_spend_limit():
+    result = _rejected(
+        *_unified_base_args(),
+        "--search-strategy",
+        "WB_MAXIMUM_CLICKS",
+    )
+    assert "--unified-search-weekly-spend-limit" in result.output
+
+
+def test_campaigns_add_unified_search_wb_max_conversion_rate_payload():
+    body = _dry_run(
+        *_unified_base_args(),
+        "--search-strategy",
+        "WB_MAXIMUM_CONVERSION_RATE",
+        "--goal-id",
+        "42",
+        "--unified-search-weekly-spend-limit",
+        "200",
+    )
+    search = _unified_search_extract(body)
+    assert search["BiddingStrategyType"] == "WB_MAXIMUM_CONVERSION_RATE"
+    assert search["WbMaximumConversionRate"] == {
+        "GoalId": 42,
+        "WeeklySpendLimit": 200000000,
+    }
+
+
+def test_campaigns_add_unified_search_wb_max_conversion_rate_requires_goal_id():
+    """StrategyMaximumConversionRateAdd.GoalId is WSDL minOccurs=1."""
+    result = _rejected(
+        *_unified_base_args(),
+        "--search-strategy",
+        "WB_MAXIMUM_CONVERSION_RATE",
+        "--unified-search-weekly-spend-limit",
+        "100",
+    )
+    assert "--goal-id" in result.output
+    assert "WbMaximumConversionRate" in result.output
+
+
+def test_campaigns_add_unified_search_wb_max_clicks_with_custom_period_payload():
+    """CustomPeriodBudget satisfies the WeeklySpendLimit requirement for
+    WB_MAXIMUM_CLICKS as alternate budget slice."""
+    body = _dry_run(
+        *_unified_base_args(),
+        "--search-strategy",
+        "WB_MAXIMUM_CLICKS",
+        "--unified-search-custom-period-spend-limit",
+        "300",
+        "--unified-search-custom-period-start-date",
+        "2026-07-01",
+        "--unified-search-custom-period-end-date",
+        "2026-07-31",
+        "--unified-search-custom-period-auto-continue",
+        "NO",
+    )
+    search = _unified_search_extract(body)
+    assert search["WbMaximumClicks"] == {
+        "CustomPeriodBudget": {
+            "SpendLimit": 300000000,
+            "StartDate": "2026-07-01",
+            "EndDate": "2026-07-31",
+            "AutoContinue": "NO",
+        }
+    }
+
+
+def test_campaigns_add_unified_search_average_cpc_payload():
+    body = _dry_run(
+        *_unified_base_args(),
+        "--search-strategy",
+        "AVERAGE_CPC",
+        "--unified-search-average-cpc",
+        "12",
+        "--unified-search-weekly-spend-limit",
+        "1000",
+    )
+    search = _unified_search_extract(body)
+    assert search["BiddingStrategyType"] == "AVERAGE_CPC"
+    assert search["AverageCpc"] == {
+        "AverageCpc": 12000000,
+        "WeeklySpendLimit": 1000000000,
+    }
+
+
+def test_campaigns_add_unified_search_average_cpc_requires_average_cpc():
+    result = _rejected(*_unified_base_args(), "--search-strategy", "AVERAGE_CPC")
+    assert "--unified-search-average-cpc" in result.output
+
+
+def test_campaigns_add_unified_search_average_cpa_payload():
+    body = _dry_run(
+        *_unified_base_args(),
+        "--search-strategy",
+        "AVERAGE_CPA",
+        "--average-cpa",
+        "500000000",
+        "--goal-id",
+        "1234",
+        "--bid-ceiling",
+        "1000000000",
+    )
+    search = _unified_search_extract(body)
+    assert search["BiddingStrategyType"] == "AVERAGE_CPA"
+    assert search["AverageCpa"] == {
+        "AverageCpa": 500000000,
+        "GoalId": 1234,
+        "BidCeiling": 1000000000,
+    }
+
+
+def test_campaigns_add_unified_search_average_cpa_requires_average_cpa_and_goal():
+    result = _rejected(*_unified_base_args(), "--search-strategy", "AVERAGE_CPA")
+    out = result.output
+    assert "--average-cpa" in out and "--goal-id" in out
+
+
+def test_campaigns_add_unified_search_pay_for_conversion_payload():
+    body = _dry_run(
+        *_unified_base_args(),
+        "--search-strategy",
+        "PAY_FOR_CONVERSION",
+        "--unified-search-pay-cpa",
+        "150",
+        "--goal-id",
+        "777",
+    )
+    search = _unified_search_extract(body)
+    assert search["BiddingStrategyType"] == "PAY_FOR_CONVERSION"
+    assert search["PayForConversion"] == {"Cpa": 150000000, "GoalId": 777}
+
+
+def test_campaigns_add_unified_search_pay_for_conversion_requires_cpa_and_goal():
+    result = _rejected(
+        *_unified_base_args(),
+        "--search-strategy",
+        "PAY_FOR_CONVERSION",
+    )
+    out = result.output
+    assert "--unified-search-pay-cpa" in out and "--goal-id" in out
+
+
+def test_campaigns_add_unified_search_average_crr_payload():
+    body = _dry_run(
+        *_unified_base_args(),
+        "--search-strategy",
+        "AVERAGE_CRR",
+        "--crr",
+        "25",
+        "--goal-id",
+        "1",
+    )
+    search = _unified_search_extract(body)
+    assert search["BiddingStrategyType"] == "AVERAGE_CRR"
+    assert search["AverageCrr"] == {"Crr": 25, "GoalId": 1}
+
+
+def test_campaigns_add_unified_search_pay_for_conversion_crr_payload():
+    body = _dry_run(
+        *_unified_base_args(),
+        "--search-strategy",
+        "PAY_FOR_CONVERSION_CRR",
+        "--crr",
+        "30",
+        "--goal-id",
+        "2",
+    )
+    search = _unified_search_extract(body)
+    assert search["BiddingStrategyType"] == "PAY_FOR_CONVERSION_CRR"
+    assert search["PayForConversionCrr"] == {"Crr": 30, "GoalId": 2}
+
+
+def test_campaigns_add_unified_search_max_profit_payload():
+    """StrategyMaxProfitAdd has only optional fields per WSDL L1489-1495,
+    but the *Multi/MaxProfit container must always be emitted so the API
+    can discriminate the strategy."""
+    body = _dry_run(
+        *_unified_base_args(),
+        "--search-strategy",
+        "MAX_PROFIT",
+        "--unified-search-weekly-spend-limit",
+        "5000",
+    )
+    search = _unified_search_extract(body)
+    assert search["BiddingStrategyType"] == "MAX_PROFIT"
+    assert search["MaxProfit"] == {"WeeklySpendLimit": 5000000000}
+
+
+def test_campaigns_add_unified_search_average_cpa_multiple_goals_payload():
+    """StrategyAverageCpaMultipleGoalsAdd has only optional fields per
+    WSDL L1496-1503; the subtype container must always be emitted."""
+    body = _dry_run(
+        *_unified_base_args(),
+        "--search-strategy",
+        "AVERAGE_CPA_MULTIPLE_GOALS",
+        "--unified-search-weekly-spend-limit",
+        "1000",
+        "--bid-ceiling",
+        "500000000",
+    )
+    search = _unified_search_extract(body)
+    assert search["BiddingStrategyType"] == "AVERAGE_CPA_MULTIPLE_GOALS"
+    assert search["AverageCpaMultipleGoals"] == {
+        "WeeklySpendLimit": 1000000000,
+        "BidCeiling": 500000000,
+    }
+
+
+def test_campaigns_add_unified_search_pay_for_conversion_multi_goals_payload():
+    body = _dry_run(
+        *_unified_base_args(),
+        "--search-strategy",
+        "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
+        "--unified-search-weekly-spend-limit",
+        "2000",
+    )
+    search = _unified_search_extract(body)
+    assert search["BiddingStrategyType"] == "PAY_FOR_CONVERSION_MULTIPLE_GOALS"
+    assert search["PayForConversionMultipleGoals"] == {
+        "WeeklySpendLimit": 2000000000,
+    }
+
+
+def test_campaigns_add_unified_search_rejects_average_cpc_for_pay_for_conversion():
+    """--unified-search-average-cpc is only valid for AverageCpc; passing
+    it with PAY_FOR_CONVERSION must raise UsageError, not silently drop
+    (invariant #2 in test_wsdl_parity_gate)."""
+    result = _rejected(
+        *_unified_base_args(),
+        "--search-strategy",
+        "PAY_FOR_CONVERSION",
+        "--unified-search-pay-cpa",
+        "150",
+        "--goal-id",
+        "1",
+        "--unified-search-average-cpc",
+        "5",
+    )
+    assert "--unified-search-average-cpc" in result.output
+    assert "PAY_FOR_CONVERSION" in result.output
+
+
+def test_campaigns_add_unified_search_rejects_bid_ceiling_on_average_cpc():
+    """StrategyAverageCpcAdd has no BidCeiling per WSDL L1363-1369."""
+    result = _rejected(
+        *_unified_base_args(),
+        "--search-strategy",
+        "AVERAGE_CPC",
+        "--unified-search-average-cpc",
+        "5",
+        "--bid-ceiling",
+        "1000000",
+    )
+    assert "--bid-ceiling" in result.output
+
+
+def test_campaigns_add_unified_search_rejects_partial_custom_period_budget():
+    """CustomPeriodBudget is all-or-nothing per WSDL L1965-1971."""
+    result = _rejected(
+        *_unified_base_args(),
+        "--search-strategy",
+        "WB_MAXIMUM_CLICKS",
+        "--unified-search-custom-period-spend-limit",
+        "100",
+    )
+    assert "custom-period" in result.output
+
+
+def test_campaigns_add_unified_search_rejects_partial_exploration_budget():
+    result = _rejected(
+        *_unified_base_args(),
+        "--search-strategy",
+        "AVERAGE_CPA",
+        "--average-cpa",
+        "500000000",
+        "--goal-id",
+        "1",
+        "--unified-search-exploration-min-budget",
+        "100",
+    )
+    assert "ExplorationBudget" in result.output
+
+
+def test_campaigns_add_unified_search_rejects_no_for_exploration_is_custom():
+    """Yandex API rejects NO for IsMinimumExplorationBudgetCustom."""
+    result = _rejected(
+        *_unified_base_args(),
+        "--search-strategy",
+        "AVERAGE_CPA",
+        "--average-cpa",
+        "500000000",
+        "--goal-id",
+        "1",
+        "--unified-search-exploration-min-budget",
+        "100",
+        "--unified-search-exploration-is-custom",
+        "NO",
+    )
+    assert "must be YES" in result.output
+
+
+def test_campaigns_add_unified_search_rejects_detail_without_strategy():
+    """Detail flags require a non-legacy --search-strategy. On add the
+    container defaults to HIGHEST_POSITION (no subtype block), so detail
+    flags surface the same "legacy strategy does not accept detail
+    flags" error as for explicit HIGHEST_POSITION (mirror TextCampaign
+    #388)."""
+    result = _rejected(
+        *_unified_base_args(),
+        "--unified-search-weekly-spend-limit",
+        "100",
+    )
+    assert "HIGHEST_POSITION" in result.output
+    assert "--unified-search-weekly-spend-limit" in result.output
+
+
+def test_campaigns_update_unified_search_rejects_detail_without_strategy():
+    """On update there is no default strategy, so detail flags emit the
+    canonical "--search-strategy required" error."""
+    result = _rejected(
+        "campaigns",
+        "update",
+        "--id",
+        "777",
+        "--type",
+        "UNIFIED_CAMPAIGN",
+        "--unified-search-weekly-spend-limit",
+        "100",
+    )
+    assert "--search-strategy" in result.output
+
+
+def test_campaigns_add_unified_search_placement_types_payload():
+    """UnifiedCampaign-only placements: Maps + SearchOrganizationList
+    (WSDL L172-180 / L636-644)."""
+    body = _dry_run(
+        *_unified_base_args(),
+        "--search-strategy",
+        "AVERAGE_CPC",
+        "--unified-search-average-cpc",
+        "5",
+        "--search-placement-search-results",
+        "YES",
+        "--search-placement-product-gallery",
+        "NO",
+        "--search-placement-dynamic-places",
+        "YES",
+        "--unified-search-placement-maps",
+        "YES",
+        "--unified-search-placement-search-organization-list",
+        "NO",
+    )
+    search = _unified_search_extract(body)
+    assert search["PlacementTypes"] == {
+        "SearchResults": "YES",
+        "ProductGallery": "NO",
+        "DynamicPlaces": "YES",
+        "Maps": "YES",
+        "SearchOrganizationList": "NO",
+    }
+
+
+def test_campaigns_add_unified_search_rejects_average_cpa_with_highest_position():
+    """Legacy CPA flag with HIGHEST_POSITION must surface the
+    canonical 'CPA-shaped' error mirroring TextCampaign #361/#388."""
+    result = _rejected(
+        *_unified_base_args(),
+        "--search-strategy",
+        "HIGHEST_POSITION",
+        "--average-cpa",
+        "500000000",
+    )
+    assert "CPA-shaped" in result.output
+
+
+def test_campaigns_add_unified_search_rejects_invalid_strategy():
+    """Enum drift: only the 13 UnifiedCampaignSearchStrategyTypeEnum
+    values are accepted (UNKNOWN is read-side only)."""
+    result = _rejected(
+        *_unified_base_args(),
+        "--search-strategy",
+        "BOGUS_STRATEGY",
+    )
+    assert "must be one of" in result.output
+
+
+def test_campaigns_add_unified_search_rejects_weekly_click_package():
+    """WEEKLY_CLICK_PACKAGE is in TextCampaign's enum but NOT in
+    UnifiedCampaign's enum (WSDL L262-278) — must be rejected."""
+    result = _rejected(
+        *_unified_base_args(),
+        "--search-strategy",
+        "WEEKLY_CLICK_PACKAGE",
+    )
+    assert "must be one of" in result.output
+
+
+def test_campaigns_add_unified_search_rejects_average_roi():
+    """AVERAGE_ROI is not in UnifiedCampaignSearchStrategyTypeEnum
+    (WSDL L262-278) — must be rejected."""
+    result = _rejected(
+        *_unified_base_args(),
+        "--search-strategy",
+        "AVERAGE_ROI",
+    )
+    assert "must be one of" in result.output
+
+
+# ---------------- update payloads ----------------
+
+
+def test_campaigns_update_unified_search_average_cpc_payload():
+    body = _unified_search_update(
+        "--search-strategy",
+        "AVERAGE_CPC",
+        "--unified-search-average-cpc",
+        "7",
+    )
+    search = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Search"
+    ]
+    assert search == {
+        "BiddingStrategyType": "AVERAGE_CPC",
+        "AverageCpc": {"AverageCpc": 7000000},
+    }
+
+
+def test_campaigns_update_unified_search_average_cpa_payload():
+    body = _unified_search_update(
+        "--search-strategy",
+        "AVERAGE_CPA",
+        "--average-cpa",
+        "500000000",
+        "--goal-id",
+        "42",
+    )
+    search = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Search"
+    ]
+    assert search["BiddingStrategyType"] == "AVERAGE_CPA"
+    assert search["AverageCpa"] == {"AverageCpa": 500000000, "GoalId": 42}
+
+
+def test_campaigns_update_unified_search_pay_for_conversion_payload():
+    body = _unified_search_update(
+        "--search-strategy",
+        "PAY_FOR_CONVERSION",
+        "--unified-search-pay-cpa",
+        "100",
+        "--goal-id",
+        "9",
+    )
+    search = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Search"
+    ]
+    assert search["PayForConversion"] == {"Cpa": 100000000, "GoalId": 9}
+
+
+def test_campaigns_update_unified_search_wb_max_clicks_payload():
+    body = _unified_search_update(
+        "--search-strategy",
+        "WB_MAXIMUM_CLICKS",
+        "--unified-search-weekly-spend-limit",
+        "500",
+    )
+    search = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Search"
+    ]
+    assert search["WbMaximumClicks"] == {"WeeklySpendLimit": 500000000}
+
+
+def test_campaigns_update_unified_search_wb_max_conv_rate_payload():
+    body = _unified_search_update(
+        "--search-strategy",
+        "WB_MAXIMUM_CONVERSION_RATE",
+        "--goal-id",
+        "55",
+    )
+    search = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Search"
+    ]
+    assert search["WbMaximumConversionRate"] == {"GoalId": 55}
+
+
+def test_campaigns_update_unified_search_average_crr_payload():
+    body = _unified_search_update(
+        "--search-strategy",
+        "AVERAGE_CRR",
+        "--crr",
+        "40",
+        "--goal-id",
+        "8",
+    )
+    search = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Search"
+    ]
+    assert search["AverageCrr"] == {"Crr": 40, "GoalId": 8}
+
+
+def test_campaigns_update_unified_search_pay_for_conversion_crr_payload():
+    body = _unified_search_update(
+        "--search-strategy",
+        "PAY_FOR_CONVERSION_CRR",
+        "--crr",
+        "20",
+        "--goal-id",
+        "7",
+    )
+    search = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Search"
+    ]
+    assert search["PayForConversionCrr"] == {"Crr": 20, "GoalId": 7}
+
+
+def test_campaigns_update_unified_search_max_profit_payload():
+    body = _unified_search_update(
+        "--search-strategy",
+        "MAX_PROFIT",
+        "--unified-search-weekly-spend-limit",
+        "3000",
+    )
+    search = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Search"
+    ]
+    assert search["MaxProfit"] == {"WeeklySpendLimit": 3000000000}
+
+
+def test_campaigns_update_unified_search_multi_goals_payload():
+    body = _unified_search_update(
+        "--search-strategy",
+        "AVERAGE_CPA_MULTIPLE_GOALS",
+        "--unified-search-weekly-spend-limit",
+        "1500",
+    )
+    search = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Search"
+    ]
+    assert search["AverageCpaMultipleGoals"] == {"WeeklySpendLimit": 1500000000}
+
+
+def test_campaigns_update_unified_search_pay_for_conversion_multi_goals_payload():
+    body = _unified_search_update(
+        "--search-strategy",
+        "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
+        "--unified-search-weekly-spend-limit",
+        "2500",
+    )
+    search = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Search"
+    ]
+    assert search["PayForConversionMultipleGoals"] == {"WeeklySpendLimit": 2500000000}
+
+
+def test_campaigns_update_unified_search_partial_field_no_required_check():
+    """On update partial patches are legitimate when --search-strategy is
+    NOT switched (WSDL update-side fields are all minOccurs=0)."""
+    body = _unified_search_update(
+        "--unified-search-weekly-spend-limit",
+        "100",
+        "--search-strategy",
+        "WB_MAXIMUM_CLICKS",
+    )
+    # WB_MAXIMUM_CLICKS update path uses _UNIFIED_SEARCH_REQUIRED_TYPED_
+    # FLAGS_UPDATE which intentionally omits WbMaximumClicks (docs declare
+    # every field optional on update). So a one-field patch is allowed.
+    assert "WbMaximumClicks" in (
+        body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"]["Search"]
+    )
+
+
+def test_campaigns_update_unified_search_omits_bidding_strategy_when_unused():
+    """Update with a non-strategy field only (e.g. --setting) must NOT
+    include BiddingStrategy in the payload (no silent overwrite)."""
+    body = _unified_search_update("--setting", "ADD_METRICA_TAG=YES")
+    assert "BiddingStrategy" not in body["params"]["Campaigns"][0]["UnifiedCampaign"]
+
+
+def test_campaigns_update_unified_search_budget_type_weekly_payload():
+    body = _unified_search_update(
+        "--search-strategy",
+        "AVERAGE_CPC",
+        "--unified-search-average-cpc",
+        "5",
+        "--unified-search-weekly-spend-limit",
+        "200",
+        "--unified-search-budget-type",
+        "WEEKLY_BUDGET",
+    )
+    search = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Search"
+    ]
+    avc = search["AverageCpc"]
+    assert avc["BudgetType"] == "WEEKLY_BUDGET"
+    assert avc["CustomPeriodBudget"] is None  # explicit clearing
+
+
+def test_campaigns_update_unified_search_budget_type_custom_period_payload():
+    body = _unified_search_update(
+        "--search-strategy",
+        "AVERAGE_CPC",
+        "--unified-search-average-cpc",
+        "5",
+        "--unified-search-custom-period-spend-limit",
+        "300",
+        "--unified-search-custom-period-start-date",
+        "2026-08-01",
+        "--unified-search-custom-period-end-date",
+        "2026-08-31",
+        "--unified-search-custom-period-auto-continue",
+        "YES",
+        "--unified-search-budget-type",
+        "CUSTOM_PERIOD_BUDGET",
+    )
+    search = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Search"
+    ]
+    avc = search["AverageCpc"]
+    assert avc["BudgetType"] == "CUSTOM_PERIOD_BUDGET"
+    assert avc["WeeklySpendLimit"] is None
+
+
+def test_campaigns_add_unified_search_budget_type_is_update_only():
+    """--unified-search-budget-type does not exist on add (the Click option
+    is registered only on the update command); on add the budget slice is
+    inferred from WeeklySpendLimit vs CustomPeriodBudget presence."""
+    result = _rejected(
+        *_unified_base_args(),
+        "--search-strategy",
+        "AVERAGE_CPC",
+        "--unified-search-average-cpc",
+        "5",
+        "--unified-search-budget-type",
+        "WEEKLY_BUDGET",
+    )
+    # Click reports unknown option for add
+    assert "--unified-search-budget-type" in result.output
+
+
+def test_campaigns_update_unified_search_package_strategy_conflicts():
+    """PackageBiddingStrategy is mutually exclusive with --unified-search-*
+    on update (WSDL: UnifiedCampaignUpdateItem allows one of
+    BiddingStrategy / PackageBiddingStrategy)."""
+    result = _rejected(
+        "campaigns",
+        "update",
+        "--id",
+        "777",
+        "--type",
+        "UNIFIED_CAMPAIGN",
+        "--package-strategy-id",
+        "1",
+        "--unified-search-weekly-spend-limit",
+        "100",
+    )
+    assert "PackageBiddingStrategy" in result.output
