@@ -749,6 +749,59 @@ PAYLOAD_CASES = [
             "1234567:80,9876543:20:YES",
         ],
     ),
+    # --- issue #373: UnifiedCampaign.PriorityGoals ---
+    # ``UnifiedCampaignAddItem.PriorityGoals`` (WSDL
+    # ``tests/wsdl_cache/campaigns.xml`` line 2165) is a top-level sibling
+    # populated via the shared --priority-goals flag whenever the chosen
+    # BiddingStrategy subtype consumes it (MAX_PROFIT here; covers GoalId,
+    # Value and IsMetrikaSourceOfValue per PriorityGoalsItem 1928-1934).
+    (
+        "campaigns",
+        "add",
+        [
+            "campaigns",
+            "add",
+            "--name",
+            "Test Unified PriorityGoals",
+            "--start-date",
+            "2026-06-01",
+            "--type",
+            "UNIFIED_CAMPAIGN",
+            "--network-strategy",
+            "MAX_PROFIT",
+            "--priority-goals",
+            "1234567:80,9876543:20:YES",
+        ],
+    ),
+    # ``UnifiedCampaignAddItem.PriorityGoals`` (WSDL line 2165) and
+    # ``UnifiedCampaignAddItem.PackageBiddingStrategy`` (lines
+    # 2168-2169) are declared as independent ``minOccurs=0`` siblings
+    # on the same ``xsd:sequence`` — no ``xsd:choice`` wrapper.
+    # Mirrors the SmartCampaign mutex-lift from #369/#392.
+    (
+        "campaigns",
+        "add",
+        [
+            "campaigns",
+            "add",
+            "--name",
+            "Test Unified Pkg+PG",
+            "--start-date",
+            "2026-06-01",
+            "--type",
+            "UNIFIED_CAMPAIGN",
+            "--package-strategy-id",
+            "42",
+            "--package-platform-search-result",
+            "yes",
+            "--package-platform-product-gallery",
+            "yes",
+            "--package-platform-network",
+            "yes",
+            "--priority-goals",
+            "1234567:80",
+        ],
+    ),
     # --- issue #367: SmartCampaign.BiddingStrategy.Search typed flags ---
     (
         "campaigns",

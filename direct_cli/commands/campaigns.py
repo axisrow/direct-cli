@@ -2730,12 +2730,23 @@ def add(
                     search_placement_product_gallery
                 ),
                 "--search-placement-dynamic-places": search_placement_dynamic_places,
-                "--priority-goals": priority_goals,
                 "--goal-id": goal_id,
                 "--average-cpa": average_cpa,
                 "--crr": crr,
                 "--bid-ceiling": bid_ceiling,
             }
+            # Issue #373: ``UnifiedCampaignAddItem.PriorityGoals`` and
+            # ``UnifiedCampaignAddItem.PackageBiddingStrategy`` are
+            # declared as independent ``minOccurs=0`` siblings on the
+            # WSDL (``tests/wsdl_cache/campaigns.xml`` lines 2160-2172,
+            # no ``xsd:choice`` wrapper) — same shape as
+            # ``SmartCampaignAddItem`` (lines 2202-2214) where the same
+            # mutex was lifted in #369/#392. Allow the combination on
+            # UnifiedCampaign; the other non-Smart package campaign
+            # types (TextCampaign, DynamicTextCampaign) keep the mutex
+            # until their own follow-up issues land.
+            if campaign_type_norm != "UNIFIED_CAMPAIGN":
+                package_incompatible["--priority-goals"] = priority_goals
             if campaign_type_norm == "TEXT_CAMPAIGN":
                 # Issue #361: every typed Search-strategy detail flag must
                 # also conflict with PackageBiddingStrategy on TEXT_CAMPAIGN,
@@ -3062,13 +3073,25 @@ def add(
                     f"{', '.join(sorted(provided))}"
                 )
             if priority_goals is not None:
-                # Issue #366 + #363: --priority-goals is allowed on Unified
-                # add only when the chosen BiddingStrategy subtype consumes
-                # ``UnifiedCampaignAddItem.PriorityGoals`` (multi-goal /
-                # MaxProfit families). Both the Network branch (#366) and
-                # the Search branch (#363) accept the same subtype set on
-                # ``UnifiedCampaignStrategyAddBase``; package strategies
-                # never accept priority-goals.
+                # Issue #373: ``UnifiedCampaignAddItem.PriorityGoals``
+                # (WSDL ``tests/wsdl_cache/campaigns.xml`` line 2165) is a
+                # top-level sibling declared as ``minOccurs=0`` alongside
+                # ``BiddingStrategy`` (line 2162, also ``minOccurs=0``) and
+                # ``PackageBiddingStrategy`` (line 2168, ``minOccurs=0``)
+                # on a plain ``xsd:sequence`` — no ``xsd:choice``. Per
+                # the canonical WSDL the user MAY supply PriorityGoals
+                # alone, with PackageBiddingStrategy, or with a
+                # per-side BiddingStrategy. The only documented
+                # constraint surfaced by this CLI is on the per-side
+                # BiddingStrategy subtypes themselves
+                # (``_bidding_strategy.py``): when the user explicitly
+                # selects a per-side strategy whose subtype is NOT in
+                # the multi-goal / MaxProfit set, ``--priority-goals``
+                # would be silently dropped by the subtype builder, so
+                # reject up-front with a clear message. When no per-side
+                # strategy is chosen, the items flow straight to the
+                # parent PriorityGoals sibling and the builders fall
+                # back to their HIGHEST_POSITION / SERVING_OFF defaults.
                 _unified_network_subtype = (
                     UNIFIED_CAMPAIGN_NETWORK_STRATEGY_TO_WSDL_SUBTYPE.get(
                         (network_strategy or "").upper()
@@ -3087,17 +3110,42 @@ def add(
                     _unified_search_subtype
                     in _UNIFIED_SEARCH_REQUIRES_PRIORITY_GOALS
                 )
+                _network_chosen = network_strategy is not None
+                _search_chosen = search_strategy is not None
+                # Only reject when EVERY explicitly chosen per-side
+                # strategy is incompatible. PriorityGoals on the
+                # parent sibling is still emitted (line 3550-3551),
+                # so a single compatible side is enough — and the
+                # standalone case (no per-side strategy at all) is
+                # also valid per the WSDL.
+                _both_explicit_and_incompatible = (
+                    _network_chosen
+                    and _search_chosen
+                    and not _network_allows
+                    and not _search_allows
+                )
+                _only_network_explicit_and_incompatible = (
+                    _network_chosen
+                    and not _search_chosen
+                    and not _network_allows
+                )
+                _only_search_explicit_and_incompatible = (
+                    _search_chosen
+                    and not _network_chosen
+                    and not _search_allows
+                )
                 if (
-                    package_bidding_strategy_obj is not None
-                    or not (_network_allows or _search_allows)
+                    _both_explicit_and_incompatible
+                    or _only_network_explicit_and_incompatible
+                    or _only_search_explicit_and_incompatible
                 ):
                     raise click.UsageError(
-                        "UnifiedCampaign.PriorityGoals on campaigns add "
-                        "requires --network-strategy or --search-strategy "
-                        "in {AVERAGE_CPA_MULTIPLE_GOALS, "
-                        "PAY_FOR_CONVERSION_MULTIPLE_GOALS, MAX_PROFIT} "
-                        "(other BiddingStrategy combinations are tracked "
-                        "in #290 / #373)."
+                        "--priority-goals on UnifiedCampaign is only valid "
+                        "with --network-strategy or --search-strategy in "
+                        "{AVERAGE_CPA_MULTIPLE_GOALS, "
+                        "PAY_FOR_CONVERSION_MULTIPLE_GOALS, MAX_PROFIT}; "
+                        f"got --network-strategy={network_strategy!r}, "
+                        f"--search-strategy={search_strategy!r}"
                     )
         if campaign_type_norm in {"MOBILE_APP_CAMPAIGN", "CPM_BANNER_CAMPAIGN"}:
             strategy_followup_flags = {
@@ -3431,7 +3479,16 @@ def add(
                 # PriorityGoals: route to whichever side accepts it.
                 # When BOTH sides chose a multi-goal/MaxProfit subtype the
                 # same items satisfy both builders (the parent placement
-                # via ``sub_campaign_block`` is idempotent).
+                # via ``sub_campaign_block`` is idempotent). When the
+                # user supplies PriorityGoals without explicitly choosing
+                # either side's strategy (#373: WSDL-valid standalone
+                # case), suppress per-side wiring entirely — PriorityGoals
+                # lands on the parent ``UnifiedCampaign.PriorityGoals``
+                # sibling further below and the builders fall back to
+                # the HIGHEST_POSITION / SERVING_OFF defaults. The
+                # upstream guard already raises a clear error when a
+                # per-side strategy was explicitly chosen with a subtype
+                # outside the multi-goal / MaxProfit set.
                 _u_search_uses_priority_goals = (
                     _u_search_subtype_for_routing
                     in _UNIFIED_SEARCH_REQUIRES_PRIORITY_GOALS
@@ -3440,25 +3497,16 @@ def add(
                     _u_network_subtype_for_routing
                     in _UNIFIED_NETWORK_REQUIRES_PRIORITY_GOALS
                 )
-                if (
-                    _u_search_uses_priority_goals
-                    or _u_network_uses_priority_goals
-                ):
-                    _u_search_priority_goals_items = (
-                        priority_goals_items
-                        if _u_search_uses_priority_goals
-                        else None
-                    )
-                    _u_network_priority_goals_items = (
-                        priority_goals_items
-                        if _u_network_uses_priority_goals
-                        else None
-                    )
-                else:
-                    # Neither side accepts ``--priority-goals``. Forward
-                    # to Search so the canonical error path surfaces.
-                    _u_search_priority_goals_items = priority_goals_items
-                    _u_network_priority_goals_items = None
+                _u_search_priority_goals_items = (
+                    priority_goals_items
+                    if _u_search_uses_priority_goals
+                    else None
+                )
+                _u_network_priority_goals_items = (
+                    priority_goals_items
+                    if _u_network_uses_priority_goals
+                    else None
+                )
 
                 unified_search_builder = get_bidding_strategy_builder(
                     "UNIFIED_CAMPAIGN", "add", "search"
@@ -6199,9 +6247,18 @@ def update(
                     require_platforms=False,
                 )
                 if package_bidding_strategy_obj is not None:
-                    package_incompatible = {
-                        "--priority-goals": priority_goals,
-                    }
+                    package_incompatible: Dict[str, object] = {}
+                    # Issue #373: ``UnifiedCampaignUpdateItem.PriorityGoals``
+                    # (WSDL ``tests/wsdl_cache/campaigns.xml`` line 2259) is a
+                    # nillable sibling of ``UnifiedCampaignUpdateItem.
+                    # PackageBiddingStrategy`` (line 2260-2262) on the same
+                    # ``xsd:sequence`` (no ``xsd:choice``). Mirrors the
+                    # SmartCampaign precedent (#369/#392). Other non-Smart
+                    # package campaign types (TextCampaign,
+                    # DynamicTextCampaign) keep the mutex until their own
+                    # follow-up issues land.
+                    if not is_unified:
+                        package_incompatible["--priority-goals"] = priority_goals
                     if not is_unified and not is_dynamic:
                         package_incompatible.update(
                             {
