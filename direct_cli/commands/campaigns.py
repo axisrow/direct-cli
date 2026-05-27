@@ -1489,17 +1489,17 @@ def get(
     type=MICRO_RUBLES,
     help=(
         "TextCampaign Search AVERAGE_ROI RoiCoef as a ratio (sales profit "
-        "/ promotion costs). Input is multiplied by 1,000,000 to match the "
-        "Yandex API wire format (e.g. 1 → 1000000)."
+        "/ promotion costs), supplied directly in micro-rubles wire format "
+        "(e.g. a 1.0 ratio is 1000000)."
     ),
 )
 @click.option(
     "--text-search-profitability",
     type=MICRO_RUBLES,
     help=(
-        "TextCampaign Search AVERAGE_ROI Profitability percentage. Input "
-        "is multiplied by 1,000,000 to match the Yandex API wire format "
-        "(e.g. 20 → 20000000)."
+        "TextCampaign Search AVERAGE_ROI Profitability percentage, "
+        "supplied directly in micro-rubles wire format "
+        "(e.g. 20% is 20000000)."
     ),
 )
 @click.option(
@@ -1632,17 +1632,17 @@ def get(
     type=MICRO_RUBLES,
     help=(
         "TextCampaign Network AVERAGE_ROI RoiCoef as a ratio (sales profit "
-        "/ promotion costs). Input is multiplied by 1,000,000 to match the "
-        "Yandex API wire format (e.g. 1 → 1000000) (#364)."
+        "/ promotion costs), supplied directly in micro-rubles wire format "
+        "(e.g. a 1.0 ratio is 1000000) (#364)."
     ),
 )
 @click.option(
     "--text-network-profitability",
     type=MICRO_RUBLES,
     help=(
-        "TextCampaign Network AVERAGE_ROI Profitability percentage. Input "
-        "is multiplied by 1,000,000 to match the Yandex API wire format "
-        "(e.g. 20 → 20000000) (#364)."
+        "TextCampaign Network AVERAGE_ROI Profitability percentage, "
+        "supplied directly in micro-rubles wire format "
+        "(e.g. 20% is 20000000) (#364)."
     ),
 )
 @click.option(
@@ -4502,17 +4502,17 @@ def add(
     type=MICRO_RUBLES,
     help=(
         "TextCampaign Search AVERAGE_ROI RoiCoef as a ratio (sales profit "
-        "/ promotion costs). Input is multiplied by 1,000,000 to match the "
-        "Yandex API wire format (e.g. 1 → 1000000)."
+        "/ promotion costs), supplied directly in micro-rubles wire format "
+        "(e.g. a 1.0 ratio is 1000000)."
     ),
 )
 @click.option(
     "--text-search-profitability",
     type=MICRO_RUBLES,
     help=(
-        "TextCampaign Search AVERAGE_ROI Profitability percentage. Input "
-        "is multiplied by 1,000,000 to match the Yandex API wire format "
-        "(e.g. 20 → 20000000)."
+        "TextCampaign Search AVERAGE_ROI Profitability percentage, "
+        "supplied directly in micro-rubles wire format "
+        "(e.g. 20% is 20000000)."
     ),
 )
 @click.option(
@@ -4652,17 +4652,17 @@ def add(
     type=MICRO_RUBLES,
     help=(
         "TextCampaign Network AVERAGE_ROI RoiCoef as a ratio (sales profit "
-        "/ promotion costs). Input is multiplied by 1,000,000 to match the "
-        "Yandex API wire format (e.g. 1 → 1000000) (#364)."
+        "/ promotion costs), supplied directly in micro-rubles wire format "
+        "(e.g. a 1.0 ratio is 1000000) (#364)."
     ),
 )
 @click.option(
     "--text-network-profitability",
     type=MICRO_RUBLES,
     help=(
-        "TextCampaign Network AVERAGE_ROI Profitability percentage. Input "
-        "is multiplied by 1,000,000 to match the Yandex API wire format "
-        "(e.g. 20 → 20000000) (#364)."
+        "TextCampaign Network AVERAGE_ROI Profitability percentage, "
+        "supplied directly in micro-rubles wire format "
+        "(e.g. 20% is 20000000) (#364)."
     ),
 )
 @click.option(

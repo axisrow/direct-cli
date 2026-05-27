@@ -18177,6 +18177,7 @@ def test_direct_money_flags_use_micro_rubles_only():
         'Decimal("' + "1000000" + '")',
         "human-readable " + "money",
         "converted to " + "API " + "long",
+        "multiplied by " + "1,000,000",
     )
     root = Path(__file__).resolve().parents[1]
 
