@@ -2702,12 +2702,8 @@ def add(
                 "--smart-network-cp-spend-limit": smart_network_cp_spend_limit,
                 "--smart-network-cp-start-date": smart_network_cp_start_date,
                 "--smart-network-cp-end-date": smart_network_cp_end_date,
-                "--smart-network-cp-auto-continue": (
-                    smart_network_cp_auto_continue
-                ),
-                "--smart-network-exploration-min": (
-                    smart_network_exploration_min
-                ),
+                "--smart-network-cp-auto-continue": (smart_network_cp_auto_continue),
+                "--smart-network-exploration-min": (smart_network_exploration_min),
                 "--smart-network-exploration-min-custom": (
                     smart_network_exploration_min_custom
                 ),
@@ -2751,12 +2747,6 @@ def add(
                     "a compatible UnifiedCampaign.BiddingStrategy; shared "
                     "BiddingStrategy support is tracked in #290."
                 )
-        if campaign_type_norm == "SMART_CAMPAIGN" and priority_goals is not None:
-            raise click.UsageError(
-                "SmartCampaign.PriorityGoals on campaigns add requires a compatible "
-                "SmartCampaign.BiddingStrategy; shared BiddingStrategy support is "
-                "tracked in #290."
-            )
         if campaign_type_norm in {"MOBILE_APP_CAMPAIGN", "CPM_BANNER_CAMPAIGN"}:
             strategy_followup_flags = {
                 "--goal-id": goal_id,
@@ -3392,6 +3382,17 @@ def add(
                 }
             if parsed_settings:
                 smart_campaign["Settings"] = parsed_settings
+            # SmartCampaignAddItem.PriorityGoals (#369) — top-level sibling on
+            # the SmartCampaign block (WSDL tests/wsdl_cache/campaigns.xml
+            # line 2209: ``PriorityGoalsArray`` minOccurs=0 maxOccurs=1).
+            # Unlike Text/DynamicText, PriorityGoals on SmartCampaign is NOT
+            # constrained to *_MULTIPLE_GOALS subtypes (no such subtypes exist
+            # in SmartCampaignSearch/NetworkStrategyTypeEnum, lines 396-426):
+            # it is an independent campaign-level setting accepted with any
+            # SmartCampaign.BiddingStrategy. PackageBiddingStrategy already
+            # excludes --priority-goals via the shared guard above.
+            if priority_goals_items is not None:
+                smart_campaign["PriorityGoals"] = {"Items": priority_goals_items}
             if attribution_model:
                 smart_campaign["AttributionModel"] = attribution_model.upper()
             if tracking_params:

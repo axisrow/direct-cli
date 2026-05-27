@@ -5218,12 +5218,18 @@ def test_campaigns_add_smart_default_network_strategy_no_filter_average_cpc():
     assert network == {"BiddingStrategyType": "AVERAGE_CPC_PER_FILTER"}
 
 
-def test_campaigns_add_rejects_smart_priority_goals_without_bidding_strategy():
-    result = _rejected(
+def test_campaigns_add_smart_priority_goals_payload():
+    # Issue #369: SmartCampaignAddItem.PriorityGoals is a top-level sibling on
+    # the SmartCampaign block (WSDL tests/wsdl_cache/campaigns.xml line 2209
+    # ``PriorityGoals`` typed as ``PriorityGoalsArray`` minOccurs=0). Items
+    # carry GoalId (xsd:long, minOccurs=1), Value (xsd:long, minOccurs=1) and
+    # the optional IsMetrikaSourceOfValue (general:YesNoEnum, minOccurs=0)
+    # per the ``PriorityGoalsItem`` complex type (WSDL lines 1928-1934).
+    body = _dry_run(
         "campaigns",
         "add",
         "--name",
-        "Smart Bad",
+        "Smart Priority Goals",
         "--start-date",
         "2026-06-01",
         "--type",
@@ -5233,10 +5239,47 @@ def test_campaigns_add_rejects_smart_priority_goals_without_bidding_strategy():
         "--filter-average-cpc",
         "1000000",
         "--priority-goals",
-        "1234567:80,9876543:20",
+        "1234567:80,9876543:20:YES",
     )
-    assert "SmartCampaign.PriorityGoals" in result.output
-    assert "#290" in result.output
+    smart = body["params"]["Campaigns"][0]["SmartCampaign"]
+    assert smart["PriorityGoals"] == {
+        "Items": [
+            {"GoalId": 1234567, "Value": 80},
+            {"GoalId": 9876543, "Value": 20, "IsMetrikaSourceOfValue": "YES"},
+        ]
+    }
+    # PriorityGoals is independent of BiddingStrategy — the default
+    # AVERAGE_CPC_PER_FILTER Network branch must still be present.
+    network = smart["BiddingStrategy"]["Network"]
+    assert network["BiddingStrategyType"] == "AVERAGE_CPC_PER_FILTER"
+
+
+def test_campaigns_add_smart_priority_goals_rejected_with_package_strategy():
+    # PackageBiddingStrategy on SmartCampaign already rejects --priority-goals
+    # via the shared guard (smart_package_incompatible). Cover the contract
+    # so the conflict cannot regress with the new top-level placement.
+    result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "Smart Pkg+PG",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "SMART_CAMPAIGN",
+        "--counter-id",
+        "123",
+        "--package-strategy-id",
+        "42",
+        "--package-platform-search",
+        "yes",
+        "--package-platform-network",
+        "yes",
+        "--priority-goals",
+        "1234567:80",
+    )
+    assert "SmartCampaign.PackageBiddingStrategy cannot be combined" in result.output
+    assert "--priority-goals" in result.output
 
 
 # ----------------------------------------------------------------------
