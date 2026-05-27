@@ -4470,21 +4470,6 @@ _UNIFIED_SEARCH_MIN_PRIORITY_GOALS: Dict[str, int] = {
     "PayForConversionMultipleGoals": 2,
 }
 
-# Update-only required fields when ``--search-strategy`` is being
-# switched. Mirrors the TextCampaign Search precedent: partial patches of
-# already-configured budget fields are legitimate, so only "conceptually
-# required" fields for the NEW subtype are demanded.
-_UNIFIED_SEARCH_REQUIRED_TYPED_FLAGS_UPDATE: Dict[str, Dict[str, str]] = {
-    "AverageCpc": {"AverageCpc": "--unified-search-average-cpc"},
-    "AverageCpa": {"AverageCpa": "--average-cpa", "GoalId": "--goal-id"},
-    "PayForConversion": {"Cpa": "--unified-search-pay-cpa", "GoalId": "--goal-id"},
-    "WbMaximumConversionRate": {"GoalId": "--goal-id"},
-    "AverageCrr": {"Crr": "--crr", "GoalId": "--goal-id"},
-    "PayForConversionCrr": {"Crr": "--crr", "GoalId": "--goal-id"},
-    # WbMaximumClicks intentionally omitted: docs declare every field
-    # optional on update so a partial patch is legitimate.
-}
-
 _UNIFIED_CAMPAIGN_SEARCH_BUDGET_TYPES = ["WEEKLY_BUDGET", "CUSTOM_PERIOD_BUDGET"]
 
 
@@ -4893,21 +4878,15 @@ def build_unified_campaign_search_strategy(
                 f"Search strategy {subtype} requires {', '.join(sorted(missing))} "
                 f"(per Yandex Direct API docs)"
             )
-    else:
-        if search_strategy is not None:
-            required = _UNIFIED_SEARCH_REQUIRED_TYPED_FLAGS_UPDATE.get(subtype, {})
-            missing = [
-                flag
-                for wsdl_field, flag in required.items()
-                if provided_lookup.get(wsdl_field) is None
-            ]
-            if missing:
-                raise click.UsageError(
-                    f"Search strategy {subtype} requires "
-                    f"{', '.join(sorted(missing))} when switching "
-                    "--search-strategy on update (per Yandex Direct "
-                    "API docs)"
-                )
+    # On update no required-field check is run. The cached WSDL
+    # ``Strategy*`` types (campaigns.xml L789-957) declare every field as
+    # minOccurs=0 — every optional field can be patched standalone, and
+    # ``--search-strategy`` on update is treated as a subtype selector
+    # (which subtype block the patch targets), NOT as a "switching"
+    # signal that re-imposes add-time required fields. This diverges
+    # from the TextCampaign Search precedent (#388) which carried a
+    # doc-strict switching-required check; for #363 the canonical
+    # source is the WSDL.
 
     # Build the WSDL Strategy*Add block. Element order in the dict
     # follows WSDL sequence order for readability — JSON-RPC does not

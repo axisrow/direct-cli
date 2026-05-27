@@ -52,6 +52,7 @@ import base64
 import json
 from unittest.mock import patch
 
+import pytest
 from click.testing import CliRunner, Result
 
 from direct_cli.cli import cli
@@ -20117,15 +20118,14 @@ def test_campaigns_update_unified_search_avg_cpa_multi_goals_budget_type_payload
 def test_campaigns_update_unified_search_standalone_budget_type_payload():
     """BudgetType can be patched standalone — the WSDL get-side
     Strategy* types declare it as an independent optional element
-    (campaigns.xml L817, L827, etc.). Asking the user to re-supply the
-    full WeeklySpendLimit / CustomPeriodBudget block to flip a
-    pre-configured campaign's budget slice was a doc-strict TextCampaign
-    Search (#388) constraint not present in the cached WSDL."""
+    (campaigns.xml L817, L827, etc.). Per cached WSDL all update-side
+    fields are minOccurs=0, so the CLI does NOT re-require unrelated
+    bidding values (e.g. --unified-search-average-cpc) when only
+    BudgetType is being patched. This diverges from the docs-strict
+    TextCampaign Search (#388) precedent."""
     body = _unified_search_update(
         "--search-strategy",
         "AVERAGE_CPC",
-        "--unified-search-average-cpc",
-        "5",
         "--unified-search-budget-type",
         "CUSTOM_PERIOD_BUDGET",
     )
@@ -20138,3 +20138,37 @@ def test_campaigns_update_unified_search_standalone_budget_type_payload():
     # explicitly clears the stored WeeklySpendLimit, mirroring the
     # TextCampaign/MobileApp builder convention.
     assert block["WeeklySpendLimit"] is None
+
+
+@pytest.mark.parametrize(
+    "strategy,subtype",
+    [
+        ("WB_MAXIMUM_CLICKS", "WbMaximumClicks"),
+        ("WB_MAXIMUM_CONVERSION_RATE", "WbMaximumConversionRate"),
+        ("AVERAGE_CPC", "AverageCpc"),
+        ("AVERAGE_CPA", "AverageCpa"),
+        ("PAY_FOR_CONVERSION", "PayForConversion"),
+        ("AVERAGE_CRR", "AverageCrr"),
+        ("PAY_FOR_CONVERSION_CRR", "PayForConversionCrr"),
+        ("AVERAGE_CPA_MULTIPLE_GOALS", "AverageCpaMultipleGoals"),
+        ("PAY_FOR_CONVERSION_MULTIPLE_GOALS", "PayForConversionMultipleGoals"),
+        ("MAX_PROFIT", "MaxProfit"),
+    ],
+)
+def test_campaigns_update_unified_search_budget_type_only_per_subtype(
+    strategy: str, subtype: str
+):
+    """Per WSDL the entire update-side Strategy* surface is minOccurs=0,
+    so BudgetType can be patched standalone on every UnifiedCampaign
+    Search subtype without re-supplying the strategy's other fields."""
+    body = _unified_search_update(
+        "--search-strategy",
+        strategy,
+        "--unified-search-budget-type",
+        "WEEKLY_BUDGET",
+    )
+    search = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
+        "Search"
+    ]
+    assert search["BiddingStrategyType"] == strategy
+    assert search[subtype]["BudgetType"] == "WEEKLY_BUDGET"
