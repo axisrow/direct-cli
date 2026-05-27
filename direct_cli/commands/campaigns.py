@@ -23,6 +23,17 @@ from ..utils import (
 )
 from .._bidding_strategy import (
     BUDGET_TYPES,
+    TEXT_CAMPAIGN_NETWORK_STRATEGY_TO_WSDL_SUBTYPE,
+    _TEXT_CAMPAIGN_SEARCH_STRATEGY_TO_WSDL_SUBTYPE,
+    _TEXT_NETWORK_AVERAGE_CPA_SUBTYPES,
+    _TEXT_NETWORK_BID_CEILING_SUBTYPES,
+    _TEXT_NETWORK_CRR_SUBTYPES,
+    _TEXT_NETWORK_GOAL_ID_SUBTYPES,
+    _TEXT_NETWORK_REQUIRES_PRIORITY_GOALS,
+    _TEXT_SEARCH_SUPPORTS_AVERAGE_CPA,
+    _TEXT_SEARCH_SUPPORTS_BID_CEILING,
+    _TEXT_SEARCH_SUPPORTS_CRR,
+    _TEXT_SEARCH_SUPPORTS_GOAL_ID,
     get_bidding_strategy_builder,
 )
 
@@ -1480,6 +1491,91 @@ def get(
     ),
 )
 @click.option(
+    "--text-network-weekly-spend-limit",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="TextCampaign Network strategy WeeklySpendLimit in rubles (#364)",
+)
+@click.option(
+    "--text-network-custom-period-spend-limit",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="TextCampaign Network CustomPeriodBudget.SpendLimit in rubles (#364)",
+)
+@click.option(
+    "--text-network-custom-period-start-date",
+    help="TextCampaign Network CustomPeriodBudget.StartDate (#364)",
+)
+@click.option(
+    "--text-network-custom-period-end-date",
+    help="TextCampaign Network CustomPeriodBudget.EndDate (#364)",
+)
+@click.option(
+    "--text-network-custom-period-auto-continue",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help=("TextCampaign Network CustomPeriodBudget.AutoContinue: YES or NO (#364)"),
+)
+@click.option(
+    "--text-network-average-cpc",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="TextCampaign Network strategy AverageCpc in rubles (#364)",
+)
+@click.option(
+    "--text-network-pay-cpa",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="TextCampaign Network StrategyPayForConversionAdd.Cpa in rubles (#364)",
+)
+@click.option(
+    "--text-network-clicks-per-week",
+    type=click.IntRange(1),
+    help="TextCampaign Network WEEKLY_CLICK_PACKAGE ClicksPerWeek (#364)",
+)
+@click.option(
+    "--text-network-reserve-return",
+    type=click.IntRange(0, 100),
+    help=(
+        "TextCampaign Network AVERAGE_ROI ReserveReturn percentage "
+        "(0-100, multiple of 10) (#364)"
+    ),
+)
+@click.option(
+    "--text-network-roi-coef",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help=(
+        "TextCampaign Network AVERAGE_ROI RoiCoef as a ratio (sales profit "
+        "/ promotion costs). Input is multiplied by 1,000,000 to match the "
+        "Yandex API wire format (e.g. 1 → 1000000) (#364)."
+    ),
+)
+@click.option(
+    "--text-network-profitability",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help=(
+        "TextCampaign Network AVERAGE_ROI Profitability percentage. Input "
+        "is multiplied by 1,000,000 to match the Yandex API wire format "
+        "(e.g. 20 → 20000000) (#364)."
+    ),
+)
+@click.option(
+    "--text-network-exploration-min-budget",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help=(
+        "TextCampaign Network ExplorationBudget.MinimumExplorationBudget "
+        "in rubles (#364)"
+    ),
+)
+@click.option(
+    "--text-network-exploration-is-custom",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help=(
+        "TextCampaign Network ExplorationBudget."
+        "IsMinimumExplorationBudgetCustom: YES or NO (#364)"
+    ),
+)
+@click.option(
+    "--text-network-limit-percent",
+    type=click.IntRange(10, 100),
+    help=("TextCampaign Network NetworkDefault.LimitPercent, 10-100 by tens (#364)"),
+)
+@click.option(
     "--notification",
     default=None,
     expose_value=False,
@@ -1725,6 +1821,20 @@ def add(
     text_search_profitability,
     text_search_exploration_min_budget,
     text_search_exploration_is_custom,
+    text_network_weekly_spend_limit,
+    text_network_custom_period_spend_limit,
+    text_network_custom_period_start_date,
+    text_network_custom_period_end_date,
+    text_network_custom_period_auto_continue,
+    text_network_average_cpc,
+    text_network_pay_cpa,
+    text_network_clicks_per_week,
+    text_network_reserve_return,
+    text_network_roi_coef,
+    text_network_profitability,
+    text_network_exploration_min_budget,
+    text_network_exploration_is_custom,
+    text_network_limit_percent,
     client_info,
     sms_events,
     sms_time_from,
@@ -1804,6 +1914,25 @@ def add(
             "--text-search-exploration-min-budget",
             "--text-search-exploration-is-custom",
         }
+        # TextCampaign Network strategy detail flags (issue #364). Only
+        # accepted under --type TEXT_CAMPAIGN; other campaign types must
+        # reject them as silent-data-loss invariants.
+        text_network_extras = {
+            "--text-network-weekly-spend-limit",
+            "--text-network-custom-period-spend-limit",
+            "--text-network-custom-period-start-date",
+            "--text-network-custom-period-end-date",
+            "--text-network-custom-period-auto-continue",
+            "--text-network-average-cpc",
+            "--text-network-pay-cpa",
+            "--text-network-clicks-per-week",
+            "--text-network-reserve-return",
+            "--text-network-roi-coef",
+            "--text-network-profitability",
+            "--text-network-exploration-min-budget",
+            "--text-network-exploration-is-custom",
+            "--text-network-limit-percent",
+        }
         allowed_flags_by_type = {
             "TEXT_CAMPAIGN": {
                 "--setting",
@@ -1826,7 +1955,8 @@ def add(
                 "--negative-keyword-shared-set-ids",
             }
             | text_dynamic_extras
-            | text_search_extras,
+            | text_search_extras
+            | text_network_extras,
             "UNIFIED_CAMPAIGN": {
                 "--setting",
                 "--counter-ids",
@@ -2216,6 +2346,32 @@ def add(
                 "--text-search-exploration-is-custom": (
                     text_search_exploration_is_custom
                 ),
+                "--text-network-weekly-spend-limit": (text_network_weekly_spend_limit),
+                "--text-network-custom-period-spend-limit": (
+                    text_network_custom_period_spend_limit
+                ),
+                "--text-network-custom-period-start-date": (
+                    text_network_custom_period_start_date
+                ),
+                "--text-network-custom-period-end-date": (
+                    text_network_custom_period_end_date
+                ),
+                "--text-network-custom-period-auto-continue": (
+                    text_network_custom_period_auto_continue
+                ),
+                "--text-network-average-cpc": text_network_average_cpc,
+                "--text-network-pay-cpa": text_network_pay_cpa,
+                "--text-network-clicks-per-week": text_network_clicks_per_week,
+                "--text-network-reserve-return": text_network_reserve_return,
+                "--text-network-roi-coef": text_network_roi_coef,
+                "--text-network-profitability": text_network_profitability,
+                "--text-network-exploration-min-budget": (
+                    text_network_exploration_min_budget
+                ),
+                "--text-network-exploration-is-custom": (
+                    text_network_exploration_is_custom
+                ),
+                "--text-network-limit-percent": text_network_limit_percent,
                 "--tracking-params": tracking_params,
             },
         )
@@ -2336,6 +2492,7 @@ def add(
                 # also conflict with PackageBiddingStrategy on TEXT_CAMPAIGN,
                 # otherwise text-search-* input would silently disappear
                 # when the user opts into a package strategy.
+                # Issue #364: same applies to --text-network-* flags.
                 package_incompatible.update(
                     {
                         "--text-search-weekly-spend-limit": (
@@ -2365,6 +2522,36 @@ def add(
                         "--text-search-exploration-is-custom": (
                             text_search_exploration_is_custom
                         ),
+                        "--text-network-weekly-spend-limit": (
+                            text_network_weekly_spend_limit
+                        ),
+                        "--text-network-custom-period-spend-limit": (
+                            text_network_custom_period_spend_limit
+                        ),
+                        "--text-network-custom-period-start-date": (
+                            text_network_custom_period_start_date
+                        ),
+                        "--text-network-custom-period-end-date": (
+                            text_network_custom_period_end_date
+                        ),
+                        "--text-network-custom-period-auto-continue": (
+                            text_network_custom_period_auto_continue
+                        ),
+                        "--text-network-average-cpc": text_network_average_cpc,
+                        "--text-network-pay-cpa": text_network_pay_cpa,
+                        "--text-network-clicks-per-week": (
+                            text_network_clicks_per_week
+                        ),
+                        "--text-network-reserve-return": (text_network_reserve_return),
+                        "--text-network-roi-coef": text_network_roi_coef,
+                        "--text-network-profitability": text_network_profitability,
+                        "--text-network-exploration-min-budget": (
+                            text_network_exploration_min_budget
+                        ),
+                        "--text-network-exploration-is-custom": (
+                            text_network_exploration_is_custom
+                        ),
+                        "--text-network-limit-percent": (text_network_limit_percent),
                     }
                 )
             if campaign_type_norm == "UNIFIED_CAMPAIGN":
@@ -2596,6 +2783,108 @@ def add(
             if package_bidding_strategy_obj is not None:
                 text_block["PackageBiddingStrategy"] = package_bidding_strategy_obj
             else:
+                # Route shared inputs (``--priority-goals`` and the legacy
+                # CPA flags ``--goal-id``/``--average-cpa``/``--crr``/
+                # ``--bid-ceiling``) per-side, per-flag based on the actual
+                # WSDL field-support sets. A flag is forwarded to a side
+                # only when that side's chosen subtype accepts the flag's
+                # WSDL field. When neither side accepts the flag we still
+                # forward to Search so the Search builder produces the
+                # canonical "CPA-shaped strategy required" error message
+                # users have relied on since #361. Issue #361/#364.
+                _search_subtype_for_routing = (
+                    _TEXT_CAMPAIGN_SEARCH_STRATEGY_TO_WSDL_SUBTYPE.get(
+                        (search_strategy or "").upper()
+                    )
+                )
+                _network_subtype_for_routing = (
+                    TEXT_CAMPAIGN_NETWORK_STRATEGY_TO_WSDL_SUBTYPE.get(
+                        (network_strategy or "").upper()
+                    )
+                )
+
+                def _route(
+                    value, search_support: set, network_support: set, default: str
+                ):
+                    """Route a shared CPA flag to Search/Network/both.
+
+                    ``default`` is the fallback side ("search" or "network")
+                    used when neither side's subtype accepts the field — it
+                    preserves the canonical error path so a user passing
+                    --average-cpa with HIGHEST_POSITION still sees the
+                    expected "CPA-shaped" error from the Search builder.
+                    """
+                    if value is None:
+                        return (None, None)
+                    s_ok = _search_subtype_for_routing in search_support
+                    n_ok = _network_subtype_for_routing in network_support
+                    if s_ok and n_ok:
+                        return (value, value)
+                    if s_ok:
+                        return (value, None)
+                    if n_ok:
+                        return (None, value)
+                    if default == "network":
+                        return (None, value)
+                    return (value, None)
+
+                _search_goal_id, _network_goal_id = _route(
+                    goal_id,
+                    _TEXT_SEARCH_SUPPORTS_GOAL_ID,
+                    _TEXT_NETWORK_GOAL_ID_SUBTYPES,
+                    default="search",
+                )
+                _search_average_cpa, _network_average_cpa = _route(
+                    average_cpa,
+                    _TEXT_SEARCH_SUPPORTS_AVERAGE_CPA,
+                    _TEXT_NETWORK_AVERAGE_CPA_SUBTYPES,
+                    default="search",
+                )
+                _search_crr, _network_crr = _route(
+                    crr,
+                    _TEXT_SEARCH_SUPPORTS_CRR,
+                    _TEXT_NETWORK_CRR_SUBTYPES,
+                    default="search",
+                )
+                _search_bid_ceiling, _network_bid_ceiling = _route(
+                    bid_ceiling,
+                    _TEXT_SEARCH_SUPPORTS_BID_CEILING,
+                    _TEXT_NETWORK_BID_CEILING_SUBTYPES,
+                    default="search",
+                )
+
+                # PriorityGoals is the single
+                # ``TextCampaignAddItem.PriorityGoals`` sibling on the
+                # parent block (WSDL minOccurs=0), but each side's builder
+                # must see it for its own required-field check whenever its
+                # strategy belongs to the multi-goals family. When BOTH
+                # sides pick a multi-goals strategy the same items satisfy
+                # both builders simultaneously; the Search builder writes
+                # ``sub_campaign_block["PriorityGoals"]`` first, and the
+                # Network builder is invoked second with the same items so
+                # its required-field check passes (the parent placement is
+                # idempotent — same value either way).
+                _multi_goal_subtypes = _TEXT_NETWORK_REQUIRES_PRIORITY_GOALS
+                _search_uses_priority_goals = (
+                    _search_subtype_for_routing in _multi_goal_subtypes
+                )
+                _network_uses_priority_goals = (
+                    _network_subtype_for_routing in _multi_goal_subtypes
+                )
+                if _search_uses_priority_goals or _network_uses_priority_goals:
+                    _search_priority_goals_items = (
+                        priority_goals_items if _search_uses_priority_goals else None
+                    )
+                    _network_priority_goals_items = (
+                        priority_goals_items if _network_uses_priority_goals else None
+                    )
+                else:
+                    # Neither side accepts ``--priority-goals``. Forward to
+                    # Search so the canonical "AVERAGE_CPA_MULTIPLE_GOALS /
+                    # ..." error surfaces from the Search builder
+                    # (preserves pre-#364 behavior on misuse).
+                    _search_priority_goals_items = priority_goals_items
+                    _network_priority_goals_items = None
                 # Issue #361: full typed-flag support for all 12 strategy
                 # families on TextCampaign.BiddingStrategy.Search. The
                 # branch="search" builder owns the entire Search payload
@@ -2617,10 +2906,10 @@ def add(
                         search_placement_dynamic_places=(
                             search_placement_dynamic_places
                         ),
-                        goal_id=goal_id,
-                        average_cpa=average_cpa,
-                        crr=crr,
-                        bid_ceiling=bid_ceiling,
+                        goal_id=_search_goal_id,
+                        average_cpa=_search_average_cpa,
+                        crr=_search_crr,
+                        bid_ceiling=_search_bid_ceiling,
                         weekly_spend_limit=text_search_weekly_spend_limit,
                         custom_period_spend_limit=(
                             text_search_custom_period_spend_limit
@@ -2639,7 +2928,7 @@ def add(
                         profitability=text_search_profitability,
                         exploration_min_budget=(text_search_exploration_min_budget),
                         exploration_is_custom=(text_search_exploration_is_custom),
-                        priority_goals_items=priority_goals_items,
+                        priority_goals_items=_search_priority_goals_items,
                         sub_campaign_block=text_block,
                         include_default=True,
                         is_update=False,
@@ -2650,11 +2939,58 @@ def add(
                             (search_strategy or "HIGHEST_POSITION").upper()
                         )
                     }
+                # Issue #364: full typed-flag support for all 13 strategy
+                # families on TextCampaign.BiddingStrategy.Network. The
+                # branch="network" builder owns the entire Network payload
+                # (subtype block, NetworkDefault.LimitPercent, PriorityGoals
+                # sibling placement). include_default=True keeps the legacy
+                # default of SERVING_OFF when no network flag is provided
+                # so the WSDL ``TextCampaignNetworkStrategyAdd.BiddingStrategyType``
+                # minOccurs=1 contract is satisfied on add without forcing
+                # the user to specify Network.
+                network_builder = get_bidding_strategy_builder(
+                    "TEXT_CAMPAIGN", "add", "network"
+                )
+                if network_builder is not None:
+                    text_network = network_builder(
+                        network_strategy=network_strategy,
+                        goal_id=_network_goal_id,
+                        average_cpa=_network_average_cpa,
+                        crr=_network_crr,
+                        bid_ceiling=_network_bid_ceiling,
+                        weekly_spend_limit=text_network_weekly_spend_limit,
+                        custom_period_spend_limit=(
+                            text_network_custom_period_spend_limit
+                        ),
+                        custom_period_start_date=(
+                            text_network_custom_period_start_date
+                        ),
+                        custom_period_end_date=text_network_custom_period_end_date,
+                        custom_period_auto_continue=(
+                            text_network_custom_period_auto_continue
+                        ),
+                        budget_type=None,
+                        average_cpc=text_network_average_cpc,
+                        pay_cpa=text_network_pay_cpa,
+                        clicks_per_week=text_network_clicks_per_week,
+                        reserve_return=text_network_reserve_return,
+                        roi_coef=text_network_roi_coef,
+                        profitability=text_network_profitability,
+                        exploration_min_budget=(text_network_exploration_min_budget),
+                        exploration_is_custom=(text_network_exploration_is_custom),
+                        limit_percent=text_network_limit_percent,
+                        priority_goals_items=_network_priority_goals_items,
+                        sub_campaign_block=text_block,
+                        include_default=True,
+                        is_update=False,
+                    )
+                else:
+                    text_network = {
+                        "BiddingStrategyType": (network_strategy or "SERVING_OFF")
+                    }
                 text_block["BiddingStrategy"] = {
                     "Search": text_search,
-                    "Network": {
-                        "BiddingStrategyType": (network_strategy or "SERVING_OFF")
-                    },
+                    "Network": text_network,
                 }
             if counter_ids_obj is not None:
                 text_block["CounterIds"] = counter_ids_obj
@@ -3593,6 +3929,96 @@ def add(
     ),
 )
 @click.option(
+    "--text-network-weekly-spend-limit",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="TextCampaign Network strategy WeeklySpendLimit in rubles (#364)",
+)
+@click.option(
+    "--text-network-custom-period-spend-limit",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="TextCampaign Network CustomPeriodBudget.SpendLimit in rubles (#364)",
+)
+@click.option(
+    "--text-network-custom-period-start-date",
+    help="TextCampaign Network CustomPeriodBudget.StartDate (#364)",
+)
+@click.option(
+    "--text-network-custom-period-end-date",
+    help="TextCampaign Network CustomPeriodBudget.EndDate (#364)",
+)
+@click.option(
+    "--text-network-custom-period-auto-continue",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help=("TextCampaign Network CustomPeriodBudget.AutoContinue: YES or NO (#364)"),
+)
+@click.option(
+    "--text-network-budget-type",
+    type=click.Choice(BUDGET_TYPES, case_sensitive=False),
+    help="TextCampaign Network strategy BudgetType for update (#364)",
+)
+@click.option(
+    "--text-network-average-cpc",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="TextCampaign Network strategy AverageCpc in rubles (#364)",
+)
+@click.option(
+    "--text-network-pay-cpa",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="TextCampaign Network StrategyPayForConversionAdd.Cpa in rubles (#364)",
+)
+@click.option(
+    "--text-network-clicks-per-week",
+    type=click.IntRange(1),
+    help="TextCampaign Network WEEKLY_CLICK_PACKAGE ClicksPerWeek (#364)",
+)
+@click.option(
+    "--text-network-reserve-return",
+    type=click.IntRange(0, 100),
+    help=(
+        "TextCampaign Network AVERAGE_ROI ReserveReturn percentage "
+        "(0-100, multiple of 10) (#364)"
+    ),
+)
+@click.option(
+    "--text-network-roi-coef",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help=(
+        "TextCampaign Network AVERAGE_ROI RoiCoef as a ratio (sales profit "
+        "/ promotion costs). Input is multiplied by 1,000,000 to match the "
+        "Yandex API wire format (e.g. 1 → 1000000) (#364)."
+    ),
+)
+@click.option(
+    "--text-network-profitability",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help=(
+        "TextCampaign Network AVERAGE_ROI Profitability percentage. Input "
+        "is multiplied by 1,000,000 to match the Yandex API wire format "
+        "(e.g. 20 → 20000000) (#364)."
+    ),
+)
+@click.option(
+    "--text-network-exploration-min-budget",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help=(
+        "TextCampaign Network ExplorationBudget.MinimumExplorationBudget "
+        "in rubles (#364)"
+    ),
+)
+@click.option(
+    "--text-network-exploration-is-custom",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help=(
+        "TextCampaign Network ExplorationBudget."
+        "IsMinimumExplorationBudgetCustom: YES or NO (#364)"
+    ),
+)
+@click.option(
+    "--text-network-limit-percent",
+    type=click.IntRange(10, 100),
+    help=("TextCampaign Network NetworkDefault.LimitPercent, 10-100 by tens (#364)"),
+)
+@click.option(
     "--dyn-network-weekly-spend-limit",
     type=RUBLES_TO_MICRO_RUBLES,
     help="DynamicTextCampaign Network strategy WeeklySpendLimit in rubles",
@@ -4221,6 +4647,21 @@ def update(
     text_search_profitability,
     text_search_exploration_min_budget,
     text_search_exploration_is_custom,
+    text_network_weekly_spend_limit,
+    text_network_custom_period_spend_limit,
+    text_network_custom_period_start_date,
+    text_network_custom_period_end_date,
+    text_network_custom_period_auto_continue,
+    text_network_budget_type,
+    text_network_average_cpc,
+    text_network_pay_cpa,
+    text_network_clicks_per_week,
+    text_network_reserve_return,
+    text_network_roi_coef,
+    text_network_profitability,
+    text_network_exploration_min_budget,
+    text_network_exploration_is_custom,
+    text_network_limit_percent,
     dyn_network_weekly_spend_limit,
     dyn_network_bid_ceiling,
     dyn_network_custom_period_spend_limit,
@@ -4507,6 +4948,33 @@ def update(
                 text_search_exploration_min_budget
             ),
             "--text-search-exploration-is-custom": (text_search_exploration_is_custom),
+            "--text-network-weekly-spend-limit": (text_network_weekly_spend_limit),
+            "--text-network-custom-period-spend-limit": (
+                text_network_custom_period_spend_limit
+            ),
+            "--text-network-custom-period-start-date": (
+                text_network_custom_period_start_date
+            ),
+            "--text-network-custom-period-end-date": (
+                text_network_custom_period_end_date
+            ),
+            "--text-network-custom-period-auto-continue": (
+                text_network_custom_period_auto_continue
+            ),
+            "--text-network-budget-type": text_network_budget_type,
+            "--text-network-average-cpc": text_network_average_cpc,
+            "--text-network-pay-cpa": text_network_pay_cpa,
+            "--text-network-clicks-per-week": text_network_clicks_per_week,
+            "--text-network-reserve-return": text_network_reserve_return,
+            "--text-network-roi-coef": text_network_roi_coef,
+            "--text-network-profitability": text_network_profitability,
+            "--text-network-exploration-min-budget": (
+                text_network_exploration_min_budget
+            ),
+            "--text-network-exploration-is-custom": (
+                text_network_exploration_is_custom
+            ),
+            "--text-network-limit-percent": text_network_limit_percent,
             "--dyn-network-weekly-spend-limit": dyn_network_weekly_spend_limit,
             "--dyn-network-bid-ceiling": dyn_network_bid_ceiling,
             "--dyn-network-custom-period-spend-limit": (
@@ -4635,6 +5103,7 @@ def update(
             text_campaign_flags = {
                 "--setting",
                 "--search-strategy",
+                "--network-strategy",
                 "--search-placement-search-results",
                 "--search-placement-product-gallery",
                 "--search-placement-dynamic-places",
@@ -4672,6 +5141,22 @@ def update(
                 "--text-search-profitability",
                 "--text-search-exploration-min-budget",
                 "--text-search-exploration-is-custom",
+                # Issue #364: TextCampaign Network strategy detail flags
+                "--text-network-weekly-spend-limit",
+                "--text-network-custom-period-spend-limit",
+                "--text-network-custom-period-start-date",
+                "--text-network-custom-period-end-date",
+                "--text-network-custom-period-auto-continue",
+                "--text-network-budget-type",
+                "--text-network-average-cpc",
+                "--text-network-pay-cpa",
+                "--text-network-clicks-per-week",
+                "--text-network-reserve-return",
+                "--text-network-roi-coef",
+                "--text-network-profitability",
+                "--text-network-exploration-min-budget",
+                "--text-network-exploration-is-custom",
+                "--text-network-limit-percent",
             }
             dynamic_campaign_flags = {
                 "--setting",
@@ -4991,6 +5476,51 @@ def update(
                                 "--text-search-exploration-is-custom": (
                                     text_search_exploration_is_custom
                                 ),
+                                # Issue #364: TextCampaign Network typed
+                                # flags must conflict with PackageBidding-
+                                # Strategy on update for the same reason.
+                                "--network-strategy": network_strategy,
+                                "--text-network-weekly-spend-limit": (
+                                    text_network_weekly_spend_limit
+                                ),
+                                "--text-network-custom-period-spend-limit": (
+                                    text_network_custom_period_spend_limit
+                                ),
+                                "--text-network-custom-period-start-date": (
+                                    text_network_custom_period_start_date
+                                ),
+                                "--text-network-custom-period-end-date": (
+                                    text_network_custom_period_end_date
+                                ),
+                                "--text-network-custom-period-auto-continue": (
+                                    text_network_custom_period_auto_continue
+                                ),
+                                "--text-network-budget-type": (
+                                    text_network_budget_type
+                                ),
+                                "--text-network-average-cpc": (
+                                    text_network_average_cpc
+                                ),
+                                "--text-network-pay-cpa": text_network_pay_cpa,
+                                "--text-network-clicks-per-week": (
+                                    text_network_clicks_per_week
+                                ),
+                                "--text-network-reserve-return": (
+                                    text_network_reserve_return
+                                ),
+                                "--text-network-roi-coef": text_network_roi_coef,
+                                "--text-network-profitability": (
+                                    text_network_profitability
+                                ),
+                                "--text-network-exploration-min-budget": (
+                                    text_network_exploration_min_budget
+                                ),
+                                "--text-network-exploration-is-custom": (
+                                    text_network_exploration_is_custom
+                                ),
+                                "--text-network-limit-percent": (
+                                    text_network_limit_percent
+                                ),
                             }
                         )
                     if is_unified:
@@ -5196,13 +5726,98 @@ def update(
                             bs["Network"] = dyn_network_block
                         sub_block["BiddingStrategy"] = bs
                 elif not is_unified and not is_dynamic:
-                    # Issue #361: full typed-flag support for the 12
-                    # strategy families on TextCampaign.BiddingStrategy.Search
-                    # update. The branch="search" builder owns the entire
-                    # Search payload (PlacementTypes, subtype block,
-                    # PriorityGoals scope validation — placement on update
-                    # is handled separately above via
-                    # ``PriorityGoalsUpdateSetting``).
+                    # Issue #361/#364: full typed-flag support for the 12
+                    # strategy families on TextCampaign.BiddingStrategy on
+                    # update. The branch="search" / branch="network"
+                    # builders own each half of the Bidding Strategy. The
+                    # shared legacy CPA flags and ``--priority-goals`` are
+                    # routed per-side, per-flag against the actual WSDL
+                    # field-support sets (mirrors the add path).
+                    _search_subtype_for_routing = (
+                        _TEXT_CAMPAIGN_SEARCH_STRATEGY_TO_WSDL_SUBTYPE.get(
+                            (search_strategy or "").upper()
+                        )
+                    )
+                    _network_subtype_for_routing = (
+                        TEXT_CAMPAIGN_NETWORK_STRATEGY_TO_WSDL_SUBTYPE.get(
+                            (network_strategy or "").upper()
+                        )
+                    )
+
+                    def _route_update(
+                        value,
+                        search_support: set,
+                        network_support: set,
+                        default: str,
+                    ):
+                        if value is None:
+                            return (None, None)
+                        s_ok = _search_subtype_for_routing in search_support
+                        n_ok = _network_subtype_for_routing in network_support
+                        if s_ok and n_ok:
+                            return (value, value)
+                        if s_ok:
+                            return (value, None)
+                        if n_ok:
+                            return (None, value)
+                        if default == "network":
+                            return (None, value)
+                        return (value, None)
+
+                    _search_goal_id, _network_goal_id = _route_update(
+                        goal_id,
+                        _TEXT_SEARCH_SUPPORTS_GOAL_ID,
+                        _TEXT_NETWORK_GOAL_ID_SUBTYPES,
+                        default="search",
+                    )
+                    _search_average_cpa, _network_average_cpa = _route_update(
+                        average_cpa,
+                        _TEXT_SEARCH_SUPPORTS_AVERAGE_CPA,
+                        _TEXT_NETWORK_AVERAGE_CPA_SUBTYPES,
+                        default="search",
+                    )
+                    _search_crr, _network_crr = _route_update(
+                        crr,
+                        _TEXT_SEARCH_SUPPORTS_CRR,
+                        _TEXT_NETWORK_CRR_SUBTYPES,
+                        default="search",
+                    )
+                    _search_bid_ceiling, _network_bid_ceiling = _route_update(
+                        bid_ceiling,
+                        _TEXT_SEARCH_SUPPORTS_BID_CEILING,
+                        _TEXT_NETWORK_BID_CEILING_SUBTYPES,
+                        default="search",
+                    )
+
+                    # PriorityGoals routing on update mirrors add: both
+                    # sides may simultaneously belong to the multi-goals
+                    # family and must each see the items for their own
+                    # required-field check (the parent placement on update
+                    # is handled by the dedicated PriorityGoalsUpdateSetting
+                    # shape earlier in this branch, so the builders only
+                    # validate scope without writing to sub_block here).
+                    _multi_goal_subtypes = _TEXT_NETWORK_REQUIRES_PRIORITY_GOALS
+                    _search_uses_priority_goals = (
+                        _search_subtype_for_routing in _multi_goal_subtypes
+                    )
+                    _network_uses_priority_goals = (
+                        _network_subtype_for_routing in _multi_goal_subtypes
+                    )
+                    if _search_uses_priority_goals or _network_uses_priority_goals:
+                        _search_priority_goals_items = (
+                            priority_goals_items
+                            if _search_uses_priority_goals
+                            else None
+                        )
+                        _network_priority_goals_items = (
+                            priority_goals_items
+                            if _network_uses_priority_goals
+                            else None
+                        )
+                    else:
+                        _search_priority_goals_items = priority_goals_items
+                        _network_priority_goals_items = None
+
                     search_builder = get_bidding_strategy_builder(
                         "TEXT_CAMPAIGN", "update", "search"
                     )
@@ -5218,10 +5833,10 @@ def update(
                             search_placement_dynamic_places=(
                                 search_placement_dynamic_places
                             ),
-                            goal_id=goal_id,
-                            average_cpa=average_cpa,
-                            crr=crr,
-                            bid_ceiling=bid_ceiling,
+                            goal_id=_search_goal_id,
+                            average_cpa=_search_average_cpa,
+                            crr=_search_crr,
+                            bid_ceiling=_search_bid_ceiling,
                             weekly_spend_limit=text_search_weekly_spend_limit,
                             custom_period_spend_limit=(
                                 text_search_custom_period_spend_limit
@@ -5242,7 +5857,7 @@ def update(
                             profitability=text_search_profitability,
                             exploration_min_budget=(text_search_exploration_min_budget),
                             exploration_is_custom=(text_search_exploration_is_custom),
-                            priority_goals_items=priority_goals_items,
+                            priority_goals_items=_search_priority_goals_items,
                             sub_campaign_block=sub_block,
                             include_default=False,
                             is_update=True,
@@ -5253,8 +5868,61 @@ def update(
                             if search_strategy is not None
                             else None
                         )
+
+                    network_builder = get_bidding_strategy_builder(
+                        "TEXT_CAMPAIGN", "update", "network"
+                    )
+                    if network_builder is not None:
+                        text_network = network_builder(
+                            network_strategy=network_strategy,
+                            goal_id=_network_goal_id,
+                            average_cpa=_network_average_cpa,
+                            crr=_network_crr,
+                            bid_ceiling=_network_bid_ceiling,
+                            weekly_spend_limit=text_network_weekly_spend_limit,
+                            custom_period_spend_limit=(
+                                text_network_custom_period_spend_limit
+                            ),
+                            custom_period_start_date=(
+                                text_network_custom_period_start_date
+                            ),
+                            custom_period_end_date=(
+                                text_network_custom_period_end_date
+                            ),
+                            custom_period_auto_continue=(
+                                text_network_custom_period_auto_continue
+                            ),
+                            budget_type=text_network_budget_type,
+                            average_cpc=text_network_average_cpc,
+                            pay_cpa=text_network_pay_cpa,
+                            clicks_per_week=text_network_clicks_per_week,
+                            reserve_return=text_network_reserve_return,
+                            roi_coef=text_network_roi_coef,
+                            profitability=text_network_profitability,
+                            exploration_min_budget=(
+                                text_network_exploration_min_budget
+                            ),
+                            exploration_is_custom=(text_network_exploration_is_custom),
+                            limit_percent=text_network_limit_percent,
+                            priority_goals_items=_network_priority_goals_items,
+                            sub_campaign_block=sub_block,
+                            include_default=False,
+                            is_update=True,
+                        )
+                    else:
+                        text_network = (
+                            {"BiddingStrategyType": (network_strategy.upper())}
+                            if network_strategy is not None
+                            else None
+                        )
+
+                    bidding_strategy_block: Dict[str, object] = {}
                     if text_search is not None:
-                        sub_block["BiddingStrategy"] = {"Search": text_search}
+                        bidding_strategy_block["Search"] = text_search
+                    if text_network is not None:
+                        bidding_strategy_block["Network"] = text_network
+                    if bidding_strategy_block:
+                        sub_block["BiddingStrategy"] = bidding_strategy_block
                 negative_keyword_shared_set_ids_obj = _array_of_integer_option(
                     "--negative-keyword-shared-set-ids",
                     negative_keyword_shared_set_ids,
