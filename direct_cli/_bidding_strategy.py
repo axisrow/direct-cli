@@ -3145,18 +3145,6 @@ def build_text_campaign_network_strategy(
                 "--text-network-weekly-spend-limit"
             )
 
-    # WeeklyClickPackage edge: WSDL declares AverageCpc + BidCeiling as
-    # mutually exclusive in practice; mirror the Search branch.
-    if (
-        subtype == "WeeklyClickPackage"
-        and average_cpc is not None
-        and bid_ceiling is not None
-    ):
-        raise click.UsageError(
-            "WEEKLY_CLICK_PACKAGE cannot combine --text-network-average-cpc "
-            "with --bid-ceiling"
-        )
-
     # PriorityGoals scope check. On add we also place PriorityGoals onto
     # the parent ``TextCampaignAddItem`` (sibling of BiddingStrategy). On
     # update the caller passes PriorityGoals via the separate

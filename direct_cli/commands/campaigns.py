@@ -23,6 +23,17 @@ from ..utils import (
 )
 from .._bidding_strategy import (
     BUDGET_TYPES,
+    TEXT_CAMPAIGN_NETWORK_STRATEGY_TO_WSDL_SUBTYPE,
+    _TEXT_CAMPAIGN_SEARCH_STRATEGY_TO_WSDL_SUBTYPE,
+    _TEXT_NETWORK_AVERAGE_CPA_SUBTYPES,
+    _TEXT_NETWORK_BID_CEILING_SUBTYPES,
+    _TEXT_NETWORK_CRR_SUBTYPES,
+    _TEXT_NETWORK_GOAL_ID_SUBTYPES,
+    _TEXT_NETWORK_REQUIRES_PRIORITY_GOALS,
+    _TEXT_SEARCH_SUPPORTS_AVERAGE_CPA,
+    _TEXT_SEARCH_SUPPORTS_BID_CEILING,
+    _TEXT_SEARCH_SUPPORTS_CRR,
+    _TEXT_SEARCH_SUPPORTS_GOAL_ID,
     get_bidding_strategy_builder,
 )
 
@@ -2352,47 +2363,88 @@ def add(
             if package_bidding_strategy_obj is not None:
                 text_block["PackageBiddingStrategy"] = package_bidding_strategy_obj
             else:
-                # Route ``priority_goals`` and the shared legacy CPA flags
-                # (--goal-id/--average-cpa/--crr/--bid-ceiling) to the side
-                # whose strategy uses them. The two ``*_MULTIPLE_GOALS``
-                # strategies and ``MAX_PROFIT`` require PriorityGoals; only
-                # one side can be in that set at a time on typical campaigns.
-                # When only Network is in that set we route the items to
-                # Network and pass ``None`` to Search so the Search builder
-                # does not reject the user-input PriorityGoals as incompatible
-                # with a non-multi-goals search strategy. When Search is in
-                # that set we keep the legacy pre-#364 behavior of forwarding
-                # the items to Search. Issue #361/#364.
-                _multi_goal_strategies = {
-                    "AVERAGE_CPA_MULTIPLE_GOALS",
-                    "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
-                    "MAX_PROFIT",
-                }
-                # CPA-shaped network strategies that accept the shared
-                # ``--goal-id``/``--average-cpa``/``--crr``/``--bid-ceiling``
-                # flags on the Network side. When the user does NOT pick one
-                # of these the legacy CPA flags belong to Search only, so we
-                # pass ``None`` to Network to avoid the Network builder
-                # raising "AVERAGE_CPA only valid with CPA-shaped strategy"
-                # for the implicit SERVING_OFF default.
-                _cpa_shaped_network_strategies = {
-                    "WB_MAXIMUM_CONVERSION_RATE",
-                    "AVERAGE_CPA",
-                    "PAY_FOR_CONVERSION",
-                    "AVERAGE_ROI",
-                    "AVERAGE_CRR",
-                    "PAY_FOR_CONVERSION_CRR",
-                    "AVERAGE_CPA_MULTIPLE_GOALS",
-                    "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
-                    "MAX_PROFIT",
-                    "WB_MAXIMUM_CLICKS",
-                    "WEEKLY_CLICK_PACKAGE",
-                }
-                _norm_search = (search_strategy or "").upper()
-                _norm_network = (network_strategy or "").upper()
-                _search_uses_priority_goals = _norm_search in _multi_goal_strategies
+                # Route shared inputs (``--priority-goals`` and the legacy
+                # CPA flags ``--goal-id``/``--average-cpa``/``--crr``/
+                # ``--bid-ceiling``) per-side, per-flag based on the actual
+                # WSDL field-support sets. A flag is forwarded to a side
+                # only when that side's chosen subtype accepts the flag's
+                # WSDL field. When neither side accepts the flag we still
+                # forward to Search so the Search builder produces the
+                # canonical "CPA-shaped strategy required" error message
+                # users have relied on since #361. Issue #361/#364.
+                _search_subtype_for_routing = (
+                    _TEXT_CAMPAIGN_SEARCH_STRATEGY_TO_WSDL_SUBTYPE.get(
+                        (search_strategy or "").upper()
+                    )
+                )
+                _network_subtype_for_routing = (
+                    TEXT_CAMPAIGN_NETWORK_STRATEGY_TO_WSDL_SUBTYPE.get(
+                        (network_strategy or "").upper()
+                    )
+                )
+
+                def _route(
+                    value, search_support: set, network_support: set, default: str
+                ):
+                    """Route a shared CPA flag to Search/Network/both.
+
+                    ``default`` is the fallback side ("search" or "network")
+                    used when neither side's subtype accepts the field — it
+                    preserves the canonical error path so a user passing
+                    --average-cpa with HIGHEST_POSITION still sees the
+                    expected "CPA-shaped" error from the Search builder.
+                    """
+                    if value is None:
+                        return (None, None)
+                    s_ok = _search_subtype_for_routing in search_support
+                    n_ok = _network_subtype_for_routing in network_support
+                    if s_ok and n_ok:
+                        return (value, value)
+                    if s_ok:
+                        return (value, None)
+                    if n_ok:
+                        return (None, value)
+                    if default == "network":
+                        return (None, value)
+                    return (value, None)
+
+                _search_goal_id, _network_goal_id = _route(
+                    goal_id,
+                    _TEXT_SEARCH_SUPPORTS_GOAL_ID,
+                    _TEXT_NETWORK_GOAL_ID_SUBTYPES,
+                    default="search",
+                )
+                _search_average_cpa, _network_average_cpa = _route(
+                    average_cpa,
+                    _TEXT_SEARCH_SUPPORTS_AVERAGE_CPA,
+                    _TEXT_NETWORK_AVERAGE_CPA_SUBTYPES,
+                    default="search",
+                )
+                _search_crr, _network_crr = _route(
+                    crr,
+                    _TEXT_SEARCH_SUPPORTS_CRR,
+                    _TEXT_NETWORK_CRR_SUBTYPES,
+                    default="search",
+                )
+                _search_bid_ceiling, _network_bid_ceiling = _route(
+                    bid_ceiling,
+                    _TEXT_SEARCH_SUPPORTS_BID_CEILING,
+                    _TEXT_NETWORK_BID_CEILING_SUBTYPES,
+                    default="search",
+                )
+
+                # PriorityGoals is also routed per-side: the WSDL parent
+                # ``TextCampaignAddItem.PriorityGoals`` is a single sibling,
+                # but conceptually it belongs to whichever side picks a
+                # multi-goals strategy. When BOTH sides do (atypical but
+                # legal in WSDL) we keep the pre-#364 behavior of forwarding
+                # to Search.
+                _multi_goal_subtypes = _TEXT_NETWORK_REQUIRES_PRIORITY_GOALS
+                _search_uses_priority_goals = (
+                    _search_subtype_for_routing in _multi_goal_subtypes
+                )
                 _network_uses_priority_goals = (
-                    _norm_network in _multi_goal_strategies
+                    _network_subtype_for_routing in _multi_goal_subtypes
                     and not _search_uses_priority_goals
                 )
                 _search_priority_goals_items = (
@@ -2400,57 +2452,6 @@ def add(
                 )
                 _network_priority_goals_items = (
                     priority_goals_items if _network_uses_priority_goals else None
-                )
-                _network_takes_legacy_cpa = (
-                    _norm_network in _cpa_shaped_network_strategies
-                )
-                _network_goal_id = goal_id if _network_takes_legacy_cpa else None
-                _network_average_cpa = (
-                    average_cpa if _network_takes_legacy_cpa else None
-                )
-                _network_crr = crr if _network_takes_legacy_cpa else None
-                _network_bid_ceiling = (
-                    bid_ceiling if _network_takes_legacy_cpa else None
-                )
-                # Symmetric routing for Search: when Search defaults to
-                # ``HIGHEST_POSITION`` (no CPA-shape) but Network IS the
-                # CPA-shaped strategy, the shared --average-cpa/--goal-id/
-                # --crr/--bid-ceiling flags belong to Network only. Pass
-                # ``None`` to Search so it does not raise about the legacy
-                # CPA flags not matching the implicit HIGHEST_POSITION.
-                _cpa_shaped_search_strategies = {
-                    "WB_MAXIMUM_CONVERSION_RATE",
-                    "AVERAGE_CPA",
-                    "PAY_FOR_CONVERSION",
-                    "AVERAGE_ROI",
-                    "AVERAGE_CRR",
-                    "PAY_FOR_CONVERSION_CRR",
-                    "AVERAGE_CPA_MULTIPLE_GOALS",
-                    "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
-                    "MAX_PROFIT",
-                    "WB_MAXIMUM_CLICKS",
-                    "WEEKLY_CLICK_PACKAGE",
-                }
-                _search_takes_legacy_cpa = _norm_search in _cpa_shaped_search_strategies
-                _search_goal_id = (
-                    goal_id
-                    if _search_takes_legacy_cpa or not _network_takes_legacy_cpa
-                    else None
-                )
-                _search_average_cpa = (
-                    average_cpa
-                    if _search_takes_legacy_cpa or not _network_takes_legacy_cpa
-                    else None
-                )
-                _search_crr = (
-                    crr
-                    if _search_takes_legacy_cpa or not _network_takes_legacy_cpa
-                    else None
-                )
-                _search_bid_ceiling = (
-                    bid_ceiling
-                    if _search_takes_legacy_cpa or not _network_takes_legacy_cpa
-                    else None
                 )
                 # Issue #361: full typed-flag support for all 12 strategy
                 # families on TextCampaign.BiddingStrategy.Search. The
@@ -4629,33 +4630,72 @@ def update(
                     # Issue #361/#364: full typed-flag support for the 12
                     # strategy families on TextCampaign.BiddingStrategy on
                     # update. The branch="search" / branch="network"
-                    # builders own each half of the Bidding Strategy. On
-                    # update we route priority_goals_items and the shared
-                    # legacy CPA flags only to the side whose strategy
-                    # supports them (mirrors the add path).
-                    _multi_goal_strategies = {
-                        "AVERAGE_CPA_MULTIPLE_GOALS",
-                        "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
-                        "MAX_PROFIT",
-                    }
-                    _cpa_shaped_network_strategies = {
-                        "WB_MAXIMUM_CONVERSION_RATE",
-                        "AVERAGE_CPA",
-                        "PAY_FOR_CONVERSION",
-                        "AVERAGE_ROI",
-                        "AVERAGE_CRR",
-                        "PAY_FOR_CONVERSION_CRR",
-                        "AVERAGE_CPA_MULTIPLE_GOALS",
-                        "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
-                        "MAX_PROFIT",
-                        "WB_MAXIMUM_CLICKS",
-                        "WEEKLY_CLICK_PACKAGE",
-                    }
-                    _norm_search = (search_strategy or "").upper()
-                    _norm_network = (network_strategy or "").upper()
-                    _search_uses_priority_goals = _norm_search in _multi_goal_strategies
+                    # builders own each half of the Bidding Strategy. The
+                    # shared legacy CPA flags and ``--priority-goals`` are
+                    # routed per-side, per-flag against the actual WSDL
+                    # field-support sets (mirrors the add path).
+                    _search_subtype_for_routing = (
+                        _TEXT_CAMPAIGN_SEARCH_STRATEGY_TO_WSDL_SUBTYPE.get(
+                            (search_strategy or "").upper()
+                        )
+                    )
+                    _network_subtype_for_routing = (
+                        TEXT_CAMPAIGN_NETWORK_STRATEGY_TO_WSDL_SUBTYPE.get(
+                            (network_strategy or "").upper()
+                        )
+                    )
+
+                    def _route_update(
+                        value,
+                        search_support: set,
+                        network_support: set,
+                        default: str,
+                    ):
+                        if value is None:
+                            return (None, None)
+                        s_ok = _search_subtype_for_routing in search_support
+                        n_ok = _network_subtype_for_routing in network_support
+                        if s_ok and n_ok:
+                            return (value, value)
+                        if s_ok:
+                            return (value, None)
+                        if n_ok:
+                            return (None, value)
+                        if default == "network":
+                            return (None, value)
+                        return (value, None)
+
+                    _search_goal_id, _network_goal_id = _route_update(
+                        goal_id,
+                        _TEXT_SEARCH_SUPPORTS_GOAL_ID,
+                        _TEXT_NETWORK_GOAL_ID_SUBTYPES,
+                        default="search",
+                    )
+                    _search_average_cpa, _network_average_cpa = _route_update(
+                        average_cpa,
+                        _TEXT_SEARCH_SUPPORTS_AVERAGE_CPA,
+                        _TEXT_NETWORK_AVERAGE_CPA_SUBTYPES,
+                        default="search",
+                    )
+                    _search_crr, _network_crr = _route_update(
+                        crr,
+                        _TEXT_SEARCH_SUPPORTS_CRR,
+                        _TEXT_NETWORK_CRR_SUBTYPES,
+                        default="search",
+                    )
+                    _search_bid_ceiling, _network_bid_ceiling = _route_update(
+                        bid_ceiling,
+                        _TEXT_SEARCH_SUPPORTS_BID_CEILING,
+                        _TEXT_NETWORK_BID_CEILING_SUBTYPES,
+                        default="search",
+                    )
+
+                    _multi_goal_subtypes = _TEXT_NETWORK_REQUIRES_PRIORITY_GOALS
+                    _search_uses_priority_goals = (
+                        _search_subtype_for_routing in _multi_goal_subtypes
+                    )
                     _network_uses_priority_goals = (
-                        _norm_network in _multi_goal_strategies
+                        _network_subtype_for_routing in _multi_goal_subtypes
                         and not _search_uses_priority_goals
                     )
                     _search_priority_goals_items = (
@@ -4663,53 +4703,6 @@ def update(
                     )
                     _network_priority_goals_items = (
                         priority_goals_items if _network_uses_priority_goals else None
-                    )
-                    _network_takes_legacy_cpa = (
-                        _norm_network in _cpa_shaped_network_strategies
-                    )
-                    _network_goal_id = goal_id if _network_takes_legacy_cpa else None
-                    _network_average_cpa = (
-                        average_cpa if _network_takes_legacy_cpa else None
-                    )
-                    _network_crr = crr if _network_takes_legacy_cpa else None
-                    _network_bid_ceiling = (
-                        bid_ceiling if _network_takes_legacy_cpa else None
-                    )
-                    _cpa_shaped_search_strategies = {
-                        "WB_MAXIMUM_CONVERSION_RATE",
-                        "AVERAGE_CPA",
-                        "PAY_FOR_CONVERSION",
-                        "AVERAGE_ROI",
-                        "AVERAGE_CRR",
-                        "PAY_FOR_CONVERSION_CRR",
-                        "AVERAGE_CPA_MULTIPLE_GOALS",
-                        "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
-                        "MAX_PROFIT",
-                        "WB_MAXIMUM_CLICKS",
-                        "WEEKLY_CLICK_PACKAGE",
-                    }
-                    _search_takes_legacy_cpa = (
-                        _norm_search in _cpa_shaped_search_strategies
-                    )
-                    _search_goal_id = (
-                        goal_id
-                        if _search_takes_legacy_cpa or not _network_takes_legacy_cpa
-                        else None
-                    )
-                    _search_average_cpa = (
-                        average_cpa
-                        if _search_takes_legacy_cpa or not _network_takes_legacy_cpa
-                        else None
-                    )
-                    _search_crr = (
-                        crr
-                        if _search_takes_legacy_cpa or not _network_takes_legacy_cpa
-                        else None
-                    )
-                    _search_bid_ceiling = (
-                        bid_ceiling
-                        if _search_takes_legacy_cpa or not _network_takes_legacy_cpa
-                        else None
                     )
 
                     search_builder = get_bidding_strategy_builder(

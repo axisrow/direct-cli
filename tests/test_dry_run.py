@@ -11779,6 +11779,110 @@ def test_campaigns_add_text_network_rejects_priority_goals_for_average_cpa():
     assert "--priority-goals" in result.output
 
 
+def test_campaigns_add_text_network_search_cpa_plus_network_wb_max_clicks_payload():
+    """#364: shared --average-cpa / --goal-id route to Search only when
+    Network = WB_MAXIMUM_CLICKS (Network's StrategyMaximumClicksAdd has no
+    AverageCpa/GoalId per WSDL); Network must still receive its own
+    --text-network-weekly-spend-limit."""
+    body = _dry_run(
+        *_text_network_base_args(),
+        "--search-strategy",
+        "AVERAGE_CPA",
+        "--average-cpa",
+        "150000000",
+        "--goal-id",
+        "9",
+        "--network-strategy",
+        "WB_MAXIMUM_CLICKS",
+        "--text-network-weekly-spend-limit",
+        "300",
+        "--bid-ceiling",
+        "20000000",
+    )
+    bs = body["params"]["Campaigns"][0]["TextCampaign"]["BiddingStrategy"]
+    assert bs == {
+        "Search": {
+            "BiddingStrategyType": "AVERAGE_CPA",
+            "AverageCpa": {
+                "AverageCpa": 150000000,
+                "GoalId": 9,
+                "BidCeiling": 20000000,
+            },
+        },
+        "Network": {
+            "BiddingStrategyType": "WB_MAXIMUM_CLICKS",
+            "WbMaximumClicks": {
+                "WeeklySpendLimit": 300000000,
+                "BidCeiling": 20000000,
+            },
+        },
+    }
+
+
+def test_campaigns_add_text_network_search_cpa_plus_network_weekly_click_package_payload():
+    """#364: shared --bid-ceiling routes to BOTH sides when both subtypes
+    accept it (WeeklyClickPackage carries BidCeiling per WSDL line 1486)."""
+    body = _dry_run(
+        *_text_network_base_args(),
+        "--search-strategy",
+        "AVERAGE_CPA",
+        "--average-cpa",
+        "100000000",
+        "--goal-id",
+        "1",
+        "--bid-ceiling",
+        "50000000",
+        "--network-strategy",
+        "WEEKLY_CLICK_PACKAGE",
+        "--text-network-clicks-per-week",
+        "100",
+    )
+    bs = body["params"]["Campaigns"][0]["TextCampaign"]["BiddingStrategy"]
+    assert bs["Search"]["AverageCpa"]["BidCeiling"] == 50000000
+    assert bs["Network"]["WeeklyClickPackage"] == {
+        "ClicksPerWeek": 100,
+        "BidCeiling": 50000000,
+    }
+
+
+def test_campaigns_update_text_network_search_cpa_plus_network_wb_max_clicks_payload():
+    """#364: update path applies the same per-side, per-flag routing."""
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "4001",
+        "--type",
+        "TEXT_CAMPAIGN",
+        "--search-strategy",
+        "AVERAGE_CPA",
+        "--average-cpa",
+        "100000000",
+        "--goal-id",
+        "5",
+        "--network-strategy",
+        "WB_MAXIMUM_CLICKS",
+        "--text-network-weekly-spend-limit",
+        "400",
+    )
+    bs = body["params"]["Campaigns"][0]["TextCampaign"]["BiddingStrategy"]
+    assert bs == {
+        "Search": {
+            "BiddingStrategyType": "AVERAGE_CPA",
+            "AverageCpa": {
+                "AverageCpa": 100000000,
+                "GoalId": 5,
+            },
+        },
+        "Network": {
+            "BiddingStrategyType": "WB_MAXIMUM_CLICKS",
+            "WbMaximumClicks": {
+                "WeeklySpendLimit": 400000000,
+            },
+        },
+    }
+
+
 def test_campaigns_add_text_network_rejects_priority_goals_for_pure_cpa_network():
     """#364: when Search is also CPA (so the Search builder accepts it) but
     Network is plain AVERAGE_CPA (single-goal), the Network builder catches
@@ -11811,8 +11915,12 @@ def test_campaigns_add_text_network_rejects_one_priority_goal_for_multi():
     assert "--priority-goals requires at least 2 entries" in result.output
 
 
-def test_campaigns_add_text_network_weekly_click_package_rejects_combined_ceilings():
-    result = _rejected(
+def test_campaigns_add_text_network_weekly_click_package_combined_ceilings_payload():
+    """#364: WSDL ``StrategyWeeklyClickPackageAdd`` (campaigns.xml lines
+    1482-1487) declares ``AverageCpc`` and ``BidCeiling`` as independent
+    sibling fields, so the CLI must accept both flags together for
+    WEEKLY_CLICK_PACKAGE."""
+    body = _dry_run(
         *_text_network_base_args(),
         "--network-strategy",
         "WEEKLY_CLICK_PACKAGE",
@@ -11823,10 +11931,17 @@ def test_campaigns_add_text_network_weekly_click_package_rejects_combined_ceilin
         "--bid-ceiling",
         "1000000",
     )
-    assert (
-        "WEEKLY_CLICK_PACKAGE cannot combine --text-network-average-cpc"
-        in result.output
-    )
+    network = body["params"]["Campaigns"][0]["TextCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "WEEKLY_CLICK_PACKAGE",
+        "WeeklyClickPackage": {
+            "ClicksPerWeek": 100,
+            "AverageCpc": 5000000,
+            "BidCeiling": 1000000,
+        },
+    }
 
 
 def test_campaigns_add_text_network_rejects_reserve_return_off_step():
