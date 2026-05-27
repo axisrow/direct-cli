@@ -50,6 +50,7 @@ Part of axisrow/yandex-direct-mcp-plugin#61.
 
 import base64
 import json
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -852,9 +853,9 @@ def test_ads_add_text_ad_optional_extension_fields_payload():
         "--video-extension-creative-id",
         "0",
         "--price-extension-price",
-        "123.45",
+        "123450000",
         "--price-extension-old-price",
-        "234.56",
+        "234560000",
         "--price-extension-price-qualifier",
         "from",
         "--price-extension-price-currency",
@@ -896,7 +897,7 @@ def test_ads_add_text_ad_price_extension_requires_mandatory_fields():
         "--href",
         "https://example.com",
         "--price-extension-old-price",
-        "234.56",
+        "234560000",
     )
     assert "TextAd.PriceExtension add requires" in result.output
     assert "--price-extension-price" in result.output
@@ -934,7 +935,7 @@ def test_ads_add_text_ad_optional_extension_flags_reject_other_subtypes():
         "--action",
         "INSTALL",
         "--price-extension-price",
-        "123.45",
+        "123450000",
     )
     assert (
         "--prefer-vcard-over-business is not compatible with --type TEXT_IMAGE_AD"
@@ -1368,9 +1369,9 @@ def test_ads_add_responsive_ad_payload():
         "--display-url-path",
         "deals",
         "--price-extension-price",
-        "123.45",
+        "123450000",
         "--price-extension-old-price",
-        "150.00",
+        "150000000",
         "--price-extension-price-qualifier",
         "from",
         "--price-extension-price-currency",
@@ -1496,7 +1497,7 @@ def test_ads_add_responsive_ad_price_extension_requires_mandatory_fields():
         "--href",
         "https://example.com",
         "--price-extension-old-price",
-        "150.00",
+        "150000000",
     )
     assert "ResponsiveAd.PriceExtension add requires" in result.output
     assert "--price-extension-price" in result.output
@@ -2286,9 +2287,9 @@ def test_ads_update_responsive_ad_payload():
         "--display-url-path",
         "deals",
         "--price-extension-price",
-        "123.45",
+        "123450000",
         "--price-extension-old-price",
-        "150.00",
+        "150000000",
         "--price-extension-price-qualifier",
         "from",
         "--price-extension-price-currency",
@@ -3386,9 +3387,9 @@ def test_ads_update_text_ad_price_extension_payload():
         "--type",
         "TEXT_AD",
         "--price-extension-price",
-        "123.45",
+        "123450000",
         "--price-extension-old-price",
-        "150.00",
+        "150000000",
         "--price-extension-price-qualifier",
         "from",
         "--price-extension-price-currency",
@@ -3407,8 +3408,8 @@ def test_ads_update_text_ad_price_extension_payload():
     }
 
 
-def test_ads_update_text_ad_price_extension_rejects_fractional_cents():
-    """PriceExtension money input is human-readable with two decimal places."""
+def test_ads_update_text_ad_price_extension_rejects_decimal_rubles():
+    """PriceExtension money input is API-native micro-rubles."""
     result = _rejected(
         "ads",
         "update",
@@ -3419,9 +3420,7 @@ def test_ads_update_text_ad_price_extension_rejects_fractional_cents():
         "--price-extension-price",
         "123.456",
     )
-    assert "--price-extension-price must have at most two decimal places" in (
-        result.output
-    )
+    assert "Expected integer (micro-rubles)" in result.output
 
 
 def test_ads_update_text_ad_price_extension_partial_payload():
@@ -3470,7 +3469,7 @@ def test_ads_update_text_ad_price_extension_flags_rejected_for_mobile_app_ad():
         "--type",
         "MOBILE_APP_AD",
         "--price-extension-price",
-        "123.45",
+        "123450000",
     )
     assert (
         "--price-extension-price is not compatible with --type MOBILE_APP_AD"
@@ -5332,17 +5331,16 @@ def _smart_search_base():
 
 
 def test_campaigns_add_smart_search_average_cpc_per_campaign_payload():
-    # CLI takes rubles (5 = 5_000_000 micro-rubles).
     body = _dry_run(
         *_smart_search_base(),
         "--search-strategy",
         "AVERAGE_CPC_PER_CAMPAIGN",
         "--smart-search-average-cpc",
-        "5",
+        "5000000",
         "--smart-search-bid-ceiling",
-        "9",
+        "9000000",
         "--smart-search-weekly-spend-limit",
-        "50",
+        "50000000",
     )
     search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"][
         "Search"
@@ -5363,7 +5361,7 @@ def test_campaigns_add_smart_search_average_cpc_per_filter_payload():
         "--search-strategy",
         "AVERAGE_CPC_PER_FILTER",
         "--smart-search-filter-average-cpc",
-        "3",
+        "3000000",
     )
     search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"][
         "Search"
@@ -5394,11 +5392,11 @@ def test_campaigns_add_smart_search_average_cpa_per_campaign_payload():
         "--search-strategy",
         "AVERAGE_CPA_PER_CAMPAIGN",
         "--smart-search-average-cpa",
-        "4",
+        "4000000",
         "--smart-search-goal-id",
         "111",
         "--smart-search-bid-ceiling",
-        "9",
+        "9000000",
     )
     search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"][
         "Search"
@@ -5419,11 +5417,11 @@ def test_campaigns_add_smart_search_average_cpa_per_filter_payload():
         "--search-strategy",
         "AVERAGE_CPA_PER_FILTER",
         "--smart-search-filter-average-cpa",
-        "4.5",
+        "4500000",
         "--smart-search-goal-id",
         "222",
         "--smart-search-cp-spend-limit",
-        "100",
+        "100000000",
         "--smart-search-cp-start-date",
         "2026-06-01",
         "--smart-search-cp-end-date",
@@ -5455,11 +5453,11 @@ def test_campaigns_add_smart_search_pay_for_conversion_per_campaign_payload():
         "--search-strategy",
         "PAY_FOR_CONVERSION_PER_CAMPAIGN",
         "--smart-search-cpa",
-        "6",
+        "6000000",
         "--smart-search-goal-id",
         "333",
         "--smart-search-weekly-spend-limit",
-        "50",
+        "50000000",
     )
     search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"][
         "Search"
@@ -5480,7 +5478,7 @@ def test_campaigns_add_smart_search_pay_for_conversion_per_filter_payload():
         "--search-strategy",
         "PAY_FOR_CONVERSION_PER_FILTER",
         "--smart-search-cpa",
-        "5.5",
+        "5500000",
         "--smart-search-goal-id",
         "444",
     )
@@ -5501,15 +5499,15 @@ def test_campaigns_add_smart_search_average_roi_payload():
         "--smart-search-reserve-return",
         "30",
         "--smart-search-roi-coef",
-        "1.5",
+        "1500000",
         "--smart-search-goal-id",
         "555",
         "--smart-search-profitability",
-        "0.2",
+        "200000",
         "--smart-search-bid-ceiling",
-        "10",
+        "10000000",
         "--smart-search-exploration-min",
-        "20",
+        "20000000",
         "--smart-search-exploration-min-custom",
         "YES",
     )
@@ -5542,7 +5540,7 @@ def test_campaigns_add_smart_search_average_crr_payload():
         "--smart-search-goal-id",
         "666",
         "--smart-search-weekly-spend-limit",
-        "40",
+        "40000000",
     )
     search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"][
         "Search"
@@ -5625,9 +5623,9 @@ def test_campaigns_add_smart_search_rejects_wrong_subtype_flag():
         "--search-strategy",
         "AVERAGE_CPC_PER_CAMPAIGN",
         "--smart-search-average-cpc",
-        "5",
+        "5000000",
         "--smart-search-average-cpa",
-        "4",
+        "4000000",
     )
     assert "--smart-search-average-cpa" in result.output
 
@@ -5643,7 +5641,7 @@ def test_campaigns_add_smart_search_rejects_bid_ceiling_on_crr():
         "--smart-search-goal-id",
         "777",
         "--smart-search-bid-ceiling",
-        "10",
+        "10000000",
     )
     assert "--smart-search-bid-ceiling" in result.output
 
@@ -5655,9 +5653,9 @@ def test_campaigns_add_smart_search_rejects_exploration_on_cpc_per_campaign():
         "--search-strategy",
         "AVERAGE_CPC_PER_CAMPAIGN",
         "--smart-search-average-cpc",
-        "5",
+        "5000000",
         "--smart-search-exploration-min",
-        "1",
+        "1000000",
         "--smart-search-exploration-min-custom",
         "YES",
     )
@@ -5670,9 +5668,9 @@ def test_campaigns_add_smart_search_rejects_partial_custom_period_budget():
         "--search-strategy",
         "AVERAGE_CPC_PER_CAMPAIGN",
         "--smart-search-average-cpc",
-        "5",
+        "5000000",
         "--smart-search-cp-spend-limit",
-        "100",
+        "100000000",
         # Missing start-date / end-date / auto-continue.
     )
     assert "CustomPeriodBudget" in result.output
@@ -5686,11 +5684,11 @@ def test_campaigns_add_smart_search_rejects_partial_exploration_budget():
         "--smart-search-reserve-return",
         "30",
         "--smart-search-roi-coef",
-        "1.5",
+        "1500000",
         "--smart-search-goal-id",
         "555",
         "--smart-search-exploration-min",
-        "20",
+        "20000000",
         # missing --smart-search-exploration-min-custom
     )
     assert "ExplorationBudget" in result.output
@@ -5702,7 +5700,7 @@ def test_campaigns_add_smart_search_rejects_detail_without_strategy():
     result = _rejected(
         *_smart_search_base(),
         "--smart-search-average-cpc",
-        "5",
+        "5000000",
     )
     assert "SmartCampaign search detail flags" in result.output
 
@@ -5713,7 +5711,7 @@ def test_campaigns_add_smart_search_rejects_serving_off_with_details():
         "--search-strategy",
         "SERVING_OFF",
         "--smart-search-average-cpc",
-        "5",
+        "5000000",
     )
     assert "SERVING_OFF" in result.output
 
@@ -5743,7 +5741,7 @@ def test_campaigns_update_smart_search_average_cpc_per_campaign_payload():
         "--search-strategy",
         "AVERAGE_CPC_PER_CAMPAIGN",
         "--smart-search-average-cpc",
-        "5",
+        "5000000",
     )
     campaign = body["params"]["Campaigns"][0]
     assert campaign == {
@@ -5770,7 +5768,7 @@ def test_campaigns_update_smart_search_average_cpc_per_filter_payload():
         "--search-strategy",
         "AVERAGE_CPC_PER_FILTER",
         "--smart-search-filter-average-cpc",
-        "3",
+        "3000000",
     )
     search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"][
         "Search"
@@ -5792,7 +5790,7 @@ def test_campaigns_update_smart_search_average_cpa_per_campaign_payload():
         "--search-strategy",
         "AVERAGE_CPA_PER_CAMPAIGN",
         "--smart-search-average-cpa",
-        "4",
+        "4000000",
         "--smart-search-goal-id",
         "111",
     )
@@ -5816,7 +5814,7 @@ def test_campaigns_update_smart_search_average_cpa_per_filter_payload():
         "--search-strategy",
         "AVERAGE_CPA_PER_FILTER",
         "--smart-search-filter-average-cpa",
-        "4.5",
+        "4500000",
         "--smart-search-goal-id",
         "222",
     )
@@ -5840,7 +5838,7 @@ def test_campaigns_update_smart_search_pay_for_conversion_per_campaign_payload()
         "--search-strategy",
         "PAY_FOR_CONVERSION_PER_CAMPAIGN",
         "--smart-search-cpa",
-        "6",
+        "6000000",
         "--smart-search-goal-id",
         "333",
     )
@@ -5864,7 +5862,7 @@ def test_campaigns_update_smart_search_pay_for_conversion_per_filter_payload():
         "--search-strategy",
         "PAY_FOR_CONVERSION_PER_FILTER",
         "--smart-search-cpa",
-        "5.5",
+        "5500000",
         "--smart-search-goal-id",
         "444",
     )
@@ -5890,7 +5888,7 @@ def test_campaigns_update_smart_search_average_roi_payload():
         "--smart-search-reserve-return",
         "30",
         "--smart-search-roi-coef",
-        "1.5",
+        "1500000",
         "--smart-search-goal-id",
         "555",
     )
@@ -5971,7 +5969,7 @@ def test_campaigns_update_smart_search_partial_field_no_required_check():
         "AVERAGE_CPA_PER_CAMPAIGN",
         # Only --smart-search-average-cpa, no --smart-search-goal-id
         "--smart-search-average-cpa",
-        "4",
+        "4000000",
     )
     search = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"][
         "Search"
@@ -6011,7 +6009,7 @@ def test_campaigns_update_smart_search_rejects_package_with_search_flags():
         "--search-strategy",
         "AVERAGE_CPC_PER_CAMPAIGN",
         "--smart-search-average-cpc",
-        "5",
+        "5000000",
     )
     assert "PackageBiddingStrategy" in result.output
 
@@ -6025,7 +6023,7 @@ def test_campaigns_update_smart_search_rejects_detail_without_strategy():
         "--type",
         "SMART_CAMPAIGN",
         "--smart-search-average-cpc",
-        "5",
+        "5000000",
     )
     assert "SmartCampaign search detail flags" in result.output
 
@@ -6051,7 +6049,7 @@ def test_campaigns_add_rejects_smart_search_with_package_strategy():
         "--package-platform-network",
         "YES",
         "--smart-search-average-cpc",
-        "5",
+        "5000000",
     )
     assert "PackageBiddingStrategy" in result.output
     assert "--smart-search-average-cpc" in result.output
@@ -6068,7 +6066,7 @@ def test_campaigns_update_smart_search_budget_type_weekly_payload():
         "--search-strategy",
         "AVERAGE_CPC_PER_CAMPAIGN",
         "--smart-search-weekly-spend-limit",
-        "40",
+        "40000000",
         "--smart-search-budget-type",
         "WEEKLY_BUDGET",
     )
@@ -6096,7 +6094,7 @@ def test_campaigns_update_smart_search_budget_type_custom_period_payload():
         "--search-strategy",
         "AVERAGE_CPA_PER_FILTER",
         "--smart-search-cp-spend-limit",
-        "100",
+        "100000000",
         "--smart-search-cp-start-date",
         "2026-06-01",
         "--smart-search-cp-end-date",
@@ -6147,7 +6145,7 @@ def test_campaigns_add_smart_search_budget_type_is_update_only():
         "--search-strategy",
         "AVERAGE_CPC_PER_CAMPAIGN",
         "--smart-search-average-cpc",
-        "5",
+        "5000000",
         "--smart-search-budget-type",
         "WEEKLY_BUDGET",
     )
@@ -6247,11 +6245,11 @@ def test_campaigns_add_smart_network_average_cpc_per_campaign_payload():
         "--network-strategy",
         "AVERAGE_CPC_PER_CAMPAIGN",
         "--smart-network-average-cpc",
-        "5",
+        "5000000",
         "--smart-network-bid-ceiling",
-        "9",
+        "9000000",
         "--smart-network-weekly-spend-limit",
-        "50",
+        "50000000",
     )
     network = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"][
         "Network"
@@ -6272,7 +6270,7 @@ def test_campaigns_add_smart_network_average_cpc_per_filter_payload():
         "--network-strategy",
         "AVERAGE_CPC_PER_FILTER",
         "--smart-network-filter-average-cpc",
-        "3",
+        "3000000",
     )
     network = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"][
         "Network"
@@ -6289,11 +6287,11 @@ def test_campaigns_add_smart_network_average_cpa_per_campaign_payload():
         "--network-strategy",
         "AVERAGE_CPA_PER_CAMPAIGN",
         "--smart-network-average-cpa",
-        "4",
+        "4000000",
         "--smart-network-goal-id",
         "111",
         "--smart-network-bid-ceiling",
-        "9",
+        "9000000",
     )
     network = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"][
         "Network"
@@ -6314,11 +6312,11 @@ def test_campaigns_add_smart_network_average_cpa_per_filter_payload():
         "--network-strategy",
         "AVERAGE_CPA_PER_FILTER",
         "--smart-network-filter-average-cpa",
-        "4.5",
+        "4500000",
         "--smart-network-goal-id",
         "222",
         "--smart-network-cp-spend-limit",
-        "100",
+        "100000000",
         "--smart-network-cp-start-date",
         "2026-06-01",
         "--smart-network-cp-end-date",
@@ -6350,11 +6348,11 @@ def test_campaigns_add_smart_network_pay_for_conversion_per_campaign_payload():
         "--network-strategy",
         "PAY_FOR_CONVERSION_PER_CAMPAIGN",
         "--smart-network-cpa",
-        "6",
+        "6000000",
         "--smart-network-goal-id",
         "333",
         "--smart-network-weekly-spend-limit",
-        "50",
+        "50000000",
     )
     network = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"][
         "Network"
@@ -6375,7 +6373,7 @@ def test_campaigns_add_smart_network_pay_for_conversion_per_filter_payload():
         "--network-strategy",
         "PAY_FOR_CONVERSION_PER_FILTER",
         "--smart-network-cpa",
-        "5.5",
+        "5500000",
         "--smart-network-goal-id",
         "444",
     )
@@ -6396,15 +6394,15 @@ def test_campaigns_add_smart_network_average_roi_payload():
         "--smart-network-reserve-return",
         "30",
         "--smart-network-roi-coef",
-        "1.5",
+        "1500000",
         "--smart-network-goal-id",
         "555",
         "--smart-network-profitability",
-        "0.2",
+        "200000",
         "--smart-network-bid-ceiling",
-        "10",
+        "10000000",
         "--smart-network-exploration-min",
-        "20",
+        "20000000",
         "--smart-network-exploration-min-custom",
         "YES",
     )
@@ -6437,7 +6435,7 @@ def test_campaigns_add_smart_network_average_crr_payload():
         "--smart-network-goal-id",
         "666",
         "--smart-network-weekly-spend-limit",
-        "40",
+        "40000000",
     )
     network = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"][
         "Network"
@@ -6510,9 +6508,9 @@ def test_campaigns_add_smart_network_rejects_wrong_subtype_flag():
         "--network-strategy",
         "AVERAGE_CPC_PER_CAMPAIGN",
         "--smart-network-average-cpc",
-        "5",
+        "5000000",
         "--smart-network-average-cpa",
-        "4",
+        "4000000",
     )
     assert "--smart-network-average-cpa" in result.output
 
@@ -6529,7 +6527,7 @@ def test_campaigns_add_smart_network_rejects_bid_ceiling_on_crr():
         "--smart-network-goal-id",
         "777",
         "--smart-network-bid-ceiling",
-        "10",
+        "10000000",
     )
     assert "--smart-network-bid-ceiling" in result.output
 
@@ -6542,9 +6540,9 @@ def test_campaigns_add_smart_network_rejects_exploration_on_cpc_per_campaign():
         "--network-strategy",
         "AVERAGE_CPC_PER_CAMPAIGN",
         "--smart-network-average-cpc",
-        "5",
+        "5000000",
         "--smart-network-exploration-min",
-        "1",
+        "1000000",
         "--smart-network-exploration-min-custom",
         "YES",
     )
@@ -6559,7 +6557,7 @@ def test_campaigns_add_smart_network_rejects_limit_percent_on_non_network_defaul
         "--network-strategy",
         "AVERAGE_CPC_PER_CAMPAIGN",
         "--smart-network-average-cpc",
-        "5",
+        "5000000",
         "--smart-network-limit-percent",
         "50",
     )
@@ -6572,9 +6570,9 @@ def test_campaigns_add_smart_network_rejects_partial_custom_period_budget():
         "--network-strategy",
         "AVERAGE_CPC_PER_CAMPAIGN",
         "--smart-network-average-cpc",
-        "5",
+        "5000000",
         "--smart-network-cp-spend-limit",
-        "100",
+        "100000000",
         # Missing start-date / end-date / auto-continue.
     )
     assert "CustomPeriodBudget" in result.output
@@ -6588,11 +6586,11 @@ def test_campaigns_add_smart_network_rejects_partial_exploration_budget():
         "--smart-network-reserve-return",
         "30",
         "--smart-network-roi-coef",
-        "1.5",
+        "1500000",
         "--smart-network-goal-id",
         "555",
         "--smart-network-exploration-min",
-        "20",
+        "20000000",
         # missing --smart-network-exploration-min-custom
     )
     assert "ExplorationBudget" in result.output
@@ -6604,7 +6602,7 @@ def test_campaigns_add_smart_network_rejects_detail_without_strategy():
     result = _rejected(
         *_smart_network_base(),
         "--smart-network-average-cpc",
-        "5",
+        "5000000",
     )
     assert "SmartCampaign network detail flags" in result.output
 
@@ -6615,7 +6613,7 @@ def test_campaigns_add_smart_network_rejects_serving_off_with_details():
         "--network-strategy",
         "SERVING_OFF",
         "--smart-network-average-cpc",
-        "5",
+        "5000000",
     )
     assert "SERVING_OFF" in result.output
 
@@ -6635,11 +6633,11 @@ def test_campaigns_add_smart_network_rejects_weekly_and_custom_period():
         "--network-strategy",
         "AVERAGE_CPC_PER_CAMPAIGN",
         "--smart-network-average-cpc",
-        "5",
+        "5000000",
         "--smart-network-weekly-spend-limit",
-        "50",
+        "50000000",
         "--smart-network-cp-spend-limit",
-        "100",
+        "100000000",
         "--smart-network-cp-start-date",
         "2026-06-01",
         "--smart-network-cp-end-date",
@@ -6659,7 +6657,7 @@ def test_campaigns_add_smart_legacy_filter_average_cpc_with_typed_network_reject
         "--filter-average-cpc",
         "1000000",
         "--smart-network-bid-ceiling",
-        "5",
+        "5000000",
     )
     assert "--filter-average-cpc cannot be combined" in result.output
 
@@ -6686,7 +6684,7 @@ def test_campaigns_add_smart_network_budget_type_is_update_only():
         "--network-strategy",
         "AVERAGE_CPC_PER_CAMPAIGN",
         "--smart-network-average-cpc",
-        "5",
+        "5000000",
         "--smart-network-budget-type",
         "WEEKLY_BUDGET",
     )
@@ -6739,7 +6737,7 @@ def test_campaigns_update_smart_network_average_cpc_per_campaign_payload():
         "--network-strategy",
         "AVERAGE_CPC_PER_CAMPAIGN",
         "--smart-network-average-cpc",
-        "5",
+        "5000000",
     )
     network = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"][
         "Network"
@@ -6761,7 +6759,7 @@ def test_campaigns_update_smart_network_average_cpc_per_filter_payload():
         "--network-strategy",
         "AVERAGE_CPC_PER_FILTER",
         "--smart-network-filter-average-cpc",
-        "3",
+        "3000000",
     )
     network = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"][
         "Network"
@@ -6783,7 +6781,7 @@ def test_campaigns_update_smart_network_average_cpa_per_campaign_payload():
         "--network-strategy",
         "AVERAGE_CPA_PER_CAMPAIGN",
         "--smart-network-average-cpa",
-        "4",
+        "4000000",
         "--smart-network-goal-id",
         "111",
     )
@@ -6807,7 +6805,7 @@ def test_campaigns_update_smart_network_average_cpa_per_filter_payload():
         "--network-strategy",
         "AVERAGE_CPA_PER_FILTER",
         "--smart-network-filter-average-cpa",
-        "4.5",
+        "4500000",
         "--smart-network-goal-id",
         "222",
     )
@@ -6831,7 +6829,7 @@ def test_campaigns_update_smart_network_pay_for_conversion_per_campaign_payload(
         "--network-strategy",
         "PAY_FOR_CONVERSION_PER_CAMPAIGN",
         "--smart-network-cpa",
-        "6",
+        "6000000",
         "--smart-network-goal-id",
         "333",
     )
@@ -6855,7 +6853,7 @@ def test_campaigns_update_smart_network_pay_for_conversion_per_filter_payload():
         "--network-strategy",
         "PAY_FOR_CONVERSION_PER_FILTER",
         "--smart-network-cpa",
-        "5.5",
+        "5500000",
         "--smart-network-goal-id",
         "444",
     )
@@ -6881,7 +6879,7 @@ def test_campaigns_update_smart_network_average_roi_payload():
         "--smart-network-reserve-return",
         "30",
         "--smart-network-roi-coef",
-        "1.5",
+        "1500000",
         "--smart-network-goal-id",
         "555",
     )
@@ -6961,7 +6959,7 @@ def test_campaigns_update_smart_network_partial_field_no_required_check():
         "AVERAGE_CPA_PER_CAMPAIGN",
         # Only --smart-network-average-cpa, no --smart-network-goal-id
         "--smart-network-average-cpa",
-        "4",
+        "4000000",
     )
     network = body["params"]["Campaigns"][0]["SmartCampaign"]["BiddingStrategy"][
         "Network"
@@ -7001,11 +6999,11 @@ def test_campaigns_update_smart_network_search_and_network_both_set_payload():
         "--search-strategy",
         "AVERAGE_CPC_PER_CAMPAIGN",
         "--smart-search-average-cpc",
-        "5",
+        "5000000",
         "--network-strategy",
         "AVERAGE_CPA_PER_CAMPAIGN",
         "--smart-network-average-cpa",
-        "4",
+        "4000000",
         "--smart-network-goal-id",
         "111",
     )
@@ -7035,7 +7033,7 @@ def test_campaigns_update_smart_network_rejects_package_with_network_flags():
         "--network-strategy",
         "AVERAGE_CPC_PER_CAMPAIGN",
         "--smart-network-average-cpc",
-        "5",
+        "5000000",
     )
     assert "PackageBiddingStrategy" in result.output
 
@@ -7049,7 +7047,7 @@ def test_campaigns_update_smart_network_rejects_detail_without_strategy():
         "--type",
         "SMART_CAMPAIGN",
         "--smart-network-average-cpc",
-        "5",
+        "5000000",
     )
     assert "SmartCampaign network detail flags" in result.output
 
@@ -7065,7 +7063,7 @@ def test_campaigns_update_smart_network_budget_type_weekly_payload():
         "--network-strategy",
         "AVERAGE_CPC_PER_CAMPAIGN",
         "--smart-network-weekly-spend-limit",
-        "40",
+        "40000000",
         "--smart-network-budget-type",
         "WEEKLY_BUDGET",
     )
@@ -7093,7 +7091,7 @@ def test_campaigns_update_smart_network_budget_type_custom_period_payload():
         "--network-strategy",
         "AVERAGE_CPA_PER_FILTER",
         "--smart-network-cp-spend-limit",
-        "100",
+        "100000000",
         "--smart-network-cp-start-date",
         "2026-06-01",
         "--smart-network-cp-end-date",
@@ -7166,7 +7164,7 @@ def test_campaigns_add_rejects_smart_network_with_package_strategy():
         "--network-strategy",
         "AVERAGE_CPC_PER_CAMPAIGN",
         "--smart-network-average-cpc",
-        "5",
+        "5000000",
     )
     # PackageBiddingStrategy + any subtype-specific flag must be rejected.
     assert (
@@ -7201,7 +7199,7 @@ def test_campaigns_add_rejects_smart_network_detail_flag_with_package_strategy()
         "--package-platform-network",
         "YES",
         "--smart-network-average-cpc",
-        "5",
+        "5000000",
     )
     assert "PackageBiddingStrategy" in result.output
     assert "--smart-network-average-cpc" in result.output
@@ -8227,7 +8225,7 @@ def test_campaigns_add_rejects_unified_priority_goals_with_incompatible_strategy
         "--network-strategy",
         "AVERAGE_CPC",
         "--unified-network-average-cpc",
-        "5",
+        "5000000",
         "--priority-goals",
         "1:50",
     )
@@ -8255,16 +8253,14 @@ def test_campaigns_add_unified_priority_goals_with_mixed_strategy_sides_payload(
         "--search-strategy",
         "AVERAGE_CPC",
         "--unified-search-average-cpc",
-        "5",
+        "5000000",
         "--network-strategy",
         "MAX_PROFIT",
         "--priority-goals",
         "1234567:80",
     )
     unified = body["params"]["Campaigns"][0]["UnifiedCampaign"]
-    assert unified["PriorityGoals"] == {
-        "Items": [{"GoalId": 1234567, "Value": 80}]
-    }
+    assert unified["PriorityGoals"] == {"Items": [{"GoalId": 1234567, "Value": 80}]}
     bidding = unified["BiddingStrategy"]
     assert bidding["Search"]["BiddingStrategyType"] == "AVERAGE_CPC"
     assert bidding["Network"]["BiddingStrategyType"] == "MAX_PROFIT"
@@ -8723,11 +8719,11 @@ def test_campaigns_add_mobile_app_average_cpi_search_payload():
         "--search-strategy",
         "AVERAGE_CPI",
         "--mobile-search-average-cpi",
-        "5",
+        "5000000",
         "--mobile-search-weekly-spend-limit",
-        "1000",
+        "1000000000",
         "--mobile-search-bid-ceiling",
-        "12.5",
+        "12500000",
     )
     mobile = body["params"]["Campaigns"][0]["MobileAppCampaign"]
     assert mobile["BiddingStrategy"] == {
@@ -8758,7 +8754,7 @@ def test_campaigns_add_mobile_app_weekly_click_package_search_payload():
         "--mobile-search-clicks-per-week",
         "100",
         "--mobile-search-average-cpc",
-        "7.25",
+        "7250000",
     )
     search = body["params"]["Campaigns"][0]["MobileAppCampaign"]["BiddingStrategy"][
         "Search"
@@ -8785,7 +8781,7 @@ def test_campaigns_add_mobile_app_wb_maximum_clicks_custom_period_payload():
         "--search-strategy",
         "WB_MAXIMUM_CLICKS",
         "--mobile-search-custom-period-spend-limit",
-        "1000",
+        "1000000000",
         "--mobile-search-custom-period-start-date",
         "2026-06-01",
         "--mobile-search-custom-period-end-date",
@@ -8850,7 +8846,7 @@ def test_campaigns_add_mobile_app_rejects_search_detail_without_strategy():
         "--type",
         "MOBILE_APP_CAMPAIGN",
         "--mobile-search-average-cpc",
-        "5",
+        "5000000",
     )
     assert "MobileAppCampaign search detail flags require --search-strategy" in (
         result.output
@@ -8870,9 +8866,9 @@ def test_campaigns_add_mobile_app_rejects_partial_custom_period_budget():
         "--search-strategy",
         "AVERAGE_CPC",
         "--mobile-search-average-cpc",
-        "5",
+        "5000000",
         "--mobile-search-custom-period-spend-limit",
-        "1000",
+        "1000000000",
     )
     assert "CustomPeriodBudget requires all custom-period flags" in result.output
     assert "--mobile-search-custom-period-start-date" in result.output
@@ -8893,9 +8889,9 @@ def test_campaigns_add_mobile_app_rejects_weekly_click_package_bid_conflict():
         "--mobile-search-clicks-per-week",
         "100",
         "--mobile-search-average-cpc",
-        "7.25",
+        "7250000",
         "--mobile-search-bid-ceiling",
-        "10",
+        "10000000",
     )
     assert "cannot combine --mobile-search-average-cpc" in result.output
 
@@ -8913,11 +8909,11 @@ def test_campaigns_add_mobile_app_average_cpi_network_payload():
         "--network-strategy",
         "AVERAGE_CPI",
         "--mobile-network-average-cpi",
-        "5",
+        "5000000",
         "--mobile-network-weekly-spend-limit",
-        "1000",
+        "1000000000",
         "--mobile-network-bid-ceiling",
-        "12.5",
+        "12500000",
     )
     mobile = body["params"]["Campaigns"][0]["MobileAppCampaign"]
     assert mobile["BiddingStrategy"] == {
@@ -8970,7 +8966,7 @@ def test_campaigns_add_mobile_app_network_wb_maximum_clicks_custom_period_payloa
         "--network-strategy",
         "WB_MAXIMUM_CLICKS",
         "--mobile-network-custom-period-spend-limit",
-        "1000",
+        "1000000000",
         "--mobile-network-custom-period-start-date",
         "2026-06-01",
         "--mobile-network-custom-period-end-date",
@@ -9007,9 +9003,9 @@ def test_campaigns_add_mobile_app_average_cpi_network_custom_period_payload():
         "--network-strategy",
         "AVERAGE_CPI",
         "--mobile-network-average-cpi",
-        "5",
+        "5000000",
         "--mobile-network-custom-period-spend-limit",
-        "1000",
+        "1000000000",
         "--mobile-network-custom-period-start-date",
         "2026-06-01",
         "--mobile-network-custom-period-end-date",
@@ -9061,7 +9057,7 @@ def test_campaigns_add_mobile_app_rejects_network_detail_without_strategy():
         "--type",
         "MOBILE_APP_CAMPAIGN",
         "--mobile-network-average-cpc",
-        "5",
+        "5000000",
     )
     assert "MobileAppCampaign network detail flags require --network-strategy" in (
         result.output
@@ -9081,7 +9077,7 @@ def test_campaigns_add_mobile_app_rejects_network_default_non_limit_detail():
         "--network-strategy",
         "NETWORK_DEFAULT",
         "--mobile-network-average-cpc",
-        "5",
+        "5000000",
     )
     assert "NETWORK_DEFAULT does not accept --mobile-network-average-cpc" in (
         result.output
@@ -9121,9 +9117,9 @@ def test_campaigns_add_mobile_app_rejects_network_weekly_click_package_bid_confl
         "--mobile-network-clicks-per-week",
         "100",
         "--mobile-network-average-cpc",
-        "7.25",
+        "7250000",
         "--mobile-network-bid-ceiling",
-        "10",
+        "10000000",
     )
     assert "cannot combine --mobile-network-average-cpc" in result.output
 
@@ -9175,9 +9171,9 @@ def test_campaigns_add_cpm_banner_wb_maximum_impressions_payload():
         "--network-strategy",
         "WB_MAXIMUM_IMPRESSIONS",
         "--average-cpm",
-        "120.5",
+        "120500000",
         "--strategy-spend-limit",
-        "1000.25",
+        "1000250000",
     )
     cpm = body["params"]["Campaigns"][0]["CpmBannerCampaign"]
     assert cpm["BiddingStrategy"] == {
@@ -9205,9 +9201,9 @@ def test_campaigns_add_cpm_banner_cp_average_cpv_payload():
         "--network-strategy",
         "CP_AVERAGE_CPV",
         "--average-cpv",
-        "5",
+        "5000000",
         "--strategy-spend-limit",
-        "1000",
+        "1000000000",
         "--strategy-start-date",
         "2026-06-01",
         "--strategy-end-date",
@@ -9278,11 +9274,11 @@ def test_campaigns_add_cpm_banner_rejects_bidding_strategy_flags():
         "--network-strategy",
         "WB_MAXIMUM_IMPRESSIONS",
         "--average-cpm",
-        "120",
+        "120000000",
         "--average-cpv",
-        "5",
+        "5000000",
         "--strategy-spend-limit",
-        "1000",
+        "1000000000",
     )
     assert "WB_MAXIMUM_IMPRESSIONS does not accept --average-cpv" in result.output
 
@@ -9300,9 +9296,9 @@ def test_campaigns_add_cpm_banner_rejects_missing_strategy_fields():
         "--network-strategy",
         "CP_MAXIMUM_IMPRESSIONS",
         "--average-cpm",
-        "120",
+        "120000000",
         "--strategy-spend-limit",
-        "1000",
+        "1000000000",
     )
     assert "CP_MAXIMUM_IMPRESSIONS requires" in result.output
     assert "--strategy-start-date" in result.output
@@ -9470,7 +9466,7 @@ def test_campaigns_update_mobile_app_wb_maximum_clicks_search_payload():
         "--search-strategy",
         "WB_MAXIMUM_CLICKS",
         "--mobile-search-custom-period-spend-limit",
-        "1000",
+        "1000000000",
         "--mobile-search-custom-period-start-date",
         "2026-06-01",
         "--mobile-search-custom-period-end-date",
@@ -9514,9 +9510,9 @@ def test_campaigns_update_mobile_app_average_cpc_weekly_budget_clears_custom_per
         "--search-strategy",
         "AVERAGE_CPC",
         "--mobile-search-average-cpc",
-        "5",
+        "5000000",
         "--mobile-search-weekly-spend-limit",
-        "1000",
+        "1000000000",
         "--mobile-search-budget-type",
         "WEEKLY_BUDGET",
     )
@@ -9584,7 +9580,7 @@ def test_campaigns_update_mobile_app_wb_maximum_clicks_network_payload():
         "--network-strategy",
         "WB_MAXIMUM_CLICKS",
         "--mobile-network-custom-period-spend-limit",
-        "1000",
+        "1000000000",
         "--mobile-network-custom-period-start-date",
         "2026-06-01",
         "--mobile-network-custom-period-end-date",
@@ -9628,9 +9624,9 @@ def test_campaigns_update_mobile_app_average_cpc_network_weekly_budget_clears_cu
         "--network-strategy",
         "AVERAGE_CPC",
         "--mobile-network-average-cpc",
-        "5",
+        "5000000",
         "--mobile-network-weekly-spend-limit",
-        "1000",
+        "1000000000",
         "--mobile-network-budget-type",
         "WEEKLY_BUDGET",
     )
@@ -9664,9 +9660,9 @@ def test_campaigns_update_mobile_app_average_cpi_network_custom_period_payload()
         "--network-strategy",
         "AVERAGE_CPI",
         "--mobile-network-average-cpi",
-        "5",
+        "5000000",
         "--mobile-network-custom-period-spend-limit",
-        "1000",
+        "1000000000",
         "--mobile-network-custom-period-start-date",
         "2026-06-01",
         "--mobile-network-custom-period-end-date",
@@ -9800,9 +9796,9 @@ def test_campaigns_update_cpm_banner_wb_decreased_price_payload():
         "--network-strategy",
         "WB_DECREASED_PRICE_FOR_REPEATED_IMPRESSIONS",
         "--average-cpm",
-        "120",
+        "120000000",
         "--strategy-spend-limit",
-        "1000",
+        "1000000000",
     )
     campaign = body["params"]["Campaigns"][0]
     assert campaign == {
@@ -9868,9 +9864,9 @@ def test_campaigns_update_cpm_banner_strategy_details_require_network_strategy()
         "--type",
         "CPM_BANNER_CAMPAIGN",
         "--average-cpm",
-        "120",
+        "120000000",
         "--strategy-spend-limit",
-        "1000",
+        "1000000000",
     )
     assert "strategy detail flags require --network-strategy" in result.output
 
@@ -10091,9 +10087,9 @@ def test_campaigns_add_dynamic_text_network_wb_maximum_clicks_weekly_payload():
         "--network-strategy",
         "WB_MAXIMUM_CLICKS",
         "--dyn-network-weekly-spend-limit",
-        "1000",
+        "1000000000",
         "--dyn-network-bid-ceiling",
-        "100",
+        "100000000",
     )
     network = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
         "Network"
@@ -10120,7 +10116,7 @@ def test_campaigns_add_dynamic_text_network_wb_maximum_clicks_custom_period_payl
         "--network-strategy",
         "WB_MAXIMUM_CLICKS",
         "--dyn-network-custom-period-spend-limit",
-        "5000",
+        "5000000000",
         "--dyn-network-custom-period-start-date",
         "2026-06-01",
         "--dyn-network-custom-period-end-date",
@@ -10159,9 +10155,9 @@ def test_campaigns_add_dynamic_text_network_wb_maximum_conversion_rate_payload()
         "--dyn-network-goal-id",
         "77",
         "--dyn-network-weekly-spend-limit",
-        "2000",
+        "2000000000",
         "--dyn-network-bid-ceiling",
-        "50",
+        "50000000",
     )
     network = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
         "Network"
@@ -10189,9 +10185,9 @@ def test_campaigns_add_dynamic_text_network_average_cpc_payload():
         "--network-strategy",
         "AVERAGE_CPC",
         "--dyn-network-average-cpc",
-        "7",
+        "7000000",
         "--dyn-network-weekly-spend-limit",
-        "500",
+        "500000000",
     )
     network = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
         "Network"
@@ -10218,13 +10214,13 @@ def test_campaigns_add_dynamic_text_network_average_cpa_payload():
         "--network-strategy",
         "AVERAGE_CPA",
         "--dyn-network-average-cpa",
-        "150",
+        "150000000",
         "--dyn-network-goal-id",
         "12",
         "--dyn-network-bid-ceiling",
-        "20",
+        "20000000",
         "--dyn-network-exploration-budget",
-        "300",
+        "300000000",
         "--dyn-network-exploration-budget-custom",
         "YES",
     )
@@ -10258,11 +10254,11 @@ def test_campaigns_add_dynamic_text_network_pay_for_conversion_payload():
         "--network-strategy",
         "PAY_FOR_CONVERSION",
         "--dyn-network-cpa",
-        "300",
+        "300000000",
         "--dyn-network-goal-id",
         "55",
         "--dyn-network-weekly-spend-limit",
-        "2500",
+        "2500000000",
     )
     network = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
         "Network"
@@ -10298,7 +10294,7 @@ def test_campaigns_add_dynamic_text_network_average_roi_payload():
         "--dyn-network-profitability",
         "25",
         "--dyn-network-bid-ceiling",
-        "12",
+        "12000000",
     )
     network = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
         "Network"
@@ -10332,7 +10328,7 @@ def test_campaigns_add_dynamic_text_network_average_crr_payload():
         "--dyn-network-goal-id",
         "61",
         "--dyn-network-weekly-spend-limit",
-        "800",
+        "800000000",
     )
     network = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
         "Network"
@@ -10391,7 +10387,7 @@ def test_campaigns_add_dynamic_text_network_weekly_click_package_payload():
         "--dyn-network-clicks-per-week",
         "200",
         "--dyn-network-average-cpc",
-        "3",
+        "3000000",
     )
     network = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
         "Network"
@@ -10434,7 +10430,7 @@ def test_campaigns_add_dynamic_text_network_rejects_detail_without_strategy():
         "--type",
         "DYNAMIC_TEXT_CAMPAIGN",
         "--dyn-network-average-cpc",
-        "5",
+        "5000000",
     )
     assert (
         "DynamicTextCampaign network detail flags require --network-strategy"
@@ -10456,11 +10452,11 @@ def test_campaigns_add_dynamic_text_network_rejects_average_cpc_for_average_cpa(
         "--network-strategy",
         "AVERAGE_CPA",
         "--dyn-network-average-cpa",
-        "100",
+        "100000000",
         "--dyn-network-goal-id",
         "1",
         "--dyn-network-average-cpc",
-        "5",
+        "5000000",
     )
     assert "AVERAGE_CPA does not accept --dyn-network-average-cpc" in result.output
 
@@ -10517,7 +10513,7 @@ def test_campaigns_add_dynamic_text_network_rejects_maximum_coverage_with_detail
         "--network-strategy",
         "MAXIMUM_COVERAGE",
         "--dyn-network-bid-ceiling",
-        "10",
+        "10000000",
     )
     assert (
         "MAXIMUM_COVERAGE does not accept DynamicTextCampaign network detail flags"
@@ -10556,7 +10552,7 @@ def test_campaigns_add_dynamic_text_network_rejects_partial_custom_period():
         "--network-strategy",
         "WB_MAXIMUM_CLICKS",
         "--dyn-network-custom-period-spend-limit",
-        "100",
+        "100000000",
     )
     assert (
         "DynamicTextCampaign CustomPeriodBudget requires all custom-period flags"
@@ -10580,9 +10576,9 @@ def test_campaigns_add_dynamic_text_network_weekly_click_package_combined_ceilin
         "--dyn-network-clicks-per-week",
         "100",
         "--dyn-network-average-cpc",
-        "5",
+        "5000000",
         "--dyn-network-bid-ceiling",
-        "10",
+        "10000000",
     )
     network = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
         "Network"
@@ -10610,11 +10606,11 @@ def test_campaigns_add_dynamic_text_network_rejects_partial_exploration_budget()
         "--network-strategy",
         "AVERAGE_CPA",
         "--dyn-network-average-cpa",
-        "100",
+        "100000000",
         "--dyn-network-goal-id",
         "1",
         "--dyn-network-exploration-budget",
-        "100",
+        "100000000",
     )
     assert "DynamicTextCampaign ExplorationBudget requires both" in result.output
 
@@ -10630,9 +10626,9 @@ def test_campaigns_update_dynamic_text_network_average_cpc_payload():
         "--network-strategy",
         "AVERAGE_CPC",
         "--dyn-network-average-cpc",
-        "8",
+        "8000000",
         "--dyn-network-weekly-spend-limit",
-        "1500",
+        "1500000000",
     )
     dyn = body["params"]["Campaigns"][0]["DynamicTextCampaign"]
     assert dyn["BiddingStrategy"] == {
@@ -10658,7 +10654,7 @@ def test_campaigns_update_dynamic_text_network_budget_type_weekly_payload():
         "--network-strategy",
         "WB_MAXIMUM_CLICKS",
         "--dyn-network-weekly-spend-limit",
-        "300",
+        "300000000",
         "--dyn-network-budget-type",
         "WEEKLY_BUDGET",
     )
@@ -10686,9 +10682,9 @@ def test_campaigns_update_dynamic_text_network_budget_type_custom_period_payload
         "--network-strategy",
         "AVERAGE_CPC",
         "--dyn-network-average-cpc",
-        "5",
+        "5000000",
         "--dyn-network-custom-period-spend-limit",
-        "1000",
+        "1000000000",
         "--dyn-network-custom-period-start-date",
         "2026-07-01",
         "--dyn-network-custom-period-end-date",
@@ -10782,9 +10778,9 @@ def test_campaigns_update_dynamic_text_network_wb_maximum_clicks_payload():
         "--network-strategy",
         "WB_MAXIMUM_CLICKS",
         "--dyn-network-weekly-spend-limit",
-        "700",
+        "700000000",
         "--dyn-network-bid-ceiling",
-        "20",
+        "20000000",
     )
     network = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
         "Network"
@@ -10811,7 +10807,7 @@ def test_campaigns_update_dynamic_text_network_wb_maximum_conversion_rate_payloa
         "--dyn-network-goal-id",
         "111",
         "--dyn-network-weekly-spend-limit",
-        "1200",
+        "1200000000",
     )
     network = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
         "Network"
@@ -10836,11 +10832,11 @@ def test_campaigns_update_dynamic_text_network_average_cpa_payload():
         "--network-strategy",
         "AVERAGE_CPA",
         "--dyn-network-average-cpa",
-        "180",
+        "180000000",
         "--dyn-network-goal-id",
         "22",
         "--dyn-network-bid-ceiling",
-        "15",
+        "15000000",
     )
     network = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
         "Network"
@@ -10866,7 +10862,7 @@ def test_campaigns_update_dynamic_text_network_pay_for_conversion_payload():
         "--network-strategy",
         "PAY_FOR_CONVERSION",
         "--dyn-network-cpa",
-        "250",
+        "250000000",
         "--dyn-network-goal-id",
         "33",
     )
@@ -10979,7 +10975,7 @@ def test_campaigns_update_dynamic_text_network_weekly_click_package_payload():
         "--dyn-network-clicks-per-week",
         "350",
         "--dyn-network-bid-ceiling",
-        "8",
+        "8000000",
     )
     network = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
         "Network"
@@ -11098,7 +11094,7 @@ def test_campaigns_add_dynamic_text_network_rejects_wb_maximum_conversion_rate_w
         "--network-strategy",
         "WB_MAXIMUM_CONVERSION_RATE",
         "--dyn-network-weekly-spend-limit",
-        "1000",
+        "1000000000",
     )
     assert "WB_MAXIMUM_CONVERSION_RATE requires --dyn-network-goal-id" in result.output
 
@@ -11453,7 +11449,7 @@ def test_campaigns_add_text_search_wb_maximum_clicks_payload():
         "--search-strategy",
         "WB_MAXIMUM_CLICKS",
         "--text-search-weekly-spend-limit",
-        "300",
+        "300000000",
         "--bid-ceiling",
         "5000000",
     )
@@ -11473,7 +11469,7 @@ def test_campaigns_add_text_search_wb_maximum_conversion_rate_payload():
         "--goal-id",
         "555",
         "--text-search-weekly-spend-limit",
-        "200",
+        "200000000",
     )
     search = _text_search_extract(body)
     assert search["BiddingStrategyType"] == "WB_MAXIMUM_CONVERSION_RATE"
@@ -11490,7 +11486,7 @@ def test_campaigns_add_text_search_wb_maximum_conversion_rate_requires_goal_id()
         "--search-strategy",
         "WB_MAXIMUM_CONVERSION_RATE",
         "--text-search-weekly-spend-limit",
-        "100",
+        "100000000",
     )
     assert "--goal-id" in result.output
     assert "WbMaximumConversionRate" in result.output
@@ -11527,7 +11523,7 @@ def test_campaigns_add_text_search_wb_max_clicks_with_custom_period_payload():
         "--search-strategy",
         "WB_MAXIMUM_CLICKS",
         "--text-search-custom-period-spend-limit",
-        "300",
+        "300000000",
         "--text-search-custom-period-start-date",
         "2026-07-01",
         "--text-search-custom-period-end-date",
@@ -11554,7 +11550,7 @@ def test_campaigns_add_text_search_wb_max_conv_rate_custom_period_payload():
         "--goal-id",
         "42",
         "--text-search-custom-period-spend-limit",
-        "200",
+        "200000000",
         "--text-search-custom-period-start-date",
         "2026-09-01",
         "--text-search-custom-period-end-date",
@@ -11580,9 +11576,9 @@ def test_campaigns_add_text_search_average_cpc_payload():
         "--search-strategy",
         "AVERAGE_CPC",
         "--text-search-average-cpc",
-        "12",
+        "12000000",
         "--text-search-weekly-spend-limit",
-        "1000",
+        "1000000000",
     )
     search = _text_search_extract(body)
     assert search["BiddingStrategyType"] == "AVERAGE_CPC"
@@ -11608,7 +11604,7 @@ def test_campaigns_add_text_search_pay_for_conversion_payload():
         "--search-strategy",
         "PAY_FOR_CONVERSION",
         "--text-search-pay-cpa",
-        "150",
+        "150000000",
         "--goal-id",
         "777",
     )
@@ -11636,7 +11632,7 @@ def test_campaigns_add_text_search_weekly_click_package_payload():
         "--text-search-clicks-per-week",
         "1000",
         "--text-search-average-cpc",
-        "5",
+        "5000000",
     )
     search = _text_search_extract(body)
     assert search["BiddingStrategyType"] == "WEEKLY_CLICK_PACKAGE"
@@ -11664,7 +11660,7 @@ def test_campaigns_add_text_search_weekly_click_package_rejects_cpc_with_bid_cei
         "--text-search-clicks-per-week",
         "100",
         "--text-search-average-cpc",
-        "10",
+        "10000000",
         "--bid-ceiling",
         "500000",
     )
@@ -11679,13 +11675,13 @@ def test_campaigns_add_text_search_average_roi_payload():
         "--text-search-reserve-return",
         "30",
         "--text-search-roi-coef",
-        "1",
+        "1000000",
         "--goal-id",
         "42",
         "--text-search-weekly-spend-limit",
-        "500",
+        "500000000",
         "--text-search-profitability",
-        "20",
+        "20000000",
     )
     search = _text_search_extract(body)
     assert search["BiddingStrategyType"] == "AVERAGE_ROI"
@@ -11708,7 +11704,7 @@ def test_campaigns_add_text_search_average_roi_rejects_non_decimal_reserve_retur
         "--text-search-reserve-return",
         "37",
         "--text-search-roi-coef",
-        "100",
+        "100000000",
         "--goal-id",
         "1",
     )
@@ -11725,7 +11721,7 @@ def test_campaigns_add_text_search_average_roi_accepts_zero_reserve_return():
         "--text-search-reserve-return",
         "0",
         "--text-search-roi-coef",
-        "1",
+        "1000000",
         "--goal-id",
         "1",
     )
@@ -11757,7 +11753,7 @@ def test_campaigns_add_text_search_average_crr_payload():
         "--goal-id",
         "100",
         "--text-search-weekly-spend-limit",
-        "400",
+        "400000000",
     )
     search = _text_search_extract(body)
     assert search["BiddingStrategyType"] == "AVERAGE_CRR"
@@ -11789,7 +11785,7 @@ def test_campaigns_add_text_search_max_profit_payload():
         "--priority-goals",
         "1:500",
         "--text-search-weekly-spend-limit",
-        "1000",
+        "1000000000",
     )
     text = body["params"]["Campaigns"][0]["TextCampaign"]
     assert text["PriorityGoals"] == {"Items": [{"GoalId": 1, "Value": 500}]}
@@ -11819,7 +11815,7 @@ def test_campaigns_add_text_search_average_cpa_multiple_goals_with_exploration()
         "--bid-ceiling",
         "200000000",
         "--text-search-exploration-min-budget",
-        "50",
+        "50000000",
         "--text-search-exploration-is-custom",
         "YES",
     )
@@ -11873,7 +11869,7 @@ def test_campaigns_add_text_search_pay_for_conversion_multiple_goals_payload():
         "--priority-goals",
         "1:50,2:50",
         "--text-search-weekly-spend-limit",
-        "700",
+        "700000000",
     )
     text = body["params"]["Campaigns"][0]["TextCampaign"]
     assert text["PriorityGoals"] == {
@@ -11894,9 +11890,9 @@ def test_campaigns_add_text_search_custom_period_budget_payload():
         "--search-strategy",
         "AVERAGE_CPC",
         "--text-search-average-cpc",
-        "10",
+        "10000000",
         "--text-search-custom-period-spend-limit",
-        "500",
+        "500000000",
         "--text-search-custom-period-start-date",
         "2026-07-01",
         "--text-search-custom-period-end-date",
@@ -11922,9 +11918,9 @@ def test_campaigns_add_text_search_custom_period_partial_rejected():
         "--search-strategy",
         "AVERAGE_CPC",
         "--text-search-average-cpc",
-        "10",
+        "10000000",
         "--text-search-custom-period-spend-limit",
-        "500",
+        "500000000",
         "--text-search-custom-period-start-date",
         "2026-07-01",
     )
@@ -11937,11 +11933,11 @@ def test_campaigns_add_text_search_custom_period_weekly_conflict_rejected():
         "--search-strategy",
         "AVERAGE_CPC",
         "--text-search-average-cpc",
-        "10",
+        "10000000",
         "--text-search-weekly-spend-limit",
-        "100",
+        "100000000",
         "--text-search-custom-period-spend-limit",
-        "500",
+        "500000000",
         "--text-search-custom-period-start-date",
         "2026-07-01",
         "--text-search-custom-period-end-date",
@@ -11962,7 +11958,7 @@ def test_campaigns_add_text_search_exploration_partial_rejected():
         "--goal-id",
         "1",
         "--text-search-exploration-min-budget",
-        "50",
+        "50000000",
     )
     assert "ExplorationBudget" in result.output
 
@@ -11978,7 +11974,7 @@ def test_campaigns_add_text_search_exploration_is_custom_no_rejected():
         "--goal-id",
         "1",
         "--text-search-exploration-min-budget",
-        "50",
+        "50000000",
         "--text-search-exploration-is-custom",
         "NO",
     )
@@ -11993,7 +11989,7 @@ def test_campaigns_add_text_search_silent_data_loss_invariant():
         "--search-strategy",
         "AVERAGE_CPC",
         "--text-search-average-cpc",
-        "10",
+        "10000000",
         "--text-search-reserve-return",
         "30",
     )
@@ -12008,7 +12004,7 @@ def test_campaigns_add_text_search_budget_type_add_only_rejected():
         "--search-strategy",
         "AVERAGE_CPC",
         "--text-search-average-cpc",
-        "10",
+        "10000000",
         "--text-search-budget-type",
         "WEEKLY_BUDGET",
     )
@@ -12040,11 +12036,11 @@ def test_campaigns_update_text_search_pay_for_conversion_payload():
         "--search-strategy",
         "PAY_FOR_CONVERSION",
         "--text-search-pay-cpa",
-        "200",
+        "200000000",
         "--goal-id",
         "11",
         "--text-search-weekly-spend-limit",
-        "1500",
+        "1500000000",
     )
     search = _text_search_extract(body)
     assert search["BiddingStrategyType"] == "PAY_FOR_CONVERSION"
@@ -12061,9 +12057,9 @@ def test_campaigns_update_text_search_budget_type_switch_payload():
         "--search-strategy",
         "AVERAGE_CPC",
         "--text-search-average-cpc",
-        "8",
+        "8000000",
         "--text-search-custom-period-spend-limit",
-        "1200",
+        "1200000000",
         "--text-search-custom-period-start-date",
         "2026-08-01",
         "--text-search-custom-period-end-date",
@@ -12097,7 +12093,7 @@ def test_campaigns_update_text_search_max_profit_with_weekly_spend_payload():
         "--priority-goals",
         "9:1000",
         "--text-search-weekly-spend-limit",
-        "999",
+        "999000000",
     )
     text = body["params"]["Campaigns"][0]["TextCampaign"]
     assert text["PriorityGoals"] == {
@@ -12122,7 +12118,7 @@ def test_campaigns_update_text_search_max_profit_requires_priority_goals():
             "--search-strategy",
             "MAX_PROFIT",
             "--text-search-weekly-spend-limit",
-            "999",
+            "999000000",
             "--dry-run",
         ],
     )
@@ -12142,11 +12138,11 @@ def test_campaigns_update_text_search_average_roi_payload():
         "--text-search-reserve-return",
         "20",
         "--text-search-roi-coef",
-        "1",
+        "1000000",
         "--goal-id",
         "42",
         "--text-search-profitability",
-        "25",
+        "25000000",
     )
     search = _text_search_extract(body)
     assert search["AverageRoi"] == {
@@ -12172,7 +12168,7 @@ def test_campaigns_update_text_search_average_roi_rejects_partial():
             "--search-strategy",
             "AVERAGE_ROI",
             "--text-search-profitability",
-            "25",
+            "25000000",
             "--dry-run",
         ],
     )
@@ -12212,7 +12208,7 @@ def test_campaigns_update_text_search_detail_without_strategy_rejected():
             "--type",
             "TEXT_CAMPAIGN",
             "--text-search-weekly-spend-limit",
-            "100",
+            "100000000",
             "--dry-run",
         ],
     )
@@ -12225,9 +12221,9 @@ def test_campaigns_update_text_search_average_cpc_payload():
         "--search-strategy",
         "AVERAGE_CPC",
         "--text-search-average-cpc",
-        "9",
+        "9000000",
         "--text-search-weekly-spend-limit",
-        "300",
+        "300000000",
     )
     search = _text_search_extract(body)
     assert search["AverageCpc"] == {
@@ -12264,7 +12260,7 @@ def test_campaigns_update_text_search_average_crr_rejects_partial():
             "--search-strategy",
             "AVERAGE_CRR",
             "--text-search-weekly-spend-limit",
-            "100",
+            "100000000",
             "--dry-run",
         ],
     )
@@ -12301,7 +12297,7 @@ def test_campaigns_update_text_search_pay_conv_crr_rejects_partial():
             "--search-strategy",
             "PAY_FOR_CONVERSION_CRR",
             "--text-search-weekly-spend-limit",
-            "100",
+            "100000000",
             "--dry-run",
         ],
     )
@@ -12317,7 +12313,7 @@ def test_campaigns_update_text_search_weekly_click_package_payload():
         "--text-search-clicks-per-week",
         "1500",
         "--text-search-average-cpc",
-        "4",
+        "4000000",
     )
     search = _text_search_extract(body)
     assert search["WeeklyClickPackage"] == {
@@ -12355,7 +12351,7 @@ def test_campaigns_update_text_search_pay_for_conversion_multiple_goals_payload(
         "--priority-goals",
         "1:60,2:40",
         "--text-search-weekly-spend-limit",
-        "800",
+        "800000000",
     )
     text = body["params"]["Campaigns"][0]["TextCampaign"]
     assert text["PriorityGoals"] == {
@@ -12432,7 +12428,7 @@ def test_campaigns_update_text_search_wb_maximum_clicks_rejects_budget_type():
             "--search-strategy",
             "WB_MAXIMUM_CLICKS",
             "--text-search-weekly-spend-limit",
-            "400",
+            "400000000",
             "--text-search-budget-type",
             "WEEKLY_BUDGET",
             "--dry-run",
@@ -12459,7 +12455,7 @@ def test_campaigns_update_text_search_wb_max_conv_rate_rejects_budget_type():
             "--goal-id",
             "8",
             "--text-search-weekly-spend-limit",
-            "250",
+            "250000000",
             "--text-search-budget-type",
             "WEEKLY_BUDGET",
             "--dry-run",
@@ -12607,7 +12603,7 @@ def test_campaigns_add_text_network_wb_maximum_clicks_weekly_payload():
         "--network-strategy",
         "WB_MAXIMUM_CLICKS",
         "--text-network-weekly-spend-limit",
-        "1000",
+        "1000000000",
         "--bid-ceiling",
         "100000000",
     )
@@ -12629,7 +12625,7 @@ def test_campaigns_add_text_network_wb_maximum_clicks_custom_period_payload():
         "--network-strategy",
         "WB_MAXIMUM_CLICKS",
         "--text-network-custom-period-spend-limit",
-        "5000",
+        "5000000000",
         "--text-network-custom-period-start-date",
         "2026-06-01",
         "--text-network-custom-period-end-date",
@@ -12661,7 +12657,7 @@ def test_campaigns_add_text_network_wb_maximum_conversion_rate_payload():
         "--goal-id",
         "77",
         "--text-network-weekly-spend-limit",
-        "2000",
+        "2000000000",
         "--bid-ceiling",
         "50000000",
     )
@@ -12684,9 +12680,9 @@ def test_campaigns_add_text_network_average_cpc_payload():
         "--network-strategy",
         "AVERAGE_CPC",
         "--text-network-average-cpc",
-        "7",
+        "7000000",
         "--text-network-weekly-spend-limit",
-        "500",
+        "500000000",
     )
     network = body["params"]["Campaigns"][0]["TextCampaign"]["BiddingStrategy"][
         "Network"
@@ -12712,7 +12708,7 @@ def test_campaigns_add_text_network_average_cpa_payload():
         "--bid-ceiling",
         "20000000",
         "--text-network-exploration-min-budget",
-        "300",
+        "300000000",
         "--text-network-exploration-is-custom",
         "YES",
     )
@@ -12739,11 +12735,11 @@ def test_campaigns_add_text_network_pay_for_conversion_payload():
         "--network-strategy",
         "PAY_FOR_CONVERSION",
         "--text-network-pay-cpa",
-        "300",
+        "300000000",
         "--goal-id",
         "55",
         "--text-network-weekly-spend-limit",
-        "2500",
+        "2500000000",
     )
     network = body["params"]["Campaigns"][0]["TextCampaign"]["BiddingStrategy"][
         "Network"
@@ -12766,11 +12762,11 @@ def test_campaigns_add_text_network_average_roi_payload():
         "--text-network-reserve-return",
         "60",
         "--text-network-roi-coef",
-        "150",
+        "150000000",
         "--goal-id",
         "88",
         "--text-network-profitability",
-        "25",
+        "25000000",
         "--bid-ceiling",
         "12000000",
     )
@@ -12799,7 +12795,7 @@ def test_campaigns_add_text_network_average_crr_payload():
         "--goal-id",
         "61",
         "--text-network-weekly-spend-limit",
-        "800",
+        "800000000",
     )
     network = body["params"]["Campaigns"][0]["TextCampaign"]["BiddingStrategy"][
         "Network"
@@ -12844,7 +12840,7 @@ def test_campaigns_add_text_network_weekly_click_package_payload():
         "--text-network-clicks-per-week",
         "200",
         "--text-network-average-cpc",
-        "3",
+        "3000000",
     )
     network = body["params"]["Campaigns"][0]["TextCampaign"]["BiddingStrategy"][
         "Network"
@@ -12910,7 +12906,7 @@ def test_campaigns_add_text_network_pay_for_conversion_multiple_goals_payload():
         "--priority-goals",
         "11:55,22:45",
         "--text-network-weekly-spend-limit",
-        "400",
+        "400000000",
     )
     body_camp = body["params"]["Campaigns"][0]["TextCampaign"]
     assert body_camp["BiddingStrategy"]["Network"] == {
@@ -12929,7 +12925,7 @@ def test_campaigns_add_text_network_rejects_detail_without_strategy():
     result = _rejected(
         *_text_network_base_args(),
         "--text-network-average-cpc",
-        "5",
+        "5000000",
     )
     assert "TextCampaign network strategy detail flags require" in result.output
 
@@ -12945,7 +12941,7 @@ def test_campaigns_add_text_network_rejects_average_cpc_for_average_cpa():
         "--goal-id",
         "1",
         "--text-network-average-cpc",
-        "5",
+        "5000000",
     )
     assert "--text-network-average-cpc is not valid" in result.output
 
@@ -12969,7 +12965,7 @@ def test_campaigns_add_text_network_rejects_maximum_coverage_with_details():
         "--network-strategy",
         "MAXIMUM_COVERAGE",
         "--text-network-average-cpc",
-        "5",
+        "5000000",
     )
     assert "MAXIMUM_COVERAGE does not accept" in result.output
 
@@ -12991,7 +12987,7 @@ def test_campaigns_add_text_network_rejects_partial_custom_period():
         "--network-strategy",
         "WB_MAXIMUM_CLICKS",
         "--text-network-custom-period-spend-limit",
-        "1000",
+        "1000000000",
     )
     assert "TextCampaign Network CustomPeriodBudget requires all four" in result.output
 
@@ -13006,7 +13002,7 @@ def test_campaigns_add_text_network_rejects_partial_exploration_budget():
         "--goal-id",
         "1",
         "--text-network-exploration-min-budget",
-        "100",
+        "100000000",
     )
     assert "TextCampaign Network ExplorationBudget requires both" in result.output
 
@@ -13017,11 +13013,11 @@ def test_campaigns_add_text_network_rejects_weekly_combined_with_custom_period()
         "--network-strategy",
         "AVERAGE_CPC",
         "--text-network-average-cpc",
-        "5",
+        "5000000",
         "--text-network-weekly-spend-limit",
-        "100",
+        "100000000",
         "--text-network-custom-period-spend-limit",
-        "200",
+        "200000000",
         "--text-network-custom-period-start-date",
         "2026-06-01",
         "--text-network-custom-period-end-date",
@@ -13043,9 +13039,9 @@ def test_campaigns_add_text_network_rejects_budget_type_on_add():
             "--network-strategy",
             "AVERAGE_CPC",
             "--text-network-average-cpc",
-            "5",
+            "5000000",
             "--text-network-weekly-spend-limit",
-            "100",
+            "100000000",
             "--text-network-budget-type",
             "WEEKLY_BUDGET",
             "--dry-run",
@@ -13069,7 +13065,7 @@ def test_campaigns_add_text_network_rejects_text_search_flag_for_dynamic_text():
         "--type",
         "DYNAMIC_TEXT_CAMPAIGN",
         "--text-network-average-cpc",
-        "5",
+        "5000000",
     )
     assert "--text-network-average-cpc" in result.output
 
@@ -13109,7 +13105,7 @@ def test_campaigns_add_text_network_search_cpa_plus_network_wb_max_clicks_payloa
         "--network-strategy",
         "WB_MAXIMUM_CLICKS",
         "--text-network-weekly-spend-limit",
-        "300",
+        "300000000",
         "--bid-ceiling",
         "20000000",
     )
@@ -13177,7 +13173,7 @@ def test_campaigns_update_text_network_search_cpa_plus_network_wb_max_clicks_pay
         "--network-strategy",
         "WB_MAXIMUM_CLICKS",
         "--text-network-weekly-spend-limit",
-        "400",
+        "400000000",
     )
     bs = body["params"]["Campaigns"][0]["TextCampaign"]["BiddingStrategy"]
     assert bs == {
@@ -13273,7 +13269,7 @@ def test_campaigns_add_text_network_weekly_click_package_combined_ceilings_paylo
         "--text-network-clicks-per-week",
         "100",
         "--text-network-average-cpc",
-        "5",
+        "5000000",
         "--bid-ceiling",
         "1000000",
     )
@@ -13298,7 +13294,7 @@ def test_campaigns_add_text_network_rejects_reserve_return_off_step():
         "--text-network-reserve-return",
         "55",
         "--text-network-roi-coef",
-        "100",
+        "100000000",
         "--goal-id",
         "1",
     )
@@ -13318,7 +13314,7 @@ def test_campaigns_add_text_network_exploration_is_custom_no_payload():
         "--goal-id",
         "1",
         "--text-network-exploration-min-budget",
-        "300",
+        "300000000",
         "--text-network-exploration-is-custom",
         "NO",
     )
@@ -13339,9 +13335,9 @@ def test_campaigns_add_text_network_rejects_package_with_network_flag():
         "--network-strategy",
         "AVERAGE_CPC",
         "--text-network-average-cpc",
-        "5",
+        "5000000",
         "--text-network-weekly-spend-limit",
-        "100",
+        "100000000",
         "--package-strategy-id",
         "700",
         "--package-platform-search-result",
@@ -13369,9 +13365,9 @@ def test_campaigns_update_text_network_average_cpc_payload():
         "--network-strategy",
         "AVERAGE_CPC",
         "--text-network-average-cpc",
-        "8",
+        "8000000",
         "--text-network-weekly-spend-limit",
-        "1500",
+        "1500000000",
     )
     text = body["params"]["Campaigns"][0]["TextCampaign"]
     assert text["BiddingStrategy"] == {
@@ -13397,11 +13393,11 @@ def test_campaigns_update_text_network_search_and_network_payload():
         "--search-strategy",
         "AVERAGE_CPC",
         "--text-search-average-cpc",
-        "6",
+        "6000000",
         "--network-strategy",
         "AVERAGE_CPC",
         "--text-network-average-cpc",
-        "7",
+        "7000000",
     )
     text = body["params"]["Campaigns"][0]["TextCampaign"]
     assert text["BiddingStrategy"] == {
@@ -13428,9 +13424,9 @@ def test_campaigns_update_text_network_budget_type_weekly_payload():
         "--network-strategy",
         "AVERAGE_CPC",
         "--text-network-average-cpc",
-        "5",
+        "5000000",
         "--text-network-weekly-spend-limit",
-        "300",
+        "300000000",
         "--text-network-budget-type",
         "WEEKLY_BUDGET",
     )
@@ -13459,9 +13455,9 @@ def test_campaigns_update_text_network_budget_type_custom_period_payload():
         "--network-strategy",
         "AVERAGE_CPC",
         "--text-network-average-cpc",
-        "5",
+        "5000000",
         "--text-network-custom-period-spend-limit",
-        "1000",
+        "1000000000",
         "--text-network-custom-period-start-date",
         "2026-07-01",
         "--text-network-custom-period-end-date",
@@ -13501,7 +13497,7 @@ def test_campaigns_update_text_network_rejects_budget_type_without_weekly():
         "--network-strategy",
         "AVERAGE_CPC",
         "--text-network-average-cpc",
-        "5",
+        "5000000",
         "--text-network-budget-type",
         "WEEKLY_BUDGET",
     )
@@ -13524,7 +13520,7 @@ def test_campaigns_update_text_network_wb_maximum_clicks_budget_type_payload():
         "--network-strategy",
         "WB_MAXIMUM_CLICKS",
         "--text-network-weekly-spend-limit",
-        "300",
+        "300000000",
         "--text-network-budget-type",
         "WEEKLY_BUDGET",
     )
@@ -13596,7 +13592,7 @@ def test_campaigns_update_text_network_wb_maximum_clicks_payload():
         "--network-strategy",
         "WB_MAXIMUM_CLICKS",
         "--text-network-weekly-spend-limit",
-        "700",
+        "700000000",
         "--bid-ceiling",
         "20000000",
     )
@@ -13625,7 +13621,7 @@ def test_campaigns_update_text_network_wb_maximum_conversion_rate_payload():
         "--goal-id",
         "111",
         "--text-network-weekly-spend-limit",
-        "1200",
+        "1200000000",
     )
     network = body["params"]["Campaigns"][0]["TextCampaign"]["BiddingStrategy"][
         "Network"
@@ -13650,7 +13646,7 @@ def test_campaigns_update_text_network_pay_for_conversion_payload():
         "--network-strategy",
         "PAY_FOR_CONVERSION",
         "--text-network-pay-cpa",
-        "150",
+        "150000000",
         "--goal-id",
         "44",
     )
@@ -13679,7 +13675,7 @@ def test_campaigns_update_text_network_average_roi_payload():
         "--text-network-reserve-return",
         "40",
         "--text-network-roi-coef",
-        "200",
+        "200000000",
         "--goal-id",
         "9",
     )
@@ -13832,7 +13828,7 @@ def test_campaigns_update_text_network_pay_for_conversion_multiple_goals_payload
         "--priority-goals",
         "11:55,22:45",
         "--text-network-weekly-spend-limit",
-        "400",
+        "400000000",
     )
     network = body["params"]["Campaigns"][0]["TextCampaign"]["BiddingStrategy"][
         "Network"
@@ -13897,7 +13893,7 @@ def test_campaigns_update_text_network_average_cpa_multiple_goals_budget_type_pa
         "--priority-goals",
         "1:60,2:40",
         "--text-network-weekly-spend-limit",
-        "500",
+        "500000000",
         "--text-network-budget-type",
         "WEEKLY_BUDGET",
     )
@@ -13929,7 +13925,7 @@ def test_campaigns_update_text_network_wb_maximum_conversion_rate_budget_type_pa
         "--goal-id",
         "55",
         "--text-network-custom-period-spend-limit",
-        "1000",
+        "1000000000",
         "--text-network-custom-period-start-date",
         "2026-07-01",
         "--text-network-custom-period-end-date",
@@ -13998,7 +13994,7 @@ def test_campaigns_add_text_search_rejects_with_package_bidding_strategy():
         "--package-platform-dynamic-places",
         "NO",
         "--text-search-weekly-spend-limit",
-        "100",
+        "100000000",
     )
     assert "PackageBiddingStrategy" in result.output
     assert "--text-search-weekly-spend-limit" in result.output
@@ -14017,7 +14013,7 @@ def test_campaigns_update_text_search_rejects_with_package_bidding_strategy():
             "--package-strategy-id",
             "700",
             "--text-search-weekly-spend-limit",
-            "100",
+            "100000000",
             "--dry-run",
         ],
     )
@@ -14062,7 +14058,7 @@ def test_campaigns_text_search_flags_rejected_for_other_campaign_types():
             "--type",
             "DYNAMIC_TEXT_CAMPAIGN",
             "--text-search-weekly-spend-limit",
-            "100",
+            "100000000",
             "--dry-run",
         ],
     )
@@ -18174,6 +18170,63 @@ def test_micro_rubles_rejects_negative():
     assert "non-negative" in result.output
 
 
+def test_direct_money_flags_use_micro_rubles_only():
+    forbidden_type = "RUBLES_TO_MICRO" + "_RUBLES"
+    forbidden_snippets = (
+        forbidden_type,
+        'Decimal("' + "1000000" + '")',
+        "human-readable " + "money",
+        "converted to " + "API " + "long",
+    )
+    root = Path(__file__).resolve().parents[1]
+
+    for relative_path in (
+        "direct_cli/commands/ads.py",
+        "direct_cli/commands/campaigns.py",
+        "direct_cli/utils.py",
+    ):
+        content = (root / relative_path).read_text()
+        for snippet in forbidden_snippets:
+            assert snippet not in content
+
+
+def test_campaigns_add_money_flag_rejects_decimal_rubles():
+    result = _failing_run(
+        "campaigns",
+        "add",
+        "--name",
+        "CPM",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "CPM_BANNER_CAMPAIGN",
+        "--network-strategy",
+        "WB_MAXIMUM_IMPRESSIONS",
+        "--average-cpm",
+        "120.5",
+    )
+    assert result.exit_code != 0
+    assert "Expected integer (micro-rubles)" in result.output
+
+
+def test_campaigns_update_money_flag_rejects_small_micro_value():
+    result = _failing_run(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "TEXT_CAMPAIGN",
+        "--search-strategy",
+        "AVERAGE_CPC",
+        "--text-search-average-cpc",
+        "15",
+    )
+    assert result.exit_code != 0
+    assert "seems too low for micro-rubles" in result.output
+    assert "Did you mean 15000000?" in result.output
+
+
 # --- Issue #362: DynamicTextCampaign.BiddingStrategy.Search ---
 
 
@@ -18325,9 +18378,9 @@ def test_campaigns_add_dynamic_text_search_wb_maximum_clicks_weekly_payload():
         "--network-strategy",
         "SERVING_OFF",
         "--dyn-search-weekly-spend-limit",
-        "1000",
+        "1000000000",
         "--dyn-search-bid-ceiling",
-        "100",
+        "100000000",
     )
     search = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
         "Search"
@@ -18356,7 +18409,7 @@ def test_campaigns_add_dynamic_text_search_wb_maximum_clicks_custom_period_paylo
         "--network-strategy",
         "SERVING_OFF",
         "--dyn-search-custom-period-spend-limit",
-        "5000",
+        "5000000000",
         "--dyn-search-custom-period-start-date",
         "2026-06-01",
         "--dyn-search-custom-period-end-date",
@@ -18397,9 +18450,9 @@ def test_campaigns_add_dynamic_text_search_wb_maximum_conversion_rate_payload():
         "--dyn-search-goal-id",
         "42",
         "--dyn-search-weekly-spend-limit",
-        "2000",
+        "2000000000",
         "--dyn-search-bid-ceiling",
-        "150",
+        "150000000",
     )
     search = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
         "Search"
@@ -18429,9 +18482,9 @@ def test_campaigns_add_dynamic_text_search_average_cpc_payload():
         "--network-strategy",
         "SERVING_OFF",
         "--dyn-search-average-cpc",
-        "8",
+        "8000000",
         "--dyn-search-weekly-spend-limit",
-        "1500",
+        "1500000000",
     )
     search = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
         "Search"
@@ -18460,13 +18513,13 @@ def test_campaigns_add_dynamic_text_search_average_cpa_with_exploration_payload(
         "--network-strategy",
         "SERVING_OFF",
         "--dyn-search-average-cpa",
-        "200",
+        "200000000",
         "--dyn-search-goal-id",
         "42",
         "--dyn-search-bid-ceiling",
-        "50",
+        "50000000",
         "--dyn-search-exploration-budget",
-        "100",
+        "100000000",
         "--dyn-search-exploration-budget-custom",
         "YES",
     )
@@ -18502,11 +18555,11 @@ def test_campaigns_add_dynamic_text_search_pay_for_conversion_payload():
         "--network-strategy",
         "SERVING_OFF",
         "--dyn-search-cpa",
-        "300",
+        "300000000",
         "--dyn-search-goal-id",
         "42",
         "--dyn-search-weekly-spend-limit",
-        "1000",
+        "1000000000",
     )
     search = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
         "Search"
@@ -18544,9 +18597,9 @@ def test_campaigns_add_dynamic_text_search_average_roi_payload():
         "--dyn-search-profitability",
         "25",
         "--dyn-search-weekly-spend-limit",
-        "2000",
+        "2000000000",
         "--dyn-search-bid-ceiling",
-        "100",
+        "100000000",
     )
     search = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
         "Search"
@@ -18583,7 +18636,7 @@ def test_campaigns_add_dynamic_text_search_average_crr_payload():
         "--dyn-search-goal-id",
         "42",
         "--dyn-search-weekly-spend-limit",
-        "1500",
+        "1500000000",
     )
     search = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
         "Search"
@@ -18646,7 +18699,7 @@ def test_campaigns_add_dynamic_text_search_weekly_click_package_payload():
         "--dyn-search-clicks-per-week",
         "100",
         "--dyn-search-bid-ceiling",
-        "50",
+        "50000000",
     )
     search = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
         "Search"
@@ -18676,11 +18729,11 @@ def test_campaigns_add_dynamic_text_search_rejects_partial_exploration_budget():
         "--network-strategy",
         "SERVING_OFF",
         "--dyn-search-average-cpa",
-        "100",
+        "100000000",
         "--dyn-search-goal-id",
         "42",
         "--dyn-search-exploration-budget",
-        "50",
+        "50000000",
     )
     assert result.exit_code != 0
     assert "ExplorationBudget" in result.output
@@ -18702,7 +18755,7 @@ def test_campaigns_add_dynamic_text_search_rejects_partial_custom_period():
         "--network-strategy",
         "SERVING_OFF",
         "--dyn-search-custom-period-spend-limit",
-        "100",
+        "100000000",
         "--dyn-search-custom-period-start-date",
         "2026-06-01",
     )
@@ -18726,9 +18779,9 @@ def test_campaigns_add_dynamic_text_search_rejects_weekly_and_custom_period_comb
         "--network-strategy",
         "SERVING_OFF",
         "--dyn-search-weekly-spend-limit",
-        "1000",
+        "1000000000",
         "--dyn-search-custom-period-spend-limit",
-        "1000",
+        "1000000000",
         "--dyn-search-custom-period-start-date",
         "2026-06-01",
         "--dyn-search-custom-period-end-date",
@@ -18757,7 +18810,7 @@ def test_campaigns_add_dynamic_text_search_rejects_field_for_wrong_subtype():
         "--network-strategy",
         "SERVING_OFF",
         "--dyn-search-average-cpa",
-        "100",
+        "100000000",
         "--dyn-search-goal-id",
         "42",
         "--dyn-search-clicks-per-week",
@@ -18783,7 +18836,7 @@ def test_campaigns_add_dynamic_text_search_rejects_legacy_flag_combo():
         "--network-strategy",
         "SERVING_OFF",
         "--dyn-search-average-cpa",
-        "100",
+        "100000000",
         "--dyn-search-goal-id",
         "42",
         "--average-cpa",
@@ -18809,7 +18862,7 @@ def test_campaigns_add_dynamic_text_search_required_average_cpa_when_typed_used(
         "--network-strategy",
         "SERVING_OFF",
         "--dyn-search-bid-ceiling",
-        "100",
+        "100000000",
     )
     assert result.exit_code != 0
     assert "AVERAGE_CPA requires" in result.output
@@ -18904,7 +18957,7 @@ def test_campaigns_add_dynamic_text_search_rejects_serving_off_with_details():
         "--network-strategy",
         "SERVING_OFF",
         "--dyn-search-weekly-spend-limit",
-        "1000",
+        "1000000000",
     )
     assert result.exit_code != 0
     assert "SERVING_OFF does not accept" in result.output
@@ -18924,7 +18977,7 @@ def test_campaigns_add_dynamic_text_search_rejects_detail_without_search_strateg
         "--network-strategy",
         "SERVING_OFF",
         "--dyn-search-weekly-spend-limit",
-        "1000",
+        "1000000000",
     )
     assert result.exit_code != 0
     assert "require --search-strategy" in result.output
@@ -18948,7 +19001,7 @@ def test_campaigns_add_dynamic_text_search_rejects_budget_type_on_add():
         "--network-strategy",
         "SERVING_OFF",
         "--dyn-search-weekly-spend-limit",
-        "1000",
+        "1000000000",
         "--dyn-search-budget-type",
         "WEEKLY_BUDGET",
     )
@@ -18969,9 +19022,9 @@ def test_campaigns_update_dynamic_text_search_average_cpc_payload():
         "--search-strategy",
         "AVERAGE_CPC",
         "--dyn-search-average-cpc",
-        "8",
+        "8000000",
         "--dyn-search-weekly-spend-limit",
-        "1500",
+        "1500000000",
     )
     dyn = body["params"]["Campaigns"][0]["DynamicTextCampaign"]
     assert dyn["BiddingStrategy"] == {
@@ -19027,7 +19080,7 @@ def test_campaigns_update_dynamic_text_search_budget_type_weekly_payload():
         "--search-strategy",
         "WB_MAXIMUM_CLICKS",
         "--dyn-search-weekly-spend-limit",
-        "300",
+        "300000000",
         "--dyn-search-budget-type",
         "WEEKLY_BUDGET",
     )
@@ -19055,7 +19108,7 @@ def test_campaigns_update_dynamic_text_search_budget_type_custom_period_payload(
         "--search-strategy",
         "AVERAGE_CPA",
         "--dyn-search-custom-period-spend-limit",
-        "1000",
+        "1000000000",
         "--dyn-search-custom-period-start-date",
         "2026-06-01",
         "--dyn-search-custom-period-end-date",
@@ -19193,7 +19246,7 @@ def test_campaigns_add_dynamic_text_search_package_strategy_rejects_dyn_search()
         "--package-strategy-id",
         "99",
         "--dyn-search-average-cpc",
-        "10",
+        "10000000",
     )
     assert result.exit_code != 0
     assert (
@@ -19213,9 +19266,9 @@ def test_campaigns_update_dynamic_text_search_wb_maximum_clicks_payload():
         "--search-strategy",
         "WB_MAXIMUM_CLICKS",
         "--dyn-search-weekly-spend-limit",
-        "500",
+        "500000000",
         "--dyn-search-bid-ceiling",
-        "50",
+        "50000000",
     )
     search = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
         "Search"
@@ -19242,7 +19295,7 @@ def test_campaigns_update_dynamic_text_search_wb_maximum_conversion_rate_payload
         "--dyn-search-goal-id",
         "77",
         "--dyn-search-weekly-spend-limit",
-        "800",
+        "800000000",
     )
     search = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
         "Search"
@@ -19267,11 +19320,11 @@ def test_campaigns_update_dynamic_text_search_average_cpa_payload():
         "--search-strategy",
         "AVERAGE_CPA",
         "--dyn-search-average-cpa",
-        "150",
+        "150000000",
         "--dyn-search-goal-id",
         "42",
         "--dyn-search-bid-ceiling",
-        "30",
+        "30000000",
     )
     search = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
         "Search"
@@ -19297,11 +19350,11 @@ def test_campaigns_update_dynamic_text_search_pay_for_conversion_payload():
         "--search-strategy",
         "PAY_FOR_CONVERSION",
         "--dyn-search-cpa",
-        "250",
+        "250000000",
         "--dyn-search-goal-id",
         "42",
         "--dyn-search-weekly-spend-limit",
-        "1000",
+        "1000000000",
     )
     search = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
         "Search"
@@ -19391,7 +19444,7 @@ def test_campaigns_update_dynamic_text_search_pay_for_conversion_crr_payload():
         "--dyn-search-goal-id",
         "42",
         "--dyn-search-weekly-spend-limit",
-        "500",
+        "500000000",
     )
     search = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
         "Search"
@@ -19419,7 +19472,7 @@ def test_campaigns_update_dynamic_text_search_weekly_click_package_payload():
         "--dyn-search-clicks-per-week",
         "200",
         "--dyn-search-average-cpc",
-        "5",
+        "5000000",
     )
     search = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
         "Search"
@@ -19444,11 +19497,11 @@ def test_campaigns_update_dynamic_text_search_average_cpa_with_exploration_paylo
         "--search-strategy",
         "AVERAGE_CPA",
         "--dyn-search-average-cpa",
-        "200",
+        "200000000",
         "--dyn-search-goal-id",
         "42",
         "--dyn-search-exploration-budget",
-        "100",
+        "100000000",
         "--dyn-search-exploration-budget-custom",
         "NO",
     )
@@ -19576,7 +19629,7 @@ def test_campaigns_add_unified_network_wb_maximum_clicks_weekly_payload():
         "--network-strategy",
         "WB_MAXIMUM_CLICKS",
         "--unified-network-weekly-spend-limit",
-        "1000",
+        "1000000000",
         "--bid-ceiling",
         "100000000",
     )
@@ -19598,7 +19651,7 @@ def test_campaigns_add_unified_network_wb_maximum_clicks_custom_period_payload()
         "--network-strategy",
         "WB_MAXIMUM_CLICKS",
         "--unified-network-custom-period-spend-limit",
-        "5000",
+        "5000000000",
         "--unified-network-custom-period-start-date",
         "2026-06-01",
         "--unified-network-custom-period-end-date",
@@ -19632,7 +19685,7 @@ def test_campaigns_add_unified_network_wb_maximum_conversion_rate_payload():
         "--goal-id",
         "77",
         "--unified-network-weekly-spend-limit",
-        "2000",
+        "2000000000",
         "--bid-ceiling",
         "50000000",
     )
@@ -19655,9 +19708,9 @@ def test_campaigns_add_unified_network_average_cpc_payload():
         "--network-strategy",
         "AVERAGE_CPC",
         "--unified-network-average-cpc",
-        "7",
+        "7000000",
         "--unified-network-weekly-spend-limit",
-        "500",
+        "500000000",
     )
     network = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
         "Network"
@@ -19683,7 +19736,7 @@ def test_campaigns_add_unified_network_average_cpa_payload():
         "--bid-ceiling",
         "20000000",
         "--unified-network-exploration-min-budget",
-        "300",
+        "300000000",
         "--unified-network-exploration-is-custom",
         "YES",
     )
@@ -19710,11 +19763,11 @@ def test_campaigns_add_unified_network_pay_for_conversion_payload():
         "--network-strategy",
         "PAY_FOR_CONVERSION",
         "--unified-network-cpa",
-        "300",
+        "300000000",
         "--goal-id",
         "55",
         "--unified-network-weekly-spend-limit",
-        "2500",
+        "2500000000",
     )
     network = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
         "Network"
@@ -19739,7 +19792,7 @@ def test_campaigns_add_unified_network_average_crr_payload():
         "--goal-id",
         "61",
         "--unified-network-weekly-spend-limit",
-        "800",
+        "800000000",
     )
     network = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
         "Network"
@@ -19822,7 +19875,7 @@ def test_campaigns_add_unified_network_pay_for_conversion_multiple_goals_payload
         "--network-strategy",
         "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
         "--unified-network-weekly-spend-limit",
-        "400",
+        "400000000",
     )
     network = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
         "Network"
@@ -19844,7 +19897,7 @@ def test_campaigns_add_unified_network_rejects_detail_without_strategy():
     result = _rejected(
         *_unified_network_add_base(),
         "--unified-network-average-cpc",
-        "5",
+        "5000000",
     )
     assert "UnifiedCampaign network strategy detail flags require" in result.output
 
@@ -19855,7 +19908,7 @@ def test_campaigns_add_unified_network_rejects_serving_off_with_details():
         "--network-strategy",
         "SERVING_OFF",
         "--unified-network-average-cpc",
-        "5",
+        "5000000",
     )
     assert "SERVING_OFF does not accept" in result.output
 
@@ -19868,7 +19921,7 @@ def test_campaigns_add_unified_network_rejects_maximum_coverage_even_with_detail
         "--network-strategy",
         "MAXIMUM_COVERAGE",
         "--unified-network-weekly-spend-limit",
-        "1000",
+        "1000000000",
     )
     assert "UNIFIED_CAMPAIGN" in result.output
 
@@ -19881,7 +19934,7 @@ def test_campaigns_add_unified_network_rejects_network_default_with_details():
         "--network-strategy",
         "NETWORK_DEFAULT",
         "--unified-network-weekly-spend-limit",
-        "1000",
+        "1000000000",
     )
     assert "NETWORK_DEFAULT does not accept" in result.output
 
@@ -19973,7 +20026,7 @@ def test_campaigns_add_unified_network_rejects_wrong_subtype_flag():
         "--goal-id",
         "1",
         "--unified-network-cpa",
-        "5",
+        "5000000",
     )
     assert "--unified-network-cpa is not valid" in result.output
 
@@ -20001,9 +20054,9 @@ def test_campaigns_add_unified_network_rejects_exploration_on_average_cpc():
         "--network-strategy",
         "AVERAGE_CPC",
         "--unified-network-average-cpc",
-        "5",
+        "5000000",
         "--unified-network-exploration-min-budget",
-        "1",
+        "1000000",
         "--unified-network-exploration-is-custom",
         "YES",
     )
@@ -20016,7 +20069,7 @@ def test_campaigns_add_unified_network_rejects_partial_custom_period_budget():
         "--network-strategy",
         "WB_MAXIMUM_CLICKS",
         "--unified-network-custom-period-spend-limit",
-        "1000",
+        "1000000000",
     )
     assert (
         "UnifiedCampaign Network CustomPeriodBudget requires all four" in result.output
@@ -20033,7 +20086,7 @@ def test_campaigns_add_unified_network_rejects_partial_exploration_budget():
         "--goal-id",
         "1",
         "--unified-network-exploration-min-budget",
-        "100",
+        "100000000",
     )
     assert "UnifiedCampaign Network ExplorationBudget requires both" in result.output
 
@@ -20044,11 +20097,11 @@ def test_campaigns_add_unified_network_rejects_weekly_combined_with_custom_perio
         "--network-strategy",
         "AVERAGE_CPC",
         "--unified-network-average-cpc",
-        "5",
+        "5000000",
         "--unified-network-weekly-spend-limit",
-        "100",
+        "100000000",
         "--unified-network-custom-period-spend-limit",
-        "200",
+        "200000000",
         "--unified-network-custom-period-start-date",
         "2026-06-01",
         "--unified-network-custom-period-end-date",
@@ -20070,7 +20123,7 @@ def test_campaigns_add_unified_network_rejects_budget_type_on_add():
             "--network-strategy",
             "AVERAGE_CPC",
             "--unified-network-average-cpc",
-            "5",
+            "5000000",
             "--unified-network-budget-type",
             "WEEKLY_BUDGET",
             "--dry-run",
@@ -20106,7 +20159,7 @@ def test_campaigns_add_unified_network_rejects_package_with_typed_flag():
         "--network-strategy",
         "AVERAGE_CPC",
         "--unified-network-average-cpc",
-        "5",
+        "5000000",
     )
     assert "UnifiedCampaign.PackageBiddingStrategy cannot be combined" in result.output
 
@@ -20128,7 +20181,7 @@ def test_campaigns_add_unified_network_rejects_typed_flag_for_text_type():
         "--network-strategy",
         "SERVING_OFF",
         "--unified-network-average-cpc",
-        "5",
+        "5000000",
     )
     assert "--unified-network-average-cpc" in result.output
 
@@ -20186,7 +20239,7 @@ def test_campaigns_update_unified_network_wb_maximum_clicks_payload():
         "--network-strategy",
         "WB_MAXIMUM_CLICKS",
         "--unified-network-weekly-spend-limit",
-        "500",
+        "500000000",
     )
     network = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
         "Network"
@@ -20220,9 +20273,9 @@ def test_campaigns_update_unified_network_average_cpc_payload():
         "--network-strategy",
         "AVERAGE_CPC",
         "--unified-network-average-cpc",
-        "8",
+        "8000000",
         "--unified-network-weekly-spend-limit",
-        "1500",
+        "1500000000",
     )
     network = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
         "Network"
@@ -20264,7 +20317,7 @@ def test_campaigns_update_unified_network_pay_for_conversion_payload():
         "--network-strategy",
         "PAY_FOR_CONVERSION",
         "--unified-network-cpa",
-        "9",
+        "9000000",
         "--goal-id",
         "12",
     )
@@ -20369,7 +20422,7 @@ def test_campaigns_update_unified_network_pay_for_conversion_multiple_goals_payl
         "--priority-goals",
         "11:55,22:45",
         "--unified-network-weekly-spend-limit",
-        "400",
+        "400000000",
     )
     campaign = body["params"]["Campaigns"][0]["UnifiedCampaign"]
     assert campaign["BiddingStrategy"]["Network"] == {
@@ -20437,9 +20490,9 @@ def test_campaigns_update_unified_network_budget_type_weekly_payload():
         "--network-strategy",
         "AVERAGE_CPC",
         "--unified-network-average-cpc",
-        "5",
+        "5000000",
         "--unified-network-weekly-spend-limit",
-        "300",
+        "300000000",
         "--unified-network-budget-type",
         "WEEKLY_BUDGET",
     )
@@ -20463,9 +20516,9 @@ def test_campaigns_update_unified_network_budget_type_custom_period_payload():
         "--network-strategy",
         "AVERAGE_CPC",
         "--unified-network-average-cpc",
-        "5",
+        "5000000",
         "--unified-network-custom-period-spend-limit",
-        "1000",
+        "1000000000",
         "--unified-network-custom-period-start-date",
         "2026-07-01",
         "--unified-network-custom-period-end-date",
@@ -20500,7 +20553,7 @@ def test_campaigns_update_unified_network_rejects_budget_type_without_weekly():
         "--network-strategy",
         "AVERAGE_CPC",
         "--unified-network-average-cpc",
-        "5",
+        "5000000",
         "--unified-network-budget-type",
         "WEEKLY_BUDGET",
     )
@@ -20513,7 +20566,7 @@ def test_campaigns_update_unified_network_rejects_budget_type_without_custom_per
         "--network-strategy",
         "AVERAGE_CPC",
         "--unified-network-average-cpc",
-        "5",
+        "5000000",
         "--unified-network-budget-type",
         "CUSTOM_PERIOD_BUDGET",
     )
@@ -20557,7 +20610,7 @@ def test_campaigns_update_unified_network_rejects_package_with_typed_flag():
         "--network-strategy",
         "AVERAGE_CPC",
         "--unified-network-average-cpc",
-        "5",
+        "5000000",
     )
     assert "PackageBiddingStrategy cannot be combined" in result.output
 
@@ -20572,7 +20625,7 @@ def test_campaigns_update_unified_network_wb_maximum_clicks_budget_type_payload(
         "--network-strategy",
         "WB_MAXIMUM_CLICKS",
         "--unified-network-weekly-spend-limit",
-        "300",
+        "300000000",
         "--unified-network-budget-type",
         "WEEKLY_BUDGET",
     )
@@ -20611,7 +20664,7 @@ def test_campaigns_add_unified_network_rejects_package_with_typed_flag_no_strate
         "--package-platform-dynamic-places",
         "NO",
         "--unified-network-average-cpc",
-        "5",
+        "5000000",
     )
     assert "UnifiedCampaign.PackageBiddingStrategy cannot be combined" in result.output
     assert "--unified-network-average-cpc" in result.output
@@ -20653,7 +20706,7 @@ def test_campaigns_add_unified_network_pay_for_conversion_multiple_goals_with_pr
         "--priority-goals",
         "11:55,22:45",
         "--unified-network-weekly-spend-limit",
-        "400",
+        "400000000",
     )
     campaign = body["params"]["Campaigns"][0]["UnifiedCampaign"]
     assert campaign["BiddingStrategy"]["Network"] == {
@@ -20700,7 +20753,7 @@ def test_campaigns_add_unified_network_rejects_priority_goals_for_non_multi_goal
         "--network-strategy",
         "AVERAGE_CPC",
         "--unified-network-average-cpc",
-        "5",
+        "5000000",
         "--priority-goals",
         "1:500",
     )
@@ -20801,7 +20854,7 @@ def test_campaigns_add_unified_search_serving_off_rejects_detail_flags():
         "--search-strategy",
         "SERVING_OFF",
         "--unified-search-weekly-spend-limit",
-        "100",
+        "100000000",
     )
     assert "SERVING_OFF" in result.output
 
@@ -20812,7 +20865,7 @@ def test_campaigns_add_unified_search_wb_maximum_clicks_payload():
         "--search-strategy",
         "WB_MAXIMUM_CLICKS",
         "--unified-search-weekly-spend-limit",
-        "300",
+        "300000000",
         "--bid-ceiling",
         "5000000",
     )
@@ -20857,7 +20910,7 @@ def test_campaigns_add_unified_search_wb_max_conversion_rate_payload():
         "--goal-id",
         "42",
         "--unified-search-weekly-spend-limit",
-        "200",
+        "200000000",
     )
     search = _unified_search_extract(body)
     assert search["BiddingStrategyType"] == "WB_MAXIMUM_CONVERSION_RATE"
@@ -20905,7 +20958,7 @@ def test_campaigns_add_unified_search_wb_max_clicks_with_custom_period_payload()
         "--search-strategy",
         "WB_MAXIMUM_CLICKS",
         "--unified-search-custom-period-spend-limit",
-        "300",
+        "300000000",
         "--unified-search-custom-period-start-date",
         "2026-07-01",
         "--unified-search-custom-period-end-date",
@@ -20930,9 +20983,9 @@ def test_campaigns_add_unified_search_average_cpc_payload():
         "--search-strategy",
         "AVERAGE_CPC",
         "--unified-search-average-cpc",
-        "12",
+        "12000000",
         "--unified-search-weekly-spend-limit",
-        "1000",
+        "1000000000",
     )
     search = _unified_search_extract(body)
     assert search["BiddingStrategyType"] == "AVERAGE_CPC"
@@ -20980,7 +21033,7 @@ def test_campaigns_add_unified_search_pay_for_conversion_payload():
         "--search-strategy",
         "PAY_FOR_CONVERSION",
         "--unified-search-pay-cpa",
-        "150",
+        "150000000",
         "--goal-id",
         "777",
     )
@@ -21038,7 +21091,7 @@ def test_campaigns_add_unified_search_max_profit_payload():
         "--search-strategy",
         "MAX_PROFIT",
         "--unified-search-weekly-spend-limit",
-        "5000",
+        "5000000000",
     )
     search = _unified_search_extract(body)
     assert search["BiddingStrategyType"] == "MAX_PROFIT"
@@ -21053,7 +21106,7 @@ def test_campaigns_add_unified_search_average_cpa_multiple_goals_payload():
         "--search-strategy",
         "AVERAGE_CPA_MULTIPLE_GOALS",
         "--unified-search-weekly-spend-limit",
-        "1000",
+        "1000000000",
         "--bid-ceiling",
         "500000000",
     )
@@ -21071,7 +21124,7 @@ def test_campaigns_add_unified_search_pay_for_conversion_multi_goals_payload():
         "--search-strategy",
         "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
         "--unified-search-weekly-spend-limit",
-        "2000",
+        "2000000000",
     )
     search = _unified_search_extract(body)
     assert search["BiddingStrategyType"] == "PAY_FOR_CONVERSION_MULTIPLE_GOALS"
@@ -21089,11 +21142,11 @@ def test_campaigns_add_unified_search_rejects_average_cpc_for_pay_for_conversion
         "--search-strategy",
         "PAY_FOR_CONVERSION",
         "--unified-search-pay-cpa",
-        "150",
+        "150000000",
         "--goal-id",
         "1",
         "--unified-search-average-cpc",
-        "5",
+        "5000000",
     )
     assert "--unified-search-average-cpc" in result.output
     assert "PAY_FOR_CONVERSION" in result.output
@@ -21106,7 +21159,7 @@ def test_campaigns_add_unified_search_rejects_bid_ceiling_on_average_cpc():
         "--search-strategy",
         "AVERAGE_CPC",
         "--unified-search-average-cpc",
-        "5",
+        "5000000",
         "--bid-ceiling",
         "1000000",
     )
@@ -21120,7 +21173,7 @@ def test_campaigns_add_unified_search_rejects_partial_custom_period_budget():
         "--search-strategy",
         "WB_MAXIMUM_CLICKS",
         "--unified-search-custom-period-spend-limit",
-        "100",
+        "100000000",
     )
     assert "custom-period" in result.output
 
@@ -21135,7 +21188,7 @@ def test_campaigns_add_unified_search_rejects_partial_exploration_budget():
         "--goal-id",
         "1",
         "--unified-search-exploration-min-budget",
-        "100",
+        "100000000",
     )
     assert "ExplorationBudget" in result.output
 
@@ -21155,7 +21208,7 @@ def test_campaigns_add_unified_search_exploration_is_custom_accepts_no():
         "--goal-id",
         "1",
         "--unified-search-exploration-min-budget",
-        "100",
+        "100000000",
         "--unified-search-exploration-is-custom",
         "NO",
     )
@@ -21175,7 +21228,7 @@ def test_campaigns_add_unified_search_rejects_detail_without_strategy():
     result = _rejected(
         *_unified_base_args(),
         "--unified-search-weekly-spend-limit",
-        "100",
+        "100000000",
     )
     assert "HIGHEST_POSITION" in result.output
     assert "--unified-search-weekly-spend-limit" in result.output
@@ -21192,7 +21245,7 @@ def test_campaigns_update_unified_search_rejects_detail_without_strategy():
         "--type",
         "UNIFIED_CAMPAIGN",
         "--unified-search-weekly-spend-limit",
-        "100",
+        "100000000",
     )
     assert "--search-strategy" in result.output
 
@@ -21205,7 +21258,7 @@ def test_campaigns_add_unified_search_placement_types_payload():
         "--search-strategy",
         "AVERAGE_CPC",
         "--unified-search-average-cpc",
-        "5",
+        "5000000",
         "--search-placement-search-results",
         "YES",
         "--search-placement-product-gallery",
@@ -21281,7 +21334,7 @@ def test_campaigns_update_unified_search_average_cpc_payload():
         "--search-strategy",
         "AVERAGE_CPC",
         "--unified-search-average-cpc",
-        "7",
+        "7000000",
     )
     search = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
         "Search"
@@ -21313,7 +21366,7 @@ def test_campaigns_update_unified_search_pay_for_conversion_payload():
         "--search-strategy",
         "PAY_FOR_CONVERSION",
         "--unified-search-pay-cpa",
-        "100",
+        "100000000",
         "--goal-id",
         "9",
     )
@@ -21328,7 +21381,7 @@ def test_campaigns_update_unified_search_wb_max_clicks_payload():
         "--search-strategy",
         "WB_MAXIMUM_CLICKS",
         "--unified-search-weekly-spend-limit",
-        "500",
+        "500000000",
     )
     search = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
         "Search"
@@ -21384,7 +21437,7 @@ def test_campaigns_update_unified_search_max_profit_payload():
         "--search-strategy",
         "MAX_PROFIT",
         "--unified-search-weekly-spend-limit",
-        "3000",
+        "3000000000",
     )
     search = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
         "Search"
@@ -21397,7 +21450,7 @@ def test_campaigns_update_unified_search_multi_goals_payload():
         "--search-strategy",
         "AVERAGE_CPA_MULTIPLE_GOALS",
         "--unified-search-weekly-spend-limit",
-        "1500",
+        "1500000000",
     )
     search = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
         "Search"
@@ -21410,7 +21463,7 @@ def test_campaigns_update_unified_search_pay_for_conversion_multi_goals_payload(
         "--search-strategy",
         "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
         "--unified-search-weekly-spend-limit",
-        "2500",
+        "2500000000",
     )
     search = body["params"]["Campaigns"][0]["UnifiedCampaign"]["BiddingStrategy"][
         "Search"
@@ -21423,7 +21476,7 @@ def test_campaigns_update_unified_search_partial_field_no_required_check():
     NOT switched (WSDL update-side fields are all minOccurs=0)."""
     body = _unified_search_update(
         "--unified-search-weekly-spend-limit",
-        "100",
+        "100000000",
         "--search-strategy",
         "WB_MAXIMUM_CLICKS",
     )
@@ -21447,9 +21500,9 @@ def test_campaigns_update_unified_search_budget_type_weekly_payload():
         "--search-strategy",
         "AVERAGE_CPC",
         "--unified-search-average-cpc",
-        "5",
+        "5000000",
         "--unified-search-weekly-spend-limit",
-        "200",
+        "200000000",
         "--unified-search-budget-type",
         "WEEKLY_BUDGET",
     )
@@ -21466,9 +21519,9 @@ def test_campaigns_update_unified_search_budget_type_custom_period_payload():
         "--search-strategy",
         "AVERAGE_CPC",
         "--unified-search-average-cpc",
-        "5",
+        "5000000",
         "--unified-search-custom-period-spend-limit",
-        "300",
+        "300000000",
         "--unified-search-custom-period-start-date",
         "2026-08-01",
         "--unified-search-custom-period-end-date",
@@ -21495,7 +21548,7 @@ def test_campaigns_add_unified_search_budget_type_is_update_only():
         "--search-strategy",
         "AVERAGE_CPC",
         "--unified-search-average-cpc",
-        "5",
+        "5000000",
         "--unified-search-budget-type",
         "WEEKLY_BUDGET",
     )
@@ -21517,7 +21570,7 @@ def test_campaigns_update_unified_search_package_strategy_conflicts():
         "--package-strategy-id",
         "1",
         "--unified-search-weekly-spend-limit",
-        "100",
+        "100000000",
     )
     assert "PackageBiddingStrategy" in result.output
 
@@ -21538,7 +21591,7 @@ def test_campaigns_add_unified_search_package_strategy_conflicts():
         "--package-platform-network",
         "YES",
         "--unified-search-weekly-spend-limit",
-        "100",
+        "100000000",
     )
     assert "PackageBiddingStrategy" in result.output
 
@@ -21558,7 +21611,7 @@ def test_campaigns_update_unified_search_wb_max_clicks_budget_type_payload():
         "--search-strategy",
         "WB_MAXIMUM_CLICKS",
         "--unified-search-weekly-spend-limit",
-        "100",
+        "100000000",
         "--unified-search-budget-type",
         "WEEKLY_BUDGET",
     )
@@ -21577,7 +21630,7 @@ def test_campaigns_update_unified_search_wb_max_conv_rate_budget_type_payload():
         "--goal-id",
         "1",
         "--unified-search-custom-period-spend-limit",
-        "200",
+        "200000000",
         "--unified-search-custom-period-start-date",
         "2026-10-01",
         "--unified-search-custom-period-end-date",
@@ -21600,7 +21653,7 @@ def test_campaigns_update_unified_search_avg_cpa_multi_goals_budget_type_payload
         "--search-strategy",
         "AVERAGE_CPA_MULTIPLE_GOALS",
         "--unified-search-weekly-spend-limit",
-        "500",
+        "500000000",
         "--unified-search-budget-type",
         "WEEKLY_BUDGET",
     )
@@ -21685,7 +21738,7 @@ def test_campaigns_update_unified_search_budget_type_weekly_rejects_custom_perio
         "--unified-search-budget-type",
         "WEEKLY_BUDGET",
         "--unified-search-custom-period-spend-limit",
-        "200",
+        "200000000",
         "--unified-search-custom-period-start-date",
         "2026-09-01",
         "--unified-search-custom-period-end-date",
@@ -21712,7 +21765,7 @@ def test_campaigns_update_unified_search_budget_type_custom_period_rejects_weekl
         "--unified-search-budget-type",
         "CUSTOM_PERIOD_BUDGET",
         "--unified-search-weekly-spend-limit",
-        "100",
+        "100000000",
     )
     assert "CUSTOM_PERIOD_BUDGET" in result.output
     assert "weekly-spend-limit" in result.output

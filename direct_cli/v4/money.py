@@ -14,7 +14,7 @@ MAX_OPERATION_NUM = 9223372036854775807
 
 
 def parse_v4_money_sum(value: str, option_name: str = "--amount") -> float:
-    """Parse a positive human-readable money amount for v4 ``Sum`` fields.
+    """Parse a positive API-native decimal amount for v4 ``Sum`` fields.
 
     ``option_name`` controls the CLI flag label that appears in error messages
     so callers (e.g. ``--payment ACCOUNT_ID=AMOUNT`` parsers) get a diagnostic

@@ -2,7 +2,6 @@
 Ads commands
 """
 
-from decimal import Decimal, InvalidOperation
 from typing import Optional
 
 import click
@@ -12,6 +11,7 @@ from ..output import format_output, print_error
 from ..utils import (
     add_criteria_csv,
     get_default_fields,
+    MICRO_RUBLES,
     parse_condition_specs,
     parse_csv_strings,
     parse_ids,
@@ -277,38 +277,14 @@ def _build_price_extension(
     """Build TextAd.PriceExtension update payload from typed flags."""
     price_extension = {}
     if price_extension_price is not None:
-        price_extension["Price"] = _parse_price_extension_amount(
-            price_extension_price, "--price-extension-price"
-        )
+        price_extension["Price"] = price_extension_price
     if price_extension_old_price is not None:
-        price_extension["OldPrice"] = _parse_price_extension_amount(
-            price_extension_old_price, "--price-extension-old-price"
-        )
+        price_extension["OldPrice"] = price_extension_old_price
     if price_extension_price_qualifier:
         price_extension["PriceQualifier"] = price_extension_price_qualifier.upper()
     if price_extension_price_currency:
         price_extension["PriceCurrency"] = price_extension_price_currency.upper()
     return price_extension or None
-
-
-def _parse_price_extension_amount(value: str, flag_name: str) -> int:
-    """Convert human-readable price-extension money to API long units."""
-    try:
-        amount = Decimal(value)
-    except (InvalidOperation, ValueError):
-        raise click.UsageError(
-            f"{flag_name} must be a human-readable money value, for example 123.45."
-        )
-
-    if not amount.is_finite():
-        raise click.UsageError(f"{flag_name} must be a finite money value.")
-    if amount < 0:
-        raise click.UsageError(f"{flag_name} must be non-negative.")
-    exponent = amount.as_tuple().exponent
-    if not isinstance(exponent, int) or exponent < -2:
-        raise click.UsageError(f"{flag_name} must have at most two decimal places.")
-
-    return int(amount * Decimal("1000000"))
 
 
 def _build_price_extension_add(
@@ -341,16 +317,12 @@ def _build_price_extension_add(
         )
 
     price_extension = {
-        "Price": _parse_price_extension_amount(
-            price_extension_price, "--price-extension-price"
-        ),
+        "Price": price_extension_price,
         "PriceQualifier": price_extension_price_qualifier.upper(),
         "PriceCurrency": price_extension_price_currency.upper(),
     }
     if price_extension_old_price is not None:
-        price_extension["OldPrice"] = _parse_price_extension_amount(
-            price_extension_old_price, "--price-extension-old-price"
-        )
+        price_extension["OldPrice"] = price_extension_old_price
     return price_extension
 
 
@@ -986,15 +958,17 @@ def get(
 )
 @click.option(
     "--price-extension-price",
+    type=MICRO_RUBLES,
     help=(
-        "TextAd/ResponsiveAd.PriceExtension.Price as human-readable money. "
+        "TextAd/ResponsiveAd.PriceExtension.Price in micro-rubles. "
         "Required whenever any PriceExtension flag is used."
     ),
 )
 @click.option(
     "--price-extension-old-price",
+    type=MICRO_RUBLES,
     help=(
-        "TextAd/ResponsiveAd.PriceExtension.OldPrice as human-readable money. "
+        "TextAd/ResponsiveAd.PriceExtension.OldPrice in micro-rubles. "
         "Optional; if supplied, PriceExtension add also requires "
         "--price-extension-price, --price-extension-price-qualifier, "
         "and --price-extension-price-currency."
@@ -1668,17 +1642,13 @@ def add(
 )
 @click.option(
     "--price-extension-price",
-    help=(
-        "PriceExtension.Price as human-readable money; converted to API long "
-        "units. TEXT_AD / RESPONSIVE_AD only."
-    ),
+    type=MICRO_RUBLES,
+    help=("PriceExtension.Price in micro-rubles. TEXT_AD / RESPONSIVE_AD only."),
 )
 @click.option(
     "--price-extension-old-price",
-    help=(
-        "PriceExtension.OldPrice as human-readable money; converted to API "
-        "long units. TEXT_AD / RESPONSIVE_AD only."
-    ),
+    type=MICRO_RUBLES,
+    help=("PriceExtension.OldPrice in micro-rubles. TEXT_AD / RESPONSIVE_AD only."),
 )
 @click.option(
     "--price-extension-price-qualifier",
