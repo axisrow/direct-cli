@@ -802,6 +802,43 @@ PAYLOAD_CASES = [
             "1234567:80",
         ],
     ),
+    # --- issue #397: DynamicTextCampaign.PriorityGoals standalone ---
+    # ``DynamicTextCampaignAddItem.PriorityGoals`` (WSDL
+    # ``tests/wsdl_cache/campaigns.xml`` line 2186) is a top-level sibling
+    # on the sub-campaign block, declared as an independent ``minOccurs=0``
+    # element alongside ``BiddingStrategy`` (line 2182). Per the WSDL
+    # contract the field is NOT bound to a multi-goal strategy, so it
+    # must be settable standalone — mirrors UnifiedCampaign/SmartCampaign.
+    (
+        "campaigns",
+        "add",
+        [
+            "campaigns",
+            "add",
+            "--name",
+            "Test DynamicText PriorityGoals standalone",
+            "--start-date",
+            "2026-06-01",
+            "--type",
+            "DYNAMIC_TEXT_CAMPAIGN",
+            "--priority-goals",
+            "1234567:80,9876543:20:YES",
+        ],
+    ),
+    (
+        "campaigns",
+        "update",
+        [
+            "campaigns",
+            "update",
+            "--id",
+            "7777",
+            "--type",
+            "DYNAMIC_TEXT_CAMPAIGN",
+            "--priority-goals",
+            "1234567:80",
+        ],
+    ),
     # --- issue #367: SmartCampaign.BiddingStrategy.Search typed flags ---
     (
         "campaigns",

@@ -3103,12 +3103,10 @@ def add(
                     )
                 )
                 _network_allows = (
-                    _unified_network_subtype
-                    in _UNIFIED_NETWORK_REQUIRES_PRIORITY_GOALS
+                    _unified_network_subtype in _UNIFIED_NETWORK_REQUIRES_PRIORITY_GOALS
                 )
                 _search_allows = (
-                    _unified_search_subtype
-                    in _UNIFIED_SEARCH_REQUIRES_PRIORITY_GOALS
+                    _unified_search_subtype in _UNIFIED_SEARCH_REQUIRES_PRIORITY_GOALS
                 )
                 _network_chosen = network_strategy is not None
                 _search_chosen = search_strategy is not None
@@ -3125,14 +3123,10 @@ def add(
                     and not _search_allows
                 )
                 _only_network_explicit_and_incompatible = (
-                    _network_chosen
-                    and not _search_chosen
-                    and not _network_allows
+                    _network_chosen and not _search_chosen and not _network_allows
                 )
                 _only_search_explicit_and_incompatible = (
-                    _search_chosen
-                    and not _network_chosen
-                    and not _search_allows
+                    _search_chosen and not _network_chosen and not _search_allows
                 )
                 if (
                     _both_explicit_and_incompatible
@@ -3498,14 +3492,10 @@ def add(
                     in _UNIFIED_NETWORK_REQUIRES_PRIORITY_GOALS
                 )
                 _u_search_priority_goals_items = (
-                    priority_goals_items
-                    if _u_search_uses_priority_goals
-                    else None
+                    priority_goals_items if _u_search_uses_priority_goals else None
                 )
                 _u_network_priority_goals_items = (
-                    priority_goals_items
-                    if _u_network_uses_priority_goals
-                    else None
+                    priority_goals_items if _u_network_uses_priority_goals else None
                 )
 
                 unified_search_builder = get_bidding_strategy_builder(
@@ -3762,6 +3752,18 @@ def add(
                             f"{', '.join(sorted(legacy_provided))}; use the "
                             "matching --dyn-search-* equivalent"
                         )
+                # WSDL DynamicTextCampaignAddItem.PriorityGoals (line 2186)
+                # is an optional sub-campaign field independent of the
+                # BiddingStrategy subtype — same shape as Unified/Smart.
+                # DynamicTextCampaignStrategyAddBase declares 9 subtypes
+                # and neither DynamicTextCampaign{Search,Network}StrategyTypeEnum
+                # includes AVERAGE_CPA_MULTIPLE_GOALS or
+                # PAY_FOR_CONVERSION_MULTIPLE_GOALS, so PriorityGoals
+                # always belongs on the parent block. The legacy builder
+                # is still called with priority_goals_items=None for its
+                # other job — placing AverageCpa/GoalId/Crr/BidCeiling
+                # into the AVERAGE_CPA / PAY_FOR_CONVERSION_CRR subtype
+                # block (issue #397).
                 priority_goals_builder = get_bidding_strategy_builder(
                     "DYNAMIC_TEXT_CAMPAIGN", "add", "priority_goals"
                 )
@@ -3774,14 +3776,10 @@ def add(
                         average_cpa=average_cpa,
                         crr=crr,
                         bid_ceiling=bid_ceiling,
-                        priority_goals_items=priority_goals_items,
+                        priority_goals_items=None,
                         sub_campaign_block=dyn_block,
                     )
-                elif dyn_search_typed_provided and priority_goals_items is not None:
-                    # PriorityGoals still belongs to the sub-campaign block
-                    # (WSDL DynamicTextCampaignAddItem.PriorityGoals,
-                    # line 2186); the legacy builder would otherwise have
-                    # placed it. Honor the user's input here.
+                if priority_goals_items is not None:
                     dyn_block["PriorityGoals"] = {"Items": priority_goals_items}
             if counter_ids_obj is not None:
                 dyn_block["CounterIds"] = counter_ids_obj
@@ -6651,14 +6649,10 @@ def update(
                     )
                     if _u_search_uses_pg_up or _u_network_uses_pg_up:
                         _u_search_pg_items_up = (
-                            priority_goals_items
-                            if _u_search_uses_pg_up
-                            else None
+                            priority_goals_items if _u_search_uses_pg_up else None
                         )
                         _u_network_pg_items_up = (
-                            priority_goals_items
-                            if _u_network_uses_pg_up
-                            else None
+                            priority_goals_items if _u_network_uses_pg_up else None
                         )
                     else:
                         _u_search_pg_items_up = None

@@ -2778,10 +2778,9 @@ for _campaign_op in ("add", "update"):
         _unified_network_flags = _unified_network_flags | {
             "--unified-network-budget-type"
         }
-    # NOTE: ``UnifiedCampaign.BiddingStrategy`` root stays under #290
-    # (parent epic) because Search-side typed support is still tracked in
-    # #363 (T3). Only the Network branch and below flip to "supported"
-    # here.
+    # ``UnifiedCampaign.BiddingStrategy`` root is now fully supported:
+    # Search typed support landed in #363, Network typed support in #366,
+    # PriorityGoals sibling in #373.
     OPTIONAL_FIELD_CLI_OPTIONS[
         ("campaigns", _campaign_op, "UnifiedCampaign.BiddingStrategy.Network")
     ] = _unified_network_flags
@@ -4697,26 +4696,23 @@ OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]
         "issue": "#364",
         "note": "TextCampaign Network BiddingStrategy needs typed support.",
     },
-    # UnifiedCampaign.BiddingStrategy split-progress (parent #290):
-    #   - Search branch typed support landed in #363 (this row);
-    #   - Network branch typed support is tracked separately in #366;
-    #   - PriorityGoals sibling on UnifiedCampaignAddItem in #373.
-    # Until Network ships, the BiddingStrategy parent row still routes to
-    # the Network follow-up to surface the remaining gap in the audit.
+    # UnifiedCampaign.BiddingStrategy is now fully supported via typed
+    # builders: Search branch in #363, Network branch in #366, and
+    # PriorityGoals sibling on UnifiedCampaignAddItem in #373.
     ("campaigns", "add", "UnifiedCampaign.BiddingStrategy"): {
-        "status": "missing_followup",
+        "status": "supported",
         "issue": "#366",
         "note": (
             "UnifiedCampaign.BiddingStrategy.Search typed support landed "
-            "in #363; Network branch is tracked in #366."
+            "in #363; Network branch landed in #366."
         ),
     },
     ("campaigns", "update", "UnifiedCampaign.BiddingStrategy"): {
-        "status": "missing_followup",
+        "status": "supported",
         "issue": "#366",
         "note": (
             "UnifiedCampaign.BiddingStrategy.Search typed support landed "
-            "in #363; Network branch is tracked in #366."
+            "in #363; Network branch landed in #366."
         ),
     },
     ("campaigns", "add", "UnifiedCampaign.PriorityGoals"): {
@@ -4754,15 +4750,23 @@ OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]
             "(#362); both branches are now covered by typed flags."
         ),
     },
+    # SmartCampaign.BiddingStrategy is now fully supported via typed
+    # builders: Search branch in #367, Network branch in #368.
     ("campaigns", "add", "SmartCampaign.BiddingStrategy"): {
-        "status": "missing_followup",
-        "issue": "#290",
-        "note": "Shared campaign BiddingStrategy builder needs typed support.",
+        "status": "supported",
+        "issue": "#367",
+        "note": (
+            "SmartCampaign.BiddingStrategy.Search typed support landed "
+            "in #367; Network branch landed in #368."
+        ),
     },
     ("campaigns", "update", "SmartCampaign.BiddingStrategy"): {
-        "status": "missing_followup",
-        "issue": "#290",
-        "note": "Shared campaign BiddingStrategy builder needs typed support.",
+        "status": "supported",
+        "issue": "#367",
+        "note": (
+            "SmartCampaign.BiddingStrategy.Search typed support landed "
+            "in #367; Network branch landed in #368."
+        ),
     },
     ("campaigns", "add", "SmartCampaign.PriorityGoals"): {
         "status": "supported",
@@ -4773,25 +4777,39 @@ OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]
             "via the shared --priority-goals flag."
         ),
     },
+    # MobileAppCampaign.BiddingStrategy is now fully supported via typed
+    # builders: Search branch in #370, Network branch in #371.
     ("campaigns", "add", "MobileAppCampaign.BiddingStrategy"): {
-        "status": "missing_followup",
-        "issue": "#290",
-        "note": "Shared campaign BiddingStrategy builder needs typed support.",
+        "status": "supported",
+        "issue": "#370",
+        "note": (
+            "MobileAppCampaign.BiddingStrategy.Search typed support landed "
+            "in #370; Network branch landed in #371."
+        ),
     },
     ("campaigns", "update", "MobileAppCampaign.BiddingStrategy"): {
-        "status": "missing_followup",
-        "issue": "#290",
-        "note": "Shared campaign BiddingStrategy builder needs typed support.",
+        "status": "supported",
+        "issue": "#370",
+        "note": (
+            "MobileAppCampaign.BiddingStrategy.Search typed support landed "
+            "in #370; Network branch landed in #371."
+        ),
     },
+    # CpmBannerCampaign.BiddingStrategy is now fully supported via typed
+    # builders for the MANUAL_CPM family (#372).
     ("campaigns", "add", "CpmBannerCampaign.BiddingStrategy"): {
-        "status": "missing_followup",
-        "issue": "#290",
-        "note": "Shared campaign BiddingStrategy builder needs typed support.",
+        "status": "supported",
+        "issue": "#372",
+        "note": (
+            "CpmBannerCampaign.BiddingStrategy typed support landed in #372."
+        ),
     },
     ("campaigns", "update", "CpmBannerCampaign.BiddingStrategy"): {
-        "status": "missing_followup",
-        "issue": "#290",
-        "note": "Shared campaign BiddingStrategy builder needs typed support.",
+        "status": "supported",
+        "issue": "#372",
+        "note": (
+            "CpmBannerCampaign.BiddingStrategy typed support landed in #372."
+        ),
     },
 }
 
@@ -4823,9 +4841,8 @@ for _campaign_op in ("add", "update"):
         }
 
 # UnifiedCampaign.BiddingStrategy.Search typed support landed in #363.
-# Mark the Search root and every Strategy*Add subtype prefix as supported
-# so the audit no longer routes Search rows to the parent #290 epic.
-# Network branch is still tracked in #366; PriorityGoals sibling in #373.
+# Mark the Search root and every Strategy*Add subtype prefix as supported.
+# Network branch landed in #366; PriorityGoals sibling in #373.
 for _campaign_op in ("add", "update"):
     OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS[
         (
@@ -5074,10 +5091,8 @@ for _campaign_op in ("add", "update"):
         }
 
 # UnifiedCampaign.BiddingStrategy.Network typed support landed in #366.
-# Mark the Network root and every Strategy*Add subtype prefix as supported
-# so the audit no longer routes Network rows to the parent #290 epic.
-# UnifiedCampaign.BiddingStrategy.Search is still tracked in #363 (T3) and
-# stays under #290 until that lands.
+# Mark the Network root and every Strategy*Add subtype prefix as supported.
+# Search branch landed in #363; both branches now fully supported.
 for _campaign_op in ("add", "update"):
     OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS[
         (
