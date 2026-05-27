@@ -30,10 +30,14 @@ def test_sandbox_write_audit_outputs_markdown_and_json(tmp_path):
     audit = json.loads(json_output.read_text())
     rows = audit["rows"]
 
+    # Issue #396: counts derive from the smoke matrix, not a hard-coded
+    # number. Adding a write-sandbox command should not require updating
+    # a magic constant here — it shows up in commands_for_category
+    # automatically.
+    expected_total = len(commands_for_category(WRITE_SANDBOX))
     assert audit["summary"]["category"] == WRITE_SANDBOX
-    assert audit["summary"]["total"] == len(commands_for_category(WRITE_SANDBOX))
-    assert audit["summary"]["total"] == 83
-    assert len(rows) == 83
+    assert audit["summary"]["total"] == expected_total
+    assert len(rows) == expected_total
     assert {row["status"] for row in rows} <= ALLOWED_STATUSES
 
     not_covered = {row["command"] for row in rows if row["status"] == "NOT_COVERED"}
