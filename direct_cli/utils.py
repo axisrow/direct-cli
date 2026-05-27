@@ -242,7 +242,14 @@ def parse_setting_specs(specs: Optional[List[str]]) -> Optional[List[Dict[str, s
 def parse_priority_goals_spec(
     value: Optional[str],
 ) -> Optional[List[Dict[str, Any]]]:
-    """Parse goal_id:value[:YES|NO] into WSDL PriorityGoalsItem[] items."""
+    """Parse goal_id:value[:YES|NO] into WSDL PriorityGoalsItem[] items.
+
+    Per Yandex Direct API contract (add-text-campaign, strategies-types),
+    PriorityGoalsItem.Value is xsd:long in advertiser currency multiplied
+    by 1,000,000 — same micro-currency contract as --budget and other
+    bid/budget money flags. Reject sub-MICRO_RUBLE_MIN values to catch
+    raw-ruble inputs at CLI parse time.
+    """
     if not value:
         return None
 
@@ -280,6 +287,19 @@ def parse_priority_goals_spec(
             raise click.UsageError(
                 f"Invalid --priority-goals item: '{pair}'. "
                 "goal_id and value must be integers"
+            )
+        if value_int < 0:
+            raise click.UsageError(
+                f"Invalid --priority-goals item: '{pair}'. "
+                f"Value must be non-negative, got {value_int}"
+            )
+        if 0 < value_int < MICRO_RUBLE_MIN:
+            raise click.UsageError(
+                f"Invalid --priority-goals item: '{pair}'. "
+                f"Value {value_int} seems too low for micro-currency "
+                f"(min {MICRO_RUBLE_MIN} = 0.1 unit). "
+                f"PriorityGoalsItem.Value is advertiser currency × 1,000,000. "
+                f"Did you mean {value_int * 1_000_000}?"
             )
         item: Dict[str, Any] = {"GoalId": goal_id, "Value": value_int}
         if metrika_source is not None:

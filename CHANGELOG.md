@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.14
+
+**Breaking changes:**
+
+- `direct campaigns add` and `direct campaigns update` now reject
+  `--priority-goals` values below 100,000 (0.1 unit in micro-currency).
+  Per Yandex Direct API (add-text-campaign, strategies-types),
+  `PriorityGoalsItem.Value` is `xsd:long` in advertiser currency
+  multiplied by 1,000,000 — the same contract as `--budget`,
+  `--average-cpa`, and other money flags after #399/#400. The error
+  message suggests the micro-currency conversion (e.g. `Did you mean
+  500000000?`). Negative values are also rejected up-front rather than
+  reaching the API. Closes #387.
+
 ## 0.3.13
 
 **Breaking changes:**

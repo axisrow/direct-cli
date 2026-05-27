@@ -5239,13 +5239,13 @@ def test_campaigns_add_smart_priority_goals_payload():
         "--filter-average-cpc",
         "1000000",
         "--priority-goals",
-        "1234567:80,9876543:20:YES",
+        "1234567:80000000,9876543:20000000:YES",
     )
     smart = body["params"]["Campaigns"][0]["SmartCampaign"]
     assert smart["PriorityGoals"] == {
         "Items": [
-            {"GoalId": 1234567, "Value": 80},
-            {"GoalId": 9876543, "Value": 20, "IsMetrikaSourceOfValue": "YES"},
+            {"GoalId": 1234567, "Value": 80000000},
+            {"GoalId": 9876543, "Value": 20000000, "IsMetrikaSourceOfValue": "YES"},
         ]
     }
     # PriorityGoals is independent of BiddingStrategy — the default
@@ -5281,11 +5281,11 @@ def test_campaigns_add_smart_priority_goals_with_package_strategy_payload():
         "--package-platform-network",
         "yes",
         "--priority-goals",
-        "1234567:80",
+        "1234567:80000000",
     )
     smart = body["params"]["Campaigns"][0]["SmartCampaign"]
     assert "PackageBiddingStrategy" in smart
-    assert smart["PriorityGoals"] == {"Items": [{"GoalId": 1234567, "Value": 80}]}
+    assert smart["PriorityGoals"] == {"Items": [{"GoalId": 1234567, "Value": 80000000}]}
 
 
 # ----------------------------------------------------------------------
@@ -7328,15 +7328,15 @@ def test_campaigns_add_priority_goals_payload():
         "--network-strategy",
         "SERVING_OFF",
         "--priority-goals",
-        "1234567:80:YES,9876543:20",
+        "1234567:80000000:YES,9876543:20000000",
         "--bid-ceiling",
         "1000000000",
     )
     text = body["params"]["Campaigns"][0]["TextCampaign"]
     assert text["PriorityGoals"] == {
         "Items": [
-            {"GoalId": 1234567, "Value": 80, "IsMetrikaSourceOfValue": "YES"},
-            {"GoalId": 9876543, "Value": 20},
+            {"GoalId": 1234567, "Value": 80000000, "IsMetrikaSourceOfValue": "YES"},
+            {"GoalId": 9876543, "Value": 20000000},
         ]
     }
     search = text["BiddingStrategy"]["Search"]
@@ -7568,7 +7568,7 @@ def test_campaigns_update_text_campaign_optional_controls_payload():
         "--counter-ids",
         "111,222",
         "--priority-goals",
-        "1234567:80:YES,9876543:20",
+        "1234567:80000000:YES,9876543:20000000",
         "--relevant-keywords-mode",
         "maximum",
         "--relevant-keywords-optimize-goal-id",
@@ -7590,11 +7590,11 @@ def test_campaigns_update_text_campaign_optional_controls_payload():
                 "Items": [
                     {
                         "GoalId": 1234567,
-                        "Value": 80,
+                        "Value": 80000000,
                         "IsMetrikaSourceOfValue": "YES",
                         "Operation": "SET",
                     },
-                    {"GoalId": 9876543, "Value": 20, "Operation": "SET"},
+                    {"GoalId": 9876543, "Value": 20000000, "Operation": "SET"},
                 ]
             },
             "RelevantKeywords": {
@@ -7621,7 +7621,7 @@ def test_campaigns_update_unified_campaign_optional_controls_payload():
         "--counter-ids",
         "111,222",
         "--priority-goals",
-        "1234567:80:YES,9876543:20",
+        "1234567:80000000:YES,9876543:20000000",
         "--tracking-params",
         "utm_source=direct",
         "--attribution-model",
@@ -7639,11 +7639,11 @@ def test_campaigns_update_unified_campaign_optional_controls_payload():
                 "Items": [
                     {
                         "GoalId": 1234567,
-                        "Value": 80,
+                        "Value": 80000000,
                         "IsMetrikaSourceOfValue": "YES",
                         "Operation": "SET",
                     },
-                    {"GoalId": 9876543, "Value": 20, "Operation": "SET"},
+                    {"GoalId": 9876543, "Value": 20000000, "Operation": "SET"},
                 ]
             },
             "AttributionModel": "AUTO",
@@ -7785,7 +7785,7 @@ def test_campaigns_update_dynamic_campaign_optional_controls_payload():
         "--counter-ids",
         "111,222",
         "--priority-goals",
-        "1234567:80:YES,9876543:20",
+        "1234567:80000000:YES,9876543:20000000",
         "--tracking-params",
         "utm_source=direct",
         "--attribution-model",
@@ -7807,11 +7807,11 @@ def test_campaigns_update_dynamic_campaign_optional_controls_payload():
                 "Items": [
                     {
                         "GoalId": 1234567,
-                        "Value": 80,
+                        "Value": 80000000,
                         "IsMetrikaSourceOfValue": "YES",
                         "Operation": "SET",
                     },
-                    {"GoalId": 9876543, "Value": 20, "Operation": "SET"},
+                    {"GoalId": 9876543, "Value": 20000000, "Operation": "SET"},
                 ]
             },
             "AttributionModel": "LC",
@@ -8193,13 +8193,13 @@ def test_campaigns_add_unified_priority_goals_standalone_payload():
         "--type",
         "UNIFIED_CAMPAIGN",
         "--priority-goals",
-        "1234567:80,9876543:20:YES",
+        "1234567:80000000,9876543:20000000:YES",
     )
     unified = body["params"]["Campaigns"][0]["UnifiedCampaign"]
     assert unified["PriorityGoals"] == {
         "Items": [
-            {"GoalId": 1234567, "Value": 80},
-            {"GoalId": 9876543, "Value": 20, "IsMetrikaSourceOfValue": "YES"},
+            {"GoalId": 1234567, "Value": 80000000},
+            {"GoalId": 9876543, "Value": 20000000, "IsMetrikaSourceOfValue": "YES"},
         ]
     }
     # The default per-side BiddingStrategy is still emitted.
@@ -8227,7 +8227,7 @@ def test_campaigns_add_rejects_unified_priority_goals_with_incompatible_strategy
         "--unified-network-average-cpc",
         "5000000",
         "--priority-goals",
-        "1:50",
+        "1:50000000",
     )
     assert "--priority-goals on UnifiedCampaign is only valid with" in result.output
     assert "AVERAGE_CPA_MULTIPLE_GOALS" in result.output
@@ -8257,10 +8257,10 @@ def test_campaigns_add_unified_priority_goals_with_mixed_strategy_sides_payload(
         "--network-strategy",
         "MAX_PROFIT",
         "--priority-goals",
-        "1234567:80",
+        "1234567:80000000",
     )
     unified = body["params"]["Campaigns"][0]["UnifiedCampaign"]
-    assert unified["PriorityGoals"] == {"Items": [{"GoalId": 1234567, "Value": 80}]}
+    assert unified["PriorityGoals"] == {"Items": [{"GoalId": 1234567, "Value": 80000000}]}
     bidding = unified["BiddingStrategy"]
     assert bidding["Search"]["BiddingStrategyType"] == "AVERAGE_CPC"
     assert bidding["Network"]["BiddingStrategyType"] == "MAX_PROFIT"
@@ -8293,13 +8293,13 @@ def test_campaigns_add_unified_priority_goals_payload():
         "--network-strategy",
         "MAX_PROFIT",
         "--priority-goals",
-        "1234567:80,9876543:20:YES",
+        "1234567:80000000,9876543:20000000:YES",
     )
     unified = body["params"]["Campaigns"][0]["UnifiedCampaign"]
     assert unified["PriorityGoals"] == {
         "Items": [
-            {"GoalId": 1234567, "Value": 80},
-            {"GoalId": 9876543, "Value": 20, "IsMetrikaSourceOfValue": "YES"},
+            {"GoalId": 1234567, "Value": 80000000},
+            {"GoalId": 9876543, "Value": 20000000, "IsMetrikaSourceOfValue": "YES"},
         ]
     }
     network = unified["BiddingStrategy"]["Network"]
@@ -8336,14 +8336,14 @@ def test_campaigns_add_unified_priority_goals_with_package_strategy_payload():
         "--package-platform-network",
         "yes",
         "--priority-goals",
-        "1234567:80,9876543:20:YES",
+        "1234567:80000000,9876543:20000000:YES",
     )
     unified = body["params"]["Campaigns"][0]["UnifiedCampaign"]
     assert "PackageBiddingStrategy" in unified
     assert unified["PriorityGoals"] == {
         "Items": [
-            {"GoalId": 1234567, "Value": 80},
-            {"GoalId": 9876543, "Value": 20, "IsMetrikaSourceOfValue": "YES"},
+            {"GoalId": 1234567, "Value": 80000000},
+            {"GoalId": 9876543, "Value": 20000000, "IsMetrikaSourceOfValue": "YES"},
         ]
     }
 
@@ -8370,7 +8370,7 @@ def test_campaigns_update_unified_priority_goals_with_package_strategy_payload()
         "--package-strategy-id",
         "700",
         "--priority-goals",
-        "1234567:80:YES",
+        "1234567:80000000:YES",
     )
     unified = body["params"]["Campaigns"][0]["UnifiedCampaign"]
     assert "PackageBiddingStrategy" in unified
@@ -8378,7 +8378,7 @@ def test_campaigns_update_unified_priority_goals_with_package_strategy_payload()
         "Items": [
             {
                 "GoalId": 1234567,
-                "Value": 80,
+                "Value": 80000000,
                 "IsMetrikaSourceOfValue": "YES",
                 "Operation": "SET",
             },
@@ -9401,7 +9401,7 @@ def test_campaigns_update_smart_campaign_optional_controls_payload():
         "--counter-id",
         "456",
         "--priority-goals",
-        "1234567:80:YES,9876543:20:NO",
+        "1234567:80000000:YES,9876543:20000000:NO",
         "--attribution-model",
         "AUTO",
         "--tracking-params",
@@ -9415,13 +9415,13 @@ def test_campaigns_update_smart_campaign_optional_controls_payload():
             "Items": [
                 {
                     "GoalId": 1234567,
-                    "Value": 80,
+                    "Value": 80000000,
                     "IsMetrikaSourceOfValue": "YES",
                     "Operation": "SET",
                 },
                 {
                     "GoalId": 9876543,
-                    "Value": 20,
+                    "Value": 20000000,
                     "IsMetrikaSourceOfValue": "NO",
                     "Operation": "SET",
                 },
@@ -11220,7 +11220,7 @@ def test_campaigns_add_rejects_priority_goals_for_single_goal_strategy():
         "--average-cpa",
         "100000000",
         "--priority-goals",
-        "1:50,2:50",
+        "1:50000000,2:50000000",
     )
     assert "--priority-goals" in result.output and "MULTIPLE_GOALS" in result.output
 
@@ -11260,9 +11260,47 @@ def test_campaigns_add_rejects_priority_goals_no_separator():
         "--network-strategy",
         "SERVING_OFF",
         "--priority-goals",
-        "1:80,broken",
+        "1:80000000,broken",
     )
     assert "--priority-goals" in result.output
+
+
+def test_campaigns_add_rejects_priority_goals_value_below_micro_min():
+    # Issue #387: PriorityGoalsItem.Value is xsd:long in advertiser
+    # currency × 1,000,000 (per add-text-campaign and strategies-types
+    # docs). Reject raw-ruble inputs (Value < MICRO_RUBLE_MIN = 100_000)
+    # at CLI parse time so the API does not silently interpret e.g.
+    # ``Value: 500`` as 0.0005 advertiser-currency units.
+    result = _rejected(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "AVERAGE_CPA_MULTIPLE_GOALS",
+        "--network-strategy",
+        "SERVING_OFF",
+        "--priority-goals",
+        "1:500,2:500",
+    )
+    assert "--priority-goals" in result.output
+    assert "micro-currency" in result.output
+    # The error must include the helpful "did you mean" suggestion
+    # pointing at the micro-currency conversion.
+    assert "500000000" in result.output
+
+
+def test_campaigns_add_rejects_priority_goals_negative_value():
+    # WSDL PriorityGoalsItem.Value is xsd:long with no minInclusive
+    # facet, but Yandex docs require a non-negative monetary value.
+    result = _rejected(
+        *_cpa_base_args(),
+        "--search-strategy",
+        "AVERAGE_CPA_MULTIPLE_GOALS",
+        "--network-strategy",
+        "SERVING_OFF",
+        "--priority-goals",
+        "1:-1000000,2:1000000",
+    )
+    assert "--priority-goals" in result.output
+    assert "non-negative" in result.output
 
 
 def test_campaigns_add_rejects_counter_ids_for_smart_campaign():
@@ -11320,7 +11358,7 @@ def test_campaigns_add_rejects_bid_ceiling_for_pay_for_conversion_multiple_goals
         "--network-strategy",
         "SERVING_OFF",
         "--priority-goals",
-        "1:50,2:50",
+        "1:50000000,2:50000000",
         "--bid-ceiling",
         "1000000",
     )
@@ -11783,12 +11821,12 @@ def test_campaigns_add_text_search_max_profit_payload():
         "--search-strategy",
         "MAX_PROFIT",
         "--priority-goals",
-        "1:500",
+        "1:500000000",
         "--text-search-weekly-spend-limit",
         "1000000000",
     )
     text = body["params"]["Campaigns"][0]["TextCampaign"]
-    assert text["PriorityGoals"] == {"Items": [{"GoalId": 1, "Value": 500}]}
+    assert text["PriorityGoals"] == {"Items": [{"GoalId": 1, "Value": 500000000}]}
     search = text["BiddingStrategy"]["Search"]
     assert search["BiddingStrategyType"] == "MAX_PROFIT"
     assert search["MaxProfit"] == {"WeeklySpendLimit": 1000000000}
@@ -11811,7 +11849,7 @@ def test_campaigns_add_text_search_average_cpa_multiple_goals_with_exploration()
         "--search-strategy",
         "AVERAGE_CPA_MULTIPLE_GOALS",
         "--priority-goals",
-        "111:60,222:40",
+        "111:60000000,222:40000000",
         "--bid-ceiling",
         "200000000",
         "--text-search-exploration-min-budget",
@@ -11822,8 +11860,8 @@ def test_campaigns_add_text_search_average_cpa_multiple_goals_with_exploration()
     text = body["params"]["Campaigns"][0]["TextCampaign"]
     assert text["PriorityGoals"] == {
         "Items": [
-            {"GoalId": 111, "Value": 60},
-            {"GoalId": 222, "Value": 40},
+            {"GoalId": 111, "Value": 60000000},
+            {"GoalId": 222, "Value": 40000000},
         ]
     }
     search = text["BiddingStrategy"]["Search"]
@@ -11844,7 +11882,7 @@ def test_campaigns_add_text_search_average_cpa_multi_goals_requires_two_items():
         "--search-strategy",
         "AVERAGE_CPA_MULTIPLE_GOALS",
         "--priority-goals",
-        "111:100",
+        "111:100000000",
     )
     assert "at least 2" in result.output
 
@@ -11856,7 +11894,7 @@ def test_campaigns_add_text_search_pay_conv_multi_goals_requires_two_items():
         "--search-strategy",
         "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
         "--priority-goals",
-        "111:100",
+        "111:100000000",
     )
     assert "at least 2" in result.output
 
@@ -11867,15 +11905,15 @@ def test_campaigns_add_text_search_pay_for_conversion_multiple_goals_payload():
         "--search-strategy",
         "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
         "--priority-goals",
-        "1:50,2:50",
+        "1:50000000,2:50000000",
         "--text-search-weekly-spend-limit",
         "700000000",
     )
     text = body["params"]["Campaigns"][0]["TextCampaign"]
     assert text["PriorityGoals"] == {
         "Items": [
-            {"GoalId": 1, "Value": 50},
-            {"GoalId": 2, "Value": 50},
+            {"GoalId": 1, "Value": 50000000},
+            {"GoalId": 2, "Value": 50000000},
         ]
     }
     search = text["BiddingStrategy"]["Search"]
@@ -12091,13 +12129,13 @@ def test_campaigns_update_text_search_max_profit_with_weekly_spend_payload():
         "--search-strategy",
         "MAX_PROFIT",
         "--priority-goals",
-        "9:1000",
+        "9:1000000000",
         "--text-search-weekly-spend-limit",
         "999000000",
     )
     text = body["params"]["Campaigns"][0]["TextCampaign"]
     assert text["PriorityGoals"] == {
-        "Items": [{"GoalId": 9, "Value": 1000, "Operation": "SET"}]
+        "Items": [{"GoalId": 9, "Value": 1000000000, "Operation": "SET"}]
     }
     search = text["BiddingStrategy"]["Search"]
     assert search["MaxProfit"] == {"WeeklySpendLimit": 999000000}
@@ -12182,15 +12220,15 @@ def test_campaigns_update_text_search_priority_goals_independent_of_strategy():
     """PriorityGoalsUpdateSetting on update is independent of BiddingStrategy."""
     body = _text_search_update(
         "--priority-goals",
-        "1:80,2:20",
+        "1:80000000,2:20000000",
     )
     text = body["params"]["Campaigns"][0]["TextCampaign"]
     # On update PriorityGoals uses the UpdateSetting shape (with
     # Operation=SET, see _priority_goals_update_items).
     assert text["PriorityGoals"] == {
         "Items": [
-            {"GoalId": 1, "Value": 80, "Operation": "SET"},
-            {"GoalId": 2, "Value": 20, "Operation": "SET"},
+            {"GoalId": 1, "Value": 80000000, "Operation": "SET"},
+            {"GoalId": 2, "Value": 20000000, "Operation": "SET"},
         ]
     }
     # And no BiddingStrategy is emitted, matching legacy behavior.
@@ -12327,7 +12365,7 @@ def test_campaigns_update_text_search_average_cpa_multiple_goals_payload():
         "--search-strategy",
         "AVERAGE_CPA_MULTIPLE_GOALS",
         "--priority-goals",
-        "100:60,200:40",
+        "100:60000000,200:40000000",
         "--bid-ceiling",
         "5000000",
     )
@@ -12336,8 +12374,8 @@ def test_campaigns_update_text_search_average_cpa_multiple_goals_payload():
     # BiddingStrategy carries the subtype container.
     assert text["PriorityGoals"] == {
         "Items": [
-            {"GoalId": 100, "Value": 60, "Operation": "SET"},
-            {"GoalId": 200, "Value": 40, "Operation": "SET"},
+            {"GoalId": 100, "Value": 60000000, "Operation": "SET"},
+            {"GoalId": 200, "Value": 40000000, "Operation": "SET"},
         ]
     }
     search = text["BiddingStrategy"]["Search"]
@@ -12349,15 +12387,15 @@ def test_campaigns_update_text_search_pay_for_conversion_multiple_goals_payload(
         "--search-strategy",
         "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
         "--priority-goals",
-        "1:60,2:40",
+        "1:60000000,2:40000000",
         "--text-search-weekly-spend-limit",
         "800000000",
     )
     text = body["params"]["Campaigns"][0]["TextCampaign"]
     assert text["PriorityGoals"] == {
         "Items": [
-            {"GoalId": 1, "Value": 60, "Operation": "SET"},
-            {"GoalId": 2, "Value": 40, "Operation": "SET"},
+            {"GoalId": 1, "Value": 60000000, "Operation": "SET"},
+            {"GoalId": 2, "Value": 40000000, "Operation": "SET"},
         ]
     }
     search = text["BiddingStrategy"]["Search"]
@@ -12371,11 +12409,11 @@ def test_campaigns_update_text_search_max_profit_with_priority_goals_payload():
         "--search-strategy",
         "MAX_PROFIT",
         "--priority-goals",
-        "9:1000",
+        "9:1000000000",
     )
     text = body["params"]["Campaigns"][0]["TextCampaign"]
     assert text["PriorityGoals"] == {
-        "Items": [{"GoalId": 9, "Value": 1000, "Operation": "SET"}]
+        "Items": [{"GoalId": 9, "Value": 1000000000, "Operation": "SET"}]
     }
     search = text["BiddingStrategy"]["Search"]
     assert search["MaxProfit"] == {}
@@ -12860,7 +12898,7 @@ def test_campaigns_add_text_network_max_profit_payload():
         "--network-strategy",
         "MAX_PROFIT",
         "--priority-goals",
-        "1:60,2:40",
+        "1:60000000,2:40000000",
     )
     body_camp = body["params"]["Campaigns"][0]["TextCampaign"]
     assert body_camp["BiddingStrategy"]["Network"] == {
@@ -12869,8 +12907,8 @@ def test_campaigns_add_text_network_max_profit_payload():
     }
     assert body_camp["PriorityGoals"] == {
         "Items": [
-            {"GoalId": 1, "Value": 60},
-            {"GoalId": 2, "Value": 40},
+            {"GoalId": 1, "Value": 60000000},
+            {"GoalId": 2, "Value": 40000000},
         ]
     }
 
@@ -12881,7 +12919,7 @@ def test_campaigns_add_text_network_average_cpa_multiple_goals_payload():
         "--network-strategy",
         "AVERAGE_CPA_MULTIPLE_GOALS",
         "--priority-goals",
-        "10:70,20:30",
+        "10:70000000,20:30000000",
         "--bid-ceiling",
         "200000000",
     )
@@ -12892,8 +12930,8 @@ def test_campaigns_add_text_network_average_cpa_multiple_goals_payload():
     }
     assert body_camp["PriorityGoals"] == {
         "Items": [
-            {"GoalId": 10, "Value": 70},
-            {"GoalId": 20, "Value": 30},
+            {"GoalId": 10, "Value": 70000000},
+            {"GoalId": 20, "Value": 30000000},
         ]
     }
 
@@ -12904,7 +12942,7 @@ def test_campaigns_add_text_network_pay_for_conversion_multiple_goals_payload():
         "--network-strategy",
         "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
         "--priority-goals",
-        "11:55,22:45",
+        "11:55000000,22:45000000",
         "--text-network-weekly-spend-limit",
         "400000000",
     )
@@ -12915,8 +12953,8 @@ def test_campaigns_add_text_network_pay_for_conversion_multiple_goals_payload():
     }
     assert body_camp["PriorityGoals"] == {
         "Items": [
-            {"GoalId": 11, "Value": 55},
-            {"GoalId": 22, "Value": 45},
+            {"GoalId": 11, "Value": 55000000},
+            {"GoalId": 22, "Value": 45000000},
         ]
     }
 
@@ -13084,7 +13122,7 @@ def test_campaigns_add_text_network_rejects_priority_goals_for_average_cpa():
         "--goal-id",
         "1",
         "--priority-goals",
-        "1:60,2:40",
+        "1:60000000,2:40000000",
     )
     assert "--priority-goals" in result.output
 
@@ -13208,7 +13246,7 @@ def test_campaigns_add_text_network_rejects_priority_goals_for_pure_cpa_network(
         "--network-strategy",
         "AVERAGE_CPA",
         "--priority-goals",
-        "1:60,2:40",
+        "1:60000000,2:40000000",
     )
     assert "--priority-goals is only valid" in result.output
 
@@ -13226,7 +13264,7 @@ def test_campaigns_add_text_network_both_sides_multi_goals_payload():
         "--network-strategy",
         "AVERAGE_CPA_MULTIPLE_GOALS",
         "--priority-goals",
-        "1:60,2:40",
+        "1:60000000,2:40000000",
     )
     body_camp = body["params"]["Campaigns"][0]["TextCampaign"]
     assert body_camp["BiddingStrategy"]["Search"] == {
@@ -13239,8 +13277,8 @@ def test_campaigns_add_text_network_both_sides_multi_goals_payload():
     }
     assert body_camp["PriorityGoals"] == {
         "Items": [
-            {"GoalId": 1, "Value": 60},
-            {"GoalId": 2, "Value": 40},
+            {"GoalId": 1, "Value": 60000000},
+            {"GoalId": 2, "Value": 40000000},
         ]
     }
 
@@ -13252,7 +13290,7 @@ def test_campaigns_add_text_network_rejects_one_priority_goal_for_multi():
         "--network-strategy",
         "AVERAGE_CPA_MULTIPLE_GOALS",
         "--priority-goals",
-        "1:100",
+        "1:100000000",
     )
     assert "--priority-goals requires at least 2 entries" in result.output
 
@@ -13782,7 +13820,7 @@ def test_campaigns_update_text_network_max_profit_payload():
         "--network-strategy",
         "MAX_PROFIT",
         "--priority-goals",
-        "1:60,2:40",
+        "1:60000000,2:40000000",
     )
     text = body["params"]["Campaigns"][0]["TextCampaign"]
     assert text["BiddingStrategy"]["Network"] == {
@@ -13802,7 +13840,7 @@ def test_campaigns_update_text_network_average_cpa_multiple_goals_payload():
         "--network-strategy",
         "AVERAGE_CPA_MULTIPLE_GOALS",
         "--priority-goals",
-        "10:70,20:30",
+        "10:70000000,20:30000000",
         "--bid-ceiling",
         "200000000",
     )
@@ -13826,7 +13864,7 @@ def test_campaigns_update_text_network_pay_for_conversion_multiple_goals_payload
         "--network-strategy",
         "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
         "--priority-goals",
-        "11:55,22:45",
+        "11:55000000,22:45000000",
         "--text-network-weekly-spend-limit",
         "400000000",
     )
@@ -13891,7 +13929,7 @@ def test_campaigns_update_text_network_average_cpa_multiple_goals_budget_type_pa
         "--network-strategy",
         "AVERAGE_CPA_MULTIPLE_GOALS",
         "--priority-goals",
-        "1:60,2:40",
+        "1:60000000,2:40000000",
         "--text-network-weekly-spend-limit",
         "500000000",
         "--text-network-budget-type",
@@ -13968,7 +14006,7 @@ def test_campaigns_update_text_search_average_cpa_multi_goals_rejects_budget_typ
             "--search-strategy",
             "AVERAGE_CPA_MULTIPLE_GOALS",
             "--priority-goals",
-            "1:60,2:40",
+            "1:60000000,2:40000000",
             "--text-search-budget-type",
             "WEEKLY_BUDGET",
             "--dry-run",
@@ -20378,7 +20416,7 @@ def test_campaigns_update_unified_network_max_profit_payload():
         "--network-strategy",
         "MAX_PROFIT",
         "--priority-goals",
-        "1:100",
+        "1:100000000",
     )
     campaign = body["params"]["Campaigns"][0]["UnifiedCampaign"]
     assert campaign["BiddingStrategy"]["Network"] == {
@@ -20386,7 +20424,7 @@ def test_campaigns_update_unified_network_max_profit_payload():
         "MaxProfit": {},
     }
     assert campaign["PriorityGoals"] == {
-        "Items": [{"GoalId": 1, "Value": 100, "Operation": "SET"}]
+        "Items": [{"GoalId": 1, "Value": 100000000, "Operation": "SET"}]
     }
 
 
@@ -20398,7 +20436,7 @@ def test_campaigns_update_unified_network_average_cpa_multiple_goals_payload():
         "--network-strategy",
         "AVERAGE_CPA_MULTIPLE_GOALS",
         "--priority-goals",
-        "10:70,20:30",
+        "10:70000000,20:30000000",
         "--bid-ceiling",
         "200000000",
     )
@@ -20409,8 +20447,8 @@ def test_campaigns_update_unified_network_average_cpa_multiple_goals_payload():
     }
     assert campaign["PriorityGoals"] == {
         "Items": [
-            {"GoalId": 10, "Value": 70, "Operation": "SET"},
-            {"GoalId": 20, "Value": 30, "Operation": "SET"},
+            {"GoalId": 10, "Value": 70000000, "Operation": "SET"},
+            {"GoalId": 20, "Value": 30000000, "Operation": "SET"},
         ]
     }
 
@@ -20421,7 +20459,7 @@ def test_campaigns_update_unified_network_pay_for_conversion_multiple_goals_payl
         "--network-strategy",
         "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
         "--priority-goals",
-        "11:55,22:45",
+        "11:55000000,22:45000000",
         "--unified-network-weekly-spend-limit",
         "400000000",
     )
@@ -20432,8 +20470,8 @@ def test_campaigns_update_unified_network_pay_for_conversion_multiple_goals_payl
     }
     assert campaign["PriorityGoals"] == {
         "Items": [
-            {"GoalId": 11, "Value": 55, "Operation": "SET"},
-            {"GoalId": 22, "Value": 45, "Operation": "SET"},
+            {"GoalId": 11, "Value": 55000000, "Operation": "SET"},
+            {"GoalId": 22, "Value": 45000000, "Operation": "SET"},
         ]
     }
 
@@ -20468,7 +20506,7 @@ def test_campaigns_add_unified_network_rejects_multi_goal_with_single_goal():
         "--network-strategy",
         "AVERAGE_CPA_MULTIPLE_GOALS",
         "--priority-goals",
-        "1:100",
+        "1:100000000",
     )
     assert "at least 2 entries" in result.output
 
@@ -20479,7 +20517,7 @@ def test_campaigns_update_unified_network_rejects_multi_goal_with_single_goal():
         "--network-strategy",
         "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
         "--priority-goals",
-        "1:100",
+        "1:100000000",
     )
     assert "at least 2 entries" in result.output
 
@@ -20682,7 +20720,7 @@ def test_campaigns_add_unified_network_average_cpa_multiple_goals_with_priority_
         "--network-strategy",
         "AVERAGE_CPA_MULTIPLE_GOALS",
         "--priority-goals",
-        "10:70,20:30",
+        "10:70000000,20:30000000",
         "--bid-ceiling",
         "200000000",
     )
@@ -20693,8 +20731,8 @@ def test_campaigns_add_unified_network_average_cpa_multiple_goals_with_priority_
     }
     assert campaign["PriorityGoals"] == {
         "Items": [
-            {"GoalId": 10, "Value": 70},
-            {"GoalId": 20, "Value": 30},
+            {"GoalId": 10, "Value": 70000000},
+            {"GoalId": 20, "Value": 30000000},
         ]
     }
 
@@ -20705,7 +20743,7 @@ def test_campaigns_add_unified_network_pay_for_conversion_multiple_goals_with_pr
         "--network-strategy",
         "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
         "--priority-goals",
-        "11:55,22:45",
+        "11:55000000,22:45000000",
         "--unified-network-weekly-spend-limit",
         "400000000",
     )
@@ -20716,8 +20754,8 @@ def test_campaigns_add_unified_network_pay_for_conversion_multiple_goals_with_pr
     }
     assert campaign["PriorityGoals"] == {
         "Items": [
-            {"GoalId": 11, "Value": 55},
-            {"GoalId": 22, "Value": 45},
+            {"GoalId": 11, "Value": 55000000},
+            {"GoalId": 22, "Value": 45000000},
         ]
     }
 
@@ -20728,7 +20766,7 @@ def test_campaigns_add_unified_network_max_profit_with_priority_goals_payload():
         "--network-strategy",
         "MAX_PROFIT",
         "--priority-goals",
-        "1:60,2:40",
+        "1:60000000,2:40000000",
     )
     campaign = body["params"]["Campaigns"][0]["UnifiedCampaign"]
     assert campaign["BiddingStrategy"]["Network"] == {
@@ -20737,8 +20775,8 @@ def test_campaigns_add_unified_network_max_profit_with_priority_goals_payload():
     }
     assert campaign["PriorityGoals"] == {
         "Items": [
-            {"GoalId": 1, "Value": 60},
-            {"GoalId": 2, "Value": 40},
+            {"GoalId": 1, "Value": 60000000},
+            {"GoalId": 2, "Value": 40000000},
         ]
     }
 
@@ -20756,7 +20794,7 @@ def test_campaigns_add_unified_network_rejects_priority_goals_for_non_multi_goal
         "--unified-network-average-cpc",
         "5000000",
         "--priority-goals",
-        "1:500",
+        "1:500000000",
     )
     assert "--priority-goals on UnifiedCampaign is only valid with" in result.output
     assert "AVERAGE_CPA_MULTIPLE_GOALS" in result.output
@@ -20786,11 +20824,11 @@ def test_campaigns_add_unified_network_allows_priority_goals_with_package():
         "--package-platform-dynamic-places",
         "NO",
         "--priority-goals",
-        "1:500",
+        "1:500000000",
     )
     unified = body["params"]["Campaigns"][0]["UnifiedCampaign"]
     assert "PackageBiddingStrategy" in unified
-    assert unified["PriorityGoals"] == {"Items": [{"GoalId": 1, "Value": 500}]}
+    assert unified["PriorityGoals"] == {"Items": [{"GoalId": 1, "Value": 500000000}]}
 
 
 # ----------------------------------------------------------------------

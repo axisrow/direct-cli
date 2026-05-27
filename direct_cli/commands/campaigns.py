@@ -773,7 +773,9 @@ def get(
         "PAY_FOR_CONVERSION_MULTIPLE_GOALS); also accepted on "
         "SmartCampaign.PriorityGoals (#369) as a campaign-level "
         "setting independent of the SmartCampaign.BiddingStrategy "
-        "subtype"
+        "subtype. Value is in micro-currency "
+        "(advertiser currency × 1,000,000), matching the API contract "
+        "and other money flags (--budget, --average-cpa)."
     ),
 )
 @click.option(
@@ -4193,7 +4195,9 @@ def add(
         "Comma-separated "
         "TextCampaign/UnifiedCampaign/DynamicTextCampaign/SmartCampaign."
         "PriorityGoals "
-        "goal_id:value[:YES|NO] pairs"
+        "goal_id:value[:YES|NO] pairs. Value is in micro-currency "
+        "(advertiser currency × 1,000,000), matching the API contract "
+        "and other money flags."
     ),
 )
 @click.option(
