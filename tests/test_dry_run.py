@@ -16403,3 +16403,295 @@ def test_campaigns_update_dynamic_text_search_rejects_partial_strategy_switch():
     )
     assert result.exit_code != 0
     assert "does not accept --dyn-search-clicks-per-week" in result.output
+
+
+def test_campaigns_add_dynamic_text_search_package_strategy_rejects_dyn_search():
+    """#362: PackageBiddingStrategy on DynamicTextCampaign add must reject
+    every typed --dyn-search-* flag so search detail input is never
+    silently dropped (mirrors the TEXT_CAMPAIGN text-search-* conflict).
+    """
+    result = _failing_run(
+        "campaigns",
+        "add",
+        "--name",
+        "Bad",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--package-strategy-id",
+        "99",
+        "--dyn-search-average-cpc",
+        "10",
+    )
+    assert result.exit_code != 0
+    assert (
+        "PackageBiddingStrategy cannot be combined with --dyn-search-average-cpc"
+        in result.output
+    )
+
+
+def test_campaigns_update_dynamic_text_search_wb_maximum_clicks_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "5005",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--search-strategy",
+        "WB_MAXIMUM_CLICKS",
+        "--dyn-search-weekly-spend-limit",
+        "500",
+        "--dyn-search-bid-ceiling",
+        "50",
+    )
+    search = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
+        "Search"
+    ]
+    assert search == {
+        "BiddingStrategyType": "WB_MAXIMUM_CLICKS",
+        "WbMaximumClicks": {
+            "WeeklySpendLimit": 500000000,
+            "BidCeiling": 50000000,
+        },
+    }
+
+
+def test_campaigns_update_dynamic_text_search_wb_maximum_conversion_rate_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "5006",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--search-strategy",
+        "WB_MAXIMUM_CONVERSION_RATE",
+        "--dyn-search-goal-id",
+        "77",
+        "--dyn-search-weekly-spend-limit",
+        "800",
+    )
+    search = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
+        "Search"
+    ]
+    assert search == {
+        "BiddingStrategyType": "WB_MAXIMUM_CONVERSION_RATE",
+        "WbMaximumConversionRate": {
+            "GoalId": 77,
+            "WeeklySpendLimit": 800000000,
+        },
+    }
+
+
+def test_campaigns_update_dynamic_text_search_average_cpa_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "5007",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--search-strategy",
+        "AVERAGE_CPA",
+        "--dyn-search-average-cpa",
+        "150",
+        "--dyn-search-goal-id",
+        "42",
+        "--dyn-search-bid-ceiling",
+        "30",
+    )
+    search = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
+        "Search"
+    ]
+    assert search == {
+        "BiddingStrategyType": "AVERAGE_CPA",
+        "AverageCpa": {
+            "AverageCpa": 150000000,
+            "GoalId": 42,
+            "BidCeiling": 30000000,
+        },
+    }
+
+
+def test_campaigns_update_dynamic_text_search_pay_for_conversion_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "5008",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--search-strategy",
+        "PAY_FOR_CONVERSION",
+        "--dyn-search-cpa",
+        "250",
+        "--dyn-search-goal-id",
+        "42",
+        "--dyn-search-weekly-spend-limit",
+        "1000",
+    )
+    search = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
+        "Search"
+    ]
+    assert search == {
+        "BiddingStrategyType": "PAY_FOR_CONVERSION",
+        "PayForConversion": {
+            "Cpa": 250000000,
+            "GoalId": 42,
+            "WeeklySpendLimit": 1000000000,
+        },
+    }
+
+
+def test_campaigns_update_dynamic_text_search_average_roi_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "5009",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--search-strategy",
+        "AVERAGE_ROI",
+        "--dyn-search-reserve-return",
+        "30",
+        "--dyn-search-roi-coef",
+        "200",
+        "--dyn-search-goal-id",
+        "42",
+        "--dyn-search-profitability",
+        "20",
+    )
+    search = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
+        "Search"
+    ]
+    assert search == {
+        "BiddingStrategyType": "AVERAGE_ROI",
+        "AverageRoi": {
+            "ReserveReturn": 30,
+            "RoiCoef": 200,
+            "GoalId": 42,
+            "Profitability": 20,
+        },
+    }
+
+
+def test_campaigns_update_dynamic_text_search_average_crr_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "5010",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--search-strategy",
+        "AVERAGE_CRR",
+        "--dyn-search-crr",
+        "12",
+        "--dyn-search-goal-id",
+        "42",
+    )
+    search = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
+        "Search"
+    ]
+    assert search == {
+        "BiddingStrategyType": "AVERAGE_CRR",
+        "AverageCrr": {
+            "Crr": 12,
+            "GoalId": 42,
+        },
+    }
+
+
+def test_campaigns_update_dynamic_text_search_pay_for_conversion_crr_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "5011",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--search-strategy",
+        "PAY_FOR_CONVERSION_CRR",
+        "--dyn-search-crr",
+        "8",
+        "--dyn-search-goal-id",
+        "42",
+        "--dyn-search-weekly-spend-limit",
+        "500",
+    )
+    search = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
+        "Search"
+    ]
+    assert search == {
+        "BiddingStrategyType": "PAY_FOR_CONVERSION_CRR",
+        "PayForConversionCrr": {
+            "Crr": 8,
+            "GoalId": 42,
+            "WeeklySpendLimit": 500000000,
+        },
+    }
+
+
+def test_campaigns_update_dynamic_text_search_weekly_click_package_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "5012",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--search-strategy",
+        "WEEKLY_CLICK_PACKAGE",
+        "--dyn-search-clicks-per-week",
+        "200",
+        "--dyn-search-average-cpc",
+        "5",
+    )
+    search = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
+        "Search"
+    ]
+    assert search == {
+        "BiddingStrategyType": "WEEKLY_CLICK_PACKAGE",
+        "WeeklyClickPackage": {
+            "ClicksPerWeek": 200,
+            "AverageCpc": 5000000,
+        },
+    }
+
+
+def test_campaigns_update_dynamic_text_search_average_cpa_with_exploration_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "5013",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--search-strategy",
+        "AVERAGE_CPA",
+        "--dyn-search-average-cpa",
+        "200",
+        "--dyn-search-goal-id",
+        "42",
+        "--dyn-search-exploration-budget",
+        "100",
+        "--dyn-search-exploration-budget-custom",
+        "NO",
+    )
+    search = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
+        "Search"
+    ]
+    assert search == {
+        "BiddingStrategyType": "AVERAGE_CPA",
+        "AverageCpa": {
+            "AverageCpa": 200000000,
+            "GoalId": 42,
+            "ExplorationBudget": {
+                "MinimumExplorationBudget": 100000000,
+                "IsMinimumExplorationBudgetCustom": "NO",
+            },
+        },
+    }

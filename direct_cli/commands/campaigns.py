@@ -2220,6 +2220,45 @@ def add(
                         "--dyn-network-exploration-budget-custom": (
                             dyn_network_exploration_budget_custom
                         ),
+                        # DynamicTextCampaign Search typed flags (#362).
+                        # ``--search-strategy`` and ``--search-placement-*``
+                        # are already in the base ``package_incompatible``
+                        # map above; the per-DYN extension only adds the
+                        # new ``--dyn-search-*`` detail flags so they can
+                        # never be silently dropped when PackageBidding-
+                        # Strategy wins (same pattern as TEXT_CAMPAIGN
+                        # text-search-* — see #361/#388).
+                        "--dyn-search-weekly-spend-limit": (
+                            dyn_search_weekly_spend_limit
+                        ),
+                        "--dyn-search-bid-ceiling": dyn_search_bid_ceiling,
+                        "--dyn-search-custom-period-spend-limit": (
+                            dyn_search_custom_period_spend_limit
+                        ),
+                        "--dyn-search-custom-period-start-date": (
+                            dyn_search_custom_period_start_date
+                        ),
+                        "--dyn-search-custom-period-end-date": (
+                            dyn_search_custom_period_end_date
+                        ),
+                        "--dyn-search-custom-period-auto-continue": (
+                            dyn_search_custom_period_auto_continue
+                        ),
+                        "--dyn-search-average-cpc": dyn_search_average_cpc,
+                        "--dyn-search-average-cpa": dyn_search_average_cpa,
+                        "--dyn-search-cpa": dyn_search_cpa,
+                        "--dyn-search-goal-id": dyn_search_goal_id,
+                        "--dyn-search-crr": dyn_search_crr,
+                        "--dyn-search-clicks-per-week": (dyn_search_clicks_per_week),
+                        "--dyn-search-reserve-return": dyn_search_reserve_return,
+                        "--dyn-search-roi-coef": dyn_search_roi_coef,
+                        "--dyn-search-profitability": dyn_search_profitability,
+                        "--dyn-search-exploration-budget": (
+                            dyn_search_exploration_budget
+                        ),
+                        "--dyn-search-exploration-budget-custom": (
+                            dyn_search_exploration_budget_custom
+                        ),
                     }
                 )
             provided = [
