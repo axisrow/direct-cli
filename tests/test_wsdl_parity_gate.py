@@ -1600,6 +1600,25 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
         "--search-strategy",
         "--network-strategy",
         "--filter-average-cpc",
+        # SmartCampaign.BiddingStrategy.Search typed flags (#367)
+        "--smart-search-average-cpc",
+        "--smart-search-filter-average-cpc",
+        "--smart-search-average-cpa",
+        "--smart-search-filter-average-cpa",
+        "--smart-search-cpa",
+        "--smart-search-goal-id",
+        "--smart-search-weekly-spend-limit",
+        "--smart-search-bid-ceiling",
+        "--smart-search-reserve-return",
+        "--smart-search-roi-coef",
+        "--smart-search-profitability",
+        "--smart-search-crr",
+        "--smart-search-cp-spend-limit",
+        "--smart-search-cp-start-date",
+        "--smart-search-cp-end-date",
+        "--smart-search-cp-auto-continue",
+        "--smart-search-exploration-min",
+        "--smart-search-exploration-min-custom",
     },
     ("campaigns", "add", "SmartCampaign.Settings"): {"--setting"},
     ("campaigns", "add", "SmartCampaign.TrackingParams"): {"--tracking-params"},
@@ -1778,6 +1797,29 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     },
     ("campaigns", "update", "SmartCampaign"): {"--type"},
     ("campaigns", "update", "SmartCampaign.TrackingParams"): {"--tracking-params"},
+    ("campaigns", "update", "SmartCampaign.BiddingStrategy"): {
+        "--search-strategy",
+        # SmartCampaign.BiddingStrategy.Search typed flags (#367)
+        "--smart-search-average-cpc",
+        "--smart-search-filter-average-cpc",
+        "--smart-search-average-cpa",
+        "--smart-search-filter-average-cpa",
+        "--smart-search-cpa",
+        "--smart-search-goal-id",
+        "--smart-search-weekly-spend-limit",
+        "--smart-search-bid-ceiling",
+        "--smart-search-reserve-return",
+        "--smart-search-roi-coef",
+        "--smart-search-profitability",
+        "--smart-search-crr",
+        "--smart-search-cp-spend-limit",
+        "--smart-search-cp-start-date",
+        "--smart-search-cp-end-date",
+        "--smart-search-cp-auto-continue",
+        "--smart-search-exploration-min",
+        "--smart-search-exploration-min-custom",
+        "--smart-search-budget-type",
+    },
     ("advideos", "add", "Url"): {"--url"},
     ("advideos", "add", "VideoData"): {"--video-data", "--video-file"},
     ("advideos", "add", "Name"): {"--name"},
@@ -2553,6 +2595,205 @@ for _path in (
     OPTIONAL_FIELD_CLI_OPTIONS[("campaigns", "update", f"SmartCampaign.{_path}")] = {
         "--priority-goals"
     }
+
+# SmartCampaign.BiddingStrategy.Search typed-flag coverage (issue #367).
+# Mirrors WSDL Strategy*Add subtypes (tests/wsdl_cache/campaigns.xml
+# 1401-1481, get-side Strategy* 851-929, SmartCampaignSearchStrategyTypeEnum
+# 396-410). Per-Campaign / Per-Filter / AverageRoi / AverageCrr /
+# PayForConversionCrr subtypes are all owned by this PR — see
+# build_smart_campaign_search_strategy in direct_cli/_bidding_strategy.py.
+_smart_search_flags = {
+    "--search-strategy",
+    "--smart-search-average-cpc",
+    "--smart-search-filter-average-cpc",
+    "--smart-search-average-cpa",
+    "--smart-search-filter-average-cpa",
+    "--smart-search-cpa",
+    "--smart-search-goal-id",
+    "--smart-search-weekly-spend-limit",
+    "--smart-search-bid-ceiling",
+    "--smart-search-reserve-return",
+    "--smart-search-roi-coef",
+    "--smart-search-profitability",
+    "--smart-search-crr",
+    "--smart-search-cp-spend-limit",
+    "--smart-search-cp-start-date",
+    "--smart-search-cp-end-date",
+    "--smart-search-cp-auto-continue",
+    "--smart-search-exploration-min",
+    "--smart-search-exploration-min-custom",
+}
+for _campaign_op in ("add", "update"):
+    # --smart-search-budget-type only exists on update (WSDL BudgetType lives
+    # on get-side Strategy* used by SmartCampaignUpdateItem).
+    _ops_flags = (
+        _smart_search_flags | {"--smart-search-budget-type"}
+        if _campaign_op == "update"
+        else _smart_search_flags
+    )
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        ("campaigns", _campaign_op, "SmartCampaign.BiddingStrategy.Search")
+    ] = _ops_flags
+    OPTIONAL_FIELD_CLI_OPTIONS[
+        (
+            "campaigns",
+            _campaign_op,
+            "SmartCampaign.BiddingStrategy.Search.BiddingStrategyType",
+        )
+    ] = {"--search-strategy"}
+    for _subtype in (
+        "AverageCpcPerCampaign",
+        "AverageCpcPerFilter",
+        "AverageCpaPerCampaign",
+        "AverageCpaPerFilter",
+        "PayForConversionPerCampaign",
+        "PayForConversionPerFilter",
+        "AverageRoi",
+        "AverageCrr",
+        "PayForConversionCrr",
+    ):
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            (
+                "campaigns",
+                _campaign_op,
+                f"SmartCampaign.BiddingStrategy.Search.{_subtype}",
+            )
+        ] = _ops_flags
+        # BudgetType on update-only get-side Strategy* (campaigns.xml
+        # 858-929). Each subtype exposes a BudgetType leaf.
+        if _campaign_op == "update":
+            OPTIONAL_FIELD_CLI_OPTIONS[
+                (
+                    "campaigns",
+                    _campaign_op,
+                    f"SmartCampaign.BiddingStrategy.Search.{_subtype}."
+                    "BudgetType",
+                )
+            ] = {"--smart-search-budget-type"}
+    # Subtype-leaf paths → owning CLI flag (per-field).
+    for _subtype_path, _flag in {
+        # AverageCpcPerCampaign
+        "AverageCpcPerCampaign.AverageCpc": "--smart-search-average-cpc",
+        "AverageCpcPerCampaign.WeeklySpendLimit": (
+            "--smart-search-weekly-spend-limit"
+        ),
+        "AverageCpcPerCampaign.BidCeiling": "--smart-search-bid-ceiling",
+        # AverageCpcPerFilter
+        "AverageCpcPerFilter.FilterAverageCpc": (
+            "--smart-search-filter-average-cpc"
+        ),
+        "AverageCpcPerFilter.WeeklySpendLimit": (
+            "--smart-search-weekly-spend-limit"
+        ),
+        "AverageCpcPerFilter.BidCeiling": "--smart-search-bid-ceiling",
+        # AverageCpaPerCampaign
+        "AverageCpaPerCampaign.AverageCpa": "--smart-search-average-cpa",
+        "AverageCpaPerCampaign.GoalId": "--smart-search-goal-id",
+        "AverageCpaPerCampaign.WeeklySpendLimit": (
+            "--smart-search-weekly-spend-limit"
+        ),
+        "AverageCpaPerCampaign.BidCeiling": "--smart-search-bid-ceiling",
+        # AverageCpaPerFilter
+        "AverageCpaPerFilter.FilterAverageCpa": (
+            "--smart-search-filter-average-cpa"
+        ),
+        "AverageCpaPerFilter.GoalId": "--smart-search-goal-id",
+        "AverageCpaPerFilter.WeeklySpendLimit": (
+            "--smart-search-weekly-spend-limit"
+        ),
+        "AverageCpaPerFilter.BidCeiling": "--smart-search-bid-ceiling",
+        # PayForConversionPerCampaign
+        "PayForConversionPerCampaign.Cpa": "--smart-search-cpa",
+        "PayForConversionPerCampaign.GoalId": "--smart-search-goal-id",
+        "PayForConversionPerCampaign.WeeklySpendLimit": (
+            "--smart-search-weekly-spend-limit"
+        ),
+        # PayForConversionPerFilter
+        "PayForConversionPerFilter.Cpa": "--smart-search-cpa",
+        "PayForConversionPerFilter.GoalId": "--smart-search-goal-id",
+        "PayForConversionPerFilter.WeeklySpendLimit": (
+            "--smart-search-weekly-spend-limit"
+        ),
+        # AverageRoi
+        "AverageRoi.ReserveReturn": "--smart-search-reserve-return",
+        "AverageRoi.RoiCoef": "--smart-search-roi-coef",
+        "AverageRoi.GoalId": "--smart-search-goal-id",
+        "AverageRoi.WeeklySpendLimit": "--smart-search-weekly-spend-limit",
+        "AverageRoi.BidCeiling": "--smart-search-bid-ceiling",
+        "AverageRoi.Profitability": "--smart-search-profitability",
+        # AverageCrr
+        "AverageCrr.Crr": "--smart-search-crr",
+        "AverageCrr.GoalId": "--smart-search-goal-id",
+        "AverageCrr.WeeklySpendLimit": "--smart-search-weekly-spend-limit",
+        # PayForConversionCrr
+        "PayForConversionCrr.Crr": "--smart-search-crr",
+        "PayForConversionCrr.GoalId": "--smart-search-goal-id",
+        "PayForConversionCrr.WeeklySpendLimit": (
+            "--smart-search-weekly-spend-limit"
+        ),
+    }.items():
+        OPTIONAL_FIELD_CLI_OPTIONS[
+            (
+                "campaigns",
+                _campaign_op,
+                f"SmartCampaign.BiddingStrategy.Search.{_subtype_path}",
+            )
+        ] = {_flag}
+    # CustomPeriodBudget appears on every Search subtype that supports it.
+    for _subtype in (
+        "AverageCpcPerCampaign",
+        "AverageCpcPerFilter",
+        "AverageCpaPerCampaign",
+        "AverageCpaPerFilter",
+        "PayForConversionPerCampaign",
+        "PayForConversionPerFilter",
+        "AverageRoi",
+        "AverageCrr",
+        "PayForConversionCrr",
+    ):
+        for _cp_leaf, _cp_flag in {
+            "": "--smart-search-cp-spend-limit",
+            ".SpendLimit": "--smart-search-cp-spend-limit",
+            ".StartDate": "--smart-search-cp-start-date",
+            ".EndDate": "--smart-search-cp-end-date",
+            ".AutoContinue": "--smart-search-cp-auto-continue",
+        }.items():
+            OPTIONAL_FIELD_CLI_OPTIONS[
+                (
+                    "campaigns",
+                    _campaign_op,
+                    f"SmartCampaign.BiddingStrategy.Search.{_subtype}."
+                    f"CustomPeriodBudget{_cp_leaf}",
+                )
+            ] = {_cp_flag}
+        # BudgetType only exists on get-side Strategy* (campaigns.xml
+        # 858-929) which is used by update; Strategy*Add types don't carry
+        # BudgetType. There is no typed CLI flag for it yet — leave as
+        # missing_followup so the audit stays accurate.
+    # ExplorationBudget appears on AverageCpa{Per,PerFilter}, AverageRoi,
+    # AverageCrr. NOT on AverageCpc* or PayForConversion* (per WSDL
+    # campaigns.xml 1411-1432, 1474-1481).
+    for _subtype in (
+        "AverageCpaPerCampaign",
+        "AverageCpaPerFilter",
+        "AverageRoi",
+        "AverageCrr",
+    ):
+        for _eb_leaf, _eb_flag in {
+            "": "--smart-search-exploration-min",
+            ".MinimumExplorationBudget": "--smart-search-exploration-min",
+            ".IsMinimumExplorationBudgetCustom": (
+                "--smart-search-exploration-min-custom"
+            ),
+        }.items():
+            OPTIONAL_FIELD_CLI_OPTIONS[
+                (
+                    "campaigns",
+                    _campaign_op,
+                    f"SmartCampaign.BiddingStrategy.Search.{_subtype}."
+                    f"ExplorationBudget{_eb_leaf}",
+                )
+            ] = {_eb_flag}
 
 for _campaign_op in ("add", "update"):
     OPTIONAL_FIELD_CLI_OPTIONS[("campaigns", _campaign_op, "MobileAppCampaign")] = {
