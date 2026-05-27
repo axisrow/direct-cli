@@ -700,17 +700,26 @@ def get(
 @click.option(
     "--search-placement-search-results",
     type=click.Choice(YES_NO, case_sensitive=False),
-    help="TextCampaign Search PlacementTypes.SearchResults",
+    help=(
+        "TextCampaign/UnifiedCampaign/DynamicTextCampaign Search "
+        "PlacementTypes.SearchResults"
+    ),
 )
 @click.option(
     "--search-placement-product-gallery",
     type=click.Choice(YES_NO, case_sensitive=False),
-    help="TextCampaign Search PlacementTypes.ProductGallery",
+    help=(
+        "TextCampaign/UnifiedCampaign/DynamicTextCampaign Search "
+        "PlacementTypes.ProductGallery"
+    ),
 )
 @click.option(
     "--search-placement-dynamic-places",
     type=click.Choice(YES_NO, case_sensitive=False),
-    help="TextCampaign Search PlacementTypes.DynamicPlaces",
+    help=(
+        "TextCampaign/UnifiedCampaign/DynamicTextCampaign Search "
+        "PlacementTypes.DynamicPlaces"
+    ),
 )
 @click.option(
     "--filter-average-cpc",
@@ -1493,6 +1502,72 @@ def get(
         "IsMinimumExplorationBudgetCustom: YES or NO"
     ),
 )
+# UnifiedCampaign.BiddingStrategy.Search typed flags (issue #363). Mirrors
+# the TextCampaign Search flag set (#361/#388) plus two extra PlacementTypes
+# fields declared only by UnifiedCampaignSearchStrategyPlacementTypes
+# (WSDL tests/wsdl_cache/campaigns.xml L172-180 and L636-644). UnifiedCampaign
+# does NOT carry WeeklyClickPackage / AverageRoi subtypes (WSDL L1631-1654),
+# so the corresponding clicks-per-week / reserve-return / roi-coef /
+# profitability flags are intentionally absent.
+@click.option(
+    "--unified-search-placement-maps",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="UnifiedCampaign Search PlacementTypes.Maps (#363)",
+)
+@click.option(
+    "--unified-search-placement-search-organization-list",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help=("UnifiedCampaign Search PlacementTypes.SearchOrganizationList (#363)"),
+)
+@click.option(
+    "--unified-search-weekly-spend-limit",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="UnifiedCampaign Search strategy WeeklySpendLimit in rubles (#363)",
+)
+@click.option(
+    "--unified-search-custom-period-spend-limit",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="UnifiedCampaign Search CustomPeriodBudget.SpendLimit in rubles (#363)",
+)
+@click.option(
+    "--unified-search-custom-period-start-date",
+    help="UnifiedCampaign Search CustomPeriodBudget.StartDate (#363)",
+)
+@click.option(
+    "--unified-search-custom-period-end-date",
+    help="UnifiedCampaign Search CustomPeriodBudget.EndDate (#363)",
+)
+@click.option(
+    "--unified-search-custom-period-auto-continue",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="UnifiedCampaign Search CustomPeriodBudget.AutoContinue: YES or NO (#363)",
+)
+@click.option(
+    "--unified-search-average-cpc",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="UnifiedCampaign Search strategy AverageCpc in rubles (#363)",
+)
+@click.option(
+    "--unified-search-pay-cpa",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="UnifiedCampaign Search StrategyPayForConversionAdd.Cpa in rubles (#363)",
+)
+@click.option(
+    "--unified-search-exploration-min-budget",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help=(
+        "UnifiedCampaign Search ExplorationBudget.MinimumExplorationBudget "
+        "in rubles (#363)"
+    ),
+)
+@click.option(
+    "--unified-search-exploration-is-custom",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help=(
+        "UnifiedCampaign Search ExplorationBudget."
+        "IsMinimumExplorationBudgetCustom: YES or NO (#363)"
+    ),
+)
 @click.option(
     "--text-network-weekly-spend-limit",
     type=RUBLES_TO_MICRO_RUBLES,
@@ -1824,6 +1899,17 @@ def add(
     text_search_profitability,
     text_search_exploration_min_budget,
     text_search_exploration_is_custom,
+    unified_search_placement_maps,
+    unified_search_placement_search_organization_list,
+    unified_search_weekly_spend_limit,
+    unified_search_custom_period_spend_limit,
+    unified_search_custom_period_start_date,
+    unified_search_custom_period_end_date,
+    unified_search_custom_period_auto_continue,
+    unified_search_average_cpc,
+    unified_search_pay_cpa,
+    unified_search_exploration_min_budget,
+    unified_search_exploration_is_custom,
     text_network_weekly_spend_limit,
     text_network_custom_period_spend_limit,
     text_network_custom_period_start_date,
@@ -1975,6 +2061,26 @@ def add(
                 "--package-platform-network",
                 "--package-platform-dynamic-places",
                 "--negative-keyword-shared-set-ids",
+                # UnifiedCampaign.BiddingStrategy.Search typed flags (#363).
+                "--search-strategy",
+                "--search-placement-search-results",
+                "--search-placement-product-gallery",
+                "--search-placement-dynamic-places",
+                "--goal-id",
+                "--average-cpa",
+                "--crr",
+                "--bid-ceiling",
+                "--unified-search-placement-maps",
+                "--unified-search-placement-search-organization-list",
+                "--unified-search-weekly-spend-limit",
+                "--unified-search-custom-period-spend-limit",
+                "--unified-search-custom-period-start-date",
+                "--unified-search-custom-period-end-date",
+                "--unified-search-custom-period-auto-continue",
+                "--unified-search-average-cpc",
+                "--unified-search-pay-cpa",
+                "--unified-search-exploration-min-budget",
+                "--unified-search-exploration-is-custom",
             },
             "DYNAMIC_TEXT_CAMPAIGN": {
                 "--setting",
@@ -2349,6 +2455,34 @@ def add(
                 "--text-search-exploration-is-custom": (
                     text_search_exploration_is_custom
                 ),
+                # UnifiedCampaign.BiddingStrategy.Search typed flags (#363).
+                "--unified-search-placement-maps": unified_search_placement_maps,
+                "--unified-search-placement-search-organization-list": (
+                    unified_search_placement_search_organization_list
+                ),
+                "--unified-search-weekly-spend-limit": (
+                    unified_search_weekly_spend_limit
+                ),
+                "--unified-search-custom-period-spend-limit": (
+                    unified_search_custom_period_spend_limit
+                ),
+                "--unified-search-custom-period-start-date": (
+                    unified_search_custom_period_start_date
+                ),
+                "--unified-search-custom-period-end-date": (
+                    unified_search_custom_period_end_date
+                ),
+                "--unified-search-custom-period-auto-continue": (
+                    unified_search_custom_period_auto_continue
+                ),
+                "--unified-search-average-cpc": unified_search_average_cpc,
+                "--unified-search-pay-cpa": unified_search_pay_cpa,
+                "--unified-search-exploration-min-budget": (
+                    unified_search_exploration_min_budget
+                ),
+                "--unified-search-exploration-is-custom": (
+                    unified_search_exploration_is_custom
+                ),
                 "--text-network-weekly-spend-limit": (text_network_weekly_spend_limit),
                 "--text-network-custom-period-spend-limit": (
                     text_network_custom_period_spend_limit
@@ -2558,10 +2692,43 @@ def add(
                     }
                 )
             if campaign_type_norm == "UNIFIED_CAMPAIGN":
+                # Issue #363: every typed UnifiedCampaign Search-strategy
+                # detail flag must also conflict with PackageBiddingStrategy
+                # on add, otherwise --unified-search-* input would silently
+                # disappear when the user opts into a package strategy.
                 package_incompatible.update(
                     {
                         "--counter-ids": counter_ids,
                         "--attribution-model": attribution_model,
+                        "--unified-search-placement-maps": (
+                            unified_search_placement_maps
+                        ),
+                        "--unified-search-placement-search-organization-list": (
+                            unified_search_placement_search_organization_list
+                        ),
+                        "--unified-search-weekly-spend-limit": (
+                            unified_search_weekly_spend_limit
+                        ),
+                        "--unified-search-custom-period-spend-limit": (
+                            unified_search_custom_period_spend_limit
+                        ),
+                        "--unified-search-custom-period-start-date": (
+                            unified_search_custom_period_start_date
+                        ),
+                        "--unified-search-custom-period-end-date": (
+                            unified_search_custom_period_end_date
+                        ),
+                        "--unified-search-custom-period-auto-continue": (
+                            unified_search_custom_period_auto_continue
+                        ),
+                        "--unified-search-average-cpc": (unified_search_average_cpc),
+                        "--unified-search-pay-cpa": unified_search_pay_cpa,
+                        "--unified-search-exploration-min-budget": (
+                            unified_search_exploration_min_budget
+                        ),
+                        "--unified-search-exploration-is-custom": (
+                            unified_search_exploration_is_custom
+                        ),
                     }
                 )
             if campaign_type_norm == "DYNAMIC_TEXT_CAMPAIGN":
@@ -2753,9 +2920,10 @@ def add(
                 )
             if priority_goals is not None:
                 raise click.UsageError(
-                    "UnifiedCampaign.PriorityGoals on campaigns add requires "
-                    "a compatible UnifiedCampaign.BiddingStrategy; shared "
-                    "BiddingStrategy support is tracked in #290."
+                    "UnifiedCampaign.PriorityGoals typed flag support is "
+                    "tracked in #373; UnifiedCampaign.BiddingStrategy.Search "
+                    "(this PR, #363) only validates priority-goals scope, "
+                    "not sibling placement on UnifiedCampaignAddItem."
                 )
         if campaign_type_norm in {"MOBILE_APP_CAMPAIGN", "CPM_BANNER_CAMPAIGN"}:
             strategy_followup_flags = {
@@ -3006,12 +3174,68 @@ def add(
                 text_block["TrackingParams"] = tracking_params
             campaign_data["TextCampaign"] = text_block
         elif campaign_type_norm == "UNIFIED_CAMPAIGN":
-            unified_block = {"Settings": parsed_settings or []}
+            unified_block: Dict[str, object] = {"Settings": parsed_settings or []}
             if package_bidding_strategy_obj is not None:
                 unified_block["PackageBiddingStrategy"] = package_bidding_strategy_obj
             else:
+                # UnifiedCampaign.BiddingStrategy.Search typed builder (#363).
+                # The branch="search" builder owns the entire Search payload
+                # (subtype block + PlacementTypes). UnifiedCampaign.Network
+                # is owned by #366 and stays defaulted to SERVING_OFF here;
+                # PriorityGoals sibling placement is owned by #373 (the
+                # builder validates scope and min-count but does not write
+                # to ``unified_block`` since priority_goals_items is None
+                # in the current PR — the pre-builder UNIFIED_CAMPAIGN
+                # rejection above prevents reaching here with non-None
+                # items).
+                unified_search_builder = get_bidding_strategy_builder(
+                    "UNIFIED_CAMPAIGN", "add", "search"
+                )
+                if unified_search_builder is not None:
+                    unified_search = unified_search_builder(
+                        search_strategy=search_strategy,
+                        search_placement_search_results=(
+                            search_placement_search_results
+                        ),
+                        search_placement_product_gallery=(
+                            search_placement_product_gallery
+                        ),
+                        search_placement_dynamic_places=(
+                            search_placement_dynamic_places
+                        ),
+                        search_placement_maps=unified_search_placement_maps,
+                        search_placement_search_organization_list=(
+                            unified_search_placement_search_organization_list
+                        ),
+                        goal_id=goal_id,
+                        average_cpa=average_cpa,
+                        crr=crr,
+                        bid_ceiling=bid_ceiling,
+                        weekly_spend_limit=unified_search_weekly_spend_limit,
+                        custom_period_spend_limit=(
+                            unified_search_custom_period_spend_limit
+                        ),
+                        custom_period_start_date=(
+                            unified_search_custom_period_start_date
+                        ),
+                        custom_period_end_date=(unified_search_custom_period_end_date),
+                        custom_period_auto_continue=(
+                            unified_search_custom_period_auto_continue
+                        ),
+                        budget_type=None,
+                        average_cpc=unified_search_average_cpc,
+                        pay_cpa=unified_search_pay_cpa,
+                        exploration_min_budget=(unified_search_exploration_min_budget),
+                        exploration_is_custom=(unified_search_exploration_is_custom),
+                        priority_goals_items=None,
+                        sub_campaign_block=unified_block,
+                        include_default=True,
+                        is_update=False,
+                    )
+                else:
+                    unified_search = {"BiddingStrategyType": "HIGHEST_POSITION"}
                 unified_block["BiddingStrategy"] = {
-                    "Search": {"BiddingStrategyType": "HIGHEST_POSITION"},
+                    "Search": unified_search,
                     "Network": {"BiddingStrategyType": "SERVING_OFF"},
                 }
             if counter_ids_obj is not None:
@@ -3568,17 +3792,26 @@ def add(
 @click.option(
     "--search-placement-search-results",
     type=click.Choice(YES_NO, case_sensitive=False),
-    help="TextCampaign Search PlacementTypes.SearchResults",
+    help=(
+        "TextCampaign/UnifiedCampaign/DynamicTextCampaign Search "
+        "PlacementTypes.SearchResults"
+    ),
 )
 @click.option(
     "--search-placement-product-gallery",
     type=click.Choice(YES_NO, case_sensitive=False),
-    help="TextCampaign Search PlacementTypes.ProductGallery",
+    help=(
+        "TextCampaign/UnifiedCampaign/DynamicTextCampaign Search "
+        "PlacementTypes.ProductGallery"
+    ),
 )
 @click.option(
     "--search-placement-dynamic-places",
     type=click.Choice(YES_NO, case_sensitive=False),
-    help="TextCampaign Search PlacementTypes.DynamicPlaces",
+    help=(
+        "TextCampaign/UnifiedCampaign/DynamicTextCampaign Search "
+        "PlacementTypes.DynamicPlaces"
+    ),
 )
 @click.option("--counter-id", type=int, help="SmartCampaign.CounterId")
 @click.option(
@@ -3937,6 +4170,74 @@ def add(
     help=(
         "TextCampaign Search ExplorationBudget."
         "IsMinimumExplorationBudgetCustom: YES or NO"
+    ),
+)
+# UnifiedCampaign.BiddingStrategy.Search typed flags (issue #363) — update
+# variant. Same set as add() plus the update-only --unified-search-budget-type
+# switch (WSDL BudgetType is declared on get/update-side Strategy* types
+# only — campaigns.xml L789-957).
+@click.option(
+    "--unified-search-placement-maps",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="UnifiedCampaign Search PlacementTypes.Maps (#363)",
+)
+@click.option(
+    "--unified-search-placement-search-organization-list",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help=("UnifiedCampaign Search PlacementTypes.SearchOrganizationList (#363)"),
+)
+@click.option(
+    "--unified-search-weekly-spend-limit",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="UnifiedCampaign Search strategy WeeklySpendLimit in rubles (#363)",
+)
+@click.option(
+    "--unified-search-custom-period-spend-limit",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="UnifiedCampaign Search CustomPeriodBudget.SpendLimit in rubles (#363)",
+)
+@click.option(
+    "--unified-search-custom-period-start-date",
+    help="UnifiedCampaign Search CustomPeriodBudget.StartDate (#363)",
+)
+@click.option(
+    "--unified-search-custom-period-end-date",
+    help="UnifiedCampaign Search CustomPeriodBudget.EndDate (#363)",
+)
+@click.option(
+    "--unified-search-custom-period-auto-continue",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="UnifiedCampaign Search CustomPeriodBudget.AutoContinue: YES or NO (#363)",
+)
+@click.option(
+    "--unified-search-budget-type",
+    type=click.Choice(BUDGET_TYPES, case_sensitive=False),
+    help="UnifiedCampaign Search strategy BudgetType for update (#363)",
+)
+@click.option(
+    "--unified-search-average-cpc",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="UnifiedCampaign Search strategy AverageCpc in rubles (#363)",
+)
+@click.option(
+    "--unified-search-pay-cpa",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="UnifiedCampaign Search StrategyPayForConversionAdd.Cpa in rubles (#363)",
+)
+@click.option(
+    "--unified-search-exploration-min-budget",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help=(
+        "UnifiedCampaign Search ExplorationBudget.MinimumExplorationBudget "
+        "in rubles (#363)"
+    ),
+)
+@click.option(
+    "--unified-search-exploration-is-custom",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help=(
+        "UnifiedCampaign Search ExplorationBudget."
+        "IsMinimumExplorationBudgetCustom: YES or NO (#363)"
     ),
 )
 @click.option(
@@ -4658,6 +4959,18 @@ def update(
     text_search_profitability,
     text_search_exploration_min_budget,
     text_search_exploration_is_custom,
+    unified_search_placement_maps,
+    unified_search_placement_search_organization_list,
+    unified_search_weekly_spend_limit,
+    unified_search_custom_period_spend_limit,
+    unified_search_custom_period_start_date,
+    unified_search_custom_period_end_date,
+    unified_search_custom_period_auto_continue,
+    unified_search_budget_type,
+    unified_search_average_cpc,
+    unified_search_pay_cpa,
+    unified_search_exploration_min_budget,
+    unified_search_exploration_is_custom,
     text_network_weekly_spend_limit,
     text_network_custom_period_spend_limit,
     text_network_custom_period_start_date,
@@ -4959,6 +5272,33 @@ def update(
                 text_search_exploration_min_budget
             ),
             "--text-search-exploration-is-custom": (text_search_exploration_is_custom),
+            # UnifiedCampaign.BiddingStrategy.Search typed flags (#363).
+            "--unified-search-placement-maps": unified_search_placement_maps,
+            "--unified-search-placement-search-organization-list": (
+                unified_search_placement_search_organization_list
+            ),
+            "--unified-search-weekly-spend-limit": (unified_search_weekly_spend_limit),
+            "--unified-search-custom-period-spend-limit": (
+                unified_search_custom_period_spend_limit
+            ),
+            "--unified-search-custom-period-start-date": (
+                unified_search_custom_period_start_date
+            ),
+            "--unified-search-custom-period-end-date": (
+                unified_search_custom_period_end_date
+            ),
+            "--unified-search-custom-period-auto-continue": (
+                unified_search_custom_period_auto_continue
+            ),
+            "--unified-search-budget-type": unified_search_budget_type,
+            "--unified-search-average-cpc": unified_search_average_cpc,
+            "--unified-search-pay-cpa": unified_search_pay_cpa,
+            "--unified-search-exploration-min-budget": (
+                unified_search_exploration_min_budget
+            ),
+            "--unified-search-exploration-is-custom": (
+                unified_search_exploration_is_custom
+            ),
             "--text-network-weekly-spend-limit": (text_network_weekly_spend_limit),
             "--text-network-custom-period-spend-limit": (
                 text_network_custom_period_spend_limit
@@ -5240,6 +5580,27 @@ def update(
                 "--package-platform-dynamic-places",
                 "--negative-keyword-shared-set-ids",
                 "--tracking-params",
+                # UnifiedCampaign.BiddingStrategy.Search typed flags (#363).
+                "--search-strategy",
+                "--search-placement-search-results",
+                "--search-placement-product-gallery",
+                "--search-placement-dynamic-places",
+                "--goal-id",
+                "--average-cpa",
+                "--crr",
+                "--bid-ceiling",
+                "--unified-search-placement-maps",
+                "--unified-search-placement-search-organization-list",
+                "--unified-search-weekly-spend-limit",
+                "--unified-search-custom-period-spend-limit",
+                "--unified-search-custom-period-start-date",
+                "--unified-search-custom-period-end-date",
+                "--unified-search-custom-period-auto-continue",
+                "--unified-search-budget-type",
+                "--unified-search-average-cpc",
+                "--unified-search-pay-cpa",
+                "--unified-search-exploration-min-budget",
+                "--unified-search-exploration-is-custom",
             }
             smart_campaign_flags = {
                 "--setting",
@@ -5539,6 +5900,57 @@ def update(
                             {
                                 "--counter-ids": counter_ids,
                                 "--attribution-model": attribution_model,
+                                # UnifiedCampaign.BiddingStrategy.Search typed
+                                # flags (#363) — mutually exclusive with
+                                # PackageBiddingStrategy on update.
+                                "--search-strategy": search_strategy,
+                                "--search-placement-search-results": (
+                                    search_placement_search_results
+                                ),
+                                "--search-placement-product-gallery": (
+                                    search_placement_product_gallery
+                                ),
+                                "--search-placement-dynamic-places": (
+                                    search_placement_dynamic_places
+                                ),
+                                "--goal-id": goal_id,
+                                "--average-cpa": average_cpa,
+                                "--crr": crr,
+                                "--bid-ceiling": bid_ceiling,
+                                "--unified-search-placement-maps": (
+                                    unified_search_placement_maps
+                                ),
+                                "--unified-search-placement-search-organization-list": (
+                                    unified_search_placement_search_organization_list
+                                ),
+                                "--unified-search-weekly-spend-limit": (
+                                    unified_search_weekly_spend_limit
+                                ),
+                                "--unified-search-custom-period-spend-limit": (
+                                    unified_search_custom_period_spend_limit
+                                ),
+                                "--unified-search-custom-period-start-date": (
+                                    unified_search_custom_period_start_date
+                                ),
+                                "--unified-search-custom-period-end-date": (
+                                    unified_search_custom_period_end_date
+                                ),
+                                "--unified-search-custom-period-auto-continue": (
+                                    unified_search_custom_period_auto_continue
+                                ),
+                                "--unified-search-budget-type": (
+                                    unified_search_budget_type
+                                ),
+                                "--unified-search-average-cpc": (
+                                    unified_search_average_cpc
+                                ),
+                                "--unified-search-pay-cpa": unified_search_pay_cpa,
+                                "--unified-search-exploration-min-budget": (
+                                    unified_search_exploration_min_budget
+                                ),
+                                "--unified-search-exploration-is-custom": (
+                                    unified_search_exploration_is_custom
+                                ),
                             }
                         )
                     if is_dynamic:
@@ -5736,6 +6148,75 @@ def update(
                         if dyn_network_block is not None:
                             bs["Network"] = dyn_network_block
                         sub_block["BiddingStrategy"] = bs
+                elif is_unified:
+                    # UnifiedCampaign.BiddingStrategy.Search update (#363).
+                    # The branch="search" builder owns the entire Search
+                    # payload (PlacementTypes + subtype block + BudgetType).
+                    # include_default=False: with neither --search-strategy
+                    # nor any --unified-search-* detail flag, Search is
+                    # left untouched (returns None). Network is owned by
+                    # #366; PriorityGoals sibling placement is owned by
+                    # #373 (the builder validates scope without writing
+                    # to sub_block here).
+                    unified_search_builder = get_bidding_strategy_builder(
+                        "UNIFIED_CAMPAIGN", "update", "search"
+                    )
+                    unified_search_block = None
+                    if unified_search_builder is not None:
+                        unified_search_block = unified_search_builder(
+                            search_strategy=search_strategy,
+                            search_placement_search_results=(
+                                search_placement_search_results
+                            ),
+                            search_placement_product_gallery=(
+                                search_placement_product_gallery
+                            ),
+                            search_placement_dynamic_places=(
+                                search_placement_dynamic_places
+                            ),
+                            search_placement_maps=unified_search_placement_maps,
+                            search_placement_search_organization_list=(
+                                unified_search_placement_search_organization_list
+                            ),
+                            goal_id=goal_id,
+                            average_cpa=average_cpa,
+                            crr=crr,
+                            bid_ceiling=bid_ceiling,
+                            weekly_spend_limit=unified_search_weekly_spend_limit,
+                            custom_period_spend_limit=(
+                                unified_search_custom_period_spend_limit
+                            ),
+                            custom_period_start_date=(
+                                unified_search_custom_period_start_date
+                            ),
+                            custom_period_end_date=(
+                                unified_search_custom_period_end_date
+                            ),
+                            custom_period_auto_continue=(
+                                unified_search_custom_period_auto_continue
+                            ),
+                            budget_type=unified_search_budget_type,
+                            average_cpc=unified_search_average_cpc,
+                            pay_cpa=unified_search_pay_cpa,
+                            exploration_min_budget=(
+                                unified_search_exploration_min_budget
+                            ),
+                            exploration_is_custom=(
+                                unified_search_exploration_is_custom
+                            ),
+                            priority_goals_items=None,
+                            sub_campaign_block=sub_block,
+                            include_default=False,
+                            is_update=True,
+                        )
+                    else:
+                        unified_search_block = (
+                            {"BiddingStrategyType": search_strategy.upper()}
+                            if search_strategy is not None
+                            else None
+                        )
+                    if unified_search_block is not None:
+                        sub_block["BiddingStrategy"] = {"Search": unified_search_block}
                 elif not is_unified and not is_dynamic:
                     # Issue #361/#364: full typed-flag support for the 12
                     # strategy families on TextCampaign.BiddingStrategy on

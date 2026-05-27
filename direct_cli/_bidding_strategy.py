@@ -4261,3 +4261,714 @@ register_bidding_strategy_builder(
 register_bidding_strategy_builder(
     "DYNAMIC_TEXT_CAMPAIGN", "update", "search", build_dynamic_text_search_strategy
 )
+
+
+# ---------------------------------------------------------------------------
+# UnifiedCampaign.BiddingStrategy.Search (issue #363)
+# ---------------------------------------------------------------------------
+# WSDL reference: ``tests/wsdl_cache/campaigns.xml``:
+#   * L262-278  ``UnifiedCampaignSearchStrategyTypeEnum`` — 13 enum values
+#     (10 typed subtypes + HIGHEST_POSITION / SERVING_OFF / UNKNOWN; UNKNOWN
+#     is a read-side sentinel and is not exposed on add/update).
+#   * L172-180  ``UnifiedCampaignSearchStrategyPlacementTypesFieldEnum`` —
+#     5 placement fields (SearchResults, ProductGallery, DynamicPlaces,
+#     Maps, SearchOrganizationList).
+#   * L636-644  ``UnifiedCampaignSearchStrategyPlacementTypes`` — sequence
+#     of 5 ``YesNoEnum`` minOccurs=0 placement toggles.
+#   * L1631-1654 ``UnifiedCampaignStrategyAddBase`` — 10 typed Strategy*Add
+#     subtypes: WbMaximumClicks, WbMaximumConversionRate, AverageCpc,
+#     AverageCpa, PayForConversion, AverageCrr, PayForConversionCrr,
+#     AverageCpaMultipleGoals, PayForConversionMultipleGoals, MaxProfit.
+#     (UnifiedCampaign does NOT carry WeeklyClickPackage or AverageRoi —
+#     unlike TextCampaign / DynamicTextCampaign.)
+#   * L1665-1674 ``UnifiedCampaignSearchStrategyAdd`` extends the base with
+#     ``BiddingStrategyType`` (minOccurs=1) and ``PlacementTypes``
+#     (minOccurs=0).
+#   * L1339-1509 ``Strategy*Add`` subtypes with required-field minOccurs.
+#   * L1965-1978 ``CustomPeriodBudget`` / ``ExplorationBudget`` shared
+#     types (all-or-nothing groups, mirror the TextCampaign Search builder).
+#   * L789-957  Get/update-side ``Strategy*`` types (every field
+#     minOccurs=0; ``BudgetType`` is declared only here, which is why
+#     ``--unified-search-budget-type`` is update-only).
+#
+# Source-of-truth note: the public Yandex Direct docs at
+# ``yandex.ru/dev/direct`` return showcaptcha during automated review, so
+# the cached WSDL is the canonical reference. Manual cross-checks against
+# ``yandex.com/dev/direct/doc/en/campaigns/UnifiedCampaignAdd.html`` (when
+# reachable) were performed.
+#
+# Parent issue #290; sibling leaf-PRs:
+#   * #366 — UnifiedCampaign.Network (different prefix ``--unified-network-*``)
+#   * #373 — UnifiedCampaign.PriorityGoals (sibling on
+#     ``UnifiedCampaignAddItem``, not nested inside BiddingStrategy).
+UNIFIED_CAMPAIGN_SEARCH_STRATEGIES = [
+    "HIGHEST_POSITION",
+    "WB_MAXIMUM_CONVERSION_RATE",
+    "WB_MAXIMUM_CLICKS",
+    "AVERAGE_CPC",
+    "AVERAGE_CPA",
+    "PAY_FOR_CONVERSION",
+    "AVERAGE_CRR",
+    "PAY_FOR_CONVERSION_CRR",
+    "AVERAGE_CPA_MULTIPLE_GOALS",
+    "PAY_FOR_CONVERSION_MULTIPLE_GOALS",
+    "MAX_PROFIT",
+    "SERVING_OFF",
+]
+
+# Maps UnifiedCampaignSearchStrategyTypeEnum value → WSDL Strategy*Add
+# subtype field name on UnifiedCampaignStrategyAddBase. Strategies without
+# a nested subtype block (HIGHEST_POSITION, SERVING_OFF) are absent — the
+# API discriminates only by BiddingStrategyType for those.
+_UNIFIED_CAMPAIGN_SEARCH_STRATEGY_TO_WSDL_SUBTYPE: Dict[str, str] = {
+    "WB_MAXIMUM_CLICKS": "WbMaximumClicks",
+    "WB_MAXIMUM_CONVERSION_RATE": "WbMaximumConversionRate",
+    "AVERAGE_CPC": "AverageCpc",
+    "AVERAGE_CPA": "AverageCpa",
+    "PAY_FOR_CONVERSION": "PayForConversion",
+    "AVERAGE_CRR": "AverageCrr",
+    "PAY_FOR_CONVERSION_CRR": "PayForConversionCrr",
+    "AVERAGE_CPA_MULTIPLE_GOALS": "AverageCpaMultipleGoals",
+    "PAY_FOR_CONVERSION_MULTIPLE_GOALS": "PayForConversionMultipleGoals",
+    "MAX_PROFIT": "MaxProfit",
+}
+
+# Per-subtype WSDL field support (campaigns.xml L1339-1509). Every set
+# lists subtypes whose WSDL Strategy*Add declares the given field; passing
+# the flag for any other subtype must raise a CLI UsageError instead of
+# silently dropping the value (invariant #2 in tests/test_wsdl_parity_gate).
+_UNIFIED_SEARCH_SUPPORTS_WEEKLY_SPEND_LIMIT = {
+    "WbMaximumClicks",
+    "WbMaximumConversionRate",
+    "AverageCpc",
+    "AverageCpa",
+    "PayForConversion",
+    "AverageCrr",
+    "PayForConversionCrr",
+    "AverageCpaMultipleGoals",
+    "PayForConversionMultipleGoals",
+    "MaxProfit",
+}
+_UNIFIED_SEARCH_SUPPORTS_CUSTOM_PERIOD_BUDGET = {
+    "WbMaximumClicks",
+    "WbMaximumConversionRate",
+    "AverageCpc",
+    "AverageCpa",
+    "PayForConversion",
+    "AverageCrr",
+    "PayForConversionCrr",
+    "AverageCpaMultipleGoals",
+    "PayForConversionMultipleGoals",
+    "MaxProfit",
+}
+_UNIFIED_SEARCH_SUPPORTS_BID_CEILING = {
+    "WbMaximumClicks",
+    "WbMaximumConversionRate",
+    "AverageCpa",
+    "AverageCpaMultipleGoals",
+}
+_UNIFIED_SEARCH_SUPPORTS_AVERAGE_CPC = {"AverageCpc"}
+_UNIFIED_SEARCH_SUPPORTS_AVERAGE_CPA = {"AverageCpa"}
+_UNIFIED_SEARCH_SUPPORTS_PAY_CPA = {"PayForConversion"}  # WSDL field name "Cpa"
+_UNIFIED_SEARCH_SUPPORTS_GOAL_ID = {
+    "WbMaximumConversionRate",
+    "AverageCpa",
+    "PayForConversion",
+    "AverageCrr",
+    "PayForConversionCrr",
+}
+_UNIFIED_SEARCH_SUPPORTS_CRR = {"AverageCrr", "PayForConversionCrr"}
+_UNIFIED_SEARCH_SUPPORTS_EXPLORATION_BUDGET = {
+    "AverageCpa",
+    "AverageCrr",
+    "AverageCpaMultipleGoals",
+    "MaxProfit",
+}
+# BudgetType (WEEKLY_BUDGET / CUSTOM_PERIOD_BUDGET) is an update-only
+# switch; on add the budget slice is implied by which of WeeklySpendLimit /
+# CustomPeriodBudget is set. The cached WSDL is the canonical source for
+# this PR (Yandex public docs are showcaptcha-blocked, see #363 issue
+# body). Per the get-side ``Strategy*`` types (campaigns.xml L789-957)
+# BudgetType is declared on EVERY UnifiedCampaign Search subtype that
+# inherits from ``StrategyWeeklyBudgetBase`` or carries both WeeklySpend-
+# Limit and CustomPeriodBudget — line-by-line:
+#   * StrategyMaximumClicks            — L793  BudgetType
+#   * StrategyMaximumConversionRate    — L803  BudgetType
+#   * StrategyAverageCpc               — L817  BudgetType
+#   * StrategyAverageCpa               — L827  BudgetType
+#   * StrategyPayForConversion         — L835  BudgetType
+#   * StrategyAverageCrr               — L921  BudgetType
+#   * StrategyPayForConversionCrr      — L929  BudgetType
+#   * StrategyMaxProfit                — L943  BudgetType
+#   * StrategyAverageCpaMultipleGoals  — L951  BudgetType
+#   * StrategyPayForConversionMultipleGoals — L957  BudgetType
+# This intentionally diverges from the TextCampaign Search precedent
+# (#388) which deferred to a Yandex public-docs subset for Wb* and
+# *MultipleGoals; per the user instructions on this issue, WSDL is the
+# canonical source, so all WSDL-declared rows are supported.
+_UNIFIED_SEARCH_SUPPORTS_BUDGET_TYPE = {
+    "WbMaximumClicks",
+    "WbMaximumConversionRate",
+    "AverageCpc",
+    "AverageCpa",
+    "PayForConversion",
+    "AverageCrr",
+    "PayForConversionCrr",
+    "AverageCpaMultipleGoals",
+    "PayForConversionMultipleGoals",
+    "MaxProfit",
+}
+
+# Per official Yandex Direct docs (cross-referenced with
+# ``campaigns/UnifiedCampaignAdd.html`` when reachable; otherwise the
+# WSDL plus the TextCampaign precedent applies): ``PriorityGoals`` is
+# required when ``BiddingStrategyType`` is ``AVERAGE_CPA_MULTIPLE_GOALS``,
+# ``PAY_FOR_CONVERSION_MULTIPLE_GOALS`` or ``MAX_PROFIT``. WSDL declares
+# PriorityGoals as a sibling on ``UnifiedCampaignAddItem`` (L2160-2174),
+# NOT nested inside BiddingStrategy. UnifiedCampaign.PriorityGoals
+# typed-flag support is owned by issue #373; this PR limits itself to
+# scope validation against the subtype, leaving the actual sibling
+# placement to #373.
+_UNIFIED_SEARCH_REQUIRES_PRIORITY_GOALS = {
+    "AverageCpaMultipleGoals",
+    "PayForConversionMultipleGoals",
+    "MaxProfit",
+}
+
+# WSDL ``minOccurs=1`` fields per Strategy*Add subtype for UnifiedCampaign
+# Search. Maps subtype → {WSDL field → CLI flag string}. The cached WSDL
+# is the canonical source for this PR (#363); no doc-stricter constraint
+# beyond minOccurs=1 is enforced.
+#
+# Notable divergences from the TextCampaign Search precedent (#388):
+#   * WbMaximumClicks has NO required fields (StrategyMaximumClicksAdd
+#     extends StrategyWeeklyBudgetAddBase whose WeeklySpendLimit /
+#     BidCeiling are minOccurs=0, plus CustomPeriodBudget minOccurs=0);
+#   * WbMaximumConversionRate only requires GoalId (WSDL L1352);
+#     WeeklySpendLimit / CustomPeriodBudget are minOccurs=0.
+# #388 enforced a docs-strict "WeeklySpendLimit or CustomPeriodBudget"
+# requirement that is not in the cached WSDL; per the issue body for
+# #363 the cached WSDL takes precedence.
+_UNIFIED_SEARCH_REQUIRED_TYPED_FLAGS: Dict[str, Dict[str, str]] = {
+    "AverageCpc": {"AverageCpc": "--unified-search-average-cpc"},
+    "AverageCpa": {"AverageCpa": "--average-cpa", "GoalId": "--goal-id"},
+    "PayForConversion": {"Cpa": "--unified-search-pay-cpa", "GoalId": "--goal-id"},
+    # WbMaximumClicks: no required fields per WSDL L1339-1347.
+    "WbMaximumConversionRate": {"GoalId": "--goal-id"},
+    "AverageCrr": {"Crr": "--crr", "GoalId": "--goal-id"},
+    "PayForConversionCrr": {"Crr": "--crr", "GoalId": "--goal-id"},
+    # ``*_MULTIPLE_GOALS`` / ``MAX_PROFIT`` — PriorityGoals lives on
+    # UnifiedCampaignAddItem (not on BiddingStrategy.Search); the typed-
+    # flag wiring is owned by #373. The required check is **skipped**
+    # here on add until #373 ships; the scope-check below still rejects
+    # ``--priority-goals`` for non-MultipleGoals subtypes.
+}
+
+# Min PriorityGoals items per subtype (mirror #388).
+_UNIFIED_SEARCH_MIN_PRIORITY_GOALS: Dict[str, int] = {
+    "AverageCpaMultipleGoals": 2,
+    "PayForConversionMultipleGoals": 2,
+}
+
+_UNIFIED_CAMPAIGN_SEARCH_BUDGET_TYPES = ["WEEKLY_BUDGET", "CUSTOM_PERIOD_BUDGET"]
+
+
+def _build_unified_search_custom_period_budget(
+    spend_limit: Optional[int],
+    start_date: Optional[str],
+    end_date: Optional[str],
+    auto_continue: Optional[str],
+) -> Optional[dict]:
+    """Build a CustomPeriodBudget block from the four typed flags.
+
+    All four flags must be provided together (WSDL ``CustomPeriodBudget``
+    minOccurs=1 each); returns ``None`` when none are provided. Mirrors
+    the TextCampaign Search builder (#388).
+    """
+    values = {
+        "--unified-search-custom-period-spend-limit": spend_limit,
+        "--unified-search-custom-period-start-date": start_date,
+        "--unified-search-custom-period-end-date": end_date,
+        "--unified-search-custom-period-auto-continue": auto_continue,
+    }
+    provided = [flag for flag, value in values.items() if value is not None]
+    if not provided:
+        return None
+    missing = [flag for flag, value in values.items() if value is None]
+    if missing:
+        raise click.UsageError(
+            "UnifiedCampaign CustomPeriodBudget requires all four custom-period "
+            f"flags; missing {', '.join(sorted(missing))}"
+        )
+    assert spend_limit is not None
+    assert start_date is not None
+    assert end_date is not None
+    assert auto_continue is not None
+    return {
+        "SpendLimit": spend_limit,
+        "StartDate": start_date,
+        "EndDate": end_date,
+        "AutoContinue": auto_continue.upper(),
+    }
+
+
+def _build_unified_search_exploration_budget(
+    min_budget: Optional[int],
+    is_custom: Optional[str],
+) -> Optional[dict]:
+    """Build an ExplorationBudget block from the two typed flags.
+
+    Both fields are WSDL minOccurs=1; returns ``None`` when none are
+    provided. The cached WSDL declares ``IsMinimumExplorationBudgetCustom``
+    as ``general:YesNoEnum`` with NO restriction on which value is
+    accepted (campaigns.xml L1973-1977), and per the issue body the
+    cached WSDL is the canonical source. Both ``YES`` and ``NO`` are
+    serialized as-is — this intentionally diverges from the TextCampaign
+    Search precedent (#388) which deferred to a Yandex public-docs
+    YES-only constraint.
+    """
+    values = {
+        "--unified-search-exploration-min-budget": min_budget,
+        "--unified-search-exploration-is-custom": is_custom,
+    }
+    provided = [flag for flag, value in values.items() if value is not None]
+    if not provided:
+        return None
+    missing = [flag for flag, value in values.items() if value is None]
+    if missing:
+        raise click.UsageError(
+            "UnifiedCampaign ExplorationBudget requires both ExplorationBudget "
+            f"flags; missing {', '.join(sorted(missing))}"
+        )
+    assert min_budget is not None
+    assert is_custom is not None
+    return {
+        "MinimumExplorationBudget": min_budget,
+        "IsMinimumExplorationBudgetCustom": is_custom.upper(),
+    }
+
+
+def build_unified_campaign_search_base(
+    *,
+    search_strategy: Optional[str],
+    search_placement_search_results: Optional[str],
+    search_placement_product_gallery: Optional[str],
+    search_placement_dynamic_places: Optional[str],
+    search_placement_maps: Optional[str],
+    search_placement_search_organization_list: Optional[str],
+    include_default: bool,
+) -> Optional[dict]:
+    """Build the base UnifiedCampaign.BiddingStrategy.Search container.
+
+    Mirrors ``build_text_campaign_search_base`` (#388) but exposes the two
+    additional PlacementTypes fields declared only for UnifiedCampaign
+    (Maps + SearchOrganizationList, WSDL L177-178).
+    """
+    placement_values = {
+        "--search-placement-search-results": search_placement_search_results,
+        "--search-placement-product-gallery": search_placement_product_gallery,
+        "--search-placement-dynamic-places": search_placement_dynamic_places,
+        "--unified-search-placement-maps": search_placement_maps,
+        "--unified-search-placement-search-organization-list": (
+            search_placement_search_organization_list
+        ),
+    }
+    has_placement = any(value is not None for value in placement_values.values())
+    if not include_default and search_strategy is None:
+        if has_placement:
+            raise click.UsageError(
+                "UnifiedCampaign search placement flags require --search-strategy"
+            )
+        return None
+    if has_placement and search_strategy is None:
+        raise click.UsageError(
+            "UnifiedCampaign search placement flags require --search-strategy"
+        )
+
+    normalized_strategy = (search_strategy or "HIGHEST_POSITION").upper()
+    if normalized_strategy not in UNIFIED_CAMPAIGN_SEARCH_STRATEGIES:
+        raise click.UsageError(
+            "--search-strategy for UNIFIED_CAMPAIGN must be one of "
+            f"{', '.join(UNIFIED_CAMPAIGN_SEARCH_STRATEGIES)}"
+        )
+
+    search: dict = {"BiddingStrategyType": normalized_strategy}
+    placement_types: dict = {}
+    if search_placement_search_results is not None:
+        placement_types["SearchResults"] = search_placement_search_results.upper()
+    if search_placement_product_gallery is not None:
+        placement_types["ProductGallery"] = search_placement_product_gallery.upper()
+    if search_placement_dynamic_places is not None:
+        placement_types["DynamicPlaces"] = search_placement_dynamic_places.upper()
+    if search_placement_maps is not None:
+        placement_types["Maps"] = search_placement_maps.upper()
+    if search_placement_search_organization_list is not None:
+        placement_types["SearchOrganizationList"] = (
+            search_placement_search_organization_list.upper()
+        )
+    if placement_types:
+        search["PlacementTypes"] = placement_types
+    return search
+
+
+def build_unified_campaign_search_strategy(
+    *,
+    search_strategy: Optional[str],
+    search_placement_search_results: Optional[str],
+    search_placement_product_gallery: Optional[str],
+    search_placement_dynamic_places: Optional[str],
+    search_placement_maps: Optional[str],
+    search_placement_search_organization_list: Optional[str],
+    goal_id: Optional[int],
+    average_cpa: Optional[int],
+    crr: Optional[int],
+    bid_ceiling: Optional[int],
+    weekly_spend_limit: Optional[int],
+    custom_period_spend_limit: Optional[int],
+    custom_period_start_date: Optional[str],
+    custom_period_end_date: Optional[str],
+    custom_period_auto_continue: Optional[str],
+    budget_type: Optional[str],
+    average_cpc: Optional[int],
+    pay_cpa: Optional[int],
+    exploration_min_budget: Optional[int],
+    exploration_is_custom: Optional[str],
+    priority_goals_items: Optional[List[dict]],
+    sub_campaign_block: dict,
+    include_default: bool,
+    is_update: bool,
+) -> Optional[dict]:
+    """Build the full ``UnifiedCampaign.BiddingStrategy.Search`` payload.
+
+    Covers all 10 typed strategy families declared in WSDL
+    ``UnifiedCampaignStrategyAddBase`` plus the legacy HIGHEST_POSITION /
+    SERVING_OFF (no subtype block). Mirrors the TextCampaign Search
+    builder (#388) — UnifiedCampaign differs only in:
+      * no ``WeeklyClickPackage`` / ``AverageRoi`` subtypes,
+      * two extra PlacementTypes (Maps, SearchOrganizationList).
+
+    ``priority_goals_items`` is accepted for scope/min-count validation
+    only; UnifiedCampaign.PriorityGoals typed-flag wiring (sibling on
+    ``UnifiedCampaignAddItem``) is owned by issue #373. The caller is
+    responsible for placing PriorityGoals onto ``sub_campaign_block``
+    when #373 lands.
+    """
+    typed_detail_values = {
+        "--unified-search-weekly-spend-limit": weekly_spend_limit,
+        "--unified-search-custom-period-spend-limit": custom_period_spend_limit,
+        "--unified-search-custom-period-start-date": custom_period_start_date,
+        "--unified-search-custom-period-end-date": custom_period_end_date,
+        "--unified-search-custom-period-auto-continue": custom_period_auto_continue,
+        "--unified-search-budget-type": budget_type,
+        "--unified-search-average-cpc": average_cpc,
+        "--unified-search-pay-cpa": pay_cpa,
+        "--unified-search-exploration-min-budget": exploration_min_budget,
+        "--unified-search-exploration-is-custom": exploration_is_custom,
+        "--bid-ceiling": bid_ceiling,
+        "--average-cpa": average_cpa,
+        "--crr": crr,
+        "--goal-id": goal_id,
+    }
+    has_detail_flags = any(value is not None for value in typed_detail_values.values())
+
+    # Reuse the base container builder for placement + strategy-type
+    # validation. ``include_default=False`` on update means we return
+    # ``None`` if there is nothing to update.
+    base_search = build_unified_campaign_search_base(
+        search_strategy=search_strategy,
+        search_placement_search_results=search_placement_search_results,
+        search_placement_product_gallery=search_placement_product_gallery,
+        search_placement_dynamic_places=search_placement_dynamic_places,
+        search_placement_maps=search_placement_maps,
+        search_placement_search_organization_list=(
+            search_placement_search_organization_list
+        ),
+        include_default=include_default,
+    )
+
+    # On update the base might be None when neither strategy nor
+    # placement flags are provided. In that case we still guard against
+    # silent data loss from detail-only invocations.
+    if base_search is None:
+        if has_detail_flags:
+            raise click.UsageError(
+                "UnifiedCampaign search strategy detail flags require "
+                "--search-strategy"
+            )
+        if priority_goals_items is not None and not is_update:
+            raise click.UsageError(
+                "UnifiedCampaign search strategy detail flags require "
+                "--search-strategy"
+            )
+        return None
+
+    normalized_strategy = base_search["BiddingStrategyType"]
+    subtype = _UNIFIED_CAMPAIGN_SEARCH_STRATEGY_TO_WSDL_SUBTYPE.get(normalized_strategy)
+
+    # Legacy two (HIGHEST_POSITION / SERVING_OFF) carry no subtype block.
+    # Reject silent data loss.
+    if subtype is None:
+        provided = [
+            flag for flag, value in typed_detail_values.items() if value is not None
+        ]
+        if provided:
+            legacy_cpa_flags = {
+                "--average-cpa",
+                "--goal-id",
+                "--crr",
+                "--bid-ceiling",
+            }
+            legacy_provided = [flag for flag in provided if flag in legacy_cpa_flags]
+            if legacy_provided and not any(
+                flag for flag in provided if flag not in legacy_cpa_flags
+            ):
+                raise click.UsageError(
+                    f"{', '.join(sorted(legacy_provided))} are only "
+                    "valid with a CPA-shaped --search-strategy (e.g. "
+                    "AVERAGE_CPA, PAY_FOR_CONVERSION_CRR, "
+                    "AVERAGE_CPA_MULTIPLE_GOALS); "
+                    f"got --search-strategy={search_strategy!r}"
+                )
+            raise click.UsageError(
+                f"{normalized_strategy} does not accept UnifiedCampaign search "
+                f"strategy detail flags: {', '.join(sorted(provided))}"
+            )
+        if priority_goals_items is not None:
+            raise click.UsageError(
+                f"{normalized_strategy} does not accept --priority-goals"
+            )
+        return base_search
+
+    # Per-subtype "supported field" enforcement (silent data loss
+    # invariant #2 in test_wsdl_parity_gate). Each flag whose value is
+    # not None must belong to the WSDL Strategy*Add type for the chosen
+    # subtype.
+    field_support = {
+        "--unified-search-weekly-spend-limit": (
+            weekly_spend_limit,
+            _UNIFIED_SEARCH_SUPPORTS_WEEKLY_SPEND_LIMIT,
+        ),
+        "--unified-search-budget-type": (
+            budget_type,
+            _UNIFIED_SEARCH_SUPPORTS_BUDGET_TYPE,
+        ),
+        "--unified-search-average-cpc": (
+            average_cpc,
+            _UNIFIED_SEARCH_SUPPORTS_AVERAGE_CPC,
+        ),
+        "--unified-search-pay-cpa": (
+            pay_cpa,
+            _UNIFIED_SEARCH_SUPPORTS_PAY_CPA,
+        ),
+        "--bid-ceiling": (bid_ceiling, _UNIFIED_SEARCH_SUPPORTS_BID_CEILING),
+        "--average-cpa": (average_cpa, _UNIFIED_SEARCH_SUPPORTS_AVERAGE_CPA),
+        "--crr": (crr, _UNIFIED_SEARCH_SUPPORTS_CRR),
+        "--goal-id": (goal_id, _UNIFIED_SEARCH_SUPPORTS_GOAL_ID),
+    }
+    for flag, (value, supported) in field_support.items():
+        if value is not None and subtype not in supported:
+            raise click.UsageError(
+                f"{flag} is not valid for UnifiedCampaign Search strategy "
+                f"{normalized_strategy} (subtype Strategy{subtype}Add); "
+                f"WSDL field is declared only on {sorted(supported)}"
+            )
+
+    # CustomPeriodBudget and ExplorationBudget are container-level checks
+    # — all-or-none. Build the nested dicts (or None) up-front and then
+    # validate they belong to the chosen subtype.
+    custom_period = _build_unified_search_custom_period_budget(
+        custom_period_spend_limit,
+        custom_period_start_date,
+        custom_period_end_date,
+        custom_period_auto_continue,
+    )
+    if (
+        custom_period is not None
+        and subtype not in _UNIFIED_SEARCH_SUPPORTS_CUSTOM_PERIOD_BUDGET
+    ):
+        raise click.UsageError(
+            f"UnifiedCampaign CustomPeriodBudget is not valid for {normalized_strategy}"
+        )
+    exploration_budget = _build_unified_search_exploration_budget(
+        exploration_min_budget,
+        exploration_is_custom,
+    )
+    if (
+        exploration_budget is not None
+        and subtype not in _UNIFIED_SEARCH_SUPPORTS_EXPLORATION_BUDGET
+    ):
+        raise click.UsageError(
+            f"UnifiedCampaign ExplorationBudget is not valid for {normalized_strategy}"
+        )
+
+    # WeeklySpendLimit + CustomPeriodBudget conflict per Yandex docs:
+    # the same subtype can carry only one budget slice.
+    if weekly_spend_limit is not None and custom_period is not None:
+        raise click.UsageError(
+            "--unified-search-weekly-spend-limit cannot be combined with "
+            "--unified-search-custom-period-spend-limit"
+        )
+
+    # BudgetType is an update-only switch; on add the budget slice is
+    # implied by which of WeeklySpendLimit / CustomPeriodBudget is set.
+    # WSDL get-side Strategy* types (campaigns.xml L789-957) declare
+    # BudgetType as an INDEPENDENT optional element — the field can be
+    # patched standalone without re-supplying the stored budget values
+    # (mirror the DynamicTextCampaign Search precedent, diverges from
+    # the doc-strict #388 TextCampaign behaviour).
+    if budget_type is not None:
+        if not is_update:
+            raise click.UsageError("--unified-search-budget-type is update-only")
+        normalized_budget_type = budget_type.upper()
+        if normalized_budget_type not in _UNIFIED_CAMPAIGN_SEARCH_BUDGET_TYPES:
+            raise click.UsageError(
+                "--unified-search-budget-type must be one of "
+                f"{', '.join(_UNIFIED_CAMPAIGN_SEARCH_BUDGET_TYPES)}"
+            )
+        # Silent-data-loss guard: the alternate-slice nulling below would
+        # discard a user-supplied budget value that contradicts the
+        # selected BudgetType. Reject the mismatch up-front rather than
+        # quietly dropping the input.
+        if normalized_budget_type == "WEEKLY_BUDGET" and custom_period is not None:
+            raise click.UsageError(
+                "--unified-search-budget-type WEEKLY_BUDGET cannot be "
+                "combined with --unified-search-custom-period-* flags; "
+                "the selected BudgetType would silently null out the "
+                "provided CustomPeriodBudget"
+            )
+        if (
+            normalized_budget_type == "CUSTOM_PERIOD_BUDGET"
+            and weekly_spend_limit is not None
+        ):
+            raise click.UsageError(
+                "--unified-search-budget-type CUSTOM_PERIOD_BUDGET cannot "
+                "be combined with --unified-search-weekly-spend-limit; "
+                "the selected BudgetType would silently null out the "
+                "provided WeeklySpendLimit"
+            )
+
+    # PriorityGoals scope check. UnifiedCampaign.PriorityGoals typed-flag
+    # wiring is owned by #373; this PR rejects --priority-goals for
+    # non-MultipleGoals/non-MaxProfit subtypes and validates the min-2
+    # entries rule for *_MULTIPLE_GOALS. Placement onto
+    # ``sub_campaign_block`` is the caller's responsibility (mirror the
+    # TextCampaign builder; #373 will wire the items in).
+    if priority_goals_items is not None:
+        if subtype not in _UNIFIED_SEARCH_REQUIRES_PRIORITY_GOALS:
+            raise click.UsageError(
+                "--priority-goals is only valid with "
+                "AVERAGE_CPA_MULTIPLE_GOALS / "
+                "PAY_FOR_CONVERSION_MULTIPLE_GOALS / MAX_PROFIT strategies; "
+                f"got --search-strategy={search_strategy!r}"
+            )
+        min_required = _UNIFIED_SEARCH_MIN_PRIORITY_GOALS.get(subtype)
+        if min_required is not None and len(priority_goals_items) < min_required:
+            raise click.UsageError(
+                f"--priority-goals requires at least {min_required} entries "
+                f"for {search_strategy} per Yandex Direct API docs"
+            )
+        if not is_update:
+            sub_campaign_block["PriorityGoals"] = {"Items": priority_goals_items}
+
+    # WSDL minOccurs=1 fields — fail-fast on add. For Wb* strategies a
+    # full CustomPeriodBudget acts as the alternative budget slice that
+    # satisfies the WeeklySpendLimit requirement, mirroring #388.
+    weekly_or_custom_period = (
+        weekly_spend_limit
+        if weekly_spend_limit is not None
+        else (1 if custom_period is not None else None)
+    )
+    provided_lookup = {
+        "AverageCpc": average_cpc,
+        "AverageCpa": average_cpa,
+        "Cpa": pay_cpa,
+        "GoalId": goal_id,
+        "Crr": crr,
+        "PriorityGoals": priority_goals_items,
+        "WeeklySpendLimit": weekly_or_custom_period,
+    }
+    if not is_update:
+        required = _UNIFIED_SEARCH_REQUIRED_TYPED_FLAGS.get(subtype, {})
+        missing = [
+            flag
+            for wsdl_field, flag in required.items()
+            if provided_lookup.get(wsdl_field) is None
+        ]
+        if missing:
+            raise click.UsageError(
+                f"Search strategy {subtype} requires {', '.join(sorted(missing))} "
+                f"(per Yandex Direct API docs)"
+            )
+    # On update no required-field check is run. The cached WSDL
+    # ``Strategy*`` types (campaigns.xml L789-957) declare every field as
+    # minOccurs=0 — every optional field can be patched standalone, and
+    # ``--search-strategy`` on update is treated as a subtype selector
+    # (which subtype block the patch targets), NOT as a "switching"
+    # signal that re-imposes add-time required fields. This diverges
+    # from the TextCampaign Search precedent (#388) which carried a
+    # doc-strict switching-required check; for #363 the canonical
+    # source is the WSDL.
+
+    # Build the WSDL Strategy*Add block. Element order in the dict
+    # follows WSDL sequence order for readability — JSON-RPC does not
+    # require ordering, but matching makes diffs cleaner.
+    block: dict = {}
+    if subtype == "AverageCpc":
+        if average_cpc is not None:
+            block["AverageCpc"] = average_cpc
+    elif subtype == "AverageCpa":
+        if average_cpa is not None:
+            block["AverageCpa"] = average_cpa
+        if goal_id is not None:
+            block["GoalId"] = goal_id
+    elif subtype == "PayForConversion":
+        if pay_cpa is not None:
+            block["Cpa"] = pay_cpa
+        if goal_id is not None:
+            block["GoalId"] = goal_id
+    elif subtype == "WbMaximumConversionRate":
+        if goal_id is not None:
+            block["GoalId"] = goal_id
+    elif subtype in {"AverageCrr", "PayForConversionCrr"}:
+        if crr is not None:
+            block["Crr"] = crr
+        if goal_id is not None:
+            block["GoalId"] = goal_id
+    # WbMaximumClicks / MaxProfit / *MultipleGoals have only optional
+    # fields below — handled by the shared WeeklySpendLimit/BidCeiling/
+    # CustomPeriodBudget/ExplorationBudget tail.
+
+    if weekly_spend_limit is not None:
+        block["WeeklySpendLimit"] = weekly_spend_limit
+    if custom_period is not None:
+        block["CustomPeriodBudget"] = custom_period
+    if bid_ceiling is not None:
+        block["BidCeiling"] = bid_ceiling
+    if exploration_budget is not None:
+        block["ExplorationBudget"] = exploration_budget
+    if budget_type is not None:
+        normalized_budget_type = budget_type.upper()
+        # Mirror the TextCampaign/MobileApp builder convention: clearing
+        # the other slice signals an explicit budget-type switch on update.
+        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET":
+            block["WeeklySpendLimit"] = None
+        elif normalized_budget_type == "WEEKLY_BUDGET":
+            block["CustomPeriodBudget"] = None
+        block["BudgetType"] = normalized_budget_type
+
+    # *_MULTIPLE_GOALS / MAX_PROFIT subtypes must emit the container even
+    # when no numeric fields are set, because PriorityGoals lives on the
+    # parent ``sub_campaign_block`` and the subtype block is the only
+    # signal the API uses to discriminate the chosen strategy on add.
+    if block or subtype in _UNIFIED_SEARCH_REQUIRES_PRIORITY_GOALS:
+        base_search[subtype] = block
+
+    return base_search
+
+
+register_bidding_strategy_builder(
+    "UNIFIED_CAMPAIGN", "add", "search", build_unified_campaign_search_strategy
+)
+register_bidding_strategy_builder(
+    "UNIFIED_CAMPAIGN", "update", "search", build_unified_campaign_search_strategy
+)
