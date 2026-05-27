@@ -16367,7 +16367,43 @@ def test_campaigns_update_dynamic_text_search_strategy_only_leaves_bs_unset():
     assert dyn["TrackingParams"] == "utm_source=test"
 
 
-def test_campaigns_update_dynamic_text_search_rejects_budget_type_without_weekly():
+def test_campaigns_update_dynamic_text_search_standalone_budget_type_payload():
+    """#362: per WSDL StrategyMaximumClicks (campaigns WSDL line 789-797)
+    BudgetType is an independent optional element. Standalone
+    --dyn-search-budget-type on update must emit just BudgetType (use case:
+    flip an already-configured campaign between budget slices without
+    re-supplying the slice). Yandex enforces any inconsistency at the wire.
+    """
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "8001",
+        "--type",
+        "DYNAMIC_TEXT_CAMPAIGN",
+        "--search-strategy",
+        "WB_MAXIMUM_CLICKS",
+        "--dyn-search-budget-type",
+        "WEEKLY_BUDGET",
+    )
+    search = body["params"]["Campaigns"][0]["DynamicTextCampaign"]["BiddingStrategy"][
+        "Search"
+    ]
+    assert search == {
+        "BiddingStrategyType": "WB_MAXIMUM_CLICKS",
+        "WbMaximumClicks": {
+            "CustomPeriodBudget": None,
+            "BudgetType": "WEEKLY_BUDGET",
+        },
+    }
+
+
+def test_campaigns_update_dynamic_text_search_rejects_budget_type_on_non_budget_subtype():
+    """#362: BudgetType is only supported on the eight Wb*/AverageCp*/
+    AverageRoi/AverageCrr/PayFor*Crr subtypes that carry both
+    WeeklySpendLimit and CustomPeriodBudget. WeeklyClickPackage has no
+    CustomPeriodBudget, so BudgetType is not in its WSDL declaration.
+    """
     result = _failing_run(
         "campaigns",
         "update",
@@ -16376,12 +16412,12 @@ def test_campaigns_update_dynamic_text_search_rejects_budget_type_without_weekly
         "--type",
         "DYNAMIC_TEXT_CAMPAIGN",
         "--search-strategy",
-        "WB_MAXIMUM_CLICKS",
+        "WEEKLY_CLICK_PACKAGE",
         "--dyn-search-budget-type",
         "WEEKLY_BUDGET",
     )
     assert result.exit_code != 0
-    assert "requires --dyn-search-weekly-spend-limit" in result.output
+    assert "does not accept --dyn-search-budget-type" in result.output
 
 
 def test_campaigns_update_dynamic_text_search_rejects_partial_strategy_switch():

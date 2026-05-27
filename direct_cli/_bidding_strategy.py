@@ -2484,24 +2484,22 @@ def build_dynamic_text_search_strategy(
             )
 
     # BudgetType is update-only — on add the budget slice is implied by
-    # which of WeeklySpendLimit / CustomPeriodBudget is set.
+    # which of WeeklySpendLimit / CustomPeriodBudget is set. On update,
+    # WSDL ``StrategyMaximumClicks`` / ``StrategyAverageCpc`` / etc. all
+    # declare ``BudgetType`` as an independent optional element
+    # (campaigns WSDL lines 789-804, 813-827, ...). The CLI therefore
+    # accepts the standalone switch — e.g. an update that flips an
+    # already-configured campaign between WEEKLY_BUDGET and
+    # CUSTOM_PERIOD_BUDGET without re-supplying the slice. Yandex
+    # rejects inconsistent combinations at the wire; we surface that
+    # round-trip error to the user instead of inventing a tighter local
+    # contract than the WSDL declares (#362 adversarial-review feedback).
     if budget_type is not None:
         if not is_update:
             raise click.UsageError("--dyn-search-budget-type is update-only")
         if subtype not in _DYN_SEARCH_BUDGET_TYPE_SUBTYPES:
             raise click.UsageError(
                 f"{normalized_strategy} does not accept --dyn-search-budget-type"
-            )
-        normalized_budget_type = budget_type.upper()
-        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET" and not custom_period_flags:
-            raise click.UsageError(
-                "--dyn-search-budget-type CUSTOM_PERIOD_BUDGET requires "
-                "full CustomPeriodBudget flags"
-            )
-        if normalized_budget_type == "WEEKLY_BUDGET" and weekly_spend_limit is None:
-            raise click.UsageError(
-                "--dyn-search-budget-type WEEKLY_BUDGET requires "
-                "--dyn-search-weekly-spend-limit"
             )
 
     # Per-subtype field support — silent-data-loss invariant #2 in
