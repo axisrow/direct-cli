@@ -8240,18 +8240,19 @@ def test_campaigns_add_unified_priority_goals_payload():
     assert network["BiddingStrategyType"] == "MAX_PROFIT"
 
 
-def test_campaigns_add_rejects_unified_priority_goals_with_package_strategy():
-    """Issue #373: PriorityGoals cannot combine with PackageBiddingStrategy.
+def test_campaigns_add_unified_priority_goals_with_package_strategy_payload():
+    """Issue #373: PriorityGoals + PackageBiddingStrategy on add (WSDL allows).
 
-    ``UnifiedCampaignAddItem.PriorityGoals`` and
-    ``UnifiedCampaignAddItem.PackageBiddingStrategy`` are declared as
-    independent ``minOccurs=0`` siblings on the WSDL (campaigns.xml
-    lines 2160-2172, no ``xsd:choice`` wrapper). However Yandex's
-    package strategies own their own bidding configuration and the
-    documented CLI contract rejects the combination so users do not
-    submit a payload the API will refuse.
+    ``UnifiedCampaignAddItem.PriorityGoals`` (WSDL
+    ``tests/wsdl_cache/campaigns.xml`` line 2165) and
+    ``UnifiedCampaignAddItem.PackageBiddingStrategy`` (line 2168-2169)
+    are declared as independent ``minOccurs=0`` siblings on the same
+    ``xsd:sequence`` (no ``xsd:choice`` wrapper). Mirrors the
+    SmartCampaign precedent that lifted the same mutex in #369/#392
+    (SmartCampaignAddItem lines 2202-2214). The payload must carry
+    BOTH fields when the user supplies them.
     """
-    result = _rejected(
+    body = _dry_run(
         "campaigns",
         "add",
         "--name",
@@ -8269,14 +8270,31 @@ def test_campaigns_add_rejects_unified_priority_goals_with_package_strategy():
         "--package-platform-network",
         "yes",
         "--priority-goals",
-        "1:50,2:50",
+        "1234567:80,9876543:20:YES",
     )
-    assert "UnifiedCampaign.PackageBiddingStrategy cannot be combined" in result.output
-    assert "--priority-goals" in result.output
+    unified = body["params"]["Campaigns"][0]["UnifiedCampaign"]
+    assert "PackageBiddingStrategy" in unified
+    assert unified["PriorityGoals"] == {
+        "Items": [
+            {"GoalId": 1234567, "Value": 80},
+            {"GoalId": 9876543, "Value": 20, "IsMetrikaSourceOfValue": "YES"},
+        ]
+    }
 
 
-def test_campaigns_update_rejects_unified_package_strategy_with_priority_goals():
-    result = _rejected(
+def test_campaigns_update_unified_priority_goals_with_package_strategy_payload():
+    """Issue #373: PriorityGoals + PackageBiddingStrategy on update (WSDL allows).
+
+    ``UnifiedCampaignUpdateItem.PriorityGoals`` (WSDL
+    ``tests/wsdl_cache/campaigns.xml`` line 2259) and
+    ``UnifiedCampaignUpdateItem.PackageBiddingStrategy`` (lines
+    2260-2262) are declared as nillable siblings on the same
+    ``xsd:sequence``. The update path must emit both fields and
+    PriorityGoals carries the per-item ``Operation`` field from the
+    update-only ``PriorityGoalsUpdateItem`` shape (WSDL lines
+    1935-1942).
+    """
+    body = _dry_run(
         "campaigns",
         "update",
         "--id",
@@ -8286,10 +8304,20 @@ def test_campaigns_update_rejects_unified_package_strategy_with_priority_goals()
         "--package-strategy-id",
         "700",
         "--priority-goals",
-        "1:50",
+        "1234567:80:YES",
     )
-    assert "UnifiedCampaign.PackageBiddingStrategy cannot be combined" in result.output
-    assert "--priority-goals" in result.output
+    unified = body["params"]["Campaigns"][0]["UnifiedCampaign"]
+    assert "PackageBiddingStrategy" in unified
+    assert unified["PriorityGoals"] == {
+        "Items": [
+            {
+                "GoalId": 1234567,
+                "Value": 80,
+                "IsMetrikaSourceOfValue": "YES",
+                "Operation": "SET",
+            },
+        ]
+    }
 
 
 def test_campaigns_add_rejects_unified_client_info():
@@ -20608,10 +20636,14 @@ def test_campaigns_add_unified_network_rejects_priority_goals_for_non_multi_goal
     assert "AVERAGE_CPA_MULTIPLE_GOALS" in result.output
 
 
-def test_campaigns_add_unified_network_rejects_priority_goals_with_package():
-    """#366: --priority-goals + --package-strategy-id rejected on Unified
-    add (Package wins over the typed Network branch)."""
-    result = _rejected(
+def test_campaigns_add_unified_network_allows_priority_goals_with_package():
+    """#373 lifts the #366 carve-out: PriorityGoals + PackageBiddingStrategy
+    are independent ``minOccurs=0`` siblings on ``UnifiedCampaignAddItem``
+    (WSDL ``tests/wsdl_cache/campaigns.xml`` lines 2160-2172, no
+    ``xsd:choice``). Mirrors the SmartCampaign mutex-lift in #369/#392 —
+    the payload must carry both fields and no longer rejects the
+    combination."""
+    body = _dry_run(
         *_unified_network_add_base(),
         "--package-strategy-id",
         "700",
@@ -20630,9 +20662,9 @@ def test_campaigns_add_unified_network_rejects_priority_goals_with_package():
         "--priority-goals",
         "1:500",
     )
-    # Either the priority-goals gate or the package-incompatible gate is
-    # acceptable; both protect against silent data loss.
-    assert "PriorityGoals" in result.output or "PackageBiddingStrategy" in result.output
+    unified = body["params"]["Campaigns"][0]["UnifiedCampaign"]
+    assert "PackageBiddingStrategy" in unified
+    assert unified["PriorityGoals"] == {"Items": [{"GoalId": 1, "Value": 500}]}
 
 
 # ----------------------------------------------------------------------
