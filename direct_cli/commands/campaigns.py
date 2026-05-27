@@ -963,6 +963,100 @@ def get(
     help="MobileAppCampaign NetworkDefault.LimitPercent, 10-100 by tens",
 )
 @click.option(
+    "--dyn-network-weekly-spend-limit",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="DynamicTextCampaign Network strategy WeeklySpendLimit in rubles",
+)
+@click.option(
+    "--dyn-network-bid-ceiling",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="DynamicTextCampaign Network strategy BidCeiling in rubles",
+)
+@click.option(
+    "--dyn-network-custom-period-spend-limit",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="DynamicTextCampaign Network CustomPeriodBudget.SpendLimit in rubles",
+)
+@click.option(
+    "--dyn-network-custom-period-start-date",
+    help="DynamicTextCampaign Network CustomPeriodBudget.StartDate",
+)
+@click.option(
+    "--dyn-network-custom-period-end-date",
+    help="DynamicTextCampaign Network CustomPeriodBudget.EndDate",
+)
+@click.option(
+    "--dyn-network-custom-period-auto-continue",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="DynamicTextCampaign Network CustomPeriodBudget.AutoContinue: YES or NO",
+)
+@click.option(
+    "--dyn-network-average-cpc",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="DynamicTextCampaign Network strategy AverageCpc in rubles",
+)
+@click.option(
+    "--dyn-network-average-cpa",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="DynamicTextCampaign Network AverageCpa.AverageCpa in rubles",
+)
+@click.option(
+    "--dyn-network-cpa",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="DynamicTextCampaign Network PayForConversion.Cpa in rubles",
+)
+@click.option(
+    "--dyn-network-goal-id",
+    type=int,
+    help="DynamicTextCampaign Network strategy GoalId (Metrika goal)",
+)
+@click.option(
+    "--dyn-network-crr",
+    type=click.IntRange(1, 1000),
+    help="DynamicTextCampaign Network Crr percentage (AverageCrr/PayForConversionCrr)",
+)
+@click.option(
+    "--dyn-network-clicks-per-week",
+    type=click.IntRange(1),
+    help="DynamicTextCampaign Network WeeklyClickPackage.ClicksPerWeek",
+)
+@click.option(
+    "--dyn-network-limit-percent",
+    type=click.IntRange(10, 100),
+    help="DynamicTextCampaign NetworkDefault.LimitPercent, 10-100 by tens",
+)
+@click.option(
+    "--dyn-network-reserve-return",
+    type=click.IntRange(0, 100),
+    help="DynamicTextCampaign Network AverageRoi.ReserveReturn percentage (0-100)",
+)
+@click.option(
+    "--dyn-network-roi-coef",
+    type=click.IntRange(0),
+    help="DynamicTextCampaign Network AverageRoi.RoiCoef",
+)
+@click.option(
+    "--dyn-network-profitability",
+    type=click.IntRange(0),
+    help="DynamicTextCampaign Network AverageRoi.Profitability",
+)
+@click.option(
+    "--dyn-network-exploration-budget",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help=(
+        "DynamicTextCampaign Network "
+        "ExplorationBudget.MinimumExplorationBudget in rubles"
+    ),
+)
+@click.option(
+    "--dyn-network-exploration-budget-custom",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help=(
+        "DynamicTextCampaign Network "
+        "ExplorationBudget.IsMinimumExplorationBudgetCustom: YES or NO"
+    ),
+)
+@click.option(
     "--smart-search-average-cpc",
     type=RUBLES_TO_MICRO_RUBLES,
     help=(
@@ -1255,6 +1349,24 @@ def add(
     mobile_network_average_cpi,
     mobile_network_clicks_per_week,
     mobile_network_limit_percent,
+    dyn_network_weekly_spend_limit,
+    dyn_network_bid_ceiling,
+    dyn_network_custom_period_spend_limit,
+    dyn_network_custom_period_start_date,
+    dyn_network_custom_period_end_date,
+    dyn_network_custom_period_auto_continue,
+    dyn_network_average_cpc,
+    dyn_network_average_cpa,
+    dyn_network_cpa,
+    dyn_network_goal_id,
+    dyn_network_crr,
+    dyn_network_clicks_per_week,
+    dyn_network_limit_percent,
+    dyn_network_reserve_return,
+    dyn_network_roi_coef,
+    dyn_network_profitability,
+    dyn_network_exploration_budget,
+    dyn_network_exploration_budget_custom,
     smart_search_average_cpc,
     smart_search_filter_average_cpc,
     smart_search_average_cpa,
@@ -1386,6 +1498,25 @@ def add(
                 "--package-strategy-id",
                 "--package-strategy-from-campaign-id",
                 "--negative-keyword-shared-set-ids",
+                # DynamicTextCampaign.BiddingStrategy.Network typed flags (#365).
+                "--dyn-network-weekly-spend-limit",
+                "--dyn-network-bid-ceiling",
+                "--dyn-network-custom-period-spend-limit",
+                "--dyn-network-custom-period-start-date",
+                "--dyn-network-custom-period-end-date",
+                "--dyn-network-custom-period-auto-continue",
+                "--dyn-network-average-cpc",
+                "--dyn-network-average-cpa",
+                "--dyn-network-cpa",
+                "--dyn-network-goal-id",
+                "--dyn-network-crr",
+                "--dyn-network-clicks-per-week",
+                "--dyn-network-limit-percent",
+                "--dyn-network-reserve-return",
+                "--dyn-network-roi-coef",
+                "--dyn-network-profitability",
+                "--dyn-network-exploration-budget",
+                "--dyn-network-exploration-budget-custom",
             }
             | text_dynamic_extras,
             "SMART_CAMPAIGN": {
@@ -1555,6 +1686,34 @@ def add(
                 "--mobile-network-average-cpi": mobile_network_average_cpi,
                 "--mobile-network-clicks-per-week": mobile_network_clicks_per_week,
                 "--mobile-network-limit-percent": mobile_network_limit_percent,
+                "--dyn-network-weekly-spend-limit": dyn_network_weekly_spend_limit,
+                "--dyn-network-bid-ceiling": dyn_network_bid_ceiling,
+                "--dyn-network-custom-period-spend-limit": (
+                    dyn_network_custom_period_spend_limit
+                ),
+                "--dyn-network-custom-period-start-date": (
+                    dyn_network_custom_period_start_date
+                ),
+                "--dyn-network-custom-period-end-date": (
+                    dyn_network_custom_period_end_date
+                ),
+                "--dyn-network-custom-period-auto-continue": (
+                    dyn_network_custom_period_auto_continue
+                ),
+                "--dyn-network-average-cpc": dyn_network_average_cpc,
+                "--dyn-network-average-cpa": dyn_network_average_cpa,
+                "--dyn-network-cpa": dyn_network_cpa,
+                "--dyn-network-goal-id": dyn_network_goal_id,
+                "--dyn-network-crr": dyn_network_crr,
+                "--dyn-network-clicks-per-week": dyn_network_clicks_per_week,
+                "--dyn-network-limit-percent": dyn_network_limit_percent,
+                "--dyn-network-reserve-return": dyn_network_reserve_return,
+                "--dyn-network-roi-coef": dyn_network_roi_coef,
+                "--dyn-network-profitability": dyn_network_profitability,
+                "--dyn-network-exploration-budget": dyn_network_exploration_budget,
+                "--dyn-network-exploration-budget-custom": (
+                    dyn_network_exploration_budget_custom
+                ),
                 # SmartCampaign.BiddingStrategy.Search typed flags (#367)
                 "--smart-search-average-cpc": smart_search_average_cpc,
                 "--smart-search-filter-average-cpc": smart_search_filter_average_cpc,
@@ -1699,6 +1858,43 @@ def add(
                     {
                         "--counter-ids": counter_ids,
                         "--attribution-model": attribution_model,
+                    }
+                )
+            if campaign_type_norm == "DYNAMIC_TEXT_CAMPAIGN":
+                package_incompatible.update(
+                    {
+                        "--dyn-network-weekly-spend-limit": (
+                            dyn_network_weekly_spend_limit
+                        ),
+                        "--dyn-network-bid-ceiling": dyn_network_bid_ceiling,
+                        "--dyn-network-custom-period-spend-limit": (
+                            dyn_network_custom_period_spend_limit
+                        ),
+                        "--dyn-network-custom-period-start-date": (
+                            dyn_network_custom_period_start_date
+                        ),
+                        "--dyn-network-custom-period-end-date": (
+                            dyn_network_custom_period_end_date
+                        ),
+                        "--dyn-network-custom-period-auto-continue": (
+                            dyn_network_custom_period_auto_continue
+                        ),
+                        "--dyn-network-average-cpc": dyn_network_average_cpc,
+                        "--dyn-network-average-cpa": dyn_network_average_cpa,
+                        "--dyn-network-cpa": dyn_network_cpa,
+                        "--dyn-network-goal-id": dyn_network_goal_id,
+                        "--dyn-network-crr": dyn_network_crr,
+                        "--dyn-network-clicks-per-week": (dyn_network_clicks_per_week),
+                        "--dyn-network-limit-percent": dyn_network_limit_percent,
+                        "--dyn-network-reserve-return": (dyn_network_reserve_return),
+                        "--dyn-network-roi-coef": dyn_network_roi_coef,
+                        "--dyn-network-profitability": dyn_network_profitability,
+                        "--dyn-network-exploration-budget": (
+                            dyn_network_exploration_budget
+                        ),
+                        "--dyn-network-exploration-budget-custom": (
+                            dyn_network_exploration_budget_custom
+                        ),
                     }
                 )
             provided = [
@@ -1897,13 +2093,47 @@ def add(
             if package_bidding_strategy_obj is not None:
                 dyn_block["PackageBiddingStrategy"] = package_bidding_strategy_obj
             else:
+                # DynamicTextCampaign.BiddingStrategy.Network — typed
+                # builder (#365). Returns full Network dict including
+                # nested Strategy*Add subtype block. include_default=True
+                # mirrors the WSDL minOccurs=1 contract on add.
+                network_builder = get_bidding_strategy_builder(
+                    "DYNAMIC_TEXT_CAMPAIGN", "add", "network"
+                )
+                if network_builder is not None:
+                    dyn_network_block = network_builder(
+                        network_strategy,
+                        dyn_network_weekly_spend_limit,
+                        dyn_network_bid_ceiling,
+                        dyn_network_custom_period_spend_limit,
+                        dyn_network_custom_period_start_date,
+                        dyn_network_custom_period_end_date,
+                        dyn_network_custom_period_auto_continue,
+                        dyn_network_average_cpc,
+                        dyn_network_average_cpa,
+                        dyn_network_cpa,
+                        dyn_network_goal_id,
+                        dyn_network_crr,
+                        dyn_network_clicks_per_week,
+                        dyn_network_limit_percent,
+                        dyn_network_reserve_return,
+                        dyn_network_roi_coef,
+                        dyn_network_profitability,
+                        dyn_network_exploration_budget,
+                        dyn_network_exploration_budget_custom,
+                        budget_type=None,
+                        include_default=True,
+                        is_update=False,
+                    )
+                else:
+                    dyn_network_block = {
+                        "BiddingStrategyType": (network_strategy or "SERVING_OFF")
+                    }
                 dyn_block["BiddingStrategy"] = {
                     "Search": {
                         "BiddingStrategyType": (search_strategy or "HIGHEST_POSITION")
                     },
-                    "Network": {
-                        "BiddingStrategyType": (network_strategy or "SERVING_OFF")
-                    },
+                    "Network": dyn_network_block,
                 }
                 priority_goals_builder = get_bidding_strategy_builder(
                     "DYNAMIC_TEXT_CAMPAIGN", "add", "priority_goals"
@@ -2097,9 +2327,7 @@ def add(
                         )
                     },
                 }
-            cpm_campaign: Dict[str, object] = {
-                "BiddingStrategy": cpm_bidding_strategy
-            }
+            cpm_campaign: Dict[str, object] = {"BiddingStrategy": cpm_bidding_strategy}
             if parsed_settings:
                 cpm_campaign["Settings"] = parsed_settings
             if counter_ids_obj is not None:
@@ -2445,6 +2673,105 @@ def add(
     help="MobileAppCampaign Network strategy BudgetType for update",
 )
 @click.option(
+    "--dyn-network-weekly-spend-limit",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="DynamicTextCampaign Network strategy WeeklySpendLimit in rubles",
+)
+@click.option(
+    "--dyn-network-bid-ceiling",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="DynamicTextCampaign Network strategy BidCeiling in rubles",
+)
+@click.option(
+    "--dyn-network-custom-period-spend-limit",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="DynamicTextCampaign Network CustomPeriodBudget.SpendLimit in rubles",
+)
+@click.option(
+    "--dyn-network-custom-period-start-date",
+    help="DynamicTextCampaign Network CustomPeriodBudget.StartDate",
+)
+@click.option(
+    "--dyn-network-custom-period-end-date",
+    help="DynamicTextCampaign Network CustomPeriodBudget.EndDate",
+)
+@click.option(
+    "--dyn-network-custom-period-auto-continue",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help="DynamicTextCampaign Network CustomPeriodBudget.AutoContinue: YES or NO",
+)
+@click.option(
+    "--dyn-network-average-cpc",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="DynamicTextCampaign Network strategy AverageCpc in rubles",
+)
+@click.option(
+    "--dyn-network-average-cpa",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="DynamicTextCampaign Network AverageCpa.AverageCpa in rubles",
+)
+@click.option(
+    "--dyn-network-cpa",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help="DynamicTextCampaign Network PayForConversion.Cpa in rubles",
+)
+@click.option(
+    "--dyn-network-goal-id",
+    type=int,
+    help="DynamicTextCampaign Network strategy GoalId",
+)
+@click.option(
+    "--dyn-network-crr",
+    type=click.IntRange(1, 1000),
+    help="DynamicTextCampaign Network Crr percentage",
+)
+@click.option(
+    "--dyn-network-clicks-per-week",
+    type=click.IntRange(1),
+    help="DynamicTextCampaign Network WeeklyClickPackage.ClicksPerWeek",
+)
+@click.option(
+    "--dyn-network-limit-percent",
+    type=click.IntRange(10, 100),
+    help="DynamicTextCampaign NetworkDefault.LimitPercent, 10-100 by tens",
+)
+@click.option(
+    "--dyn-network-reserve-return",
+    type=click.IntRange(0, 100),
+    help="DynamicTextCampaign Network AverageRoi.ReserveReturn percentage (0-100)",
+)
+@click.option(
+    "--dyn-network-roi-coef",
+    type=click.IntRange(0),
+    help="DynamicTextCampaign Network AverageRoi.RoiCoef",
+)
+@click.option(
+    "--dyn-network-profitability",
+    type=click.IntRange(0),
+    help="DynamicTextCampaign Network AverageRoi.Profitability",
+)
+@click.option(
+    "--dyn-network-exploration-budget",
+    type=RUBLES_TO_MICRO_RUBLES,
+    help=(
+        "DynamicTextCampaign Network "
+        "ExplorationBudget.MinimumExplorationBudget in rubles"
+    ),
+)
+@click.option(
+    "--dyn-network-exploration-budget-custom",
+    type=click.Choice(YES_NO, case_sensitive=False),
+    help=(
+        "DynamicTextCampaign Network "
+        "ExplorationBudget.IsMinimumExplorationBudgetCustom: YES or NO"
+    ),
+)
+@click.option(
+    "--dyn-network-budget-type",
+    type=click.Choice(BUDGET_TYPES, case_sensitive=False),
+    help="DynamicTextCampaign Network strategy BudgetType for update",
+)
+@click.option(
     "--smart-search-average-cpc",
     type=RUBLES_TO_MICRO_RUBLES,
     help=(
@@ -2737,6 +3064,25 @@ def update(
     mobile_network_clicks_per_week,
     mobile_network_limit_percent,
     mobile_network_budget_type,
+    dyn_network_weekly_spend_limit,
+    dyn_network_bid_ceiling,
+    dyn_network_custom_period_spend_limit,
+    dyn_network_custom_period_start_date,
+    dyn_network_custom_period_end_date,
+    dyn_network_custom_period_auto_continue,
+    dyn_network_average_cpc,
+    dyn_network_average_cpa,
+    dyn_network_cpa,
+    dyn_network_goal_id,
+    dyn_network_crr,
+    dyn_network_clicks_per_week,
+    dyn_network_limit_percent,
+    dyn_network_reserve_return,
+    dyn_network_roi_coef,
+    dyn_network_profitability,
+    dyn_network_exploration_budget,
+    dyn_network_exploration_budget_custom,
+    dyn_network_budget_type,
     smart_search_average_cpc,
     smart_search_filter_average_cpc,
     smart_search_average_cpa,
@@ -2938,6 +3284,35 @@ def update(
             "--mobile-network-clicks-per-week": mobile_network_clicks_per_week,
             "--mobile-network-limit-percent": mobile_network_limit_percent,
             "--mobile-network-budget-type": mobile_network_budget_type,
+            "--dyn-network-weekly-spend-limit": dyn_network_weekly_spend_limit,
+            "--dyn-network-bid-ceiling": dyn_network_bid_ceiling,
+            "--dyn-network-custom-period-spend-limit": (
+                dyn_network_custom_period_spend_limit
+            ),
+            "--dyn-network-custom-period-start-date": (
+                dyn_network_custom_period_start_date
+            ),
+            "--dyn-network-custom-period-end-date": (
+                dyn_network_custom_period_end_date
+            ),
+            "--dyn-network-custom-period-auto-continue": (
+                dyn_network_custom_period_auto_continue
+            ),
+            "--dyn-network-average-cpc": dyn_network_average_cpc,
+            "--dyn-network-average-cpa": dyn_network_average_cpa,
+            "--dyn-network-cpa": dyn_network_cpa,
+            "--dyn-network-goal-id": dyn_network_goal_id,
+            "--dyn-network-crr": dyn_network_crr,
+            "--dyn-network-clicks-per-week": dyn_network_clicks_per_week,
+            "--dyn-network-limit-percent": dyn_network_limit_percent,
+            "--dyn-network-reserve-return": dyn_network_reserve_return,
+            "--dyn-network-roi-coef": dyn_network_roi_coef,
+            "--dyn-network-profitability": dyn_network_profitability,
+            "--dyn-network-exploration-budget": dyn_network_exploration_budget,
+            "--dyn-network-exploration-budget-custom": (
+                dyn_network_exploration_budget_custom
+            ),
+            "--dyn-network-budget-type": dyn_network_budget_type,
             # SmartCampaign.BiddingStrategy.Search typed flags (#367)
             "--smart-search-average-cpc": smart_search_average_cpc,
             "--smart-search-filter-average-cpc": smart_search_filter_average_cpc,
@@ -3016,6 +3391,27 @@ def update(
                 "--package-strategy-from-campaign-id",
                 "--negative-keyword-shared-set-ids",
                 "--tracking-params",
+                # DynamicTextCampaign.BiddingStrategy.Network on update (#365).
+                "--network-strategy",
+                "--dyn-network-weekly-spend-limit",
+                "--dyn-network-bid-ceiling",
+                "--dyn-network-custom-period-spend-limit",
+                "--dyn-network-custom-period-start-date",
+                "--dyn-network-custom-period-end-date",
+                "--dyn-network-custom-period-auto-continue",
+                "--dyn-network-average-cpc",
+                "--dyn-network-average-cpa",
+                "--dyn-network-cpa",
+                "--dyn-network-goal-id",
+                "--dyn-network-crr",
+                "--dyn-network-clicks-per-week",
+                "--dyn-network-limit-percent",
+                "--dyn-network-reserve-return",
+                "--dyn-network-roi-coef",
+                "--dyn-network-profitability",
+                "--dyn-network-exploration-budget",
+                "--dyn-network-exploration-budget-custom",
+                "--dyn-network-budget-type",
             }
             unified_campaign_flags = {
                 "--setting",
@@ -3223,6 +3619,53 @@ def update(
                                 "--attribution-model": attribution_model,
                             }
                         )
+                    if is_dynamic:
+                        package_incompatible.update(
+                            {
+                                "--network-strategy": network_strategy,
+                                "--dyn-network-weekly-spend-limit": (
+                                    dyn_network_weekly_spend_limit
+                                ),
+                                "--dyn-network-bid-ceiling": (dyn_network_bid_ceiling),
+                                "--dyn-network-custom-period-spend-limit": (
+                                    dyn_network_custom_period_spend_limit
+                                ),
+                                "--dyn-network-custom-period-start-date": (
+                                    dyn_network_custom_period_start_date
+                                ),
+                                "--dyn-network-custom-period-end-date": (
+                                    dyn_network_custom_period_end_date
+                                ),
+                                "--dyn-network-custom-period-auto-continue": (
+                                    dyn_network_custom_period_auto_continue
+                                ),
+                                "--dyn-network-average-cpc": (dyn_network_average_cpc),
+                                "--dyn-network-average-cpa": (dyn_network_average_cpa),
+                                "--dyn-network-cpa": dyn_network_cpa,
+                                "--dyn-network-goal-id": dyn_network_goal_id,
+                                "--dyn-network-crr": dyn_network_crr,
+                                "--dyn-network-clicks-per-week": (
+                                    dyn_network_clicks_per_week
+                                ),
+                                "--dyn-network-limit-percent": (
+                                    dyn_network_limit_percent
+                                ),
+                                "--dyn-network-reserve-return": (
+                                    dyn_network_reserve_return
+                                ),
+                                "--dyn-network-roi-coef": dyn_network_roi_coef,
+                                "--dyn-network-profitability": (
+                                    dyn_network_profitability
+                                ),
+                                "--dyn-network-exploration-budget": (
+                                    dyn_network_exploration_budget
+                                ),
+                                "--dyn-network-exploration-budget-custom": (
+                                    dyn_network_exploration_budget_custom
+                                ),
+                                "--dyn-network-budget-type": (dyn_network_budget_type),
+                            }
+                        )
                     provided = [
                         flag
                         for flag, value in package_incompatible.items()
@@ -3234,6 +3677,47 @@ def update(
                             f"combined with {', '.join(sorted(provided))}"
                         )
                     sub_block["PackageBiddingStrategy"] = package_bidding_strategy_obj
+                elif is_dynamic:
+                    # DynamicTextCampaign.BiddingStrategy.Network update
+                    # (#365). Build via shared builder; include_default
+                    # is False so an absent --network-strategy with no
+                    # detail flags leaves BiddingStrategy untouched.
+                    dyn_network_builder = get_bidding_strategy_builder(
+                        "DYNAMIC_TEXT_CAMPAIGN", "update", "network"
+                    )
+                    if dyn_network_builder is not None:
+                        dyn_network_block = dyn_network_builder(
+                            network_strategy,
+                            dyn_network_weekly_spend_limit,
+                            dyn_network_bid_ceiling,
+                            dyn_network_custom_period_spend_limit,
+                            dyn_network_custom_period_start_date,
+                            dyn_network_custom_period_end_date,
+                            dyn_network_custom_period_auto_continue,
+                            dyn_network_average_cpc,
+                            dyn_network_average_cpa,
+                            dyn_network_cpa,
+                            dyn_network_goal_id,
+                            dyn_network_crr,
+                            dyn_network_clicks_per_week,
+                            dyn_network_limit_percent,
+                            dyn_network_reserve_return,
+                            dyn_network_roi_coef,
+                            dyn_network_profitability,
+                            dyn_network_exploration_budget,
+                            dyn_network_exploration_budget_custom,
+                            dyn_network_budget_type,
+                            include_default=False,
+                            is_update=True,
+                        )
+                    else:
+                        dyn_network_block = (
+                            {"BiddingStrategyType": network_strategy.upper()}
+                            if network_strategy is not None
+                            else None
+                        )
+                    if dyn_network_block is not None:
+                        sub_block["BiddingStrategy"] = {"Network": dyn_network_block}
                 elif not is_unified and not is_dynamic:
                     search_base_builder = get_bidding_strategy_builder(
                         "TEXT_CAMPAIGN", "update", "search_base"
@@ -3254,11 +3738,7 @@ def update(
                         )
                     else:
                         text_search = (
-                            {
-                                "BiddingStrategyType": (
-                                    search_strategy.upper()
-                                )
-                            }
+                            {"BiddingStrategyType": (search_strategy.upper())}
                             if search_strategy is not None
                             else None
                         )
@@ -3392,11 +3872,7 @@ def update(
                     )
                 else:
                     mobile_bidding_strategy = (
-                        {
-                            "Search": {
-                                "BiddingStrategyType": search_strategy.upper()
-                            }
-                        }
+                        {"Search": {"BiddingStrategyType": search_strategy.upper()}}
                         if search_strategy is not None
                         else None
                     )
