@@ -685,6 +685,27 @@ PAYLOAD_CASES = [
             "5",
         ],
     ),
+    # --- issue #369: SmartCampaign.PriorityGoals ---
+    (
+        "campaigns",
+        "add",
+        [
+            "campaigns",
+            "add",
+            "--name",
+            "Test Smart PriorityGoals",
+            "--start-date",
+            "2026-06-01",
+            "--type",
+            "SMART_CAMPAIGN",
+            "--counter-id",
+            "123",
+            "--filter-average-cpc",
+            "1000000",
+            "--priority-goals",
+            "1234567:80,9876543:20:YES",
+        ],
+    ),
     # --- issue #367: SmartCampaign.BiddingStrategy.Search typed flags ---
     (
         "campaigns",
