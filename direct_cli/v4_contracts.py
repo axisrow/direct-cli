@@ -69,10 +69,10 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
         live_probe_allowed=False,
         example_param=None,
         notes=(
-            "Official docs (dg-v4/reference/GetCreditLimits) define the "
-            "request body as method + finance_token + operation_num only; "
-            "no param. Live probe without finance credentials returns "
-            "error_code=350."
+            "Docs-verified 2026-05-28 against dg-v4/reference/GetCreditLimits: "
+            "request body is method + finance_token + operation_num only, "
+            "no param; CLI dry-run output matches exactly. Live probe "
+            "without finance credentials returns error_code=350."
         ),
     ),
     "TransferMoney": V4MethodContract(
@@ -87,13 +87,15 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
         source_status=SOURCE_DOCS,
         live_probe_allowed=False,
         example_param={
-            "FromCampaigns": [{"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"}],
-            "ToCampaigns": [{"CampaignID": 456, "Sum": 100.5, "Currency": "RUB"}],
+            "FromCampaigns": [{"CampaignID": 123, "Sum": 100.5}],
+            "ToCampaigns": [{"CampaignID": 456, "Sum": 100.5}],
         },
         notes=(
-            "Official v4 docs define campaign-to-campaign transfer with "
-            "Currency on each transfer item. "
-            "This CLI exposes dry-run only; the method is not live-probed."
+            "Docs-verified 2026-05-28 against dg-v4/reference/TransferMoney: "
+            "PayCampElement carries only CampaignID and Sum (conventional "
+            "units, условные единицы). Total from-sum must equal total "
+            "to-sum or the API returns error_code=353. This CLI exposes "
+            "dry-run only; the method is not live-probed."
         ),
     ),
     "PayCampaigns": V4MethodContract(
@@ -148,7 +150,10 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
             "Official public docs were not found. Sandbox v4 Live rejects "
             "PaymentID with error_code=71 and requires CustomTransactionID; "
             "a valid 32-character unknown CustomTransactionID reaches method "
-            "validation and returns error_code=370."
+            "validation and returns error_code=370. "
+            "Docs-verified 2026-05-28: method is absent from the v4 "
+            "_AllMethods index (dg-v4/ru/reference/_AllMethods); sandbox "
+            "behaviour remains the source of truth for the wire shape."
         ),
     ),
     "CreateInvoice": V4MethodContract(

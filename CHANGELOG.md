@@ -4,6 +4,12 @@
 
 **BREAKING CHANGES:**
 
+- `direct v4finance transfer-money` no longer accepts `--currency`, and
+  the wire-body no longer carries `Currency` on `FromCampaigns`/
+  `ToCampaigns` items. The official v4 docs
+  (`dg-v4/reference/TransferMoney`) define `PayCampElement` with only
+  `CampaignID` and `Sum`; `Sum` is in conventional units. The CLI now
+  matches the docs 1:1. Closes #432.
 - `direct v4finance pay-campaigns` no longer accepts `--currency`. The
   v4 documentation (`dg-v4/reference/PayCampaigns`) defines
   `PayCampElement` with only `CampaignID` and `Sum` — `Currency` is not
