@@ -39,9 +39,13 @@ def _invoice_payments_param(payments: tuple[str, ...], currency: str) -> dict:
     if not payments:
         raise click.UsageError("--payment is required")
 
+    # currency is accepted for backward compatibility but not forwarded
+    # to the API: official v4 docs (dg-v4/reference/CreateInvoice) do not
+    # include a Currency field in PayCampElement.
+    del currency
+
     parsed_payments = []
     seen_campaign_ids = set()
-    normalized_currency = currency.upper()
     for payment in payments:
         spec = (payment or "").strip()
         if "=" not in spec:
@@ -64,7 +68,6 @@ def _invoice_payments_param(payments: tuple[str, ...], currency: str) -> dict:
             {
                 "CampaignID": campaign_id,
                 "Sum": parse_v4_money_sum(amount_text),
-                "Currency": normalized_currency,
             }
         )
 
@@ -338,7 +341,11 @@ def check_payment(
     default="RUB",
     show_default=True,
     type=click.Choice(V4_FINANCE_CURRENCIES, case_sensitive=False),
-    help="Payment currency",
+    help=(
+        "Payment currency (accepted for backward compatibility; the v4 "
+        "docs do not include Currency in the CreateInvoice wire-body, so "
+        "this value is not sent to the API)"
+    ),
 )
 @click.option(
     "--finance-token",
