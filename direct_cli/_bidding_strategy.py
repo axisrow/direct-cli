@@ -1718,11 +1718,6 @@ def build_text_campaign_search_strategy(
     # the caller has already placed PriorityGoals via the dedicated
     # ``PriorityGoalsUpdateSetting`` shape (with ``Operation: SET``) so
     # we only validate the strategy/subtype combination here.
-    #
-    # KNOWN ISSUE (#387): ``parse_priority_goals_spec`` forwards
-    # ``Value`` as a raw integer. Per Yandex docs ``Value`` is
-    # advertiser currency × 1,000,000; the cross-cutting fix is
-    # tracked in issue #387 and intentionally NOT bundled into #361.
     if priority_goals_items is not None:
         if subtype not in _TEXT_SEARCH_REQUIRES_PRIORITY_GOALS:
             raise click.UsageError(

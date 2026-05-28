@@ -6,7 +6,12 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import MICRO_RUBLES, get_default_fields, parse_ids
+from ..utils import (
+    MICRO_RUBLES,
+    get_default_fields,
+    parse_ids,
+    validate_priority_goal_value,
+)
 
 # Canonical list of strategy subtypes, mirroring the choice-of-one
 # fields on WSDL StrategyAddItem. The previous list (PR #205 review,
@@ -271,6 +276,9 @@ def _parse_priority_goal(spec: str) -> dict:
         raise click.UsageError(
             "Invalid --priority-goal. GOAL_ID and VALUE must be integers"
         )
+    validate_priority_goal_value(
+        item["Value"], f"Invalid --priority-goal '{spec}'."
+    )
     if len(parts) == 3:
         is_metrika_source = parts[2].upper()
         if is_metrika_source not in {"YES", "NO"}:
@@ -504,7 +512,11 @@ def get(ctx, ids, types, is_archived, limit, fetch_all, output_format, output, f
     "--priority-goal",
     "priority_goals",
     multiple=True,
-    help="Priority goal as GOAL_ID:VALUE[:YES|NO]; may be repeated",
+    help=(
+        "Priority goal as GOAL_ID:VALUE[:YES|NO]; may be repeated. "
+        "VALUE is in micro-currency (advertiser currency × 1,000,000), "
+        "same contract as --average-cpa. Example: 1:1000000 = 1.0 RUB."
+    ),
 )
 @click.option(
     "--attribution-model",
@@ -642,7 +654,11 @@ def add(
     "--priority-goal",
     "priority_goals",
     multiple=True,
-    help="Priority goal as GOAL_ID:VALUE[:YES|NO]; may be repeated",
+    help=(
+        "Priority goal as GOAL_ID:VALUE[:YES|NO]; may be repeated. "
+        "VALUE is in micro-currency (advertiser currency × 1,000,000), "
+        "same contract as --average-cpa. Example: 1:1000000 = 1.0 RUB."
+    ),
 )
 @click.option(
     "--attribution-model",
