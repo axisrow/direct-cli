@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import get_default_fields, parse_ids
+from ..utils import get_default_fields, parse_csv_strings, parse_ids
 
 
 @click.group()
@@ -32,6 +32,117 @@ def bidmodifiers():
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.option("--fields", help="Comma-separated field names")
+@click.option(
+    "--ad-group-adjustment-field-names",
+    help=(
+        "Comma-separated AdGroupAdjustmentFieldNames (e.g. BidModifier). "
+        "Sent as separate top-level request parameter per the "
+        "BidModifiersGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--demographics-adjustment-field-names",
+    help=(
+        "Comma-separated DemographicsAdjustmentFieldNames "
+        "(e.g. Gender,Age,BidModifier,Enabled). "
+        "Sent as separate top-level request parameter per the "
+        "BidModifiersGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--desktop-adjustment-field-names",
+    help=(
+        "Comma-separated DesktopAdjustmentFieldNames (e.g. BidModifier). "
+        "Sent as separate top-level request parameter per the "
+        "BidModifiersGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--desktop-only-adjustment-field-names",
+    help=(
+        "Comma-separated DesktopOnlyAdjustmentFieldNames (e.g. BidModifier). "
+        "Sent as separate top-level request parameter per the "
+        "BidModifiersGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--income-grade-adjustment-field-names",
+    help=(
+        "Comma-separated IncomeGradeAdjustmentFieldNames "
+        "(e.g. Grade,BidModifier,Enabled). "
+        "Sent as separate top-level request parameter per the "
+        "BidModifiersGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--mobile-adjustment-field-names",
+    help=(
+        "Comma-separated MobileAdjustmentFieldNames "
+        "(e.g. BidModifier,OperatingSystemType). "
+        "Sent as separate top-level request parameter per the "
+        "BidModifiersGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--regional-adjustment-field-names",
+    help=(
+        "Comma-separated RegionalAdjustmentFieldNames "
+        "(e.g. RegionId,BidModifier,Enabled). "
+        "Sent as separate top-level request parameter per the "
+        "BidModifiersGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--retargeting-adjustment-field-names",
+    help=(
+        "Comma-separated RetargetingAdjustmentFieldNames "
+        "(e.g. RetargetingConditionId,BidModifier,Accessible,Enabled). "
+        "Sent as separate top-level request parameter per the "
+        "BidModifiersGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--serp-layout-adjustment-field-names",
+    help=(
+        "Comma-separated SerpLayoutAdjustmentFieldNames "
+        "(e.g. SerpLayout,BidModifier,Enabled). "
+        "Sent as separate top-level request parameter per the "
+        "BidModifiersGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--smart-ad-adjustment-field-names",
+    help=(
+        "Comma-separated SmartAdAdjustmentFieldNames (e.g. BidModifier). "
+        "Sent as separate top-level request parameter per the "
+        "BidModifiersGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--smart-tv-adjustment-field-names",
+    help=(
+        "Comma-separated SmartTvAdjustmentFieldNames (e.g. BidModifier). "
+        "Sent as separate top-level request parameter per the "
+        "BidModifiersGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--tablet-adjustment-field-names",
+    help=(
+        "Comma-separated TabletAdjustmentFieldNames "
+        "(e.g. BidModifier,OperatingSystemType). "
+        "Sent as separate top-level request parameter per the "
+        "BidModifiersGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--video-adjustment-field-names",
+    help=(
+        "Comma-separated VideoAdjustmentFieldNames (e.g. BidModifier). "
+        "Sent as separate top-level request parameter per the "
+        "BidModifiersGetRequest WSDL."
+    ),
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def get(
@@ -46,6 +157,19 @@ def get(
     output_format,
     output,
     fields,
+    ad_group_adjustment_field_names,
+    demographics_adjustment_field_names,
+    desktop_adjustment_field_names,
+    desktop_only_adjustment_field_names,
+    income_grade_adjustment_field_names,
+    mobile_adjustment_field_names,
+    regional_adjustment_field_names,
+    retargeting_adjustment_field_names,
+    serp_layout_adjustment_field_names,
+    smart_ad_adjustment_field_names,
+    smart_tv_adjustment_field_names,
+    tablet_adjustment_field_names,
+    video_adjustment_field_names,
     dry_run,
 ):
     """Get bid modifiers"""
@@ -55,6 +179,31 @@ def get(
             login=ctx.obj.get("login"),
             sandbox=ctx.obj.get("sandbox"),
         )
+
+        raw_nested = (
+            ("AdGroupAdjustmentFieldNames", ad_group_adjustment_field_names),
+            ("DemographicsAdjustmentFieldNames", demographics_adjustment_field_names),
+            ("DesktopAdjustmentFieldNames", desktop_adjustment_field_names),
+            ("DesktopOnlyAdjustmentFieldNames", desktop_only_adjustment_field_names),
+            ("IncomeGradeAdjustmentFieldNames", income_grade_adjustment_field_names),
+            ("MobileAdjustmentFieldNames", mobile_adjustment_field_names),
+            ("RegionalAdjustmentFieldNames", regional_adjustment_field_names),
+            ("RetargetingAdjustmentFieldNames", retargeting_adjustment_field_names),
+            ("SerpLayoutAdjustmentFieldNames", serp_layout_adjustment_field_names),
+            ("SmartAdAdjustmentFieldNames", smart_ad_adjustment_field_names),
+            ("SmartTvAdjustmentFieldNames", smart_tv_adjustment_field_names),
+            ("TabletAdjustmentFieldNames", tablet_adjustment_field_names),
+            ("VideoAdjustmentFieldNames", video_adjustment_field_names),
+        )
+        parsed_nested = {}
+        for wsdl_key, raw_value in raw_nested:
+            parsed = parse_csv_strings(raw_value)
+            if raw_value is not None and not parsed:
+                raise click.UsageError(
+                    f"Provide a non-empty comma-separated {wsdl_key} list."
+                )
+            if parsed:
+                parsed_nested[wsdl_key] = parsed
 
         criteria = {"Levels": [lv.upper() for lv in levels]}
         if ids:
@@ -75,6 +224,7 @@ def get(
             "SelectionCriteria": criteria,
             "FieldNames": field_names,
         }
+        params.update(parsed_nested)
 
         if limit:
             params["Page"] = {"Limit": limit}
@@ -96,6 +246,8 @@ def get(
             data = result().extract()
             format_output(data, output_format, output)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
