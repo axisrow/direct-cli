@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.15
+
+**BREAKING CHANGES:**
+
+- `direct v4finance create-invoice` no longer accepts `--currency`. The
+  v4 documentation (`dg-v4/reference/CreateInvoice`) defines
+  `PayCampElement` with only `CampaignID` and `Sum` — `Currency` is not
+  part of the wire-body and was never forwarded to the API. The option
+  is removed entirely to make the CLI surface 1:1 with the docs.
+
 ## 0.3.14
 
 **Fixed:**

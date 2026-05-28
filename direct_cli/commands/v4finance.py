@@ -34,15 +34,10 @@ def _logins_param(logins: str) -> list[str]:
     return login_list
 
 
-def _invoice_payments_param(payments: tuple[str, ...], currency: str) -> dict:
+def _invoice_payments_param(payments: tuple[str, ...]) -> dict:
     """Build the v4 Live CreateInvoice payment object parameter."""
     if not payments:
         raise click.UsageError("--payment is required")
-
-    # currency is accepted for backward compatibility but not forwarded
-    # to the API: official v4 docs (dg-v4/reference/CreateInvoice) do not
-    # include a Currency field in PayCampElement.
-    del currency
 
     parsed_payments = []
     seen_campaign_ids = set()
@@ -337,17 +332,6 @@ def check_payment(
     help="Invoice payment as CAMPAIGN_ID=AMOUNT; repeat for multiple campaigns",
 )
 @click.option(
-    "--currency",
-    default="RUB",
-    show_default=True,
-    type=click.Choice(V4_FINANCE_CURRENCIES, case_sensitive=False),
-    help=(
-        "Payment currency (accepted for backward compatibility; the v4 "
-        "docs do not include Currency in the CreateInvoice wire-body, so "
-        "this value is not sent to the API)"
-    ),
-)
-@click.option(
     "--finance-token",
     envvar="YANDEX_DIRECT_FINANCE_TOKEN",
     help="Precomputed financial token for this method",
@@ -384,7 +368,6 @@ def check_payment(
 def create_invoice(
     ctx,
     payments,
-    currency,
     finance_token,
     master_token,
     operation_num,
@@ -402,7 +385,7 @@ def create_invoice(
         "CreateInvoice",
         ctx.obj.get("login"),
     )
-    param = _invoice_payments_param(payments, currency)
+    param = _invoice_payments_param(payments)
 
     if dry_run:
         format_output(

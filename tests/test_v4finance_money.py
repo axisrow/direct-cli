@@ -168,8 +168,6 @@ def test_create_invoice_dry_run_accepts_multiple_payments():
         "123=100.50",
         "--payment",
         "456=1",
-        "--currency",
-        "usd",
         "--finance-token",
         "secret-finance-token",
         "--operation-num",

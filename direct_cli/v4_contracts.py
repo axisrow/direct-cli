@@ -163,10 +163,10 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
         notes=(
             "Docs-verified 2026-05-28 against dg-v4/reference/CreateInvoice: "
             "PayCampElement carries only CampaignID and Sum (no Currency); "
-            "Sum is in conventional units. The CLI still accepts --currency "
-            "for backward compatibility but does not forward Currency to "
-            "the API wire-body. The method has no v5 equivalent and "
-            "requires finance_token plus operation_num."
+            "Sum is in conventional units. The CLI removed --currency in "
+            "0.3.15 (BREAKING) to mirror docs 1:1; no Currency field is "
+            "sent to the API wire-body. The method has no v5 equivalent "
+            "and requires finance_token plus operation_num."
         ),
     ),
     "AccountManagement": V4MethodContract(
