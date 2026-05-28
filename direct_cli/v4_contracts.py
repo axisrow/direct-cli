@@ -383,11 +383,24 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
     "DeleteReport": V4MethodContract(
         method="DeleteReport",
         group="offline_reports",
-        param_shape=PARAM_UNDOCUMENTED,
-        login_placement="unknown",
+        param_shape=PARAM_SCALAR,
+        login_placement=(
+            "param is a scalar int (report ID); global --login uses "
+            "Client-Login header"
+        ),
         safety=SAFETY_WRITE,
-        source_status=SOURCE_UNDOCUMENTED,
+        source_status=SOURCE_DOCS,
         live_probe_allowed=False,
+        example_param=12345,
+        notes=(
+            "Docs-verified 2026-05-28 against dg-v4/reference/DeleteReport: "
+            "param is the integer report ID obtained via GetReportList. "
+            "Response on success: {\"data\": 1}. Reports are auto-removed "
+            "after 5 hours. Method is listed under disabled methods "
+            "(\"Отключенные методы\") in official docs; distinct entry "
+            "from DeleteOfflineReport (same wire shape, separate v4 "
+            "reference page). No CLI command is exposed."
+        ),
     ),
     "GetBannersTags": V4MethodContract(
         method="GetBannersTags",
