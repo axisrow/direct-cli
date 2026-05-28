@@ -92,12 +92,10 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
         },
         notes=(
             "Docs-verified 2026-05-28 against dg-v4/reference/TransferMoney: "
-            "PayCampElement carries only CampaignID and Sum. Sum is in "
-            "conventional units (условные единицы); no Currency field anywhere "
-            "in the request. Total from-sum must equal total to-sum or the "
-            "API returns error_code=353. CLI dropped the prior --currency "
-            "option to match docs exactly. This CLI exposes dry-run only; "
-            "the method is not live-probed."
+            "PayCampElement carries only CampaignID and Sum (conventional "
+            "units, условные единицы). Total from-sum must equal total "
+            "to-sum or the API returns error_code=353. This CLI exposes "
+            "dry-run only; the method is not live-probed."
         ),
     ),
     "PayCampaigns": V4MethodContract(
