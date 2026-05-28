@@ -35,6 +35,18 @@
   one has a matching kebab-case CLI option. Acknowledged remaining
   gaps are tracked in `NESTED_FIELDNAMES_EXCLUSIONS` and #402 so
   future additions cannot silently slip in.
+- `direct keywords get` now exposes
+  `--autotargeting-settings-brand-options-field-names`
+  (`AutotargetingBrandOptionsFieldEnum`: `WithoutBrands`,
+  `WithAdvertiserBrand`, `WithCompetitorsBrand`) and
+  `--autotargeting-settings-categories-field-names`
+  (`AutotargetingCategoriesFieldEnum`: `Exact`, `Narrow`,
+  `Alternative`, `Accessory`, `Broader`) for the separate WSDL
+  `*FieldNames` request parameters declared by
+  `KeywordsGetRequest`. Previously only the top-level `--fields`
+  (mapping to `FieldNames`) was available, so the nested
+  `AutotargetingSettings.BrandOptions` / `Categories` projections
+  could not be controlled from CLI. Closes #413.
 
 Closes #360.
 
