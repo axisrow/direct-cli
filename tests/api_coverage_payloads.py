@@ -33,6 +33,7 @@ DRY_RUN_PAYLOAD_EXCLUSIONS = {
     "dynamicfeedadtargets.suspend": "Covered by test_dry_run.py::test_dynamicfeedadtargets_suspend_payload.",
     "strategies.add": "Covered by test_dry_run.py::test_strategies_add_payload.",
     "strategies.archive": "Covered by test_dry_run.py::test_strategies_archive_payload.",
+    "strategies.get": "Covered by test_dry_run.py::test_strategies_get_default_field_names_payload.",
     "strategies.unarchive": "Covered by test_dry_run.py::test_strategies_unarchive_payload.",
     "strategies.update": "Covered by test_dry_run.py::test_strategies_update_payload.",
     "reports.get": "Reports API uses a custom TSV endpoint; payload contract is covered by test_reports_request_builder_contract.",
