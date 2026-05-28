@@ -18,6 +18,14 @@ Behavior:
   - runs twine checks before upload
   - uploads to TestPyPI, PyPI, or both
 
+Pre-flight (not run by this script — invoke separately when needed):
+  bash scripts/preflight_check.sh
+    - validates Yandex docs URLs (canonical move/404 = hard fail; captcha or
+      5xx = soft warn, treated as transient Yandex rate-limit)
+    - validates committed docs/WSDL cache is real content
+    - refuses if cache has uncommitted changes
+  Run preflight ad-hoc; release_pypi.sh stays deterministic.
+
 Required .env variables:
   TWINE_USERNAME=__token__
   TEST_PYPI_TOKEN=pypi-...   # for testpypi/all
@@ -69,32 +77,6 @@ require_command() {
   fi
 }
 
-prerelease_docs_health_check() {
-  require_command python3
-  require_command git
-
-  echo "Pre-release docs health check (URLs + cache freshness)"
-  (
-    cd "${ROOT_DIR}"
-    # 1. Verify every hard-coded Yandex docs URL still resolves canonically.
-    python3 scripts/check_all_docs_urls.py
-    # 2. Verify the committed reports/WSDL cache files are real content,
-    #    not captcha gateways. Read-only — never writes to the working tree.
-    python3 -m pytest tests/test_api_coverage.py::TestReportsCoverage \
-                      tests/test_api_coverage.py::TestWsdlCacheFreshness -v
-    # 3. Refuse to release with a dirty cache. If Yandex changed docs since
-    #    the last cache snapshot, the maintainer must commit the refresh
-    #    explicitly — not let `release_pypi.sh all` carry it in silently.
-    if ! git diff --quiet HEAD -- tests/reports_cache tests/wsdl_cache; then
-      echo "ERROR: tests/reports_cache or tests/wsdl_cache has uncommitted changes."
-      echo "       Run scripts/refresh_reports_cache.py separately, review the diff,"
-      echo "       and commit it before releasing."
-      git diff --stat -- tests/reports_cache tests/wsdl_cache
-      exit 1
-    fi
-  )
-}
-
 build_artifacts() {
   require_command python3
 
@@ -129,7 +111,6 @@ upload_target() {
   )
 }
 
-prerelease_docs_health_check
 build_artifacts
 
 case "${TARGET}" in

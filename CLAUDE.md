@@ -80,13 +80,27 @@ Adding a new mutating command requires extending `COMMAND_WSDL_MAP` in `tests/te
 
 ## PyPI Release
 
-`scripts/release_pypi.sh` runs three pre-release health checks before building the wheel:
+Release is two-phase on purpose. Yandex frequently rate-limits the docs host with a SmartCaptcha gateway, which is an external rate-limit on our IP — not evidence that an URL is gone. Mixing docs-health checks into the publish path made releases non-deterministic, so they live in a separate preflight script.
 
-1. `python scripts/check_all_docs_urls.py` — every Yandex docs URL in `RESOURCE_MAPPING_V5` and `REPORTS_SPEC_URLS` must be reachable. The probe falls back from `HEAD` to `GET` on 4xx (some CDNs reject `HEAD`), then verifies real content, no captcha, no canonical redirect. 5xx is a soft warning; confirmed 3xx-to-different-path / 4xx / captcha is hard fail.
+**Phase 1 — preflight (manual, network-dependent):**
+
+```
+bash scripts/preflight_check.sh
+```
+
+Runs three checks:
+
+1. `python scripts/check_all_docs_urls.py` — every Yandex docs URL in `RESOURCE_MAPPING_V5` and `REPORTS_SPEC_URLS` must be reachable. The probe falls back from `HEAD` to `GET` on 4xx (some CDNs reject `HEAD`), then verifies real content. **Hard fail:** confirmed 3xx-to-different-path or 4xx (canonical move / gone). **Soft warning (does not block):** 5xx or persistent captcha — treated as a transient Yandex rate-limit; re-run later to confirm.
 2. `pytest TestReportsCoverage TestWsdlCacheFreshness -v` — read-only check that the committed Reports/WSDL/XSD caches are real content (not captcha).
-3. `git diff --quiet -- tests/reports_cache tests/wsdl_cache` — refuses to release with an uncommitted cache refresh. If Yandex changed docs since the last snapshot, run `scripts/refresh_reports_cache.py` separately, review the diff, and commit it before releasing.
+3. `git diff --quiet -- tests/reports_cache tests/wsdl_cache` — refuses to proceed with an uncommitted cache refresh. If Yandex changed docs since the last snapshot, run `scripts/refresh_reports_cache.py` separately, review the diff, and commit it before releasing.
 
-If any step fails, fix the URL (or commit the cache refresh) before releasing — do not bypass with `--skip-checks`. There is no such flag.
+**Phase 2 — release (deterministic, no Yandex network calls):**
+
+```
+bash scripts/release_pypi.sh all
+```
+
+Builds dist artifacts, runs twine checks, uploads to TestPyPI + PyPI. Does **not** re-run docs/cache checks — if the captcha rate-limit was active during preflight, that should not block a release of an already-verified artifact.
 
 ## Tests
 

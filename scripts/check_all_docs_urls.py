@@ -134,9 +134,9 @@ def main() -> int:
         url = urls[label]
         verdict, detail = check_one(url)
         rows.append((label, url, verdict, detail))
-        if verdict in {"MOVED", "GONE", "CAPTCHA", "SMALL", "ERROR"}:
+        if verdict in {"MOVED", "GONE", "SMALL", "ERROR"}:
             failed = True
-        elif verdict == "SERVER":
+        elif verdict in {"SERVER", "CAPTCHA"}:
             soft_warned = True
         time.sleep(INTER_REQUEST_DELAY)
 
@@ -150,11 +150,12 @@ def main() -> int:
 
     print()
     if failed:
-        print("FAIL — at least one URL has moved, is gone, or returns captcha. "
+        print("FAIL — at least one URL has moved or is gone. "
               "Update RESOURCE_MAPPING_V5 / REPORTS_SPEC_URLS before releasing.")
         return 1
     if soft_warned:
-        print("OK with warnings — Yandex returned 5xx for at least one URL; "
+        print("OK with warnings — Yandex returned 5xx or captcha for at least "
+              "one URL (likely IP rate-limit, not a canonical move); "
               "re-run later to confirm.")
     else:
         print("OK — all URLs canonical.")
