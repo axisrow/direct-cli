@@ -89,8 +89,8 @@ def test_transfer_money_dry_run_uses_campaign_arrays_and_masks_finance_token():
     assert json.loads(result.output) == {
         "method": "TransferMoney",
         "param": {
-            "FromCampaigns": [{"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"}],
-            "ToCampaigns": [{"CampaignID": 456, "Sum": 100.5, "Currency": "RUB"}],
+            "FromCampaigns": [{"CampaignID": 123, "Sum": 100.5}],
+            "ToCampaigns": [{"CampaignID": 456, "Sum": 100.5}],
         },
         "finance_token": "<redacted>",
         "operation_num": 42,
