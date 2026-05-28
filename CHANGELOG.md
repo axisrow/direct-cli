@@ -9,6 +9,12 @@
   `PayCampElement` with only `CampaignID` and `Sum` — `Currency` is not
   part of the wire-body and was never forwarded to the API. The option
   is removed entirely to make the CLI surface 1:1 with the docs.
+- `direct v4finance pay-campaigns` no longer accepts `--pay-method
+  Overdraft`. The v4 documentation
+  (`dg-v4/reference/PayCampaigns#PayMethod`) lists only `"Bank"` as a
+  supported value; `Overdraft` was a historical undocumented value
+  retained by the CLI for sandbox flow. Strict 1:1 docs alignment
+  drops it.
 
 ## 0.3.14
 

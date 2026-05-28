@@ -485,8 +485,10 @@ def test_pay_campaigns_rejects_non_positive_campaign_ids():
         "0,-1",
         "--amount",
         "100.50",
+        "--contract-id",
+        "contract-id",
         "--pay-method",
-        "Overdraft",
+        "Bank",
         "--finance-token",
         "finance-token",
         "--operation-num",
@@ -498,7 +500,7 @@ def test_pay_campaigns_rejects_non_positive_campaign_ids():
     assert "--campaign-ids must contain only positive integers" in result.output
 
 
-def test_pay_campaigns_allows_overdraft_without_contract():
+def test_pay_campaigns_rejects_undocumented_pay_method():
     result = _invoke(
         "v4finance",
         "pay-campaigns",
@@ -515,11 +517,8 @@ def test_pay_campaigns_allows_overdraft_without_contract():
         "--dry-run",
     )
 
-    assert result.exit_code == 0
-    assert json.loads(result.output)["param"] == {
-        "Payments": [{"CampaignID": 123, "Sum": 100.5}],
-        "PayMethod": "Overdraft",
-    }
+    assert result.exit_code != 0
+    assert "Invalid value for '--pay-method'" in result.output
 
 
 def test_check_payment_dry_run_uses_custom_transaction_id_object():

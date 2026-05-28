@@ -116,11 +116,11 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
             "Docs-verified 2026-05-28 against dg-v4/reference/PayCampaigns: "
             "PayCampElement carries only CampaignID and Sum (no Currency); "
             "Sum is in conventional units. Docs state PayMethod currently "
-            "only accepts 'Bank'; the CLI also retains 'Overdraft' as a "
-            "historical undocumented value used by sandbox flow. The CLI "
-            "removed --currency in 0.3.15 (BREAKING) to mirror docs 1:1; "
-            "no Currency field is sent to the API wire-body. This CLI "
-            "exposes dry-run only; the method is not live-probed."
+            "only accepts 'Bank'. The CLI removed --currency and the "
+            "undocumented 'Overdraft' PayMethod value in 0.3.15 (BREAKING) "
+            "to mirror docs 1:1; no Currency field is sent to the API "
+            "wire-body. This CLI exposes dry-run only; the method is not "
+            "live-probed."
         ),
     ),
     "PayCampaignsByCard": V4MethodContract(
