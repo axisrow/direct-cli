@@ -528,116 +528,95 @@ def _reject_incompatible_flags(
 )
 @click.option(
     "--text-campaign-field-names",
-    "--text-campaign-fields",
-    "text_campaign_fields",
     help=(
         "Comma-separated TextCampaignFieldNames "
         "(e.g. CounterIds,Settings,BiddingStrategy,PriorityGoals). "
         "Sent as separate top-level request parameter per the "
-        "CampaignsGetRequest WSDL. The legacy `--text-campaign-fields` "
-        "alias is preserved."
+        "CampaignsGetRequest WSDL."
     ),
 )
 @click.option(
     "--text-campaign-search-strategy-placement-types-field-names",
-    "--text-campaign-search-strategy-placement-types-fields",
-    "text_campaign_search_strategy_placement_types_fields",
     help=(
         "Comma-separated TextCampaignSearchStrategyPlacementTypesFieldNames "
         "(e.g. SearchResults,ProductGallery,DynamicPlaces). "
         "Sent as separate top-level request parameter per the "
-        "CampaignsGetRequest WSDL. The legacy `-fields` alias is preserved."
+        "CampaignsGetRequest WSDL."
     ),
 )
 @click.option(
     "--mobile-app-campaign-field-names",
-    "--mobile-app-campaign-fields",
-    "mobile_app_campaign_fields",
     help=(
         "Comma-separated MobileAppCampaignFieldNames "
         "(e.g. Settings,BiddingStrategy,NegativeKeywordSharedSetIds). "
         "Sent as separate top-level request parameter per the "
-        "CampaignsGetRequest WSDL. The legacy `-fields` alias is preserved."
+        "CampaignsGetRequest WSDL."
     ),
 )
 @click.option(
     "--dynamic-text-campaign-field-names",
-    "--dynamic-text-campaign-fields",
-    "dynamic_text_campaign_fields",
     help=(
         "Comma-separated DynamicTextCampaignFieldNames "
         "(e.g. PlacementTypes,CounterIds,Settings,BiddingStrategy). "
         "Sent as separate top-level request parameter per the "
-        "CampaignsGetRequest WSDL. The legacy `-fields` alias is preserved."
+        "CampaignsGetRequest WSDL."
     ),
 )
 @click.option(
     "--dynamic-text-campaign-search-strategy-placement-types-field-names",
-    "--dynamic-text-campaign-search-strategy-placement-types-fields",
-    "dynamic_text_campaign_search_strategy_placement_types_fields",
     help=(
         "Comma-separated "
         "DynamicTextCampaignSearchStrategyPlacementTypesFieldNames "
         "(e.g. SearchResults,ProductGallery,DynamicPlaces). "
         "Sent as separate top-level request parameter per the "
-        "CampaignsGetRequest WSDL. The legacy `-fields` alias is preserved."
+        "CampaignsGetRequest WSDL."
     ),
 )
 @click.option(
     "--cpm-banner-campaign-field-names",
-    "--cpm-banner-campaign-fields",
-    "cpm_banner_campaign_fields",
     help=(
         "Comma-separated CpmBannerCampaignFieldNames "
         "(e.g. CounterIds,FrequencyCap,Settings,BiddingStrategy). "
         "Sent as separate top-level request parameter per the "
-        "CampaignsGetRequest WSDL. The legacy `-fields` alias is preserved."
+        "CampaignsGetRequest WSDL."
     ),
 )
 @click.option(
     "--smart-campaign-field-names",
-    "--smart-campaign-fields",
-    "smart_campaign_fields",
     help=(
         "Comma-separated SmartCampaignFieldNames "
         "(e.g. CounterId,Settings,BiddingStrategy,PriorityGoals). "
         "Sent as separate top-level request parameter per the "
-        "CampaignsGetRequest WSDL. The legacy `-fields` alias is preserved."
+        "CampaignsGetRequest WSDL."
     ),
 )
 @click.option(
     "--unified-campaign-field-names",
-    "--unified-campaign-fields",
-    "unified_campaign_fields",
     help=(
         "Comma-separated UnifiedCampaignFieldNames "
         "(e.g. CounterIds,Settings,BiddingStrategy,PriorityGoals). "
         "Sent as separate top-level request parameter per the "
-        "CampaignsGetRequest WSDL. The legacy `-fields` alias is preserved."
+        "CampaignsGetRequest WSDL."
     ),
 )
 @click.option(
     "--unified-campaign-search-strategy-placement-types-field-names",
-    "--unified-campaign-search-strategy-placement-types-fields",
-    "unified_campaign_search_strategy_placement_types_fields",
     help=(
         "Comma-separated "
         "UnifiedCampaignSearchStrategyPlacementTypesFieldNames "
         "(e.g. SearchResults,ProductGallery,Maps,SearchOrganizationList). "
         "Sent as separate top-level request parameter per the "
-        "CampaignsGetRequest WSDL. The legacy `-fields` alias is preserved."
+        "CampaignsGetRequest WSDL."
     ),
 )
 @click.option(
     "--unified-campaign-package-bidding-strategy-platforms-field-names",
-    "--unified-campaign-package-bidding-strategy-platforms-fields",
-    "unified_campaign_package_bidding_strategy_platforms_fields",
     help=(
         "Comma-separated "
         "UnifiedCampaignPackageBiddingStrategyPlatformsFieldNames "
         "(e.g. SearchResult,ProductGallery,Maps,Network). "
         "Sent as separate top-level request parameter per the "
-        "CampaignsGetRequest WSDL. The legacy `-fields` alias is preserved."
+        "CampaignsGetRequest WSDL."
     ),
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
@@ -655,16 +634,16 @@ def get(
     output_format,
     output,
     fields,
-    text_campaign_fields,
-    text_campaign_search_strategy_placement_types_fields,
-    mobile_app_campaign_fields,
-    dynamic_text_campaign_fields,
-    dynamic_text_campaign_search_strategy_placement_types_fields,
-    cpm_banner_campaign_fields,
-    smart_campaign_fields,
-    unified_campaign_fields,
-    unified_campaign_search_strategy_placement_types_fields,
-    unified_campaign_package_bidding_strategy_platforms_fields,
+    text_campaign_field_names,
+    text_campaign_search_strategy_placement_types_field_names,
+    mobile_app_campaign_field_names,
+    dynamic_text_campaign_field_names,
+    dynamic_text_campaign_search_strategy_placement_types_field_names,
+    cpm_banner_campaign_field_names,
+    smart_campaign_field_names,
+    unified_campaign_field_names,
+    unified_campaign_search_strategy_placement_types_field_names,
+    unified_campaign_package_bidding_strategy_platforms_field_names,
     dry_run,
 ):
     """Get campaigns"""
@@ -701,44 +680,44 @@ def get(
         )
         selector_options = {
             "TextCampaignFieldNames": (
-                "--text-campaign-fields",
-                text_campaign_fields,
+                "--text-campaign-field-names",
+                text_campaign_field_names,
             ),
             "TextCampaignSearchStrategyPlacementTypesFieldNames": (
-                "--text-campaign-search-strategy-placement-types-fields",
-                text_campaign_search_strategy_placement_types_fields,
+                "--text-campaign-search-strategy-placement-types-field-names",
+                text_campaign_search_strategy_placement_types_field_names,
             ),
             "MobileAppCampaignFieldNames": (
-                "--mobile-app-campaign-fields",
-                mobile_app_campaign_fields,
+                "--mobile-app-campaign-field-names",
+                mobile_app_campaign_field_names,
             ),
             "DynamicTextCampaignFieldNames": (
-                "--dynamic-text-campaign-fields",
-                dynamic_text_campaign_fields,
+                "--dynamic-text-campaign-field-names",
+                dynamic_text_campaign_field_names,
             ),
             "DynamicTextCampaignSearchStrategyPlacementTypesFieldNames": (
-                "--dynamic-text-campaign-search-strategy-placement-types-fields",
-                dynamic_text_campaign_search_strategy_placement_types_fields,
+                "--dynamic-text-campaign-search-strategy-placement-types-field-names",
+                dynamic_text_campaign_search_strategy_placement_types_field_names,
             ),
             "CpmBannerCampaignFieldNames": (
-                "--cpm-banner-campaign-fields",
-                cpm_banner_campaign_fields,
+                "--cpm-banner-campaign-field-names",
+                cpm_banner_campaign_field_names,
             ),
             "SmartCampaignFieldNames": (
-                "--smart-campaign-fields",
-                smart_campaign_fields,
+                "--smart-campaign-field-names",
+                smart_campaign_field_names,
             ),
             "UnifiedCampaignFieldNames": (
-                "--unified-campaign-fields",
-                unified_campaign_fields,
+                "--unified-campaign-field-names",
+                unified_campaign_field_names,
             ),
             "UnifiedCampaignSearchStrategyPlacementTypesFieldNames": (
-                "--unified-campaign-search-strategy-placement-types-fields",
-                unified_campaign_search_strategy_placement_types_fields,
+                "--unified-campaign-search-strategy-placement-types-field-names",
+                unified_campaign_search_strategy_placement_types_field_names,
             ),
             "UnifiedCampaignPackageBiddingStrategyPlatformsFieldNames": (
-                "--unified-campaign-package-bidding-strategy-platforms-fields",
-                unified_campaign_package_bidding_strategy_platforms_fields,
+                "--unified-campaign-package-bidding-strategy-platforms-field-names",
+                unified_campaign_package_bidding_strategy_platforms_field_names,
             ),
         }
         for request_key, (option_name, value) in selector_options.items():

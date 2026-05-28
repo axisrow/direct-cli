@@ -35,7 +35,9 @@
   one has a matching kebab-case CLI option. Acknowledged remaining
   gaps are tracked in `NESTED_FIELDNAMES_EXCLUSIONS` and #402 so
   future additions cannot silently slip in.
-- `direct campaigns get` legacy flags `--text-campaign-fields`,
+**BREAKING CHANGES:**
+
+- `direct campaigns get` flags `--text-campaign-fields`,
   `--mobile-app-campaign-fields`, `--dynamic-text-campaign-fields`,
   `--cpm-banner-campaign-fields`, `--smart-campaign-fields`,
   `--unified-campaign-fields`,
@@ -43,12 +45,12 @@
   `--dynamic-text-campaign-search-strategy-placement-types-fields`,
   `--unified-campaign-search-strategy-placement-types-fields`, and
   `--unified-campaign-package-bidding-strategy-platforms-fields`
-  are now also accepted as their canonical kebab-case `*-field-names`
-  form (e.g. `--text-campaign-field-names`,
-  `--mobile-app-campaign-field-names`, ...), matching the WSDL
-  parameter names declared by `CampaignsGetRequest`. The legacy
-  `-fields` aliases remain accepted unchanged for backward
-  compatibility. Closes #409.
+  are **renamed** to their kebab-case WSDL-canonical `*-field-names`
+  form (`--text-campaign-field-names`,
+  `--mobile-app-campaign-field-names`, ...), matching the parameter
+  names declared by `CampaignsGetRequest`. The old `--*-fields`
+  forms are no longer accepted — update scripts and automation
+  accordingly. Closes #409.
 
 Closes #360.
 
