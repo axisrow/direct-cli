@@ -2293,7 +2293,7 @@ class TestReportsCoverage:
 
 
 class TestWsdlCacheFreshness:
-    """Guard against silent cache poisoning of WSDL XML."""
+    """Guard against silent cache poisoning of WSDL XML and imported XSDs."""
 
     def test_wsdl_cache_files_are_real_content(self):
         from pathlib import Path
@@ -2314,6 +2314,24 @@ class TestWsdlCacheFreshness:
             assert "wsdl:definitions" in text or "xsd:schema" in text, (
                 f"{path.name} missing wsdl:definitions/xsd:schema — likely HTML"
             )
+
+    def test_imported_xsd_cache_files_are_real_content(self):
+        from pathlib import Path
+
+        imports = Path(__file__).resolve().parent / "wsdl_cache" / "imports"
+        xsd_files = sorted(imports.glob("*.xsd"))
+        assert xsd_files, "tests/wsdl_cache/imports/*.xsd is empty"
+        for path in xsd_files:
+            text = path.read_text(encoding="utf-8")
+            assert len(text) >= 1_000, (
+                f"{path.name} is suspiciously small ({len(text)} bytes < 1 KB)"
+            )
+            lower = text.lower()
+            assert "showcaptcha" not in lower and "smartcaptcha" not in lower, (
+                f"{path.name} contains a captcha marker — refresh the cache"
+            )
+            assert "<?xml" in text, f"{path.name} missing XML declaration"
+            assert "schema" in text, f"{path.name} missing schema element"
 
 
 class TestReportsParseFilter:

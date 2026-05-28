@@ -231,6 +231,33 @@ def fetch_live_wsdl(service_name: str) -> str:
     return xml_text
 
 
+_XSD_MIN_SIZE = 1_000
+
+
+def _assert_real_xsd(url: str, xml_text: str) -> None:
+    """Same shape as _assert_real_wsdl, but for imported XSD schemas
+    (smaller, no wsdl:definitions, only xsd:schema)."""
+    lower = xml_text.lower()
+    if "showcaptcha" in lower or "smartcaptcha" in lower:
+        raise RuntimeError(
+            f"Yandex returned a captcha page for XSD {url!r}. "
+            "Verify that XSD_BASE_URL is still canonical."
+        )
+    if len(xml_text) < _XSD_MIN_SIZE:
+        raise RuntimeError(
+            f"XSD response for {url!r} is suspiciously small ({len(xml_text)} bytes "
+            f"< {_XSD_MIN_SIZE})."
+        )
+    if "<?xml" not in xml_text:
+        raise RuntimeError(
+            f"XSD response for {url!r} missing XML declaration — likely an HTML page."
+        )
+    if "schema" not in xml_text:
+        raise RuntimeError(
+            f"XSD response for {url!r} missing 'schema' element — likely not an XSD."
+        )
+
+
 def parse_wsdl_operations(wsdl_xml: str) -> list:
     """Extract unique API method names from WSDL XML."""
     root = ET.fromstring(wsdl_xml)
@@ -390,6 +417,7 @@ def fetch_imported_xsd(namespace: str, use_cache: bool = True) -> str:
     resp = requests.get(url, timeout=30)
     resp.raise_for_status()
     xml_text = resp.text
+    _assert_real_xsd(url, xml_text)
 
     IMPORTS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     cache_file.write_text(xml_text, encoding="utf-8")

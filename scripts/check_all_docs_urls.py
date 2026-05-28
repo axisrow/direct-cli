@@ -69,18 +69,24 @@ def _probe(url: str) -> tuple[str, str] | None:
         if loc and not same_path_segment(url, loc):
             return ("MOVED", f"{head.status_code} → {loc}")
         return ("OK", f"{head.status_code} same-path redirect")
-    if 400 <= head.status_code < 500:
-        return ("GONE", f"HTTP {head.status_code}")
     if 500 <= head.status_code < 600:
         return ("SERVER", f"HTTP {head.status_code}")
 
-    # 2xx — verify body
+    # Treat any non-redirect, non-5xx response (including HEAD 4xx like 403/405
+    # from CDNs that reject HEAD) as "verify via GET" — we can only declare GONE
+    # if the GET also confirms it.
     try:
         resp = requests.get(
             url, timeout=30, headers={"User-Agent": USER_AGENT}
         )
     except requests.RequestException as exc:
         return ("ERROR", f"GET failed: {exc}")
+
+    if 400 <= resp.status_code < 500:
+        return ("GONE", f"HTTP {resp.status_code} (HEAD was {head.status_code})")
+    if 500 <= resp.status_code < 600:
+        return ("SERVER", f"HTTP {resp.status_code}")
+
     body = resp.text
     lower = body.lower()
     for marker in CAPTCHA_MARKERS:
@@ -88,7 +94,7 @@ def _probe(url: str) -> tuple[str, str] | None:
             return None  # rate-limited
     if len(body) < MIN_BODY_BYTES:
         return ("SMALL", f"{len(body)} bytes < {MIN_BODY_BYTES}")
-    return ("OK", f"{head.status_code}, {len(body)} bytes")
+    return ("OK", f"GET {resp.status_code}, {len(body)} bytes")
 
 
 def check_one(url: str) -> tuple[str, str]:

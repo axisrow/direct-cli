@@ -82,11 +82,11 @@ Adding a new mutating command requires extending `COMMAND_WSDL_MAP` in `tests/te
 
 `scripts/release_pypi.sh` runs three pre-release health checks before building the wheel:
 
-1. `python scripts/check_all_docs_urls.py` — every Yandex docs URL in `RESOURCE_MAPPING_V5` and `REPORTS_SPEC_URLS` must be reachable (`200`, real content, no captcha, no canonical redirect). 5xx is a soft warning; 3xx/4xx/captcha is hard fail.
-2. `python scripts/refresh_reports_cache.py` — refetch the Reports docs cache from live pages. Captcha responses raise.
-3. `pytest TestReportsCoverage TestWsdlCacheFreshness -v` — verifies the cache landed clean.
+1. `python scripts/check_all_docs_urls.py` — every Yandex docs URL in `RESOURCE_MAPPING_V5` and `REPORTS_SPEC_URLS` must be reachable. The probe falls back from `HEAD` to `GET` on 4xx (some CDNs reject `HEAD`), then verifies real content, no captcha, no canonical redirect. 5xx is a soft warning; confirmed 3xx-to-different-path / 4xx / captcha is hard fail.
+2. `pytest TestReportsCoverage TestWsdlCacheFreshness -v` — read-only check that the committed Reports/WSDL/XSD caches are real content (not captcha).
+3. `git diff --quiet -- tests/reports_cache tests/wsdl_cache` — refuses to release with an uncommitted cache refresh. If Yandex changed docs since the last snapshot, run `scripts/refresh_reports_cache.py` separately, review the diff, and commit it before releasing.
 
-If any step fails, fix the URL (or rate-limit the runner) before releasing — do not bypass with `--skip-checks`. There is no such flag.
+If any step fails, fix the URL (or commit the cache refresh) before releasing — do not bypass with `--skip-checks`. There is no such flag.
 
 ## Tests
 
