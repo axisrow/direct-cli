@@ -17849,6 +17849,47 @@ def test_strategies_rejects_invalid_priority_goal_metrika_source():
     assert "IsMetrikaSourceOfValue must be YES or NO" in result.output
 
 
+def test_strategies_add_rejects_priority_goal_value_below_micro_min():
+    # Issue #387 sibling: PriorityGoalsItem.Value is xsd:long in
+    # advertiser currency × 1,000,000 for standalone Strategy* items
+    # too (tests/wsdl_cache/strategies.xml lines 503-509). Reject
+    # raw-ruble inputs at CLI parse time to mirror the campaigns side.
+    result = _failing_run(
+        "strategies",
+        "add",
+        "--name",
+        "CRR Strategy",
+        "--type",
+        "AverageCrr",
+        "--average-crr",
+        "10",
+        "--goal-id",
+        "123",
+        "--priority-goal",
+        "123:500",
+        "--dry-run",
+    )
+    assert result.exit_code != 0
+    assert "--priority-goal" in result.output
+    assert "micro-currency" in result.output
+    assert "500000000" in result.output
+
+
+def test_strategies_update_rejects_priority_goal_negative_value():
+    result = _failing_run(
+        "strategies",
+        "update",
+        "--id",
+        "77",
+        "--priority-goal",
+        "123:-1000000",
+        "--dry-run",
+    )
+    assert result.exit_code != 0
+    assert "--priority-goal" in result.output
+    assert "non-negative" in result.output
+
+
 def test_strategies_update_requires_type_for_strategy_specific_fields():
     result = _failing_run(
         "strategies",

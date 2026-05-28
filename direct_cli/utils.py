@@ -239,6 +239,30 @@ def parse_setting_specs(specs: Optional[List[str]]) -> Optional[List[Dict[str, s
     return settings
 
 
+def validate_priority_goal_value(value_int: int, error_prefix: str) -> None:
+    """Enforce the WSDL PriorityGoalsItem.Value micro-currency contract.
+
+    Used by both `parse_priority_goals_spec` (campaigns `--priority-goals`)
+    and the `_parse_priority_goal` parser in `direct strategies` to reject
+    raw-ruble inputs (issue #387) at CLI parse time. `error_prefix` is
+    prepended to the error message so callers can preserve their own
+    "--priority-goals item: 'PAIR'." / "--priority-goal 'SPEC'." phrasing.
+    """
+    if value_int < 0:
+        raise click.UsageError(
+            f"{error_prefix} "
+            f"Value must be non-negative, got {value_int}"
+        )
+    if 0 < value_int < MICRO_RUBLE_MIN:
+        raise click.UsageError(
+            f"{error_prefix} "
+            f"Value {value_int} seems too low for micro-currency "
+            f"(min {MICRO_RUBLE_MIN} = 0.1 unit). "
+            f"PriorityGoalsItem.Value is advertiser currency × 1,000,000. "
+            f"Did you mean {value_int * 1_000_000}?"
+        )
+
+
 def parse_priority_goals_spec(
     value: Optional[str],
 ) -> Optional[List[Dict[str, Any]]]:
@@ -288,19 +312,9 @@ def parse_priority_goals_spec(
                 f"Invalid --priority-goals item: '{pair}'. "
                 "goal_id and value must be integers"
             )
-        if value_int < 0:
-            raise click.UsageError(
-                f"Invalid --priority-goals item: '{pair}'. "
-                f"Value must be non-negative, got {value_int}"
-            )
-        if 0 < value_int < MICRO_RUBLE_MIN:
-            raise click.UsageError(
-                f"Invalid --priority-goals item: '{pair}'. "
-                f"Value {value_int} seems too low for micro-currency "
-                f"(min {MICRO_RUBLE_MIN} = 0.1 unit). "
-                f"PriorityGoalsItem.Value is advertiser currency × 1,000,000. "
-                f"Did you mean {value_int * 1_000_000}?"
-            )
+        validate_priority_goal_value(
+            value_int, f"Invalid --priority-goals item: '{pair}'."
+        )
         item: Dict[str, Any] = {"GoalId": goal_id, "Value": value_int}
         if metrika_source is not None:
             item["IsMetrikaSourceOfValue"] = metrika_source
