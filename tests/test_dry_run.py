@@ -22328,3 +22328,77 @@ def test_clients_get_rejects_empty_nested_field_names_csv(flag, wsdl_key):
 
     assert result.exit_code != 0
     assert f"Provide a non-empty comma-separated {wsdl_key} list." in result.output
+
+
+# ----------------------------------------------------------------------
+# agencyclients.get: separate Contract/Contragent/Organization/TinInfo
+# *FieldNames (issue #407)
+# ----------------------------------------------------------------------
+
+
+_AGENCYCLIENTS_GET_NESTED_FIELD_FLAGS = [
+    ("--contract-field-names", "ContractFieldNames", "Number,Date,Type"),
+    ("--contragent-field-names", "ContragentFieldNames", "Name,Phone,RegNumber"),
+    (
+        "--contragent-tin-info-field-names",
+        "ContragentTinInfoFieldNames",
+        "TinType,Tin",
+    ),
+    (
+        "--organization-field-names",
+        "OrganizationFieldNames",
+        "Name,EpayNumber,OkvedCode",
+    ),
+    ("--tin-info-field-names", "TinInfoFieldNames", "TinType,Tin"),
+]
+
+
+def test_agencyclients_get_nested_field_names_payload():
+    # AgencyClientsGetRequest (WSDL tests/wsdl_cache/agencyclients.xml)
+    # declares five nested top-level *FieldNames parameters separate from
+    # FieldNames: ContractFieldNames (ContractInfoFieldEnum),
+    # ContragentFieldNames (ContragentInfoFieldEnum),
+    # ContragentTinInfoFieldNames (TinInfoFieldEnum),
+    # OrganizationFieldNames (OrgInfoFieldEnum), and TinInfoFieldNames
+    # (TinInfoFieldEnum). The same five enums are reused on clients.get
+    # per #410.
+    argv = ["agencyclients", "get"]
+    expected = {}
+    for flag, wsdl_key, sample in _AGENCYCLIENTS_GET_NESTED_FIELD_FLAGS:
+        argv.extend([flag, sample])
+        expected[wsdl_key] = sample.split(",")
+
+    body = _read_dry_run(*argv)
+
+    for wsdl_key, values in expected.items():
+        assert body["params"][wsdl_key] == values
+
+
+def test_agencyclients_get_omits_nested_field_names_by_default():
+    body = _read_dry_run("agencyclients", "get")
+
+    for _, wsdl_key, _ in _AGENCYCLIENTS_GET_NESTED_FIELD_FLAGS:
+        assert wsdl_key not in body["params"]
+
+
+def test_agencyclients_get_help_exposes_nested_field_names():
+    result = CliRunner().invoke(cli, ["agencyclients", "get", "--help"])
+
+    assert result.exit_code == 0
+    for flag, _, _ in _AGENCYCLIENTS_GET_NESTED_FIELD_FLAGS:
+        assert flag in result.output
+
+
+@pytest.mark.parametrize(
+    "flag,wsdl_key",
+    [(flag, key) for flag, key, _ in _AGENCYCLIENTS_GET_NESTED_FIELD_FLAGS],
+)
+def test_agencyclients_get_rejects_empty_nested_field_names_csv(flag, wsdl_key):
+    result = CliRunner().invoke(
+        cli,
+        ["agencyclients", "get", flag, ",", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+
+    assert result.exit_code != 0
+    assert f"Provide a non-empty comma-separated {wsdl_key} list." in result.output
