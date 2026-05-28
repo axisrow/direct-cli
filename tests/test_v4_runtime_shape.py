@@ -145,10 +145,13 @@ def test_call_v4_undocumented_still_rejects_hard_errors():
     If the validator returns BOTH a hard shape error and the undocumented
     marker, call_v4's gate must classify by message content and raise
     UsageError — not silently warn. See issue #182 review.
+
+    The hard-error filter at direct_cli/v4/__init__.py runs before the
+    safety branch, so any registered READ method exercises it — we don't
+    need a PARAM_UNDOCUMENTED + SAFETY_READ entry (which the registry
+    currently lacks) to cover this path.
     """
-    method = _first_method_with_shape_and_safety_or_skip(
-        PARAM_UNDOCUMENTED, SAFETY_READ
-    )
+    method = _first_method_with_shape_and_safety(PARAM_ARRAY, SAFETY_READ)
     client = _fake_client()
     mixed_errors = [
         "method mismatch: 'WrongMethod' != 'ActualMethod'",
