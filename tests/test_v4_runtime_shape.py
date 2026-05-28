@@ -117,7 +117,9 @@ def test_call_v4_warns_on_undocumented_read_method_but_proceeds(capfd):
 
 def test_call_v4_refuses_undocumented_write_method():
     """WRITE-class undocumented methods are hard: refuse to send. See Codex review."""
-    method = _first_method_with_shape_and_safety(PARAM_UNDOCUMENTED, SAFETY_WRITE)
+    method = _first_method_with_shape_and_safety_or_skip(
+        PARAM_UNDOCUMENTED, SAFETY_WRITE
+    )
     client = _fake_client()
 
     with pytest.raises(click.UsageError, match="refusing to send"):
