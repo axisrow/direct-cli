@@ -57,16 +57,58 @@ def test_smoke_matrix_covers_every_cli_subcommand_once():
     assert set(seen) == actual
 
 
-def test_smoke_matrix_counts_match_current_cli_surface():
+def test_smoke_matrix_counts_are_self_consistent():
+    """Smoke summary counts must agree with what Click and WSDL report.
+
+    Previously these were hard-coded magic numbers (``== 144``,
+    ``== 112``); adding a single new command or WSDL operation broke
+    the test with an opaque message. Issue #396. Now we derive every
+    expected count from the live Click registry and parsed WSDLs and
+    assert the smoke summary matches.
+    """
+    from direct_cli.wsdl_coverage import CANONICAL_API_SERVICES
+
     summary = smoke_summary()
 
-    assert summary["total_cli_groups"] == 40
-    assert summary["total_cli_subcommands"] == 144
-    assert summary["api_cli_subcommands"] == 140
-    assert summary["wsdl_services"] == 29
+    # Top-level Click groups (including ``auth`` and other non-API groups
+    # without ``.commands``). Matches ``len(cli.commands)`` in
+    # smoke_matrix.smoke_summary.
+    expected_cli_groups = len(cli.commands)
+
+    # Subcommands registered everywhere — counts ``group.subcommand`` for
+    # groups with ``.commands`` plus bare top-level commands. Matches
+    # ``_registered_cli_commands()`` in smoke_matrix.
+    expected_cli_subcommands = 0
+    for group in cli.commands.values():
+        if hasattr(group, "commands"):
+            expected_cli_subcommands += len(group.commands)
+        else:
+            expected_cli_subcommands += 1
+
+    # Subcommands that map to an API service (excludes ``auth.*``).
+    expected_api_cli_subcommands = 0
+    for group_name, group in cli.commands.items():
+        if group_name == "auth":
+            continue
+        if hasattr(group, "commands"):
+            expected_api_cli_subcommands += len(group.commands)
+        else:
+            expected_api_cli_subcommands += 1
+
+    expected_wsdl_operations = sum(
+        len(parse_wsdl_operations(fetch_wsdl(service)))
+        for service in CANONICAL_API_SERVICES
+    )
+
+    assert summary["total_cli_groups"] == expected_cli_groups
+    assert summary["total_cli_subcommands"] == expected_cli_subcommands
+    assert summary["api_cli_subcommands"] == expected_api_cli_subcommands
+    assert summary["wsdl_services"] == len(CANONICAL_API_SERVICES)
     assert summary["non_wsdl_services"] == sorted(NON_WSDL_SERVICES)
-    assert summary["api_services_total"] == 30
-    assert summary["wsdl_operations"] == 112
+    assert summary["api_services_total"] == (
+        len(CANONICAL_API_SERVICES) + len(NON_WSDL_SERVICES)
+    )
+    assert summary["wsdl_operations"] == expected_wsdl_operations
 
 
 def test_wsdl_backed_cli_commands_are_classified():

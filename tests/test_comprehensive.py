@@ -1,5 +1,11 @@
 """
-Comprehensive tests for Direct CLI
+Tests for Direct CLI utility surface — command-registry inventory,
+utils parsers, output formatters, and auth credential chain.
+
+Surfaces here are NOT duplicated by ``test_cli.py`` (which focuses on
+help-text and behavior contracts). The previous ``TestCLIHelp`` and
+``test_campaigns_help`` were redundant with ``test_cli.py`` and have
+been removed. See issue #396 for context.
 """
 
 import os
@@ -9,25 +15,6 @@ from click.testing import CliRunner
 
 from direct_cli.cli import cli
 from direct_cli import auth, utils, output
-
-
-class TestCLIHelp(unittest.TestCase):
-    """Test CLI help output"""
-
-    def setUp(self):
-        self.runner = CliRunner()
-
-    def test_cli_help(self):
-        result = self.runner.invoke(cli, ["--help"])
-        self.assertEqual(result.exit_code, 0)
-        self.assertIn("Command-line interface for Yandex Direct API", result.output)
-
-    def test_campaigns_help(self):
-        result = self.runner.invoke(cli, ["campaigns", "--help"])
-        self.assertEqual(result.exit_code, 0)
-        self.assertIn("Manage campaigns", result.output)
-        self.assertIn("get", result.output)
-        self.assertIn("add", result.output)
 
 
 class TestCommandsRegistered(unittest.TestCase):

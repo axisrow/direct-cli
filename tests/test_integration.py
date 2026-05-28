@@ -35,16 +35,77 @@ from direct_cli.cli import cli
 from direct_cli._smoke_probes import advideo_probe_id
 
 sys.path.insert(0, os.path.dirname(__file__))
-from conftest import skip_if_no_token  # noqa: E402
+from conftest import _REAL_LOGIN, _REAL_TOKEN, skip_if_no_token  # noqa: E402
 
 
 def make_runner():
     return CliRunner()
 
 
+def _invoke_env():
+    """Build the env dict that CliRunner injects into the test process.
+
+    Always pass the resolved test credentials explicitly so the
+    integration suite never depends on shell environment state at
+    process start. This matches the inverted credential-resolution
+    contract in CLAUDE.md (env vars win over active profile inside
+    the test harness).
+    """
+    env = {}
+    if _REAL_TOKEN:
+        env["YANDEX_DIRECT_TOKEN"] = _REAL_TOKEN
+    if _REAL_LOGIN:
+        env["YANDEX_DIRECT_LOGIN"] = _REAL_LOGIN
+    return env
+
+
+def _prepend_credential_flags(args):
+    """Prepend ``--token``/``--login`` to the CLI args.
+
+    The CLI credential chain (``direct_cli/auth.py:get_credentials``)
+    gives the active ``direct auth`` profile priority over the
+    ``YANDEX_DIRECT_TOKEN`` env var, so an env-only injection lets the
+    test silently hit a developer's production profile. Passing the
+    resolved test credentials as explicit ``--token``/``--login``
+    arguments uses priority 1 in the chain and guarantees the test
+    uses exactly the credentials ``conftest._resolve_test_credentials``
+    picked.
+    """
+    if not _REAL_TOKEN:
+        return list(args)
+    flags = ["--token", _REAL_TOKEN]
+    if _REAL_LOGIN:
+        flags += ["--login", _REAL_LOGIN]
+    # Insert credential flags after a leading ``--sandbox`` (which must
+    # stay attached to the top-level group) but before the subcommand
+    # so the global options bind to the right Click group.
+    args = list(args)
+    if args and args[0] == "--sandbox":
+        return [args[0]] + flags + args[1:]
+    return flags + args
+
+
 def invoke_get(*args):
     """Invoke a read-only CLI command and return the result."""
-    return make_runner().invoke(cli, list(args))
+    return make_runner().invoke(
+        cli, _prepend_credential_flags(args), env=_invoke_env()
+    )
+
+
+def _skip_class_on_probe_failure(probe, *, what: str):
+    """Call a probe function inside setUpClass and convert any API error
+    into ``unittest.SkipTest`` so a temporary API outage skips the class
+    instead of crashing with an opaque traceback. Returns the probe value
+    on success (which may itself be ``None`` when the probe simply did
+    not find a resource — the per-test ``skipTest`` calls handle that
+    case).
+    """
+    try:
+        return probe()
+    except Exception as exc:  # noqa: BLE001 — probe may raise any API exc
+        raise unittest.SkipTest(
+            f"setUpClass probe for {what} failed: {exc.__class__.__name__}: {exc}"
+        )
 
 
 def assert_success(result, cmd_label: str):
@@ -178,7 +239,9 @@ class TestReadOnlyCampaigns(unittest.TestCase):
 class TestReadOnlyAdGroups(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.campaign_id = get_first_campaign_id()
+        cls.campaign_id = _skip_class_on_probe_failure(
+            get_first_campaign_id, what="first campaign id"
+        )
 
     def test_get_adgroups(self):
         if not self.campaign_id:
@@ -201,7 +264,9 @@ class TestReadOnlyAdGroups(unittest.TestCase):
 class TestReadOnlyAds(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.campaign_id = get_first_campaign_id()
+        cls.campaign_id = _skip_class_on_probe_failure(
+            get_first_campaign_id, what="first campaign id"
+        )
 
     def test_get_ads(self):
         if not self.campaign_id:
@@ -252,7 +317,9 @@ class TestReadOnlyAds(unittest.TestCase):
 class TestReadOnlyKeywords(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.campaign_id = get_first_campaign_id()
+        cls.campaign_id = _skip_class_on_probe_failure(
+            get_first_campaign_id, what="first campaign id"
+        )
 
     def test_get_keywords(self):
         if not self.campaign_id:
@@ -453,7 +520,9 @@ class TestReadOnlyStrategies(unittest.TestCase):
 class TestReadOnlyDynamicFeedAdTargets(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.campaign_id = get_first_campaign_id()
+        cls.campaign_id = _skip_class_on_probe_failure(
+            get_first_campaign_id, what="first campaign id"
+        )
 
     def test_get_dynamic_feed_ad_targets(self):
         if not self.campaign_id:
@@ -476,7 +545,9 @@ class TestReadOnlyDynamicFeedAdTargets(unittest.TestCase):
 class TestReadOnlyLeads(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.turbo_page_id = get_first_leads_turbopage_id()
+        cls.turbo_page_id = _skip_class_on_probe_failure(
+            get_first_leads_turbopage_id, what="first leads turbo page id"
+        )
 
     def test_get_leads(self):
         if self.turbo_page_id is None:
@@ -507,7 +578,9 @@ class TestReadOnlyTurbopages(unittest.TestCase):
 class TestReadOnlyBusinesses(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.business_id = get_first_business_id()
+        cls.business_id = _skip_class_on_probe_failure(
+            get_first_business_id, what="first business id"
+        )
 
     def test_get_businesses(self):
         if self.business_id is None:
@@ -530,7 +603,9 @@ class TestReadOnlyBusinesses(unittest.TestCase):
 class TestReadOnlyAdVideos(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.advideo_id = get_first_advideo_probe_id()
+        cls.advideo_id = _skip_class_on_probe_failure(
+            get_first_advideo_probe_id, what="first advideo probe id"
+        )
 
     def test_get_advideos(self):
         if self.advideo_id is None:

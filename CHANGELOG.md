@@ -38,6 +38,32 @@
 
 Closes #360.
 
+**Tests:**
+
+- `tests/test_integration.py` now gracefully skips the seven read-only
+  classes that rely on live-API probes (`TestReadOnlyAdGroups`,
+  `TestReadOnlyAds`, `TestReadOnlyKeywords`,
+  `TestReadOnlyDynamicFeedAdTargets`, `TestReadOnlyLeads`,
+  `TestReadOnlyBusinesses`, `TestReadOnlyAdVideos`) when the probe
+  raises — previously a temporary API outage crashed `setUpClass`
+  with an opaque traceback.
+- `invoke_get` in `tests/test_integration.py` now passes the resolved
+  test credentials as explicit `--token`/`--login` flags so the
+  integration suite cannot silently fall through to a developer's
+  active `direct auth` profile (priority 1 in the CLI credential
+  chain wins over the profile, matching CLAUDE.md guidance).
+- `tests/test_comprehensive.py` slimmed down: `TestCLIHelp` (full
+  duplicate of `tests/test_cli.py`) removed; the unique
+  `TestCommandsRegistered`, `TestUtils`, `TestOutputFormatters`,
+  `TestAuth`, and `TestErrorHandling` classes are kept.
+- `tests/test_smoke_matrix.py` no longer hard-codes
+  `total_cli_subcommands == 144` or `wsdl_operations == 112`. Counts
+  are derived from the live Click registry and parsed WSDLs.
+- `tests/test_sandbox_write_audit.py` no longer hard-codes
+  `total == 83`. The count derives from `commands_for_category`.
+
+Closes #396.
+
 ## 0.3.13
 
 **Breaking changes:**
