@@ -15,7 +15,6 @@ from .v4shells import V4_EPILOG
 
 FINANCE_TOKEN_MASK = "<redacted>"
 CUSTOM_TRANSACTION_ID_RE = re.compile(r"[A-Za-z0-9]{32}")
-V4_FINANCE_CURRENCIES = ["RUB", "USD", "EUR", "BYN", "KZT", "TRY", "UAH", "CHF"]
 V4_PAY_METHODS = ["Bank"]
 FINANCE_HELP_EPILOG = (
     "To issue a master token in the Yandex Direct UI, open Tools -> API -> "
