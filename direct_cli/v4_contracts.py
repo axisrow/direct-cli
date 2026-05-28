@@ -72,7 +72,10 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
             "Official docs (dg-v4/reference/GetCreditLimits) define the "
             "request body as method + finance_token + operation_num only; "
             "no param. Live probe without finance credentials returns "
-            "error_code=350."
+            "error_code=350. "
+            "Docs-verified 2026-05-28 against dg-v4/reference/GetCreditLimits: "
+            "wire-shape matches CLI dry-run output exactly (method + "
+            "finance_token + operation_num, no param)."
         ),
     ),
     "TransferMoney": V4MethodContract(
