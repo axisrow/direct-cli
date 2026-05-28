@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.14
 
 **Fixed:**
 
@@ -17,7 +17,7 @@
   (`dynamictextadtargets`, `dynamicfeedadtargets`, `reports`,
   `smartadtargets`, `vcards`). Closes #426.
 
-**Added:**
+**Added (drift protection):**
 
 - `direct_cli/reports_coverage.py::fetch_reports_spec` and
   `direct_cli/wsdl_coverage.py::fetch_wsdl` / `fetch_live_wsdl` now
@@ -45,8 +45,6 @@
   enforce minimum-size and no-captcha invariants.
 - New section "PyPI Release" — documents the three pre-release health
   checks executed by `release_pypi.sh`.
-
-## 0.3.14
 
 **Breaking changes:**
 
