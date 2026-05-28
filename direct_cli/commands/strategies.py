@@ -2,6 +2,8 @@
 Strategies commands
 """
 
+from typing import Optional
+
 import click
 
 from ..api import create_client
@@ -406,7 +408,9 @@ def strategies():
     """Manage strategies"""
 
 
-def _parse_field_names_option(wsdl_key: str, raw_value: str | None) -> list[str] | None:
+def _parse_field_names_option(
+    wsdl_key: str, raw_value: Optional[str]
+) -> Optional[list[str]]:
     """Parse a field-name projection and reject explicitly empty CSV."""
     parsed = parse_csv_strings(raw_value)
     if raw_value is not None and not parsed:
