@@ -122,8 +122,8 @@ def test_pay_campaigns_dry_run_uses_payment_object_and_masks_finance_token():
         "method": "PayCampaigns",
         "param": {
             "Payments": [
-                {"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"},
-                {"CampaignID": 456, "Sum": 100.5, "Currency": "RUB"},
+                {"CampaignID": 123, "Sum": 100.5},
+                {"CampaignID": 456, "Sum": 100.5},
             ],
             "ContractID": "contract-id",
             "PayMethod": "Bank",
@@ -519,7 +519,7 @@ def test_pay_campaigns_allows_overdraft_without_contract():
 
     assert result.exit_code == 0
     assert json.loads(result.output)["param"] == {
-        "Payments": [{"CampaignID": 123, "Sum": 100.5, "Currency": "USD"}],
+        "Payments": [{"CampaignID": 123, "Sum": 100.5}],
         "PayMethod": "Overdraft",
     }
 
