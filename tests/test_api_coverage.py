@@ -2470,24 +2470,7 @@ class TestReportsBuildRequestExtra:
 # the wave of work that will close it. Add a row here ONLY with a
 # tracking issue — do not silently exclude a gap. To close a row,
 # add the corresponding kebab-case CLI option and delete the entry.
-NESTED_FIELDNAMES_EXCLUSIONS: dict[tuple[str, str, str], str] = {
-    ("strategies", "get", "StrategyAverageCpaFieldNames"): "#402",
-    ("strategies", "get", "StrategyAverageCpaMultipleGoalsFieldNames"): "#402",
-    ("strategies", "get", "StrategyAverageCpaPerCampaignFieldNames"): "#402",
-    ("strategies", "get", "StrategyAverageCpaPerFilterFieldNames"): "#402",
-    ("strategies", "get", "StrategyAverageCpcFieldNames"): "#402",
-    ("strategies", "get", "StrategyAverageCpcPerCampaignFieldNames"): "#402",
-    ("strategies", "get", "StrategyAverageCpcPerFilterFieldNames"): "#402",
-    ("strategies", "get", "StrategyAverageCrrFieldNames"): "#402",
-    ("strategies", "get", "StrategyMaxProfitFieldNames"): "#402",
-    ("strategies", "get", "StrategyMaximumClicksFieldNames"): "#402",
-    ("strategies", "get", "StrategyMaximumConversionRateFieldNames"): "#402",
-    ("strategies", "get", "StrategyPayForConversionCrrFieldNames"): "#402",
-    ("strategies", "get", "StrategyPayForConversionFieldNames"): "#402",
-    ("strategies", "get", "StrategyPayForConversionMultipleGoalsFieldNames"): "#402",
-    ("strategies", "get", "StrategyPayForConversionPerCampaignFieldNames"): "#402",
-    ("strategies", "get", "StrategyPayForConversionPerFilterFieldNames"): "#402",
-}
+NESTED_FIELDNAMES_EXCLUSIONS: dict[tuple[str, str, str], str] = {}
 
 
 def _camel_to_kebab(name: str) -> str:

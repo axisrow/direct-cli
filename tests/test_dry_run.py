@@ -17808,6 +17808,111 @@ def test_dynamicfeedadtargets_set_bids_payload():
 # ----------------------------------------------------------------------
 
 
+STRATEGIES_GET_NESTED_FIELD_NAME_OPTIONS = [
+    ("--strategy-average-cpa-field-names", "StrategyAverageCpaFieldNames"),
+    (
+        "--strategy-average-cpa-multiple-goals-field-names",
+        "StrategyAverageCpaMultipleGoalsFieldNames",
+    ),
+    (
+        "--strategy-average-cpa-per-campaign-field-names",
+        "StrategyAverageCpaPerCampaignFieldNames",
+    ),
+    (
+        "--strategy-average-cpa-per-filter-field-names",
+        "StrategyAverageCpaPerFilterFieldNames",
+    ),
+    ("--strategy-average-cpc-field-names", "StrategyAverageCpcFieldNames"),
+    (
+        "--strategy-average-cpc-per-campaign-field-names",
+        "StrategyAverageCpcPerCampaignFieldNames",
+    ),
+    (
+        "--strategy-average-cpc-per-filter-field-names",
+        "StrategyAverageCpcPerFilterFieldNames",
+    ),
+    ("--strategy-average-crr-field-names", "StrategyAverageCrrFieldNames"),
+    ("--strategy-max-profit-field-names", "StrategyMaxProfitFieldNames"),
+    ("--strategy-maximum-clicks-field-names", "StrategyMaximumClicksFieldNames"),
+    (
+        "--strategy-maximum-conversion-rate-field-names",
+        "StrategyMaximumConversionRateFieldNames",
+    ),
+    (
+        "--strategy-pay-for-conversion-crr-field-names",
+        "StrategyPayForConversionCrrFieldNames",
+    ),
+    (
+        "--strategy-pay-for-conversion-field-names",
+        "StrategyPayForConversionFieldNames",
+    ),
+    (
+        "--strategy-pay-for-conversion-multiple-goals-field-names",
+        "StrategyPayForConversionMultipleGoalsFieldNames",
+    ),
+    (
+        "--strategy-pay-for-conversion-per-campaign-field-names",
+        "StrategyPayForConversionPerCampaignFieldNames",
+    ),
+    (
+        "--strategy-pay-for-conversion-per-filter-field-names",
+        "StrategyPayForConversionPerFilterFieldNames",
+    ),
+]
+
+
+def test_strategies_get_default_field_names_payload():
+    body = _read_dry_run("strategies", "get", "--ids", "123")
+
+    assert body["method"] == "get"
+    assert body["params"]["SelectionCriteria"] == {"Ids": [123]}
+    assert body["params"]["FieldNames"] == get_default_fields("strategies")
+    assert "StrategyAverageCpaFieldNames" not in body["params"]
+
+
+def test_strategies_get_nested_field_names_payload():
+    body = _read_dry_run(
+        "strategies",
+        "get",
+        "--ids",
+        "123",
+        "--strategy-average-cpa-field-names",
+        "AverageCpa,GoalId",
+        "--strategy-maximum-clicks-field-names",
+        "WeeklySpendLimit,BidCeiling",
+        "--strategy-pay-for-conversion-multiple-goals-field-names",
+        "WeeklySpendLimit,PriorityGoals",
+    )
+
+    params = body["params"]
+    assert params["StrategyAverageCpaFieldNames"] == ["AverageCpa", "GoalId"]
+    assert params["StrategyMaximumClicksFieldNames"] == [
+        "WeeklySpendLimit",
+        "BidCeiling",
+    ]
+    assert params["StrategyPayForConversionMultipleGoalsFieldNames"] == [
+        "WeeklySpendLimit",
+        "PriorityGoals",
+    ]
+
+
+def test_strategies_get_help_exposes_nested_field_names_options():
+    result = CliRunner().invoke(cli, ["strategies", "get", "--help"])
+
+    assert result.exit_code == 0
+    assert "--dry-run" in result.output
+    for flag, _ in STRATEGIES_GET_NESTED_FIELD_NAME_OPTIONS:
+        assert flag in result.output
+
+
+@pytest.mark.parametrize("flag,wsdl_key", STRATEGIES_GET_NESTED_FIELD_NAME_OPTIONS)
+def test_strategies_get_rejects_empty_nested_field_names(flag, wsdl_key):
+    result = CliRunner().invoke(cli, ["strategies", "get", flag, ",", "--dry-run"])
+
+    assert result.exit_code != 0
+    assert f"Provide a non-empty comma-separated {wsdl_key} list." in result.output
+
+
 def test_strategies_add_payload():
     body = _dry_run(
         "strategies",
