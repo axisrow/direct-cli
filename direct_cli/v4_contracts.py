@@ -118,9 +118,9 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
             "Sum is in conventional units. Docs state PayMethod currently "
             "only accepts 'Bank'; the CLI also retains 'Overdraft' as a "
             "historical undocumented value used by sandbox flow. The CLI "
-            "still accepts --currency for backward compatibility but does "
-            "not forward Currency to the API wire-body. This CLI exposes "
-            "dry-run only; the method is not live-probed."
+            "removed --currency in 0.3.15 (BREAKING) to mirror docs 1:1; "
+            "no Currency field is sent to the API wire-body. This CLI "
+            "exposes dry-run only; the method is not live-probed."
         ),
     ),
     "PayCampaignsByCard": V4MethodContract(

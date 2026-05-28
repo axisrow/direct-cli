@@ -508,8 +508,6 @@ def test_pay_campaigns_allows_overdraft_without_contract():
         "100.50",
         "--pay-method",
         "Overdraft",
-        "--currency",
-        "usd",
         "--finance-token",
         "finance-token",
         "--operation-num",

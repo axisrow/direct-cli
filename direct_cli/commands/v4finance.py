@@ -531,17 +531,6 @@ def transfer_money(
     help="Comma-separated campaign IDs to pay",
 )
 @click.option("--amount", required=True, help="Positive amount, for example 100.50")
-@click.option(
-    "--currency",
-    default="RUB",
-    show_default=True,
-    type=click.Choice(V4_FINANCE_CURRENCIES, case_sensitive=False),
-    help=(
-        "Payment currency (accepted for backward compatibility; the v4 "
-        "docs do not include Currency in the PayCampaigns wire-body, so "
-        "this value is not sent to the API)"
-    ),
-)
 @click.option("--contract-id", help="Agency contract ID; required for Bank")
 @click.option(
     "--pay-method",
@@ -583,7 +572,6 @@ def pay_campaigns(
     ctx,
     campaign_ids,
     amount,
-    currency,
     contract_id,
     pay_method,
     finance_token,
@@ -604,7 +592,6 @@ def pay_campaigns(
     )
     parsed_amount = parse_v4_money_sum(amount)
     parsed_campaign_ids = _campaign_ids_param(campaign_ids)
-    del currency
     pay_method = _non_empty_option(pay_method, "--pay-method")
     contract_id = (contract_id or "").strip()
     if pay_method == "Bank" and not contract_id:

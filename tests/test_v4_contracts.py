@@ -209,7 +209,7 @@ def test_v4finance_money_contracts_are_docs_backed_dangerous_objects():
     assert build_v4_body("PayCampaigns", pay.example_param) == {
         "method": "PayCampaigns",
         "param": {
-            "Payments": [{"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"}],
+            "Payments": [{"CampaignID": 123, "Sum": 100.5}],
             "ContractID": "contract-id",
             "PayMethod": "Bank",
         },
