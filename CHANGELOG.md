@@ -67,6 +67,17 @@
   `--fields` (mapping to `FieldNames`) was available, so the
   per-subtype projections could not be controlled from CLI.
   Closes #411.
+- `direct clients get` now exposes `--contract-field-names`,
+  `--contragent-field-names`, `--contragent-tin-info-field-names`,
+  `--organization-field-names`, and `--tin-info-field-names` for
+  the five nested WSDL `*FieldNames` request parameters declared
+  by `ClientsGetRequest` (`ContractInfoFieldEnum`,
+  `ContragentInfoFieldEnum`, `TinInfoFieldEnum`,
+  `OrgInfoFieldEnum`, `TinInfoFieldEnum`). The command also gains
+  `--dry-run` for parity with other read-path commands.
+  Previously only the top-level `--fields` (mapping to `FieldNames`)
+  was available, so the per-subtype ERIR projections could not be
+  controlled from CLI. Closes #410.
 
 Closes #360.
 

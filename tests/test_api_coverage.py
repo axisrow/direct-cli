@@ -2525,11 +2525,6 @@ NESTED_FIELDNAMES_EXCLUSIONS: dict[tuple[str, str, str], str] = {
     ("campaigns", "get", "UnifiedCampaignFieldNames"): "#402",
     ("campaigns", "get", "UnifiedCampaignPackageBiddingStrategyPlatformsFieldNames"): "#402",  # noqa: E501
     ("campaigns", "get", "UnifiedCampaignSearchStrategyPlacementTypesFieldNames"): "#402",  # noqa: E501
-    ("clients", "get", "ContractFieldNames"): "#402",
-    ("clients", "get", "ContragentFieldNames"): "#402",
-    ("clients", "get", "ContragentTinInfoFieldNames"): "#402",
-    ("clients", "get", "OrganizationFieldNames"): "#402",
-    ("clients", "get", "TinInfoFieldNames"): "#402",
     ("strategies", "get", "StrategyAverageCpaFieldNames"): "#402",
     ("strategies", "get", "StrategyAverageCpaMultipleGoalsFieldNames"): "#402",
     ("strategies", "get", "StrategyAverageCpaPerCampaignFieldNames"): "#402",
