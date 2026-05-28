@@ -15,7 +15,13 @@ from ..output import (
     print_error,
     raise_for_api_result_errors,
 )
-from ..utils import add_criteria_csv, parse_ids, get_default_fields, MICRO_RUBLES
+from ..utils import (
+    MICRO_RUBLES,
+    add_criteria_csv,
+    get_default_fields,
+    parse_csv_strings,
+    parse_ids,
+)
 
 # Yandex Direct API "keywords.add" caps a single AddItems request at 10
 # items; the WSDL declares maxOccurs="unbounded", so this limit comes from
@@ -368,6 +374,24 @@ def keywords():
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.option("--fields", help="Comma-separated field names")
+@click.option(
+    "--autotargeting-settings-brand-options-field-names",
+    help=(
+        "Comma-separated AutotargetingSettingsBrandOptionsFieldNames "
+        "(e.g. WithoutBrands,WithAdvertiserBrand,WithCompetitorsBrand). "
+        "Sent as separate top-level request parameter per the "
+        "KeywordsGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--autotargeting-settings-categories-field-names",
+    help=(
+        "Comma-separated AutotargetingSettingsCategoriesFieldNames "
+        "(e.g. Exact,Narrow,Alternative,Accessory,Broader). "
+        "Sent as separate top-level request parameter per the "
+        "KeywordsGetRequest WSDL."
+    ),
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def get(
@@ -385,6 +409,8 @@ def get(
     output_format,
     output,
     fields,
+    autotargeting_settings_brand_options_field_names,
+    autotargeting_settings_categories_field_names,
     dry_run,
 ):
     """Get keywords"""
@@ -399,6 +425,30 @@ def get(
         )
 
         field_names = fields.split(",") if fields else get_default_fields("keywords")
+
+        parsed_brand_options = parse_csv_strings(
+            autotargeting_settings_brand_options_field_names
+        )
+        if (
+            autotargeting_settings_brand_options_field_names is not None
+            and not parsed_brand_options
+        ):
+            raise click.UsageError(
+                "Provide a non-empty comma-separated "
+                "AutotargetingSettingsBrandOptionsFieldNames list."
+            )
+
+        parsed_categories = parse_csv_strings(
+            autotargeting_settings_categories_field_names
+        )
+        if (
+            autotargeting_settings_categories_field_names is not None
+            and not parsed_categories
+        ):
+            raise click.UsageError(
+                "Provide a non-empty comma-separated "
+                "AutotargetingSettingsCategoriesFieldNames list."
+            )
 
         criteria = {}
         if ids:
@@ -416,6 +466,12 @@ def get(
         add_criteria_csv(criteria, "ServingStatuses", serving_statuses, upper=True)
 
         params = {"SelectionCriteria": criteria, "FieldNames": field_names}
+        if parsed_brand_options:
+            params["AutotargetingSettingsBrandOptionsFieldNames"] = (
+                parsed_brand_options
+            )
+        if parsed_categories:
+            params["AutotargetingSettingsCategoriesFieldNames"] = parsed_categories
 
         if limit:
             params["Page"] = {"Limit": limit}
@@ -437,6 +493,8 @@ def get(
             data = result().extract()
             format_output(data, output_format, output)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
