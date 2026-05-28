@@ -104,6 +104,23 @@
   per-subtype ad-group projections could not be controlled from
   CLI. Closes #405.
 
+**BREAKING CHANGES:**
+
+- `direct campaigns get` flags `--text-campaign-fields`,
+  `--mobile-app-campaign-fields`, `--dynamic-text-campaign-fields`,
+  `--cpm-banner-campaign-fields`, `--smart-campaign-fields`,
+  `--unified-campaign-fields`,
+  `--text-campaign-search-strategy-placement-types-fields`,
+  `--dynamic-text-campaign-search-strategy-placement-types-fields`,
+  `--unified-campaign-search-strategy-placement-types-fields`, and
+  `--unified-campaign-package-bidding-strategy-platforms-fields`
+  are **renamed** to their kebab-case WSDL-canonical `*-field-names`
+  form (`--text-campaign-field-names`,
+  `--mobile-app-campaign-field-names`, ...), matching the parameter
+  names declared by `CampaignsGetRequest`. The old `--*-fields`
+  forms are no longer accepted — update scripts and automation
+  accordingly. Closes #409.
+
 Closes #360.
 
 **Tests:**

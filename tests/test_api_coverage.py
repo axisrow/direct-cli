@@ -2502,16 +2502,6 @@ NESTED_FIELDNAMES_EXCLUSIONS: dict[tuple[str, str, str], str] = {
     ("bidmodifiers", "get", "SmartTvAdjustmentFieldNames"): "#402",
     ("bidmodifiers", "get", "TabletAdjustmentFieldNames"): "#402",
     ("bidmodifiers", "get", "VideoAdjustmentFieldNames"): "#402",
-    ("campaigns", "get", "CpmBannerCampaignFieldNames"): "#402",
-    ("campaigns", "get", "DynamicTextCampaignFieldNames"): "#402",
-    ("campaigns", "get", "DynamicTextCampaignSearchStrategyPlacementTypesFieldNames"): "#402",  # noqa: E501
-    ("campaigns", "get", "MobileAppCampaignFieldNames"): "#402",
-    ("campaigns", "get", "SmartCampaignFieldNames"): "#402",
-    ("campaigns", "get", "TextCampaignFieldNames"): "#402",
-    ("campaigns", "get", "TextCampaignSearchStrategyPlacementTypesFieldNames"): "#402",
-    ("campaigns", "get", "UnifiedCampaignFieldNames"): "#402",
-    ("campaigns", "get", "UnifiedCampaignPackageBiddingStrategyPlatformsFieldNames"): "#402",  # noqa: E501
-    ("campaigns", "get", "UnifiedCampaignSearchStrategyPlacementTypesFieldNames"): "#402",  # noqa: E501
     ("strategies", "get", "StrategyAverageCpaFieldNames"): "#402",
     ("strategies", "get", "StrategyAverageCpaMultipleGoalsFieldNames"): "#402",
     ("strategies", "get", "StrategyAverageCpaPerCampaignFieldNames"): "#402",

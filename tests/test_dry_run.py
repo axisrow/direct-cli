@@ -345,7 +345,7 @@ def test_campaigns_get_text_campaign_fields_dry_run():
         "get",
         "--fields",
         "Id,Name,State",
-        "--text-campaign-fields",
+        "--text-campaign-field-names",
         "BiddingStrategy",
     )
 
@@ -357,17 +357,17 @@ def test_campaigns_get_campaign_specific_fields_dry_run():
     body = _read_dry_run(
         "campaigns",
         "get",
-        "--text-campaign-fields",
+        "--text-campaign-field-names",
         "BiddingStrategy,PriorityGoals",
-        "--mobile-app-campaign-fields",
+        "--mobile-app-campaign-field-names",
         "Settings,BiddingStrategy",
-        "--dynamic-text-campaign-fields",
+        "--dynamic-text-campaign-field-names",
         "BiddingStrategy,Settings",
-        "--cpm-banner-campaign-fields",
+        "--cpm-banner-campaign-field-names",
         "BiddingStrategy,Settings",
-        "--smart-campaign-fields",
+        "--smart-campaign-field-names",
         "BiddingStrategy,Settings",
-        "--unified-campaign-fields",
+        "--unified-campaign-field-names",
         "BiddingStrategy,PriorityGoals",
     )
 
@@ -384,13 +384,13 @@ def test_campaigns_get_strategy_placement_fields_dry_run():
     body = _read_dry_run(
         "campaigns",
         "get",
-        "--text-campaign-search-strategy-placement-types-fields",
+        "--text-campaign-search-strategy-placement-types-field-names",
         "SearchResults,ProductGallery",
-        "--dynamic-text-campaign-search-strategy-placement-types-fields",
+        "--dynamic-text-campaign-search-strategy-placement-types-field-names",
         "SearchResults,DynamicPlaces",
-        "--unified-campaign-search-strategy-placement-types-fields",
+        "--unified-campaign-search-strategy-placement-types-field-names",
         "SearchResults,Maps,SearchOrganizationList",
-        "--unified-campaign-package-bidding-strategy-platforms-fields",
+        "--unified-campaign-package-bidding-strategy-platforms-field-names",
         "SearchResult,Network",
     )
 
@@ -452,7 +452,7 @@ def test_campaigns_get_rejects_empty_campaign_specific_fields_csv():
             "get",
             "--fields",
             "Id",
-            "--text-campaign-fields",
+            "--text-campaign-field-names",
             ",",
             "--dry-run",
         ],
@@ -460,7 +460,7 @@ def test_campaigns_get_rejects_empty_campaign_specific_fields_csv():
     )
 
     assert result.exit_code != 0
-    assert "--text-campaign-fields must contain at least one value" in result.output
+    assert "--text-campaign-field-names must contain at least one value" in result.output
 
 
 def _reports_get_result(*extra_args: str) -> Result:
@@ -22501,3 +22501,106 @@ def test_adgroups_get_rejects_empty_nested_field_names_csv(flag, wsdl_key):
 
     assert result.exit_code != 0
     assert f"Provide a non-empty comma-separated {wsdl_key} list." in result.output
+
+
+# ----------------------------------------------------------------------
+# campaigns.get: canonical --*-field-names flags (issue #409)
+#
+# BREAKING CHANGE: the previous --*-fields names are removed; the WSDL
+# parameter name maps 1:1 to the CLI flag (e.g. TextCampaignFieldNames
+# → --text-campaign-field-names).
+# ----------------------------------------------------------------------
+
+
+_CAMPAIGNS_GET_CANONICAL_FIELD_NAMES_FLAGS = [
+    (
+        "--cpm-banner-campaign-field-names",
+        "CpmBannerCampaignFieldNames",
+        "CounterIds,FrequencyCap,Settings",
+    ),
+    (
+        "--dynamic-text-campaign-field-names",
+        "DynamicTextCampaignFieldNames",
+        "PlacementTypes,CounterIds,Settings",
+    ),
+    (
+        "--dynamic-text-campaign-search-strategy-placement-types-field-names",
+        "DynamicTextCampaignSearchStrategyPlacementTypesFieldNames",
+        "SearchResults,ProductGallery,DynamicPlaces",
+    ),
+    (
+        "--mobile-app-campaign-field-names",
+        "MobileAppCampaignFieldNames",
+        "Settings,BiddingStrategy,NegativeKeywordSharedSetIds",
+    ),
+    (
+        "--smart-campaign-field-names",
+        "SmartCampaignFieldNames",
+        "CounterId,Settings,BiddingStrategy",
+    ),
+    (
+        "--text-campaign-field-names",
+        "TextCampaignFieldNames",
+        "CounterIds,Settings,BiddingStrategy",
+    ),
+    (
+        "--text-campaign-search-strategy-placement-types-field-names",
+        "TextCampaignSearchStrategyPlacementTypesFieldNames",
+        "SearchResults,ProductGallery,DynamicPlaces",
+    ),
+    (
+        "--unified-campaign-field-names",
+        "UnifiedCampaignFieldNames",
+        "CounterIds,Settings,BiddingStrategy",
+    ),
+    (
+        "--unified-campaign-package-bidding-strategy-platforms-field-names",
+        "UnifiedCampaignPackageBiddingStrategyPlatformsFieldNames",
+        "SearchResult,ProductGallery,Maps,Network",
+    ),
+    (
+        "--unified-campaign-search-strategy-placement-types-field-names",
+        "UnifiedCampaignSearchStrategyPlacementTypesFieldNames",
+        "SearchResults,Maps,SearchOrganizationList",
+    ),
+]
+
+
+def test_campaigns_get_canonical_field_names_flags_payload():
+    # CampaignsGetRequest (WSDL tests/wsdl_cache/campaigns.xml) declares
+    # ten nested top-level *FieldNames parameters separate from FieldNames.
+    # PR #409 renames the legacy `--*-fields` flags to the WSDL-canonical
+    # `--*-field-names` form so the parameter name maps 1:1 to the CLI.
+    # This is a breaking change.
+    argv = ["campaigns", "get"]
+    expected = {}
+    for flag, wsdl_key, sample in _CAMPAIGNS_GET_CANONICAL_FIELD_NAMES_FLAGS:
+        argv.extend([flag, sample])
+        expected[wsdl_key] = sample.split(",")
+
+    body = _read_dry_run(*argv)
+
+    for wsdl_key, values in expected.items():
+        assert body["params"][wsdl_key] == values
+
+
+def test_campaigns_get_help_exposes_canonical_field_names_flags():
+    result = CliRunner().invoke(cli, ["campaigns", "get", "--help"])
+
+    assert result.exit_code == 0
+    for flag, _, _ in _CAMPAIGNS_GET_CANONICAL_FIELD_NAMES_FLAGS:
+        assert flag in result.output, f"missing flag in --help output: {flag}"
+
+
+def test_campaigns_get_legacy_field_aliases_removed():
+    # Breaking change (#409): the old `--text-campaign-fields` style flags
+    # were renamed to the WSDL-canonical `--*-field-names` form. The legacy
+    # names must no longer be accepted by Click.
+    result = CliRunner().invoke(
+        cli,
+        ["campaigns", "get", "--text-campaign-fields", "BiddingStrategy", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+
+    assert result.exit_code != 0
+    assert "No such option" in result.output or "no such option" in result.output
