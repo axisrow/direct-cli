@@ -41,6 +41,8 @@ Click group-of-groups. Each Yandex Direct API resource = one file in `direct_cli
 
 **`--dry-run`:** `add`/`update` commands print request JSON without calling the API. Use as test seam.
 
+**No legacy CLI flag aliases.** A CLI option must be exactly the kebab-case form of the WSDL request parameter (`SitelinkFieldNames` → `--sitelink-field-names`). If an existing flag uses a different name for the same WSDL parameter, rename it as a **breaking change** — do not keep the old form as a second `@click.option` name on the same variable. Document the rename in `CHANGELOG.md` under a `BREAKING CHANGES` heading and bump the version accordingly.
+
 **Runtime-deprecated methods:** WSDL-visible methods that Yandex rejects at runtime belong in `RUNTIME_DEPRECATED_METHODS` (`direct_cli/wsdl_coverage.py`) and must fail with `click.UsageError` before request construction. `agencyclients add` is blocked this way; use `agencyclients add-passport-organization`.
 
 **Strict WSDL parity:** `DRY_RUN_PAYLOAD_EXCLUSIONS` in `tests/api_coverage_payloads.py` must NOT contain any entry whose rationale claims the CLI surface is a «helper», «legacy», or «not part of strict WSDL parity». If the WSDL declares the operation, the CLI mirrors it 1:1 with a `PAYLOAD_CASES` fixture. Legitimate permanent exclusions are limited to:
