@@ -10,6 +10,7 @@ DRY_RUN_PAYLOAD_EXCLUSIONS = {
     "bids.get": "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria tests.",
     "businesses.get": "Read path omits optional SelectionCriteria when --ids is absent.",
     "campaigns.get": "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria tests.",
+    "clients.get": "Read path omits optional SelectionCriteria when --ids is absent.",
     "creatives.get": "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria tests.",
     "dynamicads.get": "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria tests.",
     "dynamicfeedadtargets.get": "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria tests.",

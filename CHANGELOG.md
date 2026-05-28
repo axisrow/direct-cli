@@ -35,6 +35,49 @@
   one has a matching kebab-case CLI option. Acknowledged remaining
   gaps are tracked in `NESTED_FIELDNAMES_EXCLUSIONS` and #402 so
   future additions cannot silently slip in.
+- `direct feeds get` now exposes `--file-feed-field-names` and
+  `--url-feed-field-names` for the separate WSDL `FileFeedFieldNames`
+  (`FileFeedFieldEnum`: `Filename`) and `UrlFeedFieldNames`
+  (`UrlFeedFieldEnum`: `Login`, `Url`, `RemoveUtmTags`) request
+  parameters declared by `FeedsGetRequest`. Previously only the
+  top-level `--fields` (mapping to `FieldNames`) was available, so
+  the nested `FileFeed` / `UrlFeed` projections could not be
+  controlled from CLI. Closes #412.
+- `direct keywords get` now exposes
+  `--autotargeting-settings-brand-options-field-names`
+  (`AutotargetingBrandOptionsFieldEnum`: `WithoutBrands`,
+  `WithAdvertiserBrand`, `WithCompetitorsBrand`) and
+  `--autotargeting-settings-categories-field-names`
+  (`AutotargetingCategoriesFieldEnum`: `Exact`, `Narrow`,
+  `Alternative`, `Accessory`, `Broader`) for the separate WSDL
+  `*FieldNames` request parameters declared by
+  `KeywordsGetRequest`. Previously only the top-level `--fields`
+  (mapping to `FieldNames`) was available, so the nested
+  `AutotargetingSettings.BrandOptions` / `Categories` projections
+  could not be controlled from CLI. Closes #413.
+- `direct creatives get` now exposes
+  `--cpc-video-creative-field-names`,
+  `--cpm-video-creative-field-names`,
+  `--smart-creative-field-names`, and
+  `--video-extension-creative-field-names` for the four nested
+  WSDL `*FieldNames` request parameters declared by
+  `CreativesGetRequest` (`CpcVideoCreativeFieldEnum`,
+  `CpmVideoCreativeFieldEnum`, `SmartCreativeFieldEnum`,
+  `VideoExtensionCreativeFieldEnum`). Previously only the top-level
+  `--fields` (mapping to `FieldNames`) was available, so the
+  per-subtype projections could not be controlled from CLI.
+  Closes #411.
+- `direct clients get` now exposes `--contract-field-names`,
+  `--contragent-field-names`, `--contragent-tin-info-field-names`,
+  `--organization-field-names`, and `--tin-info-field-names` for
+  the five nested WSDL `*FieldNames` request parameters declared
+  by `ClientsGetRequest` (`ContractInfoFieldEnum`,
+  `ContragentInfoFieldEnum`, `TinInfoFieldEnum`,
+  `OrgInfoFieldEnum`, `TinInfoFieldEnum`). The command also gains
+  `--dry-run` for parity with other read-path commands.
+  Previously only the top-level `--fields` (mapping to `FieldNames`)
+  was available, so the per-subtype ERIR projections could not be
+  controlled from CLI. Closes #410.
 - `direct agencyclients get` now exposes `--contract-field-names`,
   `--contragent-field-names`, `--contragent-tin-info-field-names`,
   `--organization-field-names`, and `--tin-info-field-names` for

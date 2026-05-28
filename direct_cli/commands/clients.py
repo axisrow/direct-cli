@@ -18,6 +18,7 @@ from ..utils import (
     CONTRACT_TYPES,
     get_default_fields,
     parse_client_setting_specs,
+    parse_csv_strings,
     parse_email_subscription_specs,
     parse_ids,
     parse_positive_decimal_amount,
@@ -37,8 +38,66 @@ def clients():
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.option("--fields", help="Comma-separated field names")
+@click.option(
+    "--contract-field-names",
+    help=(
+        "Comma-separated ContractFieldNames "
+        "(e.g. Number,Date,Price,Type,ActionType). "
+        "Sent as separate top-level request parameter per the "
+        "ClientsGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--contragent-field-names",
+    help=(
+        "Comma-separated ContragentFieldNames "
+        "(e.g. Name,Phone,EpayNumber,RegNumber). "
+        "Sent as separate top-level request parameter per the "
+        "ClientsGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--contragent-tin-info-field-names",
+    help=(
+        "Comma-separated ContragentTinInfoFieldNames (e.g. TinType,Tin). "
+        "Sent as separate top-level request parameter per the "
+        "ClientsGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--organization-field-names",
+    help=(
+        "Comma-separated OrganizationFieldNames "
+        "(e.g. Name,EpayNumber,RegNumber,OkvedCode). "
+        "Sent as separate top-level request parameter per the "
+        "ClientsGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--tin-info-field-names",
+    help=(
+        "Comma-separated TinInfoFieldNames (e.g. TinType,Tin). "
+        "Sent as separate top-level request parameter per the "
+        "ClientsGetRequest WSDL."
+    ),
+)
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def get(ctx, ids, limit, fetch_all, output_format, output, fields):
+def get(
+    ctx,
+    ids,
+    limit,
+    fetch_all,
+    output_format,
+    output,
+    fields,
+    contract_field_names,
+    contragent_field_names,
+    contragent_tin_info_field_names,
+    organization_field_names,
+    tin_info_field_names,
+    dry_run,
+):
     """Get clients"""
     try:
         client = create_client(
@@ -49,6 +108,23 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
 
         field_names = fields.split(",") if fields else get_default_fields("clients")
 
+        raw_nested = (
+            ("ContractFieldNames", contract_field_names),
+            ("ContragentFieldNames", contragent_field_names),
+            ("ContragentTinInfoFieldNames", contragent_tin_info_field_names),
+            ("OrganizationFieldNames", organization_field_names),
+            ("TinInfoFieldNames", tin_info_field_names),
+        )
+        parsed_nested = {}
+        for wsdl_key, raw_value in raw_nested:
+            parsed = parse_csv_strings(raw_value)
+            if raw_value is not None and not parsed:
+                raise click.UsageError(
+                    f"Provide a non-empty comma-separated {wsdl_key} list."
+                )
+            if parsed:
+                parsed_nested[wsdl_key] = parsed
+
         criteria = {}
         if ids:
             criteria["ClientIds"] = parse_ids(ids)
@@ -58,10 +134,16 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
         if criteria:
             params["SelectionCriteria"] = criteria
 
+        params.update(parsed_nested)
+
         if limit:
             params["Page"] = {"Limit": limit}
 
         body = {"method": "get", "params": params}
+
+        if dry_run:
+            format_output(body, "json", None)
+            return
 
         result = client.clients().post(data=body)
 
@@ -74,6 +156,8 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields):
             data = result().extract()
             format_output(data, output_format, output)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
