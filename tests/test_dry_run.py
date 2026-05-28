@@ -22009,3 +22009,101 @@ def test_keywordbids_get_rejects_empty_fields():
 
     assert result.exit_code != 0
     assert "Provide a non-empty comma-separated FieldNames list." in result.output
+
+
+# ----------------------------------------------------------------------
+# adgroups.get: separate per-subtype *AdGroupFieldNames (issue #405)
+# ----------------------------------------------------------------------
+
+
+_ADGROUPS_GET_NESTED_FIELD_FLAGS = [
+    (
+        "--autotargeting-settings-brand-options-field-names",
+        "AutotargetingSettingsBrandOptionsFieldNames",
+        "WithoutBrands,WithAdvertiserBrand,WithCompetitorsBrand",
+    ),
+    (
+        "--autotargeting-settings-categories-field-names",
+        "AutotargetingSettingsCategoriesFieldNames",
+        "Exact,Narrow,Alternative",
+    ),
+    (
+        "--dynamic-text-ad-group-field-names",
+        "DynamicTextAdGroupFieldNames",
+        "AutotargetingSettings,DomainUrl",
+    ),
+    (
+        "--dynamic-text-feed-ad-group-field-names",
+        "DynamicTextFeedAdGroupFieldNames",
+        "Source,FeedId,SourceType",
+    ),
+    (
+        "--mobile-app-ad-group-field-names",
+        "MobileAppAdGroupFieldNames",
+        "StoreUrl,TargetDeviceType,AppOperatingSystemType",
+    ),
+    (
+        "--smart-ad-group-field-names",
+        "SmartAdGroupFieldNames",
+        "FeedId,AdTitleSource,AdBodySource",
+    ),
+    (
+        "--text-ad-group-feed-params-field-names",
+        "TextAdGroupFeedParamsFieldNames",
+        "FeedId,FeedCategoryIds",
+    ),
+    (
+        "--unified-ad-group-field-names",
+        "UnifiedAdGroupFieldNames",
+        "OfferRetargeting",
+    ),
+]
+
+
+def test_adgroups_get_nested_field_names_payload():
+    # AdGroupsGetRequest (WSDL tests/wsdl_cache/adgroups.xml) declares eight
+    # nested top-level *FieldNames parameters separate from FieldNames,
+    # covering per-subtype projections (DynamicTextAdGroup, MobileAppAdGroup,
+    # SmartAdGroup, UnifiedAdGroup, TextAdGroupFeedParams) and per-feature
+    # AutotargetingSettings.BrandOptions/Categories enums shared with
+    # keywords.get (#413).
+    argv = ["adgroups", "get"]
+    expected = {}
+    for flag, wsdl_key, sample in _ADGROUPS_GET_NESTED_FIELD_FLAGS:
+        argv.extend([flag, sample])
+        expected[wsdl_key] = sample.split(",")
+
+    body = _read_dry_run(*argv)
+
+    for wsdl_key, values in expected.items():
+        assert body["params"][wsdl_key] == values
+
+
+def test_adgroups_get_omits_nested_field_names_by_default():
+    body = _read_dry_run("adgroups", "get")
+
+    for _, wsdl_key, _ in _ADGROUPS_GET_NESTED_FIELD_FLAGS:
+        assert wsdl_key not in body["params"]
+
+
+def test_adgroups_get_help_exposes_nested_field_names():
+    result = CliRunner().invoke(cli, ["adgroups", "get", "--help"])
+
+    assert result.exit_code == 0
+    for flag, _, _ in _ADGROUPS_GET_NESTED_FIELD_FLAGS:
+        assert flag in result.output
+
+
+@pytest.mark.parametrize(
+    "flag,wsdl_key",
+    [(flag, key) for flag, key, _ in _ADGROUPS_GET_NESTED_FIELD_FLAGS],
+)
+def test_adgroups_get_rejects_empty_nested_field_names_csv(flag, wsdl_key):
+    result = CliRunner().invoke(
+        cli,
+        ["adgroups", "get", flag, ",", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+
+    assert result.exit_code != 0
+    assert f"Provide a non-empty comma-separated {wsdl_key} list." in result.output

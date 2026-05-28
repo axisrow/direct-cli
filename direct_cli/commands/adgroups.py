@@ -473,6 +473,77 @@ def _post_adgroups(client: Any, body: dict[str, Any]) -> Any:
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.option("--fields", help="Comma-separated field names")
+@click.option(
+    "--autotargeting-settings-brand-options-field-names",
+    help=(
+        "Comma-separated AutotargetingSettingsBrandOptionsFieldNames "
+        "(e.g. WithoutBrands,WithAdvertiserBrand,WithCompetitorsBrand). "
+        "Sent as separate top-level request parameter per the "
+        "AdGroupsGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--autotargeting-settings-categories-field-names",
+    help=(
+        "Comma-separated AutotargetingSettingsCategoriesFieldNames "
+        "(e.g. Exact,Narrow,Alternative,Accessory,Broader). "
+        "Sent as separate top-level request parameter per the "
+        "AdGroupsGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--dynamic-text-ad-group-field-names",
+    help=(
+        "Comma-separated DynamicTextAdGroupFieldNames "
+        "(e.g. AutotargetingSettings,DomainUrl). "
+        "Sent as separate top-level request parameter per the "
+        "AdGroupsGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--dynamic-text-feed-ad-group-field-names",
+    help=(
+        "Comma-separated DynamicTextFeedAdGroupFieldNames "
+        "(e.g. Source,FeedId,SourceType). "
+        "Sent as separate top-level request parameter per the "
+        "AdGroupsGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--mobile-app-ad-group-field-names",
+    help=(
+        "Comma-separated MobileAppAdGroupFieldNames "
+        "(e.g. StoreUrl,TargetDeviceType,AppOperatingSystemType). "
+        "Sent as separate top-level request parameter per the "
+        "AdGroupsGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--smart-ad-group-field-names",
+    help=(
+        "Comma-separated SmartAdGroupFieldNames "
+        "(e.g. FeedId,AdTitleSource,AdBodySource). "
+        "Sent as separate top-level request parameter per the "
+        "AdGroupsGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--text-ad-group-feed-params-field-names",
+    help=(
+        "Comma-separated TextAdGroupFeedParamsFieldNames "
+        "(e.g. FeedId,FeedCategoryIds). "
+        "Sent as separate top-level request parameter per the "
+        "AdGroupsGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--unified-ad-group-field-names",
+    help=(
+        "Comma-separated UnifiedAdGroupFieldNames (e.g. OfferRetargeting). "
+        "Sent as separate top-level request parameter per the "
+        "AdGroupsGetRequest WSDL."
+    ),
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def get(
@@ -492,6 +563,14 @@ def get(
     output_format,
     output,
     fields,
+    autotargeting_settings_brand_options_field_names,
+    autotargeting_settings_categories_field_names,
+    dynamic_text_ad_group_field_names,
+    dynamic_text_feed_ad_group_field_names,
+    mobile_app_ad_group_field_names,
+    smart_ad_group_field_names,
+    text_ad_group_feed_params_field_names,
+    unified_ad_group_field_names,
     dry_run,
 ):
     """Get ad groups"""
@@ -506,6 +585,41 @@ def get(
         )
 
         field_names = fields.split(",") if fields else get_default_fields("adgroups")
+
+        raw_nested = (
+            (
+                "AutotargetingSettingsBrandOptionsFieldNames",
+                autotargeting_settings_brand_options_field_names,
+            ),
+            (
+                "AutotargetingSettingsCategoriesFieldNames",
+                autotargeting_settings_categories_field_names,
+            ),
+            (
+                "DynamicTextAdGroupFieldNames",
+                dynamic_text_ad_group_field_names,
+            ),
+            (
+                "DynamicTextFeedAdGroupFieldNames",
+                dynamic_text_feed_ad_group_field_names,
+            ),
+            ("MobileAppAdGroupFieldNames", mobile_app_ad_group_field_names),
+            ("SmartAdGroupFieldNames", smart_ad_group_field_names),
+            (
+                "TextAdGroupFeedParamsFieldNames",
+                text_ad_group_feed_params_field_names,
+            ),
+            ("UnifiedAdGroupFieldNames", unified_ad_group_field_names),
+        )
+        parsed_nested = {}
+        for wsdl_key, raw_value in raw_nested:
+            parsed = parse_csv_strings(raw_value)
+            if raw_value is not None and not parsed:
+                raise click.UsageError(
+                    f"Provide a non-empty comma-separated {wsdl_key} list."
+                )
+            if parsed:
+                parsed_nested[wsdl_key] = parsed
 
         criteria = {}
         if ids:
@@ -529,6 +643,7 @@ def get(
         )
 
         params = {"SelectionCriteria": criteria, "FieldNames": field_names}
+        params.update(parsed_nested)
 
         if limit:
             params["Page"] = {"Limit": limit}
@@ -550,6 +665,8 @@ def get(
             data = result().extract()
             format_output(data, output_format, output)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
