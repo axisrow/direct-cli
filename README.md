@@ -189,7 +189,7 @@ is omitted. Dry-run output masks the financial token.
 ```bash
 direct v4finance get-clients-units --logins client-login,other-client --format table
 direct v4finance get-credit-limits --master-token MASTER_TOKEN --operation-num 123 --finance-login agency-login
-direct v4finance create-invoice --payment 123=100.50 --payment 456=25 --currency RUB --master-token MASTER_TOKEN --operation-num 124 --finance-login agency-login --dry-run
+direct v4finance create-invoice --payment 123=100.50 --payment 456=25 --master-token MASTER_TOKEN --operation-num 124 --finance-login agency-login --dry-run
 direct v4finance check-payment --custom-transaction-id A123456789012345678901234567890B
 direct v4finance transfer-money --from-campaign-id 123 --to-campaign-id 456 --amount 100.50 --master-token MASTER_TOKEN --operation-num 123 --finance-login agency-login --dry-run
 direct v4finance pay-campaigns --campaign-ids 123,456 --amount 100.50 --contract-id CONTRACT_ID --pay-method Bank --master-token MASTER_TOKEN --operation-num 123 --finance-login agency-login --dry-run

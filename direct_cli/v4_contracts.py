@@ -166,12 +166,14 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
         source_status=SOURCE_DOCS,
         live_probe_allowed=False,
         example_param={
-            "Payments": [{"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"}],
+            "Payments": [{"CampaignID": 123, "Sum": 100.5}],
         },
         notes=(
-            "Official v4 docs define invoice creation with Payments[]."
-            "CampaignID/Sum/Currency and a URL response. The method has no "
-            "v5 equivalent and requires finance_token plus operation_num."
+            "Docs-verified 2026-05-28 against dg-v4/reference/CreateInvoice: "
+            "PayCampElement carries only CampaignID and Sum (conventional "
+            "units). The CLI dropped --currency in 0.3.15 (BREAKING) to "
+            "mirror docs 1:1. The method has no v5 equivalent and requires "
+            "finance_token plus operation_num."
         ),
     ),
     "AccountManagement": V4MethodContract(

@@ -15,7 +15,6 @@ from .v4shells import V4_EPILOG
 
 FINANCE_TOKEN_MASK = "<redacted>"
 CUSTOM_TRANSACTION_ID_RE = re.compile(r"[A-Za-z0-9]{32}")
-V4_FINANCE_CURRENCIES = ["RUB", "USD", "EUR", "BYN", "KZT", "TRY", "UAH", "CHF"]
 V4_PAY_METHODS = ["Bank"]
 FINANCE_HELP_EPILOG = (
     "To issue a master token in the Yandex Direct UI, open Tools -> API -> "
@@ -34,14 +33,13 @@ def _logins_param(logins: str) -> list[str]:
     return login_list
 
 
-def _invoice_payments_param(payments: tuple[str, ...], currency: str) -> dict:
+def _invoice_payments_param(payments: tuple[str, ...]) -> dict:
     """Build the v4 Live CreateInvoice payment object parameter."""
     if not payments:
         raise click.UsageError("--payment is required")
 
     parsed_payments = []
     seen_campaign_ids = set()
-    normalized_currency = currency.upper()
     for payment in payments:
         spec = (payment or "").strip()
         if "=" not in spec:
@@ -64,7 +62,6 @@ def _invoice_payments_param(payments: tuple[str, ...], currency: str) -> dict:
             {
                 "CampaignID": campaign_id,
                 "Sum": parse_v4_money_sum(amount_text),
-                "Currency": normalized_currency,
             }
         )
 
@@ -334,13 +331,6 @@ def check_payment(
     help="Invoice payment as CAMPAIGN_ID=AMOUNT; repeat for multiple campaigns",
 )
 @click.option(
-    "--currency",
-    default="RUB",
-    show_default=True,
-    type=click.Choice(V4_FINANCE_CURRENCIES, case_sensitive=False),
-    help="Payment currency",
-)
-@click.option(
     "--finance-token",
     envvar="YANDEX_DIRECT_FINANCE_TOKEN",
     help="Precomputed financial token for this method",
@@ -377,7 +367,6 @@ def check_payment(
 def create_invoice(
     ctx,
     payments,
-    currency,
     finance_token,
     master_token,
     operation_num,
@@ -395,7 +384,7 @@ def create_invoice(
         "CreateInvoice",
         ctx.obj.get("login"),
     )
-    param = _invoice_payments_param(payments, currency)
+    param = _invoice_payments_param(payments)
 
     if dry_run:
         format_output(
