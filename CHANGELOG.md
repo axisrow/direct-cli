@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.15
+
+**BREAKING CHANGES:**
+
+- `direct v4finance pay-campaigns` no longer accepts `--currency`, and
+  the wire-body no longer carries `Currency` on `Payments[]` items. The
+  official v4 docs (`dg-v4/reference/PayCampaigns`) define
+  `PayCampElement` with only `CampaignID` and `Sum`; `Sum` is in
+  conventional units. The CLI now matches the docs 1:1. Closes #433.
+
 ## 0.3.14
 
 **Fixed:**
