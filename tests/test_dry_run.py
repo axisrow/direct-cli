@@ -3515,6 +3515,29 @@ def test_ads_update_rejects_title2_on_text_image_ad():
     assert "--title2 is not compatible with --type TEXT_IMAGE_AD" in result.output
 
 
+ADS_GET_NESTED_FIELD_NAME_OPTIONS = [
+    ("--cpc-video-ad-builder-ad-field-names", "CpcVideoAdBuilderAdFieldNames"),
+    ("--cpm-banner-ad-builder-ad-field-names", "CpmBannerAdBuilderAdFieldNames"),
+    ("--cpm-video-ad-builder-ad-field-names", "CpmVideoAdBuilderAdFieldNames"),
+    ("--dynamic-text-ad-field-names", "DynamicTextAdFieldNames"),
+    ("--listing-ad-field-names", "ListingAdFieldNames"),
+    ("--mobile-app-ad-builder-ad-field-names", "MobileAppAdBuilderAdFieldNames"),
+    ("--mobile-app-ad-field-names", "MobileAppAdFieldNames"),
+    (
+        "--mobile-app-cpc-video-ad-builder-ad-field-names",
+        "MobileAppCpcVideoAdBuilderAdFieldNames",
+    ),
+    ("--mobile-app-image-ad-field-names", "MobileAppImageAdFieldNames"),
+    ("--responsive-ad-field-names", "ResponsiveAdFieldNames"),
+    ("--shopping-ad-field-names", "ShoppingAdFieldNames"),
+    ("--smart-ad-builder-ad-field-names", "SmartAdBuilderAdFieldNames"),
+    ("--text-ad-builder-ad-field-names", "TextAdBuilderAdFieldNames"),
+    ("--text-ad-field-names", "TextAdFieldNames"),
+    ("--text-ad-price-extension-field-names", "TextAdPriceExtensionFieldNames"),
+    ("--text-image-ad-field-names", "TextImageAdFieldNames"),
+]
+
+
 def test_ads_get_default_fieldnames():
     """Default FieldNames includes basic top-level fields, plus TextAdFieldNames."""
     body = _dry_run("ads", "get", "--campaign-ids", "12345")
@@ -3526,7 +3549,7 @@ def test_ads_get_default_fieldnames():
 
 
 def test_ads_get_with_fields_overrides_defaults():
-    """--fields and --text-ad-fields override the defaults."""
+    """--fields and --text-ad-field-names override the defaults."""
     body = _dry_run(
         "ads",
         "get",
@@ -3534,7 +3557,7 @@ def test_ads_get_with_fields_overrides_defaults():
         "12345",
         "--fields",
         "Id,State",
-        "--text-ad-fields",
+        "--text-ad-field-names",
         "Title",
     )
     assert body["params"]["FieldNames"] == ["Id", "State"]
@@ -3552,6 +3575,65 @@ def test_ads_get_with_ids_and_status():
     }
     assert body["params"]["Page"] == {"Limit": 10}
     assert "TextAdFieldNames" in body["params"]
+
+
+def test_ads_get_nested_field_names_payload():
+    """Nested AdsGetRequest FieldNames options are sent independently."""
+    body = _dry_run(
+        "ads",
+        "get",
+        "--campaign-ids",
+        "12345",
+        "--dynamic-text-ad-field-names",
+        "Title,Text,Href",
+        "--responsive-ad-field-names",
+        "Titles,Texts",
+        "--text-ad-price-extension-field-names",
+        "Price,OldPrice",
+    )
+
+    params = body["params"]
+    assert params["DynamicTextAdFieldNames"] == ["Title", "Text", "Href"]
+    assert params["ResponsiveAdFieldNames"] == ["Titles", "Texts"]
+    assert params["TextAdPriceExtensionFieldNames"] == ["Price", "OldPrice"]
+
+
+def test_ads_get_default_omits_non_text_nested_field_names():
+    """Unspecified nested projections are omitted so Yandex applies defaults."""
+    body = _dry_run("ads", "get", "--campaign-ids", "12345")
+
+    assert "DynamicTextAdFieldNames" not in body["params"]
+    assert "ResponsiveAdFieldNames" not in body["params"]
+    # TextAdFieldNames existed before the rename and keeps its default payload.
+    assert body["params"]["TextAdFieldNames"] == get_default_fields(
+        "ads", "TextAdFieldNames"
+    )
+
+
+def test_ads_get_help_exposes_nested_field_names_options():
+    result = CliRunner().invoke(cli, ["ads", "get", "--help"])
+
+    assert result.exit_code == 0
+    for flag, _ in ADS_GET_NESTED_FIELD_NAME_OPTIONS:
+        assert flag in result.output
+    assert "--text-ad-fields" not in result.output
+
+
+@pytest.mark.parametrize("flag,wsdl_key", ADS_GET_NESTED_FIELD_NAME_OPTIONS)
+def test_ads_get_rejects_empty_nested_field_names(flag, wsdl_key):
+    result = CliRunner().invoke(cli, ["ads", "get", flag, ",", "--dry-run"])
+
+    assert result.exit_code != 0
+    assert f"Provide a non-empty comma-separated {wsdl_key} list." in result.output
+
+
+def test_ads_get_legacy_text_ad_fields_alias_removed():
+    result = CliRunner().invoke(
+        cli, ["ads", "get", "--campaign-ids", "12345", "--text-ad-fields", "Title"]
+    )
+
+    assert result.exit_code != 0
+    assert "No such option '--text-ad-fields'" in result.output
 
 
 # ----------------------------------------------------------------------

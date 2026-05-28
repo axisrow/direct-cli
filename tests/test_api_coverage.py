@@ -255,9 +255,9 @@ def _assert_body_matches_wsdl(body: dict, service: str, operation: str):
             continue
         value = body["params"][field["name"]]
         if field["max_occurs"] == "unbounded":
-            assert isinstance(value, list), (
-                f"{service}.{operation}.{field['name']} must be a list"
-            )
+            assert isinstance(
+                value, list
+            ), f"{service}.{operation}.{field['name']} must be a list"
             if value and field["item_fields"]:
                 required = {
                     item["name"]
@@ -305,15 +305,13 @@ class TestApiCoverage:
 
     def test_non_wsdl_services_have_explicit_coverage_policy(self):
         for service_name, policy in sorted(NON_WSDL_SERVICE_POLICIES.items()):
-            assert service_name in cli.commands, (
-                f"Non-WSDL service {service_name} is missing from the CLI"
-            )
+            assert (
+                service_name in cli.commands
+            ), f"Non-WSDL service {service_name} is missing from the CLI"
             assert policy["coverage"] in (
                 "contract-tests",
                 "contract-tests+spec-snapshot",
-            ), (
-                f"Unexpected coverage policy for non-WSDL service {service_name}: {policy}"
-            )
+            ), f"Unexpected coverage policy for non-WSDL service {service_name}: {policy}"
 
     def test_service_method_coverage(self):
         failures = []
@@ -2143,9 +2141,9 @@ class TestApiCoverage:
             }
         }
         violations = find_nested_schema_violations(bad_body, schema)
-        assert any("BogusNestedKey" in v for v in violations), (
-            f"Expected BogusNestedKey to be flagged, got: {violations}"
-        )
+        assert any(
+            "BogusNestedKey" in v for v in violations
+        ), f"Expected BogusNestedKey to be flagged, got: {violations}"
 
 
 @pytest.mark.api_coverage
@@ -2237,9 +2235,9 @@ class TestReportsCoverage:
         assert opt is not None, "--processing-mode flag missing"
         cli_choices = set(opt.type.choices)
         spec_modes = set(spec["processing_modes"])
-        assert cli_choices == spec_modes, (
-            f"--processing-mode choices differ: CLI={cli_choices}, spec={spec_modes}"
-        )
+        assert (
+            cli_choices == spec_modes
+        ), f"--processing-mode choices differ: CLI={cli_choices}, spec={spec_modes}"
 
     def test_cli_request_headers_flags_exist(self):
         """CLI must expose flags for each request header from spec."""
@@ -2261,9 +2259,9 @@ class TestReportsCoverage:
         from direct_cli.wsdl_coverage import NON_WSDL_SERVICE_POLICIES
 
         policy = NON_WSDL_SERVICE_POLICIES["reports"]
-        assert policy["coverage"] == "contract-tests+spec-snapshot", (
-            "reports policy must use 'contract-tests+spec-snapshot' coverage type"
-        )
+        assert (
+            policy["coverage"] == "contract-tests+spec-snapshot"
+        ), "reports policy must use 'contract-tests+spec-snapshot' coverage type"
         assert "spec_snapshot" in policy
         assert "drift_script" in policy
         assert "refresh_script" in policy
@@ -2473,22 +2471,6 @@ class TestReportsBuildRequestExtra:
 # tracking issue — do not silently exclude a gap. To close a row,
 # add the corresponding kebab-case CLI option and delete the entry.
 NESTED_FIELDNAMES_EXCLUSIONS: dict[tuple[str, str, str], str] = {
-    ("ads", "get", "CpcVideoAdBuilderAdFieldNames"): "#402",
-    ("ads", "get", "CpmBannerAdBuilderAdFieldNames"): "#402",
-    ("ads", "get", "CpmVideoAdBuilderAdFieldNames"): "#402",
-    ("ads", "get", "DynamicTextAdFieldNames"): "#402",
-    ("ads", "get", "ListingAdFieldNames"): "#402",
-    ("ads", "get", "MobileAppAdBuilderAdFieldNames"): "#402",
-    ("ads", "get", "MobileAppAdFieldNames"): "#402",
-    ("ads", "get", "MobileAppCpcVideoAdBuilderAdFieldNames"): "#402",
-    ("ads", "get", "MobileAppImageAdFieldNames"): "#402",
-    ("ads", "get", "ResponsiveAdFieldNames"): "#402",
-    ("ads", "get", "ShoppingAdFieldNames"): "#402",
-    ("ads", "get", "SmartAdBuilderAdFieldNames"): "#402",
-    ("ads", "get", "TextAdBuilderAdFieldNames"): "#402",
-    ("ads", "get", "TextAdFieldNames"): "#402",
-    ("ads", "get", "TextAdPriceExtensionFieldNames"): "#402",
-    ("ads", "get", "TextImageAdFieldNames"): "#402",
     ("strategies", "get", "StrategyAverageCpaFieldNames"): "#402",
     ("strategies", "get", "StrategyAverageCpaMultipleGoalsFieldNames"): "#402",
     ("strategies", "get", "StrategyAverageCpaPerCampaignFieldNames"): "#402",
