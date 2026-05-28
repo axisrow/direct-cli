@@ -35,6 +35,14 @@
   one has a matching kebab-case CLI option. Acknowledged remaining
   gaps are tracked in `NESTED_FIELDNAMES_EXCLUSIONS` and #402 so
   future additions cannot silently slip in.
+- `direct feeds get` now exposes `--file-feed-field-names` and
+  `--url-feed-field-names` for the separate WSDL `FileFeedFieldNames`
+  (`FileFeedFieldEnum`: `Filename`) and `UrlFeedFieldNames`
+  (`UrlFeedFieldEnum`: `Login`, `Url`, `RemoveUtmTags`) request
+  parameters declared by `FeedsGetRequest`. Previously only the
+  top-level `--fields` (mapping to `FieldNames`) was available, so
+  the nested `FileFeed` / `UrlFeed` projections could not be
+  controlled from CLI. Closes #412.
 
 Closes #360.
 
