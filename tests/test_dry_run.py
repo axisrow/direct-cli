@@ -22012,6 +22012,166 @@ def test_keywordbids_get_rejects_empty_fields():
 
 
 # ----------------------------------------------------------------------
+# feeds.get: separate File/UrlFeedFieldNames parameters (issue #412)
+# ----------------------------------------------------------------------
+
+
+def test_feeds_get_nested_field_names_payload():
+    # FeedsGetRequest (WSDL tests/wsdl_cache/feeds.xml) declares two
+    # nested top-level *FieldNames parameters separate from FieldNames:
+    # FileFeedFieldNames (FileFeedFieldEnum: Filename) and
+    # UrlFeedFieldNames (UrlFeedFieldEnum: Login, Url, RemoveUtmTags).
+    body = _read_dry_run(
+        "feeds",
+        "get",
+        "--file-feed-field-names",
+        "Filename",
+        "--url-feed-field-names",
+        "Login,Url,RemoveUtmTags",
+    )
+
+    params = body["params"]
+    assert params["FileFeedFieldNames"] == ["Filename"]
+    assert params["UrlFeedFieldNames"] == ["Login", "Url", "RemoveUtmTags"]
+
+
+def test_feeds_get_omits_nested_field_names_by_default():
+    body = _read_dry_run("feeds", "get")
+
+    assert "FileFeedFieldNames" not in body["params"]
+    assert "UrlFeedFieldNames" not in body["params"]
+
+
+def test_feeds_get_help_exposes_nested_field_names():
+    result = CliRunner().invoke(cli, ["feeds", "get", "--help"])
+
+    assert result.exit_code == 0
+    assert "--file-feed-field-names" in result.output
+    assert "--url-feed-field-names" in result.output
+
+
+def test_feeds_get_rejects_empty_file_feed_field_names_csv():
+    result = CliRunner().invoke(
+        cli,
+        ["feeds", "get", "--file-feed-field-names", ",", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+
+    assert result.exit_code != 0
+    assert (
+        "Provide a non-empty comma-separated FileFeedFieldNames list."
+        in result.output
+    )
+
+
+def test_feeds_get_rejects_empty_url_feed_field_names_csv():
+    result = CliRunner().invoke(
+        cli,
+        ["feeds", "get", "--url-feed-field-names", ",", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+
+    assert result.exit_code != 0
+    assert (
+        "Provide a non-empty comma-separated UrlFeedFieldNames list."
+        in result.output
+    )
+
+
+# ----------------------------------------------------------------------
+# keywords.get: separate AutotargetingSettings*FieldNames (issue #413)
+# ----------------------------------------------------------------------
+
+
+def test_keywords_get_nested_field_names_payload():
+    # KeywordsGetRequest (WSDL tests/wsdl_cache/keywords.xml) declares two
+    # nested top-level *FieldNames parameters separate from FieldNames:
+    # AutotargetingSettingsBrandOptionsFieldNames
+    # (AutotargetingBrandOptionsFieldEnum: WithoutBrands,
+    # WithAdvertiserBrand, WithCompetitorsBrand) and
+    # AutotargetingSettingsCategoriesFieldNames
+    # (AutotargetingCategoriesFieldEnum: Exact, Narrow, Alternative,
+    # Accessory, Broader).
+    body = _read_dry_run(
+        "keywords",
+        "get",
+        "--autotargeting-settings-brand-options-field-names",
+        "WithoutBrands,WithAdvertiserBrand,WithCompetitorsBrand",
+        "--autotargeting-settings-categories-field-names",
+        "Exact,Narrow,Alternative",
+    )
+
+    params = body["params"]
+    assert params["AutotargetingSettingsBrandOptionsFieldNames"] == [
+        "WithoutBrands",
+        "WithAdvertiserBrand",
+        "WithCompetitorsBrand",
+    ]
+    assert params["AutotargetingSettingsCategoriesFieldNames"] == [
+        "Exact",
+        "Narrow",
+        "Alternative",
+    ]
+
+
+def test_keywords_get_omits_nested_field_names_by_default():
+    body = _read_dry_run("keywords", "get")
+
+    assert "AutotargetingSettingsBrandOptionsFieldNames" not in body["params"]
+    assert "AutotargetingSettingsCategoriesFieldNames" not in body["params"]
+
+
+def test_keywords_get_help_exposes_nested_field_names():
+    result = CliRunner().invoke(cli, ["keywords", "get", "--help"])
+
+    assert result.exit_code == 0
+    assert "--autotargeting-settings-brand-options-field-names" in result.output
+    assert "--autotargeting-settings-categories-field-names" in result.output
+
+
+def test_keywords_get_rejects_empty_brand_options_field_names_csv():
+    result = CliRunner().invoke(
+        cli,
+        [
+            "keywords",
+            "get",
+            "--autotargeting-settings-brand-options-field-names",
+            ",",
+            "--dry-run",
+        ],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+
+    assert result.exit_code != 0
+    assert (
+        "Provide a non-empty comma-separated "
+        "AutotargetingSettingsBrandOptionsFieldNames list."
+        in result.output
+    )
+
+
+def test_keywords_get_rejects_empty_categories_field_names_csv():
+    result = CliRunner().invoke(
+        cli,
+        [
+            "keywords",
+            "get",
+            "--autotargeting-settings-categories-field-names",
+            ",",
+            "--dry-run",
+        ],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+
+    assert result.exit_code != 0
+    assert (
+        "Provide a non-empty comma-separated "
+        "AutotargetingSettingsCategoriesFieldNames list."
+        in result.output
+    )
+
+
+# ----------------------------------------------------------------------
 # creatives.get: separate per-subtype *CreativeFieldNames (issue #411)
 # ----------------------------------------------------------------------
 
