@@ -10,7 +10,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import get_default_fields, parse_ids
+from ..utils import get_default_fields, parse_csv_strings, parse_ids
 
 _YES_NO = ["YES", "NO"]
 # Yandex Direct docs cap FileFeed.Data by total request size. This
@@ -116,9 +116,36 @@ def feeds():
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.option("--fields", help="Comma-separated field names")
+@click.option(
+    "--file-feed-field-names",
+    help=(
+        "Comma-separated FileFeedFieldNames (e.g. Filename). "
+        "Sent as separate top-level request parameter per the "
+        "FeedsGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--url-feed-field-names",
+    help=(
+        "Comma-separated UrlFeedFieldNames (e.g. Login,Url,RemoveUtmTags). "
+        "Sent as separate top-level request parameter per the "
+        "FeedsGetRequest WSDL."
+    ),
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
+def get(
+    ctx,
+    ids,
+    limit,
+    fetch_all,
+    output_format,
+    output,
+    fields,
+    file_feed_field_names,
+    url_feed_field_names,
+    dry_run,
+):
     """Get feeds"""
     try:
         client = create_client(
@@ -129,6 +156,18 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
 
         field_names = fields.split(",") if fields else get_default_fields("feeds")
 
+        parsed_file_feed_field_names = parse_csv_strings(file_feed_field_names)
+        if file_feed_field_names is not None and not parsed_file_feed_field_names:
+            raise click.UsageError(
+                "Provide a non-empty comma-separated FileFeedFieldNames list."
+            )
+
+        parsed_url_feed_field_names = parse_csv_strings(url_feed_field_names)
+        if url_feed_field_names is not None and not parsed_url_feed_field_names:
+            raise click.UsageError(
+                "Provide a non-empty comma-separated UrlFeedFieldNames list."
+            )
+
         criteria = {}
         if ids:
             criteria["Ids"] = parse_ids(ids)
@@ -136,6 +175,10 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
         params = {"FieldNames": field_names}
         if criteria:
             params["SelectionCriteria"] = criteria
+        if parsed_file_feed_field_names:
+            params["FileFeedFieldNames"] = parsed_file_feed_field_names
+        if parsed_url_feed_field_names:
+            params["UrlFeedFieldNames"] = parsed_url_feed_field_names
 
         if limit:
             params["Page"] = {"Limit": limit}
@@ -157,6 +200,8 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
             data = result().extract()
             format_output(data, output_format, output)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
