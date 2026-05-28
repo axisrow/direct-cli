@@ -23,6 +23,16 @@ def ads():
     """Manage ads"""
 
 
+def _parse_field_names_option(
+    wsdl_key: str, raw_value: Optional[str]
+) -> Optional[list[str]]:
+    """Parse a field-name projection and reject explicitly empty CSV."""
+    parsed = parse_csv_strings(raw_value)
+    if raw_value is not None and not parsed:
+        raise click.UsageError(f"Provide a non-empty comma-separated {wsdl_key} list.")
+    return parsed
+
+
 MOBILE_APP_FEATURES = ("PRICE", "ICON", "CUSTOMER_RATING", "RATINGS")
 
 FEED_BASED_UPDATE_FIELDS = {
@@ -740,7 +750,132 @@ def _build_smart_ad_builder_ad_update(
 @click.option("--output", help="Output file")
 @click.option("--fields", help="Comma-separated top-level field names")
 @click.option(
-    "--text-ad-fields", help="Comma-separated TextAd field names (e.g. Title,Text,Href)"
+    "--cpc-video-ad-builder-ad-field-names",
+    help=(
+        "Comma-separated CpcVideoAdBuilderAdFieldNames "
+        "(e.g. CreativeId,Href). Sent as separate top-level request "
+        "parameter per the AdsGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--cpm-banner-ad-builder-ad-field-names",
+    help=(
+        "Comma-separated CpmBannerAdBuilderAdFieldNames "
+        "(e.g. CreativeId,Href). Sent as separate top-level request "
+        "parameter per the AdsGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--cpm-video-ad-builder-ad-field-names",
+    help=(
+        "Comma-separated CpmVideoAdBuilderAdFieldNames "
+        "(e.g. CreativeId,Href). Sent as separate top-level request "
+        "parameter per the AdsGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--dynamic-text-ad-field-names",
+    help=(
+        "Comma-separated DynamicTextAdFieldNames (e.g. Title,Text,Href). "
+        "Sent as separate top-level request parameter per the "
+        "AdsGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--listing-ad-field-names",
+    help=(
+        "Comma-separated ListingAdFieldNames (e.g. Title,Text,Href). "
+        "Sent as separate top-level request parameter per the "
+        "AdsGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--mobile-app-ad-builder-ad-field-names",
+    help=(
+        "Comma-separated MobileAppAdBuilderAdFieldNames "
+        "(e.g. CreativeId,TrackingUrl). Sent as separate top-level "
+        "request parameter per the AdsGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--mobile-app-ad-field-names",
+    help=(
+        "Comma-separated MobileAppAdFieldNames (e.g. Title,Text,TrackingUrl). "
+        "Sent as separate top-level request parameter per the "
+        "AdsGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--mobile-app-cpc-video-ad-builder-ad-field-names",
+    help=(
+        "Comma-separated MobileAppCpcVideoAdBuilderAdFieldNames "
+        "(e.g. CreativeId,TrackingUrl). Sent as separate top-level "
+        "request parameter per the AdsGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--mobile-app-image-ad-field-names",
+    help=(
+        "Comma-separated MobileAppImageAdFieldNames (e.g. ImageHash,TrackingUrl). "
+        "Sent as separate top-level request parameter per the "
+        "AdsGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--responsive-ad-field-names",
+    help=(
+        "Comma-separated ResponsiveAdFieldNames (e.g. Titles,Texts,Href). "
+        "Sent as separate top-level request parameter per the "
+        "AdsGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--shopping-ad-field-names",
+    help=(
+        "Comma-separated ShoppingAdFieldNames (e.g. Titles,Texts,Href). "
+        "Sent as separate top-level request parameter per the "
+        "AdsGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--smart-ad-builder-ad-field-names",
+    help=(
+        "Comma-separated SmartAdBuilderAdFieldNames (e.g. CreativeId). "
+        "Sent as separate top-level request parameter per the "
+        "AdsGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--text-ad-builder-ad-field-names",
+    help=(
+        "Comma-separated TextAdBuilderAdFieldNames (e.g. CreativeId,Href). "
+        "Sent as separate top-level request parameter per the "
+        "AdsGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--text-ad-field-names",
+    help=(
+        "Comma-separated TextAdFieldNames (e.g. Title,Text,Href). "
+        "Sent as separate top-level request parameter per the "
+        "AdsGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--text-ad-price-extension-field-names",
+    help=(
+        "Comma-separated TextAdPriceExtensionFieldNames "
+        "(e.g. Price,OldPrice,PriceQualifier). Sent as separate top-level "
+        "request parameter per the AdsGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--text-image-ad-field-names",
+    help=(
+        "Comma-separated TextImageAdFieldNames (e.g. Href,ImageHash). "
+        "Sent as separate top-level request parameter per the "
+        "AdsGetRequest WSDL."
+    ),
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
@@ -766,7 +901,22 @@ def get(
     output_format,
     output,
     fields,
-    text_ad_fields,
+    cpc_video_ad_builder_ad_field_names,
+    cpm_banner_ad_builder_ad_field_names,
+    cpm_video_ad_builder_ad_field_names,
+    dynamic_text_ad_field_names,
+    listing_ad_field_names,
+    mobile_app_ad_builder_ad_field_names,
+    mobile_app_ad_field_names,
+    mobile_app_cpc_video_ad_builder_ad_field_names,
+    mobile_app_image_ad_field_names,
+    responsive_ad_field_names,
+    shopping_ad_field_names,
+    smart_ad_builder_ad_field_names,
+    text_ad_builder_ad_field_names,
+    text_ad_field_names,
+    text_ad_price_extension_field_names,
+    text_image_ad_field_names,
     dry_run,
 ):
     """Get ads"""
@@ -778,10 +928,46 @@ def get(
             fields.split(",") if fields else get_default_fields("ads", "FieldNames")
         )
 
-        text_ad_field_names = (
-            text_ad_fields.split(",")
-            if text_ad_fields
-            else get_default_fields("ads", "TextAdFieldNames")
+        raw_nested = (
+            (
+                "CpcVideoAdBuilderAdFieldNames",
+                cpc_video_ad_builder_ad_field_names,
+            ),
+            (
+                "CpmBannerAdBuilderAdFieldNames",
+                cpm_banner_ad_builder_ad_field_names,
+            ),
+            (
+                "CpmVideoAdBuilderAdFieldNames",
+                cpm_video_ad_builder_ad_field_names,
+            ),
+            ("DynamicTextAdFieldNames", dynamic_text_ad_field_names),
+            ("ListingAdFieldNames", listing_ad_field_names),
+            ("MobileAppAdBuilderAdFieldNames", mobile_app_ad_builder_ad_field_names),
+            ("MobileAppAdFieldNames", mobile_app_ad_field_names),
+            (
+                "MobileAppCpcVideoAdBuilderAdFieldNames",
+                mobile_app_cpc_video_ad_builder_ad_field_names,
+            ),
+            ("MobileAppImageAdFieldNames", mobile_app_image_ad_field_names),
+            ("ResponsiveAdFieldNames", responsive_ad_field_names),
+            ("ShoppingAdFieldNames", shopping_ad_field_names),
+            ("SmartAdBuilderAdFieldNames", smart_ad_builder_ad_field_names),
+            ("TextAdBuilderAdFieldNames", text_ad_builder_ad_field_names),
+            ("TextAdFieldNames", text_ad_field_names),
+            (
+                "TextAdPriceExtensionFieldNames",
+                text_ad_price_extension_field_names,
+            ),
+            ("TextImageAdFieldNames", text_image_ad_field_names),
+        )
+        parsed_nested = {}
+        for wsdl_key, raw_value in raw_nested:
+            parsed = _parse_field_names_option(wsdl_key, raw_value)
+            if parsed:
+                parsed_nested[wsdl_key] = parsed
+        parsed_nested.setdefault(
+            "TextAdFieldNames", get_default_fields("ads", "TextAdFieldNames")
         )
 
         criteria = {}
@@ -818,8 +1004,8 @@ def get(
         params = {
             "SelectionCriteria": criteria,
             "FieldNames": field_names,
-            "TextAdFieldNames": text_ad_field_names,
         }
+        params.update(parsed_nested)
 
         if limit:
             params["Page"] = {"Limit": limit}
