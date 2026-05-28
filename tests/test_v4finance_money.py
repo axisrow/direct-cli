@@ -89,8 +89,8 @@ def test_transfer_money_dry_run_uses_campaign_arrays_and_masks_finance_token():
     assert json.loads(result.output) == {
         "method": "TransferMoney",
         "param": {
-            "FromCampaigns": [{"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"}],
-            "ToCampaigns": [{"CampaignID": 456, "Sum": 100.5, "Currency": "RUB"}],
+            "FromCampaigns": [{"CampaignID": 123, "Sum": 100.5}],
+            "ToCampaigns": [{"CampaignID": 456, "Sum": 100.5}],
         },
         "finance_token": "<redacted>",
         "operation_num": 42,
@@ -122,8 +122,8 @@ def test_pay_campaigns_dry_run_uses_payment_object_and_masks_finance_token():
         "method": "PayCampaigns",
         "param": {
             "Payments": [
-                {"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"},
-                {"CampaignID": 456, "Sum": 100.5, "Currency": "RUB"},
+                {"CampaignID": 123, "Sum": 100.5},
+                {"CampaignID": 456, "Sum": 100.5},
             ],
             "ContractID": "contract-id",
             "PayMethod": "Bank",
@@ -152,7 +152,7 @@ def test_create_invoice_dry_run_uses_payment_object_and_masks_finance_token():
         "method": "CreateInvoice",
         "param": {
             "Payments": [
-                {"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"},
+                {"CampaignID": 123, "Sum": 100.5},
             ],
         },
         "finance_token": "<redacted>",
@@ -160,7 +160,7 @@ def test_create_invoice_dry_run_uses_payment_object_and_masks_finance_token():
     }
 
 
-def test_create_invoice_dry_run_accepts_multiple_payments_and_currency():
+def test_create_invoice_dry_run_accepts_multiple_payments():
     result = _invoke(
         "v4finance",
         "create-invoice",
@@ -168,8 +168,6 @@ def test_create_invoice_dry_run_accepts_multiple_payments_and_currency():
         "123=100.50",
         "--payment",
         "456=1",
-        "--currency",
-        "usd",
         "--finance-token",
         "secret-finance-token",
         "--operation-num",
@@ -180,8 +178,8 @@ def test_create_invoice_dry_run_accepts_multiple_payments_and_currency():
     assert result.exit_code == 0
     assert json.loads(result.output)["param"] == {
         "Payments": [
-            {"CampaignID": 123, "Sum": 100.5, "Currency": "USD"},
-            {"CampaignID": 456, "Sum": 1.0, "Currency": "USD"},
+            {"CampaignID": 123, "Sum": 100.5},
+            {"CampaignID": 456, "Sum": 1.0},
         ],
     }
 
@@ -485,8 +483,10 @@ def test_pay_campaigns_rejects_non_positive_campaign_ids():
         "0,-1",
         "--amount",
         "100.50",
+        "--contract-id",
+        "contract-id",
         "--pay-method",
-        "Overdraft",
+        "Bank",
         "--finance-token",
         "finance-token",
         "--operation-num",
@@ -498,7 +498,7 @@ def test_pay_campaigns_rejects_non_positive_campaign_ids():
     assert "--campaign-ids must contain only positive integers" in result.output
 
 
-def test_pay_campaigns_allows_overdraft_without_contract():
+def test_pay_campaigns_rejects_undocumented_pay_method():
     result = _invoke(
         "v4finance",
         "pay-campaigns",
@@ -508,8 +508,6 @@ def test_pay_campaigns_allows_overdraft_without_contract():
         "100.50",
         "--pay-method",
         "Overdraft",
-        "--currency",
-        "usd",
         "--finance-token",
         "finance-token",
         "--operation-num",
@@ -517,11 +515,8 @@ def test_pay_campaigns_allows_overdraft_without_contract():
         "--dry-run",
     )
 
-    assert result.exit_code == 0
-    assert json.loads(result.output)["param"] == {
-        "Payments": [{"CampaignID": 123, "Sum": 100.5, "Currency": "USD"}],
-        "PayMethod": "Overdraft",
-    }
+    assert result.exit_code != 0
+    assert "Invalid value for '--pay-method'" in result.output
 
 
 def test_check_payment_dry_run_uses_custom_transaction_id_object():
@@ -636,7 +631,7 @@ def test_create_invoice_formats_mocked_response_as_json():
         "CreateInvoice",
         {
             "Payments": [
-                {"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"},
+                {"CampaignID": 123, "Sum": 100.5},
             ],
         },
     )
