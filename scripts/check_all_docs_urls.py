@@ -74,14 +74,29 @@ def _probe(url: str) -> tuple[str, str] | None:
 
     # Treat any non-redirect, non-5xx response (including HEAD 4xx like 403/405
     # from CDNs that reject HEAD) as "verify via GET" — we can only declare GONE
-    # if the GET also confirms it.
+    # if the GET also confirms it. Keep allow_redirects=False so a canonical
+    # move that only surfaces via GET (HEAD 4xx → GET 3xx) is still caught as MOVED.
     try:
         resp = requests.get(
-            url, timeout=30, headers={"User-Agent": USER_AGENT}
+            url, allow_redirects=False, timeout=30,
+            headers={"User-Agent": USER_AGENT},
         )
     except requests.RequestException as exc:
         return ("ERROR", f"GET failed: {exc}")
 
+    if 300 <= resp.status_code < 400:
+        loc = resp.headers.get("Location", "")
+        if _is_captcha_redirect(loc):
+            return None
+        if loc and not same_path_segment(url, loc):
+            return ("MOVED", f"GET {resp.status_code} → {loc}")
+        # Same-path redirect (e.g. trailing slash) — follow it once to read body.
+        try:
+            resp = requests.get(
+                url, timeout=30, headers={"User-Agent": USER_AGENT}
+            )
+        except requests.RequestException as exc:
+            return ("ERROR", f"GET (follow) failed: {exc}")
     if 400 <= resp.status_code < 500:
         return ("GONE", f"HTTP {resp.status_code} (HEAD was {head.status_code})")
     if 500 <= resp.status_code < 600:

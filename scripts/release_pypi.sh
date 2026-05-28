@@ -85,7 +85,7 @@ prerelease_docs_health_check() {
     # 3. Refuse to release with a dirty cache. If Yandex changed docs since
     #    the last cache snapshot, the maintainer must commit the refresh
     #    explicitly — not let `release_pypi.sh all` carry it in silently.
-    if ! git diff --quiet -- tests/reports_cache tests/wsdl_cache; then
+    if ! git diff --quiet HEAD -- tests/reports_cache tests/wsdl_cache; then
       echo "ERROR: tests/reports_cache or tests/wsdl_cache has uncommitted changes."
       echo "       Run scripts/refresh_reports_cache.py separately, review the diff,"
       echo "       and commit it before releasing."
