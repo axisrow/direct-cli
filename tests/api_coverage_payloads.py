@@ -24,6 +24,7 @@ DRY_RUN_PAYLOAD_EXCLUSIONS = {
     "vcards.get": "Read path omits optional SelectionCriteria when --ids is absent.",
     "ads.get": "Read path with rich field-selection options; payload contract differs from mutating coverage focus.",
     "agencyclients.add": "Runtime-deprecated method (Yandex error 3500); CLI rejects with UsageError before reaching dry-run. See RUNTIME_DEPRECATED_METHODS.",
+    "agencyclients.get": "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria tests.",
     "dynamicfeedadtargets.add": "Covered by test_dry_run.py::test_dynamicfeedadtargets_add_payload.",
     "dynamicfeedadtargets.delete": "Covered by test_dry_run.py::test_dynamicfeedadtargets_delete_payload.",
     "dynamicfeedadtargets.resume": "Covered by test_dry_run.py::test_dynamicfeedadtargets_resume_payload.",

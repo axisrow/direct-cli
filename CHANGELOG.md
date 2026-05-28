@@ -35,6 +35,17 @@
   one has a matching kebab-case CLI option. Acknowledged remaining
   gaps are tracked in `NESTED_FIELDNAMES_EXCLUSIONS` and #402 so
   future additions cannot silently slip in.
+- `direct agencyclients get` now exposes `--contract-field-names`,
+  `--contragent-field-names`, `--contragent-tin-info-field-names`,
+  `--organization-field-names`, and `--tin-info-field-names` for
+  the five nested WSDL `*FieldNames` request parameters declared
+  by `AgencyClientsGetRequest` (`ContractInfoFieldEnum`,
+  `ContragentInfoFieldEnum`, `TinInfoFieldEnum`,
+  `OrgInfoFieldEnum`, `TinInfoFieldEnum`). The command also gains
+  `--dry-run` for parity with other read-path commands.
+  Previously only the top-level `--fields` (mapping to `FieldNames`)
+  was available, so the per-subtype ERIR projections could not be
+  controlled from CLI. Closes #407.
 
 Closes #360.
 
