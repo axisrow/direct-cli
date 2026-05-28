@@ -4,6 +4,11 @@
 
 **Breaking changes:**
 
+- `direct ads get` flag `--text-ad-fields` is **renamed** to the
+  WSDL-canonical `--text-ad-field-names` form matching the
+  `TextAdFieldNames` request parameter declared by `AdsGetRequest`.
+  The old `--text-ad-fields` form is no longer accepted — update
+  scripts and automation accordingly. Closes #406.
 - `direct campaigns add` / `direct campaigns update` and `direct
   strategies add` / `direct strategies update` now reject `--priority-goals`
   / `--priority-goal` values below 100,000 (0.1 unit in micro-currency).
@@ -103,6 +108,25 @@
   `--fields` (mapping to `FieldNames`) was available, so the
   per-subtype ad-group projections could not be controlled from
   CLI. Closes #405.
+- `direct ads get` now exposes sixteen additional `--*-field-names`
+  flags for the separate WSDL `*FieldNames` request parameters
+  declared by `AdsGetRequest`: `--cpc-video-ad-builder-ad-field-names`,
+  `--cpm-banner-ad-builder-ad-field-names`,
+  `--cpm-video-ad-builder-ad-field-names`,
+  `--dynamic-text-ad-field-names`, `--listing-ad-field-names`,
+  `--mobile-app-ad-builder-ad-field-names`,
+  `--mobile-app-ad-field-names`,
+  `--mobile-app-cpc-video-ad-builder-ad-field-names`,
+  `--mobile-app-image-ad-field-names`,
+  `--responsive-ad-field-names`, `--shopping-ad-field-names`,
+  `--smart-ad-builder-ad-field-names`,
+  `--text-ad-builder-ad-field-names`,
+  `--text-ad-field-names`,
+  `--text-ad-price-extension-field-names`, and
+  `--text-image-ad-field-names`. Previously only the top-level
+  `--fields` (mapping to `FieldNames`) and non-canonical
+  `--text-ad-fields` were available, so the per-ad-subtype projections
+  could not be controlled from CLI. Closes #406.
 
 **BREAKING CHANGES:**
 
