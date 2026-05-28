@@ -78,12 +78,12 @@ RESOURCE_MAPPING_V5 = {
     },
     "dynamicads": {
         "resource": "json/v5/dynamictextadtargets",
-        "docs": "https://yandex.ru/dev/direct/doc/ru/dynamictextadtargets/dynamictextadtargets",
+        "docs": "https://yandex.ru/dev/direct/doc/ru/dynamictextadtargets",
         "methods": ["get", "add", "delete", "suspend", "resume", "setBids"],
     },
     "dynamicfeedadtargets": {
         "resource": "json/v5/dynamicfeedadtargets",
-        "docs": "https://yandex.ru/dev/direct/doc/ru/dynamicfeedadtargets/dynamicfeedadtargets",
+        "docs": "https://yandex.ru/dev/direct/doc/ru/dynamicfeedadtargets",
         "methods": ["get", "add", "delete", "suspend", "resume", "setBids"],
     },
     "keywordbids": {
@@ -118,7 +118,7 @@ RESOURCE_MAPPING_V5 = {
     },
     "vcards": {
         "resource": "json/v5/vcards",
-        "docs": "https://yandex.ru/dev/direct/doc/ru/vcards/vcards",
+        "docs": "https://yandex.ru/dev/direct/doc/ru/vcards",
         "methods": ["get", "add", "delete"],
     },
     "turbopages": {
@@ -133,12 +133,12 @@ RESOURCE_MAPPING_V5 = {
     },
     "reports": {
         "resource": "json/v5/reports",
-        "docs": "https://yandex.ru/dev/direct/doc/ru/reports/reports",
+        "docs": "https://yandex.ru/dev/direct/doc/ru/reports",
         "methods": ["get"],
         "docs_pages": {
-            "type": "https://yandex.ru/dev/direct/doc/ru/reports/type",
-            "period": "https://yandex.ru/dev/direct/doc/ru/reports/period",
-            "fields-list": "https://yandex.ru/dev/direct/doc/ru/reports/fields-list",
+            "type": "https://yandex.ru/dev/direct/doc/ru/type",
+            "period": "https://yandex.ru/dev/direct/doc/ru/period",
+            "fields-list": "https://yandex.ru/dev/direct/doc/ru/fields-list",
             "headers": "https://yandex.ru/dev/direct/doc/ru/headers",
         },
     },
@@ -154,7 +154,7 @@ RESOURCE_MAPPING_V5 = {
     },
     "smartadtargets": {
         "resource": "json/v5/smartadtargets",
-        "docs": "https://yandex.ru/dev/direct/doc/ru/smartadtargets/smartadtargets",
+        "docs": "https://yandex.ru/dev/direct/doc/ru/smartadtargets",
         "methods": ["get", "add", "update", "delete", "suspend", "resume", "setBids"],
     },
     "strategies": {

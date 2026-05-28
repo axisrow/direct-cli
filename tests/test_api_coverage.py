@@ -2161,7 +2161,7 @@ class TestReportsCoverage:
         assert REPORTS_SPEC_URLS == {
             "type": docs_pages["type"],
             "period": docs_pages["period"],
-            "spec": "https://yandex.ru/dev/direct/doc/reports/spec.html",
+            "spec": "https://yandex.ru/dev/direct/doc/ru/spec",
             "fields-list": docs_pages["fields-list"],
             "headers": docs_pages["headers"],
         }
@@ -2265,6 +2265,55 @@ class TestReportsCoverage:
         assert "spec_snapshot" in policy
         assert "drift_script" in policy
         assert "refresh_script" in policy
+
+    def test_reports_cache_files_are_real_content(self):
+        """Guard against silent cache poisoning: every raw HTML must be a real
+        Yandex docs page, not a captcha gateway or empty redirect."""
+        from direct_cli.reports_coverage import REPORTS_CACHE_DIR, REPORTS_SPEC_URLS
+
+        raw_dir = REPORTS_CACHE_DIR / "raw"
+        for key in REPORTS_SPEC_URLS:
+            cache_file = raw_dir / f"{key}.html"
+            assert cache_file.exists(), f"Missing raw cache: {cache_file}"
+            html = cache_file.read_text(encoding="utf-8")
+            assert len(html) >= 30_000, (
+                f"raw/{key}.html is suspiciously small ({len(html)} bytes < 30 KB). "
+                "Likely captcha or redirect — refresh and verify the URL."
+            )
+            lower = html.lower()
+            for marker in ("showcaptcha", "smartcaptcha", "<title>captcha"):
+                assert marker not in lower, (
+                    f"raw/{key}.html contains captcha marker {marker!r}. "
+                    f"URL {REPORTS_SPEC_URLS[key]!r} likely retired by Yandex."
+                )
+            assert "direct/doc" in lower or "<h1" in lower, (
+                f"raw/{key}.html does not look like a Yandex docs page "
+                "(no /direct/doc/ link and no <h1>)."
+            )
+
+
+class TestWsdlCacheFreshness:
+    """Guard against silent cache poisoning of WSDL XML."""
+
+    def test_wsdl_cache_files_are_real_content(self):
+        from pathlib import Path
+
+        cache = Path(__file__).resolve().parent / "wsdl_cache"
+        xml_files = sorted(cache.glob("*.xml"))
+        assert xml_files, "tests/wsdl_cache/*.xml is empty"
+        for path in xml_files:
+            text = path.read_text(encoding="utf-8")
+            assert len(text) >= 3_000, (
+                f"{path.name} is suspiciously small ({len(text)} bytes < 3 KB)"
+            )
+            lower = text.lower()
+            assert "showcaptcha" not in lower and "smartcaptcha" not in lower, (
+                f"{path.name} contains a captcha marker — refresh the cache"
+            )
+            assert "<?xml" in text, f"{path.name} missing XML declaration"
+            assert "wsdl:definitions" in text or "xsd:schema" in text, (
+                f"{path.name} missing wsdl:definitions/xsd:schema — likely HTML"
+            )
 
 
 class TestReportsParseFilter:

@@ -74,6 +74,20 @@ Adding a new mutating command requires extending `COMMAND_WSDL_MAP` in `tests/te
 
 **Smoke probes:** Live ID discovery for safe-smoke and integration tests lives in `direct_cli/_smoke_probes.py`. Functions like `advideo_probe_id()` query the live API to find a real resource ID (env override `YANDEX_DIRECT_TEST_ADVIDEO_ID`, fallback through `creatives.get`) and return `None` on any failure — smoke scripts treat `None` as a benign skip, not a fatal error. CLI entry: `python3 -m direct_cli._smoke_probes advideo`.
 
+**No URL literals outside the registry.** Every Yandex docs/API URL is declared once — either in `direct_cli/_vendor/tapi_yandex_direct/resource_mapping.py` (`docs`, `docs_pages.*`) or in `direct_cli/reports_coverage.py::REPORTS_SPEC_URLS`. Tests and scripts import these constants; never write the URL as a string literal anywhere else. Captcha-poisoning of the docs cache (#426) was possible only because the same URL was duplicated in a hard-coded test assertion. Don't repeat that.
+
+**Docs/cache freshness guard.** `direct_cli.reports_coverage.fetch_reports_spec` and `direct_cli.wsdl_coverage.fetch_wsdl` both refuse responses that look like a Yandex SmartCaptcha gate (markers `showcaptcha`, `smartcaptcha`, `<title>Captcha`) or are suspiciously short (<30 KB for HTML, <3 KB for WSDL). The matching tests `test_reports_cache_files_are_real_content` and `test_wsdl_cache_files_are_real_content` enforce the same invariant on committed cache files.
+
+## PyPI Release
+
+`scripts/release_pypi.sh` runs three pre-release health checks before building the wheel:
+
+1. `python scripts/check_all_docs_urls.py` — every Yandex docs URL in `RESOURCE_MAPPING_V5` and `REPORTS_SPEC_URLS` must be reachable (`200`, real content, no captcha, no canonical redirect). 5xx is a soft warning; 3xx/4xx/captcha is hard fail.
+2. `python scripts/refresh_reports_cache.py` — refetch the Reports docs cache from live pages. Captcha responses raise.
+3. `pytest TestReportsCoverage TestWsdlCacheFreshness -v` — verifies the cache landed clean.
+
+If any step fails, fix the URL (or rate-limit the runner) before releasing — do not bypass with `--skip-checks`. There is no such flag.
+
 ## Tests
 
 - **Unit** (`test_cli.py`, `test_comprehensive.py`) — no API calls, no token needed.

@@ -24,12 +24,33 @@ if _missing_docs_keys:
 REPORTS_SPEC_URLS: dict[str, str] = {
     "type": _REPORTS_DOCS_PAGES["type"],
     "period": _REPORTS_DOCS_PAGES["period"],
-    "spec": "https://yandex.ru/dev/direct/doc/reports/spec.html",
+    "spec": "https://yandex.ru/dev/direct/doc/ru/spec",
     "fields-list": _REPORTS_DOCS_PAGES["fields-list"],
     "headers": _REPORTS_DOCS_PAGES["headers"],
 }
 
 REPORTS_CACHE_DIR = Path(__file__).resolve().parent.parent / "tests" / "reports_cache"
+
+_CAPTCHA_MARKERS = ("showcaptcha", "smartcaptcha", "<title>Captcha")
+_MIN_HTML_SIZE = 30_000
+
+
+def _assert_real_doc_page(url: str, html: str) -> None:
+    """Reject captcha gateways or empty pages — they would silently poison the cache."""
+    lower = html.lower()
+    for marker in _CAPTCHA_MARKERS:
+        if marker.lower() in lower:
+            raise RuntimeError(
+                f"Yandex returned a captcha page for {url!r} (marker {marker!r}). "
+                "Likely the doc URL has moved — verify and update "
+                "RESOURCE_MAPPING_V5['reports']['docs_pages'] / REPORTS_SPEC_URLS."
+            )
+    if len(html) < _MIN_HTML_SIZE:
+        raise RuntimeError(
+            f"Response for {url!r} is suspiciously small ({len(html)} bytes < "
+            f"{_MIN_HTML_SIZE}). Real Yandex doc pages are >30 KB. "
+            "Likely a redirect/captcha page — verify the URL is still canonical."
+        )
 
 
 def fetch_reports_spec(use_cache: bool = True) -> dict[str, str]:
@@ -56,6 +77,7 @@ def fetch_reports_spec(use_cache: bool = True) -> dict[str, str]:
         resp = requests.get(url, timeout=30, headers=headers)
         resp.raise_for_status()
         html = resp.text
+        _assert_real_doc_page(url, html)
 
         raw_dir.mkdir(parents=True, exist_ok=True)
         cache_file.write_text(html, encoding="utf-8")

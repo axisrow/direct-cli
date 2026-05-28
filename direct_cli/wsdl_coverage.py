@@ -161,6 +161,31 @@ METHOD_NAME_OVERRIDES = {
 }
 
 
+_WSDL_MIN_SIZE = 10_000
+_WSDL_REQUIRED_MARKERS = ("<?xml", "wsdl:definitions")
+
+
+def _assert_real_wsdl(url: str, xml_text: str) -> None:
+    """Reject captcha gateways, HTML error pages, or empty XML responses."""
+    lower = xml_text.lower()
+    if "showcaptcha" in lower or "smartcaptcha" in lower:
+        raise RuntimeError(
+            f"Yandex returned a captcha page for WSDL endpoint {url!r}. "
+            "Verify that WSDL_BASE_URL is still canonical."
+        )
+    if len(xml_text) < _WSDL_MIN_SIZE:
+        raise RuntimeError(
+            f"WSDL response for {url!r} is suspiciously small ({len(xml_text)} bytes "
+            f"< {_WSDL_MIN_SIZE}). Real Yandex WSDLs are well above 10 KB."
+        )
+    for marker in _WSDL_REQUIRED_MARKERS:
+        if marker not in xml_text:
+            raise RuntimeError(
+                f"WSDL response for {url!r} missing required marker {marker!r}. "
+                "Likely an HTML error page rather than an XML schema."
+            )
+
+
 def fetch_wsdl(service_name: str, use_cache: bool = True) -> str:
     """Fetch WSDL XML for a service."""
     cache_file = CACHE_DIR / f"{service_name}.xml"
@@ -175,6 +200,7 @@ def fetch_wsdl(service_name: str, use_cache: bool = True) -> str:
     resp.raise_for_status()
 
     xml_text = resp.text
+    _assert_real_wsdl(url, xml_text)
 
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     cache_file.write_text(xml_text, encoding="utf-8")
@@ -200,7 +226,9 @@ def fetch_live_wsdl(service_name: str) -> str:
     url = WSDL_BASE_URL.format(service=service_name)
     resp = requests.get(url, timeout=30)
     resp.raise_for_status()
-    return resp.text
+    xml_text = resp.text
+    _assert_real_wsdl(url, xml_text)
+    return xml_text
 
 
 def parse_wsdl_operations(wsdl_xml: str) -> list:

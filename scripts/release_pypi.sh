@@ -69,6 +69,19 @@ require_command() {
   fi
 }
 
+prerelease_docs_health_check() {
+  require_command python3
+
+  echo "Pre-release docs health check (URLs + cache freshness)"
+  (
+    cd "${ROOT_DIR}"
+    python3 scripts/check_all_docs_urls.py
+    python3 scripts/refresh_reports_cache.py
+    python3 -m pytest tests/test_api_coverage.py::TestReportsCoverage \
+                      tests/test_api_coverage.py::TestWsdlCacheFreshness -v
+  )
+}
+
 build_artifacts() {
   require_command python3
 
@@ -103,6 +116,7 @@ upload_target() {
   )
 }
 
+prerelease_docs_health_check
 build_artifacts
 
 case "${TARGET}" in
