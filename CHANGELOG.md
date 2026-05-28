@@ -55,6 +55,18 @@
   (mapping to `FieldNames`) was available, so the nested
   `AutotargetingSettings.BrandOptions` / `Categories` projections
   could not be controlled from CLI. Closes #413.
+- `direct creatives get` now exposes
+  `--cpc-video-creative-field-names`,
+  `--cpm-video-creative-field-names`,
+  `--smart-creative-field-names`, and
+  `--video-extension-creative-field-names` for the four nested
+  WSDL `*FieldNames` request parameters declared by
+  `CreativesGetRequest` (`CpcVideoCreativeFieldEnum`,
+  `CpmVideoCreativeFieldEnum`, `SmartCreativeFieldEnum`,
+  `VideoExtensionCreativeFieldEnum`). Previously only the top-level
+  `--fields` (mapping to `FieldNames`) was available, so the
+  per-subtype projections could not be controlled from CLI.
+  Closes #411.
 
 Closes #360.
 

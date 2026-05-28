@@ -22169,3 +22169,89 @@ def test_keywords_get_rejects_empty_categories_field_names_csv():
         "AutotargetingSettingsCategoriesFieldNames list."
         in result.output
     )
+
+
+# ----------------------------------------------------------------------
+# creatives.get: separate per-subtype *CreativeFieldNames (issue #411)
+# ----------------------------------------------------------------------
+
+
+def test_creatives_get_nested_field_names_payload():
+    # CreativesGetRequest (WSDL tests/wsdl_cache/creatives.xml) declares four
+    # nested top-level *FieldNames parameters separate from FieldNames:
+    # CpcVideoCreativeFieldNames (CpcVideoCreativeFieldEnum: Duration),
+    # CpmVideoCreativeFieldNames (CpmVideoCreativeFieldEnum: Duration),
+    # SmartCreativeFieldNames (SmartCreativeFieldEnum: CreativeGroupId,
+    # CreativeGroupName, BusinessType), and
+    # VideoExtensionCreativeFieldNames (VideoExtensionCreativeFieldEnum:
+    # Duration).
+    body = _read_dry_run(
+        "creatives",
+        "get",
+        "--cpc-video-creative-field-names",
+        "Duration",
+        "--cpm-video-creative-field-names",
+        "Duration",
+        "--smart-creative-field-names",
+        "CreativeGroupId,CreativeGroupName,BusinessType",
+        "--video-extension-creative-field-names",
+        "Duration",
+    )
+
+    params = body["params"]
+    assert params["CpcVideoCreativeFieldNames"] == ["Duration"]
+    assert params["CpmVideoCreativeFieldNames"] == ["Duration"]
+    assert params["SmartCreativeFieldNames"] == [
+        "CreativeGroupId",
+        "CreativeGroupName",
+        "BusinessType",
+    ]
+    assert params["VideoExtensionCreativeFieldNames"] == ["Duration"]
+
+
+def test_creatives_get_omits_nested_field_names_by_default():
+    body = _read_dry_run("creatives", "get")
+
+    for key in (
+        "CpcVideoCreativeFieldNames",
+        "CpmVideoCreativeFieldNames",
+        "SmartCreativeFieldNames",
+        "VideoExtensionCreativeFieldNames",
+    ):
+        assert key not in body["params"]
+
+
+def test_creatives_get_help_exposes_nested_field_names():
+    result = CliRunner().invoke(cli, ["creatives", "get", "--help"])
+
+    assert result.exit_code == 0
+    for flag in (
+        "--cpc-video-creative-field-names",
+        "--cpm-video-creative-field-names",
+        "--smart-creative-field-names",
+        "--video-extension-creative-field-names",
+    ):
+        assert flag in result.output
+
+
+@pytest.mark.parametrize(
+    "flag,wsdl_key",
+    [
+        ("--cpc-video-creative-field-names", "CpcVideoCreativeFieldNames"),
+        ("--cpm-video-creative-field-names", "CpmVideoCreativeFieldNames"),
+        ("--smart-creative-field-names", "SmartCreativeFieldNames"),
+        (
+            "--video-extension-creative-field-names",
+            "VideoExtensionCreativeFieldNames",
+        ),
+    ],
+)
+def test_creatives_get_rejects_empty_nested_field_names_csv(flag, wsdl_key):
+    result = CliRunner().invoke(
+        cli,
+        ["creatives", "get", flag, ",", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+
+    assert result.exit_code != 0
+    assert f"Provide a non-empty comma-separated {wsdl_key} list." in result.output
