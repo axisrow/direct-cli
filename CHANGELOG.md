@@ -2,6 +2,50 @@
 
 ## 0.3.14
 
+**Fixed:**
+
+- Reports drift checker now points at the canonical Yandex docs URLs
+  (`/ru/type`, `/ru/period`, `/ru/fields-list`, `/ru/spec`) after Yandex
+  retired the `/ru/reports/<page>` path layout and renamed `spec.html`
+  to `spec`. The pre-existing `tests/reports_cache/raw/` had silently
+  been captcha-poisoned for three of those pages (~14.6 KB Yandex
+  SmartCaptcha gateway in place of real docs); cache is now refetched
+  from the live canonical URLs and `spec.json` is byte-equivalent to
+  the pre-migration snapshot except for one updated description string.
+- Five `RESOURCE_MAPPING_V5[*]["docs"]` URLs that Yandex moved from the
+  legacy `…/ru/<group>/<group>` to `…/ru/<group>` single-segment form
+  (`dynamictextadtargets`, `dynamicfeedadtargets`, `reports`,
+  `smartadtargets`, `vcards`). Closes #426.
+
+**Added (drift protection):**
+
+- `direct_cli/reports_coverage.py::fetch_reports_spec` and
+  `direct_cli/wsdl_coverage.py::fetch_wsdl` / `fetch_live_wsdl` now
+  refuse responses that look like a Yandex SmartCaptcha gateway (markers
+  `showcaptcha`, `smartcaptcha`, `<title>Captcha`) or are suspiciously
+  short. This prevents silently poisoning the docs/WSDL cache with
+  rate-limited captcha HTML.
+- `tests/test_api_coverage.py::TestReportsCoverage::test_reports_cache_files_are_real_content`
+  and `TestWsdlCacheFreshness::test_wsdl_cache_files_are_real_content`
+  guard the committed cache files against the same poisoning.
+- `scripts/check_all_docs_urls.py` — health-checks every URL in
+  `RESOURCE_MAPPING_V5` and `REPORTS_SPEC_URLS`. Hard-fails on
+  redirect-to-captcha, canonical move (`Location` with a different path
+  segment), 4xx, or captcha body; soft-warns on 5xx; paces requests to
+  avoid Yandex rate-limit. Wired into `scripts/release_pypi.sh` as a
+  mandatory pre-release gate together with `refresh_reports_cache.py`
+  and a focused pytest pass.
+
+**Contract** (`CLAUDE.md`):
+
+- New rule "No URL literals outside the registry" — every Yandex
+  docs/API URL is declared once in `RESOURCE_MAPPING_V5` or
+  `REPORTS_SPEC_URLS`; importers reference the constant.
+- New rule "Docs/cache freshness guard" — fetchers and cache files
+  enforce minimum-size and no-captcha invariants.
+- New section "PyPI Release" — documents the three pre-release health
+  checks executed by `release_pypi.sh`.
+
 **Breaking changes:**
 
 - `direct ads get` flag `--text-ad-fields` is **renamed** to the
