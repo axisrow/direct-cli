@@ -35,6 +35,25 @@
   one has a matching kebab-case CLI option. Acknowledged remaining
   gaps are tracked in `NESTED_FIELDNAMES_EXCLUSIONS` and #402 so
   future additions cannot silently slip in.
+- `direct bidmodifiers get` now exposes thirteen additional
+  `--*-adjustment-field-names` flags for the per-adjustment-subtype
+  WSDL `*FieldNames` request parameters declared by
+  `BidModifiersGetRequest`: `--ad-group-adjustment-field-names`,
+  `--demographics-adjustment-field-names`,
+  `--desktop-adjustment-field-names`,
+  `--desktop-only-adjustment-field-names`,
+  `--income-grade-adjustment-field-names`,
+  `--mobile-adjustment-field-names`,
+  `--regional-adjustment-field-names`,
+  `--retargeting-adjustment-field-names`,
+  `--serp-layout-adjustment-field-names`,
+  `--smart-ad-adjustment-field-names`,
+  `--smart-tv-adjustment-field-names`,
+  `--tablet-adjustment-field-names`, and
+  `--video-adjustment-field-names`. Previously only the top-level
+  `--fields` (mapping to `FieldNames`) was available, so the
+  per-adjustment projections could not be controlled from CLI.
+  Closes #408.
 
 Closes #360.
 

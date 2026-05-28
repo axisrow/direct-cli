@@ -22009,3 +22009,112 @@ def test_keywordbids_get_rejects_empty_fields():
 
     assert result.exit_code != 0
     assert "Provide a non-empty comma-separated FieldNames list." in result.output
+
+
+# ----------------------------------------------------------------------
+# bidmodifiers.get: separate per-adjustment-type *AdjustmentFieldNames
+# (issue #408)
+# ----------------------------------------------------------------------
+
+
+_BIDMODIFIERS_GET_NESTED_FIELD_FLAGS = [
+    ("--ad-group-adjustment-field-names", "AdGroupAdjustmentFieldNames", "BidModifier"),
+    (
+        "--demographics-adjustment-field-names",
+        "DemographicsAdjustmentFieldNames",
+        "Gender,Age,BidModifier,Enabled",
+    ),
+    ("--desktop-adjustment-field-names", "DesktopAdjustmentFieldNames", "BidModifier"),
+    (
+        "--desktop-only-adjustment-field-names",
+        "DesktopOnlyAdjustmentFieldNames",
+        "BidModifier",
+    ),
+    (
+        "--income-grade-adjustment-field-names",
+        "IncomeGradeAdjustmentFieldNames",
+        "Grade,BidModifier,Enabled",
+    ),
+    (
+        "--mobile-adjustment-field-names",
+        "MobileAdjustmentFieldNames",
+        "BidModifier,OperatingSystemType",
+    ),
+    (
+        "--regional-adjustment-field-names",
+        "RegionalAdjustmentFieldNames",
+        "RegionId,BidModifier,Enabled",
+    ),
+    (
+        "--retargeting-adjustment-field-names",
+        "RetargetingAdjustmentFieldNames",
+        "RetargetingConditionId,BidModifier,Accessible,Enabled",
+    ),
+    (
+        "--serp-layout-adjustment-field-names",
+        "SerpLayoutAdjustmentFieldNames",
+        "SerpLayout,BidModifier,Enabled",
+    ),
+    (
+        "--smart-ad-adjustment-field-names",
+        "SmartAdAdjustmentFieldNames",
+        "BidModifier",
+    ),
+    (
+        "--smart-tv-adjustment-field-names",
+        "SmartTvAdjustmentFieldNames",
+        "BidModifier",
+    ),
+    (
+        "--tablet-adjustment-field-names",
+        "TabletAdjustmentFieldNames",
+        "BidModifier,OperatingSystemType",
+    ),
+    ("--video-adjustment-field-names", "VideoAdjustmentFieldNames", "BidModifier"),
+]
+
+
+def test_bidmodifiers_get_nested_field_names_payload():
+    # BidModifiersGetRequest (WSDL tests/wsdl_cache/bidmodifiers.xml)
+    # declares thirteen nested top-level *AdjustmentFieldNames parameters
+    # separate from FieldNames, one per adjustment subtype.
+    argv = ["bidmodifiers", "get"]
+    expected = {}
+    for flag, wsdl_key, sample in _BIDMODIFIERS_GET_NESTED_FIELD_FLAGS:
+        argv.extend([flag, sample])
+        expected[wsdl_key] = sample.split(",")
+
+    body = _read_dry_run(*argv)
+
+    for wsdl_key, values in expected.items():
+        assert body["params"][wsdl_key] == values
+
+
+def test_bidmodifiers_get_omits_nested_field_names_by_default():
+    body = _read_dry_run("bidmodifiers", "get")
+
+    for _, wsdl_key, _ in _BIDMODIFIERS_GET_NESTED_FIELD_FLAGS:
+        assert wsdl_key not in body["params"]
+
+
+def test_bidmodifiers_get_help_exposes_nested_field_names():
+    result = CliRunner().invoke(cli, ["bidmodifiers", "get", "--help"])
+
+    assert result.exit_code == 0
+    for flag, _, _ in _BIDMODIFIERS_GET_NESTED_FIELD_FLAGS:
+        assert flag in result.output
+
+
+@pytest.mark.parametrize(
+    "flag,wsdl_key",
+    [(flag, key) for flag, key, _ in _BIDMODIFIERS_GET_NESTED_FIELD_FLAGS],
+)
+def test_bidmodifiers_get_rejects_empty_nested_field_names_csv(flag, wsdl_key):
+    result = CliRunner().invoke(
+        cli,
+        ["bidmodifiers", "get", flag, ",", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+
+    assert result.exit_code != 0
+    assert f"Provide a non-empty comma-separated {wsdl_key} list." in result.output
