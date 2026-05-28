@@ -345,7 +345,7 @@ def test_campaigns_get_text_campaign_fields_dry_run():
         "get",
         "--fields",
         "Id,Name,State",
-        "--text-campaign-fields",
+        "--text-campaign-field-names",
         "BiddingStrategy",
     )
 
@@ -357,17 +357,17 @@ def test_campaigns_get_campaign_specific_fields_dry_run():
     body = _read_dry_run(
         "campaigns",
         "get",
-        "--text-campaign-fields",
+        "--text-campaign-field-names",
         "BiddingStrategy,PriorityGoals",
-        "--mobile-app-campaign-fields",
+        "--mobile-app-campaign-field-names",
         "Settings,BiddingStrategy",
-        "--dynamic-text-campaign-fields",
+        "--dynamic-text-campaign-field-names",
         "BiddingStrategy,Settings",
-        "--cpm-banner-campaign-fields",
+        "--cpm-banner-campaign-field-names",
         "BiddingStrategy,Settings",
-        "--smart-campaign-fields",
+        "--smart-campaign-field-names",
         "BiddingStrategy,Settings",
-        "--unified-campaign-fields",
+        "--unified-campaign-field-names",
         "BiddingStrategy,PriorityGoals",
     )
 
@@ -384,13 +384,13 @@ def test_campaigns_get_strategy_placement_fields_dry_run():
     body = _read_dry_run(
         "campaigns",
         "get",
-        "--text-campaign-search-strategy-placement-types-fields",
+        "--text-campaign-search-strategy-placement-types-field-names",
         "SearchResults,ProductGallery",
-        "--dynamic-text-campaign-search-strategy-placement-types-fields",
+        "--dynamic-text-campaign-search-strategy-placement-types-field-names",
         "SearchResults,DynamicPlaces",
-        "--unified-campaign-search-strategy-placement-types-fields",
+        "--unified-campaign-search-strategy-placement-types-field-names",
         "SearchResults,Maps,SearchOrganizationList",
-        "--unified-campaign-package-bidding-strategy-platforms-fields",
+        "--unified-campaign-package-bidding-strategy-platforms-field-names",
         "SearchResult,Network",
     )
 
@@ -452,7 +452,7 @@ def test_campaigns_get_rejects_empty_campaign_specific_fields_csv():
             "get",
             "--fields",
             "Id",
-            "--text-campaign-fields",
+            "--text-campaign-field-names",
             ",",
             "--dry-run",
         ],
@@ -460,7 +460,7 @@ def test_campaigns_get_rejects_empty_campaign_specific_fields_csv():
     )
 
     assert result.exit_code != 0
-    assert "--text-campaign-fields must contain at least one value" in result.output
+    assert "--text-campaign-field-names must contain at least one value" in result.output
 
 
 def _reports_get_result(*extra_args: str) -> Result:
@@ -22012,19 +22012,622 @@ def test_keywordbids_get_rejects_empty_fields():
 
 
 # ----------------------------------------------------------------------
-# bidmodifiers.get: separate per-adjustment-type *AdjustmentFieldNames
+# feeds.get: separate File/UrlFeedFieldNames parameters (issue #412)
+# ----------------------------------------------------------------------
+
+
+def test_feeds_get_nested_field_names_payload():
+    # FeedsGetRequest (WSDL tests/wsdl_cache/feeds.xml) declares two
+    # nested top-level *FieldNames parameters separate from FieldNames:
+    # FileFeedFieldNames (FileFeedFieldEnum: Filename) and
+    # UrlFeedFieldNames (UrlFeedFieldEnum: Login, Url, RemoveUtmTags).
+    body = _read_dry_run(
+        "feeds",
+        "get",
+        "--file-feed-field-names",
+        "Filename",
+        "--url-feed-field-names",
+        "Login,Url,RemoveUtmTags",
+    )
+
+    params = body["params"]
+    assert params["FileFeedFieldNames"] == ["Filename"]
+    assert params["UrlFeedFieldNames"] == ["Login", "Url", "RemoveUtmTags"]
+
+
+def test_feeds_get_omits_nested_field_names_by_default():
+    body = _read_dry_run("feeds", "get")
+
+    assert "FileFeedFieldNames" not in body["params"]
+    assert "UrlFeedFieldNames" not in body["params"]
+
+
+def test_feeds_get_help_exposes_nested_field_names():
+    result = CliRunner().invoke(cli, ["feeds", "get", "--help"])
+
+    assert result.exit_code == 0
+    assert "--file-feed-field-names" in result.output
+    assert "--url-feed-field-names" in result.output
+
+
+def test_feeds_get_rejects_empty_file_feed_field_names_csv():
+    result = CliRunner().invoke(
+        cli,
+        ["feeds", "get", "--file-feed-field-names", ",", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+
+    assert result.exit_code != 0
+    assert (
+        "Provide a non-empty comma-separated FileFeedFieldNames list."
+        in result.output
+    )
+
+
+def test_feeds_get_rejects_empty_url_feed_field_names_csv():
+    result = CliRunner().invoke(
+        cli,
+        ["feeds", "get", "--url-feed-field-names", ",", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+
+    assert result.exit_code != 0
+    assert (
+        "Provide a non-empty comma-separated UrlFeedFieldNames list."
+        in result.output
+    )
+
+
+# ----------------------------------------------------------------------
+# keywords.get: separate AutotargetingSettings*FieldNames (issue #413)
+# ----------------------------------------------------------------------
+
+
+def test_keywords_get_nested_field_names_payload():
+    # KeywordsGetRequest (WSDL tests/wsdl_cache/keywords.xml) declares two
+    # nested top-level *FieldNames parameters separate from FieldNames:
+    # AutotargetingSettingsBrandOptionsFieldNames
+    # (AutotargetingBrandOptionsFieldEnum: WithoutBrands,
+    # WithAdvertiserBrand, WithCompetitorsBrand) and
+    # AutotargetingSettingsCategoriesFieldNames
+    # (AutotargetingCategoriesFieldEnum: Exact, Narrow, Alternative,
+    # Accessory, Broader).
+    body = _read_dry_run(
+        "keywords",
+        "get",
+        "--autotargeting-settings-brand-options-field-names",
+        "WithoutBrands,WithAdvertiserBrand,WithCompetitorsBrand",
+        "--autotargeting-settings-categories-field-names",
+        "Exact,Narrow,Alternative",
+    )
+
+    params = body["params"]
+    assert params["AutotargetingSettingsBrandOptionsFieldNames"] == [
+        "WithoutBrands",
+        "WithAdvertiserBrand",
+        "WithCompetitorsBrand",
+    ]
+    assert params["AutotargetingSettingsCategoriesFieldNames"] == [
+        "Exact",
+        "Narrow",
+        "Alternative",
+    ]
+
+
+def test_keywords_get_omits_nested_field_names_by_default():
+    body = _read_dry_run("keywords", "get")
+
+    assert "AutotargetingSettingsBrandOptionsFieldNames" not in body["params"]
+    assert "AutotargetingSettingsCategoriesFieldNames" not in body["params"]
+
+
+def test_keywords_get_help_exposes_nested_field_names():
+    result = CliRunner().invoke(cli, ["keywords", "get", "--help"])
+
+    assert result.exit_code == 0
+    assert "--autotargeting-settings-brand-options-field-names" in result.output
+    assert "--autotargeting-settings-categories-field-names" in result.output
+
+
+def test_keywords_get_rejects_empty_brand_options_field_names_csv():
+    result = CliRunner().invoke(
+        cli,
+        [
+            "keywords",
+            "get",
+            "--autotargeting-settings-brand-options-field-names",
+            ",",
+            "--dry-run",
+        ],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+
+    assert result.exit_code != 0
+    assert (
+        "Provide a non-empty comma-separated "
+        "AutotargetingSettingsBrandOptionsFieldNames list."
+        in result.output
+    )
+
+
+def test_keywords_get_rejects_empty_categories_field_names_csv():
+    result = CliRunner().invoke(
+        cli,
+        [
+            "keywords",
+            "get",
+            "--autotargeting-settings-categories-field-names",
+            ",",
+            "--dry-run",
+        ],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+
+    assert result.exit_code != 0
+    assert (
+        "Provide a non-empty comma-separated "
+        "AutotargetingSettingsCategoriesFieldNames list."
+        in result.output
+    )
+
+
+# ----------------------------------------------------------------------
+# creatives.get: separate per-subtype *CreativeFieldNames (issue #411)
+# ----------------------------------------------------------------------
+
+
+def test_creatives_get_nested_field_names_payload():
+    # CreativesGetRequest (WSDL tests/wsdl_cache/creatives.xml) declares four
+    # nested top-level *FieldNames parameters separate from FieldNames:
+    # CpcVideoCreativeFieldNames (CpcVideoCreativeFieldEnum: Duration),
+    # CpmVideoCreativeFieldNames (CpmVideoCreativeFieldEnum: Duration),
+    # SmartCreativeFieldNames (SmartCreativeFieldEnum: CreativeGroupId,
+    # CreativeGroupName, BusinessType), and
+    # VideoExtensionCreativeFieldNames (VideoExtensionCreativeFieldEnum:
+    # Duration).
+    body = _read_dry_run(
+        "creatives",
+        "get",
+        "--cpc-video-creative-field-names",
+        "Duration",
+        "--cpm-video-creative-field-names",
+        "Duration",
+        "--smart-creative-field-names",
+        "CreativeGroupId,CreativeGroupName,BusinessType",
+        "--video-extension-creative-field-names",
+        "Duration",
+    )
+
+    params = body["params"]
+    assert params["CpcVideoCreativeFieldNames"] == ["Duration"]
+    assert params["CpmVideoCreativeFieldNames"] == ["Duration"]
+    assert params["SmartCreativeFieldNames"] == [
+        "CreativeGroupId",
+        "CreativeGroupName",
+        "BusinessType",
+    ]
+    assert params["VideoExtensionCreativeFieldNames"] == ["Duration"]
+
+
+def test_creatives_get_omits_nested_field_names_by_default():
+    body = _read_dry_run("creatives", "get")
+
+    for key in (
+        "CpcVideoCreativeFieldNames",
+        "CpmVideoCreativeFieldNames",
+        "SmartCreativeFieldNames",
+        "VideoExtensionCreativeFieldNames",
+    ):
+        assert key not in body["params"]
+
+
+def test_creatives_get_help_exposes_nested_field_names():
+    result = CliRunner().invoke(cli, ["creatives", "get", "--help"])
+
+    assert result.exit_code == 0
+    for flag in (
+        "--cpc-video-creative-field-names",
+        "--cpm-video-creative-field-names",
+        "--smart-creative-field-names",
+        "--video-extension-creative-field-names",
+    ):
+        assert flag in result.output
+
+
+@pytest.mark.parametrize(
+    "flag,wsdl_key",
+    [
+        ("--cpc-video-creative-field-names", "CpcVideoCreativeFieldNames"),
+        ("--cpm-video-creative-field-names", "CpmVideoCreativeFieldNames"),
+        ("--smart-creative-field-names", "SmartCreativeFieldNames"),
+        (
+            "--video-extension-creative-field-names",
+            "VideoExtensionCreativeFieldNames",
+        ),
+    ],
+)
+def test_creatives_get_rejects_empty_nested_field_names_csv(flag, wsdl_key):
+    result = CliRunner().invoke(
+        cli,
+        ["creatives", "get", flag, ",", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+
+    assert result.exit_code != 0
+    assert f"Provide a non-empty comma-separated {wsdl_key} list." in result.output
+
+
+# ----------------------------------------------------------------------
+# clients.get: separate Contract/Contragent/Organization/TinInfo
+# *FieldNames (issue #410)
+# ----------------------------------------------------------------------
+
+
+_CLIENTS_GET_NESTED_FIELD_FLAGS = [
+    ("--contract-field-names", "ContractFieldNames", "Number,Date,Price"),
+    ("--contragent-field-names", "ContragentFieldNames", "Name,Phone,EpayNumber"),
+    (
+        "--contragent-tin-info-field-names",
+        "ContragentTinInfoFieldNames",
+        "TinType,Tin",
+    ),
+    (
+        "--organization-field-names",
+        "OrganizationFieldNames",
+        "Name,EpayNumber,OkvedCode",
+    ),
+    ("--tin-info-field-names", "TinInfoFieldNames", "TinType,Tin"),
+]
+
+
+def test_clients_get_nested_field_names_payload():
+    # ClientsGetRequest (WSDL tests/wsdl_cache/clients.xml) declares five
+    # nested top-level *FieldNames parameters separate from FieldNames:
+    # ContractFieldNames (ContractInfoFieldEnum), ContragentFieldNames
+    # (ContragentInfoFieldEnum), ContragentTinInfoFieldNames
+    # (TinInfoFieldEnum), OrganizationFieldNames (OrgInfoFieldEnum), and
+    # TinInfoFieldNames (TinInfoFieldEnum). The same five enums are reused
+    # on agencyclients.get per #407.
+    argv = ["clients", "get"]
+    expected = {}
+    for flag, wsdl_key, sample in _CLIENTS_GET_NESTED_FIELD_FLAGS:
+        argv.extend([flag, sample])
+        expected[wsdl_key] = sample.split(",")
+
+    body = _read_dry_run(*argv)
+
+    for wsdl_key, values in expected.items():
+        assert body["params"][wsdl_key] == values
+
+
+def test_clients_get_omits_nested_field_names_by_default():
+    body = _read_dry_run("clients", "get")
+
+    for _, wsdl_key, _ in _CLIENTS_GET_NESTED_FIELD_FLAGS:
+        assert wsdl_key not in body["params"]
+
+
+def test_clients_get_help_exposes_nested_field_names():
+    result = CliRunner().invoke(cli, ["clients", "get", "--help"])
+
+    assert result.exit_code == 0
+    for flag, _, _ in _CLIENTS_GET_NESTED_FIELD_FLAGS:
+        assert flag in result.output
+
+
+@pytest.mark.parametrize(
+    "flag,wsdl_key",
+    [(flag, key) for flag, key, _ in _CLIENTS_GET_NESTED_FIELD_FLAGS],
+)
+def test_clients_get_rejects_empty_nested_field_names_csv(flag, wsdl_key):
+    result = CliRunner().invoke(
+        cli,
+        ["clients", "get", flag, ",", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+
+    assert result.exit_code != 0
+    assert f"Provide a non-empty comma-separated {wsdl_key} list." in result.output
+
+
+# ----------------------------------------------------------------------
+# agencyclients.get: separate Contract/Contragent/Organization/TinInfo
+# *FieldNames (issue #407)
+# ----------------------------------------------------------------------
+
+
+_AGENCYCLIENTS_GET_NESTED_FIELD_FLAGS = [
+    ("--contract-field-names", "ContractFieldNames", "Number,Date,Type"),
+    ("--contragent-field-names", "ContragentFieldNames", "Name,Phone,RegNumber"),
+    (
+        "--contragent-tin-info-field-names",
+        "ContragentTinInfoFieldNames",
+        "TinType,Tin",
+    ),
+    (
+        "--organization-field-names",
+        "OrganizationFieldNames",
+        "Name,EpayNumber,OkvedCode",
+    ),
+    ("--tin-info-field-names", "TinInfoFieldNames", "TinType,Tin"),
+]
+
+
+def test_agencyclients_get_nested_field_names_payload():
+    # AgencyClientsGetRequest (WSDL tests/wsdl_cache/agencyclients.xml)
+    # declares five nested top-level *FieldNames parameters separate from
+    # FieldNames: ContractFieldNames (ContractInfoFieldEnum),
+    # ContragentFieldNames (ContragentInfoFieldEnum),
+    # ContragentTinInfoFieldNames (TinInfoFieldEnum),
+    # OrganizationFieldNames (OrgInfoFieldEnum), and TinInfoFieldNames
+    # (TinInfoFieldEnum). The same five enums are reused on clients.get
+    # per #410.
+    argv = ["agencyclients", "get"]
+    expected = {}
+    for flag, wsdl_key, sample in _AGENCYCLIENTS_GET_NESTED_FIELD_FLAGS:
+        argv.extend([flag, sample])
+        expected[wsdl_key] = sample.split(",")
+
+    body = _read_dry_run(*argv)
+
+    for wsdl_key, values in expected.items():
+        assert body["params"][wsdl_key] == values
+
+
+def test_agencyclients_get_omits_nested_field_names_by_default():
+    body = _read_dry_run("agencyclients", "get")
+
+    for _, wsdl_key, _ in _AGENCYCLIENTS_GET_NESTED_FIELD_FLAGS:
+        assert wsdl_key not in body["params"]
+
+
+def test_agencyclients_get_help_exposes_nested_field_names():
+    result = CliRunner().invoke(cli, ["agencyclients", "get", "--help"])
+
+    assert result.exit_code == 0
+    for flag, _, _ in _AGENCYCLIENTS_GET_NESTED_FIELD_FLAGS:
+        assert flag in result.output
+
+
+@pytest.mark.parametrize(
+    "flag,wsdl_key",
+    [(flag, key) for flag, key, _ in _AGENCYCLIENTS_GET_NESTED_FIELD_FLAGS],
+)
+def test_agencyclients_get_rejects_empty_nested_field_names_csv(flag, wsdl_key):
+    result = CliRunner().invoke(
+        cli,
+        ["agencyclients", "get", flag, ",", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+
+    assert result.exit_code != 0
+    assert f"Provide a non-empty comma-separated {wsdl_key} list." in result.output
+
+
+# ----------------------------------------------------------------------
+# adgroups.get: separate per-subtype *AdGroupFieldNames + Autotargeting
+# *FieldNames (issue #405)
+# ----------------------------------------------------------------------
+
+
+_ADGROUPS_GET_NESTED_FIELD_FLAGS = [
+    (
+        "--autotargeting-settings-brand-options-field-names",
+        "AutotargetingSettingsBrandOptionsFieldNames",
+        "WithoutBrands,WithAdvertiserBrand",
+    ),
+    (
+        "--autotargeting-settings-categories-field-names",
+        "AutotargetingSettingsCategoriesFieldNames",
+        "Exact,Narrow,Alternative",
+    ),
+    (
+        "--dynamic-text-ad-group-field-names",
+        "DynamicTextAdGroupFieldNames",
+        "AutotargetingSettings,DomainUrl",
+    ),
+    (
+        "--dynamic-text-feed-ad-group-field-names",
+        "DynamicTextFeedAdGroupFieldNames",
+        "Source,FeedId",
+    ),
+    (
+        "--mobile-app-ad-group-field-names",
+        "MobileAppAdGroupFieldNames",
+        "StoreUrl,TargetDeviceType",
+    ),
+    (
+        "--smart-ad-group-field-names",
+        "SmartAdGroupFieldNames",
+        "FeedId,AdTitleSource",
+    ),
+    (
+        "--text-ad-group-feed-params-field-names",
+        "TextAdGroupFeedParamsFieldNames",
+        "FeedId,FeedCategoryIds",
+    ),
+    (
+        "--unified-ad-group-field-names",
+        "UnifiedAdGroupFieldNames",
+        "OfferRetargeting",
+    ),
+]
+
+
+def test_adgroups_get_nested_field_names_payload():
+    # AdGroupsGetRequest (WSDL tests/wsdl_cache/adgroups.xml) declares eight
+    # nested top-level *FieldNames parameters separate from FieldNames.
+    # Verified against live production API on 2026-05-28: Yandex accepts the
+    # two AutotargetingSettings* parameters that are not (yet) listed in the
+    # public adgroups.get reference (#405 carries the api-status:docs-drift
+    # label).
+    argv = ["adgroups", "get", "--campaign-ids", "1"]
+    expected = {}
+    for flag, wsdl_key, sample in _ADGROUPS_GET_NESTED_FIELD_FLAGS:
+        argv.extend([flag, sample])
+        expected[wsdl_key] = sample.split(",")
+
+    body = _read_dry_run(*argv)
+
+    for wsdl_key, values in expected.items():
+        assert body["params"][wsdl_key] == values
+
+
+def test_adgroups_get_omits_nested_field_names_by_default():
+    body = _read_dry_run("adgroups", "get", "--campaign-ids", "1")
+
+    for _, wsdl_key, _ in _ADGROUPS_GET_NESTED_FIELD_FLAGS:
+        assert wsdl_key not in body["params"]
+
+
+def test_adgroups_get_help_exposes_nested_field_names():
+    result = CliRunner().invoke(cli, ["adgroups", "get", "--help"])
+
+    assert result.exit_code == 0
+    for flag, _, _ in _ADGROUPS_GET_NESTED_FIELD_FLAGS:
+        assert flag in result.output
+
+
+@pytest.mark.parametrize(
+    "flag,wsdl_key",
+    [(flag, key) for flag, key, _ in _ADGROUPS_GET_NESTED_FIELD_FLAGS],
+)
+def test_adgroups_get_rejects_empty_nested_field_names_csv(flag, wsdl_key):
+    result = CliRunner().invoke(
+        cli,
+        ["adgroups", "get", "--campaign-ids", "1", flag, ",", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+
+    assert result.exit_code != 0
+    assert f"Provide a non-empty comma-separated {wsdl_key} list." in result.output
+
+
+# ----------------------------------------------------------------------
+# campaigns.get: canonical --*-field-names flags (issue #409)
+#
+# BREAKING CHANGE: the previous --*-fields names are removed; the WSDL
+# parameter name maps 1:1 to the CLI flag (e.g. TextCampaignFieldNames
+# → --text-campaign-field-names).
+# ----------------------------------------------------------------------
+
+
+_CAMPAIGNS_GET_CANONICAL_FIELD_NAMES_FLAGS = [
+    (
+        "--cpm-banner-campaign-field-names",
+        "CpmBannerCampaignFieldNames",
+        "CounterIds,FrequencyCap,Settings",
+    ),
+    (
+        "--dynamic-text-campaign-field-names",
+        "DynamicTextCampaignFieldNames",
+        "PlacementTypes,CounterIds,Settings",
+    ),
+    (
+        "--dynamic-text-campaign-search-strategy-placement-types-field-names",
+        "DynamicTextCampaignSearchStrategyPlacementTypesFieldNames",
+        "SearchResults,ProductGallery,DynamicPlaces",
+    ),
+    (
+        "--mobile-app-campaign-field-names",
+        "MobileAppCampaignFieldNames",
+        "Settings,BiddingStrategy,NegativeKeywordSharedSetIds",
+    ),
+    (
+        "--smart-campaign-field-names",
+        "SmartCampaignFieldNames",
+        "CounterId,Settings,BiddingStrategy",
+    ),
+    (
+        "--text-campaign-field-names",
+        "TextCampaignFieldNames",
+        "CounterIds,Settings,BiddingStrategy",
+    ),
+    (
+        "--text-campaign-search-strategy-placement-types-field-names",
+        "TextCampaignSearchStrategyPlacementTypesFieldNames",
+        "SearchResults,ProductGallery,DynamicPlaces",
+    ),
+    (
+        "--unified-campaign-field-names",
+        "UnifiedCampaignFieldNames",
+        "CounterIds,Settings,BiddingStrategy",
+    ),
+    (
+        "--unified-campaign-package-bidding-strategy-platforms-field-names",
+        "UnifiedCampaignPackageBiddingStrategyPlatformsFieldNames",
+        "SearchResult,ProductGallery,Maps,Network",
+    ),
+    (
+        "--unified-campaign-search-strategy-placement-types-field-names",
+        "UnifiedCampaignSearchStrategyPlacementTypesFieldNames",
+        "SearchResults,Maps,SearchOrganizationList",
+    ),
+]
+
+
+def test_campaigns_get_canonical_field_names_flags_payload():
+    # CampaignsGetRequest (WSDL tests/wsdl_cache/campaigns.xml) declares
+    # ten nested top-level *FieldNames parameters separate from FieldNames.
+    # PR #409 renames the legacy `--*-fields` flags to the WSDL-canonical
+    # `--*-field-names` form so the parameter name maps 1:1 to the CLI.
+    # This is a breaking change.
+    argv = ["campaigns", "get"]
+    expected = {}
+    for flag, wsdl_key, sample in _CAMPAIGNS_GET_CANONICAL_FIELD_NAMES_FLAGS:
+        argv.extend([flag, sample])
+        expected[wsdl_key] = sample.split(",")
+
+    body = _read_dry_run(*argv)
+
+    for wsdl_key, values in expected.items():
+        assert body["params"][wsdl_key] == values
+
+
+def test_campaigns_get_help_exposes_canonical_field_names_flags():
+    result = CliRunner().invoke(cli, ["campaigns", "get", "--help"])
+
+    assert result.exit_code == 0
+    for flag, _, _ in _CAMPAIGNS_GET_CANONICAL_FIELD_NAMES_FLAGS:
+        assert flag in result.output, f"missing flag in --help output: {flag}"
+
+
+def test_campaigns_get_legacy_field_aliases_removed():
+    # Breaking change (#409): the old `--text-campaign-fields` style flags
+    # were renamed to the WSDL-canonical `--*-field-names` form. The legacy
+    # names must no longer be accepted by Click.
+    result = CliRunner().invoke(
+        cli,
+        ["campaigns", "get", "--text-campaign-fields", "BiddingStrategy", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+
+    assert result.exit_code != 0
+    assert "No such option" in result.output or "no such option" in result.output
+
+
+# ----------------------------------------------------------------------
+# bidmodifiers.get: separate per-adjustment-subtype *FieldNames
 # (issue #408)
 # ----------------------------------------------------------------------
 
 
 _BIDMODIFIERS_GET_NESTED_FIELD_FLAGS = [
-    ("--ad-group-adjustment-field-names", "AdGroupAdjustmentFieldNames", "BidModifier"),
+    (
+        "--ad-group-adjustment-field-names",
+        "AdGroupAdjustmentFieldNames",
+        "BidModifier",
+    ),
     (
         "--demographics-adjustment-field-names",
         "DemographicsAdjustmentFieldNames",
-        "Gender,Age,BidModifier,Enabled",
+        "BidModifier,Age,Gender",
     ),
-    ("--desktop-adjustment-field-names", "DesktopAdjustmentFieldNames", "BidModifier"),
+    (
+        "--desktop-adjustment-field-names",
+        "DesktopAdjustmentFieldNames",
+        "BidModifier",
+    ),
     (
         "--desktop-only-adjustment-field-names",
         "DesktopOnlyAdjustmentFieldNames",
@@ -22033,7 +22636,7 @@ _BIDMODIFIERS_GET_NESTED_FIELD_FLAGS = [
     (
         "--income-grade-adjustment-field-names",
         "IncomeGradeAdjustmentFieldNames",
-        "Grade,BidModifier,Enabled",
+        "BidModifier,IncomeGrade",
     ),
     (
         "--mobile-adjustment-field-names",
@@ -22043,17 +22646,17 @@ _BIDMODIFIERS_GET_NESTED_FIELD_FLAGS = [
     (
         "--regional-adjustment-field-names",
         "RegionalAdjustmentFieldNames",
-        "RegionId,BidModifier,Enabled",
+        "BidModifier,RegionId",
     ),
     (
         "--retargeting-adjustment-field-names",
         "RetargetingAdjustmentFieldNames",
-        "RetargetingConditionId,BidModifier,Accessible,Enabled",
+        "BidModifier,RetargetingConditionId",
     ),
     (
         "--serp-layout-adjustment-field-names",
         "SerpLayoutAdjustmentFieldNames",
-        "SerpLayout,BidModifier,Enabled",
+        "BidModifier,SerpLayout",
     ),
     (
         "--smart-ad-adjustment-field-names",
@@ -22068,17 +22671,24 @@ _BIDMODIFIERS_GET_NESTED_FIELD_FLAGS = [
     (
         "--tablet-adjustment-field-names",
         "TabletAdjustmentFieldNames",
-        "BidModifier,OperatingSystemType",
+        "BidModifier",
     ),
-    ("--video-adjustment-field-names", "VideoAdjustmentFieldNames", "BidModifier"),
+    (
+        "--video-adjustment-field-names",
+        "VideoAdjustmentFieldNames",
+        "BidModifier",
+    ),
 ]
 
 
 def test_bidmodifiers_get_nested_field_names_payload():
     # BidModifiersGetRequest (WSDL tests/wsdl_cache/bidmodifiers.xml)
-    # declares thirteen nested top-level *AdjustmentFieldNames parameters
-    # separate from FieldNames, one per adjustment subtype.
-    argv = ["bidmodifiers", "get"]
+    # declares thirteen nested top-level *FieldNames parameters separate
+    # from FieldNames, one per adjustment subtype.
+    # Verified against live production API on 2026-05-28: Yandex accepts
+    # SmartTvAdjustmentFieldNames (not mentioned in the current public
+    # docs — #408 carries the api-status:docs-drift label).
+    argv = ["bidmodifiers", "get", "--campaign-ids", "1"]
     expected = {}
     for flag, wsdl_key, sample in _BIDMODIFIERS_GET_NESTED_FIELD_FLAGS:
         argv.extend([flag, sample])
@@ -22091,7 +22701,7 @@ def test_bidmodifiers_get_nested_field_names_payload():
 
 
 def test_bidmodifiers_get_omits_nested_field_names_by_default():
-    body = _read_dry_run("bidmodifiers", "get")
+    body = _read_dry_run("bidmodifiers", "get", "--campaign-ids", "1")
 
     for _, wsdl_key, _ in _BIDMODIFIERS_GET_NESTED_FIELD_FLAGS:
         assert wsdl_key not in body["params"]
@@ -22112,7 +22722,7 @@ def test_bidmodifiers_get_help_exposes_nested_field_names():
 def test_bidmodifiers_get_rejects_empty_nested_field_names_csv(flag, wsdl_key):
     result = CliRunner().invoke(
         cli,
-        ["bidmodifiers", "get", flag, ",", "--dry-run"],
+        ["bidmodifiers", "get", "--campaign-ids", "1", flag, ",", "--dry-run"],
         env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
     )
 
