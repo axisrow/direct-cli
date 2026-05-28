@@ -143,7 +143,10 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
             "Official public docs were not found. Sandbox v4 Live rejects "
             "PaymentID with error_code=71 and requires CustomTransactionID; "
             "a valid 32-character unknown CustomTransactionID reaches method "
-            "validation and returns error_code=370."
+            "validation and returns error_code=370. "
+            "Docs-verified 2026-05-28: method is absent from the v4 "
+            "_AllMethods index (dg-v4/ru/reference/_AllMethods); sandbox "
+            "behaviour remains the source of truth for the wire shape."
         ),
     ),
     "CreateInvoice": V4MethodContract(
