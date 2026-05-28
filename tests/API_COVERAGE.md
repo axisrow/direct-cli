@@ -60,8 +60,8 @@ No official `CheckPayment` page or `PaymentID` contract was found.
 Financial methods use an additional `finance_token`, computed from the
 master token, operation number, method name, and normalized login. Public
 dry-run examples mask the computed token. The docs-backed `PayCampaigns`
-contract requires `Currency` on each payment item; `TransferMoney`'s
-`PayCampElement` carries only `CampaignID` and `Sum` (no `Currency`).
+and `TransferMoney` `PayCampElement` carries only `CampaignID` and `Sum`
+(no `Currency`); `PayCampaigns.PayMethod` is `'Bank'` only.
 `CreateInvoice` is exposed as `v4finance create-invoice` with repeated
 `--payment CAMPAIGN_ID=AMOUNT` flags and sends docs-backed
 `Payments[].CampaignID/Sum/Currency`; its live write test is opt-in via

@@ -110,14 +110,17 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
         source_status=SOURCE_DOCS,
         live_probe_allowed=False,
         example_param={
-            "Payments": [{"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"}],
+            "Payments": [{"CampaignID": 123, "Sum": 100.5}],
             "ContractID": "contract-id",
             "PayMethod": "Bank",
         },
         notes=(
-            "Official v4 docs define agency credit-limit payment with "
-            "Currency on each payment item and PayMethod Bank/Overdraft. "
-            "This CLI exposes dry-run only; the method is not live-probed."
+            "Docs-verified 2026-05-28 against dg-v4/reference/PayCampaigns: "
+            "PayCampElement carries only CampaignID and Sum (conventional "
+            "units); PayMethod currently accepts 'Bank' only. The CLI "
+            "dropped --currency and the undocumented 'Overdraft' PayMethod "
+            "value in 0.3.15 (BREAKING) to mirror docs 1:1. This CLI "
+            "exposes dry-run only; the method is not live-probed."
         ),
     ),
     "PayCampaignsByCard": V4MethodContract(
