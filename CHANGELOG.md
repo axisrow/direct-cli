@@ -35,6 +35,18 @@
   one has a matching kebab-case CLI option. Acknowledged remaining
   gaps are tracked in `NESTED_FIELDNAMES_EXCLUSIONS` and #402 so
   future additions cannot silently slip in.
+- `direct creatives get` now exposes
+  `--cpc-video-creative-field-names`,
+  `--cpm-video-creative-field-names`,
+  `--smart-creative-field-names`, and
+  `--video-extension-creative-field-names` for the four nested
+  WSDL `*FieldNames` request parameters declared by
+  `CreativesGetRequest` (`CpcVideoCreativeFieldEnum`,
+  `CpmVideoCreativeFieldEnum`, `SmartCreativeFieldEnum`,
+  `VideoExtensionCreativeFieldEnum`). Previously only the top-level
+  `--fields` (mapping to `FieldNames`) was available, so the
+  per-subtype projections could not be controlled from CLI.
+  Closes #411.
 
 Closes #360.
 

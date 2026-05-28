@@ -6,7 +6,7 @@ import click
 
 from ..api import create_client
 from ..output import format_output, print_error
-from ..utils import get_default_fields, parse_ids
+from ..utils import get_default_fields, parse_csv_strings, parse_ids
 
 
 @click.group()
@@ -22,9 +22,56 @@ def creatives():
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.option("--fields", help="Comma-separated field names")
+@click.option(
+    "--cpc-video-creative-field-names",
+    help=(
+        "Comma-separated CpcVideoCreativeFieldNames (e.g. Duration). "
+        "Sent as separate top-level request parameter per the "
+        "CreativesGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--cpm-video-creative-field-names",
+    help=(
+        "Comma-separated CpmVideoCreativeFieldNames (e.g. Duration). "
+        "Sent as separate top-level request parameter per the "
+        "CreativesGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--smart-creative-field-names",
+    help=(
+        "Comma-separated SmartCreativeFieldNames "
+        "(e.g. CreativeGroupId,CreativeGroupName,BusinessType). "
+        "Sent as separate top-level request parameter per the "
+        "CreativesGetRequest WSDL."
+    ),
+)
+@click.option(
+    "--video-extension-creative-field-names",
+    help=(
+        "Comma-separated VideoExtensionCreativeFieldNames (e.g. Duration). "
+        "Sent as separate top-level request parameter per the "
+        "CreativesGetRequest WSDL."
+    ),
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def get(ctx, ids, types, limit, fetch_all, output_format, output, fields, dry_run):
+def get(
+    ctx,
+    ids,
+    types,
+    limit,
+    fetch_all,
+    output_format,
+    output,
+    fields,
+    cpc_video_creative_field_names,
+    cpm_video_creative_field_names,
+    smart_creative_field_names,
+    video_extension_creative_field_names,
+    dry_run,
+):
     """Get creatives"""
     try:
         client = create_client(
@@ -35,6 +82,25 @@ def get(ctx, ids, types, limit, fetch_all, output_format, output, fields, dry_ru
 
         field_names = fields.split(",") if fields else get_default_fields("creatives")
 
+        nested_field_name_options = (
+            ("CpcVideoCreativeFieldNames", cpc_video_creative_field_names),
+            ("CpmVideoCreativeFieldNames", cpm_video_creative_field_names),
+            ("SmartCreativeFieldNames", smart_creative_field_names),
+            (
+                "VideoExtensionCreativeFieldNames",
+                video_extension_creative_field_names,
+            ),
+        )
+        parsed_nested_field_names = {}
+        for wsdl_key, raw_value in nested_field_name_options:
+            parsed = parse_csv_strings(raw_value)
+            if raw_value is not None and not parsed:
+                raise click.UsageError(
+                    f"Provide a non-empty comma-separated {wsdl_key} list."
+                )
+            if parsed:
+                parsed_nested_field_names[wsdl_key] = parsed
+
         criteria = {}
         if ids:
             criteria["Ids"] = parse_ids(ids)
@@ -44,6 +110,7 @@ def get(ctx, ids, types, limit, fetch_all, output_format, output, fields, dry_ru
             ]
 
         params = {"SelectionCriteria": criteria, "FieldNames": field_names}
+        params.update(parsed_nested_field_names)
 
         if limit:
             params["Page"] = {"Limit": limit}
@@ -65,6 +132,8 @@ def get(ctx, ids, types, limit, fetch_all, output_format, output, fields, dry_ru
             data = result().extract()
             format_output(data, output_format, output)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
