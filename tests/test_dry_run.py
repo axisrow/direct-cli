@@ -3633,7 +3633,8 @@ def test_ads_get_legacy_text_ad_fields_alias_removed():
     )
 
     assert result.exit_code != 0
-    assert "No such option '--text-ad-fields'" in result.output
+    assert "No such option" in result.output
+    assert "--text-ad-fields" in result.output
 
 
 # ----------------------------------------------------------------------

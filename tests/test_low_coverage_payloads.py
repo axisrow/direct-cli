@@ -861,7 +861,7 @@ def test_ads_get_builds_full_typed_filter_payload():
         "10",
         "--fields",
         "Id,Type",
-        "--text-ad-fields",
+        "--text-ad-field-names",
         "Title,Text",
     )
 
