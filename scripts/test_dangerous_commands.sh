@@ -21,7 +21,7 @@ Local credential mutations:
   - direct auth use ...
 
 V4 Live finance money mutations (0.3.3 exposes dry-run-only previews):
-  - direct v4finance transfer-money --from-campaign-id ... --to-campaign-id ... --amount ... --currency ... --dry-run
+  - direct v4finance transfer-money --from-campaign-id ... --to-campaign-id ... --amount ... --dry-run
   - direct v4finance pay-campaigns --campaign-ids ... --amount ... --contract-id ... --pay-method ... --dry-run
 
 Production commands that are only allowed in automated smoke tests with --sandbox:

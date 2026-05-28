@@ -198,8 +198,8 @@ def test_v4finance_money_contracts_are_docs_backed_dangerous_objects():
     assert build_v4_body("TransferMoney", transfer.example_param) == {
         "method": "TransferMoney",
         "param": {
-            "FromCampaigns": [{"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"}],
-            "ToCampaigns": [{"CampaignID": 456, "Sum": 100.5, "Currency": "RUB"}],
+            "FromCampaigns": [{"CampaignID": 123, "Sum": 100.5}],
+            "ToCampaigns": [{"CampaignID": 456, "Sum": 100.5}],
         },
     }
 
@@ -209,7 +209,7 @@ def test_v4finance_money_contracts_are_docs_backed_dangerous_objects():
     assert build_v4_body("PayCampaigns", pay.example_param) == {
         "method": "PayCampaigns",
         "param": {
-            "Payments": [{"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"}],
+            "Payments": [{"CampaignID": 123, "Sum": 100.5}],
             "ContractID": "contract-id",
             "PayMethod": "Bank",
         },
