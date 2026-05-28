@@ -2489,22 +2489,6 @@ NESTED_FIELDNAMES_EXCLUSIONS: dict[tuple[str, str, str], str] = {
     ("ads", "get", "TextAdFieldNames"): "#402",
     ("ads", "get", "TextAdPriceExtensionFieldNames"): "#402",
     ("ads", "get", "TextImageAdFieldNames"): "#402",
-    ("strategies", "get", "StrategyAverageCpaFieldNames"): "#402",
-    ("strategies", "get", "StrategyAverageCpaMultipleGoalsFieldNames"): "#402",
-    ("strategies", "get", "StrategyAverageCpaPerCampaignFieldNames"): "#402",
-    ("strategies", "get", "StrategyAverageCpaPerFilterFieldNames"): "#402",
-    ("strategies", "get", "StrategyAverageCpcFieldNames"): "#402",
-    ("strategies", "get", "StrategyAverageCpcPerCampaignFieldNames"): "#402",
-    ("strategies", "get", "StrategyAverageCpcPerFilterFieldNames"): "#402",
-    ("strategies", "get", "StrategyAverageCrrFieldNames"): "#402",
-    ("strategies", "get", "StrategyMaxProfitFieldNames"): "#402",
-    ("strategies", "get", "StrategyMaximumClicksFieldNames"): "#402",
-    ("strategies", "get", "StrategyMaximumConversionRateFieldNames"): "#402",
-    ("strategies", "get", "StrategyPayForConversionCrrFieldNames"): "#402",
-    ("strategies", "get", "StrategyPayForConversionFieldNames"): "#402",
-    ("strategies", "get", "StrategyPayForConversionMultipleGoalsFieldNames"): "#402",
-    ("strategies", "get", "StrategyPayForConversionPerCampaignFieldNames"): "#402",
-    ("strategies", "get", "StrategyPayForConversionPerFilterFieldNames"): "#402",
 }
 
 

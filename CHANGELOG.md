@@ -142,6 +142,20 @@
   `--fields` (mapping to `FieldNames`) was available, so the
   per-adjustment projections could not be controlled from CLI.
   Closes #408.
+- `direct strategies get` now exposes sixteen additional
+  `--strategy-*-field-names` flags for the separate WSDL
+  `*FieldNames` request parameters declared by `StrategiesGetRequest`,
+  including `--strategy-average-cpa-field-names`,
+  `--strategy-average-cpa-multiple-goals-field-names`,
+  `--strategy-average-cpc-field-names`,
+  `--strategy-maximum-clicks-field-names`,
+  `--strategy-maximum-conversion-rate-field-names`,
+  `--strategy-pay-for-conversion-field-names`, and the remaining
+  per-campaign / per-filter strategy projections. The command also
+  gains `--dry-run` for read-path payload tests. Previously only the
+  top-level `--fields` (mapping to `FieldNames`) was available, so
+  per-strategy-subtype projections could not be controlled from CLI.
+  Closes #414.
 
 Closes #360.
 
