@@ -21849,3 +21849,163 @@ def test_campaigns_update_unified_search_budget_type_custom_period_rejects_weekl
     )
     assert "CUSTOM_PERIOD_BUDGET" in result.output
     assert "weekly-spend-limit" in result.output
+
+
+# ----------------------------------------------------------------------
+# sitelinks.get: separate SitelinkFieldNames parameter (issue #360)
+# ----------------------------------------------------------------------
+
+
+def test_sitelinks_get_sitelink_field_names_payload():
+    # WSDL ``tests/wsdl_cache/sitelinks.xml`` SitelinksGetRequest declares
+    # ``SitelinkFieldNames`` (SitelinkFieldEnum: Title, Href, Description,
+    # TurboPageId) as a top-level field separate from ``FieldNames``
+    # (SitelinksSetFieldEnum: Id, Sitelinks). The CLI must keep them
+    # independent so the nested SitelinkSet item-field projection can be
+    # controlled without overloading ``--fields``.
+    body = _read_dry_run(
+        "sitelinks",
+        "get",
+        "--fields",
+        "Id,Sitelinks",
+        "--sitelink-field-names",
+        "Title,Href,Description",
+    )
+
+    assert body["params"]["FieldNames"] == ["Id", "Sitelinks"]
+    assert body["params"]["SitelinkFieldNames"] == ["Title", "Href", "Description"]
+
+
+def test_sitelinks_get_default_omits_sitelink_field_names():
+    # When --sitelink-field-names is not given the parameter must not be
+    # sent — Yandex falls back to its built-in default projection.
+    body = _read_dry_run("sitelinks", "get")
+
+    assert "SitelinkFieldNames" not in body["params"]
+
+
+def test_sitelinks_get_help_exposes_sitelink_field_names():
+    result = CliRunner().invoke(cli, ["sitelinks", "get", "--help"])
+
+    assert result.exit_code == 0
+    assert "--sitelink-field-names" in result.output
+
+
+def test_sitelinks_get_rejects_empty_sitelink_field_names():
+    result = CliRunner().invoke(
+        cli,
+        ["sitelinks", "get", "--sitelink-field-names", ",", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+
+    assert result.exit_code != 0
+    assert (
+        "Provide a non-empty comma-separated SitelinkFieldNames list."
+        in result.output
+    )
+
+
+# ----------------------------------------------------------------------
+# keywordbids.get: separate Search/NetworkFieldNames parameters (issue #360)
+# ----------------------------------------------------------------------
+
+
+def test_keywordbids_get_default_field_names_payload():
+    # KeywordBidsGetRequest (WSDL tests/wsdl_cache/keywordbids.xml) carries
+    # three independent top-level FieldNames-style parameters: ``FieldNames``
+    # (KeywordBidFieldEnum), ``SearchFieldNames`` (KeywordBidSearchFieldEnum),
+    # ``NetworkFieldNames`` (KeywordBidNetworkFieldEnum). The defaults from
+    # ``COMMON_FIELDS["keywordbids"]`` must round-trip when no flags are
+    # passed.
+    body = _read_dry_run(
+        "keywordbids",
+        "get",
+        "--keyword-ids",
+        "123",
+    )
+
+    params = body["params"]
+    assert "FieldNames" in params
+    assert "SearchFieldNames" in params
+    assert "NetworkFieldNames" in params
+    # Defaults from COMMON_FIELDS — Bid is in both nested projections.
+    assert params["SearchFieldNames"] == ["Bid"]
+    assert params["NetworkFieldNames"] == ["Bid"]
+
+
+def test_keywordbids_get_overrides_search_and_network_field_names():
+    body = _read_dry_run(
+        "keywordbids",
+        "get",
+        "--keyword-ids",
+        "123",
+        "--search-field-names",
+        "Bid,AuctionBids",
+        "--network-field-names",
+        "Bid,Coverage",
+    )
+
+    params = body["params"]
+    assert params["SearchFieldNames"] == ["Bid", "AuctionBids"]
+    assert params["NetworkFieldNames"] == ["Bid", "Coverage"]
+
+
+def test_keywordbids_get_overrides_top_level_field_names():
+    body = _read_dry_run(
+        "keywordbids",
+        "get",
+        "--keyword-ids",
+        "123",
+        "--fields",
+        "KeywordId,AdGroupId",
+    )
+
+    assert body["params"]["FieldNames"] == ["KeywordId", "AdGroupId"]
+
+
+def test_keywordbids_get_help_exposes_field_names_options():
+    result = CliRunner().invoke(cli, ["keywordbids", "get", "--help"])
+
+    assert result.exit_code == 0
+    assert "--fields" in result.output
+    assert "--search-field-names" in result.output
+    assert "--network-field-names" in result.output
+
+
+def test_keywordbids_get_rejects_empty_search_field_names():
+    result = CliRunner().invoke(
+        cli,
+        ["keywordbids", "get", "--search-field-names", ",", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+
+    assert result.exit_code != 0
+    assert (
+        "Provide a non-empty comma-separated SearchFieldNames list."
+        in result.output
+    )
+
+
+def test_keywordbids_get_rejects_empty_network_field_names():
+    result = CliRunner().invoke(
+        cli,
+        ["keywordbids", "get", "--network-field-names", ",", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+
+    assert result.exit_code != 0
+    assert (
+        "Provide a non-empty comma-separated NetworkFieldNames list."
+        in result.output
+    )
+
+
+def test_keywordbids_get_rejects_empty_fields():
+    result = CliRunner().invoke(
+        cli,
+        ["keywordbids", "get", "--fields", ",", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+
+    assert result.exit_code != 0
+    assert "Provide a non-empty comma-separated FieldNames list." in result.output

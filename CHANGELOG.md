@@ -16,6 +16,28 @@
   reaching the API. Both parsers share a single
   `validate_priority_goal_value` helper. Closes #387.
 
+**Added:**
+
+- `direct sitelinks get` now exposes `--sitelink-field-names` for the
+  separate WSDL `SitelinkFieldNames` request parameter
+  (`SitelinkFieldEnum`: `Title`, `Href`, `Description`, `TurboPageId`).
+  Previously only the top-level `--fields` (mapping to `FieldNames`)
+  was available, so the nested `Sitelinks[]` projection could not be
+  controlled from CLI.
+- `direct keywordbids get` now exposes `--fields`,
+  `--search-field-names`, and `--network-field-names` for the
+  separate `FieldNames`, `SearchFieldNames`, and `NetworkFieldNames`
+  request parameters declared by `KeywordBidsGetRequest`. Defaults
+  from `COMMON_FIELDS` are preserved when flags are absent.
+- Regression test `test_every_nested_fieldnames_param_has_cli_option`
+  (`tests/test_api_coverage.py`) scans every cached WSDL `get`
+  request type for `*FieldNames` parameters and verifies that each
+  one has a matching kebab-case CLI option. Acknowledged remaining
+  gaps are tracked in `NESTED_FIELDNAMES_EXCLUSIONS` and #402 so
+  future additions cannot silently slip in.
+
+Closes #360.
+
 ## 0.3.13
 
 **Breaking changes:**
