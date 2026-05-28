@@ -22009,3 +22009,108 @@ def test_keywordbids_get_rejects_empty_fields():
 
     assert result.exit_code != 0
     assert "Provide a non-empty comma-separated FieldNames list." in result.output
+
+
+# ----------------------------------------------------------------------
+# campaigns.get: canonical *-field-names aliases for the legacy
+# --xxx-campaign-fields flags (issue #409)
+# ----------------------------------------------------------------------
+
+
+_CAMPAIGNS_GET_CANONICAL_FIELD_NAMES_FLAGS = [
+    (
+        "--cpm-banner-campaign-field-names",
+        "CpmBannerCampaignFieldNames",
+        "CounterIds,FrequencyCap,Settings",
+    ),
+    (
+        "--dynamic-text-campaign-field-names",
+        "DynamicTextCampaignFieldNames",
+        "PlacementTypes,CounterIds,Settings",
+    ),
+    (
+        "--dynamic-text-campaign-search-strategy-placement-types-field-names",
+        "DynamicTextCampaignSearchStrategyPlacementTypesFieldNames",
+        "SearchResults,ProductGallery,DynamicPlaces",
+    ),
+    (
+        "--mobile-app-campaign-field-names",
+        "MobileAppCampaignFieldNames",
+        "Settings,BiddingStrategy,NegativeKeywordSharedSetIds",
+    ),
+    (
+        "--smart-campaign-field-names",
+        "SmartCampaignFieldNames",
+        "CounterId,Settings,BiddingStrategy",
+    ),
+    (
+        "--text-campaign-field-names",
+        "TextCampaignFieldNames",
+        "CounterIds,Settings,BiddingStrategy",
+    ),
+    (
+        "--text-campaign-search-strategy-placement-types-field-names",
+        "TextCampaignSearchStrategyPlacementTypesFieldNames",
+        "SearchResults,ProductGallery,DynamicPlaces",
+    ),
+    (
+        "--unified-campaign-field-names",
+        "UnifiedCampaignFieldNames",
+        "CounterIds,Settings,BiddingStrategy",
+    ),
+    (
+        "--unified-campaign-package-bidding-strategy-platforms-field-names",
+        "UnifiedCampaignPackageBiddingStrategyPlatformsFieldNames",
+        "SearchResult,ProductGallery,Maps,Network",
+    ),
+    (
+        "--unified-campaign-search-strategy-placement-types-field-names",
+        "UnifiedCampaignSearchStrategyPlacementTypesFieldNames",
+        "SearchResults,Maps,SearchOrganizationList",
+    ),
+]
+
+
+def test_campaigns_get_canonical_field_names_flags_payload():
+    # CampaignsGetRequest (WSDL tests/wsdl_cache/campaigns.xml) declares
+    # ten nested top-level *FieldNames parameters separate from FieldNames.
+    # PR #409 adds the canonical `--*-field-names` form for every existing
+    # `--*-fields` alias so the WSDL parameter name maps 1:1 to the CLI.
+    argv = ["campaigns", "get"]
+    expected = {}
+    for flag, wsdl_key, sample in _CAMPAIGNS_GET_CANONICAL_FIELD_NAMES_FLAGS:
+        argv.extend([flag, sample])
+        expected[wsdl_key] = sample.split(",")
+
+    body = _read_dry_run(*argv)
+
+    for wsdl_key, values in expected.items():
+        assert body["params"][wsdl_key] == values
+
+
+def test_campaigns_get_legacy_field_aliases_still_accepted():
+    # Backward-compat guard: the legacy `--text-campaign-fields` alias must
+    # keep emitting the same TextCampaignFieldNames payload after the
+    # canonical `--text-campaign-field-names` alias is registered.
+    body = _read_dry_run(
+        "campaigns",
+        "get",
+        "--text-campaign-fields",
+        "CounterIds,Settings",
+        "--unified-campaign-fields",
+        "CounterIds,BiddingStrategy",
+    )
+
+    assert body["params"]["TextCampaignFieldNames"] == ["CounterIds", "Settings"]
+    assert body["params"]["UnifiedCampaignFieldNames"] == [
+        "CounterIds",
+        "BiddingStrategy",
+    ]
+
+
+def test_campaigns_get_help_exposes_canonical_field_names_flags():
+    result = CliRunner().invoke(cli, ["campaigns", "get", "--help"])
+
+    assert result.exit_code == 0
+    for flag, _, _ in _CAMPAIGNS_GET_CANONICAL_FIELD_NAMES_FLAGS:
+        assert flag in result.output, f"missing flag in --help output: {flag}"

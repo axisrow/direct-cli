@@ -526,39 +526,119 @@ def _reject_incompatible_flags(
 @click.option(
     "--fields", help="Comma-separated field names (default: all common fields)"
 )
-@click.option("--text-campaign-fields", help="Comma-separated TextCampaignFieldNames")
 @click.option(
+    "--text-campaign-field-names",
+    "--text-campaign-fields",
+    "text_campaign_fields",
+    help=(
+        "Comma-separated TextCampaignFieldNames "
+        "(e.g. CounterIds,Settings,BiddingStrategy,PriorityGoals). "
+        "Sent as separate top-level request parameter per the "
+        "CampaignsGetRequest WSDL. The legacy `--text-campaign-fields` "
+        "alias is preserved."
+    ),
+)
+@click.option(
+    "--text-campaign-search-strategy-placement-types-field-names",
     "--text-campaign-search-strategy-placement-types-fields",
-    help="Comma-separated TextCampaignSearchStrategyPlacementTypesFieldNames",
+    "text_campaign_search_strategy_placement_types_fields",
+    help=(
+        "Comma-separated TextCampaignSearchStrategyPlacementTypesFieldNames "
+        "(e.g. SearchResults,ProductGallery,DynamicPlaces). "
+        "Sent as separate top-level request parameter per the "
+        "CampaignsGetRequest WSDL. The legacy `-fields` alias is preserved."
+    ),
 )
 @click.option(
+    "--mobile-app-campaign-field-names",
     "--mobile-app-campaign-fields",
-    help="Comma-separated MobileAppCampaignFieldNames",
+    "mobile_app_campaign_fields",
+    help=(
+        "Comma-separated MobileAppCampaignFieldNames "
+        "(e.g. Settings,BiddingStrategy,NegativeKeywordSharedSetIds). "
+        "Sent as separate top-level request parameter per the "
+        "CampaignsGetRequest WSDL. The legacy `-fields` alias is preserved."
+    ),
 )
 @click.option(
+    "--dynamic-text-campaign-field-names",
     "--dynamic-text-campaign-fields",
-    help="Comma-separated DynamicTextCampaignFieldNames",
+    "dynamic_text_campaign_fields",
+    help=(
+        "Comma-separated DynamicTextCampaignFieldNames "
+        "(e.g. PlacementTypes,CounterIds,Settings,BiddingStrategy). "
+        "Sent as separate top-level request parameter per the "
+        "CampaignsGetRequest WSDL. The legacy `-fields` alias is preserved."
+    ),
 )
 @click.option(
+    "--dynamic-text-campaign-search-strategy-placement-types-field-names",
     "--dynamic-text-campaign-search-strategy-placement-types-fields",
-    help="Comma-separated DynamicTextCampaignSearchStrategyPlacementTypesFieldNames",
+    "dynamic_text_campaign_search_strategy_placement_types_fields",
+    help=(
+        "Comma-separated "
+        "DynamicTextCampaignSearchStrategyPlacementTypesFieldNames "
+        "(e.g. SearchResults,ProductGallery,DynamicPlaces). "
+        "Sent as separate top-level request parameter per the "
+        "CampaignsGetRequest WSDL. The legacy `-fields` alias is preserved."
+    ),
 )
 @click.option(
+    "--cpm-banner-campaign-field-names",
     "--cpm-banner-campaign-fields",
-    help="Comma-separated CpmBannerCampaignFieldNames",
+    "cpm_banner_campaign_fields",
+    help=(
+        "Comma-separated CpmBannerCampaignFieldNames "
+        "(e.g. CounterIds,FrequencyCap,Settings,BiddingStrategy). "
+        "Sent as separate top-level request parameter per the "
+        "CampaignsGetRequest WSDL. The legacy `-fields` alias is preserved."
+    ),
 )
-@click.option("--smart-campaign-fields", help="Comma-separated SmartCampaignFieldNames")
 @click.option(
+    "--smart-campaign-field-names",
+    "--smart-campaign-fields",
+    "smart_campaign_fields",
+    help=(
+        "Comma-separated SmartCampaignFieldNames "
+        "(e.g. CounterId,Settings,BiddingStrategy,PriorityGoals). "
+        "Sent as separate top-level request parameter per the "
+        "CampaignsGetRequest WSDL. The legacy `-fields` alias is preserved."
+    ),
+)
+@click.option(
+    "--unified-campaign-field-names",
     "--unified-campaign-fields",
-    help="Comma-separated UnifiedCampaignFieldNames",
+    "unified_campaign_fields",
+    help=(
+        "Comma-separated UnifiedCampaignFieldNames "
+        "(e.g. CounterIds,Settings,BiddingStrategy,PriorityGoals). "
+        "Sent as separate top-level request parameter per the "
+        "CampaignsGetRequest WSDL. The legacy `-fields` alias is preserved."
+    ),
 )
 @click.option(
+    "--unified-campaign-search-strategy-placement-types-field-names",
     "--unified-campaign-search-strategy-placement-types-fields",
-    help="Comma-separated UnifiedCampaignSearchStrategyPlacementTypesFieldNames",
+    "unified_campaign_search_strategy_placement_types_fields",
+    help=(
+        "Comma-separated "
+        "UnifiedCampaignSearchStrategyPlacementTypesFieldNames "
+        "(e.g. SearchResults,ProductGallery,Maps,SearchOrganizationList). "
+        "Sent as separate top-level request parameter per the "
+        "CampaignsGetRequest WSDL. The legacy `-fields` alias is preserved."
+    ),
 )
 @click.option(
+    "--unified-campaign-package-bidding-strategy-platforms-field-names",
     "--unified-campaign-package-bidding-strategy-platforms-fields",
-    help="Comma-separated UnifiedCampaignPackageBiddingStrategyPlatformsFieldNames",
+    "unified_campaign_package_bidding_strategy_platforms_fields",
+    help=(
+        "Comma-separated "
+        "UnifiedCampaignPackageBiddingStrategyPlatformsFieldNames "
+        "(e.g. SearchResult,ProductGallery,Maps,Network). "
+        "Sent as separate top-level request parameter per the "
+        "CampaignsGetRequest WSDL. The legacy `-fields` alias is preserved."
+    ),
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
