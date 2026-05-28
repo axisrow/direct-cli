@@ -60,12 +60,17 @@ No official `CheckPayment` page or `PaymentID` contract was found.
 Financial methods use an additional `finance_token`, computed from the
 master token, operation number, method name, and normalized login. Public
 dry-run examples mask the computed token. The docs-backed `PayCampaigns`,
-`TransferMoney`, and `CreateInvoice` `PayCampElement` carries only
-`CampaignID` and `Sum` (no `Currency`); `PayCampaigns.PayMethod` is
-`'Bank'` only. `CreateInvoice` is exposed as `v4finance create-invoice`
-with repeated `--payment CAMPAIGN_ID=AMOUNT` flags and sends docs-backed
-`Payments[].CampaignID/Sum`; its live write test is opt-in via
-`YANDEX_DIRECT_LIVE_FINANCE_WRITE=1`.
+`TransferMoney`, and `CreateInvoice` `PayCampElement` carries
+`CampaignID`, `Sum`, and `Currency` per `dg-v4/live/*` — the Live 4
+changelog explicitly marks `Currency` as obligatory and `PayCampaigns`
+adds `Overdraft` as a valid `PayMethod` alongside `Bank` (only `Bank`
+requires `--contract-id`). `CreateInvoice` is exposed as `v4finance
+create-invoice` with repeated `--payment CAMPAIGN_ID=AMOUNT` flags plus
+a single `--currency` flag and sends docs-backed
+`Payments[].CampaignID/Sum/Currency`; its live write test is opt-in via
+`YANDEX_DIRECT_LIVE_FINANCE_WRITE=1`. The `dg-v4/reference/*` (legacy
+v4) pages omit `Currency` and are NOT the source of truth for these
+Live 4 commands — see audit comment on #125 for the reproducible diff.
 
 Sandbox v4 Live probes on 2026-04-30 confirmed the runtime request shape for
 `CheckPayment`:

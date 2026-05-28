@@ -87,15 +87,20 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
         source_status=SOURCE_DOCS,
         live_probe_allowed=False,
         example_param={
-            "FromCampaigns": [{"CampaignID": 123, "Sum": 100.5}],
-            "ToCampaigns": [{"CampaignID": 456, "Sum": 100.5}],
+            "FromCampaigns": [
+                {"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"}
+            ],
+            "ToCampaigns": [
+                {"CampaignID": 456, "Sum": 100.5, "Currency": "RUB"}
+            ],
         },
         notes=(
-            "Docs-verified 2026-05-28 against dg-v4/reference/TransferMoney: "
-            "PayCampElement carries only CampaignID and Sum (conventional "
-            "units, условные единицы). Total from-sum must equal total "
-            "to-sum or the API returns error_code=353. This CLI exposes "
-            "dry-run only; the method is not live-probed."
+            "Docs-verified 2026-05-29 against dg-v4/live/TransferMoney: "
+            "PayCampElement carries CampaignID, Sum, and Currency; the Live 4 "
+            "changelog explicitly marks Currency as a newly required input "
+            "field. Total from-sum must equal total to-sum or the API "
+            "returns error_code=353. This CLI exposes dry-run only; the "
+            "method is not live-probed."
         ),
     ),
     "PayCampaigns": V4MethodContract(
@@ -110,17 +115,19 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
         source_status=SOURCE_DOCS,
         live_probe_allowed=False,
         example_param={
-            "Payments": [{"CampaignID": 123, "Sum": 100.5}],
+            "Payments": [
+                {"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"}
+            ],
             "ContractID": "contract-id",
             "PayMethod": "Bank",
         },
         notes=(
-            "Docs-verified 2026-05-28 against dg-v4/reference/PayCampaigns: "
-            "PayCampElement carries only CampaignID and Sum (conventional "
-            "units); PayMethod currently accepts 'Bank' only. The CLI "
-            "dropped --currency and the undocumented 'Overdraft' PayMethod "
-            "value in 0.3.15 (BREAKING) to mirror docs 1:1. This CLI "
-            "exposes dry-run only; the method is not live-probed."
+            "Docs-verified 2026-05-29 against dg-v4/live/PayCampaigns: "
+            "PayCampElement carries CampaignID, Sum, and Currency (Currency "
+            "marked obligatory in the Live 4 changelog). PayMethod accepts "
+            "'Bank' (agency credit) and 'Overdraft' (direct advertiser), "
+            "both listed in the Live 4 changelog. This CLI exposes dry-run "
+            "only; the method is not live-probed."
         ),
     ),
     "PayCampaignsByCard": V4MethodContract(
@@ -166,14 +173,15 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
         source_status=SOURCE_DOCS,
         live_probe_allowed=False,
         example_param={
-            "Payments": [{"CampaignID": 123, "Sum": 100.5}],
+            "Payments": [
+                {"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"}
+            ],
         },
         notes=(
-            "Docs-verified 2026-05-28 against dg-v4/reference/CreateInvoice: "
-            "PayCampElement carries only CampaignID and Sum (conventional "
-            "units). The CLI dropped --currency in 0.3.15 (BREAKING) to "
-            "mirror docs 1:1. The method has no v5 equivalent and requires "
-            "finance_token plus operation_num."
+            "Docs-verified 2026-05-29 against dg-v4/live/CreateInvoice: "
+            "PayCampElement carries CampaignID, Sum, and Currency (Currency "
+            "marked obligatory in the Live 4 changelog). The method has no "
+            "v5 equivalent and requires finance_token plus operation_num."
         ),
     ),
     "AccountManagement": V4MethodContract(
