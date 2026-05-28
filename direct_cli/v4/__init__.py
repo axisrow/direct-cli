@@ -37,8 +37,8 @@ def call_v4(client: Any, method: str, param: Optional[Any] = None) -> Any:
         # Only undocumented-shape errors remain. Fail-closed when the
         # contract is write/dangerous — we will not blindly post a
         # financial or write operation whose payload shape we cannot
-        # verify. For read-class undocumented methods (e.g.
-        # GetKeywordsSuggestion) a soft warning is acceptable.
+        # verify. For read-class undocumented methods a soft warning
+        # is acceptable.
         safety = get_v4_contract(method).safety
         if safety in _UNSAFE_SAFETY_LEVELS:
             raise click.UsageError(
