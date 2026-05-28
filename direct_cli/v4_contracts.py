@@ -474,11 +474,38 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
     "AdImageAssociation": V4MethodContract(
         method="AdImageAssociation",
         group="ad_image",
-        param_shape=PARAM_UNDOCUMENTED,
-        login_placement="unknown",
-        safety=SAFETY_WRITE,
-        source_status=SOURCE_UNDOCUMENTED,
+        param_shape=PARAM_OBJECT,
+        login_placement=(
+            "param contains Action and either SelectionCriteria (Get) or "
+            "AdImageAssociations[] (Set); global --login uses Client-Login "
+            "header"
+        ),
+        safety=SAFETY_MIXED,
+        source_status=SOURCE_DOCS,
         live_probe_allowed=False,
+        example_param={
+            "Action": "Get",
+            "SelectionCriteria": {
+                "Logins": ["client-login"],
+                "AdImageHashes": ["hash"],
+                "StatusAdImageModerate": ["Yes"],
+                "AdIDS": [123],
+                "CampaignIDS": [456],
+                "Limit": 20,
+                "Offset": 0,
+            },
+        },
+        notes=(
+            "Docs-verified 2026-05-28 against dg-v4/live/AdImageAssociation: "
+            "Action in {Get, Set}. Get reads ad-to-image associations via "
+            "param.SelectionCriteria with optional Logins/AdImageHashes/"
+            "StatusAdImageModerate/AdIDS/CampaignIDS/Limit/Offset (empty "
+            "SelectionCriteria returns up to 10000 associations). Set "
+            "writes param.AdImageAssociations[] (max 10000) with required "
+            "AdID and optional AdImageHash; omitting AdImageHash detaches "
+            "the image. No CLI command is exposed yet; this row only "
+            "records the contract."
+        ),
     ),
     "GetKeywordsSuggestion": V4MethodContract(
         method="GetKeywordsSuggestion",
