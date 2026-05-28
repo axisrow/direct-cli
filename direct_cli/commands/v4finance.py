@@ -439,13 +439,6 @@ def create_invoice(
 )
 @click.option("--amount", required=True, help="Positive amount, for example 100.50")
 @click.option(
-    "--currency",
-    default="RUB",
-    show_default=True,
-    type=click.Choice(V4_FINANCE_CURRENCIES, case_sensitive=False),
-    help="Payment currency",
-)
-@click.option(
     "--finance-token",
     envvar="YANDEX_DIRECT_FINANCE_TOKEN",
     help="Precomputed financial token for this method",
@@ -480,7 +473,6 @@ def transfer_money(
     from_campaign_id,
     to_campaign_id,
     amount,
-    currency,
     finance_token,
     master_token,
     operation_num,
@@ -498,20 +490,17 @@ def transfer_money(
         ctx.obj.get("login"),
     )
     parsed_amount = parse_v4_money_sum(amount)
-    currency = currency.upper()
     param = {
         "FromCampaigns": [
             {
                 "CampaignID": from_campaign_id,
                 "Sum": parsed_amount,
-                "Currency": currency,
             },
         ],
         "ToCampaigns": [
             {
                 "CampaignID": to_campaign_id,
                 "Sum": parsed_amount,
-                "Currency": currency,
             },
         ],
     }

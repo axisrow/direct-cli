@@ -87,13 +87,17 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
         source_status=SOURCE_DOCS,
         live_probe_allowed=False,
         example_param={
-            "FromCampaigns": [{"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"}],
-            "ToCampaigns": [{"CampaignID": 456, "Sum": 100.5, "Currency": "RUB"}],
+            "FromCampaigns": [{"CampaignID": 123, "Sum": 100.5}],
+            "ToCampaigns": [{"CampaignID": 456, "Sum": 100.5}],
         },
         notes=(
-            "Official v4 docs define campaign-to-campaign transfer with "
-            "Currency on each transfer item. "
-            "This CLI exposes dry-run only; the method is not live-probed."
+            "Docs-verified 2026-05-28 against dg-v4/reference/TransferMoney: "
+            "PayCampElement carries only CampaignID and Sum. Sum is in "
+            "conventional units (условные единицы); no Currency field anywhere "
+            "in the request. Total from-sum must equal total to-sum or the "
+            "API returns error_code=353. CLI dropped the prior --currency "
+            "option to match docs exactly. This CLI exposes dry-run only; "
+            "the method is not live-probed."
         ),
     ),
     "PayCampaigns": V4MethodContract(
