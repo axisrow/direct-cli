@@ -635,7 +635,7 @@ PAYLOAD_CASES = [
             "--network-strategy",
             "SERVING_OFF",
             "--priority-goals",
-            "1234567:80,9876543:20",
+            "1234567:80000000,9876543:20000000",
             "--bid-ceiling",
             "1000000000",
         ],
@@ -746,7 +746,7 @@ PAYLOAD_CASES = [
             "--filter-average-cpc",
             "1000000",
             "--priority-goals",
-            "1234567:80,9876543:20:YES",
+            "1234567:80000000,9876543:20000000:YES",
         ],
     ),
     # --- issue #373: UnifiedCampaign.PriorityGoals ---
@@ -770,7 +770,7 @@ PAYLOAD_CASES = [
             "--network-strategy",
             "MAX_PROFIT",
             "--priority-goals",
-            "1234567:80,9876543:20:YES",
+            "1234567:80000000,9876543:20000000:YES",
         ],
     ),
     # ``UnifiedCampaignAddItem.PriorityGoals`` (WSDL line 2165) and
@@ -799,7 +799,7 @@ PAYLOAD_CASES = [
             "--package-platform-network",
             "yes",
             "--priority-goals",
-            "1234567:80",
+            "1234567:80000000",
         ],
     ),
     # --- issue #397: DynamicTextCampaign.PriorityGoals standalone ---
@@ -822,7 +822,7 @@ PAYLOAD_CASES = [
             "--type",
             "DYNAMIC_TEXT_CAMPAIGN",
             "--priority-goals",
-            "1234567:80,9876543:20:YES",
+            "1234567:80000000,9876543:20000000:YES",
         ],
     ),
     (
@@ -836,7 +836,7 @@ PAYLOAD_CASES = [
             "--type",
             "DYNAMIC_TEXT_CAMPAIGN",
             "--priority-goals",
-            "1234567:80",
+            "1234567:80000000",
         ],
     ),
     # --- issue #367: SmartCampaign.BiddingStrategy.Search typed flags ---
