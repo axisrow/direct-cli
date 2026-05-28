@@ -89,6 +89,20 @@
   Previously only the top-level `--fields` (mapping to `FieldNames`)
   was available, so the per-subtype ERIR projections could not be
   controlled from CLI. Closes #407.
+- `direct adgroups get` now exposes eight additional
+  `--*-field-names` flags for the separate WSDL `*FieldNames`
+  request parameters declared by `AdGroupsGetRequest`:
+  `--autotargeting-settings-brand-options-field-names`,
+  `--autotargeting-settings-categories-field-names`,
+  `--dynamic-text-ad-group-field-names`,
+  `--dynamic-text-feed-ad-group-field-names`,
+  `--mobile-app-ad-group-field-names`,
+  `--smart-ad-group-field-names`,
+  `--text-ad-group-feed-params-field-names`, and
+  `--unified-ad-group-field-names`. Previously only the top-level
+  `--fields` (mapping to `FieldNames`) was available, so the
+  per-subtype ad-group projections could not be controlled from
+  CLI. Closes #405.
 
 Closes #360.
 

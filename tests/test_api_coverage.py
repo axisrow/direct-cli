@@ -2473,14 +2473,6 @@ class TestReportsBuildRequestExtra:
 # tracking issue — do not silently exclude a gap. To close a row,
 # add the corresponding kebab-case CLI option and delete the entry.
 NESTED_FIELDNAMES_EXCLUSIONS: dict[tuple[str, str, str], str] = {
-    ("adgroups", "get", "AutotargetingSettingsBrandOptionsFieldNames"): "#402",
-    ("adgroups", "get", "AutotargetingSettingsCategoriesFieldNames"): "#402",
-    ("adgroups", "get", "DynamicTextAdGroupFieldNames"): "#402",
-    ("adgroups", "get", "DynamicTextFeedAdGroupFieldNames"): "#402",
-    ("adgroups", "get", "MobileAppAdGroupFieldNames"): "#402",
-    ("adgroups", "get", "SmartAdGroupFieldNames"): "#402",
-    ("adgroups", "get", "TextAdGroupFeedParamsFieldNames"): "#402",
-    ("adgroups", "get", "UnifiedAdGroupFieldNames"): "#402",
     ("ads", "get", "CpcVideoAdBuilderAdFieldNames"): "#402",
     ("ads", "get", "CpmBannerAdBuilderAdFieldNames"): "#402",
     ("ads", "get", "CpmVideoAdBuilderAdFieldNames"): "#402",
