@@ -156,3 +156,36 @@ def test_looks_like_captcha_recognises_markers():
 )
 def test_v5_per_method_url_chops_duplicate_tail(docs, method, expected):
     assert audit._v5_per_method_url(docs, method) == expected
+
+
+def test_audit_v5_treats_wsdl_base_as_single_group_target(monkeypatch):
+    # A service whose `docs` is a WSDL endpoint (#463) must NOT have per-method
+    # URLs derived from it — that would produce garbage like `…?wsdl/get`.
+    # It is audited as one group-level target instead.
+    fetched_urls: list[str] = []
+
+    def fake_fetch_doc(url, retries, pause):
+        fetched_urls.append(url)
+        return audit.FetchResult(
+            url=url, status="ok", html="<html></html>", attempts=1
+        )
+
+    monkeypatch.setattr(audit, "fetch_doc", fake_fetch_doc)
+    monkeypatch.setattr(
+        audit,
+        "RESOURCE_MAPPING_V5",
+        {
+            "vcards": {
+                "resource": "json/v5/vcards",
+                "docs": "https://api.direct.yandex.com/v5/vcards?wsdl",
+                "methods": ["get", "add", "delete"],
+            }
+        },
+    )
+    monkeypatch.setattr(audit, "CLI_TO_API_SERVICE", {"vcards": "vcards"})
+
+    audit.audit_v5(retries=1, pause=0)
+
+    wsdl = "https://api.direct.yandex.com/v5/vcards?wsdl"
+    assert fetched_urls == [wsdl]
+    assert not any("?wsdl/" in u for u in fetched_urls)
