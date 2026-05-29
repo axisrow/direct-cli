@@ -636,7 +636,11 @@ def account_management(
     output_format,
     output,
 ):
-    """Manage shared accounts: Get / Update / Deposit / Invoice / TransferMoney."""
+    """Manage shared accounts: Get / Update / Deposit / Invoice / TransferMoney.
+
+    ⚠ Finance actions (Deposit / Invoice / TransferMoney) not tested against
+    the live API.
+    """
     action = _validate_action(action)
 
     supplied = {

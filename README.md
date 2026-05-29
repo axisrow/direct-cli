@@ -165,6 +165,31 @@ direct v4wordstat get-report --report-id 123 --format table
 direct v4wordstat delete-report --report-id 123
 ```
 
+### V4 Live Keyword Suggestions
+
+`get-suggestion` returns up to 20 related phrases for the seed phrases. Repeat
+`--keyword` for multiple seeds. The method consumes API points.
+
+```bash
+direct v4keywords get-suggestion --keyword холодильник --keyword камера
+direct v4keywords get-suggestion --keyword "buy laptop" --format table
+direct v4keywords get-suggestion --keyword холодильник --dry-run
+```
+
+### V4 Live Ad-Image Associations
+
+`AdImageAssociation` is exposed as two typed commands. `get` reads ad-to-image
+associations via an optional selection filter (an empty filter returns up to
+10000 associations). `set` attaches or detaches images: `--association AD_ID=HASH`
+attaches an image, `--association AD_ID` (no hash) detaches the current image
+(max 10000 associations per call).
+
+```bash
+direct v4adimage get --ad-ids 123,456 --status-moderate Yes --limit 20
+direct v4adimage get --campaign-ids 789 --format table
+direct v4adimage set --association 123=abc123hash --association 456 --dry-run
+```
+
 ### V4 Live Budget Forecasts
 
 Budget forecasts are asynchronous. Direct CLI makes exactly one API call per
@@ -190,9 +215,15 @@ per-request token from `--master-token`, `--operation-num`, and
 Environment variables are
 `YANDEX_DIRECT_MASTER_TOKEN`, `YANDEX_DIRECT_FINANCE_LOGIN`,
 `YANDEX_DIRECT_FINANCE_TOKEN`, and `YANDEX_DIRECT_OPERATION_NUM`.
-`transfer-money` and `pay-campaigns` are dry-run-only in this release and
-always require `--dry-run`; `create-invoice` can be sent live when `--dry-run`
-is omitted. Dry-run output masks the financial token.
+`transfer-money`, `pay-campaigns`, and `pay-campaigns-by-card` are dry-run-only
+in this release and always require `--dry-run`; `create-invoice` can be sent
+live when `--dry-run` is omitted. Dry-run output masks the financial token.
+`pay-campaigns-by-card` has an undocumented request shape; its dry-run body
+mirrors the documented `pay-campaigns` shape as a best-effort preview.
+
+> ⚠ **Finance commands have not been tested against the live API.** Treat the
+> request shapes as best-effort and always verify with `--dry-run` before
+> sending anything that runs live (`create-invoice`).
 
 ```bash
 direct v4finance get-clients-units --logins client-login,other-client --format table
@@ -201,6 +232,7 @@ direct v4finance create-invoice --payment 123=100.50 --payment 456=25 --currency
 direct v4finance check-payment --custom-transaction-id A123456789012345678901234567890B
 direct v4finance transfer-money --from-campaign-id 123 --to-campaign-id 456 --amount 100.50 --currency RUB --master-token MASTER_TOKEN --operation-num 123 --finance-login agency-login --dry-run
 direct v4finance pay-campaigns --campaign-ids 123,456 --amount 100.50 --contract-id CONTRACT_ID --pay-method Bank --currency RUB --master-token MASTER_TOKEN --operation-num 123 --finance-login agency-login --dry-run
+direct v4finance pay-campaigns-by-card --campaign-ids 123,456 --amount 100.50 --currency RUB --master-token MASTER_TOKEN --operation-num 128 --finance-login agency-login --dry-run
 ```
 
 ### V4 Live Shared Account
@@ -228,6 +260,20 @@ direct v4account account-management --action Invoice --payment 1327944=100.50 --
 direct v4account account-management --action TransferMoney --from-account-id 1327944 --to-account-id 1327945 --amount 50.00 --currency RUB --master-token MASTER_TOKEN --operation-num 127 --finance-login agency-login --dry-run
 direct --sandbox v4account enable-shared-account --client-login client-login
 ```
+
+### V4 Live — Intentionally Omitted Methods
+
+Some v4 Live methods present in the API registry are intentionally **not**
+exposed as CLI commands:
+
+- `DeleteReport` / `DeleteOfflineReport` — disabled by Yandex (the official
+  docs list them under "Отключенные методы" / "Метод отключен. Используйте API
+  версии 5"). Use the v5 reports API instead.
+- `PingAPI`, `PingAPI_X`, `GetVersion`, `GetAvailableVersions` — service
+  diagnostics / version probes with no documented request shape; not useful as
+  user-facing CLI commands.
+- `PayCampaignsByCard` is exposed but **dry-run-only** (undocumented,
+  financially sensitive — see V4 Live Finance above).
 
 ### CLI Convention
 

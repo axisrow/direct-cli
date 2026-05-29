@@ -555,8 +555,7 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
             "SelectionCriteria returns up to 10000 associations). Set "
             "writes param.AdImageAssociations[] (max 10000) with required "
             "AdID and optional AdImageHash; omitting AdImageHash detaches "
-            "the image. No CLI command is exposed yet; this row only "
-            "records the contract."
+            "the image. Exposed as `v4adimage get` / `v4adimage set`."
         ),
     ),
     "GetKeywordsSuggestion": V4MethodContract(

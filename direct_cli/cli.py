@@ -55,6 +55,8 @@ from .commands.v4shells import v4meta
 from .commands.v4goals import v4goals
 from .commands.v4tags import v4tags
 from .commands.v4wordstat import v4wordstat
+from .commands.v4keywords import v4keywords
+from .commands.v4adimage import v4adimage
 
 # Load .env file
 load_env_file()
@@ -360,6 +362,8 @@ for command in (
     v4events,
     v4wordstat,
     v4tags,
+    v4keywords,
+    v4adimage,
     v4forecast,
     v4meta,
     auth,

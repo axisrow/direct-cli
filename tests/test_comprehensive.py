@@ -58,6 +58,8 @@ class TestCommandsRegistered(unittest.TestCase):
         "v4events",
         "v4wordstat",
         "v4tags",
+        "v4keywords",
+        "v4adimage",
         "v4forecast",
         "v4meta",
         "auth",
