@@ -6,6 +6,12 @@
 # Exit status: 0 if at least one candidate per resource resolved to a clean
 # (non-captcha) status, 3 if any resource is still fully captcha-gated.
 # Not wired into CI — manual diagnostic only.
+#
+# Deliberate exception to the CLAUDE.md "No URL literals outside the registry"
+# rule (#426): this script probes *candidate* docs paths that are, by
+# definition, NOT yet in the registry — that's the whole point of finding the
+# canonical URL. It performs read-only HTTP probes, never writes to any cache,
+# and is never imported by tests or CI, so it cannot poison the docs cache.
 set -u
 UA="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
 
