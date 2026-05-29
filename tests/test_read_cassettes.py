@@ -48,7 +48,7 @@ from direct_cli.cli import cli
 sys.path.insert(0, os.path.dirname(__file__))
 from conftest import _REAL_LOGIN, _REAL_TOKEN  # noqa: E402
 
-# Stable sandbox fixtures (confirmed live against login=ksamatadirect).
+# Stable sandbox fixtures (confirmed live against the recording account).
 SANDBOX_CAMPAIGN_ID = "700012672"
 # A syntactically valid advideo id from the smoke probe; the sandbox
 # returns an empty list for it, which is a fine deterministic cassette.
