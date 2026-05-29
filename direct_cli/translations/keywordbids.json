@@ -1,0 +1,15 @@
+{
+  "Bidding rule IncreasePercent": "IncreasePercent правила назначения ставок",
+  "Bidding rule bid ceiling in micro-rubles": "Потолок ставки правила назначения ставок в микрорублях",
+  "Comma-separated KeywordBidNetworkFieldEnum (Bid, Coverage). Sent as separate top-level request parameter NetworkFieldNames per the KeywordBidsGetRequest WSDL. Defaults to ['Bid'].": "Значения KeywordBidNetworkFieldEnum через запятую (Bid, Coverage). Отправляется как отдельный параметр запроса верхнего уровня NetworkFieldNames согласно WSDL KeywordBidsGetRequest. По умолчанию ['Bid'].",
+  "Comma-separated KeywordBidSearchFieldEnum (Bid, AutotargetingSearchBidIsAuto, AuctionBids). Sent as separate top-level request parameter SearchFieldNames per the KeywordBidsGetRequest WSDL. Defaults to ['Bid'].": "Значения KeywordBidSearchFieldEnum через запятую (Bid, AutotargetingSearchBidIsAuto, AuctionBids). Отправляется как отдельный параметр запроса верхнего уровня SearchFieldNames согласно WSDL KeywordBidsGetRequest. По умолчанию ['Bid'].",
+  "Comma-separated top-level KeywordBidFieldEnum (KeywordId, AdGroupId, CampaignId, ServingStatus, StrategyPriority). Defaults to all five.": "Значения KeywordBidFieldEnum верхнего уровня через запятую (KeywordId, AdGroupId, CampaignId, ServingStatus, StrategyPriority). По умолчанию все пять.",
+  "Configure automatic keyword bidding": "Настроить автоматическое управление ставками по фразам",
+  "Get keyword bids": "Получить ставки по ключевым фразам",
+  "Manage keyword bids": "Управление ставками по ключевым фразам",
+  "Network bid in micro-rubles": "Ставка в сетях в микрорублях",
+  "NetworkByCoverage.TargetCoverage value": "Значение NetworkByCoverage.TargetCoverage",
+  "Search bid in micro-rubles": "Ставка на поиске в микрорублях",
+  "SearchByTrafficVolume.TargetTrafficVolume value": "Значение SearchByTrafficVolume.TargetTrafficVolume",
+  "Set keyword bids": "Установить ставки по ключевым фразам"
+}

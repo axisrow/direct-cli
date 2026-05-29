@@ -34,7 +34,16 @@ from direct_cli.i18n import (
 # Top-level command groups that are fully localized. Append a group name here in
 # the PR that localizes it (issues #468-#471) so the invariants below start
 # enforcing full coverage for that module.
-LOCALIZED_GROUPS = ("v4finance",)
+LOCALIZED_GROUPS = (
+    "v4finance",
+    # Core search (#468)
+    "campaigns",
+    "ads",
+    "adgroups",
+    "keywords",
+    "keywordbids",
+    "bids",
+)
 
 _RUNTIME_MESSAGE_FUNCS = {"print_error", "print_info", "print_warning"}
 
