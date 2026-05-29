@@ -133,15 +133,24 @@ def test_looks_like_captcha_recognises_markers():
 @pytest.mark.parametrize(
     ("docs", "method", "expected"),
     [
+        # Doubled base: chop the duplicate tail, then append the method.
         (
             "https://yandex.ru/dev/direct/doc/ru/campaigns/campaigns",
             "add",
             "https://yandex.ru/dev/direct/doc/ru/campaigns/add",
         ),
+        # Single-segment base: the resource name must be preserved, NOT
+        # dropped to ``…/ru/get`` (regression guard — that silently
+        # mis-audited 4 v5 groups: vcards/smartadtargets/dynamic*).
         (
             "https://yandex.ru/dev/direct/doc/ru/dynamictextadtargets",
             "get",
-            "https://yandex.ru/dev/direct/doc/ru/get",
+            "https://yandex.ru/dev/direct/doc/ru/dynamictextadtargets/get",
+        ),
+        (
+            "https://yandex.ru/dev/direct/doc/ru/vcards",
+            "get",
+            "https://yandex.ru/dev/direct/doc/ru/vcards/get",
         ),
     ],
 )

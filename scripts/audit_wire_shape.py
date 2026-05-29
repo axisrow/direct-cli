@@ -55,6 +55,7 @@ from direct_cli._vendor.tapi_yandex_direct.v4 import SUPPORTED_V4_METHODS  # noq
 from direct_cli._vendor.tapi_yandex_direct.resource_mapping import (  # noqa: E402
     RESOURCE_MAPPING_V5,
 )
+from direct_cli.reports_coverage import REPORTS_SPEC_URLS  # noqa: E402
 from direct_cli.v4_contracts import (  # noqa: E402
     PARAM_UNDOCUMENTED,
     V4_METHOD_CONTRACTS,
@@ -68,7 +69,10 @@ from direct_cli.wsdl_coverage import CLI_TO_API_SERVICE  # noqa: E402
 
 V4_LIVE_BASE = "https://yandex.ru/dev/direct/doc/dg-v4/live/{method}.html"
 V4_REFERENCE_BASE = "https://yandex.ru/dev/direct/doc/dg-v4/reference/{method}.html"
-REPORTS_SPEC_URL = "https://yandex.ru/dev/direct/doc/ru/spec"
+# Single source of truth: the Reports spec URL lives in the registry
+# (direct_cli.reports_coverage.REPORTS_SPEC_URLS) per CLAUDE.md's
+# "No URL literals outside the registry" rule — never duplicate it here.
+REPORTS_SPEC_URL = REPORTS_SPEC_URLS["spec"]
 
 CAPTCHA_MARKERS = ("showcaptcha", "smartcaptcha", "<title>captcha")
 MIN_HTML_SIZE = 30_000
@@ -530,15 +534,23 @@ def audit_v4(
 
 
 def _v5_per_method_url(docs_base: str, method: str) -> str:
-    """Yandex renders per-operation docs at ``<docs_base_parent>/<method>``.
+    """Yandex renders per-operation docs at ``<resource_base>/<method>``.
 
-    For ``docs="…/ru/campaigns/campaigns"`` and ``method="add"`` the
-    per-method page is ``…/ru/campaigns/add``. We chop the trailing
-    duplicate segment if present.
+    Most registry ``docs`` entries are doubled (``…/ru/campaigns/campaigns``);
+    there the per-method page is ``…/ru/campaigns/add``, so the trailing
+    duplicate segment is chopped before appending the method. Single-segment
+    bases (``…/ru/vcards``, ``…/ru/smartadtargets``) must NOT lose their
+    resource name — appending blindly after rpartition would yield
+    ``…/ru/add`` and silently mis-audit the whole group. We chop the tail
+    only when it duplicates its parent segment.
     """
     base = docs_base.rstrip("/")
     parent, _, tail = base.rpartition("/")
-    return f"{parent}/{method}" if parent else f"{base}/{method}"
+    if parent:
+        grandparent, _, parent_tail = parent.rpartition("/")
+        if tail == parent_tail:
+            return f"{parent}/{method}"
+    return f"{base}/{method}"
 
 
 def audit_v5(retries: int, pause: float) -> list[Finding]:
