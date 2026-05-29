@@ -6,6 +6,7 @@ from typing import Any, Optional
 import click
 
 from ..api import create_v4_client
+from ..i18n import LocalizedOption
 from ..output import format_output, print_error
 from ..utils import parse_csv_strings, parse_ids
 from ..v4 import build_v4_body, call_v4
@@ -159,6 +160,13 @@ def v4finance():
     """Yandex Direct v4 Live finance commands."""
 
 
+# Localize the group epilog at render time (Russian by default, English via
+# --locale en / YANDEX_DIRECT_CLI_LOCALE). The V4_EPILOG tail is appended
+# verbatim so its single-sourced docs URL is not duplicated. See i18n.py.
+v4finance.localized_epilog_key = "v4finance.master_token_setup"
+v4finance.localized_epilog_suffix = V4_EPILOG
+
+
 @v4_method_contract("GetClientsUnits")
 @v4finance.command(name="get-clients-units")
 @click.option("--logins", required=True, help="Comma-separated client logins")
@@ -205,11 +213,9 @@ def get_clients_units(ctx, logins, output_format, output, dry_run):
 )
 @click.option(
     "--master-token",
+    cls=LocalizedOption,
+    help_key="v4finance.master_token_option",
     envvar="YANDEX_DIRECT_MASTER_TOKEN",
-    help=(
-        "Financial master token issued after enabling and saving financial "
-        "operations in Tools -> API -> Financial operations"
-    ),
 )
 @click.option(
     "--operation-num",
@@ -346,11 +352,9 @@ def check_payment(
 )
 @click.option(
     "--master-token",
+    cls=LocalizedOption,
+    help_key="v4finance.master_token_option",
     envvar="YANDEX_DIRECT_MASTER_TOKEN",
-    help=(
-        "Financial master token issued after enabling and saving financial "
-        "operations in Tools -> API -> Financial operations"
-    ),
 )
 @click.option(
     "--operation-num",
@@ -450,11 +454,9 @@ def create_invoice(
 )
 @click.option(
     "--master-token",
+    cls=LocalizedOption,
+    help_key="v4finance.master_token_option",
     envvar="YANDEX_DIRECT_MASTER_TOKEN",
-    help=(
-        "Financial master token issued after enabling and saving financial "
-        "operations in Tools -> API -> Financial operations"
-    ),
 )
 @click.option(
     "--operation-num",
@@ -549,11 +551,9 @@ def transfer_money(
 )
 @click.option(
     "--master-token",
+    cls=LocalizedOption,
+    help_key="v4finance.master_token_option",
     envvar="YANDEX_DIRECT_MASTER_TOKEN",
-    help=(
-        "Financial master token issued after enabling and saving financial "
-        "operations in Tools -> API -> Financial operations"
-    ),
 )
 @click.option(
     "--operation-num",
