@@ -78,6 +78,44 @@ def _scrub_login(text: str) -> str:
     return text
 
 
+# Free-text response fields that can carry account-holder PII (real names,
+# contact data). The value is matched whether stored raw or JSON-escaped
+# (``\uXXXX``) inside a serialized body, so the scrubber works on cassette
+# strings as written by vcrpy. Extend this tuple when a new PII-bearing
+# field surfaces in a recorded response.
+_PII_RESPONSE_FIELDS = (
+    "ClientInfo",
+    "ContactPerson",
+    "Email",
+    "Phone",
+)
+
+
+def _scrub_pii_fields(text: str) -> str:
+    """Redact known PII-bearing JSON fields in a (possibly escaped) body.
+
+    Matches both ``"ClientInfo":"Имя"`` and the JSON-escaped
+    ``\\"ClientInfo\\":\\"...\\"`` form that vcrpy stores, replacing the
+    value with ``REDACTED`` while preserving the surrounding quoting style.
+    """
+    if not text:
+        return text
+    for field in _PII_RESPONSE_FIELDS:
+        # Unescaped form: "Field":"value"
+        text = re.sub(
+            rf'("{field}"\s*:\s*")[^"]*(")',
+            rf"\g<1>{_REDACTED}\g<2>",
+            text,
+        )
+        # JSON-escaped form: \"Field\":\"value\"
+        text = re.sub(
+            rf'(\\"{field}\\"\s*:\s*\\")(?:[^"\\]|\\.)*?(\\")',
+            rf"\g<1>{_REDACTED}\g<2>",
+            text,
+        )
+    return text
+
+
 def _before_record_request(request):
     """Strip sensitive headers and large binary payloads before storing."""
     for header in ("Authorization", "Client-Login", "authorization", "client-login"):
@@ -114,16 +152,16 @@ def _before_record_request(request):
 
 
 def _before_record_response(response):
-    """Strip login from response bodies, auth headers and login-echo headers."""
-    if _REAL_LOGIN:
-        body = response.get("body", {})
-        data = body.get("string")
+    """Strip login + PII from response bodies, auth and login-echo headers."""
+    body = response.get("body", {})
+    data = body.get("string")
+    if data is not None:
         if isinstance(data, bytes):
-            body["string"] = _scrub_login(
-                data.decode("utf-8", errors="replace")
-            ).encode("utf-8")
+            decoded = data.decode("utf-8", errors="replace")
+            scrubbed = _scrub_pii_fields(_scrub_login(decoded))
+            body["string"] = scrubbed.encode("utf-8")
         elif isinstance(data, str):
-            body["string"] = _scrub_login(data)
+            body["string"] = _scrub_pii_fields(_scrub_login(data))
 
     headers = response.get("headers", {})
     for key in list(headers.keys()):

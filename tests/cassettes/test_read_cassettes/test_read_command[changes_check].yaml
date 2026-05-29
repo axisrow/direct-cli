@@ -1,0 +1,56 @@
+interactions:
+- request:
+    body: '{"method":"check","params":{"CampaignIds":[700012672],"Timestamp":"2026-05-29T00:00:00Z","FieldNames":["CampaignIds","AdGroupIds","AdIds","CampaignsStat"]}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '156'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.34.2
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/changes
+  response:
+    body:
+      string: '{"result":{"Modified":{},"NotFound":{"CampaignIds":[700012672]},"Timestamp":"2026-05-29T04:16:36Z"}}'
+    headers:
+      Content-Length:
+      - '100'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Fri, 29 May 2026 04:16:36 GMT
+      RequestId:
+      - '5991381097101437956'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 10/159476/160000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.api5/changes.check,appcode:0
+    status:
+      code: 200
+      message: OK
+version: 1

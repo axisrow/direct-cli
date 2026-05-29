@@ -1,0 +1,57 @@
+interactions:
+- request:
+    body: '{"method":"get","params":{"FieldNames":["Id","CampaignId","Country","City","CompanyName"]}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '91'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.34.2
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/vcards
+  response:
+    body:
+      string: '{"result":{"VCards":[{"Id":341178,"CampaignId":700012135,"Country":"Russia","City":"Moscow","CompanyName":"Sandbox
+        company"}]}}'
+    headers:
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Fri, 29 May 2026 04:16:42 GMT
+      RequestId:
+      - '6627095992495393581'
+      Set-Cookie:
+      - REDACTED
+      Transfer-Encoding:
+      - chunked
+      Units:
+      - 16/159414/160000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.api5/vcards.get,appcode:0
+    status:
+      code: 200
+      message: OK
+version: 1

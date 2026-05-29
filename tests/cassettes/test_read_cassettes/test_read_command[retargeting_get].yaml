@@ -1,0 +1,56 @@
+interactions:
+- request:
+    body: '{"method":"get","params":{"SelectionCriteria":{},"FieldNames":["Id","Name","Type","Scope"]}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '92'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.34.2
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/retargetinglists
+  response:
+    body:
+      string: '{"result":{}}'
+    headers:
+      Content-Length:
+      - '13'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Fri, 29 May 2026 04:16:26 GMT
+      RequestId:
+      - '1316860725827814100'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 1/159558/160000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.api5/retargetinglists.get,appcode:0
+    status:
+      code: 200
+      message: OK
+version: 1

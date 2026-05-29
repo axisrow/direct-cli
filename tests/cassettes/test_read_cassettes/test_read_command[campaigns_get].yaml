@@ -1,0 +1,57 @@
+interactions:
+- request:
+    body: '{"method":"get","params":{"FieldNames":["Id","Name","Status","State","StartDate","EndDate","Type","DailyBudget","ClientInfo"]}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '127'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.34.2
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/campaigns
+  response:
+    body:
+      string: "{\"result\":{\"Campaigns\":[{\"ClientInfo\":\"REDACTED\",\"Id\":700012135,\"Name\":\"Test
+        API Sandbox campaign 1\",\"StartDate\":\"2026-05-19\",\"Type\":\"TEXT_CAMPAIGN\",\"Status\":\"DRAFT\",\"State\":\"OFF\",\"DailyBudget\":null,\"EndDate\":null}]}}"
+    headers:
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Fri, 29 May 2026 04:16:19 GMT
+      RequestId:
+      - '3369607720452461410'
+      Set-Cookie:
+      - REDACTED
+      Transfer-Encoding:
+      - chunked
+      Units:
+      - 11/159639/160000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.api5/campaigns.get,appcode:0
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -1,0 +1,59 @@
+interactions:
+- request:
+    body: "{\"method\":\"deduplicate\",\"params\":{\"Keywords\":[{\"Keyword\":\"\u043A\u0443\u043F\u0438\u0442\u044C
+      \u0442\u0435\u043B\u0435\u0444\u043E\u043D\"},{\"Keyword\":\"\u0442\u0435\u043B\u0435\u0444\u043E\u043D
+      \u043A\u0443\u043F\u0438\u0442\u044C\"}]}}"
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '132'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.34.2
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/keywordsresearch
+  response:
+    body:
+      string: "{\"result\":{\"Add\":[{\"Keyword\":\"\u0442\u0435\u043B\u0435\u0444\u043E\u043D
+        \u043A\u0443\u043F\u0438\u0442\u044C\"}]}}"
+    headers:
+      Content-Length:
+      - '62'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Fri, 29 May 2026 04:16:40 GMT
+      RequestId:
+      - '6688635738939121658'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 10/159445/160000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.api5/keywordsresearch.deduplicate,appcode:0
+    status:
+      code: 200
+      message: OK
+version: 1
