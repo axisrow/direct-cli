@@ -581,17 +581,27 @@ def audit_v5(retries: int, pause: float) -> list[Finding]:
 
         seen_urls: set[str] = set()
         targets: list[tuple[str, str]] = []
-        for op in methods:
-            # docs_pages override > derived URL from docs base
-            url = (docs_pages or {}).get(op)
-            if not url and docs_base:
-                url = _v5_per_method_url(docs_base, op)
-            if not url or url in seen_urls:
-                continue
-            seen_urls.add(url)
-            targets.append((op, url))
-        if not targets and docs_base:
+        # Services whose human-readable doc pages Yandex removed (#463) carry a
+        # WSDL endpoint as `docs`. Per-method URL derivation assumes a
+        # `…/ru/<svc>` page shape and would emit garbage like `…?wsdl/get`, so
+        # treat a WSDL base as a single group-level target instead.
+        wsdl_base = docs_base.rstrip("/").endswith("?wsdl") or docs_base.endswith(
+            ".wsdl"
+        )
+        if wsdl_base:
             targets.append(("__group__", docs_base))
+        else:
+            for op in methods:
+                # docs_pages override > derived URL from docs base
+                url = (docs_pages or {}).get(op)
+                if not url and docs_base:
+                    url = _v5_per_method_url(docs_base, op)
+                if not url or url in seen_urls:
+                    continue
+                seen_urls.add(url)
+                targets.append((op, url))
+            if not targets and docs_base:
+                targets.append(("__group__", docs_base))
 
         for op_name, url in targets:
             fetched = fetch_doc(url, retries=retries, pause=pause)

@@ -76,14 +76,20 @@ RESOURCE_MAPPING_V5 = {
         "docs": "https://yandex.ru/dev/direct/doc/ru/dictionaries/dictionaries",
         "methods": ["get"],
     },
+    # Yandex removed the human-readable doc pages for DynamicTextAdTargets,
+    # DynamicFeedAdTargets, SmartAdTargets and VCards in September 2025 (the
+    # /ru/ and /en/ pages now 404, and the services are gone from the docs
+    # navigation). The services themselves remain live, so `docs` points at the
+    # WSDL endpoint — the only authoritative source still served for them. See
+    # issue #463.
     "dynamicads": {
         "resource": "json/v5/dynamictextadtargets",
-        "docs": "https://yandex.ru/dev/direct/doc/ru/dynamictextadtargets",
+        "docs": "https://api.direct.yandex.com/v5/dynamictextadtargets?wsdl",
         "methods": ["get", "add", "delete", "suspend", "resume", "setBids"],
     },
     "dynamicfeedadtargets": {
         "resource": "json/v5/dynamicfeedadtargets",
-        "docs": "https://yandex.ru/dev/direct/doc/ru/dynamicfeedadtargets",
+        "docs": "https://api.direct.yandex.com/v5/dynamicfeedadtargets?wsdl",
         "methods": ["get", "add", "delete", "suspend", "resume", "setBids"],
     },
     "keywordbids": {
@@ -118,7 +124,8 @@ RESOURCE_MAPPING_V5 = {
     },
     "vcards": {
         "resource": "json/v5/vcards",
-        "docs": "https://yandex.ru/dev/direct/doc/ru/vcards",
+        # Doc page removed Sep 2025 (see comment above); WSDL still live.
+        "docs": "https://api.direct.yandex.com/v5/vcards?wsdl",
         "methods": ["get", "add", "delete"],
     },
     "turbopages": {
@@ -154,7 +161,8 @@ RESOURCE_MAPPING_V5 = {
     },
     "smartadtargets": {
         "resource": "json/v5/smartadtargets",
-        "docs": "https://yandex.ru/dev/direct/doc/ru/smartadtargets",
+        # Doc page removed Sep 2025 (see comment above); WSDL still live.
+        "docs": "https://api.direct.yandex.com/v5/smartadtargets?wsdl",
         "methods": ["get", "add", "update", "delete", "suspend", "resume", "setBids"],
     },
     "strategies": {
