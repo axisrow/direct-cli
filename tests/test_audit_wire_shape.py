@@ -161,13 +161,16 @@ def test_v5_per_method_url_chops_duplicate_tail(docs, method, expected):
 def test_audit_v5_treats_wsdl_base_as_single_group_target(monkeypatch):
     # A service whose `docs` is a WSDL endpoint (#463) must NOT have per-method
     # URLs derived from it — that would produce garbage like `…?wsdl/get`.
-    # It is audited as one group-level target instead.
+    # It is audited as one group-level target instead, and a valid WSDL (even
+    # at "thin" <30 KB size) is recorded as coverage, not docs_unreachable.
     fetched_urls: list[str] = []
+    # Real WSDL is ~14 KB, which fetch_doc flags "thin" — reproduce that.
+    wsdl_body = "<wsdl:definitions>" + ("x" * 14000) + "</wsdl:definitions>"
 
     def fake_fetch_doc(url, retries, pause):
         fetched_urls.append(url)
         return audit.FetchResult(
-            url=url, status="ok", html="<html></html>", attempts=1
+            url=url, status="thin", html=wsdl_body, attempts=3
         )
 
     monkeypatch.setattr(audit, "fetch_doc", fake_fetch_doc)
@@ -184,8 +187,12 @@ def test_audit_v5_treats_wsdl_base_as_single_group_target(monkeypatch):
     )
     monkeypatch.setattr(audit, "CLI_TO_API_SERVICE", {"vcards": "vcards"})
 
-    audit.audit_v5(retries=1, pause=0)
+    findings = audit.audit_v5(retries=1, pause=0)
 
     wsdl = "https://api.direct.yandex.com/v5/vcards?wsdl"
     assert fetched_urls == [wsdl]
     assert not any("?wsdl/" in u for u in fetched_urls)
+    # A valid WSDL is coverage, not an unreachable/thin failure.
+    kinds = {f.kind for f in findings}
+    assert "v5_wsdl_group_ok" in kinds
+    assert "docs_unreachable" not in kinds

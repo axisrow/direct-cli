@@ -604,6 +604,35 @@ def audit_v5(retries: int, pause: float) -> list[Finding]:
                 targets.append(("__group__", docs_base))
 
         for op_name, url in targets:
+            # WSDL bases (#463: services whose doc pages Yandex removed) are
+            # XML, not 30 KB HTML doc pages — fetch_doc would flag them as
+            # "thin". Validate them as real WSDL instead and record coverage.
+            if wsdl_base:
+                fetched = fetch_doc(url, retries=retries, pause=pause)
+                html = fetched.html or ""
+                lower = html.lower()
+                if fetched.status in ("ok", "thin") and (
+                    "wsdl:definitions" in lower or "<definitions" in lower
+                ):
+                    findings.append(
+                        Finding(
+                            "v5", f"{cli_group}.{op_name}", url,
+                            "v5_wsdl_group_ok",
+                            f"WSDL endpoint reachable ({len(html)} bytes); "
+                            "doc page removed by Yandex (see #463)",
+                        )
+                    )
+                else:
+                    findings.append(
+                        Finding(
+                            "v5", f"{cli_group}.{op_name}", url,
+                            FINDING_DOCS_UNREACHABLE,
+                            f"WSDL fetch status={fetched.status} "
+                            f"attempts={fetched.attempts}",
+                        )
+                    )
+                continue
+
             fetched = fetch_doc(url, retries=retries, pause=pause)
             if fetched.status != "ok":
                 findings.append(

@@ -1,17 +1,17 @@
 # Project docs / wire-shape audit
 
-Total findings: **174**
+Total findings: **121**
 
 ## Findings by kind
 
 - `v5_schema_seen`: 87
-- `docs_unreachable`: 33
-- `docs_field_missing_in_code`: 18
 - `code_field_missing_in_docs`: 11
 - `live4_marker_absent`: 7
-- `notes_points_at_reference_url`: 6
-- `v5_schema_not_extracted`: 6
-- `required_field_missing_in_payload_module`: 4
+- `docs_unreachable`: 6
+- `v5_wsdl_group_ok`: 4
+- `v5_schema_not_extracted`: 2
+- `required_field_missing_in_payload_module`: 1
+- `docs_field_missing_in_code`: 1
 - `skipped_undocumented_by_policy`: 1
 - `reports_spec_ok`: 1
 
@@ -29,54 +29,19 @@ Total findings: **174**
 | v4 | `AdImageAssociation` | `code_field_missing_in_docs` | contract.example_param has 'Offset' but live docs schema does not | https://yandex.ru/dev/direct/doc/dg-v4/live/AdImageAssociation.html |
 | v4 | `AdImageAssociation` | `code_field_missing_in_docs` | contract.example_param has 'SelectionCriteria' but live docs schema does not | https://yandex.ru/dev/direct/doc/dg-v4/live/AdImageAssociation.html |
 | v4 | `AdImageAssociation` | `code_field_missing_in_docs` | contract.example_param has 'StatusAdImageModerate' but live docs schema does not | https://yandex.ru/dev/direct/doc/dg-v4/live/AdImageAssociation.html |
-| v4 | `CheckPayment` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/dg-v4/live/CheckPayment.html |
-| v4 | `CreateInvoice` | `notes_points_at_reference_url` | contract.notes references dg-v4/reference/ but dg-v4/live/ exists — Live 4 schema must be used | https://yandex.ru/dev/direct/doc/dg-v4/live/CreateInvoice.html |
-| v4 | `CreateInvoice` | `docs_field_missing_in_code` | docs schema mentions 'Currency' but contract.example_param does not | https://yandex.ru/dev/direct/doc/dg-v4/live/CreateInvoice.html |
-| v4 | `CreateInvoice` | `required_field_missing_in_payload_module` | Live 4 changelog marks 'Currency' required but contract.example_param does not include it | https://yandex.ru/dev/direct/doc/dg-v4/live/CreateInvoice.html |
-| v4 | `CreateNewForecast` | `docs_field_missing_in_code` | docs schema mentions 'AuctionBids' but contract.example_param does not | https://yandex.ru/dev/direct/doc/dg-v4/live/CreateNewForecast.html |
-| v4 | `CreateNewForecast` | `docs_field_missing_in_code` | docs schema mentions 'Categories' but contract.example_param does not | https://yandex.ru/dev/direct/doc/dg-v4/live/CreateNewForecast.html |
-| v4 | `CreateNewForecast` | `docs_field_missing_in_code` | docs schema mentions 'CommonMinusWords' but contract.example_param does not | https://yandex.ru/dev/direct/doc/dg-v4/live/CreateNewForecast.html |
-| v4 | `CreateNewWordstatReport` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/dg-v4/live/CreateNewWordstatReport.html |
-| v4 | `DeleteForecastReport` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/dg-v4/live/DeleteForecastReport.html |
+| v4 | `CheckPayment` | `docs_unreachable` | fetcher status=http-404 attempts=1 note='' | https://yandex.ru/dev/direct/doc/dg-v4/live/CheckPayment.html |
 | v4 | `DeleteOfflineReport` | `live4_marker_absent` | live page reachable but lacks «Новое в версии Live 4» | https://yandex.ru/dev/direct/doc/dg-v4/live/DeleteOfflineReport.html |
-| v4 | `DeleteReport` | `notes_points_at_reference_url` | contract.notes references dg-v4/reference/ but dg-v4/live/ exists — Live 4 schema must be used | https://yandex.ru/dev/direct/doc/dg-v4/live/DeleteReport.html |
-| v4 | `DeleteReport` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/dg-v4/live/DeleteReport.html |
-| v4 | `DeleteWordstatReport` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/dg-v4/live/DeleteWordstatReport.html |
 | v4 | `EnableSharedAccount` | `live4_marker_absent` | live page reachable but lacks «Новое в версии Live 4» | https://yandex.ru/dev/direct/doc/dg-v4/live/EnableSharedAccount.html |
 | v4 | `GetAvailableVersions` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/dg-v4/live/GetAvailableVersions.html |
 | v4 | `GetBannersTags` | `live4_marker_absent` | live page reachable but lacks «Новое в версии Live 4» | https://yandex.ru/dev/direct/doc/dg-v4/live/GetBannersTags.html |
 | v4 | `GetBannersTags` | `docs_field_missing_in_code` | docs schema mentions 'CampaignIDS' but contract.example_param does not | https://yandex.ru/dev/direct/doc/dg-v4/live/GetBannersTags.html |
 | v4 | `GetCampaignsTags` | `live4_marker_absent` | live page reachable but lacks «Новое в версии Live 4» | https://yandex.ru/dev/direct/doc/dg-v4/live/GetCampaignsTags.html |
-| v4 | `GetClientsUnits` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/dg-v4/live/GetClientsUnits.html |
-| v4 | `GetCreditLimits` | `notes_points_at_reference_url` | contract.notes references dg-v4/reference/ but dg-v4/live/ exists — Live 4 schema must be used | https://yandex.ru/dev/direct/doc/dg-v4/live/GetCreditLimits.html |
-| v4 | `GetCreditLimits` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/dg-v4/live/GetCreditLimits.html |
-| v4 | `GetEventsLog` | `docs_field_missing_in_code` | docs schema mentions 'AccountIDS' but contract.example_param does not | https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html |
-| v4 | `GetEventsLog` | `docs_field_missing_in_code` | docs schema mentions 'BannerIDS' but contract.example_param does not | https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html |
-| v4 | `GetEventsLog` | `docs_field_missing_in_code` | docs schema mentions 'CampaignIDS' but contract.example_param does not | https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html |
-| v4 | `GetEventsLog` | `docs_field_missing_in_code` | docs schema mentions 'EventType' but contract.example_param does not | https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html |
-| v4 | `GetEventsLog` | `docs_field_missing_in_code` | docs schema mentions 'Filter' but contract.example_param does not | https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html |
-| v4 | `GetEventsLog` | `docs_field_missing_in_code` | docs schema mentions 'LastEventOnly' but contract.example_param does not | https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html |
-| v4 | `GetEventsLog` | `docs_field_missing_in_code` | docs schema mentions 'Limit' but contract.example_param does not | https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html |
-| v4 | `GetEventsLog` | `docs_field_missing_in_code` | docs schema mentions 'Logins' but contract.example_param does not | https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html |
-| v4 | `GetEventsLog` | `docs_field_missing_in_code` | docs schema mentions 'Offset' but contract.example_param does not | https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html |
-| v4 | `GetEventsLog` | `docs_field_missing_in_code` | docs schema mentions 'PhraseIDS' but contract.example_param does not | https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html |
-| v4 | `GetEventsLog` | `docs_field_missing_in_code` | docs schema mentions 'WithTextDescription' but contract.example_param does not | https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html |
 | v4 | `GetForecastList` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/dg-v4/live/GetForecastList.html |
-| v4 | `GetKeywordsSuggestion` | `notes_points_at_reference_url` | contract.notes references dg-v4/reference/ but dg-v4/live/ exists — Live 4 schema must be used | https://yandex.ru/dev/direct/doc/dg-v4/live/GetKeywordsSuggestion.html |
 | v4 | `GetKeywordsSuggestion` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/dg-v4/live/GetKeywordsSuggestion.html |
 | v4 | `GetRetargetingGoals` | `code_field_missing_in_docs` | contract.example_param has 'CampaignIDS' but live docs schema does not | https://yandex.ru/dev/direct/doc/dg-v4/live/GetRetargetingGoals.html |
-| v4 | `GetVersion` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/dg-v4/live/GetVersion.html |
 | v4 | `GetWordstatReport` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/dg-v4/live/GetWordstatReport.html |
-| v4 | `GetWordstatReportList` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/dg-v4/live/GetWordstatReportList.html |
-| v4 | `PayCampaigns` | `notes_points_at_reference_url` | contract.notes references dg-v4/reference/ but dg-v4/live/ exists — Live 4 schema must be used | https://yandex.ru/dev/direct/doc/dg-v4/live/PayCampaigns.html |
-| v4 | `PayCampaigns` | `docs_field_missing_in_code` | docs schema mentions 'Currency' but contract.example_param does not | https://yandex.ru/dev/direct/doc/dg-v4/live/PayCampaigns.html |
-| v4 | `PayCampaigns` | `required_field_missing_in_payload_module` | Live 4 changelog marks 'Currency' required but contract.example_param does not include it | https://yandex.ru/dev/direct/doc/dg-v4/live/PayCampaigns.html |
 | v4 | `PayCampaignsByCard` | `skipped_undocumented_by_policy` | param_shape=undocumented; not audited | — |
-| v4 | `PingAPI` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/dg-v4/live/PingAPI.html |
 | v4 | `PingAPI_X` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/dg-v4/live/PingAPI_X.html |
-| v4 | `TransferMoney` | `notes_points_at_reference_url` | contract.notes references dg-v4/reference/ but dg-v4/live/ exists — Live 4 schema must be used | https://yandex.ru/dev/direct/doc/dg-v4/live/TransferMoney.html |
-| v4 | `TransferMoney` | `docs_field_missing_in_code` | docs schema mentions 'Currency' but contract.example_param does not | https://yandex.ru/dev/direct/doc/dg-v4/live/TransferMoney.html |
-| v4 | `TransferMoney` | `required_field_missing_in_payload_module` | Live 4 changelog marks 'Currency' required but contract.example_param does not include it | https://yandex.ru/dev/direct/doc/dg-v4/live/TransferMoney.html |
 | v4 | `UpdateBannersTags` | `live4_marker_absent` | live page reachable but lacks «Новое в версии Live 4» | https://yandex.ru/dev/direct/doc/dg-v4/live/UpdateBannersTags.html |
 | v4 | `UpdateCampaignsTags` | `live4_marker_absent` | live page reachable but lacks «Новое в версии Live 4» | https://yandex.ru/dev/direct/doc/dg-v4/live/UpdateCampaignsTags.html |
 | v5 | `campaigns.get` | `v5_schema_seen` | types=['ArrayOfString', 'CampaignAssistant', 'CampaignFundsParam', 'CampaignGetItem', 'CampaignsSelectionCriteria', 'CpmBannerCampaignGetItem', 'DailyBudget', 'EmailSettings', 'FundsParam', 'LimitOffset', 'MobileAppCampaignGetItem', 'Notification', 'SharedAccountFundsParam', 'SmartCampaignGetItem', 'SmsSettings', 'Statistics', 'TextCampaignGetItem', 'TimeTargeting', 'TimeTargetingOnPublicHolidays', 'nillable', 'params', 'required', 'result'] | https://yandex.ru/dev/direct/doc/ru/campaigns/get |
@@ -139,9 +104,7 @@ Total findings: **174**
 | v5 | `sitelinks.get` | `v5_schema_seen` | types=['IdsCriteria', 'LimitOffset', 'Sitelink', 'SitelinksSetGetItem', 'nillable', 'params', 'required', 'result'] | https://yandex.ru/dev/direct/doc/ru/sitelinks/get |
 | v5 | `sitelinks.add` | `v5_schema_seen` | types=['ActionResult', 'ExceptionNotification', 'Sitelink', 'SitelinksSetAddItem', 'params', 'required', 'result'] | https://yandex.ru/dev/direct/doc/ru/sitelinks/add |
 | v5 | `sitelinks.delete` | `v5_schema_seen` | types=['ActionResult', 'ExceptionNotification', 'IdsCriteria', 'params', 'required', 'result'] | https://yandex.ru/dev/direct/doc/ru/sitelinks/delete |
-| v5 | `vcards.get` | `v5_schema_not_extracted` | page reachable but no /* TypeName */ schema block found | https://yandex.ru/dev/direct/doc/ru/get |
-| v5 | `vcards.add` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/ru/add |
-| v5 | `vcards.delete` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/ru/delete |
+| v5 | `vcards.__group__` | `v5_wsdl_group_ok` | WSDL endpoint reachable (13852 bytes); doc page removed by Yandex (see #463) | https://api.direct.yandex.com/v5/vcards?wsdl |
 | v5 | `leads.get` | `v5_schema_seen` | types=['LeadDataItem', 'LeadGetItem', 'LeadsSelectionCriteria', 'LimitOffset', 'params', 'required', 'result'] | https://yandex.ru/dev/direct/doc/ru/leads/get |
 | v5 | `clients.get` | `v5_schema_seen` | types=['BonusesGet', 'ClientGetItem', 'ClientRestrictionItem', 'ClientSettingGetItem', 'ContractGet', 'ContragentGet', 'EmailSubscriptionItem', 'ErirAttributesGet', 'GrantGetItem', 'NotificationGet', 'OrganizationGet', 'PriceGet', 'Representative', 'TinInfoGet', 'nillable', 'params', 'required', 'result'] | https://yandex.ru/dev/direct/doc/ru/clients/get |
 | v5 | `clients.update` | `v5_schema_seen` | types=['ClientSettingUpdateItem', 'ClientUpdateItem', 'ClientsActionResult', 'ContractUpdate', 'ContragentUpdate', 'EmailSubscriptionItem', 'ErirAttributesUpdate', 'ExceptionNotification', 'NotificationUpdate', 'OrganizationUpdate', 'PriceUpdate', 'TinInfoUpdate', 'nillable', 'params', 'required', 'result'] | https://yandex.ru/dev/direct/doc/ru/clients/update |
@@ -163,28 +126,12 @@ Total findings: **174**
 | v5 | `feeds.add` | `v5_schema_seen` | types=['ActionResult', 'ExceptionNotification', 'FeedAddItem', 'FileFeedAdd', 'UrlFeedAdd', 'params', 'required', 'result'] | https://yandex.ru/dev/direct/doc/ru/feeds/add |
 | v5 | `feeds.update` | `v5_schema_seen` | types=['ActionResult', 'ExceptionNotification', 'FeedUpdateItem', 'FileFeedUpdate', 'UrlFeedUpdate', 'nillable', 'params', 'required', 'result'] | https://yandex.ru/dev/direct/doc/ru/feeds/update |
 | v5 | `feeds.delete` | `v5_schema_seen` | types=['DeleteResults', 'ExceptionNotification', 'IdsCriteria', 'required', 'result'] | https://yandex.ru/dev/direct/doc/ru/feeds/delete |
-| v5 | `smartadtargets.get` | `v5_schema_not_extracted` | page reachable but no /* TypeName */ schema block found | https://yandex.ru/dev/direct/doc/ru/get |
-| v5 | `smartadtargets.add` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/ru/add |
-| v5 | `smartadtargets.update` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/ru/update |
-| v5 | `smartadtargets.delete` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/ru/delete |
-| v5 | `smartadtargets.suspend` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/ru/suspend |
-| v5 | `smartadtargets.resume` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/ru/resume |
-| v5 | `smartadtargets.setBids` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/ru/setBids |
+| v5 | `smartadtargets.__group__` | `v5_wsdl_group_ok` | WSDL endpoint reachable (21026 bytes); doc page removed by Yandex (see #463) | https://api.direct.yandex.com/v5/smartadtargets?wsdl |
 | v5 | `businesses.get` | `v5_schema_seen` | types=['ArrayOfLong', 'ArrayOfString', 'BusinessGetItem', 'IdsCriteria', 'LimitOffset', 'nillable', 'params', 'required', 'result'] | https://yandex.ru/dev/direct/doc/ru/businesses/get |
 | v5 | `keywordsresearch.deduplicate` | `v5_schema_seen` | types=['DeduplicateErrorItem', 'DeduplicateRequestItem', 'DeduplicateResponseAddItem', 'DeduplicateResponseUpdateItem', 'ExceptionNotification', 'IdsCriteria', 'params', 'required', 'result'] | https://yandex.ru/dev/direct/doc/ru/keywordsresearch/deduplicate |
 | v5 | `keywordsresearch.hasSearchVolume` | `v5_schema_seen` | types=['HasSearchVolumeItem', 'HasSearchVolumeSelectionCriteria', 'params', 'required', 'result'] | https://yandex.ru/dev/direct/doc/ru/keywordsresearch/hasSearchVolume |
-| v5 | `dynamicads.get` | `v5_schema_not_extracted` | page reachable but no /* TypeName */ schema block found | https://yandex.ru/dev/direct/doc/ru/get |
-| v5 | `dynamicads.add` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/ru/add |
-| v5 | `dynamicads.delete` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/ru/delete |
-| v5 | `dynamicads.suspend` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/ru/suspend |
-| v5 | `dynamicads.resume` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/ru/resume |
-| v5 | `dynamicads.setBids` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/ru/setBids |
-| v5 | `dynamicfeedadtargets.get` | `v5_schema_not_extracted` | page reachable but no /* TypeName */ schema block found | https://yandex.ru/dev/direct/doc/ru/get |
-| v5 | `dynamicfeedadtargets.add` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/ru/add |
-| v5 | `dynamicfeedadtargets.delete` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/ru/delete |
-| v5 | `dynamicfeedadtargets.suspend` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/ru/suspend |
-| v5 | `dynamicfeedadtargets.resume` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/ru/resume |
-| v5 | `dynamicfeedadtargets.setBids` | `docs_unreachable` | fetcher status=captcha-after-retries attempts=3 note='' | https://yandex.ru/dev/direct/doc/ru/setBids |
+| v5 | `dynamicads.__group__` | `v5_wsdl_group_ok` | WSDL endpoint reachable (17900 bytes); doc page removed by Yandex (see #463) | https://api.direct.yandex.com/v5/dynamictextadtargets?wsdl |
+| v5 | `dynamicfeedadtargets.__group__` | `v5_wsdl_group_ok` | WSDL endpoint reachable (16976 bytes); doc page removed by Yandex (see #463) | https://api.direct.yandex.com/v5/dynamicfeedadtargets?wsdl |
 | v5 | `strategies.get` | `v5_schema_seen` | types=['nillable', 'required'] | https://yandex.ru/dev/direct/doc/ru/strategies/get |
 | v5 | `strategies.add` | `v5_schema_seen` | types=['required'] | https://yandex.ru/dev/direct/doc/ru/strategies/add |
 | v5 | `strategies.update` | `v5_schema_seen` | types=['nillable', 'required'] | https://yandex.ru/dev/direct/doc/ru/strategies/update |
