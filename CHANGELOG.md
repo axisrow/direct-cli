@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.4.0
+
+Milestone release closing the 0.4.0 roadmap (#123): typed Yandex Direct
+API **v4 Live** CLI support and completion of the post-0.3.0 write-command
+coverage gates. All public v4 input stays typed and canonical — no `--json`
+passthrough — and mirrors `dg-v4/live/*` wire shapes 1:1.
+
+**Added — typed v4 Live CLI:**
+
+- v4 Live command foundation with typed Click groups and a `--dry-run`
+  seam that prints the `{method, param}` body before token/locale
+  enrichment (#124, closes #111 — typed CLI, not raw JSON passthrough).
+- `v4finance` and `v4account` typed finance and shared-account commands
+  (#125).
+- `v4goals`, `v4events`, `v4wordstat`, and `v4forecast` typed commands
+  (#126).
+- `v4events get-events-log` and `v4forecast create-new-forecast` now expose
+  every documented input field (#456).
+- Russian-default CLI help with English opt-in, starting with `v4finance`
+  (#458).
+
+**Changed — write-command coverage gates:**
+
+- Extended the WSDL schema gate to mutating operations; `keywordbids.set`
+  is now enum-validated against its WSDL `*FieldEnum` (#118).
+- Per-method `WRITE_SANDBOX` integration coverage completed — zero
+  unexplained `NOT_COVERED` commands in `direct_cli/smoke_matrix.py`
+  (#122).
+- Closed the remaining mutating `DRY_RUN_PAYLOAD_EXCLUSIONS`; every
+  declared WSDL operation now has a `PAYLOAD_CASES` fixture or a
+  documented technical exclusion (#127).
+
+**Tests / tooling:**
+
+- Offline VCR cassettes for all v5 read-only commands (#455).
+- v4 Live read cassettes and a fix for an unbounded retry-loop (#457,
+  closes #454).
+- Docs/wire-shape scanner with the 2026-05-29 sweep (#451).
+
+`strict_parity_ok`, `live_model_parity_ok`, and `schema_parity_ok` all
+report `true` in `scripts/build_api_coverage_report.py`.
+
 ## 0.3.16
 
 **BREAKING CHANGES (regression fix — reverts 0.3.15 wire-shape changes):**
