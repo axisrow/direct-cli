@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.3.16
+
+**BREAKING CHANGES (regression fix — reverts 0.3.15 wire-shape changes):**
+
+- `direct v4finance transfer-money` now requires `--currency` again and
+  re-emits `Currency` on every `FromCampaigns` / `ToCampaigns` item.
+  The 0.3.15 removal verified against `dg-v4/reference/TransferMoney`
+  (legacy v4); the actual Live 4 docs at
+  `dg-v4/live/TransferMoney` define `PayCampElement` with
+  `CampaignID`, `Sum`, and `Currency`, and explicitly mark `Currency` as
+  obligatory in the Live 4 changelog. The CLI now matches the live
+  docs 1:1. See audit comment on #125 for the reproducible diff.
+- `direct v4finance pay-campaigns` now requires `--currency` again and
+  re-emits `Currency` on every `Payments[]` item. Same root cause:
+  `dg-v4/reference/PayCampaigns` (legacy) lacks `Currency`,
+  `dg-v4/live/PayCampaigns` (Live 4) requires it.
+- `direct v4finance pay-campaigns` accepts `--pay-method Overdraft`
+  again. The Live 4 changelog explicitly adds `Overdraft` for direct
+  advertisers (paired with `Bank` for agencies). Only `Bank` keeps the
+  `--contract-id` requirement.
+- `direct v4finance create-invoice` now requires `--currency` again and
+  re-emits `Currency` on every `Payments[]` item, mirroring
+  `dg-v4/live/CreateInvoice`.
+
+This release reverts the wire-shape changes shipped by PRs #441, #442,
+#443 (which closed #432, #433, #434). The CLI lives in the `v4finance`
+Live group and must mirror `dg-v4/live/*`, not `dg-v4/reference/*`.
+
 ## 0.3.15
 
 **BREAKING CHANGES:**

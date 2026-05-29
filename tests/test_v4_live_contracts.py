@@ -199,6 +199,7 @@ def test_v4_live_create_invoice_contract_opt_in_write():
                 {
                     "CampaignID": parsed_campaign_id,
                     "Sum": 1.0,
+                    "Currency": "RUB",
                 }
             ]
         },

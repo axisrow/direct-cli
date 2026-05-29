@@ -77,6 +77,8 @@ def test_transfer_money_dry_run_uses_campaign_arrays_and_masks_finance_token():
         "456",
         "--amount",
         "100.50",
+        "--currency",
+        "RUB",
         "--finance-token",
         "secret-finance-token",
         "--operation-num",
@@ -89,8 +91,12 @@ def test_transfer_money_dry_run_uses_campaign_arrays_and_masks_finance_token():
     assert json.loads(result.output) == {
         "method": "TransferMoney",
         "param": {
-            "FromCampaigns": [{"CampaignID": 123, "Sum": 100.5}],
-            "ToCampaigns": [{"CampaignID": 456, "Sum": 100.5}],
+            "FromCampaigns": [
+                {"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"}
+            ],
+            "ToCampaigns": [
+                {"CampaignID": 456, "Sum": 100.5, "Currency": "RUB"}
+            ],
         },
         "finance_token": "<redacted>",
         "operation_num": 42,
@@ -109,6 +115,8 @@ def test_pay_campaigns_dry_run_uses_payment_object_and_masks_finance_token():
         "contract-id",
         "--pay-method",
         "Bank",
+        "--currency",
+        "RUB",
         "--finance-token",
         "secret-finance-token",
         "--operation-num",
@@ -122,8 +130,8 @@ def test_pay_campaigns_dry_run_uses_payment_object_and_masks_finance_token():
         "method": "PayCampaigns",
         "param": {
             "Payments": [
-                {"CampaignID": 123, "Sum": 100.5},
-                {"CampaignID": 456, "Sum": 100.5},
+                {"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"},
+                {"CampaignID": 456, "Sum": 100.5, "Currency": "RUB"},
             ],
             "ContractID": "contract-id",
             "PayMethod": "Bank",
@@ -139,6 +147,8 @@ def test_create_invoice_dry_run_uses_payment_object_and_masks_finance_token():
         "create-invoice",
         "--payment",
         "123=100.50",
+        "--currency",
+        "RUB",
         "--finance-token",
         "secret-finance-token",
         "--operation-num",
@@ -152,7 +162,7 @@ def test_create_invoice_dry_run_uses_payment_object_and_masks_finance_token():
         "method": "CreateInvoice",
         "param": {
             "Payments": [
-                {"CampaignID": 123, "Sum": 100.5},
+                {"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"},
             ],
         },
         "finance_token": "<redacted>",
@@ -168,6 +178,8 @@ def test_create_invoice_dry_run_accepts_multiple_payments():
         "123=100.50",
         "--payment",
         "456=1",
+        "--currency",
+        "RUB",
         "--finance-token",
         "secret-finance-token",
         "--operation-num",
@@ -178,8 +190,8 @@ def test_create_invoice_dry_run_accepts_multiple_payments():
     assert result.exit_code == 0
     assert json.loads(result.output)["param"] == {
         "Payments": [
-            {"CampaignID": 123, "Sum": 100.5},
-            {"CampaignID": 456, "Sum": 1.0},
+            {"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"},
+            {"CampaignID": 456, "Sum": 1.0, "Currency": "RUB"},
         ],
     }
 
@@ -194,6 +206,8 @@ def test_transfer_money_uses_finance_env_fallback_for_dry_run():
         "456",
         "--amount",
         "100.50",
+        "--currency",
+        "RUB",
         "--dry-run",
         env={
             "YANDEX_DIRECT_FINANCE_TOKEN": "env-finance-token",
@@ -218,6 +232,8 @@ def test_transfer_money_can_compute_finance_token_from_master_token():
             "456",
             "--amount",
             "100.50",
+            "--currency",
+            "RUB",
             "--master-token",
             "master-token",
             "--operation-num",
@@ -245,6 +261,8 @@ def test_create_invoice_can_compute_finance_token_from_master_token():
             "create-invoice",
             "--payment",
             "123=100.50",
+            "--currency",
+            "RUB",
             "--master-token",
             "master-token",
             "--operation-num",
@@ -274,6 +292,8 @@ def test_finance_credentials_reject_token_and_master_token_conflict():
         "456",
         "--amount",
         "100.50",
+        "--currency",
+        "RUB",
         "--finance-token",
         "finance-token",
         "--master-token",
@@ -297,6 +317,8 @@ def test_master_token_requires_finance_login_without_login_fallback():
         "456",
         "--amount",
         "100.50",
+        "--currency",
+        "RUB",
         "--master-token",
         "master-token",
         "--operation-num",
@@ -321,6 +343,8 @@ def test_v4finance_money_commands_require_dry_run_before_api_call():
             "456",
             "--amount",
             "100.50",
+            "--currency",
+            "RUB",
             "--finance-token",
             "finance-token",
             "--operation-num",
@@ -347,6 +371,8 @@ def test_v4finance_money_commands_require_finance_credentials_before_api_call():
             "contract-id",
             "--pay-method",
             "Bank",
+            "--currency",
+            "RUB",
             "--dry-run",
         )
 
@@ -366,6 +392,8 @@ def test_v4finance_money_commands_validate_amount_before_api_call():
             "456",
             "--amount",
             "0",
+            "--currency",
+            "RUB",
             "--finance-token",
             "finance-token",
             "--operation-num",
@@ -398,6 +426,8 @@ def test_create_invoice_rejects_invalid_payment_specs_before_api_call(
             "create-invoice",
             "--payment",
             payment,
+            "--currency",
+            "RUB",
             "--finance-token",
             "finance-token",
             "--operation-num",
@@ -419,6 +449,8 @@ def test_create_invoice_rejects_duplicate_campaign_ids_before_api_call():
             "123=100",
             "--payment",
             "123=200",
+            "--currency",
+            "RUB",
             "--finance-token",
             "finance-token",
             "--operation-num",
@@ -443,6 +475,8 @@ def test_v4finance_money_commands_reject_blank_string_options():
         "contract-id",
         "--pay-method",
         "Invalid",
+        "--currency",
+        "RUB",
         "--finance-token",
         "finance-token",
         "--operation-num",
@@ -464,6 +498,8 @@ def test_pay_campaigns_requires_contract_for_bank():
         "100.50",
         "--pay-method",
         "Bank",
+        "--currency",
+        "RUB",
         "--finance-token",
         "finance-token",
         "--operation-num",
@@ -487,6 +523,8 @@ def test_pay_campaigns_rejects_non_positive_campaign_ids():
         "contract-id",
         "--pay-method",
         "Bank",
+        "--currency",
+        "RUB",
         "--finance-token",
         "finance-token",
         "--operation-num",
@@ -498,7 +536,9 @@ def test_pay_campaigns_rejects_non_positive_campaign_ids():
     assert "--campaign-ids must contain only positive integers" in result.output
 
 
-def test_pay_campaigns_rejects_undocumented_pay_method():
+def test_pay_campaigns_accepts_overdraft_pay_method_for_direct_advertisers():
+    # Live 4 changelog explicitly added "Overdraft" as a valid PayMethod for
+    # direct advertisers; only Bank requires --contract-id.
     result = _invoke(
         "v4finance",
         "pay-campaigns",
@@ -508,6 +548,36 @@ def test_pay_campaigns_rejects_undocumented_pay_method():
         "100.50",
         "--pay-method",
         "Overdraft",
+        "--currency",
+        "RUB",
+        "--finance-token",
+        "finance-token",
+        "--operation-num",
+        "42",
+        "--dry-run",
+    )
+
+    assert result.exit_code == 0
+    body = json.loads(result.output)
+    assert body["param"]["PayMethod"] == "Overdraft"
+    assert "ContractID" not in body["param"]
+    assert body["param"]["Payments"] == [
+        {"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"},
+    ]
+
+
+def test_pay_campaigns_rejects_undocumented_pay_method():
+    result = _invoke(
+        "v4finance",
+        "pay-campaigns",
+        "--campaign-ids",
+        "123",
+        "--amount",
+        "100.50",
+        "--pay-method",
+        "CreditCard",
+        "--currency",
+        "RUB",
         "--finance-token",
         "finance-token",
         "--operation-num",
@@ -610,6 +680,8 @@ def test_create_invoice_formats_mocked_response_as_json():
                 "create-invoice",
                 "--payment",
                 "123=100.50",
+                "--currency",
+                "RUB",
                 "--finance-token",
                 "finance-token",
                 "--operation-num",
@@ -631,7 +703,7 @@ def test_create_invoice_formats_mocked_response_as_json():
         "CreateInvoice",
         {
             "Payments": [
-                {"CampaignID": 123, "Sum": 100.5},
+                {"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"},
             ],
         },
     )

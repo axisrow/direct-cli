@@ -15,7 +15,8 @@ from .v4shells import V4_EPILOG
 
 FINANCE_TOKEN_MASK = "<redacted>"
 CUSTOM_TRANSACTION_ID_RE = re.compile(r"[A-Za-z0-9]{32}")
-V4_PAY_METHODS = ["Bank"]
+V4_PAY_METHODS = ["Bank", "Overdraft"]
+V4_FINANCE_CURRENCIES = ("RUB", "CHF", "EUR", "KZT", "TRY", "UAH", "USD", "BYN")
 FINANCE_HELP_EPILOG = (
     "To issue a master token in the Yandex Direct UI, open Tools -> API -> "
     "Financial operations, enable the 'Allow financial operations' checkbox, "
@@ -33,11 +34,12 @@ def _logins_param(logins: str) -> list[str]:
     return login_list
 
 
-def _invoice_payments_param(payments: tuple[str, ...]) -> dict:
+def _invoice_payments_param(payments: tuple[str, ...], currency: str) -> dict:
     """Build the v4 Live CreateInvoice payment object parameter."""
     if not payments:
         raise click.UsageError("--payment is required")
 
+    normalized_currency = currency.upper()
     parsed_payments = []
     seen_campaign_ids = set()
     for payment in payments:
@@ -62,6 +64,7 @@ def _invoice_payments_param(payments: tuple[str, ...]) -> dict:
             {
                 "CampaignID": campaign_id,
                 "Sum": parse_v4_money_sum(amount_text),
+                "Currency": normalized_currency,
             }
         )
 
@@ -331,6 +334,12 @@ def check_payment(
     help="Invoice payment as CAMPAIGN_ID=AMOUNT; repeat for multiple campaigns",
 )
 @click.option(
+    "--currency",
+    required=True,
+    type=click.Choice(V4_FINANCE_CURRENCIES, case_sensitive=False),
+    help="Payment currency (RUB/CHF/EUR/KZT/TRY/UAH/USD/BYN)",
+)
+@click.option(
     "--finance-token",
     envvar="YANDEX_DIRECT_FINANCE_TOKEN",
     help="Precomputed financial token for this method",
@@ -367,6 +376,7 @@ def check_payment(
 def create_invoice(
     ctx,
     payments,
+    currency,
     finance_token,
     master_token,
     operation_num,
@@ -384,7 +394,7 @@ def create_invoice(
         "CreateInvoice",
         ctx.obj.get("login"),
     )
-    param = _invoice_payments_param(payments)
+    param = _invoice_payments_param(payments, currency)
 
     if dry_run:
         format_output(
@@ -428,6 +438,12 @@ def create_invoice(
 )
 @click.option("--amount", required=True, help="Positive amount, for example 100.50")
 @click.option(
+    "--currency",
+    required=True,
+    type=click.Choice(V4_FINANCE_CURRENCIES, case_sensitive=False),
+    help="Transfer currency (RUB/CHF/EUR/KZT/TRY/UAH/USD/BYN)",
+)
+@click.option(
     "--finance-token",
     envvar="YANDEX_DIRECT_FINANCE_TOKEN",
     help="Precomputed financial token for this method",
@@ -462,6 +478,7 @@ def transfer_money(
     from_campaign_id,
     to_campaign_id,
     amount,
+    currency,
     finance_token,
     master_token,
     operation_num,
@@ -479,17 +496,20 @@ def transfer_money(
         ctx.obj.get("login"),
     )
     parsed_amount = parse_v4_money_sum(amount)
+    normalized_currency = currency.upper()
     param = {
         "FromCampaigns": [
             {
                 "CampaignID": from_campaign_id,
                 "Sum": parsed_amount,
+                "Currency": normalized_currency,
             },
         ],
         "ToCampaigns": [
             {
                 "CampaignID": to_campaign_id,
                 "Sum": parsed_amount,
+                "Currency": normalized_currency,
             },
         ],
     }
@@ -514,7 +534,13 @@ def transfer_money(
     "--pay-method",
     required=True,
     type=click.Choice(V4_PAY_METHODS, case_sensitive=False),
-    help="Payment method",
+    help="Payment method: Bank (agency credit) or Overdraft (direct advertiser)",
+)
+@click.option(
+    "--currency",
+    required=True,
+    type=click.Choice(V4_FINANCE_CURRENCIES, case_sensitive=False),
+    help="Payment currency (RUB/CHF/EUR/KZT/TRY/UAH/USD/BYN)",
 )
 @click.option(
     "--finance-token",
@@ -552,6 +578,7 @@ def pay_campaigns(
     amount,
     contract_id,
     pay_method,
+    currency,
     finance_token,
     master_token,
     operation_num,
@@ -571,12 +598,17 @@ def pay_campaigns(
     parsed_amount = parse_v4_money_sum(amount)
     parsed_campaign_ids = _campaign_ids_param(campaign_ids)
     pay_method = _non_empty_option(pay_method, "--pay-method")
+    normalized_currency = currency.upper()
     contract_id = (contract_id or "").strip()
     if pay_method == "Bank" and not contract_id:
         raise click.UsageError("--contract-id is required when --pay-method Bank")
     param = {
         "Payments": [
-            {"CampaignID": campaign_id, "Sum": parsed_amount}
+            {
+                "CampaignID": campaign_id,
+                "Sum": parsed_amount,
+                "Currency": normalized_currency,
+            }
             for campaign_id in parsed_campaign_ids
         ],
         "PayMethod": pay_method,
