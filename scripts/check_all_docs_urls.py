@@ -107,6 +107,15 @@ def _probe(url: str) -> tuple[str, str] | None:
     for marker in CAPTCHA_MARKERS:
         if marker in lower:
             return None  # rate-limited
+
+    # WSDL endpoints (used as the docs source for services whose human-readable
+    # doc pages Yandex removed — see RESOURCE_MAPPING_V5 / issue #463) are XML,
+    # not 30 KB HTML pages. Validate them as real WSDL instead.
+    if url.rstrip("/").endswith("?wsdl") or url.endswith(".wsdl"):
+        if "wsdl:definitions" in lower or "<definitions" in lower:
+            return ("OK", f"GET {resp.status_code}, valid WSDL, {len(body)} bytes")
+        return ("SMALL", f"WSDL markers absent ({len(body)} bytes)")
+
     if len(body) < MIN_BODY_BYTES:
         return ("SMALL", f"{len(body)} bytes < {MIN_BODY_BYTES}")
     return ("OK", f"GET {resp.status_code}, {len(body)} bytes")
