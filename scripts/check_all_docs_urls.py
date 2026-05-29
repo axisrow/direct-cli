@@ -26,6 +26,9 @@ from direct_cli.reports_coverage import REPORTS_SPEC_URLS
 USER_AGENT = "Mozilla/5.0 (direct-cli docs-drift checker)"
 CAPTCHA_MARKERS = ("showcaptcha", "smartcaptcha", "<title>captcha")
 MIN_BODY_BYTES = 30_000
+# WSDL payloads are XML, much smaller than HTML doc pages. Match the <3 KB
+# floor used by wsdl_coverage.fetch_wsdl (CLAUDE.md "Docs/cache freshness guard").
+MIN_WSDL_BYTES = 3_072
 INTER_REQUEST_DELAY = 1.5  # Yandex rate-limits aggressive UA-less scrapers
 CAPTCHA_RETRY_DELAY = 30   # captcha lockouts clear after ~30s
 
@@ -110,11 +113,14 @@ def _probe(url: str) -> tuple[str, str] | None:
 
     # WSDL endpoints (used as the docs source for services whose human-readable
     # doc pages Yandex removed — see RESOURCE_MAPPING_V5 / issue #463) are XML,
-    # not 30 KB HTML pages. Validate them as real WSDL instead.
+    # not 30 KB HTML pages. Validate them as real WSDL instead, with the same
+    # <3 KB floor the repo's freshness guard uses (wsdl_coverage.fetch_wsdl,
+    # per CLAUDE.md) so a truncated body can't pass on marker presence alone.
     if url.rstrip("/").endswith("?wsdl") or url.endswith(".wsdl"):
-        if "wsdl:definitions" in lower or "<definitions" in lower:
+        has_markers = "wsdl:definitions" in lower or "<definitions" in lower
+        if has_markers and len(body) >= MIN_WSDL_BYTES:
             return ("OK", f"GET {resp.status_code}, valid WSDL, {len(body)} bytes")
-        return ("SMALL", f"WSDL markers absent ({len(body)} bytes)")
+        return ("SMALL", f"WSDL markers/size insufficient ({len(body)} bytes)")
 
     if len(body) < MIN_BODY_BYTES:
         return ("SMALL", f"{len(body)} bytes < {MIN_BODY_BYTES}")
