@@ -36,22 +36,30 @@ def _get_param(
     to 10000 associations per the docs.
     """
     criteria: dict = {}
-    if logins:
-        criteria["Logins"] = parse_csv_strings(logins)
-    if ad_image_hashes:
-        criteria["AdImageHashes"] = parse_csv_strings(ad_image_hashes)
+    # parse_csv_strings/parse_ids return None/[] for degenerate input like
+    # "," — only set the key when there are real values, never a null/empty.
+    parsed_logins = parse_csv_strings(logins) if logins else None
+    if parsed_logins:
+        criteria["Logins"] = parsed_logins
+    parsed_hashes = parse_csv_strings(ad_image_hashes) if ad_image_hashes else None
+    if parsed_hashes:
+        criteria["AdImageHashes"] = parsed_hashes
     if status_moderate:
         criteria["StatusAdImageModerate"] = list(status_moderate)
     if ad_ids:
         try:
-            criteria["AdIDS"] = parse_ids(ad_ids)
+            parsed_ad_ids = parse_ids(ad_ids)
         except ValueError as exc:
             raise click.UsageError(str(exc)) from exc
+        if parsed_ad_ids:
+            criteria["AdIDS"] = parsed_ad_ids
     if campaign_ids:
         try:
-            criteria["CampaignIDS"] = parse_ids(campaign_ids)
+            parsed_campaign_ids = parse_ids(campaign_ids)
         except ValueError as exc:
             raise click.UsageError(str(exc)) from exc
+        if parsed_campaign_ids:
+            criteria["CampaignIDS"] = parsed_campaign_ids
     if limit is not None:
         criteria["Limit"] = limit
     if offset is not None:

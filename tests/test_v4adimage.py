@@ -60,6 +60,27 @@ def test_get_empty_criteria_is_allowed():
     }
 
 
+def test_get_degenerate_csv_does_not_emit_null_criteria():
+    # "--logins ," is degenerate: parse_csv_strings returns None. The key must
+    # be omitted entirely, never set to null/empty.
+    result = _invoke("v4adimage", "get", "--logins", ",", "--dry-run")
+
+    assert result.exit_code == 0
+    assert json.loads(result.output) == {
+        "method": "AdImageAssociation",
+        "param": {"Action": "Get", "SelectionCriteria": {}},
+    }
+
+
+def test_get_degenerate_id_csv_raises_usage_error():
+    # "--ad-ids ," is a malformed ID list — parse_ids rejects it loudly
+    # rather than silently dropping it.
+    result = _invoke("v4adimage", "get", "--ad-ids", ",", "--dry-run")
+
+    assert result.exit_code != 0
+    assert "Invalid ID" in result.output
+
+
 def test_set_attach_and_detach():
     result = _invoke(
         "v4adimage",
