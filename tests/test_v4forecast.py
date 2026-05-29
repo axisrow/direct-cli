@@ -62,6 +62,70 @@ def test_create_dry_run_adds_geo_ids():
     }
 
 
+def test_create_dry_run_adds_all_documented_fields():
+    result = _invoke(
+        "v4forecast",
+        "create",
+        "--phrases",
+        "buy laptop",
+        "--categories",
+        "10732,10733",
+        "--geo-ids",
+        "213",
+        "--currency",
+        "RUB",
+        "--auction-bids",
+        "Yes",
+        "--common-minus-words",
+        "used,broken",
+        "--dry-run",
+    )
+
+    assert result.exit_code == 0
+    assert json.loads(result.output) == {
+        "method": "CreateNewForecast",
+        "param": {
+            "Phrases": ["buy laptop"],
+            "Categories": [10732, 10733],
+            "GeoID": [213],
+            "Currency": "RUB",
+            "AuctionBids": "Yes",
+            "CommonMinusWords": ["used", "broken"],
+        },
+    }
+
+
+def test_create_rejects_invalid_auction_bids():
+    result = _invoke(
+        "v4forecast",
+        "create",
+        "--phrases",
+        "buy laptop",
+        "--auction-bids",
+        "maybe",
+        "--dry-run",
+    )
+
+    assert result.exit_code != 0
+    assert "auction-bids" in result.output
+
+
+def test_create_invalid_categories_fail_before_api_call():
+    with patch("direct_cli.commands.v4forecast.create_v4_client") as create_client:
+        result = _invoke(
+            "v4forecast",
+            "create",
+            "--phrases",
+            "buy laptop",
+            "--categories",
+            "10732,abc",
+        )
+
+    assert result.exit_code != 0
+    assert "Invalid ID: 'abc'" in result.output
+    create_client.assert_not_called()
+
+
 def test_create_parses_three_phrase_entries():
     result = _invoke(
         "v4forecast",
@@ -227,8 +291,11 @@ def test_v4forecast_contracts_are_docs_backed():
     assert create.source_status == SOURCE_DOCS
     assert create.example_param == {
         "Phrases": ["buy laptop"],
-        "Currency": "RUB",
+        "Categories": [10732],
         "GeoID": [213],
+        "Currency": "RUB",
+        "AuctionBids": "No",
+        "CommonMinusWords": ["used"],
     }
     assert list_forecasts.param_shape == PARAM_OPTIONAL_OBJECT
     assert list_forecasts.source_status == SOURCE_DOCS

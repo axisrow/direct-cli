@@ -143,6 +143,7 @@ direct v4tags update-banners --banner-ids 2571700 --clear-tags --dry-run
 ```bash
 direct v4events get-events-log --from 2026-04-14T00:00:00 --to 2026-04-15T00:00:00
 direct v4events get-events-log --from 2026-04-14T00:00:00 --to 2026-04-15T00:00:00 --currency RUB --limit 100 --offset 0 --format table
+direct v4events get-events-log --from 2026-04-14T00:00:00 --to 2026-04-15T00:00:00 --last-event-only Yes --with-text-description Yes --filter-campaign-ids 123,456 --filter-event-type MoneyOut,MoneyIn
 ```
 
 ### V4 Live Wordstat Reports
@@ -166,6 +167,7 @@ the forecast is ready.
 
 ```bash
 direct v4forecast create --phrases "buy laptop,buy desktop" --geo-ids 213 --currency RUB
+direct v4forecast create --phrases "buy laptop" --geo-ids 213 --auction-bids Yes --common-minus-words "used,broken"
 direct v4forecast list --format table
 direct v4forecast get --forecast-id 123 --format table
 direct v4forecast delete --forecast-id 123

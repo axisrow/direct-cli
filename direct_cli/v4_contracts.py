@@ -87,12 +87,8 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
         source_status=SOURCE_DOCS,
         live_probe_allowed=False,
         example_param={
-            "FromCampaigns": [
-                {"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"}
-            ],
-            "ToCampaigns": [
-                {"CampaignID": 456, "Sum": 100.5, "Currency": "RUB"}
-            ],
+            "FromCampaigns": [{"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"}],
+            "ToCampaigns": [{"CampaignID": 456, "Sum": 100.5, "Currency": "RUB"}],
         },
         notes=(
             "Docs-verified 2026-05-29 against dg-v4/live/TransferMoney: "
@@ -115,9 +111,7 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
         source_status=SOURCE_DOCS,
         live_probe_allowed=False,
         example_param={
-            "Payments": [
-                {"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"}
-            ],
+            "Payments": [{"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"}],
             "ContractID": "contract-id",
             "PayMethod": "Bank",
         },
@@ -173,9 +167,7 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
         source_status=SOURCE_DOCS,
         live_probe_allowed=False,
         example_param={
-            "Payments": [
-                {"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"}
-            ],
+            "Payments": [{"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"}],
         },
         notes=(
             "Docs-verified 2026-05-29 against dg-v4/live/CreateInvoice: "
@@ -233,7 +225,8 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
         group="events",
         param_shape=PARAM_OBJECT,
         login_placement=(
-            "param contains timestamps, Currency, and optional Limit/Offset; "
+            "param contains timestamps, LastEventOnly, WithTextDescription, "
+            "Currency, Logins, a nested Filter object, and optional Limit/Offset; "
             "global --login uses Client-Login header"
         ),
         safety=SAFETY_READ,
@@ -242,9 +235,29 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
         example_param={
             "TimestampFrom": "2026-04-14T00:00:00",
             "TimestampTo": "2026-04-14T01:00:00",
+            "LastEventOnly": "No",
+            "WithTextDescription": "Yes",
             "Currency": "RUB",
+            "Logins": ["client-login"],
+            "Filter": {
+                "CampaignIDS": [123],
+                "BannerIDS": [456],
+                "PhraseIDS": [789],
+                "AccountIDS": [12],
+                "EventType": ["MoneyOut"],
+            },
+            "Limit": 100,
+            "Offset": 0,
         },
-        notes="Currency is required by live API; omitting it returns error_code=245.",
+        notes=(
+            "Docs-verified 2026-05-29 against dg-v4/live/GetEventsLog: "
+            "GetEventsLogRequest declares TimestampFrom/TimestampTo, "
+            "LastEventOnly (Yes/No), WithTextDescription (Yes/No), Currency, "
+            "Logins[], a nested GetEventsLogFilter "
+            "(CampaignIDS[], BannerIDS[], PhraseIDS[], AccountIDS[], "
+            "EventType[]), Limit, and Offset. Currency is required by the live "
+            "API; omitting it returns error_code=245."
+        ),
     ),
     "GetStatGoals": V4MethodContract(
         method="GetStatGoals",
@@ -335,21 +348,28 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
         group="forecast",
         param_shape=PARAM_OBJECT,
         login_placement=(
-            "param contains documented Phrases, Currency, optional GeoID, "
-            "and optional AuctionBids; global --login uses Client-Login header"
+            "param contains documented Phrases, Categories, GeoID, Currency, "
+            "AuctionBids, and CommonMinusWords; global --login uses Client-Login "
+            "header"
         ),
         safety=SAFETY_ASYNC,
         source_status=SOURCE_DOCS,
         live_probe_allowed=False,
         example_param={
             "Phrases": ["buy laptop"],
-            "Currency": "RUB",
+            "Categories": [10732],
             "GeoID": [213],
+            "Currency": "RUB",
+            "AuctionBids": "No",
+            "CommonMinusWords": ["used"],
         },
         notes=(
-            "Creates an asynchronous budget forecast. The CLI performs one API "
-            "call only, does not poll for readiness, and omits AuctionBids so "
-            "the API default applies."
+            "Docs-verified 2026-05-29 against dg-v4/live/CreateNewForecast: "
+            "NewForecastInfo declares Phrases (required, <=100), Categories, "
+            "GeoID, Currency (required), AuctionBids (Yes/No, default No), and "
+            "CommonMinusWords. Categories is accepted but ignored by the API per "
+            "the docs. Creates an asynchronous forecast; the CLI performs one "
+            "API call only and does not poll for readiness."
         ),
     ),
     "GetForecastList": V4MethodContract(
@@ -404,8 +424,8 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
         notes=(
             "Docs-verified 2026-05-28 against dg-v4/live/DeleteOfflineReport: "
             "param is the integer report ID. Response on success: "
-            "{\"data\": 1}. Method is disabled per official docs "
-            "(\"Метод отключен. Используйте API версии 5\"); v5 reports "
+            '{"data": 1}. Method is disabled per official docs '
+            '("Метод отключен. Используйте API версии 5"); v5 reports '
             "API supersedes it. No CLI command is exposed."
         ),
     ),
@@ -424,9 +444,9 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
         notes=(
             "Docs-verified 2026-05-28 against dg-v4/reference/DeleteReport: "
             "param is the integer report ID obtained via GetReportList. "
-            "Response on success: {\"data\": 1}. Reports are auto-removed "
+            'Response on success: {"data": 1}. Reports are auto-removed '
             "after 5 hours. Method is listed under disabled methods "
-            "(\"Отключенные методы\") in official docs; distinct entry "
+            '("Отключенные методы") in official docs; distinct entry '
             "from DeleteOfflineReport (same wire shape, separate v4 "
             "reference page). No CLI command is exposed."
         ),
@@ -544,8 +564,7 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
         group="keywords",
         param_shape=PARAM_OBJECT,
         login_placement=(
-            "param contains Keywords array; global --login uses "
-            "Client-Login header"
+            "param contains Keywords array; global --login uses " "Client-Login header"
         ),
         safety=SAFETY_READ,
         source_status=SOURCE_DOCS,
