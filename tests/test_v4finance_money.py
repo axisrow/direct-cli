@@ -91,12 +91,8 @@ def test_transfer_money_dry_run_uses_campaign_arrays_and_masks_finance_token():
     assert json.loads(result.output) == {
         "method": "TransferMoney",
         "param": {
-            "FromCampaigns": [
-                {"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"}
-            ],
-            "ToCampaigns": [
-                {"CampaignID": 456, "Sum": 100.5, "Currency": "RUB"}
-            ],
+            "FromCampaigns": [{"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"}],
+            "ToCampaigns": [{"CampaignID": 456, "Sum": 100.5, "Currency": "RUB"}],
         },
         "finance_token": "<redacted>",
         "operation_num": 42,
@@ -709,11 +705,79 @@ def test_create_invoice_formats_mocked_response_as_json():
     )
 
 
+def test_pay_campaigns_by_card_dry_run_masks_finance_token():
+    result = _invoke(
+        "v4finance",
+        "pay-campaigns-by-card",
+        "--campaign-ids",
+        "123,456",
+        "--amount",
+        "100.50",
+        "--currency",
+        "RUB",
+        "--finance-token",
+        "secret-finance-token",
+        "--operation-num",
+        "42",
+        "--dry-run",
+    )
+
+    assert result.exit_code == 0
+    assert "secret-finance-token" not in result.output
+    assert json.loads(result.output) == {
+        "method": "PayCampaignsByCard",
+        "param": {
+            "Payments": [
+                {"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"},
+                {"CampaignID": 456, "Sum": 100.5, "Currency": "RUB"},
+            ],
+        },
+        "finance_token": "<redacted>",
+        "operation_num": 42,
+    }
+
+
+def test_pay_campaigns_by_card_requires_dry_run():
+    result = _invoke(
+        "v4finance",
+        "pay-campaigns-by-card",
+        "--campaign-ids",
+        "123",
+        "--amount",
+        "100.50",
+        "--currency",
+        "RUB",
+        "--finance-token",
+        "secret-finance-token",
+        "--operation-num",
+        "42",
+    )
+
+    assert result.exit_code != 0
+    assert "--dry-run is required" in result.output
+
+
+def test_finance_commands_help_carries_not_tested_disclaimer():
+    for args in [
+        ("v4finance", "get-clients-units", "--help"),
+        ("v4finance", "get-credit-limits", "--help"),
+        ("v4finance", "check-payment", "--help"),
+        ("v4finance", "create-invoice", "--help"),
+        ("v4finance", "transfer-money", "--help"),
+        ("v4finance", "pay-campaigns", "--help"),
+        ("v4finance", "pay-campaigns-by-card", "--help"),
+    ]:
+        result = _invoke(*args)
+        assert result.exit_code == 0
+        assert "Not tested against the live API" in result.output
+
+
 def test_v4finance_money_help_contains_no_json_input_flag():
     for args in [
         ("v4finance", "create-invoice", "--help"),
         ("v4finance", "transfer-money", "--help"),
         ("v4finance", "pay-campaigns", "--help"),
+        ("v4finance", "pay-campaigns-by-card", "--help"),
         ("v4finance", "check-payment", "--help"),
     ]:
         result = _invoke(*args)
@@ -728,6 +792,10 @@ def test_v4finance_money_commands_declare_v4_contracts():
     assert commands["transfer-money"].v4_contract == get_v4_contract("TransferMoney")
     assert commands["pay-campaigns"].v4_method == "PayCampaigns"
     assert commands["pay-campaigns"].v4_contract == get_v4_contract("PayCampaigns")
+    assert commands["pay-campaigns-by-card"].v4_method == "PayCampaignsByCard"
+    assert commands["pay-campaigns-by-card"].v4_contract == get_v4_contract(
+        "PayCampaignsByCard"
+    )
     assert commands["check-payment"].v4_method == "CheckPayment"
     assert commands["check-payment"].v4_contract == get_v4_contract("CheckPayment")
     assert commands["create-invoice"].v4_method == "CreateInvoice"

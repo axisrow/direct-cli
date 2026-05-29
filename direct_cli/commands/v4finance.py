@@ -17,6 +17,12 @@ from .v4shells import V4_EPILOG
 FINANCE_TOKEN_MASK = "<redacted>"
 CUSTOM_TRANSACTION_ID_RE = re.compile(r"[A-Za-z0-9]{32}")
 V4_PAY_METHODS = ["Bank", "Overdraft"]
+# All v4 Live finance commands are exposed but have NOT been exercised
+# against the live API. Appended to every finance command's --help.
+FINANCE_NOT_TESTED_NOTE = (
+    "\n\n⚠ Not tested against the live API. Use with caution and verify "
+    "the request with --dry-run before sending."
+)
 V4_FINANCE_CURRENCIES = ("RUB", "CHF", "EUR", "KZT", "TRY", "UAH", "USD", "BYN")
 FINANCE_HELP_EPILOG = (
     "To issue a master token in the Yandex Direct UI, open Tools -> API -> "
@@ -181,7 +187,10 @@ v4finance.localized_epilog_suffix = V4_EPILOG
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 def get_clients_units(ctx, logins, output_format, output, dry_run):
-    """Get available API units for clients."""
+    """Get available API units for clients.
+
+    ⚠ Not tested against the live API.
+    """
     login_list = _logins_param(logins)
 
     if dry_run:
@@ -248,7 +257,10 @@ def get_credit_limits(
     output,
     dry_run,
 ):
-    """Get client credit limits."""
+    """Get client credit limits.
+
+    ⚠ Not tested against the live API.
+    """
     finance_token, operation_num = _finance_credentials(
         finance_token,
         master_token,
@@ -308,7 +320,10 @@ def check_payment(
     output,
     dry_run,
 ):
-    """Check a v4 Live payment transaction."""
+    """Check a v4 Live payment transaction.
+
+    ⚠ Not tested against the live API.
+    """
     param = _custom_transaction_id_param(custom_transaction_id)
     if dry_run:
         format_output(build_v4_body("CheckPayment", param), "json", None)
@@ -389,7 +404,10 @@ def create_invoice(
     output,
     dry_run,
 ):
-    """Create a payment invoice for campaigns."""
+    """Create a payment invoice for campaigns.
+
+    ⚠ Not tested against the live API.
+    """
     finance_token, operation_num = _finance_credentials(
         finance_token,
         master_token,
@@ -487,7 +505,10 @@ def transfer_money(
     finance_login,
     dry_run,
 ):
-    """Preview transferring funds between campaigns."""
+    """Preview transferring funds between campaigns.
+
+    ⚠ Not tested against the live API.
+    """
     _require_dry_run(dry_run)
     _, operation_num = _finance_credentials(
         finance_token,
@@ -585,7 +606,10 @@ def pay_campaigns(
     finance_login,
     dry_run,
 ):
-    """Preview paying for a campaign from an agency credit limit."""
+    """Preview paying for a campaign from an agency credit limit.
+
+    ⚠ Not tested against the live API.
+    """
     _require_dry_run(dry_run)
     _, operation_num = _finance_credentials(
         finance_token,
@@ -618,6 +642,97 @@ def pay_campaigns(
 
     format_output(
         _masked_finance_body("PayCampaigns", param, operation_num),
+        "json",
+        None,
+    )
+
+
+@v4_method_contract("PayCampaignsByCard")
+@v4finance.command(name="pay-campaigns-by-card")
+@click.option(
+    "--campaign-ids",
+    required=True,
+    help="Comma-separated campaign IDs to pay",
+)
+@click.option("--amount", required=True, help="Positive amount, for example 100.50")
+@click.option(
+    "--currency",
+    required=True,
+    type=click.Choice(V4_FINANCE_CURRENCIES, case_sensitive=False),
+    help="Payment currency (RUB/CHF/EUR/KZT/TRY/UAH/USD/BYN)",
+)
+@click.option(
+    "--finance-token",
+    envvar="YANDEX_DIRECT_FINANCE_TOKEN",
+    help="Precomputed financial token for this method",
+)
+@click.option(
+    "--master-token",
+    cls=LocalizedOption,
+    help_key="v4finance.master_token_option",
+    envvar="YANDEX_DIRECT_MASTER_TOKEN",
+)
+@click.option(
+    "--operation-num",
+    type=click.IntRange(min=1, max=9223372036854775807),
+    envvar="YANDEX_DIRECT_OPERATION_NUM",
+    help="Financial operation number",
+)
+@click.option(
+    "--finance-login",
+    envvar="YANDEX_DIRECT_FINANCE_LOGIN",
+    help="Login used in financial token generation",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Show request without sending; required for this command",
+)
+@click.pass_context
+def pay_campaigns_by_card(
+    ctx,
+    campaign_ids,
+    amount,
+    currency,
+    finance_token,
+    master_token,
+    operation_num,
+    finance_login,
+    dry_run,
+):
+    """Preview paying for campaigns by bank card.
+
+    Dry-run only: the request shape is undocumented and the method is
+    financially sensitive, so the CLI refuses to send it live. The dry-run
+    body mirrors the documented PayCampaigns shape as a best-effort preview.
+
+    ⚠ Not tested against the live API.
+    """
+    _require_dry_run(dry_run)
+    _, operation_num = _finance_credentials(
+        finance_token,
+        master_token,
+        operation_num,
+        finance_login,
+        "PayCampaignsByCard",
+        ctx.obj.get("login"),
+    )
+    parsed_amount = parse_v4_money_sum(amount)
+    parsed_campaign_ids = _campaign_ids_param(campaign_ids)
+    normalized_currency = currency.upper()
+    param = {
+        "Payments": [
+            {
+                "CampaignID": campaign_id,
+                "Sum": parsed_amount,
+                "Currency": normalized_currency,
+            }
+            for campaign_id in parsed_campaign_ids
+        ],
+    }
+
+    format_output(
+        _masked_finance_body("PayCampaignsByCard", param, operation_num),
         "json",
         None,
     )
