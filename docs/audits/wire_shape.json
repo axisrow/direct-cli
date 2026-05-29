@@ -1,0 +1,1394 @@
+[
+  {
+    "layer": "v4",
+    "method": "AccountManagement",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/AccountManagement.html",
+    "kind": "code_field_missing_in_docs",
+    "detail": "contract.example_param has 'Action' but live docs schema does not",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "AccountManagement",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/AccountManagement.html",
+    "kind": "required_field_missing_in_payload_module",
+    "detail": "Live 4 changelog marks 'Currency' required but contract.example_param does not include it",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "AdImageAssociation",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/AdImageAssociation.html",
+    "kind": "live4_marker_absent",
+    "detail": "live page reachable but lacks «Новое в версии Live 4»",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "AdImageAssociation",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/AdImageAssociation.html",
+    "kind": "code_field_missing_in_docs",
+    "detail": "contract.example_param has 'Action' but live docs schema does not",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "AdImageAssociation",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/AdImageAssociation.html",
+    "kind": "code_field_missing_in_docs",
+    "detail": "contract.example_param has 'AdIDS' but live docs schema does not",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "AdImageAssociation",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/AdImageAssociation.html",
+    "kind": "code_field_missing_in_docs",
+    "detail": "contract.example_param has 'AdImageHashes' but live docs schema does not",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "AdImageAssociation",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/AdImageAssociation.html",
+    "kind": "code_field_missing_in_docs",
+    "detail": "contract.example_param has 'CampaignIDS' but live docs schema does not",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "AdImageAssociation",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/AdImageAssociation.html",
+    "kind": "code_field_missing_in_docs",
+    "detail": "contract.example_param has 'Limit' but live docs schema does not",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "AdImageAssociation",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/AdImageAssociation.html",
+    "kind": "code_field_missing_in_docs",
+    "detail": "contract.example_param has 'Logins' but live docs schema does not",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "AdImageAssociation",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/AdImageAssociation.html",
+    "kind": "code_field_missing_in_docs",
+    "detail": "contract.example_param has 'Offset' but live docs schema does not",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "AdImageAssociation",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/AdImageAssociation.html",
+    "kind": "code_field_missing_in_docs",
+    "detail": "contract.example_param has 'SelectionCriteria' but live docs schema does not",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "AdImageAssociation",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/AdImageAssociation.html",
+    "kind": "code_field_missing_in_docs",
+    "detail": "contract.example_param has 'StatusAdImageModerate' but live docs schema does not",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "CheckPayment",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/CheckPayment.html",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "CreateInvoice",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/CreateInvoice.html",
+    "kind": "notes_points_at_reference_url",
+    "detail": "contract.notes references dg-v4/reference/ but dg-v4/live/ exists — Live 4 schema must be used",
+    "snippet": "Docs-verified 2026-05-28 against dg-v4/reference/CreateInvoice: PayCampElement carries only CampaignID and Sum (conventional units). The CLI dropped --currency in 0.3.15 (BREAKING) to mirror docs 1:1."
+  },
+  {
+    "layer": "v4",
+    "method": "CreateInvoice",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/CreateInvoice.html",
+    "kind": "docs_field_missing_in_code",
+    "detail": "docs schema mentions 'Currency' but contract.example_param does not",
+    "snippet": "types=['CreateInvoiceInfo', 'PayCampElement'] → has Currency"
+  },
+  {
+    "layer": "v4",
+    "method": "CreateInvoice",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/CreateInvoice.html",
+    "kind": "required_field_missing_in_payload_module",
+    "detail": "Live 4 changelog marks 'Currency' required but contract.example_param does not include it",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "CreateNewForecast",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/CreateNewForecast.html",
+    "kind": "docs_field_missing_in_code",
+    "detail": "docs schema mentions 'AuctionBids' but contract.example_param does not",
+    "snippet": "types=['NewForecastInfo'] → has AuctionBids"
+  },
+  {
+    "layer": "v4",
+    "method": "CreateNewForecast",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/CreateNewForecast.html",
+    "kind": "docs_field_missing_in_code",
+    "detail": "docs schema mentions 'Categories' but contract.example_param does not",
+    "snippet": "types=['NewForecastInfo'] → has Categories"
+  },
+  {
+    "layer": "v4",
+    "method": "CreateNewForecast",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/CreateNewForecast.html",
+    "kind": "docs_field_missing_in_code",
+    "detail": "docs schema mentions 'CommonMinusWords' but contract.example_param does not",
+    "snippet": "types=['NewForecastInfo'] → has CommonMinusWords"
+  },
+  {
+    "layer": "v4",
+    "method": "CreateNewWordstatReport",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/CreateNewWordstatReport.html",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "DeleteForecastReport",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/DeleteForecastReport.html",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "DeleteOfflineReport",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/DeleteOfflineReport.html",
+    "kind": "live4_marker_absent",
+    "detail": "live page reachable but lacks «Новое в версии Live 4»",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "DeleteReport",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/DeleteReport.html",
+    "kind": "notes_points_at_reference_url",
+    "detail": "contract.notes references dg-v4/reference/ but dg-v4/live/ exists — Live 4 schema must be used",
+    "snippet": "Docs-verified 2026-05-28 against dg-v4/reference/DeleteReport: param is the integer report ID obtained via GetReportList. Response on success: {\"data\": 1}. Reports are auto-removed after 5 hours. Meth"
+  },
+  {
+    "layer": "v4",
+    "method": "DeleteReport",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/DeleteReport.html",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "DeleteWordstatReport",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/DeleteWordstatReport.html",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "EnableSharedAccount",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/EnableSharedAccount.html",
+    "kind": "live4_marker_absent",
+    "detail": "live page reachable but lacks «Новое в версии Live 4»",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "GetAvailableVersions",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetAvailableVersions.html",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "GetBannersTags",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetBannersTags.html",
+    "kind": "live4_marker_absent",
+    "detail": "live page reachable but lacks «Новое в версии Live 4»",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "GetBannersTags",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetBannersTags.html",
+    "kind": "docs_field_missing_in_code",
+    "detail": "docs schema mentions 'CampaignIDS' but contract.example_param does not",
+    "snippet": "types=['BannersRequestInfo'] → has CampaignIDS"
+  },
+  {
+    "layer": "v4",
+    "method": "GetCampaignsTags",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetCampaignsTags.html",
+    "kind": "live4_marker_absent",
+    "detail": "live page reachable but lacks «Новое в версии Live 4»",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "GetClientsUnits",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetClientsUnits.html",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "GetCreditLimits",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetCreditLimits.html",
+    "kind": "notes_points_at_reference_url",
+    "detail": "contract.notes references dg-v4/reference/ but dg-v4/live/ exists — Live 4 schema must be used",
+    "snippet": "Docs-verified 2026-05-28 against dg-v4/reference/GetCreditLimits: request body is method + finance_token + operation_num only, no param; CLI dry-run output matches exactly. Live probe without finance "
+  },
+  {
+    "layer": "v4",
+    "method": "GetCreditLimits",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetCreditLimits.html",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "GetEventsLog",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html",
+    "kind": "docs_field_missing_in_code",
+    "detail": "docs schema mentions 'AccountIDS' but contract.example_param does not",
+    "snippet": "types=['GetEventsLogFilter', 'GetEventsLogRequest'] → has AccountIDS"
+  },
+  {
+    "layer": "v4",
+    "method": "GetEventsLog",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html",
+    "kind": "docs_field_missing_in_code",
+    "detail": "docs schema mentions 'BannerIDS' but contract.example_param does not",
+    "snippet": "types=['GetEventsLogFilter', 'GetEventsLogRequest'] → has BannerIDS"
+  },
+  {
+    "layer": "v4",
+    "method": "GetEventsLog",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html",
+    "kind": "docs_field_missing_in_code",
+    "detail": "docs schema mentions 'CampaignIDS' but contract.example_param does not",
+    "snippet": "types=['GetEventsLogFilter', 'GetEventsLogRequest'] → has CampaignIDS"
+  },
+  {
+    "layer": "v4",
+    "method": "GetEventsLog",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html",
+    "kind": "docs_field_missing_in_code",
+    "detail": "docs schema mentions 'EventType' but contract.example_param does not",
+    "snippet": "types=['GetEventsLogFilter', 'GetEventsLogRequest'] → has EventType"
+  },
+  {
+    "layer": "v4",
+    "method": "GetEventsLog",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html",
+    "kind": "docs_field_missing_in_code",
+    "detail": "docs schema mentions 'Filter' but contract.example_param does not",
+    "snippet": "types=['GetEventsLogFilter', 'GetEventsLogRequest'] → has Filter"
+  },
+  {
+    "layer": "v4",
+    "method": "GetEventsLog",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html",
+    "kind": "docs_field_missing_in_code",
+    "detail": "docs schema mentions 'LastEventOnly' but contract.example_param does not",
+    "snippet": "types=['GetEventsLogFilter', 'GetEventsLogRequest'] → has LastEventOnly"
+  },
+  {
+    "layer": "v4",
+    "method": "GetEventsLog",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html",
+    "kind": "docs_field_missing_in_code",
+    "detail": "docs schema mentions 'Limit' but contract.example_param does not",
+    "snippet": "types=['GetEventsLogFilter', 'GetEventsLogRequest'] → has Limit"
+  },
+  {
+    "layer": "v4",
+    "method": "GetEventsLog",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html",
+    "kind": "docs_field_missing_in_code",
+    "detail": "docs schema mentions 'Logins' but contract.example_param does not",
+    "snippet": "types=['GetEventsLogFilter', 'GetEventsLogRequest'] → has Logins"
+  },
+  {
+    "layer": "v4",
+    "method": "GetEventsLog",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html",
+    "kind": "docs_field_missing_in_code",
+    "detail": "docs schema mentions 'Offset' but contract.example_param does not",
+    "snippet": "types=['GetEventsLogFilter', 'GetEventsLogRequest'] → has Offset"
+  },
+  {
+    "layer": "v4",
+    "method": "GetEventsLog",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html",
+    "kind": "docs_field_missing_in_code",
+    "detail": "docs schema mentions 'PhraseIDS' but contract.example_param does not",
+    "snippet": "types=['GetEventsLogFilter', 'GetEventsLogRequest'] → has PhraseIDS"
+  },
+  {
+    "layer": "v4",
+    "method": "GetEventsLog",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html",
+    "kind": "docs_field_missing_in_code",
+    "detail": "docs schema mentions 'WithTextDescription' but contract.example_param does not",
+    "snippet": "types=['GetEventsLogFilter', 'GetEventsLogRequest'] → has WithTextDescription"
+  },
+  {
+    "layer": "v4",
+    "method": "GetForecastList",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetForecastList.html",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "GetKeywordsSuggestion",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetKeywordsSuggestion.html",
+    "kind": "notes_points_at_reference_url",
+    "detail": "contract.notes references dg-v4/reference/ but dg-v4/live/ exists — Live 4 schema must be used",
+    "snippet": "Docs-verified 2026-05-28 against dg-v4/reference/GetKeywordsSuggestion: param.Keywords is a UTF-8 string array of seed phrases; the only documented field. Returns up to 20 suggestion phrases as a stri"
+  },
+  {
+    "layer": "v4",
+    "method": "GetKeywordsSuggestion",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetKeywordsSuggestion.html",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "GetRetargetingGoals",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetRetargetingGoals.html",
+    "kind": "code_field_missing_in_docs",
+    "detail": "contract.example_param has 'CampaignIDS' but live docs schema does not",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "GetVersion",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetVersion.html",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "GetWordstatReport",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetWordstatReport.html",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "GetWordstatReportList",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetWordstatReportList.html",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "PayCampaigns",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/PayCampaigns.html",
+    "kind": "notes_points_at_reference_url",
+    "detail": "contract.notes references dg-v4/reference/ but dg-v4/live/ exists — Live 4 schema must be used",
+    "snippet": "Docs-verified 2026-05-28 against dg-v4/reference/PayCampaigns: PayCampElement carries only CampaignID and Sum (conventional units); PayMethod currently accepts 'Bank' only. The CLI dropped --currency "
+  },
+  {
+    "layer": "v4",
+    "method": "PayCampaigns",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/PayCampaigns.html",
+    "kind": "docs_field_missing_in_code",
+    "detail": "docs schema mentions 'Currency' but contract.example_param does not",
+    "snippet": "types=['PayCampElement', 'PayCampaignsInfo'] → has Currency"
+  },
+  {
+    "layer": "v4",
+    "method": "PayCampaigns",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/PayCampaigns.html",
+    "kind": "required_field_missing_in_payload_module",
+    "detail": "Live 4 changelog marks 'Currency' required but contract.example_param does not include it",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "PayCampaignsByCard",
+    "url": "",
+    "kind": "skipped_undocumented_by_policy",
+    "detail": "param_shape=undocumented; not audited",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "PingAPI",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/PingAPI.html",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "PingAPI_X",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/PingAPI_X.html",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "TransferMoney",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/TransferMoney.html",
+    "kind": "notes_points_at_reference_url",
+    "detail": "contract.notes references dg-v4/reference/ but dg-v4/live/ exists — Live 4 schema must be used",
+    "snippet": "Docs-verified 2026-05-28 against dg-v4/reference/TransferMoney: PayCampElement carries only CampaignID and Sum (conventional units, условные единицы). Total from-sum must equal total to-sum or the API"
+  },
+  {
+    "layer": "v4",
+    "method": "TransferMoney",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/TransferMoney.html",
+    "kind": "docs_field_missing_in_code",
+    "detail": "docs schema mentions 'Currency' but contract.example_param does not",
+    "snippet": "types=['PayCampElement', 'TransferMoneyInfo'] → has Currency"
+  },
+  {
+    "layer": "v4",
+    "method": "TransferMoney",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/TransferMoney.html",
+    "kind": "required_field_missing_in_payload_module",
+    "detail": "Live 4 changelog marks 'Currency' required but contract.example_param does not include it",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "UpdateBannersTags",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/UpdateBannersTags.html",
+    "kind": "live4_marker_absent",
+    "detail": "live page reachable but lacks «Новое в версии Live 4»",
+    "snippet": null
+  },
+  {
+    "layer": "v4",
+    "method": "UpdateCampaignsTags",
+    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/UpdateCampaignsTags.html",
+    "kind": "live4_marker_absent",
+    "detail": "live page reachable but lacks «Новое в версии Live 4»",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "campaigns.get",
+    "url": "https://yandex.ru/dev/direct/doc/ru/campaigns/get",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ArrayOfString', 'CampaignAssistant', 'CampaignFundsParam', 'CampaignGetItem', 'CampaignsSelectionCriteria', 'CpmBannerCampaignGetItem', 'DailyBudget', 'EmailSettings', 'FundsParam', 'LimitOffset', 'MobileAppCampaignGetItem', 'Notification', 'SharedAccountFundsParam', 'SmartCampaignGetItem', 'SmsSettings', 'Statistics', 'TextCampaignGetItem', 'TimeTargeting', 'TimeTargetingOnPublicHolidays', 'nillable', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "campaigns.add",
+    "url": "https://yandex.ru/dev/direct/doc/ru/campaigns/add",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ArrayOfString', 'CampaignAddItem', 'CpmBannerCampaignAddItem', 'DailyBudget', 'EmailSettings', 'ExceptionNotification', 'MobileAppCampaignAddItem', 'Notification', 'SmsSettings', 'TextCampaignAddItem', 'TimeTargetingAdd', 'TimeTargetingOnPublicHolidays', 'UnifiedCampaignAddItem', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "campaigns.update",
+    "url": "https://yandex.ru/dev/direct/doc/ru/campaigns/update",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ArrayOfString', 'CampaignUpdateItem', 'CpmBannerCampaignUpdateItem', 'DailyBudget', 'EmailSettings', 'ExceptionNotification', 'MobileAppCampaignUpdateItem', 'Notification', 'SmartCampaignUpdateItem', 'SmsSettings', 'TextCampaignUpdateItem', 'TimeTargeting', 'TimeTargetingOnPublicHolidays', 'nillable', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "campaigns.delete",
+    "url": "https://yandex.ru/dev/direct/doc/ru/campaigns/delete",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ExceptionNotification', 'IdsCriteria', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "campaigns.archive",
+    "url": "https://yandex.ru/dev/direct/doc/ru/campaigns/archive",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ExceptionNotification', 'IdsCriteria', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "campaigns.unarchive",
+    "url": "https://yandex.ru/dev/direct/doc/ru/campaigns/unarchive",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ExceptionNotification', 'IdsCriteria', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "campaigns.suspend",
+    "url": "https://yandex.ru/dev/direct/doc/ru/campaigns/suspend",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ExceptionNotification', 'IdsCriteria', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "campaigns.resume",
+    "url": "https://yandex.ru/dev/direct/doc/ru/campaigns/resume",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ExceptionNotification', 'IdsCriteria', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "adgroups.get",
+    "url": "https://yandex.ru/dev/direct/doc/ru/adgroups/get",
+    "kind": "v5_schema_seen",
+    "detail": "types=['AdGroupGetItem', 'AdGroupsSelectionCriteria', 'ArrayOfLong', 'ArrayOfString', 'DynamicTextAdGroupGet', 'DynamicTextFeedAdGroupGet', 'ExtensionModeration', 'LimitOffset', 'MobileAppAdGroupGet', 'SmartAdGroupGet', 'TextAdGroupFeedParamsGet', 'nillable', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "adgroups.add",
+    "url": "https://yandex.ru/dev/direct/doc/ru/adgroups/add",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'AdGroupAddItem', 'ArrayOfLong', 'ArrayOfString', 'AutotargetingCategoriesAdd', 'CpmBannerKeywordsAdGroupAdd', 'CpmBannerUserProfileAdGroupAdd', 'CpmVideoAdGroupAdd', 'DynamicTextAdGroupAdd', 'DynamicTextFeedAdGroupAdd', 'ExceptionNotification', 'MobileAppAdGroupAdd', 'SmartAdGroupAdd', 'TextAdGroupFeedParamsAdd', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "adgroups.update",
+    "url": "https://yandex.ru/dev/direct/doc/ru/adgroups/update",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'AdGroupUpdateItem', 'ArrayOfLong', 'ArrayOfString', 'AutotargetingCategoriesUpdate', 'DynamicTextAdGroupUpdate', 'DynamicTextFeedAdGroupUpdate', 'ExceptionNotification', 'MobileAppAdGroupUpdate', 'SmartAdGroupUpdate', 'TextAdGroupFeedParamsUpdate', 'nillable', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "adgroups.delete",
+    "url": "https://yandex.ru/dev/direct/doc/ru/adgroups/delete",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ExceptionNotification', 'IdsCriteria', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "ads.get",
+    "url": "https://yandex.ru/dev/direct/doc/ru/ads/get",
+    "kind": "v5_schema_seen",
+    "detail": "types=['AdBuilderAdGetItem', 'AdExtensionAdGetItem', 'AdGetItem', 'AdImageGetItem', 'AdsSelectionCriteria', 'ArrayOfAdCategoryEnum', 'ArrayOfAdImageGet', 'ArrayOfVideoExtensionGet', 'CpcVideoAdBuilderAdGet', 'CpmBannerAdBuilderAdGet', 'CpmVideoAdBuilderAdGet', 'DynamicTextAdGet', 'ExtensionModeration', 'LimitOffset', 'MobileAppAdBuilderAdGet', 'MobileAppAdFeatureGetItem', 'MobileAppAdGet', 'MobileAppCpcVideoAdBuilderAdGet', 'MobileAppImageAdGet', 'PriceExtensionGetItem', 'ResponsiveAdGet', 'SmartAdBuilderAdGet', 'TextAdBuilderAdGet', 'TextAdGet', 'TextGetItem', 'TextImageAdGet', 'TitleGetItem', 'TrackingPixelGetArray', 'TrackingPixelGetItem', 'VideoExtensionGetItem', 'VideoExtensionWithStatusClarificationGetItem', 'nillable', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "ads.add",
+    "url": "https://yandex.ru/dev/direct/doc/ru/ads/add",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'AdAddItem', 'AdBuilderAdAddItem', 'ArrayOfString', 'CpmBannerAdBuilderAdAdd', 'CpmVideoAdBuilderAdAdd', 'ExceptionNotification', 'PriceExtensionAddItem', 'ResponsiveAdAdd', 'TextAdAdd', 'TextAdBuilderAdAdd', 'TextImageAdAdd', 'VideoExtensionAddItem', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "ads.update",
+    "url": "https://yandex.ru/dev/direct/doc/ru/ads/update",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'AdBuilderAdUpdateItem', 'AdExtensionSetting', 'AdExtensionSettingItem', 'AdUpdateItem', 'ArrayOfLong', 'ArrayOfString', 'CpmBannerAdBuilderAdUpdate', 'CpmVideoAdBuilderAdUpdate', 'ExceptionNotification', 'PriceExtensionUpdateItem', 'ResponsiveAdUpdate', 'TextAdBuilderAdUpdate', 'TextAdUpdate', 'TextImageAdUpdate', 'VideoExtensionUpdateItem', 'nillable', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "ads.delete",
+    "url": "https://yandex.ru/dev/direct/doc/ru/ads/delete",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ExceptionNotification', 'IdsCriteria', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "ads.moderate",
+    "url": "https://yandex.ru/dev/direct/doc/ru/ads/moderate",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ExceptionNotification', 'IdsCriteria', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "ads.suspend",
+    "url": "https://yandex.ru/dev/direct/doc/ru/ads/suspend",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ExceptionNotification', 'IdsCriteria', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "ads.resume",
+    "url": "https://yandex.ru/dev/direct/doc/ru/ads/resume",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ExceptionNotification', 'IdsCriteria', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "ads.archive",
+    "url": "https://yandex.ru/dev/direct/doc/ru/ads/archive",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ExceptionNotification', 'IdsCriteria', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "ads.unarchive",
+    "url": "https://yandex.ru/dev/direct/doc/ru/ads/unarchive",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ExceptionNotification', 'IdsCriteria', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "keywords.get",
+    "url": "https://yandex.ru/dev/direct/doc/ru/keywords/get",
+    "kind": "v5_schema_seen",
+    "detail": "types=['KeywordGetItem', 'KeywordsSelectionCriteria', 'LimitOffset', 'Statistics', 'nillable', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "keywords.add",
+    "url": "https://yandex.ru/dev/direct/doc/ru/keywords/add",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'AutotargetingCategoriesAddItem', 'ExceptionNotification', 'KeywordAddItem', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "keywords.update",
+    "url": "https://yandex.ru/dev/direct/doc/ru/keywords/update",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'AutotargetingCategoriesUpdateItem', 'ExceptionNotification', 'KeywordUpdateItem', 'nillable', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "keywords.delete",
+    "url": "https://yandex.ru/dev/direct/doc/ru/keywords/delete",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ExceptionNotification', 'IdsCriteria', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "keywords.suspend",
+    "url": "https://yandex.ru/dev/direct/doc/ru/keywords/suspend",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ExceptionNotification', 'IdsCriteria', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "keywords.resume",
+    "url": "https://yandex.ru/dev/direct/doc/ru/keywords/resume",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ExceptionNotification', 'IdsCriteria', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "keywordbids.get",
+    "url": "https://yandex.ru/dev/direct/doc/ru/keywordbids/get",
+    "kind": "v5_schema_seen",
+    "detail": "types=['AuctionBidItem', 'AuctionBids', 'Coverage', 'KeywordBidGetItem', 'KeywordBidsSelectionCriteria', 'LimitOffset', 'Network', 'NetworkCoverageItem', 'Search', 'nillable', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "keywordbids.set",
+    "url": "https://yandex.ru/dev/direct/doc/ru/keywordbids/set",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ExceptionNotification', 'KeywordBidActionResult', 'KeywordBidSetItem', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "keywordbids.setAuto",
+    "url": "https://yandex.ru/dev/direct/doc/ru/keywordbids/setAuto",
+    "kind": "v5_schema_seen",
+    "detail": "types=['BiddingRule', 'ExceptionNotification', 'KeywordBidActionResult', 'KeywordBidSetAutoItem', 'NetworkByCoverage', 'SearchByTrafficVolume', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "bids.get",
+    "url": "https://yandex.ru/dev/direct/doc/ru/bids/get",
+    "kind": "v5_schema_seen",
+    "detail": "types=['AuctionBidItem', 'BidGetItem', 'BidsSelectionCriteria', 'ContextCoverage', 'ContextCoverageItem', 'LimitOffset', 'SearchPrices', 'nillable', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "bids.set",
+    "url": "https://yandex.ru/dev/direct/doc/ru/bids/set",
+    "kind": "v5_schema_seen",
+    "detail": "types=['BidActionResult', 'BidSetItem', 'ExceptionNotification', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "bids.setAuto",
+    "url": "https://yandex.ru/dev/direct/doc/ru/bids/setAuto",
+    "kind": "v5_schema_seen",
+    "detail": "types=['BidActionResult', 'BidSetAutoItem', 'ExceptionNotification', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "bidmodifiers.get",
+    "url": "https://yandex.ru/dev/direct/doc/ru/bidmodifiers/get",
+    "kind": "v5_schema_seen",
+    "detail": "types=['BidModifierGetItem', 'BidModifiersSelectionCriteria', 'DemographicsAdjustmentGet', 'DesktopAdjustmentGet', 'IncomeGradeAdjustmentGet', 'LimitOffset', 'MobileAdjustmentGet', 'RegionalAdjustmentGet', 'RetargetingAdjustmentGet', 'SerpLayoutAdjustmentGet', 'SmartAdAdjustmentGet', 'VideoAdjustmentGet', 'nillable', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "bidmodifiers.add",
+    "url": "https://yandex.ru/dev/direct/doc/ru/bidmodifiers/add",
+    "kind": "v5_schema_seen",
+    "detail": "types=['BidModifierAddItem', 'DemographicsAdjustmentAdd', 'DesktopAdjustmentAdd', 'ExceptionNotification', 'IncomeGradeAdjustmentAdd', 'MobileAdjustmentAdd', 'MultiIdsActionResult', 'RegionalAdjustmentAdd', 'RetargetingAdjustmentAdd', 'SerpLayoutAdjustmentAdd', 'SmartAdAdjustmentAdd', 'SmartTvAdjustmentAdd', 'VideoAdjustmentAdd', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "bidmodifiers.set",
+    "url": "https://yandex.ru/dev/direct/doc/ru/bidmodifiers/set",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'BidModifierSetItem', 'ExceptionNotification', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "bidmodifiers.delete",
+    "url": "https://yandex.ru/dev/direct/doc/ru/bidmodifiers/delete",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ExceptionNotification', 'IdsCriteria', 'params', 'required']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "audiencetargets.get",
+    "url": "https://yandex.ru/dev/direct/doc/ru/audiencetargets/get",
+    "kind": "v5_schema_seen",
+    "detail": "types=['AudienceTargetGetItem', 'AudienceTargetSelectionCriteria', 'LimitOffset', 'nillable', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "audiencetargets.add",
+    "url": "https://yandex.ru/dev/direct/doc/ru/audiencetargets/add",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'AudienceTargetAddItem', 'ExceptionNotification', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "audiencetargets.delete",
+    "url": "https://yandex.ru/dev/direct/doc/ru/audiencetargets/delete",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ExceptionNotification', 'IdsCriteria', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "audiencetargets.suspend",
+    "url": "https://yandex.ru/dev/direct/doc/ru/audiencetargets/suspend",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ExceptionNotification', 'IdsCriteria', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "audiencetargets.resume",
+    "url": "https://yandex.ru/dev/direct/doc/ru/audiencetargets/resume",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ExceptionNotification', 'IdsCriteria', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "audiencetargets.setBids",
+    "url": "https://yandex.ru/dev/direct/doc/ru/audiencetargets/setBids",
+    "kind": "v5_schema_seen",
+    "detail": "types=['AudienceTargetSetBidsItem', 'ExceptionNotification', 'SetBidsActionResult', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "retargeting.get",
+    "url": "https://yandex.ru/dev/direct/doc/ru/retargetinglists/get",
+    "kind": "v5_schema_seen",
+    "detail": "types=['AvailableForTargetsInAdGroupTypesArray', 'LimitOffset', 'RetargetingListGetItem', 'RetargetingListRuleArgumentItem', 'RetargetingListRuleItem', 'RetargetingListSelectionCriteria', 'nillable', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "retargeting.add",
+    "url": "https://yandex.ru/dev/direct/doc/ru/retargetinglists/add",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ExceptionNotification', 'RetargetingListAddItem', 'RetargetingListRuleArgumentItem', 'RetargetingListRuleItem', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "retargeting.update",
+    "url": "https://yandex.ru/dev/direct/doc/ru/retargetinglists/update",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ExceptionNotification', 'RetargetingListRuleArgumentItem', 'RetargetingListRuleItem', 'RetargetingListUpdateItem', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "retargeting.delete",
+    "url": "https://yandex.ru/dev/direct/doc/ru/retargetinglists/delete",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ExceptionNotification', 'IdsCriteria', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "creatives.get",
+    "url": "https://yandex.ru/dev/direct/doc/ru/creatives/get",
+    "kind": "v5_schema_seen",
+    "detail": "types=['CpcVideoCreativeGet', 'CpmVideoCreativeGet', 'CreativeGetItem', 'CreativesSelectionCriteria', 'LimitOffset', 'SmartCreativeGet', 'VideoExtensionCreativeGet', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "creatives.add",
+    "url": "https://yandex.ru/dev/direct/doc/ru/creatives/add",
+    "kind": "v5_schema_seen",
+    "detail": "types=['required']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "adimages.get",
+    "url": "https://yandex.ru/dev/direct/doc/ru/adimages/get",
+    "kind": "v5_schema_seen",
+    "detail": "types=['AdImageGetItem', 'AdImageSelectionCriteria', 'LimitOffset', 'nillable', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "adimages.add",
+    "url": "https://yandex.ru/dev/direct/doc/ru/adimages/add",
+    "kind": "v5_schema_seen",
+    "detail": "types=['AdImageActionResult', 'AdImageAddItem', 'ExceptionNotification', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "adimages.delete",
+    "url": "https://yandex.ru/dev/direct/doc/ru/adimages/delete",
+    "kind": "v5_schema_seen",
+    "detail": "types=['AdImageActionResult', 'AdImageIdsCriteria', 'ExceptionNotification', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "advideos.get",
+    "url": "https://yandex.ru/dev/direct/doc/ru/advideos/get",
+    "kind": "v5_schema_seen",
+    "detail": "types=['required']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "advideos.add",
+    "url": "https://yandex.ru/dev/direct/doc/ru/advideos/add",
+    "kind": "v5_schema_seen",
+    "detail": "types=['AdVideoAddItem', 'required']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "adextensions.get",
+    "url": "https://yandex.ru/dev/direct/doc/ru/adextensions/get",
+    "kind": "v5_schema_seen",
+    "detail": "types=['AdExtensionGetItem', 'AdExtensionsSelectionCriteria', 'Callout', 'LimitOffset', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "adextensions.add",
+    "url": "https://yandex.ru/dev/direct/doc/ru/adextensions/add",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'AdExtensionAddItem', 'Callout', 'ExceptionNotification', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "adextensions.delete",
+    "url": "https://yandex.ru/dev/direct/doc/ru/adextensions/delete",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ExceptionNotification', 'IdsCriteria', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "sitelinks.get",
+    "url": "https://yandex.ru/dev/direct/doc/ru/sitelinks/get",
+    "kind": "v5_schema_seen",
+    "detail": "types=['IdsCriteria', 'LimitOffset', 'Sitelink', 'SitelinksSetGetItem', 'nillable', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "sitelinks.add",
+    "url": "https://yandex.ru/dev/direct/doc/ru/sitelinks/add",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ExceptionNotification', 'Sitelink', 'SitelinksSetAddItem', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "sitelinks.delete",
+    "url": "https://yandex.ru/dev/direct/doc/ru/sitelinks/delete",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ExceptionNotification', 'IdsCriteria', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "vcards.get",
+    "url": "https://yandex.ru/dev/direct/doc/ru/get",
+    "kind": "v5_schema_not_extracted",
+    "detail": "page reachable but no /* TypeName */ schema block found",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "vcards.add",
+    "url": "https://yandex.ru/dev/direct/doc/ru/add",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "vcards.delete",
+    "url": "https://yandex.ru/dev/direct/doc/ru/delete",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "leads.get",
+    "url": "https://yandex.ru/dev/direct/doc/ru/leads/get",
+    "kind": "v5_schema_seen",
+    "detail": "types=['LeadDataItem', 'LeadGetItem', 'LeadsSelectionCriteria', 'LimitOffset', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "clients.get",
+    "url": "https://yandex.ru/dev/direct/doc/ru/clients/get",
+    "kind": "v5_schema_seen",
+    "detail": "types=['BonusesGet', 'ClientGetItem', 'ClientRestrictionItem', 'ClientSettingGetItem', 'ContractGet', 'ContragentGet', 'EmailSubscriptionItem', 'ErirAttributesGet', 'GrantGetItem', 'NotificationGet', 'OrganizationGet', 'PriceGet', 'Representative', 'TinInfoGet', 'nillable', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "clients.update",
+    "url": "https://yandex.ru/dev/direct/doc/ru/clients/update",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ClientSettingUpdateItem', 'ClientUpdateItem', 'ClientsActionResult', 'ContractUpdate', 'ContragentUpdate', 'EmailSubscriptionItem', 'ErirAttributesUpdate', 'ExceptionNotification', 'NotificationUpdate', 'OrganizationUpdate', 'PriceUpdate', 'TinInfoUpdate', 'nillable', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "agencyclients.get",
+    "url": "https://yandex.ru/dev/direct/doc/ru/agencyclients/get",
+    "kind": "v5_schema_seen",
+    "detail": "types=['AgencyClientsSelectionCriteria', 'BonusesGet', 'ClientGetItem', 'ClientRestrictionItem', 'ClientSettingGetItem', 'ContractGet', 'ContragentGet', 'EmailSubscriptionItem', 'ErirAttributesGet', 'GrantGetItem', 'LimitOffset', 'NotificationGet', 'OrganizationGet', 'PriceGet', 'Representative', 'TinInfoGet', 'nillable', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "agencyclients.add",
+    "url": "https://yandex.ru/dev/direct/doc/ru/agencyclients/add",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ClientSettingAddItem', 'EmailSubscriptionItem', 'ExceptionNotification', 'GrantItem', 'NotificationAdd', 'TinInfoAdd', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "agencyclients.update",
+    "url": "https://yandex.ru/dev/direct/doc/ru/agencyclients/update",
+    "kind": "v5_schema_seen",
+    "detail": "types=['AgencyClientUpdateItem', 'ClientSettingUpdateItem', 'ClientsActionResult', 'ContractUpdate', 'ContragentUpdate', 'EmailSubscriptionItem', 'ErirAttributesUpdate', 'ExceptionNotification', 'GrantItem', 'NotificationUpdate', 'OrganizationUpdate', 'PriceUpdate', 'TinInfoUpdate', 'nillable', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "agencyclients.addPassportOrganization",
+    "url": "https://yandex.ru/dev/direct/doc/ru/agencyclients/addPassportOrganization",
+    "kind": "v5_schema_not_extracted",
+    "detail": "page reachable but no /* TypeName */ schema block found",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "agencyclients.addPassportOrganizationMember",
+    "url": "https://yandex.ru/dev/direct/doc/ru/agencyclients/addPassportOrganizationMember",
+    "kind": "v5_schema_not_extracted",
+    "detail": "page reachable but no /* TypeName */ schema block found",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "dictionaries.get",
+    "url": "https://yandex.ru/dev/direct/doc/ru/dictionaries/get",
+    "kind": "v5_schema_seen",
+    "detail": "types=['AdCategoriesItem', 'AudienceCriteriaTypesItem', 'AudienceDemographicProfilesItem', 'AudienceInterestsItem', 'ConstantsItem', 'CurrenciesItem', 'FilterSchemasItem', 'GeoRegionNamesItem', 'GeoRegionsItem', 'InterestsItem', 'MetroStationsItem', 'OperationSystemVersionsItem', 'SupplySidePlatformsItem', 'TimeZonesItem', 'nillable', 'params', 'required']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "changes.check",
+    "url": "https://yandex.ru/dev/direct/doc/ru/changes/check",
+    "kind": "v5_schema_seen",
+    "detail": "types=['CampaignStatItem', 'CheckResponseIds', 'CheckResponseModified', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "changes.checkCampaigns",
+    "url": "https://yandex.ru/dev/direct/doc/ru/changes/checkCampaigns",
+    "kind": "v5_schema_seen",
+    "detail": "types=['CampaignChangesItem', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "changes.checkDictionaries",
+    "url": "https://yandex.ru/dev/direct/doc/ru/changes/checkDictionaries",
+    "kind": "v5_schema_seen",
+    "detail": "types=['required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "turbopages.get",
+    "url": "https://yandex.ru/dev/direct/doc/ru/turbopages/get",
+    "kind": "v5_schema_seen",
+    "detail": "types=['IdsCriteria', 'LimitOffset', 'TurboPageGetItem', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "negativekeywordsharedsets.get",
+    "url": "https://yandex.ru/dev/direct/doc/ru/negativekeywordsharedsets/get",
+    "kind": "v5_schema_seen",
+    "detail": "types=['IdsCriteria', 'LimitOffset', 'NegativeKeywordSharedSetGetItem', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "negativekeywordsharedsets.add",
+    "url": "https://yandex.ru/dev/direct/doc/ru/negativekeywordsharedsets/add",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ExceptionNotification', 'NegativeKeywordSharedSetAddItem', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "negativekeywordsharedsets.update",
+    "url": "https://yandex.ru/dev/direct/doc/ru/negativekeywordsharedsets/update",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ExceptionNotification', 'NegativeKeywordSharedSetUpdateItem', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "negativekeywordsharedsets.delete",
+    "url": "https://yandex.ru/dev/direct/doc/ru/negativekeywordsharedsets/delete",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ExceptionNotification', 'IdsCriteria', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "feeds.get",
+    "url": "https://yandex.ru/dev/direct/doc/ru/feeds/get",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ArrayOfLong', 'FeedGetItem', 'FeedSelectionCriteria', 'FileFeedGet', 'LimitOffset', 'UrlFeedGet', 'nillable', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "feeds.add",
+    "url": "https://yandex.ru/dev/direct/doc/ru/feeds/add",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ExceptionNotification', 'FeedAddItem', 'FileFeedAdd', 'UrlFeedAdd', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "feeds.update",
+    "url": "https://yandex.ru/dev/direct/doc/ru/feeds/update",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ExceptionNotification', 'FeedUpdateItem', 'FileFeedUpdate', 'UrlFeedUpdate', 'nillable', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "feeds.delete",
+    "url": "https://yandex.ru/dev/direct/doc/ru/feeds/delete",
+    "kind": "v5_schema_seen",
+    "detail": "types=['DeleteResults', 'ExceptionNotification', 'IdsCriteria', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "smartadtargets.get",
+    "url": "https://yandex.ru/dev/direct/doc/ru/get",
+    "kind": "v5_schema_not_extracted",
+    "detail": "page reachable but no /* TypeName */ schema block found",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "smartadtargets.add",
+    "url": "https://yandex.ru/dev/direct/doc/ru/add",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "smartadtargets.update",
+    "url": "https://yandex.ru/dev/direct/doc/ru/update",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "smartadtargets.delete",
+    "url": "https://yandex.ru/dev/direct/doc/ru/delete",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "smartadtargets.suspend",
+    "url": "https://yandex.ru/dev/direct/doc/ru/suspend",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "smartadtargets.resume",
+    "url": "https://yandex.ru/dev/direct/doc/ru/resume",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "smartadtargets.setBids",
+    "url": "https://yandex.ru/dev/direct/doc/ru/setBids",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "businesses.get",
+    "url": "https://yandex.ru/dev/direct/doc/ru/businesses/get",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ArrayOfLong', 'ArrayOfString', 'BusinessGetItem', 'IdsCriteria', 'LimitOffset', 'nillable', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "keywordsresearch.deduplicate",
+    "url": "https://yandex.ru/dev/direct/doc/ru/keywordsresearch/deduplicate",
+    "kind": "v5_schema_seen",
+    "detail": "types=['DeduplicateErrorItem', 'DeduplicateRequestItem', 'DeduplicateResponseAddItem', 'DeduplicateResponseUpdateItem', 'ExceptionNotification', 'IdsCriteria', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "keywordsresearch.hasSearchVolume",
+    "url": "https://yandex.ru/dev/direct/doc/ru/keywordsresearch/hasSearchVolume",
+    "kind": "v5_schema_seen",
+    "detail": "types=['HasSearchVolumeItem', 'HasSearchVolumeSelectionCriteria', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "dynamicads.get",
+    "url": "https://yandex.ru/dev/direct/doc/ru/get",
+    "kind": "v5_schema_not_extracted",
+    "detail": "page reachable but no /* TypeName */ schema block found",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "dynamicads.add",
+    "url": "https://yandex.ru/dev/direct/doc/ru/add",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "dynamicads.delete",
+    "url": "https://yandex.ru/dev/direct/doc/ru/delete",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "dynamicads.suspend",
+    "url": "https://yandex.ru/dev/direct/doc/ru/suspend",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "dynamicads.resume",
+    "url": "https://yandex.ru/dev/direct/doc/ru/resume",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "dynamicads.setBids",
+    "url": "https://yandex.ru/dev/direct/doc/ru/setBids",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "dynamicfeedadtargets.get",
+    "url": "https://yandex.ru/dev/direct/doc/ru/get",
+    "kind": "v5_schema_not_extracted",
+    "detail": "page reachable but no /* TypeName */ schema block found",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "dynamicfeedadtargets.add",
+    "url": "https://yandex.ru/dev/direct/doc/ru/add",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "dynamicfeedadtargets.delete",
+    "url": "https://yandex.ru/dev/direct/doc/ru/delete",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "dynamicfeedadtargets.suspend",
+    "url": "https://yandex.ru/dev/direct/doc/ru/suspend",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "dynamicfeedadtargets.resume",
+    "url": "https://yandex.ru/dev/direct/doc/ru/resume",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "dynamicfeedadtargets.setBids",
+    "url": "https://yandex.ru/dev/direct/doc/ru/setBids",
+    "kind": "docs_unreachable",
+    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "strategies.get",
+    "url": "https://yandex.ru/dev/direct/doc/ru/strategies/get",
+    "kind": "v5_schema_seen",
+    "detail": "types=['nillable', 'required']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "strategies.add",
+    "url": "https://yandex.ru/dev/direct/doc/ru/strategies/add",
+    "kind": "v5_schema_seen",
+    "detail": "types=['required']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "strategies.update",
+    "url": "https://yandex.ru/dev/direct/doc/ru/strategies/update",
+    "kind": "v5_schema_seen",
+    "detail": "types=['nillable', 'required']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "strategies.archive",
+    "url": "https://yandex.ru/dev/direct/doc/ru/strategies/archive",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ExceptionNotification', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "v5",
+    "method": "strategies.unarchive",
+    "url": "https://yandex.ru/dev/direct/doc/ru/strategies/unarchive",
+    "kind": "v5_schema_seen",
+    "detail": "types=['ActionResult', 'ExceptionNotification', 'IdsCriteria', 'params', 'required', 'result']",
+    "snippet": null
+  },
+  {
+    "layer": "reports",
+    "method": "spec",
+    "url": "https://yandex.ru/dev/direct/doc/ru/spec",
+    "kind": "reports_spec_ok",
+    "detail": "spec page reachable and contains core markers",
+    "snippet": null
+  }
+]
