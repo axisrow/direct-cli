@@ -100,71 +100,7 @@
     "method": "CheckPayment",
     "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/CheckPayment.html",
     "kind": "docs_unreachable",
-    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
-    "snippet": null
-  },
-  {
-    "layer": "v4",
-    "method": "CreateInvoice",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/CreateInvoice.html",
-    "kind": "notes_points_at_reference_url",
-    "detail": "contract.notes references dg-v4/reference/ but dg-v4/live/ exists — Live 4 schema must be used",
-    "snippet": "Docs-verified 2026-05-28 against dg-v4/reference/CreateInvoice: PayCampElement carries only CampaignID and Sum (conventional units). The CLI dropped --currency in 0.3.15 (BREAKING) to mirror docs 1:1."
-  },
-  {
-    "layer": "v4",
-    "method": "CreateInvoice",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/CreateInvoice.html",
-    "kind": "docs_field_missing_in_code",
-    "detail": "docs schema mentions 'Currency' but contract.example_param does not",
-    "snippet": "types=['CreateInvoiceInfo', 'PayCampElement'] → has Currency"
-  },
-  {
-    "layer": "v4",
-    "method": "CreateInvoice",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/CreateInvoice.html",
-    "kind": "required_field_missing_in_payload_module",
-    "detail": "Live 4 changelog marks 'Currency' required but contract.example_param does not include it",
-    "snippet": null
-  },
-  {
-    "layer": "v4",
-    "method": "CreateNewForecast",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/CreateNewForecast.html",
-    "kind": "docs_field_missing_in_code",
-    "detail": "docs schema mentions 'AuctionBids' but contract.example_param does not",
-    "snippet": "types=['NewForecastInfo'] → has AuctionBids"
-  },
-  {
-    "layer": "v4",
-    "method": "CreateNewForecast",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/CreateNewForecast.html",
-    "kind": "docs_field_missing_in_code",
-    "detail": "docs schema mentions 'Categories' but contract.example_param does not",
-    "snippet": "types=['NewForecastInfo'] → has Categories"
-  },
-  {
-    "layer": "v4",
-    "method": "CreateNewForecast",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/CreateNewForecast.html",
-    "kind": "docs_field_missing_in_code",
-    "detail": "docs schema mentions 'CommonMinusWords' but contract.example_param does not",
-    "snippet": "types=['NewForecastInfo'] → has CommonMinusWords"
-  },
-  {
-    "layer": "v4",
-    "method": "CreateNewWordstatReport",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/CreateNewWordstatReport.html",
-    "kind": "docs_unreachable",
-    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
-    "snippet": null
-  },
-  {
-    "layer": "v4",
-    "method": "DeleteForecastReport",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/DeleteForecastReport.html",
-    "kind": "docs_unreachable",
-    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "detail": "fetcher status=http-404 attempts=1 note=''",
     "snippet": null
   },
   {
@@ -173,30 +109,6 @@
     "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/DeleteOfflineReport.html",
     "kind": "live4_marker_absent",
     "detail": "live page reachable but lacks «Новое в версии Live 4»",
-    "snippet": null
-  },
-  {
-    "layer": "v4",
-    "method": "DeleteReport",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/DeleteReport.html",
-    "kind": "notes_points_at_reference_url",
-    "detail": "contract.notes references dg-v4/reference/ but dg-v4/live/ exists — Live 4 schema must be used",
-    "snippet": "Docs-verified 2026-05-28 against dg-v4/reference/DeleteReport: param is the integer report ID obtained via GetReportList. Response on success: {\"data\": 1}. Reports are auto-removed after 5 hours. Meth"
-  },
-  {
-    "layer": "v4",
-    "method": "DeleteReport",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/DeleteReport.html",
-    "kind": "docs_unreachable",
-    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
-    "snippet": null
-  },
-  {
-    "layer": "v4",
-    "method": "DeleteWordstatReport",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/DeleteWordstatReport.html",
-    "kind": "docs_unreachable",
-    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
     "snippet": null
   },
   {
@@ -241,131 +153,11 @@
   },
   {
     "layer": "v4",
-    "method": "GetClientsUnits",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetClientsUnits.html",
-    "kind": "docs_unreachable",
-    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
-    "snippet": null
-  },
-  {
-    "layer": "v4",
-    "method": "GetCreditLimits",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetCreditLimits.html",
-    "kind": "notes_points_at_reference_url",
-    "detail": "contract.notes references dg-v4/reference/ but dg-v4/live/ exists — Live 4 schema must be used",
-    "snippet": "Docs-verified 2026-05-28 against dg-v4/reference/GetCreditLimits: request body is method + finance_token + operation_num only, no param; CLI dry-run output matches exactly. Live probe without finance "
-  },
-  {
-    "layer": "v4",
-    "method": "GetCreditLimits",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetCreditLimits.html",
-    "kind": "docs_unreachable",
-    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
-    "snippet": null
-  },
-  {
-    "layer": "v4",
-    "method": "GetEventsLog",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html",
-    "kind": "docs_field_missing_in_code",
-    "detail": "docs schema mentions 'AccountIDS' but contract.example_param does not",
-    "snippet": "types=['GetEventsLogFilter', 'GetEventsLogRequest'] → has AccountIDS"
-  },
-  {
-    "layer": "v4",
-    "method": "GetEventsLog",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html",
-    "kind": "docs_field_missing_in_code",
-    "detail": "docs schema mentions 'BannerIDS' but contract.example_param does not",
-    "snippet": "types=['GetEventsLogFilter', 'GetEventsLogRequest'] → has BannerIDS"
-  },
-  {
-    "layer": "v4",
-    "method": "GetEventsLog",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html",
-    "kind": "docs_field_missing_in_code",
-    "detail": "docs schema mentions 'CampaignIDS' but contract.example_param does not",
-    "snippet": "types=['GetEventsLogFilter', 'GetEventsLogRequest'] → has CampaignIDS"
-  },
-  {
-    "layer": "v4",
-    "method": "GetEventsLog",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html",
-    "kind": "docs_field_missing_in_code",
-    "detail": "docs schema mentions 'EventType' but contract.example_param does not",
-    "snippet": "types=['GetEventsLogFilter', 'GetEventsLogRequest'] → has EventType"
-  },
-  {
-    "layer": "v4",
-    "method": "GetEventsLog",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html",
-    "kind": "docs_field_missing_in_code",
-    "detail": "docs schema mentions 'Filter' but contract.example_param does not",
-    "snippet": "types=['GetEventsLogFilter', 'GetEventsLogRequest'] → has Filter"
-  },
-  {
-    "layer": "v4",
-    "method": "GetEventsLog",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html",
-    "kind": "docs_field_missing_in_code",
-    "detail": "docs schema mentions 'LastEventOnly' but contract.example_param does not",
-    "snippet": "types=['GetEventsLogFilter', 'GetEventsLogRequest'] → has LastEventOnly"
-  },
-  {
-    "layer": "v4",
-    "method": "GetEventsLog",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html",
-    "kind": "docs_field_missing_in_code",
-    "detail": "docs schema mentions 'Limit' but contract.example_param does not",
-    "snippet": "types=['GetEventsLogFilter', 'GetEventsLogRequest'] → has Limit"
-  },
-  {
-    "layer": "v4",
-    "method": "GetEventsLog",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html",
-    "kind": "docs_field_missing_in_code",
-    "detail": "docs schema mentions 'Logins' but contract.example_param does not",
-    "snippet": "types=['GetEventsLogFilter', 'GetEventsLogRequest'] → has Logins"
-  },
-  {
-    "layer": "v4",
-    "method": "GetEventsLog",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html",
-    "kind": "docs_field_missing_in_code",
-    "detail": "docs schema mentions 'Offset' but contract.example_param does not",
-    "snippet": "types=['GetEventsLogFilter', 'GetEventsLogRequest'] → has Offset"
-  },
-  {
-    "layer": "v4",
-    "method": "GetEventsLog",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html",
-    "kind": "docs_field_missing_in_code",
-    "detail": "docs schema mentions 'PhraseIDS' but contract.example_param does not",
-    "snippet": "types=['GetEventsLogFilter', 'GetEventsLogRequest'] → has PhraseIDS"
-  },
-  {
-    "layer": "v4",
-    "method": "GetEventsLog",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetEventsLog.html",
-    "kind": "docs_field_missing_in_code",
-    "detail": "docs schema mentions 'WithTextDescription' but contract.example_param does not",
-    "snippet": "types=['GetEventsLogFilter', 'GetEventsLogRequest'] → has WithTextDescription"
-  },
-  {
-    "layer": "v4",
     "method": "GetForecastList",
     "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetForecastList.html",
     "kind": "docs_unreachable",
     "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
     "snippet": null
-  },
-  {
-    "layer": "v4",
-    "method": "GetKeywordsSuggestion",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetKeywordsSuggestion.html",
-    "kind": "notes_points_at_reference_url",
-    "detail": "contract.notes references dg-v4/reference/ but dg-v4/live/ exists — Live 4 schema must be used",
-    "snippet": "Docs-verified 2026-05-28 against dg-v4/reference/GetKeywordsSuggestion: param.Keywords is a UTF-8 string array of seed phrases; the only documented field. Returns up to 20 suggestion phrases as a stri"
   },
   {
     "layer": "v4",
@@ -385,50 +177,10 @@
   },
   {
     "layer": "v4",
-    "method": "GetVersion",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetVersion.html",
-    "kind": "docs_unreachable",
-    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
-    "snippet": null
-  },
-  {
-    "layer": "v4",
     "method": "GetWordstatReport",
     "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetWordstatReport.html",
     "kind": "docs_unreachable",
     "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
-    "snippet": null
-  },
-  {
-    "layer": "v4",
-    "method": "GetWordstatReportList",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/GetWordstatReportList.html",
-    "kind": "docs_unreachable",
-    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
-    "snippet": null
-  },
-  {
-    "layer": "v4",
-    "method": "PayCampaigns",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/PayCampaigns.html",
-    "kind": "notes_points_at_reference_url",
-    "detail": "contract.notes references dg-v4/reference/ but dg-v4/live/ exists — Live 4 schema must be used",
-    "snippet": "Docs-verified 2026-05-28 against dg-v4/reference/PayCampaigns: PayCampElement carries only CampaignID and Sum (conventional units); PayMethod currently accepts 'Bank' only. The CLI dropped --currency "
-  },
-  {
-    "layer": "v4",
-    "method": "PayCampaigns",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/PayCampaigns.html",
-    "kind": "docs_field_missing_in_code",
-    "detail": "docs schema mentions 'Currency' but contract.example_param does not",
-    "snippet": "types=['PayCampElement', 'PayCampaignsInfo'] → has Currency"
-  },
-  {
-    "layer": "v4",
-    "method": "PayCampaigns",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/PayCampaigns.html",
-    "kind": "required_field_missing_in_payload_module",
-    "detail": "Live 4 changelog marks 'Currency' required but contract.example_param does not include it",
     "snippet": null
   },
   {
@@ -441,42 +193,10 @@
   },
   {
     "layer": "v4",
-    "method": "PingAPI",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/PingAPI.html",
-    "kind": "docs_unreachable",
-    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
-    "snippet": null
-  },
-  {
-    "layer": "v4",
     "method": "PingAPI_X",
     "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/PingAPI_X.html",
     "kind": "docs_unreachable",
     "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
-    "snippet": null
-  },
-  {
-    "layer": "v4",
-    "method": "TransferMoney",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/TransferMoney.html",
-    "kind": "notes_points_at_reference_url",
-    "detail": "contract.notes references dg-v4/reference/ but dg-v4/live/ exists — Live 4 schema must be used",
-    "snippet": "Docs-verified 2026-05-28 against dg-v4/reference/TransferMoney: PayCampElement carries only CampaignID and Sum (conventional units, условные единицы). Total from-sum must equal total to-sum or the API"
-  },
-  {
-    "layer": "v4",
-    "method": "TransferMoney",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/TransferMoney.html",
-    "kind": "docs_field_missing_in_code",
-    "detail": "docs schema mentions 'Currency' but contract.example_param does not",
-    "snippet": "types=['PayCampElement', 'TransferMoneyInfo'] → has Currency"
-  },
-  {
-    "layer": "v4",
-    "method": "TransferMoney",
-    "url": "https://yandex.ru/dev/direct/doc/dg-v4/live/TransferMoney.html",
-    "kind": "required_field_missing_in_payload_module",
-    "detail": "Live 4 changelog marks 'Currency' required but contract.example_param does not include it",
     "snippet": null
   },
   {
@@ -977,26 +697,10 @@
   },
   {
     "layer": "v5",
-    "method": "vcards.get",
-    "url": "https://yandex.ru/dev/direct/doc/ru/get",
-    "kind": "v5_schema_not_extracted",
-    "detail": "page reachable but no /* TypeName */ schema block found",
-    "snippet": null
-  },
-  {
-    "layer": "v5",
-    "method": "vcards.add",
-    "url": "https://yandex.ru/dev/direct/doc/ru/add",
-    "kind": "docs_unreachable",
-    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
-    "snippet": null
-  },
-  {
-    "layer": "v5",
-    "method": "vcards.delete",
-    "url": "https://yandex.ru/dev/direct/doc/ru/delete",
-    "kind": "docs_unreachable",
-    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "method": "vcards.__group__",
+    "url": "https://api.direct.yandex.com/v5/vcards?wsdl",
+    "kind": "v5_wsdl_group_ok",
+    "detail": "WSDL endpoint reachable (13852 bytes); doc page removed by Yandex (see #463)",
     "snippet": null
   },
   {
@@ -1169,58 +873,10 @@
   },
   {
     "layer": "v5",
-    "method": "smartadtargets.get",
-    "url": "https://yandex.ru/dev/direct/doc/ru/get",
-    "kind": "v5_schema_not_extracted",
-    "detail": "page reachable but no /* TypeName */ schema block found",
-    "snippet": null
-  },
-  {
-    "layer": "v5",
-    "method": "smartadtargets.add",
-    "url": "https://yandex.ru/dev/direct/doc/ru/add",
-    "kind": "docs_unreachable",
-    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
-    "snippet": null
-  },
-  {
-    "layer": "v5",
-    "method": "smartadtargets.update",
-    "url": "https://yandex.ru/dev/direct/doc/ru/update",
-    "kind": "docs_unreachable",
-    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
-    "snippet": null
-  },
-  {
-    "layer": "v5",
-    "method": "smartadtargets.delete",
-    "url": "https://yandex.ru/dev/direct/doc/ru/delete",
-    "kind": "docs_unreachable",
-    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
-    "snippet": null
-  },
-  {
-    "layer": "v5",
-    "method": "smartadtargets.suspend",
-    "url": "https://yandex.ru/dev/direct/doc/ru/suspend",
-    "kind": "docs_unreachable",
-    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
-    "snippet": null
-  },
-  {
-    "layer": "v5",
-    "method": "smartadtargets.resume",
-    "url": "https://yandex.ru/dev/direct/doc/ru/resume",
-    "kind": "docs_unreachable",
-    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
-    "snippet": null
-  },
-  {
-    "layer": "v5",
-    "method": "smartadtargets.setBids",
-    "url": "https://yandex.ru/dev/direct/doc/ru/setBids",
-    "kind": "docs_unreachable",
-    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "method": "smartadtargets.__group__",
+    "url": "https://api.direct.yandex.com/v5/smartadtargets?wsdl",
+    "kind": "v5_wsdl_group_ok",
+    "detail": "WSDL endpoint reachable (21026 bytes); doc page removed by Yandex (see #463)",
     "snippet": null
   },
   {
@@ -1249,98 +905,18 @@
   },
   {
     "layer": "v5",
-    "method": "dynamicads.get",
-    "url": "https://yandex.ru/dev/direct/doc/ru/get",
-    "kind": "v5_schema_not_extracted",
-    "detail": "page reachable but no /* TypeName */ schema block found",
+    "method": "dynamicads.__group__",
+    "url": "https://api.direct.yandex.com/v5/dynamictextadtargets?wsdl",
+    "kind": "v5_wsdl_group_ok",
+    "detail": "WSDL endpoint reachable (17900 bytes); doc page removed by Yandex (see #463)",
     "snippet": null
   },
   {
     "layer": "v5",
-    "method": "dynamicads.add",
-    "url": "https://yandex.ru/dev/direct/doc/ru/add",
-    "kind": "docs_unreachable",
-    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
-    "snippet": null
-  },
-  {
-    "layer": "v5",
-    "method": "dynamicads.delete",
-    "url": "https://yandex.ru/dev/direct/doc/ru/delete",
-    "kind": "docs_unreachable",
-    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
-    "snippet": null
-  },
-  {
-    "layer": "v5",
-    "method": "dynamicads.suspend",
-    "url": "https://yandex.ru/dev/direct/doc/ru/suspend",
-    "kind": "docs_unreachable",
-    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
-    "snippet": null
-  },
-  {
-    "layer": "v5",
-    "method": "dynamicads.resume",
-    "url": "https://yandex.ru/dev/direct/doc/ru/resume",
-    "kind": "docs_unreachable",
-    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
-    "snippet": null
-  },
-  {
-    "layer": "v5",
-    "method": "dynamicads.setBids",
-    "url": "https://yandex.ru/dev/direct/doc/ru/setBids",
-    "kind": "docs_unreachable",
-    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
-    "snippet": null
-  },
-  {
-    "layer": "v5",
-    "method": "dynamicfeedadtargets.get",
-    "url": "https://yandex.ru/dev/direct/doc/ru/get",
-    "kind": "v5_schema_not_extracted",
-    "detail": "page reachable but no /* TypeName */ schema block found",
-    "snippet": null
-  },
-  {
-    "layer": "v5",
-    "method": "dynamicfeedadtargets.add",
-    "url": "https://yandex.ru/dev/direct/doc/ru/add",
-    "kind": "docs_unreachable",
-    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
-    "snippet": null
-  },
-  {
-    "layer": "v5",
-    "method": "dynamicfeedadtargets.delete",
-    "url": "https://yandex.ru/dev/direct/doc/ru/delete",
-    "kind": "docs_unreachable",
-    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
-    "snippet": null
-  },
-  {
-    "layer": "v5",
-    "method": "dynamicfeedadtargets.suspend",
-    "url": "https://yandex.ru/dev/direct/doc/ru/suspend",
-    "kind": "docs_unreachable",
-    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
-    "snippet": null
-  },
-  {
-    "layer": "v5",
-    "method": "dynamicfeedadtargets.resume",
-    "url": "https://yandex.ru/dev/direct/doc/ru/resume",
-    "kind": "docs_unreachable",
-    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
-    "snippet": null
-  },
-  {
-    "layer": "v5",
-    "method": "dynamicfeedadtargets.setBids",
-    "url": "https://yandex.ru/dev/direct/doc/ru/setBids",
-    "kind": "docs_unreachable",
-    "detail": "fetcher status=captcha-after-retries attempts=3 note=''",
+    "method": "dynamicfeedadtargets.__group__",
+    "url": "https://api.direct.yandex.com/v5/dynamicfeedadtargets?wsdl",
+    "kind": "v5_wsdl_group_ok",
+    "detail": "WSDL endpoint reachable (16976 bytes); doc page removed by Yandex (see #463)",
     "snippet": null
   },
   {
