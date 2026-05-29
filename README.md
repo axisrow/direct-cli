@@ -111,6 +111,12 @@ direct balance --logins client-login --dry-run
 | `--login` | Direct client login |
 | `--profile` | Credential profile name |
 | `--sandbox` | Use sandbox API |
+| `--locale` | Help/message language: `ru` (default) or `en`. Also set via `YANDEX_DIRECT_CLI_LOCALE`. Command and flag names are unchanged. |
+
+Help text is shown in Russian by default. Switch to English with
+`direct --locale en ...` or `export YANDEX_DIRECT_CLI_LOCALE=en`. For example,
+`direct v4finance --help` shows the financial master-token setup steps using
+the locale-appropriate Yandex Direct UI labels.
 
 ### V4 Live Goals
 

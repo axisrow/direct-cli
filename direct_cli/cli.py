@@ -8,6 +8,11 @@ from click.core import ParameterSource
 
 from . import __version__
 from .auth import get_active_profile, get_credentials, load_env_file
+from .i18n import (
+    LOCALE_ENV_VAR,
+    resolve_locale,
+    t,
+)
 from .utils import get_docs_url
 
 from .commands.campaigns import campaigns
@@ -155,6 +160,21 @@ class DirectCliGroup(_NoSuchOptionHintMixin, click.Group):
 
     command_class = DirectCliCommand
 
+    def format_epilog(self, ctx, formatter):
+        """Render a locale-aware epilog when the group opts into i18n.
+
+        A group sets ``localized_epilog_key`` (a key in ``i18n.CATALOG``) and,
+        optionally, ``localized_epilog_suffix`` (an already-built tail appended
+        verbatim so single-sourced text such as ``V4_EPILOG`` is not
+        duplicated). Groups without the attribute keep their static epilog.
+        """
+        key = getattr(self, "localized_epilog_key", None)
+        if key:
+            text = t(key, resolve_locale(ctx))
+            suffix = getattr(self, "localized_epilog_suffix", None)
+            self.epilog = f"{text}\n\n{suffix}" if suffix else text
+        super().format_epilog(ctx, formatter)
+
 
 def _apply_directcli_classes(command: click.Command) -> None:
     """Recursively retype *command* (and subcommands) so every node in the
@@ -183,6 +203,12 @@ def _apply_directcli_classes(command: click.Command) -> None:
 @click.option("--profile", help="Credential profile name")
 @click.option("--sandbox", is_flag=True, help="Use sandbox API")
 @click.option(
+    "--locale",
+    envvar=LOCALE_ENV_VAR,
+    default=None,
+    help="Language for help and messages (ru or en; default: ru)",
+)
+@click.option(
     "--op-token-ref",
     envvar="YANDEX_DIRECT_OP_TOKEN_REF",
     help="1Password secret reference for token (e.g. op://vault/item/token)",
@@ -209,6 +235,7 @@ def cli(
     login,
     profile,
     sandbox,
+    locale,
     op_token_ref,
     op_login_ref,
     bw_token_ref,
@@ -218,6 +245,7 @@ def cli(
     ctx.ensure_object(dict)
     ctx.obj["sandbox"] = sandbox
     ctx.obj["profile"] = profile
+    ctx.obj["locale"] = locale
     active_profile = None
     if ctx.invoked_subcommand != "auth":
         active_profile = get_active_profile()
