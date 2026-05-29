@@ -1,0 +1,52 @@
+interactions:
+- request:
+    body: '{"method":"GetStatGoals","param":{"CampaignIDS":[700012672]},"token":"<REDACTED>","locale":"en"}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '96'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.34.2
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+    method: POST
+    uri: https://api-sandbox.direct.yandex.ru/live/v4/json/
+  response:
+    body:
+      string: '{"data":[]}'
+    headers:
+      Content-Security-Policy:
+      - default-src 'none'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Fri, 29 May 2026 06:38:06 GMT
+      RequestId:
+      - '1960449532692433252'
+      Set-Cookie:
+      - REDACTED
+      Transfer-Encoding:
+      - chunked
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.json-api/GetStatGoals
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+      content-length:
+      - '11'
+    status:
+      code: 200
+      message: OK
+version: 1
