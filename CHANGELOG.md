@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.4.1 (unreleased)
+
+Russian-default CLI localization across all command modules (epic #466).
+
+**Added — scalable i18n mechanism (#467):**
+
+- Source-string-keyed translation catalog: the English `help=` / docstring /
+  epilog text is the catalog key, with Russian translations in external
+  `direct_cli/translations/*.json` files (one per module, plus shared
+  `common.json`). No `cls=`/`help_key` edits in command modules —
+  `cli._apply_directcli_classes` retypes every plain `click.Option` to
+  `LocalizedOption` and localizes command/group docstrings and epilogs at
+  render time.
+- `t()` is now source-keyed and context-free safe (`set_active_locale`), so
+  `print_*` runtime messages localize too. `--locale` is eager so the root
+  `--help` epilog honors an inline `--locale`.
+- `tests/test_i18n.py` gains a `LOCALIZED_GROUPS` registry with two enforced
+  invariants per localized module: translation completeness (no silent English
+  leak under the Russian default) and `print_*` runtime-message wrapping.
+- `v4finance` migrated to the new mechanism and fully localized as the
+  reference module.
+
 ## 0.4.0
 
 Milestone release closing the 0.4.0 roadmap (#123): typed Yandex Direct

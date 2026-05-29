@@ -10,7 +10,9 @@ from . import __version__
 from .auth import get_active_profile, get_credentials, load_env_file
 from .i18n import (
     LOCALE_ENV_VAR,
+    LocalizedOption,
     resolve_locale,
+    set_active_locale,
     t,
 )
 from .utils import get_docs_url
@@ -152,43 +154,103 @@ class _NoSuchOptionHintMixin:
             raise
 
 
-class DirectCliCommand(_NoSuchOptionHintMixin, click.Command):
-    """Click Command that augments NoSuchOption errors with sibling hints."""
+class _LocalizedHelpMixin:
+    """Mixin that localizes a command/group docstring at render time.
+
+    The English docstring (``self.help``) is the catalog key; the resolved-locale
+    text is substituted while Click formats help and restored afterwards so the
+    source key stays stable. ``format_help_text`` also primes the process-wide
+    active locale so the short-help lines that Click renders next (via
+    context-free ``get_short_help_str``) use the same locale.
+    """
+
+    def format_help_text(self, ctx, formatter):
+        set_active_locale(resolve_locale(ctx))
+        if self.help:
+            original = self.help
+            self.help = t(self.help, resolve_locale(ctx))
+            try:
+                super().format_help_text(ctx, formatter)
+            finally:
+                self.help = original
+            return
+        super().format_help_text(ctx, formatter)
+
+    def get_short_help_str(self, limit=45):
+        if self.help:
+            original = self.help
+            self.help = t(self.help)
+            try:
+                return super().get_short_help_str(limit)
+            finally:
+                self.help = original
+        return super().get_short_help_str(limit)
 
 
-class DirectCliGroup(_NoSuchOptionHintMixin, click.Group):
-    """Click Group that retypes descendants and augments NoSuchOption on
-    the group itself (e.g. `direct ads --bogus get`)."""
+class DirectCliCommand(_LocalizedHelpMixin, _NoSuchOptionHintMixin, click.Command):
+    """Click Command that localizes help and augments NoSuchOption errors."""
+
+
+class DirectCliGroup(_LocalizedHelpMixin, _NoSuchOptionHintMixin, click.Group):
+    """Click Group that retypes descendants, localizes help, and augments
+    NoSuchOption on the group itself (e.g. `direct ads --bogus get`)."""
 
     command_class = DirectCliCommand
 
     def format_epilog(self, ctx, formatter):
-        """Render a locale-aware epilog when the group opts into i18n.
+        """Render a locale-aware epilog.
 
-        A group sets ``localized_epilog_key`` (a key in ``i18n.CATALOG``) and,
-        optionally, ``localized_epilog_suffix`` (an already-built tail appended
-        verbatim so single-sourced text such as ``V4_EPILOG`` is not
-        duplicated). Groups without the attribute keep their static epilog.
+        A group may set ``i18n_epilog_text`` (an English source string in the
+        catalog) and, optionally, ``i18n_epilog_suffix`` (an already-built tail
+        appended verbatim so single-sourced text such as ``V4_EPILOG`` — which
+        carries a registry-owned docs URL — is not copied into translations).
+        Otherwise any plain ``self.epilog`` is translated by source string,
+        a no-op when it has no catalog entry (e.g. ``Documentation: <url>``).
         """
-        key = getattr(self, "localized_epilog_key", None)
-        if key:
-            text = t(key, resolve_locale(ctx))
-            suffix = getattr(self, "localized_epilog_suffix", None)
-            self.epilog = f"{text}\n\n{suffix}" if suffix else text
-        super().format_epilog(ctx, formatter)
+        original = self.epilog
+        text_source = getattr(self, "i18n_epilog_text", None)
+        if text_source is not None:
+            translated = t(text_source, resolve_locale(ctx))
+            suffix = getattr(self, "i18n_epilog_suffix", None)
+            self.epilog = f"{translated}\n\n{suffix}" if suffix else translated
+        elif self.epilog:
+            self.epilog = t(self.epilog, resolve_locale(ctx))
+        try:
+            super().format_epilog(ctx, formatter)
+        finally:
+            # Restore the English source so repeated renders (and a later
+            # render in another locale) translate from the original, not from
+            # an already-translated string.
+            self.epilog = original
+
+
+def _localize_options(command: click.Command) -> None:
+    """Retype every plain ``click.Option`` on *command* to ``LocalizedOption``.
+
+    This is the i18n counterpart to the command retyping below: modules declare
+    options with plain ``@click.option(..., help="English")`` and the English
+    help is localized at render time without any ``cls=``/``help_key`` edits.
+    The exact-type check leaves custom option subclasses untouched, mirroring
+    the command retyping rationale.
+    """
+    for param in command.params:
+        if type(param) is click.Option:  # noqa: PIE789 — see docstring
+            param.__class__ = LocalizedOption
 
 
 def _apply_directcli_classes(command: click.Command) -> None:
     """Recursively retype *command* (and subcommands) so every node in the
-    tree intercepts NoSuchOption.
+    tree intercepts NoSuchOption and localizes help/options.
 
     Subcommand modules use plain ``@click.group()`` / ``@click.command()``
-    without ``cls=``. Rather than touch 39 command files, we mutate
-    ``__class__`` after registration. The identity check (``type(...) is``
-    rather than ``isinstance``) is deliberate: a contributor who registers
-    a command with a custom subclass is opting out of the hint, not into
-    silent retyping that would discard their behaviour.
+    without ``cls=`` and plain ``@click.option(...)`` without ``cls=``. Rather
+    than touch 41 command files, we mutate ``__class__`` after registration. The
+    identity check (``type(...) is`` rather than ``isinstance``) is deliberate:
+    a contributor who registers a command/option with a custom subclass is
+    opting out of the hint, not into silent retyping that would discard their
+    behaviour.
     """
+    _localize_options(command)
     if isinstance(command, click.Group):
         if type(command) is click.Group:  # noqa: PIE789 — see docstring
             command.__class__ = DirectCliGroup
@@ -196,6 +258,22 @@ def _apply_directcli_classes(command: click.Command) -> None:
             _apply_directcli_classes(subcommand)
     elif type(command) is click.Command:  # noqa: PIE789 — see docstring
         command.__class__ = DirectCliCommand
+
+
+def _set_locale_eager(ctx, param, value):
+    """Stash and prime the locale during parsing, before any eager ``--help``.
+
+    ``--help``/``--version`` are eager and can render (and short-circuit) before
+    the group callback runs, so without this the root ``--help`` epilog would
+    ignore an inline ``--locale``. Making ``--locale`` eager and storing it on
+    the context lets ``resolve_locale`` find it during help rendering. The value
+    is returned unchanged so the group callback still receives it.
+    """
+    if value:
+        ctx.ensure_object(dict)
+        ctx.obj["locale"] = value
+        set_active_locale(resolve_locale(ctx))
+    return value
 
 
 @click.group(name="direct", cls=DirectCliGroup, epilog=CLI_EPILOG)
@@ -208,6 +286,8 @@ def _apply_directcli_classes(command: click.Command) -> None:
     "--locale",
     envvar=LOCALE_ENV_VAR,
     default=None,
+    is_eager=True,
+    callback=_set_locale_eager,
     help="Language for help and messages (ru or en; default: ru)",
 )
 @click.option(
@@ -248,6 +328,10 @@ def cli(
     ctx.obj["sandbox"] = sandbox
     ctx.obj["profile"] = profile
     ctx.obj["locale"] = locale
+    # Prime the process-wide locale so print_* runtime messages localize even
+    # where no Click context is threaded through. Help rendering re-primes from
+    # its own context (see _LocalizedHelpMixin.format_help_text).
+    set_active_locale(resolve_locale(ctx))
     active_profile = None
     if ctx.invoked_subcommand != "auth":
         active_profile = get_active_profile()
@@ -369,6 +453,10 @@ for command in (
     auth,
 ):
     _register_command(command)
+
+# Localize the root group's own options (--token, --locale, ...); these do not
+# pass through _register_command, which only walks registered subcommands.
+_localize_options(cli)
 
 
 if __name__ == "__main__":

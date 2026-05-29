@@ -57,8 +57,8 @@ class TestCLI(unittest.TestCase):
         self.runner = CliRunner()
 
     def test_cli_help(self):
-        """Test CLI help command"""
-        result = self.runner.invoke(cli, ["--help"])
+        """Test CLI help command (English opt-in via --locale en)."""
+        result = self.runner.invoke(cli, ["--locale", "en", "--help"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("Command-line interface for Yandex Direct API", result.output)
         self.assertIn("Usage: direct", result.output)
@@ -69,6 +69,13 @@ class TestCLI(unittest.TestCase):
         self.assertIn("direct auth status", result.output)
         self.assertIn("Item-level Yandex Direct Errors", result.output)
         self.assertIn("Error 8800", result.output)
+
+    def test_cli_help_russian_by_default(self):
+        """Root help and epilog default to Russian."""
+        result = self.runner.invoke(cli, ["--help"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("Контекст учётных данных", result.output)
+        self.assertIn("Ошибка 8800", result.output)
 
     def test_cli_version(self):
         """Test CLI version command"""

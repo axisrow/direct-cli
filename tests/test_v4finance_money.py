@@ -767,9 +767,13 @@ def test_finance_commands_help_carries_not_tested_disclaimer():
         ("v4finance", "pay-campaigns", "--help"),
         ("v4finance", "pay-campaigns-by-card", "--help"),
     ]:
-        result = _invoke(*args)
-        assert result.exit_code == 0
-        assert "Not tested against the live API" in result.output
+        # Russian is the default locale; English is opt-in via --locale en.
+        result_ru = _invoke(*args)
+        assert result_ru.exit_code == 0
+        assert "Не проверено на боевом API" in result_ru.output
+        result_en = _invoke("--locale", "en", *args)
+        assert result_en.exit_code == 0
+        assert "Not tested against the live API" in result_en.output
 
 
 def test_v4finance_money_help_contains_no_json_input_flag():
