@@ -28,11 +28,14 @@ Coverage notes — v5 read commands intentionally NOT recorded here:
 
     agencyclients get   — account is not an agency (API error 54)
 
-v4 read commands are NOT covered by this suite: vcrpy cannot intercept the
-vendored v4 Live HTTP client in ``--record-mode=rewrite`` (recording hangs
-indefinitely even for a single v4 case, although each v4 command runs in
-1-2s outside pytest). v4 read paths remain covered by the live
-``test_v4_live_contracts.py`` suite until VCR×v4 is resolved separately.
+v4 read commands ARE covered (see the ``v4*`` cases below). vcrpy records the
+vendored v4 Live client through the same ``requests``/``urllib3`` transport as
+v5 — there is no incompatibility. Earlier recording attempts hung because the
+v4 adapter retried request-limit errors (code 54/55) in an unbounded loop; that
+loop is now bounded (``v4/adapter.py`` ``retry_request``), so ``--record-mode=
+rewrite`` no longer hangs. The ``v4finance check-payment`` case is recorded as a
+*deterministic error* (``error_code=370``, "Transaction does not exist"), so it
+asserts a non-zero exit and the error string instead of success.
 """
 
 from __future__ import annotations
@@ -46,7 +49,7 @@ from click.testing import CliRunner
 from direct_cli.cli import cli
 
 sys.path.insert(0, os.path.dirname(__file__))
-from conftest import _REAL_LOGIN, _REAL_TOKEN  # noqa: E402
+from conftest import _REAL_LOGIN, _REAL_TOKEN, _REDACTED  # noqa: E402
 
 # Stable sandbox fixtures (confirmed live against the recording account).
 SANDBOX_CAMPAIGN_ID = "700012672"
@@ -96,9 +99,12 @@ READ_CASES: list[tuple[str, list[str]]] = [
     (
         "changes_check",
         [
-            "changes", "check",
-            "--campaign-ids", SANDBOX_CAMPAIGN_ID,
-            "--timestamp", "2026-05-29T00:00:00Z",
+            "changes",
+            "check",
+            "--campaign-ids",
+            SANDBOX_CAMPAIGN_ID,
+            "--timestamp",
+            "2026-05-29T00:00:00Z",
         ],
     ),
     (
@@ -109,25 +115,40 @@ READ_CASES: list[tuple[str, list[str]]] = [
     (
         "keywordsresearch_has_search_volume",
         [
-            "keywordsresearch", "has-search-volume",
-            "--keywords", "купить телефон",
-            "--region-ids", "213",
+            "keywordsresearch",
+            "has-search-volume",
+            "--keywords",
+            "купить телефон",
+            "--region-ids",
+            "213",
         ],
     ),
     (
         "keywordsresearch_deduplicate",
-        ["keywordsresearch", "deduplicate", "--keywords", "купить телефон,телефон купить"],
+        [
+            "keywordsresearch",
+            "deduplicate",
+            "--keywords",
+            "купить телефон,телефон купить",
+        ],
     ),
     (
         "reports_get",
         [
-            "reports", "get",
-            "--type", "campaign_performance_report",
-            "--from", "2026-05-01",
-            "--to", "2026-05-28",
-            "--name", "vcr_camp_perf",
-            "--fields", "CampaignId,Impressions,Clicks,Cost",
-            "--campaign-ids", SANDBOX_CAMPAIGN_ID,
+            "reports",
+            "get",
+            "--type",
+            "campaign_performance_report",
+            "--from",
+            "2026-05-01",
+            "--to",
+            "2026-05-28",
+            "--name",
+            "vcr_camp_perf",
+            "--fields",
+            "CampaignId,Impressions,Clicks,Cost",
+            "--campaign-ids",
+            SANDBOX_CAMPAIGN_ID,
         ],
     ),
     ("sitelinks_get", ["sitelinks", "get"]),
@@ -135,7 +156,10 @@ READ_CASES: list[tuple[str, list[str]]] = [
     ("feeds_get", ["feeds", "get"]),
     ("bids_get", ["bids", "get", "--campaign-ids", SANDBOX_CAMPAIGN_ID]),
     ("keywordbids_get", ["keywordbids", "get", "--campaign-ids", SANDBOX_CAMPAIGN_ID]),
-    ("bidmodifiers_get", ["bidmodifiers", "get", "--campaign-ids", SANDBOX_CAMPAIGN_ID]),
+    (
+        "bidmodifiers_get",
+        ["bidmodifiers", "get", "--campaign-ids", SANDBOX_CAMPAIGN_ID],
+    ),
     (
         "audiencetargets_get",
         ["audiencetargets", "get", "--campaign-ids", SANDBOX_CAMPAIGN_ID],
@@ -146,6 +170,35 @@ READ_CASES: list[tuple[str, list[str]]] = [
         ["smartadtargets", "get", "--campaign-ids", SANDBOX_CAMPAIGN_ID],
     ),
     ("negativekeywordsharedsets_get", ["negativekeywordsharedsets", "get"]),
+    # ── v4 Live read commands ──────────────────────────────────────────
+    # All run against --sandbox and return a success body (exit 0). The v4
+    # Live client shares the requests/urllib3 transport vcrpy patches, so
+    # these record and replay exactly like the v5 cases above.
+    (
+        "v4goals_get_stat_goals",
+        ["v4goals", "get-stat-goals", "--campaign-ids", SANDBOX_CAMPAIGN_ID],
+    ),
+    (
+        "v4tags_get_campaigns",
+        ["v4tags", "get-campaigns", "--campaign-ids", SANDBOX_CAMPAIGN_ID],
+    ),
+    ("v4forecast_list", ["v4forecast", "list"]),
+    ("v4wordstat_list_reports", ["v4wordstat", "list-reports"]),
+    (
+        "v4events_get_events_log",
+        [
+            "v4events",
+            "get-events-log",
+            "--from",
+            "2026-05-01T00:00:00",
+            "--to",
+            "2026-05-28T00:00:00",
+        ],
+    ),
+    (
+        "v4finance_get_clients_units",
+        ["v4finance", "get-clients-units", "--logins", _REAL_LOGIN or _REDACTED],
+    ),
 ]
 
 
@@ -165,3 +218,35 @@ def test_read_command(cassette_id: str, args: list[str]) -> None:
     # Output must be present (JSON list/object or TSV report body); an
     # empty sandbox list is valid and still non-empty as text.
     assert result.output.strip() != "", f"[{cassette_id}] produced no output"
+
+
+# A 32-char latin-alphanumeric transaction id that does not exist — the v4
+# Live CheckPayment method answers deterministically with error_code=370
+# ("Transaction does not exist"). This makes a stable, secret-free cassette
+# for the read-only error path that the success-only READ_CASES can't model.
+_NONEXISTENT_TRANSACTION_ID = "abcdef0123456789abcdef0123456789"
+
+
+@pytest.mark.vcr
+def test_v4finance_check_payment_unknown_transaction() -> None:
+    """v4finance check-payment replays a deterministic error_code=370.
+
+    Unlike the success cases, this command aborts (non-zero exit) when the
+    transaction is unknown — which is exactly the deterministic, side-effect
+    free response we want to lock into a cassette.
+    """
+    result = _invoke_read(
+        [
+            "v4finance",
+            "check-payment",
+            "--custom-transaction-id",
+            _NONEXISTENT_TRANSACTION_ID,
+        ]
+    )
+    assert result.exit_code != 0, (
+        f"expected non-zero exit for unknown transaction, got {result.exit_code}\n"
+        f"output: {result.output}"
+    )
+    assert (
+        "error_code=370" in result.output
+    ), f"expected error_code=370 in output, got: {result.output}"

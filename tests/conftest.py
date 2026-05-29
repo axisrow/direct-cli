@@ -140,6 +140,17 @@ def _before_record_request(request):
             rb'"token":"[^"]*"', b'"token":"<REDACTED>"', request.body
         )
         redacted = True
+    # The login can also be echoed inside the request body — e.g. the v4
+    # `GetClientsUnits` call sends the account login as a `Logins` param.
+    if _REAL_LOGIN and request.body:
+        if isinstance(request.body, str) and _REAL_LOGIN in request.body:
+            request.body = request.body.replace(_REAL_LOGIN, _REDACTED)
+            redacted = True
+        elif isinstance(request.body, bytes) and _REAL_LOGIN.encode() in request.body:
+            request.body = request.body.replace(
+                _REAL_LOGIN.encode(), _REDACTED.encode()
+            )
+            redacted = True
     if redacted:
         new_body = request.body
         new_len = str(
@@ -171,9 +182,11 @@ def _before_record_response(response):
             continue
         if low == "x-accel-info":
             headers[key] = [
-                re.sub(r"reqid:\d+", "reqid:0000000000000000000", v)
-                if isinstance(v, str)
-                else v
+                (
+                    re.sub(r"reqid:\d+", "reqid:0000000000000000000", v)
+                    if isinstance(v, str)
+                    else v
+                )
                 for v in headers[key]
             ]
             continue
@@ -259,9 +272,9 @@ def parse_add_result(result, key: str = "AddResults") -> int:
         items = data.get(key, data.get("SetItems", []))
     assert items, f"No results in add response: {result.output[:500]}"
     first = items[0]
-    assert "Errors" not in first or not first["Errors"], (
-        f"API rejected add: {first.get('Errors')}"
-    )
+    assert (
+        "Errors" not in first or not first["Errors"]
+    ), f"API rejected add: {first.get('Errors')}"
     assert "Id" in first, f"No Id in add result: {first}"
     return first["Id"]
 
@@ -275,9 +288,9 @@ def parse_first_result(result, key: str = "AddResults") -> dict:
         items = data.get(key, data.get("SetItems", []))
     assert items, f"No results in response: {result.output[:500]}"
     first = items[0]
-    assert "Errors" not in first or not first["Errors"], (
-        f"API rejected: {first.get('Errors')}"
-    )
+    assert (
+        "Errors" not in first or not first["Errors"]
+    ), f"API rejected: {first.get('Errors')}"
     return first
 
 

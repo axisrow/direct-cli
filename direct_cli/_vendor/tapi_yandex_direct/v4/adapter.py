@@ -176,9 +176,15 @@ class V4LiveClientAdapter(JSONAdapterMixin, TapiAdapter):
                 code = 0
 
         if code in (54, 55) and api_params.get("retry_if_exceeded_limit", True):
-            logger.warning("v4 Live limit exceeded (code=%s), retry in 10s", code)
-            time.sleep(10)
-            return True
+            # Bound the limit-exceeded retries with the same attempt budget as
+            # the server-error branch below.  Without this guard the loop is
+            # infinite (sleep 10s, retry, forever) whenever the API keeps
+            # returning code 54/55 — which hangs the caller indefinitely.
+            if repeat_number < api_params.get("retries_if_server_error", 5):
+                logger.warning("v4 Live limit exceeded (code=%s), retry in 10s", code)
+                time.sleep(10)
+                return True
+            return False
 
         if code in (52, 1000, 1001, 1002) or response.status_code == 500:
             if repeat_number < api_params.get("retries_if_server_error", 5):
