@@ -422,9 +422,16 @@ def audit_v4(
                 fetched = fetched_ref
                 url_used = reference_url
 
-        # notes-points-at-reference only fires when a Live URL also exists
-        # and the contract still pins reference — i.e. the exact #125 bug.
-        if "dg-v4/reference/" in notes and url_used == live_url:
+        # notes-points-at-reference only fires when the Live URL was actually
+        # read (status ok) and the contract still pins reference — i.e. the
+        # exact #125 bug. Gating on status==ok avoids asserting "live exists,
+        # drop reference" on the basis of a captcha-blocked page we never
+        # verified (15/16 v4 methods were captcha'd in the 2026-05-29 run).
+        if (
+            "dg-v4/reference/" in notes
+            and url_used == live_url
+            and fetched.status == "ok"
+        ):
             findings.append(
                 Finding(
                     "v4", method, live_url,
