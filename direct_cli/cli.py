@@ -9,8 +9,6 @@ from click.core import ParameterSource
 from . import __version__
 from .auth import get_active_profile, get_credentials, load_env_file
 from .i18n import (
-    DEFAULT_LOCALE,
-    SUPPORTED_LOCALES,
     LOCALE_ENV_VAR,
     resolve_locale,
     t,
@@ -207,10 +205,8 @@ def _apply_directcli_classes(command: click.Command) -> None:
 @click.option(
     "--locale",
     envvar=LOCALE_ENV_VAR,
-    default=DEFAULT_LOCALE,
-    show_default=True,
-    type=click.Choice(SUPPORTED_LOCALES),
-    help="Language for help and messages (ru or en)",
+    default=None,
+    help="Language for help and messages (ru or en; default: ru)",
 )
 @click.option(
     "--op-token-ref",

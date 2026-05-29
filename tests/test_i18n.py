@@ -69,6 +69,32 @@ def test_v4finance_help_english_via_env_var():
     assert "master token in the Yandex" in result.output
 
 
+def test_uppercase_env_locale_is_normalized_not_rejected():
+    # A non-canonical case ("EN") must normalize to "en", not hard-fail the
+    # command via strict click.Choice validation on the env var.
+    result = _invoke("v4finance", "--help", env={"YANDEX_DIRECT_CLI_LOCALE": "EN"})
+    assert result.exit_code == 0
+    assert "master token in the Yandex" in result.output
+
+
+def test_invalid_env_locale_degrades_to_russian_default():
+    # An unsupported env locale must degrade to the Russian default rather
+    # than breaking every command (regression: strict Choice on the env var
+    # used to raise "Invalid value for '--locale'" and abort with exit 2).
+    result = _invoke("v4finance", "--help", env={"YANDEX_DIRECT_CLI_LOCALE": "fr"})
+    assert result.exit_code == 0
+    assert "Invalid value" not in result.output
+    assert "мастер-токен" in result.output
+
+
+def test_invalid_locale_flag_degrades_to_russian_default():
+    # Same lenient handling for the explicit flag form.
+    result = _invoke("--locale", "fr", "v4finance", "--help")
+    assert result.exit_code == 0
+    assert "Invalid value" not in result.output
+    assert "мастер-токен" in result.output
+
+
 # --- option help -----------------------------------------------------------
 
 
