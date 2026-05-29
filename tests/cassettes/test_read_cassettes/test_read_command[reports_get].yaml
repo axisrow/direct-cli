@@ -1,0 +1,64 @@
+interactions:
+- request:
+    body: '{"params":{"SelectionCriteria":{"DateFrom":"2026-05-01","DateTo":"2026-05-28","Filter":[{"Field":"CampaignId","Operator":"IN","Values":["700012672"]}]},"FieldNames":["CampaignId","Impressions","Clicks","Cost"],"ReportName":"vcr_camp_perf","ReportType":"CAMPAIGN_PERFORMANCE_REPORT","DateRangeType":"CUSTOM_DATE","Format":"TSV","IncludeVAT":"YES","IncludeDiscount":"YES"}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '371'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.34.2
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/reports
+  response:
+    body:
+      string: "CampaignId\tImpressions\tClicks\tCost\n"
+    headers:
+      Content-Security-Policy:
+      - default-src 'none'
+      Content-Type:
+      - text/tab-separated-values; charset=utf-8
+      Date:
+      - Fri, 29 May 2026 04:16:41 GMT
+      RequestId:
+      - '9101122425911485242'
+      Set-Cookie:
+      - REDACTED
+      Transfer-Encoding:
+      - chunked
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.json-api/reports.create,appcode:0
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+      content-length:
+      - '35'
+      reportsInQueue:
+      - '0'
+    status:
+      code: 200
+      message: OK
+version: 1

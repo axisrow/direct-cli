@@ -1,0 +1,56 @@
+interactions:
+- request:
+    body: '{"method":"get","params":{"SelectionCriteria":{"Ids":["1122065647"]},"FieldNames":["Id","Status"]}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '99'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.34.2
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api-sandbox.direct.yandex.ru/json/v5/advideos
+  response:
+    body:
+      string: '{"result":{"AdVideos":[]}}'
+    headers:
+      Content-Length:
+      - '26'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Fri, 29 May 2026 04:16:34 GMT
+      RequestId:
+      - '7160369392380937494'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 10/159496/160000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.api5/advideos.get,appcode:0
+    status:
+      code: 200
+      message: OK
+version: 1
