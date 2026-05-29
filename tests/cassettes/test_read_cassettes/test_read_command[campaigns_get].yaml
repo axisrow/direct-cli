@@ -32,8 +32,7 @@ interactions:
     uri: https://api-sandbox.direct.yandex.ru/json/v5/campaigns
   response:
     body:
-      string: "{\"result\":{\"Campaigns\":[{\"ClientInfo\":\"\u041B\u0443\u043A\u044C\u044F\u043D\u0447\u0443\u043A
-        \u0410\u043B\u0435\u043A\u0441\u0435\u0439\",\"Id\":700012135,\"Name\":\"Test
+      string: "{\"result\":{\"Campaigns\":[{\"ClientInfo\":\"REDACTED\",\"Id\":700012135,\"Name\":\"Test
         API Sandbox campaign 1\",\"StartDate\":\"2026-05-19\",\"Type\":\"TEXT_CAMPAIGN\",\"Status\":\"DRAFT\",\"State\":\"OFF\",\"DailyBudget\":null,\"EndDate\":null}]}}"
     headers:
       Content-Type:
