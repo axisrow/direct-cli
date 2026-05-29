@@ -66,6 +66,116 @@ def test_get_events_log_dry_run_adds_optional_pagination_when_passed():
     }
 
 
+def test_get_events_log_dry_run_builds_full_body_with_nested_filter():
+    result = _invoke(
+        "v4events",
+        "get-events-log",
+        "--from",
+        "2026-04-14T00:00:00",
+        "--to",
+        "2026-04-14T01:00:00",
+        "--last-event-only",
+        "No",
+        "--with-text-description",
+        "Yes",
+        "--currency",
+        "RUB",
+        "--logins",
+        "client-login,other-client",
+        "--filter-campaign-ids",
+        "123,456",
+        "--filter-banner-ids",
+        "789",
+        "--filter-phrase-ids",
+        "1011",
+        "--filter-account-ids",
+        "12",
+        "--filter-event-type",
+        "MoneyOut,MoneyIn",
+        "--limit",
+        "50",
+        "--offset",
+        "10",
+        "--dry-run",
+    )
+
+    assert result.exit_code == 0
+    assert json.loads(result.output) == {
+        "method": "GetEventsLog",
+        "param": {
+            "TimestampFrom": "2026-04-14T00:00:00",
+            "TimestampTo": "2026-04-14T01:00:00",
+            "LastEventOnly": "No",
+            "WithTextDescription": "Yes",
+            "Currency": "RUB",
+            "Logins": ["client-login", "other-client"],
+            "Filter": {
+                "CampaignIDS": [123, 456],
+                "BannerIDS": [789],
+                "PhraseIDS": [1011],
+                "AccountIDS": [12],
+                "EventType": ["MoneyOut", "MoneyIn"],
+            },
+            "Limit": 50,
+            "Offset": 10,
+        },
+    }
+
+
+def test_get_events_log_omits_filter_when_no_filter_options():
+    result = _invoke(
+        "v4events",
+        "get-events-log",
+        "--from",
+        "2026-04-14T00:00:00",
+        "--to",
+        "2026-04-14T01:00:00",
+        "--logins",
+        "client-login",
+        "--dry-run",
+    )
+
+    assert result.exit_code == 0
+    param = json.loads(result.output)["param"]
+    assert "Filter" not in param
+    assert param["Logins"] == ["client-login"]
+
+
+def test_get_events_log_rejects_unknown_event_type():
+    result = _invoke(
+        "v4events",
+        "get-events-log",
+        "--from",
+        "2026-04-14T00:00:00",
+        "--to",
+        "2026-04-14T01:00:00",
+        "--filter-event-type",
+        "MoneyOut,Bogus",
+        "--dry-run",
+    )
+
+    assert result.exit_code != 0
+    assert "unknown values: Bogus" in result.output
+
+
+def test_get_events_log_rejects_invalid_filter_id_before_api_call():
+    with patch("direct_cli.commands.v4events.create_v4_client") as create_client:
+        result = _invoke(
+            "v4events",
+            "get-events-log",
+            "--from",
+            "2026-04-14T00:00:00",
+            "--to",
+            "2026-04-14T01:00:00",
+            "--filter-campaign-ids",
+            "123,abc",
+        )
+
+    assert result.exit_code != 0
+    assert "--filter-campaign-ids" in result.output
+    create_client.assert_not_called()
+
+
 @pytest.mark.parametrize(
     "timestamp",
     [

@@ -198,12 +198,8 @@ def test_v4finance_money_contracts_are_docs_backed_dangerous_objects():
     assert build_v4_body("TransferMoney", transfer.example_param) == {
         "method": "TransferMoney",
         "param": {
-            "FromCampaigns": [
-                {"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"}
-            ],
-            "ToCampaigns": [
-                {"CampaignID": 456, "Sum": 100.5, "Currency": "RUB"}
-            ],
+            "FromCampaigns": [{"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"}],
+            "ToCampaigns": [{"CampaignID": 456, "Sum": 100.5, "Currency": "RUB"}],
         },
     }
 
@@ -213,9 +209,7 @@ def test_v4finance_money_contracts_are_docs_backed_dangerous_objects():
     assert build_v4_body("PayCampaigns", pay.example_param) == {
         "method": "PayCampaigns",
         "param": {
-            "Payments": [
-                {"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"}
-            ],
+            "Payments": [{"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"}],
             "ContractID": "contract-id",
             "PayMethod": "Bank",
         },
@@ -229,9 +223,7 @@ def test_v4finance_money_contracts_are_docs_backed_dangerous_objects():
     assert build_v4_body("CreateInvoice", create_invoice.example_param) == {
         "method": "CreateInvoice",
         "param": {
-            "Payments": [
-                {"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"}
-            ],
+            "Payments": [{"CampaignID": 123, "Sum": 100.5, "Currency": "RUB"}],
         },
     }
 
@@ -293,8 +285,11 @@ def test_v4forecast_contracts_are_docs_backed_objects_and_scalars():
     assert create.source_status == SOURCE_DOCS
     assert create.example_param == {
         "Phrases": ["buy laptop"],
-        "Currency": "RUB",
+        "Categories": [10732],
         "GeoID": [213],
+        "Currency": "RUB",
+        "AuctionBids": "No",
+        "CommonMinusWords": ["used"],
     }
     assert build_v4_body("CreateNewForecast", create.example_param) == {
         "method": "CreateNewForecast",
@@ -343,7 +338,19 @@ def test_get_events_log_contract_uses_timestamp_object_with_currency():
     assert contract.example_param == {
         "TimestampFrom": "2026-04-14T00:00:00",
         "TimestampTo": "2026-04-14T01:00:00",
+        "LastEventOnly": "No",
+        "WithTextDescription": "Yes",
         "Currency": "RUB",
+        "Logins": ["client-login"],
+        "Filter": {
+            "CampaignIDS": [123],
+            "BannerIDS": [456],
+            "PhraseIDS": [789],
+            "AccountIDS": [12],
+            "EventType": ["MoneyOut"],
+        },
+        "Limit": 100,
+        "Offset": 0,
     }
     assert build_v4_body("GetEventsLog", contract.example_param) == {
         "method": "GetEventsLog",

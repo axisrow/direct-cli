@@ -13,7 +13,12 @@ from .v4shells import V4_EPILOG
 
 
 def _forecast_param(
-    phrases: str, geo_ids: Optional[str], currency: str
+    phrases: str,
+    geo_ids: Optional[str],
+    currency: str,
+    categories: Optional[str] = None,
+    auction_bids: Optional[str] = None,
+    common_minus_words: Optional[str] = None,
 ) -> dict[str, object]:
     """Build the v4 Live CreateNewForecast parameter."""
     phrase_list = parse_csv_strings(phrases)
@@ -26,6 +31,13 @@ def _forecast_param(
         "Phrases": phrase_list,
         "Currency": currency,
     }
+    if categories:
+        try:
+            parsed_categories = parse_ids(categories)
+        except ValueError as exc:
+            raise click.UsageError(str(exc)) from exc
+        if parsed_categories:
+            param["Categories"] = parsed_categories
     if geo_ids:
         try:
             parsed_geo_ids = parse_ids(geo_ids)
@@ -33,6 +45,12 @@ def _forecast_param(
             raise click.UsageError(str(exc)) from exc
         if parsed_geo_ids:
             param["GeoID"] = parsed_geo_ids
+    if auction_bids:
+        param["AuctionBids"] = auction_bids
+    if common_minus_words:
+        minus_words = parse_csv_strings(common_minus_words)
+        if minus_words:
+            param["CommonMinusWords"] = minus_words
     return param
 
 
@@ -68,12 +86,25 @@ def v4forecast():
 @v4_method_contract("CreateNewForecast")
 @v4forecast.command()
 @click.option("--phrases", required=True, help="Comma-separated phrases, up to 100")
+@click.option(
+    "--categories",
+    help="Comma-separated Yandex Catalog category IDs (ignored by the API per docs)",
+)
 @click.option("--geo-ids", help="Comma-separated geo region IDs")
 @click.option(
     "--currency",
     default="RUB",
     show_default=True,
     help="Forecast currency",
+)
+@click.option(
+    "--auction-bids",
+    type=click.Choice(["Yes", "No"]),
+    help="Include auction results in the report — Yes/No (API default: No)",
+)
+@click.option(
+    "--common-minus-words",
+    help="Comma-separated common negative keywords",
 )
 @click.option(
     "--format",
@@ -85,9 +116,27 @@ def v4forecast():
 @click.option("--output", help="Output file")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
-def create(ctx, phrases, geo_ids, currency, output_format, output, dry_run):
+def create(
+    ctx,
+    phrases,
+    categories,
+    geo_ids,
+    currency,
+    auction_bids,
+    common_minus_words,
+    output_format,
+    output,
+    dry_run,
+):
     """Create a v4 Live budget forecast."""
-    param = _forecast_param(phrases, geo_ids, currency)
+    param = _forecast_param(
+        phrases,
+        geo_ids,
+        currency,
+        categories=categories,
+        auction_bids=auction_bids,
+        common_minus_words=common_minus_words,
+    )
     if dry_run:
         format_output(build_v4_body("CreateNewForecast", param), "json", None)
         return
