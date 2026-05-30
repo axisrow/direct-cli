@@ -5,6 +5,7 @@ Bids commands
 import click
 
 from ..api import create_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import (
     add_criteria_csv,
@@ -131,9 +132,11 @@ def set(
         and priority is None
     ):
         raise click.UsageError(
-            "bids set requires at least one bid field "
-            "(--bid, --context-bid, --priority, "
-            "or --autotargeting-search-bid-is-auto)."
+            t(
+                "bids set requires at least one bid field "
+                "(--bid, --context-bid, --priority, "
+                "or --autotargeting-search-bid-is-auto)."
+            )
         )
 
     try:
@@ -224,7 +227,7 @@ def set_auto(
         if scope:
             bid_data["Scope"] = list(scope)
         if "Scope" not in bid_data:
-            raise click.UsageError("Provide at least one --scope")
+            raise click.UsageError(t("Provide at least one --scope"))
 
         body = {"method": "setAuto", "params": {"Bids": [bid_data]}}
 

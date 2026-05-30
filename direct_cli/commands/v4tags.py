@@ -5,6 +5,7 @@ from typing import Optional
 import click
 
 from ..api import create_v4_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import parse_ids
 from ..v4 import build_v4_body, call_v4
@@ -29,7 +30,7 @@ def _tag_ids_param(tag_ids: str) -> list[int]:
     """Parse v4 banner tag IDs."""
     parsed = _positive_ids_param(tag_ids, "--tag-ids")
     if len(parsed) > 30:
-        raise click.UsageError("--tag-ids accepts at most 30 tag IDs")
+        raise click.UsageError(t("--tag-ids accepts at most 30 tag IDs"))
     return parsed
 
 
@@ -43,16 +44,16 @@ def _get_banners_tags_param(
 ) -> dict:
     """Build the v4 Live GetBannersTags parameter."""
     if (campaign_ids is not None) == (banner_ids is not None):
-        raise click.UsageError("Use exactly one of --campaign-ids or --banner-ids")
+        raise click.UsageError(t("Use exactly one of --campaign-ids or --banner-ids"))
     if campaign_ids is not None:
         ids = _positive_ids_param(campaign_ids, "--campaign-ids")
         if len(ids) > 10:
-            raise click.UsageError("--campaign-ids accepts at most 10 campaign IDs")
+            raise click.UsageError(t("--campaign-ids accepts at most 10 campaign IDs"))
         return {"CampaignIDS": ids}
 
     ids = _positive_ids_param(banner_ids or "", "--banner-ids")
     if len(ids) > 2000:
-        raise click.UsageError("--banner-ids accepts at most 2000 banner IDs")
+        raise click.UsageError(t("--banner-ids accepts at most 2000 banner IDs"))
     return {"BannerIDS": ids}
 
 
@@ -60,10 +61,10 @@ def _campaign_tag_param(tag_specs: tuple[str, ...], clear_tags: bool) -> list[di
     """Build campaign TagInfo objects from repeated TAG_ID=TEXT specs."""
     if clear_tags:
         if tag_specs:
-            raise click.UsageError("Use either --tag or --clear-tags, not both")
+            raise click.UsageError(t("Use either --tag or --clear-tags, not both"))
         return []
     if not tag_specs:
-        raise click.UsageError("--tag is required unless --clear-tags is used")
+        raise click.UsageError(t("--tag is required unless --clear-tags is used"))
 
     tags = []
     seen_texts = set()
@@ -72,31 +73,33 @@ def _campaign_tag_param(tag_specs: tuple[str, ...], clear_tags: bool) -> list[di
         text = (spec or "").strip()
         tag_id_text, separator, tag_text = text.partition("=")
         if not separator:
-            raise click.UsageError("--tag must use TAG_ID=TEXT")
+            raise click.UsageError(t("--tag must use TAG_ID=TEXT"))
         tag_id_text = tag_id_text.strip()
         tag_text = tag_text.strip()
         try:
             tag_id = int(tag_id_text)
         except ValueError as exc:
-            raise click.UsageError("--tag ID must be a non-negative integer") from exc
+            raise click.UsageError(
+                t("--tag ID must be a non-negative integer")
+            ) from exc
         if tag_id < 0:
-            raise click.UsageError("--tag ID must be a non-negative integer")
+            raise click.UsageError(t("--tag ID must be a non-negative integer"))
         if tag_id > 0:
             if tag_id in seen_existing_ids:
-                raise click.UsageError("--tag IDs must be unique")
+                raise click.UsageError(t("--tag IDs must be unique"))
             seen_existing_ids.add(tag_id)
         if not tag_text:
-            raise click.UsageError("--tag text must not be empty")
+            raise click.UsageError(t("--tag text must not be empty"))
         if len(tag_text) > 25:
-            raise click.UsageError("--tag text must be 25 characters or fewer")
+            raise click.UsageError(t("--tag text must be 25 characters or fewer"))
         normalized_text = tag_text.casefold()
         if normalized_text in seen_texts:
-            raise click.UsageError("--tag texts must be unique ignoring case")
+            raise click.UsageError(t("--tag texts must be unique ignoring case"))
         seen_texts.add(normalized_text)
         tags.append({"TagID": tag_id, "Tag": tag_text})
 
     if len(tags) > 200:
-        raise click.UsageError("--tag accepts at most 200 campaign tags")
+        raise click.UsageError(t("--tag accepts at most 200 campaign tags"))
     return tags
 
 
@@ -119,11 +122,13 @@ def _update_banners_tags_param(
     parsed_banner_ids = _positive_ids_param(banner_ids, "--banner-ids")
     if clear_tags:
         if tag_ids is not None:
-            raise click.UsageError("Use either --tag-ids or --clear-tags, not both")
+            raise click.UsageError(t("Use either --tag-ids or --clear-tags, not both"))
         parsed_tag_ids: list[int] = []
     else:
         if tag_ids is None:
-            raise click.UsageError("--tag-ids is required unless --clear-tags is used")
+            raise click.UsageError(
+                t("--tag-ids is required unless --clear-tags is used")
+            )
         parsed_tag_ids = _tag_ids_param(tag_ids)
     return [
         {"BannerID": banner_id, "TagIDS": parsed_tag_ids}

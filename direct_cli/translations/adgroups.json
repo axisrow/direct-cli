@@ -55,5 +55,13 @@
   "Tracking params query-string for AdGroupUpdateItem.TrackingParams (max 1024 chars)": "Строка query параметров отслеживания для AdGroupUpdateItem.TrackingParams (не более 1024 символов)",
   "UnifiedAdGroup.OfferRetargeting update value: YES or NO": "Значение обновления UnifiedAdGroup.OfferRetargeting: YES или NO",
   "UnifiedAdGroup.OfferRetargeting value: YES or NO": "Значение UnifiedAdGroup.OfferRetargeting: YES или NO",
-  "Update ad group": "Обновить группу объявлений"
+  "Update ad group": "Обновить группу объявлений",
+  "AutotargetingSettings flags cannot be combined with legacy --autotargeting-category flags.": "Флаги AutotargetingSettings нельзя сочетать с устаревшими флагами --autotargeting-category.",
+  "--domain-url is required for DYNAMIC_TEXT_AD_GROUP": "--domain-url обязателен для DYNAMIC_TEXT_AD_GROUP",
+  "--feed-id is required for DYNAMIC_TEXT_FEED_AD_GROUP": "--feed-id обязателен для DYNAMIC_TEXT_FEED_AD_GROUP",
+  "--feed-id is required when --feed-category-ids is used": "--feed-id обязателен при использовании --feed-category-ids",
+  "adgroups update requires at least one updatable field (--name, --status, --region-ids, --negative-keywords, --negative-keyword-shared-set-ids, --tracking-params, --domain-url, --dynamic-feed, --autotargeting-category, --autotargeting-settings-* flags, --target-device-types, --target-carrier, --target-operating-system-version, --feed-id, --feed-category-ids, --ad-title-source, --ad-body-source, or --offer-retargeting).": "adgroups update требует хотя бы одно изменяемое поле (--name, --status, --region-ids, --negative-keywords, --negative-keyword-shared-set-ids, --tracking-params, --domain-url, --dynamic-feed, --autotargeting-category, флаги --autotargeting-settings-*, --target-device-types, --target-carrier, --target-operating-system-version, --feed-id, --feed-category-ids, --ad-title-source, --ad-body-source или --offer-retargeting).",
+  "--dynamic-feed requires --autotargeting-category": "--dynamic-feed требует --autotargeting-category",
+  "--feed-id is required for SMART_AD_GROUP": "--feed-id обязателен для SMART_AD_GROUP",
+  "--offer-retargeting is required for UNIFIED_AD_GROUP": "--offer-retargeting обязателен для UNIFIED_AD_GROUP"
 }

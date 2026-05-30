@@ -27,6 +27,23 @@ from direct_cli.cli import cli
 load_dotenv()
 
 
+@pytest.fixture(autouse=True)
+def _default_cli_locale_en(monkeypatch):
+    """Default the CLI UI locale to English across the suite.
+
+    Russian is the product default UI locale (epic #466). The overwhelming
+    majority of tests assert the stable *English* contract text of help and
+    error messages; the Russian-default behaviour is owned exclusively by
+    ``tests/test_i18n.py`` (and a handful of spots that pin Russian
+    explicitly). Pinning the env default to ``en`` here keeps those English
+    contract assertions valid without touching hundreds of call sites. Tests
+    that need another locale override via ``--locale`` or an explicit
+    ``YANDEX_DIRECT_CLI_LOCALE`` in the CliRunner env (an empty value resolves
+    back to the Russian default).
+    """
+    monkeypatch.setenv("YANDEX_DIRECT_CLI_LOCALE", "en")
+
+
 def _resolve_test_credentials():
     """Resolve API credentials for tests with env-vars taking priority.
 

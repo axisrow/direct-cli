@@ -5,6 +5,7 @@ AudienceTargets commands
 import click
 
 from ..api import create_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import add_criteria_csv, get_default_fields, parse_ids, MICRO_RUBLES
 
@@ -122,7 +123,7 @@ def add(
     try:
         if retargeting_list_id is None and interest_id is None:
             raise click.UsageError(
-                "Provide at least one of --retargeting-list-id or --interest-id"
+                t("Provide at least one of --retargeting-list-id or --interest-id")
             )
 
         target_data = {
@@ -187,11 +188,11 @@ def set_bids(ctx, target_id, adgroup_id, campaign_id, context_bid, priority, dry
         }
         if not selector_fields:
             raise click.UsageError(
-                "Provide a target selector (--id, --adgroup-id, or --campaign-id)"
+                t("Provide a target selector (--id, --adgroup-id, or --campaign-id)")
             )
         if not bid_fields:
             raise click.UsageError(
-                "Provide at least one bid field (--context-bid or --priority)"
+                t("Provide at least one bid field (--context-bid or --priority)")
             )
 
         body = {"method": "setBids", "params": {"Bids": [bid_data]}}

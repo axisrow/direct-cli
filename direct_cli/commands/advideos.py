@@ -5,6 +5,7 @@ AdVideos commands
 import click
 
 from ..api import create_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import get_default_fields, load_base64_file
 
@@ -81,7 +82,7 @@ def add(ctx, url, video_data, video_file, name, dry_run):
         sources = [s for s in (url, video_data, video_file) if s]
         if len(sources) != 1:
             raise click.UsageError(
-                "Provide exactly one of --url, --video-data, or --video-file."
+                t("Provide exactly one of --url, --video-data, or --video-file.")
             )
 
         item = {}

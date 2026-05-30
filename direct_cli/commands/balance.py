@@ -3,6 +3,7 @@
 import click
 
 from ..api import create_v4_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import parse_csv_strings
 from ..v4 import build_v4_body, call_v4
@@ -35,7 +36,7 @@ def balance(ctx, logins, output_format, output, dry_run):
     if login_list:
         param["SelectionCriteria"] = {"Logins": login_list}
     elif ctx.obj.get("sandbox"):
-        raise click.UsageError("Provide --logins or configure YANDEX_DIRECT_LOGIN")
+        raise click.UsageError(t("Provide --logins or configure YANDEX_DIRECT_LOGIN"))
 
     if dry_run:
         format_output(build_v4_body("AccountManagement", param), "json", None)

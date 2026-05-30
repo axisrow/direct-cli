@@ -7,6 +7,7 @@ from typing import Optional
 import click
 
 from ..api import create_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import get_default_fields, parse_ids, parse_retargeting_rule_specs
 
@@ -118,7 +119,7 @@ def add(ctx, name, description, list_type, rules, dry_run):
     try:
         _validate_description(description)
         if not rules:
-            raise click.UsageError("Provide at least one --rule")
+            raise click.UsageError(t("Provide at least one --rule"))
         list_data = {
             "Name": name,
             "Type": list_type,
@@ -186,7 +187,7 @@ def update(ctx, list_id, name, description, list_type, rules, dry_run):
         if rules:
             list_data["Rules"] = parse_retargeting_rule_specs(list(rules))
         if len(list_data) == 1:
-            raise click.UsageError("Provide at least one field to update")
+            raise click.UsageError(t("Provide at least one field to update"))
 
         body = {"method": "update", "params": {"RetargetingLists": [list_data]}}
 

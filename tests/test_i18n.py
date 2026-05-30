@@ -83,11 +83,32 @@ LOCALIZED_GROUPS = (
     "v4meta",
 )
 
-_RUNTIME_MESSAGE_FUNCS = {"print_error", "print_info", "print_warning"}
+# Functions whose first argument is a human-readable message that must localize.
+# Beyond the print_* helpers, this also covers Click's user-facing error/prompt
+# surfaces (UsageError / BadParameter / prompt / confirm), matched by bare name
+# or as a ``click.<Name>`` attribute. Stage A (#477) wraps only *static* string
+# literals in ``t(...)``; interpolated forms (f-string / concat) are stage B
+# (#478), so the AST scan below flags only ``ast.Constant`` first arguments.
+_RUNTIME_MESSAGE_FUNCS = {
+    "print_error",
+    "print_info",
+    "print_warning",
+    "UsageError",
+    "BadParameter",
+    "prompt",
+    "confirm",
+}
 
 
 def _invoke(*args, env=None):
-    base_env = {"YANDEX_DIRECT_TOKEN": "", "YANDEX_DIRECT_LOGIN": ""}
+    # The suite-wide autouse fixture pins YANDEX_DIRECT_CLI_LOCALE=en; clear it
+    # here so these tests exercise the genuine Russian default (empty resolves
+    # back to ru). Individual tests still override via --locale or env.
+    base_env = {
+        "YANDEX_DIRECT_TOKEN": "",
+        "YANDEX_DIRECT_LOGIN": "",
+        "YANDEX_DIRECT_CLI_LOCALE": "",
+    }
     if env:
         base_env.update(env)
     with patch("direct_cli.cli.get_active_profile", return_value=None):
@@ -267,8 +288,12 @@ def test_localized_groups_have_complete_translations():
 
 
 def test_localized_groups_wrap_runtime_messages():
-    """print_error/info/warning in a localized module must not take a bare
-    string literal — the text has to pass through t(...) to localize."""
+    """User-facing message calls in a localized module must not take a bare
+    string literal. ``_RUNTIME_MESSAGE_FUNCS`` (print_* plus Click's
+    UsageError / BadParameter / prompt / confirm) must pass their first
+    argument through ``t(...)`` so it localizes. Only ``ast.Constant`` literals
+    are flagged here; interpolated messages (f-string / concat) are stage B
+    (#478) and intentionally not yet enforced."""
     offenders: dict[str, list[str]] = {}
     seen_files: set[str] = set()
     for name in LOCALIZED_GROUPS:

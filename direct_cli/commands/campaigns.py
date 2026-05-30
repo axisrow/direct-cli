@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Sequence
 import click
 
 from ..api import create_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import (
     build_selection_criteria,
@@ -136,7 +137,7 @@ def _time_targeting_schedule_option(values: Sequence[str]) -> Optional[dict]:
     items = [value.strip() for value in values if value.strip()]
     if len(items) != len(values):
         raise click.UsageError(
-            "--time-targeting-schedule must contain at least one value"
+            t("--time-targeting-schedule must contain at least one value")
         )
     if len(items) > TIME_TARGETING_SCHEDULE_MAX_ITEMS:
         raise click.UsageError(
@@ -253,8 +254,10 @@ def _build_time_targeting(
         return None
     if consider_working_weekends is None:
         raise click.UsageError(
-            "TimeTargeting requires --consider-working-weekends when any "
-            "time-targeting flag is provided."
+            t(
+                "TimeTargeting requires --consider-working-weekends when any "
+                "time-targeting flag is provided."
+            )
         )
 
     time_targeting: dict = {
@@ -266,9 +269,11 @@ def _build_time_targeting(
     if has_holidays:
         if holidays_suspend_on_holidays is None:
             raise click.UsageError(
-                "TimeTargeting.HolidaysSchedule requires "
-                "--holidays-suspend-on-holidays when any --holidays-* flag "
-                "is provided."
+                t(
+                    "TimeTargeting.HolidaysSchedule requires "
+                    "--holidays-suspend-on-holidays when any --holidays-* flag "
+                    "is provided."
+                )
             )
         suspend_on_holidays = holidays_suspend_on_holidays.upper()
         if suspend_on_holidays == "YES" and any(
@@ -280,12 +285,14 @@ def _build_time_targeting(
             )
         ):
             raise click.UsageError(
-                "--holidays-bid-percent, --holidays-start-hour, and "
-                "--holidays-end-hour can be provided only when "
-                "--holidays-suspend-on-holidays is NO."
+                t(
+                    "--holidays-bid-percent, --holidays-start-hour, and "
+                    "--holidays-end-hour can be provided only when "
+                    "--holidays-suspend-on-holidays is NO."
+                )
             )
         if holidays_bid_percent is not None and holidays_bid_percent % 10 != 0:
-            raise click.UsageError("--holidays-bid-percent must be a multiple of 10")
+            raise click.UsageError(t("--holidays-bid-percent must be a multiple of 10"))
         holidays: dict = {"SuspendOnHolidays": suspend_on_holidays}
         if holidays_bid_percent is not None:
             holidays["BidPercent"] = holidays_bid_percent
@@ -310,8 +317,10 @@ def _build_relevant_keywords(
         return None
     if require_budget_percent and budget_percent is None:
         raise click.UsageError(
-            "--relevant-keywords-budget-percent is required when adding "
-            "TextCampaign.RelevantKeywords"
+            t(
+                "--relevant-keywords-budget-percent is required when adding "
+                "TextCampaign.RelevantKeywords"
+            )
         )
     relevant_keywords: dict = {}
     if budget_percent is not None:
@@ -351,18 +360,24 @@ def _build_frequency_cap(
         return None
     if period_days is not None and period_all:
         raise click.UsageError(
-            "--frequency-cap-period-days and --frequency-cap-period-all "
-            "are mutually exclusive"
+            t(
+                "--frequency-cap-period-days and --frequency-cap-period-all "
+                "are mutually exclusive"
+            )
         )
     if impressions is None:
         raise click.UsageError(
-            "--frequency-cap-impressions is required with "
-            "--frequency-cap-period-days or --frequency-cap-period-all"
+            t(
+                "--frequency-cap-impressions is required with "
+                "--frequency-cap-period-days or --frequency-cap-period-all"
+            )
         )
     if period_days is None and not period_all:
         raise click.UsageError(
-            "--frequency-cap-impressions requires --frequency-cap-period-days "
-            "or --frequency-cap-period-all"
+            t(
+                "--frequency-cap-impressions requires --frequency-cap-period-days "
+                "or --frequency-cap-period-all"
+            )
         )
     return {
         "Impressions": impressions,
@@ -460,8 +475,10 @@ def _build_smart_package_bidding_strategy(
         search is None or network is None
     ):
         raise click.UsageError(
-            "SmartCampaign.PackageBiddingStrategy requires "
-            "--package-platform-search and --package-platform-network"
+            t(
+                "SmartCampaign.PackageBiddingStrategy requires "
+                "--package-platform-search and --package-platform-network"
+            )
         )
 
     package_strategy: dict = {}
@@ -648,7 +665,7 @@ def get(
 ):
     """Get campaigns"""
     if status and statuses:
-        raise click.UsageError("--status and --statuses are mutually exclusive")
+        raise click.UsageError(t("--status and --statuses are mutually exclusive"))
 
     try:
         client = create_client(
@@ -3863,8 +3880,10 @@ def add(
             # (issue #198 H6).
             if counter_id is None:
                 raise click.UsageError(
-                    "--counter-id is required for SMART_CAMPAIGN "
-                    "(WSDL SmartCampaignAddItem.CounterId minOccurs=1)"
+                    t(
+                        "--counter-id is required for SMART_CAMPAIGN "
+                        "(WSDL SmartCampaignAddItem.CounterId minOccurs=1)"
+                    )
                 )
             smart_campaign: Dict[str, object] = {"CounterId": counter_id}
             if smart_package_bidding_strategy_obj is not None:
@@ -3953,9 +3972,11 @@ def add(
                 ]
                 if filter_average_cpc is not None and smart_network_typed_provided:
                     raise click.UsageError(
-                        "--filter-average-cpc cannot be combined with typed "
-                        "--smart-network-* flags; use "
-                        "--smart-network-filter-average-cpc instead"
+                        t(
+                            "--filter-average-cpc cannot be combined with typed "
+                            "--smart-network-* flags; use "
+                            "--smart-network-filter-average-cpc instead"
+                        )
                     )
                 # Bridge the legacy --filter-average-cpc flag onto the new
                 # typed Network builder. Only valid when network strategy is
@@ -3967,9 +3988,11 @@ def add(
                     ).upper()
                     if legacy_strategy != "AVERAGE_CPC_PER_FILTER":
                         raise click.UsageError(
-                            "--filter-average-cpc is only valid for "
-                            "SMART_CAMPAIGN with AVERAGE_CPC_PER_FILTER "
-                            "network strategy"
+                            t(
+                                "--filter-average-cpc is only valid for "
+                                "SMART_CAMPAIGN with AVERAGE_CPC_PER_FILTER "
+                                "network strategy"
+                            )
                         )
                     effective_filter_average_cpc = filter_average_cpc
                 effective_network_strategy = network_strategy
@@ -7373,7 +7396,7 @@ def update(
             campaign_data[subtype_container] = sub_block
 
         if len(campaign_data) == 1:
-            raise click.UsageError("Provide at least one field to update")
+            raise click.UsageError(t("Provide at least one field to update"))
 
         body = {"method": "update", "params": {"Campaigns": [campaign_data]}}
 

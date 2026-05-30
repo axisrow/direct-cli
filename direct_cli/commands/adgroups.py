@@ -7,6 +7,7 @@ from typing import Any, Optional
 import click
 
 from ..api import create_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import (
     add_criteria_csv,
@@ -221,8 +222,10 @@ def _parse_autotargeting_categories(
         category_raw, separator, value_raw = raw_value.strip().partition("=")
         if not separator:
             raise click.UsageError(
-                "--autotargeting-category expects CATEGORY=YES|NO "
-                "(for example EXACT=YES)"
+                t(
+                    "--autotargeting-category expects CATEGORY=YES|NO "
+                    "(for example EXACT=YES)"
+                )
             )
 
         category = _normalize_enum_token(category_raw)
@@ -290,8 +293,10 @@ def _reject_legacy_autotargeting_mix(
     """Reject ambiguous legacy AutotargetingCategories + Settings payloads."""
     if settings is not None and categories:
         raise click.UsageError(
-            "AutotargetingSettings flags cannot be combined with legacy "
-            "--autotargeting-category flags."
+            t(
+                "AutotargetingSettings flags cannot be combined with legacy "
+                "--autotargeting-category flags."
+            )
         )
 
 
@@ -328,7 +333,7 @@ def _build_dynamic_text_adgroup(
 
     has_dynamic_fields = bool(domain_url or parsed_categories or autotargeting_settings)
     if (force_domain_url or has_dynamic_fields) and not domain_url:
-        raise click.UsageError("--domain-url is required for DYNAMIC_TEXT_AD_GROUP")
+        raise click.UsageError(t("--domain-url is required for DYNAMIC_TEXT_AD_GROUP"))
 
     dynamic_text_adgroup: dict[str, object] = {}
     if domain_url:
@@ -351,7 +356,9 @@ def _build_dynamic_text_feed_adgroup(
     parsed_categories = _parse_autotargeting_categories(autotargeting_categories)
 
     if require_feed_id and feed_id is None:
-        raise click.UsageError("--feed-id is required for DYNAMIC_TEXT_FEED_AD_GROUP")
+        raise click.UsageError(
+            t("--feed-id is required for DYNAMIC_TEXT_FEED_AD_GROUP")
+        )
 
     dynamic_text_feed_adgroup: dict[str, object] = {}
     if feed_id is not None:
@@ -374,7 +381,9 @@ def _build_text_adgroup_feed_params(
     )
 
     if feed_id is None and parsed_feed_category_ids:
-        raise click.UsageError("--feed-id is required when --feed-category-ids is used")
+        raise click.UsageError(
+            t("--feed-id is required when --feed-category-ids is used")
+        )
     if feed_id is None:
         return None
 
@@ -575,7 +584,7 @@ def get(
 ):
     """Get ad groups"""
     if status and statuses:
-        raise click.UsageError("--status and --statuses are mutually exclusive")
+        raise click.UsageError(t("--status and --statuses are mutually exclusive"))
 
     try:
         client = create_client(
@@ -968,7 +977,7 @@ def add(
             adgroup_data["CpmVideoAdGroup"] = {}
         elif group_type_norm == "SMART_AD_GROUP":
             if feed_id is None:
-                raise click.UsageError("--feed-id is required for SMART_AD_GROUP")
+                raise click.UsageError(t("--feed-id is required for SMART_AD_GROUP"))
             smart_ad_group = {"FeedId": feed_id}
             if ad_title_source:
                 smart_ad_group["AdTitleSource"] = ad_title_source
@@ -978,7 +987,7 @@ def add(
         elif group_type_norm == "UNIFIED_AD_GROUP":
             if offer_retargeting is None:
                 raise click.UsageError(
-                    "--offer-retargeting is required for UNIFIED_AD_GROUP"
+                    t("--offer-retargeting is required for UNIFIED_AD_GROUP")
                 )
             adgroup_data["UnifiedAdGroup"] = {
                 "OfferRetargeting": offer_retargeting.upper()
@@ -1238,7 +1247,9 @@ def update(
         adgroup_data["TrackingParams"] = tracking_params
     if dynamic_feed:
         if not autotargeting_categories:
-            raise click.UsageError("--dynamic-feed requires --autotargeting-category")
+            raise click.UsageError(
+                t("--dynamic-feed requires --autotargeting-category")
+            )
         dynamic_text_feed_adgroup = _build_dynamic_text_feed_adgroup(
             autotargeting_categories=autotargeting_categories,
         )
@@ -1291,14 +1302,16 @@ def update(
     # Reject empty-payload no-op (issue #198 H5).
     if len(adgroup_data) == 1:
         raise click.UsageError(
-            "adgroups update requires at least one updatable field "
-            "(--name, --status, --region-ids, --negative-keywords, "
-            "--negative-keyword-shared-set-ids, --tracking-params, "
-            "--domain-url, --dynamic-feed, --autotargeting-category, "
-            "--autotargeting-settings-* flags, --target-device-types, "
-            "--target-carrier, --target-operating-system-version, "
-            "--feed-id, --feed-category-ids, --ad-title-source, "
-            "--ad-body-source, or --offer-retargeting)."
+            t(
+                "adgroups update requires at least one updatable field "
+                "(--name, --status, --region-ids, --negative-keywords, "
+                "--negative-keyword-shared-set-ids, --tracking-params, "
+                "--domain-url, --dynamic-feed, --autotargeting-category, "
+                "--autotargeting-settings-* flags, --target-device-types, "
+                "--target-carrier, --target-operating-system-version, "
+                "--feed-id, --feed-category-ids, --ad-title-source, "
+                "--ad-body-source, or --offer-retargeting)."
+            )
         )
 
     try:

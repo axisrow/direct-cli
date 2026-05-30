@@ -13,5 +13,7 @@
   "Target ID": "ID условия нацеливания",
   "Target name": "Имя условия нацеливания",
   "Update smart ad target": "Обновить условие нацеливания смарт-объявления",
-  "Whether only available items are targeted": "Нацеливаться только на доступные элементы"
+  "Whether only available items are targeted": "Нацеливаться только на доступные элементы",
+  "Provide target selection and bid fields for set-bids": "Укажите выбор цели и поля ставок для set-bids",
+  "Provide at least one bid field (--average-cpc, --average-cpa, or --priority)": "Укажите хотя бы одно поле ставки (--average-cpc, --average-cpa или --priority)"
 }

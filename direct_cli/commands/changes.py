@@ -5,6 +5,7 @@ Changes commands
 import click
 
 from ..api import create_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import get_default_fields, parse_changes_datetime, parse_ids
 
@@ -64,12 +65,14 @@ def check(
     )
     if sources_used == 0:
         raise click.UsageError(
-            "Provide exactly one of: --campaign-ids, --ad-group-ids, --ad-ids."
+            t("Provide exactly one of: --campaign-ids, --ad-group-ids, --ad-ids.")
         )
     if sources_used > 1:
         raise click.UsageError(
-            "--campaign-ids, --ad-group-ids, and --ad-ids are mutually "
-            "exclusive — provide exactly one."
+            t(
+                "--campaign-ids, --ad-group-ids, and --ad-ids are mutually "
+                "exclusive — provide exactly one."
+            )
         )
 
     if fields:

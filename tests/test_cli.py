@@ -72,7 +72,10 @@ class TestCLI(unittest.TestCase):
 
     def test_cli_help_russian_by_default(self):
         """Root help and epilog default to Russian."""
-        result = self.runner.invoke(cli, ["--help"])
+        # Clear the suite-wide en pin so the genuine Russian default renders.
+        result = self.runner.invoke(
+            cli, ["--help"], env={"YANDEX_DIRECT_CLI_LOCALE": ""}
+        )
         self.assertEqual(result.exit_code, 0)
         self.assertIn("Контекст учётных данных", result.output)
         self.assertIn("Ошибка 8800", result.output)

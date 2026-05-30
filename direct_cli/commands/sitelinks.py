@@ -9,6 +9,7 @@ from typing import Any, Dict, List
 import click
 
 from ..api import create_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import (
     get_default_fields,
@@ -72,7 +73,7 @@ def _load_sitelinks_from_inline(json_str: str) -> List[Any]:
         raise click.UsageError(f"--sitelink-json: invalid JSON: {exc.msg}")
     if not isinstance(decoded, list):
         raise click.UsageError(
-            "--sitelink-json must be a JSON array of sitelink objects"
+            t("--sitelink-json must be a JSON array of sitelink objects")
         )
     return decoded
 
@@ -144,7 +145,7 @@ def get(
         parsed_sitelink_field_names = parse_csv_strings(sitelink_field_names)
         if sitelink_field_names is not None and not parsed_sitelink_field_names:
             raise click.UsageError(
-                "Provide a non-empty comma-separated SitelinkFieldNames list."
+                t("Provide a non-empty comma-separated SitelinkFieldNames list.")
             )
 
         criteria = {}
@@ -221,13 +222,17 @@ def add(ctx, sitelinks_specs, sitelinks_json, sitelinks_from_file, dry_run):
     )
     if sources_used == 0:
         raise click.UsageError(
-            "Provide exactly one of: --sitelink (repeatable), "
-            "--sitelink-json (inline JSON array), or --sitelinks-from-file (JSONL)."
+            t(
+                "Provide exactly one of: --sitelink (repeatable), "
+                "--sitelink-json (inline JSON array), or --sitelinks-from-file (JSONL)."
+            )
         )
     if sources_used > 1:
         raise click.UsageError(
-            "--sitelink, --sitelink-json, and --sitelinks-from-file are "
-            "mutually exclusive — provide exactly one."
+            t(
+                "--sitelink, --sitelink-json, and --sitelinks-from-file are "
+                "mutually exclusive — provide exactly one."
+            )
         )
 
     try:
@@ -243,7 +248,7 @@ def add(ctx, sitelinks_specs, sitelinks_json, sitelinks_from_file, dry_run):
                 raw_rows = _load_sitelinks_from_file(sitelinks_from_file)
 
             if not raw_rows:
-                raise click.UsageError("Input contains no sitelink rows.")
+                raise click.UsageError(t("Input contains no sitelink rows."))
 
             sitelinks_payload = [
                 _normalize_sitelink_row(row, idx)

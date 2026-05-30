@@ -7,6 +7,7 @@ from typing import Optional
 import click
 
 from ..api import create_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import (
     MICRO_RUBLES,
@@ -215,7 +216,7 @@ def _build_custom_period_budget(
         return None
     if weekly_spend_limit is not None:
         raise click.UsageError(
-            "--weekly-spend-limit cannot be combined with --custom-period-* flags."
+            t("--weekly-spend-limit cannot be combined with --custom-period-* flags.")
         )
 
     missing = [
@@ -251,8 +252,10 @@ def _build_exploration_budget(
         and minimum_exploration_budget > weekly_spend_limit
     ):
         raise click.UsageError(
-            "--minimum-exploration-budget must be less than or equal to "
-            "--weekly-spend-limit when both flags are provided."
+            t(
+                "--minimum-exploration-budget must be less than or equal to "
+                "--weekly-spend-limit when both flags are provided."
+            )
         )
     return {
         "MinimumExplorationBudget": minimum_exploration_budget,
@@ -270,23 +273,23 @@ def _parse_priority_goal(spec: str) -> dict:
         or (len(parts) == 3 and not parts[2])
     ):
         raise click.UsageError(
-            "Invalid --priority-goal. Expected GOAL_ID:VALUE[:YES|NO], "
-            "for example 123:1000000:YES"
+            t(
+                "Invalid --priority-goal. Expected GOAL_ID:VALUE[:YES|NO], "
+                "for example 123:1000000:YES"
+            )
         )
     try:
         item = {"GoalId": int(parts[0]), "Value": int(parts[1])}
     except ValueError:
         raise click.UsageError(
-            "Invalid --priority-goal. GOAL_ID and VALUE must be integers"
+            t("Invalid --priority-goal. GOAL_ID and VALUE must be integers")
         )
-    validate_priority_goal_value(
-        item["Value"], f"Invalid --priority-goal '{spec}'."
-    )
+    validate_priority_goal_value(item["Value"], f"Invalid --priority-goal '{spec}'.")
     if len(parts) == 3:
         is_metrika_source = parts[2].upper()
         if is_metrika_source not in {"YES", "NO"}:
             raise click.UsageError(
-                "Invalid --priority-goal. IsMetrikaSourceOfValue must be YES or NO"
+                t("Invalid --priority-goal. IsMetrikaSourceOfValue must be YES or NO")
             )
         item["IsMetrikaSourceOfValue"] = is_metrika_source
     return item
@@ -332,7 +335,7 @@ def _build_strategy_fields(
             )
         ):
             raise click.UsageError(
-                "Provide --type when setting strategy-specific fields"
+                t("Provide --type when setting strategy-specific fields")
             )
         return {}
 
@@ -342,8 +345,10 @@ def _build_strategy_fields(
         and any(value is not None for value in custom_period_values)
     ):
         raise click.UsageError(
-            "--custom-period-* flags are not valid for --type AverageCpa "
-            "on strategies update."
+            t(
+                "--custom-period-* flags are not valid for --type AverageCpa "
+                "on strategies update."
+            )
         )
 
     field_options = STRATEGY_UPDATE_FIELD_OPTIONS if update else STRATEGY_FIELD_OPTIONS
@@ -800,7 +805,7 @@ def add(
             ),
         }
         if strategy_type in GOAL_ID_STRATEGY_TYPES and goal_id is None:
-            raise click.UsageError("Provide --goal-id for this strategy type")
+            raise click.UsageError(t("Provide --goal-id for this strategy type"))
         if counter_ids:
             strategy_data["CounterIds"] = {
                 "Items": [int(x.strip()) for x in counter_ids.split(",")]
@@ -945,7 +950,7 @@ def update(
         )
         if strategy_fields and not strategy_type:
             raise click.UsageError(
-                "Provide --type when setting strategy-specific fields"
+                t("Provide --type when setting strategy-specific fields")
             )
         if strategy_type and not strategy_fields:
             # Reject empty-subtype no-op (issue #198 sibling of H1/H5/H10):
@@ -980,7 +985,7 @@ def update(
             # Only `Id` populated — reject the no-op payload (sibling of
             # the H1/H5/H10 empty-payload guards on other resources).
             raise click.UsageError(
-                "strategies update requires at least one updatable field."
+                t("strategies update requires at least one updatable field.")
             )
 
         body = {"method": "update", "params": {"Strategies": [strategy_data]}}

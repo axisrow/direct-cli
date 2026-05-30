@@ -5,6 +5,7 @@ Clients commands
 import click
 
 from ..api import create_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import (
     build_client_update_item,
@@ -344,7 +345,7 @@ def update(
             ),
         )
         if not client_data:
-            raise click.UsageError("Provide at least one field to update")
+            raise click.UsageError(t("Provide at least one field to update"))
 
         body = {"method": "update", "params": {"Clients": [client_data]}}
 

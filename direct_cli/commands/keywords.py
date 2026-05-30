@@ -9,6 +9,7 @@ from typing import Any, Dict, Iterator, List, Optional
 import click
 
 from ..api import create_client
+from ..i18n import t
 from ..output import (
     format_json,
     format_output,
@@ -179,7 +180,7 @@ def _load_keyword_rows_from_inline(json_str: str) -> List[Any]:
         raise click.UsageError(f"--keywords-json: invalid JSON: {exc.msg}")
     if not isinstance(decoded, list):
         raise click.UsageError(
-            "--keywords-json must be a JSON array of keyword objects"
+            t("--keywords-json must be a JSON array of keyword objects")
         )
     return decoded
 
@@ -238,8 +239,10 @@ def _parse_autotargeting_categories(
         category_raw, separator, value_raw = raw_value.strip().partition("=")
         if not separator:
             raise click.UsageError(
-                "--autotargeting-category expects CATEGORY=YES|NO "
-                "(for example EXACT=YES)"
+                t(
+                    "--autotargeting-category expects CATEGORY=YES|NO "
+                    "(for example EXACT=YES)"
+                )
             )
 
         category = category_raw.strip().upper()
@@ -272,8 +275,10 @@ def _parse_autotargeting_brand_options(
         option_raw, separator, value_raw = raw_value.strip().partition("=")
         if not separator:
             raise click.UsageError(
-                "--autotargeting-brand-option expects OPTION=YES|NO "
-                "(for example WITHOUT_BRANDS=YES)"
+                t(
+                    "--autotargeting-brand-option expects OPTION=YES|NO "
+                    "(for example WITHOUT_BRANDS=YES)"
+                )
             )
 
         option = option_raw.strip().upper()
@@ -415,7 +420,7 @@ def get(
 ):
     """Get keywords"""
     if status and statuses:
-        raise click.UsageError("--status and --statuses are mutually exclusive")
+        raise click.UsageError(t("--status and --statuses are mutually exclusive"))
 
     try:
         client = create_client(
@@ -434,8 +439,10 @@ def get(
             and not parsed_brand_options
         ):
             raise click.UsageError(
-                "Provide a non-empty comma-separated "
-                "AutotargetingSettingsBrandOptionsFieldNames list."
+                t(
+                    "Provide a non-empty comma-separated "
+                    "AutotargetingSettingsBrandOptionsFieldNames list."
+                )
             )
 
         parsed_categories = parse_csv_strings(
@@ -446,8 +453,10 @@ def get(
             and not parsed_categories
         ):
             raise click.UsageError(
-                "Provide a non-empty comma-separated "
-                "AutotargetingSettingsCategoriesFieldNames list."
+                t(
+                    "Provide a non-empty comma-separated "
+                    "AutotargetingSettingsCategoriesFieldNames list."
+                )
             )
 
         criteria = {}
@@ -467,9 +476,7 @@ def get(
 
         params = {"SelectionCriteria": criteria, "FieldNames": field_names}
         if parsed_brand_options:
-            params["AutotargetingSettingsBrandOptionsFieldNames"] = (
-                parsed_brand_options
-            )
+            params["AutotargetingSettingsBrandOptionsFieldNames"] = parsed_brand_options
         if parsed_categories:
             params["AutotargetingSettingsCategoriesFieldNames"] = parsed_categories
 
@@ -619,13 +626,17 @@ def add(
     )
     if modes_used == 0:
         raise click.UsageError(
-            "Provide exactly one of: --keyword (single), --from-file (JSONL), "
-            "or --keywords-json (inline JSON array)."
+            t(
+                "Provide exactly one of: --keyword (single), --from-file (JSONL), "
+                "or --keywords-json (inline JSON array)."
+            )
         )
     if modes_used > 1:
         raise click.UsageError(
-            "Provide exactly one of: --keyword, --from-file, or "
-            "--keywords-json — they are mutually exclusive."
+            t(
+                "Provide exactly one of: --keyword, --from-file, or "
+                "--keywords-json — they are mutually exclusive."
+            )
         )
 
     batch_mode = from_file is not None or keywords_json is not None
@@ -676,7 +687,7 @@ def add(
         return
 
     if adgroup_id is None:
-        raise click.UsageError("Missing option '--adgroup-id'.")
+        raise click.UsageError(t("Missing option '--adgroup-id'."))
 
     parsed_autotargeting_categories = _parse_autotargeting_categories(
         autotargeting_categories
@@ -759,8 +770,10 @@ def _bulk_add(
 ) -> None:
     if output_format != "json":
         raise click.UsageError(
-            "--format other than 'json' is not supported in batch mode "
-            "(item-level results may include per-row Errors)."
+            t(
+                "--format other than 'json' is not supported in batch mode "
+                "(item-level results may include per-row Errors)."
+            )
         )
 
     if from_file is not None:
@@ -769,7 +782,7 @@ def _bulk_add(
         raw_rows = _load_keyword_rows_from_inline(keywords_json or "")
 
     if not raw_rows:
-        raise click.UsageError("Input contains no keyword rows.")
+        raise click.UsageError(t("Input contains no keyword rows."))
 
     items: List[Dict[str, Any]] = [
         _normalize_keyword_row(row, idx, adgroup_id)
@@ -989,10 +1002,12 @@ def update(
     # Reject empty-payload no-op (issue #198 H10).
     if len(keyword_data) == 1:
         raise click.UsageError(
-            "keywords update requires at least one updatable field "
-            "(--keyword, --user-param-1, --user-param-2, "
-            "--autotargeting-category, --autotargeting-brand-option, "
-            "or --autotargeting-settings-* flags)."
+            t(
+                "keywords update requires at least one updatable field "
+                "(--keyword, --user-param-1, --user-param-2, "
+                "--autotargeting-category, --autotargeting-brand-option, "
+                "or --autotargeting-settings-* flags)."
+            )
         )
 
     try:

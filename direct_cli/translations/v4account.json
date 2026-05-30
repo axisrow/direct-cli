@@ -27,5 +27,22 @@
   "Positive amount, e.g. 100.50 (TransferMoney only)": "Положительная сумма, например 100.50 (только TransferMoney)",
   "Precomputed financial token (Deposit / Invoice / TransferMoney)": "Заранее вычисленный финансовый токен (Deposit / Invoice / TransferMoney)",
   "Financial master token; computes the per-request token from operation_num + method + login (Deposit / Invoice / TransferMoney)": "Финансовый мастер-токен; вычисляет токен запроса из operation_num + method + login (Deposit / Invoice / TransferMoney)",
-  "Financial operation number (Deposit / Invoice / TransferMoney)": "Номер финансовой операции (Deposit / Invoice / TransferMoney)"
+  "Financial operation number (Deposit / Invoice / TransferMoney)": "Номер финансовой операции (Deposit / Invoice / TransferMoney)",
+  "--dry-run is required unless --sandbox is set": "--dry-run обязателен, если не задан --sandbox",
+  "--day-budget must be a non-negative amount": "--day-budget должен быть неотрицательной суммой",
+  "--logins must not be empty when provided": "--logins не должен быть пустым, если указан",
+  "--logins accepts at most 50 entries": "--logins принимает не более 50 записей",
+  "--account-ids accepts at most 100 entries": "--account-ids принимает не более 100 записей",
+  "--account-id is required for --action Update": "--account-id обязателен для --action Update",
+  "--sms-time-from and --sms-time-to must be provided together": "--sms-time-from и --sms-time-to должны указываться вместе",
+  "Provide at least one update field": "Укажите хотя бы одно поле обновления",
+  "--payment accepts at most 50 entries per call": "--payment принимает не более 50 записей за вызов",
+  "--from-account-id and --to-account-id must differ": "--from-account-id и --to-account-id должны различаться",
+  "--account-ids must not be empty when provided": "--account-ids не должен быть пустым, если указан",
+  "--account-ids must contain only positive integers": "--account-ids должен содержать только положительные целые числа",
+  "--day-budget and --spend-mode must be provided together": "--day-budget и --spend-mode должны указываться вместе",
+  "--payment must use ACCOUNT_ID=AMOUNT": "--payment должен использовать формат ACCOUNT_ID=AMOUNT",
+  "--payment account ID must be a positive integer": "ID счёта в --payment должен быть положительным целым числом",
+  "--payment account IDs must be unique": "ID счетов в --payment должны быть уникальными",
+  "--from-account-id, --to-account-id, and --amount are required for --action TransferMoney": "--from-account-id, --to-account-id и --amount обязательны для --action TransferMoney"
 }

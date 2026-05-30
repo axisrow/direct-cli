@@ -5,6 +5,7 @@ DynamicAds (Webpages) commands
 import click
 
 from ..api import create_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import get_default_fields, parse_condition_specs, parse_ids, MICRO_RUBLES
 
@@ -264,11 +265,14 @@ def set_bids(
         }
         if not selector_fields:
             raise click.UsageError(
-                "Provide a target selector (--id, --adgroup-id, or --campaign-id)"
+                t("Provide a target selector (--id, --adgroup-id, or --campaign-id)")
             )
         if not bid_fields:
             raise click.UsageError(
-                "Provide at least one bid field (--bid, --context-bid, or --priority)"
+                t(
+                    "Provide at least one bid field "
+                    "(--bid, --context-bid, or --priority)"
+                )
             )
 
         body = {"method": "setBids", "params": {"Bids": [bid_data]}}

@@ -278,5 +278,18 @@
   "UnifiedCampaign Search strategy WeeklySpendLimit in micro-rubles (#363)": "UnifiedCampaign Search: стратегия WeeklySpendLimit в микрорублях (#363)",
   "UnifiedCampaign.PackageBiddingStrategy.Platforms.Maps": "UnifiedCampaign.PackageBiddingStrategy.Platforms.Maps",
   "UnifiedCampaign.PackageBiddingStrategy.Platforms.SearchOrganizationList": "UnifiedCampaign.PackageBiddingStrategy.Platforms.SearchOrganizationList",
-  "Update campaign": "Обновить кампанию"
+  "Update campaign": "Обновить кампанию",
+  "--time-targeting-schedule must contain at least one value": "--time-targeting-schedule должен содержать хотя бы одно значение",
+  "TimeTargeting requires --consider-working-weekends when any time-targeting flag is provided.": "TimeTargeting требует --consider-working-weekends, если задан любой флаг временного таргетинга.",
+  "--relevant-keywords-budget-percent is required when adding TextCampaign.RelevantKeywords": "--relevant-keywords-budget-percent обязателен при добавлении TextCampaign.RelevantKeywords",
+  "--frequency-cap-period-days and --frequency-cap-period-all are mutually exclusive": "--frequency-cap-period-days и --frequency-cap-period-all взаимоисключающи",
+  "--frequency-cap-impressions is required with --frequency-cap-period-days or --frequency-cap-period-all": "--frequency-cap-impressions обязателен вместе с --frequency-cap-period-days или --frequency-cap-period-all",
+  "--frequency-cap-impressions requires --frequency-cap-period-days or --frequency-cap-period-all": "--frequency-cap-impressions требует --frequency-cap-period-days или --frequency-cap-period-all",
+  "SmartCampaign.PackageBiddingStrategy requires --package-platform-search and --package-platform-network": "SmartCampaign.PackageBiddingStrategy требует --package-platform-search и --package-platform-network",
+  "TimeTargeting.HolidaysSchedule requires --holidays-suspend-on-holidays when any --holidays-* flag is provided.": "TimeTargeting.HolidaysSchedule требует --holidays-suspend-on-holidays, если задан любой флаг --holidays-*.",
+  "--holidays-bid-percent, --holidays-start-hour, and --holidays-end-hour can be provided only when --holidays-suspend-on-holidays is NO.": "--holidays-bid-percent, --holidays-start-hour и --holidays-end-hour можно указывать только при --holidays-suspend-on-holidays равном NO.",
+  "--holidays-bid-percent must be a multiple of 10": "--holidays-bid-percent должен быть кратен 10",
+  "--counter-id is required for SMART_CAMPAIGN (WSDL SmartCampaignAddItem.CounterId minOccurs=1)": "--counter-id обязателен для SMART_CAMPAIGN (WSDL SmartCampaignAddItem.CounterId minOccurs=1)",
+  "--filter-average-cpc cannot be combined with typed --smart-network-* flags; use --smart-network-filter-average-cpc instead": "--filter-average-cpc нельзя сочетать с типизированными флагами --smart-network-*; используйте --smart-network-filter-average-cpc",
+  "--filter-average-cpc is only valid for SMART_CAMPAIGN with AVERAGE_CPC_PER_FILTER network strategy": "--filter-average-cpc допустим только для SMART_CAMPAIGN со стратегией сети AVERAGE_CPC_PER_FILTER"
 }

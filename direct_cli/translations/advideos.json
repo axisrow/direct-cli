@@ -6,5 +6,6 @@
   "Manage ad videos": "Управление видео для объявлений",
   "Path to a video file to base64-encode": "Путь к видеофайлу для кодирования в base64",
   "Video URL (mutually exclusive with --video-data/--video-file)": "URL видео (взаимоисключимо с --video-data/--video-file)",
-  "Video name": "Имя видео"
+  "Video name": "Имя видео",
+  "Provide exactly one of --url, --video-data, or --video-file.": "Укажите ровно один из --url, --video-data или --video-file."
 }

@@ -23,5 +23,15 @@
   "Source campaign ID": "ID кампании-источника",
   "To issue a master token in the Yandex Direct UI, open Tools -> API -> Financial operations, enable the 'Allow financial operations' checkbox, click Save, then issue the master token on the same Financial operations page and confirm by SMS.": "Чтобы выпустить мастер-токен, в интерфейсе Яндекс Директа откройте Инструменты -> API -> Финансовые операции, включите чекбокс «Разрешить финансовые операции», нажмите «Сохранить», затем выпустите мастер-токен на этой же странице и подтвердите действие по SMS.",
   "Transfer currency (RUB/CHF/EUR/KZT/TRY/UAH/USD/BYN)": "Валюта перевода (RUB/CHF/EUR/KZT/TRY/UAH/USD/BYN)",
-  "Yandex Direct v4 Live finance commands.": "Финансовые команды Yandex Direct v4 Live."
+  "Yandex Direct v4 Live finance commands.": "Финансовые команды Yandex Direct v4 Live.",
+  "--logins must not be empty": "--logins не должен быть пустым",
+  "Use either --finance-token or --master-token, not both": "Используйте либо --finance-token, либо --master-token, но не оба",
+  "--dry-run is required for v4finance money commands": "--dry-run обязателен для денежных команд v4finance",
+  "--campaign-ids must contain only positive integers": "--campaign-ids должен содержать только положительные целые числа",
+  "--custom-transaction-id must be exactly 32 latin letters or digits": "--custom-transaction-id должен содержать ровно 32 латинские буквы или цифры",
+  "--contract-id is required when --pay-method Bank": "--contract-id обязателен при --pay-method Bank",
+  "--payment must use CAMPAIGN_ID=AMOUNT": "--payment должен использовать формат CAMPAIGN_ID=AMOUNT",
+  "--payment campaign ID must be a positive integer": "ID кампании в --payment должен быть положительным целым числом",
+  "--payment campaign IDs must be unique": "ID кампаний в --payment должны быть уникальными",
+  "Provide --finance-login or set YANDEX_DIRECT_FINANCE_LOGIN when using --master-token": "Укажите --finance-login или задайте YANDEX_DIRECT_FINANCE_LOGIN при использовании --master-token"
 }
