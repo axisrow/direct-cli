@@ -1,0 +1,23 @@
+{
+  "Generate and manage reports": "Формирование и управление отчётами",
+  "Get report": "Получить отчёт",
+  "Report type. Loaded from spec snapshot.": "Тип отчёта. Загружается из снимка спецификации.",
+  "Report name": "Имя отчёта",
+  "Comma-separated Yandex Metrica goal IDs (max 10)": "ID целей Яндекс Метрики через запятую (не более 10)",
+  "Comma-separated attribution models: FC,LC,LSC,LYDC,FCCD,LSCCD,LYDCCD,AUTO": "Модели атрибуции через запятую: FC,LC,LSC,LYDC,FCCD,LSCCD,LYDCCD,AUTO",
+  "DateRangeType enum (default: CUSTOM_DATE)": "Значение перечисления DateRangeType (по умолчанию: CUSTOM_DATE)",
+  "Processing mode: auto, online, offline": "Режим обработки: auto, online, offline",
+  "Omit report header row (default: yes)": "Не выводить строку заголовка отчёта (по умолчанию: да)",
+  "Omit column header row": "Не выводить строку заголовков столбцов",
+  "Omit report summary row (default: yes)": "Не выводить итоговую строку отчёта (по умолчанию: да)",
+  "Return monetary values in micros": "Возвращать денежные значения в микро-единицах",
+  "Accept-Language for the report": "Заголовок Accept-Language для отчёта",
+  "Include VAT in report (default: yes)": "Включать НДС в отчёт (по умолчанию: да)",
+  "Include discounts in report (default: yes)": "Включать скидки в отчёт (по умолчанию: да)",
+  "Page limit for pagination": "Размер страницы для постраничной выборки",
+  "Page offset for pagination": "Смещение страницы для постраничной выборки",
+  "Filter in Field:Operator:Value1,Value2 format (repeatable).": "Фильтр в формате Field:Operator:Value1,Value2 (можно повторять).",
+  "Order by field (repeatable), e.g. --order-by Clicks:DESC": "Сортировка по полю (можно повторять), например --order-by Clicks:DESC",
+  "Print request headers and body without calling the API": "Вывести заголовки и тело запроса без обращения к API",
+  "List available report types": "Список доступных типов отчётов"
+}

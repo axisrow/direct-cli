@@ -106,7 +106,7 @@ class TestCLI(unittest.TestCase):
 
     def test_reports_help(self):
         """Test reports help"""
-        result = self.runner.invoke(cli, ["reports", "--help"])
+        result = self.runner.invoke(cli, ["--locale", "en", "reports", "--help"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("Generate and manage reports", result.output)
         self.assertIn(f"Documentation: {get_docs_url('reports')}", result.output)
@@ -753,7 +753,9 @@ class TestCLI(unittest.TestCase):
         self.assertNotIn("checkdict", result.output)
 
     def test_changes_help_uses_canonical_datetime_format(self):
-        result = self.runner.invoke(cli, ["changes", "check-campaigns", "--help"])
+        result = self.runner.invoke(
+            cli, ["--locale", "en", "changes", "check-campaigns", "--help"]
+        )
         self.assertEqual(result.exit_code, 0)
         self.assertIn("YYYY-MM-DDTHH:MM:SSZ", result.output)
         self.assertNotIn("ISO format", result.output)

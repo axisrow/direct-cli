@@ -25,6 +25,7 @@ from ..auth import (
     set_active_profile,
     validate_oauth_profile,
 )
+from ..i18n import t
 from ..output import print_info, print_success
 
 
@@ -140,7 +141,7 @@ def login(
             client_id=chosen_client_id,
             client_secret=client_secret,
         )
-        print_info("Open this URL and grant access:")
+        print_info(t("Open this URL and grant access:"))
         click.echo(auth_url)
         auth_code = click.prompt("Enter OAuth code", type=str).strip()
     elif not client_secret:
@@ -218,7 +219,7 @@ def list_command():
     """List available auth profiles without exposing secrets."""
     profiles = list_profiles()
     if not profiles:
-        print_info("No profiles configured.")
+        print_info(t("No profiles configured."))
         return
 
     for item in profiles:
@@ -257,7 +258,7 @@ def status(profile, output_format):
     """Show auth status for one profile."""
     selected = profile or get_active_profile()
     if not selected:
-        print_info("No active profile.")
+        print_info(t("No active profile."))
         return
 
     oauth_profile = get_oauth_profile(selected)
@@ -421,7 +422,7 @@ def _print_start_auth_output(
             )
         )
         return
-    print_info("Open this URL and grant access:")
+    print_info(t("Open this URL and grant access:"))
     click.echo(auth_url)
 
 

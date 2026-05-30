@@ -1,0 +1,10 @@
+{
+  "Get reference dictionaries": "Получение справочников",
+  "Get dictionaries": "Получить справочники",
+  "Comma-separated dictionary names (Currencies,GeoRegions,...)": "Имена справочников через запятую (Currencies,GeoRegions,...)",
+  "Get GeoRegions dictionary entries": "Получить записи справочника GeoRegions",
+  "Geo region name contains this value": "Имя географического региона содержит это значение",
+  "Comma-separated geo region IDs": "ID географических регионов через запятую",
+  "Comma-separated exact geo region names": "Точные имена географических регионов через запятую",
+  "List available dictionary names": "Список доступных имён справочников"
+}
