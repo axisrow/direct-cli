@@ -1,0 +1,10 @@
+{
+  "Add ad extension (callout)": "Добавить расширение объявления (уточнение)",
+  "Callout text": "Текст уточнения",
+  "Comma-separated CalloutFieldNames (e.g. CalloutText)": "Значения CalloutFieldNames через запятую (например, CalloutText)",
+  "Comma-separated extension IDs": "ID расширений через запятую",
+  "Delete ad extension": "Удалить расширение объявления",
+  "Extension ID": "ID расширения",
+  "Get ad extensions": "Получить расширения объявлений",
+  "Manage ad extensions": "Управление расширениями объявлений"
+}

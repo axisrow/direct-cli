@@ -1,0 +1,10 @@
+{
+  "Add a new ad video (by URL or binary data)": "Добавить новое видео для объявления (по URL или бинарными данными)",
+  "Base64-encoded video binary": "Бинарные данные видео в кодировке base64",
+  "Comma-separated video IDs": "ID видео через запятую",
+  "Get ad videos": "Получить видео для объявлений",
+  "Manage ad videos": "Управление видео для объявлений",
+  "Path to a video file to base64-encode": "Путь к видеофайлу для кодирования в base64",
+  "Video URL (mutually exclusive with --video-data/--video-file)": "URL видео (взаимоисключимо с --video-data/--video-file)",
+  "Video name": "Имя видео"
+}

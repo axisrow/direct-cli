@@ -1,0 +1,13 @@
+{
+  "Add sitelinks set.\n\n    Provide exactly one source: --sitelink (repeatable), --sitelink-json,\n    or --sitelinks-from-file.\n    ": "Добавить набор быстрых ссылок.\n\n    Укажите ровно один источник: --sitelink (можно повторять),\n    --sitelink-json или --sitelinks-from-file.\n    ",
+  "Comma-separated SitelinkFieldNames controlling nested Sitelinks[] item field selection (e.g. Title,Href,Description,TurboPageId). Sent as a separate top-level request parameter alongside FieldNames per the SitelinksGetRequest WSDL.": "Значения SitelinkFieldNames через запятую, управляющие выбором полей вложенных элементов Sitelinks[] (например, Title,Href,Description,TurboPageId). Отправляется как отдельный параметр запроса верхнего уровня вместе с FieldNames согласно WSDL SitelinksGetRequest.",
+  "Comma-separated SitelinksSet FieldNames": "Значения FieldNames набора SitelinksSet через запятую",
+  "Comma-separated sitelink IDs": "ID быстрых ссылок через запятую",
+  "Delete sitelinks set": "Удалить набор быстрых ссылок",
+  "Get sitelinks": "Получить быстрые ссылки",
+  "Inline JSON array of sitelink objects: [{\"Title\":\"...\",\"Href\":\"...\",\"Description\":\"...\"}]": "Inline JSON-массив объектов быстрых ссылок: [{\"Title\":\"...\",\"Href\":\"...\",\"Description\":\"...\"}]",
+  "JSONL file with one sitelink object per line": "JSONL-файл с одним объектом быстрой ссылки в строке",
+  "Manage sitelinks": "Управление быстрыми ссылками",
+  "Sitelink spec: TITLE|HREF[|DESCRIPTION[|TURBO_PAGE_ID]]. Escape literal '|' as '\\|'.": "Спецификация быстрой ссылки: TITLE|HREF[|DESCRIPTION[|TURBO_PAGE_ID]]. Экранируйте литеральный '|' как '\\|'.",
+  "Sitelinks set ID": "ID набора быстрых ссылок"
+}

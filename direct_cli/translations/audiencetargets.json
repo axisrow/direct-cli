@@ -1,0 +1,15 @@
+{
+  "Add audience target": "Добавить условие нацеливания на аудиторию",
+  "Comma-separated interest IDs": "ID интересов через запятую",
+  "Comma-separated retargeting list IDs": "ID списков ретаргетинга через запятую",
+  "ContextBid value in micro-rubles": "Значение ContextBid в микрорублях",
+  "Delete audience target": "Удалить условие нацеливания на аудиторию",
+  "Get audience targets": "Получить условия нацеливания на аудитории",
+  "Interest ID": "ID интереса",
+  "Manage audience targets": "Управление условиями нацеливания на аудитории",
+  "Resume audience target": "Возобновить условие нацеливания на аудиторию",
+  "Retargeting list ID": "ID списка ретаргетинга",
+  "Set audience target bids": "Установить ставки условий нацеливания на аудитории",
+  "StrategyPriority value for automatic strategies": "Значение StrategyPriority для автоматических стратегий",
+  "Suspend audience target": "Приостановить условие нацеливания на аудиторию"
+}

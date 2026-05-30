@@ -1,0 +1,12 @@
+{
+  "Ad image hash": "Хеш изображения объявления",
+  "Ad image type": "Тип изображения объявления",
+  "Add ad image": "Добавить изображение объявления",
+  "Base64-encoded image data": "Данные изображения в кодировке base64",
+  "Comma-separated image IDs": "ID изображений через запятую",
+  "Delete ad image": "Удалить изображение объявления",
+  "Get ad images": "Получить изображения объявлений",
+  "Image name": "Имя изображения",
+  "Manage ad images": "Управление изображениями объявлений",
+  "Path to an image file to base64-encode": "Путь к файлу изображения для кодирования в base64"
+}

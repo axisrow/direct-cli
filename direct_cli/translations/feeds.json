@@ -1,0 +1,23 @@
+{
+  "Add feed": "Добавить фид",
+  "Business type (BusinessTypeEnum)": "Тип бизнеса (BusinessTypeEnum)",
+  "Comma-separated FileFeedFieldNames (e.g. Filename). Sent as separate top-level request parameter per the FeedsGetRequest WSDL.": "Значения FileFeedFieldNames через запятую (например, Filename). Отправляется как отдельный параметр запроса верхнего уровня согласно WSDL FeedsGetRequest.",
+  "Comma-separated UrlFeedFieldNames (e.g. Login,Url,RemoveUtmTags). Sent as separate top-level request parameter per the FeedsGetRequest WSDL.": "Значения UrlFeedFieldNames через запятую (например, Login,Url,RemoveUtmTags). Отправляется как отдельный параметр запроса верхнего уровня согласно WSDL FeedsGetRequest.",
+  "Comma-separated feed IDs": "ID фидов через запятую",
+  "Delete feed": "Удалить фид",
+  "Feed ID": "ID фида",
+  "Feed URL": "URL фида",
+  "Feed URL for an existing URL feed; Yandex Direct rejects source switches.": "URL для существующего URL-фида; Яндекс Директ запрещает смену источника.",
+  "Feed name": "Имя фида",
+  "FileFeed.Filename; defaults to the basename of --file-feed-path.": "FileFeed.Filename; по умолчанию — имя файла из --file-feed-path.",
+  "Get feeds": "Получить фиды",
+  "Manage feeds": "Управление фидами",
+  "Path to feed file for FileFeed.Data base64 upload.": "Путь к файлу фида для base64-загрузки FileFeed.Data.",
+  "Path to feed file for an existing FILE feed; Yandex Direct rejects source switches.": "Путь к файлу для существующего FILE-фида; Яндекс Директ запрещает смену источника.",
+  "Set UrlFeed.Login to null": "Установить UrlFeed.Login в null",
+  "Set UrlFeed.Password to null": "Установить UrlFeed.Password в null",
+  "Update feed": "Обновить фид",
+  "UrlFeed.Login for protected feed URL": "UrlFeed.Login для защищённого URL фида",
+  "UrlFeed.Password for protected feed URL": "UrlFeed.Password для защищённого URL фида",
+  "UrlFeed.RemoveUtmTags: delete UTM tags from feed links, YES or NO.": "UrlFeed.RemoveUtmTags: удалять UTM-метки из ссылок фида, YES или NO."
+}
