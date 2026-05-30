@@ -41,6 +41,20 @@ Russian-default CLI localization across all command modules (epic #466).
   join `LOCALIZED_GROUPS`, so their translation completeness is now enforced
   by `test_i18n.py`.
 
+**Localized — Account, clients, reporting (#470):**
+
+- Russian help/docstrings for `clients`, `agencyclients`, `reports`, `changes`,
+  `auth`, `leads`, `dictionaries`, `keywordsresearch`, `businesses`, and
+  `balance` (142 source strings across the ten modules). WSDL field paths,
+  enum values, and flag names are kept verbatim; only human-readable text is
+  translated.
+- First modules with localized **runtime messages**: `print_*` calls carrying a
+  human-readable literal (`auth` interactive prompts, the `agencyclients delete`
+  not-supported notice) are now wrapped in `t()` so they follow the active
+  locale. `print_error(str(e))` API-error passthroughs are unchanged. These
+  groups join `LOCALIZED_GROUPS`, enforcing both translation completeness and
+  the runtime-message wrapping invariant.
+
 ## 0.4.0
 
 Milestone release closing the 0.4.0 roadmap (#123): typed Yandex Direct

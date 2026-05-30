@@ -60,6 +60,17 @@ LOCALIZED_GROUPS = (
     "creatives",
     "advideos",
     "turbopages",
+    # Account, clients, reporting (#470)
+    "clients",
+    "agencyclients",
+    "reports",
+    "changes",
+    "auth",
+    "leads",
+    "dictionaries",
+    "keywordsresearch",
+    "businesses",
+    "balance",
 )
 
 _RUNTIME_MESSAGE_FUNCS = {"print_error", "print_info", "print_warning"}

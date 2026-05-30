@@ -1,0 +1,12 @@
+{
+  "Check for changes": "Проверка изменений",
+  "Check changes for campaigns, ad groups, or ads.\n\n    Exactly one of --campaign-ids, --ad-group-ids, --ad-ids must be provided —\n    the Yandex Direct ``Changes.check`` method declares these three filters as\n    mutually exclusive.\n    ": "Проверить изменения по кампаниям, группам объявлений или объявлениям.\n\n    Должен быть указан ровно один из --campaign-ids, --ad-group-ids, --ad-ids —\n    метод Yandex Direct ``Changes.check`` объявляет эти три фильтра\n    взаимоисключающими.\n    ",
+  "Comma-separated campaign IDs (up to 3000). Mutually exclusive with --ad-group-ids and --ad-ids.": "ID кампаний через запятую (до 3000). Взаимоисключающе с --ad-group-ids и --ad-ids.",
+  "Comma-separated ad group IDs (up to 10000). Mutually exclusive with --campaign-ids and --ad-ids.": "ID групп объявлений через запятую (до 10000). Взаимоисключающе с --campaign-ids и --ad-ids.",
+  "Comma-separated ad IDs (up to 50000). Mutually exclusive with --campaign-ids and --ad-group-ids.": "ID объявлений через запятую (до 50000). Взаимоисключающе с --campaign-ids и --ad-group-ids.",
+  "Timestamp for Changes.check (YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DDTHH:MM:SS+03:00)": "Метка времени для Changes.check (YYYY-MM-DDTHH:MM:SSZ или YYYY-MM-DDTHH:MM:SS+03:00)",
+  "Comma-separated FieldNames; allowed values: CampaignIds, AdGroupIds, AdIds, CampaignsStat. Defaults to all four when omitted.": "Значения FieldNames через запятую; допустимые значения: CampaignIds, AdGroupIds, AdIds, CampaignsStat. По умолчанию — все четыре.",
+  "Check campaigns changes": "Проверить изменения по кампаниям",
+  "Timestamp for Changes.checkCampaigns (YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DDTHH:MM:SS+03:00)": "Метка времени для Changes.checkCampaigns (YYYY-MM-DDTHH:MM:SSZ или YYYY-MM-DDTHH:MM:SS+03:00)",
+  "Check dictionaries changes": "Проверить изменения в справочниках"
+}

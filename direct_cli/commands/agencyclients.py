@@ -5,6 +5,7 @@ AgencyClients commands
 import click
 
 from ..api import create_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import (
     assert_not_runtime_deprecated,
@@ -471,7 +472,9 @@ def update(
 def delete(ctx, client_id):
     """Delete agency client (not supported by API)"""
     print_error(
-        "Agency clients cannot be deleted via the Yandex Direct API. "
-        "The API only supports add, update, and get operations."
+        t(
+            "Agency clients cannot be deleted via the Yandex Direct API. "
+            "The API only supports add, update, and get operations."
+        )
     )
     raise click.Abort()
