@@ -1,0 +1,17 @@
+{
+  "Add smart ad target": "Добавить условие нацеливания смарт-объявления",
+  "Audience value": "Значение аудитории",
+  "Comma-separated target IDs": "ID условий нацеливания через запятую",
+  "Condition spec: OPERAND:OPERATOR:ARG1|ARG2": "Спецификация условия: OPERAND:OPERATOR:ARG1|ARG2",
+  "Delete smart ad target": "Удалить условие нацеливания смарт-объявления",
+  "Get smart ad targets": "Получить условия нацеливания смарт-объявлений",
+  "Manage smart ad targets": "Управление условиями нацеливания смарт-объявлений",
+  "Resume smart ad target": "Возобновить условие нацеливания смарт-объявления",
+  "Set smart ad target bids": "Установить ставки условий нацеливания смарт-объявлений",
+  "Strategy priority": "Приоритет стратегии",
+  "Suspend smart ad target": "Приостановить условие нацеливания смарт-объявления",
+  "Target ID": "ID условия нацеливания",
+  "Target name": "Имя условия нацеливания",
+  "Update smart ad target": "Обновить условие нацеливания смарт-объявления",
+  "Whether only available items are targeted": "Нацеливаться только на доступные элементы"
+}

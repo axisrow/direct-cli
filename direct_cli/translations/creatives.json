@@ -1,0 +1,12 @@
+{
+  "Add creative": "Добавить креатив",
+  "Comma-separated CpcVideoCreativeFieldNames (e.g. Duration). Sent as separate top-level request parameter per the CreativesGetRequest WSDL.": "Значения CpcVideoCreativeFieldNames через запятую (например, Duration). Отправляется как отдельный параметр запроса верхнего уровня согласно WSDL CreativesGetRequest.",
+  "Comma-separated CpmVideoCreativeFieldNames (e.g. Duration). Sent as separate top-level request parameter per the CreativesGetRequest WSDL.": "Значения CpmVideoCreativeFieldNames через запятую (например, Duration). Отправляется как отдельный параметр запроса верхнего уровня согласно WSDL CreativesGetRequest.",
+  "Comma-separated SmartCreativeFieldNames (e.g. CreativeGroupId,CreativeGroupName,BusinessType). Sent as separate top-level request parameter per the CreativesGetRequest WSDL.": "Значения SmartCreativeFieldNames через запятую (например, CreativeGroupId,CreativeGroupName,BusinessType). Отправляется как отдельный параметр запроса верхнего уровня согласно WSDL CreativesGetRequest.",
+  "Comma-separated VideoExtensionCreativeFieldNames (e.g. Duration). Sent as separate top-level request parameter per the CreativesGetRequest WSDL.": "Значения VideoExtensionCreativeFieldNames через запятую (например, Duration). Отправляется как отдельный параметр запроса верхнего уровня согласно WSDL CreativesGetRequest.",
+  "Comma-separated creative IDs": "ID креативов через запятую",
+  "Comma-separated creative types": "Типы креативов через запятую",
+  "Get creatives": "Получить креативы",
+  "Manage creatives": "Управление креативами",
+  "Video extension creative video ID": "ID видео для видеодополнения-креатива"
+}

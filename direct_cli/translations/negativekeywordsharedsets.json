@@ -1,0 +1,11 @@
+{
+  "Add negative keyword shared set": "Добавить набор минус-фраз",
+  "Comma-separated negative keywords": "Минус-фразы через запятую",
+  "Comma-separated set IDs": "ID наборов через запятую",
+  "Delete negative keyword shared set": "Удалить набор минус-фраз",
+  "Get negative keyword shared sets": "Получить наборы минус-фраз",
+  "Manage negative keyword shared sets": "Управление наборами минус-фраз",
+  "Set ID": "ID набора",
+  "Set name": "Имя набора",
+  "Update negative keyword shared set": "Обновить набор минус-фраз"
+}

@@ -30,6 +30,17 @@ Russian-default CLI localization across all command modules (epic #466).
   human-readable text is translated. These groups join `LOCALIZED_GROUPS`,
   so their translation completeness is now enforced by `test_i18n.py`.
 
+**Localized — Targeting & creatives (#469):**
+
+- Russian help/docstrings for `strategies`, `bidmodifiers`, `smartadtargets`,
+  `vcards`, `feeds`, `dynamicads`, `audiencetargets`, `dynamicfeedadtargets`,
+  `retargeting`, `negativekeywordsharedsets`, `adextensions`, `adimages`,
+  `sitelinks`, `creatives`, `advideos`, and `turbopages` (247 unique strings
+  across the sixteen modules). WSDL field paths, enum values, and flag names
+  are kept verbatim; only human-readable text is translated. These groups
+  join `LOCALIZED_GROUPS`, so their translation completeness is now enforced
+  by `test_i18n.py`.
+
 ## 0.4.0
 
 Milestone release closing the 0.4.0 roadmap (#123): typed Yandex Direct

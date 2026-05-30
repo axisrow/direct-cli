@@ -43,6 +43,23 @@ LOCALIZED_GROUPS = (
     "keywords",
     "keywordbids",
     "bids",
+    # Targeting & creatives (#469)
+    "strategies",
+    "bidmodifiers",
+    "smartadtargets",
+    "vcards",
+    "feeds",
+    "dynamicads",
+    "audiencetargets",
+    "dynamicfeedadtargets",
+    "retargeting",
+    "negativekeywordsharedsets",
+    "adextensions",
+    "adimages",
+    "sitelinks",
+    "creatives",
+    "advideos",
+    "turbopages",
 )
 
 _RUNTIME_MESSAGE_FUNCS = {"print_error", "print_info", "print_warning"}

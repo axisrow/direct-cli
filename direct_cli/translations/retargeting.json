@@ -1,0 +1,14 @@
+{
+  "Add new retargeting list": "Добавить новый список ретаргетинга",
+  "Comma-separated list IDs": "ID списков через запятую",
+  "Delete retargeting list": "Удалить список ретаргетинга",
+  "Get retargeting lists": "Получить списки ретаргетинга",
+  "List name": "Имя списка",
+  "Manage retargeting lists": "Управление списками ретаргетинга",
+  "Retargeting list description for RetargetingListAddItem.Description (max 4096 chars)": "Описание списка ретаргетинга для RetargetingListAddItem.Description (не более 4096 символов)",
+  "Retargeting list description for RetargetingListUpdateItem.Description (max 4096 chars)": "Описание списка ретаргетинга для RetargetingListUpdateItem.Description (не более 4096 символов)",
+  "Retargeting list type": "Тип списка ретаргетинга",
+  "Retargeting list type (case-insensitive). Yandex Direct accepts only RETARGETING (default — Metrica goals/segments + Audience segments, usable in text & image / mobile-app campaigns) or AUDIENCE (any goals/segments, usable in display campaigns). See axisrow/direct-cli#25.": "Тип списка ретаргетинга (регистр не важен). Яндекс Директ принимает только RETARGETING (по умолчанию — цели/сегменты Метрики + сегменты Аудиторий, для текстово-графических / мобильных кампаний) или AUDIENCE (любые цели/сегменты, для медийных кампаний). См. axisrow/direct-cli#25.",
+  "Rule spec: OPERATOR:EXTERNAL_ID[:LIFESPAN][|EXTERNAL_ID[:LIFESPAN]]": "Спецификация правила: OPERATOR:EXTERNAL_ID[:LIFESPAN][|EXTERNAL_ID[:LIFESPAN]]",
+  "Update retargeting list": "Обновить список ретаргетинга"
+}
