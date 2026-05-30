@@ -339,9 +339,8 @@ def _build_price_extension_add(
         missing.append("--price-extension-price-currency")
     if missing:
         raise click.UsageError(
-            t("{arg0}{arg1}").format(
-                arg0=f"{container_name}.PriceExtension add requires ",
-                arg1=", ".join(missing),
+            t("{container_name}.PriceExtension add requires {arg0}").format(
+                container_name=container_name, arg0=", ".join(missing)
             )
         )
 
@@ -538,8 +537,8 @@ def _build_feed_based_ad_add(
         missing_fields.append("--default-texts")
     if missing_fields:
         raise click.UsageError(
-            t("{arg0}{arg1}").format(
-                arg0=f"{container_name} requires ", arg1=", ".join(missing_fields)
+            t("{container_name} requires {arg0}").format(
+                container_name=container_name, arg0=", ".join(missing_fields)
             )
         )
 
