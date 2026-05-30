@@ -56,15 +56,18 @@ def _file_feed_payload(
         raise click.UsageError(t("FileFeed.Filename cannot be empty."))
     if len(filename) > _FILE_FEED_MAX_FILENAME_LENGTH:
         raise click.UsageError(
-            "FileFeed.Filename must be at most "
-            f"{_FILE_FEED_MAX_FILENAME_LENGTH} characters."
+            t(
+                "FileFeed.Filename must be at most {_FILE_FEED_MAX_FILENAME_LENGTH} characters."
+            ).format(_FILE_FEED_MAX_FILENAME_LENGTH=_FILE_FEED_MAX_FILENAME_LENGTH)
         )
 
     try:
         file_size = path.stat().st_size
     except OSError as exc:
         raise click.UsageError(
-            f"Cannot read --file-feed-path {file_feed_path!r}: {exc}"
+            t("Cannot read --file-feed-path {file_feed_path!r}: {exc}").format(
+                file_feed_path=file_feed_path, exc=exc
+            )
         )
 
     if file_size > _FILE_FEED_MAX_BYTES:
@@ -76,7 +79,9 @@ def _file_feed_payload(
         data = path.read_bytes()
     except OSError as exc:
         raise click.UsageError(
-            f"Cannot read --file-feed-path {file_feed_path!r}: {exc}"
+            t("Cannot read --file-feed-path {file_feed_path!r}: {exc}").format(
+                file_feed_path=file_feed_path, exc=exc
+            )
         )
 
     return {

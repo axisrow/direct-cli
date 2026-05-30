@@ -27,7 +27,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Optional, overload
 
 import click
 
@@ -109,6 +109,14 @@ def resolve_locale(ctx: Optional[click.Context] = None) -> str:
     if normalized:
         return normalized
     return DEFAULT_LOCALE
+
+
+@overload
+def t(source: str, locale: Optional[str] = None) -> str: ...
+
+
+@overload
+def t(source: None, locale: Optional[str] = None) -> None: ...
 
 
 def t(source: Optional[str], locale: Optional[str] = None) -> Optional[str]:

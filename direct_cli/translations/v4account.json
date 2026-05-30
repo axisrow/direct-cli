@@ -44,5 +44,8 @@
   "--payment must use ACCOUNT_ID=AMOUNT": "--payment должен использовать формат ACCOUNT_ID=AMOUNT",
   "--payment account ID must be a positive integer": "ID счёта в --payment должен быть положительным целым числом",
   "--payment account IDs must be unique": "ID счетов в --payment должны быть уникальными",
-  "--from-account-id, --to-account-id, and --amount are required for --action TransferMoney": "--from-account-id, --to-account-id и --amount обязательны для --action TransferMoney"
+  "--from-account-id, --to-account-id, and --amount are required for --action TransferMoney": "--from-account-id, --to-account-id и --amount обязательны для --action TransferMoney",
+  "{arg0} not valid for --action {action}. Valid flags for {action}: {arg1}": "{arg0} недопустим для --action {action}. Допустимые флаги для {action}: {arg1}",
+  "--action must be one of: {arg0}": "--action должен быть одним из: {arg0}",
+  "--currency is required for --action {action}": "--currency обязателен для --action {action}"
 }

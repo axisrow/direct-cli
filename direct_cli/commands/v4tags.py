@@ -20,9 +20,15 @@ def _positive_ids_param(value: str, option_name: str) -> list[int]:
     except ValueError as exc:
         raise click.UsageError(str(exc)) from exc
     if not ids:
-        raise click.UsageError(f"{option_name} must not be empty")
+        raise click.UsageError(
+            t("{option_name} must not be empty").format(option_name=option_name)
+        )
     if any(item <= 0 for item in ids):
-        raise click.UsageError(f"{option_name} must contain only positive integers")
+        raise click.UsageError(
+            t("{option_name} must contain only positive integers").format(
+                option_name=option_name
+            )
+        )
     return ids
 
 

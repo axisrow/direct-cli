@@ -88,11 +88,15 @@ LOCALIZED_GROUPS = (
 # surfaces (UsageError / BadParameter / prompt / confirm), matched by bare name
 # or as a ``click.<Name>`` attribute. Stage A (#477) wraps only *static* string
 # literals in ``t(...)``; interpolated forms (f-string / concat) are stage B
-# (#478), so the AST scan below flags only ``ast.Constant`` first arguments.
+# (#478). Both stages are now landed, so the AST scan below flags every
+# un-wrapped literal first argument — static (``ast.Constant``), f-string
+# (``ast.JoinedStr``), and string ``+`` concatenation — for these functions.
+# A first argument that is a ``t(...)`` or ``t(...).format(...)`` call is OK.
 _RUNTIME_MESSAGE_FUNCS = {
     "print_error",
     "print_info",
     "print_warning",
+    "print_success",
     "UsageError",
     "BadParameter",
     "prompt",
@@ -287,13 +291,36 @@ def test_localized_groups_have_complete_translations():
     assert not missing, "untranslated strings in localized groups: " + repr(missing)
 
 
+def _binop_has_str_constant(node):
+    """True if a ``+`` BinOp tree contains a string literal (i.e. concat)."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return True
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        return _binop_has_str_constant(node.left) or _binop_has_str_constant(node.right)
+    return False
+
+
+def _is_t_wrapped(node):
+    """True if *node* is ``t(...)`` or ``t(...).format(...)``."""
+    if not isinstance(node, ast.Call):
+        return False
+    func = node.func
+    # t(...).format(...) — unwrap the .format attribute call to its receiver.
+    if isinstance(func, ast.Attribute) and func.attr == "format":
+        return _is_t_wrapped(func.value)
+    return (isinstance(func, ast.Name) and func.id == "t") or (
+        isinstance(func, ast.Attribute) and func.attr == "t"
+    )
+
+
 def test_localized_groups_wrap_runtime_messages():
     """User-facing message calls in a localized module must not take a bare
-    string literal. ``_RUNTIME_MESSAGE_FUNCS`` (print_* plus Click's
-    UsageError / BadParameter / prompt / confirm) must pass their first
-    argument through ``t(...)`` so it localizes. Only ``ast.Constant`` literals
-    are flagged here; interpolated messages (f-string / concat) are stage B
-    (#478) and intentionally not yet enforced."""
+    string literal. Every ``_RUNTIME_MESSAGE_FUNCS`` call (print_* plus Click's
+    UsageError / BadParameter / prompt / confirm) must pass its first argument
+    through ``t(...)`` or ``t(...).format(...)``. Both stages of #466's error
+    localization are landed, so static (``ast.Constant``), f-string
+    (``ast.JoinedStr``), and string ``+`` concatenation literals are all
+    rejected; a ``t`` wrapper is the only accepted form."""
     offenders: dict[str, list[str]] = {}
     seen_files: set[str] = set()
     for name in LOCALIZED_GROUPS:
@@ -316,8 +343,46 @@ def test_localized_groups_wrap_runtime_messages():
             if func_name not in _RUNTIME_MESSAGE_FUNCS:
                 continue
             first = node.args[0]
-            if isinstance(first, ast.Constant) and isinstance(first.value, str):
-                offenders.setdefault(name, []).append(first.value)
+            if _is_t_wrapped(first):
+                continue
+            bare = (
+                (isinstance(first, ast.Constant) and isinstance(first.value, str))
+                or isinstance(first, ast.JoinedStr)
+                or (isinstance(first, ast.BinOp) and _binop_has_str_constant(first))
+            )
+            if bare:
+                offenders.setdefault(name, []).append(ast.dump(first)[:80])
     assert not offenders, "bare-literal runtime messages (wrap in t()): " + repr(
         offenders
     )
+
+
+def test_templated_translations_preserve_placeholders():
+    """Every translated ``{...}`` template must keep the exact replacement
+    fields of its English source key — same names, conversions, and specs —
+    so ``t(template).format(**kwargs)`` works identically in both locales."""
+    import string
+
+    def fields(text):
+        try:
+            out = []
+            for _, fname, spec, conv in string.Formatter().parse(text):
+                if fname is None:
+                    continue
+                token = (
+                    fname + ("!" + conv if conv else "") + (":" + spec if spec else "")
+                )
+                out.append(token)
+            return sorted(out)
+        except ValueError:
+            return None
+
+    mismatched: dict[str, tuple] = {}
+    for en, ru in _RU.items():
+        en_fields = fields(en)
+        ru_fields = fields(ru)
+        if en_fields is None or not en_fields:
+            continue
+        if en_fields != ru_fields:
+            mismatched[en] = (en_fields, ru_fields)
+    assert not mismatched, "placeholder drift in translations: " + repr(mismatched)

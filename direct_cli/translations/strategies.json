@@ -52,5 +52,9 @@
   "Invalid --priority-goal. IsMetrikaSourceOfValue must be YES or NO": "Некорректный --priority-goal. IsMetrikaSourceOfValue должен быть YES или NO",
   "Provide --type when setting strategy-specific fields": "Укажите --type при задании полей конкретной стратегии",
   "Provide --goal-id for this strategy type": "Укажите --goal-id для этого типа стратегии",
-  "strategies update requires at least one updatable field.": "strategies update требует хотя бы одно изменяемое поле."
+  "strategies update requires at least one updatable field.": "strategies update требует хотя бы одно изменяемое поле.",
+  "--minimum-exploration-budget is not valid for --type {strategy_type}.": "--minimum-exploration-budget недопустим для --type {strategy_type}.",
+  "strategies update requires at least one field for --type {strategy_type}.": "strategies update требует хотя бы одно поле для --type {strategy_type}.",
+  "CustomPeriodBudget requires {arg0}": "CustomPeriodBudget требует {arg0}",
+  "{arg0} is not valid for --type {strategy_type}. Allowed strategy field flags: {allowed_flags}.": "{arg0} недопустим для --type {strategy_type}. Допустимые флаги полей стратегии: {allowed_flags}."
 }

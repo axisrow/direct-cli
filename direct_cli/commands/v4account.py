@@ -182,7 +182,9 @@ def _non_empty(value: str, option_name: str) -> str:
     """Normalize a required string option."""
     normalized = (value or "").strip()
     if not normalized:
-        raise click.UsageError(f"{option_name} must not be empty")
+        raise click.UsageError(
+            t("{option_name} must not be empty").format(option_name=option_name)
+        )
     return normalized
 
 
@@ -205,7 +207,9 @@ def _parse_hh_mm(value: Optional[str], option_name: str) -> Optional[str]:
         return None
     if not HH_MM_RE.match(value):
         raise click.UsageError(
-            f"{option_name} must use HH:MM with minutes 00, 15, 30, or 45"
+            t("{option_name} must use HH:MM with minutes 00, 15, 30, or 45").format(
+                option_name=option_name
+            )
         )
     return value
 
@@ -215,7 +219,9 @@ def _validate_action(action: str) -> str:
     normalized = (action or "").strip()
     if normalized not in V4_ACCOUNT_ACTIONS:
         raise click.UsageError(
-            "--action must be one of: " + ", ".join(V4_ACCOUNT_ACTIONS)
+            t("--action must be one of: {arg0}").format(
+                arg0=", ".join(V4_ACCOUNT_ACTIONS)
+            )
         )
     return normalized
 
@@ -252,8 +258,11 @@ def _reject_disallowed_flags(
             _PARAM_TO_FLAG[name] for name in allowed if name in _PARAM_TO_FLAG
         )
         raise click.UsageError(
-            f"{', '.join(offenders)} not valid for --action {action}. "
-            f"Valid flags for {action}: {', '.join(valid_flags)}"
+            t(
+                "{arg0} not valid for --action {action}. Valid flags for {action}: {arg1}"
+            ).format(
+                arg0=", ".join(offenders), action=action, arg1=", ".join(valid_flags)
+            )
         )
 
 
@@ -705,7 +714,9 @@ def account_management(
 
     # Deposit / Invoice / TransferMoney — financial sub-actions.
     if currency is None:
-        raise click.UsageError(f"--currency is required for --action {action}")
+        raise click.UsageError(
+            t("--currency is required for --action {action}").format(action=action)
+        )
     resolved_token, resolved_op_num = _finance_credentials(
         finance_token,
         master_token,

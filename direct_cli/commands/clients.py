@@ -121,7 +121,9 @@ def get(
             parsed = parse_csv_strings(raw_value)
             if raw_value is not None and not parsed:
                 raise click.UsageError(
-                    f"Provide a non-empty comma-separated {wsdl_key} list."
+                    t("Provide a non-empty comma-separated {wsdl_key} list.").format(
+                        wsdl_key=wsdl_key
+                    )
                 )
             if parsed:
                 parsed_nested[wsdl_key] = parsed

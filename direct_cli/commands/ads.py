@@ -30,7 +30,11 @@ def _parse_field_names_option(
     """Parse a field-name projection and reject explicitly empty CSV."""
     parsed = parse_csv_strings(raw_value)
     if raw_value is not None and not parsed:
-        raise click.UsageError(f"Provide a non-empty comma-separated {wsdl_key} list.")
+        raise click.UsageError(
+            t("Provide a non-empty comma-separated {wsdl_key} list.").format(
+                wsdl_key=wsdl_key
+            )
+        )
     return parsed
 
 
@@ -219,8 +223,13 @@ def _reject_incompatible_flags(
     if incompatible:
         allowed_flags = ", ".join(sorted(flag_for[name] for name in allowed_fields))
         raise click.UsageError(
-            f"{', '.join(incompatible)} is not compatible with --type {ad_type}. "
-            f"Allowed flags for {ad_type}: {allowed_flags}."
+            t(
+                "{arg0} is not compatible with --type {ad_type}. Allowed flags for {ad_type}: {allowed_flags}."
+            ).format(
+                arg0=", ".join(incompatible),
+                ad_type=ad_type,
+                allowed_flags=allowed_flags,
+            )
         )
 
 
@@ -250,10 +259,14 @@ def _build_callout_setting(callouts_add, callouts_remove, callouts_set):
         try:
             ids = parse_ids(csv_value)
         except ValueError as exc:
-            raise click.UsageError(f"--callouts-{op.lower()}: {exc}")
+            raise click.UsageError(
+                t("--callouts-{arg0}: {exc}").format(arg0=op.lower(), exc=exc)
+            )
         if not ids:
             raise click.UsageError(
-                f"--callouts-{op.lower()} must contain at least one ad extension ID."
+                t(
+                    "--callouts-{arg0} must contain at least one ad extension ID."
+                ).format(arg0=op.lower())
             )
         for ad_ext_id in ids:
             items.append({"AdExtensionId": ad_ext_id, "Operation": op})
@@ -326,7 +339,10 @@ def _build_price_extension_add(
         missing.append("--price-extension-price-currency")
     if missing:
         raise click.UsageError(
-            f"{container_name}.PriceExtension add requires " + ", ".join(missing)
+            t("{arg0}{arg1}").format(
+                arg0=f"{container_name}.PriceExtension add requires ",
+                arg1=", ".join(missing),
+            )
         )
 
     price_extension = {
@@ -347,7 +363,11 @@ def _parse_required_csv_strings(
         return None
     values = parse_csv_strings(csv_value)
     if not values:
-        raise click.UsageError(f"{flag_name} must contain at least one value.")
+        raise click.UsageError(
+            t("{flag_name} must contain at least one value.").format(
+                flag_name=flag_name
+            )
+        )
     return values
 
 
@@ -360,9 +380,13 @@ def _parse_required_ids(
     try:
         ids = parse_ids(csv_value)
     except ValueError as exc:
-        raise click.UsageError(f"{flag_name}: {exc}")
+        raise click.UsageError(
+            t("{flag_name}: {exc}").format(flag_name=flag_name, exc=exc)
+        )
     if not ids:
-        raise click.UsageError(f"{flag_name} must contain at least one ID.")
+        raise click.UsageError(
+            t("{flag_name} must contain at least one ID.").format(flag_name=flag_name)
+        )
     return ids
 
 
@@ -389,13 +413,15 @@ def _parse_mobile_app_features(
         enabled = enabled_raw.strip().upper()
         if feature not in MOBILE_APP_FEATURES:
             raise click.UsageError(
-                "Invalid --mobile-app-feature feature "
-                f"{feature_raw!r}; allowed: {allowed_features}."
+                t(
+                    "Invalid --mobile-app-feature feature {feature_raw!r}; allowed: {allowed_features}."
+                ).format(feature_raw=feature_raw, allowed_features=allowed_features)
             )
         if enabled not in {"YES", "NO"}:
             raise click.UsageError(
-                "Invalid --mobile-app-feature value "
-                f"{enabled_raw!r}; expected YES or NO."
+                t(
+                    "Invalid --mobile-app-feature value {enabled_raw!r}; expected YES or NO."
+                ).format(enabled_raw=enabled_raw)
             )
 
         items.append({"Feature": feature, "Enabled": enabled})
@@ -476,7 +502,7 @@ def _build_feed_based_ad_update(
         try:
             parsed_conditions = parse_condition_specs(list(feed_filter_conditions))
         except ValueError as exc:
-            raise click.UsageError(f"--feed-filter-condition: {exc}")
+            raise click.UsageError(t("--feed-filter-condition: {exc}").format(exc=exc))
         if parsed_conditions:
             ad_payload["FeedFilterConditions"] = {"Items": parsed_conditions}
 
@@ -512,7 +538,9 @@ def _build_feed_based_ad_add(
         missing_fields.append("--default-texts")
     if missing_fields:
         raise click.UsageError(
-            f"{container_name} requires " + ", ".join(missing_fields)
+            t("{arg0}{arg1}").format(
+                arg0=f"{container_name} requires ", arg1=", ".join(missing_fields)
+            )
         )
 
     default_text = default_texts.strip() if default_texts else ""
@@ -534,12 +562,14 @@ def _build_feed_based_ad_add(
     if feed_filter_conditions:
         if len(feed_filter_conditions) > 30:
             raise click.UsageError(
-                f"{container_name}.FeedFilterConditions accepts at most 30 filters."
+                t(
+                    "{container_name}.FeedFilterConditions accepts at most 30 filters."
+                ).format(container_name=container_name)
             )
         try:
             parsed_conditions = parse_condition_specs(list(feed_filter_conditions))
         except ValueError as exc:
-            raise click.UsageError(f"--feed-filter-condition: {exc}")
+            raise click.UsageError(t("--feed-filter-condition: {exc}").format(exc=exc))
         if parsed_conditions:
             ad_payload["FeedFilterConditions"] = parsed_conditions
 
@@ -634,14 +664,20 @@ def _build_ad_builder_add(
 ) -> dict[str, object]:
     """Build an AdBuilder*Add payload from typed flags."""
     if creative_id is None:
-        raise click.UsageError(f"{container_name} requires --creative-id.")
+        raise click.UsageError(
+            t("{container_name} requires --creative-id.").format(
+                container_name=container_name
+            )
+        )
     if (
         ad_type in AD_BUILDER_ADD_DESTINATION_TYPES
         and not href
         and turbo_page_id is None
     ):
         raise click.UsageError(
-            f"{container_name} requires either --href or --turbo-page-id."
+            t("{container_name} requires either --href or --turbo-page-id.").format(
+                container_name=container_name
+            )
         )
 
     ad_payload: dict[str, object] = {"Creative": {"CreativeId": creative_id}}
@@ -1308,14 +1344,9 @@ def add(
         }
         if ad_type_norm not in supported_types:
             raise click.UsageError(
-                "Invalid value for '--type': "
-                f"{ad_type!r} is not one of "
-                "'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD', 'DYNAMIC_TEXT_AD', "
-                "'MOBILE_APP_IMAGE_AD', 'RESPONSIVE_AD', 'SHOPPING_AD', 'LISTING_AD', "
-                "'SMART_AD_BUILDER_AD', 'TEXT_AD_BUILDER_AD', "
-                "'MOBILE_APP_AD_BUILDER_AD', "
-                "'MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD', 'CPC_VIDEO_AD_BUILDER_AD', "
-                "'CPM_BANNER_AD_BUILDER_AD', 'CPM_VIDEO_AD_BUILDER_AD'."
+                t(
+                    "Invalid value for '--type': {ad_type!r} is not one of 'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD', 'DYNAMIC_TEXT_AD', 'MOBILE_APP_IMAGE_AD', 'RESPONSIVE_AD', 'SHOPPING_AD', 'LISTING_AD', 'SMART_AD_BUILDER_AD', 'TEXT_AD_BUILDER_AD', 'MOBILE_APP_AD_BUILDER_AD', 'MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD', 'CPC_VIDEO_AD_BUILDER_AD', 'CPM_BANNER_AD_BUILDER_AD', 'CPM_VIDEO_AD_BUILDER_AD'."
+                ).format(ad_type=ad_type)
             )
 
         # --mobile has a Click default of "NO" so the value is always present
@@ -1477,7 +1508,9 @@ def add(
                 if not value
             ]
             if missing_fields:
-                raise click.UsageError("TEXT_AD requires " + ", ".join(missing_fields))
+                raise click.UsageError(
+                    t("TEXT_AD requires {arg0}").format(arg0=", ".join(missing_fields))
+                )
             text_ad = {
                 "Mobile": mobile.upper(),
                 "Title": title,
@@ -1561,7 +1594,9 @@ def add(
             ]
             if missing_fields:
                 raise click.UsageError(
-                    "RESPONSIVE_AD requires " + ", ".join(missing_fields)
+                    t("RESPONSIVE_AD requires {arg0}").format(
+                        arg0=", ".join(missing_fields)
+                    )
                 )
             if not href and business_id is None:
                 raise click.UsageError(
@@ -1653,7 +1688,9 @@ def add(
             ]
             if missing_fields:
                 raise click.UsageError(
-                    "MOBILE_APP_AD requires " + ", ".join(missing_fields)
+                    t("MOBILE_APP_AD requires {arg0}").format(
+                        arg0=", ".join(missing_fields)
+                    )
                 )
             mobile_app_ad = {
                 "Title": title,
@@ -1994,14 +2031,9 @@ def update(
     }
     if ad_type_norm not in supported_types:
         raise click.UsageError(
-            "Invalid value for '--type': "
-            f"{ad_type!r} is not one of "
-            "'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD', 'DYNAMIC_TEXT_AD', "
-            "'MOBILE_APP_IMAGE_AD', 'RESPONSIVE_AD', 'SHOPPING_AD', 'LISTING_AD', "
-            "'SMART_AD_BUILDER_AD', "
-            "'TEXT_AD_BUILDER_AD', 'MOBILE_APP_AD_BUILDER_AD', "
-            "'MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD', 'CPC_VIDEO_AD_BUILDER_AD', "
-            "'CPM_BANNER_AD_BUILDER_AD', 'CPM_VIDEO_AD_BUILDER_AD'."
+            t(
+                "Invalid value for '--type': {ad_type!r} is not one of 'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD', 'DYNAMIC_TEXT_AD', 'MOBILE_APP_IMAGE_AD', 'RESPONSIVE_AD', 'SHOPPING_AD', 'LISTING_AD', 'SMART_AD_BUILDER_AD', 'TEXT_AD_BUILDER_AD', 'MOBILE_APP_AD_BUILDER_AD', 'MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD', 'CPC_VIDEO_AD_BUILDER_AD', 'CPM_BANNER_AD_BUILDER_AD', 'CPM_VIDEO_AD_BUILDER_AD'."
+            ).format(ad_type=ad_type)
         )
 
     # Per-WSDL-subtype field allow-list: each --type accepts only the
@@ -2131,8 +2163,9 @@ def update(
         )
     except click.UsageError as exc:
         raise click.UsageError(
-            f"{exc.message} --type selects the existing ad subtype update block; "
-            "it does not convert an ad between subtypes."
+            t(
+                "{arg0} --type selects the existing ad subtype update block; it does not convert an ad between subtypes."
+            ).format(arg0=exc.message)
         )
 
     # Validate up-front so SET vs ADD/REMOVE mutex errors raise UsageError
@@ -2298,8 +2331,9 @@ def update(
     # is a silent no-op on the live API (issue #198 H1).
     if len(ad_data) == 1:
         raise click.UsageError(
-            f"ads update requires at least one updatable field for "
-            f"--type {ad_type_norm}."
+            t(
+                "ads update requires at least one updatable field for --type {ad_type_norm}."
+            ).format(ad_type_norm=ad_type_norm)
         )
 
     try:

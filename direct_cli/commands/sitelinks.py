@@ -23,34 +23,46 @@ _SITELINK_FIELDS = ("Title", "Href", "Description", "TurboPageId")
 
 def _coerce_turbo_page_id(raw_value: Any, index: int) -> int:
     if isinstance(raw_value, bool):
-        raise click.UsageError(f"Sitelink #{index}: 'TurboPageId' must be an integer")
+        raise click.UsageError(
+            t("Sitelink #{index}: 'TurboPageId' must be an integer").format(index=index)
+        )
     if isinstance(raw_value, int):
         return raw_value
     if isinstance(raw_value, str) and raw_value.strip().isdigit():
         return int(raw_value.strip())
-    raise click.UsageError(f"Sitelink #{index}: 'TurboPageId' must be an integer")
+    raise click.UsageError(
+        t("Sitelink #{index}: 'TurboPageId' must be an integer").format(index=index)
+    )
 
 
 def _normalize_sitelink_row(row: Any, index: int) -> Dict[str, Any]:
     if not isinstance(row, dict):
         raise click.UsageError(
-            f"Sitelink #{index}: expected a JSON object, got {type(row).__name__}"
+            t("Sitelink #{index}: expected a JSON object, got {arg0}").format(
+                index=index, arg0=type(row).__name__
+            )
         )
 
     unknown = sorted(set(row) - set(_SITELINK_FIELDS))
     if unknown:
         allowed = ", ".join(_SITELINK_FIELDS)
         raise click.UsageError(
-            f"Unknown field {unknown[0]!r} in sitelink #{index}; allowed: {allowed}"
+            t("Unknown field {arg0!r} in sitelink #{index}; allowed: {allowed}").format(
+                arg0=unknown[0], index=index, allowed=allowed
+            )
         )
 
     if "Title" not in row or not str(row.get("Title") or "").strip():
-        raise click.UsageError(f"Sitelink #{index}: missing required field 'Title'")
+        raise click.UsageError(
+            t("Sitelink #{index}: missing required field 'Title'").format(index=index)
+        )
     href = str(row.get("Href") or "").strip()
     raw_turbo_page_id = row.get("TurboPageId")
     if not href and raw_turbo_page_id in (None, ""):
         raise click.UsageError(
-            f"Sitelink #{index}: provide at least one of 'Href' or 'TurboPageId'"
+            t(
+                "Sitelink #{index}: provide at least one of 'Href' or 'TurboPageId'"
+            ).format(index=index)
         )
 
     item: Dict[str, Any] = {
@@ -70,7 +82,9 @@ def _load_sitelinks_from_inline(json_str: str) -> List[Any]:
     try:
         decoded = json.loads(json_str)
     except json.JSONDecodeError as exc:
-        raise click.UsageError(f"--sitelink-json: invalid JSON: {exc.msg}")
+        raise click.UsageError(
+            t("--sitelink-json: invalid JSON: {arg0}").format(arg0=exc.msg)
+        )
     if not isinstance(decoded, list):
         raise click.UsageError(
             t("--sitelink-json must be a JSON array of sitelink objects")
@@ -83,7 +97,11 @@ def _load_sitelinks_from_file(path: str) -> List[Any]:
     try:
         text = file_path.read_text(encoding="utf-8")
     except OSError as exc:
-        raise click.UsageError(f"Cannot read --sitelinks-from-file {path!r}: {exc}")
+        raise click.UsageError(
+            t("Cannot read --sitelinks-from-file {path!r}: {exc}").format(
+                path=path, exc=exc
+            )
+        )
 
     rows: List[Any] = []
     for line_number, raw_line in enumerate(text.splitlines(), start=1):
@@ -94,7 +112,9 @@ def _load_sitelinks_from_file(path: str) -> List[Any]:
             rows.append(json.loads(line))
         except json.JSONDecodeError as exc:
             raise click.UsageError(
-                f"--sitelinks-from-file line {line_number}: invalid JSON: {exc.msg}"
+                t(
+                    "--sitelinks-from-file line {line_number}: invalid JSON: {arg0}"
+                ).format(line_number=line_number, arg0=exc.msg)
             )
     return rows
 

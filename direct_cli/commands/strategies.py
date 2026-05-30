@@ -225,7 +225,9 @@ def _build_custom_period_budget(
         if value is None or value == ""
     ]
     if missing:
-        raise click.UsageError("CustomPeriodBudget requires " + ", ".join(missing))
+        raise click.UsageError(
+            t("CustomPeriodBudget requires {arg0}").format(arg0=", ".join(missing))
+        )
 
     return {
         "SpendLimit": custom_period_spend_limit,
@@ -245,7 +247,9 @@ def _build_exploration_budget(
         return None
     if strategy_type not in EXPLORATION_BUDGET_STRATEGY_TYPES:
         raise click.UsageError(
-            f"--minimum-exploration-budget is not valid for --type {strategy_type}."
+            t(
+                "--minimum-exploration-budget is not valid for --type {strategy_type}."
+            ).format(strategy_type=strategy_type)
         )
     if (
         weekly_spend_limit is not None
@@ -372,8 +376,13 @@ def _build_strategy_fields(
             sorted(STRATEGY_FLAG_NAMES[name] for name in allowed_options)
         )
         raise click.UsageError(
-            f"{', '.join(incompatible)} is not valid for --type {strategy_type}. "
-            f"Allowed strategy field flags: {allowed_flags}."
+            t(
+                "{arg0} is not valid for --type {strategy_type}. Allowed strategy field flags: {allowed_flags}."
+            ).format(
+                arg0=", ".join(incompatible),
+                strategy_type=strategy_type,
+                allowed_flags=allowed_flags,
+            )
         )
 
     fields = {}
@@ -419,7 +428,11 @@ def _parse_field_names_option(
     """Parse a field-name projection and reject explicitly empty CSV."""
     parsed = parse_csv_strings(raw_value)
     if raw_value is not None and not parsed:
-        raise click.UsageError(f"Provide a non-empty comma-separated {wsdl_key} list.")
+        raise click.UsageError(
+            t("Provide a non-empty comma-separated {wsdl_key} list.").format(
+                wsdl_key=wsdl_key
+            )
+        )
     return parsed
 
 
@@ -958,8 +971,9 @@ def update(
             # {Id, AverageCpa: {}}, which the live API accepts as a
             # silent no-op.
             raise click.UsageError(
-                f"strategies update requires at least one field for "
-                f"--type {strategy_type}."
+                t(
+                    "strategies update requires at least one field for --type {strategy_type}."
+                ).format(strategy_type=strategy_type)
             )
         if strategy_type:
             # GoalId is minOccurs=0 in every Strategy*Base used by
