@@ -22,6 +22,14 @@ Russian-default CLI localization across all command modules (epic #466).
 - `v4finance` migrated to the new mechanism and fully localized as the
   reference module.
 
+**Localized — Core search (#468):**
+
+- Russian help/docstrings for `campaigns`, `ads`, `adgroups`, `keywords`,
+  `keywordbids`, and `bids` (510 unique strings across the six modules).
+  WSDL field paths, enum values, and flag names are kept verbatim; only
+  human-readable text is translated. These groups join `LOCALIZED_GROUPS`,
+  so their translation completeness is now enforced by `test_i18n.py`.
+
 ## 0.4.0
 
 Milestone release closing the 0.4.0 roadmap (#123): typed Yandex Direct

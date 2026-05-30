@@ -86,7 +86,7 @@ class TestCLI(unittest.TestCase):
 
     def test_campaigns_help(self):
         """Test campaigns help"""
-        result = self.runner.invoke(cli, ["campaigns", "--help"])
+        result = self.runner.invoke(cli, ["--locale", "en", "campaigns", "--help"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("Manage campaigns", result.output)
         self.assertIn("Usage: direct campaigns", result.output)
@@ -94,13 +94,13 @@ class TestCLI(unittest.TestCase):
 
     def test_adgroups_help(self):
         """Test adgroups help"""
-        result = self.runner.invoke(cli, ["adgroups", "--help"])
+        result = self.runner.invoke(cli, ["--locale", "en", "adgroups", "--help"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("Manage ad groups", result.output)
 
     def test_keywords_help(self):
         """Test keywords help"""
-        result = self.runner.invoke(cli, ["keywords", "--help"])
+        result = self.runner.invoke(cli, ["--locale", "en", "keywords", "--help"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("Manage keywords", result.output)
 
@@ -269,7 +269,7 @@ class TestCLI(unittest.TestCase):
         self.assertNotIn("Documentation:", result.output)
 
     def test_ads_add_help_documents_text_ad_optional_extensions(self):
-        result = self.runner.invoke(cli, ["ads", "add", "--help"])
+        result = self.runner.invoke(cli, ["--locale", "en", "ads", "add", "--help"])
         self.assertEqual(result.exit_code, 0)
         collapsed = " ".join(result.output.split())
         self.assertIn(
@@ -344,7 +344,7 @@ class TestCLI(unittest.TestCase):
         )
 
     def test_ads_update_help_documents_text_ad_image_hash(self):
-        result = self.runner.invoke(cli, ["ads", "update", "--help"])
+        result = self.runner.invoke(cli, ["--locale", "en", "ads", "update", "--help"])
         self.assertEqual(result.exit_code, 0)
         # Click may wrap the help text across lines, so collapse whitespace
         # before searching for the canonical phrase.
