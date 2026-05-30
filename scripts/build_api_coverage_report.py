@@ -33,6 +33,11 @@ from direct_cli.wsdl_coverage import (
 )
 
 FIELD_OPERATION_CAPTURE_OPTION_FIXTURES = {
+    # bids/keywordbids ``get`` require at least one of CampaignIds/AdGroupIds/
+    # KeywordIds in SelectionCriteria (live API error 4001); supply one so the
+    # wire-payload capture builds a valid request.
+    ("bids", "get"): ["--campaign-ids", "1"],
+    ("keywordbids", "get"): ["--campaign-ids", "1"],
     ("changes", "check"): [
         "--campaign-ids",
         "1",

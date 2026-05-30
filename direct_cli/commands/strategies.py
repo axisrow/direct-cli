@@ -704,6 +704,8 @@ def get(
         else:
             format_output(result().extract(), output_format, output)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
@@ -1047,6 +1049,8 @@ def archive(ctx, strategy_id, dry_run):
         result = client.strategies().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
@@ -1076,6 +1080,8 @@ def unarchive(ctx, strategy_id, dry_run):
         result = client.strategies().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()

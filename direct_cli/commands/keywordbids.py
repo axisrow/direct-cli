@@ -108,6 +108,15 @@ def get(
             criteria["CampaignIds"] = parse_ids(campaign_ids)
         add_criteria_csv(criteria, "ServingStatuses", serving_statuses, upper=True)
 
+        if not criteria:
+            raise click.UsageError(
+                t(
+                    "keywordbids get requires at least one filter: "
+                    "--keyword-ids, --adgroup-ids, --campaign-ids, "
+                    "or --serving-statuses."
+                )
+            )
+
         params = {
             "SelectionCriteria": criteria,
             "FieldNames": (

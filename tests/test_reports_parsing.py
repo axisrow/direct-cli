@@ -128,6 +128,13 @@ class _ParsedReport:
             )
         )
 
+    def to_columns(self):
+        return self.adapter.to_columns(
+            data=self.data,
+            response=self.response,
+            store=self.store,
+        )
+
 
 @pytest.mark.parametrize("skip_report_header", [True, False])
 @pytest.mark.parametrize("skip_column_header", [True, False])
@@ -242,4 +249,52 @@ def test_reports_get_json_opt_out_uses_columns_not_report_title(monkeypatch):
             "Clicks": "",
             "Cost": "",
         },
+    ]
+
+
+def test_reports_adapter_to_columns_matches_transpose_for_full_rows():
+    report = _ParsedReport(
+        _report_body(
+            skip_report_header=True,
+            skip_column_header=False,
+            skip_report_summary=True,
+        ),
+        skip_column_header=False,
+        skip_report_summary=True,
+    )
+
+    # Column-major output is the transpose of the row-major to_values().
+    assert report.to_columns() == [
+        ["2026-03-01", "2026-03-02"],
+        ["10", "20"],
+        ["2", "3"],
+        ["1500000", "2500000"],
+    ]
+
+
+def test_reports_adapter_to_columns_handles_short_rows():
+    # A data row with fewer tab-separated values than the column header must
+    # not raise IndexError; missing cells are filled with "".
+    short_rows = [
+        ["2026-03-01", "10", "2", "1500000"],
+        ["2026-03-02", "20"],  # only 2 of 4 columns
+    ]
+    report = _ParsedReport(
+        _report_body(
+            skip_report_header=True,
+            skip_column_header=False,
+            skip_report_summary=True,
+            rows=short_rows,
+        ),
+        skip_column_header=False,
+        skip_report_summary=True,
+    )
+
+    columns = report.to_columns()
+    assert len(columns) == len(FIELD_NAMES)
+    assert columns == [
+        ["2026-03-01", "2026-03-02"],
+        ["10", "20"],
+        ["2", ""],
+        ["1500000", ""],
     ]

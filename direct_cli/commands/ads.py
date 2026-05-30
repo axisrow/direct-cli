@@ -1076,6 +1076,8 @@ def get(
             data = result().extract()
             format_output(data, output_format, output)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
@@ -2351,6 +2353,8 @@ def update(
         result = client.ads().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
@@ -2378,6 +2382,8 @@ def delete(ctx, ad_id, dry_run):
         result = client.ads().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
@@ -2405,6 +2411,8 @@ def archive(ctx, ad_id, dry_run):
         result = client.ads().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
@@ -2435,6 +2443,8 @@ def unarchive(ctx, ad_id, dry_run):
         result = client.ads().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
@@ -2462,6 +2472,8 @@ def suspend(ctx, ad_id, dry_run):
         result = client.ads().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
@@ -2489,6 +2501,8 @@ def resume(ctx, ad_id, dry_run):
         result = client.ads().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
@@ -2516,6 +2530,8 @@ def moderate(ctx, ad_id, dry_run):
         result = client.ads().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()

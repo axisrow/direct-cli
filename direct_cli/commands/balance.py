@@ -51,6 +51,8 @@ def balance(ctx, logins, output_format, output, dry_run):
         )
         data = call_v4(client, "AccountManagement", param)
         format_output(data, output_format, output)
+    except click.ClickException:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()

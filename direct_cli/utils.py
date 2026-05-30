@@ -277,7 +277,7 @@ def parse_priority_goals_spec(
     if not value:
         return None
 
-    items: List[Dict[str, int]] = []
+    items: List[Dict[str, Any]] = []
     for pair in value.split(","):
         pair = pair.strip()
         if not pair:
