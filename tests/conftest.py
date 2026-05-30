@@ -242,6 +242,38 @@ def _before_record_response(response):
     return response
 
 
+# The Yandex Direct API answers on both ``api.direct.yandex.ru`` and
+# ``api.direct.yandex.com`` (likewise ``api-sandbox.``); the vendored client's
+# TLD has changed between releases. Cassettes recorded against one TLD must keep
+# replaying after a vendor bump switches the other, so the ``host`` matcher
+# treats the two as equivalent for Direct hosts only — every other host stays
+# matched verbatim, preserving the strictness of the original ``host`` matcher.
+_DIRECT_HOST_RE = re.compile(r"^(api(?:-sandbox)?\.direct\.yandex)\.(?:ru|com)$")
+
+
+def _normalize_direct_host(host):
+    """Collapse the ``.ru``/``.com`` TLD of a Yandex Direct API host."""
+    match = _DIRECT_HOST_RE.match(host or "")
+    return match.group(1) if match else host
+
+
+def _host_tld_insensitive(r1, r2):
+    """VCR ``host`` matcher that treats Direct ``.ru`` and ``.com`` as equal."""
+    if _normalize_direct_host(r1.host) != _normalize_direct_host(r2.host):
+        raise AssertionError(f"{r1.host} != {r2.host}")
+
+
+def pytest_recording_configure(config, vcr):
+    """Override the built-in ``host`` matcher before any cassette is matched.
+
+    pytest-recording calls this hook with the freshly built ``VCR`` instance,
+    before ``use_cassette`` resolves ``match_on`` names to matcher callables —
+    so re-registering ``host`` here makes ``match_on=[..., "host", ...]`` pick
+    up our TLD-insensitive variant.
+    """
+    vcr.register_matcher("host", _host_tld_insensitive)
+
+
 @pytest.fixture(scope="module")
 def vcr_config():
     """VCR config shared by every ``@pytest.mark.vcr`` test in this suite."""
@@ -256,7 +288,10 @@ def vcr_config():
         "decode_compressed_response": True,
         # Match on HTTP verb, URL and request body.  Body matching is
         # important: multiple sandbox commands hit the same endpoint and
-        # can only be distinguished by payload.
+        # can only be distinguished by payload.  ``host`` is the
+        # TLD-insensitive matcher registered in ``pytest_recording_configure``
+        # so a ``.ru`` cassette still matches a ``.com`` request (and vice
+        # versa) after a vendor bump changes the Direct API TLD.
         "match_on": ["method", "scheme", "host", "port", "path", "query", "body"],
         # NOTE: intentionally no ``record_mode`` key.  pytest-recording's
         # default is ``"none"`` (replay-only) when the CLI option
