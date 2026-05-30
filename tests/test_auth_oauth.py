@@ -18,6 +18,7 @@ from direct_cli.auth import (
     load_env_file,
     load_auth_store,
     refresh_access_token,
+    resolve_account_login,
     save_auth_store,
     save_oauth_profile,
 )
@@ -1604,3 +1605,137 @@ class TestAuthOAuth:
         profile = load_auth_store()["profiles"]["agency1"]
         assert profile["source"] == "manual"
         assert "refresh_token" not in profile
+
+
+class TestClientLoginResolution:
+    """Issue #480: resolve the bare Direct Client-Login, not the Passport email.
+
+    The Passport ``/info`` login may be a full email, which Direct v4
+    AccountManagement rejects (FaultCode 259). ``resolve_account_login`` prefers
+    the authoritative v5 ``clients.get`` Login, and ``get_credentials`` migrates
+    older profiles that stored the email — without clobbering agency profiles.
+    """
+
+    def test_resolve_account_login_prefers_v5_clients_get(self):
+        with (
+            patch(
+                "direct_cli.auth._resolve_client_login_via_api",
+                return_value="bare-login",
+            ) as api,
+            patch(
+                "direct_cli.auth.resolve_login", return_value="bare-login@yandex.ru"
+            ) as passport,
+        ):
+            assert resolve_account_login("tok") == "bare-login"
+        api.assert_called_once_with("tok")
+        passport.assert_not_called()
+
+    def test_resolve_account_login_falls_back_to_passport_on_api_failure(self):
+        with (
+            patch("direct_cli.auth._resolve_client_login_via_api", return_value=None),
+            patch("direct_cli.auth.resolve_login", return_value="passport-login"),
+        ):
+            assert resolve_account_login("tok") == "passport-login"
+
+    @patch("direct_cli.auth.load_env_file")
+    def test_get_credentials_migrates_email_login_to_bare(
+        self, mock_load_env, isolated_auth_store, monkeypatch
+    ):
+        monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
+        monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
+        save_oauth_profile(
+            profile="agency1",
+            token="oauth-token-1",
+            login="bolgaria-nedvizh@yandex.ru",
+            refresh_token="refresh-1",
+            expires_at=4_100_000_000.0,
+            client_id=DEFAULT_OAUTH_CLIENT_ID,
+            make_active=False,
+        )
+        with patch(
+            "direct_cli.auth._resolve_client_login_via_api",
+            return_value="bolgaria-nedvizh",
+        ) as api:
+            token, login = get_credentials(profile="agency1")
+        assert (token, login) == ("oauth-token-1", "bolgaria-nedvizh")
+        api.assert_called_once_with("oauth-token-1")
+        assert load_auth_store()["profiles"]["agency1"]["login"] == "bolgaria-nedvizh"
+
+    @patch("direct_cli.auth.load_env_file")
+    def test_get_credentials_does_not_clobber_agency_login(
+        self, mock_load_env, isolated_auth_store, monkeypatch
+    ):
+        # Stored login's local part != the token owner's resolved bare login,
+        # so the value is left untouched (agency-managed account).
+        monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
+        monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
+        save_oauth_profile(
+            profile="agency1",
+            token="oauth-token-1",
+            login="managed-client@example.com",
+            refresh_token="refresh-1",
+            expires_at=4_100_000_000.0,
+            client_id=DEFAULT_OAUTH_CLIENT_ID,
+            make_active=False,
+        )
+        with patch(
+            "direct_cli.auth._resolve_client_login_via_api",
+            return_value="agency-owner",
+        ) as api:
+            _token, login = get_credentials(profile="agency1")
+            # Second invocation must NOT re-query the API: the profile is
+            # stamped `login_migration_checked` on the first attempt, so an
+            # intentionally-unmigrated agency login does not pay a network
+            # round-trip on every command (#482 review finding #1).
+            _token2, login2 = get_credentials(profile="agency1")
+        assert login == "managed-client@example.com"
+        assert login2 == "managed-client@example.com"
+        api.assert_called_once()
+        assert (
+            load_auth_store()["profiles"]["agency1"]["login"]
+            == "managed-client@example.com"
+        )
+        assert load_auth_store()["profiles"]["agency1"][
+            "login_migration_checked"
+        ]
+
+    @patch("direct_cli.auth.load_env_file")
+    def test_get_credentials_skips_migration_for_bare_login(
+        self, mock_load_env, isolated_auth_store, monkeypatch
+    ):
+        monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
+        monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
+        save_oauth_profile(
+            profile="agency1",
+            token="oauth-token-1",
+            login="already-bare",
+            refresh_token="refresh-1",
+            expires_at=4_100_000_000.0,
+            client_id=DEFAULT_OAUTH_CLIENT_ID,
+            make_active=False,
+        )
+        with patch("direct_cli.auth._resolve_client_login_via_api") as api:
+            _token, login = get_credentials(profile="agency1")
+        assert login == "already-bare"
+        api.assert_not_called()
+
+    @patch("direct_cli.auth.load_env_file")
+    def test_get_credentials_explicit_login_skips_migration(
+        self, mock_load_env, isolated_auth_store, monkeypatch
+    ):
+        # An explicit --login must not trigger profile migration.
+        monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
+        monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
+        save_oauth_profile(
+            profile="agency1",
+            token="oauth-token-1",
+            login="someone@yandex.ru",
+            refresh_token="refresh-1",
+            expires_at=4_100_000_000.0,
+            client_id=DEFAULT_OAUTH_CLIENT_ID,
+            make_active=False,
+        )
+        with patch("direct_cli.auth._resolve_client_login_via_api") as api:
+            _token, login = get_credentials(profile="agency1", login="explicit")
+        assert login == "explicit"
+        api.assert_not_called()

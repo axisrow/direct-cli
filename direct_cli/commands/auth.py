@@ -18,7 +18,7 @@ from ..auth import (
     get_pending_pkce,
     list_profiles,
     remove_pending_pkce,
-    resolve_login,
+    resolve_account_login,
     save_oauth_profile,
     save_pending_confidential_auth,
     save_pending_pkce,
@@ -111,7 +111,7 @@ def login(
     token = oauth_token
     if token:
         if not login:
-            login = resolve_login(token)
+            login = resolve_account_login(token)
         save_oauth_profile(
             profile=profile,
             token=token,
@@ -202,7 +202,7 @@ def login(
 
     access_token = token_response["access_token"]
     if not login:
-        login = resolve_login(access_token)
+        login = resolve_account_login(access_token)
     save_oauth_profile(
         profile=profile,
         token=access_token,

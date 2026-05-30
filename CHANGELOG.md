@@ -4,6 +4,20 @@
 
 Russian-default CLI localization across all command modules (epic #466).
 
+**Fixed — auth login saved Passport email, breaking v4 (#480):**
+
+- `direct auth login` (OAuth / PKCE) stored the Passport email
+  (`<login>@yandex.ru`) in `auth.json`, which Direct v4 AccountManagement
+  rejects with `FaultCode 259` ("This client does not exist") — breaking
+  `direct balance` and `direct v4account ...`. Login now resolves the bare
+  **Client-Login** via a one-shot v5 `clients.get` (`resolve_account_login`),
+  falling back to the Passport login only if that call fails.
+- `get_credentials` migrates older profiles in place: when a stored OAuth login
+  is an email whose local part matches the token owner's resolved Client-Login,
+  it is rewritten to the bare login (one-time, persisted). Agency profiles whose
+  login differs from the token owner are never clobbered, and an explicit
+  `--login` is never overridden.
+
 **Localized — interpolated error messages (#478), completing epic #466:**
 
 - Rewrote all 121 interpolated `click.UsageError` / `click.BadParameter` /

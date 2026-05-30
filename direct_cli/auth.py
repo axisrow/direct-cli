@@ -601,6 +601,53 @@ def resolve_login(token: str) -> Optional[str]:
         return None
 
 
+def _resolve_client_login_via_api(token: str) -> Optional[str]:
+    """Return the bare Direct **Client-Login** for *token* via v5 ``clients.get``.
+
+    The Passport ``/info`` login can be a full email (``<login>@yandex.ru``);
+    Direct v4 AccountManagement rejects that with ``FaultCode 259`` (issue
+    #480). ``clients.get`` (no ``SelectionCriteria``) returns the authoritative
+    Client-Login for the token's own account, avoiding any unreliable
+    ``split('@')`` guessing. Best-effort: returns ``None`` on any failure.
+    """
+    try:
+        # Lazy import: api.py imports this module, so importing the vendored
+        # client at module load would create a cycle. The vendor never imports
+        # auth, so a function-local import is safe.
+        from ._vendor.tapi_yandex_direct import YandexDirect
+
+        client = YandexDirect(
+            access_token=token,
+            retry_if_exceeded_limit=True,
+            retries_if_server_error=2,
+        )
+        result = client.clients().post(
+            data={"method": "get", "params": {"FieldNames": ["Login"]}}
+        )
+        data = result().extract()
+        clients = data.get("Clients") if isinstance(data, dict) else None
+        if clients and isinstance(clients[0], dict):
+            login = clients[0].get("Login")
+            if login:
+                return login
+    except Exception as exc:  # best-effort; never block login on this
+        logging.debug("resolve client login via API failed: %s", exc)
+    return None
+
+
+def resolve_account_login(token: str) -> Optional[str]:
+    """Resolve the bare Direct Client-Login for an OAuth *token*.
+
+    Prefers the authoritative v5 ``clients.get`` Login (which v4 accepts);
+    falls back to the Passport login only when the API call fails (that value
+    may be a full email and can break v4 — see :func:`_resolve_client_login_via_api`).
+    """
+    login = _resolve_client_login_via_api(token)
+    if login:
+        return login
+    return resolve_login(token)
+
+
 def get_credentials(
     token: Optional[str] = None,
     login: Optional[str] = None,
@@ -655,6 +702,40 @@ def get_credentials(
             final_token = oauth_profile["token"]
             if not final_login:
                 final_login = oauth_profile["login"]
+            stored_login = oauth_profile.get("login")
+            if (
+                not login
+                and oauth_profile.get("source") == "oauth"
+                and isinstance(stored_login, str)
+                and "@" in stored_login
+                and not oauth_profile.get("login_migration_checked")
+            ):
+                # One-time migration (#480): older OAuth profiles saved the
+                # Passport email in `login`, which Direct v4 rejects with
+                # FaultCode 259. Resolve the bare Client-Login and rewrite the
+                # profile — but only when the stored email's local part matches
+                # the resolved login, so agency profiles whose login differs
+                # from the token owner are never clobbered. Either way we stamp
+                # `login_migration_checked` once the resolver answered, so the
+                # network round-trip never repeats per command for profiles that
+                # are intentionally left unmigrated (e.g. agency logins).
+                resolved = _resolve_client_login_via_api(final_token)
+                if resolved:
+                    matches = (
+                        stored_login.split("@", 1)[0].lower() == resolved.lower()
+                    )
+                    if matches:
+                        final_login = resolved
+                    try:
+                        store = load_auth_store()
+                        prof = store["profiles"].get(selected_profile)
+                        if isinstance(prof, dict):
+                            prof["login_migration_checked"] = True
+                            if matches:
+                                prof["login"] = resolved
+                            save_auth_store(store)
+                    except Exception as exc:  # best-effort persistence
+                        logging.debug("login migration persist failed: %s", exc)
 
     if selected_profile and not final_token:
         env_token, env_login = get_env_profile(selected_profile)
