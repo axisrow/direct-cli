@@ -7,6 +7,7 @@ from typing import Optional
 import click
 
 from ..api import create_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import (
     add_criteria_csv,
@@ -231,10 +232,12 @@ def _build_callout_setting(callouts_add, callouts_remove, callouts_set):
     """
     if callouts_set and (callouts_add or callouts_remove):
         raise click.UsageError(
-            "--callouts-set is mutually exclusive with "
-            "--callouts-add / --callouts-remove. "
-            "Use --callouts-set to replace the full callout list, "
-            "or --callouts-add / --callouts-remove for incremental edits."
+            t(
+                "--callouts-set is mutually exclusive with "
+                "--callouts-add / --callouts-remove. "
+                "Use --callouts-set to replace the full callout list, "
+                "or --callouts-add / --callouts-remove for incremental edits."
+            )
         )
     items = []
     for csv_value, op in (
@@ -376,7 +379,10 @@ def _parse_mobile_app_features(
         feature_raw, separator, enabled_raw = raw_value.strip().partition("=")
         if not separator:
             raise click.UsageError(
-                "--mobile-app-feature expects FEATURE=YES|NO (for example PRICE=YES)."
+                t(
+                    "--mobile-app-feature expects FEATURE=YES|NO "
+                    "(for example PRICE=YES)."
+                )
             )
 
         feature = feature_raw.strip().upper()
@@ -511,7 +517,7 @@ def _build_feed_based_ad_add(
 
     default_text = default_texts.strip() if default_texts else ""
     if not default_text:
-        raise click.UsageError("--default-texts must contain a value.")
+        raise click.UsageError(t("--default-texts must contain a value."))
 
     ad_payload: dict[str, object] = {
         "FeedId": feed_id,
@@ -556,7 +562,7 @@ def _build_dynamic_text_ad_add(
 ) -> dict[str, object]:
     """Build DynamicTextAdAdd payload from typed flags."""
     if not text:
-        raise click.UsageError("DYNAMIC_TEXT_AD requires --text")
+        raise click.UsageError(t("DYNAMIC_TEXT_AD requires --text"))
 
     dynamic_text_ad: dict[str, object] = {"Text": text}
     if image_hash:
@@ -586,7 +592,9 @@ def _build_ad_builder_update(
     ad_payload: dict[str, object] = {}
 
     if creative_erir_ad_description and creative_id is None:
-        raise click.UsageError("--creative-erir-ad-description requires --creative-id.")
+        raise click.UsageError(
+            t("--creative-erir-ad-description requires --creative-id.")
+        )
     if creative_id is not None:
         creative: dict[str, object] = {"CreativeId": creative_id}
         if creative_erir_ad_description:
@@ -683,7 +691,7 @@ def _build_mobile_app_image_ad_add(
 ) -> dict[str, object]:
     """Build MobileAppImageAdAdd payload from typed flags."""
     if not image_hash:
-        raise click.UsageError("MOBILE_APP_IMAGE_AD requires --image-hash")
+        raise click.UsageError(t("MOBILE_APP_IMAGE_AD requires --image-hash"))
 
     mobile_app_image_ad: dict[str, object] = {"AdImageHash": image_hash}
     if erir_ad_description:
@@ -921,7 +929,7 @@ def get(
 ):
     """Get ads"""
     if status and statuses:
-        raise click.UsageError("--status and --statuses are mutually exclusive")
+        raise click.UsageError(t("--status and --statuses are mutually exclusive"))
 
     try:
         field_names = (
@@ -1520,15 +1528,17 @@ def add(
         elif ad_type_norm == "TEXT_IMAGE_AD":
             if title or text:
                 raise click.UsageError(
-                    "--title/--text are only valid for TEXT_AD. "
-                    "For TEXT_IMAGE_AD, use --image-hash and "
-                    "--href / --turbo-page-id."
+                    t(
+                        "--title/--text are only valid for TEXT_AD. "
+                        "For TEXT_IMAGE_AD, use --image-hash and "
+                        "--href / --turbo-page-id."
+                    )
                 )
             if not image_hash:
-                raise click.UsageError("TEXT_IMAGE_AD requires --image-hash")
+                raise click.UsageError(t("TEXT_IMAGE_AD requires --image-hash"))
             if not href and turbo_page_id is None:
                 raise click.UsageError(
-                    "TEXT_IMAGE_AD requires either --href or --turbo-page-id."
+                    t("TEXT_IMAGE_AD requires either --href or --turbo-page-id.")
                 )
             text_image_ad = {"AdImageHash": image_hash}
             if erir_ad_description:
@@ -1555,7 +1565,7 @@ def add(
                 )
             if not href and business_id is None:
                 raise click.UsageError(
-                    "RESPONSIVE_AD requires either --href or --business-id."
+                    t("RESPONSIVE_AD requires either --href or --business-id.")
                 )
 
             parsed_texts = _parse_required_csv_strings(texts, "--texts")
@@ -1627,8 +1637,10 @@ def add(
         elif ad_type_norm == "MOBILE_APP_AD":
             if href:
                 raise click.UsageError(
-                    "--href does not apply to MOBILE_APP_AD. "
-                    "Use --tracking-url instead."
+                    t(
+                        "--href does not apply to MOBILE_APP_AD. "
+                        "Use --tracking-url instead."
+                    )
                 )
             missing_fields = [
                 option_name
@@ -1961,8 +1973,10 @@ def update(
     """Update ad"""
     if status:
         raise click.UsageError(
-            "Use 'direct ads suspend/resume/archive/unarchive' to change status. "
-            "The --status flag is not supported by WSDL AdUpdateItem."
+            t(
+                "Use 'direct ads suspend/resume/archive/unarchive' to change status. "
+                "The --status flag is not supported by WSDL AdUpdateItem."
+            )
         )
 
     ad_type_norm = ad_type.upper().replace("-", "_")

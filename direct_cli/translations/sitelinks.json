@@ -9,5 +9,10 @@
   "JSONL file with one sitelink object per line": "JSONL-файл с одним объектом быстрой ссылки в строке",
   "Manage sitelinks": "Управление быстрыми ссылками",
   "Sitelink spec: TITLE|HREF[|DESCRIPTION[|TURBO_PAGE_ID]]. Escape literal '|' as '\\|'.": "Спецификация быстрой ссылки: TITLE|HREF[|DESCRIPTION[|TURBO_PAGE_ID]]. Экранируйте литеральный '|' как '\\|'.",
-  "Sitelinks set ID": "ID набора быстрых ссылок"
+  "Sitelinks set ID": "ID набора быстрых ссылок",
+  "--sitelink-json must be a JSON array of sitelink objects": "--sitelink-json должен быть JSON-массивом объектов быстрых ссылок",
+  "Provide exactly one of: --sitelink (repeatable), --sitelink-json (inline JSON array), or --sitelinks-from-file (JSONL).": "Укажите ровно один из: --sitelink (повторяемый), --sitelink-json (встроенный JSON-массив) или --sitelinks-from-file (JSONL).",
+  "--sitelink, --sitelink-json, and --sitelinks-from-file are mutually exclusive — provide exactly one.": "--sitelink, --sitelink-json и --sitelinks-from-file взаимоисключающи — укажите ровно один.",
+  "Provide a non-empty comma-separated SitelinkFieldNames list.": "Укажите непустой список SitelinkFieldNames через запятую.",
+  "Input contains no sitelink rows.": "Во входных данных нет строк быстрых ссылок."
 }

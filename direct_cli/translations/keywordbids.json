@@ -11,5 +11,10 @@
   "NetworkByCoverage.TargetCoverage value": "Значение NetworkByCoverage.TargetCoverage",
   "Search bid in micro-rubles": "Ставка на поиске в микрорублях",
   "SearchByTrafficVolume.TargetTrafficVolume value": "Значение SearchByTrafficVolume.TargetTrafficVolume",
-  "Set keyword bids": "Установить ставки по ключевым фразам"
+  "Set keyword bids": "Установить ставки по ключевым фразам",
+  "keywordbids set requires at least one bid field (--search-bid, --network-bid, --priority, or --autotargeting-search-bid-is-auto).": "keywordbids set требует хотя бы одно поле ставки (--search-bid, --network-bid, --priority или --autotargeting-search-bid-is-auto).",
+  "Provide a non-empty comma-separated FieldNames list.": "Укажите непустой список FieldNames через запятую.",
+  "Provide a non-empty comma-separated SearchFieldNames list.": "Укажите непустой список SearchFieldNames через запятую.",
+  "Provide a non-empty comma-separated NetworkFieldNames list.": "Укажите непустой список NetworkFieldNames через запятую.",
+  "Provide exactly one of --target-traffic-volume or --target-coverage": "Укажите ровно один из --target-traffic-volume или --target-coverage"
 }

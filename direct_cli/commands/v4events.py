@@ -7,6 +7,7 @@ from typing import Optional
 import click
 
 from ..api import create_v4_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import parse_csv_strings, parse_ids
 from ..v4 import build_v4_body, call_v4
@@ -99,7 +100,7 @@ def _events_log_param(
     from_dt = _parse_v4_datetime(timestamp_from, "--from")
     to_dt = _parse_v4_datetime(timestamp_to, "--to")
     if from_dt > to_dt:
-        raise click.UsageError("--from must be earlier than or equal to --to")
+        raise click.UsageError(t("--from must be earlier than or equal to --to"))
 
     param = {
         "TimestampFrom": timestamp_from,

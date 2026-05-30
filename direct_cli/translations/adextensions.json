@@ -6,5 +6,6 @@
   "Delete ad extension": "Удалить расширение объявления",
   "Extension ID": "ID расширения",
   "Get ad extensions": "Получить расширения объявлений",
-  "Manage ad extensions": "Управление расширениями объявлений"
+  "Manage ad extensions": "Управление расширениями объявлений",
+  "Provide a non-empty comma-separated CalloutFieldNames list.": "Укажите непустой список CalloutFieldNames через запятую."
 }

@@ -43,5 +43,14 @@
   "Strategy type to update": "Тип стратегии для обновления",
   "Unarchive a strategy": "Разархивировать стратегию",
   "Update a strategy": "Обновить стратегию",
-  "Weekly spend limit in micro-rubles": "Недельный лимит расходов в микрорублях"
+  "Weekly spend limit in micro-rubles": "Недельный лимит расходов в микрорублях",
+  "--weekly-spend-limit cannot be combined with --custom-period-* flags.": "--weekly-spend-limit нельзя сочетать с флагами --custom-period-*.",
+  "--minimum-exploration-budget must be less than or equal to --weekly-spend-limit when both flags are provided.": "--minimum-exploration-budget должен быть меньше или равен --weekly-spend-limit, если заданы оба флага.",
+  "Invalid --priority-goal. Expected GOAL_ID:VALUE[:YES|NO], for example 123:1000000:YES": "Некорректный --priority-goal. Ожидается GOAL_ID:VALUE[:YES|NO], например 123:1000000:YES",
+  "--custom-period-* flags are not valid for --type AverageCpa on strategies update.": "Флаги --custom-period-* недопустимы для --type AverageCpa в strategies update.",
+  "Invalid --priority-goal. GOAL_ID and VALUE must be integers": "Некорректный --priority-goal. GOAL_ID и VALUE должны быть целыми числами",
+  "Invalid --priority-goal. IsMetrikaSourceOfValue must be YES or NO": "Некорректный --priority-goal. IsMetrikaSourceOfValue должен быть YES или NO",
+  "Provide --type when setting strategy-specific fields": "Укажите --type при задании полей конкретной стратегии",
+  "Provide --goal-id for this strategy type": "Укажите --goal-id для этого типа стратегии",
+  "strategies update requires at least one updatable field.": "strategies update требует хотя бы одно изменяемое поле."
 }

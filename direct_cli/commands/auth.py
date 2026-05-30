@@ -143,7 +143,7 @@ def login(
         )
         print_info(t("Open this URL and grant access:"))
         click.echo(auth_url)
-        auth_code = click.prompt("Enter OAuth code", type=str).strip()
+        auth_code = click.prompt(t("Enter OAuth code"), type=str).strip()
     elif not client_secret:
         pending_pkce = get_pending_pkce(profile)
         if pending_pkce:

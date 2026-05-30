@@ -28,5 +28,6 @@
   "PointOnMap.Y2 coordinate": "Координата PointOnMap.Y2",
   "Street": "Улица",
   "Work time string": "Строка времени работы",
-  "vCard ID": "ID визитки"
+  "vCard ID": "ID визитки",
+  "--instant-messenger-client and --instant-messenger-login must be provided together": "--instant-messenger-client и --instant-messenger-login должны указываться вместе"
 }

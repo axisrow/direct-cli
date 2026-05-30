@@ -98,5 +98,17 @@
   "Unarchive ad": "Разархивировать объявление",
   "Update ad": "Обновить объявление",
   "VCard ID (TEXT_AD / DYNAMIC_TEXT_AD)": "ID визитки (TEXT_AD / DYNAMIC_TEXT_AD)",
-  "Video extension CreativeId for TextAd/MobileAppAd.VideoExtension. TEXT_AD / MOBILE_APP_AD only.": "CreativeId видеорасширения для TextAd/MobileAppAd.VideoExtension. Только TEXT_AD / MOBILE_APP_AD."
+  "Video extension CreativeId for TextAd/MobileAppAd.VideoExtension. TEXT_AD / MOBILE_APP_AD only.": "CreativeId видеорасширения для TextAd/MobileAppAd.VideoExtension. Только TEXT_AD / MOBILE_APP_AD.",
+  "--callouts-set is mutually exclusive with --callouts-add / --callouts-remove. Use --callouts-set to replace the full callout list, or --callouts-add / --callouts-remove for incremental edits.": "--callouts-set взаимоисключающ с --callouts-add / --callouts-remove. Используйте --callouts-set для замены всего списка уточнений или --callouts-add / --callouts-remove для точечных изменений.",
+  "--default-texts must contain a value.": "--default-texts должен содержать значение.",
+  "DYNAMIC_TEXT_AD requires --text": "DYNAMIC_TEXT_AD требует --text",
+  "--creative-erir-ad-description requires --creative-id.": "--creative-erir-ad-description требует --creative-id.",
+  "MOBILE_APP_IMAGE_AD requires --image-hash": "MOBILE_APP_IMAGE_AD требует --image-hash",
+  "Use 'direct ads suspend/resume/archive/unarchive' to change status. The --status flag is not supported by WSDL AdUpdateItem.": "Используйте 'direct ads suspend/resume/archive/unarchive' для смены статуса. Флаг --status не поддерживается WSDL AdUpdateItem.",
+  "--mobile-app-feature expects FEATURE=YES|NO (for example PRICE=YES).": "--mobile-app-feature ожидает FEATURE=YES|NO (например, PRICE=YES).",
+  "--title/--text are only valid for TEXT_AD. For TEXT_IMAGE_AD, use --image-hash and --href / --turbo-page-id.": "--title/--text допустимы только для TEXT_AD. Для TEXT_IMAGE_AD используйте --image-hash и --href / --turbo-page-id.",
+  "TEXT_IMAGE_AD requires --image-hash": "TEXT_IMAGE_AD требует --image-hash",
+  "TEXT_IMAGE_AD requires either --href or --turbo-page-id.": "TEXT_IMAGE_AD требует либо --href, либо --turbo-page-id.",
+  "RESPONSIVE_AD requires either --href or --business-id.": "RESPONSIVE_AD требует либо --href, либо --business-id.",
+  "--href does not apply to MOBILE_APP_AD. Use --tracking-url instead.": "--href неприменим к MOBILE_APP_AD. Используйте --tracking-url."
 }

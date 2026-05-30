@@ -5,6 +5,7 @@ from typing import Optional
 import click
 
 from ..api import create_v4_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..v4 import build_v4_body, call_v4
 from ..v4_contracts import v4_method_contract
@@ -19,7 +20,7 @@ def _keywords_param(keywords: tuple[str, ...]) -> dict:
     """
     seeds = [kw.strip() for kw in keywords if kw and kw.strip()]
     if not seeds:
-        raise click.UsageError("--keyword must not be empty")
+        raise click.UsageError(t("--keyword must not be empty"))
     return {"Keywords": seeds}
 
 

@@ -26,5 +26,7 @@
   "Grant as PRIVILEGE=YES|NO": "Право доступа в формате PRIVILEGE=YES|NO",
   "Clear all grants": "Снять все права доступа",
   "Delete agency client (not supported by API)": "Удалить клиента агентства (не поддерживается API)",
-  "Agency clients cannot be deleted via the Yandex Direct API. The API only supports add, update, and get operations.": "Клиентов агентства нельзя удалить через API Yandex Direct. API поддерживает только операции add, update и get."
+  "Agency clients cannot be deleted via the Yandex Direct API. The API only supports add, update, and get operations.": "Клиентов агентства нельзя удалить через API Yandex Direct. API поддерживает только операции add, update и get.",
+  "Provide at least one of --invite-email or --invite-phone": "Укажите хотя бы один из --invite-email или --invite-phone",
+  "--grant and --clear-grants are mutually exclusive": "--grant и --clear-grants взаимоисключающи"
 }

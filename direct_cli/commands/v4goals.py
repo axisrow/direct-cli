@@ -3,6 +3,7 @@
 import click
 
 from ..api import create_v4_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import parse_ids
 from ..v4 import build_v4_body, call_v4
@@ -17,7 +18,7 @@ def _campaign_ids_param(campaign_ids: str) -> dict:
     except ValueError as exc:
         raise click.UsageError(str(exc))
     if not ids:
-        raise click.UsageError("--campaign-ids must not be empty")
+        raise click.UsageError(t("--campaign-ids must not be empty"))
     return {"CampaignIDS": ids}
 
 

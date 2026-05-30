@@ -3,5 +3,12 @@
   "Language for help and messages (ru or en; default: ru)": "Язык справки и сообщений (ru или en; по умолчанию: ru)",
   "Output file": "Файл для вывода",
   "Output format": "Формат вывода",
-  "Show request without sending": "Показать запрос без отправки"
+  "Show request without sending": "Показать запрос без отправки",
+  "Provide at least one field to update": "Укажите хотя бы одно поле для обновления",
+  "--status and --statuses are mutually exclusive": "--status и --statuses взаимоисключающи",
+  "Provide a target selector (--id, --adgroup-id, or --campaign-id)": "Укажите селектор цели (--id, --adgroup-id или --campaign-id)",
+  "--autotargeting-category expects CATEGORY=YES|NO (for example EXACT=YES)": "--autotargeting-category ожидает CATEGORY=YES|NO (например, EXACT=YES)",
+  "--payment is required": "--payment обязателен",
+  "--campaign-ids must not be empty": "--campaign-ids не должен быть пустым",
+  "--phrases must not be empty": "--phrases не должен быть пустым"
 }

@@ -5,6 +5,7 @@ from typing import Optional
 import click
 
 from ..api import create_v4_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import parse_csv_strings, parse_ids
 from ..v4 import build_v4_body, call_v4
@@ -23,9 +24,9 @@ def _forecast_param(
     """Build the v4 Live CreateNewForecast parameter."""
     phrase_list = parse_csv_strings(phrases)
     if not phrase_list:
-        raise click.UsageError("--phrases must not be empty")
+        raise click.UsageError(t("--phrases must not be empty"))
     if len(phrase_list) > 100:
-        raise click.UsageError("--phrases accepts at most 100 phrases")
+        raise click.UsageError(t("--phrases accepts at most 100 phrases"))
 
     param: dict[str, object] = {
         "Phrases": phrase_list,

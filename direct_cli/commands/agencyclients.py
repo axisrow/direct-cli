@@ -342,7 +342,7 @@ def add_passport_organization_member(
     try:
         if not invite_email and not invite_phone:
             raise click.UsageError(
-                "Provide at least one of --invite-email or --invite-phone"
+                t("Provide at least one of --invite-email or --invite-phone")
             )
 
         send_invite_to = {}
@@ -421,7 +421,9 @@ def update(
     """Update agency client"""
     try:
         if grants and clear_grants:
-            raise click.UsageError("--grant and --clear-grants are mutually exclusive")
+            raise click.UsageError(
+                t("--grant and --clear-grants are mutually exclusive")
+            )
 
         notification = build_notification_update(
             notification_email,
@@ -443,7 +445,7 @@ def update(
         if clear_grants:
             client_data["Grants"] = []
         if len(client_data) == 1:
-            raise click.UsageError("Provide at least one field to update")
+            raise click.UsageError(t("Provide at least one field to update"))
 
         body = {"method": "update", "params": {"Clients": [client_data]}}
 

@@ -5,6 +5,7 @@ SmartAdTargets commands
 import click
 
 from ..api import create_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import get_default_fields, parse_condition_specs, parse_ids, MICRO_RUBLES
 
@@ -215,7 +216,7 @@ def update(
         if available_items_only:
             target_data["AvailableItemsOnly"] = available_items_only.upper()
         if len(target_data) == 1:
-            raise click.UsageError("Provide at least one field to update")
+            raise click.UsageError(t("Provide at least one field to update"))
 
         body = {"method": "update", "params": {"SmartAdTargets": [target_data]}}
 
@@ -365,12 +366,14 @@ def set_bids(
         }
         if not bid_data:
             raise click.UsageError(
-                "Provide target selection and bid fields for set-bids"
+                t("Provide target selection and bid fields for set-bids")
             )
         if not bid_fields:
             raise click.UsageError(
-                "Provide at least one bid field"
-                " (--average-cpc, --average-cpa, or --priority)"
+                t(
+                    "Provide at least one bid field"
+                    " (--average-cpc, --average-cpa, or --priority)"
+                )
             )
 
         body = {"method": "setBids", "params": {"Bids": [bid_data]}}

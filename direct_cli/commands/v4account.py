@@ -7,6 +7,7 @@ from typing import Any, Optional
 import click
 
 from ..api import create_v4_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import parse_csv_strings, parse_ids
 from ..v4 import build_v4_body, call_v4
@@ -112,7 +113,7 @@ def v4account():
 def _require_dry_run_or_sandbox(dry_run: bool, sandbox: bool) -> None:
     """Reject shared-account mutations outside explicit dry-run or sandbox."""
     if not dry_run and not sandbox:
-        raise click.UsageError("--dry-run is required unless --sandbox is set")
+        raise click.UsageError(t("--dry-run is required unless --sandbox is set"))
 
 
 def _emit_or_call_v4(
@@ -192,9 +193,9 @@ def _parse_day_budget(value: Optional[str]) -> Optional[float]:
     try:
         amount = Decimal(value)
     except InvalidOperation as exc:
-        raise click.UsageError("--day-budget must be a non-negative amount") from exc
+        raise click.UsageError(t("--day-budget must be a non-negative amount")) from exc
     if not amount.is_finite() or amount < 0 or (amount == 0 and amount.is_signed()):
-        raise click.UsageError("--day-budget must be a non-negative amount")
+        raise click.UsageError(t("--day-budget must be a non-negative amount"))
     return float(amount)
 
 
@@ -262,7 +263,7 @@ def _account_selection_criteria(
     """Build the Get SelectionCriteria object; None when no filter is provided."""
     parsed_logins = parse_csv_strings(logins)
     if logins is not None and not parsed_logins:
-        raise click.UsageError("--logins must not be empty when provided")
+        raise click.UsageError(t("--logins must not be empty when provided"))
 
     if account_ids is not None:
         try:
@@ -270,16 +271,18 @@ def _account_selection_criteria(
         except ValueError as exc:
             raise click.UsageError(str(exc)) from exc
         if not parsed_ids:
-            raise click.UsageError("--account-ids must not be empty when provided")
+            raise click.UsageError(t("--account-ids must not be empty when provided"))
         if any(account_id <= 0 for account_id in parsed_ids):
-            raise click.UsageError("--account-ids must contain only positive integers")
+            raise click.UsageError(
+                t("--account-ids must contain only positive integers")
+            )
     else:
         parsed_ids = None
 
     if parsed_logins and len(parsed_logins) > 50:
-        raise click.UsageError("--logins accepts at most 50 entries")
+        raise click.UsageError(t("--logins accepts at most 50 entries"))
     if parsed_ids and len(parsed_ids) > 100:
-        raise click.UsageError("--account-ids accepts at most 100 entries")
+        raise click.UsageError(t("--account-ids accepts at most 100 entries"))
 
     criteria: dict = {}
     if parsed_logins:
@@ -314,14 +317,14 @@ def _account_update_param(
 ) -> dict:
     """Build the AccountManagement Update parameter object."""
     if account_id is None:
-        raise click.UsageError("--account-id is required for --action Update")
+        raise click.UsageError(t("--account-id is required for --action Update"))
     account: dict = {"AccountID": account_id}
 
     parsed_day_budget = _parse_day_budget(day_budget)
     if parsed_day_budget is not None or spend_mode is not None:
         if parsed_day_budget is None or spend_mode is None:
             raise click.UsageError(
-                "--day-budget and --spend-mode must be provided together"
+                t("--day-budget and --spend-mode must be provided together")
             )
         account["AccountDayBudget"] = {
             "Amount": parsed_day_budget,
@@ -337,7 +340,7 @@ def _account_update_param(
         sms_notification["PausedByDayBudgetSms"] = paused_by_day_budget_sms
     if (sms_time_from is None) != (sms_time_to is None):
         raise click.UsageError(
-            "--sms-time-from and --sms-time-to must be provided together"
+            t("--sms-time-from and --sms-time-to must be provided together")
         )
     if sms_time_from is not None:
         sms_notification["SmsTimeFrom"] = _parse_hh_mm(sms_time_from, "--sms-time-from")
@@ -357,7 +360,7 @@ def _account_update_param(
         account["EmailNotification"] = email_notification
 
     if len(account) == 1:
-        raise click.UsageError("Provide at least one update field")
+        raise click.UsageError(t("Provide at least one update field"))
 
     return {"Action": action, "Accounts": [account]}
 
@@ -365,9 +368,9 @@ def _account_update_param(
 def _parse_account_payments(payments: tuple[str, ...], currency: str) -> list[dict]:
     """Parse repeated --payment ACCOUNT_ID=AMOUNT into PayCampElement-shaped items."""
     if not payments:
-        raise click.UsageError("--payment is required")
+        raise click.UsageError(t("--payment is required"))
     if len(payments) > 50:
-        raise click.UsageError("--payment accepts at most 50 entries per call")
+        raise click.UsageError(t("--payment accepts at most 50 entries per call"))
 
     normalized_currency = currency.upper()
     parsed_items: list[dict] = []
@@ -375,7 +378,7 @@ def _parse_account_payments(payments: tuple[str, ...], currency: str) -> list[di
     for entry in payments:
         spec = (entry or "").strip()
         if "=" not in spec:
-            raise click.UsageError("--payment must use ACCOUNT_ID=AMOUNT")
+            raise click.UsageError(t("--payment must use ACCOUNT_ID=AMOUNT"))
         account_id_text, amount_text = spec.split("=", 1)
         account_id_text = account_id_text.strip()
         amount_text = amount_text.strip()
@@ -383,12 +386,12 @@ def _parse_account_payments(payments: tuple[str, ...], currency: str) -> list[di
             account_id = int(account_id_text)
         except ValueError as exc:
             raise click.UsageError(
-                "--payment account ID must be a positive integer"
+                t("--payment account ID must be a positive integer")
             ) from exc
         if account_id <= 0:
-            raise click.UsageError("--payment account ID must be a positive integer")
+            raise click.UsageError(t("--payment account ID must be a positive integer"))
         if account_id in seen_account_ids:
-            raise click.UsageError("--payment account IDs must be unique")
+            raise click.UsageError(t("--payment account IDs must be unique"))
         seen_account_ids.add(account_id)
         parsed_items.append(
             {
@@ -435,7 +438,7 @@ def _account_transfer_param(
 ) -> dict:
     """Build the TransferMoney param object (single transfer per call)."""
     if from_account_id == to_account_id:
-        raise click.UsageError("--from-account-id and --to-account-id must differ")
+        raise click.UsageError(t("--from-account-id and --to-account-id must differ"))
     return {
         "Action": "TransferMoney",
         "Transfers": [
@@ -719,8 +722,10 @@ def account_management(
     else:  # TransferMoney
         if from_account_id is None or to_account_id is None or amount is None:
             raise click.UsageError(
-                "--from-account-id, --to-account-id, and --amount are required "
-                "for --action TransferMoney"
+                t(
+                    "--from-account-id, --to-account-id, and --amount are required "
+                    "for --action TransferMoney"
+                )
             )
         param = _account_transfer_param(
             from_account_id, to_account_id, amount, currency

@@ -1,3 +1,4 @@
 {
-  "Check account money balance.": "Проверить денежный баланс аккаунта."
+  "Check account money balance.": "Проверить денежный баланс аккаунта.",
+  "Provide --logins or configure YANDEX_DIRECT_LOGIN": "Укажите --logins или настройте YANDEX_DIRECT_LOGIN"
 }

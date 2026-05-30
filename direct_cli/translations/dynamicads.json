@@ -5,5 +5,6 @@
   "Manage dynamic ad targets": "Управление условиями нацеливания динамических объявлений",
   "Resume dynamic ad target": "Возобновить условие нацеливания динамического объявления",
   "Set dynamic ad target bids": "Установить ставки условий нацеливания динамических объявлений",
-  "Suspend dynamic ad target": "Приостановить условие нацеливания динамического объявления"
+  "Suspend dynamic ad target": "Приостановить условие нацеливания динамического объявления",
+  "Provide at least one bid field (--bid, --context-bid, or --priority)": "Укажите хотя бы одно поле ставки (--bid, --context-bid или --priority)"
 }

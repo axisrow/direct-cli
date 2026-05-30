@@ -7,6 +7,7 @@ from typing import Dict, Optional
 import click
 
 from ..api import create_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import get_default_fields, parse_ids
 
@@ -24,8 +25,10 @@ def _build_instant_messenger(
         return None
     if not messenger_client or not messenger_login:
         raise click.UsageError(
-            "--instant-messenger-client and --instant-messenger-login must be "
-            "provided together"
+            t(
+                "--instant-messenger-client and --instant-messenger-login must be "
+                "provided together"
+            )
         )
     return {
         "MessengerClient": messenger_client,

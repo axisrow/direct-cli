@@ -768,7 +768,8 @@ def test_finance_commands_help_carries_not_tested_disclaimer():
         ("v4finance", "pay-campaigns-by-card", "--help"),
     ]:
         # Russian is the default locale; English is opt-in via --locale en.
-        result_ru = _invoke(*args)
+        # Clear the suite-wide en pin so the genuine Russian default renders.
+        result_ru = _invoke(*args, env={"YANDEX_DIRECT_CLI_LOCALE": ""})
         assert result_ru.exit_code == 0
         assert "Не проверено на боевом API" in result_ru.output
         result_en = _invoke("--locale", "en", *args)
