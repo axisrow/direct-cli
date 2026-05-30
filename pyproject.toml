@@ -64,6 +64,11 @@ Repository = "https://github.com/axisrow/direct-cli"
 where = ["."]
 include = ["direct_cli*"]
 
+[tool.setuptools.package-data]
+# Ship the i18n translation catalogs in the wheel/sdist; without this they are
+# omitted from the build and the CLI falls back to English-only.
+direct_cli = ["translations/*.json"]
+
 [tool.black]
 line-length = 88
 target-version = ['py39']

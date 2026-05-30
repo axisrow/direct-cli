@@ -6,7 +6,6 @@ from typing import Any, Optional
 import click
 
 from ..api import create_v4_client
-from ..i18n import LocalizedOption
 from ..output import format_output, print_error
 from ..utils import parse_csv_strings, parse_ids
 from ..v4 import build_v4_body, call_v4
@@ -24,12 +23,19 @@ FINANCE_NOT_TESTED_NOTE = (
     "the request with --dry-run before sending."
 )
 V4_FINANCE_CURRENCIES = ("RUB", "CHF", "EUR", "KZT", "TRY", "UAH", "USD", "BYN")
-FINANCE_HELP_EPILOG = (
+# Translatable human text (catalog key in translations/v4finance.json); the
+# V4_EPILOG tail is appended verbatim so its registry-owned docs URL is never
+# copied into a translation file.
+FINANCE_MASTER_TOKEN_SETUP = (
     "To issue a master token in the Yandex Direct UI, open Tools -> API -> "
     "Financial operations, enable the 'Allow financial operations' checkbox, "
     "click Save, then issue the master token on the same Financial operations "
-    "page and confirm by SMS.\n\n"
-    f"{V4_EPILOG}"
+    "page and confirm by SMS."
+)
+FINANCE_HELP_EPILOG = f"{FINANCE_MASTER_TOKEN_SETUP}\n\n{V4_EPILOG}"
+FINANCE_MASTER_TOKEN_OPTION_HELP = (
+    "Financial master token issued after enabling and saving financial "
+    "operations in Tools -> API -> Financial operations"
 )
 
 
@@ -169,8 +175,8 @@ def v4finance():
 # Localize the group epilog at render time (Russian by default, English via
 # --locale en / YANDEX_DIRECT_CLI_LOCALE). The V4_EPILOG tail is appended
 # verbatim so its single-sourced docs URL is not duplicated. See i18n.py.
-v4finance.localized_epilog_key = "v4finance.master_token_setup"
-v4finance.localized_epilog_suffix = V4_EPILOG
+v4finance.i18n_epilog_text = FINANCE_MASTER_TOKEN_SETUP
+v4finance.i18n_epilog_suffix = V4_EPILOG
 
 
 @v4_method_contract("GetClientsUnits")
@@ -222,8 +228,7 @@ def get_clients_units(ctx, logins, output_format, output, dry_run):
 )
 @click.option(
     "--master-token",
-    cls=LocalizedOption,
-    help_key="v4finance.master_token_option",
+    help=FINANCE_MASTER_TOKEN_OPTION_HELP,
     envvar="YANDEX_DIRECT_MASTER_TOKEN",
 )
 @click.option(
@@ -367,8 +372,7 @@ def check_payment(
 )
 @click.option(
     "--master-token",
-    cls=LocalizedOption,
-    help_key="v4finance.master_token_option",
+    help=FINANCE_MASTER_TOKEN_OPTION_HELP,
     envvar="YANDEX_DIRECT_MASTER_TOKEN",
 )
 @click.option(
@@ -472,8 +476,7 @@ def create_invoice(
 )
 @click.option(
     "--master-token",
-    cls=LocalizedOption,
-    help_key="v4finance.master_token_option",
+    help=FINANCE_MASTER_TOKEN_OPTION_HELP,
     envvar="YANDEX_DIRECT_MASTER_TOKEN",
 )
 @click.option(
@@ -572,8 +575,7 @@ def transfer_money(
 )
 @click.option(
     "--master-token",
-    cls=LocalizedOption,
-    help_key="v4finance.master_token_option",
+    help=FINANCE_MASTER_TOKEN_OPTION_HELP,
     envvar="YANDEX_DIRECT_MASTER_TOKEN",
 )
 @click.option(
@@ -668,8 +670,7 @@ def pay_campaigns(
 )
 @click.option(
     "--master-token",
-    cls=LocalizedOption,
-    help_key="v4finance.master_token_option",
+    help=FINANCE_MASTER_TOKEN_OPTION_HELP,
     envvar="YANDEX_DIRECT_MASTER_TOKEN",
 )
 @click.option(

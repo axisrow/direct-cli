@@ -1,0 +1,7 @@
+{
+  "\b\nCredential context:\n  --login / YANDEX_DIRECT_LOGIN selects the Yandex Direct Client-Login.\n  Use direct auth status to inspect the selected OAuth profile.\n\n\b\nAPI errors:\n  Item-level Yandex Direct Errors are reported as command failures.\n  Error 8800 usually means the object is not available under the current\n  Client-Login/account.\n": "\b\nКонтекст учётных данных:\n  --login / YANDEX_DIRECT_LOGIN выбирает Client-Login Яндекс Директа.\n  Команда direct auth status показывает выбранный OAuth-профиль.\n\n\b\nОшибки API:\n  Ошибки уровня объектов Яндекс Директа возвращаются как сбой команды.\n  Ошибка 8800 обычно означает, что объект недоступен под текущим\n  Client-Login/аккаунтом.\n",
+  "Language for help and messages (ru or en; default: ru)": "Язык справки и сообщений (ru или en; по умолчанию: ru)",
+  "Output file": "Файл для вывода",
+  "Output format": "Формат вывода",
+  "Show request without sending": "Показать запрос без отправки"
+}
