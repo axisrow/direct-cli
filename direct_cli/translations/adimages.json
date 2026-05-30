@@ -8,5 +8,6 @@
   "Get ad images": "Получить изображения объявлений",
   "Image name": "Имя изображения",
   "Manage ad images": "Управление изображениями объявлений",
-  "Path to an image file to base64-encode": "Путь к файлу изображения для кодирования в base64"
+  "Path to an image file to base64-encode": "Путь к файлу изображения для кодирования в base64",
+  "Provide exactly one of --image-data or --image-file": "Укажите ровно один из --image-data или --image-file"
 }

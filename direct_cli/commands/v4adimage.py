@@ -11,6 +11,7 @@ from typing import Optional
 import click
 
 from ..api import create_v4_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import parse_csv_strings, parse_ids
 from ..v4 import build_v4_body, call_v4
@@ -75,13 +76,13 @@ def _set_param(associations: tuple[str, ...]) -> dict:
     AdImageHash detaches the current image.
     """
     if not associations:
-        raise click.UsageError("--association is required for set")
+        raise click.UsageError(t("--association is required for set"))
     items = []
     seen_ad_ids = set()
     for spec in associations:
         spec = (spec or "").strip()
         if not spec:
-            raise click.UsageError("--association must not be empty")
+            raise click.UsageError(t("--association must not be empty"))
         if "=" in spec:
             ad_id_text, ad_image_hash = spec.split("=", 1)
             ad_image_hash = ad_image_hash.strip()
@@ -92,19 +93,19 @@ def _set_param(associations: tuple[str, ...]) -> dict:
             ad_id = int(ad_id_text)
         except ValueError as exc:
             raise click.UsageError(
-                "--association must be AD_ID or AD_ID=HASH with an integer AD_ID"
+                t("--association must be AD_ID or AD_ID=HASH with an integer AD_ID")
             ) from exc
         if ad_id <= 0:
-            raise click.UsageError("--association AD_ID must be a positive integer")
+            raise click.UsageError(t("--association AD_ID must be a positive integer"))
         if ad_id in seen_ad_ids:
-            raise click.UsageError("--association AD_ID values must be unique")
+            raise click.UsageError(t("--association AD_ID values must be unique"))
         seen_ad_ids.add(ad_id)
         item: dict = {"AdID": ad_id}
         if ad_image_hash:
             item["AdImageHash"] = ad_image_hash
         items.append(item)
     if len(items) > 10000:
-        raise click.UsageError("--association accepts at most 10000 entries")
+        raise click.UsageError(t("--association accepts at most 10000 entries"))
     return {"Action": "Set", "AdImageAssociations": items}
 
 

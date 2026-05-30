@@ -9,6 +9,7 @@ from typing import Any, Dict, Iterator, List, Optional
 import click
 
 from ..api import create_client
+from ..i18n import t
 from ..output import (
     format_json,
     format_output,
@@ -78,13 +79,18 @@ def _coerce_keyword_field(field: str, raw_value: Any, row_index: int) -> Any:
     kind = _KEYWORD_ROW_FIELDS[field]
     if isinstance(raw_value, bool):
         raise click.UsageError(
-            f"Row {row_index} field {field!r}: expected {kind}, got bool"
+            t("Row {row_index} field {field!r}: expected {kind}, got bool").format(
+                row_index=row_index, field=field, kind=kind
+            )
         )
     if kind == "str":
         if not isinstance(raw_value, str):
             raise click.UsageError(
-                f"Row {row_index} field {field!r}: expected string, "
-                f"got {type(raw_value).__name__}"
+                t(
+                    "Row {row_index} field {field!r}: expected string, got {arg0}"
+                ).format(
+                    row_index=row_index, field=field, arg0=type(raw_value).__name__
+                )
             )
         return raw_value
     if kind == "int":
@@ -94,15 +100,23 @@ def _coerce_keyword_field(field: str, raw_value: Any, row_index: int) -> Any:
             return int(raw_value)
         except (TypeError, ValueError):
             raise click.UsageError(
-                f"Row {row_index} field {field!r}: expected integer, got {raw_value!r}"
+                t(
+                    "Row {row_index} field {field!r}: expected integer, got {raw_value!r}"
+                ).format(row_index=row_index, field=field, raw_value=raw_value)
             )
     if kind == "micro":
         try:
             return MICRO_RUBLES.convert(raw_value, None, None)
         except click.exceptions.BadParameter as exc:
-            raise click.UsageError(f"Row {row_index} field {field!r}: {exc.message}")
+            raise click.UsageError(
+                t("Row {row_index} field {field!r}: {arg0}").format(
+                    row_index=row_index, field=field, arg0=exc.message
+                )
+            )
     raise click.UsageError(
-        f"Row {row_index} field {field!r}: unsupported type {kind!r}"
+        t("Row {row_index} field {field!r}: unsupported type {kind!r}").format(
+            row_index=row_index, field=field, kind=kind
+        )
     )
 
 
@@ -113,7 +127,9 @@ def _normalize_keyword_row(
 ) -> Dict[str, Any]:
     if not isinstance(row, dict):
         raise click.UsageError(
-            f"Row {row_index}: expected JSON object, got {type(row).__name__}"
+            t("Row {row_index}: expected JSON object, got {arg0}").format(
+                row_index=row_index, arg0=type(row).__name__
+            )
         )
 
     deferred = sorted(set(row) & set(_KEYWORD_BATCH_DEFERRED_FIELDS))
@@ -121,17 +137,18 @@ def _normalize_keyword_row(
         field = deferred[0]
         flag = _KEYWORD_BATCH_DEFERRED_FIELDS[field]
         raise click.UsageError(
-            f"Keyword row {row_index} field {field!r} is intentionally "
-            "unsupported in batch mode; use the single-item typed option "
-            f"{flag} instead."
+            t(
+                "Keyword row {row_index} field {field!r} is intentionally unsupported in batch mode; use the single-item typed option {flag} instead."
+            ).format(row_index=row_index, field=field, flag=flag)
         )
 
     unknown = sorted(set(row) - set(_KEYWORD_ROW_FIELDS))
     if unknown:
         allowed = ", ".join(_KEYWORD_ROW_FIELDS)
         raise click.UsageError(
-            f"Unknown field {unknown[0]!r} in keyword row {row_index}; "
-            f"allowed: {allowed}"
+            t(
+                "Unknown field {arg0!r} in keyword row {row_index}; allowed: {allowed}"
+            ).format(arg0=unknown[0], row_index=row_index, allowed=allowed)
         )
 
     item: Dict[str, Any] = {}
@@ -142,13 +159,18 @@ def _normalize_keyword_row(
     if "AdGroupId" not in item:
         if default_adgroup_id is None:
             raise click.UsageError(
-                f"Row {row_index}: missing 'AdGroupId' and no default "
-                "--adgroup-id provided"
+                t(
+                    "Row {row_index}: missing 'AdGroupId' and no default --adgroup-id provided"
+                ).format(row_index=row_index)
             )
         item["AdGroupId"] = default_adgroup_id
 
     if "Keyword" not in item:
-        raise click.UsageError(f"Row {row_index}: missing required field 'Keyword'")
+        raise click.UsageError(
+            t("Row {row_index}: missing required field 'Keyword'").format(
+                row_index=row_index
+            )
+        )
 
     return item
 
@@ -159,7 +181,9 @@ def _load_keyword_rows_from_file(path: str) -> List[Any]:
     try:
         text = file_path.read_text(encoding="utf-8")
     except OSError as exc:
-        raise click.UsageError(f"Cannot read --from-file {path!r}: {exc}")
+        raise click.UsageError(
+            t("Cannot read --from-file {path!r}: {exc}").format(path=path, exc=exc)
+        )
 
     for line_number, raw_line in enumerate(text.splitlines(), start=1):
         line = raw_line.strip()
@@ -168,7 +192,11 @@ def _load_keyword_rows_from_file(path: str) -> List[Any]:
         try:
             rows.append(json.loads(line))
         except json.JSONDecodeError as exc:
-            raise click.UsageError(f"Row {line_number}: invalid JSON: {exc.msg}")
+            raise click.UsageError(
+                t("Row {line_number}: invalid JSON: {arg0}").format(
+                    line_number=line_number, arg0=exc.msg
+                )
+            )
     return rows
 
 
@@ -176,10 +204,12 @@ def _load_keyword_rows_from_inline(json_str: str) -> List[Any]:
     try:
         decoded = json.loads(json_str)
     except json.JSONDecodeError as exc:
-        raise click.UsageError(f"--keywords-json: invalid JSON: {exc.msg}")
+        raise click.UsageError(
+            t("--keywords-json: invalid JSON: {arg0}").format(arg0=exc.msg)
+        )
     if not isinstance(decoded, list):
         raise click.UsageError(
-            "--keywords-json must be a JSON array of keyword objects"
+            t("--keywords-json must be a JSON array of keyword objects")
         )
     return decoded
 
@@ -238,21 +268,27 @@ def _parse_autotargeting_categories(
         category_raw, separator, value_raw = raw_value.strip().partition("=")
         if not separator:
             raise click.UsageError(
-                "--autotargeting-category expects CATEGORY=YES|NO "
-                "(for example EXACT=YES)"
+                t(
+                    "--autotargeting-category expects CATEGORY=YES|NO "
+                    "(for example EXACT=YES)"
+                )
             )
 
         category = category_raw.strip().upper()
         value = value_raw.strip().upper()
         if category not in AUTOTARGETING_CATEGORIES:
             raise click.UsageError(
-                "Invalid --autotargeting-category category "
-                f"{category_raw!r}; allowed: {allowed_categories}"
+                t(
+                    "Invalid --autotargeting-category category {category_raw!r}; allowed: {allowed_categories}"
+                ).format(
+                    category_raw=category_raw, allowed_categories=allowed_categories
+                )
             )
         if value not in {"YES", "NO"}:
             raise click.UsageError(
-                "Invalid --autotargeting-category value "
-                f"{value_raw!r}; expected YES or NO"
+                t(
+                    "Invalid --autotargeting-category value {value_raw!r}; expected YES or NO"
+                ).format(value_raw=value_raw)
             )
 
         items.append({"Category": category, "Value": value})
@@ -272,21 +308,25 @@ def _parse_autotargeting_brand_options(
         option_raw, separator, value_raw = raw_value.strip().partition("=")
         if not separator:
             raise click.UsageError(
-                "--autotargeting-brand-option expects OPTION=YES|NO "
-                "(for example WITHOUT_BRANDS=YES)"
+                t(
+                    "--autotargeting-brand-option expects OPTION=YES|NO "
+                    "(for example WITHOUT_BRANDS=YES)"
+                )
             )
 
         option = option_raw.strip().upper()
         value = value_raw.strip().upper()
         if option not in AUTOTARGETING_BRAND_OPTIONS:
             raise click.UsageError(
-                "Invalid --autotargeting-brand-option option "
-                f"{option_raw!r}; allowed: {allowed_options}"
+                t(
+                    "Invalid --autotargeting-brand-option option {option_raw!r}; allowed: {allowed_options}"
+                ).format(option_raw=option_raw, allowed_options=allowed_options)
             )
         if value not in {"YES", "NO"}:
             raise click.UsageError(
-                "Invalid --autotargeting-brand-option value "
-                f"{value_raw!r}; expected YES or NO"
+                t(
+                    "Invalid --autotargeting-brand-option value {value_raw!r}; expected YES or NO"
+                ).format(value_raw=value_raw)
             )
 
         items.append({"Option": option, "Value": value})
@@ -350,8 +390,9 @@ def _reject_legacy_autotargeting_mix(
         legacy_flags.append("--autotargeting-brand-option")
     if legacy_flags:
         raise click.UsageError(
-            "AutotargetingSettings flags cannot be combined with legacy "
-            f"{', '.join(legacy_flags)} flags."
+            t(
+                "AutotargetingSettings flags cannot be combined with legacy {arg0} flags."
+            ).format(arg0=", ".join(legacy_flags))
         )
 
 
@@ -415,7 +456,7 @@ def get(
 ):
     """Get keywords"""
     if status and statuses:
-        raise click.UsageError("--status and --statuses are mutually exclusive")
+        raise click.UsageError(t("--status and --statuses are mutually exclusive"))
 
     try:
         client = create_client(
@@ -434,8 +475,10 @@ def get(
             and not parsed_brand_options
         ):
             raise click.UsageError(
-                "Provide a non-empty comma-separated "
-                "AutotargetingSettingsBrandOptionsFieldNames list."
+                t(
+                    "Provide a non-empty comma-separated "
+                    "AutotargetingSettingsBrandOptionsFieldNames list."
+                )
             )
 
         parsed_categories = parse_csv_strings(
@@ -446,8 +489,10 @@ def get(
             and not parsed_categories
         ):
             raise click.UsageError(
-                "Provide a non-empty comma-separated "
-                "AutotargetingSettingsCategoriesFieldNames list."
+                t(
+                    "Provide a non-empty comma-separated "
+                    "AutotargetingSettingsCategoriesFieldNames list."
+                )
             )
 
         criteria = {}
@@ -467,9 +512,7 @@ def get(
 
         params = {"SelectionCriteria": criteria, "FieldNames": field_names}
         if parsed_brand_options:
-            params["AutotargetingSettingsBrandOptionsFieldNames"] = (
-                parsed_brand_options
-            )
+            params["AutotargetingSettingsBrandOptionsFieldNames"] = parsed_brand_options
         if parsed_categories:
             params["AutotargetingSettingsCategoriesFieldNames"] = parsed_categories
 
@@ -619,13 +662,17 @@ def add(
     )
     if modes_used == 0:
         raise click.UsageError(
-            "Provide exactly one of: --keyword (single), --from-file (JSONL), "
-            "or --keywords-json (inline JSON array)."
+            t(
+                "Provide exactly one of: --keyword (single), --from-file (JSONL), "
+                "or --keywords-json (inline JSON array)."
+            )
         )
     if modes_used > 1:
         raise click.UsageError(
-            "Provide exactly one of: --keyword, --from-file, or "
-            "--keywords-json — they are mutually exclusive."
+            t(
+                "Provide exactly one of: --keyword, --from-file, or "
+                "--keywords-json — they are mutually exclusive."
+            )
         )
 
     batch_mode = from_file is not None or keywords_json is not None
@@ -662,8 +709,9 @@ def add(
         ]
         if unsupported:
             raise click.UsageError(
-                f"{', '.join(unsupported)} supported only with --keyword "
-                "single-item mode"
+                t("{arg0} supported only with --keyword single-item mode").format(
+                    arg0=", ".join(unsupported)
+                )
             )
         _bulk_add(
             ctx,
@@ -676,7 +724,7 @@ def add(
         return
 
     if adgroup_id is None:
-        raise click.UsageError("Missing option '--adgroup-id'.")
+        raise click.UsageError(t("Missing option '--adgroup-id'."))
 
     parsed_autotargeting_categories = _parse_autotargeting_categories(
         autotargeting_categories
@@ -759,8 +807,10 @@ def _bulk_add(
 ) -> None:
     if output_format != "json":
         raise click.UsageError(
-            "--format other than 'json' is not supported in batch mode "
-            "(item-level results may include per-row Errors)."
+            t(
+                "--format other than 'json' is not supported in batch mode "
+                "(item-level results may include per-row Errors)."
+            )
         )
 
     if from_file is not None:
@@ -769,7 +819,7 @@ def _bulk_add(
         raw_rows = _load_keyword_rows_from_inline(keywords_json or "")
 
     if not raw_rows:
-        raise click.UsageError("Input contains no keyword rows.")
+        raise click.UsageError(t("Input contains no keyword rows."))
 
     items: List[Dict[str, Any]] = [
         _normalize_keyword_row(row, idx, adgroup_id)
@@ -989,10 +1039,12 @@ def update(
     # Reject empty-payload no-op (issue #198 H10).
     if len(keyword_data) == 1:
         raise click.UsageError(
-            "keywords update requires at least one updatable field "
-            "(--keyword, --user-param-1, --user-param-2, "
-            "--autotargeting-category, --autotargeting-brand-option, "
-            "or --autotargeting-settings-* flags)."
+            t(
+                "keywords update requires at least one updatable field "
+                "(--keyword, --user-param-1, --user-param-2, "
+                "--autotargeting-category, --autotargeting-brand-option, "
+                "or --autotargeting-settings-* flags)."
+            )
         )
 
     try:

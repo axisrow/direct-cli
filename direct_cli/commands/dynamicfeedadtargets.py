@@ -5,6 +5,7 @@ DynamicFeedAdTargets commands
 import click
 
 from ..api import create_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import get_default_fields, parse_condition_specs, parse_ids, MICRO_RUBLES
 
@@ -64,7 +65,7 @@ def get(
             ]
 
         if not criteria:
-            raise click.UsageError("Provide at least one typed filter")
+            raise click.UsageError(t("Provide at least one typed filter"))
 
         params = {"SelectionCriteria": criteria, "FieldNames": field_names}
 
@@ -270,10 +271,12 @@ def set_bids(ctx, target_id, adgroup_id, campaign_id, bid, context_bid, dry_run)
         has_bid = any(k in bid_data for k in ("Bid", "ContextBid"))
         if not has_selector:
             raise click.UsageError(
-                "Provide a target selector (--id, --adgroup-id, or --campaign-id)"
+                t("Provide a target selector (--id, --adgroup-id, or --campaign-id)")
             )
         if not has_bid:
-            raise click.UsageError("Provide at least one bid (--bid or --context-bid)")
+            raise click.UsageError(
+                t("Provide at least one bid (--bid or --context-bid)")
+            )
 
         body = {"method": "setBids", "params": {"Bids": [bid_data]}}
 

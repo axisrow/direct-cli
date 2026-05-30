@@ -5,5 +5,6 @@
   "List v4 Live Wordstat reports.": "Список отчётов Wordstat v4 Live.",
   "Get a ready v4 Live Wordstat report.": "Получить готовый отчёт Wordstat v4 Live.",
   "Wordstat report ID": "ID отчёта Wordstat",
-  "Delete a v4 Live Wordstat report.": "Удалить отчёт Wordstat v4 Live."
+  "Delete a v4 Live Wordstat report.": "Удалить отчёт Wordstat v4 Live.",
+  "--phrases accepts at most 10 phrases": "--phrases принимает не более 10 фраз"
 }

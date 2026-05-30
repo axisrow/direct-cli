@@ -5,6 +5,7 @@ from typing import Optional
 import click
 
 from ..api import create_v4_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import parse_csv_strings, parse_ids
 from ..v4 import build_v4_body, call_v4
@@ -16,9 +17,9 @@ def _wordstat_report_param(phrases: str, geo_ids: Optional[str]) -> dict:
     """Build the v4 Live CreateNewWordstatReport parameter."""
     phrase_list = parse_csv_strings(phrases)
     if not phrase_list:
-        raise click.UsageError("--phrases must not be empty")
+        raise click.UsageError(t("--phrases must not be empty"))
     if len(phrase_list) > 10:
-        raise click.UsageError("--phrases accepts at most 10 phrases")
+        raise click.UsageError(t("--phrases accepts at most 10 phrases"))
 
     param = {"Phrases": phrase_list}
     if geo_ids:

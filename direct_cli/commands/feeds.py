@@ -9,6 +9,7 @@ from typing import Dict, Optional
 import click
 
 from ..api import create_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import get_default_fields, parse_csv_strings, parse_ids
 
@@ -52,30 +53,35 @@ def _file_feed_payload(
     path = Path(file_feed_path)
     filename = file_feed_filename or path.name
     if not filename:
-        raise click.UsageError("FileFeed.Filename cannot be empty.")
+        raise click.UsageError(t("FileFeed.Filename cannot be empty."))
     if len(filename) > _FILE_FEED_MAX_FILENAME_LENGTH:
         raise click.UsageError(
-            "FileFeed.Filename must be at most "
-            f"{_FILE_FEED_MAX_FILENAME_LENGTH} characters."
+            t(
+                "FileFeed.Filename must be at most {_FILE_FEED_MAX_FILENAME_LENGTH} characters."
+            ).format(_FILE_FEED_MAX_FILENAME_LENGTH=_FILE_FEED_MAX_FILENAME_LENGTH)
         )
 
     try:
         file_size = path.stat().st_size
     except OSError as exc:
         raise click.UsageError(
-            f"Cannot read --file-feed-path {file_feed_path!r}: {exc}"
+            t("Cannot read --file-feed-path {file_feed_path!r}: {exc}").format(
+                file_feed_path=file_feed_path, exc=exc
+            )
         )
 
     if file_size > _FILE_FEED_MAX_BYTES:
         raise click.UsageError(
-            "FileFeed.Data must be at most 50 MiB before base64 encoding."
+            t("FileFeed.Data must be at most 50 MiB before base64 encoding.")
         )
 
     try:
         data = path.read_bytes()
     except OSError as exc:
         raise click.UsageError(
-            f"Cannot read --file-feed-path {file_feed_path!r}: {exc}"
+            t("Cannot read --file-feed-path {file_feed_path!r}: {exc}").format(
+                file_feed_path=file_feed_path, exc=exc
+            )
         )
 
     return {
@@ -159,13 +165,13 @@ def get(
         parsed_file_feed_field_names = parse_csv_strings(file_feed_field_names)
         if file_feed_field_names is not None and not parsed_file_feed_field_names:
             raise click.UsageError(
-                "Provide a non-empty comma-separated FileFeedFieldNames list."
+                t("Provide a non-empty comma-separated FileFeedFieldNames list.")
             )
 
         parsed_url_feed_field_names = parse_csv_strings(url_feed_field_names)
         if url_feed_field_names is not None and not parsed_url_feed_field_names:
             raise click.UsageError(
-                "Provide a non-empty comma-separated UrlFeedFieldNames list."
+                t("Provide a non-empty comma-separated UrlFeedFieldNames list.")
             )
 
         criteria = {}
@@ -252,17 +258,21 @@ def add(
     """Add feed"""
     try:
         if file_feed_filename and not file_feed_path:
-            raise click.UsageError("--file-feed-filename requires --file-feed-path.")
+            raise click.UsageError(t("--file-feed-filename requires --file-feed-path."))
         if url and file_feed_path:
-            raise click.UsageError("Use either --url or --file-feed-path, not both.")
+            raise click.UsageError(t("Use either --url or --file-feed-path, not both."))
         if not url and not file_feed_path:
-            raise click.UsageError("Provide exactly one of --url or --file-feed-path.")
+            raise click.UsageError(
+                t("Provide exactly one of --url or --file-feed-path.")
+            )
         if file_feed_path and _has_url_feed_options(
             None, remove_utm_tags, feed_login, feed_password
         ):
             raise click.UsageError(
-                "--remove-utm-tags, --feed-login, and --feed-password are "
-                "only valid with --url feeds."
+                t(
+                    "--remove-utm-tags, --feed-login, and --feed-password are "
+                    "only valid with --url feeds."
+                )
             )
 
         feed_data = {
@@ -351,14 +361,14 @@ def update(
     try:
         if feed_login is not None and clear_feed_login:
             raise click.UsageError(
-                "Use either --feed-login or --clear-feed-login, not both"
+                t("Use either --feed-login or --clear-feed-login, not both")
             )
         if feed_password is not None and clear_feed_password:
             raise click.UsageError(
-                "Use either --feed-password or --clear-feed-password, not both"
+                t("Use either --feed-password or --clear-feed-password, not both")
             )
         if file_feed_filename and not file_feed_path:
-            raise click.UsageError("--file-feed-filename requires --file-feed-path.")
+            raise click.UsageError(t("--file-feed-filename requires --file-feed-path."))
         if file_feed_path and _has_url_feed_options(
             url,
             remove_utm_tags,
@@ -368,7 +378,7 @@ def update(
             clear_feed_password,
         ):
             raise click.UsageError(
-                "FileFeed options cannot be combined with UrlFeed options."
+                t("FileFeed options cannot be combined with UrlFeed options.")
             )
 
         feed_data = {"Id": feed_id}
@@ -391,9 +401,11 @@ def update(
             )
         if len(feed_data) == 1:
             raise click.UsageError(
-                "Provide at least one of --name, --url, --file-feed-path, "
-                "--remove-utm-tags, --feed-login, --feed-password, "
-                "--clear-feed-login, or --clear-feed-password"
+                t(
+                    "Provide at least one of --name, --url, --file-feed-path, "
+                    "--remove-utm-tags, --feed-login, --feed-password, "
+                    "--clear-feed-login, or --clear-feed-password"
+                )
             )
 
         body = {"method": "update", "params": {"Feeds": [feed_data]}}

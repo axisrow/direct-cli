@@ -7,6 +7,7 @@ from typing import Any, Optional
 import click
 
 from ..api import create_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import (
     add_criteria_csv,
@@ -82,8 +83,9 @@ def _validate_tracking_params(tracking_params: Optional[str]) -> None:
         and len(tracking_params) > _TRACKING_PARAMS_MAX_LENGTH
     ):
         raise click.UsageError(
-            "--tracking-params must be at most "
-            f"{_TRACKING_PARAMS_MAX_LENGTH} characters"
+            t(
+                "--tracking-params must be at most {_TRACKING_PARAMS_MAX_LENGTH} characters"
+            ).format(_TRACKING_PARAMS_MAX_LENGTH=_TRACKING_PARAMS_MAX_LENGTH)
         )
 
 
@@ -105,8 +107,9 @@ def _reject_unsupported_negative_keywords(
 
     if unsupported_flags:
         raise click.UsageError(
-            f"{', '.join(unsupported_flags)} is not compatible with --type "
-            f"{group_type}."
+            t("{arg0} is not compatible with --type {group_type}.").format(
+                arg0=", ".join(unsupported_flags), group_type=group_type
+            )
         )
 
 
@@ -115,7 +118,9 @@ def _parse_ids_option(value: Optional[str], option_name: str) -> Optional[list[i
     try:
         return parse_ids(value)
     except ValueError as exc:
-        raise click.UsageError(f"{option_name}: {exc}") from exc
+        raise click.UsageError(
+            t("{option_name}: {exc}").format(option_name=option_name, exc=exc)
+        ) from exc
 
 
 def _normalize_enum_token(value: str) -> str:
@@ -136,8 +141,11 @@ def _parse_enum_value(
 
     if normalized not in allowed_values:
         raise click.UsageError(
-            f"{option_name} has invalid value {value!r}; allowed values: "
-            f"{', '.join(allowed_values)}"
+            t(
+                "{option_name} has invalid value {value!r}; allowed values: {arg0}"
+            ).format(
+                option_name=option_name, value=value, arg0=", ".join(allowed_values)
+            )
         )
     return normalized
 
@@ -155,8 +163,11 @@ def _parse_enum_csv(
         normalized = _normalize_enum_token(item)
         if normalized not in allowed_values:
             raise click.UsageError(
-                f"{option_name} has invalid value {item!r}; allowed values: "
-                f"{', '.join(allowed_values)}"
+                t(
+                    "{option_name} has invalid value {item!r}; allowed values: {arg0}"
+                ).format(
+                    option_name=option_name, item=item, arg0=", ".join(allowed_values)
+                )
             )
         normalized_values.append(normalized)
     return normalized_values
@@ -190,7 +201,9 @@ def _build_mobile_app_adgroup(
             missing.append("--target-operating-system-version")
         if missing:
             raise click.UsageError(
-                f"{', '.join(missing)} required for MOBILE_APP_AD_GROUP"
+                t("{arg0} required for MOBILE_APP_AD_GROUP").format(
+                    arg0=", ".join(missing)
+                )
             )
 
     mobile_app_adgroup: dict[str, object] = {}
@@ -221,21 +234,27 @@ def _parse_autotargeting_categories(
         category_raw, separator, value_raw = raw_value.strip().partition("=")
         if not separator:
             raise click.UsageError(
-                "--autotargeting-category expects CATEGORY=YES|NO "
-                "(for example EXACT=YES)"
+                t(
+                    "--autotargeting-category expects CATEGORY=YES|NO "
+                    "(for example EXACT=YES)"
+                )
             )
 
         category = _normalize_enum_token(category_raw)
         value = _normalize_enum_token(value_raw)
         if category not in _AUTOTARGETING_CATEGORIES:
             raise click.UsageError(
-                "Invalid --autotargeting-category category "
-                f"{category_raw!r}; allowed: {allowed_categories}"
+                t(
+                    "Invalid --autotargeting-category category {category_raw!r}; allowed: {allowed_categories}"
+                ).format(
+                    category_raw=category_raw, allowed_categories=allowed_categories
+                )
             )
         if value not in {"YES", "NO"}:
             raise click.UsageError(
-                "Invalid --autotargeting-category value "
-                f"{value_raw!r}; expected YES or NO"
+                t(
+                    "Invalid --autotargeting-category value {value_raw!r}; expected YES or NO"
+                ).format(value_raw=value_raw)
             )
         items.append({"Category": category, "Value": value})
 
@@ -290,8 +309,10 @@ def _reject_legacy_autotargeting_mix(
     """Reject ambiguous legacy AutotargetingCategories + Settings payloads."""
     if settings is not None and categories:
         raise click.UsageError(
-            "AutotargetingSettings flags cannot be combined with legacy "
-            "--autotargeting-category flags."
+            t(
+                "AutotargetingSettings flags cannot be combined with legacy "
+                "--autotargeting-category flags."
+            )
         )
 
 
@@ -328,7 +349,7 @@ def _build_dynamic_text_adgroup(
 
     has_dynamic_fields = bool(domain_url or parsed_categories or autotargeting_settings)
     if (force_domain_url or has_dynamic_fields) and not domain_url:
-        raise click.UsageError("--domain-url is required for DYNAMIC_TEXT_AD_GROUP")
+        raise click.UsageError(t("--domain-url is required for DYNAMIC_TEXT_AD_GROUP"))
 
     dynamic_text_adgroup: dict[str, object] = {}
     if domain_url:
@@ -351,7 +372,9 @@ def _build_dynamic_text_feed_adgroup(
     parsed_categories = _parse_autotargeting_categories(autotargeting_categories)
 
     if require_feed_id and feed_id is None:
-        raise click.UsageError("--feed-id is required for DYNAMIC_TEXT_FEED_AD_GROUP")
+        raise click.UsageError(
+            t("--feed-id is required for DYNAMIC_TEXT_FEED_AD_GROUP")
+        )
 
     dynamic_text_feed_adgroup: dict[str, object] = {}
     if feed_id is not None:
@@ -374,7 +397,9 @@ def _build_text_adgroup_feed_params(
     )
 
     if feed_id is None and parsed_feed_category_ids:
-        raise click.UsageError("--feed-id is required when --feed-category-ids is used")
+        raise click.UsageError(
+            t("--feed-id is required when --feed-category-ids is used")
+        )
     if feed_id is None:
         return None
 
@@ -397,8 +422,9 @@ def _reject_incompatible_flags(
     ]
     if incompatible:
         raise click.UsageError(
-            f"{', '.join(sorted(incompatible))} is not compatible with --type "
-            f"{group_type}."
+            t("{arg0} is not compatible with --type {group_type}.").format(
+                arg0=", ".join(sorted(incompatible)), group_type=group_type
+            )
         )
 
 
@@ -422,9 +448,14 @@ def _reject_mixed_update_subtype_flags(
         first_subtype, first_flags = provided_by_subtype[0]
         second_subtype, second_flags = provided_by_subtype[1]
         raise click.UsageError(
-            f"{first_subtype} update flags "
-            f"({', '.join(first_flags)}) cannot be combined with "
-            f"{second_subtype} update flags ({', '.join(second_flags)})."
+            t(
+                "{first_subtype} update flags ({arg0}) cannot be combined with {second_subtype} update flags ({arg1})."
+            ).format(
+                first_subtype=first_subtype,
+                arg0=", ".join(first_flags),
+                second_subtype=second_subtype,
+                arg1=", ".join(second_flags),
+            )
         )
 
 
@@ -575,7 +606,7 @@ def get(
 ):
     """Get ad groups"""
     if status and statuses:
-        raise click.UsageError("--status and --statuses are mutually exclusive")
+        raise click.UsageError(t("--status and --statuses are mutually exclusive"))
 
     try:
         client = create_client(
@@ -616,7 +647,9 @@ def get(
             parsed = parse_csv_strings(raw_value)
             if raw_value is not None and not parsed:
                 raise click.UsageError(
-                    f"Provide a non-empty comma-separated {wsdl_key} list."
+                    t("Provide a non-empty comma-separated {wsdl_key} list.").format(
+                        wsdl_key=wsdl_key
+                    )
                 )
             if parsed:
                 parsed_nested[wsdl_key] = parsed
@@ -845,9 +878,12 @@ def add(
         group_type_norm = (group_type or "TEXT_AD_GROUP").upper().replace("-", "_")
         if group_type_norm not in _SUPPORTED_ADGROUP_TYPES:
             raise click.UsageError(
-                "Invalid value for '--type': "
-                f"{group_type!r} is not one of "
-                f"{', '.join(repr(value) for value in _SUPPORTED_ADGROUP_TYPES)}."
+                t(
+                    "Invalid value for '--type': {group_type!r} is not one of {arg0}."
+                ).format(
+                    group_type=group_type,
+                    arg0=", ".join(repr(value) for value in _SUPPORTED_ADGROUP_TYPES),
+                )
             )
         allowed_flags_by_type = {
             "TEXT_AD_GROUP": _TEXT_ADGROUP_FEED_PARAMS_FLAGS,
@@ -968,7 +1004,7 @@ def add(
             adgroup_data["CpmVideoAdGroup"] = {}
         elif group_type_norm == "SMART_AD_GROUP":
             if feed_id is None:
-                raise click.UsageError("--feed-id is required for SMART_AD_GROUP")
+                raise click.UsageError(t("--feed-id is required for SMART_AD_GROUP"))
             smart_ad_group = {"FeedId": feed_id}
             if ad_title_source:
                 smart_ad_group["AdTitleSource"] = ad_title_source
@@ -978,7 +1014,7 @@ def add(
         elif group_type_norm == "UNIFIED_AD_GROUP":
             if offer_retargeting is None:
                 raise click.UsageError(
-                    "--offer-retargeting is required for UNIFIED_AD_GROUP"
+                    t("--offer-retargeting is required for UNIFIED_AD_GROUP")
                 )
             adgroup_data["UnifiedAdGroup"] = {
                 "OfferRetargeting": offer_retargeting.upper()
@@ -1238,7 +1274,9 @@ def update(
         adgroup_data["TrackingParams"] = tracking_params
     if dynamic_feed:
         if not autotargeting_categories:
-            raise click.UsageError("--dynamic-feed requires --autotargeting-category")
+            raise click.UsageError(
+                t("--dynamic-feed requires --autotargeting-category")
+            )
         dynamic_text_feed_adgroup = _build_dynamic_text_feed_adgroup(
             autotargeting_categories=autotargeting_categories,
         )
@@ -1291,14 +1329,16 @@ def update(
     # Reject empty-payload no-op (issue #198 H5).
     if len(adgroup_data) == 1:
         raise click.UsageError(
-            "adgroups update requires at least one updatable field "
-            "(--name, --status, --region-ids, --negative-keywords, "
-            "--negative-keyword-shared-set-ids, --tracking-params, "
-            "--domain-url, --dynamic-feed, --autotargeting-category, "
-            "--autotargeting-settings-* flags, --target-device-types, "
-            "--target-carrier, --target-operating-system-version, "
-            "--feed-id, --feed-category-ids, --ad-title-source, "
-            "--ad-body-source, or --offer-retargeting)."
+            t(
+                "adgroups update requires at least one updatable field "
+                "(--name, --status, --region-ids, --negative-keywords, "
+                "--negative-keyword-shared-set-ids, --tracking-params, "
+                "--domain-url, --dynamic-feed, --autotargeting-category, "
+                "--autotargeting-settings-* flags, --target-device-types, "
+                "--target-carrier, --target-operating-system-version, "
+                "--feed-id, --feed-category-ids, --ad-title-source, "
+                "--ad-body-source, or --offer-retargeting)."
+            )
         )
 
     try:

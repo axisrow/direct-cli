@@ -10,5 +10,21 @@
   "Replace banner tag assignments.": "Заменить назначения тегов баннеров.",
   "Comma-separated banner IDs": "ID баннеров через запятую",
   "Comma-separated campaign tag IDs, up to 30": "ID тегов кампании через запятую, до 30",
-  "Remove all banner tags": "Удалить все теги баннеров"
+  "Remove all banner tags": "Удалить все теги баннеров",
+  "--tag-ids accepts at most 30 tag IDs": "--tag-ids принимает не более 30 ID тегов",
+  "Use exactly one of --campaign-ids or --banner-ids": "Используйте ровно один из --campaign-ids или --banner-ids",
+  "--banner-ids accepts at most 2000 banner IDs": "--banner-ids принимает не более 2000 ID баннеров",
+  "--tag is required unless --clear-tags is used": "--tag обязателен, если не используется --clear-tags",
+  "--tag accepts at most 200 campaign tags": "--tag принимает не более 200 тегов кампании",
+  "--campaign-ids accepts at most 10 campaign IDs": "--campaign-ids принимает не более 10 ID кампаний",
+  "Use either --tag or --clear-tags, not both": "Используйте либо --tag, либо --clear-tags, но не оба",
+  "--tag must use TAG_ID=TEXT": "--tag должен использовать формат TAG_ID=TEXT",
+  "--tag ID must be a non-negative integer": "ID тега в --tag должен быть неотрицательным целым числом",
+  "--tag text must not be empty": "Текст тега в --tag не должен быть пустым",
+  "--tag text must be 25 characters or fewer": "Текст тега в --tag должен быть не длиннее 25 символов",
+  "--tag texts must be unique ignoring case": "Тексты тегов в --tag должны быть уникальными без учёта регистра",
+  "Use either --tag-ids or --clear-tags, not both": "Используйте либо --tag-ids, либо --clear-tags, но не оба",
+  "--tag-ids is required unless --clear-tags is used": "--tag-ids обязателен, если не используется --clear-tags",
+  "--tag IDs must be unique": "ID тегов в --tag должны быть уникальными",
+  "{option_name} must contain only positive integers": "{option_name} должен содержать только положительные целые числа"
 }

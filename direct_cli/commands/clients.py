@@ -5,6 +5,7 @@ Clients commands
 import click
 
 from ..api import create_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import (
     build_client_update_item,
@@ -120,7 +121,9 @@ def get(
             parsed = parse_csv_strings(raw_value)
             if raw_value is not None and not parsed:
                 raise click.UsageError(
-                    f"Provide a non-empty comma-separated {wsdl_key} list."
+                    t("Provide a non-empty comma-separated {wsdl_key} list.").format(
+                        wsdl_key=wsdl_key
+                    )
                 )
             if parsed:
                 parsed_nested[wsdl_key] = parsed
@@ -344,7 +347,7 @@ def update(
             ),
         )
         if not client_data:
-            raise click.UsageError("Provide at least one field to update")
+            raise click.UsageError(t("Provide at least one field to update"))
 
         body = {"method": "update", "params": {"Clients": [client_data]}}
 

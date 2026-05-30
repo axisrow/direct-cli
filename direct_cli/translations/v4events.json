@@ -12,5 +12,8 @@
   "Filter: comma-separated account IDs": "Фильтр: ID счетов через запятую",
   "Filter: comma-separated event types (BannerModerated, CampaignFinished, LowCTR, MoneyOut, MoneyWarning, MoneyIn, PausedByDayBudget, WarnMinPrice, WarnPlace)": "Фильтр: типы событий через запятую (BannerModerated, CampaignFinished, LowCTR, MoneyOut, MoneyWarning, MoneyIn, PausedByDayBudget, WarnMinPrice, WarnPlace)",
   "Result limit": "Лимит результатов",
-  "Result offset": "Смещение результатов"
+  "Result offset": "Смещение результатов",
+  "--from must be earlier than or equal to --to": "--from должен быть раньше или равен --to",
+  "--filter-event-type has unknown values: {arg0}. Valid values: {arg1}": "--filter-event-type содержит неизвестные значения: {arg0}. Допустимые значения: {arg1}",
+  "Invalid {option_name}: {value}. Expected YYYY-MM-DDTHH:MM:SS": "Некорректное {option_name}: {value}. Ожидается YYYY-MM-DDTHH:MM:SS"
 }

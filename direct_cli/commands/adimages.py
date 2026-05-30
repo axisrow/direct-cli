@@ -5,6 +5,7 @@ AdImages commands
 import click
 
 from ..api import create_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import add_criteria_csv, get_default_fields, load_base64_file, parse_ids
 
@@ -95,7 +96,7 @@ def add(ctx, name, image_data, image_file, image_type, dry_run):
     try:
         if bool(image_data) == bool(image_file):
             raise click.UsageError(
-                "Provide exactly one of --image-data or --image-file"
+                t("Provide exactly one of --image-data or --image-file")
             )
 
         payload = {

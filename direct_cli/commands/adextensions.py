@@ -5,6 +5,7 @@ AdExtensions commands
 import click
 
 from ..api import create_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import add_criteria_csv, get_default_fields, parse_csv_strings, parse_ids
 
@@ -58,7 +59,7 @@ def get(
         parsed_callout_field_names = parse_csv_strings(callout_field_names)
         if callout_field_names is not None and not parsed_callout_field_names:
             raise click.UsageError(
-                "Provide a non-empty comma-separated CalloutFieldNames list."
+                t("Provide a non-empty comma-separated CalloutFieldNames list.")
             )
 
         criteria = {}

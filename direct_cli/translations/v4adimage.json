@@ -5,5 +5,11 @@
   "Page size": "Размер страницы",
   "Page offset": "Смещение страницы",
   "Attach or detach ad images (max 10000 associations).": "Привязать или отвязать изображения объявлений (до 10000 связей).",
-  "AD_ID to detach the image, or AD_ID=HASH to attach; repeat for multiple": "AD_ID для отвязки изображения или AD_ID=HASH для привязки; повторяйте для нескольких"
+  "AD_ID to detach the image, or AD_ID=HASH to attach; repeat for multiple": "AD_ID для отвязки изображения или AD_ID=HASH для привязки; повторяйте для нескольких",
+  "--association is required for set": "--association обязателен для set",
+  "--association accepts at most 10000 entries": "--association принимает не более 10000 записей",
+  "--association must not be empty": "--association не должен быть пустым",
+  "--association AD_ID must be a positive integer": "AD_ID в --association должен быть положительным целым числом",
+  "--association AD_ID values must be unique": "Значения AD_ID в --association должны быть уникальными",
+  "--association must be AD_ID or AD_ID=HASH with an integer AD_ID": "--association должен быть AD_ID или AD_ID=HASH с целочисленным AD_ID"
 }

@@ -8,5 +8,11 @@
   "Comma-separated FieldNames; allowed values: CampaignIds, AdGroupIds, AdIds, CampaignsStat. Defaults to all four when omitted.": "Значения FieldNames через запятую; допустимые значения: CampaignIds, AdGroupIds, AdIds, CampaignsStat. По умолчанию — все четыре.",
   "Check campaigns changes": "Проверить изменения по кампаниям",
   "Timestamp for Changes.checkCampaigns (YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DDTHH:MM:SS+03:00)": "Метка времени для Changes.checkCampaigns (YYYY-MM-DDTHH:MM:SSZ или YYYY-MM-DDTHH:MM:SS+03:00)",
-  "Check dictionaries changes": "Проверить изменения в справочниках"
+  "Check dictionaries changes": "Проверить изменения в справочниках",
+  "Provide exactly one of: --campaign-ids, --ad-group-ids, --ad-ids.": "Укажите ровно один из: --campaign-ids, --ad-group-ids, --ad-ids.",
+  "--campaign-ids, --ad-group-ids, and --ad-ids are mutually exclusive — provide exactly one.": "--campaign-ids, --ad-group-ids и --ad-ids взаимоисключающи — укажите ровно один.",
+  "--fields produced an empty list; provide at least one of: {arg0}.": "--fields дал пустой список; укажите хотя бы один из: {arg0}.",
+  "Unknown --fields value(s): {arg0}. Allowed: {arg1}.": "Неизвестные значения --fields: {arg0}. Допустимо: {arg1}.",
+  "{id_flag} produced no valid IDs.": "{id_flag} не дал ни одного корректного ID.",
+  "{id_flag}: {exc}": "{id_flag}: {exc}"
 }

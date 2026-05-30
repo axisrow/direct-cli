@@ -19,5 +19,19 @@
   "Update feed": "Обновить фид",
   "UrlFeed.Login for protected feed URL": "UrlFeed.Login для защищённого URL фида",
   "UrlFeed.Password for protected feed URL": "UrlFeed.Password для защищённого URL фида",
-  "UrlFeed.RemoveUtmTags: delete UTM tags from feed links, YES or NO.": "UrlFeed.RemoveUtmTags: удалять UTM-метки из ссылок фида, YES или NO."
+  "UrlFeed.RemoveUtmTags: delete UTM tags from feed links, YES or NO.": "UrlFeed.RemoveUtmTags: удалять UTM-метки из ссылок фида, YES или NO.",
+  "FileFeed.Filename cannot be empty.": "FileFeed.Filename не может быть пустым.",
+  "FileFeed.Data must be at most 50 MiB before base64 encoding.": "FileFeed.Data должен быть не более 50 МиБ до кодирования base64.",
+  "Provide a non-empty comma-separated FileFeedFieldNames list.": "Укажите непустой список FileFeedFieldNames через запятую.",
+  "Provide a non-empty comma-separated UrlFeedFieldNames list.": "Укажите непустой список UrlFeedFieldNames через запятую.",
+  "--file-feed-filename requires --file-feed-path.": "--file-feed-filename требует --file-feed-path.",
+  "Use either --url or --file-feed-path, not both.": "Используйте либо --url, либо --file-feed-path, но не оба.",
+  "Provide exactly one of --url or --file-feed-path.": "Укажите ровно один из --url или --file-feed-path.",
+  "--remove-utm-tags, --feed-login, and --feed-password are only valid with --url feeds.": "--remove-utm-tags, --feed-login и --feed-password допустимы только для фидов с --url.",
+  "Use either --feed-login or --clear-feed-login, not both": "Используйте либо --feed-login, либо --clear-feed-login, но не оба",
+  "Use either --feed-password or --clear-feed-password, not both": "Используйте либо --feed-password, либо --clear-feed-password, но не оба",
+  "FileFeed options cannot be combined with UrlFeed options.": "Опции FileFeed нельзя сочетать с опциями UrlFeed.",
+  "Provide at least one of --name, --url, --file-feed-path, --remove-utm-tags, --feed-login, --feed-password, --clear-feed-login, or --clear-feed-password": "Укажите хотя бы один из --name, --url, --file-feed-path, --remove-utm-tags, --feed-login, --feed-password, --clear-feed-login или --clear-feed-password",
+  "Cannot read --file-feed-path {file_feed_path!r}: {exc}": "Не удалось прочитать --file-feed-path {file_feed_path!r}: {exc}",
+  "FileFeed.Filename must be at most {_FILE_FEED_MAX_FILENAME_LENGTH} characters.": "FileFeed.Filename должен быть не длиннее {_FILE_FEED_MAX_FILENAME_LENGTH} символов."
 }

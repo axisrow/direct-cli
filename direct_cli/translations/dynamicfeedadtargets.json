@@ -6,5 +6,7 @@
   "Restrict to currently available feed items": "Ограничить текущими доступными элементами фида",
   "Resume dynamic feed ad target": "Возобновить условие нацеливания динамического объявления по фиду",
   "Set dynamic feed ad target bids": "Установить ставки условий нацеливания динамических объявлений по фиду",
-  "Suspend dynamic feed ad target": "Приостановить условие нацеливания динамического объявления по фиду"
+  "Suspend dynamic feed ad target": "Приостановить условие нацеливания динамического объявления по фиду",
+  "Provide at least one typed filter": "Укажите хотя бы один типизированный фильтр",
+  "Provide at least one bid (--bid or --context-bid)": "Укажите хотя бы одну ставку (--bid или --context-bid)"
 }

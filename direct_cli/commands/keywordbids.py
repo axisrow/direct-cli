@@ -5,6 +5,7 @@ KeywordBids commands
 import click
 
 from ..api import create_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import (
     add_criteria_csv,
@@ -85,17 +86,17 @@ def get(
         parsed_fields = parse_csv_strings(fields)
         if fields is not None and not parsed_fields:
             raise click.UsageError(
-                "Provide a non-empty comma-separated FieldNames list."
+                t("Provide a non-empty comma-separated FieldNames list.")
             )
         parsed_search_field_names = parse_csv_strings(search_field_names)
         if search_field_names is not None and not parsed_search_field_names:
             raise click.UsageError(
-                "Provide a non-empty comma-separated SearchFieldNames list."
+                t("Provide a non-empty comma-separated SearchFieldNames list.")
             )
         parsed_network_field_names = parse_csv_strings(network_field_names)
         if network_field_names is not None and not parsed_network_field_names:
             raise click.UsageError(
-                "Provide a non-empty comma-separated NetworkFieldNames list."
+                t("Provide a non-empty comma-separated NetworkFieldNames list.")
             )
 
         criteria = {}
@@ -110,8 +111,7 @@ def get(
         params = {
             "SelectionCriteria": criteria,
             "FieldNames": (
-                parsed_fields
-                or get_default_fields("keywordbids", "FieldNames")
+                parsed_fields or get_default_fields("keywordbids", "FieldNames")
             ),
             "SearchFieldNames": (
                 parsed_search_field_names
@@ -188,9 +188,11 @@ def set(
         and priority is None
     ):
         raise click.UsageError(
-            "keywordbids set requires at least one bid field "
-            "(--search-bid, --network-bid, --priority, "
-            "or --autotargeting-search-bid-is-auto)."
+            t(
+                "keywordbids set requires at least one bid field "
+                "(--search-bid, --network-bid, --priority, "
+                "or --autotargeting-search-bid-is-auto)."
+            )
         )
 
     try:
@@ -270,7 +272,7 @@ def set_auto(
     try:
         if (target_traffic_volume is None) == (target_coverage is None):
             raise click.UsageError(
-                "Provide exactly one of --target-traffic-volume or --target-coverage"
+                t("Provide exactly one of --target-traffic-volume or --target-coverage")
             )
 
         bidding_rule = {}
@@ -279,9 +281,9 @@ def set_auto(
                 "TargetTrafficVolume": target_traffic_volume
             }
             if increase_percent is not None:
-                bidding_rule["SearchByTrafficVolume"]["IncreasePercent"] = (
-                    increase_percent
-                )
+                bidding_rule["SearchByTrafficVolume"][
+                    "IncreasePercent"
+                ] = increase_percent
             if bid_ceiling is not None:
                 bidding_rule["SearchByTrafficVolume"]["BidCeiling"] = bid_ceiling
         if target_coverage is not None:

@@ -5,6 +5,7 @@ BidModifiers commands
 import click
 
 from ..api import create_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import get_default_fields, parse_csv_strings, parse_ids
 
@@ -200,7 +201,9 @@ def get(
             parsed = parse_csv_strings(raw_value)
             if raw_value is not None and not parsed:
                 raise click.UsageError(
-                    f"Provide a non-empty comma-separated {wsdl_key} list."
+                    t("Provide a non-empty comma-separated {wsdl_key} list.").format(
+                        wsdl_key=wsdl_key
+                    )
                 )
             if parsed:
                 parsed_nested[wsdl_key] = parsed
@@ -309,8 +312,9 @@ def _reject_incompatible_extra_flags(
     ]
     if incompatible:
         raise click.UsageError(
-            f"{', '.join(sorted(incompatible))} is not compatible with --type "
-            f"{modifier_type}."
+            t("{arg0} is not compatible with --type {modifier_type}.").format(
+                arg0=", ".join(sorted(incompatible)), modifier_type=modifier_type
+            )
         )
 
 
@@ -385,7 +389,7 @@ def add(
     try:
         if (campaign_id is None) == (adgroup_id is None):
             raise click.UsageError(
-                "Exactly one of --campaign-id or --adgroup-id is required"
+                t("Exactly one of --campaign-id or --adgroup-id is required")
             )
 
         modifier_type_upper = modifier_type.upper()
@@ -416,26 +420,28 @@ def add(
                 nested["Age"] = age
             if "Gender" not in nested and "Age" not in nested:
                 raise click.UsageError(
-                    "DEMOGRAPHICS_ADJUSTMENT requires --gender and/or --age"
+                    t("DEMOGRAPHICS_ADJUSTMENT requires --gender and/or --age")
                 )
         elif modifier_type_upper == "RETARGETING_ADJUSTMENT":
             if retargeting_condition_id is None:
                 raise click.UsageError(
-                    "RETARGETING_ADJUSTMENT requires --retargeting-condition-id"
+                    t("RETARGETING_ADJUSTMENT requires --retargeting-condition-id")
                 )
             nested["RetargetingConditionId"] = retargeting_condition_id
         elif modifier_type_upper == "REGIONAL_ADJUSTMENT":
             if region_id is None:
-                raise click.UsageError("REGIONAL_ADJUSTMENT requires --region-id")
+                raise click.UsageError(t("REGIONAL_ADJUSTMENT requires --region-id"))
             nested["RegionId"] = region_id
         elif modifier_type_upper == "SERP_LAYOUT_ADJUSTMENT":
             if not serp_layout:
-                raise click.UsageError("SERP_LAYOUT_ADJUSTMENT requires --serp-layout")
+                raise click.UsageError(
+                    t("SERP_LAYOUT_ADJUSTMENT requires --serp-layout")
+                )
             nested["SerpLayout"] = serp_layout
         elif modifier_type_upper == "INCOME_GRADE_ADJUSTMENT":
             if not income_grade:
                 raise click.UsageError(
-                    "INCOME_GRADE_ADJUSTMENT requires --income-grade"
+                    t("INCOME_GRADE_ADJUSTMENT requires --income-grade")
                 )
             nested["Grade"] = income_grade
 
@@ -536,10 +542,12 @@ def set(ctx, modifier_id, value, dry_run):
     try:
         if modifier_id is None:
             raise click.UsageError(
-                "Provide --id with --value for bidmodifiers set. "
-                "The legacy --campaign-id/--type shape is not supported by "
-                "WSDL BidModifierSetItem; use bidmodifiers add to create a "
-                "new modifier."
+                t(
+                    "Provide --id with --value for bidmodifiers set. "
+                    "The legacy --campaign-id/--type shape is not supported by "
+                    "WSDL BidModifierSetItem; use bidmodifiers add to create a "
+                    "new modifier."
+                )
             )
 
         # Correct API shape: Id + BidModifier. Nothing else.

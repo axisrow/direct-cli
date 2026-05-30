@@ -6,6 +6,7 @@ from typing import Any, Optional
 import click
 
 from ..api import create_v4_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import parse_csv_strings, parse_ids
 from ..v4 import build_v4_body, call_v4
@@ -43,14 +44,14 @@ def _logins_param(logins: str) -> list[str]:
     """Build the v4 Live login list parameter."""
     login_list = parse_csv_strings(logins)
     if not login_list:
-        raise click.UsageError("--logins must not be empty")
+        raise click.UsageError(t("--logins must not be empty"))
     return login_list
 
 
 def _invoice_payments_param(payments: tuple[str, ...], currency: str) -> dict:
     """Build the v4 Live CreateInvoice payment object parameter."""
     if not payments:
-        raise click.UsageError("--payment is required")
+        raise click.UsageError(t("--payment is required"))
 
     normalized_currency = currency.upper()
     parsed_payments = []
@@ -58,7 +59,7 @@ def _invoice_payments_param(payments: tuple[str, ...], currency: str) -> dict:
     for payment in payments:
         spec = (payment or "").strip()
         if "=" not in spec:
-            raise click.UsageError("--payment must use CAMPAIGN_ID=AMOUNT")
+            raise click.UsageError(t("--payment must use CAMPAIGN_ID=AMOUNT"))
         campaign_id_text, amount_text = spec.split("=", 1)
         campaign_id_text = campaign_id_text.strip()
         amount_text = amount_text.strip()
@@ -66,12 +67,14 @@ def _invoice_payments_param(payments: tuple[str, ...], currency: str) -> dict:
             campaign_id = int(campaign_id_text)
         except ValueError as exc:
             raise click.UsageError(
-                "--payment campaign ID must be a positive integer"
+                t("--payment campaign ID must be a positive integer")
             ) from exc
         if campaign_id <= 0:
-            raise click.UsageError("--payment campaign ID must be a positive integer")
+            raise click.UsageError(
+                t("--payment campaign ID must be a positive integer")
+            )
         if campaign_id in seen_campaign_ids:
-            raise click.UsageError("--payment campaign IDs must be unique")
+            raise click.UsageError(t("--payment campaign IDs must be unique"))
         seen_campaign_ids.add(campaign_id)
         parsed_payments.append(
             {
@@ -96,7 +99,9 @@ def _finance_credentials(
     normalized_token = (finance_token or "").strip()
     normalized_master_token = (master_token or "").strip()
     if normalized_token and normalized_master_token:
-        raise click.UsageError("Use either --finance-token or --master-token, not both")
+        raise click.UsageError(
+            t("Use either --finance-token or --master-token, not both")
+        )
     if operation_num is None:
         raise click.UsageError(_FINANCE_CREDENTIALS_ERROR)
     operation_num = validate_operation_num(operation_num)
@@ -106,8 +111,10 @@ def _finance_credentials(
         login = (finance_login or fallback_login or "").strip()
         if not login:
             raise click.UsageError(
-                "Provide --finance-login or set YANDEX_DIRECT_FINANCE_LOGIN "
-                "when using --master-token"
+                t(
+                    "Provide --finance-login or set YANDEX_DIRECT_FINANCE_LOGIN "
+                    "when using --master-token"
+                )
             )
         return (
             build_finance_token(normalized_master_token, operation_num, method, login),
@@ -133,14 +140,16 @@ def _masked_finance_body(method: str, param: Any, operation_num: int) -> dict:
 def _require_dry_run(dry_run: bool) -> None:
     """Reject v4 finance money mutations unless dry-run is explicit."""
     if not dry_run:
-        raise click.UsageError("--dry-run is required for v4finance money commands")
+        raise click.UsageError(t("--dry-run is required for v4finance money commands"))
 
 
 def _non_empty_option(value: str, option_name: str) -> str:
     """Normalize a required string option."""
     normalized = (value or "").strip()
     if not normalized:
-        raise click.UsageError(f"{option_name} must not be empty")
+        raise click.UsageError(
+            t("{option_name} must not be empty").format(option_name=option_name)
+        )
     return normalized
 
 
@@ -151,9 +160,9 @@ def _campaign_ids_param(campaign_ids: str) -> list[int]:
     except ValueError as exc:
         raise click.UsageError(str(exc)) from exc
     if not parsed:
-        raise click.UsageError("--campaign-ids must not be empty")
+        raise click.UsageError(t("--campaign-ids must not be empty"))
     if any(campaign_id <= 0 for campaign_id in parsed):
-        raise click.UsageError("--campaign-ids must contain only positive integers")
+        raise click.UsageError(t("--campaign-ids must contain only positive integers"))
     return parsed
 
 
@@ -162,7 +171,7 @@ def _custom_transaction_id_param(custom_transaction_id: str) -> dict:
     normalized = (custom_transaction_id or "").strip()
     if not CUSTOM_TRANSACTION_ID_RE.fullmatch(normalized):
         raise click.UsageError(
-            "--custom-transaction-id must be exactly 32 latin letters or digits"
+            t("--custom-transaction-id must be exactly 32 latin letters or digits")
         )
     return {"CustomTransactionID": normalized}
 
@@ -627,7 +636,7 @@ def pay_campaigns(
     normalized_currency = currency.upper()
     contract_id = (contract_id or "").strip()
     if pay_method == "Bank" and not contract_id:
-        raise click.UsageError("--contract-id is required when --pay-method Bank")
+        raise click.UsageError(t("--contract-id is required when --pay-method Bank"))
     param = {
         "Payments": [
             {

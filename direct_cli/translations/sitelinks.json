@@ -9,5 +9,18 @@
   "JSONL file with one sitelink object per line": "JSONL-файл с одним объектом быстрой ссылки в строке",
   "Manage sitelinks": "Управление быстрыми ссылками",
   "Sitelink spec: TITLE|HREF[|DESCRIPTION[|TURBO_PAGE_ID]]. Escape literal '|' as '\\|'.": "Спецификация быстрой ссылки: TITLE|HREF[|DESCRIPTION[|TURBO_PAGE_ID]]. Экранируйте литеральный '|' как '\\|'.",
-  "Sitelinks set ID": "ID набора быстрых ссылок"
+  "Sitelinks set ID": "ID набора быстрых ссылок",
+  "--sitelink-json must be a JSON array of sitelink objects": "--sitelink-json должен быть JSON-массивом объектов быстрых ссылок",
+  "Provide exactly one of: --sitelink (repeatable), --sitelink-json (inline JSON array), or --sitelinks-from-file (JSONL).": "Укажите ровно один из: --sitelink (повторяемый), --sitelink-json (встроенный JSON-массив) или --sitelinks-from-file (JSONL).",
+  "--sitelink, --sitelink-json, and --sitelinks-from-file are mutually exclusive — provide exactly one.": "--sitelink, --sitelink-json и --sitelinks-from-file взаимоисключающи — укажите ровно один.",
+  "Provide a non-empty comma-separated SitelinkFieldNames list.": "Укажите непустой список SitelinkFieldNames через запятую.",
+  "Input contains no sitelink rows.": "Во входных данных нет строк быстрых ссылок.",
+  "Sitelink #{index}: expected a JSON object, got {arg0}": "Быстрая ссылка #{index}: ожидался JSON-объект, получено {arg0}",
+  "Sitelink #{index}: missing required field 'Title'": "Быстрая ссылка #{index}: отсутствует обязательное поле 'Title'",
+  "Unknown field {arg0!r} in sitelink #{index}; allowed: {allowed}": "Неизвестное поле {arg0!r} в быстрой ссылке #{index}; допустимо: {allowed}",
+  "--sitelink-json: invalid JSON: {arg0}": "--sitelink-json: некорректный JSON: {arg0}",
+  "Sitelink #{index}: 'TurboPageId' must be an integer": "Быстрая ссылка #{index}: 'TurboPageId' должен быть целым числом",
+  "Sitelink #{index}: provide at least one of 'Href' or 'TurboPageId'": "Быстрая ссылка #{index}: укажите хотя бы один из 'Href' или 'TurboPageId'",
+  "--sitelinks-from-file line {line_number}: invalid JSON: {arg0}": "--sitelinks-from-file строка {line_number}: некорректный JSON: {arg0}",
+  "Cannot read --sitelinks-from-file {path!r}: {exc}": "Не удалось прочитать --sitelinks-from-file {path!r}: {exc}"
 }

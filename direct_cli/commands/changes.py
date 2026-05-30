@@ -5,6 +5,7 @@ Changes commands
 import click
 
 from ..api import create_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import get_default_fields, parse_changes_datetime, parse_ids
 
@@ -64,27 +65,30 @@ def check(
     )
     if sources_used == 0:
         raise click.UsageError(
-            "Provide exactly one of: --campaign-ids, --ad-group-ids, --ad-ids."
+            t("Provide exactly one of: --campaign-ids, --ad-group-ids, --ad-ids.")
         )
     if sources_used > 1:
         raise click.UsageError(
-            "--campaign-ids, --ad-group-ids, and --ad-ids are mutually "
-            "exclusive — provide exactly one."
+            t(
+                "--campaign-ids, --ad-group-ids, and --ad-ids are mutually "
+                "exclusive — provide exactly one."
+            )
         )
 
     if fields:
         field_names = [f.strip() for f in fields.split(",") if f.strip()]
         if not field_names:
             raise click.UsageError(
-                "--fields produced an empty list; provide at least one of: "
-                f"{', '.join(sorted(_CHECK_FIELD_NAMES))}."
+                t(
+                    "--fields produced an empty list; provide at least one of: {arg0}."
+                ).format(arg0=", ".join(sorted(_CHECK_FIELD_NAMES)))
             )
         unknown = [f for f in field_names if f not in _CHECK_FIELD_NAMES]
         if unknown:
             raise click.UsageError(
-                "Unknown --fields value(s): "
-                f"{', '.join(unknown)}. Allowed: "
-                f"{', '.join(sorted(_CHECK_FIELD_NAMES))}."
+                t("Unknown --fields value(s): {arg0}. Allowed: {arg1}.").format(
+                    arg0=", ".join(unknown), arg1=", ".join(sorted(_CHECK_FIELD_NAMES))
+                )
             )
     else:
         field_names = get_default_fields("changes")
@@ -98,9 +102,11 @@ def check(
     try:
         id_value = parse_ids(id_raw)
     except ValueError as exc:
-        raise click.UsageError(f"{id_flag}: {exc}")
+        raise click.UsageError(t("{id_flag}: {exc}").format(id_flag=id_flag, exc=exc))
     if not id_value:
-        raise click.UsageError(f"{id_flag} produced no valid IDs.")
+        raise click.UsageError(
+            t("{id_flag} produced no valid IDs.").format(id_flag=id_flag)
+        )
 
     try:
         client = create_client(

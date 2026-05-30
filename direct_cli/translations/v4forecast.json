@@ -9,5 +9,6 @@
   "List v4 Live budget forecasts.": "Список прогнозов бюджета v4 Live.",
   "Get a ready v4 Live budget forecast.": "Получить готовый прогноз бюджета v4 Live.",
   "Forecast ID": "ID прогноза",
-  "Delete a v4 Live budget forecast.": "Удалить прогноз бюджета v4 Live."
+  "Delete a v4 Live budget forecast.": "Удалить прогноз бюджета v4 Live.",
+  "--phrases accepts at most 100 phrases": "--phrases принимает не более 100 фраз"
 }

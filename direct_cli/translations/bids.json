@@ -25,5 +25,7 @@
   "Maximum bid in micro-rubles": "Максимальная ставка в микрорублях",
   "One or more scope values": "Одно или несколько значений Scope",
   "Set bids": "Установить ставки",
-  "StrategyPriority value: LOW, NORMAL, or HIGH": "Значение StrategyPriority: LOW, NORMAL или HIGH"
+  "StrategyPriority value: LOW, NORMAL, or HIGH": "Значение StrategyPriority: LOW, NORMAL или HIGH",
+  "bids set requires at least one bid field (--bid, --context-bid, --priority, or --autotargeting-search-bid-is-auto).": "bids set требует хотя бы одно поле ставки (--bid, --context-bid, --priority или --autotargeting-search-bid-is-auto).",
+  "Provide at least one --scope": "Укажите хотя бы один --scope"
 }

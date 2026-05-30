@@ -118,7 +118,9 @@ def login(
             login=login,
             source="manual",
         )
-        print_success(f"Profile '{profile}' is saved and active.")
+        print_success(
+            t("Profile '{profile}' is saved and active.").format(profile=profile)
+        )
         return
 
     code_verifier = None
@@ -143,7 +145,7 @@ def login(
         )
         print_info(t("Open this URL and grant access:"))
         click.echo(auth_url)
-        auth_code = click.prompt("Enter OAuth code", type=str).strip()
+        auth_code = click.prompt(t("Enter OAuth code"), type=str).strip()
     elif not client_secret:
         pending_pkce = get_pending_pkce(profile)
         if pending_pkce:
@@ -211,7 +213,7 @@ def login(
         client_secret=effective_client_secret,
     )
     remove_pending_pkce(profile)
-    print_success(f"Profile '{profile}' is saved and active.")
+    print_success(t("Profile '{profile}' is saved and active.").format(profile=profile))
 
 
 @auth.command(name="list")
@@ -241,7 +243,7 @@ def use(profile):
             f"Profile '{profile}' not found in OAuth storage or env variables."
         )
     set_active_profile(profile)
-    print_success(f"Active profile is '{profile}'.")
+    print_success(t("Active profile is '{profile}'.").format(profile=profile))
 
 
 @auth.command()

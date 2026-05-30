@@ -7,6 +7,7 @@ from typing import Optional
 import click
 
 from ..api import create_v4_client
+from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import parse_csv_strings, parse_ids
 from ..v4 import build_v4_body, call_v4
@@ -50,7 +51,9 @@ def _events_log_filter(
         try:
             parsed = parse_ids(raw)
         except ValueError as exc:
-            raise click.UsageError(f"{option_name}: {exc}") from exc
+            raise click.UsageError(
+                t("{option_name}: {exc}").format(option_name=option_name, exc=exc)
+            ) from exc
         if parsed:
             filter_obj[key] = parsed
     if event_type:
@@ -59,8 +62,9 @@ def _events_log_filter(
             unknown = [value for value in types if value not in EVENT_TYPES]
             if unknown:
                 raise click.UsageError(
-                    "--filter-event-type has unknown values: "
-                    f"{', '.join(unknown)}. Valid values: {', '.join(EVENT_TYPES)}"
+                    t(
+                        "--filter-event-type has unknown values: {arg0}. Valid values: {arg1}"
+                    ).format(arg0=", ".join(unknown), arg1=", ".join(EVENT_TYPES))
                 )
             filter_obj["EventType"] = types
     return filter_obj or None
@@ -70,13 +74,17 @@ def _parse_v4_datetime(value: str, option_name: str) -> datetime:
     """Parse a strict v4 Live CLI datetime token."""
     if not V4_DATETIME_RE.fullmatch(value):
         raise click.UsageError(
-            f"Invalid {option_name}: {value}. Expected YYYY-MM-DDTHH:MM:SS"
+            t("Invalid {option_name}: {value}. Expected YYYY-MM-DDTHH:MM:SS").format(
+                option_name=option_name, value=value
+            )
         )
     try:
         return datetime.strptime(value, V4_DATETIME_FORMAT)
     except ValueError:
         raise click.UsageError(
-            f"Invalid {option_name}: {value}. Expected YYYY-MM-DDTHH:MM:SS"
+            t("Invalid {option_name}: {value}. Expected YYYY-MM-DDTHH:MM:SS").format(
+                option_name=option_name, value=value
+            )
         )
 
 
@@ -99,7 +107,7 @@ def _events_log_param(
     from_dt = _parse_v4_datetime(timestamp_from, "--from")
     to_dt = _parse_v4_datetime(timestamp_to, "--to")
     if from_dt > to_dt:
-        raise click.UsageError("--from must be earlier than or equal to --to")
+        raise click.UsageError(t("--from must be earlier than or equal to --to"))
 
     param = {
         "TimestampFrom": timestamp_from,

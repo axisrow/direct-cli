@@ -18,6 +18,44 @@ Russian-default CLI localization across all command modules (epic #466).
   login differs from the token owner are never clobbered, and an explicit
   `--login` is never overridden.
 
+**Localized — interpolated error messages (#478), completing epic #466:**
+
+- Rewrote all 121 interpolated `click.UsageError` / `click.BadParameter` /
+  `print_*` messages (114 f-strings + 7 string concatenations) across the
+  command modules into the stable `t("<template>").format(**kwargs)` pattern,
+  with 96 unique English templates translated to Russian (6 shared templates,
+  e.g. `Provide a non-empty comma-separated {wsdl_key} list.`, in
+  `common.json`). Placeholder names, conversions, and format specs are
+  preserved verbatim in both locales, so the rendered English text is
+  byte-identical to before and the Russian render fills the same fields.
+- `t()` gained `@overload` signatures (`str -> str`, `None -> None`) so
+  `t(...).format(...)` type-checks without touching call sites.
+- `tests/test_i18n.py` now (a) flags f-string / concat — not just static —
+  bare literals in `_RUNTIME_MESSAGE_FUNCS` calls (also covering
+  `print_success`), accepting only `t(...)` / `t(...).format(...)`; and
+  (b) asserts placeholder parity between every English template key and its
+  Russian translation. This completes the error-message localization checklist
+  of epic #466.
+
+**Localized — static error messages (#477):**
+
+- Wrapped all 179 static `click.UsageError` / `click.BadParameter` string
+  literals (and the `auth` OAuth-code `click.prompt`) across 33 command
+  modules in `t(...)`, with Russian translations added to the per-module
+  `translations/*.json` catalogs; seven messages shared across modules
+  (e.g. `Provide at least one field to update`,
+  `--status and --statuses are mutually exclusive`) live in `common.json`.
+  Validation errors now render in Russian by default and in English under
+  `--locale en`. Flag names, enum values, and WSDL field names are unchanged.
+- Extended `tests/test_i18n.py::test_localized_groups_wrap_runtime_messages`
+  to also scan `UsageError` / `BadParameter` / `prompt` / `confirm` (bare or
+  `click.<Name>`); a bare string literal first argument is rejected. Only
+  static `ast.Constant` literals are enforced for now — interpolated
+  (f-string / concat) messages are stage B (#478).
+- Test suite defaults the CLI locale to English (`tests/conftest.py` autouse
+  fixture) so the existing English error-contract assertions stay valid; the
+  Russian default remains covered by `tests/test_i18n.py`.
+
 **Added — scalable i18n mechanism (#467):**
 
 - Source-string-keyed translation catalog: the English `help=` / docstring /
