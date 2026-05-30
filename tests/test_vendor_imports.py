@@ -265,3 +265,27 @@ def test_patch_stub_text_adds_timeout_idempotently():
 
     # Running again on the patched text is a byte-for-byte no-op.
     assert pvi._patch_stub_text(first) == first
+
+
+def test_patch_stub_text_ignores_prefix_sharing_class():
+    """``_patch_stub_text`` must scope to ``YandexDirectClientExecutor`` exactly
+    and never the prefix-sharing ``YandexDirectClientExecutorResponse``. The
+    decoy class below carries a method with the exact executor signature; a
+    plain ``startswith`` scope check would wrongly patch it.
+    """
+    pvi = _load_patch_module()
+    decoy = (
+        "class YandexDirectClientExecutorResponse(Base):\n"
+        "    def get(\n"
+        "        self, *, params: dict = None, data: dict = None, "
+        "headers: dict = None\n"
+        "    ) -> X:\n"
+        '        """\n'
+        "        Send HTTP 'GET' request.\n"
+        "\n"
+        "        :param params: q\n"
+        "        :param data: d\n"
+        '        """\n'
+    )
+
+    assert pvi._patch_stub_text(decoy) == decoy  # untouched

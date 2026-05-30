@@ -35,7 +35,9 @@ _TIMEOUT_PARAM = "timeout: float = None"
 _TIMEOUT_DOC = (
     "        :param timeout: forwarded to requests as the connect+read timeout"
 )
-_STUB_CLASS = "class YandexDirectClientExecutor"
+# Boundary-aware so we match ``class YandexDirectClientExecutor:`` exactly and
+# never the prefix-sharing ``class YandexDirectClientExecutorResponse(...)``.
+_STUB_CLASS_RE = re.compile(r"^class YandexDirectClientExecutor[:\(]")
 
 # Upstream emits the param list on a single line; match it so we can append the
 # kwarg. The guard against an already-present ``timeout`` keeps this idempotent.
@@ -192,7 +194,7 @@ def _patch_stub_text(text: str) -> str:
         # Track which class body we are in. A new ``class`` statement always
         # appears at column 0, so this never trips on nested defs.
         if line.startswith("class "):
-            in_stub_class = line.startswith(_STUB_CLASS)
+            in_stub_class = bool(_STUB_CLASS_RE.match(line))
 
         if in_stub_class and "timeout" not in line:
             sig = _EXECUTOR_SIG_RE.match(line)
