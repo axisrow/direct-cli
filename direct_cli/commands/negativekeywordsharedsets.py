@@ -66,6 +66,8 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
             data = result().extract()
             format_output(data, output_format, output)
 
+    except click.ClickException:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
@@ -99,6 +101,8 @@ def add(ctx, name, keywords, dry_run):
         result = client.negativekeywordsharedsets().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.ClickException:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
@@ -140,6 +144,8 @@ def update(ctx, set_id, name, keywords, dry_run):
         result = client.negativekeywordsharedsets().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.ClickException:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
@@ -167,6 +173,8 @@ def delete(ctx, set_id, dry_run):
         result = client.negativekeywordsharedsets().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.ClickException:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()

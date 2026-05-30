@@ -508,6 +508,19 @@ class TestApiCoverage:
                 adgroup_ids="99,100",
             )
 
+    def test_reports_request_builder_rejects_empty_field_names(self):
+        # Live API error 8000: "FieldNames must contain no less than 1
+        # elements". ``--fields ",,,"`` parses to [] and must be rejected
+        # before the request is sent.
+        with pytest.raises(ValueError, match="at least one field name"):
+            build_report_request(
+                report_type="CUSTOM_REPORT",
+                date_from="2026-03-01",
+                date_to="2026-03-31",
+                name="Empty Fields",
+                fields=",,,",
+            )
+
     @pytest.mark.parametrize("output_format", ["json", "table", "csv", "tsv"])
     def test_reports_get_cli_path_sends_expected_request_body(
         self, monkeypatch, output_format

@@ -1,6 +1,7 @@
 import json
 from unittest.mock import patch
 
+import click
 from click.testing import CliRunner
 
 from direct_cli.cli import cli
@@ -95,6 +96,25 @@ def test_balance_formats_mocked_v4_response_as_json():
         "AccountManagement",
         {"Action": "Get", "SelectionCriteria": {"Logins": ["a"]}},
     )
+
+
+def test_balance_propagates_usage_error_with_exit_code_2():
+    # A click.UsageError raised inside the try block (e.g. from call_v4
+    # payload validation) must keep its exit code 2, not be swallowed and
+    # downgraded to Abort (exit code 1) by the bare ``except Exception``.
+    with patch("direct_cli.commands.balance.create_v4_client") as create_client:
+        with patch(
+            "direct_cli.commands.balance.call_v4",
+            side_effect=click.UsageError("bad v4 param"),
+        ):
+            result = CliRunner().invoke(
+                cli,
+                ["--token", "token", "balance", "--logins", "a"],
+            )
+
+    assert result.exit_code == 2
+    assert "bad v4 param" in result.output
+    create_client.assert_called_once()
 
 
 def test_balance_formats_mocked_v4_response_as_table():

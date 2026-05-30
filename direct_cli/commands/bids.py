@@ -63,6 +63,14 @@ def get(
             criteria["KeywordIds"] = parse_ids(keyword_ids)
         add_criteria_csv(criteria, "ServingStatuses", serving_statuses, upper=True)
 
+        if not criteria:
+            raise click.UsageError(
+                t(
+                    "bids get requires at least one of "
+                    "--campaign-ids, --adgroup-ids, or --keyword-ids."
+                )
+            )
+
         field_names = fields.split(",") if fields else get_default_fields("bids")
         params = {
             "SelectionCriteria": criteria,
@@ -89,6 +97,8 @@ def get(
             data = result().extract()
             format_output(data, output_format, output)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
@@ -208,12 +218,13 @@ def set_auto(
     """Configure automatic bidding"""
     try:
         bid_data = {}
-        if campaign_id is not None:
-            bid_data["CampaignId"] = campaign_id
-        if adgroup_id is not None:
-            bid_data["AdGroupId"] = adgroup_id
-        if keyword_id is not None:
-            bid_data["KeywordId"] = keyword_id
+        add_single_id_selector(
+            bid_data,
+            campaign_id=campaign_id,
+            adgroup_id=adgroup_id,
+            keyword_id=keyword_id,
+            command_name="bids set-auto",
+        )
         if max_bid is not None:
             bid_data["MaxBid"] = max_bid
         if position:

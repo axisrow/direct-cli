@@ -17486,6 +17486,99 @@ def test_bids_set_auto_payload_uses_bids_array():
     }
 
 
+def test_bids_set_auto_requires_exactly_one_selector():
+    # Live API (verified): CampaignId/AdGroupId/KeywordId are mutually
+    # exclusive in setAuto; passing two must fail before the request is built.
+    result = CliRunner().invoke(
+        cli,
+        [
+            "bids",
+            "set-auto",
+            "--campaign-id",
+            "1",
+            "--keyword-id",
+            "2",
+            "--scope",
+            "SEARCH",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "exactly one selector" in result.output
+
+
+def test_bids_set_auto_requires_a_selector():
+    result = CliRunner().invoke(
+        cli,
+        ["bids", "set-auto", "--scope", "SEARCH", "--dry-run"],
+    )
+    assert result.exit_code != 0
+    assert "exactly one selector" in result.output
+
+
+def test_bids_get_requires_selection_criteria():
+    # Live API error 4001: "The SelectionCriteria structure must specify at
+    # least one of the parameters: KeywordIds, AdGroupIds, CampaignIds".
+    result = CliRunner().invoke(
+        cli,
+        ["bids", "get", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+    assert result.exit_code != 0
+    assert "--campaign-ids" in result.output
+
+
+def test_bids_get_with_campaign_ids_builds_criteria():
+    body = _read_dry_run("bids", "get", "--campaign-ids", "1,2")
+    assert body["params"]["SelectionCriteria"] == {"CampaignIds": [1, 2]}
+
+
+def test_keywordbids_get_requires_selection_criteria():
+    result = CliRunner().invoke(
+        cli,
+        ["keywordbids", "get", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+    assert result.exit_code != 0
+    assert "--keyword-ids" in result.output
+
+
+def test_campaigns_get_empty_fields_raises_usage_error_not_abort():
+    # The UsageError from _parse_csv_option must keep exit code 2 (UsageError),
+    # not be swallowed by ``except Exception`` and downgraded to Abort (1).
+    result = CliRunner().invoke(
+        cli,
+        ["campaigns", "get", "--fields", ",", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+    assert result.exit_code == 2
+    assert "Aborted!" not in result.output
+
+
+def test_ads_get_empty_field_names_raises_usage_error_not_abort():
+    result = CliRunner().invoke(
+        cli,
+        ["ads", "get", "--ids", "1", "--text-ad-field-names", ",", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+    assert result.exit_code == 2
+    assert "Aborted!" not in result.output
+
+
+def test_negativekeywordsharedsets_update_empty_payload_not_swallowed():
+    # The ClickException from the empty-payload guard must surface as a native
+    # Click error, not be re-wrapped by ``except Exception`` into print_error +
+    # Abort (which prefixes the message with the error marker and "Aborted!").
+    result = CliRunner().invoke(
+        cli,
+        ["negativekeywordsharedsets", "update", "--id", "1", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+    assert result.exit_code != 0
+    assert "Provide at least one of --name or --keywords" in result.output
+    assert "Aborted!" not in result.output
+
+
 def test_creatives_add_payload_uses_creatives_array():
     body = _dry_run(
         "creatives",
