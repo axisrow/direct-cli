@@ -1,0 +1,14 @@
+{
+  "Yandex Direct v4 Live tag commands.": "Команды тегов Yandex Direct v4 Live.",
+  "Get campaign tags.": "Получить теги кампаний.",
+  "Get banner tag IDs.": "Получить ID тегов баннеров.",
+  "Comma-separated campaign IDs, up to 10": "ID кампаний через запятую, до 10",
+  "Comma-separated banner IDs, up to 2000": "ID баннеров через запятую, до 2000",
+  "Replace the campaign tag list.": "Заменить список тегов кампании.",
+  "Campaign tag as TAG_ID=TEXT; use 0 for a new tag": "Тег кампании в формате TAG_ID=TEXT; используйте 0 для нового тега",
+  "Remove all campaign tags": "Удалить все теги кампаний",
+  "Replace banner tag assignments.": "Заменить назначения тегов баннеров.",
+  "Comma-separated banner IDs": "ID баннеров через запятую",
+  "Comma-separated campaign tag IDs, up to 30": "ID тегов кампании через запятую, до 30",
+  "Remove all banner tags": "Удалить все теги баннеров"
+}

@@ -71,6 +71,16 @@ LOCALIZED_GROUPS = (
     "keywordsresearch",
     "businesses",
     "balance",
+    # v4 Live services (#471)
+    "v4account",
+    "v4tags",
+    "v4forecast",
+    "v4wordstat",
+    "v4events",
+    "v4adimage",
+    "v4goals",
+    "v4keywords",
+    "v4meta",
 )
 
 _RUNTIME_MESSAGE_FUNCS = {"print_error", "print_info", "print_warning"}

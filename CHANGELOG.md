@@ -55,6 +55,18 @@ Russian-default CLI localization across all command modules (epic #466).
   groups join `LOCALIZED_GROUPS`, enforcing both translation completeness and
   the runtime-message wrapping invariant.
 
+**Localized — v4 Live services (#471), completing epic #466:**
+
+- Russian help/docstrings for `v4account`, `v4tags`, `v4forecast`,
+  `v4wordstat`, `v4events`, `v4adimage`, `v4goals`, `v4keywords`, and `v4meta`
+  (87 source strings across the nine modules). `v4finance` was already
+  localized as the reference module in #467.
+- With these groups, **all 42 CLI command groups are in `LOCALIZED_GROUPS`**:
+  the completeness invariant now covers the entire command tree, so every
+  English help/docstring string ships with a Russian translation under the
+  Russian default. The `v4 Live` epilog (single-sourced docs URL) stays
+  verbatim per the URL-registry rule. This closes the localization epic #466.
+
 ## 0.4.0
 
 Milestone release closing the 0.4.0 roadmap (#123): typed Yandex Direct

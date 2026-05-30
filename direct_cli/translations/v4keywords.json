@@ -1,0 +1,5 @@
+{
+  "Yandex Direct v4 Live keyword suggestion commands.": "Команды подсказок ключевых фраз Yandex Direct v4 Live.",
+  "Suggest related keyword phrases for seed phrases.\n\n    Returns up to 20 suggestion phrases. Consumes API points (error_code=152\n    when insufficient).\n    ": "Подобрать связанные ключевые фразы для исходных фраз.\n\n    Возвращает до 20 фраз-подсказок. Расходует баллы API (error_code=152\n    при их нехватке).\n    ",
+  "Seed phrase; repeat for multiple phrases": "Исходная фраза; повторяйте для нескольких фраз"
+}
