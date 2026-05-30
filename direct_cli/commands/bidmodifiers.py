@@ -201,7 +201,9 @@ def get(
             parsed = parse_csv_strings(raw_value)
             if raw_value is not None and not parsed:
                 raise click.UsageError(
-                    f"Provide a non-empty comma-separated {wsdl_key} list."
+                    t("Provide a non-empty comma-separated {wsdl_key} list.").format(
+                        wsdl_key=wsdl_key
+                    )
                 )
             if parsed:
                 parsed_nested[wsdl_key] = parsed
@@ -310,8 +312,9 @@ def _reject_incompatible_extra_flags(
     ]
     if incompatible:
         raise click.UsageError(
-            f"{', '.join(sorted(incompatible))} is not compatible with --type "
-            f"{modifier_type}."
+            t("{arg0} is not compatible with --type {modifier_type}.").format(
+                arg0=", ".join(sorted(incompatible)), modifier_type=modifier_type
+            )
         )
 
 

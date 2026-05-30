@@ -147,7 +147,9 @@ def _non_empty_option(value: str, option_name: str) -> str:
     """Normalize a required string option."""
     normalized = (value or "").strip()
     if not normalized:
-        raise click.UsageError(f"{option_name} must not be empty")
+        raise click.UsageError(
+            t("{option_name} must not be empty").format(option_name=option_name)
+        )
     return normalized
 
 

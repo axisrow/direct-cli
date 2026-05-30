@@ -10,5 +10,11 @@
   "--autotargeting-category expects CATEGORY=YES|NO (for example EXACT=YES)": "--autotargeting-category ожидает CATEGORY=YES|NO (например, EXACT=YES)",
   "--payment is required": "--payment обязателен",
   "--campaign-ids must not be empty": "--campaign-ids не должен быть пустым",
-  "--phrases must not be empty": "--phrases не должен быть пустым"
+  "--phrases must not be empty": "--phrases не должен быть пустым",
+  "Provide a non-empty comma-separated {wsdl_key} list.": "Укажите непустой список {wsdl_key} через запятую.",
+  "{option_name} must not be empty": "{option_name} не должен быть пустым",
+  "{option_name}: {exc}": "{option_name}: {exc}",
+  "Invalid --autotargeting-category category {category_raw!r}; allowed: {allowed_categories}": "Некорректная категория --autotargeting-category {category_raw!r}; допустимо: {allowed_categories}",
+  "Invalid --autotargeting-category value {value_raw!r}; expected YES or NO": "Некорректное значение --autotargeting-category {value_raw!r}; ожидается YES или NO",
+  "{option_name} must use HH:MM with minutes 00, 15, 30, or 45": "{option_name} должен использовать формат HH:MM с минутами 00, 15, 30 или 45"
 }

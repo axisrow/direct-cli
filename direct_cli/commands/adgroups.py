@@ -83,8 +83,9 @@ def _validate_tracking_params(tracking_params: Optional[str]) -> None:
         and len(tracking_params) > _TRACKING_PARAMS_MAX_LENGTH
     ):
         raise click.UsageError(
-            "--tracking-params must be at most "
-            f"{_TRACKING_PARAMS_MAX_LENGTH} characters"
+            t(
+                "--tracking-params must be at most {_TRACKING_PARAMS_MAX_LENGTH} characters"
+            ).format(_TRACKING_PARAMS_MAX_LENGTH=_TRACKING_PARAMS_MAX_LENGTH)
         )
 
 
@@ -106,8 +107,9 @@ def _reject_unsupported_negative_keywords(
 
     if unsupported_flags:
         raise click.UsageError(
-            f"{', '.join(unsupported_flags)} is not compatible with --type "
-            f"{group_type}."
+            t("{arg0} is not compatible with --type {group_type}.").format(
+                arg0=", ".join(unsupported_flags), group_type=group_type
+            )
         )
 
 
@@ -116,7 +118,9 @@ def _parse_ids_option(value: Optional[str], option_name: str) -> Optional[list[i
     try:
         return parse_ids(value)
     except ValueError as exc:
-        raise click.UsageError(f"{option_name}: {exc}") from exc
+        raise click.UsageError(
+            t("{option_name}: {exc}").format(option_name=option_name, exc=exc)
+        ) from exc
 
 
 def _normalize_enum_token(value: str) -> str:
@@ -137,8 +141,11 @@ def _parse_enum_value(
 
     if normalized not in allowed_values:
         raise click.UsageError(
-            f"{option_name} has invalid value {value!r}; allowed values: "
-            f"{', '.join(allowed_values)}"
+            t(
+                "{option_name} has invalid value {value!r}; allowed values: {arg0}"
+            ).format(
+                option_name=option_name, value=value, arg0=", ".join(allowed_values)
+            )
         )
     return normalized
 
@@ -156,8 +163,11 @@ def _parse_enum_csv(
         normalized = _normalize_enum_token(item)
         if normalized not in allowed_values:
             raise click.UsageError(
-                f"{option_name} has invalid value {item!r}; allowed values: "
-                f"{', '.join(allowed_values)}"
+                t(
+                    "{option_name} has invalid value {item!r}; allowed values: {arg0}"
+                ).format(
+                    option_name=option_name, item=item, arg0=", ".join(allowed_values)
+                )
             )
         normalized_values.append(normalized)
     return normalized_values
@@ -191,7 +201,9 @@ def _build_mobile_app_adgroup(
             missing.append("--target-operating-system-version")
         if missing:
             raise click.UsageError(
-                f"{', '.join(missing)} required for MOBILE_APP_AD_GROUP"
+                t("{arg0} required for MOBILE_APP_AD_GROUP").format(
+                    arg0=", ".join(missing)
+                )
             )
 
     mobile_app_adgroup: dict[str, object] = {}
@@ -232,13 +244,17 @@ def _parse_autotargeting_categories(
         value = _normalize_enum_token(value_raw)
         if category not in _AUTOTARGETING_CATEGORIES:
             raise click.UsageError(
-                "Invalid --autotargeting-category category "
-                f"{category_raw!r}; allowed: {allowed_categories}"
+                t(
+                    "Invalid --autotargeting-category category {category_raw!r}; allowed: {allowed_categories}"
+                ).format(
+                    category_raw=category_raw, allowed_categories=allowed_categories
+                )
             )
         if value not in {"YES", "NO"}:
             raise click.UsageError(
-                "Invalid --autotargeting-category value "
-                f"{value_raw!r}; expected YES or NO"
+                t(
+                    "Invalid --autotargeting-category value {value_raw!r}; expected YES or NO"
+                ).format(value_raw=value_raw)
             )
         items.append({"Category": category, "Value": value})
 
@@ -406,8 +422,9 @@ def _reject_incompatible_flags(
     ]
     if incompatible:
         raise click.UsageError(
-            f"{', '.join(sorted(incompatible))} is not compatible with --type "
-            f"{group_type}."
+            t("{arg0} is not compatible with --type {group_type}.").format(
+                arg0=", ".join(sorted(incompatible)), group_type=group_type
+            )
         )
 
 
@@ -431,9 +448,14 @@ def _reject_mixed_update_subtype_flags(
         first_subtype, first_flags = provided_by_subtype[0]
         second_subtype, second_flags = provided_by_subtype[1]
         raise click.UsageError(
-            f"{first_subtype} update flags "
-            f"({', '.join(first_flags)}) cannot be combined with "
-            f"{second_subtype} update flags ({', '.join(second_flags)})."
+            t(
+                "{first_subtype} update flags ({arg0}) cannot be combined with {second_subtype} update flags ({arg1})."
+            ).format(
+                first_subtype=first_subtype,
+                arg0=", ".join(first_flags),
+                second_subtype=second_subtype,
+                arg1=", ".join(second_flags),
+            )
         )
 
 
@@ -625,7 +647,9 @@ def get(
             parsed = parse_csv_strings(raw_value)
             if raw_value is not None and not parsed:
                 raise click.UsageError(
-                    f"Provide a non-empty comma-separated {wsdl_key} list."
+                    t("Provide a non-empty comma-separated {wsdl_key} list.").format(
+                        wsdl_key=wsdl_key
+                    )
                 )
             if parsed:
                 parsed_nested[wsdl_key] = parsed
@@ -854,9 +878,12 @@ def add(
         group_type_norm = (group_type or "TEXT_AD_GROUP").upper().replace("-", "_")
         if group_type_norm not in _SUPPORTED_ADGROUP_TYPES:
             raise click.UsageError(
-                "Invalid value for '--type': "
-                f"{group_type!r} is not one of "
-                f"{', '.join(repr(value) for value in _SUPPORTED_ADGROUP_TYPES)}."
+                t(
+                    "Invalid value for '--type': {group_type!r} is not one of {arg0}."
+                ).format(
+                    group_type=group_type,
+                    arg0=", ".join(repr(value) for value in _SUPPORTED_ADGROUP_TYPES),
+                )
             )
         allowed_flags_by_type = {
             "TEXT_AD_GROUP": _TEXT_ADGROUP_FEED_PARAMS_FLAGS,

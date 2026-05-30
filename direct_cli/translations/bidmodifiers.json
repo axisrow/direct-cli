@@ -41,5 +41,6 @@
   "RETARGETING_ADJUSTMENT requires --retargeting-condition-id": "RETARGETING_ADJUSTMENT требует --retargeting-condition-id",
   "REGIONAL_ADJUSTMENT requires --region-id": "REGIONAL_ADJUSTMENT требует --region-id",
   "SERP_LAYOUT_ADJUSTMENT requires --serp-layout": "SERP_LAYOUT_ADJUSTMENT требует --serp-layout",
-  "INCOME_GRADE_ADJUSTMENT requires --income-grade": "INCOME_GRADE_ADJUSTMENT требует --income-grade"
+  "INCOME_GRADE_ADJUSTMENT requires --income-grade": "INCOME_GRADE_ADJUSTMENT требует --income-grade",
+  "{arg0} is not compatible with --type {modifier_type}.": "{arg0} несовместим с --type {modifier_type}."
 }

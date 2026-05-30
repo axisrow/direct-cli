@@ -89,7 +89,11 @@ def _parse_csv_option(option_name: str, value: Optional[str]) -> Optional[List[s
     """Parse a CSV option and reject explicitly empty input."""
     parsed = parse_csv_strings(value)
     if value is not None and not parsed:
-        raise click.UsageError(f"{option_name} must contain at least one value")
+        raise click.UsageError(
+            t("{option_name} must contain at least one value").format(
+                option_name=option_name
+            )
+        )
     return parsed
 
 
@@ -103,12 +107,18 @@ def _array_of_string_option(
     """Build a WSDL ArrayOfString payload from a comma-separated flag."""
     parsed = _parse_csv_option(option_name, value)
     if parsed and max_items is not None and len(parsed) > max_items:
-        raise click.UsageError(f"{option_name} must contain at most {max_items} items")
+        raise click.UsageError(
+            t("{option_name} must contain at most {max_items} items").format(
+                option_name=option_name, max_items=max_items
+            )
+        )
     if parsed and max_item_length is not None:
         too_long = [item for item in parsed if len(item) > max_item_length]
         if too_long:
             raise click.UsageError(
-                f"{option_name} items must be at most {max_item_length} characters"
+                t(
+                    "{option_name} items must be at most {max_item_length} characters"
+                ).format(option_name=option_name, max_item_length=max_item_length)
             )
     return {"Items": parsed} if parsed else None
 
@@ -124,9 +134,17 @@ def _array_of_integer_option(
         return None
     parsed = parse_ids(value)
     if not parsed:
-        raise click.UsageError(f"{option_name} must contain at least one integer")
+        raise click.UsageError(
+            t("{option_name} must contain at least one integer").format(
+                option_name=option_name
+            )
+        )
     if max_items is not None and len(parsed) > max_items:
-        raise click.UsageError(f"{option_name} must contain at most {max_items} items")
+        raise click.UsageError(
+            t("{option_name} must contain at most {max_items} items").format(
+                option_name=option_name, max_items=max_items
+            )
+        )
     return {"Items": parsed}
 
 
@@ -141,8 +159,11 @@ def _time_targeting_schedule_option(values: Sequence[str]) -> Optional[dict]:
         )
     if len(items) > TIME_TARGETING_SCHEDULE_MAX_ITEMS:
         raise click.UsageError(
-            "--time-targeting-schedule must contain at most "
-            f"{TIME_TARGETING_SCHEDULE_MAX_ITEMS} items"
+            t(
+                "--time-targeting-schedule must contain at most {TIME_TARGETING_SCHEDULE_MAX_ITEMS} items"
+            ).format(
+                TIME_TARGETING_SCHEDULE_MAX_ITEMS=TIME_TARGETING_SCHEDULE_MAX_ITEMS
+            )
         )
     return {"Items": items}
 
@@ -159,7 +180,11 @@ def _validate_max_length(
 ) -> Optional[str]:
     """Reject string options longer than the documented maximum."""
     if value is not None and len(value) > max_length:
-        raise click.UsageError(f"{option_name} must be at most {max_length} characters")
+        raise click.UsageError(
+            t("{option_name} must be at most {max_length} characters").format(
+                option_name=option_name, max_length=max_length
+            )
+        )
     return value
 
 
@@ -169,7 +194,9 @@ def _validate_sms_time(option_name: str, value: Optional[str]) -> Optional[str]:
         return None
     if not HH_MM_RE.fullmatch(value):
         raise click.UsageError(
-            f"{option_name} must use HH:MM with minutes 00, 15, 30, or 45"
+            t("{option_name} must use HH:MM with minutes 00, 15, 30, or 45").format(
+                option_name=option_name
+            )
         )
     return value
 
@@ -194,8 +221,9 @@ def _build_notification(
         invalid = sorted(set(normalized_events) - SMS_EVENTS)
         if invalid:
             raise click.UsageError(
-                "--sms-events contains invalid value(s) "
-                f"{invalid}; allowed: {sorted(SMS_EVENTS)}"
+                t(
+                    "--sms-events contains invalid value(s) {invalid}; allowed: {arg0}"
+                ).format(invalid=invalid, arg0=sorted(SMS_EVENTS))
             )
         sms_settings["Events"] = normalized_events
     validated_sms_time_from = _validate_sms_time("--sms-time-from", sms_time_from)
@@ -427,9 +455,9 @@ def _build_package_bidding_strategy(
         search_result is None or product_gallery is None or network is None
     ):
         raise click.UsageError(
-            f"{campaign_label}.PackageBiddingStrategy requires "
-            "--package-platform-search-result, "
-            "--package-platform-product-gallery, and --package-platform-network"
+            t(
+                "{campaign_label}.PackageBiddingStrategy requires --package-platform-search-result, --package-platform-product-gallery, and --package-platform-network"
+            ).format(campaign_label=campaign_label)
         )
 
     package_strategy: dict = {}
@@ -519,8 +547,9 @@ def _reject_incompatible_flags(
     ]
     if incompatible:
         raise click.UsageError(
-            f"{', '.join(sorted(incompatible))} is not compatible with --type "
-            f"{command_type}."
+            t("{arg0} is not compatible with --type {command_type}.").format(
+                arg0=", ".join(sorted(incompatible)), command_type=command_type
+            )
         )
 
 
@@ -2116,11 +2145,9 @@ def add(
         }
         if campaign_type_norm not in supported_types:
             raise click.UsageError(
-                "Invalid value for '--type': "
-                f"{campaign_type!r} is not one of "
-                "'TEXT_CAMPAIGN', 'UNIFIED_CAMPAIGN', "
-                "'DYNAMIC_TEXT_CAMPAIGN', 'SMART_CAMPAIGN', "
-                "'MOBILE_APP_CAMPAIGN', 'CPM_BANNER_CAMPAIGN'."
+                t(
+                    "Invalid value for '--type': {campaign_type!r} is not one of 'TEXT_CAMPAIGN', 'UNIFIED_CAMPAIGN', 'DYNAMIC_TEXT_CAMPAIGN', 'SMART_CAMPAIGN', 'MOBILE_APP_CAMPAIGN', 'CPM_BANNER_CAMPAIGN'."
+                ).format(campaign_type=campaign_type)
             )
 
         # Shared flags for TextCampaign / DynamicTextCampaign:
@@ -3049,8 +3076,11 @@ def add(
             ]
             if provided:
                 raise click.UsageError(
-                    f"{package_label}.PackageBiddingStrategy cannot be combined with "
-                    f"{', '.join(sorted(provided))}"
+                    t(
+                        "{package_label}.PackageBiddingStrategy cannot be combined with {arg0}"
+                    ).format(
+                        package_label=package_label, arg0=", ".join(sorted(provided))
+                    )
                 )
         if smart_package_bidding_strategy_obj is not None:
             # SmartCampaign.PriorityGoals (#369) is a top-level sibling on
@@ -3127,8 +3157,9 @@ def add(
             ]
             if provided:
                 raise click.UsageError(
-                    "SmartCampaign.PackageBiddingStrategy cannot be combined with "
-                    f"{', '.join(sorted(provided))}"
+                    t(
+                        "SmartCampaign.PackageBiddingStrategy cannot be combined with {arg0}"
+                    ).format(arg0=", ".join(sorted(provided)))
                 )
 
         if campaign_type_norm == "UNIFIED_CAMPAIGN":
@@ -3150,8 +3181,9 @@ def add(
             ]
             if provided:
                 raise click.UsageError(
-                    "UnifiedCampaign cannot be combined with "
-                    f"{', '.join(sorted(provided))}"
+                    t("UnifiedCampaign cannot be combined with {arg0}").format(
+                        arg0=", ".join(sorted(provided))
+                    )
                 )
             if priority_goals is not None:
                 # Issue #373: ``UnifiedCampaignAddItem.PriorityGoals``
@@ -3215,12 +3247,12 @@ def add(
                     or _only_search_explicit_and_incompatible
                 ):
                     raise click.UsageError(
-                        "--priority-goals on UnifiedCampaign is only valid "
-                        "with --network-strategy or --search-strategy in "
-                        "{AVERAGE_CPA_MULTIPLE_GOALS, "
-                        "PAY_FOR_CONVERSION_MULTIPLE_GOALS, MAX_PROFIT}; "
-                        f"got --network-strategy={network_strategy!r}, "
-                        f"--search-strategy={search_strategy!r}"
+                        t(
+                            "--priority-goals on UnifiedCampaign is only valid with --network-strategy or --search-strategy in {{AVERAGE_CPA_MULTIPLE_GOALS, PAY_FOR_CONVERSION_MULTIPLE_GOALS, MAX_PROFIT}}; got --network-strategy={network_strategy!r}, --search-strategy={search_strategy!r}"
+                        ).format(
+                            network_strategy=network_strategy,
+                            search_strategy=search_strategy,
+                        )
                     )
         if campaign_type_norm in {"MOBILE_APP_CAMPAIGN", "CPM_BANNER_CAMPAIGN"}:
             strategy_followup_flags = {
@@ -3237,8 +3269,12 @@ def add(
             ]
             if provided:
                 raise click.UsageError(
-                    f"{campaign_type_norm} BiddingStrategy typed parameters are "
-                    f"tracked in #290; got {', '.join(sorted(provided))}"
+                    t(
+                        "{campaign_type_norm} BiddingStrategy typed parameters are tracked in #290; got {arg0}"
+                    ).format(
+                        campaign_type_norm=campaign_type_norm,
+                        arg0=", ".join(sorted(provided)),
+                    )
                 )
 
         campaign_data = {"Name": name, "StartDate": start_date}
@@ -3827,11 +3863,9 @@ def add(
                     ]
                     if legacy_provided:
                         raise click.UsageError(
-                            "DynamicTextCampaign Search typed flags "
-                            "(--dyn-search-*) cannot be combined with the "
-                            "legacy CPA-shape flags "
-                            f"{', '.join(sorted(legacy_provided))}; use the "
-                            "matching --dyn-search-* equivalent"
+                            t(
+                                "DynamicTextCampaign Search typed flags (--dyn-search-*) cannot be combined with the legacy CPA-shape flags {arg0}; use the matching --dyn-search-* equivalent"
+                            ).format(arg0=", ".join(sorted(legacy_provided)))
                         )
                 # WSDL DynamicTextCampaignAddItem.PriorityGoals (line 2186)
                 # is an optional sub-campaign field independent of the
@@ -5975,18 +6009,15 @@ def update(
             and campaign_type_norm not in subtype_supported
         ):
             raise click.UsageError(
-                "Invalid value for '--type': "
-                f"{campaign_type!r} is not one of "
-                "'TEXT_CAMPAIGN', 'UNIFIED_CAMPAIGN', "
-                "'DYNAMIC_TEXT_CAMPAIGN', 'SMART_CAMPAIGN', "
-                "'MOBILE_APP_CAMPAIGN', 'CPM_BANNER_CAMPAIGN'."
+                t(
+                    "Invalid value for '--type': {campaign_type!r} is not one of 'TEXT_CAMPAIGN', 'UNIFIED_CAMPAIGN', 'DYNAMIC_TEXT_CAMPAIGN', 'SMART_CAMPAIGN', 'MOBILE_APP_CAMPAIGN', 'CPM_BANNER_CAMPAIGN'."
+                ).format(campaign_type=campaign_type)
             )
         if subtype_flags_provided and campaign_type_norm is None:
             raise click.UsageError(
-                f"{', '.join(sorted(subtype_flags_provided))} requires --type "
-                "(TEXT_CAMPAIGN | UNIFIED_CAMPAIGN | "
-                "DYNAMIC_TEXT_CAMPAIGN | SMART_CAMPAIGN | "
-                "MOBILE_APP_CAMPAIGN | CPM_BANNER_CAMPAIGN)."
+                t(
+                    "{arg0} requires --type (TEXT_CAMPAIGN | UNIFIED_CAMPAIGN | DYNAMIC_TEXT_CAMPAIGN | SMART_CAMPAIGN | MOBILE_APP_CAMPAIGN | CPM_BANNER_CAMPAIGN)."
+                ).format(arg0=", ".join(sorted(subtype_flags_provided)))
             )
         if campaign_type_norm is not None:
             text_campaign_flags = {
@@ -6282,8 +6313,9 @@ def update(
                 ]
                 if provided:
                     raise click.UsageError(
-                        "UnifiedCampaign cannot be combined with "
-                        f"{', '.join(sorted(provided))}"
+                        t("UnifiedCampaign cannot be combined with {arg0}").format(
+                            arg0=", ".join(sorted(provided))
+                        )
                     )
             sub_block: Dict[str, object] = {}
             if campaign_type_norm in {
@@ -6649,8 +6681,12 @@ def update(
                     ]
                     if provided:
                         raise click.UsageError(
-                            f"{package_label}.PackageBiddingStrategy cannot be "
-                            f"combined with {', '.join(sorted(provided))}"
+                            t(
+                                "{package_label}.PackageBiddingStrategy cannot be combined with {arg0}"
+                            ).format(
+                                package_label=package_label,
+                                arg0=", ".join(sorted(provided)),
+                            )
                         )
                     sub_block["PackageBiddingStrategy"] = package_bidding_strategy_obj
                 elif is_unified:
@@ -7268,8 +7304,9 @@ def update(
                         provided.append("SmartCampaign.BiddingStrategy.Network")
                     if provided:
                         raise click.UsageError(
-                            "SmartCampaign.PackageBiddingStrategy cannot be "
-                            f"combined with {', '.join(sorted(provided))}"
+                            t(
+                                "SmartCampaign.PackageBiddingStrategy cannot be combined with {arg0}"
+                            ).format(arg0=", ".join(sorted(provided)))
                         )
                     sub_block["PackageBiddingStrategy"] = (
                         smart_package_bidding_strategy_obj
@@ -7382,8 +7419,9 @@ def update(
                 sub_block["TrackingParams"] = tracking_params
             if not sub_block:
                 raise click.UsageError(
-                    f"--type {campaign_type_norm} requires at least one "
-                    "subtype-specific field to update."
+                    t(
+                        "--type {campaign_type_norm} requires at least one subtype-specific field to update."
+                    ).format(campaign_type_norm=campaign_type_norm)
                 )
             subtype_container = {
                 "TEXT_CAMPAIGN": "TextCampaign",

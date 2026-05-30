@@ -4,6 +4,25 @@
 
 Russian-default CLI localization across all command modules (epic #466).
 
+**Localized — interpolated error messages (#478), completing epic #466:**
+
+- Rewrote all 121 interpolated `click.UsageError` / `click.BadParameter` /
+  `print_*` messages (114 f-strings + 7 string concatenations) across the
+  command modules into the stable `t("<template>").format(**kwargs)` pattern,
+  with 96 unique English templates translated to Russian (6 shared templates,
+  e.g. `Provide a non-empty comma-separated {wsdl_key} list.`, in
+  `common.json`). Placeholder names, conversions, and format specs are
+  preserved verbatim in both locales, so the rendered English text is
+  byte-identical to before and the Russian render fills the same fields.
+- `t()` gained `@overload` signatures (`str -> str`, `None -> None`) so
+  `t(...).format(...)` type-checks without touching call sites.
+- `tests/test_i18n.py` now (a) flags f-string / concat — not just static —
+  bare literals in `_RUNTIME_MESSAGE_FUNCS` calls (also covering
+  `print_success`), accepting only `t(...)` / `t(...).format(...)`; and
+  (b) asserts placeholder parity between every English template key and its
+  Russian translation. This completes the error-message localization checklist
+  of epic #466.
+
 **Localized — static error messages (#477):**
 
 - Wrapped all 179 static `click.UsageError` / `click.BadParameter` string

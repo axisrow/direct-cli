@@ -60,7 +60,11 @@ def _build_point_on_map(
             f"--point-on-map-{name.lower()}"
             for name in sorted(values.keys() - provided)
         )
-        raise click.UsageError(f"PointOnMap requires all coordinate flags: {missing}")
+        raise click.UsageError(
+            t("PointOnMap requires all coordinate flags: {missing}").format(
+                missing=missing
+            )
+        )
     return {name: value for name, value in values.items() if value is not None}
 
 

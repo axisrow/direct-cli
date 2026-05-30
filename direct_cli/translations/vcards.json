@@ -29,5 +29,6 @@
   "Street": "Улица",
   "Work time string": "Строка времени работы",
   "vCard ID": "ID визитки",
-  "--instant-messenger-client and --instant-messenger-login must be provided together": "--instant-messenger-client и --instant-messenger-login должны указываться вместе"
+  "--instant-messenger-client and --instant-messenger-login must be provided together": "--instant-messenger-client и --instant-messenger-login должны указываться вместе",
+  "PointOnMap requires all coordinate flags: {missing}": "PointOnMap требует все флаги координат: {missing}"
 }

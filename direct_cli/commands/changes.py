@@ -79,15 +79,16 @@ def check(
         field_names = [f.strip() for f in fields.split(",") if f.strip()]
         if not field_names:
             raise click.UsageError(
-                "--fields produced an empty list; provide at least one of: "
-                f"{', '.join(sorted(_CHECK_FIELD_NAMES))}."
+                t(
+                    "--fields produced an empty list; provide at least one of: {arg0}."
+                ).format(arg0=", ".join(sorted(_CHECK_FIELD_NAMES)))
             )
         unknown = [f for f in field_names if f not in _CHECK_FIELD_NAMES]
         if unknown:
             raise click.UsageError(
-                "Unknown --fields value(s): "
-                f"{', '.join(unknown)}. Allowed: "
-                f"{', '.join(sorted(_CHECK_FIELD_NAMES))}."
+                t("Unknown --fields value(s): {arg0}. Allowed: {arg1}.").format(
+                    arg0=", ".join(unknown), arg1=", ".join(sorted(_CHECK_FIELD_NAMES))
+                )
             )
     else:
         field_names = get_default_fields("changes")
@@ -101,9 +102,11 @@ def check(
     try:
         id_value = parse_ids(id_raw)
     except ValueError as exc:
-        raise click.UsageError(f"{id_flag}: {exc}")
+        raise click.UsageError(t("{id_flag}: {exc}").format(id_flag=id_flag, exc=exc))
     if not id_value:
-        raise click.UsageError(f"{id_flag} produced no valid IDs.")
+        raise click.UsageError(
+            t("{id_flag} produced no valid IDs.").format(id_flag=id_flag)
+        )
 
     try:
         client = create_client(

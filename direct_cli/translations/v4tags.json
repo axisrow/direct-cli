@@ -25,5 +25,6 @@
   "--tag texts must be unique ignoring case": "Тексты тегов в --tag должны быть уникальными без учёта регистра",
   "Use either --tag-ids or --clear-tags, not both": "Используйте либо --tag-ids, либо --clear-tags, но не оба",
   "--tag-ids is required unless --clear-tags is used": "--tag-ids обязателен, если не используется --clear-tags",
-  "--tag IDs must be unique": "ID тегов в --tag должны быть уникальными"
+  "--tag IDs must be unique": "ID тегов в --tag должны быть уникальными",
+  "{option_name} must contain only positive integers": "{option_name} должен содержать только положительные целые числа"
 }
