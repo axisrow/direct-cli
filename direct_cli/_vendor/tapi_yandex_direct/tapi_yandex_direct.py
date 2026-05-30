@@ -213,7 +213,7 @@ class YandexDirectClientAdapter(JSONAdapterMixin, TapiAdapter):
                 )
             elif (
                 error_code == 53
-                or error_data["error_detail"] == "OAuth token is missing"
+                or error_data.get("error_detail") == "OAuth token is missing"
             ):
                 raise exceptions.YandexDirectTokenError(
                     response, error_message, **kwargs
@@ -427,7 +427,7 @@ class YandexDirectClientAdapter(JSONAdapterMixin, TapiAdapter):
         columns = [[] for _ in range(len(kwargs["store"]["columns"]))]
         for values in self.iter_values(**kwargs):
             for i, col in enumerate(columns):
-                col.append(values[i])
+                col.append(values[i] if i < len(values) else "")
 
         return columns
 

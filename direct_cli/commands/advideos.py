@@ -61,6 +61,8 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
             data = result().extract()
             format_output(data, output_format, output)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()

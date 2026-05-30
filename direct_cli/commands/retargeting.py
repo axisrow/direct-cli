@@ -62,6 +62,8 @@ def get(ctx, ids, types, limit, fetch_all, output_format, output, fields):
             data = result().extract()
             format_output(data, output_format, output)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
@@ -231,6 +233,8 @@ def delete(ctx, list_id, dry_run):
         result = client.retargeting().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()

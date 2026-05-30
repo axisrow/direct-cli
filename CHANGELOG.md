@@ -4,6 +4,28 @@
 
 Russian-default CLI localization across all command modules (epic #466).
 
+**Fixed — bug hunt (#483):**
+
+- `bids get` / `keywordbids get`: refuse an empty `SelectionCriteria` before
+  the API call, raising a `UsageError` that asks for at least one filter
+  instead of letting the API reject it with the opaque error 4001.
+- `bids set-auto`: require exactly one of `--campaign-id`, `--adgroup-id`, or
+  `--keyword-id` via the shared `add_single_id_selector`, matching `bids set`.
+- `reports get`: reject a `--fields` value that parses to an empty list (for
+  example `",,,"`) before building the request, instead of sending an invalid
+  `FieldNames: []` (API error 8000).
+- Error-handling consistency: `get`/lifecycle handlers across `bids`,
+  `keywordbids`, `negativekeywordsharedsets`, `balance`, `strategies`,
+  `retargeting`, `ads`, and `advideos` now re-raise `click.UsageError` /
+  `click.ClickException` before the generic `except Exception`, so validation
+  errors keep their Click formatting and exit code.
+- Vendor `tapi_yandex_direct`: `to_columns()` no longer raises `IndexError` on
+  report rows shorter than the header (pads with `""`); the error handler reads
+  `error_detail` with `.get()` so an unfamiliar error structure no longer masks
+  the original API error with a `KeyError`.
+- `utils.parse_priority_goals_spec`: corrected the item type annotation to
+  `List[Dict[str, Any]]` (items hold `"YES"/"NO"` strings, not only ints).
+
 **Added — scalable i18n mechanism (#467):**
 
 - Source-string-keyed translation catalog: the English `help=` / docstring /

@@ -219,6 +219,8 @@ def build_report_request(
         Reports API request body with CLI-normalized filters and field names.
     """
     field_names = [field.strip() for field in fields.split(",") if field.strip()]
+    if not field_names:
+        raise ValueError("--fields must contain at least one field name")
     selection_criteria = {"DateFrom": date_from, "DateTo": date_to}
 
     if filters:

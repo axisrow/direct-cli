@@ -106,12 +106,16 @@ def get(
         if campaign_ids:
             criteria["CampaignIds"] = parse_ids(campaign_ids)
         add_criteria_csv(criteria, "ServingStatuses", serving_statuses, upper=True)
+        if not criteria:
+            raise click.UsageError(
+                "Provide at least one filter: --keyword-ids, "
+                "--adgroup-ids, --campaign-ids, or --serving-statuses"
+            )
 
         params = {
             "SelectionCriteria": criteria,
             "FieldNames": (
-                parsed_fields
-                or get_default_fields("keywordbids", "FieldNames")
+                parsed_fields or get_default_fields("keywordbids", "FieldNames")
             ),
             "SearchFieldNames": (
                 parsed_search_field_names
@@ -279,9 +283,9 @@ def set_auto(
                 "TargetTrafficVolume": target_traffic_volume
             }
             if increase_percent is not None:
-                bidding_rule["SearchByTrafficVolume"]["IncreasePercent"] = (
-                    increase_percent
-                )
+                bidding_rule["SearchByTrafficVolume"][
+                    "IncreasePercent"
+                ] = increase_percent
             if bid_ceiling is not None:
                 bidding_rule["SearchByTrafficVolume"]["BidCeiling"] = bid_ceiling
         if target_coverage is not None:

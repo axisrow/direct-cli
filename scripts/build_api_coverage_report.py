@@ -49,6 +49,8 @@ FIELD_OPERATION_CAPTURE_OPTION_FIXTURES = {
     ],
     ("leads", "get"): ["--turbo-page-ids", "1"],
     ("advideos", "get"): ["--ids", "video-id"],
+    ("bids", "get"): ["--campaign-ids", "1"],
+    ("keywordbids", "get"): ["--keyword-ids", "1"],
 }
 
 # Explicit allow-list for CLI ``get`` groups whose ``get`` operation has no
@@ -646,7 +648,9 @@ def _validate_runtime_deprecated_methods(deprecated_methods=None) -> list[dict]:
             captured: dict = {}
             try:
                 if original_create_client is not None:
-                    module.create_client = lambda **_: _CapturedClient(captured)  # noqa: B023
+                    module.create_client = lambda **_: _CapturedClient(
+                        captured
+                    )  # noqa: B023
                 result = CliRunner().invoke(cli, argv, standalone_mode=False)
             finally:
                 if original_create_client is not None:

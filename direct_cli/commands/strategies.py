@@ -279,9 +279,7 @@ def _parse_priority_goal(spec: str) -> dict:
         raise click.UsageError(
             "Invalid --priority-goal. GOAL_ID and VALUE must be integers"
         )
-    validate_priority_goal_value(
-        item["Value"], f"Invalid --priority-goal '{spec}'."
-    )
+    validate_priority_goal_value(item["Value"], f"Invalid --priority-goal '{spec}'.")
     if len(parts) == 3:
         is_metrika_source = parts[2].upper()
         if is_metrika_source not in {"YES", "NO"}:
@@ -686,6 +684,8 @@ def get(
         else:
             format_output(result().extract(), output_format, output)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
@@ -1028,6 +1028,8 @@ def archive(ctx, strategy_id, dry_run):
         result = client.strategies().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
@@ -1057,6 +1059,8 @@ def unarchive(ctx, strategy_id, dry_run):
         result = client.strategies().post(data=body)
         format_output(result().extract(), "json", None)
 
+    except click.UsageError:
+        raise
     except Exception as e:
         print_error(str(e))
         raise click.Abort()
