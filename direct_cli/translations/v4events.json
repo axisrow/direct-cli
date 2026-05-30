@@ -1,0 +1,16 @@
+{
+  "Yandex Direct v4 Live events commands.": "Команды журнала событий Yandex Direct v4 Live.",
+  "Get v4 Live events log entries.": "Получить записи журнала событий v4 Live.",
+  "Start timestamp in YYYY-MM-DDTHH:MM:SS format": "Начальная метка времени в формате YYYY-MM-DDTHH:MM:SS",
+  "End timestamp in YYYY-MM-DDTHH:MM:SS format": "Конечная метка времени в формате YYYY-MM-DDTHH:MM:SS",
+  "Return only the latest record per event type — Yes/No": "Возвращать только последнюю запись по каждому типу события — Yes/No",
+  "Include event text descriptions in the response — Yes/No": "Включать текстовые описания событий в ответ — Yes/No",
+  "Currency": "Валюта",
+  "Filter: comma-separated campaign IDs": "Фильтр: ID кампаний через запятую",
+  "Filter: comma-separated banner IDs": "Фильтр: ID баннеров через запятую",
+  "Filter: comma-separated phrase IDs": "Фильтр: ID фраз через запятую",
+  "Filter: comma-separated account IDs": "Фильтр: ID счетов через запятую",
+  "Filter: comma-separated event types (BannerModerated, CampaignFinished, LowCTR, MoneyOut, MoneyWarning, MoneyIn, PausedByDayBudget, WarnMinPrice, WarnPlace)": "Фильтр: типы событий через запятую (BannerModerated, CampaignFinished, LowCTR, MoneyOut, MoneyWarning, MoneyIn, PausedByDayBudget, WarnMinPrice, WarnPlace)",
+  "Result limit": "Лимит результатов",
+  "Result offset": "Смещение результатов"
+}

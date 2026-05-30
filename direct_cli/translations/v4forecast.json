@@ -1,0 +1,13 @@
+{
+  "Yandex Direct v4 Live budget forecast commands.": "Команды прогноза бюджета Yandex Direct v4 Live.",
+  "Create a v4 Live budget forecast.": "Создать прогноз бюджета v4 Live.",
+  "Comma-separated phrases, up to 100": "Фразы через запятую, до 100",
+  "Comma-separated Yandex Catalog category IDs (ignored by the API per docs)": "ID категорий Яндекс Каталога через запятую (игнорируются API согласно документации)",
+  "Forecast currency": "Валюта прогноза",
+  "Include auction results in the report — Yes/No (API default: No)": "Включить результаты аукциона в отчёт — Yes/No (по умолчанию в API: No)",
+  "Comma-separated common negative keywords": "Общие минус-фразы через запятую",
+  "List v4 Live budget forecasts.": "Список прогнозов бюджета v4 Live.",
+  "Get a ready v4 Live budget forecast.": "Получить готовый прогноз бюджета v4 Live.",
+  "Forecast ID": "ID прогноза",
+  "Delete a v4 Live budget forecast.": "Удалить прогноз бюджета v4 Live."
+}

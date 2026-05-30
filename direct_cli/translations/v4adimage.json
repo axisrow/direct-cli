@@ -1,0 +1,9 @@
+{
+  "Yandex Direct v4 Live ad-image association commands.": "Команды связей объявлений с изображениями Yandex Direct v4 Live.",
+  "Read ad-to-image associations (empty filter returns up to 10000).": "Прочитать связи объявлений с изображениями (пустой фильтр возвращает до 10000).",
+  "Moderation status filter; repeat for multiple": "Фильтр по статусу модерации; повторяйте для нескольких",
+  "Page size": "Размер страницы",
+  "Page offset": "Смещение страницы",
+  "Attach or detach ad images (max 10000 associations).": "Привязать или отвязать изображения объявлений (до 10000 связей).",
+  "AD_ID to detach the image, or AD_ID=HASH to attach; repeat for multiple": "AD_ID для отвязки изображения или AD_ID=HASH для привязки; повторяйте для нескольких"
+}
