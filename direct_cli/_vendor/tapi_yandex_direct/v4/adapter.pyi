@@ -48,6 +48,7 @@ class YandexDirectV4Live:
         is_sandbox: bool = False,
         language: str = "en",
         retry_if_exceeded_limit: bool = True,
+        retries_if_exceeded_limit: int = 5,
         retries_if_server_error: int = 5,
         finance_token: Optional[str] = None,
         operation_num: Optional[int] = None,

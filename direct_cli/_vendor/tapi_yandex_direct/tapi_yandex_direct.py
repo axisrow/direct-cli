@@ -213,7 +213,7 @@ class YandexDirectClientAdapter(JSONAdapterMixin, TapiAdapter):
                 )
             elif (
                 error_code == 53
-                or error_data.get("error_detail") == "OAuth token is missing"
+                or error_data["error_detail"] == "OAuth token is missing"
             ):
                 raise exceptions.YandexDirectTokenError(
                     response, error_message, **kwargs
@@ -250,29 +250,51 @@ class YandexDirectClientAdapter(JSONAdapterMixin, TapiAdapter):
                 return True
 
         if error_code == 152:
+            # "Not enough units" is an API-points quota error, distinct from the
+            # rate-limit codes below: points replenish on a sliding 60-minute
+            # window, so the retry waits 5 minutes and uses its own budget
+            # (retries_if_not_enough_units) rather than the rate-limit budget.
+            # Without a cap the loop would be infinite (sleep, retry, forever).
             if api_params.get("retry_if_not_enough_units", False):
-                logger.warning("Not enough units, re-request after 5 minutes")
-                time.sleep(60 * 5)
-                return True
+                if repeat_number < api_params.get("retries_if_not_enough_units", 5):
+                    logger.warning("Not enough units, re-request after 5 minutes")
+                    time.sleep(60 * 5)
+                    return True
+                logger.error("Not enough units to request, retries exhausted")
+                return False
             else:
                 logger.error("Not enough units to request")
 
         elif error_code == 506 and api_params.get("retry_if_exceeded_limit", True):
-            logger.warning("API requests exceeded, re-request after 10 seconds")
-            time.sleep(10)
-            return True
+            # Bound rate-limit retries with their own attempt budget. Without
+            # this cap the loop is infinite (sleep 10s, retry, forever) whenever
+            # the API keeps returning the limit code — which hangs the caller.
+            if repeat_number < api_params.get("retries_if_exceeded_limit", 5):
+                logger.warning("API requests exceeded, re-request after 10 seconds")
+                time.sleep(10)
+                return True
+            logger.error("API requests exceeded, retries exhausted")
+            return False
 
         elif error_code == 56 and api_params.get("retry_if_exceeded_limit", True):
-            logger.warning("Method request limit exceeded. Re-request after 10 seconds")
-            time.sleep(10)
-            return True
+            if repeat_number < api_params.get("retries_if_exceeded_limit", 5):
+                logger.warning(
+                    "Method request limit exceeded. Re-request after 10 seconds"
+                )
+                time.sleep(10)
+                return True
+            logger.error("Method request limit exceeded, retries exhausted")
+            return False
 
         elif error_code == 9000 and api_params.get("retry_if_exceeded_limit", True):
-            logger.warning(
-                "Created by max number of reports. Re-request after 10 seconds"
-            )
-            time.sleep(10)
-            return True
+            if repeat_number < api_params.get("retries_if_exceeded_limit", 5):
+                logger.warning(
+                    "Created by max number of reports. Re-request after 10 seconds"
+                )
+                time.sleep(10)
+                return True
+            logger.error("Max number of reports limit exceeded, retries exhausted")
+            return False
 
         elif error_code in (52, 1000, 1001, 1002) or status_code == 500:
             if repeat_number < api_params.get("retries_if_server_error", 5):
@@ -427,7 +449,7 @@ class YandexDirectClientAdapter(JSONAdapterMixin, TapiAdapter):
         columns = [[] for _ in range(len(kwargs["store"]["columns"]))]
         for values in self.iter_values(**kwargs):
             for i, col in enumerate(columns):
-                col.append(values[i] if i < len(values) else "")
+                col.append(values[i])
 
         return columns
 

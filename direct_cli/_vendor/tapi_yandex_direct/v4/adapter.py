@@ -34,7 +34,8 @@ class V4LiveClientAdapter(JSONAdapterMixin, TapiAdapter):
         super().__init__(*args, **kwargs)
 
     def get_api_root(self, api_params: dict, resource_name: str) -> str:
-        return get_direct_api_root(api_params)
+        # v4 Live lives on the .ru host (the v5 JSON API uses .com).
+        return get_direct_api_root(api_params, tld="ru")
 
     def get_request_kwargs(self, api_params: dict, *args, **kwargs) -> dict:
         params = super().get_request_kwargs(api_params, *args, **kwargs)
@@ -176,11 +177,14 @@ class V4LiveClientAdapter(JSONAdapterMixin, TapiAdapter):
                 code = 0
 
         if code in (54, 55) and api_params.get("retry_if_exceeded_limit", True):
-            # Bound the limit-exceeded retries with the same attempt budget as
-            # the server-error branch below.  Without this guard the loop is
-            # infinite (sleep 10s, retry, forever) whenever the API keeps
-            # returning code 54/55 — which hangs the caller indefinitely.
-            if repeat_number < api_params.get("retries_if_server_error", 5):
+            # Bound the limit-exceeded retries with their own attempt budget.
+            # Without a cap the loop is infinite (sleep 10s, retry, forever)
+            # whenever the API keeps returning code 54/55 — which hangs the
+            # caller indefinitely.  Rate-limit retries use a dedicated
+            # ``retries_if_exceeded_limit`` budget so they stay independent of
+            # the server-error budget (a caller may want, e.g., zero
+            # server-error retries but still tolerate rate limiting).
+            if repeat_number < api_params.get("retries_if_exceeded_limit", 5):
                 logger.warning("v4 Live limit exceeded (code=%s), retry in 10s", code)
                 time.sleep(10)
                 return True
