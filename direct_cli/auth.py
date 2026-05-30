@@ -33,6 +33,9 @@ DEFAULT_OAUTH_CLIENT_ID = "dcf15d9625f6471d94d6d054d52017ba"
 AUTH_STORE_PATH = Path.home() / ".direct-cli" / "auth.json"
 OAUTH_REFRESH_SKEW_SECONDS = 60
 PENDING_PKCE_TTL_SECONDS = 600
+# Hard ceiling for the best-effort client-login resolution network call so it
+# can never hang the credential-resolution path (see #480 follow-up).
+LOGIN_RESOLVE_TIMEOUT_SECONDS = 8
 
 
 def op_read(ref: str) -> str:
@@ -616,13 +619,18 @@ def _resolve_client_login_via_api(token: str) -> Optional[str]:
         # auth, so a function-local import is safe.
         from ._vendor.tapi_yandex_direct import YandexDirect
 
+        # Best-effort, on the credential-resolution hot path: cap the wait so a
+        # slow network or a Yandex SmartCaptcha gateway can never hang the CLI
+        # indefinitely (requests defaults to no timeout). Retries are disabled
+        # so the ceiling stays a single connect+read window.
         client = YandexDirect(
             access_token=token,
-            retry_if_exceeded_limit=True,
-            retries_if_server_error=2,
+            retry_if_exceeded_limit=False,
+            retries_if_server_error=0,
         )
         result = client.clients().post(
-            data={"method": "get", "params": {"FieldNames": ["Login"]}}
+            data={"method": "get", "params": {"FieldNames": ["Login"]}},
+            timeout=LOGIN_RESOLVE_TIMEOUT_SECONDS,
         )
         data = result().extract()
         clients = data.get("Clients") if isinstance(data, dict) else None
@@ -657,6 +665,7 @@ def get_credentials(
     bw_token_ref: Optional[str] = None,
     bw_login_ref: Optional[str] = None,
     profile: Optional[str] = None,
+    allow_login_resolve: bool = True,
 ) -> Tuple[str, Optional[str]]:
     """
     Get credentials with priority:
@@ -704,7 +713,8 @@ def get_credentials(
                 final_login = oauth_profile["login"]
             stored_login = oauth_profile.get("login")
             if (
-                not login
+                allow_login_resolve
+                and not login
                 and oauth_profile.get("source") == "oauth"
                 and isinstance(stored_login, str)
                 and "@" in stored_login
