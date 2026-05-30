@@ -708,24 +708,31 @@ def get_credentials(
                 and oauth_profile.get("source") == "oauth"
                 and isinstance(stored_login, str)
                 and "@" in stored_login
+                and not oauth_profile.get("login_migration_checked")
             ):
                 # One-time migration (#480): older OAuth profiles saved the
                 # Passport email in `login`, which Direct v4 rejects with
                 # FaultCode 259. Resolve the bare Client-Login and rewrite the
                 # profile — but only when the stored email's local part matches
                 # the resolved login, so agency profiles whose login differs
-                # from the token owner are never clobbered.
+                # from the token owner are never clobbered. Either way we stamp
+                # `login_migration_checked` once the resolver answered, so the
+                # network round-trip never repeats per command for profiles that
+                # are intentionally left unmigrated (e.g. agency logins).
                 resolved = _resolve_client_login_via_api(final_token)
-                if (
-                    resolved
-                    and stored_login.split("@", 1)[0].lower() == resolved.lower()
-                ):
-                    final_login = resolved
+                if resolved:
+                    matches = (
+                        stored_login.split("@", 1)[0].lower() == resolved.lower()
+                    )
+                    if matches:
+                        final_login = resolved
                     try:
                         store = load_auth_store()
                         prof = store["profiles"].get(selected_profile)
                         if isinstance(prof, dict):
-                            prof["login"] = resolved
+                            prof["login_migration_checked"] = True
+                            if matches:
+                                prof["login"] = resolved
                             save_auth_store(store)
                     except Exception as exc:  # best-effort persistence
                         logging.debug("login migration persist failed: %s", exc)

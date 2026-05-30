@@ -1681,13 +1681,23 @@ class TestClientLoginResolution:
         with patch(
             "direct_cli.auth._resolve_client_login_via_api",
             return_value="agency-owner",
-        ):
+        ) as api:
             _token, login = get_credentials(profile="agency1")
+            # Second invocation must NOT re-query the API: the profile is
+            # stamped `login_migration_checked` on the first attempt, so an
+            # intentionally-unmigrated agency login does not pay a network
+            # round-trip on every command (#482 review finding #1).
+            _token2, login2 = get_credentials(profile="agency1")
         assert login == "managed-client@example.com"
+        assert login2 == "managed-client@example.com"
+        api.assert_called_once()
         assert (
             load_auth_store()["profiles"]["agency1"]["login"]
             == "managed-client@example.com"
         )
+        assert load_auth_store()["profiles"]["agency1"][
+            "login_migration_checked"
+        ]
 
     @patch("direct_cli.auth.load_env_file")
     def test_get_credentials_skips_migration_for_bare_login(
