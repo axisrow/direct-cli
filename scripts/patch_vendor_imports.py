@@ -18,6 +18,46 @@ FROM_SUBMODULE_RE = re.compile(
     r"^from tapi_yandex_direct\.([A-Za-z0-9_\.]+) import (.+)$"
 )
 
+# --- Local stub patch: the `timeout` kwarg that the upstream fork drops ---
+#
+# auth._resolve_client_login_via_api passes ``timeout=`` to ``clients().post()``
+# on the credential-resolution hot path. tapi2 forwards it straight to
+# ``requests`` at runtime, but the hand-maintained ``.pyi`` stub omits it, so
+# mypy (the CI "Quality" gate) rejects the call. ``update_vendor.sh`` rebuilds
+# the vendor dir with ``rm -rf`` + ``cp -R`` of the fork, which has no such
+# edit, so the fix is wiped on every bump (it last survived ~10 minutes — see
+# the #480 follow-up). Re-applying it here, after the copy, makes it
+# self-healing. Keep the fork carrying it too as belt-and-braces.
+#
+# Scope is the *client* executor only — the type auth.py calls. The report
+# executor and v4 adapter never receive ``timeout``, so they stay untouched.
+_TIMEOUT_PARAM = "timeout: float = None"
+_TIMEOUT_DOC = (
+    "        :param timeout: forwarded to requests as the connect+read timeout"
+)
+# Boundary-aware so we match ``class YandexDirectClientExecutor:`` exactly and
+# never the prefix-sharing ``class YandexDirectClientExecutorResponse(...)``.
+_STUB_CLASS_RE = re.compile(r"^class YandexDirectClientExecutor[:\(]")
+
+# Upstream emits the param list on a single line; match it so we can append the
+# kwarg. The guard against an already-present ``timeout`` keeps this idempotent.
+_EXECUTOR_SIG_RE = re.compile(
+    r"^(?P<head>\s*self, \*, params: dict = None, data: dict = None, "
+    r"headers: dict = None)(?P<tail>\s*)$"
+)
+_PARAM_DATA_RE = re.compile(r"^\s*:param data:")
+
+# --- Local runtime patch: to_columns must tolerate short report rows ---
+#
+# A report data row can carry fewer tab-separated cells than the column header
+# (Yandex omits trailing empty fields). Upstream's ``to_columns`` indexes
+# ``values[i]`` unconditionally and raises IndexError on such rows; our fix
+# pads the missing cells with "". Like the timeout stub, the upstream fork
+# drops this, so ``update_vendor.sh`` wipes it on every bump — re-apply here.
+# Covered by tests/test_reports_parsing.py::...to_columns_handles_short_rows.
+_TO_COLUMNS_UPSTREAM = "                col.append(values[i])"
+_TO_COLUMNS_PATCHED = '                col.append(values[i] if i < len(values) else "")'
+
 
 def _validate_captured(captured: str, path: Path, line_number: int, line: str) -> None:
     """Raise ValueError if the captured import group is unsupported."""
@@ -113,9 +153,68 @@ def _compute_patch(path: Path, vendor_dir: Path) -> str | None:
     if has_trailing_newline:
         patched += "\n"
 
+    patched = _patch_runtime_text(patched)
+
     if patched == original:
         return None
 
+    return patched
+
+
+def _patch_runtime_text(text: str) -> str:
+    """Re-apply local runtime patches to a vendored ``*.py`` source.
+
+    Currently restores the short-row guard in ``to_columns`` (see the
+    ``_TO_COLUMNS_*`` constants). Idempotent: a line already carrying the
+    guard is left unchanged, so repeated runs are a no-op.
+    """
+    if _TO_COLUMNS_PATCHED in text:
+        return text
+    return text.replace(_TO_COLUMNS_UPSTREAM, _TO_COLUMNS_PATCHED)
+
+
+def _patch_stub_text(text: str) -> str:
+    """Re-add the ``timeout`` kwarg to ``YandexDirectClientExecutor.get/post``.
+
+    Idempotent and scope-safe:
+
+    * A signature line that already mentions ``timeout`` is left untouched.
+    * The ``:param timeout:`` docstring line is inserted after ``:param data:``
+      only when it is not already the following line.
+    * Only lines inside the ``YandexDirectClientExecutor`` class body are
+      considered, so the report executor and v4 adapter signatures (which look
+      alike but never receive ``timeout``) are never modified.
+
+    Returns the text unchanged when there is nothing to patch.
+    """
+    lines = text.splitlines()
+    out: list[str] = []
+    in_stub_class = False
+    for i, line in enumerate(lines):
+        # Track which class body we are in. A new ``class`` statement always
+        # appears at column 0, so this never trips on nested defs.
+        if line.startswith("class "):
+            in_stub_class = bool(_STUB_CLASS_RE.match(line))
+
+        if in_stub_class and "timeout" not in line:
+            sig = _EXECUTOR_SIG_RE.match(line)
+            if sig:
+                line = f"{sig.group('head')}, {_TIMEOUT_PARAM}{sig.group('tail')}"
+
+        out.append(line)
+
+        # Insert the docstring line right after ``:param data:`` — but only
+        # inside the stub class and only if it is not already there. Dedup
+        # against the next *source* line (lines[i + 1]) keeps repeated runs a
+        # no-op regardless of how many lines we have already appended.
+        if in_stub_class and _PARAM_DATA_RE.match(line):
+            next_source = lines[i + 1] if i + 1 < len(lines) else ""
+            if next_source.strip() != _TIMEOUT_DOC.strip():
+                out.append(_TIMEOUT_DOC)
+
+    patched = "\n".join(out)
+    if text.endswith("\n"):
+        patched += "\n"
     return patched
 
 
@@ -123,8 +222,10 @@ def patch_vendor_dir(vendor_dir: Path) -> int:
     """
     Patch all Python files under a vendored tapi_yandex_direct directory.
 
-    Computes all patches before writing any files so that a ValueError on
-    any file prevents partial (broken) writes.
+    Rewrites upstream absolute imports in ``*.py`` files to relative ones and
+    re-applies the local ``timeout`` stub patch to ``*.pyi`` files (see
+    :func:`_patch_stub_text`). Computes all patches before writing any file so
+    that a ValueError on any file prevents partial (broken) writes.
 
     Args:
         vendor_dir: Path to the vendored package directory.
@@ -143,6 +244,12 @@ def patch_vendor_dir(vendor_dir: Path) -> int:
     for path in sorted(vendor_dir.rglob("*.py")):
         patched = _compute_patch(path, vendor_dir)
         if patched is not None:
+            patches[path] = patched
+
+    for path in sorted(vendor_dir.rglob("*.pyi")):
+        original = path.read_text(encoding="utf-8")
+        patched = _patch_stub_text(original)
+        if patched != original:
             patches[path] = patched
 
     for path, content in patches.items():

@@ -36,22 +36,24 @@ class YandexDirectClientExecutor:
     def help(self) -> YandexDirectClientExecutor:
         """Print docs of resource."""
     def get(
-        self, *, params: dict = None, data: dict = None, headers: dict = None
+        self, *, params: dict = None, data: dict = None, headers: dict = None, timeout: float = None
     ) -> YandexDirectClientExecutorResponse:
         """
         Send HTTP 'GET' request.
 
         :param params: querystring arguments in the URL
         :param data: send data in the body of the request
+        :param timeout: forwarded to requests as the connect+read timeout
         """
     def post(
-        self, *, params: dict = None, data: dict = None, headers: dict = None
+        self, *, params: dict = None, data: dict = None, headers: dict = None, timeout: float = None
     ) -> YandexDirectClientExecutorResponse:
         """
         Send HTTP 'POST' request.
 
         :param params: querystring arguments in the URL
         :param data: send data in the body of the request
+        :param timeout: forwarded to requests as the connect+read timeout
         """
 
 class YandexDirectPageIteratorResponse(YandexDirectBaseMethodsClientResponse):
