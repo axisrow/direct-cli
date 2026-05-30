@@ -111,8 +111,9 @@ def get(
         if not criteria:
             raise click.UsageError(
                 t(
-                    "keywordbids get requires at least one of "
-                    "--keyword-ids, --adgroup-ids, or --campaign-ids."
+                    "keywordbids get requires at least one filter: "
+                    "--keyword-ids, --adgroup-ids, --campaign-ids, "
+                    "or --serving-statuses."
                 )
             )
 

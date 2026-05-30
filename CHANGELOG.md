@@ -4,6 +4,41 @@
 
 Russian-default CLI localization across all command modules (epic #466).
 
+**Fixed — bug hunt (#483):**
+
+- `bids get` / `keywordbids get`: refuse an empty `SelectionCriteria` before the
+  API call, raising a `UsageError` that asks for at least one filter
+  (`--campaign-ids` / `--adgroup-ids` / `--keyword-ids` / `--serving-statuses`)
+  instead of letting the API reject it with the opaque error 4001.
+- `bids set-auto`: require exactly one of `--campaign-id`, `--adgroup-id`, or
+  `--keyword-id` via the shared `add_single_id_selector` (the three are mutually
+  exclusive per the API docs), matching `bids set`.
+- `reports get`: reject a `--fields` value that parses to an empty list (for
+  example `",,,"`) before building the request, instead of sending an invalid
+  `FieldNames: []` (API error 8000).
+- Error-handling consistency: `get`/lifecycle handlers across `bids`,
+  `keywordbids`, `negativekeywordsharedsets`, `balance`, `strategies`,
+  `retargeting`, `ads` (all 8 commands), and `advideos` now re-raise
+  `click.UsageError` / `click.ClickException` before the generic
+  `except Exception`, so validation errors keep their Click formatting and
+  exit code 2 instead of being downgraded to an `Abort`.
+- Vendor `tapi_yandex_direct`: `to_columns()` no longer raises `IndexError` on
+  report rows shorter than the header (pads with `""`); the error handler reads
+  `error_detail` with `.get()` so an unfamiliar error structure no longer masks
+  the original API error with a `KeyError`.
+- `utils.parse_priority_goals_spec`: corrected the item type annotation to
+  `List[Dict[str, Any]]` (items hold `"YES"/"NO"` strings, not only ints).
+
+**Fixed — `--help` hung on a client-login network call (#480 follow-up):**
+
+- After #480, `get_credentials` resolved the bare Client-Login via a network
+  `clients.get` on every CLI invocation — including `<group> --help` — whenever
+  an OAuth profile with an email login had not yet been migrated. That call had
+  no timeout, so a slow link or a Yandex SmartCaptcha gateway could hang the
+  CLI. Help/version passes now skip the resolver, the resolver is capped with a
+  hard timeout, and the unit suite neutralizes it so tests never touch the
+  network.
+
 **Fixed — auth login saved Passport email, breaking v4 (#480):**
 
 - `direct auth login` (OAuth / PKCE) stored the Passport email

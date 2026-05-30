@@ -66,8 +66,9 @@ def get(
         if not criteria:
             raise click.UsageError(
                 t(
-                    "bids get requires at least one of "
-                    "--campaign-ids, --adgroup-ids, or --keyword-ids."
+                    "bids get requires at least one filter: "
+                    "--campaign-ids, --adgroup-ids, --keyword-ids, "
+                    "or --serving-statuses."
                 )
             )
 
