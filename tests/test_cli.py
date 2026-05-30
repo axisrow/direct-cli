@@ -5,6 +5,7 @@ Tests for Direct CLI
 import io
 import json
 import os
+import sys
 import unittest
 from contextlib import redirect_stderr
 from importlib import import_module
@@ -126,6 +127,74 @@ class TestCLI(unittest.TestCase):
                     f"Documentation: {get_docs_url(group)}",
                     result.output,
                 )
+
+    def test_group_help_does_not_resolve_client_login_over_network(self):
+        """``<group> --help`` must never make the #480 client-login API call.
+
+        Regression: a cold OAuth profile with an email login + no
+        ``login_migration_checked`` flag made every CLI invocation — including
+        ``--help`` — fire a network ``clients.get`` with no timeout, which
+        could hang the CLI (and the whole test suite). Help/version passes run
+        no command, so they must skip the resolver entirely.
+        """
+        import direct_cli.auth as auth_module
+
+        cold_profile = {
+            "source": "oauth",
+            "token": "cold-token",
+            "refresh_token": "cold-refresh",
+            "login": "someone@yandex.ru",
+            "expires_at": float(2**31),
+        }
+        calls = {"n": 0}
+
+        def _counting_resolver(*_args, **_kwargs):
+            calls["n"] += 1
+            return None
+
+        with (
+            patch.object(auth_module, "get_active_profile", return_value="default"),
+            patch.object(auth_module, "get_oauth_profile", return_value=cold_profile),
+            patch.object(
+                auth_module, "_resolve_client_login_via_api", _counting_resolver
+            ),
+            patch.object(sys, "argv", ["direct", "bids", "--help"]),
+        ):
+            result = self.runner.invoke(cli, ["bids", "--help"])
+
+        self.assertEqual(result.exit_code, 0)
+        self.assertEqual(
+            calls["n"], 0, "client-login resolver must not run on a --help pass"
+        )
+
+    def test_get_credentials_skips_login_resolve_when_disallowed(self):
+        """``allow_login_resolve=False`` suppresses the #480 network migration."""
+        import direct_cli.auth as auth_module
+
+        cold_profile = {
+            "source": "oauth",
+            "token": "cold-token",
+            "refresh_token": "cold-refresh",
+            "login": "someone@yandex.ru",
+            "expires_at": float(2**31),
+        }
+        calls = {"n": 0}
+
+        def _counting_resolver(*_args, **_kwargs):
+            calls["n"] += 1
+            return None
+
+        with (
+            patch.object(auth_module, "get_active_profile", return_value="default"),
+            patch.object(auth_module, "get_oauth_profile", return_value=cold_profile),
+            patch.object(
+                auth_module, "_resolve_client_login_via_api", _counting_resolver
+            ),
+        ):
+            token, login = auth_module.get_credentials(allow_login_resolve=False)
+
+        self.assertEqual(token, "cold-token")
+        self.assertEqual(calls["n"], 0)
 
     def test_adgroups_v501_resource_mapping_exists_for_unified_groups(self):
         """Unified ad groups must be sent to the documented v501 endpoint."""

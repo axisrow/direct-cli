@@ -28,6 +28,24 @@ load_dotenv()
 
 
 @pytest.fixture(autouse=True)
+def _block_login_resolve_network(monkeypatch):
+    """Stop unit tests from ever hitting the network to resolve a client login.
+
+    A developer machine with an active ``direct auth`` profile whose stored
+    login is an email triggers a one-time network ``clients.get`` inside
+    ``get_credentials`` (issue #480 migration). Under ``CliRunner`` that call
+    can fire per invocation and — if the network is slow or Yandex serves a
+    SmartCaptcha gateway — hang the whole suite (it had no timeout). Tests must
+    never depend on that round-trip, so neutralize the resolver here. Tests
+    that specifically exercise the resolver patch it themselves.
+    """
+    monkeypatch.setattr(
+        "direct_cli.auth._resolve_client_login_via_api",
+        lambda *_args, **_kwargs: None,
+    )
+
+
+@pytest.fixture(autouse=True)
 def _default_cli_locale_en(monkeypatch):
     """Default the CLI UI locale to English across the suite.
 
@@ -62,12 +80,20 @@ def _resolve_test_credentials():
     if env_token:
         return env_token, env_login
 
-    from direct_cli.auth import get_credentials
+    import direct_cli.auth as auth
 
+    # This runs at import time (before the autouse fixture can patch anything).
+    # Falling back to the active profile must not trigger the network
+    # client-login resolution (#480) — that call could hang collection on a
+    # slow network / SmartCaptcha gateway. Neutralize it for this one call.
+    original_resolver = auth._resolve_client_login_via_api
+    auth._resolve_client_login_via_api = lambda *_a, **_k: None
     try:
-        return get_credentials()
+        return auth.get_credentials()
     except (RuntimeError, ValueError):
         return None, None
+    finally:
+        auth._resolve_client_login_via_api = original_resolver
 
 
 _REAL_TOKEN, _REAL_LOGIN = _resolve_test_credentials()

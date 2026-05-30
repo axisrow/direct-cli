@@ -3,6 +3,8 @@
 Direct CLI - Command-line interface for Yandex Direct API
 """
 
+import sys
+
 import click
 from click.core import ParameterSource
 
@@ -368,6 +370,13 @@ def cli(
         or bw_token_ref
         or bw_login_ref
     )
+    # When the user is only asking for help/version, no command will run, so
+    # skip the best-effort network client-login resolution (#480 migration).
+    # Otherwise ``<group> --help`` would block on a network round-trip — and on
+    # a slow link or a SmartCaptcha gateway it could hang the CLI. ``ctx`` can't
+    # tell a help pass from a real subcommand in the group callback, so detect
+    # the eager flags in argv directly.
+    help_or_version = any(arg in ("--help", "-h", "--version") for arg in sys.argv[1:])
     if has_refs:
         try:
             resolved_token, resolved_login = get_credentials(
@@ -378,6 +387,7 @@ def cli(
                 op_login_ref=explicit_op_login_ref,
                 bw_token_ref=explicit_bw_token_ref,
                 bw_login_ref=explicit_bw_login_ref,
+                allow_login_resolve=not help_or_version,
             )
             ctx.obj["token"] = resolved_token
             ctx.obj["login"] = resolved_login
