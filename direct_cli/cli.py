@@ -359,6 +359,14 @@ def cli(
     explicit_bw_login_ref = _command_line_option_value(
         ctx, "bw_login_ref", bw_login_ref
     )
+    if ctx.invoked_subcommand == "auth":
+        ctx.obj["token"] = explicit_token
+        ctx.obj["login"] = explicit_login
+        ctx.obj["op_token_ref"] = op_token_ref
+        ctx.obj["op_login_ref"] = op_login_ref
+        ctx.obj["bw_token_ref"] = bw_token_ref
+        ctx.obj["bw_login_ref"] = bw_login_ref
+        return
 
     # Resolve credentials early so all subcommands get the final values
     has_refs = (

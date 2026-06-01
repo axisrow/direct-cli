@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.2
+
+**BREAKING CHANGES - auth precedence (#489):**
+
+- Base `YANDEX_DIRECT_TOKEN` / `YANDEX_DIRECT_LOGIN` credentials from the
+  environment or current-directory `.env` now win over the active OAuth profile
+  selected by `direct auth use` when `--profile` is not passed. Explicit
+  `--token`, `--login`, and `--profile` still take priority.
+- `direct auth status` reports the selected effective credentials, including
+  base env/`.env` and secret-manager fallbacks, instead of reporting only the
+  active OAuth profile.
+- `direct auth login` can now ask interactive users whether to save the OAuth
+  access token and resolved login into the current-directory `.env`; the default
+  answer is no.
+
 ## 0.4.1
 
 Russian-default CLI localization across all command modules (epic #466).

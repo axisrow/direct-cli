@@ -10,6 +10,7 @@ import click
 
 from ..auth import (
     DEFAULT_OAUTH_CLIENT_ID,
+    bw_read,
     build_oauth_authorize_url,
     build_pkce_pair,
     exchange_oauth_code,
@@ -19,6 +20,7 @@ from ..auth import (
     get_pending_pkce,
     load_env_file,
     list_profiles,
+    op_read,
     remove_pending_pkce,
     resolve_account_login,
     save_env_credentials,
@@ -263,11 +265,23 @@ def use(profile):
     show_default=True,
     help="Output format",
 )
-def status(profile, output_format):
+@click.pass_context
+def status(ctx, profile, output_format):
     """Show effective auth status or one profile."""
     load_env_file()
-    selected = profile
+    root_obj = ctx.find_root().obj or ctx.obj or {}
+    selected = profile or root_obj.get("profile")
     if not selected:
+        root_token = root_obj.get("token")
+        if root_token:
+            _print_status(
+                profile_name=None,
+                source="args",
+                login_value=root_obj.get("login"),
+                expires_at=None,
+                output_format=output_format,
+            )
+            return
         env_token = os.getenv("YANDEX_DIRECT_TOKEN")
         env_login = os.getenv("YANDEX_DIRECT_LOGIN")
         if env_token:
@@ -281,6 +295,52 @@ def status(profile, output_format):
             return
         selected = get_active_profile()
     if not selected:
+        op_token_ref = root_obj.get("op_token_ref") or os.getenv(
+            "YANDEX_DIRECT_OP_TOKEN_REF"
+        )
+        if op_token_ref:
+            try:
+                token_value = op_read(op_token_ref)
+                op_login_ref = root_obj.get("op_login_ref") or os.getenv(
+                    "YANDEX_DIRECT_OP_LOGIN_REF"
+                )
+                login_value = op_read(op_login_ref) if op_login_ref else None
+            except RuntimeError as exc:
+                raise click.ClickException(str(exc)) from exc
+            if token_value:
+                _print_status(
+                    profile_name=None,
+                    source="op",
+                    login_value=login_value,
+                    expires_at=None,
+                    output_format=output_format,
+                )
+                return
+
+        bw_token_ref = root_obj.get("bw_token_ref") or os.getenv(
+            "YANDEX_DIRECT_BW_TOKEN_REF"
+        )
+        if bw_token_ref:
+            try:
+                token_value = bw_read(bw_token_ref, "password")
+                bw_login_ref = root_obj.get("bw_login_ref") or os.getenv(
+                    "YANDEX_DIRECT_BW_LOGIN_REF"
+                )
+                login_value = (
+                    bw_read(bw_login_ref, "username") if bw_login_ref else None
+                )
+            except RuntimeError as exc:
+                raise click.ClickException(str(exc)) from exc
+            if token_value:
+                _print_status(
+                    profile_name=None,
+                    source="bw",
+                    login_value=login_value,
+                    expires_at=None,
+                    output_format=output_format,
+                )
+                return
+
         if output_format == "json":
             click.echo(
                 json.dumps(
