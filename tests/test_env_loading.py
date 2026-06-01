@@ -2,6 +2,7 @@
 
 import ast
 import os
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -103,6 +104,19 @@ def test_load_env_file_does_not_search_from_source_location(monkeypatch, tmp_pat
     assert calls == [run_dir / ".env"]
     assert "YANDEX_DIRECT_TOKEN" not in os.environ
     assert "YANDEX_DIRECT_LOGIN" not in os.environ
+
+
+def test_save_env_credentials_creates_private_cwd_dotenv(monkeypatch, tmp_path):
+    """Saving credentials creates only the cwd .env with private permissions."""
+    monkeypatch.chdir(tmp_path)
+
+    env_path = auth.save_env_credentials("saved-token", "saved-login")
+
+    assert env_path == tmp_path / ".env"
+    assert env_path.read_text(encoding="utf-8") == (
+        "YANDEX_DIRECT_TOKEN=saved-token\n" "YANDEX_DIRECT_LOGIN=saved-login\n"
+    )
+    assert stat.S_IMODE(env_path.stat().st_mode) == 0o600
 
 
 def test_cli_routes_early_dotenv_loading_through_auth_helper():

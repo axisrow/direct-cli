@@ -1,6 +1,7 @@
 """Authentication commands for OAuth profile management."""
 
 import json
+import os
 import sys
 import time
 from typing import Optional, Tuple
@@ -16,9 +17,11 @@ from ..auth import (
     get_env_profile,
     get_oauth_profile,
     get_pending_pkce,
+    load_env_file,
     list_profiles,
     remove_pending_pkce,
     resolve_account_login,
+    save_env_credentials,
     save_oauth_profile,
     save_pending_confidential_auth,
     save_pending_pkce,
@@ -76,6 +79,7 @@ def login(
 ):
     """Authorize and save OAuth credentials under a profile."""
     chosen_client_id = client_id or DEFAULT_OAUTH_CLIENT_ID
+    code_from_stdin = False
 
     if code_stdin:
         if code or oauth_token or start_pkce:
@@ -93,6 +97,7 @@ def login(
         code = sys.stdin.read().strip()
         if not code:
             raise click.ClickException("--code - requires a code on stdin.")
+        code_from_stdin = True
 
     if start_pkce:
         if code or oauth_token or client_secret:
@@ -118,6 +123,7 @@ def login(
             login=login,
             source="manual",
         )
+        _offer_save_token_to_env(token, login)
         print_success(
             t("Profile '{profile}' is saved and active.").format(profile=profile)
         )
@@ -213,6 +219,7 @@ def login(
         client_secret=effective_client_secret,
     )
     remove_pending_pkce(profile)
+    _offer_save_token_to_env(access_token, login, allow_prompt=not code_from_stdin)
     print_success(t("Profile '{profile}' is saved and active.").format(profile=profile))
 
 
@@ -247,7 +254,7 @@ def use(profile):
 
 
 @auth.command()
-@click.option("--profile", help="Profile name (defaults to active profile)")
+@click.option("--profile", help="Profile name (otherwise show effective credentials)")
 @click.option(
     "--format",
     "output_format",
@@ -257,8 +264,22 @@ def use(profile):
     help="Output format",
 )
 def status(profile, output_format):
-    """Show auth status for one profile."""
-    selected = profile or get_active_profile()
+    """Show effective auth status or one profile."""
+    load_env_file()
+    selected = profile
+    if not selected:
+        env_token = os.getenv("YANDEX_DIRECT_TOKEN")
+        env_login = os.getenv("YANDEX_DIRECT_LOGIN")
+        if env_token:
+            _print_status(
+                profile_name=None,
+                source="env",
+                login_value=env_login,
+                expires_at=None,
+                output_format=output_format,
+            )
+            return
+        selected = get_active_profile()
     if not selected:
         print_info(t("No active profile."))
         return
@@ -284,14 +305,33 @@ def status(profile, output_format):
         raise click.ClickException(f"Profile '{selected}' is not configured.")
 
     expires_at = None
-    expires_in_seconds = None
     if oauth_profile and isinstance(oauth_profile.get("expires_at"), (int, float)):
         expires_at = float(oauth_profile["expires_at"])
+
+    _print_status(
+        profile_name=selected,
+        source=source,
+        login_value=login_value,
+        expires_at=expires_at,
+        output_format=output_format,
+    )
+
+
+def _print_status(
+    profile_name: Optional[str],
+    source: str,
+    login_value: Optional[str],
+    expires_at: Optional[float],
+    output_format: str,
+) -> None:
+    """Print auth status without exposing secret values."""
+    expires_in_seconds = None
+    if expires_at is not None:
         expires_in_seconds = max(0, int(expires_at - time.time()))
 
     if output_format == "json":
         payload = {
-            "profile": selected,
+            "profile": profile_name,
             "source": source,
             "has_token": True,
             "login": login_value,
@@ -302,7 +342,7 @@ def status(profile, output_format):
         click.echo(json.dumps(payload, ensure_ascii=False))
         return
 
-    click.echo(f"profile={selected}")
+    click.echo(f"profile={profile_name or '(none)'}")
     click.echo(f"source={source}")
     click.echo("has_token=yes")
     if login_value:
@@ -311,6 +351,25 @@ def status(profile, output_format):
         click.echo("login=(not set)")
     if expires_in_seconds is not None:
         click.echo(f"expires_in={_format_duration(expires_in_seconds)}")
+
+
+def _offer_save_token_to_env(
+    token: str, login: Optional[str], allow_prompt: bool = True
+) -> None:
+    """Ask interactive users whether to store the access token in cwd .env."""
+    if not allow_prompt:
+        return
+    if not _should_prompt_save_env():
+        return
+    if not click.confirm(t("Save token to .env?"), default=False):
+        return
+    save_env_credentials(token=token, login=login)
+    print_success(t("Saved token to .env."))
+
+
+def _should_prompt_save_env() -> bool:
+    """Return whether it is safe to ask an extra interactive question."""
+    return sys.stdin.isatty() and sys.stdout.isatty()
 
 
 def _format_duration(seconds: int) -> str:

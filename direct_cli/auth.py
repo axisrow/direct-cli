@@ -117,6 +117,76 @@ def load_env_file(env_path: Optional[str] = None) -> None:
         load_dotenv(dotenv_path)
 
 
+def _format_dotenv_value(value: str) -> str:
+    """Return a dotenv-safe scalar for Direct credential values."""
+    if "\n" in value or "\r" in value:
+        raise ValueError(".env credential values must be single-line strings.")
+    if value and all(char not in value for char in " \t#'\"\\"):
+        return value
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
+def save_env_credentials(
+    token: str,
+    login: Optional[str] = None,
+    env_path: Optional[Path] = None,
+) -> Path:
+    """Write Direct credentials to the current-directory .env file.
+
+    Args:
+        token: OAuth access token to store.
+        login: Optional Direct client login to store.
+        env_path: Optional target path, used by tests. Defaults to cwd .env.
+
+    Returns:
+        Path to the updated .env file.
+
+    Raises:
+        ValueError: If token or login contain newline characters.
+    """
+    dotenv_path = env_path or Path.cwd() / ".env"
+    existed = dotenv_path.exists()
+    lines = (
+        dotenv_path.read_text(encoding="utf-8").splitlines(keepends=True)
+        if existed
+        else []
+    )
+    replacements = {"YANDEX_DIRECT_TOKEN": _format_dotenv_value(token)}
+    if login:
+        replacements["YANDEX_DIRECT_LOGIN"] = _format_dotenv_value(login)
+    seen = set()
+    updated_lines = []
+
+    for line in lines:
+        stripped = line.lstrip()
+        matched_key = None
+        for key in replacements:
+            if stripped.startswith(f"{key}=") or stripped.startswith(f"export {key}="):
+                matched_key = key
+                break
+        if matched_key is None:
+            updated_lines.append(line)
+            continue
+        prefix = "export " if stripped.startswith("export ") else ""
+        newline = "\n" if line.endswith("\n") else ""
+        updated_lines.append(
+            f"{prefix}{matched_key}={replacements[matched_key]}{newline}"
+        )
+        seen.add(matched_key)
+
+    if updated_lines and not updated_lines[-1].endswith("\n"):
+        updated_lines[-1] = f"{updated_lines[-1]}\n"
+    for key, value in replacements.items():
+        if key not in seen:
+            updated_lines.append(f"{key}={value}\n")
+
+    dotenv_path.write_text("".join(updated_lines), encoding="utf-8")
+    if not existed:
+        os.chmod(dotenv_path, 0o600)
+    return dotenv_path
+
+
 def _profile_suffix(profile: str) -> str:
     """Build an environment variable suffix for a profile name."""
     normalized = []
@@ -656,6 +726,84 @@ def resolve_account_login(token: str) -> Optional[str]:
     return resolve_login(token)
 
 
+def _resolve_profile_credentials(
+    selected_profile: str,
+    login: Optional[str],
+    allow_login_resolve: bool,
+) -> Tuple[Optional[str], Optional[str]]:
+    """Resolve token/login for one named OAuth or env profile."""
+    final_token = None
+    final_login = login
+    oauth_profile = get_oauth_profile(selected_profile)
+    if oauth_profile:
+        if oauth_profile.get("source") == "oauth":
+            validate_oauth_profile(selected_profile, oauth_profile)
+            expires_at = float(oauth_profile["expires_at"])
+            if expires_at <= time.time() + OAUTH_REFRESH_SKEW_SECONDS:
+                oauth_profile = refresh_access_token(selected_profile)
+        final_token = oauth_profile["token"]
+        if not final_login:
+            final_login = oauth_profile["login"]
+        stored_login = oauth_profile.get("login")
+        if (
+            allow_login_resolve
+            and not login
+            and oauth_profile.get("source") == "oauth"
+            and isinstance(stored_login, str)
+            and "@" in stored_login
+            and not oauth_profile.get("login_migration_checked")
+        ):
+            # One-time migration (#480): older OAuth profiles saved the
+            # Passport email in `login`, which Direct v4 rejects with
+            # FaultCode 259. Resolve the bare Client-Login and rewrite the
+            # profile — but only when the stored email's local part matches
+            # the resolved login, so agency profiles whose login differs
+            # from the token owner are never clobbered. Either way we stamp
+            # `login_migration_checked` once the resolver answered, so the
+            # network round-trip never repeats per command for profiles that
+            # are intentionally left unmigrated (e.g. agency logins).
+            resolved = _resolve_client_login_via_api(final_token)
+            if resolved:
+                matches = stored_login.split("@", 1)[0].lower() == resolved.lower()
+                if matches:
+                    final_login = resolved
+                try:
+                    store = load_auth_store()
+                    prof = store["profiles"].get(selected_profile)
+                    if isinstance(prof, dict):
+                        prof["login_migration_checked"] = True
+                        if matches:
+                            prof["login"] = resolved
+                        save_auth_store(store)
+                except Exception as exc:  # best-effort persistence
+                    logging.debug("login migration persist failed: %s", exc)
+
+    if not final_token:
+        env_token, env_login = get_env_profile(selected_profile)
+        final_token = env_token
+        if not final_login:
+            final_login = env_login
+    return final_token, final_login
+
+
+def _resolve_profile_or_raise(
+    selected_profile: str,
+    login: Optional[str],
+    allow_login_resolve: bool,
+) -> Tuple[str, Optional[str]]:
+    """Resolve a named profile's credentials or raise if it is unconfigured."""
+    final_token, final_login = _resolve_profile_credentials(
+        selected_profile, login, allow_login_resolve
+    )
+    if not final_token:
+        raise ValueError(
+            f"Profile '{selected_profile}' is not configured. "
+            "Use direct auth login --profile NAME or set "
+            f"YANDEX_DIRECT_TOKEN_{_profile_suffix(selected_profile)}."
+        )
+    return final_token, final_login
+
+
 def get_credentials(
     token: Optional[str] = None,
     login: Optional[str] = None,
@@ -670,9 +818,9 @@ def get_credentials(
     """
     Get credentials with priority:
     1. Direct arguments (--token, --login)
-    2. Selected profile storage or profile-specific environment variables
-    3. Environment variables (YANDEX_DIRECT_TOKEN, YANDEX_DIRECT_LOGIN)
-    4. .env file
+    2. Explicit selected profile storage or profile-specific environment variables
+    3. Environment variables or cwd .env (YANDEX_DIRECT_TOKEN, YANDEX_DIRECT_LOGIN)
+    4. Active profile storage or profile-specific environment variables
     5. 1Password (op_token_ref arg or YANDEX_DIRECT_OP_TOKEN_REF env var)
     6. Bitwarden (bw_token_ref arg or YANDEX_DIRECT_BW_TOKEN_REF env var)
 
@@ -694,76 +842,32 @@ def get_credentials(
     # Load .env file first
     load_env_file(env_path)
 
-    # Priority: explicit args > selected profile > base env/.env > 1Password > Bitwarden
-    selected_profile = profile or get_active_profile()
+    # Priority: explicit args/profile > base env/.env > active profile > secret refs.
     final_token = token
     final_login = login
-    profile_was_selected = bool(selected_profile)
+    selected_profile = profile
+    profile_credentials_selected = False
 
     if selected_profile and not final_token:
-        oauth_profile = get_oauth_profile(selected_profile)
-        if oauth_profile:
-            if oauth_profile.get("source") == "oauth":
-                validate_oauth_profile(selected_profile, oauth_profile)
-                expires_at = float(oauth_profile["expires_at"])
-                if expires_at <= time.time() + OAUTH_REFRESH_SKEW_SECONDS:
-                    oauth_profile = refresh_access_token(selected_profile)
-            final_token = oauth_profile["token"]
-            if not final_login:
-                final_login = oauth_profile["login"]
-            stored_login = oauth_profile.get("login")
-            if (
-                allow_login_resolve
-                and not login
-                and oauth_profile.get("source") == "oauth"
-                and isinstance(stored_login, str)
-                and "@" in stored_login
-                and not oauth_profile.get("login_migration_checked")
-            ):
-                # One-time migration (#480): older OAuth profiles saved the
-                # Passport email in `login`, which Direct v4 rejects with
-                # FaultCode 259. Resolve the bare Client-Login and rewrite the
-                # profile — but only when the stored email's local part matches
-                # the resolved login, so agency profiles whose login differs
-                # from the token owner are never clobbered. Either way we stamp
-                # `login_migration_checked` once the resolver answered, so the
-                # network round-trip never repeats per command for profiles that
-                # are intentionally left unmigrated (e.g. agency logins).
-                resolved = _resolve_client_login_via_api(final_token)
-                if resolved:
-                    matches = (
-                        stored_login.split("@", 1)[0].lower() == resolved.lower()
-                    )
-                    if matches:
-                        final_login = resolved
-                    try:
-                        store = load_auth_store()
-                        prof = store["profiles"].get(selected_profile)
-                        if isinstance(prof, dict):
-                            prof["login_migration_checked"] = True
-                            if matches:
-                                prof["login"] = resolved
-                            save_auth_store(store)
-                    except Exception as exc:  # best-effort persistence
-                        logging.debug("login migration persist failed: %s", exc)
-
-    if selected_profile and not final_token:
-        env_token, env_login = get_env_profile(selected_profile)
-        final_token = env_token
-        if not final_login:
-            final_login = env_login
-
-    if selected_profile and not final_token:
-        raise ValueError(
-            f"Profile '{selected_profile}' is not configured. "
-            "Use direct auth login --profile NAME or set "
-            f"YANDEX_DIRECT_TOKEN_{_profile_suffix(selected_profile)}."
+        final_token, final_login = _resolve_profile_or_raise(
+            selected_profile, final_login, allow_login_resolve
         )
+        profile_credentials_selected = True
 
     if not final_token:
-        final_token = os.getenv("YANDEX_DIRECT_TOKEN")
-    if not final_login and not profile_was_selected:
-        final_login = os.getenv("YANDEX_DIRECT_LOGIN")
+        env_token = os.getenv("YANDEX_DIRECT_TOKEN")
+        if env_token:
+            final_token = env_token
+            if not final_login:
+                final_login = os.getenv("YANDEX_DIRECT_LOGIN")
+
+    if not final_token and not selected_profile:
+        active_profile = get_active_profile()
+        if active_profile:
+            final_token, final_login = _resolve_profile_or_raise(
+                active_profile, final_login, allow_login_resolve
+            )
+            profile_credentials_selected = True
 
     if not final_token:
         ref = op_token_ref or os.getenv("YANDEX_DIRECT_OP_TOKEN_REF")
@@ -775,12 +879,12 @@ def get_credentials(
         if ref:
             final_token = bw_read(ref, "password")
 
-    if not final_login and not profile_was_selected:
+    if not final_login and not profile_credentials_selected:
         ref = op_login_ref or os.getenv("YANDEX_DIRECT_OP_LOGIN_REF")
         if ref:
             final_login = op_read(ref)
 
-    if not final_login and not profile_was_selected:
+    if not final_login and not profile_credentials_selected:
         ref = bw_login_ref or os.getenv("YANDEX_DIRECT_BW_LOGIN_REF")
         if ref:
             final_login = bw_read(ref, "username")

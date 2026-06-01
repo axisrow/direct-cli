@@ -47,7 +47,7 @@ def _invoke_env():
 
     Always pass the resolved test credentials explicitly so the
     integration suite never depends on shell environment state at
-    process start. This matches the inverted credential-resolution
+    process start. This matches the safe credential-resolution
     contract in CLAUDE.md (env vars win over active profile inside
     the test harness).
     """
@@ -87,9 +87,7 @@ def _prepend_credential_flags(args):
 
 def invoke_get(*args):
     """Invoke a read-only CLI command and return the result."""
-    return make_runner().invoke(
-        cli, _prepend_credential_flags(args), env=_invoke_env()
-    )
+    return make_runner().invoke(cli, _prepend_credential_flags(args), env=_invoke_env())
 
 
 def _skip_class_on_probe_failure(probe, *, what: str):
@@ -742,10 +740,10 @@ class TestReadOnlyBalance(unittest.TestCase):
 class TestReadOnlyAuth(unittest.TestCase):
     """Read-only coverage of ``direct auth status`` / ``direct auth list``.
 
-    These commands do not hit the Yandex Direct API — they read local
-    profile state — but they require an active profile (i.e. the same
-    credentials the rest of the integration suite needs), so we gate them
-    behind ``skip_if_no_token``.
+    These commands do not hit the Yandex Direct API. ``auth status`` reports
+    the effective credential source, while ``auth list`` reads local profile
+    state. Both need the same credential setup as the rest of the integration
+    suite, so we gate them behind ``skip_if_no_token``.
 
     ``auth login`` and ``auth use`` are DANGEROUS (they mutate
     ``~/.direct-cli/auth.json``) and are intentionally NOT covered here.
@@ -754,15 +752,11 @@ class TestReadOnlyAuth(unittest.TestCase):
     def test_auth_status_json(self):
         result = invoke_get("auth", "status", "--format", "json")
         self.assertEqual(result.exit_code, 0, result.output)
-        # If credentials come from env vars without a saved OAuth profile,
-        # `auth status --format json` prints "No active profile." in plain
-        # text and exits 0 — skip rather than blow up on json.loads.
         try:
             payload = json.loads(result.output)
         except json.JSONDecodeError:
             self.skipTest(
-                f"auth status returned non-JSON output (no active profile?): "
-                f"{result.output[:200]}"
+                f"auth status returned non-JSON output: {result.output[:200]}"
             )
         for key in ("profile", "source", "has_token"):
             self.assertIn(key, payload, f"auth status JSON missing {key}: {payload}")

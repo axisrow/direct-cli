@@ -148,10 +148,11 @@ class TestAuthOAuth:
 
     @patch("direct_cli.commands.campaigns.create_client")
     def test_cli_command_uses_active_profile_credentials(
-        self, mock_create_client, isolated_auth_store, monkeypatch
+        self, mock_create_client, isolated_auth_store, monkeypatch, tmp_path
     ):
         monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
+        monkeypatch.chdir(tmp_path)
         save_oauth_profile(
             profile="agency1",
             token="oauth-token-1",
@@ -189,7 +190,7 @@ class TestAuthOAuth:
         assert "env-login" not in result.output
 
     @patch("direct_cli.commands.campaigns.create_client")
-    def test_cli_command_prefers_active_profile_over_cwd_dotenv(
+    def test_cli_command_prefers_cwd_dotenv_over_active_profile(
         self, mock_create_client, isolated_auth_store, monkeypatch, tmp_path
     ):
         with patch.dict(os.environ, {}, clear=False):
@@ -213,6 +214,52 @@ class TestAuthOAuth:
 
             result = runner.invoke(
                 cli, ["campaigns", "get", "--ids", "123", "--dry-run"]
+            )
+
+        assert result.exit_code == 0
+        mock_create_client.assert_called_once_with(
+            token="dotenv-token", login="dotenv-login", sandbox=False
+        )
+        assert "oauth-token-1" not in result.output
+        assert "client-login-1" not in result.output
+        assert "dotenv-token" not in result.output
+        assert "dotenv-login" not in result.output
+
+    @patch("direct_cli.commands.campaigns.create_client")
+    def test_cli_explicit_profile_overrides_cwd_dotenv(
+        self, mock_create_client, isolated_auth_store, monkeypatch, tmp_path
+    ):
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("YANDEX_DIRECT_TOKEN", None)
+            os.environ.pop("YANDEX_DIRECT_LOGIN", None)
+            (tmp_path / ".env").write_text(
+                "YANDEX_DIRECT_TOKEN=dotenv-token\nYANDEX_DIRECT_LOGIN=dotenv-login\n",
+                encoding="utf-8",
+            )
+            monkeypatch.chdir(tmp_path)
+            load_env_file()
+            save_oauth_profile(
+                profile="agency1",
+                token="oauth-token-1",
+                login="client-login-1",
+                refresh_token="refresh-1",
+                expires_at=4_100_000_000.0,
+                client_id=DEFAULT_OAUTH_CLIENT_ID,
+                make_active=False,
+            )
+            runner = CliRunner()
+
+            result = runner.invoke(
+                cli,
+                [
+                    "--profile",
+                    "agency1",
+                    "campaigns",
+                    "get",
+                    "--ids",
+                    "123",
+                    "--dry-run",
+                ],
             )
 
         assert result.exit_code == 0
@@ -318,6 +365,159 @@ class TestAuthOAuth:
         assert status.exit_code == 0
         assert "has_token=yes" in status.output
         assert "y0_secret_token" not in status.output
+
+    @patch("direct_cli.commands.auth.time.time", return_value=1000.0)
+    @patch(
+        "direct_cli.commands.auth.exchange_oauth_code",
+        return_value={
+            "access_token": "access-2",
+            "refresh_token": "refresh-2",
+            "expires_in": 3600,
+        },
+    )
+    @patch("direct_cli.commands.auth._should_prompt_save_env", return_value=True)
+    def test_auth_login_code_yes_updates_cwd_dotenv(
+        self,
+        mock_should_prompt,
+        mock_exchange,
+        mock_time,
+        isolated_auth_store,
+        monkeypatch,
+        tmp_path,
+    ):
+        env_path = tmp_path / ".env"
+        env_path.write_text(
+            "OTHER=value\nYANDEX_DIRECT_TOKEN=old-token\nYANDEX_DIRECT_LOGIN=old-login\n",
+            encoding="utf-8",
+        )
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("YANDEX_DIRECT_TOKEN", None)
+            os.environ.pop("YANDEX_DIRECT_LOGIN", None)
+            monkeypatch.chdir(tmp_path)
+            runner = CliRunner()
+
+            result = runner.invoke(
+                cli,
+                [
+                    "auth",
+                    "login",
+                    "--profile",
+                    "agency1",
+                    "--code",
+                    "abc123",
+                    "--client-id",
+                    "cid",
+                    "--client-secret",
+                    "secret",
+                    "--login",
+                    "client-login",
+                ],
+                input="y\n",
+            )
+
+        assert result.exit_code == 0, result.output
+        assert env_path.read_text(encoding="utf-8") == (
+            "OTHER=value\n"
+            "YANDEX_DIRECT_TOKEN=access-2\n"
+            "YANDEX_DIRECT_LOGIN=client-login\n"
+        )
+        assert "access-2" not in result.output
+        assert "old-token" not in env_path.read_text(encoding="utf-8")
+
+    @patch(
+        "direct_cli.commands.auth.exchange_oauth_code",
+        return_value={
+            "access_token": "access-3",
+            "refresh_token": "refresh-3",
+            "expires_in": 3600,
+        },
+    )
+    @patch("direct_cli.commands.auth._should_prompt_save_env", return_value=True)
+    def test_auth_login_code_no_leaves_cwd_dotenv_unchanged(
+        self,
+        mock_should_prompt,
+        mock_exchange,
+        isolated_auth_store,
+        monkeypatch,
+        tmp_path,
+    ):
+        env_path = tmp_path / ".env"
+        original = "OTHER=value\nYANDEX_DIRECT_TOKEN=old-token\n"
+        env_path.write_text(original, encoding="utf-8")
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("YANDEX_DIRECT_TOKEN", None)
+            os.environ.pop("YANDEX_DIRECT_LOGIN", None)
+            monkeypatch.chdir(tmp_path)
+            runner = CliRunner()
+
+            result = runner.invoke(
+                cli,
+                [
+                    "auth",
+                    "login",
+                    "--profile",
+                    "agency1",
+                    "--code",
+                    "abc123",
+                    "--client-secret",
+                    "secret",
+                    "--login",
+                    "client-login",
+                ],
+                input="\n",
+            )
+
+        assert result.exit_code == 0, result.output
+        assert env_path.read_text(encoding="utf-8") == original
+        assert "access-3" not in result.output
+
+    @patch(
+        "direct_cli.commands.auth.exchange_oauth_code",
+        return_value={
+            "access_token": "access-4",
+            "refresh_token": "refresh-4",
+            "expires_in": 3600,
+        },
+    )
+    @patch("direct_cli.commands.auth.click.confirm")
+    @patch("direct_cli.commands.auth._should_prompt_save_env", return_value=True)
+    def test_auth_login_code_dash_does_not_prompt_or_write_cwd_dotenv(
+        self,
+        mock_should_prompt,
+        mock_confirm,
+        mock_exchange,
+        isolated_auth_store,
+        monkeypatch,
+        tmp_path,
+    ):
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("YANDEX_DIRECT_TOKEN", None)
+            os.environ.pop("YANDEX_DIRECT_LOGIN", None)
+            monkeypatch.chdir(tmp_path)
+            runner = CliRunner()
+
+            result = runner.invoke(
+                cli,
+                [
+                    "auth",
+                    "login",
+                    "--profile",
+                    "agency1",
+                    "--code",
+                    "-",
+                    "--client-secret",
+                    "secret",
+                    "--login",
+                    "client-login",
+                ],
+                input="abc123\n",
+            )
+
+        assert result.exit_code == 0, result.output
+        assert not (tmp_path / ".env").exists()
+        mock_confirm.assert_not_called()
+        mock_should_prompt.assert_not_called()
+        assert "access-4" not in result.output
 
     def test_auth_store_uses_private_permissions(self, isolated_auth_store):
         save_oauth_profile(
@@ -1565,6 +1765,77 @@ class TestAuthOAuth:
         assert "client_secret" not in result.output
         assert "csecret" not in result.output
 
+    def test_auth_status_json_reports_cwd_dotenv_over_active_profile(
+        self, isolated_auth_store, monkeypatch, tmp_path
+    ):
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("YANDEX_DIRECT_TOKEN", None)
+            os.environ.pop("YANDEX_DIRECT_LOGIN", None)
+            (tmp_path / ".env").write_text(
+                "YANDEX_DIRECT_TOKEN=dotenv-token\nYANDEX_DIRECT_LOGIN=dotenv-login\n",
+                encoding="utf-8",
+            )
+            monkeypatch.chdir(tmp_path)
+            save_oauth_profile(
+                profile="agency1",
+                token="oauth-token-1",
+                login="client-login-1",
+                refresh_token="refresh-1",
+                expires_at=4_100_000_000.0,
+                client_id=DEFAULT_OAUTH_CLIENT_ID,
+            )
+            runner = CliRunner()
+
+            result = runner.invoke(cli, ["auth", "status", "--format", "json"])
+
+        assert result.exit_code == 0
+        assert json.loads(result.output) == {
+            "profile": None,
+            "source": "env",
+            "has_token": True,
+            "login": "dotenv-login",
+        }
+        assert "dotenv-token" not in result.output
+        assert "oauth-token-1" not in result.output
+
+    @patch("direct_cli.commands.auth.time.time", return_value=1000.0)
+    def test_auth_status_explicit_profile_ignores_base_dotenv(
+        self, mock_time, isolated_auth_store, monkeypatch, tmp_path
+    ):
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("YANDEX_DIRECT_TOKEN", None)
+            os.environ.pop("YANDEX_DIRECT_LOGIN", None)
+            (tmp_path / ".env").write_text(
+                "YANDEX_DIRECT_TOKEN=dotenv-token\nYANDEX_DIRECT_LOGIN=dotenv-login\n",
+                encoding="utf-8",
+            )
+            monkeypatch.chdir(tmp_path)
+            save_oauth_profile(
+                profile="agency1",
+                token="oauth-token-1",
+                login="client-login-1",
+                refresh_token="refresh-1",
+                expires_at=4600.0,
+                client_id=DEFAULT_OAUTH_CLIENT_ID,
+            )
+            runner = CliRunner()
+
+            result = runner.invoke(
+                cli, ["auth", "status", "--profile", "agency1", "--format", "json"]
+            )
+
+        assert result.exit_code == 0
+        assert json.loads(result.output) == {
+            "profile": "agency1",
+            "source": "oauth",
+            "has_token": True,
+            "login": "client-login-1",
+            "expires_at": 4600.0,
+            "expires_in_seconds": 3600,
+        }
+        assert "dotenv-token" not in result.output
+        assert "oauth-token-1" not in result.output
+
     def test_auth_status_legacy_oauth_profile_fails(self, isolated_auth_store):
         save_auth_store(
             {
@@ -1695,9 +1966,7 @@ class TestClientLoginResolution:
             load_auth_store()["profiles"]["agency1"]["login"]
             == "managed-client@example.com"
         )
-        assert load_auth_store()["profiles"]["agency1"][
-            "login_migration_checked"
-        ]
+        assert load_auth_store()["profiles"]["agency1"]["login_migration_checked"]
 
     @patch("direct_cli.auth.load_env_file")
     def test_get_credentials_skips_migration_for_bare_login(

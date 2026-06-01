@@ -69,7 +69,7 @@ load_env_file()
 CLI_EPILOG = """\b
 Credential context:
   --login / YANDEX_DIRECT_LOGIN selects the Yandex Direct Client-Login.
-  Use direct auth status to inspect the selected OAuth profile.
+  Use direct auth status to inspect the selected credentials.
 
 \b
 API errors:
@@ -343,6 +343,7 @@ def cli(
     if (
         explicit_login is None
         and active_profile is None
+        and not profile
         and ctx.get_parameter_source("login") is ParameterSource.ENVIRONMENT
     ):
         explicit_login = login
