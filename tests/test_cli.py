@@ -153,6 +153,8 @@ class TestCLI(unittest.TestCase):
             return None
 
         with (
+            patch.dict(os.environ, {}, clear=True),
+            patch.object(auth_module, "load_env_file", return_value=None),
             patch.object(auth_module, "get_active_profile", return_value="default"),
             patch.object(auth_module, "get_oauth_profile", return_value=cold_profile),
             patch.object(
@@ -185,6 +187,8 @@ class TestCLI(unittest.TestCase):
             return None
 
         with (
+            patch.dict(os.environ, {}, clear=True),
+            patch.object(auth_module, "load_env_file", return_value=None),
             patch.object(auth_module, "get_active_profile", return_value="default"),
             patch.object(auth_module, "get_oauth_profile", return_value=cold_profile),
             patch.object(

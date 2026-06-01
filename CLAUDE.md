@@ -24,9 +24,9 @@ Click group-of-groups. Each Yandex Direct API resource = one file in `direct_cli
 
 **Request flow:** `cli.py` → `auth.py` (resolves token/login) → `api.py` (`create_client`) → `tapi_yandex_direct.YandexDirect` → Yandex API → `output.py` (format/print).
 
-**Credentials priority (CLI):** CLI flags (`--token`, `--login`) > active profile from `direct auth login` > env vars (`YANDEX_DIRECT_TOKEN`, `YANDEX_DIRECT_LOGIN`) > `.env` file > 1Password/Bitwarden refs. See `direct_cli/auth.py:600` (`get_credentials`) and README table for the full chain. `load_dotenv()` runs at `cli.py` import time.
+**Credentials priority (CLI):** explicit CLI flags (`--token`, `--login`, `--profile`) > base env/current working directory `.env` (`YANDEX_DIRECT_TOKEN`, `YANDEX_DIRECT_LOGIN`) > active profile from `direct auth login` / `direct auth use` > 1Password/Bitwarden refs. Explicit `--profile` is isolated and does not fall back to base `.env` login. See `direct_cli/auth.py` (`get_credentials`) and README table for the full chain.
 
-**Credentials priority (tests):** **inverted** — env vars > active profile > skip. Tests must not silently hit production when a developer has an active `direct auth` profile, so env vars take precedence over the profile (see `tests/test_v4_live_contracts.py::_credentials`).
+**Credentials priority (tests):** env vars/current working directory `.env` > active profile > skip. Tests must not silently hit production when a developer has an active `direct auth` profile, so env vars take precedence over the profile (see `tests/test_v4_live_contracts.py::_credentials`).
 
 **Shared utilities** (`utils.py`): `parse_ids`, `parse_json`, `build_selection_criteria`, `build_common_params`, `get_default_fields`, `COMMON_FIELDS` dict. All command modules import from here — don't duplicate.
 
@@ -106,7 +106,7 @@ Builds dist artifacts, runs twine checks, uploads to TestPyPI + PyPI. Does **not
 
 - **Unit** (`test_cli.py`, `test_comprehensive.py`) — no API calls, no token needed.
 - **Integration** (`test_integration.py`, `@pytest.mark.integration`) — require `.env` with `YANDEX_DIRECT_TOKEN` and `YANDEX_DIRECT_LOGIN`. Auto-skip if absent.
-- **Credential resolution in tests:** env vars first, then active `direct auth` profile, then skip. This is **inverted** vs. CLI (where the profile wins) on purpose: a developer machine with an active profile must not silently hit production on a plain `pytest`.
+- **Credential resolution in tests:** env vars/current working directory `.env` first, then active `direct auth` profile, then skip. This matches the safe CLI default for base env vs. active profile: a developer machine with an active profile must not silently hit production on a plain `pytest`.
 
 ## Dangerous Commands — Never Auto-Test
 

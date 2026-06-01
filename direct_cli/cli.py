@@ -69,7 +69,7 @@ load_env_file()
 CLI_EPILOG = """\b
 Credential context:
   --login / YANDEX_DIRECT_LOGIN selects the Yandex Direct Client-Login.
-  Use direct auth status to inspect the selected OAuth profile.
+  Use direct auth status to inspect the selected credentials.
 
 \b
 API errors:
@@ -343,6 +343,7 @@ def cli(
     if (
         explicit_login is None
         and active_profile is None
+        and not profile
         and ctx.get_parameter_source("login") is ParameterSource.ENVIRONMENT
     ):
         explicit_login = login
@@ -358,6 +359,14 @@ def cli(
     explicit_bw_login_ref = _command_line_option_value(
         ctx, "bw_login_ref", bw_login_ref
     )
+    if ctx.invoked_subcommand == "auth":
+        ctx.obj["token"] = explicit_token
+        ctx.obj["login"] = explicit_login
+        ctx.obj["op_token_ref"] = op_token_ref
+        ctx.obj["op_login_ref"] = op_login_ref
+        ctx.obj["bw_token_ref"] = bw_token_ref
+        ctx.obj["bw_login_ref"] = bw_login_ref
+        return
 
     # Resolve credentials early so all subcommands get the final values
     has_refs = (

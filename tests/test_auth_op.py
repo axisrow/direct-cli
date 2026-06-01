@@ -1,5 +1,6 @@
 """Tests for 1Password integration in auth module"""
 
+import json
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -152,3 +153,32 @@ class TestCLIOpOptions:
         )
         assert result.exit_code != 0
         assert "1Password CLI (op) not found" in result.output
+
+    @patch(
+        "direct_cli.commands.auth.op_read",
+        side_effect=["resolved-op-token", "resolved-op-login"],
+    )
+    def test_auth_status_json_reports_op_fallback(
+        self, mock_op_read, monkeypatch, tmp_path
+    ):
+        monkeypatch.setattr("direct_cli.auth.AUTH_STORE_PATH", tmp_path / "auth.json")
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
+        monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
+        monkeypatch.delenv("YANDEX_DIRECT_BW_TOKEN_REF", raising=False)
+        monkeypatch.delenv("YANDEX_DIRECT_BW_LOGIN_REF", raising=False)
+        monkeypatch.setenv("YANDEX_DIRECT_OP_TOKEN_REF", "op://vault/item/token")
+        monkeypatch.setenv("YANDEX_DIRECT_OP_LOGIN_REF", "op://vault/item/login")
+        runner = CliRunner()
+
+        result = runner.invoke(cli, ["auth", "status", "--format", "json"])
+
+        assert result.exit_code == 0, result.output
+        assert json.loads(result.output) == {
+            "profile": None,
+            "source": "op",
+            "has_token": True,
+            "login": "resolved-op-login",
+        }
+        assert "resolved-op-token" not in result.output
+        assert mock_op_read.call_count == 2

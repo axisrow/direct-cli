@@ -2,6 +2,7 @@
 
 import ast
 import os
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -103,6 +104,59 @@ def test_load_env_file_does_not_search_from_source_location(monkeypatch, tmp_pat
     assert calls == [run_dir / ".env"]
     assert "YANDEX_DIRECT_TOKEN" not in os.environ
     assert "YANDEX_DIRECT_LOGIN" not in os.environ
+
+
+def test_save_env_credentials_creates_private_cwd_dotenv(monkeypatch, tmp_path):
+    """Saving credentials creates only the cwd .env with private permissions."""
+    monkeypatch.chdir(tmp_path)
+
+    env_path = auth.save_env_credentials("saved-token", "saved-login")
+
+    assert env_path == tmp_path / ".env"
+    assert env_path.read_text(encoding="utf-8") == (
+        "YANDEX_DIRECT_TOKEN=saved-token\n" "YANDEX_DIRECT_LOGIN=saved-login\n"
+    )
+    assert stat.S_IMODE(env_path.stat().st_mode) == 0o600
+
+
+def test_save_env_credentials_tightens_existing_dotenv_permissions(tmp_path):
+    """Saving credentials tightens an existing .env to private permissions."""
+    env_path = tmp_path / ".env"
+    env_path.write_text(
+        "OTHER=value\nYANDEX_DIRECT_TOKEN=old-token\n", encoding="utf-8"
+    )
+    env_path.chmod(0o644)
+
+    updated_path = auth.save_env_credentials(
+        "saved-token", "saved-login", env_path=env_path
+    )
+
+    assert updated_path == env_path
+    assert env_path.read_text(encoding="utf-8") == (
+        "OTHER=value\n"
+        "YANDEX_DIRECT_TOKEN=saved-token\n"
+        "YANDEX_DIRECT_LOGIN=saved-login\n"
+    )
+    assert stat.S_IMODE(env_path.stat().st_mode) == 0o600
+
+
+def test_save_env_credentials_removes_stale_login_when_login_unknown(tmp_path):
+    """Saving a token without a login must not leave a stale env login."""
+    env_path = tmp_path / ".env"
+    env_path.write_text(
+        "OTHER=value\n"
+        "YANDEX_DIRECT_TOKEN=old-token\n"
+        "YANDEX_DIRECT_LOGIN=old-login\n"
+        "AFTER=value\n",
+        encoding="utf-8",
+    )
+
+    auth.save_env_credentials("saved-token", env_path=env_path)
+
+    assert env_path.read_text(encoding="utf-8") == (
+        "OTHER=value\n" "YANDEX_DIRECT_TOKEN=saved-token\n" "AFTER=value\n"
+    )
+    assert stat.S_IMODE(env_path.stat().st_mode) == 0o600
 
 
 def test_cli_routes_early_dotenv_loading_through_auth_helper():
