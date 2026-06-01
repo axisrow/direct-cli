@@ -1798,6 +1798,25 @@ class TestAuthOAuth:
         assert "dotenv-token" not in result.output
         assert "oauth-token-1" not in result.output
 
+    def test_auth_status_json_without_credentials_returns_json(
+        self, isolated_auth_store, monkeypatch, tmp_path
+    ):
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("YANDEX_DIRECT_TOKEN", None)
+            os.environ.pop("YANDEX_DIRECT_LOGIN", None)
+            monkeypatch.chdir(tmp_path)
+            runner = CliRunner()
+
+            result = runner.invoke(cli, ["auth", "status", "--format", "json"])
+
+        assert result.exit_code == 0
+        assert json.loads(result.output) == {
+            "profile": None,
+            "source": None,
+            "has_token": False,
+            "login": None,
+        }
+
     @patch("direct_cli.commands.auth.time.time", return_value=1000.0)
     def test_auth_status_explicit_profile_ignores_base_dotenv(
         self, mock_time, isolated_auth_store, monkeypatch, tmp_path

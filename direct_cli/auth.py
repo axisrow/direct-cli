@@ -136,7 +136,8 @@ def save_env_credentials(
 
     Args:
         token: OAuth access token to store.
-        login: Optional Direct client login to store.
+        login: Optional Direct client login to store; removes any stale env login
+            when omitted.
         env_path: Optional target path, used by tests. Defaults to cwd .env.
 
     Returns:
@@ -152,9 +153,10 @@ def save_env_credentials(
         if existed
         else []
     )
-    replacements = {"YANDEX_DIRECT_TOKEN": _format_dotenv_value(token)}
-    if login:
-        replacements["YANDEX_DIRECT_LOGIN"] = _format_dotenv_value(login)
+    replacements: Dict[str, Optional[str]] = {
+        "YANDEX_DIRECT_TOKEN": _format_dotenv_value(token),
+        "YANDEX_DIRECT_LOGIN": _format_dotenv_value(login) if login else None,
+    }
     seen = set()
     updated_lines = []
 
@@ -168,22 +170,27 @@ def save_env_credentials(
         if matched_key is None:
             updated_lines.append(line)
             continue
+        seen.add(matched_key)
+        if replacements[matched_key] is None:
+            continue
         prefix = "export " if stripped.startswith("export ") else ""
         newline = "\n" if line.endswith("\n") else ""
         updated_lines.append(
             f"{prefix}{matched_key}={replacements[matched_key]}{newline}"
         )
-        seen.add(matched_key)
 
     if updated_lines and not updated_lines[-1].endswith("\n"):
         updated_lines[-1] = f"{updated_lines[-1]}\n"
     for key, value in replacements.items():
-        if key not in seen:
+        if value is not None and key not in seen:
             updated_lines.append(f"{key}={value}\n")
 
-    dotenv_path.write_text("".join(updated_lines), encoding="utf-8")
-    if not existed:
+    if existed:
         os.chmod(dotenv_path, 0o600)
+    fd = os.open(dotenv_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as dotenv_file:
+        dotenv_file.write("".join(updated_lines))
+    os.chmod(dotenv_path, 0o600)
     return dotenv_path
 
 

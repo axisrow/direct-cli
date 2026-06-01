@@ -281,6 +281,19 @@ def status(profile, output_format):
             return
         selected = get_active_profile()
     if not selected:
+        if output_format == "json":
+            click.echo(
+                json.dumps(
+                    {
+                        "profile": None,
+                        "source": None,
+                        "has_token": False,
+                        "login": None,
+                    },
+                    ensure_ascii=False,
+                )
+            )
+            return
         print_info(t("No active profile."))
         return
 
