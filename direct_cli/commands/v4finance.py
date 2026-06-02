@@ -7,7 +7,7 @@ import click
 
 from ..api import create_v4_client
 from ..i18n import t
-from ..output import format_output, print_error
+from ..output import format_output, handle_api_errors
 from ..utils import parse_csv_strings, parse_ids
 from ..v4 import build_v4_body, call_v4
 from ..v4.money import build_finance_token, parse_v4_money_sum, validate_operation_num
@@ -201,6 +201,7 @@ v4finance.i18n_epilog_suffix = V4_EPILOG
 @click.option("--output", help="Output file")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def get_clients_units(ctx, logins, output_format, output, dry_run):
     """Get available API units for clients.
 
@@ -212,20 +213,14 @@ def get_clients_units(ctx, logins, output_format, output, dry_run):
         format_output(build_v4_body("GetClientsUnits", login_list), "json", None)
         return
 
-    try:
-        client = create_v4_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            profile=ctx.obj.get("profile"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
-        data = call_v4(client, "GetClientsUnits", login_list)
-        format_output(data, output_format, output)
-    except click.ClickException:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    client = create_v4_client(
+        token=ctx.obj.get("token"),
+        login=ctx.obj.get("login"),
+        profile=ctx.obj.get("profile"),
+        sandbox=ctx.obj.get("sandbox"),
+    )
+    data = call_v4(client, "GetClientsUnits", login_list)
+    format_output(data, output_format, output)
 
 
 @v4_method_contract("GetCreditLimits")
@@ -261,6 +256,7 @@ def get_clients_units(ctx, logins, output_format, output, dry_run):
 @click.option("--output", help="Output file")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def get_credit_limits(
     ctx,
     finance_token,
@@ -292,22 +288,16 @@ def get_credit_limits(
         )
         return
 
-    try:
-        client = create_v4_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            profile=ctx.obj.get("profile"),
-            sandbox=ctx.obj.get("sandbox"),
-            finance_token=finance_token,
-            operation_num=operation_num,
-        )
-        data = call_v4(client, "GetCreditLimits", None)
-        format_output(data, output_format, output)
-    except click.ClickException:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    client = create_v4_client(
+        token=ctx.obj.get("token"),
+        login=ctx.obj.get("login"),
+        profile=ctx.obj.get("profile"),
+        sandbox=ctx.obj.get("sandbox"),
+        finance_token=finance_token,
+        operation_num=operation_num,
+    )
+    data = call_v4(client, "GetCreditLimits", None)
+    format_output(data, output_format, output)
 
 
 @v4_method_contract("CheckPayment")
@@ -327,6 +317,7 @@ def get_credit_limits(
 @click.option("--output", help="Output file")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def check_payment(
     ctx,
     custom_transaction_id,
@@ -343,20 +334,14 @@ def check_payment(
         format_output(build_v4_body("CheckPayment", param), "json", None)
         return
 
-    try:
-        client = create_v4_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            profile=ctx.obj.get("profile"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
-        data = call_v4(client, "CheckPayment", param)
-        format_output(data, output_format, output)
-    except click.ClickException:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    client = create_v4_client(
+        token=ctx.obj.get("token"),
+        login=ctx.obj.get("login"),
+        profile=ctx.obj.get("profile"),
+        sandbox=ctx.obj.get("sandbox"),
+    )
+    data = call_v4(client, "CheckPayment", param)
+    format_output(data, output_format, output)
 
 
 @v4_method_contract("CreateInvoice")
@@ -405,6 +390,7 @@ def check_payment(
 @click.option("--output", help="Output file")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def create_invoice(
     ctx,
     payments,
@@ -439,22 +425,16 @@ def create_invoice(
         )
         return
 
-    try:
-        client = create_v4_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            profile=ctx.obj.get("profile"),
-            sandbox=ctx.obj.get("sandbox"),
-            finance_token=finance_token,
-            operation_num=operation_num,
-        )
-        data = call_v4(client, "CreateInvoice", param)
-        format_output(data, output_format, output)
-    except click.ClickException:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    client = create_v4_client(
+        token=ctx.obj.get("token"),
+        login=ctx.obj.get("login"),
+        profile=ctx.obj.get("profile"),
+        sandbox=ctx.obj.get("sandbox"),
+        finance_token=finance_token,
+        operation_num=operation_num,
+    )
+    data = call_v4(client, "CreateInvoice", param)
+    format_output(data, output_format, output)
 
 
 @v4_method_contract("TransferMoney")

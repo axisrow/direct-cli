@@ -8,7 +8,7 @@ import click
 
 from ..api import create_v4_client
 from ..i18n import t
-from ..output import format_output, print_error
+from ..output import format_output, handle_api_errors
 from ..utils import parse_csv_strings, parse_ids
 from ..v4 import build_v4_body, call_v4
 from ..v4_contracts import v4_method_contract
@@ -185,6 +185,7 @@ def v4events():
 @click.option("--output", help="Output file")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def get_events_log(
     ctx,
     timestamp_from,
@@ -224,17 +225,11 @@ def get_events_log(
         format_output(build_v4_body("GetEventsLog", param), "json", None)
         return
 
-    try:
-        client = create_v4_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            profile=ctx.obj.get("profile"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
-        data = call_v4(client, "GetEventsLog", param)
-        format_output(data, output_format, output)
-    except click.ClickException:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    client = create_v4_client(
+        token=ctx.obj.get("token"),
+        login=ctx.obj.get("login"),
+        profile=ctx.obj.get("profile"),
+        sandbox=ctx.obj.get("sandbox"),
+    )
+    data = call_v4(client, "GetEventsLog", param)
+    format_output(data, output_format, output)

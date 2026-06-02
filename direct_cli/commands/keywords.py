@@ -436,6 +436,7 @@ def keywords():
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def get(
     ctx,
     ids,
@@ -459,85 +460,76 @@ def get(
     if status and statuses:
         raise click.UsageError(t("--status and --statuses are mutually exclusive"))
 
-    try:
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        field_names = fields.split(",") if fields else get_default_fields("keywords")
+    field_names = fields.split(",") if fields else get_default_fields("keywords")
 
-        parsed_brand_options = parse_csv_strings(
-            autotargeting_settings_brand_options_field_names
-        )
-        if (
-            autotargeting_settings_brand_options_field_names is not None
-            and not parsed_brand_options
-        ):
-            raise click.UsageError(
-                t(
-                    "Provide a non-empty comma-separated "
-                    "AutotargetingSettingsBrandOptionsFieldNames list."
-                )
+    parsed_brand_options = parse_csv_strings(
+        autotargeting_settings_brand_options_field_names
+    )
+    if (
+        autotargeting_settings_brand_options_field_names is not None
+        and not parsed_brand_options
+    ):
+        raise click.UsageError(
+            t(
+                "Provide a non-empty comma-separated "
+                "AutotargetingSettingsBrandOptionsFieldNames list."
             )
-
-        parsed_categories = parse_csv_strings(
-            autotargeting_settings_categories_field_names
         )
-        if (
-            autotargeting_settings_categories_field_names is not None
-            and not parsed_categories
-        ):
-            raise click.UsageError(
-                t(
-                    "Provide a non-empty comma-separated "
-                    "AutotargetingSettingsCategoriesFieldNames list."
-                )
+
+    parsed_categories = parse_csv_strings(autotargeting_settings_categories_field_names)
+    if (
+        autotargeting_settings_categories_field_names is not None
+        and not parsed_categories
+    ):
+        raise click.UsageError(
+            t(
+                "Provide a non-empty comma-separated "
+                "AutotargetingSettingsCategoriesFieldNames list."
             )
+        )
 
-        criteria = {}
-        if ids:
-            criteria["Ids"] = parse_ids(ids)
-        if adgroup_ids:
-            criteria["AdGroupIds"] = parse_ids(adgroup_ids)
-        if campaign_ids:
-            criteria["CampaignIds"] = parse_ids(campaign_ids)
-        if status:
-            criteria["Statuses"] = [status]
-        add_criteria_csv(criteria, "Statuses", statuses, upper=True)
-        add_criteria_csv(criteria, "States", states, upper=True)
-        if modified_since:
-            criteria["ModifiedSince"] = modified_since
-        add_criteria_csv(criteria, "ServingStatuses", serving_statuses, upper=True)
+    criteria = {}
+    if ids:
+        criteria["Ids"] = parse_ids(ids)
+    if adgroup_ids:
+        criteria["AdGroupIds"] = parse_ids(adgroup_ids)
+    if campaign_ids:
+        criteria["CampaignIds"] = parse_ids(campaign_ids)
+    if status:
+        criteria["Statuses"] = [status]
+    add_criteria_csv(criteria, "Statuses", statuses, upper=True)
+    add_criteria_csv(criteria, "States", states, upper=True)
+    if modified_since:
+        criteria["ModifiedSince"] = modified_since
+    add_criteria_csv(criteria, "ServingStatuses", serving_statuses, upper=True)
 
-        params = {"SelectionCriteria": criteria, "FieldNames": field_names}
-        if parsed_brand_options:
-            params["AutotargetingSettingsBrandOptionsFieldNames"] = parsed_brand_options
-        if parsed_categories:
-            params["AutotargetingSettingsCategoriesFieldNames"] = parsed_categories
+    params = {"SelectionCriteria": criteria, "FieldNames": field_names}
+    if parsed_brand_options:
+        params["AutotargetingSettingsBrandOptionsFieldNames"] = parsed_brand_options
+    if parsed_categories:
+        params["AutotargetingSettingsCategoriesFieldNames"] = parsed_categories
 
-        if limit:
-            params["Page"] = {"Limit": limit}
+    if limit:
+        params["Page"] = {"Limit": limit}
 
-        body = {"method": "get", "params": params}
+    body = {"method": "get", "params": params}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        result = client.keywords().post(data=body)
+    result = client.keywords().post(data=body)
 
-        if fetch_all:
-            items = []
-            for item in result().iter_items():
-                items.append(item)
-            format_output(items, output_format, output)
-        else:
-            data = result().extract()
-            format_output(data, output_format, output)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    if fetch_all:
+        items = []
+        for item in result().iter_items():
+            items.append(item)
+        format_output(items, output_format, output)
+    else:
+        data = result().extract()
+        format_output(data, output_format, output)
 
 
 @keywords.command()
@@ -628,6 +620,7 @@ def get(
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def add(
     ctx,
     adgroup_id,
@@ -745,48 +738,41 @@ def add(
         brand_options=autotargeting_brand_options,
     )
 
-    try:
-        keyword_data: Dict[str, Any] = {
-            "AdGroupId": adgroup_id,
-            "Keyword": keyword,
-        }
-        if bid is not None:
-            keyword_data["Bid"] = bid
-        if context_bid is not None:
-            keyword_data["ContextBid"] = context_bid
-        if autotargeting_search_bid_is_auto is not None:
-            keyword_data["AutotargetingSearchBidIsAuto"] = (
-                autotargeting_search_bid_is_auto.upper()
-            )
-        if priority is not None:
-            keyword_data["StrategyPriority"] = priority.upper()
-        if parsed_autotargeting_categories is not None:
-            keyword_data["AutotargetingCategories"] = parsed_autotargeting_categories
-        if parsed_autotargeting_brand_options is not None:
-            keyword_data["AutotargetingBrandOptions"] = (
-                parsed_autotargeting_brand_options
-            )
-        if autotargeting_settings is not None:
-            keyword_data["AutotargetingSettings"] = autotargeting_settings
-        if user_param_1:
-            keyword_data["UserParam1"] = user_param_1
-        if user_param_2:
-            keyword_data["UserParam2"] = user_param_2
+    keyword_data: Dict[str, Any] = {
+        "AdGroupId": adgroup_id,
+        "Keyword": keyword,
+    }
+    if bid is not None:
+        keyword_data["Bid"] = bid
+    if context_bid is not None:
+        keyword_data["ContextBid"] = context_bid
+    if autotargeting_search_bid_is_auto is not None:
+        keyword_data["AutotargetingSearchBidIsAuto"] = (
+            autotargeting_search_bid_is_auto.upper()
+        )
+    if priority is not None:
+        keyword_data["StrategyPriority"] = priority.upper()
+    if parsed_autotargeting_categories is not None:
+        keyword_data["AutotargetingCategories"] = parsed_autotargeting_categories
+    if parsed_autotargeting_brand_options is not None:
+        keyword_data["AutotargetingBrandOptions"] = parsed_autotargeting_brand_options
+    if autotargeting_settings is not None:
+        keyword_data["AutotargetingSettings"] = autotargeting_settings
+    if user_param_1:
+        keyword_data["UserParam1"] = user_param_1
+    if user_param_2:
+        keyword_data["UserParam2"] = user_param_2
 
-        body = {"method": "add", "params": {"Keywords": [keyword_data]}}
+    body = {"method": "add", "params": {"Keywords": [keyword_data]}}
 
-        if dry_run:
-            format_output(body, output_format, None)
-            return
+    if dry_run:
+        format_output(body, output_format, None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        result = client.keywords().post(data=body)
-        format_output(result().extract(), output_format, None)
-
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.keywords().post(data=body)
+    format_output(result().extract(), output_format, None)
 
 
 def _bulk_add(
@@ -970,6 +956,7 @@ def _deprecated_bid_option(ctx, param, value):
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def update(
     ctx,
     keyword_id,
@@ -1036,21 +1023,16 @@ def update(
             )
         )
 
-    try:
-        body = {"method": "update", "params": {"Keywords": [keyword_data]}}
+    body = {"method": "update", "params": {"Keywords": [keyword_data]}}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        result = client.keywords().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.keywords().post(data=body)
+    format_output(result().extract(), "json", None)
 
 
 @keywords.command()

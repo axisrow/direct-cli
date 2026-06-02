@@ -6,7 +6,7 @@ import click
 
 from ..api import client_from_ctx, create_client
 from ..i18n import t
-from ..output import format_output, handle_api_errors, print_error
+from ..output import format_output, handle_api_errors
 from ..utils import get_default_fields, parse_changes_datetime, parse_ids
 
 
@@ -51,6 +51,7 @@ _CHECK_FIELD_NAMES = frozenset({"CampaignIds", "AdGroupIds", "AdIds", "Campaigns
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.pass_context
+@handle_api_errors
 def check(
     ctx, campaign_ids, ad_group_ids, ad_ids, timestamp, fields, output_format, output
 ):
@@ -108,23 +109,18 @@ def check(
             t("{id_flag} produced no valid IDs.").format(id_flag=id_flag)
         )
 
-    try:
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        params = {
-            id_field: id_value,
-            "Timestamp": parse_changes_datetime(timestamp),
-            "FieldNames": field_names,
-        }
+    params = {
+        id_field: id_value,
+        "Timestamp": parse_changes_datetime(timestamp),
+        "FieldNames": field_names,
+    }
 
-        body = {"method": "check", "params": params}
+    body = {"method": "check", "params": params}
 
-        result = client.changes().post(data=body)
-        format_output(result.data, output_format, output)
-
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.changes().post(data=body)
+    format_output(result.data, output_format, output)
 
 
 @changes.command()
