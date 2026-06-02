@@ -4,7 +4,7 @@ KeywordsResearch commands
 
 import click
 
-from ..api import create_client
+from ..api import client_from_ctx, create_client
 from ..output import format_output, print_error
 from ..utils import get_default_fields, parse_ids
 
@@ -28,11 +28,7 @@ def keywordsresearch():
 def has_search_volume(ctx, keywords, region_ids, fields, output_format, output):
     """Check if keywords have search volume"""
     try:
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         field_names = (
             [f.strip() for f in fields.split(",")]
@@ -67,11 +63,7 @@ def has_search_volume(ctx, keywords, region_ids, fields, output_format, output):
 def deduplicate(ctx, keywords, output_format, output):
     """Deduplicate keywords"""
     try:
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         body = {
             "method": "deduplicate",

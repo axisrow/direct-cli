@@ -4,7 +4,7 @@ AdVideos commands
 
 import click
 
-from ..api import create_client
+from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import get_default_fields, load_base64_file
@@ -27,11 +27,7 @@ def advideos():
 def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
     """Get ad videos"""
     try:
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         field_names = fields.split(",") if fields else get_default_fields("advideos")
 
@@ -103,11 +99,7 @@ def add(ctx, url, video_data, video_file, name, dry_run):
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         result = client.advideos().post(data=body)
         format_output(result().extract(), "json", None)

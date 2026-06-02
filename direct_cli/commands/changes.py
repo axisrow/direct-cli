@@ -4,7 +4,7 @@ Changes commands
 
 import click
 
-from ..api import create_client
+from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import get_default_fields, parse_changes_datetime, parse_ids
@@ -109,11 +109,7 @@ def check(
         )
 
     try:
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         params = {
             id_field: id_value,
@@ -146,11 +142,7 @@ def check(
 def check_campaigns(ctx, timestamp, output_format, output):
     """Check campaigns changes"""
     try:
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         params = {"Timestamp": parse_changes_datetime(timestamp)}
 
@@ -171,11 +163,7 @@ def check_campaigns(ctx, timestamp, output_format, output):
 def check_dictionaries(ctx, output_format, output):
     """Check dictionaries changes"""
     try:
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         body = {"method": "checkDictionaries", "params": {}}
 

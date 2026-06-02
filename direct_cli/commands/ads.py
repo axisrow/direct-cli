@@ -6,7 +6,7 @@ from typing import Optional
 
 import click
 
-from ..api import create_client
+from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import (
@@ -1059,11 +1059,7 @@ def get(
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         result = client.ads().post(data=body)
 
@@ -1731,11 +1727,7 @@ def add(
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         result = client.ads().post(data=body)
         format_output(result().extract(), "json", None)
@@ -2344,11 +2336,7 @@ def update(
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         result = client.ads().post(data=body)
         format_output(result().extract(), "json", None)
@@ -2373,11 +2361,7 @@ def delete(ctx, ad_id, dry_run):
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         result = client.ads().post(data=body)
         format_output(result().extract(), "json", None)
@@ -2402,11 +2386,7 @@ def archive(ctx, ad_id, dry_run):
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         result = client.ads().post(data=body)
         format_output(result().extract(), "json", None)
@@ -2434,11 +2414,7 @@ def unarchive(ctx, ad_id, dry_run):
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         result = client.ads().post(data=body)
         format_output(result().extract(), "json", None)
@@ -2463,11 +2439,7 @@ def suspend(ctx, ad_id, dry_run):
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         result = client.ads().post(data=body)
         format_output(result().extract(), "json", None)
@@ -2492,11 +2464,7 @@ def resume(ctx, ad_id, dry_run):
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         result = client.ads().post(data=body)
         format_output(result().extract(), "json", None)
@@ -2521,11 +2489,7 @@ def moderate(ctx, ad_id, dry_run):
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         result = client.ads().post(data=body)
         format_output(result().extract(), "json", None)

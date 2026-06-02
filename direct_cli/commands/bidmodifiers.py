@@ -4,7 +4,7 @@ BidModifiers commands
 
 import click
 
-from ..api import create_client
+from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import get_default_fields, parse_csv_strings, parse_ids
@@ -175,11 +175,7 @@ def get(
 ):
     """Get bid modifiers"""
     try:
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         raw_nested = (
             ("AdGroupAdjustmentFieldNames", ad_group_adjustment_field_names),
@@ -461,11 +457,7 @@ def add(
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         result = client.bidmodifiers().post(data=body)
         format_output(result().extract(), "json", None)
@@ -559,11 +551,7 @@ def set(ctx, modifier_id, value, dry_run):
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         result = client.bidmodifiers().post(data=body)
         format_output(result().extract(), "json", None)
@@ -591,11 +579,7 @@ def delete(ctx, modifier_id, dry_run):
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         result = client.bidmodifiers().post(data=body)
         format_output(result().extract(), "json", None)

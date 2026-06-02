@@ -4,7 +4,7 @@ AdExtensions commands
 
 import click
 
-from ..api import create_client
+from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import add_criteria_csv, get_default_fields, parse_csv_strings, parse_ids
@@ -49,11 +49,7 @@ def get(
 ):
     """Get ad extensions"""
     try:
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         field_names = parse_csv_strings(fields) or get_default_fields("adextensions")
         parsed_callout_field_names = parse_csv_strings(callout_field_names)
@@ -118,11 +114,7 @@ def add(ctx, callout_text, dry_run):
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         result = client.adextensions().post(data=body)
         format_output(result().extract(), "json", None)
@@ -150,11 +142,7 @@ def delete(ctx, extension_id, dry_run):
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         result = client.adextensions().post(data=body)
         format_output(result().extract(), "json", None)

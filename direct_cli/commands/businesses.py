@@ -4,7 +4,7 @@ Businesses commands
 
 import click
 
-from ..api import create_client
+from ..api import client_from_ctx, create_client
 from ..output import format_output, print_error
 from ..utils import get_default_fields, parse_ids
 
@@ -26,11 +26,7 @@ def businesses():
 def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
     """Get businesses"""
     try:
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         field_names = fields.split(",") if fields else get_default_fields("businesses")
 

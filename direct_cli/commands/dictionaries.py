@@ -4,7 +4,7 @@ Dictionaries commands
 
 import click
 
-from ..api import create_client
+from ..api import client_from_ctx, create_client
 from ..output import format_output, print_error
 from ..utils import parse_csv_strings, parse_ids
 
@@ -39,11 +39,7 @@ def dictionaries():
 def get(ctx, names, output_format, output):
     """Get dictionaries"""
     try:
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         dictionary_names = [n.strip() for n in names.split(",")]
 
@@ -68,11 +64,7 @@ def get(ctx, names, output_format, output):
 def get_geo_regions(ctx, name, region_ids, exact_names, fields, output_format, output):
     """Get GeoRegions dictionary entries"""
     try:
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         params = {"FieldNames": [name.strip() for name in fields.split(",")]}
         selection_criteria = {}

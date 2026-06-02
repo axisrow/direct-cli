@@ -4,7 +4,7 @@ NegativeKeywordSharedSets commands
 
 import click
 
-from ..api import create_client
+from ..api import client_from_ctx, create_client
 from ..output import format_output, print_error
 from ..utils import get_default_fields, parse_ids
 
@@ -26,11 +26,7 @@ def negativekeywordsharedsets():
 def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
     """Get negative keyword shared sets"""
     try:
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         field_names = (
             fields.split(",")
@@ -92,11 +88,7 @@ def add(ctx, name, keywords, dry_run):
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         result = client.negativekeywordsharedsets().post(data=body)
         format_output(result().extract(), "json", None)
@@ -135,11 +127,7 @@ def update(ctx, set_id, name, keywords, dry_run):
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         result = client.negativekeywordsharedsets().post(data=body)
         format_output(result().extract(), "json", None)
@@ -164,11 +152,7 @@ def delete(ctx, set_id, dry_run):
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         result = client.negativekeywordsharedsets().post(data=body)
         format_output(result().extract(), "json", None)
