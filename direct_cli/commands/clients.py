@@ -103,7 +103,7 @@ def get(
     """Get clients"""
     client = client_from_ctx(ctx, create_client)
 
-    field_names = fields.split(",") if fields else get_default_fields("clients")
+    field_names = parse_csv_strings(fields) or get_default_fields("clients")
 
     raw_nested = (
         ("ContractFieldNames", contract_field_names),

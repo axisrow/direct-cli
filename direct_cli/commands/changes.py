@@ -7,7 +7,12 @@ import click
 from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
-from ..utils import get_default_fields, parse_changes_datetime, parse_ids
+from ..utils import (
+    get_default_fields,
+    parse_changes_datetime,
+    parse_csv_strings,
+    parse_ids,
+)
 
 
 @click.group()
@@ -77,7 +82,7 @@ def check(
         )
 
     if fields:
-        field_names = [f.strip() for f in fields.split(",") if f.strip()]
+        field_names = parse_csv_strings(fields)
         if not field_names:
             raise click.UsageError(
                 t(

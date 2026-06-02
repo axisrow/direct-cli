@@ -7,7 +7,7 @@ import click
 from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
-from ..utils import get_default_fields, parse_csv_strings, parse_ids
+from ..utils import get_default_fields, parse_csv_strings, parse_csv_upper, parse_ids
 
 
 @click.group()
@@ -212,11 +212,9 @@ def get(
     if adgroup_ids:
         criteria["AdGroupIds"] = parse_ids(adgroup_ids)
     if types:
-        criteria["Types"] = [
-            item.strip().upper() for item in types.split(",") if item.strip()
-        ]
+        criteria["Types"] = parse_csv_upper(types) or []
 
-    field_names = fields.split(",") if fields else get_default_fields("bidmodifiers")
+    field_names = parse_csv_strings(fields) or get_default_fields("bidmodifiers")
     params = {
         "SelectionCriteria": criteria,
         "FieldNames": field_names,

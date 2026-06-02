@@ -7,7 +7,7 @@ import click
 from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
-from ..utils import get_default_fields, parse_csv_strings, parse_ids
+from ..utils import get_default_fields, parse_csv_strings, parse_csv_upper, parse_ids
 
 
 @click.group()
@@ -77,7 +77,7 @@ def get(
     """Get creatives"""
     client = client_from_ctx(ctx, create_client)
 
-    field_names = fields.split(",") if fields else get_default_fields("creatives")
+    field_names = parse_csv_strings(fields) or get_default_fields("creatives")
 
     nested_field_name_options = (
         ("CpcVideoCreativeFieldNames", cpc_video_creative_field_names),
@@ -104,9 +104,7 @@ def get(
     if ids:
         criteria["Ids"] = parse_ids(ids)
     if types:
-        criteria["Types"] = [
-            item.strip().upper() for item in types.split(",") if item.strip()
-        ]
+        criteria["Types"] = parse_csv_upper(types) or []
 
     params = {"SelectionCriteria": criteria, "FieldNames": field_names}
     params.update(parsed_nested_field_names)

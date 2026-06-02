@@ -11,7 +11,7 @@ import click
 
 from ..api import client_from_ctx, create_client
 from ..output import format_output, handle_api_errors
-from ..utils import get_default_fields, get_options, parse_ids
+from ..utils import get_default_fields, get_options, parse_csv_strings, parse_ids
 
 
 @click.group()
@@ -31,15 +31,13 @@ def get(
     """Get Turbo Pages"""
     client = client_from_ctx(ctx, create_client)
 
-    field_names = fields.split(",") if fields else get_default_fields("turbopages")
+    field_names = parse_csv_strings(fields) or get_default_fields("turbopages")
 
     criteria = {}
     if ids:
         criteria["Ids"] = parse_ids(ids)
     if bound_with_hrefs:
-        criteria["BoundWithHrefs"] = [
-            item.strip() for item in bound_with_hrefs.split(",") if item.strip()
-        ]
+        criteria["BoundWithHrefs"] = parse_csv_strings(bound_with_hrefs) or []
 
     params = {"FieldNames": field_names}
     if criteria:

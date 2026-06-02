@@ -9,7 +9,12 @@ import click
 from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
-from ..utils import get_default_fields, parse_ids, parse_retargeting_rule_specs
+from ..utils import (
+    get_default_fields,
+    parse_csv_strings,
+    parse_ids,
+    parse_retargeting_rule_specs,
+)
 
 
 @click.group()
@@ -31,9 +36,7 @@ def get(ctx, ids, types, limit, fetch_all, output_format, output, fields):
     """Get retargeting lists"""
     client = client_from_ctx(ctx, create_client)
 
-    field_names = (
-        fields.split(",") if fields else get_default_fields("retargetinglists")
-    )
+    field_names = parse_csv_strings(fields) or get_default_fields("retargetinglists")
 
     criteria = {}
     if ids:

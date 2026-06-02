@@ -301,6 +301,29 @@ def test_get_selection_criteria_new_typed_flags_payloads():
             assert criteria[key] == value
 
 
+def test_fields_whitespace_is_trimmed_after_csv_dedup():
+    """B2a (#497): --fields with surrounding spaces now trims via parse_csv_strings.
+
+    Before the dedup these field names were sent untrimmed (e.g. ``[" Name"]``);
+    parse_csv_strings strips whitespace and drops empty items.
+    """
+    body = _read_dry_run("adimages", "get", "--fields", "Id, Name ")
+    assert body["params"]["FieldNames"] == ["Id", "Name"]
+
+    body = _read_dry_run(
+        "bids", "get", "--campaign-ids", "1", "--fields", " Bid , CampaignId "
+    )
+    assert body["params"]["FieldNames"] == ["Bid", "CampaignId"]
+
+
+def test_states_whitespace_is_trimmed_and_uppercased_after_csv_dedup():
+    """B2a (#497): --states trims + uppercases via parse_csv_upper."""
+    body = _read_dry_run(
+        "dynamicads", "get", "--adgroup-ids", "1", "--states", " active , suspended "
+    )
+    assert body["params"]["SelectionCriteria"]["States"] == ["ACTIVE", "SUSPENDED"]
+
+
 def test_get_status_and_statuses_are_mutually_exclusive():
     """Legacy --status must not be silently overwritten by --statuses."""
     for command in ("adgroups", "ads", "campaigns", "keywords"):
@@ -460,7 +483,9 @@ def test_campaigns_get_rejects_empty_campaign_specific_fields_csv():
     )
 
     assert result.exit_code != 0
-    assert "--text-campaign-field-names must contain at least one value" in result.output
+    assert (
+        "--text-campaign-field-names must contain at least one value" in result.output
+    )
 
 
 def _reports_get_result(*extra_args: str) -> Result:
@@ -8343,7 +8368,9 @@ def test_campaigns_add_unified_priority_goals_with_mixed_strategy_sides_payload(
         "1234567:80000000",
     )
     unified = body["params"]["Campaigns"][0]["UnifiedCampaign"]
-    assert unified["PriorityGoals"] == {"Items": [{"GoalId": 1234567, "Value": 80000000}]}
+    assert unified["PriorityGoals"] == {
+        "Items": [{"GoalId": 1234567, "Value": 80000000}]
+    }
     bidding = unified["BiddingStrategy"]
     assert bidding["Search"]["BiddingStrategyType"] == "AVERAGE_CPC"
     assert bidding["Network"]["BiddingStrategyType"] == "MAX_PROFIT"
@@ -22181,8 +22208,7 @@ def test_sitelinks_get_rejects_empty_sitelink_field_names():
 
     assert result.exit_code != 0
     assert (
-        "Provide a non-empty comma-separated SitelinkFieldNames list."
-        in result.output
+        "Provide a non-empty comma-separated SitelinkFieldNames list." in result.output
     )
 
 
@@ -22261,10 +22287,7 @@ def test_keywordbids_get_rejects_empty_search_field_names():
     )
 
     assert result.exit_code != 0
-    assert (
-        "Provide a non-empty comma-separated SearchFieldNames list."
-        in result.output
-    )
+    assert "Provide a non-empty comma-separated SearchFieldNames list." in result.output
 
 
 def test_keywordbids_get_rejects_empty_network_field_names():
@@ -22276,8 +22299,7 @@ def test_keywordbids_get_rejects_empty_network_field_names():
 
     assert result.exit_code != 0
     assert (
-        "Provide a non-empty comma-separated NetworkFieldNames list."
-        in result.output
+        "Provide a non-empty comma-separated NetworkFieldNames list." in result.output
     )
 
 
@@ -22340,8 +22362,7 @@ def test_feeds_get_rejects_empty_file_feed_field_names_csv():
 
     assert result.exit_code != 0
     assert (
-        "Provide a non-empty comma-separated FileFeedFieldNames list."
-        in result.output
+        "Provide a non-empty comma-separated FileFeedFieldNames list." in result.output
     )
 
 
@@ -22354,8 +22375,7 @@ def test_feeds_get_rejects_empty_url_feed_field_names_csv():
 
     assert result.exit_code != 0
     assert (
-        "Provide a non-empty comma-separated UrlFeedFieldNames list."
-        in result.output
+        "Provide a non-empty comma-separated UrlFeedFieldNames list." in result.output
     )
 
 
@@ -22426,8 +22446,7 @@ def test_keywords_get_rejects_empty_brand_options_field_names_csv():
     assert result.exit_code != 0
     assert (
         "Provide a non-empty comma-separated "
-        "AutotargetingSettingsBrandOptionsFieldNames list."
-        in result.output
+        "AutotargetingSettingsBrandOptionsFieldNames list." in result.output
     )
 
 
@@ -22447,8 +22466,7 @@ def test_keywords_get_rejects_empty_categories_field_names_csv():
     assert result.exit_code != 0
     assert (
         "Provide a non-empty comma-separated "
-        "AutotargetingSettingsCategoriesFieldNames list."
-        in result.output
+        "AutotargetingSettingsCategoriesFieldNames list." in result.output
     )
 
 

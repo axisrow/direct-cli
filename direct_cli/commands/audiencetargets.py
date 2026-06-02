@@ -12,6 +12,7 @@ from ..utils import (
     add_criteria_csv,
     get_default_fields,
     get_options,
+    parse_csv_strings,
     parse_ids,
 )
 
@@ -62,7 +63,7 @@ def get(
     add_criteria_csv(criteria, "InterestIds", interest_ids, integers=True)
     add_criteria_csv(criteria, "States", states, upper=True)
 
-    field_names = fields.split(",") if fields else get_default_fields("audiencetargets")
+    field_names = parse_csv_strings(fields) or get_default_fields("audiencetargets")
     params = {
         "SelectionCriteria": criteria,
         "FieldNames": field_names,

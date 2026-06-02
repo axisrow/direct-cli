@@ -156,7 +156,7 @@ def get(
     """Get feeds"""
     client = client_from_ctx(ctx, create_client)
 
-    field_names = fields.split(",") if fields else get_default_fields("feeds")
+    field_names = parse_csv_strings(fields) or get_default_fields("feeds")
 
     parsed_file_feed_field_names = parse_csv_strings(file_feed_field_names)
     if file_feed_field_names is not None and not parsed_file_feed_field_names:

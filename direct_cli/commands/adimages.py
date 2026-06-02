@@ -12,6 +12,7 @@ from ..utils import (
     get_default_fields,
     get_options,
     load_base64_file,
+    parse_csv_strings,
     parse_ids,
 )
 
@@ -43,7 +44,7 @@ def get(
     """Get ad images"""
     client = client_from_ctx(ctx, create_client)
 
-    field_names = fields.split(",") if fields else get_default_fields("adimages")
+    field_names = parse_csv_strings(fields) or get_default_fields("adimages")
 
     criteria = {}
     if ids:

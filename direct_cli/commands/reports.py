@@ -119,7 +119,7 @@ def _parse_filter(filter_str):
     field, operator, values_raw = parts
     field = field.strip()
     operator = operator.strip().upper()
-    values = [v.strip() for v in values_raw.split(",") if v.strip()]
+    values = parse_csv_strings(values_raw)
     if field in {"Goals", "AttributionModels"}:
         raise ValueError(f"{field} is a ReportDefinition field, not a filter field")
     _validate_report_field_usage(field, "Filter.Field")
@@ -218,7 +218,7 @@ def build_report_request(
     Returns:
         Reports API request body with CLI-normalized filters and field names.
     """
-    field_names = [field.strip() for field in fields.split(",") if field.strip()]
+    field_names = parse_csv_strings(fields)
     if not field_names:
         # Live API error 8000: "FieldNames must contain no less than 1
         # elements". Click ``required=True`` only checks presence, not content,
