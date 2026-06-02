@@ -6,7 +6,7 @@ import click
 
 from ..api import client_from_ctx, create_client
 from ..i18n import t
-from ..output import format_output, print_error
+from ..output import format_output, handle_api_errors, print_error
 from ..utils import (
     add_criteria_csv,
     add_single_id_selector,
@@ -60,6 +60,7 @@ def keywordbids():
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def get(
     ctx,
     keyword_ids,
@@ -76,83 +77,76 @@ def get(
     dry_run,
 ):
     """Get keyword bids"""
-    try:
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        parsed_fields = parse_csv_strings(fields)
-        if fields is not None and not parsed_fields:
-            raise click.UsageError(
-                t("Provide a non-empty comma-separated FieldNames list.")
+    parsed_fields = parse_csv_strings(fields)
+    if fields is not None and not parsed_fields:
+        raise click.UsageError(
+            t("Provide a non-empty comma-separated FieldNames list.")
+        )
+    parsed_search_field_names = parse_csv_strings(search_field_names)
+    if search_field_names is not None and not parsed_search_field_names:
+        raise click.UsageError(
+            t("Provide a non-empty comma-separated SearchFieldNames list.")
+        )
+    parsed_network_field_names = parse_csv_strings(network_field_names)
+    if network_field_names is not None and not parsed_network_field_names:
+        raise click.UsageError(
+            t("Provide a non-empty comma-separated NetworkFieldNames list.")
+        )
+
+    criteria = {}
+    if keyword_ids:
+        criteria["KeywordIds"] = parse_ids(keyword_ids)
+    if adgroup_ids:
+        criteria["AdGroupIds"] = parse_ids(adgroup_ids)
+    if campaign_ids:
+        criteria["CampaignIds"] = parse_ids(campaign_ids)
+    add_criteria_csv(criteria, "ServingStatuses", serving_statuses, upper=True)
+
+    if not criteria:
+        raise click.UsageError(
+            t(
+                "keywordbids get requires at least one filter: "
+                "--keyword-ids, --adgroup-ids, --campaign-ids, "
+                "or --serving-statuses."
             )
-        parsed_search_field_names = parse_csv_strings(search_field_names)
-        if search_field_names is not None and not parsed_search_field_names:
-            raise click.UsageError(
-                t("Provide a non-empty comma-separated SearchFieldNames list.")
-            )
-        parsed_network_field_names = parse_csv_strings(network_field_names)
-        if network_field_names is not None and not parsed_network_field_names:
-            raise click.UsageError(
-                t("Provide a non-empty comma-separated NetworkFieldNames list.")
-            )
+        )
 
-        criteria = {}
-        if keyword_ids:
-            criteria["KeywordIds"] = parse_ids(keyword_ids)
-        if adgroup_ids:
-            criteria["AdGroupIds"] = parse_ids(adgroup_ids)
-        if campaign_ids:
-            criteria["CampaignIds"] = parse_ids(campaign_ids)
-        add_criteria_csv(criteria, "ServingStatuses", serving_statuses, upper=True)
+    params = {
+        "SelectionCriteria": criteria,
+        "FieldNames": (
+            parsed_fields or get_default_fields("keywordbids", "FieldNames")
+        ),
+        "SearchFieldNames": (
+            parsed_search_field_names
+            or get_default_fields("keywordbids", "SearchFieldNames")
+        ),
+        "NetworkFieldNames": (
+            parsed_network_field_names
+            or get_default_fields("keywordbids", "NetworkFieldNames")
+        ),
+    }
 
-        if not criteria:
-            raise click.UsageError(
-                t(
-                    "keywordbids get requires at least one filter: "
-                    "--keyword-ids, --adgroup-ids, --campaign-ids, "
-                    "or --serving-statuses."
-                )
-            )
+    if limit:
+        params["Page"] = {"Limit": limit}
 
-        params = {
-            "SelectionCriteria": criteria,
-            "FieldNames": (
-                parsed_fields or get_default_fields("keywordbids", "FieldNames")
-            ),
-            "SearchFieldNames": (
-                parsed_search_field_names
-                or get_default_fields("keywordbids", "SearchFieldNames")
-            ),
-            "NetworkFieldNames": (
-                parsed_network_field_names
-                or get_default_fields("keywordbids", "NetworkFieldNames")
-            ),
-        }
+    body = {"method": "get", "params": params}
 
-        if limit:
-            params["Page"] = {"Limit": limit}
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        body = {"method": "get", "params": params}
+    result = client.keywordbids().post(data=body)
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
-
-        result = client.keywordbids().post(data=body)
-
-        if fetch_all:
-            items = []
-            for item in result().iter_items():
-                items.append(item)
-            format_output(items, output_format, output)
-        else:
-            data = result().extract()
-            format_output(data, output_format, output)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    if fetch_all:
+        items = []
+        for item in result().iter_items():
+            items.append(item)
+        format_output(items, output_format, output)
+    else:
+        data = result().extract()
+        format_output(data, output_format, output)
 
 
 @keywordbids.command()
@@ -258,6 +252,7 @@ def set(
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def set_auto(
     ctx,
     campaign_id,
@@ -270,50 +265,41 @@ def set_auto(
     dry_run,
 ):
     """Configure automatic keyword bidding"""
-    try:
-        if (target_traffic_volume is None) == (target_coverage is None):
-            raise click.UsageError(
-                t("Provide exactly one of --target-traffic-volume or --target-coverage")
-            )
+    if (target_traffic_volume is None) == (target_coverage is None):
+        raise click.UsageError(
+            t("Provide exactly one of --target-traffic-volume or --target-coverage")
+        )
 
-        bidding_rule = {}
-        if target_traffic_volume is not None:
-            bidding_rule["SearchByTrafficVolume"] = {
-                "TargetTrafficVolume": target_traffic_volume
-            }
-            if increase_percent is not None:
-                bidding_rule["SearchByTrafficVolume"][
-                    "IncreasePercent"
-                ] = increase_percent
-            if bid_ceiling is not None:
-                bidding_rule["SearchByTrafficVolume"]["BidCeiling"] = bid_ceiling
-        if target_coverage is not None:
-            bidding_rule["NetworkByCoverage"] = {"TargetCoverage": target_coverage}
-            if increase_percent is not None:
-                bidding_rule["NetworkByCoverage"]["IncreasePercent"] = increase_percent
-            if bid_ceiling is not None:
-                bidding_rule["NetworkByCoverage"]["BidCeiling"] = bid_ceiling
+    bidding_rule = {}
+    if target_traffic_volume is not None:
+        bidding_rule["SearchByTrafficVolume"] = {
+            "TargetTrafficVolume": target_traffic_volume
+        }
+        if increase_percent is not None:
+            bidding_rule["SearchByTrafficVolume"]["IncreasePercent"] = increase_percent
+        if bid_ceiling is not None:
+            bidding_rule["SearchByTrafficVolume"]["BidCeiling"] = bid_ceiling
+    if target_coverage is not None:
+        bidding_rule["NetworkByCoverage"] = {"TargetCoverage": target_coverage}
+        if increase_percent is not None:
+            bidding_rule["NetworkByCoverage"]["IncreasePercent"] = increase_percent
+        if bid_ceiling is not None:
+            bidding_rule["NetworkByCoverage"]["BidCeiling"] = bid_ceiling
 
-        bid_data = {"BiddingRule": bidding_rule}
-        if campaign_id is not None:
-            bid_data["CampaignId"] = campaign_id
-        if adgroup_id is not None:
-            bid_data["AdGroupId"] = adgroup_id
-        if keyword_id is not None:
-            bid_data["KeywordId"] = keyword_id
+    bid_data = {"BiddingRule": bidding_rule}
+    if campaign_id is not None:
+        bid_data["CampaignId"] = campaign_id
+    if adgroup_id is not None:
+        bid_data["AdGroupId"] = adgroup_id
+    if keyword_id is not None:
+        bid_data["KeywordId"] = keyword_id
 
-        body = {"method": "setAuto", "params": {"KeywordBids": [bid_data]}}
+    body = {"method": "setAuto", "params": {"KeywordBids": [bid_data]}}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
-        result = client.keywordbids().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    client = client_from_ctx(ctx, create_client)
+    result = client.keywordbids().post(data=body)
+    format_output(result().extract(), "json", None)

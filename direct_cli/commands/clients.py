@@ -6,7 +6,7 @@ import click
 
 from ..api import client_from_ctx, create_client
 from ..i18n import t
-from ..output import format_output, print_error
+from ..output import format_output, handle_api_errors
 from ..utils import (
     build_client_update_item,
     build_erir_attributes,
@@ -84,6 +84,7 @@ def clients():
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def get(
     ctx,
     ids,
@@ -100,66 +101,59 @@ def get(
     dry_run,
 ):
     """Get clients"""
-    try:
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        field_names = fields.split(",") if fields else get_default_fields("clients")
+    field_names = fields.split(",") if fields else get_default_fields("clients")
 
-        raw_nested = (
-            ("ContractFieldNames", contract_field_names),
-            ("ContragentFieldNames", contragent_field_names),
-            ("ContragentTinInfoFieldNames", contragent_tin_info_field_names),
-            ("OrganizationFieldNames", organization_field_names),
-            ("TinInfoFieldNames", tin_info_field_names),
-        )
-        parsed_nested = {}
-        for wsdl_key, raw_value in raw_nested:
-            parsed = parse_csv_strings(raw_value)
-            if raw_value is not None and not parsed:
-                raise click.UsageError(
-                    t("Provide a non-empty comma-separated {wsdl_key} list.").format(
-                        wsdl_key=wsdl_key
-                    )
+    raw_nested = (
+        ("ContractFieldNames", contract_field_names),
+        ("ContragentFieldNames", contragent_field_names),
+        ("ContragentTinInfoFieldNames", contragent_tin_info_field_names),
+        ("OrganizationFieldNames", organization_field_names),
+        ("TinInfoFieldNames", tin_info_field_names),
+    )
+    parsed_nested = {}
+    for wsdl_key, raw_value in raw_nested:
+        parsed = parse_csv_strings(raw_value)
+        if raw_value is not None and not parsed:
+            raise click.UsageError(
+                t("Provide a non-empty comma-separated {wsdl_key} list.").format(
+                    wsdl_key=wsdl_key
                 )
-            if parsed:
-                parsed_nested[wsdl_key] = parsed
+            )
+        if parsed:
+            parsed_nested[wsdl_key] = parsed
 
-        criteria = {}
-        if ids:
-            criteria["ClientIds"] = parse_ids(ids)
+    criteria = {}
+    if ids:
+        criteria["ClientIds"] = parse_ids(ids)
 
-        params = {"FieldNames": field_names}
+    params = {"FieldNames": field_names}
 
-        if criteria:
-            params["SelectionCriteria"] = criteria
+    if criteria:
+        params["SelectionCriteria"] = criteria
 
-        params.update(parsed_nested)
+    params.update(parsed_nested)
 
-        if limit:
-            params["Page"] = {"Limit": limit}
+    if limit:
+        params["Page"] = {"Limit": limit}
 
-        body = {"method": "get", "params": params}
+    body = {"method": "get", "params": params}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        result = client.clients().post(data=body)
+    result = client.clients().post(data=body)
 
-        if fetch_all:
-            items = []
-            for item in result().iter_items():
-                items.append(item)
-            format_output(items, output_format, output)
-        else:
-            data = result().extract()
-            format_output(data, output_format, output)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    if fetch_all:
+        items = []
+        for item in result().iter_items():
+            items.append(item)
+        format_output(items, output_format, output)
+    else:
+        data = result().extract()
+        format_output(data, output_format, output)
 
 
 @clients.command()
@@ -255,6 +249,7 @@ def get(
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def update(
     ctx,
     client_info,
@@ -290,74 +285,67 @@ def update(
     dry_run,
 ):
     """Update client settings"""
-    try:
-        notification = build_notification_update(
-            notification_email,
-            notification_lang,
-            parse_email_subscription_specs(list(email_subscriptions)),
+    notification = build_notification_update(
+        notification_email,
+        notification_lang,
+        parse_email_subscription_specs(list(email_subscriptions)),
+    )
+    price_amount = None
+    if erir_contract_price_amount is not None:
+        price_amount = parse_positive_decimal_amount(
+            erir_contract_price_amount,
+            "--erir-contract-price-amount",
         )
-        price_amount = None
-        if erir_contract_price_amount is not None:
-            price_amount = parse_positive_decimal_amount(
-                erir_contract_price_amount,
-                "--erir-contract-price-amount",
-            )
-        client_data = build_client_update_item(
-            client_info,
-            phone,
-            notification,
-            parse_client_setting_specs(list(settings)),
-            parse_tin_info(tin_type, tin),
-            erir_attributes=build_erir_attributes(
-                organization=build_erir_organization(
-                    erir_organization_name,
-                    erir_organization_kpp,
-                    erir_organization_epay_number,
-                    erir_organization_reg_number,
-                    erir_organization_oksm_number,
-                    erir_organization_okved_code,
-                ),
-                contract=build_erir_contract(
-                    erir_contract_number,
-                    erir_contract_date,
-                    erir_contract_type,
-                    erir_contract_action_type,
-                    erir_contract_subject_type,
-                    erir_contract_is_agency_payment,
-                    price_amount,
-                    erir_contract_price_including_vat,
-                ),
-                contragent=build_erir_contragent(
-                    erir_contragent_name,
-                    erir_contragent_kpp,
-                    erir_contragent_phone,
-                    erir_contragent_epay_number,
-                    erir_contragent_reg_number,
-                    erir_contragent_oksm_number,
-                    parse_tin_info(
-                        erir_contragent_tin_type,
-                        erir_contragent_tin,
-                        "--erir-contragent-tin-type",
-                    ),
+    client_data = build_client_update_item(
+        client_info,
+        phone,
+        notification,
+        parse_client_setting_specs(list(settings)),
+        parse_tin_info(tin_type, tin),
+        erir_attributes=build_erir_attributes(
+            organization=build_erir_organization(
+                erir_organization_name,
+                erir_organization_kpp,
+                erir_organization_epay_number,
+                erir_organization_reg_number,
+                erir_organization_oksm_number,
+                erir_organization_okved_code,
+            ),
+            contract=build_erir_contract(
+                erir_contract_number,
+                erir_contract_date,
+                erir_contract_type,
+                erir_contract_action_type,
+                erir_contract_subject_type,
+                erir_contract_is_agency_payment,
+                price_amount,
+                erir_contract_price_including_vat,
+            ),
+            contragent=build_erir_contragent(
+                erir_contragent_name,
+                erir_contragent_kpp,
+                erir_contragent_phone,
+                erir_contragent_epay_number,
+                erir_contragent_reg_number,
+                erir_contragent_oksm_number,
+                parse_tin_info(
+                    erir_contragent_tin_type,
+                    erir_contragent_tin,
+                    "--erir-contragent-tin-type",
                 ),
             ),
-        )
-        if not client_data:
-            raise click.UsageError(t("Provide at least one field to update"))
+        ),
+    )
+    if not client_data:
+        raise click.UsageError(t("Provide at least one field to update"))
 
-        body = {"method": "update", "params": {"Clients": [client_data]}}
+    body = {"method": "update", "params": {"Clients": [client_data]}}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        result = client.clients().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.clients().post(data=body)
+    format_output(result().extract(), "json", None)

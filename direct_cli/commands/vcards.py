@@ -8,7 +8,7 @@ import click
 
 from ..api import client_from_ctx, create_client
 from ..i18n import t
-from ..output import format_output, print_error
+from ..output import format_output, handle_api_errors
 from ..utils import get_default_fields, parse_ids
 
 
@@ -77,44 +77,40 @@ def _build_point_on_map(
 @click.option("--fields", help="Comma-separated field names")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
     """Get vCards"""
-    try:
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        field_names = fields.split(",") if fields else get_default_fields("vcards")
+    field_names = fields.split(",") if fields else get_default_fields("vcards")
 
-        criteria = {}
-        if ids:
-            criteria["Ids"] = parse_ids(ids)
+    criteria = {}
+    if ids:
+        criteria["Ids"] = parse_ids(ids)
 
-        params = {"FieldNames": field_names}
-        if criteria:
-            params["SelectionCriteria"] = criteria
+    params = {"FieldNames": field_names}
+    if criteria:
+        params["SelectionCriteria"] = criteria
 
-        if limit:
-            params["Page"] = {"Limit": limit}
+    if limit:
+        params["Page"] = {"Limit": limit}
 
-        body = {"method": "get", "params": params}
+    body = {"method": "get", "params": params}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        result = client.vcards().post(data=body)
+    result = client.vcards().post(data=body)
 
-        if fetch_all:
-            items = []
-            for item in result().iter_items():
-                items.append(item)
-            format_output(items, output_format, output)
-        else:
-            data = result().extract()
-            format_output(data, output_format, output)
-
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    if fetch_all:
+        items = []
+        for item in result().iter_items():
+            items.append(item)
+        format_output(items, output_format, output)
+    else:
+        data = result().extract()
+        format_output(data, output_format, output)
 
 
 @vcards.command()
@@ -152,6 +148,7 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
 @click.option("--point-on-map-y2", type=float, help="PointOnMap.Y2 coordinate")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def add(
     ctx,
     campaign_id,
@@ -183,95 +180,84 @@ def add(
     dry_run,
 ):
     """Add vCard"""
-    try:
-        instant_messenger = _build_instant_messenger(
-            instant_messenger_client,
-            instant_messenger_login,
-        )
-        point_on_map = _build_point_on_map(
-            point_on_map_x,
-            point_on_map_y,
-            point_on_map_x1,
-            point_on_map_y1,
-            point_on_map_x2,
-            point_on_map_y2,
-        )
-        vcard = {
-            "CampaignId": campaign_id,
-            "Country": country,
-            "City": city,
-            "CompanyName": company_name,
-            "WorkTime": work_time,
-            "Phone": {
-                "CountryCode": phone_country_code,
-                "CityCode": phone_city_code,
-                "PhoneNumber": phone_number,
-            },
-        }
-        if phone_extension:
-            vcard["Phone"]["Extension"] = phone_extension
-        if street:
-            vcard["Street"] = street
-        if house:
-            vcard["House"] = house
-        if building:
-            vcard["Building"] = building
-        if apartment:
-            vcard["Apartment"] = apartment
-        if contact_person:
-            vcard["ContactPerson"] = contact_person
-        if contact_email:
-            vcard["ContactEmail"] = contact_email
-        if extra_message:
-            vcard["ExtraMessage"] = extra_message
-        if ogrn:
-            vcard["Ogrn"] = ogrn
-        if metro_station_id is not None:
-            vcard["MetroStationId"] = metro_station_id
-        if instant_messenger:
-            vcard["InstantMessenger"] = instant_messenger
-        if point_on_map:
-            vcard["PointOnMap"] = point_on_map
+    instant_messenger = _build_instant_messenger(
+        instant_messenger_client,
+        instant_messenger_login,
+    )
+    point_on_map = _build_point_on_map(
+        point_on_map_x,
+        point_on_map_y,
+        point_on_map_x1,
+        point_on_map_y1,
+        point_on_map_x2,
+        point_on_map_y2,
+    )
+    vcard = {
+        "CampaignId": campaign_id,
+        "Country": country,
+        "City": city,
+        "CompanyName": company_name,
+        "WorkTime": work_time,
+        "Phone": {
+            "CountryCode": phone_country_code,
+            "CityCode": phone_city_code,
+            "PhoneNumber": phone_number,
+        },
+    }
+    if phone_extension:
+        vcard["Phone"]["Extension"] = phone_extension
+    if street:
+        vcard["Street"] = street
+    if house:
+        vcard["House"] = house
+    if building:
+        vcard["Building"] = building
+    if apartment:
+        vcard["Apartment"] = apartment
+    if contact_person:
+        vcard["ContactPerson"] = contact_person
+    if contact_email:
+        vcard["ContactEmail"] = contact_email
+    if extra_message:
+        vcard["ExtraMessage"] = extra_message
+    if ogrn:
+        vcard["Ogrn"] = ogrn
+    if metro_station_id is not None:
+        vcard["MetroStationId"] = metro_station_id
+    if instant_messenger:
+        vcard["InstantMessenger"] = instant_messenger
+    if point_on_map:
+        vcard["PointOnMap"] = point_on_map
 
-        body = {"method": "add", "params": {"VCards": [vcard]}}
+    body = {"method": "add", "params": {"VCards": [vcard]}}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        result = client.vcards().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.vcards().post(data=body)
+    format_output(result().extract(), "json", None)
 
 
 @vcards.command()
 @click.option("--id", "vcard_id", required=True, type=int, help="vCard ID")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def delete(ctx, vcard_id, dry_run):
     """Delete vCard"""
-    try:
-        body = {
-            "method": "delete",
-            "params": {"SelectionCriteria": {"Ids": [vcard_id]}},
-        }
+    body = {
+        "method": "delete",
+        "params": {"SelectionCriteria": {"Ids": [vcard_id]}},
+    }
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        result = client.vcards().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.vcards().post(data=body)
+    format_output(result().extract(), "json", None)

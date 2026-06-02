@@ -6,7 +6,7 @@ import click
 
 from ..api import client_from_ctx, create_client
 from ..i18n import t
-from ..output import format_output, print_error
+from ..output import format_output, handle_api_errors
 from ..utils import add_criteria_csv, get_default_fields, parse_csv_strings, parse_ids
 
 
@@ -32,6 +32,7 @@ def adextensions():
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def get(
     ctx,
     ids,
@@ -48,105 +49,88 @@ def get(
     dry_run,
 ):
     """Get ad extensions"""
-    try:
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        field_names = parse_csv_strings(fields) or get_default_fields("adextensions")
-        parsed_callout_field_names = parse_csv_strings(callout_field_names)
-        if callout_field_names is not None and not parsed_callout_field_names:
-            raise click.UsageError(
-                t("Provide a non-empty comma-separated CalloutFieldNames list.")
-            )
+    field_names = parse_csv_strings(fields) or get_default_fields("adextensions")
+    parsed_callout_field_names = parse_csv_strings(callout_field_names)
+    if callout_field_names is not None and not parsed_callout_field_names:
+        raise click.UsageError(
+            t("Provide a non-empty comma-separated CalloutFieldNames list.")
+        )
 
-        criteria = {}
-        if ids:
-            criteria["Ids"] = parse_ids(ids)
-        if types:
-            criteria["Types"] = types.split(",")
-        add_criteria_csv(criteria, "States", states, upper=True)
-        add_criteria_csv(criteria, "Statuses", statuses, upper=True)
-        if modified_since:
-            criteria["ModifiedSince"] = modified_since
+    criteria = {}
+    if ids:
+        criteria["Ids"] = parse_ids(ids)
+    if types:
+        criteria["Types"] = types.split(",")
+    add_criteria_csv(criteria, "States", states, upper=True)
+    add_criteria_csv(criteria, "Statuses", statuses, upper=True)
+    if modified_since:
+        criteria["ModifiedSince"] = modified_since
 
-        params = {"SelectionCriteria": criteria, "FieldNames": field_names}
-        if parsed_callout_field_names:
-            params["CalloutFieldNames"] = parsed_callout_field_names
+    params = {"SelectionCriteria": criteria, "FieldNames": field_names}
+    if parsed_callout_field_names:
+        params["CalloutFieldNames"] = parsed_callout_field_names
 
-        if limit:
-            params["Page"] = {"Limit": limit}
+    if limit:
+        params["Page"] = {"Limit": limit}
 
-        body = {"method": "get", "params": params}
+    body = {"method": "get", "params": params}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        result = client.adextensions().post(data=body)
+    result = client.adextensions().post(data=body)
 
-        if fetch_all:
-            items = []
-            for item in result().iter_items():
-                items.append(item)
-            format_output(items, output_format, output)
-        else:
-            data = result().extract()
-            format_output(data, output_format, output)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    if fetch_all:
+        items = []
+        for item in result().iter_items():
+            items.append(item)
+        format_output(items, output_format, output)
+    else:
+        data = result().extract()
+        format_output(data, output_format, output)
 
 
 @adextensions.command()
 @click.option("--callout-text", required=True, help="Callout text")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def add(ctx, callout_text, dry_run):
     """Add ad extension (callout)"""
-    try:
-        ext_data = {"Callout": {"CalloutText": callout_text}}
+    ext_data = {"Callout": {"CalloutText": callout_text}}
 
-        body = {"method": "add", "params": {"AdExtensions": [ext_data]}}
+    body = {"method": "add", "params": {"AdExtensions": [ext_data]}}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        result = client.adextensions().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.adextensions().post(data=body)
+    format_output(result().extract(), "json", None)
 
 
 @adextensions.command()
 @click.option("--id", "extension_id", required=True, type=int, help="Extension ID")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def delete(ctx, extension_id, dry_run):
     """Delete ad extension"""
-    try:
-        body = {
-            "method": "delete",
-            "params": {"SelectionCriteria": {"Ids": [extension_id]}},
-        }
+    body = {
+        "method": "delete",
+        "params": {"SelectionCriteria": {"Ids": [extension_id]}},
+    }
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        result = client.adextensions().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.adextensions().post(data=body)
+    format_output(result().extract(), "json", None)
