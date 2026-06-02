@@ -5,7 +5,7 @@ Dictionaries commands
 import click
 
 from ..api import client_from_ctx, create_client
-from ..output import format_output, print_error
+from ..output import format_output, handle_api_errors
 from ..utils import parse_csv_strings, parse_ids
 
 DICTIONARY_NAMES = [
@@ -36,21 +36,17 @@ def dictionaries():
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.pass_context
+@handle_api_errors
 def get(ctx, names, output_format, output):
     """Get dictionaries"""
-    try:
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        dictionary_names = [n.strip() for n in names.split(",")]
+    dictionary_names = [n.strip() for n in names.split(",")]
 
-        body = {"method": "get", "params": {"DictionaryNames": dictionary_names}}
+    body = {"method": "get", "params": {"DictionaryNames": dictionary_names}}
 
-        result = client.dictionaries().post(data=body)
-        format_output(result.data, output_format, output)
-
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.dictionaries().post(data=body)
+    format_output(result.data, output_format, output)
 
 
 @dictionaries.command(name="get-geo-regions")
@@ -61,30 +57,26 @@ def get(ctx, names, output_format, output):
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.pass_context
+@handle_api_errors
 def get_geo_regions(ctx, name, region_ids, exact_names, fields, output_format, output):
     """Get GeoRegions dictionary entries"""
-    try:
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        params = {"FieldNames": [name.strip() for name in fields.split(",")]}
-        selection_criteria = {}
-        if name:
-            selection_criteria["Name"] = name
-        if region_ids:
-            selection_criteria["RegionIds"] = parse_ids(region_ids)
-        if exact_names:
-            selection_criteria["ExactNames"] = parse_csv_strings(exact_names)
-        if selection_criteria:
-            params["SelectionCriteria"] = selection_criteria
+    params = {"FieldNames": [name.strip() for name in fields.split(",")]}
+    selection_criteria = {}
+    if name:
+        selection_criteria["Name"] = name
+    if region_ids:
+        selection_criteria["RegionIds"] = parse_ids(region_ids)
+    if exact_names:
+        selection_criteria["ExactNames"] = parse_csv_strings(exact_names)
+    if selection_criteria:
+        params["SelectionCriteria"] = selection_criteria
 
-        body = {"method": "getGeoRegions", "params": params}
+    body = {"method": "getGeoRegions", "params": params}
 
-        result = client.dictionaries().post(data=body)
-        format_output(result.data, output_format, output)
-
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.dictionaries().post(data=body)
+    format_output(result.data, output_format, output)
 
 
 @dictionaries.command()

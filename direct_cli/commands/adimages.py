@@ -6,7 +6,7 @@ import click
 
 from ..api import client_from_ctx, create_client
 from ..i18n import t
-from ..output import format_output, print_error
+from ..output import format_output, handle_api_errors
 from ..utils import add_criteria_csv, get_default_fields, load_base64_file, parse_ids
 
 
@@ -26,6 +26,7 @@ def adimages():
 @click.option("--fields", help="Comma-separated field names")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def get(
     ctx,
     ids,
@@ -39,45 +40,40 @@ def get(
     dry_run,
 ):
     """Get ad images"""
-    try:
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        field_names = fields.split(",") if fields else get_default_fields("adimages")
+    field_names = fields.split(",") if fields else get_default_fields("adimages")
 
-        criteria = {}
-        if ids:
-            criteria["Ids"] = parse_ids(ids)
-        add_criteria_csv(criteria, "AdImageHashes", image_hashes)
-        if associated:
-            criteria["Associated"] = associated.upper()
+    criteria = {}
+    if ids:
+        criteria["Ids"] = parse_ids(ids)
+    add_criteria_csv(criteria, "AdImageHashes", image_hashes)
+    if associated:
+        criteria["Associated"] = associated.upper()
 
-        params = {"FieldNames": field_names}
-        if criteria:
-            params["SelectionCriteria"] = criteria
+    params = {"FieldNames": field_names}
+    if criteria:
+        params["SelectionCriteria"] = criteria
 
-        if limit:
-            params["Page"] = {"Limit": limit}
+    if limit:
+        params["Page"] = {"Limit": limit}
 
-        body = {"method": "get", "params": params}
+    body = {"method": "get", "params": params}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        result = client.adimages().post(data=body)
+    result = client.adimages().post(data=body)
 
-        if fetch_all:
-            items = []
-            for item in result().iter_items():
-                items.append(item)
-            format_output(items, output_format, output)
-        else:
-            data = result().extract()
-            format_output(data, output_format, output)
-
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    if fetch_all:
+        items = []
+        for item in result().iter_items():
+            items.append(item)
+        format_output(items, output_format, output)
+    else:
+        data = result().extract()
+        format_output(data, output_format, output)
 
 
 @adimages.command()
@@ -87,60 +83,48 @@ def get(
 @click.option("--type", "image_type", help="Ad image type")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def add(ctx, name, image_data, image_file, image_type, dry_run):
     """Add ad image"""
-    try:
-        if bool(image_data) == bool(image_file):
-            raise click.UsageError(
-                t("Provide exactly one of --image-data or --image-file")
-            )
+    if bool(image_data) == bool(image_file):
+        raise click.UsageError(t("Provide exactly one of --image-data or --image-file"))
 
-        payload = {
-            "Name": name,
-            "ImageData": image_data if image_data else load_base64_file(image_file),
-        }
-        if image_type:
-            payload["Type"] = image_type
+    payload = {
+        "Name": name,
+        "ImageData": image_data if image_data else load_base64_file(image_file),
+    }
+    if image_type:
+        payload["Type"] = image_type
 
-        body = {"method": "add", "params": {"AdImages": [payload]}}
+    body = {"method": "add", "params": {"AdImages": [payload]}}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        result = client.adimages().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.adimages().post(data=body)
+    format_output(result().extract(), "json", None)
 
 
 @adimages.command()
 @click.option("--hash", "image_hash", required=True, help="Ad image hash")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def delete(ctx, image_hash, dry_run):
     """Delete ad image"""
-    try:
-        body = {
-            "method": "delete",
-            "params": {"SelectionCriteria": {"AdImageHashes": [image_hash]}},
-        }
+    body = {
+        "method": "delete",
+        "params": {"SelectionCriteria": {"AdImageHashes": [image_hash]}},
+    }
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        result = client.adimages().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.adimages().post(data=body)
+    format_output(result().extract(), "json", None)

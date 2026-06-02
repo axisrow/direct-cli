@@ -9,7 +9,7 @@ import json
 import click
 
 from ..api import create_client
-from ..output import format_output, print_error
+from ..output import format_output, handle_api_errors
 from ..utils import parse_csv_strings
 
 ATTRIBUTION_MODELS = {"FC", "LC", "LSC", "LYDC", "FCCD", "LSCCD", "LYDCCD", "AUTO"}
@@ -390,6 +390,7 @@ def reports():
     help="Print request headers and body without calling the API",
 )
 @click.pass_context
+@handle_api_errors
 def get(
     ctx,
     report_type,
@@ -419,71 +420,66 @@ def get(
     dry_run,
 ):
     """Get report"""
-    try:
-        body = build_report_request(
-            report_type=report_type.upper(),
-            date_from=date_from,
-            date_to=date_to,
-            name=name,
-            fields=fields,
-            campaign_ids=campaign_ids,
-            adgroup_ids=adgroup_ids,
-            date_range_type=date_range_type.upper(),
-            include_vat=include_vat,
-            include_discount=include_discount,
-            page_limit=page_limit,
-            page_offset=page_offset,
-            filters=filters,
-            order_by=order_by,
-            goals=goals,
-            attribution_models=attribution_models,
-        )
+    body = build_report_request(
+        report_type=report_type.upper(),
+        date_from=date_from,
+        date_to=date_to,
+        name=name,
+        fields=fields,
+        campaign_ids=campaign_ids,
+        adgroup_ids=adgroup_ids,
+        date_range_type=date_range_type.upper(),
+        include_vat=include_vat,
+        include_discount=include_discount,
+        page_limit=page_limit,
+        page_offset=page_offset,
+        filters=filters,
+        order_by=order_by,
+        goals=goals,
+        attribution_models=attribution_models,
+    )
 
-        request_headers = {}
-        if processing_mode:
-            request_headers["processingMode"] = processing_mode
-        if skip_report_header:
-            request_headers["skipReportHeader"] = "true"
-        if skip_column_header:
-            request_headers["skipColumnHeader"] = "true"
-        if skip_report_summary:
-            request_headers["skipReportSummary"] = "true"
-        if return_money_in_micros:
-            request_headers["returnMoneyInMicros"] = "true"
-        if language:
-            request_headers["Accept-Language"] = language
+    request_headers = {}
+    if processing_mode:
+        request_headers["processingMode"] = processing_mode
+    if skip_report_header:
+        request_headers["skipReportHeader"] = "true"
+    if skip_column_header:
+        request_headers["skipColumnHeader"] = "true"
+    if skip_report_summary:
+        request_headers["skipReportSummary"] = "true"
+    if return_money_in_micros:
+        request_headers["returnMoneyInMicros"] = "true"
+    if language:
+        request_headers["Accept-Language"] = language
 
-        if dry_run:
-            output_data = {"headers": request_headers, "body": body}
-            click.echo(json.dumps(output_data, indent=2, ensure_ascii=False))
-            return
+    if dry_run:
+        output_data = {"headers": request_headers, "body": body}
+        click.echo(json.dumps(output_data, indent=2, ensure_ascii=False))
+        return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-            processing_mode=processing_mode or "auto",
-            return_money_in_micros=return_money_in_micros,
-            skip_report_header=skip_report_header,
-            skip_column_header=skip_column_header,
-            skip_report_summary=skip_report_summary,
-            language=language,
-        )
+    client = create_client(
+        token=ctx.obj.get("token"),
+        login=ctx.obj.get("login"),
+        sandbox=ctx.obj.get("sandbox"),
+        processing_mode=processing_mode or "auto",
+        return_money_in_micros=return_money_in_micros,
+        skip_report_header=skip_report_header,
+        skip_column_header=skip_column_header,
+        skip_report_summary=skip_report_summary,
+        language=language,
+    )
 
-        result = client.reports().post(data=body)
+    result = client.reports().post(data=body)
 
-        if output_format == "json":
-            format_output(result().to_dicts(), "json", output)
-        elif output_format == "table":
-            format_output(result().to_dicts(), "table", output)
-        elif output_format == "csv":
-            format_output(result().to_values(), "csv", output, headers=result.columns)
-        elif output_format == "tsv":
-            format_output(result().to_values(), "tsv", output, headers=result.columns)
-
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    if output_format == "json":
+        format_output(result().to_dicts(), "json", output)
+    elif output_format == "table":
+        format_output(result().to_dicts(), "table", output)
+    elif output_format == "csv":
+        format_output(result().to_values(), "csv", output, headers=result.columns)
+    elif output_format == "tsv":
+        format_output(result().to_values(), "tsv", output, headers=result.columns)
 
 
 @reports.command()

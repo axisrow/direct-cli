@@ -5,7 +5,7 @@ Leads commands
 import click
 
 from ..api import client_from_ctx, create_client
-from ..output import format_output, print_error
+from ..output import format_output, handle_api_errors
 from ..utils import get_default_fields, parse_ids
 
 
@@ -29,6 +29,7 @@ def leads():
 @click.option("--fields", help="Comma-separated field names")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def get(
     ctx,
     turbo_page_ids,
@@ -42,39 +43,34 @@ def get(
     dry_run,
 ):
     """Get leads"""
-    try:
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        field_names = fields.split(",") if fields else get_default_fields("leads")
+    field_names = fields.split(",") if fields else get_default_fields("leads")
 
-        criteria = {"TurboPageIds": parse_ids(turbo_page_ids)}
-        if datetime_from:
-            criteria["DateTimeFrom"] = datetime_from
-        if datetime_to:
-            criteria["DateTimeTo"] = datetime_to
+    criteria = {"TurboPageIds": parse_ids(turbo_page_ids)}
+    if datetime_from:
+        criteria["DateTimeFrom"] = datetime_from
+    if datetime_to:
+        criteria["DateTimeTo"] = datetime_to
 
-        params = {"SelectionCriteria": criteria, "FieldNames": field_names}
+    params = {"SelectionCriteria": criteria, "FieldNames": field_names}
 
-        if limit:
-            params["Page"] = {"Limit": limit}
+    if limit:
+        params["Page"] = {"Limit": limit}
 
-        body = {"method": "get", "params": params}
+    body = {"method": "get", "params": params}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        result = client.leads().post(data=body)
+    result = client.leads().post(data=body)
 
-        if fetch_all:
-            items = []
-            for item in result().iter_items():
-                items.append(item)
-            format_output(items, output_format, output)
-        else:
-            data = result().extract()
-            format_output(data, output_format, output)
-
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    if fetch_all:
+        items = []
+        for item in result().iter_items():
+            items.append(item)
+        format_output(items, output_format, output)
+    else:
+        data = result().extract()
+        format_output(data, output_format, output)
