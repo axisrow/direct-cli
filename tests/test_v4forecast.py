@@ -111,7 +111,7 @@ def test_create_rejects_invalid_auction_bids():
 
 
 def test_create_invalid_categories_fail_before_api_call():
-    with patch("direct_cli.commands.v4forecast.create_v4_client") as create_client:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
         result = _invoke(
             "v4forecast",
             "create",
@@ -140,7 +140,7 @@ def test_create_parses_three_phrase_entries():
 
 
 def test_create_empty_phrases_fail_before_api_call():
-    with patch("direct_cli.commands.v4forecast.create_v4_client") as create_client:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
         result = _invoke(
             "v4forecast",
             "create",
@@ -155,7 +155,7 @@ def test_create_empty_phrases_fail_before_api_call():
 
 def test_create_more_than_100_phrases_fail_before_api_call():
     phrases = ",".join(str(index) for index in range(101))
-    with patch("direct_cli.commands.v4forecast.create_v4_client") as create_client:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
         result = _invoke(
             "v4forecast",
             "create",
@@ -169,7 +169,7 @@ def test_create_more_than_100_phrases_fail_before_api_call():
 
 
 def test_create_invalid_geo_ids_fail_before_api_call():
-    with patch("direct_cli.commands.v4forecast.create_v4_client") as create_client:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
         result = _invoke(
             "v4forecast",
             "create",
@@ -225,9 +225,9 @@ def test_delete_dry_run_uses_scalar_forecast_id():
 
 def test_list_formats_mocked_response_as_json():
     response = [{"ForecastID": 123, "StatusForecast": "Done"}]
-    with patch("direct_cli.commands.v4forecast.create_v4_client") as create_client:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
         with patch(
-            "direct_cli.commands.v4forecast.call_v4",
+            "direct_cli.v4.emit.call_v4",
             return_value=response,
         ) as call:
             result = _invoke(

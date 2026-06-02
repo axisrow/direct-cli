@@ -14,12 +14,12 @@ from click.testing import CliRunner
 
 from direct_cli.cli import cli
 
-
 # (module short name, argv invoked through the top-level `cli` group).
-# Each argv hits a code path that calls `call_v4` inside the wrapped
-# `try` block of the v4 command module. We patch the module-local alias
-# of `call_v4` (the wrappers do `from ..v4 import call_v4` so the alias
-# is rebound on `direct_cli.commands.<module>.call_v4`).
+# Each argv hits a code path that calls `call_v4` inside the shared
+# `emit_or_call_v4`/`emit_or_call_v4_finance` helpers (direct_cli.v4.emit).
+# Since #494 every v4 command routes through those helpers, so the real
+# `call_v4` / `create_v4_client` are invoked there — we patch the aliases on
+# `direct_cli.v4.emit`, not per-command-module.
 V4_COMMAND_PROBES = [
     (
         "v4account",
@@ -85,11 +85,11 @@ def test_usage_error_from_call_v4_yields_exit_code_2(module_name, argv):
 
     with (
         patch(
-            f"direct_cli.commands.{module_name}.call_v4",
+            "direct_cli.v4.emit.call_v4",
             side_effect=click.UsageError(sentinel),
         ),
         patch(
-            f"direct_cli.commands.{module_name}.create_v4_client",
+            "direct_cli.v4.emit.create_v4_client",
             return_value=object(),
         ),
     ):
@@ -114,11 +114,11 @@ def test_runtime_error_from_call_v4_still_exits_with_abort(module_name, argv):
     """Non-Click exceptions must still go through print_error + Abort (exit 1)."""
     with (
         patch(
-            f"direct_cli.commands.{module_name}.call_v4",
+            "direct_cli.v4.emit.call_v4",
             side_effect=RuntimeError("boom"),
         ),
         patch(
-            f"direct_cli.commands.{module_name}.create_v4_client",
+            "direct_cli.v4.emit.create_v4_client",
             return_value=object(),
         ),
     ):

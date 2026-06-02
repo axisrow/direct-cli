@@ -68,9 +68,9 @@ def test_get_suggestion_all_blank_keywords_fails():
 
 
 def test_get_suggestion_formats_mocked_response():
-    with patch("direct_cli.commands.v4keywords.create_v4_client") as create_client:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
         with patch(
-            "direct_cli.commands.v4keywords.call_v4",
+            "direct_cli.v4.emit.call_v4",
             return_value=["холодильник купить", "холодильник цена"],
         ) as call:
             result = _invoke(

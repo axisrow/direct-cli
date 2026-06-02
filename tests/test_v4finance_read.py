@@ -60,9 +60,9 @@ def test_get_clients_units_dry_run_uses_login_list():
 
 
 def test_get_clients_units_formats_mocked_response_as_json():
-    with patch("direct_cli.commands.v4finance.create_v4_client") as create_client:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
         with patch(
-            "direct_cli.commands.v4finance.call_v4",
+            "direct_cli.v4.emit.call_v4",
             return_value=[{"Login": "client-login", "UnitsRest": 100}],
         ) as call:
             result = _invoke(
@@ -137,7 +137,7 @@ def test_get_credit_limits_can_compute_finance_token_from_master_token():
 
 
 def test_get_credit_limits_requires_finance_credentials_before_api_call():
-    with patch("direct_cli.commands.v4finance.create_v4_client") as create_client:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
         result = _invoke(
             "--token",
             "token",
@@ -151,7 +151,7 @@ def test_get_credit_limits_requires_finance_credentials_before_api_call():
 
 
 def test_get_credit_limits_rejects_blank_finance_token_before_api_call():
-    with patch("direct_cli.commands.v4finance.create_v4_client") as create_client:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
         result = _invoke(
             "--token",
             "token",
@@ -169,8 +169,8 @@ def test_get_credit_limits_rejects_blank_finance_token_before_api_call():
 
 
 def test_get_credit_limits_strips_finance_token_before_api_call():
-    with patch("direct_cli.commands.v4finance.create_v4_client") as create_client:
-        with patch("direct_cli.commands.v4finance.call_v4", return_value=[]) as call:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
+        with patch("direct_cli.v4.emit.call_v4", return_value=[]) as call:
             result = _invoke(
                 "--token",
                 "token",
@@ -194,7 +194,7 @@ def test_get_credit_limits_strips_finance_token_before_api_call():
 
 def test_get_credit_limits_rejects_unknown_logins_flag():
     """--logins is no longer accepted; docs define the body without param."""
-    with patch("direct_cli.commands.v4finance.create_v4_client") as create_client:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
         result = _invoke(
             "--token",
             "token",
@@ -214,9 +214,9 @@ def test_get_credit_limits_rejects_unknown_logins_flag():
 
 
 def test_get_credit_limits_formats_mocked_response_as_json():
-    with patch("direct_cli.commands.v4finance.create_v4_client") as create_client:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
         with patch(
-            "direct_cli.commands.v4finance.call_v4",
+            "direct_cli.v4.emit.call_v4",
             return_value=[{"Login": "client-login", "CreditLimit": 1000}],
         ) as call:
             result = _invoke(

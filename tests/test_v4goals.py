@@ -84,9 +84,9 @@ def test_get_retargeting_goals_empty_campaign_ids_fails_with_usage_error():
 
 
 def test_get_stat_goals_formats_mocked_response_as_json():
-    with patch("direct_cli.commands.v4goals.create_v4_client") as create_client:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
         with patch(
-            "direct_cli.commands.v4goals.call_v4",
+            "direct_cli.v4.emit.call_v4",
             return_value=[{"CampaignID": 1, "GoalID": 10, "Name": "Lead"}],
         ) as call:
             result = _invoke(
@@ -110,9 +110,9 @@ def test_get_stat_goals_formats_mocked_response_as_json():
 
 
 def test_get_stat_goals_with_login_keeps_method_param_schema():
-    with patch("direct_cli.commands.v4goals.create_v4_client") as create_client:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
         with patch(
-            "direct_cli.commands.v4goals.call_v4",
+            "direct_cli.v4.emit.call_v4",
             return_value=[{"CampaignID": 1, "GoalID": 10, "Name": "Lead"}],
         ) as call:
             result = _invoke(
@@ -141,9 +141,9 @@ def test_get_stat_goals_with_login_keeps_method_param_schema():
 
 
 def test_get_retargeting_goals_formats_mocked_response_as_table():
-    with patch("direct_cli.commands.v4goals.create_v4_client") as create_client:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
         with patch(
-            "direct_cli.commands.v4goals.call_v4",
+            "direct_cli.v4.emit.call_v4",
             return_value=[{"CampaignID": 1, "GoalID": 10, "Name": "Lead"}],
         ) as call:
             result = _invoke(

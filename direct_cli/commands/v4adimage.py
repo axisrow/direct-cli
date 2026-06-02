@@ -10,11 +10,9 @@ from typing import Optional
 
 import click
 
-from ..api import create_v4_client
 from ..i18n import t
-from ..output import format_output, handle_api_errors
 from ..utils import parse_csv_strings, parse_ids
-from ..v4 import build_v4_body, call_v4
+from ..v4.emit import emit_or_call_v4
 from ..v4_contracts import v4_method_contract
 from .v4shells import V4_EPILOG
 
@@ -109,21 +107,6 @@ def _set_param(associations: tuple[str, ...]) -> dict:
     return {"Action": "Set", "AdImageAssociations": items}
 
 
-@handle_api_errors
-def _run(ctx, param: dict, output_format: str, output: Optional[str], dry_run: bool):
-    if dry_run:
-        format_output(build_v4_body("AdImageAssociation", param), "json", None)
-        return
-    client = create_v4_client(
-        token=ctx.obj.get("token"),
-        login=ctx.obj.get("login"),
-        profile=ctx.obj.get("profile"),
-        sandbox=ctx.obj.get("sandbox"),
-    )
-    data = call_v4(client, "AdImageAssociation", param)
-    format_output(data, output_format, output)
-
-
 @click.group(epilog=V4_EPILOG)
 def v4adimage():
     """Yandex Direct v4 Live ad-image association commands."""
@@ -176,7 +159,7 @@ def get(
         limit,
         offset,
     )
-    _run(ctx, param, output_format, output, dry_run)
+    emit_or_call_v4(ctx, "AdImageAssociation", param, dry_run, output_format, output)
 
 
 @v4_method_contract("AdImageAssociation")
@@ -201,4 +184,4 @@ def get(
 def set_(ctx, associations, output_format, output, dry_run):
     """Attach or detach ad images (max 10000 associations)."""
     param = _set_param(associations)
-    _run(ctx, param, output_format, output, dry_run)
+    emit_or_call_v4(ctx, "AdImageAssociation", param, dry_run, output_format, output)

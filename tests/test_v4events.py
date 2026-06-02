@@ -159,7 +159,7 @@ def test_get_events_log_rejects_unknown_event_type():
 
 
 def test_get_events_log_rejects_invalid_filter_id_before_api_call():
-    with patch("direct_cli.commands.v4events.create_v4_client") as create_client:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
         result = _invoke(
             "v4events",
             "get-events-log",
@@ -200,7 +200,7 @@ def test_get_events_log_rejects_noncanonical_from_datetime(timestamp):
 
 
 def test_get_events_log_rejects_from_after_to_before_api_call():
-    with patch("direct_cli.commands.v4events.create_v4_client") as create_client:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
         result = _invoke(
             "v4events",
             "get-events-log",
@@ -216,9 +216,9 @@ def test_get_events_log_rejects_from_after_to_before_api_call():
 
 
 def test_get_events_log_formats_mocked_response_as_json():
-    with patch("direct_cli.commands.v4events.create_v4_client") as create_client:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
         with patch(
-            "direct_cli.commands.v4events.call_v4",
+            "direct_cli.v4.emit.call_v4",
             return_value=[{"Timestamp": "2026-04-14T00:01:00", "EventType": "ADD"}],
         ) as call:
             result = _invoke(

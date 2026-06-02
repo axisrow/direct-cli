@@ -6,11 +6,10 @@ from typing import Optional
 
 import click
 
-from ..api import create_v4_client
 from ..i18n import t
-from ..output import format_output, handle_api_errors
+from ..output import handle_api_errors
 from ..utils import parse_csv_strings, parse_ids
-from ..v4 import build_v4_body, call_v4
+from ..v4.emit import emit_or_call_v4
 from ..v4_contracts import v4_method_contract
 from .v4shells import V4_EPILOG
 
@@ -221,15 +220,4 @@ def get_events_log(
         account_ids=filter_account_ids,
         event_type=filter_event_type,
     )
-    if dry_run:
-        format_output(build_v4_body("GetEventsLog", param), "json", None)
-        return
-
-    client = create_v4_client(
-        token=ctx.obj.get("token"),
-        login=ctx.obj.get("login"),
-        profile=ctx.obj.get("profile"),
-        sandbox=ctx.obj.get("sandbox"),
-    )
-    data = call_v4(client, "GetEventsLog", param)
-    format_output(data, output_format, output)
+    emit_or_call_v4(ctx, "GetEventsLog", param, dry_run, output_format, output)
