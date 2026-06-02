@@ -7,7 +7,7 @@ import click
 from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
-from ..utils import get_default_fields, load_base64_file
+from ..utils import get_default_fields, get_options, load_base64_file
 
 
 @click.group()
@@ -17,12 +17,7 @@ def advideos():
 
 @advideos.command()
 @click.option("--ids", required=True, help="Comma-separated video IDs")
-@click.option("--limit", type=int, help="Limit number of results")
-@click.option("--fetch-all", is_flag=True, help="Fetch all pages")
-@click.option("--format", "output_format", default="json", help="Output format")
-@click.option("--output", help="Output file")
-@click.option("--fields", help="Comma-separated field names")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@get_options
 @click.pass_context
 @handle_api_errors
 def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
