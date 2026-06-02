@@ -12,6 +12,7 @@ from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
 from ..utils import (
+    build_common_params,
     get_default_fields,
     parse_csv_strings,
     parse_ids,
@@ -168,14 +169,11 @@ def get(
     if ids:
         criteria["Ids"] = parse_ids(ids)
 
-    params = {"FieldNames": field_names}
-    if criteria:
-        params["SelectionCriteria"] = criteria
+    params = build_common_params(
+        criteria=criteria, field_names=field_names, limit=limit
+    )
     if parsed_sitelink_field_names:
         params["SitelinkFieldNames"] = parsed_sitelink_field_names
-
-    if limit:
-        params["Page"] = {"Limit": limit}
 
     body = {"method": "get", "params": params}
 
