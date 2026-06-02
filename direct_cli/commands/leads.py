@@ -6,7 +6,12 @@ import click
 
 from ..api import client_from_ctx, create_client
 from ..output import format_output, handle_api_errors
-from ..utils import get_default_fields, parse_csv_strings, parse_ids
+from ..utils import (
+    build_common_params,
+    get_default_fields,
+    parse_csv_strings,
+    parse_ids,
+)
 
 
 @click.group()
@@ -53,10 +58,9 @@ def get(
     if datetime_to:
         criteria["DateTimeTo"] = datetime_to
 
-    params = {"SelectionCriteria": criteria, "FieldNames": field_names}
-
-    if limit:
-        params["Page"] = {"Limit": limit}
+    params = build_common_params(
+        criteria=criteria, field_names=field_names, limit=limit
+    )
 
     body = {"method": "get", "params": params}
 

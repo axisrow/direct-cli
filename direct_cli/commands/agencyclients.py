@@ -10,6 +10,7 @@ from ..output import format_output, handle_api_errors, print_error
 from ..utils import (
     assert_not_runtime_deprecated,
     build_client_update_item,
+    build_common_params,
     build_notification_update,
     get_default_fields,
     parse_client_setting_specs,
@@ -162,11 +163,10 @@ def get(
     if logins:
         criteria["Logins"] = parse_csv_strings(logins)
 
-    params = {"SelectionCriteria": criteria, "FieldNames": field_names}
+    params = build_common_params(
+        criteria=criteria, field_names=field_names, limit=limit
+    )
     params.update(parsed_nested)
-
-    if limit:
-        params["Page"] = {"Limit": limit}
 
     body = {"method": "get", "params": params}
 

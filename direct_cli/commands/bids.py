@@ -11,6 +11,7 @@ from ..utils import (
     MICRO_RUBLES,
     add_criteria_csv,
     add_single_id_selector,
+    build_common_params,
     get_default_fields,
     get_options,
     parse_csv_strings,
@@ -66,13 +67,9 @@ def get(
         )
 
     field_names = parse_csv_strings(fields) or get_default_fields("bids")
-    params = {
-        "SelectionCriteria": criteria,
-        "FieldNames": field_names,
-    }
-
-    if limit:
-        params["Page"] = {"Limit": limit}
+    params = build_common_params(
+        criteria=criteria, field_names=field_names, limit=limit
+    )
 
     body = {"method": "get", "params": params}
 

@@ -7,7 +7,13 @@ import click
 from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
-from ..utils import get_default_fields, get_options, load_base64_file, parse_csv_strings
+from ..utils import (
+    build_common_params,
+    get_default_fields,
+    get_options,
+    load_base64_file,
+    parse_csv_strings,
+)
 
 
 @click.group()
@@ -28,13 +34,9 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
 
     criteria = {"Ids": parse_csv_strings(ids) or []}
 
-    params = {
-        "SelectionCriteria": criteria,
-        "FieldNames": field_names,
-    }
-
-    if limit:
-        params["Page"] = {"Limit": limit}
+    params = build_common_params(
+        criteria=criteria, field_names=field_names, limit=limit
+    )
 
     body = {"method": "get", "params": params}
 

@@ -7,7 +7,13 @@ import click
 from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
-from ..utils import get_default_fields, parse_csv_strings, parse_csv_upper, parse_ids
+from ..utils import (
+    build_common_params,
+    get_default_fields,
+    parse_csv_strings,
+    parse_csv_upper,
+    parse_ids,
+)
 
 
 @click.group()
@@ -215,14 +221,10 @@ def get(
         criteria["Types"] = parse_csv_upper(types) or []
 
     field_names = parse_csv_strings(fields) or get_default_fields("bidmodifiers")
-    params = {
-        "SelectionCriteria": criteria,
-        "FieldNames": field_names,
-    }
+    params = build_common_params(
+        criteria=criteria, field_names=field_names, limit=limit
+    )
     params.update(parsed_nested)
-
-    if limit:
-        params["Page"] = {"Limit": limit}
 
     body = {"method": "get", "params": params}
 
