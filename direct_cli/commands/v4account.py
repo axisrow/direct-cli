@@ -8,7 +8,7 @@ import click
 
 from ..api import create_v4_client
 from ..i18n import t
-from ..output import format_output, print_error
+from ..output import format_output, handle_api_errors
 from ..utils import parse_csv_strings, parse_ids
 from ..v4 import build_v4_body, call_v4
 from ..v4.money import parse_v4_money_sum
@@ -116,6 +116,7 @@ def _require_dry_run_or_sandbox(dry_run: bool, sandbox: bool) -> None:
         raise click.UsageError(t("--dry-run is required unless --sandbox is set"))
 
 
+@handle_api_errors
 def _emit_or_call_v4(
     ctx: click.Context,
     method: str,
@@ -129,22 +130,17 @@ def _emit_or_call_v4(
         format_output(build_v4_body(method, param), "json", None)
         return
 
-    try:
-        client = create_v4_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            profile=ctx.obj.get("profile"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
-        data = call_v4(client, method, param)
-        format_output(data, output_format, output)
-    except click.ClickException:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    client = create_v4_client(
+        token=ctx.obj.get("token"),
+        login=ctx.obj.get("login"),
+        profile=ctx.obj.get("profile"),
+        sandbox=ctx.obj.get("sandbox"),
+    )
+    data = call_v4(client, method, param)
+    format_output(data, output_format, output)
 
 
+@handle_api_errors
 def _emit_or_call_v4_finance(
     ctx: click.Context,
     method: str,
@@ -160,22 +156,16 @@ def _emit_or_call_v4_finance(
         format_output(_masked_finance_body(method, param, operation_num), "json", None)
         return
 
-    try:
-        client = create_v4_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            profile=ctx.obj.get("profile"),
-            sandbox=ctx.obj.get("sandbox"),
-            finance_token=finance_token,
-            operation_num=operation_num,
-        )
-        data = call_v4(client, method, param)
-        format_output(data, output_format, output)
-    except click.ClickException:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    client = create_v4_client(
+        token=ctx.obj.get("token"),
+        login=ctx.obj.get("login"),
+        profile=ctx.obj.get("profile"),
+        sandbox=ctx.obj.get("sandbox"),
+        finance_token=finance_token,
+        operation_num=operation_num,
+    )
+    data = call_v4(client, method, param)
+    format_output(data, output_format, output)
 
 
 def _non_empty(value: str, option_name: str) -> str:

@@ -6,7 +6,7 @@ import click
 
 from ..api import client_from_ctx, create_client
 from ..i18n import t
-from ..output import format_output, handle_api_errors, print_error
+from ..output import format_output, handle_api_errors
 from ..utils import (
     add_criteria_csv,
     add_single_id_selector,
@@ -167,6 +167,7 @@ def get(
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def set(
     ctx,
     campaign_id,
@@ -194,42 +195,35 @@ def set(
             )
         )
 
-    try:
-        bid_data = {}
-        add_single_id_selector(
-            bid_data,
-            campaign_id=campaign_id,
-            adgroup_id=adgroup_id,
-            keyword_id=keyword_id,
-            command_name="keywordbids set",
+    bid_data = {}
+    add_single_id_selector(
+        bid_data,
+        campaign_id=campaign_id,
+        adgroup_id=adgroup_id,
+        keyword_id=keyword_id,
+        command_name="keywordbids set",
+    )
+
+    if search_bid is not None:
+        bid_data["SearchBid"] = search_bid
+    if network_bid is not None:
+        bid_data["NetworkBid"] = network_bid
+    if autotargeting_search_bid_is_auto is not None:
+        bid_data["AutotargetingSearchBidIsAuto"] = (
+            autotargeting_search_bid_is_auto.upper()
         )
+    if priority is not None:
+        bid_data["StrategyPriority"] = priority.upper()
 
-        if search_bid is not None:
-            bid_data["SearchBid"] = search_bid
-        if network_bid is not None:
-            bid_data["NetworkBid"] = network_bid
-        if autotargeting_search_bid_is_auto is not None:
-            bid_data["AutotargetingSearchBidIsAuto"] = (
-                autotargeting_search_bid_is_auto.upper()
-            )
-        if priority is not None:
-            bid_data["StrategyPriority"] = priority.upper()
+    body = {"method": "set", "params": {"KeywordBids": [bid_data]}}
 
-        body = {"method": "set", "params": {"KeywordBids": [bid_data]}}
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
-
-        client = client_from_ctx(ctx, create_client)
-        result = client.keywordbids().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    client = client_from_ctx(ctx, create_client)
+    result = client.keywordbids().post(data=body)
+    format_output(result().extract(), "json", None)
 
 
 @keywordbids.command(name="set-auto")

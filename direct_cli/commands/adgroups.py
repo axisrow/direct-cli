@@ -8,7 +8,7 @@ import click
 
 from ..api import client_from_ctx, create_client
 from ..i18n import t
-from ..output import format_output, handle_api_errors, print_error
+from ..output import format_output, handle_api_errors
 from ..utils import (
     add_criteria_csv,
     get_default_fields,
@@ -577,6 +577,7 @@ def _post_adgroups(client: Any, body: dict[str, Any]) -> Any:
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def get(
     ctx,
     ids,
@@ -608,97 +609,90 @@ def get(
     if status and statuses:
         raise click.UsageError(t("--status and --statuses are mutually exclusive"))
 
-    try:
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        field_names = fields.split(",") if fields else get_default_fields("adgroups")
+    field_names = fields.split(",") if fields else get_default_fields("adgroups")
 
-        raw_nested = (
-            (
-                "AutotargetingSettingsBrandOptionsFieldNames",
-                autotargeting_settings_brand_options_field_names,
-            ),
-            (
-                "AutotargetingSettingsCategoriesFieldNames",
-                autotargeting_settings_categories_field_names,
-            ),
-            (
-                "DynamicTextAdGroupFieldNames",
-                dynamic_text_ad_group_field_names,
-            ),
-            (
-                "DynamicTextFeedAdGroupFieldNames",
-                dynamic_text_feed_ad_group_field_names,
-            ),
-            ("MobileAppAdGroupFieldNames", mobile_app_ad_group_field_names),
-            ("SmartAdGroupFieldNames", smart_ad_group_field_names),
-            (
-                "TextAdGroupFeedParamsFieldNames",
-                text_ad_group_feed_params_field_names,
-            ),
-            ("UnifiedAdGroupFieldNames", unified_ad_group_field_names),
-        )
-        parsed_nested = {}
-        for wsdl_key, raw_value in raw_nested:
-            parsed = parse_csv_strings(raw_value)
-            if raw_value is not None and not parsed:
-                raise click.UsageError(
-                    t("Provide a non-empty comma-separated {wsdl_key} list.").format(
-                        wsdl_key=wsdl_key
-                    )
+    raw_nested = (
+        (
+            "AutotargetingSettingsBrandOptionsFieldNames",
+            autotargeting_settings_brand_options_field_names,
+        ),
+        (
+            "AutotargetingSettingsCategoriesFieldNames",
+            autotargeting_settings_categories_field_names,
+        ),
+        (
+            "DynamicTextAdGroupFieldNames",
+            dynamic_text_ad_group_field_names,
+        ),
+        (
+            "DynamicTextFeedAdGroupFieldNames",
+            dynamic_text_feed_ad_group_field_names,
+        ),
+        ("MobileAppAdGroupFieldNames", mobile_app_ad_group_field_names),
+        ("SmartAdGroupFieldNames", smart_ad_group_field_names),
+        (
+            "TextAdGroupFeedParamsFieldNames",
+            text_ad_group_feed_params_field_names,
+        ),
+        ("UnifiedAdGroupFieldNames", unified_ad_group_field_names),
+    )
+    parsed_nested = {}
+    for wsdl_key, raw_value in raw_nested:
+        parsed = parse_csv_strings(raw_value)
+        if raw_value is not None and not parsed:
+            raise click.UsageError(
+                t("Provide a non-empty comma-separated {wsdl_key} list.").format(
+                    wsdl_key=wsdl_key
                 )
-            if parsed:
-                parsed_nested[wsdl_key] = parsed
+            )
+        if parsed:
+            parsed_nested[wsdl_key] = parsed
 
-        criteria = {}
-        if ids:
-            criteria["Ids"] = parse_ids(ids)
-        if campaign_ids:
-            criteria["CampaignIds"] = parse_ids(campaign_ids)
-        if status:
-            criteria["Statuses"] = [status]
-        add_criteria_csv(criteria, "Statuses", statuses, upper=True)
-        if types:
-            criteria["Types"] = types.split(",")
-        add_criteria_csv(criteria, "TagIds", tag_ids, integers=True)
-        add_criteria_csv(criteria, "Tags", tags)
-        add_criteria_csv(criteria, "AppIconStatuses", app_icon_statuses, upper=True)
-        add_criteria_csv(criteria, "ServingStatuses", serving_statuses, upper=True)
-        add_criteria_csv(
-            criteria,
-            "NegativeKeywordSharedSetIds",
-            negative_keyword_shared_set_ids,
-            integers=True,
-        )
+    criteria = {}
+    if ids:
+        criteria["Ids"] = parse_ids(ids)
+    if campaign_ids:
+        criteria["CampaignIds"] = parse_ids(campaign_ids)
+    if status:
+        criteria["Statuses"] = [status]
+    add_criteria_csv(criteria, "Statuses", statuses, upper=True)
+    if types:
+        criteria["Types"] = types.split(",")
+    add_criteria_csv(criteria, "TagIds", tag_ids, integers=True)
+    add_criteria_csv(criteria, "Tags", tags)
+    add_criteria_csv(criteria, "AppIconStatuses", app_icon_statuses, upper=True)
+    add_criteria_csv(criteria, "ServingStatuses", serving_statuses, upper=True)
+    add_criteria_csv(
+        criteria,
+        "NegativeKeywordSharedSetIds",
+        negative_keyword_shared_set_ids,
+        integers=True,
+    )
 
-        params = {"SelectionCriteria": criteria, "FieldNames": field_names}
-        params.update(parsed_nested)
+    params = {"SelectionCriteria": criteria, "FieldNames": field_names}
+    params.update(parsed_nested)
 
-        if limit:
-            params["Page"] = {"Limit": limit}
+    if limit:
+        params["Page"] = {"Limit": limit}
 
-        body = {"method": "get", "params": params}
+    body = {"method": "get", "params": params}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        result = client.adgroups().post(data=body)
+    result = client.adgroups().post(data=body)
 
-        if fetch_all:
-            items = []
-            for item in result().iter_items():
-                items.append(item)
-            format_output(items, output_format, output)
-        else:
-            data = result().extract()
-            format_output(data, output_format, output)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    if fetch_all:
+        items = []
+        for item in result().iter_items():
+            items.append(item)
+        format_output(items, output_format, output)
+    else:
+        data = result().extract()
+        format_output(data, output_format, output)
 
 
 @adgroups.command()
@@ -1152,6 +1146,7 @@ def add(
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def update(
     ctx,
     adgroup_id,
@@ -1323,21 +1318,16 @@ def update(
             )
         )
 
-    try:
-        body = {"method": "update", "params": {"AdGroups": [adgroup_data]}}
+    body = {"method": "update", "params": {"AdGroups": [adgroup_data]}}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        result = _post_adgroups(client, body)
-        format_output(result().extract(), "json", None)
-
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = _post_adgroups(client, body)
+    format_output(result().extract(), "json", None)
 
 
 @adgroups.command()

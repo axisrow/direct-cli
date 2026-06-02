@@ -10,7 +10,7 @@ import click
 
 from ..api import client_from_ctx, create_client
 from ..i18n import t
-from ..output import format_output, handle_api_errors, print_error
+from ..output import format_output, handle_api_errors
 from ..utils import (
     get_default_fields,
     parse_csv_strings,
@@ -219,6 +219,7 @@ def get(
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def add(ctx, sitelinks_specs, sitelinks_json, sitelinks_from_file, dry_run):
     """Add sitelinks set.
 
@@ -245,45 +246,38 @@ def add(ctx, sitelinks_specs, sitelinks_json, sitelinks_from_file, dry_run):
             )
         )
 
-    try:
-        if sitelinks_specs:
-            try:
-                sitelinks_payload = parse_sitelink_specs(list(sitelinks_specs))
-            except ValueError as exc:
-                raise click.UsageError(str(exc))
+    if sitelinks_specs:
+        try:
+            sitelinks_payload = parse_sitelink_specs(list(sitelinks_specs))
+        except ValueError as exc:
+            raise click.UsageError(str(exc))
+    else:
+        if sitelinks_json is not None:
+            raw_rows = _load_sitelinks_from_inline(sitelinks_json)
         else:
-            if sitelinks_json is not None:
-                raw_rows = _load_sitelinks_from_inline(sitelinks_json)
-            else:
-                raw_rows = _load_sitelinks_from_file(sitelinks_from_file)
+            raw_rows = _load_sitelinks_from_file(sitelinks_from_file)
 
-            if not raw_rows:
-                raise click.UsageError(t("Input contains no sitelink rows."))
+        if not raw_rows:
+            raise click.UsageError(t("Input contains no sitelink rows."))
 
-            sitelinks_payload = [
-                _normalize_sitelink_row(row, idx)
-                for idx, row in enumerate(raw_rows, start=1)
-            ]
+        sitelinks_payload = [
+            _normalize_sitelink_row(row, idx)
+            for idx, row in enumerate(raw_rows, start=1)
+        ]
 
-        body = {
-            "method": "add",
-            "params": {"SitelinksSets": [{"Sitelinks": sitelinks_payload}]},
-        }
+    body = {
+        "method": "add",
+        "params": {"SitelinksSets": [{"Sitelinks": sitelinks_payload}]},
+    }
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        result = client.sitelinks().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.sitelinks().post(data=body)
+    format_output(result().extract(), "json", None)
 
 
 @sitelinks.command()

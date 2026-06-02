@@ -9,7 +9,7 @@ import click
 
 from ..api import client_from_ctx, create_client
 from ..i18n import t
-from ..output import format_output, handle_api_errors, print_error
+from ..output import format_output, handle_api_errors
 from ..utils import (
     build_selection_criteria,
     build_common_params,
@@ -667,6 +667,7 @@ def _reject_incompatible_flags(
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def get(
     ctx,
     ids,
@@ -696,100 +697,91 @@ def get(
     if status and statuses:
         raise click.UsageError(t("--status and --statuses are mutually exclusive"))
 
-    try:
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        # Parse field names
-        field_names = (
-            _parse_csv_option("--fields", fields)
-            if fields is not None
-            else get_default_fields("campaigns")
-        )
+    # Parse field names
+    field_names = (
+        _parse_csv_option("--fields", fields)
+        if fields is not None
+        else get_default_fields("campaigns")
+    )
 
-        # Build selection criteria
-        criteria = build_selection_criteria(
-            ids=parse_ids(ids), status=status, types=types
-        )
-        if criteria is None:
-            criteria = {}
-        add_criteria_csv(criteria, "Statuses", statuses, upper=True)
-        add_criteria_csv(criteria, "States", states, upper=True)
-        add_criteria_csv(criteria, "StatusesPayment", payment_statuses, upper=True)
+    # Build selection criteria
+    criteria = build_selection_criteria(ids=parse_ids(ids), status=status, types=types)
+    if criteria is None:
+        criteria = {}
+    add_criteria_csv(criteria, "Statuses", statuses, upper=True)
+    add_criteria_csv(criteria, "States", states, upper=True)
+    add_criteria_csv(criteria, "StatusesPayment", payment_statuses, upper=True)
 
-        # Build params
-        params = build_common_params(
-            criteria=criteria, field_names=field_names, limit=limit
-        )
-        selector_options = {
-            "TextCampaignFieldNames": (
-                "--text-campaign-field-names",
-                text_campaign_field_names,
-            ),
-            "TextCampaignSearchStrategyPlacementTypesFieldNames": (
-                "--text-campaign-search-strategy-placement-types-field-names",
-                text_campaign_search_strategy_placement_types_field_names,
-            ),
-            "MobileAppCampaignFieldNames": (
-                "--mobile-app-campaign-field-names",
-                mobile_app_campaign_field_names,
-            ),
-            "DynamicTextCampaignFieldNames": (
-                "--dynamic-text-campaign-field-names",
-                dynamic_text_campaign_field_names,
-            ),
-            "DynamicTextCampaignSearchStrategyPlacementTypesFieldNames": (
-                "--dynamic-text-campaign-search-strategy-placement-types-field-names",
-                dynamic_text_campaign_search_strategy_placement_types_field_names,
-            ),
-            "CpmBannerCampaignFieldNames": (
-                "--cpm-banner-campaign-field-names",
-                cpm_banner_campaign_field_names,
-            ),
-            "SmartCampaignFieldNames": (
-                "--smart-campaign-field-names",
-                smart_campaign_field_names,
-            ),
-            "UnifiedCampaignFieldNames": (
-                "--unified-campaign-field-names",
-                unified_campaign_field_names,
-            ),
-            "UnifiedCampaignSearchStrategyPlacementTypesFieldNames": (
-                "--unified-campaign-search-strategy-placement-types-field-names",
-                unified_campaign_search_strategy_placement_types_field_names,
-            ),
-            "UnifiedCampaignPackageBiddingStrategyPlatformsFieldNames": (
-                "--unified-campaign-package-bidding-strategy-platforms-field-names",
-                unified_campaign_package_bidding_strategy_platforms_field_names,
-            ),
-        }
-        for request_key, (option_name, value) in selector_options.items():
-            parsed = _parse_csv_option(option_name, value)
-            if parsed:
-                params[request_key] = parsed
+    # Build params
+    params = build_common_params(
+        criteria=criteria, field_names=field_names, limit=limit
+    )
+    selector_options = {
+        "TextCampaignFieldNames": (
+            "--text-campaign-field-names",
+            text_campaign_field_names,
+        ),
+        "TextCampaignSearchStrategyPlacementTypesFieldNames": (
+            "--text-campaign-search-strategy-placement-types-field-names",
+            text_campaign_search_strategy_placement_types_field_names,
+        ),
+        "MobileAppCampaignFieldNames": (
+            "--mobile-app-campaign-field-names",
+            mobile_app_campaign_field_names,
+        ),
+        "DynamicTextCampaignFieldNames": (
+            "--dynamic-text-campaign-field-names",
+            dynamic_text_campaign_field_names,
+        ),
+        "DynamicTextCampaignSearchStrategyPlacementTypesFieldNames": (
+            "--dynamic-text-campaign-search-strategy-placement-types-field-names",
+            dynamic_text_campaign_search_strategy_placement_types_field_names,
+        ),
+        "CpmBannerCampaignFieldNames": (
+            "--cpm-banner-campaign-field-names",
+            cpm_banner_campaign_field_names,
+        ),
+        "SmartCampaignFieldNames": (
+            "--smart-campaign-field-names",
+            smart_campaign_field_names,
+        ),
+        "UnifiedCampaignFieldNames": (
+            "--unified-campaign-field-names",
+            unified_campaign_field_names,
+        ),
+        "UnifiedCampaignSearchStrategyPlacementTypesFieldNames": (
+            "--unified-campaign-search-strategy-placement-types-field-names",
+            unified_campaign_search_strategy_placement_types_field_names,
+        ),
+        "UnifiedCampaignPackageBiddingStrategyPlatformsFieldNames": (
+            "--unified-campaign-package-bidding-strategy-platforms-field-names",
+            unified_campaign_package_bidding_strategy_platforms_field_names,
+        ),
+    }
+    for request_key, (option_name, value) in selector_options.items():
+        parsed = _parse_csv_option(option_name, value)
+        if parsed:
+            params[request_key] = parsed
 
-        body = {"method": "get", "params": params}
+    body = {"method": "get", "params": params}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        result = client.campaigns().post(data=body)
+    result = client.campaigns().post(data=body)
 
-        if fetch_all:
-            # Get all pages
-            items = []
-            for item in result().iter_items():
-                items.append(item)
-            format_output(items, output_format, output)
-        else:
-            data = result().extract()
-            format_output(data, output_format, output)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    if fetch_all:
+        # Get all pages
+        items = []
+        for item in result().iter_items():
+            items.append(item)
+        format_output(items, output_format, output)
+    else:
+        data = result().extract()
+        format_output(data, output_format, output)
 
 
 @campaigns.command()

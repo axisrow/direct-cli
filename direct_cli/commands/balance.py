@@ -4,7 +4,7 @@ import click
 
 from ..api import create_v4_client
 from ..i18n import t
-from ..output import format_output, print_error
+from ..output import format_output, handle_api_errors
 from ..utils import parse_csv_strings
 from ..v4 import build_v4_body, call_v4
 from ..v4_contracts import v4_method_contract
@@ -23,6 +23,7 @@ from ..v4_contracts import v4_method_contract
 @click.option("--output", help="Output file")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def balance(ctx, logins, output_format, output, dry_run):
     """Check account money balance."""
     login_list = parse_csv_strings(logins)
@@ -42,17 +43,11 @@ def balance(ctx, logins, output_format, output, dry_run):
         format_output(build_v4_body("AccountManagement", param), "json", None)
         return
 
-    try:
-        client = create_v4_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            profile=ctx.obj.get("profile"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
-        data = call_v4(client, "AccountManagement", param)
-        format_output(data, output_format, output)
-    except click.ClickException:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    client = create_v4_client(
+        token=ctx.obj.get("token"),
+        login=ctx.obj.get("login"),
+        profile=ctx.obj.get("profile"),
+        sandbox=ctx.obj.get("sandbox"),
+    )
+    data = call_v4(client, "AccountManagement", param)
+    format_output(data, output_format, output)

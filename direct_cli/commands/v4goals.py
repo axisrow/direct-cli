@@ -4,7 +4,7 @@ import click
 
 from ..api import create_v4_client
 from ..i18n import t
-from ..output import format_output, print_error
+from ..output import format_output, handle_api_errors
 from ..utils import parse_ids
 from ..v4 import build_v4_body, call_v4
 from ..v4_contracts import v4_method_contract
@@ -22,6 +22,7 @@ def _campaign_ids_param(campaign_ids: str) -> dict:
     return {"CampaignIDS": ids}
 
 
+@handle_api_errors
 def _run_goals_command(
     ctx,
     method: str,
@@ -35,20 +36,14 @@ def _run_goals_command(
         format_output(build_v4_body(method, param), "json", None)
         return
 
-    try:
-        client = create_v4_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            profile=ctx.obj.get("profile"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
-        data = call_v4(client, method, param)
-        format_output(data, output_format, output)
-    except click.ClickException:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    client = create_v4_client(
+        token=ctx.obj.get("token"),
+        login=ctx.obj.get("login"),
+        profile=ctx.obj.get("profile"),
+        sandbox=ctx.obj.get("sandbox"),
+    )
+    data = call_v4(client, method, param)
+    format_output(data, output_format, output)
 
 
 @click.group(epilog=V4_EPILOG)

@@ -8,7 +8,7 @@ import click
 
 from ..api import client_from_ctx, create_client
 from ..i18n import t
-from ..output import format_output, handle_api_errors, print_error
+from ..output import format_output, handle_api_errors
 from ..utils import (
     add_criteria_csv,
     get_default_fields,
@@ -922,6 +922,7 @@ def _build_smart_ad_builder_ad_update(
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def get(
     ctx,
     ids,
@@ -966,117 +967,110 @@ def get(
     if status and statuses:
         raise click.UsageError(t("--status and --statuses are mutually exclusive"))
 
-    try:
-        field_names = (
-            fields.split(",") if fields else get_default_fields("ads", "FieldNames")
-        )
+    field_names = (
+        fields.split(",") if fields else get_default_fields("ads", "FieldNames")
+    )
 
-        raw_nested = (
-            (
-                "CpcVideoAdBuilderAdFieldNames",
-                cpc_video_ad_builder_ad_field_names,
-            ),
-            (
-                "CpmBannerAdBuilderAdFieldNames",
-                cpm_banner_ad_builder_ad_field_names,
-            ),
-            (
-                "CpmVideoAdBuilderAdFieldNames",
-                cpm_video_ad_builder_ad_field_names,
-            ),
-            ("DynamicTextAdFieldNames", dynamic_text_ad_field_names),
-            ("ListingAdFieldNames", listing_ad_field_names),
-            ("MobileAppAdBuilderAdFieldNames", mobile_app_ad_builder_ad_field_names),
-            ("MobileAppAdFieldNames", mobile_app_ad_field_names),
-            (
-                "MobileAppCpcVideoAdBuilderAdFieldNames",
-                mobile_app_cpc_video_ad_builder_ad_field_names,
-            ),
-            ("MobileAppImageAdFieldNames", mobile_app_image_ad_field_names),
-            ("ResponsiveAdFieldNames", responsive_ad_field_names),
-            ("ShoppingAdFieldNames", shopping_ad_field_names),
-            ("SmartAdBuilderAdFieldNames", smart_ad_builder_ad_field_names),
-            ("TextAdBuilderAdFieldNames", text_ad_builder_ad_field_names),
-            ("TextAdFieldNames", text_ad_field_names),
-            (
-                "TextAdPriceExtensionFieldNames",
-                text_ad_price_extension_field_names,
-            ),
-            ("TextImageAdFieldNames", text_image_ad_field_names),
-        )
-        parsed_nested = {}
-        for wsdl_key, raw_value in raw_nested:
-            parsed = _parse_field_names_option(wsdl_key, raw_value)
-            if parsed:
-                parsed_nested[wsdl_key] = parsed
-        parsed_nested.setdefault(
-            "TextAdFieldNames", get_default_fields("ads", "TextAdFieldNames")
-        )
+    raw_nested = (
+        (
+            "CpcVideoAdBuilderAdFieldNames",
+            cpc_video_ad_builder_ad_field_names,
+        ),
+        (
+            "CpmBannerAdBuilderAdFieldNames",
+            cpm_banner_ad_builder_ad_field_names,
+        ),
+        (
+            "CpmVideoAdBuilderAdFieldNames",
+            cpm_video_ad_builder_ad_field_names,
+        ),
+        ("DynamicTextAdFieldNames", dynamic_text_ad_field_names),
+        ("ListingAdFieldNames", listing_ad_field_names),
+        ("MobileAppAdBuilderAdFieldNames", mobile_app_ad_builder_ad_field_names),
+        ("MobileAppAdFieldNames", mobile_app_ad_field_names),
+        (
+            "MobileAppCpcVideoAdBuilderAdFieldNames",
+            mobile_app_cpc_video_ad_builder_ad_field_names,
+        ),
+        ("MobileAppImageAdFieldNames", mobile_app_image_ad_field_names),
+        ("ResponsiveAdFieldNames", responsive_ad_field_names),
+        ("ShoppingAdFieldNames", shopping_ad_field_names),
+        ("SmartAdBuilderAdFieldNames", smart_ad_builder_ad_field_names),
+        ("TextAdBuilderAdFieldNames", text_ad_builder_ad_field_names),
+        ("TextAdFieldNames", text_ad_field_names),
+        (
+            "TextAdPriceExtensionFieldNames",
+            text_ad_price_extension_field_names,
+        ),
+        ("TextImageAdFieldNames", text_image_ad_field_names),
+    )
+    parsed_nested = {}
+    for wsdl_key, raw_value in raw_nested:
+        parsed = _parse_field_names_option(wsdl_key, raw_value)
+        if parsed:
+            parsed_nested[wsdl_key] = parsed
+    parsed_nested.setdefault(
+        "TextAdFieldNames", get_default_fields("ads", "TextAdFieldNames")
+    )
 
-        criteria = {}
-        if ids:
-            criteria["Ids"] = parse_ids(ids)
-        if campaign_ids:
-            criteria["CampaignIds"] = parse_ids(campaign_ids)
-        if adgroup_ids:
-            criteria["AdGroupIds"] = parse_ids(adgroup_ids)
-        if status:
-            criteria["Statuses"] = [status]
-        add_criteria_csv(criteria, "Statuses", statuses, upper=True)
-        add_criteria_csv(criteria, "States", states, upper=True)
-        add_criteria_csv(criteria, "Types", types, upper=True)
-        if mobile:
-            criteria["Mobile"] = mobile.upper()
-        add_criteria_csv(criteria, "VCardIds", vcard_ids, integers=True)
-        add_criteria_csv(criteria, "SitelinkSetIds", sitelink_set_ids, integers=True)
-        add_criteria_csv(criteria, "AdImageHashes", image_hashes)
-        add_criteria_csv(
-            criteria, "VCardModerationStatuses", vcard_moderation_statuses, upper=True
-        )
-        add_criteria_csv(
-            criteria,
-            "SitelinksModerationStatuses",
-            sitelinks_moderation_statuses,
-            upper=True,
-        )
-        add_criteria_csv(
-            criteria, "AdImageModerationStatuses", image_moderation_statuses, upper=True
-        )
-        add_criteria_csv(criteria, "AdExtensionIds", adextension_ids, integers=True)
+    criteria = {}
+    if ids:
+        criteria["Ids"] = parse_ids(ids)
+    if campaign_ids:
+        criteria["CampaignIds"] = parse_ids(campaign_ids)
+    if adgroup_ids:
+        criteria["AdGroupIds"] = parse_ids(adgroup_ids)
+    if status:
+        criteria["Statuses"] = [status]
+    add_criteria_csv(criteria, "Statuses", statuses, upper=True)
+    add_criteria_csv(criteria, "States", states, upper=True)
+    add_criteria_csv(criteria, "Types", types, upper=True)
+    if mobile:
+        criteria["Mobile"] = mobile.upper()
+    add_criteria_csv(criteria, "VCardIds", vcard_ids, integers=True)
+    add_criteria_csv(criteria, "SitelinkSetIds", sitelink_set_ids, integers=True)
+    add_criteria_csv(criteria, "AdImageHashes", image_hashes)
+    add_criteria_csv(
+        criteria, "VCardModerationStatuses", vcard_moderation_statuses, upper=True
+    )
+    add_criteria_csv(
+        criteria,
+        "SitelinksModerationStatuses",
+        sitelinks_moderation_statuses,
+        upper=True,
+    )
+    add_criteria_csv(
+        criteria, "AdImageModerationStatuses", image_moderation_statuses, upper=True
+    )
+    add_criteria_csv(criteria, "AdExtensionIds", adextension_ids, integers=True)
 
-        params = {
-            "SelectionCriteria": criteria,
-            "FieldNames": field_names,
-        }
-        params.update(parsed_nested)
+    params = {
+        "SelectionCriteria": criteria,
+        "FieldNames": field_names,
+    }
+    params.update(parsed_nested)
 
-        if limit:
-            params["Page"] = {"Limit": limit}
+    if limit:
+        params["Page"] = {"Limit": limit}
 
-        body = {"method": "get", "params": params}
+    body = {"method": "get", "params": params}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        result = client.ads().post(data=body)
+    result = client.ads().post(data=body)
 
-        if fetch_all:
-            items = []
-            for item in result().iter_items():
-                items.append(item)
-            format_output(items, output_format, output)
-        else:
-            data = result().extract()
-            format_output(data, output_format, output)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    if fetch_all:
+        items = []
+        for item in result().iter_items():
+            items.append(item)
+        format_output(items, output_format, output)
+    else:
+        data = result().extract()
+        format_output(data, output_format, output)
 
 
 @ads.command()
@@ -1948,6 +1942,7 @@ def add(
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def update(
     ctx,
     ad_id,
@@ -2321,23 +2316,16 @@ def update(
             ).format(ad_type_norm=ad_type_norm)
         )
 
-    try:
-        body = {"method": "update", "params": {"Ads": [ad_data]}}
+    body = {"method": "update", "params": {"Ads": [ad_data]}}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        result = client.ads().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.ads().post(data=body)
+    format_output(result().extract(), "json", None)
 
 
 @ads.command()
