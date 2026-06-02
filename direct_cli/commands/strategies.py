@@ -8,7 +8,7 @@ import click
 
 from ..api import client_from_ctx, create_client
 from ..i18n import t
-from ..output import format_output, print_error
+from ..output import format_output, handle_api_errors
 from ..utils import (
     MICRO_RUBLES,
     get_default_fields,
@@ -582,6 +582,7 @@ def _parse_field_names_option(
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def get(
     ctx,
     ids,
@@ -611,100 +612,93 @@ def get(
     dry_run,
 ):
     """Get strategies"""
-    try:
-        field_names = fields.split(",") if fields else get_default_fields("strategies")
+    field_names = fields.split(",") if fields else get_default_fields("strategies")
 
-        raw_nested = (
-            ("StrategyAverageCpaFieldNames", strategy_average_cpa_field_names),
-            (
-                "StrategyAverageCpaMultipleGoalsFieldNames",
-                strategy_average_cpa_multiple_goals_field_names,
-            ),
-            (
-                "StrategyAverageCpaPerCampaignFieldNames",
-                strategy_average_cpa_per_campaign_field_names,
-            ),
-            (
-                "StrategyAverageCpaPerFilterFieldNames",
-                strategy_average_cpa_per_filter_field_names,
-            ),
-            ("StrategyAverageCpcFieldNames", strategy_average_cpc_field_names),
-            (
-                "StrategyAverageCpcPerCampaignFieldNames",
-                strategy_average_cpc_per_campaign_field_names,
-            ),
-            (
-                "StrategyAverageCpcPerFilterFieldNames",
-                strategy_average_cpc_per_filter_field_names,
-            ),
-            ("StrategyAverageCrrFieldNames", strategy_average_crr_field_names),
-            ("StrategyMaxProfitFieldNames", strategy_max_profit_field_names),
-            ("StrategyMaximumClicksFieldNames", strategy_maximum_clicks_field_names),
-            (
-                "StrategyMaximumConversionRateFieldNames",
-                strategy_maximum_conversion_rate_field_names,
-            ),
-            (
-                "StrategyPayForConversionCrrFieldNames",
-                strategy_pay_for_conversion_crr_field_names,
-            ),
-            (
-                "StrategyPayForConversionFieldNames",
-                strategy_pay_for_conversion_field_names,
-            ),
-            (
-                "StrategyPayForConversionMultipleGoalsFieldNames",
-                strategy_pay_for_conversion_multiple_goals_field_names,
-            ),
-            (
-                "StrategyPayForConversionPerCampaignFieldNames",
-                strategy_pay_for_conversion_per_campaign_field_names,
-            ),
-            (
-                "StrategyPayForConversionPerFilterFieldNames",
-                strategy_pay_for_conversion_per_filter_field_names,
-            ),
-        )
-        parsed_nested = {}
-        for wsdl_key, raw_value in raw_nested:
-            parsed = _parse_field_names_option(wsdl_key, raw_value)
-            if parsed:
-                parsed_nested[wsdl_key] = parsed
+    raw_nested = (
+        ("StrategyAverageCpaFieldNames", strategy_average_cpa_field_names),
+        (
+            "StrategyAverageCpaMultipleGoalsFieldNames",
+            strategy_average_cpa_multiple_goals_field_names,
+        ),
+        (
+            "StrategyAverageCpaPerCampaignFieldNames",
+            strategy_average_cpa_per_campaign_field_names,
+        ),
+        (
+            "StrategyAverageCpaPerFilterFieldNames",
+            strategy_average_cpa_per_filter_field_names,
+        ),
+        ("StrategyAverageCpcFieldNames", strategy_average_cpc_field_names),
+        (
+            "StrategyAverageCpcPerCampaignFieldNames",
+            strategy_average_cpc_per_campaign_field_names,
+        ),
+        (
+            "StrategyAverageCpcPerFilterFieldNames",
+            strategy_average_cpc_per_filter_field_names,
+        ),
+        ("StrategyAverageCrrFieldNames", strategy_average_crr_field_names),
+        ("StrategyMaxProfitFieldNames", strategy_max_profit_field_names),
+        ("StrategyMaximumClicksFieldNames", strategy_maximum_clicks_field_names),
+        (
+            "StrategyMaximumConversionRateFieldNames",
+            strategy_maximum_conversion_rate_field_names,
+        ),
+        (
+            "StrategyPayForConversionCrrFieldNames",
+            strategy_pay_for_conversion_crr_field_names,
+        ),
+        (
+            "StrategyPayForConversionFieldNames",
+            strategy_pay_for_conversion_field_names,
+        ),
+        (
+            "StrategyPayForConversionMultipleGoalsFieldNames",
+            strategy_pay_for_conversion_multiple_goals_field_names,
+        ),
+        (
+            "StrategyPayForConversionPerCampaignFieldNames",
+            strategy_pay_for_conversion_per_campaign_field_names,
+        ),
+        (
+            "StrategyPayForConversionPerFilterFieldNames",
+            strategy_pay_for_conversion_per_filter_field_names,
+        ),
+    )
+    parsed_nested = {}
+    for wsdl_key, raw_value in raw_nested:
+        parsed = _parse_field_names_option(wsdl_key, raw_value)
+        if parsed:
+            parsed_nested[wsdl_key] = parsed
 
-        criteria = {}
-        if ids:
-            criteria["Ids"] = parse_ids(ids)
-        if types:
-            criteria["Types"] = [t.strip() for t in types.split(",")]
-        if is_archived:
-            criteria["IsArchived"] = is_archived.upper()
+    criteria = {}
+    if ids:
+        criteria["Ids"] = parse_ids(ids)
+    if types:
+        criteria["Types"] = [t.strip() for t in types.split(",")]
+    if is_archived:
+        criteria["IsArchived"] = is_archived.upper()
 
-        params = {"SelectionCriteria": criteria, "FieldNames": field_names}
-        params.update(parsed_nested)
-        if limit:
-            params["Page"] = {"Limit": limit}
+    params = {"SelectionCriteria": criteria, "FieldNames": field_names}
+    params.update(parsed_nested)
+    if limit:
+        params["Page"] = {"Limit": limit}
 
-        body = {"method": "get", "params": params}
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    body = {"method": "get", "params": params}
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
-        result = client.strategies().post(data=body)
+    client = client_from_ctx(ctx, create_client)
+    result = client.strategies().post(data=body)
 
-        if fetch_all:
-            items = []
-            for item in result().iter_items():
-                items.append(item)
-            format_output(items, output_format, output)
-        else:
-            format_output(result().extract(), output_format, output)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    if fetch_all:
+        items = []
+        for item in result().iter_items():
+            items.append(item)
+        format_output(items, output_format, output)
+    else:
+        format_output(result().extract(), output_format, output)
 
 
 @strategies.command()
@@ -774,6 +768,7 @@ def get(
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def add(
     ctx,
     name,
@@ -796,53 +791,46 @@ def add(
     dry_run,
 ):
     """Add a strategy"""
-    try:
-        strategy_data = {
-            "Name": name,
-            strategy_type: _build_strategy_fields(
-                strategy_type,
-                average_cpc,
-                average_cpa,
-                average_crr,
-                goal_id,
-                spend_limit,
-                weekly_spend_limit,
-                bid_ceiling,
-                custom_period_spend_limit,
-                custom_period_start_date,
-                custom_period_end_date,
-                custom_period_auto_continue,
-                minimum_exploration_budget,
-            ),
+    strategy_data = {
+        "Name": name,
+        strategy_type: _build_strategy_fields(
+            strategy_type,
+            average_cpc,
+            average_cpa,
+            average_crr,
+            goal_id,
+            spend_limit,
+            weekly_spend_limit,
+            bid_ceiling,
+            custom_period_spend_limit,
+            custom_period_start_date,
+            custom_period_end_date,
+            custom_period_auto_continue,
+            minimum_exploration_budget,
+        ),
+    }
+    if strategy_type in GOAL_ID_STRATEGY_TYPES and goal_id is None:
+        raise click.UsageError(t("Provide --goal-id for this strategy type"))
+    if counter_ids:
+        strategy_data["CounterIds"] = {
+            "Items": [int(x.strip()) for x in counter_ids.split(",")]
         }
-        if strategy_type in GOAL_ID_STRATEGY_TYPES and goal_id is None:
-            raise click.UsageError(t("Provide --goal-id for this strategy type"))
-        if counter_ids:
-            strategy_data["CounterIds"] = {
-                "Items": [int(x.strip()) for x in counter_ids.split(",")]
-            }
-        if priority_goals:
-            strategy_data["PriorityGoals"] = {
-                "Items": [_parse_priority_goal(goal) for goal in priority_goals]
-            }
-        if attribution_model:
-            strategy_data["AttributionModel"] = attribution_model
+    if priority_goals:
+        strategy_data["PriorityGoals"] = {
+            "Items": [_parse_priority_goal(goal) for goal in priority_goals]
+        }
+    if attribution_model:
+        strategy_data["AttributionModel"] = attribution_model
 
-        body = {"method": "add", "params": {"Strategies": [strategy_data]}}
+    body = {"method": "add", "params": {"Strategies": [strategy_data]}}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
-        result = client.strategies().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    client = client_from_ctx(ctx, create_client)
+    result = client.strategies().post(data=body)
+    format_output(result().extract(), "json", None)
 
 
 @strategies.command()
@@ -912,6 +900,7 @@ def add(
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def update(
     ctx,
     strategy_id,
@@ -935,133 +924,114 @@ def update(
     dry_run,
 ):
     """Update a strategy"""
-    try:
-        strategy_data = {"Id": strategy_id}
-        if name:
-            strategy_data["Name"] = name
-        strategy_fields = _build_strategy_fields(
-            strategy_type,
-            average_cpc,
-            average_cpa,
-            average_crr,
-            goal_id,
-            spend_limit,
-            weekly_spend_limit,
-            bid_ceiling,
-            custom_period_spend_limit,
-            custom_period_start_date,
-            custom_period_end_date,
-            custom_period_auto_continue,
-            minimum_exploration_budget,
-            update=True,
+    strategy_data = {"Id": strategy_id}
+    if name:
+        strategy_data["Name"] = name
+    strategy_fields = _build_strategy_fields(
+        strategy_type,
+        average_cpc,
+        average_cpa,
+        average_crr,
+        goal_id,
+        spend_limit,
+        weekly_spend_limit,
+        bid_ceiling,
+        custom_period_spend_limit,
+        custom_period_start_date,
+        custom_period_end_date,
+        custom_period_auto_continue,
+        minimum_exploration_budget,
+        update=True,
+    )
+    if strategy_fields and not strategy_type:
+        raise click.UsageError(
+            t("Provide --type when setting strategy-specific fields")
         )
-        if strategy_fields and not strategy_type:
-            raise click.UsageError(
-                t("Provide --type when setting strategy-specific fields")
-            )
-        if strategy_type and not strategy_fields:
-            # Reject empty-subtype no-op (issue #198 sibling of H1/H5/H10):
-            # `--type AverageCpa` with no field flags would emit
-            # {Id, AverageCpa: {}}, which the live API accepts as a
-            # silent no-op.
-            raise click.UsageError(
-                t(
-                    "strategies update requires at least one field for --type {strategy_type}."
-                ).format(strategy_type=strategy_type)
-            )
-        if strategy_type:
-            # GoalId is minOccurs=0 in every Strategy*Base used by
-            # Strategy*UpdateItem (cached WSDL strategies.xml), so update
-            # must NOT require --goal-id even for the goal-id family —
-            # users may change AverageCpa/Crr/WeeklySpendLimit without
-            # re-specifying the existing goal. The add command keeps the
-            # required-on-add validation because *AddItem.GoalId is
-            # minOccurs=1.
-            strategy_data[strategy_type] = strategy_fields
-        if counter_ids:
-            strategy_data["CounterIds"] = {
-                "Items": [int(x.strip()) for x in counter_ids.split(",")]
-            }
-        if priority_goals:
-            strategy_data["PriorityGoals"] = {
-                "Items": [_parse_priority_goal(goal) for goal in priority_goals]
-            }
-        if attribution_model:
-            strategy_data["AttributionModel"] = attribution_model
+    if strategy_type and not strategy_fields:
+        # Reject empty-subtype no-op (issue #198 sibling of H1/H5/H10):
+        # `--type AverageCpa` with no field flags would emit
+        # {Id, AverageCpa: {}}, which the live API accepts as a
+        # silent no-op.
+        raise click.UsageError(
+            t(
+                "strategies update requires at least one field for --type {strategy_type}."
+            ).format(strategy_type=strategy_type)
+        )
+    if strategy_type:
+        # GoalId is minOccurs=0 in every Strategy*Base used by
+        # Strategy*UpdateItem (cached WSDL strategies.xml), so update
+        # must NOT require --goal-id even for the goal-id family —
+        # users may change AverageCpa/Crr/WeeklySpendLimit without
+        # re-specifying the existing goal. The add command keeps the
+        # required-on-add validation because *AddItem.GoalId is
+        # minOccurs=1.
+        strategy_data[strategy_type] = strategy_fields
+    if counter_ids:
+        strategy_data["CounterIds"] = {
+            "Items": [int(x.strip()) for x in counter_ids.split(",")]
+        }
+    if priority_goals:
+        strategy_data["PriorityGoals"] = {
+            "Items": [_parse_priority_goal(goal) for goal in priority_goals]
+        }
+    if attribution_model:
+        strategy_data["AttributionModel"] = attribution_model
 
-        if len(strategy_data) == 1:
-            # Only `Id` populated — reject the no-op payload (sibling of
-            # the H1/H5/H10 empty-payload guards on other resources).
-            raise click.UsageError(
-                t("strategies update requires at least one updatable field.")
-            )
+    if len(strategy_data) == 1:
+        # Only `Id` populated — reject the no-op payload (sibling of
+        # the H1/H5/H10 empty-payload guards on other resources).
+        raise click.UsageError(
+            t("strategies update requires at least one updatable field.")
+        )
 
-        body = {"method": "update", "params": {"Strategies": [strategy_data]}}
+    body = {"method": "update", "params": {"Strategies": [strategy_data]}}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
-        result = client.strategies().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    client = client_from_ctx(ctx, create_client)
+    result = client.strategies().post(data=body)
+    format_output(result().extract(), "json", None)
 
 
 @strategies.command()
 @click.option("--id", "strategy_id", required=True, type=int, help="Strategy ID")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def archive(ctx, strategy_id, dry_run):
     """Archive a strategy"""
-    try:
-        body = {
-            "method": "archive",
-            "params": {"SelectionCriteria": {"Ids": [strategy_id]}},
-        }
+    body = {
+        "method": "archive",
+        "params": {"SelectionCriteria": {"Ids": [strategy_id]}},
+    }
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
-        result = client.strategies().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    client = client_from_ctx(ctx, create_client)
+    result = client.strategies().post(data=body)
+    format_output(result().extract(), "json", None)
 
 
 @strategies.command()
 @click.option("--id", "strategy_id", required=True, type=int, help="Strategy ID")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def unarchive(ctx, strategy_id, dry_run):
     """Unarchive a strategy"""
-    try:
-        body = {
-            "method": "unarchive",
-            "params": {"SelectionCriteria": {"Ids": [strategy_id]}},
-        }
+    body = {
+        "method": "unarchive",
+        "params": {"SelectionCriteria": {"Ids": [strategy_id]}},
+    }
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
-        result = client.strategies().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    client = client_from_ctx(ctx, create_client)
+    result = client.strategies().post(data=body)
+    format_output(result().extract(), "json", None)
