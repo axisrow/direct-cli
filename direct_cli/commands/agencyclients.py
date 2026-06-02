@@ -6,7 +6,7 @@ import click
 
 from ..api import client_from_ctx, create_client
 from ..i18n import t
-from ..output import format_output, print_error
+from ..output import format_output, handle_api_errors, print_error
 from ..utils import (
     assert_not_runtime_deprecated,
     build_client_update_item,
@@ -117,6 +117,7 @@ def agencyclients():
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def get(
     ctx,
     logins,
@@ -134,64 +135,55 @@ def get(
     dry_run,
 ):
     """Get agency clients"""
-    try:
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        field_names = (
-            fields.split(",") if fields else get_default_fields("agencyclients")
-        )
+    field_names = fields.split(",") if fields else get_default_fields("agencyclients")
 
-        raw_nested = (
-            ("ContractFieldNames", contract_field_names),
-            ("ContragentFieldNames", contragent_field_names),
-            ("ContragentTinInfoFieldNames", contragent_tin_info_field_names),
-            ("OrganizationFieldNames", organization_field_names),
-            ("TinInfoFieldNames", tin_info_field_names),
-        )
-        parsed_nested = {}
-        for wsdl_key, raw_value in raw_nested:
-            parsed = parse_csv_strings(raw_value)
-            if raw_value is not None and not parsed:
-                raise click.UsageError(
-                    t("Provide a non-empty comma-separated {wsdl_key} list.").format(
-                        wsdl_key=wsdl_key
-                    )
+    raw_nested = (
+        ("ContractFieldNames", contract_field_names),
+        ("ContragentFieldNames", contragent_field_names),
+        ("ContragentTinInfoFieldNames", contragent_tin_info_field_names),
+        ("OrganizationFieldNames", organization_field_names),
+        ("TinInfoFieldNames", tin_info_field_names),
+    )
+    parsed_nested = {}
+    for wsdl_key, raw_value in raw_nested:
+        parsed = parse_csv_strings(raw_value)
+        if raw_value is not None and not parsed:
+            raise click.UsageError(
+                t("Provide a non-empty comma-separated {wsdl_key} list.").format(
+                    wsdl_key=wsdl_key
                 )
-            if parsed:
-                parsed_nested[wsdl_key] = parsed
+            )
+        if parsed:
+            parsed_nested[wsdl_key] = parsed
 
-        criteria = {"Archived": archived}
-        if logins:
-            criteria["Logins"] = [login.strip() for login in logins.split(",")]
+    criteria = {"Archived": archived}
+    if logins:
+        criteria["Logins"] = [login.strip() for login in logins.split(",")]
 
-        params = {"SelectionCriteria": criteria, "FieldNames": field_names}
-        params.update(parsed_nested)
+    params = {"SelectionCriteria": criteria, "FieldNames": field_names}
+    params.update(parsed_nested)
 
-        if limit:
-            params["Page"] = {"Limit": limit}
+    if limit:
+        params["Page"] = {"Limit": limit}
 
-        body = {"method": "get", "params": params}
+    body = {"method": "get", "params": params}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        result = client.agencyclients().post(data=body)
+    result = client.agencyclients().post(data=body)
 
-        if fetch_all:
-            items = []
-            for item in result().iter_items():
-                items.append(item)
-            format_output(items, output_format, output)
-        else:
-            data = result().extract()
-            format_output(data, output_format, output)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    if fetch_all:
+        items = []
+        for item in result().iter_items():
+            items.append(item)
+        format_output(items, output_format, output)
+    else:
+        data = result().extract()
+        format_output(data, output_format, output)
 
 
 @agencyclients.command()
@@ -213,6 +205,7 @@ def get(
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def add(
     ctx,
     login,
@@ -226,39 +219,32 @@ def add(
     dry_run,
 ):
     """Add agency client"""
-    try:
-        assert_not_runtime_deprecated("agencyclients", "add")
+    assert_not_runtime_deprecated("agencyclients", "add")
 
-        body = {
-            "method": "add",
-            "params": {
-                "Login": login,
-                "FirstName": first_name,
-                "LastName": last_name,
-                "Currency": currency,
-                "Notification": _build_notification(
-                    notification_email,
-                    notification_lang,
-                    send_account_news,
-                    send_warnings,
-                ),
-            },
-        }
+    body = {
+        "method": "add",
+        "params": {
+            "Login": login,
+            "FirstName": first_name,
+            "LastName": last_name,
+            "Currency": currency,
+            "Notification": _build_notification(
+                notification_email,
+                notification_lang,
+                send_account_news,
+                send_warnings,
+            ),
+        },
+    }
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        result = client.agencyclients().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.agencyclients().post(data=body)
+    format_output(result().extract(), "json", None)
 
 
 @agencyclients.command(name="add-passport-organization")
@@ -278,6 +264,7 @@ def add(
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def add_passport_organization(
     ctx,
     name,
@@ -289,31 +276,26 @@ def add_passport_organization(
     dry_run,
 ):
     """Add passport organization agency client"""
-    try:
-        params = {
-            "Name": name,
-            "Currency": currency,
-            "Notification": _build_notification(
-                notification_email,
-                notification_lang,
-                send_account_news,
-                send_warnings,
-            ),
-        }
+    params = {
+        "Name": name,
+        "Currency": currency,
+        "Notification": _build_notification(
+            notification_email,
+            notification_lang,
+            send_account_news,
+            send_warnings,
+        ),
+    }
 
-        body = {"method": "addPassportOrganization", "params": params}
+    body = {"method": "addPassportOrganization", "params": params}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
-        result = client.agencyclients().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    client = client_from_ctx(ctx, create_client)
+    result = client.agencyclients().post(data=body)
+    format_output(result().extract(), "json", None)
 
 
 @agencyclients.command(name="add-passport-organization-member")
@@ -325,44 +307,38 @@ def add_passport_organization(
 @click.option("--invite-phone", help="Invitation phone")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def add_passport_organization_member(
     ctx, passport_organization_login, role, invite_email, invite_phone, dry_run
 ):
     """Invite user to passport organization"""
-    try:
-        if not invite_email and not invite_phone:
-            raise click.UsageError(
-                t("Provide at least one of --invite-email or --invite-phone")
-            )
+    if not invite_email and not invite_phone:
+        raise click.UsageError(
+            t("Provide at least one of --invite-email or --invite-phone")
+        )
 
-        send_invite_to = {}
-        if invite_email:
-            send_invite_to["Email"] = invite_email
-        if invite_phone:
-            send_invite_to["Phone"] = invite_phone
+    send_invite_to = {}
+    if invite_email:
+        send_invite_to["Email"] = invite_email
+    if invite_phone:
+        send_invite_to["Phone"] = invite_phone
 
-        body = {
-            "method": "addPassportOrganizationMember",
-            "params": {
-                "PassportOrganizationLogin": passport_organization_login,
-                "Role": role,
-                "SendInviteTo": send_invite_to,
-            },
-        }
+    body = {
+        "method": "addPassportOrganizationMember",
+        "params": {
+            "PassportOrganizationLogin": passport_organization_login,
+            "Role": role,
+            "SendInviteTo": send_invite_to,
+        },
+    }
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
-        result = client.agencyclients().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    client = client_from_ctx(ctx, create_client)
+    result = client.agencyclients().post(data=body)
+    format_output(result().extract(), "json", None)
 
 
 @agencyclients.command()
@@ -389,6 +365,7 @@ def add_passport_organization_member(
 @click.option("--clear-grants", is_flag=True, help="Clear all grants")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def update(
     ctx,
     client_id,
@@ -405,49 +382,40 @@ def update(
     dry_run,
 ):
     """Update agency client"""
-    try:
-        if grants and clear_grants:
-            raise click.UsageError(
-                t("--grant and --clear-grants are mutually exclusive")
-            )
+    if grants and clear_grants:
+        raise click.UsageError(t("--grant and --clear-grants are mutually exclusive"))
 
-        notification = build_notification_update(
-            notification_email,
-            notification_lang,
-            parse_email_subscription_specs(list(email_subscriptions)),
-        )
-        client_data = {
-            "ClientId": client_id,
-            **build_client_update_item(
-                client_info,
-                phone,
-                notification,
-                parse_client_setting_specs(list(settings)),
-                parse_tin_info(tin_type, tin),
-            ),
-        }
-        if grants:
-            client_data["Grants"] = parse_grant_specs(list(grants))
-        if clear_grants:
-            client_data["Grants"] = []
-        if len(client_data) == 1:
-            raise click.UsageError(t("Provide at least one field to update"))
+    notification = build_notification_update(
+        notification_email,
+        notification_lang,
+        parse_email_subscription_specs(list(email_subscriptions)),
+    )
+    client_data = {
+        "ClientId": client_id,
+        **build_client_update_item(
+            client_info,
+            phone,
+            notification,
+            parse_client_setting_specs(list(settings)),
+            parse_tin_info(tin_type, tin),
+        ),
+    }
+    if grants:
+        client_data["Grants"] = parse_grant_specs(list(grants))
+    if clear_grants:
+        client_data["Grants"] = []
+    if len(client_data) == 1:
+        raise click.UsageError(t("Provide at least one field to update"))
 
-        body = {"method": "update", "params": {"Clients": [client_data]}}
+    body = {"method": "update", "params": {"Clients": [client_data]}}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
-        result = client.agencyclients().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    client = client_from_ctx(ctx, create_client)
+    result = client.agencyclients().post(data=body)
+    format_output(result().extract(), "json", None)
 
 
 @agencyclients.command()
