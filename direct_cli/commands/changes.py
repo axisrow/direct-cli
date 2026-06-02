@@ -6,7 +6,7 @@ import click
 
 from ..api import client_from_ctx, create_client
 from ..i18n import t
-from ..output import format_output, print_error
+from ..output import format_output, handle_api_errors, print_error
 from ..utils import get_default_fields, parse_changes_datetime, parse_ids
 
 
@@ -139,37 +139,29 @@ def check(
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.pass_context
+@handle_api_errors
 def check_campaigns(ctx, timestamp, output_format, output):
     """Check campaigns changes"""
-    try:
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        params = {"Timestamp": parse_changes_datetime(timestamp)}
+    params = {"Timestamp": parse_changes_datetime(timestamp)}
 
-        body = {"method": "checkCampaigns", "params": params}
+    body = {"method": "checkCampaigns", "params": params}
 
-        result = client.changes().post(data=body)
-        format_output(result.data, output_format, output)
-
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.changes().post(data=body)
+    format_output(result.data, output_format, output)
 
 
 @changes.command()
 @click.option("--format", "output_format", default="json", help="Output format")
 @click.option("--output", help="Output file")
 @click.pass_context
+@handle_api_errors
 def check_dictionaries(ctx, output_format, output):
     """Check dictionaries changes"""
-    try:
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        body = {"method": "checkDictionaries", "params": {}}
+    body = {"method": "checkDictionaries", "params": {}}
 
-        result = client.changes().post(data=body)
-        format_output(result.data, output_format, output)
-
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.changes().post(data=body)
+    format_output(result.data, output_format, output)

@@ -6,7 +6,7 @@ import click
 
 from ..api import client_from_ctx, create_client
 from ..i18n import t
-from ..output import format_output, print_error
+from ..output import format_output, handle_api_errors
 from ..utils import get_default_fields, load_base64_file
 
 
@@ -24,45 +24,39 @@ def advideos():
 @click.option("--fields", help="Comma-separated field names")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
     """Get ad videos"""
-    try:
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        field_names = fields.split(",") if fields else get_default_fields("advideos")
+    field_names = fields.split(",") if fields else get_default_fields("advideos")
 
-        criteria = {"Ids": [x.strip() for x in ids.split(",") if x.strip()]}
+    criteria = {"Ids": [x.strip() for x in ids.split(",") if x.strip()]}
 
-        params = {
-            "SelectionCriteria": criteria,
-            "FieldNames": field_names,
-        }
+    params = {
+        "SelectionCriteria": criteria,
+        "FieldNames": field_names,
+    }
 
-        if limit:
-            params["Page"] = {"Limit": limit}
+    if limit:
+        params["Page"] = {"Limit": limit}
 
-        body = {"method": "get", "params": params}
+    body = {"method": "get", "params": params}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        result = client.advideos().post(data=body)
+    result = client.advideos().post(data=body)
 
-        if fetch_all:
-            items = []
-            for item in result().iter_items():
-                items.append(item)
-            format_output(items, output_format, output)
-        else:
-            data = result().extract()
-            format_output(data, output_format, output)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    if fetch_all:
+        items = []
+        for item in result().iter_items():
+            items.append(item)
+        format_output(items, output_format, output)
+    else:
+        data = result().extract()
+        format_output(data, output_format, output)
 
 
 @advideos.command()
@@ -74,38 +68,32 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
 @click.option("--name", help="Video name")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def add(ctx, url, video_data, video_file, name, dry_run):
     """Add a new ad video (by URL or binary data)"""
-    try:
-        sources = [s for s in (url, video_data, video_file) if s]
-        if len(sources) != 1:
-            raise click.UsageError(
-                t("Provide exactly one of --url, --video-data, or --video-file.")
-            )
+    sources = [s for s in (url, video_data, video_file) if s]
+    if len(sources) != 1:
+        raise click.UsageError(
+            t("Provide exactly one of --url, --video-data, or --video-file.")
+        )
 
-        item = {}
-        if url:
-            item["Url"] = url
-        elif video_data:
-            item["VideoData"] = video_data
-        else:
-            item["VideoData"] = load_base64_file(video_file)
-        if name:
-            item["Name"] = name
+    item = {}
+    if url:
+        item["Url"] = url
+    elif video_data:
+        item["VideoData"] = video_data
+    else:
+        item["VideoData"] = load_base64_file(video_file)
+    if name:
+        item["Name"] = name
 
-        body = {"method": "add", "params": {"AdVideos": [item]}}
+    body = {"method": "add", "params": {"AdVideos": [item]}}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        result = client.advideos().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.advideos().post(data=body)
+    format_output(result().extract(), "json", None)

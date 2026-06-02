@@ -6,7 +6,7 @@ import click
 
 from ..api import create_v4_client
 from ..i18n import t
-from ..output import format_output, print_error
+from ..output import format_output, handle_api_errors
 from ..utils import parse_ids
 from ..v4 import build_v4_body, call_v4
 from ..v4_contracts import v4_method_contract
@@ -142,22 +142,17 @@ def _update_banners_tags_param(
     ]
 
 
+@handle_api_errors
 def _call_v4tags(ctx, method: str, param, output_format: str, output: str) -> None:
     """Call one v4 Live tag method and print formatted output."""
-    try:
-        client = create_v4_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            profile=ctx.obj.get("profile"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
-        data = call_v4(client, method, param)
-        format_output(data, output_format, output)
-    except click.ClickException:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    client = create_v4_client(
+        token=ctx.obj.get("token"),
+        login=ctx.obj.get("login"),
+        profile=ctx.obj.get("profile"),
+        sandbox=ctx.obj.get("sandbox"),
+    )
+    data = call_v4(client, method, param)
+    format_output(data, output_format, output)
 
 
 @click.group(epilog=V4_EPILOG)

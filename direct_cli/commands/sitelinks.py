@@ -10,7 +10,7 @@ import click
 
 from ..api import client_from_ctx, create_client
 from ..i18n import t
-from ..output import format_output, print_error
+from ..output import format_output, handle_api_errors, print_error
 from ..utils import (
     get_default_fields,
     parse_csv_strings,
@@ -142,6 +142,7 @@ def sitelinks():
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def get(
     ctx,
     ids,
@@ -154,51 +155,44 @@ def get(
     dry_run,
 ):
     """Get sitelinks"""
-    try:
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        field_names = parse_csv_strings(fields) or get_default_fields("sitelinks")
-        parsed_sitelink_field_names = parse_csv_strings(sitelink_field_names)
-        if sitelink_field_names is not None and not parsed_sitelink_field_names:
-            raise click.UsageError(
-                t("Provide a non-empty comma-separated SitelinkFieldNames list.")
-            )
+    field_names = parse_csv_strings(fields) or get_default_fields("sitelinks")
+    parsed_sitelink_field_names = parse_csv_strings(sitelink_field_names)
+    if sitelink_field_names is not None and not parsed_sitelink_field_names:
+        raise click.UsageError(
+            t("Provide a non-empty comma-separated SitelinkFieldNames list.")
+        )
 
-        criteria = {}
-        if ids:
-            criteria["Ids"] = parse_ids(ids)
+    criteria = {}
+    if ids:
+        criteria["Ids"] = parse_ids(ids)
 
-        params = {"FieldNames": field_names}
-        if criteria:
-            params["SelectionCriteria"] = criteria
-        if parsed_sitelink_field_names:
-            params["SitelinkFieldNames"] = parsed_sitelink_field_names
+    params = {"FieldNames": field_names}
+    if criteria:
+        params["SelectionCriteria"] = criteria
+    if parsed_sitelink_field_names:
+        params["SitelinkFieldNames"] = parsed_sitelink_field_names
 
-        if limit:
-            params["Page"] = {"Limit": limit}
+    if limit:
+        params["Page"] = {"Limit": limit}
 
-        body = {"method": "get", "params": params}
+    body = {"method": "get", "params": params}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        result = client.sitelinks().post(data=body)
+    result = client.sitelinks().post(data=body)
 
-        if fetch_all:
-            items = []
-            for item in result().iter_items():
-                items.append(item)
-            format_output(items, output_format, output)
-        else:
-            data = result().extract()
-            format_output(data, output_format, output)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    if fetch_all:
+        items = []
+        for item in result().iter_items():
+            items.append(item)
+        format_output(items, output_format, output)
+    else:
+        data = result().extract()
+        format_output(data, output_format, output)
 
 
 @sitelinks.command()
@@ -296,20 +290,16 @@ def add(ctx, sitelinks_specs, sitelinks_json, sitelinks_from_file, dry_run):
 @click.option("--id", "set_id", required=True, type=int, help="Sitelinks set ID")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def delete(ctx, set_id, dry_run):
     """Delete sitelinks set"""
-    try:
-        body = {"method": "delete", "params": {"SelectionCriteria": {"Ids": [set_id]}}}
+    body = {"method": "delete", "params": {"SelectionCriteria": {"Ids": [set_id]}}}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        result = client.sitelinks().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.sitelinks().post(data=body)
+    format_output(result().extract(), "json", None)
