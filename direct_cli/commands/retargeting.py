@@ -10,6 +10,7 @@ from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
 from ..utils import (
+    add_criteria_csv,
     get_default_fields,
     parse_csv_strings,
     parse_ids,
@@ -41,8 +42,7 @@ def get(ctx, ids, types, limit, fetch_all, output_format, output, fields):
     criteria = {}
     if ids:
         criteria["Ids"] = parse_ids(ids)
-    if types:
-        criteria["Types"] = types.split(",")
+    add_criteria_csv(criteria, "Types", types, upper=True)
 
     params = {"SelectionCriteria": criteria, "FieldNames": field_names}
 

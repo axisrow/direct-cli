@@ -6,7 +6,7 @@ import click
 
 from ..api import client_from_ctx, create_client
 from ..output import format_output, handle_api_errors
-from ..utils import get_default_fields, parse_ids
+from ..utils import get_default_fields, parse_csv_strings, parse_ids
 
 
 @click.group()
@@ -30,18 +30,14 @@ def has_search_volume(ctx, keywords, region_ids, fields, output_format, output):
     """Check if keywords have search volume"""
     client = client_from_ctx(ctx, create_client)
 
-    field_names = (
-        [f.strip() for f in fields.split(",")]
-        if fields
-        else get_default_fields("keywordsresearch")
-    )
+    field_names = parse_csv_strings(fields) or get_default_fields("keywordsresearch")
 
     body = {
         "method": "hasSearchVolume",
         "params": {
             "SelectionCriteria": {
                 "RegionIds": parse_ids(region_ids),
-                "Keywords": [k.strip() for k in keywords.split(",")],
+                "Keywords": parse_csv_strings(keywords),
             },
             "FieldNames": field_names,
         },
@@ -63,7 +59,9 @@ def deduplicate(ctx, keywords, output_format, output):
 
     body = {
         "method": "deduplicate",
-        "params": {"Keywords": [{"Keyword": k.strip()} for k in keywords.split(",")]},
+        "params": {
+            "Keywords": [{"Keyword": k} for k in parse_csv_strings(keywords) or []]
+        },
     }
 
     result = client.keywordsresearch().post(data=body)

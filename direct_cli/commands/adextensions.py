@@ -61,8 +61,7 @@ def get(
     criteria = {}
     if ids:
         criteria["Ids"] = parse_ids(ids)
-    if types:
-        criteria["Types"] = types.split(",")
+    add_criteria_csv(criteria, "Types", types, upper=True)
     add_criteria_csv(criteria, "States", states, upper=True)
     add_criteria_csv(criteria, "Statuses", statuses, upper=True)
     if modified_since:

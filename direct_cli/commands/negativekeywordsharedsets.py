@@ -66,7 +66,7 @@ def add(ctx, name, keywords, dry_run):
     """Add negative keyword shared set"""
     set_data = {
         "Name": name,
-        "NegativeKeywords": [k.strip() for k in keywords.split(",")],
+        "NegativeKeywords": parse_csv_strings(keywords),
     }
 
     body = {"method": "add", "params": {"NegativeKeywordSharedSets": [set_data]}}
@@ -95,7 +95,7 @@ def update(ctx, set_id, name, keywords, dry_run):
     if name:
         set_data["Name"] = name
     if keywords:
-        set_data["NegativeKeywords"] = [k.strip() for k in keywords.split(",")]
+        set_data["NegativeKeywords"] = parse_csv_strings(keywords)
     if len(set_data) == 1:
         raise click.ClickException("Provide at least one of --name or --keywords")
 

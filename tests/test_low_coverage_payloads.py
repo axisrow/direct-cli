@@ -173,6 +173,77 @@ def test_keywordsresearch_deduplicate_builds_typed_payload():
     }
 
 
+def test_b2b_types_uppercased_and_empties_dropped_adgroups():
+    """#497 B2b: adgroups get --types now trims, drops empties, uppercases."""
+    body = _dry_run(
+        "adgroups", "get", "--campaign-ids", "1", "--types", "text_ad_group, ,"
+    )
+    assert body["params"]["SelectionCriteria"]["Types"] == ["TEXT_AD_GROUP"]
+
+
+def test_b2b_types_uppercased_and_empties_dropped_adextensions():
+    """#497 B2b: adextensions get --types now trims, drops empties, uppercases."""
+    body = _dry_run("adextensions", "get", "--types", "callout,,structured_snippet")
+    assert body["params"]["SelectionCriteria"]["Types"] == [
+        "CALLOUT",
+        "STRUCTURED_SNIPPET",
+    ]
+
+
+def test_b2b_types_uppercased_and_empties_dropped_retargeting():
+    """#497 B2b: retargeting get --types now trims, drops empties, uppercases.
+
+    retargeting get has no --dry-run, so capture the request via a mocked client.
+    """
+    body = _mock_service_command(
+        "direct_cli.commands.retargeting",
+        "retargeting",
+        ["retargeting", "get", "--types", "marketing_list, ,audience"],
+    )
+    assert body["params"]["SelectionCriteria"]["Types"] == [
+        "MARKETING_LIST",
+        "AUDIENCE",
+    ]
+
+
+def test_b2b_strategies_types_preserve_mixedcase_drop_empties():
+    """#497 B2b: strategy types are MixedCase enums — trimmed but NOT uppercased."""
+    body = _dry_run("strategies", "get", "--types", "AverageCpc, ,WbMaximumClicks")
+    assert body["params"]["SelectionCriteria"]["Types"] == [
+        "AverageCpc",
+        "WbMaximumClicks",
+    ]
+
+
+def test_b2b_negativekeywordsharedsets_add_drops_empty_keywords():
+    """#497 B2b: NegativeKeywords drops empty items from dirty input."""
+    body = _dry_run(
+        "negativekeywordsharedsets", "add", "--name", "X", "--keywords", "cheap,,free"
+    )
+    sets = body["params"]["NegativeKeywordSharedSets"]
+    assert sets[0]["NegativeKeywords"] == ["cheap", "free"]
+
+
+def test_b2b_keywordsresearch_deduplicate_drops_empty_keywords():
+    """#497 B2b: deduplicate drops empty keyword items."""
+    body = _mock_service_command(
+        "direct_cli.commands.keywordsresearch",
+        "keywordsresearch",
+        ["keywordsresearch", "deduplicate", "--keywords", "a,,b"],
+    )
+    assert body["params"]["Keywords"] == [{"Keyword": "a"}, {"Keyword": "b"}]
+
+
+def test_b2b_dictionaries_get_drops_empty_names():
+    """#497 B2b: dictionary names trim + drop empties."""
+    body = _mock_service_command(
+        "direct_cli.commands.dictionaries",
+        "dictionaries",
+        ["dictionaries", "get", "--names", "Currencies,,GeoRegions"],
+    )
+    assert body["params"]["DictionaryNames"] == ["Currencies", "GeoRegions"]
+
+
 def test_strategies_add_typed_fields_payload():
     body = _dry_run(
         "strategies",

@@ -41,7 +41,7 @@ def get(ctx, names, output_format, output):
     """Get dictionaries"""
     client = client_from_ctx(ctx, create_client)
 
-    dictionary_names = [n.strip() for n in names.split(",")]
+    dictionary_names = parse_csv_strings(names)
 
     body = {"method": "get", "params": {"DictionaryNames": dictionary_names}}
 
@@ -62,7 +62,7 @@ def get_geo_regions(ctx, name, region_ids, exact_names, fields, output_format, o
     """Get GeoRegions dictionary entries"""
     client = client_from_ctx(ctx, create_client)
 
-    params = {"FieldNames": [name.strip() for name in fields.split(",")]}
+    params = {"FieldNames": parse_csv_strings(fields)}
     selection_criteria = {}
     if name:
         selection_criteria["Name"] = name
