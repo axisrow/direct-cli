@@ -13,6 +13,7 @@ from ..i18n import t
 from ..output import (
     format_json,
     format_output,
+    handle_api_errors,
     print_error,
     raise_for_api_result_errors,
 )
@@ -1056,75 +1057,63 @@ def update(
 @click.option("--id", "keyword_id", required=True, type=int, help="Keyword ID")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def delete(ctx, keyword_id, dry_run):
     """Delete keyword"""
-    try:
-        body = {
-            "method": "delete",
-            "params": {"SelectionCriteria": {"Ids": [keyword_id]}},
-        }
+    body = {
+        "method": "delete",
+        "params": {"SelectionCriteria": {"Ids": [keyword_id]}},
+    }
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        result = client.keywords().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.keywords().post(data=body)
+    format_output(result().extract(), "json", None)
 
 
 @keywords.command()
 @click.option("--id", "keyword_id", required=True, type=int, help="Keyword ID")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def suspend(ctx, keyword_id, dry_run):
     """Suspend keyword"""
-    try:
-        body = {
-            "method": "suspend",
-            "params": {"SelectionCriteria": {"Ids": [keyword_id]}},
-        }
+    body = {
+        "method": "suspend",
+        "params": {"SelectionCriteria": {"Ids": [keyword_id]}},
+    }
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        result = client.keywords().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.keywords().post(data=body)
+    format_output(result().extract(), "json", None)
 
 
 @keywords.command()
 @click.option("--id", "keyword_id", required=True, type=int, help="Keyword ID")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def resume(ctx, keyword_id, dry_run):
     """Resume keyword"""
-    try:
-        body = {
-            "method": "resume",
-            "params": {"SelectionCriteria": {"Ids": [keyword_id]}},
-        }
+    body = {
+        "method": "resume",
+        "params": {"SelectionCriteria": {"Ids": [keyword_id]}},
+    }
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        result = client.keywords().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.keywords().post(data=body)
+    format_output(result().extract(), "json", None)

@@ -8,7 +8,7 @@ import click
 
 from ..api import client_from_ctx, create_client
 from ..i18n import t
-from ..output import format_output, print_error
+from ..output import format_output, handle_api_errors, print_error
 from ..utils import (
     add_criteria_csv,
     get_default_fields,
@@ -837,6 +837,7 @@ def get(
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def add(
     ctx,
     name,
@@ -868,180 +869,169 @@ def add(
     dry_run,
 ):
     """Add new ad group"""
-    try:
-        _validate_tracking_params(tracking_params)
+    _validate_tracking_params(tracking_params)
 
-        group_type_norm = (group_type or "TEXT_AD_GROUP").upper().replace("-", "_")
-        if group_type_norm not in _SUPPORTED_ADGROUP_TYPES:
-            raise click.UsageError(
-                t(
-                    "Invalid value for '--type': {group_type!r} is not one of {arg0}."
-                ).format(
-                    group_type=group_type,
-                    arg0=", ".join(repr(value) for value in _SUPPORTED_ADGROUP_TYPES),
-                )
+    group_type_norm = (group_type or "TEXT_AD_GROUP").upper().replace("-", "_")
+    if group_type_norm not in _SUPPORTED_ADGROUP_TYPES:
+        raise click.UsageError(
+            t(
+                "Invalid value for '--type': {group_type!r} is not one of {arg0}."
+            ).format(
+                group_type=group_type,
+                arg0=", ".join(repr(value) for value in _SUPPORTED_ADGROUP_TYPES),
             )
-        allowed_flags_by_type = {
-            "TEXT_AD_GROUP": _TEXT_ADGROUP_FEED_PARAMS_FLAGS,
-            "DYNAMIC_TEXT_AD_GROUP": _DYNAMIC_TEXT_ADGROUP_FLAGS,
-            "DYNAMIC_TEXT_FEED_AD_GROUP": _DYNAMIC_TEXT_FEED_ADGROUP_FLAGS,
-            "CPM_BANNER_KEYWORDS_AD_GROUP": set(),
-            "CPM_BANNER_USER_PROFILE_AD_GROUP": set(),
-            "CPM_VIDEO_AD_GROUP": set(),
-            "SMART_AD_GROUP": {"--feed-id", "--ad-title-source", "--ad-body-source"},
-            "UNIFIED_AD_GROUP": {"--offer-retargeting"},
-            "MOBILE_APP_AD_GROUP": {
-                "--store-url",
-                "--target-device-types",
-                "--target-carrier",
-                "--target-operating-system-version",
-            },
+        )
+    allowed_flags_by_type = {
+        "TEXT_AD_GROUP": _TEXT_ADGROUP_FEED_PARAMS_FLAGS,
+        "DYNAMIC_TEXT_AD_GROUP": _DYNAMIC_TEXT_ADGROUP_FLAGS,
+        "DYNAMIC_TEXT_FEED_AD_GROUP": _DYNAMIC_TEXT_FEED_ADGROUP_FLAGS,
+        "CPM_BANNER_KEYWORDS_AD_GROUP": set(),
+        "CPM_BANNER_USER_PROFILE_AD_GROUP": set(),
+        "CPM_VIDEO_AD_GROUP": set(),
+        "SMART_AD_GROUP": {"--feed-id", "--ad-title-source", "--ad-body-source"},
+        "UNIFIED_AD_GROUP": {"--offer-retargeting"},
+        "MOBILE_APP_AD_GROUP": {
+            "--store-url",
+            "--target-device-types",
+            "--target-carrier",
+            "--target-operating-system-version",
+        },
+    }
+    _reject_incompatible_flags(
+        group_type_norm,
+        allowed_flags_by_type[group_type_norm],
+        {
+            "--domain-url": domain_url,
+            "--autotargeting-category": autotargeting_categories,
+            "--autotargeting-settings-exact": autotargeting_settings_exact,
+            "--autotargeting-settings-narrow": autotargeting_settings_narrow,
+            "--autotargeting-settings-alternative": (
+                autotargeting_settings_alternative
+            ),
+            "--autotargeting-settings-accessory": (autotargeting_settings_accessory),
+            "--autotargeting-settings-broader": autotargeting_settings_broader,
+            "--autotargeting-settings-without-brands": (
+                autotargeting_settings_without_brands
+            ),
+            "--autotargeting-settings-with-advertiser-brand": (
+                autotargeting_settings_with_advertiser_brand
+            ),
+            "--autotargeting-settings-with-competitors-brand": (
+                autotargeting_settings_with_competitors_brand
+            ),
+            "--feed-id": feed_id,
+            "--feed-category-ids": feed_category_ids,
+            "--ad-title-source": ad_title_source,
+            "--ad-body-source": ad_body_source,
+            "--offer-retargeting": offer_retargeting,
+            "--store-url": store_url,
+            "--target-device-types": target_device_types,
+            "--target-carrier": target_carrier,
+            "--target-operating-system-version": target_operating_system_version,
+        },
+    )
+    _reject_unsupported_negative_keywords(
+        group_type_norm,
+        negative_keywords=negative_keywords,
+        negative_keyword_shared_set_ids=negative_keyword_shared_set_ids,
+    )
+
+    adgroup_data = {"Name": name, "CampaignId": campaign_id}
+
+    if region_ids:
+        adgroup_data["RegionIds"] = _parse_ids_option(region_ids, "--region-ids")
+    parsed_negative_keywords = parse_csv_strings(negative_keywords)
+    if parsed_negative_keywords:
+        adgroup_data["NegativeKeywords"] = {"Items": parsed_negative_keywords}
+    parsed_negative_keyword_shared_set_ids = _parse_ids_option(
+        negative_keyword_shared_set_ids,
+        "--negative-keyword-shared-set-ids",
+    )
+    if parsed_negative_keyword_shared_set_ids:
+        adgroup_data["NegativeKeywordSharedSetIds"] = {
+            "Items": parsed_negative_keyword_shared_set_ids
         }
-        _reject_incompatible_flags(
-            group_type_norm,
-            allowed_flags_by_type[group_type_norm],
-            {
-                "--domain-url": domain_url,
-                "--autotargeting-category": autotargeting_categories,
-                "--autotargeting-settings-exact": autotargeting_settings_exact,
-                "--autotargeting-settings-narrow": autotargeting_settings_narrow,
-                "--autotargeting-settings-alternative": (
-                    autotargeting_settings_alternative
-                ),
-                "--autotargeting-settings-accessory": (
-                    autotargeting_settings_accessory
-                ),
-                "--autotargeting-settings-broader": autotargeting_settings_broader,
-                "--autotargeting-settings-without-brands": (
-                    autotargeting_settings_without_brands
-                ),
-                "--autotargeting-settings-with-advertiser-brand": (
-                    autotargeting_settings_with_advertiser_brand
-                ),
-                "--autotargeting-settings-with-competitors-brand": (
-                    autotargeting_settings_with_competitors_brand
-                ),
-                "--feed-id": feed_id,
-                "--feed-category-ids": feed_category_ids,
-                "--ad-title-source": ad_title_source,
-                "--ad-body-source": ad_body_source,
-                "--offer-retargeting": offer_retargeting,
-                "--store-url": store_url,
-                "--target-device-types": target_device_types,
-                "--target-carrier": target_carrier,
-                "--target-operating-system-version": target_operating_system_version,
-            },
+    if tracking_params:
+        adgroup_data["TrackingParams"] = tracking_params
+    if group_type_norm == "TEXT_AD_GROUP":
+        text_adgroup_feed_params = _build_text_adgroup_feed_params(
+            feed_id=feed_id,
+            feed_category_ids=feed_category_ids,
         )
-        _reject_unsupported_negative_keywords(
-            group_type_norm,
-            negative_keywords=negative_keywords,
-            negative_keyword_shared_set_ids=negative_keyword_shared_set_ids,
+        if text_adgroup_feed_params:
+            adgroup_data["TextAdGroupFeedParams"] = text_adgroup_feed_params
+    elif group_type_norm == "DYNAMIC_TEXT_AD_GROUP":
+        dynamic_text_adgroup = _build_dynamic_text_adgroup(
+            domain_url=domain_url,
+            autotargeting_categories=autotargeting_categories,
+            autotargeting_settings_exact=autotargeting_settings_exact,
+            autotargeting_settings_narrow=autotargeting_settings_narrow,
+            autotargeting_settings_alternative=autotargeting_settings_alternative,
+            autotargeting_settings_accessory=autotargeting_settings_accessory,
+            autotargeting_settings_broader=autotargeting_settings_broader,
+            autotargeting_settings_without_brands=(
+                autotargeting_settings_without_brands
+            ),
+            autotargeting_settings_with_advertiser_brand=(
+                autotargeting_settings_with_advertiser_brand
+            ),
+            autotargeting_settings_with_competitors_brand=(
+                autotargeting_settings_with_competitors_brand
+            ),
+            force_domain_url=True,
         )
-
-        adgroup_data = {"Name": name, "CampaignId": campaign_id}
-
-        if region_ids:
-            adgroup_data["RegionIds"] = _parse_ids_option(region_ids, "--region-ids")
-        parsed_negative_keywords = parse_csv_strings(negative_keywords)
-        if parsed_negative_keywords:
-            adgroup_data["NegativeKeywords"] = {"Items": parsed_negative_keywords}
-        parsed_negative_keyword_shared_set_ids = _parse_ids_option(
-            negative_keyword_shared_set_ids,
-            "--negative-keyword-shared-set-ids",
+        if dynamic_text_adgroup:
+            adgroup_data["DynamicTextAdGroup"] = dynamic_text_adgroup
+    elif group_type_norm == "DYNAMIC_TEXT_FEED_AD_GROUP":
+        dynamic_text_feed_adgroup = _build_dynamic_text_feed_adgroup(
+            feed_id=feed_id,
+            autotargeting_categories=autotargeting_categories,
+            require_feed_id=True,
         )
-        if parsed_negative_keyword_shared_set_ids:
-            adgroup_data["NegativeKeywordSharedSetIds"] = {
-                "Items": parsed_negative_keyword_shared_set_ids
-            }
-        if tracking_params:
-            adgroup_data["TrackingParams"] = tracking_params
-        if group_type_norm == "TEXT_AD_GROUP":
-            text_adgroup_feed_params = _build_text_adgroup_feed_params(
-                feed_id=feed_id,
-                feed_category_ids=feed_category_ids,
+        if dynamic_text_feed_adgroup:
+            adgroup_data["DynamicTextFeedAdGroup"] = dynamic_text_feed_adgroup
+    elif group_type_norm == "CPM_BANNER_KEYWORDS_AD_GROUP":
+        adgroup_data["CpmBannerKeywordsAdGroup"] = {}
+    elif group_type_norm == "CPM_BANNER_USER_PROFILE_AD_GROUP":
+        adgroup_data["CpmBannerUserProfileAdGroup"] = {}
+    elif group_type_norm == "CPM_VIDEO_AD_GROUP":
+        adgroup_data["CpmVideoAdGroup"] = {}
+    elif group_type_norm == "SMART_AD_GROUP":
+        if feed_id is None:
+            raise click.UsageError(t("--feed-id is required for SMART_AD_GROUP"))
+        smart_ad_group = {"FeedId": feed_id}
+        if ad_title_source:
+            smart_ad_group["AdTitleSource"] = ad_title_source
+        if ad_body_source:
+            smart_ad_group["AdBodySource"] = ad_body_source
+        adgroup_data["SmartAdGroup"] = smart_ad_group
+    elif group_type_norm == "UNIFIED_AD_GROUP":
+        if offer_retargeting is None:
+            raise click.UsageError(
+                t("--offer-retargeting is required for UNIFIED_AD_GROUP")
             )
-            if text_adgroup_feed_params:
-                adgroup_data["TextAdGroupFeedParams"] = text_adgroup_feed_params
-        elif group_type_norm == "DYNAMIC_TEXT_AD_GROUP":
-            dynamic_text_adgroup = _build_dynamic_text_adgroup(
-                domain_url=domain_url,
-                autotargeting_categories=autotargeting_categories,
-                autotargeting_settings_exact=autotargeting_settings_exact,
-                autotargeting_settings_narrow=autotargeting_settings_narrow,
-                autotargeting_settings_alternative=autotargeting_settings_alternative,
-                autotargeting_settings_accessory=autotargeting_settings_accessory,
-                autotargeting_settings_broader=autotargeting_settings_broader,
-                autotargeting_settings_without_brands=(
-                    autotargeting_settings_without_brands
-                ),
-                autotargeting_settings_with_advertiser_brand=(
-                    autotargeting_settings_with_advertiser_brand
-                ),
-                autotargeting_settings_with_competitors_brand=(
-                    autotargeting_settings_with_competitors_brand
-                ),
-                force_domain_url=True,
-            )
-            if dynamic_text_adgroup:
-                adgroup_data["DynamicTextAdGroup"] = dynamic_text_adgroup
-        elif group_type_norm == "DYNAMIC_TEXT_FEED_AD_GROUP":
-            dynamic_text_feed_adgroup = _build_dynamic_text_feed_adgroup(
-                feed_id=feed_id,
-                autotargeting_categories=autotargeting_categories,
-                require_feed_id=True,
-            )
-            if dynamic_text_feed_adgroup:
-                adgroup_data["DynamicTextFeedAdGroup"] = dynamic_text_feed_adgroup
-        elif group_type_norm == "CPM_BANNER_KEYWORDS_AD_GROUP":
-            adgroup_data["CpmBannerKeywordsAdGroup"] = {}
-        elif group_type_norm == "CPM_BANNER_USER_PROFILE_AD_GROUP":
-            adgroup_data["CpmBannerUserProfileAdGroup"] = {}
-        elif group_type_norm == "CPM_VIDEO_AD_GROUP":
-            adgroup_data["CpmVideoAdGroup"] = {}
-        elif group_type_norm == "SMART_AD_GROUP":
-            if feed_id is None:
-                raise click.UsageError(t("--feed-id is required for SMART_AD_GROUP"))
-            smart_ad_group = {"FeedId": feed_id}
-            if ad_title_source:
-                smart_ad_group["AdTitleSource"] = ad_title_source
-            if ad_body_source:
-                smart_ad_group["AdBodySource"] = ad_body_source
-            adgroup_data["SmartAdGroup"] = smart_ad_group
-        elif group_type_norm == "UNIFIED_AD_GROUP":
-            if offer_retargeting is None:
-                raise click.UsageError(
-                    t("--offer-retargeting is required for UNIFIED_AD_GROUP")
-                )
-            adgroup_data["UnifiedAdGroup"] = {
-                "OfferRetargeting": offer_retargeting.upper()
-            }
-        elif group_type_norm == "MOBILE_APP_AD_GROUP":
-            mobile_app_adgroup = _build_mobile_app_adgroup(
-                store_url=store_url,
-                target_device_types=target_device_types,
-                target_carrier=target_carrier,
-                target_operating_system_version=target_operating_system_version,
-                require_all_fields=True,
-            )
-            if mobile_app_adgroup:
-                adgroup_data["MobileAppAdGroup"] = mobile_app_adgroup
+        adgroup_data["UnifiedAdGroup"] = {"OfferRetargeting": offer_retargeting.upper()}
+    elif group_type_norm == "MOBILE_APP_AD_GROUP":
+        mobile_app_adgroup = _build_mobile_app_adgroup(
+            store_url=store_url,
+            target_device_types=target_device_types,
+            target_carrier=target_carrier,
+            target_operating_system_version=target_operating_system_version,
+            require_all_fields=True,
+        )
+        if mobile_app_adgroup:
+            adgroup_data["MobileAppAdGroup"] = mobile_app_adgroup
 
-        body = {"method": "add", "params": {"AdGroups": [adgroup_data]}}
+    body = {"method": "add", "params": {"AdGroups": [adgroup_data]}}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        result = _post_adgroups(client, body)
-        format_output(result().extract(), "json", None)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = _post_adgroups(client, body)
+    format_output(result().extract(), "json", None)
 
 
 @adgroups.command()
@@ -1354,23 +1344,19 @@ def update(
 @click.option("--id", "adgroup_id", required=True, type=int, help="Ad group ID")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def delete(ctx, adgroup_id, dry_run):
     """Delete ad group"""
-    try:
-        body = {
-            "method": "delete",
-            "params": {"SelectionCriteria": {"Ids": [adgroup_id]}},
-        }
+    body = {
+        "method": "delete",
+        "params": {"SelectionCriteria": {"Ids": [adgroup_id]}},
+    }
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        result = client.adgroups().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.adgroups().post(data=body)
+    format_output(result().extract(), "json", None)
