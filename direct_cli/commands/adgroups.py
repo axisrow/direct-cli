@@ -611,7 +611,7 @@ def get(
 
     client = client_from_ctx(ctx, create_client)
 
-    field_names = fields.split(",") if fields else get_default_fields("adgroups")
+    field_names = parse_csv_strings(fields) or get_default_fields("adgroups")
 
     raw_nested = (
         (

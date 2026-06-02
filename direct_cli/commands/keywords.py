@@ -462,7 +462,7 @@ def get(
 
     client = client_from_ctx(ctx, create_client)
 
-    field_names = fields.split(",") if fields else get_default_fields("keywords")
+    field_names = parse_csv_strings(fields) or get_default_fields("keywords")
 
     parsed_brand_options = parse_csv_strings(
         autotargeting_settings_brand_options_field_names

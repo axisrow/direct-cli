@@ -13,6 +13,7 @@ from ..utils import (
     add_single_id_selector,
     get_default_fields,
     get_options,
+    parse_csv_strings,
     parse_ids,
 )
 
@@ -64,7 +65,7 @@ def get(
             )
         )
 
-    field_names = fields.split(",") if fields else get_default_fields("bids")
+    field_names = parse_csv_strings(fields) or get_default_fields("bids")
     params = {
         "SelectionCriteria": criteria,
         "FieldNames": field_names,

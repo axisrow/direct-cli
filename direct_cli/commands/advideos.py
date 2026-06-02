@@ -7,7 +7,7 @@ import click
 from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
-from ..utils import get_default_fields, get_options, load_base64_file
+from ..utils import get_default_fields, get_options, load_base64_file, parse_csv_strings
 
 
 @click.group()
@@ -24,9 +24,9 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
     """Get ad videos"""
     client = client_from_ctx(ctx, create_client)
 
-    field_names = fields.split(",") if fields else get_default_fields("advideos")
+    field_names = parse_csv_strings(fields) or get_default_fields("advideos")
 
-    criteria = {"Ids": [x.strip() for x in ids.split(",") if x.strip()]}
+    criteria = {"Ids": parse_csv_strings(ids) or []}
 
     params = {
         "SelectionCriteria": criteria,

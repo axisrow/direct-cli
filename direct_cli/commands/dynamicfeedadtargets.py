@@ -12,6 +12,8 @@ from ..utils import (
     get_default_fields,
     get_options,
     parse_condition_specs,
+    parse_csv_strings,
+    parse_csv_upper,
     parse_ids,
 )
 
@@ -45,8 +47,8 @@ def get(
     """Get dynamic feed ad targets"""
     client = client_from_ctx(ctx, create_client)
 
-    field_names = (
-        fields.split(",") if fields else get_default_fields("dynamicfeedadtargets")
+    field_names = parse_csv_strings(fields) or get_default_fields(
+        "dynamicfeedadtargets"
     )
 
     criteria = {}
@@ -57,9 +59,7 @@ def get(
     if campaign_ids:
         criteria["CampaignIds"] = parse_ids(campaign_ids)
     if states:
-        criteria["States"] = [
-            item.strip().upper() for item in states.split(",") if item.strip()
-        ]
+        criteria["States"] = parse_csv_upper(states) or []
 
     if not criteria:
         raise click.UsageError(t("Provide at least one typed filter"))

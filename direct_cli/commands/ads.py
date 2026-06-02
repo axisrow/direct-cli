@@ -967,9 +967,7 @@ def get(
     if status and statuses:
         raise click.UsageError(t("--status and --statuses are mutually exclusive"))
 
-    field_names = (
-        fields.split(",") if fields else get_default_fields("ads", "FieldNames")
-    )
+    field_names = parse_csv_strings(fields) or get_default_fields("ads", "FieldNames")
 
     raw_nested = (
         (

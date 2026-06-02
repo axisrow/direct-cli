@@ -612,7 +612,7 @@ def get(
     dry_run,
 ):
     """Get strategies"""
-    field_names = fields.split(",") if fields else get_default_fields("strategies")
+    field_names = parse_csv_strings(fields) or get_default_fields("strategies")
 
     raw_nested = (
         ("StrategyAverageCpaFieldNames", strategy_average_cpa_field_names),
