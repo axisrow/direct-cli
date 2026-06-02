@@ -6,7 +6,7 @@ from typing import Dict, Optional
 
 import click
 
-from ..api import create_client
+from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import get_default_fields, parse_ids
@@ -80,11 +80,7 @@ def _build_point_on_map(
 def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
     """Get vCards"""
     try:
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         field_names = fields.split(",") if fields else get_default_fields("vcards")
 
@@ -243,11 +239,7 @@ def add(
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         result = client.vcards().post(data=body)
         format_output(result().extract(), "json", None)
@@ -275,11 +267,7 @@ def delete(ctx, vcard_id, dry_run):
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         result = client.vcards().post(data=body)
         format_output(result().extract(), "json", None)

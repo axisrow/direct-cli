@@ -68,6 +68,29 @@ def create_client(
     )
 
 
+def client_from_ctx(ctx, create_client_fn) -> YandexDirect:
+    """Build a YandexDirect client from the standard CLI context.
+
+    ``create_client_fn`` is the calling module's own ``create_client`` symbol,
+    so test patches on ``direct_cli.commands.<module>.create_client`` keep
+    intercepting the call and existing
+    ``assert_called_once_with(token=..., login=..., sandbox=...)`` assertions
+    stay valid.
+
+    Args:
+        ctx: Click context whose ``obj`` carries ``token``/``login``/``sandbox``
+        create_client_fn: the caller's ``create_client`` (passed for patchability)
+
+    Returns:
+        YandexDirect client instance
+    """
+    return create_client_fn(
+        token=ctx.obj.get("token"),
+        login=ctx.obj.get("login"),
+        sandbox=ctx.obj.get("sandbox"),
+    )
+
+
 def create_v4_client(
     token: Optional[str] = None,
     login: Optional[str] = None,

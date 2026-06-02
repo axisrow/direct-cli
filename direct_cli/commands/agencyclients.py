@@ -4,7 +4,7 @@ AgencyClients commands
 
 import click
 
-from ..api import create_client
+from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import (
@@ -135,11 +135,7 @@ def get(
 ):
     """Get agency clients"""
     try:
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         field_names = (
             fields.split(",") if fields else get_default_fields("agencyclients")
@@ -253,11 +249,7 @@ def add(
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         result = client.agencyclients().post(data=body)
         format_output(result().extract(), "json", None)
@@ -315,11 +307,7 @@ def add_passport_organization(
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
         result = client.agencyclients().post(data=body)
         format_output(result().extract(), "json", None)
 
@@ -366,11 +354,7 @@ def add_passport_organization_member(
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
         result = client.agencyclients().post(data=body)
         format_output(result().extract(), "json", None)
 
@@ -455,11 +439,7 @@ def update(
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
         result = client.agencyclients().post(data=body)
         format_output(result().extract(), "json", None)
 

@@ -4,7 +4,7 @@ DynamicAds (Webpages) commands
 
 import click
 
-from ..api import create_client
+from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import get_default_fields, parse_condition_specs, parse_ids, MICRO_RUBLES
@@ -42,11 +42,7 @@ def get(
 ):
     """Get dynamic ad targets"""
     try:
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         field_names = fields.split(",") if fields else get_default_fields("dynamicads")
 
@@ -127,11 +123,7 @@ def add(ctx, adgroup_id, name, conditions, bid, context_bid, priority, dry_run):
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
         result = client.dynamicads().post(data=body)
         format_output(result().extract(), "json", None)
 
@@ -158,11 +150,7 @@ def delete(ctx, target_id, dry_run):
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         result = client.dynamicads().post(data=body)
         format_output(result().extract(), "json", None)
@@ -188,11 +176,7 @@ def suspend(ctx, target_id, dry_run):
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
         result = client.dynamicads().post(data=body)
         format_output(result().extract(), "json", None)
 
@@ -217,11 +201,7 @@ def resume(ctx, target_id, dry_run):
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
         result = client.dynamicads().post(data=body)
         format_output(result().extract(), "json", None)
 
@@ -281,11 +261,7 @@ def set_bids(
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
         result = client.dynamicads().post(data=body)
         format_output(result().extract(), "json", None)
 

@@ -4,7 +4,7 @@ AdImages commands
 
 import click
 
-from ..api import create_client
+from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import add_criteria_csv, get_default_fields, load_base64_file, parse_ids
@@ -40,11 +40,7 @@ def get(
 ):
     """Get ad images"""
     try:
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         field_names = fields.split(",") if fields else get_default_fields("adimages")
 
@@ -112,11 +108,7 @@ def add(ctx, name, image_data, image_file, image_type, dry_run):
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         result = client.adimages().post(data=body)
         format_output(result().extract(), "json", None)
@@ -144,11 +136,7 @@ def delete(ctx, image_hash, dry_run):
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         result = client.adimages().post(data=body)
         format_output(result().extract(), "json", None)

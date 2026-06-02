@@ -4,7 +4,7 @@ AudienceTargets commands
 
 import click
 
-from ..api import create_client
+from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, print_error
 from ..utils import add_criteria_csv, get_default_fields, parse_ids, MICRO_RUBLES
@@ -46,11 +46,7 @@ def get(
 ):
     """Get audience targets"""
     try:
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         criteria = {}
         if ids:
@@ -145,11 +141,7 @@ def add(
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
         result = client.audiencetargets().post(data=body)
         format_output(result().extract(), "json", None)
 
@@ -201,11 +193,7 @@ def set_bids(ctx, target_id, adgroup_id, campaign_id, context_bid, priority, dry
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
         result = client.audiencetargets().post(data=body)
         format_output(result().extract(), "json", None)
 
@@ -232,11 +220,7 @@ def delete(ctx, target_id, dry_run):
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         result = client.audiencetargets().post(data=body)
         format_output(result().extract(), "json", None)
@@ -262,11 +246,7 @@ def suspend(ctx, target_id, dry_run):
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         result = client.audiencetargets().post(data=body)
         format_output(result().extract(), "json", None)
@@ -292,11 +272,7 @@ def resume(ctx, target_id, dry_run):
             format_output(body, "json", None)
             return
 
-        client = create_client(
-            token=ctx.obj.get("token"),
-            login=ctx.obj.get("login"),
-            sandbox=ctx.obj.get("sandbox"),
-        )
+        client = client_from_ctx(ctx, create_client)
 
         result = client.audiencetargets().post(data=body)
         format_output(result().extract(), "json", None)
