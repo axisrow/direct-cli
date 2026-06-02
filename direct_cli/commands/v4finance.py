@@ -1,20 +1,22 @@
 """Yandex Direct v4 Live finance commands."""
 
 import re
-from typing import Any, Optional
+from typing import Optional
 
 import click
 
-from ..api import create_v4_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
 from ..utils import parse_csv_strings, parse_ids
-from ..v4 import build_v4_body, call_v4
+from ..v4.emit import (
+    _masked_finance_body,
+    emit_or_call_v4,
+    emit_or_call_v4_finance,
+)
 from ..v4.money import build_finance_token, parse_v4_money_sum, validate_operation_num
 from ..v4_contracts import v4_method_contract
 from .v4shells import V4_EPILOG
 
-FINANCE_TOKEN_MASK = "<redacted>"
 CUSTOM_TRANSACTION_ID_RE = re.compile(r"[A-Za-z0-9]{32}")
 V4_PAY_METHODS = ["Bank", "Overdraft"]
 # All v4 Live finance commands are exposed but have NOT been exercised
@@ -129,14 +131,6 @@ _FINANCE_CREDENTIALS_ERROR = (
 )
 
 
-def _masked_finance_body(method: str, param: Any, operation_num: int) -> dict:
-    """Build a dry-run body without exposing the financial token."""
-    body = build_v4_body(method, param)
-    body["finance_token"] = FINANCE_TOKEN_MASK
-    body["operation_num"] = operation_num
-    return body
-
-
 def _require_dry_run(dry_run: bool) -> None:
     """Reject v4 finance money mutations unless dry-run is explicit."""
     if not dry_run:
@@ -208,19 +202,7 @@ def get_clients_units(ctx, logins, output_format, output, dry_run):
     ⚠ Not tested against the live API.
     """
     login_list = _logins_param(logins)
-
-    if dry_run:
-        format_output(build_v4_body("GetClientsUnits", login_list), "json", None)
-        return
-
-    client = create_v4_client(
-        token=ctx.obj.get("token"),
-        login=ctx.obj.get("login"),
-        profile=ctx.obj.get("profile"),
-        sandbox=ctx.obj.get("sandbox"),
-    )
-    data = call_v4(client, "GetClientsUnits", login_list)
-    format_output(data, output_format, output)
+    emit_or_call_v4(ctx, "GetClientsUnits", login_list, dry_run, output_format, output)
 
 
 @v4_method_contract("GetCreditLimits")
@@ -280,24 +262,16 @@ def get_credit_limits(
         ctx.obj.get("login"),
     )
 
-    if dry_run:
-        format_output(
-            _masked_finance_body("GetCreditLimits", None, operation_num),
-            "json",
-            None,
-        )
-        return
-
-    client = create_v4_client(
-        token=ctx.obj.get("token"),
-        login=ctx.obj.get("login"),
-        profile=ctx.obj.get("profile"),
-        sandbox=ctx.obj.get("sandbox"),
-        finance_token=finance_token,
-        operation_num=operation_num,
+    emit_or_call_v4_finance(
+        ctx,
+        "GetCreditLimits",
+        None,
+        finance_token,
+        operation_num,
+        dry_run,
+        output_format,
+        output,
     )
-    data = call_v4(client, "GetCreditLimits", None)
-    format_output(data, output_format, output)
 
 
 @v4_method_contract("CheckPayment")
@@ -330,18 +304,7 @@ def check_payment(
     ⚠ Not tested against the live API.
     """
     param = _custom_transaction_id_param(custom_transaction_id)
-    if dry_run:
-        format_output(build_v4_body("CheckPayment", param), "json", None)
-        return
-
-    client = create_v4_client(
-        token=ctx.obj.get("token"),
-        login=ctx.obj.get("login"),
-        profile=ctx.obj.get("profile"),
-        sandbox=ctx.obj.get("sandbox"),
-    )
-    data = call_v4(client, "CheckPayment", param)
-    format_output(data, output_format, output)
+    emit_or_call_v4(ctx, "CheckPayment", param, dry_run, output_format, output)
 
 
 @v4_method_contract("CreateInvoice")
@@ -416,25 +379,16 @@ def create_invoice(
         ctx.obj.get("login"),
     )
     param = _invoice_payments_param(payments, currency)
-
-    if dry_run:
-        format_output(
-            _masked_finance_body("CreateInvoice", param, operation_num),
-            "json",
-            None,
-        )
-        return
-
-    client = create_v4_client(
-        token=ctx.obj.get("token"),
-        login=ctx.obj.get("login"),
-        profile=ctx.obj.get("profile"),
-        sandbox=ctx.obj.get("sandbox"),
-        finance_token=finance_token,
-        operation_num=operation_num,
+    emit_or_call_v4_finance(
+        ctx,
+        "CreateInvoice",
+        param,
+        finance_token,
+        operation_num,
+        dry_run,
+        output_format,
+        output,
     )
-    data = call_v4(client, "CreateInvoice", param)
-    format_output(data, output_format, output)
 
 
 @v4_method_contract("TransferMoney")

@@ -6,21 +6,16 @@ from typing import Any, Optional
 
 import click
 
-from ..api import create_v4_client
 from ..i18n import t
-from ..output import format_output, handle_api_errors
 from ..utils import parse_csv_strings, parse_ids
-from ..v4 import build_v4_body, call_v4
+from ..v4.emit import emit_or_call_v4, emit_or_call_v4_finance
 from ..v4.money import parse_v4_money_sum
 from ..v4_contracts import v4_method_contract
 
 # Cross-module helpers shared with v4finance commands. AccountManagement's
 # financial sub-actions (Deposit/Invoice/TransferMoney) need the same
 # finance_token / operation_num plumbing as v4finance methods.
-from .v4finance import (  # noqa: E402
-    _finance_credentials,
-    _masked_finance_body,
-)
+from .v4finance import _finance_credentials  # noqa: E402
 from .v4shells import V4_EPILOG
 
 YES_NO = ("Yes", "No")
@@ -114,58 +109,6 @@ def _require_dry_run_or_sandbox(dry_run: bool, sandbox: bool) -> None:
     """Reject shared-account mutations outside explicit dry-run or sandbox."""
     if not dry_run and not sandbox:
         raise click.UsageError(t("--dry-run is required unless --sandbox is set"))
-
-
-@handle_api_errors
-def _emit_or_call_v4(
-    ctx: click.Context,
-    method: str,
-    param: dict,
-    dry_run: bool,
-    output_format: str,
-    output: Optional[str],
-) -> None:
-    """Print a v4 request preview or execute it against the sandbox API."""
-    if dry_run:
-        format_output(build_v4_body(method, param), "json", None)
-        return
-
-    client = create_v4_client(
-        token=ctx.obj.get("token"),
-        login=ctx.obj.get("login"),
-        profile=ctx.obj.get("profile"),
-        sandbox=ctx.obj.get("sandbox"),
-    )
-    data = call_v4(client, method, param)
-    format_output(data, output_format, output)
-
-
-@handle_api_errors
-def _emit_or_call_v4_finance(
-    ctx: click.Context,
-    method: str,
-    param: dict,
-    finance_token: str,
-    operation_num: int,
-    dry_run: bool,
-    output_format: str,
-    output: Optional[str],
-) -> None:
-    """Preview a finance-backed v4 request or execute it; masks the token."""
-    if dry_run:
-        format_output(_masked_finance_body(method, param, operation_num), "json", None)
-        return
-
-    client = create_v4_client(
-        token=ctx.obj.get("token"),
-        login=ctx.obj.get("login"),
-        profile=ctx.obj.get("profile"),
-        sandbox=ctx.obj.get("sandbox"),
-        finance_token=finance_token,
-        operation_num=operation_num,
-    )
-    data = call_v4(client, method, param)
-    format_output(data, output_format, output)
 
 
 def _non_empty(value: str, option_name: str) -> str:
@@ -476,7 +419,7 @@ def enable_shared_account(ctx, client_login, dry_run, output_format, output):
     """Enable a shared account for a client in sandbox, or preview the request."""
     _require_dry_run_or_sandbox(dry_run, ctx.obj.get("sandbox"))
     param = {"Login": _non_empty(client_login, "--client-login")}
-    _emit_or_call_v4(
+    emit_or_call_v4(
         ctx,
         "EnableSharedAccount",
         param,
@@ -675,9 +618,7 @@ def account_management(
 
     if action == "Get":
         param = _account_get_param(logins, account_ids)
-        _emit_or_call_v4(
-            ctx, "AccountManagement", param, dry_run, output_format, output
-        )
+        emit_or_call_v4(ctx, "AccountManagement", param, dry_run, output_format, output)
         return
 
     _require_dry_run_or_sandbox(dry_run, ctx.obj.get("sandbox"))
@@ -697,9 +638,7 @@ def account_management(
             money_warning_value,
             paused_by_day_budget,
         )
-        _emit_or_call_v4(
-            ctx, "AccountManagement", param, dry_run, output_format, output
-        )
+        emit_or_call_v4(ctx, "AccountManagement", param, dry_run, output_format, output)
         return
 
     # Deposit / Invoice / TransferMoney — financial sub-actions.
@@ -732,7 +671,7 @@ def account_management(
             from_account_id, to_account_id, amount, currency
         )
 
-    _emit_or_call_v4_finance(
+    emit_or_call_v4_finance(
         ctx,
         "AccountManagement",
         param,

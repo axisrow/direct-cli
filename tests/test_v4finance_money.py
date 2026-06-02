@@ -327,7 +327,7 @@ def test_master_token_requires_finance_login_without_login_fallback():
 
 
 def test_v4finance_money_commands_require_dry_run_before_api_call():
-    with patch("direct_cli.commands.v4finance.create_v4_client") as create_client:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
         result = _invoke(
             "--token",
             "token",
@@ -353,7 +353,7 @@ def test_v4finance_money_commands_require_dry_run_before_api_call():
 
 
 def test_v4finance_money_commands_require_finance_credentials_before_api_call():
-    with patch("direct_cli.commands.v4finance.create_v4_client") as create_client:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
         result = _invoke(
             "--token",
             "token",
@@ -378,7 +378,7 @@ def test_v4finance_money_commands_require_finance_credentials_before_api_call():
 
 
 def test_v4finance_money_commands_validate_amount_before_api_call():
-    with patch("direct_cli.commands.v4finance.create_v4_client") as create_client:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
         result = _invoke(
             "v4finance",
             "transfer-money",
@@ -416,7 +416,7 @@ def test_create_invoice_rejects_invalid_payment_specs_before_api_call(
     payment,
     expected,
 ):
-    with patch("direct_cli.commands.v4finance.create_v4_client") as create_client:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
         result = _invoke(
             "v4finance",
             "create-invoice",
@@ -437,7 +437,7 @@ def test_create_invoice_rejects_invalid_payment_specs_before_api_call(
 
 
 def test_create_invoice_rejects_duplicate_campaign_ids_before_api_call():
-    with patch("direct_cli.commands.v4finance.create_v4_client") as create_client:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
         result = _invoke(
             "v4finance",
             "create-invoice",
@@ -614,7 +614,7 @@ def test_check_payment_dry_run_uses_custom_transaction_id_object():
     ],
 )
 def test_check_payment_rejects_invalid_custom_transaction_id_before_api_call(value):
-    with patch("direct_cli.commands.v4finance.create_v4_client") as create_client:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
         result = _invoke(
             "v4finance",
             "check-payment",
@@ -630,9 +630,9 @@ def test_check_payment_rejects_invalid_custom_transaction_id_before_api_call(val
 
 
 def test_check_payment_formats_mocked_response_as_json():
-    with patch("direct_cli.commands.v4finance.create_v4_client") as create_client:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
         with patch(
-            "direct_cli.commands.v4finance.call_v4",
+            "direct_cli.v4.emit.call_v4",
             return_value={"Status": "Done"},
         ) as call:
             result = _invoke(
@@ -662,9 +662,9 @@ def test_check_payment_formats_mocked_response_as_json():
 
 
 def test_create_invoice_formats_mocked_response_as_json():
-    with patch("direct_cli.commands.v4finance.create_v4_client") as create_client:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
         with patch(
-            "direct_cli.commands.v4finance.call_v4",
+            "direct_cli.v4.emit.call_v4",
             return_value={"URL": "https://example.test/invoice"},
         ) as call:
             result = _invoke(

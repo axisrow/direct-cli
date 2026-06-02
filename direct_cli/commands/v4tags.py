@@ -4,11 +4,9 @@ from typing import Optional
 
 import click
 
-from ..api import create_v4_client
 from ..i18n import t
-from ..output import format_output, handle_api_errors
 from ..utils import parse_ids
-from ..v4 import build_v4_body, call_v4
+from ..v4.emit import emit_or_call_v4
 from ..v4_contracts import v4_method_contract
 from .v4shells import V4_EPILOG
 
@@ -142,19 +140,6 @@ def _update_banners_tags_param(
     ]
 
 
-@handle_api_errors
-def _call_v4tags(ctx, method: str, param, output_format: str, output: str) -> None:
-    """Call one v4 Live tag method and print formatted output."""
-    client = create_v4_client(
-        token=ctx.obj.get("token"),
-        login=ctx.obj.get("login"),
-        profile=ctx.obj.get("profile"),
-        sandbox=ctx.obj.get("sandbox"),
-    )
-    data = call_v4(client, method, param)
-    format_output(data, output_format, output)
-
-
 @click.group(epilog=V4_EPILOG)
 def v4tags():
     """Yandex Direct v4 Live tag commands."""
@@ -176,11 +161,7 @@ def v4tags():
 def get_campaigns(ctx, campaign_ids, output_format, output, dry_run):
     """Get campaign tags."""
     param = _get_campaigns_tags_param(campaign_ids)
-    if dry_run:
-        format_output(build_v4_body("GetCampaignsTags", param), "json", None)
-        return
-
-    _call_v4tags(ctx, "GetCampaignsTags", param, output_format, output)
+    emit_or_call_v4(ctx, "GetCampaignsTags", param, dry_run, output_format, output)
 
 
 @v4_method_contract("GetBannersTags")
@@ -200,11 +181,7 @@ def get_campaigns(ctx, campaign_ids, output_format, output, dry_run):
 def get_banners(ctx, campaign_ids, banner_ids, output_format, output, dry_run):
     """Get banner tag IDs."""
     param = _get_banners_tags_param(campaign_ids, banner_ids)
-    if dry_run:
-        format_output(build_v4_body("GetBannersTags", param), "json", None)
-        return
-
-    _call_v4tags(ctx, "GetBannersTags", param, output_format, output)
+    emit_or_call_v4(ctx, "GetBannersTags", param, dry_run, output_format, output)
 
 
 @v4_method_contract("UpdateCampaignsTags")
@@ -237,11 +214,7 @@ def update_campaigns(
 ):
     """Replace the campaign tag list."""
     param = _update_campaigns_tags_param(campaign_id, tag_specs, clear_tags)
-    if dry_run:
-        format_output(build_v4_body("UpdateCampaignsTags", param), "json", None)
-        return
-
-    _call_v4tags(ctx, "UpdateCampaignsTags", param, output_format, output)
+    emit_or_call_v4(ctx, "UpdateCampaignsTags", param, dry_run, output_format, output)
 
 
 @v4_method_contract("UpdateBannersTags")
@@ -264,8 +237,4 @@ def update_banners(
 ):
     """Replace banner tag assignments."""
     param = _update_banners_tags_param(banner_ids, tag_ids, clear_tags)
-    if dry_run:
-        format_output(build_v4_body("UpdateBannersTags", param), "json", None)
-        return
-
-    _call_v4tags(ctx, "UpdateBannersTags", param, output_format, output)
+    emit_or_call_v4(ctx, "UpdateBannersTags", param, dry_run, output_format, output)

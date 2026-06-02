@@ -4,11 +4,9 @@ from typing import Optional
 
 import click
 
-from ..api import create_v4_client
 from ..i18n import t
-from ..output import format_output, handle_api_errors
 from ..utils import parse_csv_strings, parse_ids
-from ..v4 import build_v4_body, call_v4
+from ..v4.emit import emit_or_call_v4
 from ..v4_contracts import v4_method_contract
 from .v4shells import V4_EPILOG
 
@@ -53,25 +51,6 @@ def _forecast_param(
         if minus_words:
             param["CommonMinusWords"] = minus_words
     return param
-
-
-@handle_api_errors
-def _call_forecast(
-    ctx,
-    method: str,
-    param,
-    output_format: str,
-    output: Optional[str],
-) -> None:
-    """Call one v4 Live budget forecast method and print formatted output."""
-    client = create_v4_client(
-        token=ctx.obj.get("token"),
-        login=ctx.obj.get("login"),
-        profile=ctx.obj.get("profile"),
-        sandbox=ctx.obj.get("sandbox"),
-    )
-    data = call_v4(client, method, param)
-    format_output(data, output_format, output)
 
 
 @click.group(epilog=V4_EPILOG)
@@ -133,11 +112,7 @@ def create(
         auction_bids=auction_bids,
         common_minus_words=common_minus_words,
     )
-    if dry_run:
-        format_output(build_v4_body("CreateNewForecast", param), "json", None)
-        return
-
-    _call_forecast(ctx, "CreateNewForecast", param, output_format, output)
+    emit_or_call_v4(ctx, "CreateNewForecast", param, dry_run, output_format, output)
 
 
 @v4_method_contract("GetForecastList")
@@ -154,11 +129,7 @@ def create(
 @click.pass_context
 def list_forecasts(ctx, output_format, output, dry_run):
     """List v4 Live budget forecasts."""
-    if dry_run:
-        format_output(build_v4_body("GetForecastList"), "json", None)
-        return
-
-    _call_forecast(ctx, "GetForecastList", None, output_format, output)
+    emit_or_call_v4(ctx, "GetForecastList", None, dry_run, output_format, output)
 
 
 @v4_method_contract("GetForecast")
@@ -181,11 +152,7 @@ def list_forecasts(ctx, output_format, output, dry_run):
 @click.pass_context
 def get(ctx, forecast_id, output_format, output, dry_run):
     """Get a ready v4 Live budget forecast."""
-    if dry_run:
-        format_output(build_v4_body("GetForecast", forecast_id), "json", None)
-        return
-
-    _call_forecast(ctx, "GetForecast", forecast_id, output_format, output)
+    emit_or_call_v4(ctx, "GetForecast", forecast_id, dry_run, output_format, output)
 
 
 @v4_method_contract("DeleteForecastReport")
@@ -208,8 +175,6 @@ def get(ctx, forecast_id, output_format, output, dry_run):
 @click.pass_context
 def delete(ctx, forecast_id, output_format, output, dry_run):
     """Delete a v4 Live budget forecast."""
-    if dry_run:
-        format_output(build_v4_body("DeleteForecastReport", forecast_id), "json", None)
-        return
-
-    _call_forecast(ctx, "DeleteForecastReport", forecast_id, output_format, output)
+    emit_or_call_v4(
+        ctx, "DeleteForecastReport", forecast_id, dry_run, output_format, output
+    )

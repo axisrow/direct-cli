@@ -118,7 +118,7 @@ def test_account_management_update_dry_run_uses_nested_shared_account_body():
     ],
 )
 def test_v4account_commands_require_dry_run_before_api_call(args):
-    with patch("direct_cli.commands.v4account.create_v4_client") as create_client:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
         result = _invoke(*args)
 
     assert result.exit_code != 0
@@ -127,9 +127,9 @@ def test_v4account_commands_require_dry_run_before_api_call(args):
 
 
 def test_enable_shared_account_sandbox_calls_v4_api_without_dry_run():
-    with patch("direct_cli.commands.v4account.create_v4_client") as create_client:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
         with patch(
-            "direct_cli.commands.v4account.call_v4",
+            "direct_cli.v4.emit.call_v4",
             return_value={"result": "ok"},
         ) as call:
             result = _invoke(
@@ -160,9 +160,9 @@ def test_enable_shared_account_sandbox_calls_v4_api_without_dry_run():
 
 
 def test_account_management_sandbox_calls_v4_api_without_dry_run():
-    with patch("direct_cli.commands.v4account.create_v4_client") as create_client:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
         with patch(
-            "direct_cli.commands.v4account.call_v4",
+            "direct_cli.v4.emit.call_v4",
             return_value={"ActionsResult": [{"AccountID": 1327944}]},
         ) as call:
             result = _invoke(
@@ -205,9 +205,9 @@ def test_account_management_sandbox_calls_v4_api_without_dry_run():
 
 
 def test_account_management_sandbox_formats_mocked_response_as_table():
-    with patch("direct_cli.commands.v4account.create_v4_client"):
+    with patch("direct_cli.v4.emit.create_v4_client"):
         with patch(
-            "direct_cli.commands.v4account.call_v4",
+            "direct_cli.v4.emit.call_v4",
             return_value=[{"AccountID": 1327944, "Status": "Updated"}],
         ):
             result = _invoke(
@@ -330,7 +330,7 @@ def test_account_management_sandbox_formats_mocked_response_as_table():
     ],
 )
 def test_v4account_usage_errors_fail_before_body_build(args, message):
-    with patch("direct_cli.commands.v4account.build_v4_body") as build_body:
+    with patch("direct_cli.v4.emit.build_v4_body") as build_body:
         result = _invoke(*args)
 
     assert result.exit_code != 0
@@ -498,7 +498,7 @@ def test_account_management_get_dry_run_with_both_filters():
 
 
 def test_account_management_get_rejects_update_only_flag():
-    with patch("direct_cli.commands.v4account.build_v4_body") as build_body:
+    with patch("direct_cli.v4.emit.build_v4_body") as build_body:
         result = _invoke(
             "v4account",
             "account-management",
@@ -515,9 +515,9 @@ def test_account_management_get_rejects_update_only_flag():
 
 
 def test_account_management_get_does_not_require_dry_run_or_sandbox():
-    with patch("direct_cli.commands.v4account.create_v4_client") as create_client:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
         with patch(
-            "direct_cli.commands.v4account.call_v4",
+            "direct_cli.v4.emit.call_v4",
             return_value={"Accounts": []},
         ):
             result = _invoke(
@@ -537,7 +537,7 @@ def test_account_management_get_does_not_require_dry_run_or_sandbox():
 
 def test_account_management_get_caps_logins_at_50():
     logins = ",".join(f"login-{i}" for i in range(51))
-    with patch("direct_cli.commands.v4account.build_v4_body") as build_body:
+    with patch("direct_cli.v4.emit.build_v4_body") as build_body:
         result = _invoke(
             "v4account",
             "account-management",
@@ -555,7 +555,7 @@ def test_account_management_get_caps_logins_at_50():
 
 def test_account_management_get_caps_account_ids_at_100():
     ids = ",".join(str(i) for i in range(1, 102))
-    with patch("direct_cli.commands.v4account.build_v4_body") as build_body:
+    with patch("direct_cli.v4.emit.build_v4_body") as build_body:
         result = _invoke(
             "v4account",
             "account-management",
@@ -575,7 +575,7 @@ def test_account_management_get_caps_account_ids_at_100():
 
 
 def test_account_management_update_rejects_get_flag():
-    with patch("direct_cli.commands.v4account.build_v4_body") as build_body:
+    with patch("direct_cli.v4.emit.build_v4_body") as build_body:
         result = _invoke(
             "v4account",
             "account-management",
@@ -660,7 +660,7 @@ def test_account_management_deposit_with_origin_and_contract():
 
 
 def test_account_management_deposit_requires_dry_run_or_sandbox():
-    with patch("direct_cli.commands.v4account.create_v4_client") as create_client:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
         result = _invoke(
             "--token",
             "token",
@@ -684,7 +684,7 @@ def test_account_management_deposit_requires_dry_run_or_sandbox():
 
 
 def test_account_management_deposit_requires_finance_credentials():
-    with patch("direct_cli.commands.v4account.build_v4_body") as build_body:
+    with patch("direct_cli.v4.emit.build_v4_body") as build_body:
         result = _invoke(
             "v4account",
             "account-management",
@@ -703,7 +703,7 @@ def test_account_management_deposit_requires_finance_credentials():
 
 
 def test_account_management_deposit_requires_currency():
-    with patch("direct_cli.commands.v4account.build_v4_body") as build_body:
+    with patch("direct_cli.v4.emit.build_v4_body") as build_body:
         result = _invoke(
             "v4account",
             "account-management",
@@ -724,7 +724,7 @@ def test_account_management_deposit_requires_currency():
 
 
 def test_account_management_deposit_rejects_duplicate_account_ids():
-    with patch("direct_cli.commands.v4account.build_v4_body") as build_body:
+    with patch("direct_cli.v4.emit.build_v4_body") as build_body:
         result = _invoke(
             "v4account",
             "account-management",
@@ -779,7 +779,7 @@ def test_account_management_invoice_dry_run_uses_payments_without_origin():
 
 
 def test_account_management_invoice_rejects_origin_flag():
-    with patch("direct_cli.commands.v4account.build_v4_body") as build_body:
+    with patch("direct_cli.v4.emit.build_v4_body") as build_body:
         result = _invoke(
             "v4account",
             "account-management",
@@ -843,7 +843,7 @@ def test_account_management_transfer_dry_run_uses_single_transfer():
 
 
 def test_account_management_transfer_rejects_equal_from_to():
-    with patch("direct_cli.commands.v4account.build_v4_body") as build_body:
+    with patch("direct_cli.v4.emit.build_v4_body") as build_body:
         result = _invoke(
             "v4account",
             "account-management",
@@ -870,7 +870,7 @@ def test_account_management_transfer_rejects_equal_from_to():
 
 
 def test_account_management_transfer_requires_currency():
-    with patch("direct_cli.commands.v4account.build_v4_body") as build_body:
+    with patch("direct_cli.v4.emit.build_v4_body") as build_body:
         result = _invoke(
             "v4account",
             "account-management",
@@ -895,7 +895,7 @@ def test_account_management_transfer_requires_currency():
 
 
 def test_account_management_transfer_requires_all_three_flags():
-    with patch("direct_cli.commands.v4account.build_v4_body") as build_body:
+    with patch("direct_cli.v4.emit.build_v4_body") as build_body:
         result = _invoke(
             "v4account",
             "account-management",
@@ -942,9 +942,9 @@ def test_account_management_options_are_all_in_allow_list():
         covered |= allowed
 
     uncovered = option_param_names - covered
-    assert not uncovered, (
-        f"account-management options not in any allow-list: {sorted(uncovered)}"
-    )
+    assert (
+        not uncovered
+    ), f"account-management options not in any allow-list: {sorted(uncovered)}"
 
 
 # ─── Envvar-vs-CLI source distinction (regression for PR #234 review) ────
@@ -998,7 +998,7 @@ def test_account_management_update_ignores_finance_envvars():
 
 def test_account_management_deposit_misleading_amount_message_uses_payment_label():
     """A bad amount in --payment must point at --payment, not --amount."""
-    with patch("direct_cli.commands.v4account.build_v4_body") as build_body:
+    with patch("direct_cli.v4.emit.build_v4_body") as build_body:
         result = _invoke(
             "v4account",
             "account-management",

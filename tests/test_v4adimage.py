@@ -135,9 +135,9 @@ def test_set_rejects_duplicate_ad_id():
 
 
 def test_get_formats_mocked_response():
-    with patch("direct_cli.commands.v4adimage.create_v4_client") as create_client:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
         with patch(
-            "direct_cli.commands.v4adimage.call_v4",
+            "direct_cli.v4.emit.call_v4",
             return_value=[{"AdID": 1, "AdImageHash": "h"}],
         ) as call:
             result = _invoke(

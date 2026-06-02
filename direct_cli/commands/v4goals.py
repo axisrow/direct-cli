@@ -2,11 +2,9 @@
 
 import click
 
-from ..api import create_v4_client
 from ..i18n import t
-from ..output import format_output, handle_api_errors
 from ..utils import parse_ids
-from ..v4 import build_v4_body, call_v4
+from ..v4.emit import emit_or_call_v4
 from ..v4_contracts import v4_method_contract
 from .v4shells import V4_EPILOG
 
@@ -20,30 +18,6 @@ def _campaign_ids_param(campaign_ids: str) -> dict:
     if not ids:
         raise click.UsageError(t("--campaign-ids must not be empty"))
     return {"CampaignIDS": ids}
-
-
-@handle_api_errors
-def _run_goals_command(
-    ctx,
-    method: str,
-    campaign_ids: str,
-    output_format: str,
-    output: str,
-    dry_run: bool,
-) -> None:
-    param = _campaign_ids_param(campaign_ids)
-    if dry_run:
-        format_output(build_v4_body(method, param), "json", None)
-        return
-
-    client = create_v4_client(
-        token=ctx.obj.get("token"),
-        login=ctx.obj.get("login"),
-        profile=ctx.obj.get("profile"),
-        sandbox=ctx.obj.get("sandbox"),
-    )
-    data = call_v4(client, method, param)
-    format_output(data, output_format, output)
 
 
 @click.group(epilog=V4_EPILOG)
@@ -66,14 +40,8 @@ def v4goals():
 @click.pass_context
 def get_stat_goals(ctx, campaign_ids, output_format, output, dry_run):
     """Get Yandex Metrica goals available for campaigns."""
-    _run_goals_command(
-        ctx,
-        "GetStatGoals",
-        campaign_ids,
-        output_format,
-        output,
-        dry_run,
-    )
+    param = _campaign_ids_param(campaign_ids)
+    emit_or_call_v4(ctx, "GetStatGoals", param, dry_run, output_format, output)
 
 
 @v4_method_contract("GetRetargetingGoals")
@@ -91,11 +59,5 @@ def get_stat_goals(ctx, campaign_ids, output_format, output, dry_run):
 @click.pass_context
 def get_retargeting_goals(ctx, campaign_ids, output_format, output, dry_run):
     """Get retargeting goals for campaigns."""
-    _run_goals_command(
-        ctx,
-        "GetRetargetingGoals",
-        campaign_ids,
-        output_format,
-        output,
-        dry_run,
-    )
+    param = _campaign_ids_param(campaign_ids)
+    emit_or_call_v4(ctx, "GetRetargetingGoals", param, dry_run, output_format, output)

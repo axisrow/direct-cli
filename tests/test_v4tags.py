@@ -222,9 +222,9 @@ def test_update_banners_tags_rejects_missing_or_empty_tag_ids():
 
 
 def test_v4tags_formats_mocked_response_as_json():
-    with patch("direct_cli.commands.v4tags.create_v4_client") as create_client:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
         with patch(
-            "direct_cli.commands.v4tags.call_v4",
+            "direct_cli.v4.emit.call_v4",
             return_value=[{"CampaignID": 1, "Tags": [{"TagID": 10, "Tag": "Sale"}]}],
         ) as call:
             result = _invoke(
@@ -248,8 +248,8 @@ def test_v4tags_formats_mocked_response_as_json():
 
 
 def test_v4tags_with_login_keeps_method_param_schema():
-    with patch("direct_cli.commands.v4tags.create_v4_client") as create_client:
-        with patch("direct_cli.commands.v4tags.call_v4", return_value=1) as call:
+    with patch("direct_cli.v4.emit.create_v4_client") as create_client:
+        with patch("direct_cli.v4.emit.call_v4", return_value=1) as call:
             result = _invoke(
                 "--token",
                 "token",
