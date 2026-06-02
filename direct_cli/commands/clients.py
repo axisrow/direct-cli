@@ -9,6 +9,7 @@ from ..i18n import t
 from ..output import format_output, handle_api_errors
 from ..utils import (
     build_client_update_item,
+    build_common_params,
     build_erir_attributes,
     build_erir_contragent,
     build_erir_contract,
@@ -128,15 +129,10 @@ def get(
     if ids:
         criteria["ClientIds"] = parse_ids(ids)
 
-    params = {"FieldNames": field_names}
-
-    if criteria:
-        params["SelectionCriteria"] = criteria
-
+    params = build_common_params(
+        criteria=criteria, field_names=field_names, limit=limit
+    )
     params.update(parsed_nested)
-
-    if limit:
-        params["Page"] = {"Limit": limit}
 
     body = {"method": "get", "params": params}
 
