@@ -354,6 +354,21 @@ TIN_TYPES = {
 YES_NO_VALUES = {"YES", "NO"}
 
 DECIMAL_RE = re.compile(r"^(?:0|[1-9]\d*)(?:\.\d+)?$")
+# Compiled decimal patterns keyed by the maximum allowed fractional digits,
+# so callers that cap precision (e.g. v4 money, max 2 dp) don't recompile.
+_DECIMAL_RE_CACHE: Dict[int, "re.Pattern[str]"] = {}
+
+
+def _decimal_re(max_decimals: Optional[int]) -> "re.Pattern[str]":
+    """Return the decimal validator, optionally capping fractional digits."""
+    if max_decimals is None:
+        return DECIMAL_RE
+    cached = _DECIMAL_RE_CACHE.get(max_decimals)
+    if cached is None:
+        cached = re.compile(r"^(?:0|[1-9]\d*)(?:\.\d{1," + str(max_decimals) + "})?$")
+        _DECIMAL_RE_CACHE[max_decimals] = cached
+    return cached
+
 
 CONTRACT_TYPES = {
     "CONTRACT",
@@ -555,10 +570,17 @@ def build_erir_contragent(
     return contragent or None
 
 
-def parse_positive_decimal_amount(value: str, option_name: str) -> float:
-    """Parse a positive finite decimal CLI amount."""
+def parse_positive_decimal_amount(
+    value: str, option_name: str, *, max_decimals: Optional[int] = None
+) -> float:
+    """Parse a positive finite decimal CLI amount.
+
+    ``max_decimals`` caps the number of fractional digits accepted (``None``
+    means unlimited). v4 ``Sum`` fields pass ``max_decimals=2`` via
+    :func:`direct_cli.v4.money.parse_v4_money_sum`.
+    """
     normalized = (value or "").strip()
-    if not DECIMAL_RE.fullmatch(normalized):
+    if not _decimal_re(max_decimals).fullmatch(normalized):
         raise click.UsageError(
             f"{option_name} must be a positive decimal amount, for example 100.50"
         )

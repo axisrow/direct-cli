@@ -2,44 +2,25 @@
 
 from __future__ import annotations
 
-from decimal import Decimal, InvalidOperation
 import hashlib
-import math
-import re
 
 import click
 
-_MONEY_RE = re.compile(r"^(?:0|[1-9]\d*)(?:\.\d{1,2})?$")
+from ..utils import parse_positive_decimal_amount
+
 MAX_OPERATION_NUM = 9223372036854775807
 
 
 def parse_v4_money_sum(value: str, option_name: str = "--amount") -> float:
     """Parse a positive API-native decimal amount for v4 ``Sum`` fields.
 
-    ``option_name`` controls the CLI flag label that appears in error messages
-    so callers (e.g. ``--payment ACCOUNT_ID=AMOUNT`` parsers) get a diagnostic
-    that names the flag the user actually typed.
+    v4 ``Sum`` fields allow at most two fractional digits, so this delegates to
+    the shared :func:`direct_cli.utils.parse_positive_decimal_amount` with
+    ``max_decimals=2``. ``option_name`` controls the CLI flag label that appears
+    in error messages so callers (e.g. ``--payment ACCOUNT_ID=AMOUNT`` parsers)
+    get a diagnostic that names the flag the user actually typed.
     """
-    normalized = (value or "").strip()
-    if not _MONEY_RE.fullmatch(normalized):
-        raise click.UsageError(
-            f"{option_name} must be a positive decimal amount, for example 100.50"
-        )
-
-    try:
-        amount = Decimal(normalized)
-    except InvalidOperation as exc:
-        raise click.UsageError(
-            f"{option_name} must be a positive decimal amount, for example 100.50"
-        ) from exc
-
-    if amount <= 0:
-        raise click.UsageError(f"{option_name} must be greater than zero")
-
-    result = float(amount)
-    if not math.isfinite(result):
-        raise click.UsageError(f"{option_name} must be a finite decimal amount")
-    return result
+    return parse_positive_decimal_amount(value, option_name, max_decimals=2)
 
 
 def normalize_finance_login(login: str) -> str:

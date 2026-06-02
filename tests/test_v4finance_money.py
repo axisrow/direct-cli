@@ -7,6 +7,7 @@ from click import UsageError
 from click.testing import CliRunner
 
 from direct_cli.cli import cli
+from direct_cli.utils import parse_positive_decimal_amount
 from direct_cli.v4_contracts import get_v4_contract
 from direct_cli.v4.money import (
     build_finance_token,
@@ -48,6 +49,37 @@ def test_parse_v4_money_sum_accepts_positive_decimal_amounts(value, expected):
 def test_parse_v4_money_sum_rejects_invalid_amounts(value):
     with pytest.raises(UsageError):
         parse_v4_money_sum(value)
+
+
+def test_parse_positive_decimal_amount_unlimited_accepts_many_decimals():
+    # v5 callers pass no max_decimals: unlimited fractional precision.
+    assert parse_positive_decimal_amount("1.23456", "--x") == 1.23456
+
+
+def test_parse_positive_decimal_amount_max_decimals_caps_precision():
+    # v4 money delegates with max_decimals=2 and must reject 3+ dp.
+    assert parse_positive_decimal_amount("1.23", "--x", max_decimals=2) == 1.23
+    with pytest.raises(UsageError):
+        parse_positive_decimal_amount("1.234", "--x", max_decimals=2)
+
+
+@pytest.mark.parametrize("value", ["", "0", "-1", "abc", "NaN", "inf"])
+@pytest.mark.parametrize("max_decimals", [None, 2])
+def test_parse_positive_decimal_amount_rejects_invalid_both_modes(value, max_decimals):
+    with pytest.raises(UsageError):
+        parse_positive_decimal_amount(value, "--x", max_decimals=max_decimals)
+
+
+def test_parse_positive_decimal_amount_error_message_identical_across_modes():
+    # The diagnostic text must not change between unlimited and capped modes.
+    def _msg(max_decimals):
+        try:
+            parse_positive_decimal_amount("abc", "--x", max_decimals=max_decimals)
+        except UsageError as exc:
+            return str(exc)
+        raise AssertionError("expected UsageError")
+
+    assert _msg(None) == _msg(2)
 
 
 def test_build_finance_token_uses_docs_formula_and_normalized_login():
