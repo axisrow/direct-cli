@@ -3,10 +3,13 @@ Output formatting module for Direct CLI
 """
 
 import csv
+import functools
 import json
 import sys
 from io import StringIO
 from typing import Any, Iterator, List, Optional
+
+import click
 
 try:
     from tabulate import tabulate
@@ -211,3 +214,26 @@ def print_warning(message: str) -> None:
 def print_info(message: str) -> None:
     """Print info message"""
     print(f"ℹ {message}")
+
+
+def handle_api_errors(func):
+    """Convert uncaught exceptions into a printed error + ``click.Abort``.
+
+    ``click.ClickException`` (including ``click.UsageError``) is re-raised
+    unchanged so Click renders it normally (usage text, exit code 2). Any other
+    exception is printed via :func:`print_error` and converted to
+    ``click.Abort`` (exit code 1), matching the canonical command
+    error-handling block this decorator replaces.
+    """
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except click.ClickException:
+            raise
+        except Exception as e:
+            print_error(str(e))
+            raise click.Abort()
+
+    return wrapper
