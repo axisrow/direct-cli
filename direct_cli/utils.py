@@ -250,8 +250,7 @@ def validate_priority_goal_value(value_int: int, error_prefix: str) -> None:
     """
     if value_int < 0:
         raise click.UsageError(
-            f"{error_prefix} "
-            f"Value must be non-negative, got {value_int}"
+            f"{error_prefix} " f"Value must be non-negative, got {value_int}"
         )
     if 0 < value_int < MICRO_RUBLE_MIN:
         raise click.UsageError(
@@ -898,3 +897,34 @@ def get_docs_pages(service: str) -> Dict[str, str]:
     entry = RESOURCE_MAPPING_V5.get(service)
     docs_pages = entry.get("docs_pages") if entry else None
     return dict(docs_pages) if docs_pages else {}
+
+
+def get_options(func):
+    """Apply the shared read/pagination option stack of a ``get`` command.
+
+    Equivalent to writing, in this exact top-to-bottom order::
+
+        @click.option("--limit", type=int, help="Limit number of results")
+        @click.option("--fetch-all", is_flag=True, help="Fetch all pages")
+        @click.option("--format", "output_format", default="json", help="Output format")
+        @click.option("--output", help="Output file")
+        @click.option("--fields", help="Comma-separated field names")
+        @click.option("--dry-run", is_flag=True, help="Show request without sending")
+
+    Click applies decorators bottom-up, so the options are added here in
+    reverse to keep ``--help`` listing them in the order above. Only commands
+    whose six shared options are contiguous and use exactly these definitions
+    use this decorator; commands with a divergent ``--fields`` help string,
+    interleaved resource options, or a different option subset keep their
+    explicit stack so the CLI surface stays byte-identical.
+    """
+    func = click.option("--dry-run", is_flag=True, help="Show request without sending")(
+        func
+    )
+    func = click.option("--fields", help="Comma-separated field names")(func)
+    func = click.option("--output", help="Output file")(func)
+    func = click.option(
+        "--format", "output_format", default="json", help="Output format"
+    )(func)
+    func = click.option("--fetch-all", is_flag=True, help="Fetch all pages")(func)
+    return click.option("--limit", type=int, help="Limit number of results")(func)

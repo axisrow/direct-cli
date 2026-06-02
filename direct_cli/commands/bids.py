@@ -8,11 +8,12 @@ from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
 from ..utils import (
+    MICRO_RUBLES,
     add_criteria_csv,
     add_single_id_selector,
     get_default_fields,
+    get_options,
     parse_ids,
-    MICRO_RUBLES,
 )
 
 
@@ -26,12 +27,7 @@ def bids():
 @click.option("--adgroup-ids", help="Comma-separated ad group IDs")
 @click.option("--keyword-ids", help="Comma-separated keyword IDs")
 @click.option("--serving-statuses", help="Comma-separated serving statuses")
-@click.option("--limit", type=int, help="Limit number of results")
-@click.option("--fetch-all", is_flag=True, help="Fetch all pages")
-@click.option("--format", "output_format", default="json", help="Output format")
-@click.option("--output", help="Output file")
-@click.option("--fields", help="Comma-separated field names")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@get_options
 @click.pass_context
 @handle_api_errors
 def get(

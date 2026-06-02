@@ -11,7 +11,7 @@ import click
 
 from ..api import client_from_ctx, create_client
 from ..output import format_output, handle_api_errors
-from ..utils import get_default_fields, parse_ids
+from ..utils import get_default_fields, get_options, parse_ids
 
 
 @click.group()
@@ -22,12 +22,7 @@ def turbopages():
 @turbopages.command()
 @click.option("--ids", help="Comma-separated Turbo Page IDs")
 @click.option("--bound-with-hrefs", help="Comma-separated hrefs bound with Turbo Pages")
-@click.option("--limit", type=int, help="Limit number of results")
-@click.option("--fetch-all", is_flag=True, help="Fetch all pages")
-@click.option("--format", "output_format", default="json", help="Output format")
-@click.option("--output", help="Output file")
-@click.option("--fields", help="Comma-separated field names")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@get_options
 @click.pass_context
 @handle_api_errors
 def get(

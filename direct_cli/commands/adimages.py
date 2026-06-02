@@ -7,7 +7,13 @@ import click
 from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
-from ..utils import add_criteria_csv, get_default_fields, load_base64_file, parse_ids
+from ..utils import (
+    add_criteria_csv,
+    get_default_fields,
+    get_options,
+    load_base64_file,
+    parse_ids,
+)
 
 
 @click.group()
@@ -19,12 +25,7 @@ def adimages():
 @click.option("--ids", help="Comma-separated image IDs")
 @click.option("--image-hashes", help="Comma-separated ad image hashes")
 @click.option("--associated", type=click.Choice(["YES", "NO"], case_sensitive=False))
-@click.option("--limit", type=int, help="Limit number of results")
-@click.option("--fetch-all", is_flag=True, help="Fetch all pages")
-@click.option("--format", "output_format", default="json", help="Output format")
-@click.option("--output", help="Output file")
-@click.option("--fields", help="Comma-separated field names")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@get_options
 @click.pass_context
 @handle_api_errors
 def get(
