@@ -8,7 +8,7 @@ import click
 
 from ..api import client_from_ctx, create_client
 from ..i18n import t
-from ..output import format_output, print_error
+from ..output import format_output, handle_api_errors, print_error
 from ..utils import (
     add_criteria_csv,
     get_default_fields,
@@ -1282,6 +1282,7 @@ def get(
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def add(
     ctx,
     adgroup_id,
@@ -1325,418 +1326,409 @@ def add(
     dry_run,
 ):
     """Add new ad"""
-    try:
-        ad_type_norm = (ad_type or "TEXT_AD").upper().replace("-", "_")
-        supported_types = {
-            "TEXT_AD",
-            "TEXT_IMAGE_AD",
-            "MOBILE_APP_AD",
-            "DYNAMIC_TEXT_AD",
-            "MOBILE_APP_IMAGE_AD",
-            "RESPONSIVE_AD",
-            "SHOPPING_AD",
-            "LISTING_AD",
-            "SMART_AD_BUILDER_AD",
-            *AD_BUILDER_ADD_BLOCKS,
+    ad_type_norm = (ad_type or "TEXT_AD").upper().replace("-", "_")
+    supported_types = {
+        "TEXT_AD",
+        "TEXT_IMAGE_AD",
+        "MOBILE_APP_AD",
+        "DYNAMIC_TEXT_AD",
+        "MOBILE_APP_IMAGE_AD",
+        "RESPONSIVE_AD",
+        "SHOPPING_AD",
+        "LISTING_AD",
+        "SMART_AD_BUILDER_AD",
+        *AD_BUILDER_ADD_BLOCKS,
+    }
+    if ad_type_norm not in supported_types:
+        raise click.UsageError(
+            t(
+                "Invalid value for '--type': {ad_type!r} is not one of 'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD', 'DYNAMIC_TEXT_AD', 'MOBILE_APP_IMAGE_AD', 'RESPONSIVE_AD', 'SHOPPING_AD', 'LISTING_AD', 'SMART_AD_BUILDER_AD', 'TEXT_AD_BUILDER_AD', 'MOBILE_APP_AD_BUILDER_AD', 'MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD', 'CPC_VIDEO_AD_BUILDER_AD', 'CPM_BANNER_AD_BUILDER_AD', 'CPM_VIDEO_AD_BUILDER_AD'."
+            ).format(ad_type=ad_type)
+        )
+
+    # --mobile has a Click default of "NO" so the value is always present
+    # in the payload, but the per-subtype guard must reject any explicit
+    # use of --mobile on non-TEXT_AD subtypes — including --mobile NO —
+    # to avoid silent data loss (issue #198 H2 / #202).
+    mobile_source = ctx.get_parameter_source("mobile")
+    mobile_explicit = (
+        mobile_source != click.core.ParameterSource.DEFAULT if mobile_source else False
+    )
+    mobile_provided = mobile if mobile_explicit else None
+
+    type_fields = {
+        "TEXT_AD": {
+            "title",
+            "text",
+            "href",
+            "image_hash",
+            "title2",
+            "display_url_path",
+            "mobile",
+            "vcard_id",
+            "sitelink_set_id",
+            "turbo_page_id",
+            "ad_extensions",
+            "final_url",
+            "video_extension_creative_id",
+            "price_extension_price",
+            "price_extension_old_price",
+            "price_extension_price_qualifier",
+            "price_extension_price_currency",
+            "business_id",
+            "prefer_vcard_over_business",
+            "erir_ad_description",
+        },
+        "TEXT_IMAGE_AD": {
+            "href",
+            "image_hash",
+            "turbo_page_id",
+            "final_url",
+            "erir_ad_description",
+        },
+        "RESPONSIVE_AD": {
+            "texts",
+            "titles",
+            "href",
+            "age_label",
+            "display_url_path",
+            "image_hashes",
+            "sitelink_set_id",
+            "ad_extensions",
+            "video_extension_ids",
+            "price_extension_price",
+            "price_extension_old_price",
+            "price_extension_price_qualifier",
+            "price_extension_price_currency",
+            "business_id",
+            "erir_ad_description",
+        },
+        "SHOPPING_AD": FEED_BASED_ADD_FIELDS,
+        "LISTING_AD": FEED_BASED_ADD_FIELDS,
+        **AD_BUILDER_ADD_TYPE_FIELDS,
+        "DYNAMIC_TEXT_AD": DYNAMIC_TEXT_AD_ADD_FIELDS,
+        "MOBILE_APP_AD": MOBILE_APP_AD_ADD_FIELDS,
+        "MOBILE_APP_IMAGE_AD": MOBILE_APP_IMAGE_AD_ADD_FIELDS,
+        "SMART_AD_BUILDER_AD": SMART_AD_BUILDER_ADD_FIELDS,
+    }
+    provided = {
+        "title": title,
+        "text": text,
+        "titles": titles,
+        "texts": texts,
+        "href": href,
+        "image_hash": image_hash,
+        "image_hashes": image_hashes,
+        "action": action,
+        "tracking_url": tracking_url,
+        "age_label": age_label,
+        "mobile_app_features": mobile_app_features,
+        "title2": title2,
+        "display_url_path": display_url_path,
+        "mobile": mobile_provided,
+        "vcard_id": vcard_id,
+        "sitelink_set_id": sitelink_set_id,
+        "turbo_page_id": turbo_page_id,
+        "ad_extensions": ad_extensions,
+        "final_url": final_url,
+        "video_extension_creative_id": video_extension_creative_id,
+        "price_extension_price": price_extension_price,
+        "price_extension_old_price": price_extension_old_price,
+        "price_extension_price_qualifier": price_extension_price_qualifier,
+        "price_extension_price_currency": price_extension_price_currency,
+        "video_extension_ids": video_extension_ids,
+        "business_id": business_id,
+        "prefer_vcard_over_business": prefer_vcard_over_business,
+        "erir_ad_description": erir_ad_description,
+        "creative_id": creative_id,
+        "tracking_pixels": tracking_pixels,
+        "logo_extension_hash": logo_extension_hash,
+        "feed_id": feed_id,
+        "feed_filter_conditions": feed_filter_conditions,
+        "title_sources": title_sources,
+        "text_sources": text_sources,
+        "default_texts": default_texts,
+    }
+    flag_for = {
+        "title": "--title",
+        "text": "--text",
+        "titles": "--titles",
+        "texts": "--texts",
+        "href": "--href",
+        "image_hash": "--image-hash",
+        "image_hashes": "--image-hashes",
+        "action": "--action",
+        "tracking_url": "--tracking-url",
+        "age_label": "--age-label",
+        "mobile_app_features": "--mobile-app-feature",
+        "title2": "--title2",
+        "display_url_path": "--display-url-path",
+        "mobile": "--mobile",
+        "vcard_id": "--vcard-id",
+        "sitelink_set_id": "--sitelink-set-id",
+        "turbo_page_id": "--turbo-page-id",
+        "ad_extensions": "--ad-extensions",
+        "final_url": "--final-url",
+        "video_extension_creative_id": "--video-extension-creative-id",
+        "price_extension_price": "--price-extension-price",
+        "price_extension_old_price": "--price-extension-old-price",
+        "price_extension_price_qualifier": "--price-extension-price-qualifier",
+        "price_extension_price_currency": "--price-extension-price-currency",
+        "video_extension_ids": "--video-extension-ids",
+        "business_id": "--business-id",
+        "prefer_vcard_over_business": "--prefer-vcard-over-business",
+        "erir_ad_description": "--erir-ad-description",
+        "creative_id": "--creative-id",
+        "tracking_pixels": "--tracking-pixels",
+        "logo_extension_hash": "--logo-extension-hash",
+        "feed_id": "--feed-id",
+        "feed_filter_conditions": "--feed-filter-condition",
+        "title_sources": "--title-sources",
+        "text_sources": "--text-sources",
+        "default_texts": "--default-texts",
+    }
+    _reject_incompatible_flags(
+        ad_type_norm, type_fields[ad_type_norm], provided, flag_for
+    )
+
+    ad_data = {"AdGroupId": adgroup_id}
+    if ad_type_norm == "TEXT_AD":
+        missing_fields = [
+            option_name
+            for option_name, value in (
+                ("--title", title),
+                ("--text", text),
+                ("--href", href),
+            )
+            if not value
+        ]
+        if missing_fields:
+            raise click.UsageError(
+                t("TEXT_AD requires {arg0}").format(arg0=", ".join(missing_fields))
+            )
+        text_ad = {
+            "Mobile": mobile.upper(),
+            "Title": title,
+            "Text": text,
+            "Href": href,
         }
-        if ad_type_norm not in supported_types:
+        if image_hash:
+            text_ad["AdImageHash"] = image_hash
+        if title2:
+            text_ad["Title2"] = title2
+        if display_url_path:
+            text_ad["DisplayUrlPath"] = display_url_path
+        if vcard_id:
+            text_ad["VCardId"] = vcard_id
+        if sitelink_set_id:
+            text_ad["SitelinkSetId"] = sitelink_set_id
+        if turbo_page_id:
+            text_ad["TurboPageId"] = turbo_page_id
+        if ad_extensions:
+            text_ad["AdExtensionIds"] = parse_ids(ad_extensions)
+        if final_url:
+            text_ad["FinalUrl"] = final_url
+        if video_extension_creative_id is not None:
+            text_ad["VideoExtension"] = {"CreativeId": video_extension_creative_id}
+        price_extension = _build_price_extension_add(
+            price_extension_price,
+            price_extension_old_price,
+            price_extension_price_qualifier,
+            price_extension_price_currency,
+        )
+        if price_extension:
+            text_ad["PriceExtension"] = price_extension
+        if business_id is not None:
+            text_ad["BusinessId"] = business_id
+        if prefer_vcard_over_business:
+            text_ad["PreferVCardOverBusiness"] = prefer_vcard_over_business.upper()
+        if erir_ad_description:
+            text_ad["ErirAdDescription"] = erir_ad_description
+        ad_data["TextAd"] = text_ad
+    elif ad_type_norm == "DYNAMIC_TEXT_AD":
+        ad_data["DynamicTextAd"] = _build_dynamic_text_ad_add(
+            text,
+            image_hash,
+            vcard_id,
+            sitelink_set_id,
+            ad_extensions,
+        )
+    elif ad_type_norm == "TEXT_IMAGE_AD":
+        if title or text:
             raise click.UsageError(
                 t(
-                    "Invalid value for '--type': {ad_type!r} is not one of 'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD', 'DYNAMIC_TEXT_AD', 'MOBILE_APP_IMAGE_AD', 'RESPONSIVE_AD', 'SHOPPING_AD', 'LISTING_AD', 'SMART_AD_BUILDER_AD', 'TEXT_AD_BUILDER_AD', 'MOBILE_APP_AD_BUILDER_AD', 'MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD', 'CPC_VIDEO_AD_BUILDER_AD', 'CPM_BANNER_AD_BUILDER_AD', 'CPM_VIDEO_AD_BUILDER_AD'."
-                ).format(ad_type=ad_type)
+                    "--title/--text are only valid for TEXT_AD. "
+                    "For TEXT_IMAGE_AD, use --image-hash and "
+                    "--href / --turbo-page-id."
+                )
+            )
+        if not image_hash:
+            raise click.UsageError(t("TEXT_IMAGE_AD requires --image-hash"))
+        if not href and turbo_page_id is None:
+            raise click.UsageError(
+                t("TEXT_IMAGE_AD requires either --href or --turbo-page-id.")
+            )
+        text_image_ad = {"AdImageHash": image_hash}
+        if erir_ad_description:
+            text_image_ad["ErirAdDescription"] = erir_ad_description
+        if final_url:
+            text_image_ad["FinalUrl"] = final_url
+        if href:
+            text_image_ad["Href"] = href
+        if turbo_page_id is not None:
+            text_image_ad["TurboPageId"] = turbo_page_id
+        ad_data["TextImageAd"] = text_image_ad
+    elif ad_type_norm == "RESPONSIVE_AD":
+        missing_fields = [
+            option_name
+            for option_name, value in (
+                ("--texts", texts),
+                ("--titles", titles),
+            )
+            if value is None
+        ]
+        if missing_fields:
+            raise click.UsageError(
+                t("RESPONSIVE_AD requires {arg0}").format(
+                    arg0=", ".join(missing_fields)
+                )
+            )
+        if not href and business_id is None:
+            raise click.UsageError(
+                t("RESPONSIVE_AD requires either --href or --business-id.")
             )
 
-        # --mobile has a Click default of "NO" so the value is always present
-        # in the payload, but the per-subtype guard must reject any explicit
-        # use of --mobile on non-TEXT_AD subtypes — including --mobile NO —
-        # to avoid silent data loss (issue #198 H2 / #202).
-        mobile_source = ctx.get_parameter_source("mobile")
-        mobile_explicit = (
-            mobile_source != click.core.ParameterSource.DEFAULT
-            if mobile_source
-            else False
+        parsed_texts = _parse_required_csv_strings(texts, "--texts")
+        parsed_titles = _parse_required_csv_strings(titles, "--titles")
+        responsive_ad = {
+            "Texts": parsed_texts,
+            "Titles": parsed_titles,
+        }
+        parsed_image_hashes = _parse_required_csv_strings(
+            image_hashes, "--image-hashes"
         )
-        mobile_provided = mobile if mobile_explicit else None
-
-        type_fields = {
-            "TEXT_AD": {
-                "title",
-                "text",
-                "href",
-                "image_hash",
-                "title2",
-                "display_url_path",
-                "mobile",
-                "vcard_id",
-                "sitelink_set_id",
-                "turbo_page_id",
-                "ad_extensions",
-                "final_url",
-                "video_extension_creative_id",
-                "price_extension_price",
-                "price_extension_old_price",
-                "price_extension_price_qualifier",
-                "price_extension_price_currency",
-                "business_id",
-                "prefer_vcard_over_business",
-                "erir_ad_description",
-            },
-            "TEXT_IMAGE_AD": {
-                "href",
-                "image_hash",
-                "turbo_page_id",
-                "final_url",
-                "erir_ad_description",
-            },
-            "RESPONSIVE_AD": {
-                "texts",
-                "titles",
-                "href",
-                "age_label",
-                "display_url_path",
-                "image_hashes",
-                "sitelink_set_id",
-                "ad_extensions",
-                "video_extension_ids",
-                "price_extension_price",
-                "price_extension_old_price",
-                "price_extension_price_qualifier",
-                "price_extension_price_currency",
-                "business_id",
-                "erir_ad_description",
-            },
-            "SHOPPING_AD": FEED_BASED_ADD_FIELDS,
-            "LISTING_AD": FEED_BASED_ADD_FIELDS,
-            **AD_BUILDER_ADD_TYPE_FIELDS,
-            "DYNAMIC_TEXT_AD": DYNAMIC_TEXT_AD_ADD_FIELDS,
-            "MOBILE_APP_AD": MOBILE_APP_AD_ADD_FIELDS,
-            "MOBILE_APP_IMAGE_AD": MOBILE_APP_IMAGE_AD_ADD_FIELDS,
-            "SMART_AD_BUILDER_AD": SMART_AD_BUILDER_ADD_FIELDS,
+        if parsed_image_hashes:
+            responsive_ad["AdImageHashes"] = parsed_image_hashes
+        parsed_video_extension_ids = _parse_required_ids(
+            video_extension_ids, "--video-extension-ids"
+        )
+        if parsed_video_extension_ids:
+            responsive_ad["VideoExtensionIds"] = parsed_video_extension_ids
+        if sitelink_set_id is not None:
+            responsive_ad["SitelinkSetId"] = sitelink_set_id
+        if ad_extensions:
+            responsive_ad["AdExtensionIds"] = parse_ids(ad_extensions)
+        if href:
+            responsive_ad["Href"] = href
+        if age_label:
+            responsive_ad["AgeLabel"] = age_label.upper()
+        if display_url_path:
+            responsive_ad["DisplayUrlPath"] = display_url_path
+        price_extension = _build_price_extension_add(
+            price_extension_price,
+            price_extension_old_price,
+            price_extension_price_qualifier,
+            price_extension_price_currency,
+            container_name="ResponsiveAd",
+        )
+        if price_extension:
+            responsive_ad["PriceExtension"] = price_extension
+        if business_id is not None:
+            responsive_ad["BusinessId"] = business_id
+        if erir_ad_description:
+            responsive_ad["ErirAdDescription"] = erir_ad_description
+        ad_data["ResponsiveAd"] = responsive_ad
+    elif ad_type_norm in {"SHOPPING_AD", "LISTING_AD"}:
+        field_name = "ShoppingAd" if ad_type_norm == "SHOPPING_AD" else "ListingAd"
+        ad_data[field_name] = _build_feed_based_ad_add(
+            feed_id,
+            default_texts,
+            sitelink_set_id,
+            ad_extensions,
+            business_id,
+            feed_filter_conditions,
+            title_sources,
+            text_sources,
+            field_name,
+        )
+    elif ad_type_norm in AD_BUILDER_ADD_BLOCKS:
+        field_name = AD_BUILDER_ADD_BLOCKS[ad_type_norm]
+        ad_data[field_name] = _build_ad_builder_add(
+            creative_id,
+            erir_ad_description,
+            final_url,
+            href,
+            turbo_page_id,
+            tracking_url,
+            tracking_pixels,
+            ad_type_norm,
+            field_name,
+        )
+    elif ad_type_norm == "MOBILE_APP_AD":
+        if href:
+            raise click.UsageError(
+                t(
+                    "--href does not apply to MOBILE_APP_AD. "
+                    "Use --tracking-url instead."
+                )
+            )
+        missing_fields = [
+            option_name
+            for option_name, value in (
+                ("--title", title),
+                ("--text", text),
+                ("--action", action),
+            )
+            if not value
+        ]
+        if missing_fields:
+            raise click.UsageError(
+                t("MOBILE_APP_AD requires {arg0}").format(
+                    arg0=", ".join(missing_fields)
+                )
+            )
+        mobile_app_ad = {
+            "Title": title,
+            "Text": text,
+            "Action": action.upper(),
         }
-        provided = {
-            "title": title,
-            "text": text,
-            "titles": titles,
-            "texts": texts,
-            "href": href,
-            "image_hash": image_hash,
-            "image_hashes": image_hashes,
-            "action": action,
-            "tracking_url": tracking_url,
-            "age_label": age_label,
-            "mobile_app_features": mobile_app_features,
-            "title2": title2,
-            "display_url_path": display_url_path,
-            "mobile": mobile_provided,
-            "vcard_id": vcard_id,
-            "sitelink_set_id": sitelink_set_id,
-            "turbo_page_id": turbo_page_id,
-            "ad_extensions": ad_extensions,
-            "final_url": final_url,
-            "video_extension_creative_id": video_extension_creative_id,
-            "price_extension_price": price_extension_price,
-            "price_extension_old_price": price_extension_old_price,
-            "price_extension_price_qualifier": price_extension_price_qualifier,
-            "price_extension_price_currency": price_extension_price_currency,
-            "video_extension_ids": video_extension_ids,
-            "business_id": business_id,
-            "prefer_vcard_over_business": prefer_vcard_over_business,
-            "erir_ad_description": erir_ad_description,
-            "creative_id": creative_id,
-            "tracking_pixels": tracking_pixels,
-            "logo_extension_hash": logo_extension_hash,
-            "feed_id": feed_id,
-            "feed_filter_conditions": feed_filter_conditions,
-            "title_sources": title_sources,
-            "text_sources": text_sources,
-            "default_texts": default_texts,
-        }
-        flag_for = {
-            "title": "--title",
-            "text": "--text",
-            "titles": "--titles",
-            "texts": "--texts",
-            "href": "--href",
-            "image_hash": "--image-hash",
-            "image_hashes": "--image-hashes",
-            "action": "--action",
-            "tracking_url": "--tracking-url",
-            "age_label": "--age-label",
-            "mobile_app_features": "--mobile-app-feature",
-            "title2": "--title2",
-            "display_url_path": "--display-url-path",
-            "mobile": "--mobile",
-            "vcard_id": "--vcard-id",
-            "sitelink_set_id": "--sitelink-set-id",
-            "turbo_page_id": "--turbo-page-id",
-            "ad_extensions": "--ad-extensions",
-            "final_url": "--final-url",
-            "video_extension_creative_id": "--video-extension-creative-id",
-            "price_extension_price": "--price-extension-price",
-            "price_extension_old_price": "--price-extension-old-price",
-            "price_extension_price_qualifier": "--price-extension-price-qualifier",
-            "price_extension_price_currency": "--price-extension-price-currency",
-            "video_extension_ids": "--video-extension-ids",
-            "business_id": "--business-id",
-            "prefer_vcard_over_business": "--prefer-vcard-over-business",
-            "erir_ad_description": "--erir-ad-description",
-            "creative_id": "--creative-id",
-            "tracking_pixels": "--tracking-pixels",
-            "logo_extension_hash": "--logo-extension-hash",
-            "feed_id": "--feed-id",
-            "feed_filter_conditions": "--feed-filter-condition",
-            "title_sources": "--title-sources",
-            "text_sources": "--text-sources",
-            "default_texts": "--default-texts",
-        }
-        _reject_incompatible_flags(
-            ad_type_norm, type_fields[ad_type_norm], provided, flag_for
+        if image_hash:
+            mobile_app_ad["AdImageHash"] = image_hash
+        if tracking_url:
+            mobile_app_ad["TrackingUrl"] = tracking_url
+        if age_label:
+            mobile_app_ad["AgeLabel"] = age_label.upper()
+        parsed_features = _parse_mobile_app_features(mobile_app_features)
+        if parsed_features:
+            mobile_app_ad["Features"] = parsed_features
+        if video_extension_creative_id is not None:
+            mobile_app_ad["VideoExtension"] = {
+                "CreativeId": video_extension_creative_id
+            }
+        if erir_ad_description:
+            mobile_app_ad["ErirAdDescription"] = erir_ad_description
+        ad_data["MobileAppAd"] = mobile_app_ad
+    elif ad_type_norm == "MOBILE_APP_IMAGE_AD":
+        ad_data["MobileAppImageAd"] = _build_mobile_app_image_ad_add(
+            image_hash,
+            erir_ad_description,
+            tracking_url,
+        )
+    elif ad_type_norm == "SMART_AD_BUILDER_AD":
+        ad_data["SmartAdBuilderAd"] = _build_smart_ad_builder_ad_add(
+            logo_extension_hash,
         )
 
-        ad_data = {"AdGroupId": adgroup_id}
-        if ad_type_norm == "TEXT_AD":
-            missing_fields = [
-                option_name
-                for option_name, value in (
-                    ("--title", title),
-                    ("--text", text),
-                    ("--href", href),
-                )
-                if not value
-            ]
-            if missing_fields:
-                raise click.UsageError(
-                    t("TEXT_AD requires {arg0}").format(arg0=", ".join(missing_fields))
-                )
-            text_ad = {
-                "Mobile": mobile.upper(),
-                "Title": title,
-                "Text": text,
-                "Href": href,
-            }
-            if image_hash:
-                text_ad["AdImageHash"] = image_hash
-            if title2:
-                text_ad["Title2"] = title2
-            if display_url_path:
-                text_ad["DisplayUrlPath"] = display_url_path
-            if vcard_id:
-                text_ad["VCardId"] = vcard_id
-            if sitelink_set_id:
-                text_ad["SitelinkSetId"] = sitelink_set_id
-            if turbo_page_id:
-                text_ad["TurboPageId"] = turbo_page_id
-            if ad_extensions:
-                text_ad["AdExtensionIds"] = parse_ids(ad_extensions)
-            if final_url:
-                text_ad["FinalUrl"] = final_url
-            if video_extension_creative_id is not None:
-                text_ad["VideoExtension"] = {"CreativeId": video_extension_creative_id}
-            price_extension = _build_price_extension_add(
-                price_extension_price,
-                price_extension_old_price,
-                price_extension_price_qualifier,
-                price_extension_price_currency,
-            )
-            if price_extension:
-                text_ad["PriceExtension"] = price_extension
-            if business_id is not None:
-                text_ad["BusinessId"] = business_id
-            if prefer_vcard_over_business:
-                text_ad["PreferVCardOverBusiness"] = prefer_vcard_over_business.upper()
-            if erir_ad_description:
-                text_ad["ErirAdDescription"] = erir_ad_description
-            ad_data["TextAd"] = text_ad
-        elif ad_type_norm == "DYNAMIC_TEXT_AD":
-            ad_data["DynamicTextAd"] = _build_dynamic_text_ad_add(
-                text,
-                image_hash,
-                vcard_id,
-                sitelink_set_id,
-                ad_extensions,
-            )
-        elif ad_type_norm == "TEXT_IMAGE_AD":
-            if title or text:
-                raise click.UsageError(
-                    t(
-                        "--title/--text are only valid for TEXT_AD. "
-                        "For TEXT_IMAGE_AD, use --image-hash and "
-                        "--href / --turbo-page-id."
-                    )
-                )
-            if not image_hash:
-                raise click.UsageError(t("TEXT_IMAGE_AD requires --image-hash"))
-            if not href and turbo_page_id is None:
-                raise click.UsageError(
-                    t("TEXT_IMAGE_AD requires either --href or --turbo-page-id.")
-                )
-            text_image_ad = {"AdImageHash": image_hash}
-            if erir_ad_description:
-                text_image_ad["ErirAdDescription"] = erir_ad_description
-            if final_url:
-                text_image_ad["FinalUrl"] = final_url
-            if href:
-                text_image_ad["Href"] = href
-            if turbo_page_id is not None:
-                text_image_ad["TurboPageId"] = turbo_page_id
-            ad_data["TextImageAd"] = text_image_ad
-        elif ad_type_norm == "RESPONSIVE_AD":
-            missing_fields = [
-                option_name
-                for option_name, value in (
-                    ("--texts", texts),
-                    ("--titles", titles),
-                )
-                if value is None
-            ]
-            if missing_fields:
-                raise click.UsageError(
-                    t("RESPONSIVE_AD requires {arg0}").format(
-                        arg0=", ".join(missing_fields)
-                    )
-                )
-            if not href and business_id is None:
-                raise click.UsageError(
-                    t("RESPONSIVE_AD requires either --href or --business-id.")
-                )
+    body = {"method": "add", "params": {"Ads": [ad_data]}}
 
-            parsed_texts = _parse_required_csv_strings(texts, "--texts")
-            parsed_titles = _parse_required_csv_strings(titles, "--titles")
-            responsive_ad = {
-                "Texts": parsed_texts,
-                "Titles": parsed_titles,
-            }
-            parsed_image_hashes = _parse_required_csv_strings(
-                image_hashes, "--image-hashes"
-            )
-            if parsed_image_hashes:
-                responsive_ad["AdImageHashes"] = parsed_image_hashes
-            parsed_video_extension_ids = _parse_required_ids(
-                video_extension_ids, "--video-extension-ids"
-            )
-            if parsed_video_extension_ids:
-                responsive_ad["VideoExtensionIds"] = parsed_video_extension_ids
-            if sitelink_set_id is not None:
-                responsive_ad["SitelinkSetId"] = sitelink_set_id
-            if ad_extensions:
-                responsive_ad["AdExtensionIds"] = parse_ids(ad_extensions)
-            if href:
-                responsive_ad["Href"] = href
-            if age_label:
-                responsive_ad["AgeLabel"] = age_label.upper()
-            if display_url_path:
-                responsive_ad["DisplayUrlPath"] = display_url_path
-            price_extension = _build_price_extension_add(
-                price_extension_price,
-                price_extension_old_price,
-                price_extension_price_qualifier,
-                price_extension_price_currency,
-                container_name="ResponsiveAd",
-            )
-            if price_extension:
-                responsive_ad["PriceExtension"] = price_extension
-            if business_id is not None:
-                responsive_ad["BusinessId"] = business_id
-            if erir_ad_description:
-                responsive_ad["ErirAdDescription"] = erir_ad_description
-            ad_data["ResponsiveAd"] = responsive_ad
-        elif ad_type_norm in {"SHOPPING_AD", "LISTING_AD"}:
-            field_name = "ShoppingAd" if ad_type_norm == "SHOPPING_AD" else "ListingAd"
-            ad_data[field_name] = _build_feed_based_ad_add(
-                feed_id,
-                default_texts,
-                sitelink_set_id,
-                ad_extensions,
-                business_id,
-                feed_filter_conditions,
-                title_sources,
-                text_sources,
-                field_name,
-            )
-        elif ad_type_norm in AD_BUILDER_ADD_BLOCKS:
-            field_name = AD_BUILDER_ADD_BLOCKS[ad_type_norm]
-            ad_data[field_name] = _build_ad_builder_add(
-                creative_id,
-                erir_ad_description,
-                final_url,
-                href,
-                turbo_page_id,
-                tracking_url,
-                tracking_pixels,
-                ad_type_norm,
-                field_name,
-            )
-        elif ad_type_norm == "MOBILE_APP_AD":
-            if href:
-                raise click.UsageError(
-                    t(
-                        "--href does not apply to MOBILE_APP_AD. "
-                        "Use --tracking-url instead."
-                    )
-                )
-            missing_fields = [
-                option_name
-                for option_name, value in (
-                    ("--title", title),
-                    ("--text", text),
-                    ("--action", action),
-                )
-                if not value
-            ]
-            if missing_fields:
-                raise click.UsageError(
-                    t("MOBILE_APP_AD requires {arg0}").format(
-                        arg0=", ".join(missing_fields)
-                    )
-                )
-            mobile_app_ad = {
-                "Title": title,
-                "Text": text,
-                "Action": action.upper(),
-            }
-            if image_hash:
-                mobile_app_ad["AdImageHash"] = image_hash
-            if tracking_url:
-                mobile_app_ad["TrackingUrl"] = tracking_url
-            if age_label:
-                mobile_app_ad["AgeLabel"] = age_label.upper()
-            parsed_features = _parse_mobile_app_features(mobile_app_features)
-            if parsed_features:
-                mobile_app_ad["Features"] = parsed_features
-            if video_extension_creative_id is not None:
-                mobile_app_ad["VideoExtension"] = {
-                    "CreativeId": video_extension_creative_id
-                }
-            if erir_ad_description:
-                mobile_app_ad["ErirAdDescription"] = erir_ad_description
-            ad_data["MobileAppAd"] = mobile_app_ad
-        elif ad_type_norm == "MOBILE_APP_IMAGE_AD":
-            ad_data["MobileAppImageAd"] = _build_mobile_app_image_ad_add(
-                image_hash,
-                erir_ad_description,
-                tracking_url,
-            )
-        elif ad_type_norm == "SMART_AD_BUILDER_AD":
-            ad_data["SmartAdBuilderAd"] = _build_smart_ad_builder_ad_add(
-                logo_extension_hash,
-            )
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        body = {"method": "add", "params": {"Ads": [ad_data]}}
+    client = client_from_ctx(ctx, create_client)
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
-
-        client = client_from_ctx(ctx, create_client)
-
-        result = client.ads().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.ads().post(data=body)
+    format_output(result().extract(), "json", None)
 
 
 @ads.command()
@@ -2352,150 +2344,114 @@ def update(
 @click.option("--id", "ad_id", required=True, type=int, help="Ad ID")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def delete(ctx, ad_id, dry_run):
     """Delete ad"""
-    try:
-        body = {"method": "delete", "params": {"SelectionCriteria": {"Ids": [ad_id]}}}
+    body = {"method": "delete", "params": {"SelectionCriteria": {"Ids": [ad_id]}}}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        result = client.ads().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.ads().post(data=body)
+    format_output(result().extract(), "json", None)
 
 
 @ads.command()
 @click.option("--id", "ad_id", required=True, type=int, help="Ad ID")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def archive(ctx, ad_id, dry_run):
     """Archive ad"""
-    try:
-        body = {"method": "archive", "params": {"SelectionCriteria": {"Ids": [ad_id]}}}
+    body = {"method": "archive", "params": {"SelectionCriteria": {"Ids": [ad_id]}}}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        result = client.ads().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.ads().post(data=body)
+    format_output(result().extract(), "json", None)
 
 
 @ads.command()
 @click.option("--id", "ad_id", required=True, type=int, help="Ad ID")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def unarchive(ctx, ad_id, dry_run):
     """Unarchive ad"""
-    try:
-        body = {
-            "method": "unarchive",
-            "params": {"SelectionCriteria": {"Ids": [ad_id]}},
-        }
+    body = {
+        "method": "unarchive",
+        "params": {"SelectionCriteria": {"Ids": [ad_id]}},
+    }
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        result = client.ads().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.ads().post(data=body)
+    format_output(result().extract(), "json", None)
 
 
 @ads.command()
 @click.option("--id", "ad_id", required=True, type=int, help="Ad ID")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def suspend(ctx, ad_id, dry_run):
     """Suspend ad"""
-    try:
-        body = {"method": "suspend", "params": {"SelectionCriteria": {"Ids": [ad_id]}}}
+    body = {"method": "suspend", "params": {"SelectionCriteria": {"Ids": [ad_id]}}}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        result = client.ads().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.ads().post(data=body)
+    format_output(result().extract(), "json", None)
 
 
 @ads.command()
 @click.option("--id", "ad_id", required=True, type=int, help="Ad ID")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def resume(ctx, ad_id, dry_run):
     """Resume ad"""
-    try:
-        body = {"method": "resume", "params": {"SelectionCriteria": {"Ids": [ad_id]}}}
+    body = {"method": "resume", "params": {"SelectionCriteria": {"Ids": [ad_id]}}}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        result = client.ads().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.ads().post(data=body)
+    format_output(result().extract(), "json", None)
 
 
 @ads.command()
 @click.option("--id", "ad_id", required=True, type=int, help="Ad ID")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def moderate(ctx, ad_id, dry_run):
     """Moderate ad"""
-    try:
-        body = {"method": "moderate", "params": {"SelectionCriteria": {"Ids": [ad_id]}}}
+    body = {"method": "moderate", "params": {"SelectionCriteria": {"Ids": [ad_id]}}}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        result = client.ads().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.ads().post(data=body)
+    format_output(result().extract(), "json", None)
