@@ -6,7 +6,7 @@ import click
 
 from ..api import client_from_ctx, create_client
 from ..i18n import t
-from ..output import format_output, print_error
+from ..output import format_output, handle_api_errors
 from ..utils import get_default_fields, parse_csv_strings, parse_ids
 
 
@@ -146,6 +146,7 @@ def bidmodifiers():
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def get(
     ctx,
     ids,
@@ -174,82 +175,73 @@ def get(
     dry_run,
 ):
     """Get bid modifiers"""
-    try:
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        raw_nested = (
-            ("AdGroupAdjustmentFieldNames", ad_group_adjustment_field_names),
-            ("DemographicsAdjustmentFieldNames", demographics_adjustment_field_names),
-            ("DesktopAdjustmentFieldNames", desktop_adjustment_field_names),
-            ("DesktopOnlyAdjustmentFieldNames", desktop_only_adjustment_field_names),
-            ("IncomeGradeAdjustmentFieldNames", income_grade_adjustment_field_names),
-            ("MobileAdjustmentFieldNames", mobile_adjustment_field_names),
-            ("RegionalAdjustmentFieldNames", regional_adjustment_field_names),
-            ("RetargetingAdjustmentFieldNames", retargeting_adjustment_field_names),
-            ("SerpLayoutAdjustmentFieldNames", serp_layout_adjustment_field_names),
-            ("SmartAdAdjustmentFieldNames", smart_ad_adjustment_field_names),
-            ("SmartTvAdjustmentFieldNames", smart_tv_adjustment_field_names),
-            ("TabletAdjustmentFieldNames", tablet_adjustment_field_names),
-            ("VideoAdjustmentFieldNames", video_adjustment_field_names),
-        )
-        parsed_nested = {}
-        for wsdl_key, raw_value in raw_nested:
-            parsed = parse_csv_strings(raw_value)
-            if raw_value is not None and not parsed:
-                raise click.UsageError(
-                    t("Provide a non-empty comma-separated {wsdl_key} list.").format(
-                        wsdl_key=wsdl_key
-                    )
+    raw_nested = (
+        ("AdGroupAdjustmentFieldNames", ad_group_adjustment_field_names),
+        ("DemographicsAdjustmentFieldNames", demographics_adjustment_field_names),
+        ("DesktopAdjustmentFieldNames", desktop_adjustment_field_names),
+        ("DesktopOnlyAdjustmentFieldNames", desktop_only_adjustment_field_names),
+        ("IncomeGradeAdjustmentFieldNames", income_grade_adjustment_field_names),
+        ("MobileAdjustmentFieldNames", mobile_adjustment_field_names),
+        ("RegionalAdjustmentFieldNames", regional_adjustment_field_names),
+        ("RetargetingAdjustmentFieldNames", retargeting_adjustment_field_names),
+        ("SerpLayoutAdjustmentFieldNames", serp_layout_adjustment_field_names),
+        ("SmartAdAdjustmentFieldNames", smart_ad_adjustment_field_names),
+        ("SmartTvAdjustmentFieldNames", smart_tv_adjustment_field_names),
+        ("TabletAdjustmentFieldNames", tablet_adjustment_field_names),
+        ("VideoAdjustmentFieldNames", video_adjustment_field_names),
+    )
+    parsed_nested = {}
+    for wsdl_key, raw_value in raw_nested:
+        parsed = parse_csv_strings(raw_value)
+        if raw_value is not None and not parsed:
+            raise click.UsageError(
+                t("Provide a non-empty comma-separated {wsdl_key} list.").format(
+                    wsdl_key=wsdl_key
                 )
-            if parsed:
-                parsed_nested[wsdl_key] = parsed
+            )
+        if parsed:
+            parsed_nested[wsdl_key] = parsed
 
-        criteria = {"Levels": [lv.upper() for lv in levels]}
-        if ids:
-            criteria["Ids"] = parse_ids(ids)
-        if campaign_ids:
-            criteria["CampaignIds"] = parse_ids(campaign_ids)
-        if adgroup_ids:
-            criteria["AdGroupIds"] = parse_ids(adgroup_ids)
-        if types:
-            criteria["Types"] = [
-                item.strip().upper() for item in types.split(",") if item.strip()
-            ]
+    criteria = {"Levels": [lv.upper() for lv in levels]}
+    if ids:
+        criteria["Ids"] = parse_ids(ids)
+    if campaign_ids:
+        criteria["CampaignIds"] = parse_ids(campaign_ids)
+    if adgroup_ids:
+        criteria["AdGroupIds"] = parse_ids(adgroup_ids)
+    if types:
+        criteria["Types"] = [
+            item.strip().upper() for item in types.split(",") if item.strip()
+        ]
 
-        field_names = (
-            fields.split(",") if fields else get_default_fields("bidmodifiers")
-        )
-        params = {
-            "SelectionCriteria": criteria,
-            "FieldNames": field_names,
-        }
-        params.update(parsed_nested)
+    field_names = fields.split(",") if fields else get_default_fields("bidmodifiers")
+    params = {
+        "SelectionCriteria": criteria,
+        "FieldNames": field_names,
+    }
+    params.update(parsed_nested)
 
-        if limit:
-            params["Page"] = {"Limit": limit}
+    if limit:
+        params["Page"] = {"Limit": limit}
 
-        body = {"method": "get", "params": params}
+    body = {"method": "get", "params": params}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        result = client.bidmodifiers().post(data=body)
+    result = client.bidmodifiers().post(data=body)
 
-        if fetch_all:
-            items = []
-            for item in result().iter_items():
-                items.append(item)
-            format_output(items, output_format, output)
-        else:
-            data = result().extract()
-            format_output(data, output_format, output)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    if fetch_all:
+        items = []
+        for item in result().iter_items():
+            items.append(item)
+        format_output(items, output_format, output)
+    else:
+        data = result().extract()
+        format_output(data, output_format, output)
 
 
 # Map CLI --type values to the nested BidModifier object field name.
@@ -354,6 +346,7 @@ def _reject_incompatible_extra_flags(
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def add(
     ctx,
     campaign_id,
@@ -382,91 +375,80 @@ def add(
     For types with extra fields, use the corresponding typed flags
     (for example ``--gender`` / ``--age`` for demographics).
     """
-    try:
-        if (campaign_id is None) == (adgroup_id is None):
-            raise click.UsageError(
-                t("Exactly one of --campaign-id or --adgroup-id is required")
-            )
-
-        modifier_type_upper = modifier_type.upper()
-        _reject_incompatible_extra_flags(
-            modifier_type_upper,
-            {
-                "--gender": gender,
-                "--age": age,
-                "--retargeting-condition-id": retargeting_condition_id,
-                "--region-id": region_id,
-                "--serp-layout": serp_layout,
-                "--income-grade": income_grade,
-                "--operating-system-type": operating_system_type,
-            },
+    if (campaign_id is None) == (adgroup_id is None):
+        raise click.UsageError(
+            t("Exactly one of --campaign-id or --adgroup-id is required")
         )
 
-        nested_key = _BIDMODIFIER_TYPE_TO_NESTED[modifier_type_upper]
-        nested = {"BidModifier": value}
-        if (
-            modifier_type_upper in _OPERATING_SYSTEM_TYPE_MODIFIERS
-            and operating_system_type
-        ):
-            nested["OperatingSystemType"] = operating_system_type.upper()
-        if modifier_type_upper == "DEMOGRAPHICS_ADJUSTMENT":
-            if gender:
-                nested["Gender"] = gender
-            if age:
-                nested["Age"] = age
-            if "Gender" not in nested and "Age" not in nested:
-                raise click.UsageError(
-                    t("DEMOGRAPHICS_ADJUSTMENT requires --gender and/or --age")
-                )
-        elif modifier_type_upper == "RETARGETING_ADJUSTMENT":
-            if retargeting_condition_id is None:
-                raise click.UsageError(
-                    t("RETARGETING_ADJUSTMENT requires --retargeting-condition-id")
-                )
-            nested["RetargetingConditionId"] = retargeting_condition_id
-        elif modifier_type_upper == "REGIONAL_ADJUSTMENT":
-            if region_id is None:
-                raise click.UsageError(t("REGIONAL_ADJUSTMENT requires --region-id"))
-            nested["RegionId"] = region_id
-        elif modifier_type_upper == "SERP_LAYOUT_ADJUSTMENT":
-            if not serp_layout:
-                raise click.UsageError(
-                    t("SERP_LAYOUT_ADJUSTMENT requires --serp-layout")
-                )
-            nested["SerpLayout"] = serp_layout
-        elif modifier_type_upper == "INCOME_GRADE_ADJUSTMENT":
-            if not income_grade:
-                raise click.UsageError(
-                    t("INCOME_GRADE_ADJUSTMENT requires --income-grade")
-                )
-            nested["Grade"] = income_grade
+    modifier_type_upper = modifier_type.upper()
+    _reject_incompatible_extra_flags(
+        modifier_type_upper,
+        {
+            "--gender": gender,
+            "--age": age,
+            "--retargeting-condition-id": retargeting_condition_id,
+            "--region-id": region_id,
+            "--serp-layout": serp_layout,
+            "--income-grade": income_grade,
+            "--operating-system-type": operating_system_type,
+        },
+    )
 
-        # Plural fields expect a list per WSDL BidModifierAddItem
-        if nested_key in _PLURAL_NESTED_KEYS:
-            modifier_data = {nested_key: [nested]}
-        else:
-            modifier_data = {nested_key: nested}
-        if campaign_id is not None:
-            modifier_data["CampaignId"] = campaign_id
-        else:
-            modifier_data["AdGroupId"] = adgroup_id
+    nested_key = _BIDMODIFIER_TYPE_TO_NESTED[modifier_type_upper]
+    nested = {"BidModifier": value}
+    if (
+        modifier_type_upper in _OPERATING_SYSTEM_TYPE_MODIFIERS
+        and operating_system_type
+    ):
+        nested["OperatingSystemType"] = operating_system_type.upper()
+    if modifier_type_upper == "DEMOGRAPHICS_ADJUSTMENT":
+        if gender:
+            nested["Gender"] = gender
+        if age:
+            nested["Age"] = age
+        if "Gender" not in nested and "Age" not in nested:
+            raise click.UsageError(
+                t("DEMOGRAPHICS_ADJUSTMENT requires --gender and/or --age")
+            )
+    elif modifier_type_upper == "RETARGETING_ADJUSTMENT":
+        if retargeting_condition_id is None:
+            raise click.UsageError(
+                t("RETARGETING_ADJUSTMENT requires --retargeting-condition-id")
+            )
+        nested["RetargetingConditionId"] = retargeting_condition_id
+    elif modifier_type_upper == "REGIONAL_ADJUSTMENT":
+        if region_id is None:
+            raise click.UsageError(t("REGIONAL_ADJUSTMENT requires --region-id"))
+        nested["RegionId"] = region_id
+    elif modifier_type_upper == "SERP_LAYOUT_ADJUSTMENT":
+        if not serp_layout:
+            raise click.UsageError(t("SERP_LAYOUT_ADJUSTMENT requires --serp-layout"))
+        nested["SerpLayout"] = serp_layout
+    elif modifier_type_upper == "INCOME_GRADE_ADJUSTMENT":
+        if not income_grade:
+            raise click.UsageError(t("INCOME_GRADE_ADJUSTMENT requires --income-grade"))
+        nested["Grade"] = income_grade
 
-        body = {"method": "add", "params": {"BidModifiers": [modifier_data]}}
+    # Plural fields expect a list per WSDL BidModifierAddItem
+    if nested_key in _PLURAL_NESTED_KEYS:
+        modifier_data = {nested_key: [nested]}
+    else:
+        modifier_data = {nested_key: nested}
+    if campaign_id is not None:
+        modifier_data["CampaignId"] = campaign_id
+    else:
+        modifier_data["AdGroupId"] = adgroup_id
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    body = {"method": "add", "params": {"BidModifiers": [modifier_data]}}
 
-        client = client_from_ctx(ctx, create_client)
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        result = client.bidmodifiers().post(data=body)
-        format_output(result().extract(), "json", None)
+    client = client_from_ctx(ctx, create_client)
 
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.bidmodifiers().post(data=body)
+    format_output(result().extract(), "json", None)
 
 
 _DEPRECATED_BIDMODIFIERS_SET_OPTIONS = {
@@ -524,6 +506,7 @@ def _deprecated_legacy_option(ctx, param, value):
 @click.option("--value", type=int, required=True, help="Modifier value")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def set(ctx, modifier_id, value, dry_run):
     """Set (update) an existing bid modifier
 
@@ -531,59 +514,48 @@ def set(ctx, modifier_id, value, dry_run):
     modifiers by ``Id``. To create a new modifier, use ``bidmodifiers add``
     instead.
     """
-    try:
-        if modifier_id is None:
-            raise click.UsageError(
-                t(
-                    "Provide --id with --value for bidmodifiers set. "
-                    "The legacy --campaign-id/--type shape is not supported by "
-                    "WSDL BidModifierSetItem; use bidmodifiers add to create a "
-                    "new modifier."
-                )
+    if modifier_id is None:
+        raise click.UsageError(
+            t(
+                "Provide --id with --value for bidmodifiers set. "
+                "The legacy --campaign-id/--type shape is not supported by "
+                "WSDL BidModifierSetItem; use bidmodifiers add to create a "
+                "new modifier."
             )
+        )
 
-        # Correct API shape: Id + BidModifier. Nothing else.
-        modifier_data = {"Id": modifier_id, "BidModifier": value}
+    # Correct API shape: Id + BidModifier. Nothing else.
+    modifier_data = {"Id": modifier_id, "BidModifier": value}
 
-        body = {"method": "set", "params": {"BidModifiers": [modifier_data]}}
+    body = {"method": "set", "params": {"BidModifiers": [modifier_data]}}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        result = client.bidmodifiers().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.bidmodifiers().post(data=body)
+    format_output(result().extract(), "json", None)
 
 
 @bidmodifiers.command()
 @click.option("--id", "modifier_id", required=True, type=int, help="Modifier ID")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def delete(ctx, modifier_id, dry_run):
     """Delete bid modifier"""
-    try:
-        body = {
-            "method": "delete",
-            "params": {"SelectionCriteria": {"Ids": [modifier_id]}},
-        }
+    body = {
+        "method": "delete",
+        "params": {"SelectionCriteria": {"Ids": [modifier_id]}},
+    }
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        result = client.bidmodifiers().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.bidmodifiers().post(data=body)
+    format_output(result().extract(), "json", None)

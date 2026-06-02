@@ -10,7 +10,7 @@ import click
 
 from ..api import client_from_ctx, create_client
 from ..i18n import t
-from ..output import format_output, print_error
+from ..output import format_output, handle_api_errors
 from ..utils import get_default_fields, parse_csv_strings, parse_ids
 
 _YES_NO = ["YES", "NO"]
@@ -140,6 +140,7 @@ def feeds():
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def get(
     ctx,
     ids,
@@ -153,60 +154,53 @@ def get(
     dry_run,
 ):
     """Get feeds"""
-    try:
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        field_names = fields.split(",") if fields else get_default_fields("feeds")
+    field_names = fields.split(",") if fields else get_default_fields("feeds")
 
-        parsed_file_feed_field_names = parse_csv_strings(file_feed_field_names)
-        if file_feed_field_names is not None and not parsed_file_feed_field_names:
-            raise click.UsageError(
-                t("Provide a non-empty comma-separated FileFeedFieldNames list.")
-            )
+    parsed_file_feed_field_names = parse_csv_strings(file_feed_field_names)
+    if file_feed_field_names is not None and not parsed_file_feed_field_names:
+        raise click.UsageError(
+            t("Provide a non-empty comma-separated FileFeedFieldNames list.")
+        )
 
-        parsed_url_feed_field_names = parse_csv_strings(url_feed_field_names)
-        if url_feed_field_names is not None and not parsed_url_feed_field_names:
-            raise click.UsageError(
-                t("Provide a non-empty comma-separated UrlFeedFieldNames list.")
-            )
+    parsed_url_feed_field_names = parse_csv_strings(url_feed_field_names)
+    if url_feed_field_names is not None and not parsed_url_feed_field_names:
+        raise click.UsageError(
+            t("Provide a non-empty comma-separated UrlFeedFieldNames list.")
+        )
 
-        criteria = {}
-        if ids:
-            criteria["Ids"] = parse_ids(ids)
+    criteria = {}
+    if ids:
+        criteria["Ids"] = parse_ids(ids)
 
-        params = {"FieldNames": field_names}
-        if criteria:
-            params["SelectionCriteria"] = criteria
-        if parsed_file_feed_field_names:
-            params["FileFeedFieldNames"] = parsed_file_feed_field_names
-        if parsed_url_feed_field_names:
-            params["UrlFeedFieldNames"] = parsed_url_feed_field_names
+    params = {"FieldNames": field_names}
+    if criteria:
+        params["SelectionCriteria"] = criteria
+    if parsed_file_feed_field_names:
+        params["FileFeedFieldNames"] = parsed_file_feed_field_names
+    if parsed_url_feed_field_names:
+        params["UrlFeedFieldNames"] = parsed_url_feed_field_names
 
-        if limit:
-            params["Page"] = {"Limit": limit}
+    if limit:
+        params["Page"] = {"Limit": limit}
 
-        body = {"method": "get", "params": params}
+    body = {"method": "get", "params": params}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        result = client.feeds().post(data=body)
+    result = client.feeds().post(data=body)
 
-        if fetch_all:
-            items = []
-            for item in result().iter_items():
-                items.append(item)
-            format_output(items, output_format, output)
-        else:
-            data = result().extract()
-            format_output(data, output_format, output)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    if fetch_all:
+        items = []
+        for item in result().iter_items():
+            items.append(item)
+        format_output(items, output_format, output)
+    else:
+        data = result().extract()
+        format_output(data, output_format, output)
 
 
 @feeds.command()
@@ -239,6 +233,7 @@ def get(
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def add(
     ctx,
     name,
@@ -252,55 +247,44 @@ def add(
     dry_run,
 ):
     """Add feed"""
-    try:
-        if file_feed_filename and not file_feed_path:
-            raise click.UsageError(t("--file-feed-filename requires --file-feed-path."))
-        if url and file_feed_path:
-            raise click.UsageError(t("Use either --url or --file-feed-path, not both."))
-        if not url and not file_feed_path:
-            raise click.UsageError(
-                t("Provide exactly one of --url or --file-feed-path.")
+    if file_feed_filename and not file_feed_path:
+        raise click.UsageError(t("--file-feed-filename requires --file-feed-path."))
+    if url and file_feed_path:
+        raise click.UsageError(t("Use either --url or --file-feed-path, not both."))
+    if not url and not file_feed_path:
+        raise click.UsageError(t("Provide exactly one of --url or --file-feed-path."))
+    if file_feed_path and _has_url_feed_options(
+        None, remove_utm_tags, feed_login, feed_password
+    ):
+        raise click.UsageError(
+            t(
+                "--remove-utm-tags, --feed-login, and --feed-password are "
+                "only valid with --url feeds."
             )
-        if file_feed_path and _has_url_feed_options(
-            None, remove_utm_tags, feed_login, feed_password
-        ):
-            raise click.UsageError(
-                t(
-                    "--remove-utm-tags, --feed-login, and --feed-password are "
-                    "only valid with --url feeds."
-                )
-            )
+        )
 
-        feed_data = {
-            "Name": name,
-            "BusinessType": business_type.upper(),
-            "SourceType": "FILE" if file_feed_path else "URL",
-        }
-        if file_feed_path:
-            feed_data["FileFeed"] = _file_feed_payload(
-                file_feed_path, file_feed_filename
-            )
-        else:
-            feed_data["UrlFeed"] = _url_feed_payload(
-                url, remove_utm_tags, feed_login, feed_password
-            )
+    feed_data = {
+        "Name": name,
+        "BusinessType": business_type.upper(),
+        "SourceType": "FILE" if file_feed_path else "URL",
+    }
+    if file_feed_path:
+        feed_data["FileFeed"] = _file_feed_payload(file_feed_path, file_feed_filename)
+    else:
+        feed_data["UrlFeed"] = _url_feed_payload(
+            url, remove_utm_tags, feed_login, feed_password
+        )
 
-        body = {"method": "add", "params": {"Feeds": [feed_data]}}
+    body = {"method": "add", "params": {"Feeds": [feed_data]}}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        result = client.feeds().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.feeds().post(data=body)
+    format_output(result().extract(), "json", None)
 
 
 @feeds.command()
@@ -335,6 +319,7 @@ def add(
 )
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def update(
     ctx,
     feed_id,
@@ -350,92 +335,79 @@ def update(
     dry_run,
 ):
     """Update feed"""
-    try:
-        if feed_login is not None and clear_feed_login:
-            raise click.UsageError(
-                t("Use either --feed-login or --clear-feed-login, not both")
-            )
-        if feed_password is not None and clear_feed_password:
-            raise click.UsageError(
-                t("Use either --feed-password or --clear-feed-password, not both")
-            )
-        if file_feed_filename and not file_feed_path:
-            raise click.UsageError(t("--file-feed-filename requires --file-feed-path."))
-        if file_feed_path and _has_url_feed_options(
-            url,
-            remove_utm_tags,
-            feed_login,
-            feed_password,
-            clear_feed_login,
-            clear_feed_password,
-        ):
-            raise click.UsageError(
-                t("FileFeed options cannot be combined with UrlFeed options.")
-            )
-
-        feed_data = {"Id": feed_id}
-
-        if name:
-            feed_data["Name"] = name
-        url_feed = _url_feed_payload(
-            url,
-            remove_utm_tags,
-            feed_login,
-            feed_password,
-            clear_feed_login,
-            clear_feed_password,
+    if feed_login is not None and clear_feed_login:
+        raise click.UsageError(
+            t("Use either --feed-login or --clear-feed-login, not both")
         )
-        if url_feed:
-            feed_data["UrlFeed"] = url_feed
-        if file_feed_path:
-            feed_data["FileFeed"] = _file_feed_payload(
-                file_feed_path, file_feed_filename
+    if feed_password is not None and clear_feed_password:
+        raise click.UsageError(
+            t("Use either --feed-password or --clear-feed-password, not both")
+        )
+    if file_feed_filename and not file_feed_path:
+        raise click.UsageError(t("--file-feed-filename requires --file-feed-path."))
+    if file_feed_path and _has_url_feed_options(
+        url,
+        remove_utm_tags,
+        feed_login,
+        feed_password,
+        clear_feed_login,
+        clear_feed_password,
+    ):
+        raise click.UsageError(
+            t("FileFeed options cannot be combined with UrlFeed options.")
+        )
+
+    feed_data = {"Id": feed_id}
+
+    if name:
+        feed_data["Name"] = name
+    url_feed = _url_feed_payload(
+        url,
+        remove_utm_tags,
+        feed_login,
+        feed_password,
+        clear_feed_login,
+        clear_feed_password,
+    )
+    if url_feed:
+        feed_data["UrlFeed"] = url_feed
+    if file_feed_path:
+        feed_data["FileFeed"] = _file_feed_payload(file_feed_path, file_feed_filename)
+    if len(feed_data) == 1:
+        raise click.UsageError(
+            t(
+                "Provide at least one of --name, --url, --file-feed-path, "
+                "--remove-utm-tags, --feed-login, --feed-password, "
+                "--clear-feed-login, or --clear-feed-password"
             )
-        if len(feed_data) == 1:
-            raise click.UsageError(
-                t(
-                    "Provide at least one of --name, --url, --file-feed-path, "
-                    "--remove-utm-tags, --feed-login, --feed-password, "
-                    "--clear-feed-login, or --clear-feed-password"
-                )
-            )
+        )
 
-        body = {"method": "update", "params": {"Feeds": [feed_data]}}
+    body = {"method": "update", "params": {"Feeds": [feed_data]}}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        result = client.feeds().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.feeds().post(data=body)
+    format_output(result().extract(), "json", None)
 
 
 @feeds.command()
 @click.option("--id", "feed_id", required=True, type=int, help="Feed ID")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def delete(ctx, feed_id, dry_run):
     """Delete feed"""
-    try:
-        body = {"method": "delete", "params": {"SelectionCriteria": {"Ids": [feed_id]}}}
+    body = {"method": "delete", "params": {"SelectionCriteria": {"Ids": [feed_id]}}}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        result = client.feeds().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    result = client.feeds().post(data=body)
+    format_output(result().extract(), "json", None)

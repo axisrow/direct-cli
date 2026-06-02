@@ -6,7 +6,7 @@ import click
 
 from ..api import client_from_ctx, create_client
 from ..i18n import t
-from ..output import format_output, print_error
+from ..output import format_output, handle_api_errors, print_error
 from ..utils import (
     add_criteria_csv,
     add_single_id_selector,
@@ -33,6 +33,7 @@ def bids():
 @click.option("--fields", help="Comma-separated field names")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def get(
     ctx,
     campaign_ids,
@@ -47,58 +48,51 @@ def get(
     dry_run,
 ):
     """Get bids"""
-    try:
-        client = client_from_ctx(ctx, create_client)
+    client = client_from_ctx(ctx, create_client)
 
-        criteria = {}
-        if campaign_ids:
-            criteria["CampaignIds"] = parse_ids(campaign_ids)
-        if adgroup_ids:
-            criteria["AdGroupIds"] = parse_ids(adgroup_ids)
-        if keyword_ids:
-            criteria["KeywordIds"] = parse_ids(keyword_ids)
-        add_criteria_csv(criteria, "ServingStatuses", serving_statuses, upper=True)
+    criteria = {}
+    if campaign_ids:
+        criteria["CampaignIds"] = parse_ids(campaign_ids)
+    if adgroup_ids:
+        criteria["AdGroupIds"] = parse_ids(adgroup_ids)
+    if keyword_ids:
+        criteria["KeywordIds"] = parse_ids(keyword_ids)
+    add_criteria_csv(criteria, "ServingStatuses", serving_statuses, upper=True)
 
-        if not criteria:
-            raise click.UsageError(
-                t(
-                    "bids get requires at least one filter: "
-                    "--campaign-ids, --adgroup-ids, --keyword-ids, "
-                    "or --serving-statuses."
-                )
+    if not criteria:
+        raise click.UsageError(
+            t(
+                "bids get requires at least one filter: "
+                "--campaign-ids, --adgroup-ids, --keyword-ids, "
+                "or --serving-statuses."
             )
+        )
 
-        field_names = fields.split(",") if fields else get_default_fields("bids")
-        params = {
-            "SelectionCriteria": criteria,
-            "FieldNames": field_names,
-        }
+    field_names = fields.split(",") if fields else get_default_fields("bids")
+    params = {
+        "SelectionCriteria": criteria,
+        "FieldNames": field_names,
+    }
 
-        if limit:
-            params["Page"] = {"Limit": limit}
+    if limit:
+        params["Page"] = {"Limit": limit}
 
-        body = {"method": "get", "params": params}
+    body = {"method": "get", "params": params}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        result = client.bids().post(data=body)
+    result = client.bids().post(data=body)
 
-        if fetch_all:
-            items = []
-            for item in result().iter_items():
-                items.append(item)
-            format_output(items, output_format, output)
-        else:
-            data = result().extract()
-            format_output(data, output_format, output)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    if fetch_all:
+        items = []
+        for item in result().iter_items():
+            items.append(item)
+        format_output(items, output_format, output)
+    else:
+        data = result().extract()
+        format_output(data, output_format, output)
 
 
 @bids.command()
@@ -195,6 +189,7 @@ def set(
 @click.option("--scope", multiple=True, help="One or more scope values")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
+@handle_api_errors
 def set_auto(
     ctx,
     campaign_id,
@@ -209,42 +204,35 @@ def set_auto(
     dry_run,
 ):
     """Configure automatic bidding"""
-    try:
-        bid_data = {}
-        add_single_id_selector(
-            bid_data,
-            campaign_id=campaign_id,
-            adgroup_id=adgroup_id,
-            keyword_id=keyword_id,
-            command_name="bids set-auto",
-        )
-        if max_bid is not None:
-            bid_data["MaxBid"] = max_bid
-        if position:
-            bid_data["Position"] = position
-        if increase_percent is not None:
-            bid_data["IncreasePercent"] = increase_percent
-        if calculate_by:
-            bid_data["CalculateBy"] = calculate_by
-        if context_coverage is not None:
-            bid_data["ContextCoverage"] = context_coverage
-        if scope:
-            bid_data["Scope"] = list(scope)
-        if "Scope" not in bid_data:
-            raise click.UsageError(t("Provide at least one --scope"))
+    bid_data = {}
+    add_single_id_selector(
+        bid_data,
+        campaign_id=campaign_id,
+        adgroup_id=adgroup_id,
+        keyword_id=keyword_id,
+        command_name="bids set-auto",
+    )
+    if max_bid is not None:
+        bid_data["MaxBid"] = max_bid
+    if position:
+        bid_data["Position"] = position
+    if increase_percent is not None:
+        bid_data["IncreasePercent"] = increase_percent
+    if calculate_by:
+        bid_data["CalculateBy"] = calculate_by
+    if context_coverage is not None:
+        bid_data["ContextCoverage"] = context_coverage
+    if scope:
+        bid_data["Scope"] = list(scope)
+    if "Scope" not in bid_data:
+        raise click.UsageError(t("Provide at least one --scope"))
 
-        body = {"method": "setAuto", "params": {"Bids": [bid_data]}}
+    body = {"method": "setAuto", "params": {"Bids": [bid_data]}}
 
-        if dry_run:
-            format_output(body, "json", None)
-            return
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
-        client = client_from_ctx(ctx, create_client)
-        result = client.bids().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    except click.UsageError:
-        raise
-    except Exception as e:
-        print_error(str(e))
-        raise click.Abort()
+    client = client_from_ctx(ctx, create_client)
+    result = client.bids().post(data=body)
+    format_output(result().extract(), "json", None)
