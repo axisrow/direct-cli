@@ -658,8 +658,7 @@ def get(
     if status:
         criteria["Statuses"] = [status]
     add_criteria_csv(criteria, "Statuses", statuses, upper=True)
-    if types:
-        criteria["Types"] = types.split(",")
+    add_criteria_csv(criteria, "Types", types, upper=True)
     add_criteria_csv(criteria, "TagIds", tag_ids, integers=True)
     add_criteria_csv(criteria, "Tags", tags)
     add_criteria_csv(criteria, "AppIconStatuses", app_icon_statuses, upper=True)

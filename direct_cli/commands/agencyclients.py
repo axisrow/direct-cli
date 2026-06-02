@@ -160,7 +160,7 @@ def get(
 
     criteria = {"Archived": archived}
     if logins:
-        criteria["Logins"] = [login.strip() for login in logins.split(",")]
+        criteria["Logins"] = parse_csv_strings(logins)
 
     params = {"SelectionCriteria": criteria, "FieldNames": field_names}
     params.update(parsed_nested)
