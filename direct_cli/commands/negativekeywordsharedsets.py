@@ -13,6 +13,7 @@ from ..utils import (
     parse_csv_strings,
     parse_ids,
 )
+from ._lifecycle import make_lifecycle_command
 
 
 @click.group()
@@ -117,20 +118,11 @@ def update(ctx, set_id, name, keywords, dry_run):
     format_output(result().extract(), "json", None)
 
 
-@negativekeywordsharedsets.command()
-@click.option("--id", "set_id", required=True, type=int, help="Set ID")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def delete(ctx, set_id, dry_run):
-    """Delete negative keyword shared set"""
-    body = {"method": "delete", "params": {"SelectionCriteria": {"Ids": [set_id]}}}
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-
-    result = client.negativekeywordsharedsets().post(data=body)
-    format_output(result().extract(), "json", None)
+delete = make_lifecycle_command(
+    negativekeywordsharedsets,
+    "delete",
+    "Delete negative keyword shared set",
+    "set_id",
+    "Set ID",
+    create_client,
+)

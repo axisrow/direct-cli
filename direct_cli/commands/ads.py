@@ -9,6 +9,7 @@ import click
 from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
+from ._lifecycle import make_lifecycle_command
 from ..utils import (
     add_criteria_csv,
     build_common_params,
@@ -2309,118 +2310,13 @@ def update(
     format_output(result().extract(), "json", None)
 
 
-@ads.command()
-@click.option("--id", "ad_id", required=True, type=int, help="Ad ID")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def delete(ctx, ad_id, dry_run):
-    """Delete ad"""
-    body = {"method": "delete", "params": {"SelectionCriteria": {"Ids": [ad_id]}}}
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-
-    result = client.ads().post(data=body)
-    format_output(result().extract(), "json", None)
+def _ad_lifecycle(method, help_text):
+    return make_lifecycle_command(ads, method, help_text, "ad_id", "Ad ID", create_client)
 
 
-@ads.command()
-@click.option("--id", "ad_id", required=True, type=int, help="Ad ID")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def archive(ctx, ad_id, dry_run):
-    """Archive ad"""
-    body = {"method": "archive", "params": {"SelectionCriteria": {"Ids": [ad_id]}}}
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-
-    result = client.ads().post(data=body)
-    format_output(result().extract(), "json", None)
-
-
-@ads.command()
-@click.option("--id", "ad_id", required=True, type=int, help="Ad ID")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def unarchive(ctx, ad_id, dry_run):
-    """Unarchive ad"""
-    body = {
-        "method": "unarchive",
-        "params": {"SelectionCriteria": {"Ids": [ad_id]}},
-    }
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-
-    result = client.ads().post(data=body)
-    format_output(result().extract(), "json", None)
-
-
-@ads.command()
-@click.option("--id", "ad_id", required=True, type=int, help="Ad ID")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def suspend(ctx, ad_id, dry_run):
-    """Suspend ad"""
-    body = {"method": "suspend", "params": {"SelectionCriteria": {"Ids": [ad_id]}}}
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-
-    result = client.ads().post(data=body)
-    format_output(result().extract(), "json", None)
-
-
-@ads.command()
-@click.option("--id", "ad_id", required=True, type=int, help="Ad ID")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def resume(ctx, ad_id, dry_run):
-    """Resume ad"""
-    body = {"method": "resume", "params": {"SelectionCriteria": {"Ids": [ad_id]}}}
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-
-    result = client.ads().post(data=body)
-    format_output(result().extract(), "json", None)
-
-
-@ads.command()
-@click.option("--id", "ad_id", required=True, type=int, help="Ad ID")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def moderate(ctx, ad_id, dry_run):
-    """Moderate ad"""
-    body = {"method": "moderate", "params": {"SelectionCriteria": {"Ids": [ad_id]}}}
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-
-    result = client.ads().post(data=body)
-    format_output(result().extract(), "json", None)
+delete = _ad_lifecycle("delete", "Delete ad")
+archive = _ad_lifecycle("archive", "Archive ad")
+unarchive = _ad_lifecycle("unarchive", "Unarchive ad")
+suspend = _ad_lifecycle("suspend", "Suspend ad")
+resume = _ad_lifecycle("resume", "Resume ad")
+moderate = _ad_lifecycle("moderate", "Moderate ad")

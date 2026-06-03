@@ -33,6 +33,7 @@ from .._autotargeting import (
     parse_autotargeting_categories,
     reject_legacy_autotargeting_mix,
 )
+from ._lifecycle import make_lifecycle_command
 
 # Yandex Direct API "keywords.add" caps a single AddItems request at 10
 # items; the WSDL declares maxOccurs="unbounded", so this limit comes from
@@ -898,67 +899,12 @@ def update(
     format_output(result().extract(), "json", None)
 
 
-@keywords.command()
-@click.option("--id", "keyword_id", required=True, type=int, help="Keyword ID")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def delete(ctx, keyword_id, dry_run):
-    """Delete keyword"""
-    body = {
-        "method": "delete",
-        "params": {"SelectionCriteria": {"Ids": [keyword_id]}},
-    }
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-
-    result = client.keywords().post(data=body)
-    format_output(result().extract(), "json", None)
+def _keyword_lifecycle(method, help_text):
+    return make_lifecycle_command(
+        keywords, method, help_text, "keyword_id", "Keyword ID", create_client
+    )
 
 
-@keywords.command()
-@click.option("--id", "keyword_id", required=True, type=int, help="Keyword ID")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def suspend(ctx, keyword_id, dry_run):
-    """Suspend keyword"""
-    body = {
-        "method": "suspend",
-        "params": {"SelectionCriteria": {"Ids": [keyword_id]}},
-    }
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-
-    result = client.keywords().post(data=body)
-    format_output(result().extract(), "json", None)
-
-
-@keywords.command()
-@click.option("--id", "keyword_id", required=True, type=int, help="Keyword ID")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def resume(ctx, keyword_id, dry_run):
-    """Resume keyword"""
-    body = {
-        "method": "resume",
-        "params": {"SelectionCriteria": {"Ids": [keyword_id]}},
-    }
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-
-    result = client.keywords().post(data=body)
-    format_output(result().extract(), "json", None)
+delete = _keyword_lifecycle("delete", "Delete keyword")
+suspend = _keyword_lifecycle("suspend", "Suspend keyword")
+resume = _keyword_lifecycle("resume", "Resume keyword")

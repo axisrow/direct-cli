@@ -11,6 +11,7 @@ import click
 from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
+from ._lifecycle import make_lifecycle_command
 from ..utils import (
     build_common_params,
     get_default_fields,
@@ -278,20 +279,11 @@ def add(ctx, sitelinks_specs, sitelinks_json, sitelinks_from_file, dry_run):
     format_output(result().extract(), "json", None)
 
 
-@sitelinks.command()
-@click.option("--id", "set_id", required=True, type=int, help="Sitelinks set ID")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def delete(ctx, set_id, dry_run):
-    """Delete sitelinks set"""
-    body = {"method": "delete", "params": {"SelectionCriteria": {"Ids": [set_id]}}}
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-
-    result = client.sitelinks().post(data=body)
-    format_output(result().extract(), "json", None)
+delete = make_lifecycle_command(
+    sitelinks,
+    "delete",
+    "Delete sitelinks set",
+    "set_id",
+    "Sitelinks set ID",
+    create_client,
+)

@@ -10,6 +10,7 @@ import click
 from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
+from ._lifecycle import make_lifecycle_command
 from ..utils import (
     build_selection_criteria,
     build_common_params,
@@ -7199,42 +7200,14 @@ def update(
     format_output(result().extract(), "json", None)
 
 
-def _make_lifecycle_command(method: str, help_text: str):
-    """Build a campaign lifecycle command (delete/archive/.../resume).
-
-    These commands are identical except for the ``method`` sent in the request
-    body and the help text shown in ``--help``. ``name=method`` pins the Click
-    command name (otherwise every command would register as ``_command``);
-    ``help=help_text`` pins the short help so ``--help`` is unchanged (setting
-    ``__doc__`` after decoration is too late — Click reads it at decoration
-    time).
-    """
-
-    @campaigns.command(name=method, help=help_text)
-    @click.option("--id", "campaign_id", required=True, type=int, help="Campaign ID")
-    @click.option("--dry-run", is_flag=True, help="Show request without sending")
-    @click.pass_context
-    @handle_api_errors
-    def _command(ctx, campaign_id, dry_run):
-        body = {
-            "method": method,
-            "params": {"SelectionCriteria": {"Ids": [campaign_id]}},
-        }
-
-        if dry_run:
-            format_output(body, "json", None)
-            return
-
-        client = client_from_ctx(ctx, create_client)
-
-        result = client.campaigns().post(data=body)
-        format_output(result().extract(), "json", None)
-
-    return _command
+def _campaign_lifecycle(method, help_text):
+    return make_lifecycle_command(
+        campaigns, method, help_text, "campaign_id", "Campaign ID", create_client
+    )
 
 
-delete = _make_lifecycle_command("delete", "Delete campaign")
-archive = _make_lifecycle_command("archive", "Archive campaign")
-unarchive = _make_lifecycle_command("unarchive", "Unarchive campaign")
-suspend = _make_lifecycle_command("suspend", "Suspend campaign")
-resume = _make_lifecycle_command("resume", "Resume campaign")
+delete = _campaign_lifecycle("delete", "Delete campaign")
+archive = _campaign_lifecycle("archive", "Archive campaign")
+unarchive = _campaign_lifecycle("unarchive", "Unarchive campaign")
+suspend = _campaign_lifecycle("suspend", "Suspend campaign")
+resume = _campaign_lifecycle("resume", "Resume campaign")
