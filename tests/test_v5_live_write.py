@@ -1449,5 +1449,13 @@ def test_v5_live_draft_strategies_add_update_archive_unarchive() -> None:
         r = _invoke_live("strategies", "unarchive", "--id", str(sid))
         _assert_draft_or_success(r, "strategies unarchive")
     finally:
-        # No strategies delete method exists; leave the strategy archived.
-        _invoke_live("strategies", "archive", "--id", str(sid))
+        # No strategies delete method exists; the unarchive above left the
+        # strategy serving, so the final archive is the real cleanup — if it
+        # fails the account keeps a live strategy, so surface the id loudly
+        # rather than discarding the result (mirrors the retargeting finally).
+        r = _invoke_live("strategies", "archive", "--id", str(sid))
+        if r.exit_code != 0:
+            pytest.fail(
+                f"Failed to archive strategy {sid} during cleanup; it may still "
+                f"be serving. Manual cleanup required.\noutput: {r.output}"
+            )
