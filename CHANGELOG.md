@@ -15,6 +15,17 @@
   access token and resolved login into the current-directory `.env`; the default
   answer is no.
 
+**Docs — live-write coverage limitation (#538):**
+
+- Documented why the SMART_CAMPAIGN / DYNAMIC_TEXT_CAMPAIGN / `adimages`
+  live-write lifecycle (`dynamicads`, `smartadtargets`, `adimages`) stays
+  recorded only as 3500/5004 error cassettes. Verified via direct API calls that
+  the available sandbox **agency** account has no client accounts under it
+  (`agencyclients.get` → empty), cannot create one (3001 "No rights to create
+  clients", access by request only), and that without a client login every
+  agency-scoped mutation returns 8000. Closed #538 as a documented account-tier
+  limitation; no CLI code change. See `tests/MANUAL_COVERAGE.md`.
+
 ## 0.4.1
 
 Russian-default CLI localization across all command modules (epic #466).
