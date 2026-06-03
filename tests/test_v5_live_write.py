@@ -1421,5 +1421,10 @@ def test_v5_live_draft_strategies_add_update_archive_unarchive() -> None:
         r = _invoke_live("strategies", "unarchive", "--id", str(sid))
         _assert_draft_or_success(r, "strategies unarchive")
     finally:
-        # No strategies delete method exists; leave the strategy archived.
-        _invoke_live("strategies", "archive", "--id", str(sid))
+        # No strategies delete method exists; archive is the only cleanup.
+        r = _invoke_live("strategies", "archive", "--id", str(sid))
+        if r.exit_code != 0:
+            pytest.fail(
+                f"Failed to archive strategy {sid}. "
+                f"Manual cleanup required.\noutput: {r.output}"
+            )
