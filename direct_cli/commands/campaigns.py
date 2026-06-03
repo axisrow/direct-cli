@@ -570,6 +570,129 @@ def _route_cpa_flag(
     return (value, None)
 
 
+# TextCampaign Search typed-strategy options shared verbatim by ``add`` and
+# ``update`` (issue #361/#388). Defined once as a composite decorator so the
+# 13 ``@click.option`` declarations are not copy-pasted across both commands;
+# ``update`` additionally carries the update-only ``--text-search-budget-type``
+# as a separate option after this block, preserving the original --help order.
+_TEXT_SEARCH_STRATEGY_OPTIONS = [
+    click.option(
+        "--text-search-weekly-spend-limit",
+        type=MICRO_RUBLES,
+        help="TextCampaign Search strategy WeeklySpendLimit in micro-rubles",
+    ),
+    click.option(
+        "--text-search-custom-period-spend-limit",
+        type=MICRO_RUBLES,
+        help="TextCampaign Search CustomPeriodBudget.SpendLimit in micro-rubles",
+    ),
+    click.option(
+        "--text-search-custom-period-start-date",
+        help="TextCampaign Search CustomPeriodBudget.StartDate",
+    ),
+    click.option(
+        "--text-search-custom-period-end-date",
+        help="TextCampaign Search CustomPeriodBudget.EndDate",
+    ),
+    click.option(
+        "--text-search-custom-period-auto-continue",
+        type=click.Choice(YES_NO, case_sensitive=False),
+        help="TextCampaign Search CustomPeriodBudget.AutoContinue: YES or NO",
+    ),
+    click.option(
+        "--text-search-average-cpc",
+        type=MICRO_RUBLES,
+        help="TextCampaign Search strategy AverageCpc in micro-rubles",
+    ),
+    click.option(
+        "--text-search-pay-cpa",
+        type=MICRO_RUBLES,
+        help="TextCampaign Search StrategyPayForConversionAdd.Cpa in micro-rubles",
+    ),
+    click.option(
+        "--text-search-clicks-per-week",
+        type=click.IntRange(1),
+        help="TextCampaign Search WEEKLY_CLICK_PACKAGE ClicksPerWeek",
+    ),
+    click.option(
+        "--text-search-reserve-return",
+        type=click.IntRange(0, 100),
+        help=(
+            "TextCampaign Search AVERAGE_ROI ReserveReturn percentage "
+            "(0-100, multiple of 10)"
+        ),
+    ),
+    click.option(
+        "--text-search-roi-coef",
+        type=MICRO_RUBLES,
+        help=(
+            "TextCampaign Search AVERAGE_ROI RoiCoef as a ratio (sales profit "
+            "/ promotion costs), supplied directly in micro-rubles wire format "
+            "(e.g. a 1.0 ratio is 1000000)."
+        ),
+    ),
+    click.option(
+        "--text-search-profitability",
+        type=MICRO_RUBLES,
+        help=(
+            "TextCampaign Search AVERAGE_ROI Profitability percentage, "
+            "supplied directly in micro-rubles wire format "
+            "(e.g. 20% is 20000000)."
+        ),
+    ),
+    click.option(
+        "--text-search-exploration-min-budget",
+        type=MICRO_RUBLES,
+        help="TextCampaign Search ExplorationBudget.MinimumExplorationBudget in micro-rubles",
+    ),
+    click.option(
+        "--text-search-exploration-is-custom",
+        type=click.Choice(YES_NO, case_sensitive=False),
+        help=(
+            "TextCampaign Search ExplorationBudget."
+            "IsMinimumExplorationBudgetCustom: YES or NO"
+        ),
+    ),
+]
+
+
+def _apply_options(func, options):
+    """Apply a list of ``click.option`` decorators to ``func`` preserving the
+    list's top-to-bottom order in ``--help`` (Click stacks bottom-up, so apply
+    in reverse)."""
+    for option in reversed(options):
+        func = option(func)
+    return func
+
+
+def _text_search_strategy_options(func):
+    """Apply the shared TextCampaign Search typed-strategy options (add order)."""
+    return _apply_options(func, _TEXT_SEARCH_STRATEGY_OPTIONS)
+
+
+# Update variant: identical to add but with the update-only
+# ``--text-search-budget-type`` switch spliced in after the custom-period
+# options (position 5), exactly where update declared it inline — so the
+# rendered --help order is byte-identical to the pre-dedup update command.
+_TEXT_SEARCH_STRATEGY_OPTIONS_UPDATE = (
+    _TEXT_SEARCH_STRATEGY_OPTIONS[:5]
+    + [
+        click.option(
+            "--text-search-budget-type",
+            type=click.Choice(BUDGET_TYPES, case_sensitive=False),
+            help="TextCampaign Search strategy BudgetType for update",
+        )
+    ]
+    + _TEXT_SEARCH_STRATEGY_OPTIONS[5:]
+)
+
+
+def _text_search_strategy_options_update(func):
+    """Apply the shared TextCampaign Search options plus the update-only
+    ``--text-search-budget-type`` in its original mid-cluster position."""
+    return _apply_options(func, _TEXT_SEARCH_STRATEGY_OPTIONS_UPDATE)
+
+
 @campaigns.command()
 @click.option("--ids", help="Comma-separated campaign IDs")
 @click.option("--status", help="Filter by status (ACTIVE, SUSPENDED, etc.)")
@@ -1552,83 +1675,7 @@ def get(
     type=MICRO_RUBLES,
     help="Bid ceiling in micro-rubles for the chosen CPA strategy",
 )
-@click.option(
-    "--text-search-weekly-spend-limit",
-    type=MICRO_RUBLES,
-    help="TextCampaign Search strategy WeeklySpendLimit in micro-rubles",
-)
-@click.option(
-    "--text-search-custom-period-spend-limit",
-    type=MICRO_RUBLES,
-    help="TextCampaign Search CustomPeriodBudget.SpendLimit in micro-rubles",
-)
-@click.option(
-    "--text-search-custom-period-start-date",
-    help="TextCampaign Search CustomPeriodBudget.StartDate",
-)
-@click.option(
-    "--text-search-custom-period-end-date",
-    help="TextCampaign Search CustomPeriodBudget.EndDate",
-)
-@click.option(
-    "--text-search-custom-period-auto-continue",
-    type=click.Choice(YES_NO, case_sensitive=False),
-    help="TextCampaign Search CustomPeriodBudget.AutoContinue: YES or NO",
-)
-@click.option(
-    "--text-search-average-cpc",
-    type=MICRO_RUBLES,
-    help="TextCampaign Search strategy AverageCpc in micro-rubles",
-)
-@click.option(
-    "--text-search-pay-cpa",
-    type=MICRO_RUBLES,
-    help="TextCampaign Search StrategyPayForConversionAdd.Cpa in micro-rubles",
-)
-@click.option(
-    "--text-search-clicks-per-week",
-    type=click.IntRange(1),
-    help="TextCampaign Search WEEKLY_CLICK_PACKAGE ClicksPerWeek",
-)
-@click.option(
-    "--text-search-reserve-return",
-    type=click.IntRange(0, 100),
-    help=(
-        "TextCampaign Search AVERAGE_ROI ReserveReturn percentage "
-        "(0-100, multiple of 10)"
-    ),
-)
-@click.option(
-    "--text-search-roi-coef",
-    type=MICRO_RUBLES,
-    help=(
-        "TextCampaign Search AVERAGE_ROI RoiCoef as a ratio (sales profit "
-        "/ promotion costs), supplied directly in micro-rubles wire format "
-        "(e.g. a 1.0 ratio is 1000000)."
-    ),
-)
-@click.option(
-    "--text-search-profitability",
-    type=MICRO_RUBLES,
-    help=(
-        "TextCampaign Search AVERAGE_ROI Profitability percentage, "
-        "supplied directly in micro-rubles wire format "
-        "(e.g. 20% is 20000000)."
-    ),
-)
-@click.option(
-    "--text-search-exploration-min-budget",
-    type=MICRO_RUBLES,
-    help="TextCampaign Search ExplorationBudget.MinimumExplorationBudget in micro-rubles",
-)
-@click.option(
-    "--text-search-exploration-is-custom",
-    type=click.Choice(YES_NO, case_sensitive=False),
-    help=(
-        "TextCampaign Search ExplorationBudget."
-        "IsMinimumExplorationBudgetCustom: YES or NO"
-    ),
-)
+@_text_search_strategy_options
 # UnifiedCampaign.BiddingStrategy.Search typed flags (issue #363). Mirrors
 # the TextCampaign Search flag set (#361/#388) plus two extra PlacementTypes
 # fields declared only by UnifiedCampaignSearchStrategyPlacementTypes
@@ -4460,88 +4507,7 @@ def add(
     type=MICRO_RUBLES,
     help="Bid ceiling in micro-rubles for the chosen Search strategy",
 )
-@click.option(
-    "--text-search-weekly-spend-limit",
-    type=MICRO_RUBLES,
-    help="TextCampaign Search strategy WeeklySpendLimit in micro-rubles",
-)
-@click.option(
-    "--text-search-custom-period-spend-limit",
-    type=MICRO_RUBLES,
-    help="TextCampaign Search CustomPeriodBudget.SpendLimit in micro-rubles",
-)
-@click.option(
-    "--text-search-custom-period-start-date",
-    help="TextCampaign Search CustomPeriodBudget.StartDate",
-)
-@click.option(
-    "--text-search-custom-period-end-date",
-    help="TextCampaign Search CustomPeriodBudget.EndDate",
-)
-@click.option(
-    "--text-search-custom-period-auto-continue",
-    type=click.Choice(YES_NO, case_sensitive=False),
-    help="TextCampaign Search CustomPeriodBudget.AutoContinue: YES or NO",
-)
-@click.option(
-    "--text-search-budget-type",
-    type=click.Choice(BUDGET_TYPES, case_sensitive=False),
-    help="TextCampaign Search strategy BudgetType for update",
-)
-@click.option(
-    "--text-search-average-cpc",
-    type=MICRO_RUBLES,
-    help="TextCampaign Search strategy AverageCpc in micro-rubles",
-)
-@click.option(
-    "--text-search-pay-cpa",
-    type=MICRO_RUBLES,
-    help="TextCampaign Search StrategyPayForConversionAdd.Cpa in micro-rubles",
-)
-@click.option(
-    "--text-search-clicks-per-week",
-    type=click.IntRange(1),
-    help="TextCampaign Search WEEKLY_CLICK_PACKAGE ClicksPerWeek",
-)
-@click.option(
-    "--text-search-reserve-return",
-    type=click.IntRange(0, 100),
-    help=(
-        "TextCampaign Search AVERAGE_ROI ReserveReturn percentage "
-        "(0-100, multiple of 10)"
-    ),
-)
-@click.option(
-    "--text-search-roi-coef",
-    type=MICRO_RUBLES,
-    help=(
-        "TextCampaign Search AVERAGE_ROI RoiCoef as a ratio (sales profit "
-        "/ promotion costs), supplied directly in micro-rubles wire format "
-        "(e.g. a 1.0 ratio is 1000000)."
-    ),
-)
-@click.option(
-    "--text-search-profitability",
-    type=MICRO_RUBLES,
-    help=(
-        "TextCampaign Search AVERAGE_ROI Profitability percentage, "
-        "supplied directly in micro-rubles wire format "
-        "(e.g. 20% is 20000000)."
-    ),
-)
-@click.option(
-    "--text-search-exploration-min-budget",
-    type=MICRO_RUBLES,
-    help="TextCampaign Search ExplorationBudget.MinimumExplorationBudget in micro-rubles",
-)
-@click.option(
-    "--text-search-exploration-is-custom",
-    type=click.Choice(YES_NO, case_sensitive=False),
-    help=(
-        "TextCampaign Search ExplorationBudget."
-        "IsMinimumExplorationBudgetCustom: YES or NO"
-    ),
-)
+@_text_search_strategy_options_update
 # UnifiedCampaign.BiddingStrategy.Search typed flags (issue #363) — update
 # variant. Same set as add() plus the update-only --unified-search-budget-type
 # switch (WSDL BudgetType is declared on get/update-side Strategy* types
