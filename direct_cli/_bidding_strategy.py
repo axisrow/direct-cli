@@ -4445,6 +4445,79 @@ def _build_unified_network_exploration_budget(
     }
 
 
+def _assemble_unified_strategy_block(
+    *,
+    container: dict,
+    subtype: str,
+    requires_priority_goals: Set[str],
+    goal_id: Optional[int],
+    average_cpa: Optional[int],
+    crr: Optional[int],
+    bid_ceiling: Optional[int],
+    weekly_spend_limit: Optional[int],
+    budget_type: Optional[str],
+    average_cpc: Optional[int],
+    cpa: Optional[int],
+    custom_period: Optional[dict],
+    exploration_budget: Optional[dict],
+) -> dict:
+    """Assemble the Strategy*Add block for a UnifiedCampaign subtype and graft
+    it onto ``container``. Byte-for-byte identical between the search and
+    network unified builders (search passes ``--*-pay-cpa`` as ``cpa``); only
+    the per-side container, requires-priority-goals set and ``cpa`` value vary.
+    """
+    block: dict = {}
+    if subtype == "AverageCpc":
+        if average_cpc is not None:
+            block["AverageCpc"] = average_cpc
+    elif subtype == "AverageCpa":
+        if average_cpa is not None:
+            block["AverageCpa"] = average_cpa
+        if goal_id is not None:
+            block["GoalId"] = goal_id
+    elif subtype == "PayForConversion":
+        if cpa is not None:
+            block["Cpa"] = cpa
+        if goal_id is not None:
+            block["GoalId"] = goal_id
+    elif subtype == "WbMaximumConversionRate":
+        if goal_id is not None:
+            block["GoalId"] = goal_id
+    elif subtype in {"AverageCrr", "PayForConversionCrr"}:
+        if crr is not None:
+            block["Crr"] = crr
+        if goal_id is not None:
+            block["GoalId"] = goal_id
+    # WbMaximumClicks / MaxProfit / *MultipleGoals carry only the shared
+    # WeeklySpendLimit/BidCeiling/CustomPeriodBudget/ExplorationBudget tail.
+
+    if weekly_spend_limit is not None:
+        block["WeeklySpendLimit"] = weekly_spend_limit
+    if custom_period is not None:
+        block["CustomPeriodBudget"] = custom_period
+    if bid_ceiling is not None:
+        block["BidCeiling"] = bid_ceiling
+    if exploration_budget is not None:
+        block["ExplorationBudget"] = exploration_budget
+    if budget_type is not None:
+        normalized_budget_type = budget_type.upper()
+        # Clearing the other slice signals an explicit budget-type switch.
+        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET":
+            block["WeeklySpendLimit"] = None
+        elif normalized_budget_type == "WEEKLY_BUDGET":
+            block["CustomPeriodBudget"] = None
+        block["BudgetType"] = normalized_budget_type
+
+    # ``*_MULTIPLE_GOALS`` / MAX_PROFIT subtypes must emit the container even
+    # with no numeric fields — PriorityGoals lives on the parent block and the
+    # subtype block is the only signal the API uses to discriminate the
+    # strategy on add.
+    if block or subtype in requires_priority_goals:
+        container[subtype] = block
+
+    return container
+
+
 def build_unified_campaign_network_strategy(
     *,
     network_strategy: Optional[str],
@@ -4721,58 +4794,23 @@ def build_unified_campaign_network_strategy(
                     "API docs)"
                 )
 
-    # Build the WSDL Strategy*Add block. Element order follows WSDL
-    # sequence order for readability (mirrors TextCampaign Network).
-    block: dict = {}
-    if subtype == "AverageCpc":
-        if average_cpc is not None:
-            block["AverageCpc"] = average_cpc
-    elif subtype == "AverageCpa":
-        if average_cpa is not None:
-            block["AverageCpa"] = average_cpa
-        if goal_id is not None:
-            block["GoalId"] = goal_id
-    elif subtype == "PayForConversion":
-        if cpa is not None:
-            block["Cpa"] = cpa
-        if goal_id is not None:
-            block["GoalId"] = goal_id
-    elif subtype == "WbMaximumConversionRate":
-        if goal_id is not None:
-            block["GoalId"] = goal_id
-    elif subtype in {"AverageCrr", "PayForConversionCrr"}:
-        if crr is not None:
-            block["Crr"] = crr
-        if goal_id is not None:
-            block["GoalId"] = goal_id
-    # WbMaximumClicks / MaxProfit / *MultipleGoals only carry the shared
-    # WeeklySpendLimit/BidCeiling/CustomPeriodBudget/ExplorationBudget
-    # tail handled next.
-
-    if weekly_spend_limit is not None:
-        block["WeeklySpendLimit"] = weekly_spend_limit
-    if custom_period is not None:
-        block["CustomPeriodBudget"] = custom_period
-    if bid_ceiling is not None:
-        block["BidCeiling"] = bid_ceiling
-    if exploration_budget is not None:
-        block["ExplorationBudget"] = exploration_budget
-    if budget_type is not None:
-        normalized_budget_type = budget_type.upper()
-        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET":
-            block["WeeklySpendLimit"] = None
-        elif normalized_budget_type == "WEEKLY_BUDGET":
-            block["CustomPeriodBudget"] = None
-        block["BudgetType"] = normalized_budget_type
-
-    # ``*_MULTIPLE_GOALS`` subtypes must emit the container even with no
-    # numeric fields — PriorityGoals lives on the parent block (#373) and
-    # the subtype block is the only signal the API uses to discriminate
-    # the strategy on add (mirrors TextCampaign Network).
-    if block or subtype in _UNIFIED_NETWORK_REQUIRES_PRIORITY_GOALS:
-        network[subtype] = block
-
-    return network
+    # Build + graft the WSDL Strategy*Add block (shared with the unified
+    # search builder; network passes its ``cpa`` value directly).
+    return _assemble_unified_strategy_block(
+        container=network,
+        subtype=subtype,
+        requires_priority_goals=_UNIFIED_NETWORK_REQUIRES_PRIORITY_GOALS,
+        goal_id=goal_id,
+        average_cpa=average_cpa,
+        crr=crr,
+        bid_ceiling=bid_ceiling,
+        weekly_spend_limit=weekly_spend_limit,
+        budget_type=budget_type,
+        average_cpc=average_cpc,
+        cpa=cpa,
+        custom_period=custom_period,
+        exploration_budget=exploration_budget,
+    )
 
 
 register_bidding_strategy_builder(
@@ -5429,61 +5467,23 @@ def build_unified_campaign_search_strategy(
     # doc-strict switching-required check; for #363 the canonical
     # source is the WSDL.
 
-    # Build the WSDL Strategy*Add block. Element order in the dict
-    # follows WSDL sequence order for readability — JSON-RPC does not
-    # require ordering, but matching makes diffs cleaner.
-    block: dict = {}
-    if subtype == "AverageCpc":
-        if average_cpc is not None:
-            block["AverageCpc"] = average_cpc
-    elif subtype == "AverageCpa":
-        if average_cpa is not None:
-            block["AverageCpa"] = average_cpa
-        if goal_id is not None:
-            block["GoalId"] = goal_id
-    elif subtype == "PayForConversion":
-        if pay_cpa is not None:
-            block["Cpa"] = pay_cpa
-        if goal_id is not None:
-            block["GoalId"] = goal_id
-    elif subtype == "WbMaximumConversionRate":
-        if goal_id is not None:
-            block["GoalId"] = goal_id
-    elif subtype in {"AverageCrr", "PayForConversionCrr"}:
-        if crr is not None:
-            block["Crr"] = crr
-        if goal_id is not None:
-            block["GoalId"] = goal_id
-    # WbMaximumClicks / MaxProfit / *MultipleGoals have only optional
-    # fields below — handled by the shared WeeklySpendLimit/BidCeiling/
-    # CustomPeriodBudget/ExplorationBudget tail.
-
-    if weekly_spend_limit is not None:
-        block["WeeklySpendLimit"] = weekly_spend_limit
-    if custom_period is not None:
-        block["CustomPeriodBudget"] = custom_period
-    if bid_ceiling is not None:
-        block["BidCeiling"] = bid_ceiling
-    if exploration_budget is not None:
-        block["ExplorationBudget"] = exploration_budget
-    if budget_type is not None:
-        normalized_budget_type = budget_type.upper()
-        # Mirror the TextCampaign/MobileApp builder convention: clearing
-        # the other slice signals an explicit budget-type switch on update.
-        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET":
-            block["WeeklySpendLimit"] = None
-        elif normalized_budget_type == "WEEKLY_BUDGET":
-            block["CustomPeriodBudget"] = None
-        block["BudgetType"] = normalized_budget_type
-
-    # *_MULTIPLE_GOALS / MAX_PROFIT subtypes must emit the container even
-    # when no numeric fields are set, because PriorityGoals lives on the
-    # parent ``sub_campaign_block`` and the subtype block is the only
-    # signal the API uses to discriminate the chosen strategy on add.
-    if block or subtype in _UNIFIED_SEARCH_REQUIRES_PRIORITY_GOALS:
-        base_search[subtype] = block
-
-    return base_search
+    # Build + graft the WSDL Strategy*Add block (shared with the unified
+    # network builder; search maps ``--unified-search-pay-cpa`` onto ``cpa``).
+    return _assemble_unified_strategy_block(
+        container=base_search,
+        subtype=subtype,
+        requires_priority_goals=_UNIFIED_SEARCH_REQUIRES_PRIORITY_GOALS,
+        goal_id=goal_id,
+        average_cpa=average_cpa,
+        crr=crr,
+        bid_ceiling=bid_ceiling,
+        weekly_spend_limit=weekly_spend_limit,
+        budget_type=budget_type,
+        average_cpc=average_cpc,
+        cpa=pay_cpa,
+        custom_period=custom_period,
+        exploration_budget=exploration_budget,
+    )
 
 
 register_bidding_strategy_builder(
