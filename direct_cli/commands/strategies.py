@@ -2,8 +2,6 @@
 Strategies commands
 """
 
-from typing import Optional
-
 import click
 
 from ..api import client_from_ctx, create_client
@@ -15,6 +13,7 @@ from ..utils import (
     get_default_fields,
     parse_csv_strings,
     parse_ids,
+    parse_nested_field_names,
     validate_priority_goal_value,
 )
 
@@ -423,20 +422,6 @@ def strategies():
     """Manage strategies"""
 
 
-def _parse_field_names_option(
-    wsdl_key: str, raw_value: Optional[str]
-) -> Optional[list[str]]:
-    """Parse a field-name projection and reject explicitly empty CSV."""
-    parsed = parse_csv_strings(raw_value)
-    if raw_value is not None and not parsed:
-        raise click.UsageError(
-            t("Provide a non-empty comma-separated {wsdl_key} list.").format(
-                wsdl_key=wsdl_key
-            )
-        )
-    return parsed
-
-
 @strategies.command()
 @click.option("--ids", help="Comma-separated strategy IDs")
 @click.option(
@@ -666,11 +651,7 @@ def get(
             strategy_pay_for_conversion_per_filter_field_names,
         ),
     )
-    parsed_nested = {}
-    for wsdl_key, raw_value in raw_nested:
-        parsed = _parse_field_names_option(wsdl_key, raw_value)
-        if parsed:
-            parsed_nested[wsdl_key] = parsed
+    parsed_nested = parse_nested_field_names(raw_nested)
 
     criteria = {}
     if ids:

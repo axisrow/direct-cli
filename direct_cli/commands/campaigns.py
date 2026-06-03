@@ -48,6 +48,7 @@ from .._bidding_strategy import (
     _UNIFIED_SEARCH_SUPPORTS_GOAL_ID,
     get_bidding_strategy_builder,
 )
+from .._flag_validation import reject_incompatible_flags
 
 SMS_EVENTS = {"MONITORING", "MODERATION", "MONEY_IN", "MONEY_OUT", "FINISHED"}
 YES_NO = ["YES", "NO"]
@@ -532,25 +533,6 @@ def _priority_goals_update_items(
     if priority_goals_items is None:
         return None
     return [dict(item, Operation="SET") for item in priority_goals_items]
-
-
-def _reject_incompatible_flags(
-    command_type: str,
-    allowed_flags: set[str],
-    provided_flags: dict[str, object],
-) -> None:
-    """Reject typed flags that do not belong to the chosen subtype."""
-    incompatible = [
-        flag
-        for flag, value in provided_flags.items()
-        if value is not None and flag not in allowed_flags
-    ]
-    if incompatible:
-        raise click.UsageError(
-            t("{arg0} is not compatible with --type {command_type}.").format(
-                arg0=", ".join(sorted(incompatible)), command_type=command_type
-            )
-        )
 
 
 @campaigns.command()
@@ -2412,8 +2394,7 @@ def add(
             "--strategy-auto-continue",
         },
     }
-    _reject_incompatible_flags(
-        campaign_type_norm,
+    reject_incompatible_flags(
         allowed_flags_by_type[campaign_type_norm],
         {
             "--setting": list(settings) or None,
@@ -2695,6 +2676,9 @@ def add(
             ),
             "--tracking-params": tracking_params,
         },
+        message="{arg0} is not compatible with --type {command_type}.",
+        type_value=campaign_type_norm,
+        type_field="command_type",
     )
 
     # Build cross-cutting structured inputs from typed flags up front so
@@ -6156,10 +6140,12 @@ def update(
             "MOBILE_APP_CAMPAIGN": mobile_app_campaign_flags,
             "CPM_BANNER_CAMPAIGN": cpm_banner_campaign_flags,
         }
-        _reject_incompatible_flags(
-            campaign_type_norm,
+        reject_incompatible_flags(
             allowed_subtype_flags_by_type[campaign_type_norm],
             subtype_flag_values,
+            message="{arg0} is not compatible with --type {command_type}.",
+            type_value=campaign_type_norm,
+            type_field="command_type",
         )
         if campaign_type_norm == "UNIFIED_CAMPAIGN":
             unified_campaign_level_conflicts = {
