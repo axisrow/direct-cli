@@ -95,7 +95,9 @@ captured while recording the cassettes — re-recording must honour them:
   `YANDEX_DIRECT_TEST_RETARGETING_GOAL_ID` (a real account goal — discover one
   with `python3 -m direct_cli._smoke_probes retargeting-goal`). With the env var
   set, the full lifecycle records; with it unset, the synthetic `12345` fallback
-  makes the live API return 8800 ("Object not found") and the test skips.
+  (the same convention as the audiencetargets smoke tests) makes the live API
+  return 8800 ("Object not found") and the test skips, recording the request
+  shape rather than a passing lifecycle.
   **A real goal id is never committed:** the `tests/conftest.py` VCR filter
   (`_mask_retargeting_goal`) rewrites it to `12345` in both request and response
   bodies before the cassette is written, so recorded cassettes always show
