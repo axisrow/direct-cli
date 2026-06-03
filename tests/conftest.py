@@ -346,7 +346,7 @@ def tomorrow() -> str:
 
 
 def _invoke(*args: str):
-    """Invoke a CLI command with ``--sandbox``, ``--token`` and ``--login`` pre-injected.
+    """Invoke a CLI command with ``--sandbox``/``--token``/``--login`` injected.
 
     ``--login`` is required during cassette rewrite: without it the CLI
     falls back to whatever login the active ``direct auth`` profile
@@ -447,7 +447,8 @@ def unique_suffix() -> str:
 
 _SANDBOX_ERROR_PATTERNS = (
     "Object not found",
-    "Operation not supported",  # sandbox returns this for features unavailable in test env
+    # sandbox returns this for features unavailable in test env
+    "Operation not supported",
     "Not supported",  # sandbox returns this for unsupported campaign types
     "не поддерживается",  # Russian variant of the above
     "Campaign not found",

@@ -89,6 +89,7 @@ def _retargeting_goal() -> str:
         SYNTHETIC_RETARGETING_GOAL
     )
 
+
 # 450x450 solid red PNG — meets Yandex Direct minimum image dimension
 # requirements.  Validated: decodes to 1487 bytes, correct PNG header,
 # dimensions 450x450 confirmed via IHDR chunk.
