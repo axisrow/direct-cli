@@ -693,6 +693,131 @@ def _text_search_strategy_options_update(func):
     return _apply_options(func, _TEXT_SEARCH_STRATEGY_OPTIONS_UPDATE)
 
 
+# TextCampaign Network typed-strategy options shared verbatim by ``add`` and
+# ``update`` (issue #364). Same composite-decorator pattern as the Search
+# cluster above; ``update`` splices the update-only ``--text-network-budget-type``
+# in at position 5, exactly where it sat inline.
+_TEXT_NETWORK_STRATEGY_OPTIONS = [
+    click.option(
+        "--text-network-weekly-spend-limit",
+        type=MICRO_RUBLES,
+        help="TextCampaign Network strategy WeeklySpendLimit in micro-rubles (#364)",
+    ),
+    click.option(
+        "--text-network-custom-period-spend-limit",
+        type=MICRO_RUBLES,
+        help=(
+            "TextCampaign Network CustomPeriodBudget.SpendLimit "
+            "in micro-rubles (#364)"
+        ),
+    ),
+    click.option(
+        "--text-network-custom-period-start-date",
+        help="TextCampaign Network CustomPeriodBudget.StartDate (#364)",
+    ),
+    click.option(
+        "--text-network-custom-period-end-date",
+        help="TextCampaign Network CustomPeriodBudget.EndDate (#364)",
+    ),
+    click.option(
+        "--text-network-custom-period-auto-continue",
+        type=click.Choice(YES_NO, case_sensitive=False),
+        help=("TextCampaign Network CustomPeriodBudget.AutoContinue: YES or NO (#364)"),
+    ),
+    click.option(
+        "--text-network-average-cpc",
+        type=MICRO_RUBLES,
+        help="TextCampaign Network strategy AverageCpc in micro-rubles (#364)",
+    ),
+    click.option(
+        "--text-network-pay-cpa",
+        type=MICRO_RUBLES,
+        help=(
+            "TextCampaign Network StrategyPayForConversionAdd.Cpa "
+            "in micro-rubles (#364)"
+        ),
+    ),
+    click.option(
+        "--text-network-clicks-per-week",
+        type=click.IntRange(1),
+        help="TextCampaign Network WEEKLY_CLICK_PACKAGE ClicksPerWeek (#364)",
+    ),
+    click.option(
+        "--text-network-reserve-return",
+        type=click.IntRange(0, 100),
+        help=(
+            "TextCampaign Network AVERAGE_ROI ReserveReturn percentage "
+            "(0-100, multiple of 10) (#364)"
+        ),
+    ),
+    click.option(
+        "--text-network-roi-coef",
+        type=MICRO_RUBLES,
+        help=(
+            "TextCampaign Network AVERAGE_ROI RoiCoef as a ratio (sales profit "
+            "/ promotion costs), supplied directly in micro-rubles wire format "
+            "(e.g. a 1.0 ratio is 1000000) (#364)."
+        ),
+    ),
+    click.option(
+        "--text-network-profitability",
+        type=MICRO_RUBLES,
+        help=(
+            "TextCampaign Network AVERAGE_ROI Profitability percentage, "
+            "supplied directly in micro-rubles wire format "
+            "(e.g. 20% is 20000000) (#364)."
+        ),
+    ),
+    click.option(
+        "--text-network-exploration-min-budget",
+        type=MICRO_RUBLES,
+        help=(
+            "TextCampaign Network ExplorationBudget.MinimumExplorationBudget "
+            "in micro-rubles (#364)"
+        ),
+    ),
+    click.option(
+        "--text-network-exploration-is-custom",
+        type=click.Choice(YES_NO, case_sensitive=False),
+        help=(
+            "TextCampaign Network ExplorationBudget."
+            "IsMinimumExplorationBudgetCustom: YES or NO (#364)"
+        ),
+    ),
+    click.option(
+        "--text-network-limit-percent",
+        type=click.IntRange(10, 100),
+        help=(
+            "TextCampaign Network NetworkDefault.LimitPercent, 10-100 by tens (#364)"
+        ),
+    ),
+]
+
+
+def _text_network_strategy_options(func):
+    """Apply the shared TextCampaign Network typed-strategy options (add order)."""
+    return _apply_options(func, _TEXT_NETWORK_STRATEGY_OPTIONS)
+
+
+_TEXT_NETWORK_STRATEGY_OPTIONS_UPDATE = (
+    _TEXT_NETWORK_STRATEGY_OPTIONS[:5]
+    + [
+        click.option(
+            "--text-network-budget-type",
+            type=click.Choice(BUDGET_TYPES, case_sensitive=False),
+            help="TextCampaign Network strategy BudgetType for update (#364)",
+        )
+    ]
+    + _TEXT_NETWORK_STRATEGY_OPTIONS[5:]
+)
+
+
+def _text_network_strategy_options_update(func):
+    """Apply the shared TextCampaign Network options plus the update-only
+    ``--text-network-budget-type`` in its original mid-cluster position."""
+    return _apply_options(func, _TEXT_NETWORK_STRATEGY_OPTIONS_UPDATE)
+
+
 @campaigns.command()
 @click.option("--ids", help="Comma-separated campaign IDs")
 @click.option("--status", help="Filter by status (ACTIVE, SUSPENDED, etc.)")
@@ -1742,91 +1867,7 @@ def get(
         "IsMinimumExplorationBudgetCustom: YES or NO (#363)"
     ),
 )
-@click.option(
-    "--text-network-weekly-spend-limit",
-    type=MICRO_RUBLES,
-    help="TextCampaign Network strategy WeeklySpendLimit in micro-rubles (#364)",
-)
-@click.option(
-    "--text-network-custom-period-spend-limit",
-    type=MICRO_RUBLES,
-    help="TextCampaign Network CustomPeriodBudget.SpendLimit in micro-rubles (#364)",
-)
-@click.option(
-    "--text-network-custom-period-start-date",
-    help="TextCampaign Network CustomPeriodBudget.StartDate (#364)",
-)
-@click.option(
-    "--text-network-custom-period-end-date",
-    help="TextCampaign Network CustomPeriodBudget.EndDate (#364)",
-)
-@click.option(
-    "--text-network-custom-period-auto-continue",
-    type=click.Choice(YES_NO, case_sensitive=False),
-    help=("TextCampaign Network CustomPeriodBudget.AutoContinue: YES or NO (#364)"),
-)
-@click.option(
-    "--text-network-average-cpc",
-    type=MICRO_RUBLES,
-    help="TextCampaign Network strategy AverageCpc in micro-rubles (#364)",
-)
-@click.option(
-    "--text-network-pay-cpa",
-    type=MICRO_RUBLES,
-    help="TextCampaign Network StrategyPayForConversionAdd.Cpa in micro-rubles (#364)",
-)
-@click.option(
-    "--text-network-clicks-per-week",
-    type=click.IntRange(1),
-    help="TextCampaign Network WEEKLY_CLICK_PACKAGE ClicksPerWeek (#364)",
-)
-@click.option(
-    "--text-network-reserve-return",
-    type=click.IntRange(0, 100),
-    help=(
-        "TextCampaign Network AVERAGE_ROI ReserveReturn percentage "
-        "(0-100, multiple of 10) (#364)"
-    ),
-)
-@click.option(
-    "--text-network-roi-coef",
-    type=MICRO_RUBLES,
-    help=(
-        "TextCampaign Network AVERAGE_ROI RoiCoef as a ratio (sales profit "
-        "/ promotion costs), supplied directly in micro-rubles wire format "
-        "(e.g. a 1.0 ratio is 1000000) (#364)."
-    ),
-)
-@click.option(
-    "--text-network-profitability",
-    type=MICRO_RUBLES,
-    help=(
-        "TextCampaign Network AVERAGE_ROI Profitability percentage, "
-        "supplied directly in micro-rubles wire format "
-        "(e.g. 20% is 20000000) (#364)."
-    ),
-)
-@click.option(
-    "--text-network-exploration-min-budget",
-    type=MICRO_RUBLES,
-    help=(
-        "TextCampaign Network ExplorationBudget.MinimumExplorationBudget "
-        "in micro-rubles (#364)"
-    ),
-)
-@click.option(
-    "--text-network-exploration-is-custom",
-    type=click.Choice(YES_NO, case_sensitive=False),
-    help=(
-        "TextCampaign Network ExplorationBudget."
-        "IsMinimumExplorationBudgetCustom: YES or NO (#364)"
-    ),
-)
-@click.option(
-    "--text-network-limit-percent",
-    type=click.IntRange(10, 100),
-    help=("TextCampaign Network NetworkDefault.LimitPercent, 10-100 by tens (#364)"),
-)
+@_text_network_strategy_options
 # UnifiedCampaign.BiddingStrategy.Network typed flags (#366). Mirrors
 # UnifiedCampaignStrategyAddBase (WSDL line 1631-1654) — 10 settable
 # Strategy*Add subtypes; the WSDL has NO AverageRoi / WeeklyClickPackage /
@@ -4576,96 +4617,7 @@ def add(
         "IsMinimumExplorationBudgetCustom: YES or NO (#363)"
     ),
 )
-@click.option(
-    "--text-network-weekly-spend-limit",
-    type=MICRO_RUBLES,
-    help="TextCampaign Network strategy WeeklySpendLimit in micro-rubles (#364)",
-)
-@click.option(
-    "--text-network-custom-period-spend-limit",
-    type=MICRO_RUBLES,
-    help="TextCampaign Network CustomPeriodBudget.SpendLimit in micro-rubles (#364)",
-)
-@click.option(
-    "--text-network-custom-period-start-date",
-    help="TextCampaign Network CustomPeriodBudget.StartDate (#364)",
-)
-@click.option(
-    "--text-network-custom-period-end-date",
-    help="TextCampaign Network CustomPeriodBudget.EndDate (#364)",
-)
-@click.option(
-    "--text-network-custom-period-auto-continue",
-    type=click.Choice(YES_NO, case_sensitive=False),
-    help=("TextCampaign Network CustomPeriodBudget.AutoContinue: YES or NO (#364)"),
-)
-@click.option(
-    "--text-network-budget-type",
-    type=click.Choice(BUDGET_TYPES, case_sensitive=False),
-    help="TextCampaign Network strategy BudgetType for update (#364)",
-)
-@click.option(
-    "--text-network-average-cpc",
-    type=MICRO_RUBLES,
-    help="TextCampaign Network strategy AverageCpc in micro-rubles (#364)",
-)
-@click.option(
-    "--text-network-pay-cpa",
-    type=MICRO_RUBLES,
-    help="TextCampaign Network StrategyPayForConversionAdd.Cpa in micro-rubles (#364)",
-)
-@click.option(
-    "--text-network-clicks-per-week",
-    type=click.IntRange(1),
-    help="TextCampaign Network WEEKLY_CLICK_PACKAGE ClicksPerWeek (#364)",
-)
-@click.option(
-    "--text-network-reserve-return",
-    type=click.IntRange(0, 100),
-    help=(
-        "TextCampaign Network AVERAGE_ROI ReserveReturn percentage "
-        "(0-100, multiple of 10) (#364)"
-    ),
-)
-@click.option(
-    "--text-network-roi-coef",
-    type=MICRO_RUBLES,
-    help=(
-        "TextCampaign Network AVERAGE_ROI RoiCoef as a ratio (sales profit "
-        "/ promotion costs), supplied directly in micro-rubles wire format "
-        "(e.g. a 1.0 ratio is 1000000) (#364)."
-    ),
-)
-@click.option(
-    "--text-network-profitability",
-    type=MICRO_RUBLES,
-    help=(
-        "TextCampaign Network AVERAGE_ROI Profitability percentage, "
-        "supplied directly in micro-rubles wire format "
-        "(e.g. 20% is 20000000) (#364)."
-    ),
-)
-@click.option(
-    "--text-network-exploration-min-budget",
-    type=MICRO_RUBLES,
-    help=(
-        "TextCampaign Network ExplorationBudget.MinimumExplorationBudget "
-        "in micro-rubles (#364)"
-    ),
-)
-@click.option(
-    "--text-network-exploration-is-custom",
-    type=click.Choice(YES_NO, case_sensitive=False),
-    help=(
-        "TextCampaign Network ExplorationBudget."
-        "IsMinimumExplorationBudgetCustom: YES or NO (#364)"
-    ),
-)
-@click.option(
-    "--text-network-limit-percent",
-    type=click.IntRange(10, 100),
-    help=("TextCampaign Network NetworkDefault.LimitPercent, 10-100 by tens (#364)"),
-)
+@_text_network_strategy_options_update
 # UnifiedCampaign.BiddingStrategy.Network typed flags on update (#366).
 @click.option(
     "--unified-network-weekly-spend-limit",
