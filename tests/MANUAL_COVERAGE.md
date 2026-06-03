@@ -47,13 +47,31 @@ account requirements, or external dependencies.
 
 Some campaign types are only available on agency or pilot accounts.
 Live tests skip gracefully when the API returns error 3500. The full
-lifecycle on such an account is **not yet recorded** — tracked in issue #538.
+lifecycle on such an account remains **unrecorded** — see the documented
+account-tier limitation in issue #538.
 
 - **DYNAMIC_TEXT_CAMPAIGN** — `dynamicads` add/update/delete/suspend/resume
   require an account where DYNAMIC_TEXT_CAMPAIGN is enabled. Standard
   advertiser accounts receive 3500.
 - **SMART_CAMPAIGN** — `smartadtargets` add/update/delete/suspend/resume
   require SMART_CAMPAIGN support. Standard accounts receive 3500.
+
+**Why this stays unrecorded (issue #538, verified 2026-06 via direct API
+calls).** Recording the SMART/DYNAMIC/adimages lifecycle needs an account that
+can both create these campaign types and be addressed with a client login. The
+only available account is a sandbox **agency** (`clients.get` → `Type: AGENCY`)
+that has **no client accounts under it**: `agencyclients.get` returns
+`{"result":{}}` even after re-running "Create test campaigns" in the API
+console, and the sandbox token cannot create one —
+`agencyclients.add-passport-organization` returns 3001 "No rights to create
+clients" (access granted by request only). Without a client login every
+agency-scoped mutation answers 8000 "Specify the user's login in the HTTP
+Client-Login header". v4 Live methods that could enumerate sub-clients return
+509 (disabled for this token). The sandbox master token is not a valid v5
+OAuth bearer (53). With no path to a usable client, the lifecycle cannot be
+captured; the committed cassettes stay as 3500/5004 error recordings and the
+tests skip. If a sandbox agency client ever becomes available, route the five
+tests through `--sandbox` with `--login <client>` and re-record.
 
 ## Audience Target Restrictions (Category A)
 
@@ -67,8 +85,9 @@ lifecycle on such an account is **not yet recorded** — tracked in issue #538.
 
 - **adimages add** — some accounts reject PNG uploads with error 5004
   (Invalid image file type). Live tests skip gracefully on 5004. The full
-  lifecycle on an image-upload-enabled account is **not yet recorded** —
-  tracked in issue #538.
+  lifecycle on an image-upload-enabled account remains **unrecorded** — same
+  documented account-tier limitation as Category B above (issue #538): the only
+  available account is a sandbox agency with no usable client login.
 
 ## External Dependencies
 
@@ -120,9 +139,9 @@ captured while recording the cassettes — re-recording must honour them:
 | agencyclients add/update/delete | Account type / sandbox rights (403 or 3001) | None (skip) |
 | agencyclients add-passport-organization* | External state / sandbox rights (3001) | Moderate |
 | bids/keywordbids/bidmodifiers set | Financial | High |
-| dynamicads (all) | Account type (3500) | None (skip) |
-| smartadtargets (all) | Account type (3500) | None (skip) |
+| dynamicads (all) | Account type (3500); lifecycle unrecorded, #538 | None (skip) |
+| smartadtargets (all) | Account type (3500); lifecycle unrecorded, #538 | None (skip) |
 | audiencetargets add/suspend/resume | Account restriction (8800) | None (skip) |
-| adimages add | Account restriction (5004) | None (skip) |
+| adimages add | Account restriction (5004); lifecycle unrecorded, #538 | None (skip) |
 | advideos add | External URL required | None (skip) |
 | creatives add | Depends on advideos | None (skip) |
