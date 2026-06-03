@@ -16,7 +16,7 @@ caller falls back to today's legacy
 pre-refactor behavior.
 """
 
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, NamedTuple, Optional, Set
 
 import click
 
@@ -1454,6 +1454,296 @@ def _build_text_search_exploration_budget(
     }
 
 
+class _TextStrategyConfig(NamedTuple):
+    """Per-side (search/network) configuration for the shared TextCampaign
+    bidding-strategy core. Bundles the constants, flag prefixes and error
+    labels that differ between ``TextCampaign.BiddingStrategy.Search`` and
+    ``...Network`` so the ~280-line validation+assembly tail can live once.
+
+    ``field_support`` maps each typed flag to the subtype-set constant that
+    declares it; the remaining members mirror the per-side ``_TEXT_SEARCH_*``
+    / ``_TEXT_NETWORK_*`` constants used in the original two builders.
+    """
+
+    side_label: str  # "Search" / "Network" (error text)
+    # Budget-block "is not valid" label: search historically omits the side
+    # word ("TextCampaign ..."), network includes it ("TextCampaign Network").
+    budget_invalid_label: str
+    flag_prefix: str  # "--text-search-" / "--text-network-"
+    strategy_flag: str  # "--search-strategy" / "--network-strategy"
+    strategy_value: Optional[str]  # raw search_strategy / network_strategy
+    budget_type_enum: List[str]
+    custom_period_subtypes: Set[str]
+    exploration_budget_subtypes: Set[str]
+    requires_priority_goals: Set[str]
+    min_priority_goals: Dict[str, int]
+    required_typed_flags: Dict[str, Dict[str, str]]
+    required_typed_flags_update: Dict[str, Dict[str, str]]
+    # Search rejects WeeklyClickPackage + (average_cpc & bid_ceiling); the
+    # network builder never had this mutex, so it stays search-only.
+    weekly_click_package_mutex: bool
+
+
+def _build_text_strategy_block(
+    *,
+    container: dict,
+    subtype: str,
+    normalized_strategy: str,
+    config: _TextStrategyConfig,
+    field_support: Dict[str, tuple],
+    custom_period: Optional[dict],
+    exploration_budget: Optional[dict],
+    is_update: bool,
+    goal_id: Optional[int],
+    average_cpa: Optional[int],
+    crr: Optional[int],
+    bid_ceiling: Optional[int],
+    weekly_spend_limit: Optional[int],
+    budget_type: Optional[str],
+    average_cpc: Optional[int],
+    pay_cpa: Optional[int],
+    clicks_per_week: Optional[int],
+    reserve_return: Optional[int],
+    roi_coef: Optional[int],
+    profitability: Optional[int],
+    limit_percent: Optional[int],
+    priority_goals_items: Optional[List[dict]],
+    sub_campaign_block: dict,
+) -> dict:
+    """Shared validation + Strategy*Add block assembly for a TextCampaign
+    search/network subtype. ``container`` already holds ``BiddingStrategyType``
+    (and, for search, placement fields); this mutates it in place with the
+    subtype block and returns it. Byte-for-byte identical to the original
+    inline tails of the two builders, parameterised by ``config``.
+    """
+    side = config.side_label
+    prefix = config.flag_prefix
+
+    # Per-subtype "supported field" enforcement (silent data loss invariant
+    # #2 in test_wsdl_parity_gate). Each flag whose value is not None must
+    # belong to the WSDL Strategy*Add type for the chosen subtype.
+    for flag, (value, supported) in field_support.items():
+        if value is not None and subtype not in supported:
+            raise click.UsageError(
+                f"{flag} is not valid for TextCampaign {side} strategy "
+                f"{normalized_strategy} (subtype Strategy{subtype}Add); "
+                f"WSDL field is declared only on {sorted(supported)}"
+            )
+
+    # ReserveReturn doc constraint: 0-100 percentage as a multiple of 10.
+    if reserve_return is not None and reserve_return % 10 != 0:
+        raise click.UsageError(
+            f"{prefix}reserve-return must be a multiple of 10 "
+            "(0-100), per Yandex Direct API docs"
+        )
+
+    # LimitPercent doc constraint: 10-100 by tens (network NetworkDefault only;
+    # search never supplies limit_percent so this branch is inert there).
+    if limit_percent is not None and (
+        limit_percent < 10 or limit_percent > 100 or limit_percent % 10 != 0
+    ):
+        raise click.UsageError(
+            f"{prefix}limit-percent must be a multiple of 10 from 10 to 100"
+        )
+
+    if custom_period is not None and subtype not in config.custom_period_subtypes:
+        raise click.UsageError(
+            f"{config.budget_invalid_label} CustomPeriodBudget is not valid "
+            f"for {normalized_strategy}"
+        )
+    if (
+        exploration_budget is not None
+        and subtype not in config.exploration_budget_subtypes
+    ):
+        raise click.UsageError(
+            f"{config.budget_invalid_label} ExplorationBudget is not valid "
+            f"for {normalized_strategy}"
+        )
+
+    # WeeklySpendLimit + CustomPeriodBudget conflict per Yandex docs:
+    # the same subtype can carry only one budget slice.
+    if weekly_spend_limit is not None and custom_period is not None:
+        raise click.UsageError(
+            f"{prefix}weekly-spend-limit cannot be combined with "
+            f"{prefix}custom-period-spend-limit"
+        )
+
+    # BudgetType is an update-only switch; on add the budget slice is
+    # implied by which of WeeklySpendLimit / CustomPeriodBudget is set.
+    if budget_type is not None:
+        if not is_update:
+            raise click.UsageError(f"{prefix}budget-type is update-only")
+        normalized_budget_type = budget_type.upper()
+        if normalized_budget_type not in config.budget_type_enum:
+            raise click.UsageError(
+                f"{prefix}budget-type must be one of "
+                f"{', '.join(config.budget_type_enum)}"
+            )
+        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET" and custom_period is None:
+            raise click.UsageError(
+                f"{prefix}budget-type CUSTOM_PERIOD_BUDGET requires the "
+                "full CustomPeriodBudget flag set"
+            )
+        if normalized_budget_type == "WEEKLY_BUDGET" and weekly_spend_limit is None:
+            raise click.UsageError(
+                f"{prefix}budget-type WEEKLY_BUDGET requires "
+                f"{prefix}weekly-spend-limit"
+            )
+
+    # WeeklyClickPackage edge: WSDL declares AverageCpc + BidCeiling as
+    # mutually exclusive in practice; mirror MobileApp WeeklyClickPackage.
+    # Search-only — the network builder historically omitted this mutex.
+    if (
+        config.weekly_click_package_mutex
+        and subtype == "WeeklyClickPackage"
+        and average_cpc is not None
+        and bid_ceiling is not None
+    ):
+        raise click.UsageError(
+            f"WEEKLY_CLICK_PACKAGE cannot combine {prefix}average-cpc "
+            "with --bid-ceiling"
+        )
+
+    # PriorityGoals scope check. On add we also place PriorityGoals onto
+    # the parent sub-campaign block (WSDL ``TextCampaignAddItem.PriorityGoals``
+    # is a sibling of BiddingStrategy, NOT nested inside it). On update the
+    # caller has already placed PriorityGoals via the dedicated
+    # ``PriorityGoalsUpdateSetting`` shape, so we only validate here.
+    if priority_goals_items is not None:
+        if subtype not in config.requires_priority_goals:
+            raise click.UsageError(
+                "--priority-goals is only valid with "
+                "AVERAGE_CPA_MULTIPLE_GOALS / "
+                "PAY_FOR_CONVERSION_MULTIPLE_GOALS / MAX_PROFIT strategies; "
+                f"got {config.strategy_flag}={config.strategy_value!r}"
+            )
+        min_required = config.min_priority_goals.get(subtype)
+        if min_required is not None and len(priority_goals_items) < min_required:
+            raise click.UsageError(
+                f"--priority-goals requires at least {min_required} entries "
+                f"for {config.strategy_value} per Yandex Direct API docs"
+            )
+        if not is_update:
+            sub_campaign_block["PriorityGoals"] = {"Items": priority_goals_items}
+
+    # WSDL minOccurs=1 fields — fail-fast on add. On update the API tolerates
+    # partial blocks; when switching the strategy type the conceptually
+    # required fields for the new subtype must still be supplied.
+    weekly_or_custom_period = (
+        weekly_spend_limit
+        if weekly_spend_limit is not None
+        else (1 if custom_period is not None else None)
+    )
+    provided_lookup = {
+        "AverageCpc": average_cpc,
+        "AverageCpa": average_cpa,
+        "Cpa": pay_cpa,
+        "GoalId": goal_id,
+        "Crr": crr,
+        "ClicksPerWeek": clicks_per_week,
+        "ReserveReturn": reserve_return,
+        "RoiCoef": roi_coef,
+        "PriorityGoals": priority_goals_items,
+        "WeeklySpendLimit": weekly_or_custom_period,
+    }
+    if not is_update:
+        required = config.required_typed_flags.get(subtype, {})
+        missing = [
+            flag
+            for wsdl_field, flag in required.items()
+            if provided_lookup.get(wsdl_field) is None
+        ]
+        if missing:
+            raise click.UsageError(
+                f"{side} strategy {subtype} requires "
+                f"{', '.join(sorted(missing))} "
+                f"(per Yandex Direct API docs)"
+            )
+    elif config.strategy_value is not None:
+        required = config.required_typed_flags_update.get(subtype, {})
+        missing = [
+            flag
+            for wsdl_field, flag in required.items()
+            if provided_lookup.get(wsdl_field) is None
+        ]
+        if missing:
+            raise click.UsageError(
+                f"{side} strategy {subtype} requires "
+                f"{', '.join(sorted(missing))} when switching "
+                f"{config.strategy_flag} on update (per Yandex Direct "
+                "API docs)"
+            )
+
+    # Build the WSDL Strategy*Add block. Element order follows WSDL sequence
+    # order for readability — JSON-RPC does not require ordering.
+    block: dict = {}
+    if subtype == "AverageCpc":
+        if average_cpc is not None:
+            block["AverageCpc"] = average_cpc
+    elif subtype == "AverageCpa":
+        if average_cpa is not None:
+            block["AverageCpa"] = average_cpa
+        if goal_id is not None:
+            block["GoalId"] = goal_id
+    elif subtype == "PayForConversion":
+        if pay_cpa is not None:
+            block["Cpa"] = pay_cpa
+        if goal_id is not None:
+            block["GoalId"] = goal_id
+    elif subtype == "WbMaximumConversionRate":
+        if goal_id is not None:
+            block["GoalId"] = goal_id
+    elif subtype == "WeeklyClickPackage":
+        if clicks_per_week is not None:
+            block["ClicksPerWeek"] = clicks_per_week
+        if average_cpc is not None:
+            block["AverageCpc"] = average_cpc
+    elif subtype == "AverageRoi":
+        if reserve_return is not None:
+            block["ReserveReturn"] = reserve_return
+        if roi_coef is not None:
+            block["RoiCoef"] = roi_coef
+        if goal_id is not None:
+            block["GoalId"] = goal_id
+        if profitability is not None:
+            block["Profitability"] = profitability
+    elif subtype in {"AverageCrr", "PayForConversionCrr"}:
+        if crr is not None:
+            block["Crr"] = crr
+        if goal_id is not None:
+            block["GoalId"] = goal_id
+    elif subtype == "NetworkDefault" and limit_percent is not None:
+        block["LimitPercent"] = limit_percent
+    # WbMaximumClicks / MaxProfit / *MultipleGoals carry only the shared
+    # WeeklySpendLimit/BidCeiling/CustomPeriodBudget/ExplorationBudget tail.
+
+    if weekly_spend_limit is not None:
+        block["WeeklySpendLimit"] = weekly_spend_limit
+    if custom_period is not None:
+        block["CustomPeriodBudget"] = custom_period
+    if bid_ceiling is not None:
+        block["BidCeiling"] = bid_ceiling
+    if exploration_budget is not None:
+        block["ExplorationBudget"] = exploration_budget
+    if budget_type is not None:
+        normalized_budget_type = budget_type.upper()
+        # Clearing the other slice signals an explicit budget-type switch.
+        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET":
+            block["WeeklySpendLimit"] = None
+        elif normalized_budget_type == "WEEKLY_BUDGET":
+            block["CustomPeriodBudget"] = None
+        block["BudgetType"] = normalized_budget_type
+
+    # ``*_MULTIPLE_GOALS`` subtypes must emit the container even when no
+    # numeric fields are set — PriorityGoals lives on the parent block and the
+    # subtype block is the only signal the API uses to discriminate the
+    # strategy on add.
+    if block or subtype in config.requires_priority_goals:
+        container[subtype] = block
+
+    return container
+
+
 def build_text_campaign_search_strategy(
     *,
     search_strategy: Optional[str],
@@ -1627,247 +1917,60 @@ def build_text_campaign_search_strategy(
         "--crr": (crr, _TEXT_SEARCH_SUPPORTS_CRR),
         "--goal-id": (goal_id, _TEXT_SEARCH_SUPPORTS_GOAL_ID),
     }
-    for flag, (value, supported) in field_support.items():
-        if value is not None and subtype not in supported:
-            raise click.UsageError(
-                f"{flag} is not valid for TextCampaign Search strategy "
-                f"{normalized_strategy} (subtype Strategy{subtype}Add); "
-                f"WSDL field is declared only on {sorted(supported)}"
-            )
 
-    # ReserveReturn doc constraint: 0-100 percentage as a multiple of 10.
-    if reserve_return is not None and reserve_return % 10 != 0:
-        raise click.UsageError(
-            "--text-search-reserve-return must be a multiple of 10 "
-            "(0-100), per Yandex Direct API docs"
-        )
-
-    # CustomPeriodBudget and ExplorationBudget are container-level checks
-    # — all-or-none. Build the nested dicts (or None) up-front and then
-    # validate they belong to the chosen subtype.
+    # CustomPeriodBudget / ExplorationBudget are all-or-none container checks;
+    # build them first (search rejects IsMinimumExplorationBudgetCustom=NO).
     custom_period = _build_text_search_custom_period_budget(
         custom_period_spend_limit,
         custom_period_start_date,
         custom_period_end_date,
         custom_period_auto_continue,
     )
-    if (
-        custom_period is not None
-        and subtype not in _TEXT_SEARCH_SUPPORTS_CUSTOM_PERIOD_BUDGET
-    ):
-        raise click.UsageError(
-            f"TextCampaign CustomPeriodBudget is not valid for {normalized_strategy}"
-        )
     exploration_budget = _build_text_search_exploration_budget(
         exploration_min_budget,
         exploration_is_custom,
     )
-    if (
-        exploration_budget is not None
-        and subtype not in _TEXT_SEARCH_SUPPORTS_EXPLORATION_BUDGET
-    ):
-        raise click.UsageError(
-            f"TextCampaign ExplorationBudget is not valid for {normalized_strategy}"
-        )
 
-    # WeeklySpendLimit + CustomPeriodBudget conflict per Yandex docs:
-    # the same subtype can carry only one budget slice.
-    if weekly_spend_limit is not None and custom_period is not None:
-        raise click.UsageError(
-            "--text-search-weekly-spend-limit cannot be combined with "
-            "--text-search-custom-period-spend-limit"
-        )
-
-    # BudgetType is an update-only switch; on add the budget slice is
-    # implied by which of WeeklySpendLimit / CustomPeriodBudget is set.
-    if budget_type is not None:
-        if not is_update:
-            raise click.UsageError("--text-search-budget-type is update-only")
-        normalized_budget_type = budget_type.upper()
-        if normalized_budget_type not in _TEXT_CAMPAIGN_SEARCH_BUDGET_TYPES:
-            raise click.UsageError(
-                "--text-search-budget-type must be one of "
-                f"{', '.join(_TEXT_CAMPAIGN_SEARCH_BUDGET_TYPES)}"
-            )
-        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET" and custom_period is None:
-            raise click.UsageError(
-                "--text-search-budget-type CUSTOM_PERIOD_BUDGET requires the "
-                "full CustomPeriodBudget flag set"
-            )
-        if normalized_budget_type == "WEEKLY_BUDGET" and weekly_spend_limit is None:
-            raise click.UsageError(
-                "--text-search-budget-type WEEKLY_BUDGET requires "
-                "--text-search-weekly-spend-limit"
-            )
-
-    # WeeklyClickPackage edge: WSDL declares AverageCpc + BidCeiling as
-    # mutually exclusive in practice; mirror MobileApp WeeklyClickPackage.
-    if (
-        subtype == "WeeklyClickPackage"
-        and average_cpc is not None
-        and bid_ceiling is not None
-    ):
-        raise click.UsageError(
-            "WEEKLY_CLICK_PACKAGE cannot combine --text-search-average-cpc "
-            "with --bid-ceiling"
-        )
-
-    # PriorityGoals scope check. On add we also place PriorityGoals onto
-    # the parent sub-campaign block (WSDL ``TextCampaignAddItem.PriorityGoals``
-    # is a sibling of BiddingStrategy, NOT nested inside it). On update
-    # the caller has already placed PriorityGoals via the dedicated
-    # ``PriorityGoalsUpdateSetting`` shape (with ``Operation: SET``) so
-    # we only validate the strategy/subtype combination here.
-    if priority_goals_items is not None:
-        if subtype not in _TEXT_SEARCH_REQUIRES_PRIORITY_GOALS:
-            raise click.UsageError(
-                "--priority-goals is only valid with "
-                "AVERAGE_CPA_MULTIPLE_GOALS / "
-                "PAY_FOR_CONVERSION_MULTIPLE_GOALS / MAX_PROFIT strategies; "
-                f"got --search-strategy={search_strategy!r}"
-            )
-        # Per official Yandex docs *_MULTIPLE_GOALS subtypes require
-        # at least two priority goals; reject one-goal payloads up-front.
-        min_required = _TEXT_SEARCH_MIN_PRIORITY_GOALS.get(subtype)
-        if min_required is not None and len(priority_goals_items) < min_required:
-            raise click.UsageError(
-                f"--priority-goals requires at least {min_required} entries "
-                f"for {search_strategy} per Yandex Direct API docs"
-            )
-        if not is_update:
-            sub_campaign_block["PriorityGoals"] = {"Items": priority_goals_items}
-
-    # WSDL minOccurs=1 fields — fail-fast on add. On update the API
-    # tolerates partial blocks (matches the legacy CPA strategy behavior
-    # for AVERAGE_CPA on update, see existing dry-run fixtures).
-    # For Wb* strategies, CustomPeriodBudget acts as the alternative
-    # budget slice that also satisfies the WeeklySpendLimit-required
-    # constraint from the Yandex docs. Treating ``custom_period`` as
-    # equivalent for the required-flag check keeps both budget paths
-    # reachable for ``WB_MAXIMUM_CLICKS`` / ``WB_MAXIMUM_CONVERSION_RATE``.
-    weekly_or_custom_period = (
-        weekly_spend_limit
-        if weekly_spend_limit is not None
-        else (1 if custom_period is not None else None)
+    config = _TextStrategyConfig(
+        side_label="Search",
+        budget_invalid_label="TextCampaign",
+        flag_prefix="--text-search-",
+        strategy_flag="--search-strategy",
+        strategy_value=search_strategy,
+        budget_type_enum=_TEXT_CAMPAIGN_SEARCH_BUDGET_TYPES,
+        custom_period_subtypes=_TEXT_SEARCH_SUPPORTS_CUSTOM_PERIOD_BUDGET,
+        exploration_budget_subtypes=_TEXT_SEARCH_SUPPORTS_EXPLORATION_BUDGET,
+        requires_priority_goals=_TEXT_SEARCH_REQUIRES_PRIORITY_GOALS,
+        min_priority_goals=_TEXT_SEARCH_MIN_PRIORITY_GOALS,
+        required_typed_flags=_TEXT_SEARCH_REQUIRED_TYPED_FLAGS,
+        required_typed_flags_update=_TEXT_SEARCH_REQUIRED_TYPED_FLAGS_UPDATE,
+        weekly_click_package_mutex=True,
     )
-    provided_lookup = {
-        "AverageCpc": average_cpc,
-        "AverageCpa": average_cpa,
-        "Cpa": pay_cpa,
-        "GoalId": goal_id,
-        "Crr": crr,
-        "ClicksPerWeek": clicks_per_week,
-        "ReserveReturn": reserve_return,
-        "RoiCoef": roi_coef,
-        "PriorityGoals": priority_goals_items,
-        "WeeklySpendLimit": weekly_or_custom_period,
-    }
-    if not is_update:
-        required = _TEXT_SEARCH_REQUIRED_TYPED_FLAGS.get(subtype, {})
-        missing = [
-            flag
-            for wsdl_field, flag in required.items()
-            if provided_lookup.get(wsdl_field) is None
-        ]
-        if missing:
-            raise click.UsageError(
-                f"Search strategy {subtype} requires {', '.join(sorted(missing))} "
-                f"(per Yandex Direct API docs)"
-            )
-    else:
-        # On update we let users patch individual subtype fields, but
-        # when the user is switching the strategy type
-        # (``--search-strategy`` is explicitly provided) every
-        # *conceptually-required* field for the new subtype must be
-        # supplied (Crr/GoalId for CRR strategies, PriorityGoals for
-        # MAX_PROFIT and *_MULTIPLE_GOALS, etc.). Fields that the
-        # campaign may already carry — e.g. ``WeeklySpendLimit`` on
-        # ``WbMaximumClicks`` — are NOT re-required, matching the
-        # update WSDL ``minOccurs=0`` and the official update docs.
-        if search_strategy is not None:
-            required = _TEXT_SEARCH_REQUIRED_TYPED_FLAGS_UPDATE.get(subtype, {})
-            missing = [
-                flag
-                for wsdl_field, flag in required.items()
-                if provided_lookup.get(wsdl_field) is None
-            ]
-            if missing:
-                raise click.UsageError(
-                    f"Search strategy {subtype} requires "
-                    f"{', '.join(sorted(missing))} when switching "
-                    "--search-strategy on update (per Yandex Direct "
-                    "API docs)"
-                )
-
-    # Build the WSDL Strategy*Add block. Element order in the dict
-    # follows WSDL sequence order for readability — JSON-RPC does not
-    # require ordering, but matching makes diffs cleaner.
-    block: dict = {}
-    if subtype == "AverageCpc":
-        if average_cpc is not None:
-            block["AverageCpc"] = average_cpc
-    elif subtype == "AverageCpa":
-        if average_cpa is not None:
-            block["AverageCpa"] = average_cpa
-        if goal_id is not None:
-            block["GoalId"] = goal_id
-    elif subtype == "PayForConversion":
-        if pay_cpa is not None:
-            block["Cpa"] = pay_cpa
-        if goal_id is not None:
-            block["GoalId"] = goal_id
-    elif subtype == "WbMaximumConversionRate":
-        if goal_id is not None:
-            block["GoalId"] = goal_id
-    elif subtype == "WeeklyClickPackage":
-        if clicks_per_week is not None:
-            block["ClicksPerWeek"] = clicks_per_week
-        if average_cpc is not None:
-            block["AverageCpc"] = average_cpc
-    elif subtype == "AverageRoi":
-        if reserve_return is not None:
-            block["ReserveReturn"] = reserve_return
-        if roi_coef is not None:
-            block["RoiCoef"] = roi_coef
-        if goal_id is not None:
-            block["GoalId"] = goal_id
-        if profitability is not None:
-            block["Profitability"] = profitability
-    elif subtype in {"AverageCrr", "PayForConversionCrr"}:
-        if crr is not None:
-            block["Crr"] = crr
-        if goal_id is not None:
-            block["GoalId"] = goal_id
-    # WbMaximumClicks / MaxProfit / *MultipleGoals have only optional
-    # fields below — they share the WeeklySpendLimit/BidCeiling/etc.
-    # tail handled next.
-
-    if weekly_spend_limit is not None:
-        block["WeeklySpendLimit"] = weekly_spend_limit
-    if custom_period is not None:
-        block["CustomPeriodBudget"] = custom_period
-    if bid_ceiling is not None:
-        block["BidCeiling"] = bid_ceiling
-    if exploration_budget is not None:
-        block["ExplorationBudget"] = exploration_budget
-    if budget_type is not None:
-        normalized_budget_type = budget_type.upper()
-        # Mirror MobileApp builder convention: clearing the other slice
-        # signals an explicit budget-type switch on update.
-        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET":
-            block["WeeklySpendLimit"] = None
-        elif normalized_budget_type == "WEEKLY_BUDGET":
-            block["CustomPeriodBudget"] = None
-        block["BudgetType"] = normalized_budget_type
-
-    # *_MULTIPLE_GOALS subtypes must emit the container even when no
-    # numeric fields are set, because PriorityGoals lives on the parent
-    # ``sub_campaign_block`` and the subtype block is the only signal
-    # the API uses to discriminate the chosen strategy on add.
-    if block or subtype in _TEXT_SEARCH_REQUIRES_PRIORITY_GOALS:
-        base_search[subtype] = block
-
-    return base_search
+    return _build_text_strategy_block(
+        container=base_search,
+        subtype=subtype,
+        normalized_strategy=normalized_strategy,
+        config=config,
+        field_support=field_support,
+        custom_period=custom_period,
+        exploration_budget=exploration_budget,
+        is_update=is_update,
+        goal_id=goal_id,
+        average_cpa=average_cpa,
+        crr=crr,
+        bid_ceiling=bid_ceiling,
+        weekly_spend_limit=weekly_spend_limit,
+        budget_type=budget_type,
+        average_cpc=average_cpc,
+        pay_cpa=pay_cpa,
+        clicks_per_week=clicks_per_week,
+        reserve_return=reserve_return,
+        roi_coef=roi_coef,
+        profitability=profitability,
+        limit_percent=None,
+        priority_goals_items=priority_goals_items,
+        sub_campaign_block=sub_campaign_block,
+    )
 
 
 def build_mobile_app_bidding_strategy(
@@ -3501,222 +3604,60 @@ def build_text_campaign_network_strategy(
         "--crr": (crr, _TEXT_NETWORK_CRR_SUBTYPES),
         "--goal-id": (goal_id, _TEXT_NETWORK_GOAL_ID_SUBTYPES),
     }
-    for flag, (value, supported) in field_support.items():
-        if value is not None and subtype not in supported:
-            raise click.UsageError(
-                f"{flag} is not valid for TextCampaign Network strategy "
-                f"{normalized_strategy} (subtype Strategy{subtype}Add); "
-                f"WSDL field is declared only on {sorted(supported)}"
-            )
 
-    # ReserveReturn doc constraint: 0-100 percentage as a multiple of 10.
-    if reserve_return is not None and reserve_return % 10 != 0:
-        raise click.UsageError(
-            "--text-network-reserve-return must be a multiple of 10 "
-            "(0-100), per Yandex Direct API docs"
-        )
-
-    # LimitPercent doc constraint: 10-100 by tens (same as MobileApp /
-    # DynamicTextCampaign NetworkDefault).
-    if limit_percent is not None and (
-        limit_percent < 10 or limit_percent > 100 or limit_percent % 10 != 0
-    ):
-        raise click.UsageError(
-            "--text-network-limit-percent must be a multiple of 10 " "from 10 to 100"
-        )
-
-    # CustomPeriodBudget and ExplorationBudget are all-or-none; build them
-    # first and then validate subtype compatibility.
+    # CustomPeriodBudget / ExplorationBudget all-or-none container builders
+    # (network accepts IsMinimumExplorationBudgetCustom=NO, unlike search).
     custom_period = _build_text_network_custom_period_budget(
         custom_period_spend_limit,
         custom_period_start_date,
         custom_period_end_date,
         custom_period_auto_continue,
     )
-    if (
-        custom_period is not None
-        and subtype not in _TEXT_NETWORK_CUSTOM_PERIOD_SUBTYPES
-    ):
-        raise click.UsageError(
-            f"TextCampaign Network CustomPeriodBudget is not valid for "
-            f"{normalized_strategy}"
-        )
     exploration_budget = _build_text_network_exploration_budget(
         exploration_min_budget,
         exploration_is_custom,
     )
-    if (
-        exploration_budget is not None
-        and subtype not in _TEXT_NETWORK_EXPLORATION_BUDGET_SUBTYPES
-    ):
-        raise click.UsageError(
-            f"TextCampaign Network ExplorationBudget is not valid for "
-            f"{normalized_strategy}"
-        )
 
-    # WeeklySpendLimit + CustomPeriodBudget conflict per Yandex docs.
-    if weekly_spend_limit is not None and custom_period is not None:
-        raise click.UsageError(
-            "--text-network-weekly-spend-limit cannot be combined with "
-            "--text-network-custom-period-spend-limit"
-        )
-
-    # BudgetType is an update-only switch.
-    if budget_type is not None:
-        if not is_update:
-            raise click.UsageError("--text-network-budget-type is update-only")
-        normalized_budget_type = budget_type.upper()
-        if normalized_budget_type not in BUDGET_TYPES:
-            raise click.UsageError(
-                "--text-network-budget-type must be one of "
-                f"{', '.join(BUDGET_TYPES)}"
-            )
-        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET" and custom_period is None:
-            raise click.UsageError(
-                "--text-network-budget-type CUSTOM_PERIOD_BUDGET requires the "
-                "full CustomPeriodBudget flag set"
-            )
-        if normalized_budget_type == "WEEKLY_BUDGET" and weekly_spend_limit is None:
-            raise click.UsageError(
-                "--text-network-budget-type WEEKLY_BUDGET requires "
-                "--text-network-weekly-spend-limit"
-            )
-
-    # PriorityGoals scope check. On add we also place PriorityGoals onto
-    # the parent ``TextCampaignAddItem`` (sibling of BiddingStrategy). On
-    # update the caller passes PriorityGoals via the separate
-    # ``PriorityGoalsUpdateSetting`` shape.
-    if priority_goals_items is not None:
-        if subtype not in _TEXT_NETWORK_REQUIRES_PRIORITY_GOALS:
-            raise click.UsageError(
-                "--priority-goals is only valid with "
-                "AVERAGE_CPA_MULTIPLE_GOALS / "
-                "PAY_FOR_CONVERSION_MULTIPLE_GOALS / MAX_PROFIT strategies; "
-                f"got --network-strategy={network_strategy!r}"
-            )
-        min_required = _TEXT_NETWORK_MIN_PRIORITY_GOALS.get(subtype)
-        if min_required is not None and len(priority_goals_items) < min_required:
-            raise click.UsageError(
-                f"--priority-goals requires at least {min_required} entries "
-                f"for {network_strategy} per Yandex Direct API docs"
-            )
-        if not is_update:
-            sub_campaign_block["PriorityGoals"] = {"Items": priority_goals_items}
-
-    weekly_or_custom_period = (
-        weekly_spend_limit
-        if weekly_spend_limit is not None
-        else (1 if custom_period is not None else None)
+    config = _TextStrategyConfig(
+        side_label="Network",
+        budget_invalid_label="TextCampaign Network",
+        flag_prefix="--text-network-",
+        strategy_flag="--network-strategy",
+        strategy_value=network_strategy,
+        budget_type_enum=BUDGET_TYPES,
+        custom_period_subtypes=_TEXT_NETWORK_CUSTOM_PERIOD_SUBTYPES,
+        exploration_budget_subtypes=_TEXT_NETWORK_EXPLORATION_BUDGET_SUBTYPES,
+        requires_priority_goals=_TEXT_NETWORK_REQUIRES_PRIORITY_GOALS,
+        min_priority_goals=_TEXT_NETWORK_MIN_PRIORITY_GOALS,
+        required_typed_flags=_TEXT_NETWORK_REQUIRED_TYPED_FLAGS,
+        required_typed_flags_update=_TEXT_NETWORK_REQUIRED_TYPED_FLAGS_UPDATE,
+        weekly_click_package_mutex=False,
     )
-    provided_lookup = {
-        "AverageCpc": average_cpc,
-        "AverageCpa": average_cpa,
-        "Cpa": pay_cpa,
-        "GoalId": goal_id,
-        "Crr": crr,
-        "ClicksPerWeek": clicks_per_week,
-        "ReserveReturn": reserve_return,
-        "RoiCoef": roi_coef,
-        "PriorityGoals": priority_goals_items,
-        "WeeklySpendLimit": weekly_or_custom_period,
-    }
-    if not is_update:
-        required = _TEXT_NETWORK_REQUIRED_TYPED_FLAGS.get(subtype, {})
-        missing = [
-            flag
-            for wsdl_field, flag in required.items()
-            if provided_lookup.get(wsdl_field) is None
-        ]
-        if missing:
-            raise click.UsageError(
-                f"Network strategy {subtype} requires "
-                f"{', '.join(sorted(missing))} "
-                f"(per Yandex Direct API docs)"
-            )
-    else:
-        if network_strategy is not None:
-            required = _TEXT_NETWORK_REQUIRED_TYPED_FLAGS_UPDATE.get(subtype, {})
-            missing = [
-                flag
-                for wsdl_field, flag in required.items()
-                if provided_lookup.get(wsdl_field) is None
-            ]
-            if missing:
-                raise click.UsageError(
-                    f"Network strategy {subtype} requires "
-                    f"{', '.join(sorted(missing))} when switching "
-                    "--network-strategy on update (per Yandex Direct "
-                    "API docs)"
-                )
-
-    # Build the WSDL Strategy*Add block. Element order follows WSDL
-    # sequence order for readability.
-    block: dict = {}
-    if subtype == "AverageCpc":
-        if average_cpc is not None:
-            block["AverageCpc"] = average_cpc
-    elif subtype == "AverageCpa":
-        if average_cpa is not None:
-            block["AverageCpa"] = average_cpa
-        if goal_id is not None:
-            block["GoalId"] = goal_id
-    elif subtype == "PayForConversion":
-        if pay_cpa is not None:
-            block["Cpa"] = pay_cpa
-        if goal_id is not None:
-            block["GoalId"] = goal_id
-    elif subtype == "WbMaximumConversionRate":
-        if goal_id is not None:
-            block["GoalId"] = goal_id
-    elif subtype == "WeeklyClickPackage":
-        if clicks_per_week is not None:
-            block["ClicksPerWeek"] = clicks_per_week
-        if average_cpc is not None:
-            block["AverageCpc"] = average_cpc
-    elif subtype == "AverageRoi":
-        if reserve_return is not None:
-            block["ReserveReturn"] = reserve_return
-        if roi_coef is not None:
-            block["RoiCoef"] = roi_coef
-        if goal_id is not None:
-            block["GoalId"] = goal_id
-        if profitability is not None:
-            block["Profitability"] = profitability
-    elif subtype in {"AverageCrr", "PayForConversionCrr"}:
-        if crr is not None:
-            block["Crr"] = crr
-        if goal_id is not None:
-            block["GoalId"] = goal_id
-    elif subtype == "NetworkDefault" and limit_percent is not None:
-        block["LimitPercent"] = limit_percent
-    # WbMaximumClicks / MaxProfit / *MultipleGoals only carry the shared
-    # WeeklySpendLimit/BidCeiling/CustomPeriodBudget/ExplorationBudget
-    # tail handled next.
-
-    if weekly_spend_limit is not None:
-        block["WeeklySpendLimit"] = weekly_spend_limit
-    if custom_period is not None:
-        block["CustomPeriodBudget"] = custom_period
-    if bid_ceiling is not None:
-        block["BidCeiling"] = bid_ceiling
-    if exploration_budget is not None:
-        block["ExplorationBudget"] = exploration_budget
-    if budget_type is not None:
-        normalized_budget_type = budget_type.upper()
-        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET":
-            block["WeeklySpendLimit"] = None
-        elif normalized_budget_type == "WEEKLY_BUDGET":
-            block["CustomPeriodBudget"] = None
-        block["BudgetType"] = normalized_budget_type
-
-    # ``*_MULTIPLE_GOALS`` subtypes must emit the container even with no
-    # numeric fields — PriorityGoals lives on the parent block and the
-    # subtype block is the only signal the API uses to discriminate the
-    # strategy on add.
-    if block or subtype in _TEXT_NETWORK_REQUIRES_PRIORITY_GOALS:
-        network[subtype] = block
-
-    return network
+    return _build_text_strategy_block(
+        container=network,
+        subtype=subtype,
+        normalized_strategy=normalized_strategy,
+        config=config,
+        field_support=field_support,
+        custom_period=custom_period,
+        exploration_budget=exploration_budget,
+        is_update=is_update,
+        goal_id=goal_id,
+        average_cpa=average_cpa,
+        crr=crr,
+        bid_ceiling=bid_ceiling,
+        weekly_spend_limit=weekly_spend_limit,
+        budget_type=budget_type,
+        average_cpc=average_cpc,
+        pay_cpa=pay_cpa,
+        clicks_per_week=clicks_per_week,
+        reserve_return=reserve_return,
+        roi_coef=roi_coef,
+        profitability=profitability,
+        limit_percent=limit_percent,
+        priority_goals_items=priority_goals_items,
+        sub_campaign_block=sub_campaign_block,
+    )
 
 
 # Register currently-implemented combos. These mirror the direct function
