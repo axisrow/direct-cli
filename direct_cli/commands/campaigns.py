@@ -6488,24 +6488,20 @@ def update(
                 )
 
                 def _u_route_update(
-                    value,
-                    search_support: set,
-                    network_support: set,
-                    default: str,
+                    value, search_support: set, network_support: set, default: str
                 ):
-                    if value is None:
-                        return (None, None)
-                    s_ok = _u_search_subtype_for_routing_up in search_support
-                    n_ok = _u_network_subtype_for_routing_up in network_support
-                    if s_ok and n_ok:
-                        return (value, value)
-                    if s_ok:
-                        return (value, None)
-                    if n_ok:
-                        return (None, value)
-                    if default == "network":
-                        return (None, value)
-                    return (value, None)
+                    """Route a shared CPA flag for UnifiedCampaign update (thin
+                    wrapper over the module-level ``_route_cpa_flag``, binding
+                    this block's Search/Network routing subtypes). Mirrors the
+                    add path (#544 C11)."""
+                    return _route_cpa_flag(
+                        value,
+                        _u_search_subtype_for_routing_up,
+                        _u_network_subtype_for_routing_up,
+                        search_support,
+                        network_support,
+                        default,
+                    )
 
                 _u_default_side_up = (
                     "network"
@@ -6775,24 +6771,20 @@ def update(
                 )
 
                 def _route_update(
-                    value,
-                    search_support: set,
-                    network_support: set,
-                    default: str,
+                    value, search_support: set, network_support: set, default: str
                 ):
-                    if value is None:
-                        return (None, None)
-                    s_ok = _search_subtype_for_routing in search_support
-                    n_ok = _network_subtype_for_routing in network_support
-                    if s_ok and n_ok:
-                        return (value, value)
-                    if s_ok:
-                        return (value, None)
-                    if n_ok:
-                        return (None, value)
-                    if default == "network":
-                        return (None, value)
-                    return (value, None)
+                    """Route a shared CPA flag for TextCampaign update (thin
+                    wrapper over the module-level ``_route_cpa_flag``, binding
+                    this block's Search/Network routing subtypes). Mirrors the
+                    add path (#544 C11)."""
+                    return _route_cpa_flag(
+                        value,
+                        _search_subtype_for_routing,
+                        _network_subtype_for_routing,
+                        search_support,
+                        network_support,
+                        default,
+                    )
 
                 _search_goal_id, _network_goal_id = _route_update(
                     goal_id,
