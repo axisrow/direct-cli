@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+**Fixes — docs-URL drift regression (re-fixes #463):**
+
+- Restored the four WSDL `docs` URLs for `dynamicads`,
+  `dynamicfeedadtargets`, `smartadtargets` and `vcards` that the
+  `tapi-yandex-direct` 2026.5.29 vendor update silently reverted back to the
+  removed `…/dev/direct/doc/ru/<service>` HTML pages (which 404 since Yandex
+  dropped those pages in September 2025). The fix from #464 was overwritten by
+  the `rm -rf` + `cp -R` vendor sync; preflight
+  (`scripts/check_all_docs_urls.py`) caught it. URLs now point back at the live
+  `https://api.direct.yandex.com/v5/<service>?wsdl` endpoints — the only
+  authoritative source still served.
+- Fixed the same URLs at the source in the `axisrow/tapi-yandex-direct` fork so
+  the next vendor update no longer re-introduces the dead pages.
+- Added an offline regression guard
+  (`tests/test_audit_wire_shape.py::test_removed_doc_services_pin_wsdl_url`):
+  the four doc-removed services must keep WSDL `docs` URLs, failing in CI before
+  the network preflight ever runs.
+
 ## 0.4.2
 
 **BREAKING CHANGES - get requires SelectionCriteria (#498):**
