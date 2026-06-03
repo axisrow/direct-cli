@@ -1,6 +1,6 @@
 interactions:
 - request:
-    body: '{"method":"add","params":{"Feeds":[{"Name":"draft-sr-smart-feed","SourceType":"URL","UrlFeed":{"Url":"https://example.com/feed.xml"}}]}}'
+    body: '{"method":"add","params":{"Feeds":[{"Name":"draft-sr-smart-feed","BusinessType":"RETAIL","SourceType":"URL","UrlFeed":{"Url":"https://example.com/feed.xml"}}]}}'
     headers:
       Accept:
       - '*/*'
@@ -9,11 +9,11 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '136'
+      - '160'
       Content-Type:
       - application/json
       User-Agent:
-      - python-requests/2.32.5
+      - python-requests/2.34.2
       authorization:
       - REDACTED
       client-login:
@@ -29,25 +29,25 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.ru/json/v5/feeds
+    uri: https://api.direct.yandex.com/json/v5/feeds
   response:
     body:
-      string: '{"result":{"AddResults":[{"Id":1000002}]}}'
+      string: '{"result":{"AddResults":[{"Id":3436619,"Errors":[]}]}}'
     headers:
       Content-Length:
-      - '42'
+      - '54'
       Content-Security-Policy:
       - default-src 'none'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Mon, 01 Jan 2024 00:00:00 GMT
+      - Wed, 03 Jun 2026 07:56:22 GMT
       RequestId:
-      - '0000000000000000000'
+      - '5783015196113203362'
       Set-Cookie:
       - REDACTED
       Units:
-      - 40/3296538/3310000
+      - 40/152114/168000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
@@ -62,7 +62,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"add","params":{"Campaigns":[{"Name":"direct-cli-live-draft-test-cassette-smart-sr","StartDate":"2030-01-15","SmartCampaign":{"BiddingStrategy":{"Search":{"BiddingStrategyType":"SERVING_OFF"},"Network":{"BiddingStrategyType":"AVERAGE_CPC_PER_FILTER","AverageCpcPerFilter":{"FilterAverageCpc":1000000}}}}}]}}'
+    body: '{"method":"add","params":{"Campaigns":[{"Name":"direct-cli-live-draft-test-cassette-smart-sr","StartDate":"2030-01-15","SmartCampaign":{"CounterId":12345678,"BiddingStrategy":{"Search":{"BiddingStrategyType":"SERVING_OFF"},"Network":{"BiddingStrategyType":"AVERAGE_CPC_PER_FILTER","AverageCpcPerFilter":{"FilterAverageCpc":1000000}}}}}]}}'
     headers:
       Accept:
       - '*/*'
@@ -71,11 +71,11 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '317'
+      - '338'
       Content-Type:
       - application/json
       User-Agent:
-      - python-requests/2.32.5
+      - python-requests/2.34.2
       authorization:
       - REDACTED
       client-login:
@@ -91,7 +91,7 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.ru/json/v5/campaigns
+    uri: https://api.direct.yandex.com/json/v5/campaigns
   response:
     body:
       string: "{\"result\":{\"AddResults\":[{\"Errors\":[{\"Code\":3500,\"Message\":\"Not
@@ -106,13 +106,13 @@ interactions:
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Mon, 01 Jan 2024 00:00:00 GMT
+      - Wed, 03 Jun 2026 07:56:23 GMT
       RequestId:
-      - '0000000000000000000'
+      - '5994695497542019570'
       Set-Cookie:
       - REDACTED
       Units:
-      - 30/3296508/3310000
+      - 30/152084/168000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
@@ -127,7 +127,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[1000002]}}}'
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[3436619]}}}'
     headers:
       Accept:
       - '*/*'
@@ -140,7 +140,7 @@ interactions:
       Content-Type:
       - application/json
       User-Agent:
-      - python-requests/2.32.5
+      - python-requests/2.34.2
       authorization:
       - REDACTED
       client-login:
@@ -156,25 +156,25 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.ru/json/v5/feeds
+    uri: https://api.direct.yandex.com/json/v5/feeds
   response:
     body:
-      string: '{"result":{"DeleteResults":[{"Id":1000002}]}}'
+      string: '{"result":{"DeleteResults":[{"Id":3436619,"Errors":[]}]}}'
     headers:
       Content-Length:
-      - '45'
+      - '57'
       Content-Security-Policy:
       - default-src 'none'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Mon, 01 Jan 2024 00:00:00 GMT
+      - Wed, 03 Jun 2026 07:56:25 GMT
       RequestId:
-      - '0000000000000000000'
+      - '614386322285229638'
       Set-Cookie:
       - REDACTED
       Units:
-      - 10/3296498/3310000
+      - 10/152074/168000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:

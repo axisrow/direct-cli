@@ -32,6 +32,13 @@ Coverage status (issue #59):
     - keywords/audiencetargets/dynamicads/smartadtargets suspend/resume
     - ads suspend/resume/archive/unarchive
     (draft-state operations may be rejected — tests skip gracefully)
+
+  Phase 6 — standalone draft assets, full lifecycle (sandbox-unreachable):
+    - feeds add/update/delete (sandbox returns 8800 on update)
+    - retargeting add/update/delete (rule uses a synthetic goal placeholder
+      ALL:12345:30; skips on 8800 — the placeholder goal is in no account)
+    - strategies add/update/archive/unarchive (no delete method; skips on
+      6000 if the account has no shared wallet)
 """
 
 import json
@@ -50,6 +57,11 @@ from conftest import _resolve_test_credentials  # noqa: E402
 LIVE_WRITE_ENV = "YANDEX_DIRECT_LIVE_WRITE"
 TEST_CAMPAIGN_NAME = "direct-cli-live-draft-test-cassette"
 TEST_CAMPAIGN_START_DATE = "2030-01-15"
+# Synthetic Metrica counter placeholder. SmartCampaignAddItem.CounterId is
+# WSDL-required (minOccurs=1), so the flag must be present, but SMART_CAMPAIGN
+# creation itself is rejected on standard accounts (3500) — the test skips
+# before the counter is validated. Never hardcode a real account counter id.
+TEST_METRIKA_COUNTER_ID = "12345678"
 
 # 450x450 solid red PNG — meets Yandex Direct minimum image dimension
 # requirements.  Validated: decodes to 1487 bytes, correct PNG header,
@@ -558,7 +570,14 @@ def test_v5_live_draft_ads_add_update_delete() -> None:
         aid = _extract_first_id(r.output)
 
         r = _invoke_live(
-            "ads", "update", "--id", str(aid), "--title", "Updated Draft Ad"
+            "ads",
+            "update",
+            "--id",
+            str(aid),
+            "--type",
+            "TEXT_AD",
+            "--title",
+            "Updated Draft Ad",
         )
         _assert_success(r, "ads update")
 
@@ -888,6 +907,8 @@ def test_v5_live_draft_smartadtargets_add_update_delete() -> None:
         "draft-smart-feed",
         "--url",
         "https://example.com/feed.xml",
+        "--business-type",
+        "RETAIL",
     )
     _assert_success(r, "feeds add")
     fid = _extract_first_id(r.output)
@@ -909,6 +930,8 @@ def test_v5_live_draft_smartadtargets_add_update_delete() -> None:
             "AVERAGE_CPC_PER_FILTER",
             "--filter-average-cpc",
             "1000000",
+            "--counter-id",
+            TEST_METRIKA_COUNTER_ID,
         )
         # 3500 = campaign type not supported on this account (agency-only feature)
         # See API_COVERAGE.md Category B and MANUAL_COVERAGE.md.
@@ -1139,6 +1162,8 @@ def test_v5_live_draft_smartadtargets_suspend_resume() -> None:
         "draft-sr-smart-feed",
         "--url",
         "https://example.com/feed.xml",
+        "--business-type",
+        "RETAIL",
     )
     _assert_success(r, "feeds add")
     fid = _extract_first_id(r.output)
@@ -1160,6 +1185,8 @@ def test_v5_live_draft_smartadtargets_suspend_resume() -> None:
             "AVERAGE_CPC_PER_FILTER",
             "--filter-average-cpc",
             "1000000",
+            "--counter-id",
+            TEST_METRIKA_COUNTER_ID,
         )
         if "3500" in r.output:
             pytest.skip("SMART_CAMPAIGN not supported on this account (3500)")
@@ -1249,3 +1276,150 @@ def test_v5_live_draft_ads_suspend_resume_archive_unarchive() -> None:
             _invoke_live("ads", "delete", "--id", str(aid))
         _invoke_live("adgroups", "delete", "--id", str(gid))
         _safe_delete_campaign(cid)
+
+
+# ── Phase 6: standalone draft assets — full lifecycle ─────────────────────
+#
+# feeds/retargeting/strategies are top-level resources that the sandbox cannot
+# exercise (8800/6000), so their live-write coverage lives here.  feeds add and
+# delete are already touched as smartadtargets dependencies, but feeds *update*,
+# the retargeting lifecycle, and strategies were previously uncovered live.
+
+
+@pytest.mark.vcr
+def test_v5_live_draft_feeds_add_update_delete() -> None:
+    """Create a URL feed, rename it via update, then delete it."""
+    r = _invoke_live(
+        "feeds",
+        "add",
+        "--name",
+        "direct-cli-live-draft-test-feed",
+        "--url",
+        "https://example.com/feed.xml",
+        "--business-type",
+        "RETAIL",
+    )
+    _assert_success(r, "feeds add")
+    fid = _extract_first_id(r.output)
+
+    try:
+        r = _invoke_live(
+            "feeds",
+            "update",
+            "--id",
+            str(fid),
+            "--name",
+            "direct-cli-live-draft-test-feed-renamed",
+        )
+        _assert_success(r, "feeds update")
+
+        r = _invoke_live("feeds", "get", "--ids", str(fid), "--format", "json")
+        _assert_success(r, "feeds get after update")
+    finally:
+        r = _invoke_live("feeds", "delete", "--id", str(fid))
+        if r.exit_code != 0:
+            pytest.fail(
+                f"Failed to delete feed {fid}. "
+                f"Manual cleanup required.\noutput: {r.output}"
+            )
+
+
+@pytest.mark.vcr
+def test_v5_live_draft_retargeting_add_update_delete() -> None:
+    """Create a retargeting list, rename it via update, then delete it.
+
+    The rule uses a synthetic Metrica goal placeholder (``ALL:12345:30``) — the
+    same convention as the audiencetargets smoke tests.  A MembershipLifeSpan is
+    required (the API rejects a goal argument without one — error 5000); the
+    placeholder goal itself is not present in any account, so the live API
+    rejects the add with "Object not found" (8800) and the test skips.  Never
+    hardcode a real account goal id here (see tests/MANUAL_COVERAGE.md).
+    """
+    r = _invoke_live(
+        "retargeting",
+        "add",
+        "--name",
+        "direct-cli-live-draft-test-rtg",
+        "--type",
+        "RETARGETING",
+        "--rule",
+        "ALL:12345:30",
+    )
+    if r.exit_code != 0 and ("8800" in r.output or "not found" in r.output.lower()):
+        pytest.skip(
+            "retargeting add rejected (8800) — synthetic goal not found in "
+            f"account: {r.output[:200]}"
+        )
+    _assert_success(r, "retargeting add")
+    rid = _extract_first_id(r.output)
+
+    try:
+        r = _invoke_live(
+            "retargeting",
+            "update",
+            "--id",
+            str(rid),
+            "--name",
+            "direct-cli-live-draft-test-rtg-renamed",
+        )
+        _assert_success(r, "retargeting update")
+
+        r = _invoke_live("retargeting", "get", "--ids", str(rid), "--format", "json")
+        _assert_success(r, "retargeting get after update")
+    finally:
+        r = _invoke_live("retargeting", "delete", "--id", str(rid))
+        if r.exit_code != 0:
+            pytest.fail(
+                f"Failed to delete retargeting list {rid}. "
+                f"Manual cleanup required.\noutput: {r.output}"
+            )
+
+
+@pytest.mark.vcr
+def test_v5_live_draft_strategies_add_update_archive_unarchive() -> None:
+    """Create a shared strategy, update/archive/unarchive, then archive cleanup.
+
+    Strategies must be public, which Yandex Direct forbids without a shared
+    account wallet (error 6000).  Accounts without a wallet are a documented
+    restriction (see tests/MANUAL_COVERAGE.md); skip gracefully on 6000.
+    The strategies service has no delete method — cleanup is archive only.
+    """
+    r = _invoke_live(
+        "strategies",
+        "add",
+        "--name",
+        "direct-cli-live-draft-test-strategy",
+        "--type",
+        "AverageCpc",
+        "--average-cpc",
+        "30000000",
+        "--weekly-spend-limit",
+        "300000000",
+    )
+    if r.exit_code != 0 and "6000" in r.output:
+        pytest.skip(
+            "strategies add rejected — shared account wallet required (6000): "
+            f"{r.output[:200]}"
+        )
+    _assert_success(r, "strategies add")
+    sid = _extract_first_id(r.output)
+
+    try:
+        r = _invoke_live(
+            "strategies",
+            "update",
+            "--id",
+            str(sid),
+            "--name",
+            "direct-cli-live-draft-test-strategy-renamed",
+        )
+        _assert_success(r, "strategies update")
+
+        r = _invoke_live("strategies", "archive", "--id", str(sid))
+        _assert_draft_or_success(r, "strategies archive")
+
+        r = _invoke_live("strategies", "unarchive", "--id", str(sid))
+        _assert_draft_or_success(r, "strategies unarchive")
+    finally:
+        # No strategies delete method exists; leave the strategy archived.
+        _invoke_live("strategies", "archive", "--id", str(sid))

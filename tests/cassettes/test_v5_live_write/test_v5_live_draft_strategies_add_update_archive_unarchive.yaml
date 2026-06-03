@@ -1,0 +1,312 @@
+interactions:
+- request:
+    body: '{"method":"add","params":{"Strategies":[{"Name":"direct-cli-live-draft-test-strategy","AverageCpc":{"AverageCpc":30000000,"WeeklySpendLimit":300000000}}]}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '155'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.34.2
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api.direct.yandex.com/json/v5/strategies
+  response:
+    body:
+      string: '{"result":{"AddResults":[{"Id":708915404,"Errors":[]}]}}'
+    headers:
+      Content-Length:
+      - '56'
+      Content-Security-Policy:
+      - default-src 'none'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Wed, 03 Jun 2026 07:14:22 GMT
+      RequestId:
+      - '3165779444944969127'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 15/154132/168000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.api5/strategies.add,appcode:0
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"update","params":{"Strategies":[{"Id":708915404,"Name":"direct-cli-live-draft-test-strategy-renamed"}]}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '115'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.34.2
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api.direct.yandex.com/json/v5/strategies
+  response:
+    body:
+      string: '{"result":{"UpdateResults":[{"Id":708915404,"Errors":[]}]}}'
+    headers:
+      Content-Length:
+      - '59'
+      Content-Security-Policy:
+      - default-src 'none'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Wed, 03 Jun 2026 07:14:24 GMT
+      RequestId:
+      - '591443445115331982'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 13/154119/168000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.api5/strategies.update,appcode:0
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"archive","params":{"SelectionCriteria":{"Ids":[708915404]}}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '71'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.34.2
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api.direct.yandex.com/json/v5/strategies
+  response:
+    body:
+      string: '{"result":{"ArchiveResults":[{"Id":708915404,"Errors":[]}]}}'
+    headers:
+      Content-Length:
+      - '60'
+      Content-Security-Policy:
+      - default-src 'none'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Wed, 03 Jun 2026 07:14:25 GMT
+      RequestId:
+      - '8464317094764351129'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 15/154104/168000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.api5/strategies.archive,appcode:0
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"unarchive","params":{"SelectionCriteria":{"Ids":[708915404]}}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '73'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.34.2
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api.direct.yandex.com/json/v5/strategies
+  response:
+    body:
+      string: '{"result":{"UnarchiveResults":[{"Id":708915404,"Errors":[]}]}}'
+    headers:
+      Content-Length:
+      - '62'
+      Content-Security-Policy:
+      - default-src 'none'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Wed, 03 Jun 2026 07:14:27 GMT
+      RequestId:
+      - '4433565921262051173'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 15/154089/168000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.api5/strategies.unarchive,appcode:0
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"archive","params":{"SelectionCriteria":{"Ids":[708915404]}}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '71'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.34.2
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api.direct.yandex.com/json/v5/strategies
+  response:
+    body:
+      string: '{"result":{"ArchiveResults":[{"Id":708915404,"Errors":[]}]}}'
+    headers:
+      Content-Length:
+      - '60'
+      Content-Security-Policy:
+      - default-src 'none'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Wed, 03 Jun 2026 07:14:28 GMT
+      RequestId:
+      - '4648638098761024346'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 15/154074/168000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.api5/strategies.archive,appcode:0
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+version: 1

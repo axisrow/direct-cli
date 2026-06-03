@@ -75,6 +75,31 @@ Live tests skip gracefully when the API returns error 3500.
 - **creatives add** — depends on a valid `video_id` from `advideos add`,
   so it inherits the same limitation.
 
+## Sandbox-Unreachable, Covered Live (Phase 6)
+
+These mutating commands cannot run in the sandbox (it returns 8800/6000) but
+are exercised against the live draft API in `test_v5_live_write.py`. Notes
+captured while recording the cassettes — re-recording must honour them:
+
+- **feeds add/update/delete** — sandbox rejects `feeds update` (8800); live
+  records the full lifecycle. Standard URL feed, no external dependency, fully
+  reversible (delete removes the feed).
+- **retargeting add/update/delete** — a `RETARGETING` rule argument needs a
+  Metrica goal id **_and_ a MembershipLifeSpan** (`--rule ALL:<goal>:<days>`);
+  a bare `ALL:<goal>` is rejected with error 5000 ("Not specified time for goal
+  or segment"). The test uses a **synthetic placeholder goal** (`ALL:12345:30`,
+  the same convention as the audiencetargets smoke tests) — no real account goal
+  id is ever hardcoded — so the live API returns 8800 ("Object not found") and
+  the test skips. Records the request shape, not a passing lifecycle.
+- **strategies add/update/archive/unarchive** — a shared strategy must be made
+  public, which requires a shared-account wallet; accounts without one are
+  rejected with error 6000 and the test skips. **The Yandex Direct API has no
+  `Strategies.delete` operation** (the service exposes only add/update/get/
+  archive/unarchive), so a strategy created by the test cannot be removed via
+  the API — cleanup archives it (`StatusArchived=YES`, non-serving). On an
+  account with a wallet the test leaves one archived strategy behind; this is
+  an API limitation, not a test defect.
+
 ## Summary
 
 | Command | Reason | Risk |
