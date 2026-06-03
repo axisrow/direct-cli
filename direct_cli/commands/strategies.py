@@ -7,6 +7,7 @@ import click
 from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
+from ._lifecycle import make_lifecycle_command
 from ..utils import (
     MICRO_RUBLES,
     add_criteria_csv,
@@ -980,43 +981,11 @@ def update(
     format_output(result().extract(), "json", None)
 
 
-@strategies.command()
-@click.option("--id", "strategy_id", required=True, type=int, help="Strategy ID")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def archive(ctx, strategy_id, dry_run):
-    """Archive a strategy"""
-    body = {
-        "method": "archive",
-        "params": {"SelectionCriteria": {"Ids": [strategy_id]}},
-    }
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-    result = client.strategies().post(data=body)
-    format_output(result().extract(), "json", None)
+def _strategy_lifecycle(method, help_text):
+    return make_lifecycle_command(
+        strategies, method, help_text, "strategy_id", "Strategy ID", create_client
+    )
 
 
-@strategies.command()
-@click.option("--id", "strategy_id", required=True, type=int, help="Strategy ID")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def unarchive(ctx, strategy_id, dry_run):
-    """Unarchive a strategy"""
-    body = {
-        "method": "unarchive",
-        "params": {"SelectionCriteria": {"Ids": [strategy_id]}},
-    }
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-    result = client.strategies().post(data=body)
-    format_output(result().extract(), "json", None)
+archive = _strategy_lifecycle("archive", "Archive a strategy")
+unarchive = _strategy_lifecycle("unarchive", "Unarchive a strategy")

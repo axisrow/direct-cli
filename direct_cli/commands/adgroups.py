@@ -9,6 +9,7 @@ import click
 from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
+from ._lifecycle import make_lifecycle_command
 from ..utils import (
     add_criteria_csv,
     build_common_params,
@@ -1209,23 +1210,6 @@ def update(
     format_output(result().extract(), "json", None)
 
 
-@adgroups.command()
-@click.option("--id", "adgroup_id", required=True, type=int, help="Ad group ID")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def delete(ctx, adgroup_id, dry_run):
-    """Delete ad group"""
-    body = {
-        "method": "delete",
-        "params": {"SelectionCriteria": {"Ids": [adgroup_id]}},
-    }
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-
-    result = client.adgroups().post(data=body)
-    format_output(result().extract(), "json", None)
+delete = make_lifecycle_command(
+    adgroups, "delete", "Delete ad group", "adgroup_id", "Ad group ID", create_client
+)

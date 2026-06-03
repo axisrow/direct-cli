@@ -7,6 +7,7 @@ import click
 from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
+from ._lifecycle import make_lifecycle_command
 from ..utils import (
     MICRO_RUBLES,
     build_common_params,
@@ -135,68 +136,15 @@ def add(
     format_output(result().extract(), "json", None)
 
 
-@dynamicfeedadtargets.command()
-@click.option("--id", "target_id", required=True, type=int, help="Target ID")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def delete(ctx, target_id, dry_run):
-    """Delete dynamic feed ad target"""
-    body = {
-        "method": "delete",
-        "params": {"SelectionCriteria": {"Ids": [target_id]}},
-    }
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-
-    result = client.dynamicfeedadtargets().post(data=body)
-    format_output(result().extract(), "json", None)
+def _dynamicfeedadtarget_lifecycle(method, help_text):
+    return make_lifecycle_command(
+        dynamicfeedadtargets, method, help_text, "target_id", "Target ID", create_client
+    )
 
 
-@dynamicfeedadtargets.command()
-@click.option("--id", "target_id", required=True, type=int, help="Target ID")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def suspend(ctx, target_id, dry_run):
-    """Suspend dynamic feed ad target"""
-    body = {
-        "method": "suspend",
-        "params": {"SelectionCriteria": {"Ids": [target_id]}},
-    }
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-    result = client.dynamicfeedadtargets().post(data=body)
-    format_output(result().extract(), "json", None)
-
-
-@dynamicfeedadtargets.command()
-@click.option("--id", "target_id", required=True, type=int, help="Target ID")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def resume(ctx, target_id, dry_run):
-    """Resume dynamic feed ad target"""
-    body = {
-        "method": "resume",
-        "params": {"SelectionCriteria": {"Ids": [target_id]}},
-    }
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-    result = client.dynamicfeedadtargets().post(data=body)
-    format_output(result().extract(), "json", None)
+delete = _dynamicfeedadtarget_lifecycle("delete", "Delete dynamic feed ad target")
+suspend = _dynamicfeedadtarget_lifecycle("suspend", "Suspend dynamic feed ad target")
+resume = _dynamicfeedadtarget_lifecycle("resume", "Resume dynamic feed ad target")
 
 
 @dynamicfeedadtargets.command(name="set-bids")

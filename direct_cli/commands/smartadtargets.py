@@ -7,6 +7,7 @@ import click
 from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
+from ._lifecycle import make_lifecycle_command
 from ..utils import (
     MICRO_RUBLES,
     build_common_params,
@@ -209,68 +210,15 @@ def update(
     format_output(result().extract(), "json", None)
 
 
-@smartadtargets.command()
-@click.option("--id", "target_id", required=True, type=int, help="Target ID")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def delete(ctx, target_id, dry_run):
-    """Delete smart ad target"""
-    body = {
-        "method": "delete",
-        "params": {"SelectionCriteria": {"Ids": [target_id]}},
-    }
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-
-    result = client.smartadtargets().post(data=body)
-    format_output(result().extract(), "json", None)
+def _smartadtarget_lifecycle(method, help_text):
+    return make_lifecycle_command(
+        smartadtargets, method, help_text, "target_id", "Target ID", create_client
+    )
 
 
-@smartadtargets.command()
-@click.option("--id", "target_id", required=True, type=int, help="Target ID")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def suspend(ctx, target_id, dry_run):
-    """Suspend smart ad target"""
-    body = {
-        "method": "suspend",
-        "params": {"SelectionCriteria": {"Ids": [target_id]}},
-    }
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-    result = client.smartadtargets().post(data=body)
-    format_output(result().extract(), "json", None)
-
-
-@smartadtargets.command()
-@click.option("--id", "target_id", required=True, type=int, help="Target ID")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def resume(ctx, target_id, dry_run):
-    """Resume smart ad target"""
-    body = {
-        "method": "resume",
-        "params": {"SelectionCriteria": {"Ids": [target_id]}},
-    }
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-    result = client.smartadtargets().post(data=body)
-    format_output(result().extract(), "json", None)
+delete = _smartadtarget_lifecycle("delete", "Delete smart ad target")
+suspend = _smartadtarget_lifecycle("suspend", "Suspend smart ad target")
+resume = _smartadtarget_lifecycle("resume", "Resume smart ad target")
 
 
 @smartadtargets.command(name="set-bids")

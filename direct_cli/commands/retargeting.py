@@ -9,6 +9,7 @@ import click
 from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
+from ._lifecycle import make_lifecycle_command
 from ..utils import (
     add_criteria_csv,
     build_common_params,
@@ -199,20 +200,11 @@ def update(ctx, list_id, name, description, list_type, rules, dry_run):
     format_output(result().extract(), "json", None)
 
 
-@retargeting.command()
-@click.option("--id", "list_id", required=True, type=int, help="Retargeting list ID")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def delete(ctx, list_id, dry_run):
-    """Delete retargeting list"""
-    body = {"method": "delete", "params": {"SelectionCriteria": {"Ids": [list_id]}}}
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-
-    result = client.retargeting().post(data=body)
-    format_output(result().extract(), "json", None)
+delete = make_lifecycle_command(
+    retargeting,
+    "delete",
+    "Delete retargeting list",
+    "list_id",
+    "Retargeting list ID",
+    create_client,
+)
