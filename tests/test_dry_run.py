@@ -17746,6 +17746,38 @@ def test_campaigns_delete_dry_run_payload():
     }
 
 
+def test_campaigns_archive_dry_run_payload():
+    body = _dry_run("campaigns", "archive", "--id", "42")
+    assert body == {
+        "method": "archive",
+        "params": {"SelectionCriteria": {"Ids": [42]}},
+    }
+
+
+def test_campaigns_unarchive_dry_run_payload():
+    body = _dry_run("campaigns", "unarchive", "--id", "42")
+    assert body == {
+        "method": "unarchive",
+        "params": {"SelectionCriteria": {"Ids": [42]}},
+    }
+
+
+def test_campaigns_suspend_dry_run_payload():
+    body = _dry_run("campaigns", "suspend", "--id", "42")
+    assert body == {
+        "method": "suspend",
+        "params": {"SelectionCriteria": {"Ids": [42]}},
+    }
+
+
+def test_campaigns_resume_dry_run_payload():
+    body = _dry_run("campaigns", "resume", "--id", "42")
+    assert body == {
+        "method": "resume",
+        "params": {"SelectionCriteria": {"Ids": [42]}},
+    }
+
+
 def test_ads_moderate_dry_run_payload():
     body = _dry_run("ads", "moderate", "--id", "99")
     assert body == {
