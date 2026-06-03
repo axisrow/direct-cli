@@ -128,21 +128,20 @@ def retargeting_goal_probe_id() -> Optional[str]:
 
     try:
         v4_client = create_v4_client()
-        result = v4_client.v4live().post(
-            data={
-                "method": "GetRetargetingGoals",
-                "param": {"CampaignIDS": [campaign_id]},
-            }
+        goals = _extract_items(
+            v4_client.v4live().post(
+                data={
+                    "method": "GetRetargetingGoals",
+                    "param": {"CampaignIDS": [campaign_id]},
+                }
+            )
         )
-        goals = result().extract()
     except Exception:
         return None
 
-    if isinstance(goals, list):
-        for goal in goals:
-            goal_id = goal.get("GoalID") if isinstance(goal, dict) else None
-            if goal_id:
-                return str(goal_id)
+    for goal in goals:
+        if isinstance(goal, dict) and (goal_id := goal.get("GoalID")):
+            return str(goal_id)
     return None
 
 

@@ -123,18 +123,23 @@ _REDACTED = "REDACTED"
 # the recorded interaction self-consistent for body-based matching.
 _SYNTHETIC_GOAL = "12345"
 _REAL_RETARGETING_GOAL = os.environ.get("YANDEX_DIRECT_TEST_RETARGETING_GOAL_ID")
+# Pre-encode the bytes variants once: this runs on every recorded request and
+# response body, so re-encoding per call would be wasted work on the hot path.
+_GOAL_MASK_ACTIVE = bool(_REAL_RETARGETING_GOAL) and (
+    _REAL_RETARGETING_GOAL != _SYNTHETIC_GOAL
+)
+_REAL_GOAL_BYTES = _REAL_RETARGETING_GOAL.encode() if _GOAL_MASK_ACTIVE else b""
+_SYNTHETIC_GOAL_BYTES = _SYNTHETIC_GOAL.encode()
 
 
 def _mask_retargeting_goal(text):
     """Replace the real retargeting goal id with the synthetic placeholder."""
-    if not _REAL_RETARGETING_GOAL or _REAL_RETARGETING_GOAL == _SYNTHETIC_GOAL:
+    if not _GOAL_MASK_ACTIVE:
         return text, False
     if isinstance(text, str) and _REAL_RETARGETING_GOAL in text:
         return text.replace(_REAL_RETARGETING_GOAL, _SYNTHETIC_GOAL), True
-    if isinstance(text, bytes):
-        real = _REAL_RETARGETING_GOAL.encode()
-        if real in text:
-            return text.replace(real, _SYNTHETIC_GOAL.encode()), True
+    if isinstance(text, bytes) and _REAL_GOAL_BYTES in text:
+        return text.replace(_REAL_GOAL_BYTES, _SYNTHETIC_GOAL_BYTES), True
     return text, False
 
 

@@ -307,10 +307,21 @@ def _create_draft_adgroup(suffix: str = "") -> tuple:
 def _safe_delete_campaign(cid: int) -> None:
     """Delete a draft campaign, failing the test if deletion is rejected."""
     r = _invoke_live("campaigns", "delete", "--id", str(cid))
-    if r.exit_code != 0:
+    _assert_cleanup_success(r, "delete draft campaign", cid)
+
+
+def _assert_cleanup_success(result, action: str, resource_id, note: str = "") -> None:
+    """Fail the test loudly if a teardown step did not succeed.
+
+    Cleanup runs in ``finally`` blocks; a silently-ignored failure leaves a
+    real object behind on the live account, so surface the id for manual
+    cleanup. ``note`` adds resource-specific context (e.g. "may still serve").
+    """
+    if result.exit_code != 0:
+        extra = f" {note}" if note else ""
         pytest.fail(
-            f"Failed to delete draft campaign {cid}. "
-            f"Manual cleanup required.\noutput: {r.output}"
+            f"Failed to {action} {resource_id}.{extra} Manual cleanup "
+            f"required.\noutput: {result.output}"
         )
 
 
@@ -1344,11 +1355,7 @@ def test_v5_live_draft_feeds_add_update_delete() -> None:
         _assert_success(r, "feeds get after update")
     finally:
         r = _invoke_live("feeds", "delete", "--id", str(fid))
-        if r.exit_code != 0:
-            pytest.fail(
-                f"Failed to delete feed {fid}. "
-                f"Manual cleanup required.\noutput: {r.output}"
-            )
+        _assert_cleanup_success(r, "delete feed", fid)
 
 
 @pytest.mark.vcr
@@ -1396,11 +1403,7 @@ def test_v5_live_draft_retargeting_add_update_delete() -> None:
         _assert_success(r, "retargeting get after update")
     finally:
         r = _invoke_live("retargeting", "delete", "--id", str(rid))
-        if r.exit_code != 0:
-            pytest.fail(
-                f"Failed to delete retargeting list {rid}. "
-                f"Manual cleanup required.\noutput: {r.output}"
-            )
+        _assert_cleanup_success(r, "delete retargeting list", rid)
 
 
 @pytest.mark.vcr
@@ -1454,8 +1457,6 @@ def test_v5_live_draft_strategies_add_update_archive_unarchive() -> None:
         # fails the account keeps a live strategy, so surface the id loudly
         # rather than discarding the result (mirrors the retargeting finally).
         r = _invoke_live("strategies", "archive", "--id", str(sid))
-        if r.exit_code != 0:
-            pytest.fail(
-                f"Failed to archive strategy {sid} during cleanup; it may still "
-                f"be serving. Manual cleanup required.\noutput: {r.output}"
-            )
+        _assert_cleanup_success(
+            r, "archive strategy", sid, note="It may still be serving."
+        )
