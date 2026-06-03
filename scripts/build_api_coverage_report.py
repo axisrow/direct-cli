@@ -38,6 +38,17 @@ FIELD_OPERATION_CAPTURE_OPTION_FIXTURES = {
     # wire-payload capture builds a valid request.
     ("bids", "get"): ["--campaign-ids", "1"],
     ("keywordbids", "get"): ["--campaign-ids", "1"],
+    # WSDL GetRequest.SelectionCriteria is minOccurs=1 for these resources, so
+    # the CLI requires at least one filter (#498 B3c); supply --ids so the
+    # wire-payload capture builds a valid request.
+    ("adgroups", "get"): ["--ids", "1"],
+    ("ads", "get"): ["--ids", "1"],
+    ("keywords", "get"): ["--ids", "1"],
+    ("strategies", "get"): ["--ids", "1"],
+    ("creatives", "get"): ["--ids", "1"],
+    ("dynamicads", "get"): ["--ids", "1"],
+    ("smartadtargets", "get"): ["--ids", "1"],
+    ("audiencetargets", "get"): ["--ids", "1"],
     ("changes", "check"): [
         "--campaign-ids",
         "1",

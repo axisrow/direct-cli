@@ -83,9 +83,13 @@ READ_CASES: list[tuple[str, list[str]]] = [
     ("keywords_get", ["keywords", "get", "--campaign-ids", SANDBOX_CAMPAIGN_ID]),
     ("adextensions_get", ["adextensions", "get"]),
     ("adimages_get", ["adimages", "get"]),
-    ("creatives_get", ["creatives", "get"]),
+    # creatives/strategies GetRequest.SelectionCriteria is WSDL minOccurs=1, so
+    # the CLI now requires a filter (#498 B3c) — pass --ids to satisfy the guard.
+    ("creatives_get", ["creatives", "get", "--ids", "1"]),
+    # retargeting SelectionCriteria is minOccurs=0; a no-filter call stays valid
+    # and now omits the empty criteria from the payload.
     ("retargeting_get", ["retargeting", "get"]),
-    ("strategies_get", ["strategies", "get"]),
+    ("strategies_get", ["strategies", "get", "--ids", "1"]),
     ("dictionaries_get", ["dictionaries", "get", "--names", "Currencies,GeoRegions"]),
     (
         "dynamicfeedadtargets_get",

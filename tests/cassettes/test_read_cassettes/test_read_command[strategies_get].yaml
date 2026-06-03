@@ -1,6 +1,6 @@
 interactions:
 - request:
-    body: '{"method":"get","params":{"SelectionCriteria":{},"FieldNames":["Id","Name","Type","StatusArchived"]}}'
+    body: '{"method":"get","params":{"SelectionCriteria":{"Ids":[1]},"FieldNames":["Id","Name","Type","StatusArchived"]}}'
     headers:
       Accept:
       - '*/*'
@@ -9,7 +9,7 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '101'
+      - '110'
       Content-Type:
       - application/json
       User-Agent:

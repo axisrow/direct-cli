@@ -2,6 +2,23 @@
 
 ## 0.4.2
 
+**BREAKING CHANGES - get requires SelectionCriteria (#498):**
+
+- `adgroups` / `ads` / `keywords` / `strategies` / `creatives` / `dynamicads` /
+  `smartadtargets` / `audiencetargets` `get` now refuse an empty
+  `SelectionCriteria` before the API call, raising a `UsageError` that asks for
+  at least one filter — instead of sending `{"SelectionCriteria": {}}` (which the
+  API rejects with the opaque error 4001 for ad-group/ad/keyword resources).
+  Extends the same guard already shipped for `bids` / `keywordbids` in 0.4.1
+  (#483). WSDL declares `GetRequest.SelectionCriteria` as `minOccurs=1` for all
+  eight resources.
+- `retargeting get` gains `--dry-run` and the shared read/pagination option
+  stack; its `SelectionCriteria` stays optional (WSDL `minOccurs=0`), so a
+  no-filter call is still valid and now omits the empty criteria from the
+  payload.
+- All eight commands and `retargeting get` build their request via the shared
+  `build_common_params` helper, completing the dedup epic #491 (B3c).
+
 **BREAKING CHANGES - auth precedence (#489):**
 
 - Base `YANDEX_DIRECT_TOKEN` / `YANDEX_DIRECT_LOGIN` credentials from the

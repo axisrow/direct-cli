@@ -20,6 +20,7 @@ from ..output import (
 from ..utils import (
     MICRO_RUBLES,
     add_criteria_csv,
+    build_common_params,
     get_default_fields,
     parse_csv_strings,
     parse_ids,
@@ -361,14 +362,16 @@ def get(
         criteria["ModifiedSince"] = modified_since
     add_criteria_csv(criteria, "ServingStatuses", serving_statuses, upper=True)
 
-    params = {"SelectionCriteria": criteria, "FieldNames": field_names}
+    if not criteria:
+        raise click.UsageError(t("Provide at least one typed filter"))
+
+    params = build_common_params(
+        criteria=criteria, field_names=field_names, limit=limit
+    )
     if parsed_brand_options:
         params["AutotargetingSettingsBrandOptionsFieldNames"] = parsed_brand_options
     if parsed_categories:
         params["AutotargetingSettingsCategoriesFieldNames"] = parsed_categories
-
-    if limit:
-        params["Page"] = {"Limit": limit}
 
     body = {"method": "get", "params": params}
 

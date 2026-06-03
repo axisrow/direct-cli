@@ -10,6 +10,7 @@ from ..output import format_output, handle_api_errors
 from ..utils import (
     MICRO_RUBLES,
     add_criteria_csv,
+    build_common_params,
     get_default_fields,
     parse_csv_strings,
     parse_ids,
@@ -660,10 +661,13 @@ def get(
     if is_archived:
         criteria["IsArchived"] = is_archived.upper()
 
-    params = {"SelectionCriteria": criteria, "FieldNames": field_names}
+    if not criteria:
+        raise click.UsageError(t("Provide at least one typed filter"))
+
+    params = build_common_params(
+        criteria=criteria, field_names=field_names, limit=limit
+    )
     params.update(parsed_nested)
-    if limit:
-        params["Page"] = {"Limit": limit}
 
     body = {"method": "get", "params": params}
     if dry_run:

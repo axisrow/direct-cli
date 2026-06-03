@@ -11,6 +11,7 @@ from ..i18n import t
 from ..output import format_output, handle_api_errors
 from ..utils import (
     add_criteria_csv,
+    build_common_params,
     get_default_fields,
     MICRO_RUBLES,
     parse_condition_specs,
@@ -1025,14 +1026,13 @@ def get(
     )
     add_criteria_csv(criteria, "AdExtensionIds", adextension_ids, integers=True)
 
-    params = {
-        "SelectionCriteria": criteria,
-        "FieldNames": field_names,
-    }
-    params.update(parsed_nested)
+    if not criteria:
+        raise click.UsageError(t("Provide at least one typed filter"))
 
-    if limit:
-        params["Page"] = {"Limit": limit}
+    params = build_common_params(
+        criteria=criteria, field_names=field_names, limit=limit
+    )
+    params.update(parsed_nested)
 
     body = {"method": "get", "params": params}
 

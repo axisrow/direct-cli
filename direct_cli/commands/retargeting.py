@@ -11,7 +11,9 @@ from ..i18n import t
 from ..output import format_output, handle_api_errors
 from ..utils import (
     add_criteria_csv,
+    build_common_params,
     get_default_fields,
+    get_options,
     parse_csv_strings,
     parse_ids,
     parse_retargeting_rule_specs,
@@ -26,14 +28,20 @@ def retargeting():
 @retargeting.command()
 @click.option("--ids", help="Comma-separated list IDs")
 @click.option("--types", help="Filter by types")
-@click.option("--limit", type=int, help="Limit number of results")
-@click.option("--fetch-all", is_flag=True, help="Fetch all pages")
-@click.option("--format", "output_format", default="json", help="Output format")
-@click.option("--output", help="Output file")
-@click.option("--fields", help="Comma-separated field names")
+@get_options
 @click.pass_context
 @handle_api_errors
-def get(ctx, ids, types, limit, fetch_all, output_format, output, fields):
+def get(
+    ctx,
+    ids,
+    types,
+    limit,
+    fetch_all,
+    output_format,
+    output,
+    fields,
+    dry_run,
+):
     """Get retargeting lists"""
     client = client_from_ctx(ctx, create_client)
 
@@ -44,12 +52,15 @@ def get(ctx, ids, types, limit, fetch_all, output_format, output, fields):
         criteria["Ids"] = parse_ids(ids)
     add_criteria_csv(criteria, "Types", types, upper=True)
 
-    params = {"SelectionCriteria": criteria, "FieldNames": field_names}
-
-    if limit:
-        params["Page"] = {"Limit": limit}
+    params = build_common_params(
+        criteria=criteria, field_names=field_names, limit=limit
+    )
 
     body = {"method": "get", "params": params}
+
+    if dry_run:
+        format_output(body, "json", None)
+        return
 
     result = client.retargeting().post(data=body)
 

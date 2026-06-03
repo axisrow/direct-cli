@@ -19,6 +19,7 @@ DRY_RUN_PAYLOAD_EXCLUSIONS = {
     "keywords.get": "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria tests.",
     "leads.get": "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria tests.",
     "negativekeywordsharedsets.get": "Read path omits optional SelectionCriteria when --ids is absent.",
+    "retargeting.get": "Read path omits optional SelectionCriteria when --ids is absent.",
     "sitelinks.get": "Read path omits optional SelectionCriteria when --ids is absent.",
     "smartadtargets.get": "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria tests.",
     "turbopages.get": "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria tests.",

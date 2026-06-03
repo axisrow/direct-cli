@@ -382,6 +382,8 @@ class TestReadOnlyCreatives(unittest.TestCase):
         result = invoke_get(
             "creatives",
             "get",
+            "--ids",
+            "1",
             "--fields",
             "Id,Name,Type",
             "--limit",
@@ -509,7 +511,9 @@ class TestReadOnlyReports(unittest.TestCase):
 @skip_if_no_token
 class TestReadOnlyStrategies(unittest.TestCase):
     def test_get_strategies(self):
-        result = invoke_get("strategies", "get", "--limit", "1", "--format", "json")
+        result = invoke_get(
+            "strategies", "get", "--ids", "1", "--limit", "1", "--format", "json"
+        )
         assert_success(result, "strategies get")
 
 
