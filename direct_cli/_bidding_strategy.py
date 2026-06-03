@@ -2043,6 +2043,94 @@ def build_mobile_app_bidding_strategy(
     return strategy
 
 
+def _assemble_dynamic_text_strategy_block(
+    *,
+    container: dict,
+    subtype: str,
+    limit_percent: Optional[int],
+    reserve_return: Optional[int],
+    roi_coef: Optional[int],
+    average_cpa: Optional[int],
+    cpa: Optional[int],
+    crr: Optional[int],
+    goal_id: Optional[int],
+    average_cpc: Optional[int],
+    clicks_per_week: Optional[int],
+    weekly_spend_limit: Optional[int],
+    bid_ceiling: Optional[int],
+    profitability: Optional[int],
+    custom_period_flags: bool,
+    custom_period_spend_limit: Optional[int],
+    custom_period_start_date: Optional[str],
+    custom_period_end_date: Optional[str],
+    custom_period_auto_continue: Optional[str],
+    exploration_provided: bool,
+    exploration_budget: Optional[int],
+    exploration_budget_custom: Optional[str],
+    budget_type: Optional[str],
+) -> dict:
+    """Assemble the flat DynamicTextCampaign Strategy*Add block and graft it
+    onto ``container``. Byte-for-byte identical between the dynamic-text search
+    and network builders; ``limit_percent`` is network-only (search passes
+    ``None`` so the field is simply never emitted).
+    """
+    block: dict = {}
+    if limit_percent is not None:
+        block["LimitPercent"] = limit_percent
+    if reserve_return is not None:
+        block["ReserveReturn"] = reserve_return
+    if roi_coef is not None:
+        block["RoiCoef"] = roi_coef
+    if average_cpa is not None:
+        block["AverageCpa"] = average_cpa
+    if cpa is not None:
+        block["Cpa"] = cpa
+    if crr is not None:
+        block["Crr"] = crr
+    if goal_id is not None:
+        block["GoalId"] = goal_id
+    if average_cpc is not None:
+        block["AverageCpc"] = average_cpc
+    if clicks_per_week is not None:
+        block["ClicksPerWeek"] = clicks_per_week
+    if weekly_spend_limit is not None:
+        block["WeeklySpendLimit"] = weekly_spend_limit
+    if bid_ceiling is not None:
+        block["BidCeiling"] = bid_ceiling
+    if profitability is not None:
+        block["Profitability"] = profitability
+    if custom_period_flags:
+        assert custom_period_spend_limit is not None
+        assert custom_period_start_date is not None
+        assert custom_period_end_date is not None
+        assert custom_period_auto_continue is not None
+        block["CustomPeriodBudget"] = {
+            "SpendLimit": custom_period_spend_limit,
+            "StartDate": custom_period_start_date,
+            "EndDate": custom_period_end_date,
+            "AutoContinue": custom_period_auto_continue.upper(),
+        }
+    if exploration_provided:
+        assert exploration_budget is not None
+        assert exploration_budget_custom is not None
+        block["ExplorationBudget"] = {
+            "MinimumExplorationBudget": exploration_budget,
+            "IsMinimumExplorationBudgetCustom": exploration_budget_custom.upper(),
+        }
+    if budget_type is not None:
+        normalized_budget_type = budget_type.upper()
+        # Switching the budget slice on update nulls the other slice
+        # explicitly (mirror the Network/MobileApp/TextSearch builders).
+        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET":
+            block["WeeklySpendLimit"] = None
+        elif normalized_budget_type == "WEEKLY_BUDGET":
+            block["CustomPeriodBudget"] = None
+        block["BudgetType"] = normalized_budget_type
+    if block:
+        container[subtype] = block
+    return container
+
+
 def build_dynamic_text_network_strategy(
     network_strategy: Optional[str],
     weekly_spend_limit: Optional[int],
@@ -2299,59 +2387,31 @@ def build_dynamic_text_network_strategy(
         if value is not None and subtype not in supported_subtypes:
             raise click.UsageError(f"{normalized_strategy} does not accept {flag}")
 
-    block: dict = {}
-    if limit_percent is not None:
-        block["LimitPercent"] = limit_percent
-    if reserve_return is not None:
-        block["ReserveReturn"] = reserve_return
-    if roi_coef is not None:
-        block["RoiCoef"] = roi_coef
-    if average_cpa is not None:
-        block["AverageCpa"] = average_cpa
-    if cpa is not None:
-        block["Cpa"] = cpa
-    if crr is not None:
-        block["Crr"] = crr
-    if goal_id is not None:
-        block["GoalId"] = goal_id
-    if average_cpc is not None:
-        block["AverageCpc"] = average_cpc
-    if clicks_per_week is not None:
-        block["ClicksPerWeek"] = clicks_per_week
-    if weekly_spend_limit is not None:
-        block["WeeklySpendLimit"] = weekly_spend_limit
-    if bid_ceiling is not None:
-        block["BidCeiling"] = bid_ceiling
-    if profitability is not None:
-        block["Profitability"] = profitability
-    if custom_period_flags:
-        assert custom_period_spend_limit is not None
-        assert custom_period_start_date is not None
-        assert custom_period_end_date is not None
-        assert custom_period_auto_continue is not None
-        block["CustomPeriodBudget"] = {
-            "SpendLimit": custom_period_spend_limit,
-            "StartDate": custom_period_start_date,
-            "EndDate": custom_period_end_date,
-            "AutoContinue": custom_period_auto_continue.upper(),
-        }
-    if exploration_provided:
-        assert exploration_budget is not None
-        assert exploration_budget_custom is not None
-        block["ExplorationBudget"] = {
-            "MinimumExplorationBudget": exploration_budget,
-            "IsMinimumExplorationBudgetCustom": exploration_budget_custom.upper(),
-        }
-    if budget_type is not None:
-        normalized_budget_type = budget_type.upper()
-        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET":
-            block["WeeklySpendLimit"] = None
-        elif normalized_budget_type == "WEEKLY_BUDGET":
-            block["CustomPeriodBudget"] = None
-        block["BudgetType"] = normalized_budget_type
-    if block:
-        network[subtype] = block
-    return network
+    return _assemble_dynamic_text_strategy_block(
+        container=network,
+        subtype=subtype,
+        limit_percent=limit_percent,
+        reserve_return=reserve_return,
+        roi_coef=roi_coef,
+        average_cpa=average_cpa,
+        cpa=cpa,
+        crr=crr,
+        goal_id=goal_id,
+        average_cpc=average_cpc,
+        clicks_per_week=clicks_per_week,
+        weekly_spend_limit=weekly_spend_limit,
+        bid_ceiling=bid_ceiling,
+        profitability=profitability,
+        custom_period_flags=custom_period_flags,
+        custom_period_spend_limit=custom_period_spend_limit,
+        custom_period_start_date=custom_period_start_date,
+        custom_period_end_date=custom_period_end_date,
+        custom_period_auto_continue=custom_period_auto_continue,
+        exploration_provided=exploration_provided,
+        exploration_budget=exploration_budget,
+        exploration_budget_custom=exploration_budget_custom,
+        budget_type=budget_type,
+    )
 
 
 def build_dynamic_text_search_strategy(
@@ -2638,59 +2698,31 @@ def build_dynamic_text_search_strategy(
         if value is not None and subtype not in supported_subtypes:
             raise click.UsageError(f"{normalized_strategy} does not accept {flag}")
 
-    block: dict = {}
-    if reserve_return is not None:
-        block["ReserveReturn"] = reserve_return
-    if roi_coef is not None:
-        block["RoiCoef"] = roi_coef
-    if average_cpa is not None:
-        block["AverageCpa"] = average_cpa
-    if cpa is not None:
-        block["Cpa"] = cpa
-    if crr is not None:
-        block["Crr"] = crr
-    if goal_id is not None:
-        block["GoalId"] = goal_id
-    if average_cpc is not None:
-        block["AverageCpc"] = average_cpc
-    if clicks_per_week is not None:
-        block["ClicksPerWeek"] = clicks_per_week
-    if weekly_spend_limit is not None:
-        block["WeeklySpendLimit"] = weekly_spend_limit
-    if bid_ceiling is not None:
-        block["BidCeiling"] = bid_ceiling
-    if profitability is not None:
-        block["Profitability"] = profitability
-    if custom_period_flags:
-        assert custom_period_spend_limit is not None
-        assert custom_period_start_date is not None
-        assert custom_period_end_date is not None
-        assert custom_period_auto_continue is not None
-        block["CustomPeriodBudget"] = {
-            "SpendLimit": custom_period_spend_limit,
-            "StartDate": custom_period_start_date,
-            "EndDate": custom_period_end_date,
-            "AutoContinue": custom_period_auto_continue.upper(),
-        }
-    if exploration_provided:
-        assert exploration_budget is not None
-        assert exploration_budget_custom is not None
-        block["ExplorationBudget"] = {
-            "MinimumExplorationBudget": exploration_budget,
-            "IsMinimumExplorationBudgetCustom": exploration_budget_custom.upper(),
-        }
-    if budget_type is not None:
-        normalized_budget_type = budget_type.upper()
-        # Mirror the Network/MobileApp/TextSearch builders: switching the
-        # budget slice on update nulls the other slice explicitly.
-        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET":
-            block["WeeklySpendLimit"] = None
-        elif normalized_budget_type == "WEEKLY_BUDGET":
-            block["CustomPeriodBudget"] = None
-        block["BudgetType"] = normalized_budget_type
-    if block:
-        search[subtype] = block
-    return search
+    return _assemble_dynamic_text_strategy_block(
+        container=search,
+        subtype=subtype,
+        limit_percent=None,
+        reserve_return=reserve_return,
+        roi_coef=roi_coef,
+        average_cpa=average_cpa,
+        cpa=cpa,
+        crr=crr,
+        goal_id=goal_id,
+        average_cpc=average_cpc,
+        clicks_per_week=clicks_per_week,
+        weekly_spend_limit=weekly_spend_limit,
+        bid_ceiling=bid_ceiling,
+        profitability=profitability,
+        custom_period_flags=custom_period_flags,
+        custom_period_spend_limit=custom_period_spend_limit,
+        custom_period_start_date=custom_period_start_date,
+        custom_period_end_date=custom_period_end_date,
+        custom_period_auto_continue=custom_period_auto_continue,
+        exploration_provided=exploration_provided,
+        exploration_budget=exploration_budget,
+        exploration_budget_custom=exploration_budget_custom,
+        budget_type=budget_type,
+    )
 
 
 # Dispatch registry for bidding-strategy builders. Keyed on
@@ -2911,6 +2943,117 @@ SMART_CAMPAIGN_SEARCH_FIELD_SUPPORT: Dict[str, set] = {
 }
 
 
+def _assemble_smart_strategy_block(
+    *,
+    container: dict,
+    subtype: str,
+    flag_prefix: str,
+    is_update: bool,
+    limit_percent: Optional[int],
+    average_cpc: Optional[int],
+    filter_average_cpc: Optional[int],
+    average_cpa: Optional[int],
+    filter_average_cpa: Optional[int],
+    cpa: Optional[int],
+    goal_id: Optional[int],
+    weekly_spend_limit: Optional[int],
+    bid_ceiling: Optional[int],
+    reserve_return: Optional[int],
+    roi_coef: Optional[int],
+    profitability: Optional[int],
+    crr: Optional[int],
+    custom_period_flags: bool,
+    custom_period_spend_limit: Optional[int],
+    custom_period_start_date: Optional[str],
+    custom_period_end_date: Optional[str],
+    custom_period_auto_continue: Optional[str],
+    exploration_flags: bool,
+    exploration_min_budget: Optional[int],
+    exploration_min_budget_custom: Optional[str],
+    budget_type: Optional[str],
+) -> dict:
+    """Assemble the flat SmartCampaign Strategy*Add block and graft it onto
+    ``container``. Byte-for-byte identical between the smart search and network
+    builders modulo the ``flag_prefix`` used in the update-only BudgetType
+    error messages and the network-only ``limit_percent`` (search passes
+    ``None``).
+    """
+    block: dict = {}
+    if limit_percent is not None:
+        block["LimitPercent"] = limit_percent
+    if average_cpc is not None:
+        block["AverageCpc"] = average_cpc
+    if filter_average_cpc is not None:
+        block["FilterAverageCpc"] = filter_average_cpc
+    if average_cpa is not None:
+        block["AverageCpa"] = average_cpa
+    if filter_average_cpa is not None:
+        block["FilterAverageCpa"] = filter_average_cpa
+    if cpa is not None:
+        block["Cpa"] = cpa
+    if goal_id is not None:
+        block["GoalId"] = goal_id
+    if weekly_spend_limit is not None:
+        block["WeeklySpendLimit"] = weekly_spend_limit
+    if bid_ceiling is not None:
+        block["BidCeiling"] = bid_ceiling
+    if reserve_return is not None:
+        block["ReserveReturn"] = reserve_return
+    if roi_coef is not None:
+        block["RoiCoef"] = roi_coef
+    if profitability is not None:
+        block["Profitability"] = profitability
+    if crr is not None:
+        block["Crr"] = crr
+    if custom_period_flags:
+        assert custom_period_spend_limit is not None
+        assert custom_period_start_date is not None
+        assert custom_period_end_date is not None
+        assert custom_period_auto_continue is not None
+        block["CustomPeriodBudget"] = {
+            "SpendLimit": custom_period_spend_limit,
+            "StartDate": custom_period_start_date,
+            "EndDate": custom_period_end_date,
+            "AutoContinue": custom_period_auto_continue.upper(),
+        }
+    if exploration_flags:
+        assert exploration_min_budget is not None
+        assert exploration_min_budget_custom is not None
+        block["ExplorationBudget"] = {
+            "MinimumExplorationBudget": exploration_min_budget,
+            "IsMinimumExplorationBudgetCustom": (exploration_min_budget_custom.upper()),
+        }
+    # BudgetType is only on the get-side Strategy* WSDL types
+    # (campaigns.xml 858-929), which SmartCampaignUpdateItem uses. The
+    # Strategy*Add types used by add do NOT declare BudgetType, so this
+    # flag is update-only.
+    if budget_type is not None:
+        if not is_update:
+            raise click.UsageError(
+                f"{flag_prefix}budget-type is update-only "
+                "(WSDL BudgetType lives only on get-side Strategy*)"
+            )
+        normalized_budget_type = budget_type.upper()
+        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET" and not custom_period_flags:
+            raise click.UsageError(
+                f"{flag_prefix}budget-type CUSTOM_PERIOD_BUDGET requires "
+                "full CustomPeriodBudget flags"
+            )
+        if normalized_budget_type == "WEEKLY_BUDGET" and weekly_spend_limit is None:
+            raise click.UsageError(
+                f"{flag_prefix}budget-type WEEKLY_BUDGET requires "
+                f"{flag_prefix}weekly-spend-limit"
+            )
+        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET":
+            block["WeeklySpendLimit"] = None
+        elif normalized_budget_type == "WEEKLY_BUDGET":
+            block["CustomPeriodBudget"] = None
+        block["BudgetType"] = normalized_budget_type
+    if block:
+        container[subtype] = block
+    return container
+
+
 def build_smart_campaign_search_strategy(
     search_strategy: Optional[str],
     average_cpc: Optional[int],
@@ -3107,78 +3250,34 @@ def build_smart_campaign_search_strategy(
         ):
             raise click.UsageError(f"{normalized_strategy} does not accept {flag}")
 
-    block: dict = {}
-    if average_cpc is not None:
-        block["AverageCpc"] = average_cpc
-    if filter_average_cpc is not None:
-        block["FilterAverageCpc"] = filter_average_cpc
-    if average_cpa is not None:
-        block["AverageCpa"] = average_cpa
-    if filter_average_cpa is not None:
-        block["FilterAverageCpa"] = filter_average_cpa
-    if cpa is not None:
-        block["Cpa"] = cpa
-    if goal_id is not None:
-        block["GoalId"] = goal_id
-    if weekly_spend_limit is not None:
-        block["WeeklySpendLimit"] = weekly_spend_limit
-    if bid_ceiling is not None:
-        block["BidCeiling"] = bid_ceiling
-    if reserve_return is not None:
-        block["ReserveReturn"] = reserve_return
-    if roi_coef is not None:
-        block["RoiCoef"] = roi_coef
-    if profitability is not None:
-        block["Profitability"] = profitability
-    if crr is not None:
-        block["Crr"] = crr
-    if custom_period_flags:
-        assert custom_period_spend_limit is not None
-        assert custom_period_start_date is not None
-        assert custom_period_end_date is not None
-        assert custom_period_auto_continue is not None
-        block["CustomPeriodBudget"] = {
-            "SpendLimit": custom_period_spend_limit,
-            "StartDate": custom_period_start_date,
-            "EndDate": custom_period_end_date,
-            "AutoContinue": custom_period_auto_continue.upper(),
-        }
-    if exploration_flags:
-        assert exploration_min_budget is not None
-        assert exploration_min_budget_custom is not None
-        block["ExplorationBudget"] = {
-            "MinimumExplorationBudget": exploration_min_budget,
-            "IsMinimumExplorationBudgetCustom": (exploration_min_budget_custom.upper()),
-        }
-    # BudgetType is only on the get-side Strategy* WSDL types
-    # (campaigns.xml 858-929), which SmartCampaignUpdateItem uses. The
-    # Strategy*Add types used by add do NOT declare BudgetType, so this
-    # flag is update-only.
-    if budget_type is not None:
-        if not is_update:
-            raise click.UsageError(
-                "--smart-search-budget-type is update-only "
-                "(WSDL BudgetType lives only on get-side Strategy*)"
-            )
-        normalized_budget_type = budget_type.upper()
-        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET" and not custom_period_flags:
-            raise click.UsageError(
-                "--smart-search-budget-type CUSTOM_PERIOD_BUDGET requires "
-                "full CustomPeriodBudget flags"
-            )
-        if normalized_budget_type == "WEEKLY_BUDGET" and weekly_spend_limit is None:
-            raise click.UsageError(
-                "--smart-search-budget-type WEEKLY_BUDGET requires "
-                "--smart-search-weekly-spend-limit"
-            )
-        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET":
-            block["WeeklySpendLimit"] = None
-        elif normalized_budget_type == "WEEKLY_BUDGET":
-            block["CustomPeriodBudget"] = None
-        block["BudgetType"] = normalized_budget_type
-    if block:
-        search[subtype] = block
-    return search
+    return _assemble_smart_strategy_block(
+        container=search,
+        subtype=subtype,
+        flag_prefix="--smart-search-",
+        is_update=is_update,
+        limit_percent=None,
+        average_cpc=average_cpc,
+        filter_average_cpc=filter_average_cpc,
+        average_cpa=average_cpa,
+        filter_average_cpa=filter_average_cpa,
+        cpa=cpa,
+        goal_id=goal_id,
+        weekly_spend_limit=weekly_spend_limit,
+        bid_ceiling=bid_ceiling,
+        reserve_return=reserve_return,
+        roi_coef=roi_coef,
+        profitability=profitability,
+        crr=crr,
+        custom_period_flags=custom_period_flags,
+        custom_period_spend_limit=custom_period_spend_limit,
+        custom_period_start_date=custom_period_start_date,
+        custom_period_end_date=custom_period_end_date,
+        custom_period_auto_continue=custom_period_auto_continue,
+        exploration_flags=exploration_flags,
+        exploration_min_budget=exploration_min_budget,
+        exploration_min_budget_custom=exploration_min_budget_custom,
+        budget_type=budget_type,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -4091,80 +4190,34 @@ def build_smart_campaign_network_strategy(
         ):
             raise click.UsageError(f"{normalized_strategy} does not accept {flag}")
 
-    block: dict = {}
-    if limit_percent is not None:
-        block["LimitPercent"] = limit_percent
-    if average_cpc is not None:
-        block["AverageCpc"] = average_cpc
-    if filter_average_cpc is not None:
-        block["FilterAverageCpc"] = filter_average_cpc
-    if average_cpa is not None:
-        block["AverageCpa"] = average_cpa
-    if filter_average_cpa is not None:
-        block["FilterAverageCpa"] = filter_average_cpa
-    if cpa is not None:
-        block["Cpa"] = cpa
-    if goal_id is not None:
-        block["GoalId"] = goal_id
-    if weekly_spend_limit is not None:
-        block["WeeklySpendLimit"] = weekly_spend_limit
-    if bid_ceiling is not None:
-        block["BidCeiling"] = bid_ceiling
-    if reserve_return is not None:
-        block["ReserveReturn"] = reserve_return
-    if roi_coef is not None:
-        block["RoiCoef"] = roi_coef
-    if profitability is not None:
-        block["Profitability"] = profitability
-    if crr is not None:
-        block["Crr"] = crr
-    if custom_period_flags:
-        assert custom_period_spend_limit is not None
-        assert custom_period_start_date is not None
-        assert custom_period_end_date is not None
-        assert custom_period_auto_continue is not None
-        block["CustomPeriodBudget"] = {
-            "SpendLimit": custom_period_spend_limit,
-            "StartDate": custom_period_start_date,
-            "EndDate": custom_period_end_date,
-            "AutoContinue": custom_period_auto_continue.upper(),
-        }
-    if exploration_flags:
-        assert exploration_min_budget is not None
-        assert exploration_min_budget_custom is not None
-        block["ExplorationBudget"] = {
-            "MinimumExplorationBudget": exploration_min_budget,
-            "IsMinimumExplorationBudgetCustom": (exploration_min_budget_custom.upper()),
-        }
-    # BudgetType is only on the get-side Strategy* WSDL types
-    # (campaigns.xml 858-929), which SmartCampaignUpdateItem uses. The
-    # Strategy*Add types used by add do NOT declare BudgetType, so this
-    # flag is update-only (mirrors --smart-search-budget-type, #367).
-    if budget_type is not None:
-        if not is_update:
-            raise click.UsageError(
-                "--smart-network-budget-type is update-only "
-                "(WSDL BudgetType lives only on get-side Strategy*)"
-            )
-        normalized_budget_type = budget_type.upper()
-        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET" and not custom_period_flags:
-            raise click.UsageError(
-                "--smart-network-budget-type CUSTOM_PERIOD_BUDGET requires "
-                "full CustomPeriodBudget flags"
-            )
-        if normalized_budget_type == "WEEKLY_BUDGET" and weekly_spend_limit is None:
-            raise click.UsageError(
-                "--smart-network-budget-type WEEKLY_BUDGET requires "
-                "--smart-network-weekly-spend-limit"
-            )
-        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET":
-            block["WeeklySpendLimit"] = None
-        elif normalized_budget_type == "WEEKLY_BUDGET":
-            block["CustomPeriodBudget"] = None
-        block["BudgetType"] = normalized_budget_type
-    if block:
-        network[subtype] = block
-    return network
+    return _assemble_smart_strategy_block(
+        container=network,
+        subtype=subtype,
+        flag_prefix="--smart-network-",
+        is_update=is_update,
+        limit_percent=limit_percent,
+        average_cpc=average_cpc,
+        filter_average_cpc=filter_average_cpc,
+        average_cpa=average_cpa,
+        filter_average_cpa=filter_average_cpa,
+        cpa=cpa,
+        goal_id=goal_id,
+        weekly_spend_limit=weekly_spend_limit,
+        bid_ceiling=bid_ceiling,
+        reserve_return=reserve_return,
+        roi_coef=roi_coef,
+        profitability=profitability,
+        crr=crr,
+        custom_period_flags=custom_period_flags,
+        custom_period_spend_limit=custom_period_spend_limit,
+        custom_period_start_date=custom_period_start_date,
+        custom_period_end_date=custom_period_end_date,
+        custom_period_auto_continue=custom_period_auto_continue,
+        exploration_flags=exploration_flags,
+        exploration_min_budget=exploration_min_budget,
+        exploration_min_budget_custom=exploration_min_budget_custom,
+        budget_type=budget_type,
+    )
 
 
 register_bidding_strategy_builder(
