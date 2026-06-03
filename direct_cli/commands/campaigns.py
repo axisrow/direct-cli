@@ -535,6 +535,41 @@ def _priority_goals_update_items(
     return [dict(item, Operation="SET") for item in priority_goals_items]
 
 
+def _route_cpa_flag(
+    value,
+    search_subtype,
+    network_subtype,
+    search_support: set,
+    network_support: set,
+    default: str,
+):
+    """Route a shared CPA flag to the Search/Network sides of a campaign's
+    bidding strategy, based on which side's chosen subtype declares the WSDL
+    field. Returns ``(search_value, network_value)``.
+
+    ``default`` is the fallback side ("search" or "network") used when neither
+    side's subtype accepts the field — it preserves the canonical error path
+    (e.g. ``--average-cpa`` with ``HIGHEST_POSITION`` still surfaces the
+    "CPA-shaped strategy required" error from the chosen side's builder).
+
+    Shared verbatim by the TextCampaign and UnifiedCampaign add-payload
+    routing (#361/#364/#366); previously an identical inline closure in each.
+    """
+    if value is None:
+        return (None, None)
+    s_ok = search_subtype in search_support
+    n_ok = network_subtype in network_support
+    if s_ok and n_ok:
+        return (value, value)
+    if s_ok:
+        return (value, None)
+    if n_ok:
+        return (None, value)
+    if default == "network":
+        return (None, value)
+    return (value, None)
+
+
 @campaigns.command()
 @click.option("--ids", help="Comma-separated campaign IDs")
 @click.option("--status", help="Filter by status (ACTIVE, SUSPENDED, etc.)")
@@ -3231,27 +3266,17 @@ def add(
             )
 
             def _route(value, search_support: set, network_support: set, default: str):
-                """Route a shared CPA flag to Search/Network/both.
-
-                ``default`` is the fallback side ("search" or "network")
-                used when neither side's subtype accepts the field — it
-                preserves the canonical error path so a user passing
-                --average-cpa with HIGHEST_POSITION still sees the
-                expected "CPA-shaped" error from the Search builder.
-                """
-                if value is None:
-                    return (None, None)
-                s_ok = _search_subtype_for_routing in search_support
-                n_ok = _network_subtype_for_routing in network_support
-                if s_ok and n_ok:
-                    return (value, value)
-                if s_ok:
-                    return (value, None)
-                if n_ok:
-                    return (None, value)
-                if default == "network":
-                    return (None, value)
-                return (value, None)
+                """Route a shared CPA flag for TextCampaign add (thin wrapper
+                over the module-level ``_route_cpa_flag``, binding this block's
+                Search/Network routing subtypes)."""
+                return _route_cpa_flag(
+                    value,
+                    _search_subtype_for_routing,
+                    _network_subtype_for_routing,
+                    search_support,
+                    network_support,
+                    default,
+                )
 
             _search_goal_id, _network_goal_id = _route(
                 goal_id,
@@ -3447,21 +3472,16 @@ def add(
             def _u_route(
                 value, search_support: set, network_support: set, default: str
             ):
-                """Route a shared CPA flag to Search/Network/both for
-                UnifiedCampaign add. Mirrors TextCampaign ``_route``."""
-                if value is None:
-                    return (None, None)
-                s_ok = _u_search_subtype_for_routing in search_support
-                n_ok = _u_network_subtype_for_routing in network_support
-                if s_ok and n_ok:
-                    return (value, value)
-                if s_ok:
-                    return (value, None)
-                if n_ok:
-                    return (None, value)
-                if default == "network":
-                    return (None, value)
-                return (value, None)
+                """Route a shared CPA flag for UnifiedCampaign add (thin wrapper
+                over the module-level ``_route_cpa_flag``)."""
+                return _route_cpa_flag(
+                    value,
+                    _u_search_subtype_for_routing,
+                    _u_network_subtype_for_routing,
+                    search_support,
+                    network_support,
+                    default,
+                )
 
             # Default-side routing for unrecognized flag/strategy
             # combinations: prefer the side whose strategy was
