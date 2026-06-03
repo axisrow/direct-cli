@@ -11,6 +11,14 @@ The legacy-mix guard models an **intentional** asymmetry explicitly via
 legacy (it has no ``--autotargeting-brand-option`` flag at all), while
 ``keywords`` treats both ``--autotargeting-category`` and
 ``--autotargeting-brand-option`` as legacy.
+
+Token normalization is unified on :func:`normalize_enum_token` for both
+categories and brand options. For categories this is behavior-preserving (the
+constants are single words with no ``_``, so ``-``->``_`` only ever touches
+already-invalid tokens). For brand options it is a deliberate *loosening*: the
+constants contain underscores (``WITHOUT_BRANDS``), so the hyphenated spelling
+(``WITHOUT-BRANDS``) — rejected by the old flat ``.strip().upper()`` — is now
+accepted, making every autotargeting enum normalize identically.
 """
 
 from typing import Dict, List, Optional, Sequence, Tuple

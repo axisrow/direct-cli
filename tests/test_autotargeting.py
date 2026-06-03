@@ -81,6 +81,15 @@ def test_parse_autotargeting_brand_options_valid():
     assert result == [{"Option": "WITHOUT_BRANDS", "Value": "YES"}]
 
 
+def test_parse_autotargeting_brand_options_normalizes_hyphen_to_underscore():
+    # Brand-option constants contain underscores (WITHOUT_BRANDS), so unifying
+    # on normalize_enum_token intentionally accepts the hyphenated spelling that
+    # the old flat .strip().upper() rejected. Lock the loosening in as deliberate
+    # (the symmetric category case stays rejected: EX-ACT has no underscore form).
+    result = parse_autotargeting_brand_options(("WITHOUT-BRANDS=YES",))
+    assert result == [{"Option": "WITHOUT_BRANDS", "Value": "YES"}]
+
+
 def test_parse_autotargeting_brand_options_rejects_unknown_option():
     with pytest.raises(UsageError):
         parse_autotargeting_brand_options(("UNKNOWN=YES",))
