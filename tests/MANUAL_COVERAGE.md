@@ -46,7 +46,8 @@ account requirements, or external dependencies.
 ## Campaign-Type Restrictions (Category B)
 
 Some campaign types are only available on agency or pilot accounts.
-Live tests skip gracefully when the API returns error 3500.
+Live tests skip gracefully when the API returns error 3500. The full
+lifecycle on such an account is **not yet recorded** — tracked in issue #538.
 
 - **DYNAMIC_TEXT_CAMPAIGN** — `dynamicads` add/update/delete/suspend/resume
   require an account where DYNAMIC_TEXT_CAMPAIGN is enabled. Standard
@@ -56,15 +57,18 @@ Live tests skip gracefully when the API returns error 3500.
 
 ## Audience Target Restrictions (Category A)
 
-- **audiencetargets add/suspend/resume** — requires an adgroup that is
-  visible in the `audiencetargets` context. On some accounts, adgroups
-  created in draft campaigns return 8800 (Object not found). Live tests
-  skip gracefully on 8800.
+- **audiencetargets add/delete and suspend/resume** — need a `RETARGETING`
+  list, which references a Metrica goal id. The tests resolve a real goal via
+  `YANDEX_DIRECT_TEST_RETARGETING_GOAL_ID` (see Phase 6 below) and record the
+  full lifecycle; with no real goal the synthetic `12345` fallback makes the
+  API return 8800 (Object not found) and the test skips gracefully.
 
 ## Ad Image Restrictions (Category A)
 
 - **adimages add** — some accounts reject PNG uploads with error 5004
-  (Invalid image file type). Live tests skip gracefully on 5004.
+  (Invalid image file type). Live tests skip gracefully on 5004. The full
+  lifecycle on an image-upload-enabled account is **not yet recorded** —
+  tracked in issue #538.
 
 ## External Dependencies
 
@@ -87,10 +91,15 @@ captured while recording the cassettes — re-recording must honour them:
 - **retargeting add/update/delete** — a `RETARGETING` rule argument needs a
   Metrica goal id **_and_ a MembershipLifeSpan** (`--rule ALL:<goal>:<days>`);
   a bare `ALL:<goal>` is rejected with error 5000 ("Not specified time for goal
-  or segment"). The test uses a **synthetic placeholder goal** (`ALL:12345:30`,
-  the same convention as the audiencetargets smoke tests) — no real account goal
-  id is ever hardcoded — so the live API returns 8800 ("Object not found") and
-  the test skips. Records the request shape, not a passing lifecycle.
+  or segment"). The goal id is resolved by `_retargeting_goal()` from
+  `YANDEX_DIRECT_TEST_RETARGETING_GOAL_ID` (a real account goal — discover one
+  with `python3 -m direct_cli._smoke_probes retargeting-goal`). With the env var
+  set, the full lifecycle records; with it unset, the synthetic `12345` fallback
+  makes the live API return 8800 ("Object not found") and the test skips.
+  **A real goal id is never committed:** the `tests/conftest.py` VCR filter
+  (`_mask_retargeting_goal`) rewrites it to `12345` in both request and response
+  bodies before the cassette is written, so recorded cassettes always show
+  `12345`. The repository is public — never hardcode a real account goal id.
 - **strategies add/update/archive/unarchive** — a shared strategy must be made
   public, which requires a shared-account wallet; accounts without one are
   rejected with error 6000 and the test skips. **The Yandex Direct API has no

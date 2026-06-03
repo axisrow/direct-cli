@@ -16,6 +16,7 @@ before committing.
 """
 
 import json
+import os
 import re
 
 import pytest
@@ -73,8 +74,6 @@ def _resolve_test_credentials():
     the profile-driven resolution only when env vars are absent.
     Returns (None, None) when no credentials are available.
     """
-    import os
-
     env_token = os.environ.get("YANDEX_DIRECT_TOKEN")
     env_login = os.environ.get("YANDEX_DIRECT_LOGIN")
     if env_token:
@@ -113,6 +112,30 @@ skip_if_no_token = pytest.mark.skipif(
 
 
 _REDACTED = "REDACTED"
+
+# A retargeting rule references a Metrica goal by its numeric id
+# (``"ExternalId":<goal>`` in the request body, echoed back in the response).
+# When recording the live-write lifecycle we feed a *real* account goal id via
+# ``YANDEX_DIRECT_TEST_RETARGETING_GOAL_ID``, but the repository is public, so
+# that real id must never land in a committed cassette. The VCR filter swaps it
+# for the synthetic placeholder ``12345`` (the same value the tests fall back to
+# when no real goal is available) in both request and response bodies, keeping
+# the recorded interaction self-consistent for body-based matching.
+_SYNTHETIC_GOAL = "12345"
+_REAL_RETARGETING_GOAL = os.environ.get("YANDEX_DIRECT_TEST_RETARGETING_GOAL_ID")
+
+
+def _mask_retargeting_goal(text):
+    """Replace the real retargeting goal id with the synthetic placeholder."""
+    if not _REAL_RETARGETING_GOAL or _REAL_RETARGETING_GOAL == _SYNTHETIC_GOAL:
+        return text, False
+    if isinstance(text, str) and _REAL_RETARGETING_GOAL in text:
+        return text.replace(_REAL_RETARGETING_GOAL, _SYNTHETIC_GOAL), True
+    if isinstance(text, bytes):
+        real = _REAL_RETARGETING_GOAL.encode()
+        if real in text:
+            return text.replace(real, _SYNTHETIC_GOAL.encode()), True
+    return text, False
 
 
 def _scrub_login(text: str) -> str:
@@ -194,6 +217,10 @@ def _before_record_request(request):
                 _REAL_LOGIN.encode(), _REDACTED.encode()
             )
             redacted = True
+    # A retargeting rule echoes the real Metrica goal id in the body — mask it.
+    if request.body:
+        request.body, masked_goal = _mask_retargeting_goal(request.body)
+        redacted = redacted or masked_goal
     if redacted:
         new_body = request.body
         new_len = str(
@@ -213,9 +240,12 @@ def _before_record_response(response):
         if isinstance(data, bytes):
             decoded = data.decode("utf-8", errors="replace")
             scrubbed = _scrub_pii_fields(_scrub_login(decoded))
+            scrubbed, _ = _mask_retargeting_goal(scrubbed)
             body["string"] = scrubbed.encode("utf-8")
         elif isinstance(data, str):
-            body["string"] = _scrub_pii_fields(_scrub_login(data))
+            scrubbed = _scrub_pii_fields(_scrub_login(data))
+            scrubbed, _ = _mask_retargeting_goal(scrubbed)
+            body["string"] = scrubbed
 
     headers = response.get("headers", {})
     for key in list(headers.keys()):

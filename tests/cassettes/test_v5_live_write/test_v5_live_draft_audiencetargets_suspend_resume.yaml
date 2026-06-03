@@ -1,6 +1,6 @@
 interactions:
 - request:
-    body: '{"method":"add","params":{"Campaigns":[{"Name":"direct-cli-live-draft-test-cassette-nested-at-sr","StartDate":"2030-01-15","TextCampaign":{"BiddingStrategy":{"Search":{"BiddingStrategyType":"HIGHEST_POSITION"},"Network":{"BiddingStrategyType":"SERVING_OFF"}},"Settings":[]}}]}}'
+    body: '{"method":"add","params":{"Campaigns":[{"Name":"direct-cli-live-draft-test-cassette-nested-at-sr","StartDate":"2030-01-15","TextCampaign":{"Settings":[],"BiddingStrategy":{"Search":{"BiddingStrategyType":"HIGHEST_POSITION"},"Network":{"BiddingStrategyType":"SERVING_OFF"}}}}]}}'
     headers:
       Accept:
       - '*/*'
@@ -13,7 +13,7 @@ interactions:
       Content-Type:
       - application/json
       User-Agent:
-      - python-requests/2.32.5
+      - python-requests/2.34.2
       authorization:
       - REDACTED
       client-login:
@@ -29,25 +29,25 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.ru/json/v5/campaigns
+    uri: https://api.direct.yandex.com/json/v5/campaigns
   response:
     body:
-      string: '{"result":{"AddResults":[{"Id":100000021}]}}'
+      string: '{"result":{"AddResults":[{"Id":710427331,"Errors":[]}]}}'
     headers:
       Content-Length:
-      - '44'
+      - '56'
       Content-Security-Policy:
       - default-src 'none'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Mon, 01 Jan 2024 00:00:00 GMT
+      - Wed, 03 Jun 2026 09:54:29 GMT
       RequestId:
-      - '0000000000000000000'
+      - '5982434355431718023'
       Set-Cookie:
       - REDACTED
       Units:
-      - 15/3296700/3310000
+      - 15/151332/168000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
@@ -62,7 +62,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"add","params":{"AdGroups":[{"Name":"draft-group","CampaignId":100000021,"RegionIds":[1,225]}]}}'
+    body: '{"method":"add","params":{"AdGroups":[{"Name":"draft-group","CampaignId":710427331,"RegionIds":[1,225]}]}}'
     headers:
       Accept:
       - '*/*'
@@ -75,7 +75,7 @@ interactions:
       Content-Type:
       - application/json
       User-Agent:
-      - python-requests/2.32.5
+      - python-requests/2.34.2
       authorization:
       - REDACTED
       client-login:
@@ -91,25 +91,25 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.ru/json/v5/adgroups
+    uri: https://api.direct.yandex.com/json/v5/adgroups
   response:
     body:
-      string: '{"result":{"AddResults":[{"Id":2000000009}]}}'
+      string: '{"result":{"AddResults":[{"Id":5757338144,"Errors":[]}]}}'
     headers:
       Content-Length:
-      - '45'
+      - '57'
       Content-Security-Policy:
       - default-src 'none'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Mon, 01 Jan 2024 00:00:00 GMT
+      - Wed, 03 Jun 2026 09:54:31 GMT
       RequestId:
-      - '0000000000000000000'
+      - '1189198272018542049'
       Set-Cookie:
       - REDACTED
       Units:
-      - 40/3296660/3310000
+      - 40/151292/168000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
@@ -137,7 +137,7 @@ interactions:
       Content-Type:
       - application/json
       User-Agent:
-      - python-requests/2.32.5
+      - python-requests/2.34.2
       authorization:
       - REDACTED
       client-login:
@@ -153,26 +153,25 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.ru/json/v5/retargetinglists
+    uri: https://api.direct.yandex.com/json/v5/retargetinglists
   response:
     body:
-      string: '{"result":{"AddResults":[{"Errors":[{"Code":8800,"Message":"Object
-        not found"}]}]}}'
+      string: '{"result":{"AddResults":[{"Id":40775677,"Errors":[]}]}}'
     headers:
       Content-Length:
-      - '83'
+      - '55'
       Content-Security-Policy:
       - default-src 'none'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Mon, 01 Jan 2024 00:00:00 GMT
+      - Wed, 03 Jun 2026 09:54:33 GMT
       RequestId:
-      - '0000000000000000000'
+      - '8640917838110463595'
       Set-Cookie:
       - REDACTED
       Units:
-      - 30/3296630/3310000
+      - 12/151280/168000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
@@ -187,7 +186,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[2000000009]}}}'
+    body: '{"method":"add","params":{"AudienceTargets":[{"AdGroupId":5757338144,"RetargetingListId":40775677}]}}'
     headers:
       Accept:
       - '*/*'
@@ -196,11 +195,11 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '71'
+      - '101'
       Content-Type:
       - application/json
       User-Agent:
-      - python-requests/2.32.5
+      - python-requests/2.34.2
       authorization:
       - REDACTED
       client-login:
@@ -216,25 +215,335 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.ru/json/v5/adgroups
+    uri: https://api.direct.yandex.com/json/v5/audiencetargets
   response:
     body:
-      string: '{"result":{"DeleteResults":[{"Id":2000000009}]}}'
+      string: '{"result":{"AddResults":[{"Id":104003009,"Errors":[]}]}}'
     headers:
       Content-Length:
-      - '48'
+      - '56'
       Content-Security-Policy:
       - default-src 'none'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Mon, 01 Jan 2024 00:00:00 GMT
+      - Wed, 03 Jun 2026 09:54:34 GMT
       RequestId:
-      - '0000000000000000000'
+      - '2328095439556623049'
       Set-Cookie:
       - REDACTED
       Units:
-      - 10/3296620/3310000
+      - 12/151268/168000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.api5/audiencetargets.add,appcode:0
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"suspend","params":{"SelectionCriteria":{"Ids":[104003009]}}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '71'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.34.2
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api.direct.yandex.com/json/v5/audiencetargets
+  response:
+    body:
+      string: '{"result":{"SuspendResults":[{"Id":104003009,"Errors":[]}]}}'
+    headers:
+      Content-Length:
+      - '60'
+      Content-Security-Policy:
+      - default-src 'none'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Wed, 03 Jun 2026 09:54:36 GMT
+      RequestId:
+      - '1581538714031276007'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 12/151256/168000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.api5/audiencetargets.suspend,appcode:0
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"resume","params":{"SelectionCriteria":{"Ids":[104003009]}}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '70'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.34.2
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api.direct.yandex.com/json/v5/audiencetargets
+  response:
+    body:
+      string: '{"result":{"ResumeResults":[{"Id":104003009,"Errors":[]}]}}'
+    headers:
+      Content-Length:
+      - '59'
+      Content-Security-Policy:
+      - default-src 'none'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Wed, 03 Jun 2026 09:54:39 GMT
+      RequestId:
+      - '8398756106923847429'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 12/151244/168000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.api5/audiencetargets.resume,appcode:0
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[104003009]}}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '70'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.34.2
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api.direct.yandex.com/json/v5/audiencetargets
+  response:
+    body:
+      string: '{"result":{"DeleteResults":[{"Id":104003009,"Errors":[]}]}}'
+    headers:
+      Content-Length:
+      - '59'
+      Content-Security-Policy:
+      - default-src 'none'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Wed, 03 Jun 2026 09:54:41 GMT
+      RequestId:
+      - '397095542203713088'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 12/151232/168000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.api5/audiencetargets.delete,appcode:0
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[40775677]}}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '69'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.34.2
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api.direct.yandex.com/json/v5/retargetinglists
+  response:
+    body:
+      string: '{"result":{"DeleteResults":[{"Id":40775677,"Errors":[]}]}}'
+    headers:
+      Content-Length:
+      - '58'
+      Content-Security-Policy:
+      - default-src 'none'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Wed, 03 Jun 2026 09:54:42 GMT
+      RequestId:
+      - '4369813970668635916'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 12/151220/168000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.api5/retargetinglists.delete,appcode:0
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[5757338144]}}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '71'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.34.2
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api.direct.yandex.com/json/v5/adgroups
+  response:
+    body:
+      string: '{"result":{"DeleteResults":[{"Id":5757338144,"Errors":[]}]}}'
+    headers:
+      Content-Length:
+      - '60'
+      Content-Security-Policy:
+      - default-src 'none'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Wed, 03 Jun 2026 09:54:45 GMT
+      RequestId:
+      - '1653928139075463382'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 10/151210/168000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
@@ -249,7 +558,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[100000021]}}}'
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[710427331]}}}'
     headers:
       Accept:
       - '*/*'
@@ -262,7 +571,7 @@ interactions:
       Content-Type:
       - application/json
       User-Agent:
-      - python-requests/2.32.5
+      - python-requests/2.34.2
       authorization:
       - REDACTED
       client-login:
@@ -278,25 +587,25 @@ interactions:
       skipReportSummary:
       - 'true'
     method: POST
-    uri: https://api.direct.yandex.ru/json/v5/campaigns
+    uri: https://api.direct.yandex.com/json/v5/campaigns
   response:
     body:
-      string: '{"result":{"DeleteResults":[{"Id":100000021}]}}'
+      string: '{"result":{"DeleteResults":[{"Id":710427331,"Errors":[]}]}}'
     headers:
       Content-Length:
-      - '47'
+      - '59'
       Content-Security-Policy:
       - default-src 'none'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Mon, 01 Jan 2024 00:00:00 GMT
+      - Wed, 03 Jun 2026 09:54:46 GMT
       RequestId:
-      - '0000000000000000000'
+      - '6346912969025210242'
       Set-Cookie:
       - REDACTED
       Units:
-      - 12/3296608/3310000
+      - 12/151198/168000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
