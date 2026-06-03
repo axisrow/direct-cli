@@ -24,6 +24,14 @@ from ..utils import (
     parse_csv_strings,
     parse_ids,
 )
+from .._autotargeting import (
+    AUTOTARGETING_BRAND_OPTIONS,
+    AUTOTARGETING_CATEGORIES,
+    build_autotargeting_settings,
+    parse_autotargeting_brand_options,
+    parse_autotargeting_categories,
+    reject_legacy_autotargeting_mix,
+)
 
 # Yandex Direct API "keywords.add" caps a single AddItems request at 10
 # items; the WSDL declares maxOccurs="unbounded", so this limit comes from
@@ -36,18 +44,6 @@ KEYWORDS_ADD_MAX_BATCH = 10
 # items with per-item errors, which the batch already surfaces. The warning
 # below just tells the operator before any chunk is sent.
 KEYWORDS_PER_ADGROUP_LIMIT = 200
-
-AUTOTARGETING_CATEGORIES = (
-    "EXACT",
-    "ALTERNATIVE",
-    "COMPETITOR",
-    "BROADER",
-    "ACCESSORY",
-)
-AUTOTARGETING_BRAND_OPTIONS = (
-    "WITHOUT_BRANDS",
-    "WITH_ADVERTISER_BRAND",
-)
 
 AUTOTARGETING_CATEGORY_HELP = (
     "AutotargetingCategories item as CATEGORY=YES|NO. Categories: "
@@ -255,146 +251,6 @@ def _normalize_add_results(raw: Any) -> List[Any]:
     if isinstance(raw, list):
         return raw
     return [raw]
-
-
-def _parse_autotargeting_categories(
-    raw_values: tuple[str, ...],
-) -> Optional[List[Dict[str, str]]]:
-    if not raw_values:
-        return None
-
-    items: List[Dict[str, str]] = []
-    allowed_categories = ", ".join(AUTOTARGETING_CATEGORIES)
-    for raw_value in raw_values:
-        category_raw, separator, value_raw = raw_value.strip().partition("=")
-        if not separator:
-            raise click.UsageError(
-                t(
-                    "--autotargeting-category expects CATEGORY=YES|NO "
-                    "(for example EXACT=YES)"
-                )
-            )
-
-        category = category_raw.strip().upper()
-        value = value_raw.strip().upper()
-        if category not in AUTOTARGETING_CATEGORIES:
-            raise click.UsageError(
-                t(
-                    "Invalid --autotargeting-category category {category_raw!r}; allowed: {allowed_categories}"
-                ).format(
-                    category_raw=category_raw, allowed_categories=allowed_categories
-                )
-            )
-        if value not in {"YES", "NO"}:
-            raise click.UsageError(
-                t(
-                    "Invalid --autotargeting-category value {value_raw!r}; expected YES or NO"
-                ).format(value_raw=value_raw)
-            )
-
-        items.append({"Category": category, "Value": value})
-
-    return items
-
-
-def _parse_autotargeting_brand_options(
-    raw_values: tuple[str, ...],
-) -> Optional[List[Dict[str, str]]]:
-    if not raw_values:
-        return None
-
-    items: List[Dict[str, str]] = []
-    allowed_options = ", ".join(AUTOTARGETING_BRAND_OPTIONS)
-    for raw_value in raw_values:
-        option_raw, separator, value_raw = raw_value.strip().partition("=")
-        if not separator:
-            raise click.UsageError(
-                t(
-                    "--autotargeting-brand-option expects OPTION=YES|NO "
-                    "(for example WITHOUT_BRANDS=YES)"
-                )
-            )
-
-        option = option_raw.strip().upper()
-        value = value_raw.strip().upper()
-        if option not in AUTOTARGETING_BRAND_OPTIONS:
-            raise click.UsageError(
-                t(
-                    "Invalid --autotargeting-brand-option option {option_raw!r}; allowed: {allowed_options}"
-                ).format(option_raw=option_raw, allowed_options=allowed_options)
-            )
-        if value not in {"YES", "NO"}:
-            raise click.UsageError(
-                t(
-                    "Invalid --autotargeting-brand-option value {value_raw!r}; expected YES or NO"
-                ).format(value_raw=value_raw)
-            )
-
-        items.append({"Option": option, "Value": value})
-
-    return items
-
-
-def _build_autotargeting_settings(
-    *,
-    exact: Optional[str],
-    narrow: Optional[str],
-    alternative: Optional[str],
-    accessory: Optional[str],
-    broader: Optional[str],
-    without_brands: Optional[str],
-    with_advertiser_brand: Optional[str],
-    with_competitors_brand: Optional[str],
-) -> Optional[Dict[str, Dict[str, str]]]:
-    categories: Dict[str, str] = {}
-    for field_name, value in (
-        ("Exact", exact),
-        ("Narrow", narrow),
-        ("Alternative", alternative),
-        ("Accessory", accessory),
-        ("Broader", broader),
-    ):
-        if value is not None:
-            categories[field_name] = value.upper()
-
-    brand_options: Dict[str, str] = {}
-    for field_name, value in (
-        ("WithoutBrands", without_brands),
-        ("WithAdvertiserBrand", with_advertiser_brand),
-        ("WithCompetitorsBrand", with_competitors_brand),
-    ):
-        if value is not None:
-            brand_options[field_name] = value.upper()
-
-    settings: Dict[str, Dict[str, str]] = {}
-    if categories:
-        settings["Categories"] = categories
-    if brand_options:
-        settings["BrandOptions"] = brand_options
-
-    return settings or None
-
-
-def _reject_legacy_autotargeting_mix(
-    *,
-    settings: Optional[Dict[str, Dict[str, str]]],
-    categories: tuple[str, ...],
-    brand_options: tuple[str, ...],
-) -> None:
-    if settings is None:
-        return
-
-    legacy_flags = []
-    if categories:
-        legacy_flags.append("--autotargeting-category")
-    if brand_options:
-        legacy_flags.append("--autotargeting-brand-option")
-    if legacy_flags:
-        raise click.UsageError(
-            t(
-                "AutotargetingSettings flags cannot be combined with legacy {arg0} flags."
-            ).format(arg0=", ".join(legacy_flags))
-        )
 
 
 @click.group()
@@ -716,13 +572,13 @@ def add(
     if adgroup_id is None:
         raise click.UsageError(t("Missing option '--adgroup-id'."))
 
-    parsed_autotargeting_categories = _parse_autotargeting_categories(
+    parsed_autotargeting_categories = parse_autotargeting_categories(
         autotargeting_categories
     )
-    parsed_autotargeting_brand_options = _parse_autotargeting_brand_options(
+    parsed_autotargeting_brand_options = parse_autotargeting_brand_options(
         autotargeting_brand_options
     )
-    autotargeting_settings = _build_autotargeting_settings(
+    autotargeting_settings = build_autotargeting_settings(
         exact=autotargeting_settings_exact,
         narrow=autotargeting_settings_narrow,
         alternative=autotargeting_settings_alternative,
@@ -732,10 +588,12 @@ def add(
         with_advertiser_brand=autotargeting_settings_with_advertiser_brand,
         with_competitors_brand=autotargeting_settings_with_competitors_brand,
     )
-    _reject_legacy_autotargeting_mix(
-        settings=autotargeting_settings,
-        categories=autotargeting_categories,
-        brand_options=autotargeting_brand_options,
+    reject_legacy_autotargeting_mix(
+        autotargeting_settings,
+        legacy_candidates=[
+            ("--autotargeting-category", bool(autotargeting_categories)),
+            ("--autotargeting-brand-option", bool(autotargeting_brand_options)),
+        ],
     )
 
     keyword_data: Dict[str, Any] = {
@@ -977,13 +835,13 @@ def update(
 ):
     """Update keyword text, user params, or autotargeting options."""
     keyword_data = {"Id": keyword_id}
-    parsed_autotargeting_categories = _parse_autotargeting_categories(
+    parsed_autotargeting_categories = parse_autotargeting_categories(
         autotargeting_categories
     )
-    parsed_autotargeting_brand_options = _parse_autotargeting_brand_options(
+    parsed_autotargeting_brand_options = parse_autotargeting_brand_options(
         autotargeting_brand_options
     )
-    autotargeting_settings = _build_autotargeting_settings(
+    autotargeting_settings = build_autotargeting_settings(
         exact=autotargeting_settings_exact,
         narrow=autotargeting_settings_narrow,
         alternative=autotargeting_settings_alternative,
@@ -993,10 +851,12 @@ def update(
         with_advertiser_brand=autotargeting_settings_with_advertiser_brand,
         with_competitors_brand=autotargeting_settings_with_competitors_brand,
     )
-    _reject_legacy_autotargeting_mix(
-        settings=autotargeting_settings,
-        categories=autotargeting_categories,
-        brand_options=autotargeting_brand_options,
+    reject_legacy_autotargeting_mix(
+        autotargeting_settings,
+        legacy_candidates=[
+            ("--autotargeting-category", bool(autotargeting_categories)),
+            ("--autotargeting-brand-option", bool(autotargeting_brand_options)),
+        ],
     )
 
     if keyword:

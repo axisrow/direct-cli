@@ -15,6 +15,13 @@ from ..utils import (
     parse_csv_strings,
     parse_ids,
 )
+from .._autotargeting import (
+    AUTOTARGETING_CATEGORIES,
+    build_autotargeting_settings,
+    normalize_enum_token,
+    parse_autotargeting_categories,
+    reject_legacy_autotargeting_mix,
+)
 
 _TRACKING_PARAMS_MAX_LENGTH = 1024
 _SUPPORTED_ADGROUP_TYPES = (
@@ -34,17 +41,10 @@ _NEGATIVE_KEYWORDS_UNSUPPORTED_ADGROUP_TYPES = {
 }
 _TARGET_DEVICE_TYPES = ("DEVICE_TYPE_MOBILE", "DEVICE_TYPE_TABLET")
 _TARGET_CARRIERS = ("WI_FI_ONLY", "WI_FI_AND_CELLULAR")
-_AUTOTARGETING_CATEGORIES = (
-    "EXACT",
-    "ALTERNATIVE",
-    "COMPETITOR",
-    "BROADER",
-    "ACCESSORY",
-)
 _YES_NO_VALUES = ("YES", "NO")
 _AUTOTARGETING_CATEGORY_HELP = (
     "DynamicTextAdGroup/DynamicTextFeedAdGroup.AutotargetingCategories item "
-    "as CATEGORY=YES|NO. Categories: " + ", ".join(_AUTOTARGETING_CATEGORIES)
+    "as CATEGORY=YES|NO. Categories: " + ", ".join(AUTOTARGETING_CATEGORIES)
 )
 _AUTOTARGETING_SETTINGS_FLAGS = {
     "--autotargeting-settings-exact",
@@ -123,11 +123,6 @@ def _parse_ids_option(value: Optional[str], option_name: str) -> Optional[list[i
         ) from exc
 
 
-def _normalize_enum_token(value: str) -> str:
-    """Normalize enum-like CLI tokens to Yandex Direct uppercase constants."""
-    return value.strip().upper().replace("-", "_")
-
-
 def _parse_enum_value(
     value: Optional[str], option_name: str, allowed_values: tuple[str, ...]
 ) -> Optional[str]:
@@ -135,7 +130,7 @@ def _parse_enum_value(
     if not value:
         return None
 
-    normalized = _normalize_enum_token(value)
+    normalized = normalize_enum_token(value)
     if not normalized:
         return None
 
@@ -160,7 +155,7 @@ def _parse_enum_csv(
 
     normalized_values = []
     for item in parsed:
-        normalized = _normalize_enum_token(item)
+        normalized = normalize_enum_token(item)
         if normalized not in allowed_values:
             raise click.UsageError(
                 t(
@@ -221,101 +216,6 @@ def _build_mobile_app_adgroup(
     return mobile_app_adgroup or None
 
 
-def _parse_autotargeting_categories(
-    raw_values: tuple[str, ...],
-) -> Optional[list[dict[str, str]]]:
-    """Parse DynamicTextAdGroup.AutotargetingCategories CLI items."""
-    if not raw_values:
-        return None
-
-    allowed_categories = ", ".join(_AUTOTARGETING_CATEGORIES)
-    items = []
-    for raw_value in raw_values:
-        category_raw, separator, value_raw = raw_value.strip().partition("=")
-        if not separator:
-            raise click.UsageError(
-                t(
-                    "--autotargeting-category expects CATEGORY=YES|NO "
-                    "(for example EXACT=YES)"
-                )
-            )
-
-        category = _normalize_enum_token(category_raw)
-        value = _normalize_enum_token(value_raw)
-        if category not in _AUTOTARGETING_CATEGORIES:
-            raise click.UsageError(
-                t(
-                    "Invalid --autotargeting-category category {category_raw!r}; allowed: {allowed_categories}"
-                ).format(
-                    category_raw=category_raw, allowed_categories=allowed_categories
-                )
-            )
-        if value not in {"YES", "NO"}:
-            raise click.UsageError(
-                t(
-                    "Invalid --autotargeting-category value {value_raw!r}; expected YES or NO"
-                ).format(value_raw=value_raw)
-            )
-        items.append({"Category": category, "Value": value})
-
-    return items
-
-
-def _build_autotargeting_settings(
-    *,
-    exact: Optional[str],
-    narrow: Optional[str],
-    alternative: Optional[str],
-    accessory: Optional[str],
-    broader: Optional[str],
-    without_brands: Optional[str],
-    with_advertiser_brand: Optional[str],
-    with_competitors_brand: Optional[str],
-) -> Optional[dict[str, dict[str, str]]]:
-    """Build DynamicTextAdGroup.AutotargetingSettings from typed flags."""
-    categories = {}
-    for field_name, value in (
-        ("Exact", exact),
-        ("Narrow", narrow),
-        ("Alternative", alternative),
-        ("Accessory", accessory),
-        ("Broader", broader),
-    ):
-        if value is not None:
-            categories[field_name] = value.upper()
-
-    brand_options = {}
-    for field_name, value in (
-        ("WithoutBrands", without_brands),
-        ("WithAdvertiserBrand", with_advertiser_brand),
-        ("WithCompetitorsBrand", with_competitors_brand),
-    ):
-        if value is not None:
-            brand_options[field_name] = value.upper()
-
-    settings = {}
-    if categories:
-        settings["Categories"] = categories
-    if brand_options:
-        settings["BrandOptions"] = brand_options
-
-    return settings or None
-
-
-def _reject_legacy_autotargeting_mix(
-    settings: Optional[dict[str, dict[str, str]]],
-    categories: tuple[str, ...],
-) -> None:
-    """Reject ambiguous legacy AutotargetingCategories + Settings payloads."""
-    if settings is not None and categories:
-        raise click.UsageError(
-            t(
-                "AutotargetingSettings flags cannot be combined with legacy "
-                "--autotargeting-category flags."
-            )
-        )
-
-
 def _build_dynamic_text_adgroup(
     *,
     domain_url: Optional[str],
@@ -331,8 +231,8 @@ def _build_dynamic_text_adgroup(
     force_domain_url: bool = False,
 ) -> Optional[dict[str, object]]:
     """Build the DynamicTextAdGroup block shared by add/update."""
-    parsed_categories = _parse_autotargeting_categories(autotargeting_categories)
-    autotargeting_settings = _build_autotargeting_settings(
+    parsed_categories = parse_autotargeting_categories(autotargeting_categories)
+    autotargeting_settings = build_autotargeting_settings(
         exact=autotargeting_settings_exact,
         narrow=autotargeting_settings_narrow,
         alternative=autotargeting_settings_alternative,
@@ -342,9 +242,11 @@ def _build_dynamic_text_adgroup(
         with_advertiser_brand=autotargeting_settings_with_advertiser_brand,
         with_competitors_brand=autotargeting_settings_with_competitors_brand,
     )
-    _reject_legacy_autotargeting_mix(
-        settings=autotargeting_settings,
-        categories=autotargeting_categories,
+    reject_legacy_autotargeting_mix(
+        autotargeting_settings,
+        legacy_candidates=[
+            ("--autotargeting-category", bool(autotargeting_categories)),
+        ],
     )
 
     has_dynamic_fields = bool(domain_url or parsed_categories or autotargeting_settings)
@@ -369,7 +271,7 @@ def _build_dynamic_text_feed_adgroup(
     require_feed_id: bool = False,
 ) -> Optional[dict[str, object]]:
     """Build the DynamicTextFeedAdGroup block shared by add/update."""
-    parsed_categories = _parse_autotargeting_categories(autotargeting_categories)
+    parsed_categories = parse_autotargeting_categories(autotargeting_categories)
 
     if require_feed_id and feed_id is None:
         raise click.UsageError(
