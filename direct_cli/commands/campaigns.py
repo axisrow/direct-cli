@@ -7261,111 +7261,42 @@ def update(
     format_output(result().extract(), "json", None)
 
 
-@campaigns.command()
-@click.option("--id", "campaign_id", required=True, type=int, help="Campaign ID")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def delete(ctx, campaign_id, dry_run):
-    """Delete campaign"""
-    body = {
-        "method": "delete",
-        "params": {"SelectionCriteria": {"Ids": [campaign_id]}},
-    }
+def _make_lifecycle_command(method: str, help_text: str):
+    """Build a campaign lifecycle command (delete/archive/.../resume).
 
-    if dry_run:
-        format_output(body, "json", None)
-        return
+    These commands are identical except for the ``method`` sent in the request
+    body and the help text shown in ``--help``. ``name=method`` pins the Click
+    command name (otherwise every command would register as ``_command``);
+    ``help=help_text`` pins the short help so ``--help`` is unchanged (setting
+    ``__doc__`` after decoration is too late — Click reads it at decoration
+    time).
+    """
 
-    client = client_from_ctx(ctx, create_client)
+    @campaigns.command(name=method, help=help_text)
+    @click.option("--id", "campaign_id", required=True, type=int, help="Campaign ID")
+    @click.option("--dry-run", is_flag=True, help="Show request without sending")
+    @click.pass_context
+    @handle_api_errors
+    def _command(ctx, campaign_id, dry_run):
+        body = {
+            "method": method,
+            "params": {"SelectionCriteria": {"Ids": [campaign_id]}},
+        }
 
-    result = client.campaigns().post(data=body)
-    format_output(result().extract(), "json", None)
+        if dry_run:
+            format_output(body, "json", None)
+            return
 
+        client = client_from_ctx(ctx, create_client)
 
-@campaigns.command()
-@click.option("--id", "campaign_id", required=True, type=int, help="Campaign ID")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def archive(ctx, campaign_id, dry_run):
-    """Archive campaign"""
-    body = {
-        "method": "archive",
-        "params": {"SelectionCriteria": {"Ids": [campaign_id]}},
-    }
+        result = client.campaigns().post(data=body)
+        format_output(result().extract(), "json", None)
 
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-
-    result = client.campaigns().post(data=body)
-    format_output(result().extract(), "json", None)
+    return _command
 
 
-@campaigns.command()
-@click.option("--id", "campaign_id", required=True, type=int, help="Campaign ID")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def unarchive(ctx, campaign_id, dry_run):
-    """Unarchive campaign"""
-    body = {
-        "method": "unarchive",
-        "params": {"SelectionCriteria": {"Ids": [campaign_id]}},
-    }
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-
-    result = client.campaigns().post(data=body)
-    format_output(result().extract(), "json", None)
-
-
-@campaigns.command()
-@click.option("--id", "campaign_id", required=True, type=int, help="Campaign ID")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def suspend(ctx, campaign_id, dry_run):
-    """Suspend campaign"""
-    body = {
-        "method": "suspend",
-        "params": {"SelectionCriteria": {"Ids": [campaign_id]}},
-    }
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-
-    result = client.campaigns().post(data=body)
-    format_output(result().extract(), "json", None)
-
-
-@campaigns.command()
-@click.option("--id", "campaign_id", required=True, type=int, help="Campaign ID")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def resume(ctx, campaign_id, dry_run):
-    """Resume campaign"""
-    body = {
-        "method": "resume",
-        "params": {"SelectionCriteria": {"Ids": [campaign_id]}},
-    }
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-
-    result = client.campaigns().post(data=body)
-    format_output(result().extract(), "json", None)
+delete = _make_lifecycle_command("delete", "Delete campaign")
+archive = _make_lifecycle_command("archive", "Archive campaign")
+unarchive = _make_lifecycle_command("unarchive", "Unarchive campaign")
+suspend = _make_lifecycle_command("suspend", "Suspend campaign")
+resume = _make_lifecycle_command("resume", "Resume campaign")
