@@ -196,3 +196,40 @@ def test_audit_v5_treats_wsdl_base_as_single_group_target(monkeypatch):
     kinds = {f.kind for f in findings}
     assert "v5_wsdl_group_ok" in kinds
     assert "docs_unreachable" not in kinds
+
+
+# Services whose human-readable doc pages Yandex removed in September 2025.
+# Their `docs` URL must stay pinned to the live WSDL endpoint — never revert
+# to a `…/dev/direct/doc/…` HTML page, which now 404s. See issue #463 and the
+# regression it caused when a vendor update (tapi-yandex-direct 2026.5.29)
+# silently restored the dead HTML URLs.
+_WSDL_DOCS_SERVICES = (
+    "dynamicads",
+    "dynamicfeedadtargets",
+    "smartadtargets",
+    "vcards",
+)
+
+
+@pytest.mark.parametrize("service", _WSDL_DOCS_SERVICES)
+def test_removed_doc_services_pin_wsdl_url(service):
+    """Guard #463 regression: the 4 doc-removed services keep WSDL `docs` URLs.
+
+    Catches a vendor update (rm -rf + cp -R from the fork) re-introducing the
+    dead `…/dev/direct/doc/ru/<service>` HTML pages. Offline — fails in CI
+    before the network preflight (scripts/check_all_docs_urls.py) ever runs.
+    """
+    from direct_cli._vendor.tapi_yandex_direct.resource_mapping import (
+        RESOURCE_MAPPING_V5,
+    )
+
+    docs = RESOURCE_MAPPING_V5[service]["docs"]
+    base = docs.rstrip("/")
+    assert base.endswith("?wsdl") or base.endswith(".wsdl"), (
+        f"{service}.docs must point at the live WSDL endpoint (Yandex removed "
+        f"its HTML doc page in Sep 2025, see #463), got: {docs!r}"
+    )
+    assert "/dev/direct/doc/" not in docs, (
+        f"{service}.docs reverted to a removed HTML doc page (404), see #463: "
+        f"{docs!r}"
+    )
