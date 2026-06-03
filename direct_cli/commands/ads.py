@@ -16,26 +16,13 @@ from ..utils import (
     parse_condition_specs,
     parse_csv_strings,
     parse_ids,
+    parse_nested_field_names,
 )
 
 
 @click.group()
 def ads():
     """Manage ads"""
-
-
-def _parse_field_names_option(
-    wsdl_key: str, raw_value: Optional[str]
-) -> Optional[list[str]]:
-    """Parse a field-name projection and reject explicitly empty CSV."""
-    parsed = parse_csv_strings(raw_value)
-    if raw_value is not None and not parsed:
-        raise click.UsageError(
-            t("Provide a non-empty comma-separated {wsdl_key} list.").format(
-                wsdl_key=wsdl_key
-            )
-        )
-    return parsed
 
 
 MOBILE_APP_FEATURES = ("PRICE", "ICON", "CUSTOMER_RATING", "RATINGS")
@@ -1002,11 +989,7 @@ def get(
         ),
         ("TextImageAdFieldNames", text_image_ad_field_names),
     )
-    parsed_nested = {}
-    for wsdl_key, raw_value in raw_nested:
-        parsed = _parse_field_names_option(wsdl_key, raw_value)
-        if parsed:
-            parsed_nested[wsdl_key] = parsed
+    parsed_nested = parse_nested_field_names(raw_nested)
     parsed_nested.setdefault(
         "TextAdFieldNames", get_default_fields("ads", "TextAdFieldNames")
     )

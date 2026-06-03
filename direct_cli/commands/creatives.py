@@ -5,9 +5,14 @@ Creatives commands
 import click
 
 from ..api import client_from_ctx, create_client
-from ..i18n import t
 from ..output import format_output, handle_api_errors
-from ..utils import get_default_fields, parse_csv_strings, parse_csv_upper, parse_ids
+from ..utils import (
+    get_default_fields,
+    parse_csv_strings,
+    parse_csv_upper,
+    parse_ids,
+    parse_nested_field_names,
+)
 
 
 @click.group()
@@ -88,17 +93,7 @@ def get(
             video_extension_creative_field_names,
         ),
     )
-    parsed_nested_field_names = {}
-    for wsdl_key, raw_value in nested_field_name_options:
-        parsed = parse_csv_strings(raw_value)
-        if raw_value is not None and not parsed:
-            raise click.UsageError(
-                t("Provide a non-empty comma-separated {wsdl_key} list.").format(
-                    wsdl_key=wsdl_key
-                )
-            )
-        if parsed:
-            parsed_nested_field_names[wsdl_key] = parsed
+    parsed_nested_field_names = parse_nested_field_names(nested_field_name_options)
 
     criteria = {}
     if ids:

@@ -13,7 +13,9 @@ from ..utils import (
     parse_csv_strings,
     parse_csv_upper,
     parse_ids,
+    parse_nested_field_names,
 )
+from .._flag_validation import reject_incompatible_flags
 
 
 @click.group()
@@ -198,17 +200,7 @@ def get(
         ("TabletAdjustmentFieldNames", tablet_adjustment_field_names),
         ("VideoAdjustmentFieldNames", video_adjustment_field_names),
     )
-    parsed_nested = {}
-    for wsdl_key, raw_value in raw_nested:
-        parsed = parse_csv_strings(raw_value)
-        if raw_value is not None and not parsed:
-            raise click.UsageError(
-                t("Provide a non-empty comma-separated {wsdl_key} list.").format(
-                    wsdl_key=wsdl_key
-                )
-            )
-        if parsed:
-            parsed_nested[wsdl_key] = parsed
+    parsed_nested = parse_nested_field_names(raw_nested)
 
     criteria = {"Levels": [lv.upper() for lv in levels]}
     if ids:
@@ -287,25 +279,6 @@ _BIDMODIFIER_ALLOWED_EXTRA_FLAGS = {
 }
 
 
-def _reject_incompatible_extra_flags(
-    modifier_type: str,
-    provided_flags: dict[str, object],
-) -> None:
-    """Reject extra flags that do not belong to the selected modifier type."""
-    allowed = _BIDMODIFIER_ALLOWED_EXTRA_FLAGS[modifier_type]
-    incompatible = [
-        flag
-        for flag, value in provided_flags.items()
-        if value is not None and flag not in allowed
-    ]
-    if incompatible:
-        raise click.UsageError(
-            t("{arg0} is not compatible with --type {modifier_type}.").format(
-                arg0=", ".join(sorted(incompatible)), modifier_type=modifier_type
-            )
-        )
-
-
 @bidmodifiers.command()
 @click.option(
     "--campaign-id",
@@ -381,8 +354,8 @@ def add(
         )
 
     modifier_type_upper = modifier_type.upper()
-    _reject_incompatible_extra_flags(
-        modifier_type_upper,
+    reject_incompatible_flags(
+        _BIDMODIFIER_ALLOWED_EXTRA_FLAGS[modifier_type_upper],
         {
             "--gender": gender,
             "--age": age,
@@ -392,6 +365,9 @@ def add(
             "--income-grade": income_grade,
             "--operating-system-type": operating_system_type,
         },
+        message="{arg0} is not compatible with --type {modifier_type}.",
+        type_value=modifier_type_upper,
+        type_field="modifier_type",
     )
 
     nested_key = _BIDMODIFIER_TYPE_TO_NESTED[modifier_type_upper]

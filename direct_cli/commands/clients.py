@@ -23,6 +23,7 @@ from ..utils import (
     parse_csv_strings,
     parse_email_subscription_specs,
     parse_ids,
+    parse_nested_field_names,
     parse_positive_decimal_amount,
     parse_tin_info,
 )
@@ -113,17 +114,7 @@ def get(
         ("OrganizationFieldNames", organization_field_names),
         ("TinInfoFieldNames", tin_info_field_names),
     )
-    parsed_nested = {}
-    for wsdl_key, raw_value in raw_nested:
-        parsed = parse_csv_strings(raw_value)
-        if raw_value is not None and not parsed:
-            raise click.UsageError(
-                t("Provide a non-empty comma-separated {wsdl_key} list.").format(
-                    wsdl_key=wsdl_key
-                )
-            )
-        if parsed:
-            parsed_nested[wsdl_key] = parsed
+    parsed_nested = parse_nested_field_names(raw_nested)
 
     criteria = {}
     if ids:

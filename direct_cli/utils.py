@@ -8,13 +8,14 @@ import math
 import re
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
-from typing import Any, Dict, Iterable, List, Optional, Union
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import click
 
 from direct_cli._vendor.tapi_yandex_direct.resource_mapping import (
     RESOURCE_MAPPING_V5,
 )
+from direct_cli.i18n import t
 
 
 def parse_ids(ids_str: Optional[str]) -> Optional[List[int]]:
@@ -71,6 +72,43 @@ def parse_csv_upper(value: Optional[str]) -> Optional[List[str]]:
     """Parse comma-separated enum-like strings and uppercase each item."""
     parsed = parse_csv_strings(value)
     return [item.upper() for item in parsed] if parsed else None
+
+
+def parse_field_names_option(
+    wsdl_key: str, raw_value: Optional[str]
+) -> Optional[List[str]]:
+    """Parse a field-name projection and reject explicitly empty CSV.
+
+    Shared by the ``ads``/``strategies`` get-commands and the nested
+    field-name loops in ``adgroups``/``bidmodifiers``/``agencyclients``/
+    ``clients``/``creatives``. The error string-key is byte-identical to the
+    pre-dedup inline copies so the merged i18n catalog lookup is unchanged.
+    """
+    parsed = parse_csv_strings(raw_value)
+    if raw_value is not None and not parsed:
+        raise click.UsageError(
+            t("Provide a non-empty comma-separated {wsdl_key} list.").format(
+                wsdl_key=wsdl_key
+            )
+        )
+    return parsed
+
+
+def parse_nested_field_names(
+    raw_nested: Iterable[Tuple[str, Optional[str]]],
+) -> Dict[str, List[str]]:
+    """Parse a sequence of ``(WSDL key, raw CSV)`` nested field-name options.
+
+    Returns only the keys whose CSV resolved to a non-empty list — exactly the
+    ``for wsdl_key, raw_value in raw_nested: ... if parsed: out[k] = parsed``
+    accumulation previously inlined in several command modules.
+    """
+    parsed_nested: Dict[str, List[str]] = {}
+    for wsdl_key, raw_value in raw_nested:
+        parsed = parse_field_names_option(wsdl_key, raw_value)
+        if parsed:
+            parsed_nested[wsdl_key] = parsed
+    return parsed_nested
 
 
 def add_criteria_csv(

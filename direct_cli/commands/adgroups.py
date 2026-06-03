@@ -14,6 +14,7 @@ from ..utils import (
     get_default_fields,
     parse_csv_strings,
     parse_ids,
+    parse_nested_field_names,
 )
 from .._autotargeting import (
     AUTOTARGETING_CATEGORIES,
@@ -22,6 +23,7 @@ from .._autotargeting import (
     parse_autotargeting_categories,
     reject_legacy_autotargeting_mix,
 )
+from .._flag_validation import reject_incompatible_flags
 
 _TRACKING_PARAMS_MAX_LENGTH = 1024
 _SUPPORTED_ADGROUP_TYPES = (
@@ -311,25 +313,6 @@ def _build_text_adgroup_feed_params(
     return feed_params
 
 
-def _reject_incompatible_flags(
-    group_type: str,
-    allowed_flags: set[str],
-    provided_flags: dict[str, object],
-) -> None:
-    """Reject subtype-specific flags that do not apply to ``group_type``."""
-    incompatible = [
-        flag
-        for flag, value in provided_flags.items()
-        if value not in (None, ()) and flag not in allowed_flags
-    ]
-    if incompatible:
-        raise click.UsageError(
-            t("{arg0} is not compatible with --type {group_type}.").format(
-                arg0=", ".join(sorted(incompatible)), group_type=group_type
-            )
-        )
-
-
 def _provided_flags(provided_flags: dict[str, object]) -> list[str]:
     """Return CLI flags that were explicitly provided with meaningful values."""
     return sorted(
@@ -540,17 +523,7 @@ def get(
         ),
         ("UnifiedAdGroupFieldNames", unified_ad_group_field_names),
     )
-    parsed_nested = {}
-    for wsdl_key, raw_value in raw_nested:
-        parsed = parse_csv_strings(raw_value)
-        if raw_value is not None and not parsed:
-            raise click.UsageError(
-                t("Provide a non-empty comma-separated {wsdl_key} list.").format(
-                    wsdl_key=wsdl_key
-                )
-            )
-        if parsed:
-            parsed_nested[wsdl_key] = parsed
+    parsed_nested = parse_nested_field_names(raw_nested)
 
     criteria = {}
     if ids:
@@ -792,8 +765,7 @@ def add(
             "--target-operating-system-version",
         },
     }
-    _reject_incompatible_flags(
-        group_type_norm,
+    reject_incompatible_flags(
         allowed_flags_by_type[group_type_norm],
         {
             "--domain-url": domain_url,
@@ -824,6 +796,9 @@ def add(
             "--target-carrier": target_carrier,
             "--target-operating-system-version": target_operating_system_version,
         },
+        message="{arg0} is not compatible with --type {group_type}.",
+        type_value=group_type_norm,
+        type_field="group_type",
     )
     _reject_unsupported_negative_keywords(
         group_type_norm,
