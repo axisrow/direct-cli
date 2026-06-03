@@ -35,8 +35,9 @@ Coverage status (issue #59):
 
   Phase 6 — standalone draft assets, full lifecycle (sandbox-unreachable):
     - feeds add/update/delete (sandbox returns 8800 on update)
-    - retargeting add/update/delete (rule uses a synthetic goal placeholder
-      ALL:12345:30; skips on 8800 — the placeholder goal is in no account)
+    - retargeting add/update/delete (rule goal from _retargeting_goal(): a real
+      account goal records the lifecycle, synthetic 12345 skips on 8800; a real
+      id is masked to 12345 in the cassette by the conftest VCR filter)
     - strategies add/update/archive/unarchive (no delete method; skips on
       6000 if the account has no shared wallet)
 """
@@ -62,6 +63,32 @@ TEST_CAMPAIGN_START_DATE = "2030-01-15"
 # creation itself is rejected on standard accounts (3500) — the test skips
 # before the counter is validated. Never hardcode a real account counter id.
 TEST_METRIKA_COUNTER_ID = "12345678"
+# Synthetic Metrica goal placeholder. A retargeting rule needs an ExternalId
+# (a goal id) plus a MembershipLifeSpan: ``ALL:<goal>:<days>``.  ``12345`` is in
+# no account, so the live API answers 8800 ("Object not found") and the
+# retargeting/audiencetargets tests skip.  When YANDEX_DIRECT_TEST_RETARGETING_
+# GOAL_ID is set (or a goal is discoverable on the account) the probe returns a
+# real goal and the full lifecycle records — the conftest VCR filter then masks
+# that real id back to ``12345`` so it never lands in a committed cassette.
+SYNTHETIC_RETARGETING_GOAL = "12345"
+
+
+def _retargeting_goal() -> str:
+    """Return a goal id for retargeting rules: real (from env) or synthetic.
+
+    Reads ``YANDEX_DIRECT_TEST_RETARGETING_GOAL_ID`` only — deliberately *not*
+    the live-lookup branch of ``retargeting_goal_probe_id`` — so cassette replay
+    stays fully offline (no network round-trip in CI).  When recording, set the
+    env var to a real goal id (``python3 -m direct_cli._smoke_probes
+    retargeting-goal`` discovers one) and the full lifecycle records; the
+    conftest VCR filter masks that real id to ``12345`` in the cassette.  With
+    the env var unset the synthetic ``12345`` fallback makes the live API reject
+    the add with 8800, so the test skips — and matches the recorded body.
+    """
+    return os.getenv("YANDEX_DIRECT_TEST_RETARGETING_GOAL_ID") or (
+        SYNTHETIC_RETARGETING_GOAL
+    )
+
 
 # 450x450 solid red PNG — meets Yandex Direct minimum image dimension
 # requirements.  Validated: decodes to 1487 bytes, correct PNG header,
@@ -280,10 +307,21 @@ def _create_draft_adgroup(suffix: str = "") -> tuple:
 def _safe_delete_campaign(cid: int) -> None:
     """Delete a draft campaign, failing the test if deletion is rejected."""
     r = _invoke_live("campaigns", "delete", "--id", str(cid))
-    if r.exit_code != 0:
+    _assert_cleanup_success(r, "delete draft campaign", cid)
+
+
+def _assert_cleanup_success(result, action: str, resource_id, note: str = "") -> None:
+    """Fail the test loudly if a teardown step did not succeed.
+
+    Cleanup runs in ``finally`` blocks; a silently-ignored failure leaves a
+    real object behind on the live account, so surface the id for manual
+    cleanup. ``note`` adds resource-specific context (e.g. "may still serve").
+    """
+    if result.exit_code != 0:
+        extra = f" {note}" if note else ""
         pytest.fail(
-            f"Failed to delete draft campaign {cid}. "
-            f"Manual cleanup required.\noutput: {r.output}"
+            f"Failed to {action} {resource_id}.{extra} Manual cleanup "
+            f"required.\noutput: {result.output}"
         )
 
 
@@ -774,9 +812,9 @@ def test_v5_live_draft_audiencetargets_add_delete() -> None:
             "--type",
             "RETARGETING",
             "--rule",
-            "ALL:12345:30",
+            f"ALL:{_retargeting_goal()}:30",
         )
-        # 8800 = goal_id 12345 not found in account — account restriction.
+        # 8800 = goal not found in account (synthetic placeholder) — skip.
         if "8800" in r.output:
             pytest.skip("retargeting add rejected (8800) — goal not found in account")
         _assert_success(r, "retargeting add")
@@ -1048,7 +1086,7 @@ def test_v5_live_draft_audiencetargets_suspend_resume() -> None:
             "--type",
             "RETARGETING",
             "--rule",
-            "ALL:12345:30",
+            f"ALL:{_retargeting_goal()}:30",
         )
         if "8800" in r.output:
             pytest.skip("retargeting add rejected (8800) — goal not found in account")
@@ -1317,23 +1355,20 @@ def test_v5_live_draft_feeds_add_update_delete() -> None:
         _assert_success(r, "feeds get after update")
     finally:
         r = _invoke_live("feeds", "delete", "--id", str(fid))
-        if r.exit_code != 0:
-            pytest.fail(
-                f"Failed to delete feed {fid}. "
-                f"Manual cleanup required.\noutput: {r.output}"
-            )
+        _assert_cleanup_success(r, "delete feed", fid)
 
 
 @pytest.mark.vcr
 def test_v5_live_draft_retargeting_add_update_delete() -> None:
     """Create a retargeting list, rename it via update, then delete it.
 
-    The rule uses a synthetic Metrica goal placeholder (``ALL:12345:30``) — the
-    same convention as the audiencetargets smoke tests.  A MembershipLifeSpan is
-    required (the API rejects a goal argument without one — error 5000); the
-    placeholder goal itself is not present in any account, so the live API
-    rejects the add with "Object not found" (8800) and the test skips.  Never
-    hardcode a real account goal id here (see tests/MANUAL_COVERAGE.md).
+    The rule's goal id comes from ``_retargeting_goal()`` — a real account goal
+    (``YANDEX_DIRECT_TEST_RETARGETING_GOAL_ID``) records the full lifecycle,
+    while the synthetic ``12345`` fallback makes the live API reject the add with
+    "Object not found" (8800) so the test skips.  A MembershipLifeSpan is
+    required regardless (the API rejects a goal argument without one — error
+    5000).  A real goal id is never committed: the conftest VCR filter masks it
+    back to ``12345`` in the cassette (see tests/MANUAL_COVERAGE.md).
     """
     r = _invoke_live(
         "retargeting",
@@ -1343,7 +1378,7 @@ def test_v5_live_draft_retargeting_add_update_delete() -> None:
         "--type",
         "RETARGETING",
         "--rule",
-        "ALL:12345:30",
+        f"ALL:{_retargeting_goal()}:30",
     )
     if r.exit_code != 0 and ("8800" in r.output or "not found" in r.output.lower()):
         pytest.skip(
@@ -1368,11 +1403,7 @@ def test_v5_live_draft_retargeting_add_update_delete() -> None:
         _assert_success(r, "retargeting get after update")
     finally:
         r = _invoke_live("retargeting", "delete", "--id", str(rid))
-        if r.exit_code != 0:
-            pytest.fail(
-                f"Failed to delete retargeting list {rid}. "
-                f"Manual cleanup required.\noutput: {r.output}"
-            )
+        _assert_cleanup_success(r, "delete retargeting list", rid)
 
 
 @pytest.mark.vcr
@@ -1421,10 +1452,11 @@ def test_v5_live_draft_strategies_add_update_archive_unarchive() -> None:
         r = _invoke_live("strategies", "unarchive", "--id", str(sid))
         _assert_draft_or_success(r, "strategies unarchive")
     finally:
-        # No strategies delete method exists; archive is the only cleanup.
+        # No strategies delete method exists; the unarchive above left the
+        # strategy serving, so the final archive is the real cleanup — if it
+        # fails the account keeps a live strategy, so surface the id loudly
+        # rather than discarding the result (mirrors the retargeting finally).
         r = _invoke_live("strategies", "archive", "--id", str(sid))
-        if r.exit_code != 0:
-            pytest.fail(
-                f"Failed to archive strategy {sid}. "
-                f"Manual cleanup required.\noutput: {r.output}"
-            )
+        _assert_cleanup_success(
+            r, "archive strategy", sid, note="It may still be serving."
+        )

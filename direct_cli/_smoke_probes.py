@@ -6,7 +6,7 @@ import os
 import sys
 from typing import Any, Optional
 
-from .api import create_client
+from .api import create_client, create_v4_client
 
 VIDEO_CREATIVE_TYPES = {
     "VIDEO_EXTENSION_CREATIVE",
@@ -76,14 +76,93 @@ def advideo_probe_id() -> Optional[str]:
     return None
 
 
+def _first_campaign_id(client: Any) -> Optional[int]:
+    """Return the first campaign Id visible to the account, or ``None``."""
+    body = {
+        "method": "get",
+        "params": {
+            "SelectionCriteria": {},
+            "FieldNames": ["Id"],
+            "Page": {"Limit": 1},
+        },
+    }
+    try:
+        campaigns = _extract_items(client.campaigns().post(data=body))
+    except Exception:
+        return None
+    if not campaigns:
+        return None
+    cid = campaigns[0].get("Id")
+    return cid if isinstance(cid, int) else None
+
+
+def retargeting_goal_probe_id() -> Optional[str]:
+    """Return a real Metrica/retargeting goal id for the account, or ``None``.
+
+    The value is the ``GoalID`` that a retargeting rule references as its
+    ``ExternalId`` (``--rule ALL:<goal>:<days>``).  Resolution order mirrors
+    :func:`advideo_probe_id`:
+
+    1. ``YANDEX_DIRECT_TEST_RETARGETING_GOAL_ID`` env override (used when
+       recording cassettes — the real id is masked to ``12345`` by the VCR
+       filter, never committed);
+    2. live lookup — the first campaign's retargeting goals via the v4 Live
+       ``GetRetargetingGoals`` method.
+
+    Returns ``None`` (never raises) on missing credentials or any API error, so
+    callers treat a failed probe as a benign skip.  Never hardcode a real goal
+    id in source or cassettes — the repository is public.
+    """
+    env_id = os.getenv("YANDEX_DIRECT_TEST_RETARGETING_GOAL_ID")
+    if env_id:
+        return env_id
+
+    try:
+        client = create_client()
+    except Exception:
+        return None
+
+    campaign_id = _first_campaign_id(client)
+    if campaign_id is None:
+        return None
+
+    try:
+        v4_client = create_v4_client()
+        goals = _extract_items(
+            v4_client.v4live().post(
+                data={
+                    "method": "GetRetargetingGoals",
+                    "param": {"CampaignIDS": [campaign_id]},
+                }
+            )
+        )
+    except Exception:
+        return None
+
+    for goal in goals:
+        if isinstance(goal, dict) and (goal_id := goal.get("GoalID")):
+            return str(goal_id)
+    return None
+
+
+_PROBES = {
+    "advideo": advideo_probe_id,
+    "retargeting-goal": retargeting_goal_probe_id,
+}
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point for smoke probes."""
     argv = list(sys.argv[1:] if argv is None else argv)
-    if argv != ["advideo"]:
-        print("Usage: python3 -m direct_cli._smoke_probes advideo", file=sys.stderr)
+    if len(argv) != 1 or argv[0] not in _PROBES:
+        names = " | ".join(_PROBES)
+        print(
+            f"Usage: python3 -m direct_cli._smoke_probes <{names}>",
+            file=sys.stderr,
+        )
         return 2
 
-    probe_id = advideo_probe_id()
+    probe_id = _PROBES[argv[0]]()
     if not probe_id:
         return 1
     print(probe_id)

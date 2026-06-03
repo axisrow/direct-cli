@@ -32,27 +32,212 @@ interactions:
     uri: https://api.direct.yandex.com/json/v5/retargetinglists
   response:
     body:
-      string: '{"result":{"AddResults":[{"Errors":[{"Code":8800,"Message":"Object
-        not found"}]}]}}'
+      string: '{"result":{"AddResults":[{"Id":40775679,"Errors":[]}]}}'
     headers:
       Content-Length:
-      - '83'
+      - '55'
       Content-Security-Policy:
       - default-src 'none'
       Content-Type:
       - application/json;charset=utf-8
       Date:
-      - Wed, 03 Jun 2026 07:56:26 GMT
+      - Wed, 03 Jun 2026 09:54:48 GMT
       RequestId:
-      - '4939222587227294365'
+      - '6431760649631683861'
       Set-Cookie:
       - REDACTED
       Units:
-      - 30/152044/168000
+      - 12/151186/168000
       Units-Used-Login:
       - REDACTED
       X-Accel-Info:
       - reqid:0000000000000000000,cmd:direct.api5/retargetinglists.add,appcode:0
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"update","params":{"RetargetingLists":[{"Id":40775679,"Name":"direct-cli-live-draft-test-rtg-renamed"}]}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '115'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.34.2
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api.direct.yandex.com/json/v5/retargetinglists
+  response:
+    body:
+      string: '{"result":{"UpdateResults":[{"Id":40775679,"Errors":[]}]}}'
+    headers:
+      Content-Length:
+      - '58'
+      Content-Security-Policy:
+      - default-src 'none'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Wed, 03 Jun 2026 09:54:50 GMT
+      RequestId:
+      - '8061036257532684772'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 12/151174/168000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.api5/retargetinglists.update,appcode:0
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"get","params":{"SelectionCriteria":{"Ids":[40775679]},"FieldNames":["Id","Name","Type","Scope"]}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '108'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.34.2
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api.direct.yandex.com/json/v5/retargetinglists
+  response:
+    body:
+      string: '{"result":{"RetargetingLists":[{"Type":"RETARGETING","Id":40775679,"Scope":"FOR_TARGETS_AND_ADJUSTMENTS","Name":"direct-cli-live-draft-test-rtg-renamed"}]}}'
+    headers:
+      Content-Length:
+      - '156'
+      Content-Security-Policy:
+      - default-src 'none'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Wed, 03 Jun 2026 09:54:51 GMT
+      RequestId:
+      - '1862860835457099772'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 2/151172/168000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.api5/retargetinglists.get,appcode:0
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"method":"delete","params":{"SelectionCriteria":{"Ids":[40775679]}}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '69'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.34.2
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+      processingMode:
+      - auto
+      returnMoneyInMicros:
+      - 'false'
+      skipColumnHeader:
+      - 'false'
+      skipReportHeader:
+      - 'true'
+      skipReportSummary:
+      - 'true'
+    method: POST
+    uri: https://api.direct.yandex.com/json/v5/retargetinglists
+  response:
+    body:
+      string: '{"result":{"DeleteResults":[{"Id":40775679,"Errors":[]}]}}'
+    headers:
+      Content-Length:
+      - '58'
+      Content-Security-Policy:
+      - default-src 'none'
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Wed, 03 Jun 2026 09:54:53 GMT
+      RequestId:
+      - '5224827374749064090'
+      Set-Cookie:
+      - REDACTED
+      Units:
+      - 12/151160/168000
+      Units-Used-Login:
+      - REDACTED
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.api5/retargetinglists.delete,appcode:0
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:

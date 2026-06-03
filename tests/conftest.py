@@ -16,6 +16,7 @@ before committing.
 """
 
 import json
+import os
 import re
 
 import pytest
@@ -73,8 +74,6 @@ def _resolve_test_credentials():
     the profile-driven resolution only when env vars are absent.
     Returns (None, None) when no credentials are available.
     """
-    import os
-
     env_token = os.environ.get("YANDEX_DIRECT_TOKEN")
     env_login = os.environ.get("YANDEX_DIRECT_LOGIN")
     if env_token:
@@ -113,6 +112,35 @@ skip_if_no_token = pytest.mark.skipif(
 
 
 _REDACTED = "REDACTED"
+
+# A retargeting rule references a Metrica goal by its numeric id
+# (``"ExternalId":<goal>`` in the request body, echoed back in the response).
+# When recording the live-write lifecycle we feed a *real* account goal id via
+# ``YANDEX_DIRECT_TEST_RETARGETING_GOAL_ID``, but the repository is public, so
+# that real id must never land in a committed cassette. The VCR filter swaps it
+# for the synthetic placeholder ``12345`` (the same value the tests fall back to
+# when no real goal is available) in both request and response bodies, keeping
+# the recorded interaction self-consistent for body-based matching.
+_SYNTHETIC_GOAL = "12345"
+_REAL_RETARGETING_GOAL = os.environ.get("YANDEX_DIRECT_TEST_RETARGETING_GOAL_ID")
+# Pre-encode the bytes variants once: this runs on every recorded request and
+# response body, so re-encoding per call would be wasted work on the hot path.
+_GOAL_MASK_ACTIVE = bool(_REAL_RETARGETING_GOAL) and (
+    _REAL_RETARGETING_GOAL != _SYNTHETIC_GOAL
+)
+_REAL_GOAL_BYTES = _REAL_RETARGETING_GOAL.encode() if _GOAL_MASK_ACTIVE else b""
+_SYNTHETIC_GOAL_BYTES = _SYNTHETIC_GOAL.encode()
+
+
+def _mask_retargeting_goal(text):
+    """Replace the real retargeting goal id with the synthetic placeholder."""
+    if not _GOAL_MASK_ACTIVE:
+        return text, False
+    if isinstance(text, str) and _REAL_RETARGETING_GOAL in text:
+        return text.replace(_REAL_RETARGETING_GOAL, _SYNTHETIC_GOAL), True
+    if isinstance(text, bytes) and _REAL_GOAL_BYTES in text:
+        return text.replace(_REAL_GOAL_BYTES, _SYNTHETIC_GOAL_BYTES), True
+    return text, False
 
 
 def _scrub_login(text: str) -> str:
@@ -194,6 +222,10 @@ def _before_record_request(request):
                 _REAL_LOGIN.encode(), _REDACTED.encode()
             )
             redacted = True
+    # A retargeting rule echoes the real Metrica goal id in the body — mask it.
+    if request.body:
+        request.body, masked_goal = _mask_retargeting_goal(request.body)
+        redacted = redacted or masked_goal
     if redacted:
         new_body = request.body
         new_len = str(
@@ -213,9 +245,12 @@ def _before_record_response(response):
         if isinstance(data, bytes):
             decoded = data.decode("utf-8", errors="replace")
             scrubbed = _scrub_pii_fields(_scrub_login(decoded))
+            scrubbed, _ = _mask_retargeting_goal(scrubbed)
             body["string"] = scrubbed.encode("utf-8")
         elif isinstance(data, str):
-            body["string"] = _scrub_pii_fields(_scrub_login(data))
+            scrubbed = _scrub_pii_fields(_scrub_login(data))
+            scrubbed, _ = _mask_retargeting_goal(scrubbed)
+            body["string"] = scrubbed
 
     headers = response.get("headers", {})
     for key in list(headers.keys()):
@@ -316,7 +351,7 @@ def tomorrow() -> str:
 
 
 def _invoke(*args: str):
-    """Invoke a CLI command with ``--sandbox``, ``--token`` and ``--login`` pre-injected.
+    """Invoke a CLI command with ``--sandbox``/``--token``/``--login`` injected.
 
     ``--login`` is required during cassette rewrite: without it the CLI
     falls back to whatever login the active ``direct auth`` profile
@@ -417,7 +452,8 @@ def unique_suffix() -> str:
 
 _SANDBOX_ERROR_PATTERNS = (
     "Object not found",
-    "Operation not supported",  # sandbox returns this for features unavailable in test env
+    # sandbox returns this for features unavailable in test env
+    "Operation not supported",
     "Not supported",  # sandbox returns this for unsupported campaign types
     "не поддерживается",  # Russian variant of the above
     "Campaign not found",
