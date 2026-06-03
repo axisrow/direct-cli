@@ -5,8 +5,10 @@ Creatives commands
 import click
 
 from ..api import client_from_ctx, create_client
+from ..i18n import t
 from ..output import format_output, handle_api_errors
 from ..utils import (
+    build_common_params,
     get_default_fields,
     parse_csv_strings,
     parse_csv_upper,
@@ -101,11 +103,13 @@ def get(
     if types:
         criteria["Types"] = parse_csv_upper(types) or []
 
-    params = {"SelectionCriteria": criteria, "FieldNames": field_names}
-    params.update(parsed_nested_field_names)
+    if not criteria:
+        raise click.UsageError(t("Provide at least one typed filter"))
 
-    if limit:
-        params["Page"] = {"Limit": limit}
+    params = build_common_params(
+        criteria=criteria, field_names=field_names, limit=limit
+    )
+    params.update(parsed_nested_field_names)
 
     body = {"method": "get", "params": params}
 

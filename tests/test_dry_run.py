@@ -351,9 +351,18 @@ def test_optional_ids_criteria_get_omits_empty_selection_criteria():
         "negativekeywordsharedsets",
         "sitelinks",
         "vcards",
+        # retargeting GetRequest.SelectionCriteria is minOccurs=0 (optional), so
+        # a no-filter call is valid and now omits the empty criteria — it also
+        # gained --dry-run in #498 (B3c).
+        "retargeting",
     ):
         body = _read_dry_run(command, "get")
         assert "SelectionCriteria" not in body["params"]
+
+
+def test_retargeting_get_with_ids_builds_selection_criteria():
+    body = _read_dry_run("retargeting", "get", "--ids", "1,2")
+    assert body["params"]["SelectionCriteria"] == {"Ids": [1, 2]}
 
 
 def test_advideos_get_ids_required():
@@ -17570,6 +17579,46 @@ def test_keywordbids_get_requires_selection_criteria():
     assert "--keyword-ids" in result.output
 
 
+# WSDL GetRequest.SelectionCriteria is minOccurs=1 for these resources, so a
+# no-filter ``get`` would send ``{"SelectionCriteria": {}}`` — rejected by the
+# live API (error 4001 for ad-group/ad/keyword). The CLI now refuses it before
+# the request, extending the bids/keywordbids guard shipped in 0.4.1 (#483).
+# Issue #498 (B3c).
+_SELECTION_CRITERIA_REQUIRED_GET_COMMANDS = (
+    "adgroups",
+    "ads",
+    "keywords",
+    "strategies",
+    "creatives",
+    "dynamicads",
+    "smartadtargets",
+    "audiencetargets",
+)
+
+
+@pytest.mark.parametrize("command", _SELECTION_CRITERIA_REQUIRED_GET_COMMANDS)
+def test_get_requires_selection_criteria(command):
+    result = CliRunner().invoke(
+        cli,
+        [command, "get", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+    assert result.exit_code != 0, (
+        f"direct {command} get --dry-run unexpectedly succeeded with no filter\n"
+        f"output: {result.output}"
+    )
+    # The guard is a Click UsageError (exit 2), not an API Abort (exit 1).
+    assert result.exit_code == 2
+
+
+@pytest.mark.parametrize("command", _SELECTION_CRITERIA_REQUIRED_GET_COMMANDS)
+def test_get_with_filter_keeps_selection_criteria(command):
+    # With a filter present the payload still carries SelectionCriteria — the
+    # guard only rejects the empty case, the populated payload is unchanged.
+    body = _read_dry_run(command, "get", "--ids", "1,2")
+    assert body["params"]["SelectionCriteria"] == {"Ids": [1, 2]}
+
+
 def test_campaigns_get_empty_fields_raises_usage_error_not_abort():
     # The UsageError from _parse_csv_option must keep exit code 2 (UsageError),
     # not be swallowed by ``except Exception`` and downgraded to Abort (1).
@@ -22428,6 +22477,8 @@ def test_keywords_get_nested_field_names_payload():
     body = _read_dry_run(
         "keywords",
         "get",
+        "--ids",
+        "1",
         "--autotargeting-settings-brand-options-field-names",
         "WithoutBrands,WithAdvertiserBrand,WithCompetitorsBrand",
         "--autotargeting-settings-categories-field-names",
@@ -22448,7 +22499,7 @@ def test_keywords_get_nested_field_names_payload():
 
 
 def test_keywords_get_omits_nested_field_names_by_default():
-    body = _read_dry_run("keywords", "get")
+    body = _read_dry_run("keywords", "get", "--ids", "1")
 
     assert "AutotargetingSettingsBrandOptionsFieldNames" not in body["params"]
     assert "AutotargetingSettingsCategoriesFieldNames" not in body["params"]
@@ -22519,6 +22570,8 @@ def test_creatives_get_nested_field_names_payload():
     body = _read_dry_run(
         "creatives",
         "get",
+        "--ids",
+        "1",
         "--cpc-video-creative-field-names",
         "Duration",
         "--cpm-video-creative-field-names",
@@ -22541,7 +22594,7 @@ def test_creatives_get_nested_field_names_payload():
 
 
 def test_creatives_get_omits_nested_field_names_by_default():
-    body = _read_dry_run("creatives", "get")
+    body = _read_dry_run("creatives", "get", "--ids", "1")
 
     for key in (
         "CpcVideoCreativeFieldNames",
