@@ -1,3 +1,7 @@
 {
+  "Get available v4 Live API versions.": "Получить доступные версии v4 Live API.",
+  "Get the v4 Live API version.": "Получить версию v4 Live API.",
+  "Ping the v4 Live API extended endpoint.": "Проверить расширенный endpoint v4 Live API.",
+  "Ping the v4 Live API.": "Проверить доступность v4 Live API.",
   "Yandex Direct v4 Live metadata commands.": "Команды метаданных Yandex Direct v4 Live."
 }
