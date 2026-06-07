@@ -12,13 +12,17 @@ Fails (exit code 1) when:
 Usage:
     python scripts/check_all_docs_urls.py
 """
+
 from __future__ import annotations
 
 import sys
 import time
+from pathlib import Path
 from urllib.parse import urlparse
 
 import requests
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from direct_cli._vendor.tapi_yandex_direct.resource_mapping import RESOURCE_MAPPING_V5
 from direct_cli.reports_coverage import REPORTS_SPEC_URLS
@@ -30,7 +34,7 @@ MIN_BODY_BYTES = 30_000
 # floor used by wsdl_coverage.fetch_wsdl (CLAUDE.md "Docs/cache freshness guard").
 MIN_WSDL_BYTES = 3_072
 INTER_REQUEST_DELAY = 1.5  # Yandex rate-limits aggressive UA-less scrapers
-CAPTCHA_RETRY_DELAY = 30   # captcha lockouts clear after ~30s
+CAPTCHA_RETRY_DELAY = 30  # captcha lockouts clear after ~30s
 
 
 def collect_urls() -> dict[str, str]:
@@ -59,7 +63,9 @@ def _probe(url: str) -> tuple[str, str] | None:
     """One pass. Return (verdict, detail) or None when caller should retry after delay."""
     try:
         head = requests.head(
-            url, allow_redirects=False, timeout=15,
+            url,
+            allow_redirects=False,
+            timeout=15,
             headers={"User-Agent": USER_AGENT},
         )
     except requests.RequestException as exc:
@@ -81,7 +87,9 @@ def _probe(url: str) -> tuple[str, str] | None:
     # move that only surfaces via GET (HEAD 4xx → GET 3xx) is still caught as MOVED.
     try:
         resp = requests.get(
-            url, allow_redirects=False, timeout=30,
+            url,
+            allow_redirects=False,
+            timeout=30,
             headers={"User-Agent": USER_AGENT},
         )
     except requests.RequestException as exc:
@@ -95,9 +103,7 @@ def _probe(url: str) -> tuple[str, str] | None:
             return ("MOVED", f"GET {resp.status_code} → {loc}")
         # Same-path redirect (e.g. trailing slash) — follow it once to read body.
         try:
-            resp = requests.get(
-                url, timeout=30, headers={"User-Agent": USER_AGENT}
-            )
+            resp = requests.get(url, timeout=30, headers={"User-Agent": USER_AGENT})
         except requests.RequestException as exc:
             return ("ERROR", f"GET (follow) failed: {exc}")
     if 400 <= resp.status_code < 500:
@@ -157,21 +163,32 @@ def main() -> int:
 
     width = max(len(label) for label, *_ in rows)
     for label, url, verdict, detail in rows:
-        symbol = {"OK": "✓", "MOVED": "→", "GONE": "✗", "CAPTCHA": "🤖",
-                  "SMALL": "?", "SERVER": "⚠", "ERROR": "!"}[verdict]
+        symbol = {
+            "OK": "✓",
+            "MOVED": "→",
+            "GONE": "✗",
+            "CAPTCHA": "🤖",
+            "SMALL": "?",
+            "SERVER": "⚠",
+            "ERROR": "!",
+        }[verdict]
         print(f"  {symbol} {label:<{width}}  {verdict:<8}  {detail}")
         if verdict != "OK":
             print(f"        {url}")
 
     print()
     if failed:
-        print("FAIL — at least one URL has moved or is gone. "
-              "Update RESOURCE_MAPPING_V5 / REPORTS_SPEC_URLS before releasing.")
+        print(
+            "FAIL — at least one URL has moved or is gone. "
+            "Update RESOURCE_MAPPING_V5 / REPORTS_SPEC_URLS before releasing."
+        )
         return 1
     if soft_warned:
-        print("OK with warnings — Yandex returned 5xx or captcha for at least "
-              "one URL (likely IP rate-limit, not a canonical move); "
-              "re-run later to confirm.")
+        print(
+            "OK with warnings — Yandex returned 5xx or captcha for at least "
+            "one URL (likely IP rate-limit, not a canonical move); "
+            "re-run later to confirm."
+        )
     else:
         print("OK — all URLs canonical.")
     return 0
