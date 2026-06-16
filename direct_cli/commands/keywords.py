@@ -35,10 +35,13 @@ from .._autotargeting import (
 )
 from ._lifecycle import make_lifecycle_command
 
-# Yandex Direct API "keywords.add" caps a single AddItems request at 10
-# items; the WSDL declares maxOccurs="unbounded", so this limit comes from
-# the documentation rather than the contract:
-# https://yandex.ru/dev/direct/doc/dg/objects/keyword.html
+# Chunk size for batch `keywords add`: items from --from-file / --keywords-json
+# are split into chunks of this size and sent in a loop. This is a conservative
+# CHUNK SIZE, not the API ceiling — the documented per-call limit is 1000
+# (Yandex docs, keywords/add page). Keeping each request small means a partial
+# failure rolls back at most this many items, not 1000. The WSDL declares the
+# Keywords array maxOccurs="unbounded"; the real cap is runtime policy, not the
+# contract.
 KEYWORDS_ADD_MAX_BATCH = 10
 
 # Yandex Direct caps the number of keywords per ad group at 200 (same docs).
@@ -733,7 +736,9 @@ def _deprecated_bid_option(ctx, param, value):
 
 
 @keywords.command()
-@click.option("--id", "keyword_id", required=True, type=int, help="Keyword ID")
+@click.option(
+    "--id", "keyword_id", required=True, type=click.IntRange(min=1), help="Keyword ID"
+)
 @click.option("--keyword", help="New keyword text")
 @click.option("--user-param-1", help="User parameter 1")
 @click.option("--user-param-2", help="User parameter 2")

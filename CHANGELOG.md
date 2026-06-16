@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+**Fixes — reject non-positive IDs before the request (#558):**
+
+- Mutating commands and lifecycle ops took `--id` / `--adgroup-id` /
+  `--campaign-id` as a bare `int`, which accepted `0` and negatives and
+  forwarded them to the API (opaque rejection). They now use
+  `click.IntRange(min=1)` and reject a non-positive id with a clear
+  `UsageError` (exit 2) before any request. Covers every `delete` / `suspend` /
+  `resume` / `archive` / `unarchive` / `moderate` lifecycle command (via the
+  shared `_lifecycle.py` factory) plus `ads add` / `ads update`,
+  `adgroups add` / `adgroups update`, and `keywords update`. The ad-image
+  lifecycle (`--hash`, a string) is unchanged.
+- Batch-size caps (the docs allow up to 1000 objects per add/update and 10000
+  ids per delete) are intentionally **not** added: the CLI builds a
+  single-item payload for every mutation, so there is no caller-controllable
+  array to overflow. Multi-item batch mode (`--from-file`) for ads/adgroups is
+  tracked as follow-up work.
+- De-staled the `KEYWORDS_ADD_MAX_BATCH` comment: it claimed the API caps a
+  `keywords.add` request at 10 (citing an outdated doc page that states no such
+  number). The real documented per-call limit is 1000; the value `10` is a
+  conservative chunk size for batch add, not the API ceiling — comment fixed,
+  value unchanged.
+
 **Fixes — explain Error 8300 on delete/moderate (#548):**
 
 - `raise_for_api_result_errors` now appends a hint when the API returns code

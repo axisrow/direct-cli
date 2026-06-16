@@ -575,7 +575,9 @@ def get(
 
 @adgroups.command()
 @click.option("--name", required=True, help="Ad group name")
-@click.option("--campaign-id", required=True, type=int, help="Campaign ID")
+@click.option(
+    "--campaign-id", required=True, type=click.IntRange(min=1), help="Campaign ID"
+)
 @click.option(
     "--type",
     "group_type",
@@ -909,7 +911,9 @@ def add(
 
 
 @adgroups.command()
-@click.option("--id", "adgroup_id", required=True, type=int, help="Ad group ID")
+@click.option(
+    "--id", "adgroup_id", required=True, type=click.IntRange(min=1), help="Ad group ID"
+)
 @click.option("--name", help="New ad group name")
 @click.option("--status", help="New status")
 @click.option("--region-ids", help="Comma-separated region IDs")

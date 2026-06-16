@@ -1070,7 +1070,9 @@ def get(
 
 
 @ads.command()
-@click.option("--adgroup-id", required=True, type=int, help="Ad group ID")
+@click.option(
+    "--adgroup-id", required=True, type=click.IntRange(min=1), help="Ad group ID"
+)
 @click.option(
     "--type",
     "ad_type",
@@ -1722,7 +1724,7 @@ def add(
 
 
 @ads.command()
-@click.option("--id", "ad_id", required=True, type=int, help="Ad ID")
+@click.option("--id", "ad_id", required=True, type=click.IntRange(min=1), help="Ad ID")
 @click.option(
     "--type",
     "ad_type",

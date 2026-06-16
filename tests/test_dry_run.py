@@ -23355,3 +23355,89 @@ def test_raise_for_api_result_errors_8300_hint_has_no_url_literal():
     with pytest.raises(DirectAPIResultError) as exc:
         raise_for_api_result_errors(data)
     assert "https://" not in str(exc.value)
+
+
+# --- Positive-ID preflight (issue #558) ---
+# Mutating commands and lifecycle ops take a single int id; type=int accepted
+# 0 and negatives. IntRange(min=1) rejects them with exit 2 before any request.
+
+
+@pytest.mark.parametrize("bad", ["0", "-5"])
+def test_ads_delete_rejects_non_positive_id(bad):
+    result = _rejected("ads", "delete", "--id", bad)
+    assert result.exit_code == 2, result.output
+
+
+def test_ads_delete_allows_positive_id():
+    body = _dry_run("ads", "delete", "--id", "5")
+    assert body["params"]["SelectionCriteria"]["Ids"] == [5]
+
+
+@pytest.mark.parametrize("bad", ["0", "-1"])
+def test_adgroups_delete_rejects_non_positive_id(bad):
+    result = _rejected("adgroups", "delete", "--id", bad)
+    assert result.exit_code == 2, result.output
+
+
+def test_adgroups_delete_allows_positive_id():
+    body = _dry_run("adgroups", "delete", "--id", "7")
+    assert body["params"]["SelectionCriteria"]["Ids"] == [7]
+
+
+def test_keywords_delete_rejects_zero_id():
+    result = _rejected("keywords", "delete", "--id", "0")
+    assert result.exit_code == 2, result.output
+
+
+def test_campaigns_delete_rejects_zero_id():
+    result = _rejected("campaigns", "delete", "--id", "0")
+    assert result.exit_code == 2, result.output
+
+
+def test_ads_add_rejects_zero_adgroup_id():
+    result = _rejected(
+        "ads",
+        "add",
+        "--adgroup-id",
+        "0",
+        "--type",
+        "TEXT_AD",
+        "--title",
+        "T",
+        "--text",
+        "X",
+        "--href",
+        "http://a.b",
+    )
+    assert result.exit_code == 2, result.output
+
+
+def test_ads_update_rejects_zero_id():
+    result = _rejected(
+        "ads", "update", "--id", "0", "--type", "TEXT_AD", "--title", "N"
+    )
+    assert result.exit_code == 2, result.output
+
+
+def test_adgroups_add_rejects_zero_campaign_id():
+    result = _rejected(
+        "adgroups", "add", "--campaign-id", "0", "--name", "G", "--region-ids", "225"
+    )
+    assert result.exit_code == 2, result.output
+
+
+def test_adgroups_update_rejects_zero_id():
+    result = _rejected("adgroups", "update", "--id", "0", "--name", "N")
+    assert result.exit_code == 2, result.output
+
+
+def test_keywords_update_rejects_zero_id():
+    result = _rejected("keywords", "update", "--id", "0", "--keyword", "foo")
+    assert result.exit_code == 2, result.output
+
+
+def test_adimages_delete_still_accepts_hash_string():
+    # Regression guard: the ad-image lifecycle uses --hash (str), which must NOT
+    # be retyped to IntRange — a hash is not a positive integer.
+    body = _dry_run("adimages", "delete", "--hash", "abc123hash")
+    assert body["params"]["SelectionCriteria"]["AdImageHashes"] == ["abc123hash"]
