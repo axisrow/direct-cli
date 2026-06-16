@@ -68,8 +68,15 @@ def make_lifecycle_command(
         ``@group.command`` registration sticks).
     """
 
+    # A lifecycle id is always a positive object id; type=int used to accept 0
+    # and negatives and forward them to the API (opaque rejection). For the
+    # integer path, validate min=1 before the request (issue #558). The
+    # ad-image path keeps id_type=str (a hash is not an integer) and is
+    # untouched.
+    option_type = click.IntRange(min=1) if id_type is int else id_type
+
     @group.command(name=method, help=help_text)
-    @click.option(id_option, id_param, required=True, type=id_type, help=id_help)
+    @click.option(id_option, id_param, required=True, type=option_type, help=id_help)
     @click.option("--dry-run", is_flag=True, help="Show request without sending")
     @click.pass_context
     @handle_api_errors

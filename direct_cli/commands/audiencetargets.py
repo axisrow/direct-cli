@@ -102,7 +102,9 @@ def get(
 
 
 @audiencetargets.command()
-@click.option("--adgroup-id", required=True, type=int, help="Ad group ID")
+@click.option(
+    "--adgroup-id", required=True, type=click.IntRange(min=1), help="Ad group ID"
+)
 @click.option("--retargeting-list-id", type=int, help="Retargeting list ID")
 @click.option("--interest-id", type=int, help="Interest ID")
 @click.option("--bid", type=MICRO_RUBLES, help="ContextBid value in micro-rubles")
@@ -154,9 +156,9 @@ def add(
 
 
 @audiencetargets.command(name="set-bids")
-@click.option("--id", "target_id", type=int, help="Target ID")
-@click.option("--adgroup-id", type=int, help="Ad group ID")
-@click.option("--campaign-id", type=int, help="Campaign ID")
+@click.option("--id", "target_id", type=click.IntRange(min=1), help="Target ID")
+@click.option("--adgroup-id", type=click.IntRange(min=1), help="Ad group ID")
+@click.option("--campaign-id", type=click.IntRange(min=1), help="Campaign ID")
 @click.option("--context-bid", type=MICRO_RUBLES, help="Context bid in micro-rubles")
 @click.option("--priority", help="Strategy priority")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")

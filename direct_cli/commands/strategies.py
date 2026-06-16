@@ -820,7 +820,9 @@ def add(
 
 
 @strategies.command()
-@click.option("--id", "strategy_id", required=True, type=int, help="Strategy ID")
+@click.option(
+    "--id", "strategy_id", required=True, type=click.IntRange(min=1), help="Strategy ID"
+)
 @click.option("--name", help="New strategy name")
 @click.option(
     "--type",

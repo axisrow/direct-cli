@@ -86,7 +86,9 @@ def add(ctx, name, keywords, dry_run):
 
 
 @negativekeywordsharedsets.command()
-@click.option("--id", "set_id", required=True, type=int, help="Set ID")
+@click.option(
+    "--id", "set_id", required=True, type=click.IntRange(min=1), help="Set ID"
+)
 @click.option("--name", help="Set name")
 @click.option("--keywords", help="Comma-separated negative keywords")
 @click.option("--dry-run", is_flag=True, help="Show request without sending")

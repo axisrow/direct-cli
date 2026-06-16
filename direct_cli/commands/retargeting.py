@@ -150,7 +150,13 @@ def add(ctx, name, description, list_type, rules, dry_run):
 
 
 @retargeting.command()
-@click.option("--id", "list_id", required=True, type=int, help="Retargeting list ID")
+@click.option(
+    "--id",
+    "list_id",
+    required=True,
+    type=click.IntRange(min=1),
+    help="Retargeting list ID",
+)
 @click.option("--name", help="List name")
 @click.option(
     "--description",

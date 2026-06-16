@@ -333,7 +333,9 @@ def add_passport_organization_member(
 
 
 @agencyclients.command()
-@click.option("--client-id", required=True, type=int, help="Client ID")
+@click.option(
+    "--client-id", required=True, type=click.IntRange(min=1), help="Client ID"
+)
 @click.option("--client-info", help="Client information")
 @click.option("--phone", help="Client phone")
 @click.option("--notification-email", help="Notification email")
@@ -410,7 +412,9 @@ def update(
 
 
 @agencyclients.command()
-@click.option("--id", "client_id", required=True, type=int, help="Client ID")
+@click.option(
+    "--id", "client_id", required=True, type=click.IntRange(min=1), help="Client ID"
+)
 @click.pass_context
 def delete(ctx, client_id):
     """Delete agency client (not supported by API)"""

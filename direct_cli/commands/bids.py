@@ -90,9 +90,9 @@ def get(
 
 
 @bids.command()
-@click.option("--campaign-id", type=int, help="Campaign ID selector")
-@click.option("--adgroup-id", type=int, help="Ad group ID selector")
-@click.option("--keyword-id", type=int, help="Keyword ID selector")
+@click.option("--campaign-id", type=click.IntRange(min=1), help="Campaign ID selector")
+@click.option("--adgroup-id", type=click.IntRange(min=1), help="Ad group ID selector")
+@click.option("--keyword-id", type=click.IntRange(min=1), help="Keyword ID selector")
 @click.option("--bid", type=MICRO_RUBLES, help="Bid in micro-rubles")
 @click.option("--context-bid", type=MICRO_RUBLES, help="ContextBid in micro-rubles")
 @click.option(
@@ -166,9 +166,9 @@ def set(
 
 
 @bids.command(name="set-auto")
-@click.option("--campaign-id", type=int, help="Campaign ID")
-@click.option("--adgroup-id", type=int, help="Ad group ID")
-@click.option("--keyword-id", type=int, help="Keyword ID")
+@click.option("--campaign-id", type=click.IntRange(min=1), help="Campaign ID")
+@click.option("--adgroup-id", type=click.IntRange(min=1), help="Ad group ID")
+@click.option("--keyword-id", type=click.IntRange(min=1), help="Keyword ID")
 @click.option("--max-bid", type=MICRO_RUBLES, help="Maximum bid in micro-rubles")
 @click.option("--position", help="Desired position")
 @click.option("--increase-percent", type=int, help="Increase percent")

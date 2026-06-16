@@ -283,12 +283,12 @@ _BIDMODIFIER_ALLOWED_EXTRA_FLAGS = {
 @bidmodifiers.command()
 @click.option(
     "--campaign-id",
-    type=int,
+    type=click.IntRange(min=1),
     help="Campaign ID (mutually exclusive with --adgroup-id)",
 )
 @click.option(
     "--adgroup-id",
-    type=int,
+    type=click.IntRange(min=1),
     help="Ad group ID (mutually exclusive with --campaign-id)",
 )
 @click.option(
@@ -453,7 +453,7 @@ def _deprecated_legacy_option(ctx, param, value):
 @click.option(
     "--id",
     "modifier_id",
-    type=int,
+    type=click.IntRange(min=1),
     help=(
         "Existing BidModifier ID to update. This is the shape Yandex "
         "Direct's ``bidmodifiers/set`` method actually supports — pass "
