@@ -1536,6 +1536,11 @@ def _coerce_ad_row_field(key: str, value: Any, row_index: int) -> Any:
     JSON booleans are rejected for typed numeric/choice fields (Click never
     accepts a bool there); conversion errors are reported with the row index
     and field, mirroring keywords' ``_coerce_keyword_field``.
+
+    The scalar is stringified before ``convert`` so the Click type parses it
+    exactly as it parses a CLI token: ``IntRange``/``MICRO_RUBLES`` reject
+    ``"1.9"`` (whereas a raw Python ``float`` would be silently truncated via
+    ``int(value)``) — so a JSON ``1.9`` is rejected, not turned into ``1``.
     """
     global _ADS_ROW_PARAM_TYPES
     if _ADS_ROW_PARAM_TYPES is None:
@@ -1549,8 +1554,9 @@ def _coerce_ad_row_field(key: str, value: Any, row_index: int) -> Any:
                 row_index=row_index, key=key, arg0=param_type.name
             )
         )
+    token = str(value) if isinstance(value, (int, float)) else value
     try:
-        return param_type.convert(value, None, None)
+        return param_type.convert(token, None, None)
     except click.exceptions.BadParameter as exc:
         raise click.UsageError(
             t("Ad row {row_index} field {key!r}: {arg0}").format(

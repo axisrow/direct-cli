@@ -23822,3 +23822,70 @@ def test_ads_add_batch_rejects_invalid_choice_in_row(tmp_path):
     )
     result = _rejected("ads", "add", "--from-file", path)
     assert "Ad row 1 field 'mobile'" in result.output
+
+
+def test_ads_add_batch_rejects_float_adgroup_id(tmp_path):
+    # A JSON float must NOT be silently truncated to int (1.9 -> 1); Click
+    # rejects the "1.9" token, so the row is rejected — same as single mode.
+    path = _write_jsonl(tmp_path, [{"type": "TEXT_AD", "adgroup-id": 1.9}])
+    result = _rejected("ads", "add", "--from-file", path)
+    assert "Ad row 1 field 'adgroup-id'" in result.output
+
+
+def test_ads_add_batch_rejects_float_int_id(tmp_path):
+    path = _write_jsonl(
+        tmp_path,
+        [
+            {
+                "type": "TEXT_AD",
+                "title": "T",
+                "text": "B",
+                "href": "http://x",
+                "vcard-id": 1.9,
+                "adgroup-id": 1,
+            }
+        ],
+    )
+    result = _rejected("ads", "add", "--from-file", path)
+    assert "Ad row 1 field 'vcard-id'" in result.output
+
+
+def test_ads_add_batch_rejects_float_micro_rubles(tmp_path):
+    path = _write_jsonl(
+        tmp_path,
+        [
+            {
+                "type": "TEXT_AD",
+                "title": "T",
+                "text": "B",
+                "href": "http://x",
+                "price-extension-price": 12500000.9,
+                "price-extension-price-qualifier": "FROM",
+                "price-extension-price-currency": "RUB",
+                "adgroup-id": 1,
+            }
+        ],
+    )
+    result = _rejected("ads", "add", "--from-file", path)
+    assert "Ad row 1 field 'price-extension-price'" in result.output
+
+
+def test_ads_add_batch_accepts_genuine_int_ids(tmp_path):
+    # A genuine JSON int still passes through unchanged.
+    path = _write_jsonl(
+        tmp_path,
+        [
+            {
+                "type": "TEXT_AD",
+                "title": "T",
+                "text": "B",
+                "href": "http://x",
+                "vcard-id": 555,
+                "adgroup-id": 7,
+            }
+        ],
+    )
+    body = _dry_run("ads", "add", "--from-file", path)
+    ad = body["firstChunk"]["params"]["Ads"][0]
+    assert ad["AdGroupId"] == 7
+    assert ad["TextAd"]["VCardId"] == 555
