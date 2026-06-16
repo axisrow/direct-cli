@@ -21,6 +21,27 @@
 - Chunk size `ADS_ADD_MAX_BATCH = 100` (conservative chunk, not the 1000-object
   API ceiling — a partial failure rolls back at most 100 ads).
 
+**Features — batch `ads update` via `--from-file` / `--ads-json` (#563, #558 follow-up):**
+
+- `ads update` now accepts a batch of flag-form ad-update rows from a JSONL file
+  (`--from-file`) or an inline JSON array (`--ads-json`); each row is the same
+  flag set keyed by the kebab flag name without the leading dashes plus its own
+  `id` and `type` (e.g. `{"id":5,"type":"TEXT_AD","title":"New"}`). The
+  `--clear-image-hash` mechanic works per row as a JSON boolean. Single
+  typed-flag mode is unchanged.
+- The subtype-dispatch body of `ads update` (type validation, the
+  incompatible-flag / "does not convert between subtypes" guard, per-subtype
+  assembly, and the empty-subtype no-op guard) was extracted into a reusable,
+  ctx-free `build_ad_update_object()` so the single-flag command and the batch
+  normalizer emit byte-identical ad-update objects (golden-tested across every
+  subtype). Reuses the shared `_batch.py` engine with `method="update"` /
+  `result_key="UpdateResults"`.
+- `--id` and `--type` become per-row in batch mode (each row carries its own);
+  single-item mode still requires both. The per-row normalizer reproduces the
+  command's `--id`/`--type` required checks, the `--image-hash` /
+  `--clear-image-hash` mutex, and the same Click-type coercion as the single
+  path (a JSON float `id` is rejected, not truncated).
+
 **Features — batch `adgroups add` via `--from-file` / `--adgroups-json` (#564, #558 follow-up):**
 
 - `adgroups add` now accepts a batch of flag-form ad-group rows from a JSONL

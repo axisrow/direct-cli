@@ -1490,6 +1490,413 @@ def build_ad_object(*, adgroup_id, ad_type, mobile_provided, flags, flag_for=Non
     return ad_data
 
 
+# dest -> "--flag" map for the `ads update` flag set (mirrors _ADS_ADD_FLAG_FOR).
+# Hoisted to module level so build_ad_update_object and the batch normalizer
+# share one source of truth.
+_ADS_UPDATE_FLAG_FOR = {
+    "title": "--title",
+    "text": "--text",
+    "titles": "--titles",
+    "texts": "--texts",
+    "href": "--href",
+    "image_hash": "--image-hash",
+    "clear_image_hash": "--clear-image-hash",
+    "image_hashes": "--image-hashes",
+    "action": "--action",
+    "tracking_url": "--tracking-url",
+    "age_label": "--age-label",
+    "mobile_app_features": "--mobile-app-feature",
+    "title2": "--title2",
+    "display_url_path": "--display-url-path",
+    "vcard_id": "--vcard-id",
+    "sitelink_set_id": "--sitelink-set-id",
+    "turbo_page_id": "--turbo-page-id",
+    "callouts_add": "--callouts-add",
+    "callouts_remove": "--callouts-remove",
+    "callouts_set": "--callouts-set",
+    "video_extension_creative_id": "--video-extension-creative-id",
+    "video_extension_ids": "--video-extension-ids",
+    "price_extension_price": "--price-extension-price",
+    "price_extension_old_price": "--price-extension-old-price",
+    "price_extension_price_qualifier": "--price-extension-price-qualifier",
+    "price_extension_price_currency": "--price-extension-price-currency",
+    "business_id": "--business-id",
+    "prefer_vcard_over_business": "--prefer-vcard-over-business",
+    "erir_ad_description": "--erir-ad-description",
+    "logo_extension_hash": "--logo-extension-hash",
+    "creative_id": "--creative-id",
+    "creative_erir_ad_description": "--creative-erir-ad-description",
+    "final_url": "--final-url",
+    "tracking_pixels": "--tracking-pixels",
+    "feed_filter_conditions": "--feed-filter-condition",
+    "title_sources": "--title-sources",
+    "text_sources": "--text-sources",
+    "default_texts": "--default-texts",
+}
+
+
+def _ads_update_type_fields():
+    """Per-WSDL-subtype field allow-list for ``ads update``.
+
+    Built once at import (not per ad) so the batch path, which runs this once per
+    row, does not rebuild the dict. Each ``--type`` accepts only the options that
+    map to fields inside its ``AdUpdateItem`` subtype; a flag outside the
+    allow-list would be silently dropped, so the caller rejects it up front
+    (issue #198 H2).
+    """
+    return {
+        "TEXT_AD": TEXT_AD_UPDATE_FIELDS,
+        "DYNAMIC_TEXT_AD": {
+            "text",
+            "image_hash",
+            "clear_image_hash",
+            "vcard_id",
+            "sitelink_set_id",
+            "callouts_add",
+            "callouts_remove",
+            "callouts_set",
+        },
+        "TEXT_IMAGE_AD": TEXT_IMAGE_AD_UPDATE_FIELDS,
+        "MOBILE_APP_AD": MOBILE_APP_AD_UPDATE_FIELDS,
+        "MOBILE_APP_IMAGE_AD": MOBILE_APP_IMAGE_UPDATE_FIELDS,
+        "RESPONSIVE_AD": {
+            "texts",
+            "titles",
+            "image_hashes",
+            "video_extension_ids",
+            "sitelink_set_id",
+            "callouts_add",
+            "callouts_remove",
+            "callouts_set",
+            "href",
+            "age_label",
+            "display_url_path",
+            "price_extension_price",
+            "price_extension_old_price",
+            "price_extension_price_qualifier",
+            "price_extension_price_currency",
+            "business_id",
+            "erir_ad_description",
+        },
+        "SHOPPING_AD": FEED_BASED_UPDATE_FIELDS,
+        "LISTING_AD": FEED_BASED_UPDATE_FIELDS,
+        "SMART_AD_BUILDER_AD": SMART_AD_BUILDER_UPDATE_FIELDS,
+        **AD_BUILDER_TYPE_FIELDS,
+    }
+
+
+_ADS_UPDATE_TYPE_FIELDS = _ads_update_type_fields()
+_ADS_UPDATE_SUPPORTED_TYPES = frozenset(
+    {
+        "TEXT_AD",
+        "TEXT_IMAGE_AD",
+        "MOBILE_APP_AD",
+        "MOBILE_APP_IMAGE_AD",
+        "DYNAMIC_TEXT_AD",
+        "RESPONSIVE_AD",
+        "SHOPPING_AD",
+        "LISTING_AD",
+        "SMART_AD_BUILDER_AD",
+        *AD_BUILDER_UPDATE_BLOCKS,
+    }
+)
+
+
+def build_ad_update_object(*, ad_id, ad_type, flags, flag_for=None):
+    """Build a single ``Ads`` update item dict from flag values (issue #563).
+
+    Pure (no ``ctx``, no I/O): performs ``--type`` validation, the
+    incompatible-flag / "does not convert between subtypes" guard, per-subtype
+    assembly, and the empty-subtype no-op guard, returning
+    ``{"Id": ..., "<SubType>": {...}}``. Both the single-flag ``ads update``
+    command and the ``--from-file`` batch normalizer call it so they emit
+    byte-identical objects.
+
+    ``flags`` is keyed by the command's dest var names (``image_hash``,
+    ``clear_image_hash``, ``mobile_app_features``, ...); missing keys default to
+    ``None``. The caller is responsible for the ``--status`` rejection and the
+    ``--image-hash``/``--clear-image-hash`` mutex (those have command-level
+    wording).
+    """
+    flag_for = flag_for if flag_for is not None else _ADS_UPDATE_FLAG_FOR
+
+    # Unpack flags into locals so the dispatch body below is byte-identical to
+    # the historical inline command body.
+    title = flags.get("title")
+    text = flags.get("text")
+    titles = flags.get("titles")
+    texts = flags.get("texts")
+    href = flags.get("href")
+    image_hash = flags.get("image_hash")
+    clear_image_hash = flags.get("clear_image_hash")
+    image_hashes = flags.get("image_hashes")
+    action = flags.get("action")
+    tracking_url = flags.get("tracking_url")
+    age_label = flags.get("age_label")
+    mobile_app_features = flags.get("mobile_app_features") or ()
+    title2 = flags.get("title2")
+    display_url_path = flags.get("display_url_path")
+    vcard_id = flags.get("vcard_id")
+    sitelink_set_id = flags.get("sitelink_set_id")
+    turbo_page_id = flags.get("turbo_page_id")
+    callouts_add = flags.get("callouts_add")
+    callouts_remove = flags.get("callouts_remove")
+    callouts_set = flags.get("callouts_set")
+    video_extension_creative_id = flags.get("video_extension_creative_id")
+    video_extension_ids = flags.get("video_extension_ids")
+    price_extension_price = flags.get("price_extension_price")
+    price_extension_old_price = flags.get("price_extension_old_price")
+    price_extension_price_qualifier = flags.get("price_extension_price_qualifier")
+    price_extension_price_currency = flags.get("price_extension_price_currency")
+    business_id = flags.get("business_id")
+    prefer_vcard_over_business = flags.get("prefer_vcard_over_business")
+    erir_ad_description = flags.get("erir_ad_description")
+    logo_extension_hash = flags.get("logo_extension_hash")
+    creative_id = flags.get("creative_id")
+    creative_erir_ad_description = flags.get("creative_erir_ad_description")
+    final_url = flags.get("final_url")
+    tracking_pixels = flags.get("tracking_pixels")
+    feed_filter_conditions = flags.get("feed_filter_conditions") or ()
+    title_sources = flags.get("title_sources")
+    text_sources = flags.get("text_sources")
+    default_texts = flags.get("default_texts")
+
+    ad_type_norm = ad_type.upper().replace("-", "_")
+    if ad_type_norm not in _ADS_UPDATE_SUPPORTED_TYPES:
+        raise click.UsageError(
+            t(
+                "Invalid value for '--type': {ad_type!r} is not one of 'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD', 'DYNAMIC_TEXT_AD', 'MOBILE_APP_IMAGE_AD', 'RESPONSIVE_AD', 'SHOPPING_AD', 'LISTING_AD', 'SMART_AD_BUILDER_AD', 'TEXT_AD_BUILDER_AD', 'MOBILE_APP_AD_BUILDER_AD', 'MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD', 'CPC_VIDEO_AD_BUILDER_AD', 'CPM_BANNER_AD_BUILDER_AD', 'CPM_VIDEO_AD_BUILDER_AD'."
+            ).format(ad_type=ad_type)
+        )
+
+    provided = {
+        "title": title,
+        "text": text,
+        "titles": titles,
+        "texts": texts,
+        "href": href,
+        "image_hash": image_hash,
+        "clear_image_hash": clear_image_hash or None,
+        "image_hashes": image_hashes,
+        "action": action,
+        "tracking_url": tracking_url,
+        "age_label": age_label,
+        "mobile_app_features": mobile_app_features,
+        "title2": title2,
+        "display_url_path": display_url_path,
+        "vcard_id": vcard_id,
+        "sitelink_set_id": sitelink_set_id,
+        "turbo_page_id": turbo_page_id,
+        "callouts_add": callouts_add,
+        "callouts_remove": callouts_remove,
+        "callouts_set": callouts_set,
+        "video_extension_creative_id": video_extension_creative_id,
+        "video_extension_ids": video_extension_ids,
+        "price_extension_price": price_extension_price,
+        "price_extension_old_price": price_extension_old_price,
+        "price_extension_price_qualifier": price_extension_price_qualifier,
+        "price_extension_price_currency": price_extension_price_currency,
+        "business_id": business_id,
+        "prefer_vcard_over_business": prefer_vcard_over_business,
+        "erir_ad_description": erir_ad_description,
+        "logo_extension_hash": logo_extension_hash,
+        "creative_id": creative_id,
+        "creative_erir_ad_description": creative_erir_ad_description,
+        "final_url": final_url,
+        "tracking_pixels": tracking_pixels,
+        "feed_filter_conditions": feed_filter_conditions,
+        "title_sources": title_sources,
+        "text_sources": text_sources,
+        "default_texts": default_texts,
+    }
+    try:
+        _reject_incompatible_flags(
+            ad_type_norm, _ADS_UPDATE_TYPE_FIELDS[ad_type_norm], provided, flag_for
+        )
+    except click.UsageError as exc:
+        raise click.UsageError(
+            t(
+                "{arg0} --type selects the existing ad subtype update block; it does not convert an ad between subtypes."
+            ).format(arg0=exc.message)
+        )
+
+    # Validate up-front so SET vs ADD/REMOVE mutex errors raise UsageError
+    # before any payload work, bypassing the generic ``except Exception``
+    # net wrapped around the network call below.
+    callout_setting = _build_callout_setting(
+        callouts_add, callouts_remove, callouts_set
+    )
+    price_extension = _build_price_extension(
+        price_extension_price,
+        price_extension_old_price,
+        price_extension_price_qualifier,
+        price_extension_price_currency,
+    )
+    parsed_mobile_app_features = _parse_mobile_app_features(mobile_app_features)
+
+    ad_data = {"Id": ad_id}
+
+    if ad_type_norm == "TEXT_AD":
+        text_ad = _build_text_ad_update_base(
+            vcard_id,
+            image_hash,
+            sitelink_set_id,
+            callout_setting,
+            clear_image_hash=clear_image_hash,
+        )
+        if title:
+            text_ad["Title"] = title
+        if text:
+            text_ad["Text"] = text
+        if href:
+            text_ad["Href"] = href
+        if title2:
+            text_ad["Title2"] = title2
+        if final_url:
+            text_ad["FinalUrl"] = final_url
+        if display_url_path:
+            text_ad["DisplayUrlPath"] = display_url_path
+        if age_label:
+            text_ad["AgeLabel"] = age_label.upper()
+        if turbo_page_id is not None:
+            text_ad["TurboPageId"] = turbo_page_id
+        if video_extension_creative_id is not None:
+            text_ad["VideoExtension"] = {"CreativeId": video_extension_creative_id}
+        if price_extension:
+            text_ad["PriceExtension"] = price_extension
+        if business_id is not None:
+            text_ad["BusinessId"] = business_id
+        if prefer_vcard_over_business:
+            text_ad["PreferVCardOverBusiness"] = prefer_vcard_over_business.upper()
+        if erir_ad_description:
+            text_ad["ErirAdDescription"] = erir_ad_description
+        if text_ad:
+            ad_data["TextAd"] = text_ad
+    elif ad_type_norm == "DYNAMIC_TEXT_AD":
+        dynamic_text_ad = _build_text_ad_update_base(
+            vcard_id,
+            image_hash,
+            sitelink_set_id,
+            callout_setting,
+            clear_image_hash=clear_image_hash,
+        )
+        if text:
+            dynamic_text_ad["Text"] = text
+        if dynamic_text_ad:
+            ad_data["DynamicTextAd"] = dynamic_text_ad
+    elif ad_type_norm == "TEXT_IMAGE_AD":
+        text_image_ad = {}
+        # No clear_image_hash: ImageAdUpdateBase.AdImageHash is not nillable;
+        # the live API rejects null for this subtype (error 8000).
+        if image_hash:
+            text_image_ad["AdImageHash"] = image_hash
+        if final_url:
+            text_image_ad["FinalUrl"] = final_url
+        if href:
+            text_image_ad["Href"] = href
+        if turbo_page_id is not None:
+            text_image_ad["TurboPageId"] = turbo_page_id
+        if erir_ad_description:
+            text_image_ad["ErirAdDescription"] = erir_ad_description
+        if text_image_ad:
+            ad_data["TextImageAd"] = text_image_ad
+    elif ad_type_norm == "MOBILE_APP_AD":
+        mobile_app_ad = {}
+        if title:
+            mobile_app_ad["Title"] = title
+        if text:
+            mobile_app_ad["Text"] = text
+        if clear_image_hash:
+            mobile_app_ad["AdImageHash"] = None
+        elif image_hash:
+            mobile_app_ad["AdImageHash"] = image_hash
+        if action:
+            mobile_app_ad["Action"] = action.upper()
+        if tracking_url:
+            mobile_app_ad["TrackingUrl"] = tracking_url
+        if parsed_mobile_app_features:
+            mobile_app_ad["Features"] = parsed_mobile_app_features
+        if age_label:
+            mobile_app_ad["AgeLabel"] = age_label.upper()
+        if video_extension_creative_id is not None:
+            mobile_app_ad["VideoExtension"] = {
+                "CreativeId": video_extension_creative_id
+            }
+        if erir_ad_description:
+            mobile_app_ad["ErirAdDescription"] = erir_ad_description
+        if mobile_app_ad:
+            ad_data["MobileAppAd"] = mobile_app_ad
+    elif ad_type_norm == "MOBILE_APP_IMAGE_AD":
+        mobile_app_image_ad = _build_mobile_app_image_ad_update(
+            image_hash,
+            erir_ad_description,
+            tracking_url,
+        )
+        if mobile_app_image_ad:
+            ad_data["MobileAppImageAd"] = mobile_app_image_ad
+    elif ad_type_norm == "RESPONSIVE_AD":
+        responsive_ad = _build_responsive_ad_update(
+            texts,
+            titles,
+            image_hashes,
+            video_extension_ids,
+            sitelink_set_id,
+            callout_setting,
+            href,
+            age_label,
+            display_url_path,
+            price_extension,
+            business_id,
+            erir_ad_description,
+        )
+        if responsive_ad:
+            ad_data["ResponsiveAd"] = responsive_ad
+    elif ad_type_norm in {"SHOPPING_AD", "LISTING_AD"}:
+        feed_based_ad = _build_feed_based_ad_update(
+            sitelink_set_id,
+            callout_setting,
+            business_id,
+            feed_filter_conditions,
+            title_sources,
+            text_sources,
+            default_texts,
+        )
+        if feed_based_ad:
+            field_name = "ShoppingAd" if ad_type_norm == "SHOPPING_AD" else "ListingAd"
+            ad_data[field_name] = feed_based_ad
+    elif ad_type_norm == "SMART_AD_BUILDER_AD":
+        smart_ad_builder_ad = _build_smart_ad_builder_ad_update(
+            logo_extension_hash,
+            erir_ad_description,
+        )
+        if smart_ad_builder_ad:
+            ad_data["SmartAdBuilderAd"] = smart_ad_builder_ad
+    elif ad_type_norm in AD_BUILDER_UPDATE_BLOCKS:
+        ad_builder_ad = _build_ad_builder_update(
+            creative_id,
+            creative_erir_ad_description,
+            erir_ad_description,
+            final_url,
+            href,
+            turbo_page_id,
+            tracking_url,
+            tracking_pixels,
+        )
+        if ad_builder_ad:
+            ad_data[AD_BUILDER_UPDATE_BLOCKS[ad_type_norm]] = ad_builder_ad
+
+    # Reject empty-subtype no-ops: ``{Id: N}`` with no subtype block
+    # is a silent no-op on the live API (issue #198 H1).
+    if len(ad_data) == 1:
+        raise click.UsageError(
+            t(
+                "ads update requires at least one updatable field for --type {ad_type_norm}."
+            ).format(ad_type_norm=ad_type_norm)
+        )
+
+    return ad_data
+
+
 # Documented per-call limit for ads.add is 1000 (Yandex docs, ads/add page);
 # the WSDL declares the Ads array unbounded. ADS_ADD_MAX_BATCH is a conservative
 # CHUNK SIZE (not the ceiling): a partial failure rolls back at most this many
@@ -1692,6 +2099,225 @@ def _bulk_add_ads(ctx, *, adgroup_id, from_file, ads_json, dry_run):
         create_client=create_client,
         dry_run=dry_run,
         noun="ads",
+    )
+
+
+# Batch row keys for `ads update` are the kebab flag names without "--" plus
+# "id" and "type"; map them to build_ad_update_object's dest names.
+_ADS_UPDATE_ROW_KEY_TO_DEST = {
+    label[2:]: dest for dest, label in _ADS_UPDATE_FLAG_FOR.items()
+}
+_ADS_UPDATE_ROW_ALLOWED_KEYS = frozenset({"id", "type", *_ADS_UPDATE_ROW_KEY_TO_DEST})
+# Repeatable flags accept a JSON list of the existing micro-format strings; keep
+# in sync with the `multiple=True` update options.
+_ADS_UPDATE_ROW_MULTI_KEYS = {"mobile-app-feature", "feed-filter-condition"}
+# --clear-image-hash is a boolean flag (is_flag=True): a row expresses it as a
+# JSON bool, not a string token, so it bypasses _coerce_ad_update_row_field.
+_ADS_UPDATE_ROW_BOOL_KEYS = {"clear-image-hash"}
+
+
+def _ads_update_param_types():
+    """Map each ``ads update`` row key (kebab, no ``--``) to its Click ParamType.
+
+    Built lazily from the registered command so a batch row is coerced through
+    the *exact same* type as the single-flag path (issue #563): e.g.
+    ``--price-extension-price`` (MICRO_RUBLES) or ``--id`` (IntRange(min=1)) get
+    the identical conversion/validation, so batch and single produce
+    byte-identical payloads instead of forwarding raw JSON. Boolean flags
+    (``--clear-image-hash``) are excluded — they are handled as JSON bools.
+    """
+    types: Dict[str, click.ParamType] = {}
+    for param in update.params:
+        if not isinstance(param, click.Option):
+            continue
+        if param.is_flag:
+            continue
+        key = param.opts[0].lstrip("-")
+        # click.STRING is the no-op default; only typed options need coercion.
+        if param.type is not click.STRING:
+            types[key] = param.type
+    return types
+
+
+_ADS_UPDATE_ROW_PARAM_TYPES: Optional[Dict[str, click.ParamType]] = None
+
+
+def _coerce_ad_update_row_field(key: str, value: Any, row_index: int) -> Any:
+    """Coerce one scalar batch-row value to its single-flag form (issue #563).
+
+    Mirrors ``_coerce_ad_row_field``: rejects JSON arrays/objects/``null`` for
+    any scalar field, stringifies JSON int/float/bool scalars, then runs typed
+    fields through their single-flag Click type so batch and single emit
+    byte-identical payloads (``"id": 1.9`` is rejected, not truncated to ``1``;
+    ``"id": null`` / ``[1]`` raise a clear ``Ad update row N field`` error
+    instead of an uncaught ``TypeError``).
+    """
+    global _ADS_UPDATE_ROW_PARAM_TYPES
+    if _ADS_UPDATE_ROW_PARAM_TYPES is None:
+        _ADS_UPDATE_ROW_PARAM_TYPES = _ads_update_param_types()
+    param_type = _ADS_UPDATE_ROW_PARAM_TYPES.get(key)
+
+    if value is None or isinstance(value, (list, dict)):
+        raise click.UsageError(
+            t(
+                "Ad update row {row_index} field {key!r}: expected a scalar, "
+                "got {arg0}"
+            ).format(row_index=row_index, key=key, arg0=type(value).__name__)
+        )
+
+    token = str(value)
+
+    if param_type is None:
+        return token
+
+    if isinstance(value, bool):
+        raise click.UsageError(
+            t(
+                "Ad update row {row_index} field {key!r}: expected {arg0}, got bool"
+            ).format(row_index=row_index, key=key, arg0=param_type.name)
+        )
+    try:
+        return param_type.convert(token, None, None)
+    except click.exceptions.BadParameter as exc:
+        raise click.UsageError(
+            t("Ad update row {row_index} field {key!r}: {arg0}").format(
+                row_index=row_index, key=key, arg0=exc.format_message()
+            )
+        )
+
+
+def _normalize_ad_update_row(row: Any, row_index: int) -> Dict[str, Any]:
+    """Translate one flag-form batch row into a built ad-update object.
+
+    The row keys are kebab flag names without "--" plus ``id`` (required, the
+    update target) and ``type`` (required). Each typed field is coerced through
+    its single-flag Click type so batch and single emit byte-identical payloads.
+    Unknown keys are rejected; ``build_ad_update_object`` does the subtype
+    validation, its UsageError re-raised under an ``Ad update row N`` prefix.
+    """
+    if not isinstance(row, dict):
+        raise click.UsageError(
+            t("Ad update row {row_index}: expected JSON object, got {arg0}").format(
+                row_index=row_index, arg0=type(row).__name__
+            )
+        )
+
+    unknown = sorted(set(row) - _ADS_UPDATE_ROW_ALLOWED_KEYS)
+    if unknown:
+        raise click.UsageError(
+            t(
+                "Unknown field {arg0!r} in ad update row {row_index}; allowed: {allowed}"
+            ).format(
+                arg0=unknown[0],
+                row_index=row_index,
+                allowed=", ".join(sorted(_ADS_UPDATE_ROW_ALLOWED_KEYS)),
+            )
+        )
+
+    if "id" not in row:
+        raise click.UsageError(
+            t("Ad update row {row_index}: missing required 'id'").format(
+                row_index=row_index
+            )
+        )
+    ad_id = _coerce_ad_update_row_field("id", row["id"], row_index)
+
+    ad_type = row.get("type")
+
+    flags: Dict[str, Any] = {}
+    for key, dest in _ADS_UPDATE_ROW_KEY_TO_DEST.items():
+        if key not in row:
+            continue
+        value = row[key]
+        if key in _ADS_UPDATE_ROW_BOOL_KEYS:
+            # A boolean flag (--clear-image-hash) is a JSON bool in a row.
+            if not isinstance(value, bool):
+                raise click.UsageError(
+                    t(
+                        "Ad update row {row_index} field {key!r}: expected a JSON "
+                        "boolean"
+                    ).format(row_index=row_index, key=key)
+                )
+            # clear-image-hash:false is the flag-absent state (skip it); only a
+            # true value sets the flag, matching the single-flag command.
+            if not value:
+                continue
+        elif key in _ADS_UPDATE_ROW_MULTI_KEYS:
+            if not isinstance(value, list) or not all(
+                isinstance(item, str) for item in value
+            ):
+                raise click.UsageError(
+                    t(
+                        "Ad update row {row_index} field {key!r}: expected a JSON "
+                        "array of strings"
+                    ).format(row_index=row_index, key=key)
+                )
+            value = tuple(value)
+        else:
+            value = _coerce_ad_update_row_field(key, value, row_index)
+        flags[dest] = value
+
+    # Match single-mode ordering: the command validates --type before the
+    # --image-hash/--clear-image-hash mutex, so check the missing 'type' first.
+    if ad_type is None:
+        raise click.UsageError(
+            t("Ad update row {row_index}: missing required 'type'").format(
+                row_index=row_index
+            )
+        )
+
+    # Reproduce the command-level --image-hash/--clear-image-hash mutex per row.
+    if flags.get("image_hash") and flags.get("clear_image_hash"):
+        raise click.UsageError(
+            t(
+                "Ad update row {row_index}: use either 'image-hash' or "
+                "'clear-image-hash', not both"
+            ).format(row_index=row_index)
+        )
+
+    try:
+        return build_ad_update_object(
+            ad_id=ad_id,
+            ad_type=ad_type,
+            flags=flags,
+            flag_for=_ADS_UPDATE_FLAG_FOR,
+        )
+    except click.UsageError as exc:
+        raise click.UsageError(
+            t("Ad update row {row_index}: {arg0}").format(
+                row_index=row_index, arg0=exc.format_message()
+            )
+        )
+
+
+def _bulk_update_ads(ctx, *, from_file, ads_json, dry_run):
+    if from_file is not None:
+        raw_rows = _batch.load_jsonl_rows(from_file)
+    else:
+        raw_rows = _batch.load_inline_rows(
+            ads_json or "",
+            invalid_json_key="--ads-json: invalid JSON: {arg0}",
+            not_array_key="--ads-json must be a JSON array of ad objects",
+        )
+
+    if not raw_rows:
+        raise click.UsageError(t("Input contains no ad rows."))
+
+    items = [
+        _normalize_ad_update_row(row, idx) for idx, row in enumerate(raw_rows, start=1)
+    ]
+
+    _batch.send_batch(
+        ctx,
+        resource="ads",
+        method="update",
+        payload_key="Ads",
+        items=items,
+        max_batch=ADS_ADD_MAX_BATCH,
+        create_client=create_client,
+        dry_run=dry_run,
+        noun="ads",
+        result_key="UpdateResults",
     )
 
 
@@ -2078,18 +2704,23 @@ def add(
 
 
 @ads.command()
-@click.option("--id", "ad_id", required=True, type=click.IntRange(min=1), help="Ad ID")
+@click.option(
+    "--id",
+    "ad_id",
+    type=click.IntRange(min=1),
+    help="Ad ID (required in single-item mode; per row in --from-file mode)",
+)
 @click.option(
     "--type",
     "ad_type",
-    required=True,
     help=(
         "Ad subtype: TEXT_AD | TEXT_IMAGE_AD | MOBILE_APP_AD | "
         "DYNAMIC_TEXT_AD | MOBILE_APP_IMAGE_AD | RESPONSIVE_AD | "
         "SHOPPING_AD | LISTING_AD | SMART_AD_BUILDER_AD | TEXT_AD_BUILDER_AD | "
         "MOBILE_APP_AD_BUILDER_AD | MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD | "
         "CPC_VIDEO_AD_BUILDER_AD | CPM_BANNER_AD_BUILDER_AD | "
-        "CPM_VIDEO_AD_BUILDER_AD"
+        "CPM_VIDEO_AD_BUILDER_AD "
+        "(required in single-item mode; per row in --from-file mode)"
     ),
 )
 @click.option(
@@ -2301,6 +2932,17 @@ def add(
     "--default-texts",
     help="Comma-separated ShoppingAd/ListingAd.DefaultTexts values",
 )
+@click.option(
+    "--from-file",
+    "from_file",
+    type=click.Path(exists=True, dir_okay=False, readable=True),
+    help="Path to a JSONL file (one flag-form ad-update object per line) for batch update",
+)
+@click.option(
+    "--ads-json",
+    "ads_json",
+    help="Inline JSON array of flag-form ad-update objects for batch update",
+)
 @click.option("--dry-run", is_flag=True, help="Show request without sending")
 @click.pass_context
 @handle_api_errors
@@ -2347,9 +2989,18 @@ def update(
     title_sources,
     text_sources,
     default_texts,
+    from_file,
+    ads_json,
     dry_run,
 ):
-    """Update ad"""
+    """Update one or many ads.
+
+    Single-item mode uses typed flags (--id, --type, ...). Batch mode reads
+    flag-form rows from --from-file (JSONL, one object per line) or --ads-json
+    (inline JSON array); each row is the same flag set keyed by the kebab flag
+    name without the leading dashes (e.g. {"id":5,"type":"TEXT_AD",
+    "title":"New"}). Each row carries its own "id".
+    """
     if status:
         raise click.UsageError(
             t(
@@ -2358,76 +3009,7 @@ def update(
             )
         )
 
-    if image_hash and clear_image_hash:
-        raise click.UsageError(
-            t("Use either --image-hash or --clear-image-hash, not both")
-        )
-
-    ad_type_norm = ad_type.upper().replace("-", "_")
-    supported_types = {
-        "TEXT_AD",
-        "TEXT_IMAGE_AD",
-        "MOBILE_APP_AD",
-        "MOBILE_APP_IMAGE_AD",
-        "DYNAMIC_TEXT_AD",
-        "RESPONSIVE_AD",
-        "SHOPPING_AD",
-        "LISTING_AD",
-        "SMART_AD_BUILDER_AD",
-        *AD_BUILDER_UPDATE_BLOCKS,
-    }
-    if ad_type_norm not in supported_types:
-        raise click.UsageError(
-            t(
-                "Invalid value for '--type': {ad_type!r} is not one of 'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD', 'DYNAMIC_TEXT_AD', 'MOBILE_APP_IMAGE_AD', 'RESPONSIVE_AD', 'SHOPPING_AD', 'LISTING_AD', 'SMART_AD_BUILDER_AD', 'TEXT_AD_BUILDER_AD', 'MOBILE_APP_AD_BUILDER_AD', 'MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD', 'CPC_VIDEO_AD_BUILDER_AD', 'CPM_BANNER_AD_BUILDER_AD', 'CPM_VIDEO_AD_BUILDER_AD'."
-            ).format(ad_type=ad_type)
-        )
-
-    # Per-WSDL-subtype field allow-list: each --type accepts only the
-    # options that map to fields inside its AdUpdateItem subtype. A flag
-    # outside the allow-list would be silently dropped by the loop below;
-    # reject up front so the user sees the conflict instead of a no-op
-    # (issue #198 H2).
-    type_fields = {
-        "TEXT_AD": TEXT_AD_UPDATE_FIELDS,
-        "DYNAMIC_TEXT_AD": {
-            "text",
-            "image_hash",
-            "clear_image_hash",
-            "vcard_id",
-            "sitelink_set_id",
-            "callouts_add",
-            "callouts_remove",
-            "callouts_set",
-        },
-        "TEXT_IMAGE_AD": TEXT_IMAGE_AD_UPDATE_FIELDS,
-        "MOBILE_APP_AD": MOBILE_APP_AD_UPDATE_FIELDS,
-        "MOBILE_APP_IMAGE_AD": MOBILE_APP_IMAGE_UPDATE_FIELDS,
-        "RESPONSIVE_AD": {
-            "texts",
-            "titles",
-            "image_hashes",
-            "video_extension_ids",
-            "sitelink_set_id",
-            "callouts_add",
-            "callouts_remove",
-            "callouts_set",
-            "href",
-            "age_label",
-            "display_url_path",
-            "price_extension_price",
-            "price_extension_old_price",
-            "price_extension_price_qualifier",
-            "price_extension_price_currency",
-            "business_id",
-            "erir_ad_description",
-        },
-        "SHOPPING_AD": FEED_BASED_UPDATE_FIELDS,
-        "LISTING_AD": FEED_BASED_UPDATE_FIELDS,
-        "SMART_AD_BUILDER_AD": SMART_AD_BUILDER_UPDATE_FIELDS,
-        **AD_BUILDER_TYPE_FIELDS,
-    }
-    provided = {
+    flags_local = {
         "title": title,
         "text": text,
         "titles": titles,
@@ -2467,230 +3049,63 @@ def update(
         "text_sources": text_sources,
         "default_texts": default_texts,
     }
-    flag_for = {
-        "title": "--title",
-        "text": "--text",
-        "titles": "--titles",
-        "texts": "--texts",
-        "href": "--href",
-        "image_hash": "--image-hash",
-        "clear_image_hash": "--clear-image-hash",
-        "image_hashes": "--image-hashes",
-        "action": "--action",
-        "tracking_url": "--tracking-url",
-        "age_label": "--age-label",
-        "mobile_app_features": "--mobile-app-feature",
-        "title2": "--title2",
-        "display_url_path": "--display-url-path",
-        "vcard_id": "--vcard-id",
-        "sitelink_set_id": "--sitelink-set-id",
-        "turbo_page_id": "--turbo-page-id",
-        "callouts_add": "--callouts-add",
-        "callouts_remove": "--callouts-remove",
-        "callouts_set": "--callouts-set",
-        "video_extension_creative_id": "--video-extension-creative-id",
-        "video_extension_ids": "--video-extension-ids",
-        "price_extension_price": "--price-extension-price",
-        "price_extension_old_price": "--price-extension-old-price",
-        "price_extension_price_qualifier": "--price-extension-price-qualifier",
-        "price_extension_price_currency": "--price-extension-price-currency",
-        "business_id": "--business-id",
-        "prefer_vcard_over_business": "--prefer-vcard-over-business",
-        "erir_ad_description": "--erir-ad-description",
-        "logo_extension_hash": "--logo-extension-hash",
-        "creative_id": "--creative-id",
-        "creative_erir_ad_description": "--creative-erir-ad-description",
-        "final_url": "--final-url",
-        "tracking_pixels": "--tracking-pixels",
-        "feed_filter_conditions": "--feed-filter-condition",
-        "title_sources": "--title-sources",
-        "text_sources": "--text-sources",
-        "default_texts": "--default-texts",
-    }
-    try:
-        _reject_incompatible_flags(
-            ad_type_norm, type_fields[ad_type_norm], provided, flag_for
-        )
-    except click.UsageError as exc:
+
+    modes_used = sum(1 for v in (from_file, ads_json) if v is not None)
+    if modes_used > 1:
         raise click.UsageError(
             t(
-                "{arg0} --type selects the existing ad subtype update block; it does not convert an ad between subtypes."
-            ).format(arg0=exc.message)
+                "Provide at most one of: --from-file or --ads-json — "
+                "they are mutually exclusive."
+            )
         )
+    batch_mode = modes_used > 0
 
-    # Validate up-front so SET vs ADD/REMOVE mutex errors raise UsageError
-    # before any payload work, bypassing the generic ``except Exception``
-    # net wrapped around the network call below.
-    callout_setting = _build_callout_setting(
-        callouts_add, callouts_remove, callouts_set
-    )
-    price_extension = _build_price_extension(
-        price_extension_price,
-        price_extension_old_price,
-        price_extension_price_qualifier,
-        price_extension_price_currency,
-    )
-    parsed_mobile_app_features = _parse_mobile_app_features(mobile_app_features)
+    if batch_mode:
+        batch_incompatible = {
+            label: flags_local.get(dest) for dest, label in _ADS_UPDATE_FLAG_FOR.items()
+        }
+        # --type/--id have no Click default, so an absent flag is None; in batch
+        # mode the operator passes them per row, not on the command line.
+        if ad_type is not None:
+            batch_incompatible["--type"] = ad_type
+        if ad_id is not None:
+            batch_incompatible["--id"] = ad_id
+        unsupported = sorted(
+            label
+            for label, value in batch_incompatible.items()
+            if value not in (None, ())
+        )
+        if unsupported:
+            raise click.UsageError(
+                t("{arg0} supported only with single-item mode").format(
+                    arg0=", ".join(unsupported)
+                )
+            )
+        _bulk_update_ads(
+            ctx,
+            from_file=from_file,
+            ads_json=ads_json,
+            dry_run=dry_run,
+        )
+        return
 
-    ad_data = {"Id": ad_id}
+    if ad_id is None:
+        raise click.UsageError(t("Missing option '--id'."))
 
-    if ad_type_norm == "TEXT_AD":
-        text_ad = _build_text_ad_update_base(
-            vcard_id,
-            image_hash,
-            sitelink_set_id,
-            callout_setting,
-            clear_image_hash=clear_image_hash,
-        )
-        if title:
-            text_ad["Title"] = title
-        if text:
-            text_ad["Text"] = text
-        if href:
-            text_ad["Href"] = href
-        if title2:
-            text_ad["Title2"] = title2
-        if final_url:
-            text_ad["FinalUrl"] = final_url
-        if display_url_path:
-            text_ad["DisplayUrlPath"] = display_url_path
-        if age_label:
-            text_ad["AgeLabel"] = age_label.upper()
-        if turbo_page_id is not None:
-            text_ad["TurboPageId"] = turbo_page_id
-        if video_extension_creative_id is not None:
-            text_ad["VideoExtension"] = {"CreativeId": video_extension_creative_id}
-        if price_extension:
-            text_ad["PriceExtension"] = price_extension
-        if business_id is not None:
-            text_ad["BusinessId"] = business_id
-        if prefer_vcard_over_business:
-            text_ad["PreferVCardOverBusiness"] = prefer_vcard_over_business.upper()
-        if erir_ad_description:
-            text_ad["ErirAdDescription"] = erir_ad_description
-        if text_ad:
-            ad_data["TextAd"] = text_ad
-    elif ad_type_norm == "DYNAMIC_TEXT_AD":
-        dynamic_text_ad = _build_text_ad_update_base(
-            vcard_id,
-            image_hash,
-            sitelink_set_id,
-            callout_setting,
-            clear_image_hash=clear_image_hash,
-        )
-        if text:
-            dynamic_text_ad["Text"] = text
-        if dynamic_text_ad:
-            ad_data["DynamicTextAd"] = dynamic_text_ad
-    elif ad_type_norm == "TEXT_IMAGE_AD":
-        text_image_ad = {}
-        # No clear_image_hash: ImageAdUpdateBase.AdImageHash is not nillable;
-        # the live API rejects null for this subtype (error 8000).
-        if image_hash:
-            text_image_ad["AdImageHash"] = image_hash
-        if final_url:
-            text_image_ad["FinalUrl"] = final_url
-        if href:
-            text_image_ad["Href"] = href
-        if turbo_page_id is not None:
-            text_image_ad["TurboPageId"] = turbo_page_id
-        if erir_ad_description:
-            text_image_ad["ErirAdDescription"] = erir_ad_description
-        if text_image_ad:
-            ad_data["TextImageAd"] = text_image_ad
-    elif ad_type_norm == "MOBILE_APP_AD":
-        mobile_app_ad = {}
-        if title:
-            mobile_app_ad["Title"] = title
-        if text:
-            mobile_app_ad["Text"] = text
-        if clear_image_hash:
-            mobile_app_ad["AdImageHash"] = None
-        elif image_hash:
-            mobile_app_ad["AdImageHash"] = image_hash
-        if action:
-            mobile_app_ad["Action"] = action.upper()
-        if tracking_url:
-            mobile_app_ad["TrackingUrl"] = tracking_url
-        if parsed_mobile_app_features:
-            mobile_app_ad["Features"] = parsed_mobile_app_features
-        if age_label:
-            mobile_app_ad["AgeLabel"] = age_label.upper()
-        if video_extension_creative_id is not None:
-            mobile_app_ad["VideoExtension"] = {
-                "CreativeId": video_extension_creative_id
-            }
-        if erir_ad_description:
-            mobile_app_ad["ErirAdDescription"] = erir_ad_description
-        if mobile_app_ad:
-            ad_data["MobileAppAd"] = mobile_app_ad
-    elif ad_type_norm == "MOBILE_APP_IMAGE_AD":
-        mobile_app_image_ad = _build_mobile_app_image_ad_update(
-            image_hash,
-            erir_ad_description,
-            tracking_url,
-        )
-        if mobile_app_image_ad:
-            ad_data["MobileAppImageAd"] = mobile_app_image_ad
-    elif ad_type_norm == "RESPONSIVE_AD":
-        responsive_ad = _build_responsive_ad_update(
-            texts,
-            titles,
-            image_hashes,
-            video_extension_ids,
-            sitelink_set_id,
-            callout_setting,
-            href,
-            age_label,
-            display_url_path,
-            price_extension,
-            business_id,
-            erir_ad_description,
-        )
-        if responsive_ad:
-            ad_data["ResponsiveAd"] = responsive_ad
-    elif ad_type_norm in {"SHOPPING_AD", "LISTING_AD"}:
-        feed_based_ad = _build_feed_based_ad_update(
-            sitelink_set_id,
-            callout_setting,
-            business_id,
-            feed_filter_conditions,
-            title_sources,
-            text_sources,
-            default_texts,
-        )
-        if feed_based_ad:
-            field_name = "ShoppingAd" if ad_type_norm == "SHOPPING_AD" else "ListingAd"
-            ad_data[field_name] = feed_based_ad
-    elif ad_type_norm == "SMART_AD_BUILDER_AD":
-        smart_ad_builder_ad = _build_smart_ad_builder_ad_update(
-            logo_extension_hash,
-            erir_ad_description,
-        )
-        if smart_ad_builder_ad:
-            ad_data["SmartAdBuilderAd"] = smart_ad_builder_ad
-    elif ad_type_norm in AD_BUILDER_UPDATE_BLOCKS:
-        ad_builder_ad = _build_ad_builder_update(
-            creative_id,
-            creative_erir_ad_description,
-            erir_ad_description,
-            final_url,
-            href,
-            turbo_page_id,
-            tracking_url,
-            tracking_pixels,
-        )
-        if ad_builder_ad:
-            ad_data[AD_BUILDER_UPDATE_BLOCKS[ad_type_norm]] = ad_builder_ad
+    if ad_type is None:
+        raise click.UsageError(t("Missing option '--type'."))
 
-    # Reject empty-subtype no-ops: ``{Id: N}`` with no subtype block
-    # is a silent no-op on the live API (issue #198 H1).
-    if len(ad_data) == 1:
+    if image_hash and clear_image_hash:
         raise click.UsageError(
-            t(
-                "ads update requires at least one updatable field for --type {ad_type_norm}."
-            ).format(ad_type_norm=ad_type_norm)
+            t("Use either --image-hash or --clear-image-hash, not both")
         )
+
+    ad_data = build_ad_update_object(
+        ad_id=ad_id,
+        ad_type=ad_type,
+        flags=flags_local,
+        flag_for=_ADS_UPDATE_FLAG_FOR,
+    )
 
     body = {"method": "update", "params": {"Ads": [ad_data]}}
 
