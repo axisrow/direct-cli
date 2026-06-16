@@ -773,6 +773,29 @@ class TestReadOnlyAuth(unittest.TestCase):
 
 @pytest.mark.integration
 @skip_if_no_token
+class TestError8300Hint(unittest.TestCase):
+    """Issue #548: ``ads delete``/``moderate`` on a Status=UNKNOWN ad returns
+    API code 8300; the CLI must append the explanatory hint.
+
+    Opt-in only: requires an operator-provided ad whose Status is UNKNOWN via
+    ``YANDEX_DIRECT_UNKNOWN_AD_ID``. The API refuses to delete such an ad
+    (8300), so the call is effectively non-destructive, but we gate it behind
+    an explicit env var so a plain ``pytest -m integration`` never issues a
+    mutation against an arbitrary ad id.
+    """
+
+    def test_delete_unknown_status_ad_surfaces_8300_hint(self):
+        ad_id = os.environ.get("YANDEX_DIRECT_UNKNOWN_AD_ID")
+        if not ad_id:
+            self.skipTest("set YANDEX_DIRECT_UNKNOWN_AD_ID to a Status=UNKNOWN ad id")
+        result = invoke_get("ads", "delete", "--id", ad_id)
+        self.assertNotEqual(result.exit_code, 0, result.output)
+        self.assertIn("Code 8300 on delete/moderate", result.output)
+        self.assertIn("Status=UNKNOWN", result.output)
+
+
+@pytest.mark.integration
+@skip_if_no_token
 class TestAudienceTargetsRequiredFilter(unittest.TestCase):
     """Issue #554: the live API hard-requires a SelectionCriteria filter for
     audiencetargets.get, so the CLI guard is correct and whole-account paging
