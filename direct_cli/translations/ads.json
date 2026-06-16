@@ -132,5 +132,22 @@
   "TEXT_AD requires {arg0}": "TEXT_AD требует {arg0}",
   "ads update requires at least one updatable field for --type {ad_type_norm}.": "ads update требует хотя бы одно изменяемое поле для --type {ad_type_norm}.",
   "Invalid --mobile-app-feature value {enabled_raw!r}; expected YES or NO.": "Некорректное значение --mobile-app-feature {enabled_raw!r}; ожидается YES или NO.",
-  "{arg0} is not compatible with --type {ad_type}. Allowed flags for {ad_type}: {allowed_flags}.": "{arg0} несовместим с --type {ad_type}. Допустимые флаги для {ad_type}: {allowed_flags}."
+  "{arg0} is not compatible with --type {ad_type}. Allowed flags for {ad_type}: {allowed_flags}.": "{arg0} несовместим с --type {ad_type}. Допустимые флаги для {ad_type}: {allowed_flags}.",
+  "Add one or many ads.\n\n    Single-item mode uses typed flags (--type, --title, ...). Batch mode reads\n    flag-form rows from --from-file (JSONL, one object per line) or --ads-json\n    (inline JSON array); each row is the same flag set keyed by the kebab flag\n    name without the leading dashes (e.g. {\"type\":\"TEXT_AD\",\"title\":\"...\",\n    \"text\":\"...\",\"href\":\"...\",\"adgroup-id\":1}). --adgroup-id is the batch\n    default and may be overridden per row.\n    ": "Добавить одно или несколько объявлений.\n\n    Одиночный режим использует типизированные флаги (--type, --title, ...). Пакетный\n    режим читает строки во флаговой форме из --from-file (JSONL, по одному объекту в\n    строке) или --ads-json (inline JSON-массив); каждая строка — тот же набор флагов с\n    ключами в kebab-форме без ведущих дефисов (например {\"type\":\"TEXT_AD\",\"title\":\"...\",\n    \"text\":\"...\",\"href\":\"...\",\"adgroup-id\":1}). --adgroup-id — пакетное значение по\n    умолчанию, переопределяемое в каждой строке.\n    ",
+  "Ad group ID (required in single-item mode; batch default in --from-file mode)": "ID группы объявлений (обязателен в одиночном режиме; пакетное значение по умолчанию в режиме --from-file)",
+  "Path to a JSONL file (one flag-form ad object per line) for batch add": "Путь к JSONL-файлу (по одному объявлению во флаговой форме в строке) для пакетного добавления",
+  "Inline JSON array of flag-form ad objects for batch add": "Inline JSON-массив объявлений во флаговой форме для пакетного добавления",
+  "Provide at most one of: --from-file or --ads-json — they are mutually exclusive.": "Укажите не более одного из: --from-file или --ads-json — они взаимоисключающи.",
+  "{arg0} supported only with single-item mode": "{arg0} поддерживается только в одиночном режиме",
+  "Input contains no ad rows.": "Во входных данных нет строк объявлений.",
+  "Ad row {row_index}: expected JSON object, got {arg0}": "Объявление, строка {row_index}: ожидался JSON-объект, получено {arg0}",
+  "Unknown field {arg0!r} in ad row {row_index}; allowed: {allowed}": "Неизвестное поле {arg0!r} в строке объявления {row_index}; допустимо: {allowed}",
+  "Ad row {row_index}: missing 'adgroup-id' and no default --adgroup-id provided": "Объявление, строка {row_index}: отсутствует 'adgroup-id' и не задан --adgroup-id по умолчанию",
+  "Ad row {row_index}: {arg0}": "Объявление, строка {row_index}: {arg0}",
+  "--ads-json: invalid JSON: {arg0}": "--ads-json: некорректный JSON: {arg0}",
+  "--ads-json must be a JSON array of ad objects": "--ads-json должен быть JSON-массивом объектов объявлений",
+  "Ad row {row_index} field {key!r}: expected {arg0}, got bool": "Объявление, строка {row_index}, поле {key!r}: ожидался {arg0}, получено bool",
+  "Ad row {row_index} field {key!r}: {arg0}": "Объявление, строка {row_index}, поле {key!r}: {arg0}",
+  "Ad row {row_index} field {key!r}: expected a scalar, got {arg0}": "Объявление, строка {row_index}, поле {key!r}: ожидалось скалярное значение, получено {arg0}",
+  "Ad row {row_index} field {key!r}: expected a JSON array of strings": "Объявление, строка {row_index}, поле {key!r}: ожидался JSON-массив строк"
 }
