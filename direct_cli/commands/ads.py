@@ -86,6 +86,7 @@ TEXT_AD_UPDATE_FIELDS = {
     "text",
     "href",
     "image_hash",
+    "clear_image_hash",
     "title2",
     "display_url_path",
     "vcard_id",
@@ -110,6 +111,7 @@ MOBILE_APP_AD_UPDATE_FIELDS = {
     "title",
     "text",
     "image_hash",
+    "clear_image_hash",
     "action",
     "tracking_url",
     "age_label",
@@ -118,6 +120,11 @@ MOBILE_APP_AD_UPDATE_FIELDS = {
     "erir_ad_description",
 }
 
+# NOTE: TEXT_IMAGE_AD / MOBILE_APP_IMAGE_AD share WSDL ImageAdUpdateBase, whose
+# AdImageHash is NOT nillable (unlike TextAdUpdateBase / MobileAppAdBase). The
+# live API rejects ``AdImageHash: null`` for these two subtypes with error 8000
+# ("AdImageHash cannot have the null value"), so --clear-image-hash is
+# deliberately absent here — the parity gate rejects it as an incompatible flag.
 TEXT_IMAGE_AD_UPDATE_FIELDS = {
     "image_hash",
     "final_url",
@@ -269,12 +276,15 @@ def _build_text_ad_update_base(
     image_hash: Optional[str],
     sitelink_set_id: Optional[int],
     callout_setting: Optional[dict[str, object]],
+    clear_image_hash: bool = False,
 ) -> dict[str, object]:
     """Build fields inherited from WSDL TextAdUpdateBase."""
     text_ad_base: dict[str, object] = {}
     if vcard_id is not None:
         text_ad_base["VCardId"] = vcard_id
-    if image_hash:
+    if clear_image_hash:
+        text_ad_base["AdImageHash"] = None
+    elif image_hash:
         text_ad_base["AdImageHash"] = image_hash
     if sitelink_set_id is not None:
         text_ad_base["SitelinkSetId"] = sitelink_set_id
@@ -695,7 +705,11 @@ def _build_mobile_app_image_ad_update(
     erir_ad_description: Optional[str],
     tracking_url: Optional[str],
 ) -> dict[str, object]:
-    """Build MobileAppImageAdUpdate payload from typed flags."""
+    """Build MobileAppImageAdUpdate payload from typed flags.
+
+    No ``clear_image_hash`` path: ImageAdUpdateBase.AdImageHash is not nillable
+    and the live API rejects ``null`` for this subtype (error 8000).
+    """
     mobile_app_image_ad: dict[str, object] = {}
 
     if image_hash:
@@ -1085,8 +1099,8 @@ def get(
 @click.option(
     "--image-hash",
     help=(
-        "Ad image hash (TEXT_IMAGE_AD / MOBILE_APP_AD / DYNAMIC_TEXT_AD / "
-        "MOBILE_APP_IMAGE_AD)"
+        "Ad image hash (TEXT_AD / TEXT_IMAGE_AD / MOBILE_APP_AD / "
+        "DYNAMIC_TEXT_AD / MOBILE_APP_IMAGE_AD)"
     ),
 )
 @click.option(
@@ -1749,6 +1763,15 @@ def add(
     ),
 )
 @click.option(
+    "--clear-image-hash",
+    is_flag=True,
+    help=(
+        "Set AdImageHash to null to remove the image (TEXT_AD / DYNAMIC_TEXT_AD / "
+        "MOBILE_APP_AD). Not available for TEXT_IMAGE_AD / MOBILE_APP_IMAGE_AD: "
+        "their AdImageHash is not nillable and the API rejects null."
+    ),
+)
+@click.option(
     "--image-hashes",
     help="Comma-separated ResponsiveAd.AdImageHashes.Items values",
 )
@@ -1936,6 +1959,7 @@ def update(
     texts,
     href,
     image_hash,
+    clear_image_hash,
     image_hashes,
     action,
     tracking_url,
@@ -1978,6 +2002,11 @@ def update(
             )
         )
 
+    if image_hash and clear_image_hash:
+        raise click.UsageError(
+            t("Use either --image-hash or --clear-image-hash, not both")
+        )
+
     ad_type_norm = ad_type.upper().replace("-", "_")
     supported_types = {
         "TEXT_AD",
@@ -2008,6 +2037,7 @@ def update(
         "DYNAMIC_TEXT_AD": {
             "text",
             "image_hash",
+            "clear_image_hash",
             "vcard_id",
             "sitelink_set_id",
             "callouts_add",
@@ -2048,6 +2078,7 @@ def update(
         "texts": texts,
         "href": href,
         "image_hash": image_hash,
+        "clear_image_hash": clear_image_hash or None,
         "image_hashes": image_hashes,
         "action": action,
         "tracking_url": tracking_url,
@@ -2087,6 +2118,7 @@ def update(
         "texts": "--texts",
         "href": "--href",
         "image_hash": "--image-hash",
+        "clear_image_hash": "--clear-image-hash",
         "image_hashes": "--image-hashes",
         "action": "--action",
         "tracking_url": "--tracking-url",
@@ -2152,6 +2184,7 @@ def update(
             image_hash,
             sitelink_set_id,
             callout_setting,
+            clear_image_hash=clear_image_hash,
         )
         if title:
             text_ad["Title"] = title
@@ -2187,6 +2220,7 @@ def update(
             image_hash,
             sitelink_set_id,
             callout_setting,
+            clear_image_hash=clear_image_hash,
         )
         if text:
             dynamic_text_ad["Text"] = text
@@ -2194,6 +2228,8 @@ def update(
             ad_data["DynamicTextAd"] = dynamic_text_ad
     elif ad_type_norm == "TEXT_IMAGE_AD":
         text_image_ad = {}
+        # No clear_image_hash: ImageAdUpdateBase.AdImageHash is not nillable;
+        # the live API rejects null for this subtype (error 8000).
         if image_hash:
             text_image_ad["AdImageHash"] = image_hash
         if final_url:
@@ -2212,7 +2248,9 @@ def update(
             mobile_app_ad["Title"] = title
         if text:
             mobile_app_ad["Text"] = text
-        if image_hash:
+        if clear_image_hash:
+            mobile_app_ad["AdImageHash"] = None
+        elif image_hash:
             mobile_app_ad["AdImageHash"] = image_hash
         if action:
             mobile_app_ad["Action"] = action.upper()
@@ -2311,7 +2349,9 @@ def update(
 
 
 def _ad_lifecycle(method, help_text):
-    return make_lifecycle_command(ads, method, help_text, "ad_id", "Ad ID", create_client)
+    return make_lifecycle_command(
+        ads, method, help_text, "ad_id", "Ad ID", create_client
+    )
 
 
 delete = _ad_lifecycle("delete", "Delete ad")

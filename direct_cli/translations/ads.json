@@ -1,7 +1,7 @@
 {
   "Ad ID": "ID объявления",
   "Ad URL (TEXT_AD / TEXT_IMAGE_AD / RESPONSIVE_AD / TEXT_AD_BUILDER_AD / CPC_VIDEO_AD_BUILDER_AD / CPM_BANNER_AD_BUILDER_AD / CPM_VIDEO_AD_BUILDER_AD)": "URL объявления (TEXT_AD / TEXT_IMAGE_AD / RESPONSIVE_AD / TEXT_AD_BUILDER_AD / CPC_VIDEO_AD_BUILDER_AD / CPM_BANNER_AD_BUILDER_AD / CPM_VIDEO_AD_BUILDER_AD)",
-  "Ad image hash (TEXT_IMAGE_AD / MOBILE_APP_AD / DYNAMIC_TEXT_AD / MOBILE_APP_IMAGE_AD)": "Хеш изображения объявления (TEXT_IMAGE_AD / MOBILE_APP_AD / DYNAMIC_TEXT_AD / MOBILE_APP_IMAGE_AD)",
+  "Ad image hash (TEXT_AD / TEXT_IMAGE_AD / MOBILE_APP_AD / DYNAMIC_TEXT_AD / MOBILE_APP_IMAGE_AD)": "Хеш изображения объявления (TEXT_AD / TEXT_IMAGE_AD / MOBILE_APP_AD / DYNAMIC_TEXT_AD / MOBILE_APP_IMAGE_AD)",
   "Ad subtype: TEXT_AD | TEXT_IMAGE_AD | MOBILE_APP_AD | DYNAMIC_TEXT_AD | MOBILE_APP_IMAGE_AD | RESPONSIVE_AD | SHOPPING_AD | LISTING_AD | SMART_AD_BUILDER_AD | TEXT_AD_BUILDER_AD | MOBILE_APP_AD_BUILDER_AD | MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD | CPC_VIDEO_AD_BUILDER_AD | CPM_BANNER_AD_BUILDER_AD | CPM_VIDEO_AD_BUILDER_AD": "Подтип объявления: TEXT_AD | TEXT_IMAGE_AD | MOBILE_APP_AD | DYNAMIC_TEXT_AD | MOBILE_APP_IMAGE_AD | RESPONSIVE_AD | SHOPPING_AD | LISTING_AD | SMART_AD_BUILDER_AD | TEXT_AD_BUILDER_AD | MOBILE_APP_AD_BUILDER_AD | MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD | CPC_VIDEO_AD_BUILDER_AD | CPM_BANNER_AD_BUILDER_AD | CPM_VIDEO_AD_BUILDER_AD",
   "Ad text (TEXT_AD / MOBILE_APP_AD / DYNAMIC_TEXT_AD)": "Текст объявления (TEXT_AD / MOBILE_APP_AD / DYNAMIC_TEXT_AD)",
   "Ad title (TEXT_AD / MOBILE_APP_AD)": "Заголовок объявления (TEXT_AD / MOBILE_APP_AD)",
@@ -64,6 +64,8 @@
   "FinalUrl (TEXT_AD / TEXT_IMAGE_AD / TEXT_AD_BUILDER_AD)": "FinalUrl (TEXT_AD / TEXT_IMAGE_AD / TEXT_AD_BUILDER_AD)",
   "Get ads": "Получить объявления",
   "Image hash (TEXT_AD / TEXT_IMAGE_AD / MOBILE_APP_AD / DYNAMIC_TEXT_AD / MOBILE_APP_IMAGE_AD)": "Хеш изображения (TEXT_AD / TEXT_IMAGE_AD / MOBILE_APP_AD / DYNAMIC_TEXT_AD / MOBILE_APP_IMAGE_AD)",
+  "Set AdImageHash to null to remove the image (TEXT_AD / DYNAMIC_TEXT_AD / MOBILE_APP_AD). Not available for TEXT_IMAGE_AD / MOBILE_APP_IMAGE_AD: their AdImageHash is not nillable and the API rejects null.": "Установить AdImageHash в null, чтобы удалить изображение (TEXT_AD / DYNAMIC_TEXT_AD / MOBILE_APP_AD). Недоступно для TEXT_IMAGE_AD / MOBILE_APP_IMAGE_AD: их AdImageHash не nillable, и API отклоняет null.",
+  "Use either --image-hash or --clear-image-hash, not both": "Используйте либо --image-hash, либо --clear-image-hash, но не оба",
   "MOBILE_APP_AD call-to-action (MobileAppAdActionEnum, e.g. INSTALL)": "Призыв к действию для MOBILE_APP_AD (MobileAppAdActionEnum, например INSTALL)",
   "Manage ads": "Управление объявлениями",
   "Mobile-targeted flag (TEXT_AD)": "Флаг ориентации на мобильные (TEXT_AD)",

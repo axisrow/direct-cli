@@ -1090,7 +1090,7 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("ads", "add", "SmartAdBuilderAd.LogoExtensionHash"): {"--logo-extension-hash"},
     ("ads", "update", "TextAd"): {"--type"},
     ("ads", "update", "TextAd.VCardId"): {"--vcard-id"},
-    ("ads", "update", "TextAd.AdImageHash"): {"--image-hash"},
+    ("ads", "update", "TextAd.AdImageHash"): {"--image-hash", "--clear-image-hash"},
     ("ads", "update", "TextAd.SitelinkSetId"): {"--sitelink-set-id"},
     ("ads", "update", "TextAd.Text"): {"--text"},
     ("ads", "update", "TextAd.Title"): {"--title"},
@@ -1147,7 +1147,10 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("ads", "update", "TextAd.ErirAdDescription"): {"--erir-ad-description"},
     ("ads", "update", "DynamicTextAd"): {"--type"},
     ("ads", "update", "DynamicTextAd.VCardId"): {"--vcard-id"},
-    ("ads", "update", "DynamicTextAd.AdImageHash"): {"--image-hash"},
+    ("ads", "update", "DynamicTextAd.AdImageHash"): {
+        "--image-hash",
+        "--clear-image-hash",
+    },
     ("ads", "update", "DynamicTextAd.SitelinkSetId"): {"--sitelink-set-id"},
     ("ads", "update", "DynamicTextAd.CalloutSetting"): {
         "--callouts-add",
@@ -1171,7 +1174,10 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     },
     ("ads", "update", "DynamicTextAd.Text"): {"--text"},
     ("ads", "update", "MobileAppAd"): {"--type"},
-    ("ads", "update", "MobileAppAd.AdImageHash"): {"--image-hash"},
+    ("ads", "update", "MobileAppAd.AdImageHash"): {
+        "--image-hash",
+        "--clear-image-hash",
+    },
     ("ads", "update", "MobileAppAd.Text"): {"--text"},
     ("ads", "update", "MobileAppAd.Title"): {"--title"},
     ("ads", "update", "MobileAppAd.TrackingUrl"): {"--tracking-url"},
@@ -4800,16 +4806,12 @@ OPTIONAL_FIELD_CHILD_PREFIX_FOLLOWUPS: dict[tuple[str, str, str], dict[str, str]
     ("campaigns", "add", "CpmBannerCampaign.BiddingStrategy"): {
         "status": "supported",
         "issue": "#372",
-        "note": (
-            "CpmBannerCampaign.BiddingStrategy typed support landed in #372."
-        ),
+        "note": ("CpmBannerCampaign.BiddingStrategy typed support landed in #372."),
     },
     ("campaigns", "update", "CpmBannerCampaign.BiddingStrategy"): {
         "status": "supported",
         "issue": "#372",
-        "note": (
-            "CpmBannerCampaign.BiddingStrategy typed support landed in #372."
-        ),
+        "note": ("CpmBannerCampaign.BiddingStrategy typed support landed in #372."),
     },
 }
 
