@@ -2,20 +2,15 @@
 Keywords commands
 """
 
-import json
-from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, List, Optional
 
 import click
 
 from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import (
-    format_json,
     format_output,
     handle_api_errors,
-    print_error,
-    raise_for_api_result_errors,
 )
 from ..utils import (
     MICRO_RUBLES,
@@ -34,6 +29,7 @@ from .._autotargeting import (
     reject_legacy_autotargeting_mix,
 )
 from ._lifecycle import make_lifecycle_command
+from . import _batch
 
 # Chunk size for batch `keywords add`: items from --from-file / --keywords-json
 # are split into chunks of this size and sent in a loop. This is a conservative
@@ -177,50 +173,6 @@ def _normalize_keyword_row(
     return item
 
 
-def _load_keyword_rows_from_file(path: str) -> List[Any]:
-    rows: List[Any] = []
-    file_path = Path(path)
-    try:
-        text = file_path.read_text(encoding="utf-8")
-    except OSError as exc:
-        raise click.UsageError(
-            t("Cannot read --from-file {path!r}: {exc}").format(path=path, exc=exc)
-        )
-
-    for line_number, raw_line in enumerate(text.splitlines(), start=1):
-        line = raw_line.strip()
-        if not line:
-            continue
-        try:
-            rows.append(json.loads(line))
-        except json.JSONDecodeError as exc:
-            raise click.UsageError(
-                t("Row {line_number}: invalid JSON: {arg0}").format(
-                    line_number=line_number, arg0=exc.msg
-                )
-            )
-    return rows
-
-
-def _load_keyword_rows_from_inline(json_str: str) -> List[Any]:
-    try:
-        decoded = json.loads(json_str)
-    except json.JSONDecodeError as exc:
-        raise click.UsageError(
-            t("--keywords-json: invalid JSON: {arg0}").format(arg0=exc.msg)
-        )
-    if not isinstance(decoded, list):
-        raise click.UsageError(
-            t("--keywords-json must be a JSON array of keyword objects")
-        )
-    return decoded
-
-
-def _chunked(items: List[Any], size: int) -> Iterator[List[Any]]:
-    for start in range(0, len(items), size):
-        yield items[start : start + size]
-
-
 def _warn_on_adgroup_overflow(items: List[Dict[str, Any]]) -> None:
     counts: Dict[int, int] = {}
     for item in items:
@@ -245,17 +197,6 @@ def _warn_on_adgroup_overflow(items: List[Dict[str, Any]]) -> None:
             f"  AdGroupId={gid}: {count} keywords ({excess} over the limit)",
             err=True,
         )
-
-
-def _normalize_add_results(raw: Any) -> List[Any]:
-    if isinstance(raw, dict):
-        results = raw.get("AddResults")
-        if isinstance(results, list):
-            return results
-        return [raw]
-    if isinstance(raw, list):
-        return raw
-    return [raw]
 
 
 @click.group()
@@ -662,9 +603,13 @@ def _bulk_add(
         )
 
     if from_file is not None:
-        raw_rows = _load_keyword_rows_from_file(from_file)
+        raw_rows = _batch.load_jsonl_rows(from_file)
     else:
-        raw_rows = _load_keyword_rows_from_inline(keywords_json or "")
+        raw_rows = _batch.load_inline_rows(
+            keywords_json or "",
+            invalid_json_key="--keywords-json: invalid JSON: {arg0}",
+            not_array_key="--keywords-json must be a JSON array of keyword objects",
+        )
 
     if not raw_rows:
         raise click.UsageError(t("Input contains no keyword rows."))
@@ -674,57 +619,18 @@ def _bulk_add(
         for idx, row in enumerate(raw_rows, start=1)
     ]
 
-    _warn_on_adgroup_overflow(items)
-
-    chunks = list(_chunked(items, KEYWORDS_ADD_MAX_BATCH))
-
-    if dry_run:
-        preview = {
-            "chunks": len(chunks),
-            "totalItems": len(items),
-            "chunkSize": KEYWORDS_ADD_MAX_BATCH,
-            "firstChunk": {
-                "method": "add",
-                "params": {"Keywords": chunks[0]},
-            },
-        }
-        print(format_json(preview, indent=2))
-        return
-
-    all_results: List[Any] = []
-    try:
-        client = client_from_ctx(ctx, create_client)
-
-        for index, chunk in enumerate(chunks, start=1):
-            click.echo(
-                f"Sending chunk {index}/{len(chunks)}: {len(chunk)} items",
-                err=True,
-            )
-            body = {"method": "add", "params": {"Keywords": chunk}}
-            response = client.keywords().post(data=body)
-            chunk_results = _normalize_add_results(response().extract())
-            # Only items without per-item Errors are "already created" — the
-            # partial-success diagnostic must not lie about failed items.
-            all_results.extend(
-                item
-                for item in chunk_results
-                if not (isinstance(item, dict) and item.get("Errors"))
-            )
-            raise_for_api_result_errors(chunk_results)
-
-        format_output({"AddResults": all_results}, "json", None)
-    except click.UsageError:
-        raise
-    except Exception as e:
-        if all_results:
-            click.echo(
-                "Partial success before failure — these keywords were already "
-                "created in Yandex Direct (retrying will duplicate them):",
-                err=True,
-            )
-            click.echo(format_json({"AddResults": all_results}, indent=2), err=True)
-        print_error(str(e))
-        raise click.Abort()
+    _batch.send_batch(
+        ctx,
+        resource="keywords",
+        method="add",
+        payload_key="Keywords",
+        items=items,
+        max_batch=KEYWORDS_ADD_MAX_BATCH,
+        create_client=create_client,
+        dry_run=dry_run,
+        noun="keywords",
+        on_warn=_warn_on_adgroup_overflow,
+    )
 
 
 _DEPRECATED_KEYWORDS_UPDATE_OPTIONS = {
