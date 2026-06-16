@@ -500,7 +500,7 @@ direct ads add --adgroup-id 12345 --type MOBILE_APP_IMAGE_AD --image-hash abcdef
 direct ads add --adgroup-id 12345 --type SMART_AD_BUILDER_AD --logo-extension-hash logoabcdefghijklmnop --dry-run
 direct ads update --id 99999 --type TEXT_AD --title "New Title" --text "New text" --href "https://example.com"
 direct ads update --id 99999 --type TEXT_AD --image-hash abcdefghijklmnopqrst
-direct ads update --id 99999 --type TEXT_AD --clear-image-hash  # remove the image (AdImageHash: null)
+direct ads update --id 99999 --type TEXT_AD --clear-image-hash  # remove the image (AdImageHash: null; TEXT_AD / DYNAMIC_TEXT_AD / MOBILE_APP_AD only)
 direct ads update --id 99999 --type TEXT_AD --title2 "New second headline" --vcard-id 222
 direct ads update --id 99999 --type TEXT_AD --callouts-add "111,222" --callouts-remove "333"
 direct ads update --id 99999 --type TEXT_AD --callouts-set "444,555"
@@ -520,7 +520,9 @@ direct ads delete --id 99999
 
 Available TEXT_AD typed flags for `ads add` / `ads update`: `--title`, `--text`,
 `--href`, `--image-hash`, `--clear-image-hash` (update only — sets
-`AdImageHash: null`), `--title2`, `--display-url-path`, `--vcard-id`,
+`AdImageHash: null`; TEXT_AD / DYNAMIC_TEXT_AD / MOBILE_APP_AD only, since
+TEXT_IMAGE_AD / MOBILE_APP_IMAGE_AD have a non-nillable `AdImageHash`),
+`--title2`, `--display-url-path`, `--vcard-id`,
 `--sitelink-set-id`, `--turbo-page-id`, `--final-url`,
 `--video-extension-creative-id`, `--price-extension-*`, `--business-id`,
 `--prefer-vcard-over-business`, and `--erir-ad-description`. For `ads add`,
@@ -1330,7 +1332,7 @@ direct ads add --adgroup-id 12345 --type MOBILE_APP_IMAGE_AD --image-hash abcdef
 direct ads add --adgroup-id 12345 --type SMART_AD_BUILDER_AD --logo-extension-hash logoabcdefghijklmnop --dry-run
 direct ads update --id 99999 --type TEXT_AD --title "Новый заголовок" --text "Новый текст" --href "https://example.com"
 direct ads update --id 99999 --type TEXT_AD --image-hash abcdefghijklmnopqrst
-direct ads update --id 99999 --type TEXT_AD --clear-image-hash  # удалить изображение (AdImageHash: null)
+direct ads update --id 99999 --type TEXT_AD --clear-image-hash  # удалить изображение (AdImageHash: null; только TEXT_AD / DYNAMIC_TEXT_AD / MOBILE_APP_AD)
 direct ads update --id 99999 --type TEXT_AD --title2 "Новый второй заголовок" --vcard-id 222
 direct ads update --id 99999 --type TEXT_AD --callouts-add "111,222" --callouts-remove "333"
 direct ads update --id 99999 --type TEXT_AD --callouts-set "444,555"
@@ -1350,8 +1352,9 @@ direct ads delete --id 99999
 
 Доступные типизированные флаги TEXT_AD для `ads add` / `ads update`:
 `--title`, `--text`, `--href`, `--image-hash`, `--clear-image-hash`
-(только update — устанавливает `AdImageHash: null`), `--title2`,
-`--display-url-path`,
+(только update — устанавливает `AdImageHash: null`; только TEXT_AD /
+DYNAMIC_TEXT_AD / MOBILE_APP_AD, так как у TEXT_IMAGE_AD / MOBILE_APP_IMAGE_AD
+поле `AdImageHash` не nillable), `--title2`, `--display-url-path`,
 `--vcard-id`, `--sitelink-set-id`, `--turbo-page-id`, `--final-url`,
 `--video-extension-creative-id`, `--price-extension-*`, `--business-id`,
 `--prefer-vcard-over-business` и `--erir-ad-description`. Для `ads add`

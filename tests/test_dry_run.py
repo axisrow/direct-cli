@@ -2110,14 +2110,15 @@ def test_ads_update_image_hash_builds_nested_textimagead():
     assert "TextAd" not in ad
 
 
+# Only the three subtypes whose WSDL AdImageHash is nillable support reset.
+# TEXT_IMAGE_AD / MOBILE_APP_IMAGE_AD share the non-nillable ImageAdUpdateBase;
+# the live API rejects null for them with error 8000 (see rejection test below).
 @pytest.mark.parametrize(
     "ad_type, block",
     [
         ("TEXT_AD", "TextAd"),
         ("DYNAMIC_TEXT_AD", "DynamicTextAd"),
-        ("TEXT_IMAGE_AD", "TextImageAd"),
         ("MOBILE_APP_AD", "MobileAppAd"),
-        ("MOBILE_APP_IMAGE_AD", "MobileAppImageAd"),
     ],
 )
 def test_ads_update_clear_image_hash_sends_null(ad_type, block):
@@ -2134,6 +2135,29 @@ def test_ads_update_clear_image_hash_sends_null(ad_type, block):
     ad = body["params"]["Ads"][0]
     assert ad["Id"] == 999
     assert ad[block] == {"AdImageHash": None}
+
+
+@pytest.mark.parametrize("ad_type", ["TEXT_IMAGE_AD", "MOBILE_APP_IMAGE_AD"])
+def test_ads_update_clear_image_hash_rejected_for_non_nillable_subtype(ad_type):
+    """ImageAdUpdateBase.AdImageHash is not nillable; the live API rejects null
+    (error 8000). The flag must be refused for these subtypes, not silently sent."""
+    result = CliRunner().invoke(
+        cli,
+        [
+            "ads",
+            "update",
+            "--id",
+            "999",
+            "--type",
+            ad_type,
+            "--clear-image-hash",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert f"--clear-image-hash is not compatible with --type {ad_type}" in (
+        result.output
+    )
 
 
 def test_ads_update_clear_image_hash_counts_as_updatable_field():

@@ -372,13 +372,13 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.update` | `ads.update` | `MobileAppAd.VideoExtension` | `VideoExtensionUpdateItem` | 0 | 1 | `supported` | --video-extension-creative-id |
 | `ads.update` | `ads.update` | `MobileAppAd.VideoExtension.CreativeId` | `long` | 0 | 1 | `supported` | --video-extension-creative-id |
 | `ads.update` | `ads.update` | `TextImageAd` | `TextImageAdUpdate` | 0 | 1 | `supported` | --type |
-| `ads.update` | `ads.update` | `TextImageAd.AdImageHash` | `string` | 0 | 1 | `supported` | --clear-image-hash, --image-hash |
+| `ads.update` | `ads.update` | `TextImageAd.AdImageHash` | `string` | 0 | 1 | `supported` | --image-hash |
 | `ads.update` | `ads.update` | `TextImageAd.ErirAdDescription` | `string` | 0 | 1 | `supported` | --erir-ad-description |
 | `ads.update` | `ads.update` | `TextImageAd.FinalUrl` | `string` | 0 | 1 | `supported` | --final-url |
 | `ads.update` | `ads.update` | `TextImageAd.Href` | `string` | 0 | 1 | `supported` | --href |
 | `ads.update` | `ads.update` | `TextImageAd.TurboPageId` | `long` | 0 | 1 | `supported` | --turbo-page-id |
 | `ads.update` | `ads.update` | `MobileAppImageAd` | `MobileAppImageAdUpdate` | 0 | 1 | `supported` | --type |
-| `ads.update` | `ads.update` | `MobileAppImageAd.AdImageHash` | `string` | 0 | 1 | `supported` | --clear-image-hash, --image-hash |
+| `ads.update` | `ads.update` | `MobileAppImageAd.AdImageHash` | `string` | 0 | 1 | `supported` | --image-hash |
 | `ads.update` | `ads.update` | `MobileAppImageAd.ErirAdDescription` | `string` | 0 | 1 | `supported` | --erir-ad-description |
 | `ads.update` | `ads.update` | `MobileAppImageAd.TrackingUrl` | `string` | 0 | 1 | `supported` | --tracking-url |
 | `ads.update` | `ads.update` | `MobileAppCpcVideoAdBuilderAd` | `MobileAppCpcVideoAdBuilderAdUpdate` | 0 | 1 | `supported` | --type |

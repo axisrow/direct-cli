@@ -120,9 +120,13 @@ MOBILE_APP_AD_UPDATE_FIELDS = {
     "erir_ad_description",
 }
 
+# NOTE: TEXT_IMAGE_AD / MOBILE_APP_IMAGE_AD share WSDL ImageAdUpdateBase, whose
+# AdImageHash is NOT nillable (unlike TextAdUpdateBase / MobileAppAdBase). The
+# live API rejects ``AdImageHash: null`` for these two subtypes with error 8000
+# ("AdImageHash cannot have the null value"), so --clear-image-hash is
+# deliberately absent here — the parity gate rejects it as an incompatible flag.
 TEXT_IMAGE_AD_UPDATE_FIELDS = {
     "image_hash",
-    "clear_image_hash",
     "final_url",
     "href",
     "turbo_page_id",
@@ -131,7 +135,6 @@ TEXT_IMAGE_AD_UPDATE_FIELDS = {
 
 MOBILE_APP_IMAGE_UPDATE_FIELDS = {
     "image_hash",
-    "clear_image_hash",
     "tracking_url",
     "erir_ad_description",
 }
@@ -701,14 +704,15 @@ def _build_mobile_app_image_ad_update(
     image_hash: Optional[str],
     erir_ad_description: Optional[str],
     tracking_url: Optional[str],
-    clear_image_hash: bool = False,
 ) -> dict[str, object]:
-    """Build MobileAppImageAdUpdate payload from typed flags."""
+    """Build MobileAppImageAdUpdate payload from typed flags.
+
+    No ``clear_image_hash`` path: ImageAdUpdateBase.AdImageHash is not nillable
+    and the live API rejects ``null`` for this subtype (error 8000).
+    """
     mobile_app_image_ad: dict[str, object] = {}
 
-    if clear_image_hash:
-        mobile_app_image_ad["AdImageHash"] = None
-    elif image_hash:
+    if image_hash:
         mobile_app_image_ad["AdImageHash"] = image_hash
     if erir_ad_description:
         mobile_app_image_ad["ErirAdDescription"] = erir_ad_description
@@ -1762,8 +1766,9 @@ def add(
     "--clear-image-hash",
     is_flag=True,
     help=(
-        "Set AdImageHash to null to remove the image (TEXT_AD / TEXT_IMAGE_AD / "
-        "MOBILE_APP_AD / DYNAMIC_TEXT_AD / MOBILE_APP_IMAGE_AD)"
+        "Set AdImageHash to null to remove the image (TEXT_AD / DYNAMIC_TEXT_AD / "
+        "MOBILE_APP_AD). Not available for TEXT_IMAGE_AD / MOBILE_APP_IMAGE_AD: "
+        "their AdImageHash is not nillable and the API rejects null."
     ),
 )
 @click.option(
@@ -2223,9 +2228,9 @@ def update(
             ad_data["DynamicTextAd"] = dynamic_text_ad
     elif ad_type_norm == "TEXT_IMAGE_AD":
         text_image_ad = {}
-        if clear_image_hash:
-            text_image_ad["AdImageHash"] = None
-        elif image_hash:
+        # No clear_image_hash: ImageAdUpdateBase.AdImageHash is not nillable;
+        # the live API rejects null for this subtype (error 8000).
+        if image_hash:
             text_image_ad["AdImageHash"] = image_hash
         if final_url:
             text_image_ad["FinalUrl"] = final_url
@@ -2268,7 +2273,6 @@ def update(
             image_hash,
             erir_ad_description,
             tracking_url,
-            clear_image_hash=clear_image_hash,
         )
         if mobile_app_image_ad:
             ad_data["MobileAppImageAd"] = mobile_app_image_ad

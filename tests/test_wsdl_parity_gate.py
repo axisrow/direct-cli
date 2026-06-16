@@ -1192,10 +1192,7 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
         "--video-extension-creative-id"
     },
     ("ads", "update", "TextImageAd"): {"--type"},
-    ("ads", "update", "TextImageAd.AdImageHash"): {
-        "--image-hash",
-        "--clear-image-hash",
-    },
+    ("ads", "update", "TextImageAd.AdImageHash"): {"--image-hash"},
     ("ads", "update", "TextImageAd.ErirAdDescription"): {"--erir-ad-description"},
     ("ads", "update", "TextImageAd.FinalUrl"): {"--final-url"},
     ("ads", "update", "TextImageAd.Href"): {"--href"},
@@ -1427,10 +1424,7 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     },
     ("ads", "update", "CpmVideoAdBuilderAd.TurboPageId"): {"--turbo-page-id"},
     ("ads", "update", "MobileAppImageAd"): {"--type"},
-    ("ads", "update", "MobileAppImageAd.AdImageHash"): {
-        "--image-hash",
-        "--clear-image-hash",
-    },
+    ("ads", "update", "MobileAppImageAd.AdImageHash"): {"--image-hash"},
     ("ads", "update", "MobileAppImageAd.ErirAdDescription"): {"--erir-ad-description"},
     ("ads", "update", "MobileAppImageAd.TrackingUrl"): {"--tracking-url"},
     ("ads", "update", "SmartAdBuilderAd"): {"--type"},
