@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+**Internal — dedup v4 Live output-option stack (#550):**
+
+- Replaced the byte-identical `--format`/`--output`/`--dry-run` trio across the
+  standard v4 Live and `balance` commands with a shared `v4_output_options`
+  decorator (the v4 analogue of `get_options`, epic #491). The CLI surface is
+  unchanged — same option order, names, `click.Choice(["json","table","csv",
+  "tsv"])` format, defaults, and help. `v4account enable-shared-account` /
+  `account-management` (reversed order, custom `--dry-run` help) and the
+  dry-run-only `v4finance transfer-money` / `pay-campaigns` /
+  `pay-campaigns-by-card` (no `--format`/`--output`) keep their divergent
+  stacks and are intentionally excluded.
+
 **Fixes — `ads update` can now clear AdImageHash (#552):**
 
 - Added `--clear-image-hash` to `ads update`. The flag sends

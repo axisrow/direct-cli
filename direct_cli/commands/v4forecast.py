@@ -5,7 +5,7 @@ from typing import Optional
 import click
 
 from ..i18n import t
-from ..utils import parse_csv_strings, parse_ids
+from ..utils import parse_csv_strings, parse_ids, v4_output_options
 from ..v4.emit import emit_or_call_v4
 from ..v4_contracts import v4_method_contract
 from .v4shells import V4_EPILOG
@@ -81,15 +81,7 @@ def v4forecast():
     "--common-minus-words",
     help="Comma-separated common negative keywords",
 )
-@click.option(
-    "--format",
-    "output_format",
-    default="json",
-    type=click.Choice(["json", "table", "csv", "tsv"]),
-    help="Output format",
-)
-@click.option("--output", help="Output file")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@v4_output_options
 @click.pass_context
 def create(
     ctx,
@@ -117,15 +109,7 @@ def create(
 
 @v4_method_contract("GetForecastList")
 @v4forecast.command(name="list")
-@click.option(
-    "--format",
-    "output_format",
-    default="json",
-    type=click.Choice(["json", "table", "csv", "tsv"]),
-    help="Output format",
-)
-@click.option("--output", help="Output file")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@v4_output_options
 @click.pass_context
 def list_forecasts(ctx, output_format, output, dry_run):
     """List v4 Live budget forecasts."""
@@ -140,15 +124,7 @@ def list_forecasts(ctx, output_format, output, dry_run):
     type=click.IntRange(min=1),
     help="Forecast ID",
 )
-@click.option(
-    "--format",
-    "output_format",
-    default="json",
-    type=click.Choice(["json", "table", "csv", "tsv"]),
-    help="Output format",
-)
-@click.option("--output", help="Output file")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@v4_output_options
 @click.pass_context
 def get(ctx, forecast_id, output_format, output, dry_run):
     """Get a ready v4 Live budget forecast."""
@@ -163,15 +139,7 @@ def get(ctx, forecast_id, output_format, output, dry_run):
     type=click.IntRange(min=1),
     help="Forecast ID",
 )
-@click.option(
-    "--format",
-    "output_format",
-    default="json",
-    type=click.Choice(["json", "table", "csv", "tsv"]),
-    help="Output format",
-)
-@click.option("--output", help="Output file")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@v4_output_options
 @click.pass_context
 def delete(ctx, forecast_id, output_format, output, dry_run):
     """Delete a v4 Live budget forecast."""

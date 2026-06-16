@@ -2,6 +2,7 @@
 
 import click
 
+from ..utils import v4_output_options
 from ..v4.emit import emit_or_call_v4
 from ..v4_contracts import v4_method_contract
 
@@ -41,15 +42,7 @@ def _register_meta_command(name, method, help_text):
     """Build and register a no-param v4 Live metadata command on v4meta."""
 
     @v4meta.command(name=name, help=help_text)
-    @click.option(
-        "--format",
-        "output_format",
-        default="json",
-        type=click.Choice(["json", "table", "csv", "tsv"]),
-        help="Output format",
-    )
-    @click.option("--output", help="Output file")
-    @click.option("--dry-run", is_flag=True, help="Show request without sending")
+    @v4_output_options
     @click.pass_context
     def _command(ctx, output_format, output, dry_run):
         emit_or_call_v4(ctx, method, None, dry_run, output_format, output)

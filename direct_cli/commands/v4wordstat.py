@@ -5,7 +5,7 @@ from typing import Optional
 import click
 
 from ..i18n import t
-from ..utils import parse_csv_strings, parse_ids
+from ..utils import parse_csv_strings, parse_ids, v4_output_options
 from ..v4.emit import emit_or_call_v4
 from ..v4_contracts import v4_method_contract
 from .v4shells import V4_EPILOG
@@ -39,15 +39,7 @@ def v4wordstat():
 @v4wordstat.command(name="create-report")
 @click.option("--phrases", required=True, help="Comma-separated phrases, up to 10")
 @click.option("--geo-ids", help="Comma-separated geo region IDs")
-@click.option(
-    "--format",
-    "output_format",
-    default="json",
-    type=click.Choice(["json", "table", "csv", "tsv"]),
-    help="Output format",
-)
-@click.option("--output", help="Output file")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@v4_output_options
 @click.pass_context
 def create_report(ctx, phrases, geo_ids, output_format, output, dry_run):
     """Create a v4 Live Wordstat report."""
@@ -59,15 +51,7 @@ def create_report(ctx, phrases, geo_ids, output_format, output, dry_run):
 
 @v4_method_contract("GetWordstatReportList")
 @v4wordstat.command(name="list-reports")
-@click.option(
-    "--format",
-    "output_format",
-    default="json",
-    type=click.Choice(["json", "table", "csv", "tsv"]),
-    help="Output format",
-)
-@click.option("--output", help="Output file")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@v4_output_options
 @click.pass_context
 def list_reports(ctx, output_format, output, dry_run):
     """List v4 Live Wordstat reports."""
@@ -82,15 +66,7 @@ def list_reports(ctx, output_format, output, dry_run):
     type=click.IntRange(min=1),
     help="Wordstat report ID",
 )
-@click.option(
-    "--format",
-    "output_format",
-    default="json",
-    type=click.Choice(["json", "table", "csv", "tsv"]),
-    help="Output format",
-)
-@click.option("--output", help="Output file")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@v4_output_options
 @click.pass_context
 def get_report(ctx, report_id, output_format, output, dry_run):
     """Get a ready v4 Live Wordstat report."""
@@ -105,15 +81,7 @@ def get_report(ctx, report_id, output_format, output, dry_run):
     type=click.IntRange(min=1),
     help="Wordstat report ID",
 )
-@click.option(
-    "--format",
-    "output_format",
-    default="json",
-    type=click.Choice(["json", "table", "csv", "tsv"]),
-    help="Output format",
-)
-@click.option("--output", help="Output file")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@v4_output_options
 @click.pass_context
 def delete_report(ctx, report_id, output_format, output, dry_run):
     """Delete a v4 Live Wordstat report."""
