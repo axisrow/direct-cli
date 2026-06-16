@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+**Fixes — explain Error 8300 on delete/moderate (#548):**
+
+- `raise_for_api_result_errors` now appends a hint when the API returns code
+  8300, mirroring the existing 8800 hint: the ad is likely not in `DRAFT`
+  status, and `Status=UNKNOWN` is an API fallback value (a status outside the
+  v5 enum), not a business status — such ads can only be archived/unarchived,
+  not deleted or sent to moderation. Covers `ads delete` / `ads moderate` and
+  any command routing through `format_output`. English-only, matching the 8800
+  hint (`output.py` does not import i18n).
+
+**Docs — audiencetargets get requires a filter (#554):**
+
+- Clarified that `audiencetargets get` cannot page the whole account: unlike
+  `retargeting get --fetch-all`, the live API hard-rejects an empty
+  `SelectionCriteria` (error 8000 with no criteria, 4001 with `{}`). The
+  required-filter guard now explains this and recommends the `campaigns get` →
+  batched `campaign_ids` sweep instead. No API behavior change; message only.
+
+**Fixes — preflight SelectionCriteria array limits on get (#555, P0):**
+
+- `keywordbids get` now rejects `--campaign-ids` >10, `--adgroup-ids` >1000,
+  `--keyword-ids` >10000; `dynamicads get` / `smartadtargets get` reject
+  `--campaign-ids` >2 — before the request, with a clear `UsageError` (exit 2)
+  naming the array and ceiling, instead of the opaque API `error_code=4001`.
+  These are runtime ceilings (the WSDL declares the arrays `unbounded`), pinned
+  next to each command with a doc/live-4001 citation, the same discipline as
+  `KEYWORDS_ADD_MAX_BATCH`. Verified live 2026-06-16. Other `get` arrays
+  (`AdGroupIds`/`Ids` on dynamic/smart, etc.) are intentionally **not** capped
+  because the live API accepts them.
+
 **Internal — dedup v4 Live output-option stack (#550):**
 
 - Replaced the byte-identical `--format`/`--output`/`--dry-run` trio across the

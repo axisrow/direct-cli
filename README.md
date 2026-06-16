@@ -669,6 +669,9 @@ direct bidmodifiers set --id 99 --value 130 --dry-run
 
 # Canonical multiword groups
 direct negativekeywordsharedsets update --id 123 --keywords "foo,bar"
+# audiencetargets get always needs a filter — the API rejects an empty
+# SelectionCriteria, so there is no whole-account paging. To sweep the account,
+# run `campaigns get` first, then page audiencetargets get in batches of campaign ids.
 direct audiencetargets get --campaign-ids 123 --fields Id,AdGroupId,RetargetingListId,State,ContextBid
 direct audiencetargets add --adgroup-id 100 --retargeting-list-id 200 --bid 12000000 --priority HIGH --dry-run
 direct audiencetargets set-bids --id 101 --context-bid 7000000 --priority LOW --dry-run
@@ -1503,6 +1506,9 @@ direct bidmodifiers set --id 99 --value 130 --dry-run
 
 # Канонические многословные группы
 direct negativekeywordsharedsets update --id 123 --keywords "foo,bar"
+# audiencetargets get всегда требует фильтр — API отклоняет пустой
+# SelectionCriteria, поэтому обхода всего аккаунта нет. Чтобы собрать аккаунт,
+# сначала выполните `campaigns get`, затем запрашивайте audiencetargets get батчами campaign id.
 direct audiencetargets get --campaign-ids 123 --fields Id,AdGroupId,RetargetingListId,State,ContextBid
 direct audiencetargets add --adgroup-id 100 --retargeting-list-id 200 --bid 12000000 --priority HIGH --dry-run
 direct audiencetargets set-bids --id 101 --context-bid 7000000 --priority LOW --dry-run

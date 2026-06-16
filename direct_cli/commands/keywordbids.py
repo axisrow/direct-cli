@@ -10,11 +10,24 @@ from ..output import format_output, handle_api_errors
 from ..utils import (
     add_criteria_csv,
     add_single_id_selector,
+    enforce_criteria_array_limits,
     get_default_fields,
     parse_csv_strings,
     parse_ids,
     MICRO_RUBLES,
 )
+
+# Yandex Direct keywordbids.get caps SelectionCriteria arrays at runtime
+# (the WSDL declares them maxOccurs="unbounded"). Confirmed by the official doc
+# (https://yandex.ru/dev/direct/doc/ru/keywordbids/get: CampaignIds 1–10,
+# AdGroupIds 1–1000, KeywordIds ≤10000) AND live 2026-06-16: --campaign-ids ×11
+# → 4001 "cannot contain more than 10 elements"; --adgroup-ids ×1001 → "more
+# than 1000"; --keyword-ids ×10001 → "more than 10000".
+KEYWORDBIDS_GET_CRITERIA_LIMITS = {
+    "CampaignIds": 10,
+    "AdGroupIds": 1000,
+    "KeywordIds": 10000,
+}
 
 
 @click.group()
@@ -103,6 +116,10 @@ def get(
     if campaign_ids:
         criteria["CampaignIds"] = parse_ids(campaign_ids)
     add_criteria_csv(criteria, "ServingStatuses", serving_statuses, upper=True)
+
+    enforce_criteria_array_limits(
+        criteria, KEYWORDBIDS_GET_CRITERIA_LIMITS, command_name="keywordbids get"
+    )
 
     if not criteria:
         raise click.UsageError(

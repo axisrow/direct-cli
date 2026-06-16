@@ -17726,6 +17726,108 @@ def test_get_with_filter_keeps_selection_criteria(command):
     assert body["params"]["SelectionCriteria"] == {"Ids": [1, 2]}
 
 
+def test_audiencetargets_get_requires_filter_message_names_workaround():
+    # Issue #554: the live API hard-rejects an empty SelectionCriteria for
+    # audiencetargets (8000 with no criteria, 4001 with {}), so whole-account
+    # paging is impossible. The guard message must say so and point at the
+    # campaigns-get → batched campaign-ids workaround.
+    result = CliRunner().invoke(
+        cli,
+        ["audiencetargets", "get", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+    assert result.exit_code == 2, result.output
+    assert "whole-account paging is not available" in result.output
+    assert "campaigns get" in result.output
+
+
+# --- SelectionCriteria array-length preflight (issue #555 P0) ---
+# Limits verified live 2026-06-16; WSDL declares maxOccurs="unbounded".
+
+
+def _ids_csv(n):
+    return ",".join(str(i) for i in range(1, n + 1))
+
+
+def test_keywordbids_get_rejects_over_10_campaign_ids():
+    result = CliRunner().invoke(
+        cli,
+        ["keywordbids", "get", "--campaign-ids", _ids_csv(11), "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+    assert result.exit_code == 2, result.output
+    assert "more than 10 elements" in result.output
+    assert "keywordbids get" in result.output
+
+
+def test_keywordbids_get_rejects_over_1000_adgroup_ids():
+    result = CliRunner().invoke(
+        cli,
+        ["keywordbids", "get", "--adgroup-ids", _ids_csv(1001), "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+    assert result.exit_code == 2, result.output
+    assert "more than 1000 elements" in result.output
+
+
+def test_keywordbids_get_rejects_over_10000_keyword_ids():
+    result = CliRunner().invoke(
+        cli,
+        ["keywordbids", "get", "--keyword-ids", _ids_csv(10001), "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+    assert result.exit_code == 2, result.output
+    assert "more than 10000 elements" in result.output
+
+
+def test_keywordbids_get_allows_exactly_10_campaign_ids():
+    body = _read_dry_run("keywordbids", "get", "--campaign-ids", _ids_csv(10))
+    assert len(body["params"]["SelectionCriteria"]["CampaignIds"]) == 10
+
+
+def test_dynamicads_get_rejects_over_2_campaign_ids():
+    result = CliRunner().invoke(
+        cli,
+        ["dynamicads", "get", "--campaign-ids", "1,2,3", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+    assert result.exit_code == 2, result.output
+    assert "more than 2 elements" in result.output
+    assert "dynamicads get" in result.output
+
+
+def test_dynamicads_get_allows_exactly_2_campaign_ids():
+    body = _read_dry_run("dynamicads", "get", "--campaign-ids", "1,2")
+    assert body["params"]["SelectionCriteria"]["CampaignIds"] == [1, 2]
+
+
+def test_dynamicads_get_allows_many_adgroup_ids():
+    # Only CampaignIds is capped at 2; AdGroupIds is unbounded on the live API.
+    body = _read_dry_run("dynamicads", "get", "--adgroup-ids", _ids_csv(50))
+    assert len(body["params"]["SelectionCriteria"]["AdGroupIds"]) == 50
+
+
+def test_smartadtargets_get_rejects_over_2_campaign_ids():
+    result = CliRunner().invoke(
+        cli,
+        ["smartadtargets", "get", "--campaign-ids", "1,2,3", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+    assert result.exit_code == 2, result.output
+    assert "more than 2 elements" in result.output
+    assert "smartadtargets get" in result.output
+
+
+def test_smartadtargets_get_allows_exactly_2_campaign_ids():
+    body = _read_dry_run("smartadtargets", "get", "--campaign-ids", "1,2")
+    assert body["params"]["SelectionCriteria"]["CampaignIds"] == [1, 2]
+
+
+def test_smartadtargets_get_allows_many_adgroup_ids():
+    body = _read_dry_run("smartadtargets", "get", "--adgroup-ids", _ids_csv(50))
+    assert len(body["params"]["SelectionCriteria"]["AdGroupIds"]) == 50
+
+
 def test_campaigns_get_empty_fields_raises_usage_error_not_abort():
     # The UsageError from _parse_csv_option must keep exit code 2 (UsageError),
     # not be swallowed by ``except Exception`` and downgraded to Abort (1).
@@ -23219,3 +23321,37 @@ def test_bidmodifiers_get_rejects_empty_nested_field_names_csv(flag, wsdl_key):
 
     assert result.exit_code != 0
     assert f"Provide a non-empty comma-separated {wsdl_key} list." in result.output
+
+
+# --- Error 8300 hint (issue #548), mirror of the existing 8800 hint ---
+
+
+def test_raise_for_api_result_errors_adds_8300_hint():
+    from direct_cli.output import raise_for_api_result_errors, DirectAPIResultError
+
+    data = {"Errors": [{"Code": 8300, "Message": "Operation cannot be performed"}]}
+    with pytest.raises(DirectAPIResultError) as exc:
+        raise_for_api_result_errors(data)
+    msg = str(exc.value)
+    assert "Code 8300 on delete/moderate" in msg
+    assert "Status=UNKNOWN" in msg
+    assert "archived/unarchived" in msg
+
+
+def test_raise_for_api_result_errors_8300_hint_only_when_8300_present():
+    from direct_cli.output import raise_for_api_result_errors, DirectAPIResultError
+
+    data = {"Errors": [{"Code": 8000, "Message": "other"}]}
+    with pytest.raises(DirectAPIResultError) as exc:
+        raise_for_api_result_errors(data)
+    assert "Code 8300" not in str(exc.value)
+
+
+def test_raise_for_api_result_errors_8300_hint_has_no_url_literal():
+    # CLAUDE.md: no URL literals outside the registry. The hint must not embed one.
+    from direct_cli.output import raise_for_api_result_errors, DirectAPIResultError
+
+    data = {"Errors": [{"Code": 8300, "Message": "x"}]}
+    with pytest.raises(DirectAPIResultError) as exc:
+        raise_for_api_result_errors(data)
+    assert "https://" not in str(exc.value)
