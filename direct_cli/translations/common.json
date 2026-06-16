@@ -16,5 +16,6 @@
   "{option_name}: {exc}": "{option_name}: {exc}",
   "Invalid --autotargeting-category category {category_raw!r}; allowed: {allowed_categories}": "Некорректная категория --autotargeting-category {category_raw!r}; допустимо: {allowed_categories}",
   "Invalid --autotargeting-category value {value_raw!r}; expected YES or NO": "Некорректное значение --autotargeting-category {value_raw!r}; ожидается YES или NO",
-  "{option_name} must use HH:MM with minutes 00, 15, 30, or 45": "{option_name} должен использовать формат HH:MM с минутами 00, 15, 30 или 45"
+  "{option_name} must use HH:MM with minutes 00, 15, 30, or 45": "{option_name} должен использовать формат HH:MM с минутами 00, 15, 30 или 45",
+  "{command_name}: SelectionCriteria.{key} cannot contain more than {maximum} elements (got {count}).": "{command_name}: SelectionCriteria.{key} не может содержать более {maximum} элементов (получено {count})."
 }

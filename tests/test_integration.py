@@ -771,5 +771,35 @@ class TestReadOnlyAuth(unittest.TestCase):
         self.assertEqual(result.exit_code, 0, result.output)
 
 
+@pytest.mark.integration
+@skip_if_no_token
+class TestSelectionCriteriaPreflight(unittest.TestCase):
+    """Issue #555 P0: the CLI must reject over-long SelectionCriteria arrays
+    BEFORE the request, so the opaque API ``error_code=4001`` never reaches the
+    user. These tests run against the live API path (real credentials via
+    ``invoke_get``) but the preflight short-circuits to a ``UsageError`` (exit
+    2) before the client is built — so they are genuinely read-only.
+    """
+
+    def test_dynamicads_get_rejects_3_campaign_ids_before_api_4001(self):
+        result = invoke_get("dynamicads", "get", "--campaign-ids", "1,2,3")
+        self.assertEqual(result.exit_code, 2, result.output)
+        self.assertIn("more than 2 elements", result.output)
+        self.assertNotIn("4001", result.output)
+
+    def test_smartadtargets_get_rejects_3_campaign_ids_before_api_4001(self):
+        result = invoke_get("smartadtargets", "get", "--campaign-ids", "1,2,3")
+        self.assertEqual(result.exit_code, 2, result.output)
+        self.assertIn("more than 2 elements", result.output)
+        self.assertNotIn("4001", result.output)
+
+    def test_keywordbids_get_rejects_11_campaign_ids_before_api_4001(self):
+        ids = ",".join(str(i) for i in range(1, 12))
+        result = invoke_get("keywordbids", "get", "--campaign-ids", ids)
+        self.assertEqual(result.exit_code, 2, result.output)
+        self.assertIn("more than 10 elements", result.output)
+        self.assertNotIn("4001", result.output)
+
+
 if __name__ == "__main__":
     unittest.main()

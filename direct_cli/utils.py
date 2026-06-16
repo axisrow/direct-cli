@@ -159,6 +159,41 @@ def add_single_id_selector(
     item[field_name] = value
 
 
+def enforce_criteria_array_limits(
+    criteria: Dict[str, Any],
+    limits: Dict[str, int],
+    *,
+    command_name: str,
+) -> None:
+    """Preflight-reject SelectionCriteria arrays that exceed live API ceilings.
+
+    WSDL declares each such array ``maxOccurs="unbounded"``, but the runtime
+    API caps several of them (verified live 2026-06-16) and rejects an
+    over-long array with an opaque ``error_code=4001`` ("cannot contain more
+    than N elements"). Raising a ``UsageError`` here surfaces the exact array
+    and ceiling before the request, mirroring the ``KEYWORDS_ADD_MAX_BATCH``
+    discipline in ``keywords.py``.
+
+    ``limits`` maps a SelectionCriteria key (e.g. ``"CampaignIds"``) to its
+    maximum element count. Only keys present in both ``limits`` and
+    ``criteria`` are checked.
+    """
+    for key, maximum in limits.items():
+        value = criteria.get(key)
+        if isinstance(value, list) and len(value) > maximum:
+            raise click.UsageError(
+                t(
+                    "{command_name}: SelectionCriteria.{key} cannot contain "
+                    "more than {maximum} elements (got {count})."
+                ).format(
+                    command_name=command_name,
+                    key=key,
+                    maximum=maximum,
+                    count=len(value),
+                )
+            )
+
+
 def build_selection_criteria(
     ids: Optional[List[int]] = None,
     status: Optional[str] = None,

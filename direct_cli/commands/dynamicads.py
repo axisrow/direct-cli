@@ -11,6 +11,7 @@ from ._lifecycle import make_lifecycle_command
 from ..utils import (
     MICRO_RUBLES,
     build_common_params,
+    enforce_criteria_array_limits,
     get_default_fields,
     get_options,
     parse_condition_specs,
@@ -18,6 +19,13 @@ from ..utils import (
     parse_csv_upper,
     parse_ids,
 )
+
+# dynamicads.get (DynamicTextAdTargets) caps SelectionCriteria.CampaignIds at 2
+# (the WSDL declares it maxOccurs="unbounded"; the doc page is not web-reachable).
+# Confirmed live 2026-06-16: --campaign-ids ×3 → 4001 "Array
+# SelectionCriteria.CampaignIds cannot contain more than 2 elements".
+# AdGroupIds/Ids ×50 are accepted — only CampaignIds is capped.
+DYNAMICADS_GET_CRITERIA_LIMITS = {"CampaignIds": 2}
 
 
 @click.group()
@@ -60,6 +68,10 @@ def get(
         criteria["CampaignIds"] = parse_ids(campaign_ids)
     if states:
         criteria["States"] = parse_csv_upper(states) or []
+
+    enforce_criteria_array_limits(
+        criteria, DYNAMICADS_GET_CRITERIA_LIMITS, command_name="dynamicads get"
+    )
 
     if not criteria:
         raise click.UsageError(t("Provide at least one typed filter"))
