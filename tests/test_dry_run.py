@@ -23955,3 +23955,228 @@ def test_ads_add_batch_rejects_non_list_multi_value(tmp_path):
     result = _rejected("ads", "add", "--from-file", path)
     assert "Ad row 1 field 'mobile-app-feature'" in result.output
     assert "array of strings" in result.output
+
+
+# --- ads update batch (issue #563) ---
+
+
+def test_ads_update_batch_from_jsonl(tmp_path):
+    rows = [
+        {"id": 5, "type": "TEXT_AD", "title": "New title"},
+        {"id": 6, "type": "DYNAMIC_TEXT_AD", "text": "Dyn"},
+    ]
+    path = _write_jsonl(tmp_path, rows)
+    body = _dry_run("ads", "update", "--from-file", path)
+    assert body["chunks"] == 1
+    assert body["totalItems"] == 2
+    assert body["chunkSize"] == 100
+    assert body["firstChunk"]["method"] == "update"
+    ads = body["firstChunk"]["params"]["Ads"]
+    # Row -> build_ad_update_object yields the same object as the single path.
+    assert ads[0] == {"Id": 5, "TextAd": {"Title": "New title"}}
+    assert ads[1] == {"Id": 6, "DynamicTextAd": {"Text": "Dyn"}}
+
+
+def test_ads_update_batch_inline():
+    arr = json.dumps([{"id": 5, "type": "TEXT_AD", "title": "T"}])
+    body = _dry_run("ads", "update", "--ads-json", arr)
+    assert body["totalItems"] == 1
+    assert body["firstChunk"]["params"]["Ads"][0] == {
+        "Id": 5,
+        "TextAd": {"Title": "T"},
+    }
+
+
+def test_ads_update_batch_chunks_at_100(tmp_path):
+    rows = [{"id": i + 1, "type": "TEXT_AD", "title": f"T{i}"} for i in range(250)]
+    path = _write_jsonl(tmp_path, rows)
+    body = _dry_run("ads", "update", "--from-file", path)
+    assert body["chunks"] == 3
+    assert body["totalItems"] == 250
+    assert len(body["firstChunk"]["params"]["Ads"]) == 100
+
+
+def test_ads_update_batch_clear_image_hash_per_row(tmp_path):
+    rows = [
+        {"id": 5, "type": "TEXT_AD", "clear-image-hash": True},
+        {"id": 6, "type": "TEXT_AD", "image-hash": "hhh"},
+    ]
+    path = _write_jsonl(tmp_path, rows)
+    body = _dry_run("ads", "update", "--from-file", path)
+    ads = body["firstChunk"]["params"]["Ads"]
+    assert ads[0] == {"Id": 5, "TextAd": {"AdImageHash": None}}
+    assert ads[1] == {"Id": 6, "TextAd": {"AdImageHash": "hhh"}}
+
+
+def test_ads_update_batch_clear_image_hash_false_is_noop(tmp_path):
+    # clear-image-hash:false is the flag-absent state; without another field the
+    # row is an empty-subtype no-op and must be rejected.
+    path = _write_jsonl(
+        tmp_path, [{"id": 5, "type": "TEXT_AD", "clear-image-hash": False}]
+    )
+    result = _rejected("ads", "update", "--from-file", path)
+    assert "Ad update row 1" in result.output
+    assert "at least one updatable field" in result.output
+
+
+def test_ads_update_batch_rejects_unknown_field(tmp_path):
+    path = _write_jsonl(tmp_path, [{"id": 5, "type": "TEXT_AD", "foo": "bar"}])
+    result = _rejected("ads", "update", "--from-file", path)
+    assert "Unknown field 'foo' in ad update row 1" in result.output
+
+
+def test_ads_update_batch_rejects_non_object_row(tmp_path):
+    path = _write_jsonl(tmp_path, [[1, 2, 3]])
+    result = _rejected("ads", "update", "--from-file", path)
+    assert "Ad update row 1" in result.output
+    assert "expected JSON object" in result.output
+
+
+def test_ads_update_batch_rejects_empty_file(tmp_path):
+    path = tmp_path / "empty.jsonl"
+    path.write_text("\n", encoding="utf-8")
+    result = _rejected("ads", "update", "--from-file", str(path))
+    assert "Input contains no ad rows" in result.output
+
+
+def test_ads_update_batch_rejects_invalid_json(tmp_path):
+    path = tmp_path / "bad.jsonl"
+    path.write_text('{"id":5,"type":"TEXT_AD","title":"T"}\nnope\n', encoding="utf-8")
+    result = _rejected("ads", "update", "--from-file", str(path))
+    assert "Row 2: invalid JSON" in result.output
+
+
+def test_ads_update_batch_rejects_missing_id_in_row(tmp_path):
+    path = _write_jsonl(tmp_path, [{"type": "TEXT_AD", "title": "T"}])
+    result = _rejected("ads", "update", "--from-file", path)
+    assert "Ad update row 1" in result.output
+    assert "missing required 'id'" in result.output
+
+
+def test_ads_update_batch_rejects_missing_type_in_row(tmp_path):
+    path = _write_jsonl(tmp_path, [{"id": 5, "title": "T"}])
+    result = _rejected("ads", "update", "--from-file", path)
+    assert "Ad update row 1" in result.output
+    assert "missing required 'type'" in result.output
+
+
+def test_ads_update_batch_rejects_non_positive_id_in_row(tmp_path):
+    # IntRange(min=1) must apply per row, same as single --id.
+    path = _write_jsonl(tmp_path, [{"id": -5, "type": "TEXT_AD", "title": "T"}])
+    result = _rejected("ads", "update", "--from-file", path)
+    assert "Ad update row 1 field 'id'" in result.output
+    assert "x>=1" in result.output
+
+
+def test_ads_update_batch_rejects_float_id_in_row(tmp_path):
+    # A bare float must be rejected (IntRange), not truncated to an int.
+    path = _write_jsonl(tmp_path, [{"id": 5.9, "type": "TEXT_AD", "title": "T"}])
+    result = _rejected("ads", "update", "--from-file", path)
+    assert "Ad update row 1 field 'id'" in result.output
+
+
+def test_ads_update_batch_coerces_micro_rubles_like_single(tmp_path):
+    # A bare float must be rejected (MICRO_RUBLES is int micro-rubles), exactly
+    # like `--price-extension-price 12.5` in single mode — not forwarded raw.
+    path = _write_jsonl(
+        tmp_path,
+        [
+            {
+                "id": 5,
+                "type": "TEXT_AD",
+                "price-extension-price": 12.5,
+                "price-extension-price-qualifier": "FROM",
+                "price-extension-price-currency": "RUB",
+            }
+        ],
+    )
+    result = _rejected("ads", "update", "--from-file", path)
+    assert "Ad update row 1 field 'price-extension-price'" in result.output
+
+
+def test_ads_update_batch_valid_micro_rubles_passes_through(tmp_path):
+    path = _write_jsonl(
+        tmp_path,
+        [
+            {
+                "id": 5,
+                "type": "TEXT_AD",
+                "price-extension-price": 12500000,
+                "price-extension-price-qualifier": "FROM",
+                "price-extension-price-currency": "RUB",
+            }
+        ],
+    )
+    body = _dry_run("ads", "update", "--from-file", path)
+    ad = body["firstChunk"]["params"]["Ads"][0]
+    assert ad["TextAd"]["PriceExtension"]["Price"] == 12500000
+
+
+def test_ads_update_batch_rejects_incompatible_flag_per_row(tmp_path):
+    # --action is not valid for TEXT_AD; the per-row guard wraps the message.
+    path = _write_jsonl(tmp_path, [{"id": 5, "type": "TEXT_AD", "action": "DOWNLOAD"}])
+    result = _rejected("ads", "update", "--from-file", path)
+    assert "Ad update row 1" in result.output
+
+
+def test_ads_update_batch_rejects_invalid_type_per_row(tmp_path):
+    path = _write_jsonl(tmp_path, [{"id": 5, "type": "NOPE", "title": "T"}])
+    result = _rejected("ads", "update", "--from-file", path)
+    assert "Ad update row 1" in result.output
+    assert "Invalid value for '--type'" in result.output
+
+
+def test_ads_update_batch_rejects_empty_subtype_per_row(tmp_path):
+    path = _write_jsonl(tmp_path, [{"id": 5, "type": "TEXT_AD"}])
+    result = _rejected("ads", "update", "--from-file", path)
+    assert "Ad update row 1" in result.output
+    assert "at least one updatable field" in result.output
+
+
+def test_ads_update_batch_rejects_image_hash_clear_mutex_per_row(tmp_path):
+    path = _write_jsonl(
+        tmp_path,
+        [{"id": 5, "type": "TEXT_AD", "image-hash": "hhh", "clear-image-hash": True}],
+    )
+    result = _rejected("ads", "update", "--from-file", path)
+    assert "Ad update row 1" in result.output
+    assert "clear-image-hash" in result.output
+
+
+def test_ads_update_batch_rejects_non_bool_clear_image_hash(tmp_path):
+    path = _write_jsonl(
+        tmp_path, [{"id": 5, "type": "TEXT_AD", "clear-image-hash": "yes"}]
+    )
+    result = _rejected("ads", "update", "--from-file", path)
+    assert "Ad update row 1 field 'clear-image-hash'" in result.output
+    assert "boolean" in result.output
+
+
+def test_ads_update_batch_rejects_mutex(tmp_path):
+    path = _write_jsonl(tmp_path, [{"id": 5, "type": "TEXT_AD", "title": "T"}])
+    result = _rejected("ads", "update", "--from-file", path, "--ads-json", "[]")
+    assert "mutually exclusive" in result.output
+
+
+def test_ads_update_batch_rejects_single_flag_in_batch(tmp_path):
+    path = _write_jsonl(tmp_path, [{"id": 5, "type": "TEXT_AD", "title": "T"}])
+    result = _rejected("ads", "update", "--from-file", path, "--title", "X")
+    assert "--title supported only with single-item mode" in result.output
+
+
+def test_ads_update_batch_rejects_id_flag_in_batch(tmp_path):
+    path = _write_jsonl(tmp_path, [{"id": 5, "type": "TEXT_AD", "title": "T"}])
+    result = _rejected("ads", "update", "--from-file", path, "--id", "9")
+    assert "--id supported only with single-item mode" in result.output
+
+
+def test_ads_update_single_still_requires_id():
+    result = _rejected("ads", "update", "--type", "TEXT_AD", "--title", "T")
+    assert "Missing option '--id'." in result.output
+
+
+def test_ads_update_batch_rejects_non_scalar_id(tmp_path):
+    path = _write_jsonl(tmp_path, [{"id": [5], "type": "TEXT_AD", "title": "T"}])
+    result = _rejected("ads", "update", "--from-file", path)
+    assert "Ad update row 1 field 'id'" in result.output
+    assert "expected a scalar" in result.output
