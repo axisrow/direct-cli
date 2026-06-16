@@ -1099,8 +1099,8 @@ def get(
 @click.option(
     "--image-hash",
     help=(
-        "Ad image hash (TEXT_IMAGE_AD / MOBILE_APP_AD / DYNAMIC_TEXT_AD / "
-        "MOBILE_APP_IMAGE_AD)"
+        "Ad image hash (TEXT_AD / TEXT_IMAGE_AD / MOBILE_APP_AD / "
+        "DYNAMIC_TEXT_AD / MOBILE_APP_IMAGE_AD)"
     ),
 )
 @click.option(
