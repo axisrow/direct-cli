@@ -20,6 +20,18 @@
   required-filter guard now explains this and recommends the `campaigns get` →
   batched `campaign_ids` sweep instead. No API behavior change; message only.
 
+**Fixes — preflight SelectionCriteria array limits on get (#555, P0):**
+
+- `keywordbids get` now rejects `--campaign-ids` >10, `--adgroup-ids` >1000,
+  `--keyword-ids` >10000; `dynamicads get` / `smartadtargets get` reject
+  `--campaign-ids` >2 — before the request, with a clear `UsageError` (exit 2)
+  naming the array and ceiling, instead of the opaque API `error_code=4001`.
+  These are runtime ceilings (the WSDL declares the arrays `unbounded`), pinned
+  next to each command with a doc/live-4001 citation, the same discipline as
+  `KEYWORDS_ADD_MAX_BATCH`. Verified live 2026-06-16. Other `get` arrays
+  (`AdGroupIds`/`Ids` on dynamic/smart, etc.) are intentionally **not** capped
+  because the live API accepts them.
+
 **Fixes — `ads update` can now clear AdImageHash (#552):**
 
 - Added `--clear-image-hash` to `ads update`. The flag sends

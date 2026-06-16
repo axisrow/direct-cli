@@ -17741,6 +17741,93 @@ def test_audiencetargets_get_requires_filter_message_names_workaround():
     assert "campaigns get" in result.output
 
 
+# --- SelectionCriteria array-length preflight (issue #555 P0) ---
+# Limits verified live 2026-06-16; WSDL declares maxOccurs="unbounded".
+
+
+def _ids_csv(n):
+    return ",".join(str(i) for i in range(1, n + 1))
+
+
+def test_keywordbids_get_rejects_over_10_campaign_ids():
+    result = CliRunner().invoke(
+        cli,
+        ["keywordbids", "get", "--campaign-ids", _ids_csv(11), "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+    assert result.exit_code == 2, result.output
+    assert "more than 10 elements" in result.output
+    assert "keywordbids get" in result.output
+
+
+def test_keywordbids_get_rejects_over_1000_adgroup_ids():
+    result = CliRunner().invoke(
+        cli,
+        ["keywordbids", "get", "--adgroup-ids", _ids_csv(1001), "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+    assert result.exit_code == 2, result.output
+    assert "more than 1000 elements" in result.output
+
+
+def test_keywordbids_get_rejects_over_10000_keyword_ids():
+    result = CliRunner().invoke(
+        cli,
+        ["keywordbids", "get", "--keyword-ids", _ids_csv(10001), "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+    assert result.exit_code == 2, result.output
+    assert "more than 10000 elements" in result.output
+
+
+def test_keywordbids_get_allows_exactly_10_campaign_ids():
+    body = _read_dry_run("keywordbids", "get", "--campaign-ids", _ids_csv(10))
+    assert len(body["params"]["SelectionCriteria"]["CampaignIds"]) == 10
+
+
+def test_dynamicads_get_rejects_over_2_campaign_ids():
+    result = CliRunner().invoke(
+        cli,
+        ["dynamicads", "get", "--campaign-ids", "1,2,3", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+    assert result.exit_code == 2, result.output
+    assert "more than 2 elements" in result.output
+    assert "dynamicads get" in result.output
+
+
+def test_dynamicads_get_allows_exactly_2_campaign_ids():
+    body = _read_dry_run("dynamicads", "get", "--campaign-ids", "1,2")
+    assert body["params"]["SelectionCriteria"]["CampaignIds"] == [1, 2]
+
+
+def test_dynamicads_get_allows_many_adgroup_ids():
+    # Only CampaignIds is capped at 2; AdGroupIds is unbounded on the live API.
+    body = _read_dry_run("dynamicads", "get", "--adgroup-ids", _ids_csv(50))
+    assert len(body["params"]["SelectionCriteria"]["AdGroupIds"]) == 50
+
+
+def test_smartadtargets_get_rejects_over_2_campaign_ids():
+    result = CliRunner().invoke(
+        cli,
+        ["smartadtargets", "get", "--campaign-ids", "1,2,3", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+    assert result.exit_code == 2, result.output
+    assert "more than 2 elements" in result.output
+    assert "smartadtargets get" in result.output
+
+
+def test_smartadtargets_get_allows_exactly_2_campaign_ids():
+    body = _read_dry_run("smartadtargets", "get", "--campaign-ids", "1,2")
+    assert body["params"]["SelectionCriteria"]["CampaignIds"] == [1, 2]
+
+
+def test_smartadtargets_get_allows_many_adgroup_ids():
+    body = _read_dry_run("smartadtargets", "get", "--adgroup-ids", _ids_csv(50))
+    assert len(body["params"]["SelectionCriteria"]["AdGroupIds"]) == 50
+
+
 def test_campaigns_get_empty_fields_raises_usage_error_not_abort():
     # The UsageError from _parse_csv_option must keep exit code 2 (UsageError),
     # not be swallowed by ``except Exception`` and downgraded to Abort (1).
