@@ -412,7 +412,9 @@ def update(
 
 
 @agencyclients.command()
-@click.option("--id", "client_id", required=True, type=int, help="Client ID")
+@click.option(
+    "--id", "client_id", required=True, type=click.IntRange(min=1), help="Client ID"
+)
 @click.pass_context
 def delete(ctx, client_id):
     """Delete agency client (not supported by API)"""

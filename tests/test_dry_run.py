@@ -23537,3 +23537,14 @@ def test_agencyclients_update_rejects_non_positive_client_id():
     # validation only (no live mutation is exercised).
     result = _rejected("agencyclients", "update", "--client-id", "0", "--phone", "1")
     assert result.exit_code == 2, result.output
+
+
+@pytest.mark.parametrize("bad", ["0", "-1"])
+def test_agencyclients_delete_rejects_non_positive_id(bad):
+    # delete is a runtime-deprecated stub that always Aborts and never builds a
+    # payload (no --dry-run support), but its --id selector is guarded for
+    # surface consistency. Invoke directly (no --dry-run) and confirm IntRange
+    # rejects at parse time, before the Abort.
+    result = CliRunner().invoke(cli, ["agencyclients", "delete", "--id", bad])
+    assert result.exit_code == 2, result.output
+    assert "is not in the range" in result.output
