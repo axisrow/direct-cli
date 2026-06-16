@@ -953,7 +953,7 @@ _ADGROUPS_UPDATE_FLAG_FOR = {
 ADGROUPS_UPDATE_MAX_BATCH = 100
 
 
-def build_adgroup_update_object(*, adgroup_id, flags, flag_for=None):
+def build_adgroup_update_object(*, adgroup_id, flags):
     """Build a single ``AdGroups`` update item dict from flag values (issue #565).
 
     Pure (no ``ctx``, no I/O): performs the mixed-subtype reject guard, the
@@ -967,7 +967,6 @@ def build_adgroup_update_object(*, adgroup_id, flags, flag_for=None):
     ``dynamic_feed``, ...); missing keys default to ``None`` (``multiple=True``
     flags default to ``()``).
     """
-    flag_for = flag_for if flag_for is not None else _ADGROUPS_UPDATE_FLAG_FOR
 
     # Unpack flags into locals so the dispatch body below is byte-identical to
     # the historical inline command body.
@@ -1301,7 +1300,6 @@ def _normalize_adgroup_update_row(row, row_index):
         return build_adgroup_update_object(
             adgroup_id=adgroup_id,
             flags=flags,
-            flag_for=_ADGROUPS_UPDATE_FLAG_FOR,
         )
     except click.UsageError as exc:
         raise click.UsageError(
@@ -1612,7 +1610,6 @@ def update(
     adgroup_data = build_adgroup_update_object(
         adgroup_id=adgroup_id,
         flags=flags_local,
-        flag_for=_ADGROUPS_UPDATE_FLAG_FOR,
     )
 
     body = {"method": "update", "params": {"AdGroups": [adgroup_data]}}
