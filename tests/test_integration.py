@@ -794,5 +794,27 @@ class TestError8300Hint(unittest.TestCase):
         self.assertIn("Status=UNKNOWN", result.output)
 
 
+@pytest.mark.integration
+@skip_if_no_token
+class TestAudienceTargetsRequiredFilter(unittest.TestCase):
+    """Issue #554: the live API hard-requires a SelectionCriteria filter for
+    audiencetargets.get, so the CLI guard is correct and whole-account paging
+    is impossible. These tests document both halves: the guard rejects the
+    no-filter call locally, and the recommended `--campaign-ids` pattern works.
+    """
+
+    def test_get_with_no_filter_is_rejected_locally(self):
+        result = invoke_get("audiencetargets", "get")
+        self.assertEqual(result.exit_code, 2, result.output)
+        self.assertIn("whole-account paging is not available", result.output)
+
+    def test_get_with_campaign_filter_succeeds(self):
+        cid = get_first_campaign_id()
+        if cid is None:
+            self.skipTest("no campaigns in account")
+        result = invoke_get("audiencetargets", "get", "--campaign-ids", str(cid))
+        assert_success(result, "audiencetargets get --campaign-ids")
+
+
 if __name__ == "__main__":
     unittest.main()

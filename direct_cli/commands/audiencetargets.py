@@ -66,7 +66,17 @@ def get(
     add_criteria_csv(criteria, "States", states, upper=True)
 
     if not criteria:
-        raise click.UsageError(t("Provide at least one typed filter"))
+        raise click.UsageError(
+            t(
+                "audiencetargets get requires at least one filter "
+                "(--ids, --adgroup-ids, --campaign-ids, --retargeting-list-ids, "
+                "--interest-ids, or --states). The Yandex Direct API rejects an "
+                "empty SelectionCriteria (error 8000/4001), so whole-account "
+                "paging is not available. To sweep the account, first run "
+                "`campaigns get`, then page `audiencetargets get` in batches of "
+                "campaign ids."
+            )
+        )
 
     field_names = parse_csv_strings(fields) or get_default_fields("audiencetargets")
     params = build_common_params(

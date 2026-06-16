@@ -13,5 +13,6 @@
   "StrategyPriority value for automatic strategies": "Значение StrategyPriority для автоматических стратегий",
   "Suspend audience target": "Приостановить условие нацеливания на аудиторию",
   "Provide at least one of --retargeting-list-id or --interest-id": "Укажите хотя бы один из --retargeting-list-id или --interest-id",
-  "Provide at least one bid field (--context-bid or --priority)": "Укажите хотя бы одно поле ставки (--context-bid или --priority)"
+  "Provide at least one bid field (--context-bid or --priority)": "Укажите хотя бы одно поле ставки (--context-bid или --priority)",
+  "audiencetargets get requires at least one filter (--ids, --adgroup-ids, --campaign-ids, --retargeting-list-ids, --interest-ids, or --states). The Yandex Direct API rejects an empty SelectionCriteria (error 8000/4001), so whole-account paging is not available. To sweep the account, first run `campaigns get`, then page `audiencetargets get` in batches of campaign ids.": "audiencetargets get требует хотя бы один фильтр (--ids, --adgroup-ids, --campaign-ids, --retargeting-list-ids, --interest-ids или --states). API Яндекс Директа отклоняет пустой SelectionCriteria (ошибка 8000/4001), поэтому постраничный обход всего аккаунта недоступен. Чтобы собрать весь аккаунт, сначала выполните `campaigns get`, затем запрашивайте `audiencetargets get` батчами campaign id."
 }
