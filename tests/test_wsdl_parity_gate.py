@@ -649,6 +649,7 @@ INTERNAL_VALIDATION: dict[tuple[str, str, str], str] = {
     ("keywords", "add", "Keyword"): "Provide exactly one of: --keyword",
     ("keywords", "add", "AdGroupId"): "Provide exactly one of: --keyword",
     ("ads", "add", "AdGroupId"): "Missing option '--adgroup-id'.",
+    ("adgroups", "update", "Id"): "Missing option '--id'.",
     ("feeds", "add", "SourceType"): "Provide exactly one of --url or --file-feed-path",
     ("sitelinks", "add", "Sitelinks"): "Provide exactly one of: --sitelink",
 }
@@ -5345,6 +5346,7 @@ INTERNAL_VALIDATION_PROBES: dict[tuple[str, str, str], list[str]] = {
         "--business-type",
         "RETAIL",
     ],
+    ("adgroups", "update", "Id"): ["adgroups", "update", "--name", "G"],
     ("sitelinks", "add", "Sitelinks"): ["sitelinks", "add"],
 }
 
