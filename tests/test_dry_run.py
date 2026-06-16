@@ -24122,6 +24122,15 @@ def test_adgroups_add_batch_rejects_missing_campaign_in_row(tmp_path):
     assert "missing 'campaign-id'" in result.output
 
 
+def test_adgroups_add_batch_rejects_missing_region_ids_in_row(tmp_path):
+    # RegionIds is WSDL minOccurs=1; single mode requires --region-ids, so the
+    # batch row must require it too (else a malformed body reaches the live API).
+    path = _write_jsonl(tmp_path, [{"name": "G", "campaign-id": 1}])
+    result = _rejected("adgroups", "add", "--from-file", path)
+    assert "Ad group row 1" in result.output
+    assert "missing required 'region-ids'" in result.output
+
+
 def test_adgroups_add_batch_rejects_incompatible_flag_per_row(tmp_path):
     # --domain-url is not valid for TEXT_AD_GROUP; per-row guard wraps it.
     path = _write_jsonl(

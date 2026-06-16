@@ -951,6 +951,16 @@ def _normalize_adgroup_row(row, row_index, default_campaign_id):
         )
     name = _coerce_adgroup_row_field("name", row["name"], row_index)
 
+    # RegionIds is WSDL minOccurs=1; the single command requires --region-ids,
+    # so require it per row too — otherwise a batch row would build a body
+    # missing a required field and send it to the live API.
+    if "region-ids" not in row:
+        raise click.UsageError(
+            t("Ad group row {row_index}: missing required 'region-ids'").format(
+                row_index=row_index
+            )
+        )
+
     group_type = row.get("type")
 
     flags = {}

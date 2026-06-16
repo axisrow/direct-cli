@@ -94,5 +94,6 @@
   "Ad group row {row_index} field {key!r}: expected a JSON array of strings": "Группа объявлений, строка {row_index}, поле {key!r}: ожидался JSON-массив строк",
   "--adgroups-json: invalid JSON: {arg0}": "--adgroups-json: некорректный JSON: {arg0}",
   "--adgroups-json must be a JSON array of ad group objects": "--adgroups-json должен быть JSON-массивом объектов групп объявлений",
-  "A batch may not mix UNIFIED_AD_GROUP with other ad group types (unified groups use a different API endpoint). Split them into separate --from-file runs.": "Пакет не может смешивать UNIFIED_AD_GROUP с другими типами групп объявлений (unified-группы используют другой endpoint API). Разнесите их по отдельным запускам --from-file."
+  "A batch may not mix UNIFIED_AD_GROUP with other ad group types (unified groups use a different API endpoint). Split them into separate --from-file runs.": "Пакет не может смешивать UNIFIED_AD_GROUP с другими типами групп объявлений (unified-группы используют другой endpoint API). Разнесите их по отдельным запускам --from-file.",
+  "Ad group row {row_index}: missing required 'region-ids'": "Группа объявлений, строка {row_index}: отсутствует обязательное 'region-ids'"
 }
