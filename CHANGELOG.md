@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+**Docs — audiencetargets get requires a filter (#554):**
+
+- Clarified that `audiencetargets get` cannot page the whole account: unlike
+  `retargeting get --fetch-all`, the live API hard-rejects an empty
+  `SelectionCriteria` (error 8000 with no criteria, 4001 with `{}`). The
+  required-filter guard now explains this and recommends the `campaigns get` →
+  batched `campaign_ids` sweep instead. No API behavior change; message only.
+
 **Fixes — `ads update` can now clear AdImageHash (#552):**
 
 - Added `--clear-image-hash` to `ads update`. The flag sends

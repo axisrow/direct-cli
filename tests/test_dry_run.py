@@ -17726,6 +17726,21 @@ def test_get_with_filter_keeps_selection_criteria(command):
     assert body["params"]["SelectionCriteria"] == {"Ids": [1, 2]}
 
 
+def test_audiencetargets_get_requires_filter_message_names_workaround():
+    # Issue #554: the live API hard-rejects an empty SelectionCriteria for
+    # audiencetargets (8000 with no criteria, 4001 with {}), so whole-account
+    # paging is impossible. The guard message must say so and point at the
+    # campaigns-get → batched campaign-ids workaround.
+    result = CliRunner().invoke(
+        cli,
+        ["audiencetargets", "get", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+    assert result.exit_code == 2, result.output
+    assert "whole-account paging is not available" in result.output
+    assert "campaigns get" in result.output
+
+
 def test_campaigns_get_empty_fields_raises_usage_error_not_abort():
     # The UsageError from _parse_csv_option must keep exit code 2 (UsageError),
     # not be swallowed by ``except Exception`` and downgraded to Abort (1).
