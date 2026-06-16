@@ -8,7 +8,7 @@ import click
 
 from ..i18n import t
 from ..output import handle_api_errors
-from ..utils import parse_csv_strings, parse_ids
+from ..utils import parse_csv_strings, parse_ids, v4_output_options
 from ..v4.emit import emit_or_call_v4
 from ..v4_contracts import v4_method_contract
 from .v4shells import V4_EPILOG
@@ -174,15 +174,7 @@ def v4events():
 )
 @click.option("--limit", type=click.IntRange(min=0), help="Result limit")
 @click.option("--offset", type=click.IntRange(min=0), help="Result offset")
-@click.option(
-    "--format",
-    "output_format",
-    default="json",
-    type=click.Choice(["json", "table", "csv", "tsv"]),
-    help="Output format",
-)
-@click.option("--output", help="Output file")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@v4_output_options
 @click.pass_context
 @handle_api_errors
 def get_events_log(

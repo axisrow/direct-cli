@@ -7,7 +7,7 @@ import click
 
 from ..i18n import t
 from ..output import format_output, handle_api_errors
-from ..utils import parse_csv_strings, parse_ids
+from ..utils import parse_csv_strings, parse_ids, v4_output_options
 from ..v4.emit import (
     _masked_finance_body,
     emit_or_call_v4,
@@ -185,15 +185,7 @@ v4finance.i18n_epilog_suffix = V4_EPILOG
 @v4_method_contract("GetClientsUnits")
 @v4finance.command(name="get-clients-units")
 @click.option("--logins", required=True, help="Comma-separated client logins")
-@click.option(
-    "--format",
-    "output_format",
-    default="json",
-    type=click.Choice(["json", "table", "csv", "tsv"]),
-    help="Output format",
-)
-@click.option("--output", help="Output file")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@v4_output_options
 @click.pass_context
 @handle_api_errors
 def get_clients_units(ctx, logins, output_format, output, dry_run):
@@ -228,15 +220,7 @@ def get_clients_units(ctx, logins, output_format, output, dry_run):
     envvar="YANDEX_DIRECT_FINANCE_LOGIN",
     help="Login used in financial token generation",
 )
-@click.option(
-    "--format",
-    "output_format",
-    default="json",
-    type=click.Choice(["json", "table", "csv", "tsv"]),
-    help="Output format",
-)
-@click.option("--output", help="Output file")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@v4_output_options
 @click.pass_context
 @handle_api_errors
 def get_credit_limits(
@@ -281,15 +265,7 @@ def get_credit_limits(
     required=True,
     help="32-character latin alphanumeric transaction ID",
 )
-@click.option(
-    "--format",
-    "output_format",
-    default="json",
-    type=click.Choice(["json", "table", "csv", "tsv"]),
-    help="Output format",
-)
-@click.option("--output", help="Output file")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@v4_output_options
 @click.pass_context
 @handle_api_errors
 def check_payment(
@@ -343,15 +319,7 @@ def check_payment(
     envvar="YANDEX_DIRECT_FINANCE_LOGIN",
     help="Login used in financial token generation",
 )
-@click.option(
-    "--format",
-    "output_format",
-    default="json",
-    type=click.Choice(["json", "table", "csv", "tsv"]),
-    help="Output format",
-)
-@click.option("--output", help="Output file")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@v4_output_options
 @click.pass_context
 @handle_api_errors
 def create_invoice(

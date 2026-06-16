@@ -5,7 +5,7 @@ from typing import Optional
 import click
 
 from ..i18n import t
-from ..utils import parse_ids
+from ..utils import parse_ids, v4_output_options
 from ..v4.emit import emit_or_call_v4
 from ..v4_contracts import v4_method_contract
 from .v4shells import V4_EPILOG
@@ -148,15 +148,7 @@ def v4tags():
 @v4_method_contract("GetCampaignsTags")
 @v4tags.command(name="get-campaigns")
 @click.option("--campaign-ids", required=True, help="Comma-separated campaign IDs")
-@click.option(
-    "--format",
-    "output_format",
-    default="json",
-    type=click.Choice(["json", "table", "csv", "tsv"]),
-    help="Output format",
-)
-@click.option("--output", help="Output file")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@v4_output_options
 @click.pass_context
 def get_campaigns(ctx, campaign_ids, output_format, output, dry_run):
     """Get campaign tags."""
@@ -168,15 +160,7 @@ def get_campaigns(ctx, campaign_ids, output_format, output, dry_run):
 @v4tags.command(name="get-banners")
 @click.option("--campaign-ids", help="Comma-separated campaign IDs, up to 10")
 @click.option("--banner-ids", help="Comma-separated banner IDs, up to 2000")
-@click.option(
-    "--format",
-    "output_format",
-    default="json",
-    type=click.Choice(["json", "table", "csv", "tsv"]),
-    help="Output format",
-)
-@click.option("--output", help="Output file")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@v4_output_options
 @click.pass_context
 def get_banners(ctx, campaign_ids, banner_ids, output_format, output, dry_run):
     """Get banner tag IDs."""
@@ -199,15 +183,7 @@ def get_banners(ctx, campaign_ids, banner_ids, output_format, output, dry_run):
     help="Campaign tag as TAG_ID=TEXT; use 0 for a new tag",
 )
 @click.option("--clear-tags", is_flag=True, help="Remove all campaign tags")
-@click.option(
-    "--format",
-    "output_format",
-    default="json",
-    type=click.Choice(["json", "table", "csv", "tsv"]),
-    help="Output format",
-)
-@click.option("--output", help="Output file")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@v4_output_options
 @click.pass_context
 def update_campaigns(
     ctx, campaign_id, tag_specs, clear_tags, output_format, output, dry_run
@@ -222,15 +198,7 @@ def update_campaigns(
 @click.option("--banner-ids", required=True, help="Comma-separated banner IDs")
 @click.option("--tag-ids", help="Comma-separated campaign tag IDs, up to 30")
 @click.option("--clear-tags", is_flag=True, help="Remove all banner tags")
-@click.option(
-    "--format",
-    "output_format",
-    default="json",
-    type=click.Choice(["json", "table", "csv", "tsv"]),
-    help="Output format",
-)
-@click.option("--output", help="Output file")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@v4_output_options
 @click.pass_context
 def update_banners(
     ctx, banner_ids, tag_ids, clear_tags, output_format, output, dry_run

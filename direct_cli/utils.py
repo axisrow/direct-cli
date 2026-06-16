@@ -1023,3 +1023,38 @@ def get_options(func):
     )(func)
     func = click.option("--fetch-all", is_flag=True, help="Fetch all pages")(func)
     return click.option("--limit", type=int, help="Limit number of results")(func)
+
+
+def v4_output_options(func):
+    """Apply the shared output/dry-run option stack of a v4 Live command.
+
+    Equivalent to writing, in this exact top-to-bottom order::
+
+        @click.option(
+            "--format", "output_format", default="json",
+            type=click.Choice(["json", "table", "csv", "tsv"]), help="Output format",
+        )
+        @click.option("--output", help="Output file")
+        @click.option("--dry-run", is_flag=True, help="Show request without sending")
+
+    Distinct from :func:`get_options`: v4 uses a typed ``click.Choice`` format
+    and has no ``--limit`` / ``--fetch-all`` / ``--fields``. Click applies
+    decorators bottom-up, so the options are added here in reverse to keep
+    ``--help`` listing them in the order above. Only commands whose three
+    options are contiguous and byte-identical use this decorator. NOT applied to
+    ``v4account enable-shared-account`` / ``account-management`` (reversed order
+    and a ``"...required outside --sandbox"`` ``--dry-run`` help) or the
+    dry-run-only finance commands ``v4finance transfer-money`` /
+    ``pay-campaigns`` / ``pay-campaigns-by-card`` (no ``--format`` / ``--output``).
+    """
+    func = click.option("--dry-run", is_flag=True, help="Show request without sending")(
+        func
+    )
+    func = click.option("--output", help="Output file")(func)
+    return click.option(
+        "--format",
+        "output_format",
+        default="json",
+        type=click.Choice(["json", "table", "csv", "tsv"]),
+        help="Output format",
+    )(func)

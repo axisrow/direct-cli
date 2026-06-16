@@ -11,7 +11,7 @@ from typing import Optional
 import click
 
 from ..i18n import t
-from ..utils import parse_csv_strings, parse_ids
+from ..utils import parse_csv_strings, parse_ids, v4_output_options
 from ..v4.emit import emit_or_call_v4
 from ..v4_contracts import v4_method_contract
 from .v4shells import V4_EPILOG
@@ -126,15 +126,7 @@ def v4adimage():
 @click.option("--campaign-ids", help="Comma-separated campaign IDs")
 @click.option("--limit", type=click.IntRange(min=1, max=10000), help="Page size")
 @click.option("--offset", type=click.IntRange(min=0), help="Page offset")
-@click.option(
-    "--format",
-    "output_format",
-    default="json",
-    type=click.Choice(["json", "table", "csv", "tsv"]),
-    help="Output format",
-)
-@click.option("--output", help="Output file")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@v4_output_options
 @click.pass_context
 def get(
     ctx,
@@ -171,15 +163,7 @@ def get(
     required=True,
     help="AD_ID to detach the image, or AD_ID=HASH to attach; repeat for multiple",
 )
-@click.option(
-    "--format",
-    "output_format",
-    default="json",
-    type=click.Choice(["json", "table", "csv", "tsv"]),
-    help="Output format",
-)
-@click.option("--output", help="Output file")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@v4_output_options
 @click.pass_context
 def set_(ctx, associations, output_format, output, dry_run):
     """Attach or detach ad images (max 10000 associations)."""

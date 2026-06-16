@@ -5,7 +5,7 @@ import click
 from ..api import create_v4_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
-from ..utils import parse_csv_strings
+from ..utils import parse_csv_strings, v4_output_options
 from ..v4 import build_v4_body, call_v4
 from ..v4_contracts import v4_method_contract
 
@@ -13,15 +13,7 @@ from ..v4_contracts import v4_method_contract
 @v4_method_contract("AccountManagement")
 @click.command()
 @click.option("--logins", help="Comma-separated client logins")
-@click.option(
-    "--format",
-    "output_format",
-    default="json",
-    type=click.Choice(["json", "table", "csv", "tsv"]),
-    help="Output format",
-)
-@click.option("--output", help="Output file")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@v4_output_options
 @click.pass_context
 @handle_api_errors
 def balance(ctx, logins, output_format, output, dry_run):
