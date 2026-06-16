@@ -23955,3 +23955,294 @@ def test_ads_add_batch_rejects_non_list_multi_value(tmp_path):
     result = _rejected("ads", "add", "--from-file", path)
     assert "Ad row 1 field 'mobile-app-feature'" in result.output
     assert "array of strings" in result.output
+
+
+# --- adgroups add batch (issue #564) ---
+
+
+def test_adgroups_add_batch_from_jsonl(tmp_path):
+    rows = [
+        {"name": "G1", "campaign-id": 11, "region-ids": "225", "type": "TEXT_AD_GROUP"},
+        {
+            "name": "G2",
+            "campaign-id": 22,
+            "region-ids": "225,1",
+            "type": "DYNAMIC_TEXT_AD_GROUP",
+            "domain-url": "https://e.example",
+        },
+    ]
+    path = _write_jsonl(tmp_path, rows)
+    body = _dry_run("adgroups", "add", "--from-file", path)
+    assert body["chunks"] == 1
+    assert body["totalItems"] == 2
+    assert body["chunkSize"] == 100
+    assert body["firstChunk"]["method"] == "add"
+    groups = body["firstChunk"]["params"]["AdGroups"]
+    # Row -> build_adgroup_object yields the same object as the single path.
+    assert groups[0] == {"Name": "G1", "CampaignId": 11, "RegionIds": [225]}
+    assert groups[1] == {
+        "Name": "G2",
+        "CampaignId": 22,
+        "RegionIds": [225, 1],
+        "DynamicTextAdGroup": {"DomainUrl": "https://e.example"},
+    }
+
+
+def test_adgroups_add_batch_inline():
+    arr = json.dumps(
+        [{"name": "G", "campaign-id": 1, "region-ids": "225", "type": "TEXT_AD_GROUP"}]
+    )
+    body = _dry_run("adgroups", "add", "--adgroups-json", arr)
+    assert body["totalItems"] == 1
+    assert body["firstChunk"]["params"]["AdGroups"][0] == {
+        "Name": "G",
+        "CampaignId": 1,
+        "RegionIds": [225],
+    }
+
+
+def test_adgroups_add_batch_chunks_at_100(tmp_path):
+    rows = [
+        {"name": f"G{i}", "campaign-id": 1, "region-ids": "225"} for i in range(250)
+    ]
+    path = _write_jsonl(tmp_path, rows)
+    body = _dry_run("adgroups", "add", "--from-file", path)
+    assert body["chunks"] == 3
+    assert body["totalItems"] == 250
+    assert len(body["firstChunk"]["params"]["AdGroups"]) == 100
+
+
+def test_adgroups_add_batch_campaign_default_and_override(tmp_path):
+    rows = [
+        {"name": "G1", "region-ids": "225"},
+        {"name": "G2", "campaign-id": 999, "region-ids": "225"},
+    ]
+    path = _write_jsonl(tmp_path, rows)
+    body = _dry_run("adgroups", "add", "--campaign-id", "5", "--from-file", path)
+    groups = body["firstChunk"]["params"]["AdGroups"]
+    assert groups[0]["CampaignId"] == 5
+    assert groups[1]["CampaignId"] == 999
+
+
+def test_adgroups_add_batch_unified_routing_note(tmp_path):
+    # A UnifiedAdGroup row still builds correctly in batch mode; the real send
+    # would route via _post_adgroups (v501), but dry-run only previews the body.
+    rows = [
+        {
+            "name": "U",
+            "campaign-id": 1,
+            "region-ids": "225",
+            "type": "UNIFIED_AD_GROUP",
+            "offer-retargeting": "YES",
+        }
+    ]
+    path = _write_jsonl(tmp_path, rows)
+    body = _dry_run("adgroups", "add", "--from-file", path)
+    assert body["firstChunk"]["params"]["AdGroups"][0]["UnifiedAdGroup"] == {
+        "OfferRetargeting": "YES"
+    }
+
+
+def test_adgroups_add_batch_rejects_mixed_unified_and_non_unified(tmp_path):
+    # _post_adgroups routes the WHOLE body to v501 if any item is unified, so a
+    # mix would send non-unified groups to the wrong endpoint. Refuse it.
+    rows = [
+        {"name": "T", "campaign-id": 1, "region-ids": "225", "type": "TEXT_AD_GROUP"},
+        {
+            "name": "U",
+            "campaign-id": 1,
+            "region-ids": "225",
+            "type": "UNIFIED_AD_GROUP",
+            "offer-retargeting": "YES",
+        },
+    ]
+    path = _write_jsonl(tmp_path, rows)
+    result = _rejected("adgroups", "add", "--from-file", path)
+    assert "may not mix UNIFIED_AD_GROUP" in result.output
+
+
+def test_adgroups_add_batch_all_unified_is_allowed(tmp_path):
+    # An all-unified batch is fine — the whole body routes to v501 correctly.
+    rows = [
+        {
+            "name": f"U{i}",
+            "campaign-id": 1,
+            "region-ids": "225",
+            "type": "UNIFIED_AD_GROUP",
+            "offer-retargeting": "YES",
+        }
+        for i in range(2)
+    ]
+    path = _write_jsonl(tmp_path, rows)
+    body = _dry_run("adgroups", "add", "--from-file", path)
+    groups = body["firstChunk"]["params"]["AdGroups"]
+    assert all("UnifiedAdGroup" in g for g in groups)
+
+
+def test_adgroups_add_batch_rejects_unknown_field(tmp_path):
+    path = _write_jsonl(tmp_path, [{"name": "G", "campaign-id": 1, "foo": "bar"}])
+    result = _rejected("adgroups", "add", "--from-file", path)
+    assert "Unknown field 'foo' in ad group row 1" in result.output
+
+
+def test_adgroups_add_batch_rejects_non_object_row(tmp_path):
+    path = _write_jsonl(tmp_path, [[1, 2, 3]])
+    result = _rejected("adgroups", "add", "--from-file", path)
+    assert "Ad group row 1" in result.output
+    assert "expected JSON object" in result.output
+
+
+def test_adgroups_add_batch_rejects_empty_file(tmp_path):
+    path = tmp_path / "empty.jsonl"
+    path.write_text("\n", encoding="utf-8")
+    result = _rejected("adgroups", "add", "--from-file", str(path))
+    assert "Input contains no ad group rows" in result.output
+
+
+def test_adgroups_add_batch_rejects_invalid_json(tmp_path):
+    path = tmp_path / "bad.jsonl"
+    path.write_text(
+        '{"name":"G","campaign-id":1,"region-ids":"225"}\nnope\n', encoding="utf-8"
+    )
+    result = _rejected("adgroups", "add", "--from-file", str(path))
+    assert "Row 2: invalid JSON" in result.output
+
+
+def test_adgroups_add_batch_rejects_missing_name_in_row(tmp_path):
+    path = _write_jsonl(tmp_path, [{"campaign-id": 1, "region-ids": "225"}])
+    result = _rejected("adgroups", "add", "--from-file", path)
+    assert "Ad group row 1" in result.output
+    assert "missing required 'name'" in result.output
+
+
+def test_adgroups_add_batch_rejects_missing_campaign_in_row(tmp_path):
+    path = _write_jsonl(tmp_path, [{"name": "G", "region-ids": "225"}])
+    result = _rejected("adgroups", "add", "--from-file", path)
+    assert "Ad group row 1" in result.output
+    assert "missing 'campaign-id'" in result.output
+
+
+def test_adgroups_add_batch_rejects_incompatible_flag_per_row(tmp_path):
+    # --domain-url is not valid for TEXT_AD_GROUP; per-row guard wraps it.
+    path = _write_jsonl(
+        tmp_path,
+        [
+            {
+                "name": "G",
+                "campaign-id": 1,
+                "region-ids": "225",
+                "type": "TEXT_AD_GROUP",
+                "domain-url": "https://e.example",
+            }
+        ],
+    )
+    result = _rejected("adgroups", "add", "--from-file", path)
+    assert "Ad group row 1" in result.output
+
+
+def test_adgroups_add_batch_rejects_invalid_type_per_row(tmp_path):
+    path = _write_jsonl(
+        tmp_path, [{"name": "G", "campaign-id": 1, "region-ids": "225", "type": "NOPE"}]
+    )
+    result = _rejected("adgroups", "add", "--from-file", path)
+    assert "Ad group row 1" in result.output
+    assert "Invalid value for '--type'" in result.output
+
+
+def test_adgroups_add_batch_rejects_missing_required_subtype_field_per_row(tmp_path):
+    # SMART_AD_GROUP requires --feed-id; the per-row guard wraps the message.
+    path = _write_jsonl(
+        tmp_path,
+        [
+            {
+                "name": "G",
+                "campaign-id": 1,
+                "region-ids": "225",
+                "type": "SMART_AD_GROUP",
+            }
+        ],
+    )
+    result = _rejected("adgroups", "add", "--from-file", path)
+    assert "Ad group row 1" in result.output
+    assert "feed-id" in result.output
+
+
+def test_adgroups_add_batch_rejects_non_positive_campaign_id_in_row(tmp_path):
+    # IntRange(min=1) must apply per row, same as single --campaign-id.
+    path = _write_jsonl(
+        tmp_path, [{"name": "G", "campaign-id": -5, "region-ids": "225"}]
+    )
+    result = _rejected("adgroups", "add", "--from-file", path)
+    assert "Ad group row 1 field 'campaign-id'" in result.output
+    assert "x>=1" in result.output
+
+
+def test_adgroups_add_batch_rejects_float_campaign_id_in_row(tmp_path):
+    path = _write_jsonl(
+        tmp_path, [{"name": "G", "campaign-id": 5.9, "region-ids": "225"}]
+    )
+    result = _rejected("adgroups", "add", "--from-file", path)
+    assert "Ad group row 1 field 'campaign-id'" in result.output
+
+
+def test_adgroups_add_batch_rejects_non_scalar_field(tmp_path):
+    path = _write_jsonl(
+        tmp_path, [{"name": "G", "campaign-id": [1], "region-ids": "225"}]
+    )
+    result = _rejected("adgroups", "add", "--from-file", path)
+    assert "Ad group row 1 field 'campaign-id'" in result.output
+    assert "expected a scalar" in result.output
+
+
+def test_adgroups_add_batch_rejects_non_list_multi_value(tmp_path):
+    path = _write_jsonl(
+        tmp_path,
+        [
+            {
+                "name": "G",
+                "campaign-id": 1,
+                "region-ids": "225",
+                "type": "DYNAMIC_TEXT_AD_GROUP",
+                "domain-url": "https://e.example",
+                "autotargeting-category": 5,
+            }
+        ],
+    )
+    result = _rejected("adgroups", "add", "--from-file", path)
+    assert "Ad group row 1 field 'autotargeting-category'" in result.output
+    assert "array of strings" in result.output
+
+
+def test_adgroups_add_batch_stringifies_scalar_string_field(tmp_path):
+    # A JSON int for the string --name field becomes "123" (CLI-token parity).
+    path = _write_jsonl(
+        tmp_path, [{"name": 123, "campaign-id": 1, "region-ids": "225"}]
+    )
+    body = _dry_run("adgroups", "add", "--from-file", path)
+    assert body["firstChunk"]["params"]["AdGroups"][0]["Name"] == "123"
+
+
+def test_adgroups_add_batch_rejects_mutex(tmp_path):
+    path = _write_jsonl(
+        tmp_path, [{"name": "G", "campaign-id": 1, "region-ids": "225"}]
+    )
+    result = _rejected("adgroups", "add", "--from-file", path, "--adgroups-json", "[]")
+    assert "mutually exclusive" in result.output
+
+
+def test_adgroups_add_batch_rejects_single_flag_in_batch(tmp_path):
+    path = _write_jsonl(
+        tmp_path, [{"name": "G", "campaign-id": 1, "region-ids": "225"}]
+    )
+    result = _rejected("adgroups", "add", "--from-file", path, "--name", "X")
+    assert "--name supported only with single-item mode" in result.output
+
+
+def test_adgroups_add_single_still_requires_name():
+    result = _rejected("adgroups", "add", "--campaign-id", "1", "--region-ids", "225")
+    assert "Missing option '--name'." in result.output
+
+
+def test_adgroups_add_single_still_requires_region_ids():
+    result = _rejected("adgroups", "add", "--name", "G", "--campaign-id", "1")
+    assert "Missing option '--region-ids'." in result.output

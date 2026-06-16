@@ -9,6 +9,7 @@ import click
 from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
+from . import _batch
 from ._lifecycle import make_lifecycle_command
 from ..utils import (
     add_criteria_csv,
@@ -357,8 +358,10 @@ def _uses_unified_adgroup_endpoint(body: dict[str, Any]) -> bool:
         return False
 
     # Yandex docs require v501 for unified performance ad groups even though
-    # the v5 WSDL declares UnifiedAdGroup. CLI add/update commands currently
-    # build a single AdGroups item, so the nested block is enough to route.
+    # the v5 WSDL declares UnifiedAdGroup. This routes the WHOLE body to v501
+    # when any item is unified; batch `adgroups add` therefore refuses to mix
+    # unified and non-unified groups in one run (see _bulk_add_adgroups) so a
+    # mixed body never reaches the wrong endpoint.
     return any(
         isinstance(adgroup, dict) and "UnifiedAdGroup" in adgroup
         for adgroup in adgroups_payload
@@ -573,176 +576,84 @@ def get(
         format_output(data, output_format, output)
 
 
-@adgroups.command()
-@click.option("--name", required=True, help="Ad group name")
-@click.option(
-    "--campaign-id", required=True, type=click.IntRange(min=1), help="Campaign ID"
-)
-@click.option(
-    "--type",
-    "group_type",
-    default="TEXT_AD_GROUP",
-    help=(
-        "Ad group type: TEXT_AD_GROUP, DYNAMIC_TEXT_AD_GROUP, "
-        "DYNAMIC_TEXT_FEED_AD_GROUP, CPM_BANNER_KEYWORDS_AD_GROUP, "
-        "CPM_BANNER_USER_PROFILE_AD_GROUP, CPM_VIDEO_AD_GROUP, "
-        "SMART_AD_GROUP, UNIFIED_AD_GROUP, or MOBILE_APP_AD_GROUP"
+# dest -> "--flag" map for the `adgroups add` flag set. Hoisted to module level
+# so build_adgroup_object and the batch normalizer share one source of truth.
+_ADGROUPS_ADD_FLAG_FOR = {
+    "region_ids": "--region-ids",
+    "domain_url": "--domain-url",
+    "autotargeting_categories": "--autotargeting-category",
+    "autotargeting_settings_exact": "--autotargeting-settings-exact",
+    "autotargeting_settings_narrow": "--autotargeting-settings-narrow",
+    "autotargeting_settings_alternative": "--autotargeting-settings-alternative",
+    "autotargeting_settings_accessory": "--autotargeting-settings-accessory",
+    "autotargeting_settings_broader": "--autotargeting-settings-broader",
+    "autotargeting_settings_without_brands": "--autotargeting-settings-without-brands",
+    "autotargeting_settings_with_advertiser_brand": (
+        "--autotargeting-settings-with-advertiser-brand"
     ),
-)
-@click.option(
-    "--region-ids",
-    required=True,
-    help="Comma-separated region IDs (WSDL AdGroupAddItem.RegionIds minOccurs=1)",
-)
-@click.option("--domain-url", help="Dynamic text ad group domain URL")
-@click.option(
-    "--autotargeting-category",
-    "autotargeting_categories",
-    multiple=True,
-    help=_AUTOTARGETING_CATEGORY_HELP,
-)
-@click.option(
-    "--autotargeting-settings-exact",
-    type=click.Choice(["YES", "NO"], case_sensitive=False),
-    help="DynamicTextAdGroup.AutotargetingSettings.Categories.Exact value",
-)
-@click.option(
-    "--autotargeting-settings-narrow",
-    type=click.Choice(["YES", "NO"], case_sensitive=False),
-    help="DynamicTextAdGroup.AutotargetingSettings.Categories.Narrow value",
-)
-@click.option(
-    "--autotargeting-settings-alternative",
-    type=click.Choice(["YES", "NO"], case_sensitive=False),
-    help="DynamicTextAdGroup.AutotargetingSettings.Categories.Alternative value",
-)
-@click.option(
-    "--autotargeting-settings-accessory",
-    type=click.Choice(["YES", "NO"], case_sensitive=False),
-    help="DynamicTextAdGroup.AutotargetingSettings.Categories.Accessory value",
-)
-@click.option(
-    "--autotargeting-settings-broader",
-    type=click.Choice(["YES", "NO"], case_sensitive=False),
-    help="DynamicTextAdGroup.AutotargetingSettings.Categories.Broader value",
-)
-@click.option(
-    "--autotargeting-settings-without-brands",
-    type=click.Choice(["YES", "NO"], case_sensitive=False),
-    help="DynamicTextAdGroup.AutotargetingSettings.BrandOptions.WithoutBrands value",
-)
-@click.option(
-    "--autotargeting-settings-with-advertiser-brand",
-    type=click.Choice(["YES", "NO"], case_sensitive=False),
-    help=(
-        "DynamicTextAdGroup.AutotargetingSettings.BrandOptions."
-        "WithAdvertiserBrand value"
+    "autotargeting_settings_with_competitors_brand": (
+        "--autotargeting-settings-with-competitors-brand"
     ),
-)
-@click.option(
-    "--autotargeting-settings-with-competitors-brand",
-    type=click.Choice(["YES", "NO"], case_sensitive=False),
-    help=(
-        "DynamicTextAdGroup.AutotargetingSettings.BrandOptions."
-        "WithCompetitorsBrand value"
-    ),
-)
-@click.option(
-    "--feed-id",
-    type=int,
-    help=(
-        "TextAdGroupFeedParams.FeedId, SmartAdGroup.FeedId, or "
-        "DynamicTextFeedAdGroup.FeedId; required for SMART_AD_GROUP and "
-        "DYNAMIC_TEXT_FEED_AD_GROUP"
-    ),
-)
-@click.option(
-    "--feed-category-ids",
-    help="Comma-separated TextAdGroupFeedParams.FeedCategoryIds item IDs",
-)
-@click.option("--ad-title-source", help="Smart ad group title source")
-@click.option("--ad-body-source", help="Smart ad group body source")
-@click.option(
-    "--offer-retargeting",
-    type=click.Choice(_YES_NO_VALUES, case_sensitive=False),
-    help="UnifiedAdGroup.OfferRetargeting value: YES or NO",
-)
-@click.option(
-    "--store-url",
-    help="Mobile app ad group app store URL for MobileAppAdGroup.StoreUrl",
-)
-@click.option(
-    "--target-device-types",
-    help=(
-        "Comma-separated MobileAppAdGroup.TargetDeviceType values: "
-        "DEVICE_TYPE_MOBILE, DEVICE_TYPE_TABLET"
-    ),
-)
-@click.option(
-    "--target-carrier",
-    help=("MobileAppAdGroup.TargetCarrier value: WI_FI_ONLY or WI_FI_AND_CELLULAR"),
-)
-@click.option(
-    "--target-operating-system-version",
-    help="Minimum OS version for MobileAppAdGroup.TargetOperatingSystemVersion",
-)
-@click.option(
-    "--negative-keywords",
-    help=(
-        "Comma-separated ad-group negative keywords for NegativeKeywords.Items; "
-        "not compatible with CPM user-profile or video groups"
-    ),
-)
-@click.option(
-    "--negative-keyword-shared-set-ids",
-    help=(
-        "Comma-separated negative keyword shared set IDs for "
-        "NegativeKeywordSharedSetIds.Items; not compatible with CPM "
-        "user-profile or video groups"
-    ),
-)
-@click.option(
-    "--tracking-params",
-    "tracking_params",
-    help=(
-        "Tracking params query-string for AdGroupAddItem.TrackingParams "
-        "(max 1024 chars)"
-    ),
-)
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def add(
-    ctx,
-    name,
-    campaign_id,
-    group_type,
-    region_ids,
-    domain_url,
-    autotargeting_categories,
-    autotargeting_settings_exact,
-    autotargeting_settings_narrow,
-    autotargeting_settings_alternative,
-    autotargeting_settings_accessory,
-    autotargeting_settings_broader,
-    autotargeting_settings_without_brands,
-    autotargeting_settings_with_advertiser_brand,
-    autotargeting_settings_with_competitors_brand,
-    feed_id,
-    feed_category_ids,
-    ad_title_source,
-    ad_body_source,
-    offer_retargeting,
-    store_url,
-    target_device_types,
-    target_carrier,
-    target_operating_system_version,
-    negative_keywords,
-    negative_keyword_shared_set_ids,
-    tracking_params,
-    dry_run,
-):
-    """Add new ad group"""
+    "feed_id": "--feed-id",
+    "feed_category_ids": "--feed-category-ids",
+    "ad_title_source": "--ad-title-source",
+    "ad_body_source": "--ad-body-source",
+    "offer_retargeting": "--offer-retargeting",
+    "store_url": "--store-url",
+    "target_device_types": "--target-device-types",
+    "target_carrier": "--target-carrier",
+    "target_operating_system_version": "--target-operating-system-version",
+    "negative_keywords": "--negative-keywords",
+    "negative_keyword_shared_set_ids": "--negative-keyword-shared-set-ids",
+    "tracking_params": "--tracking-params",
+}
+
+
+def build_adgroup_object(*, campaign_id, name, group_type, flags):
+    """Build a single ``AdGroups`` add item dict from flag values (issue #564).
+
+    Pure (no ``ctx``, no I/O): performs ``--type`` validation, the
+    incompatible-flag guard, the negative-keyword compatibility check, and the
+    per-subtype assembly, returning ``{"Name": ..., "CampaignId": ..., ...}``.
+    Both the single-flag ``adgroups add`` command and the ``--from-file`` batch
+    normalizer call it so they emit byte-identical objects.
+
+    ``flags`` is keyed by the command's dest var names (``region_ids``,
+    ``domain_url``, ...); missing keys default to ``None`` (``multiple=True``
+    flags default to ``()``).
+    """
+    # Unpack flags into locals so the dispatch body below is byte-identical to
+    # the historical inline command body.
+    region_ids = flags.get("region_ids")
+    domain_url = flags.get("domain_url")
+    autotargeting_categories = flags.get("autotargeting_categories") or ()
+    autotargeting_settings_exact = flags.get("autotargeting_settings_exact")
+    autotargeting_settings_narrow = flags.get("autotargeting_settings_narrow")
+    autotargeting_settings_alternative = flags.get("autotargeting_settings_alternative")
+    autotargeting_settings_accessory = flags.get("autotargeting_settings_accessory")
+    autotargeting_settings_broader = flags.get("autotargeting_settings_broader")
+    autotargeting_settings_without_brands = flags.get(
+        "autotargeting_settings_without_brands"
+    )
+    autotargeting_settings_with_advertiser_brand = flags.get(
+        "autotargeting_settings_with_advertiser_brand"
+    )
+    autotargeting_settings_with_competitors_brand = flags.get(
+        "autotargeting_settings_with_competitors_brand"
+    )
+    feed_id = flags.get("feed_id")
+    feed_category_ids = flags.get("feed_category_ids")
+    ad_title_source = flags.get("ad_title_source")
+    ad_body_source = flags.get("ad_body_source")
+    offer_retargeting = flags.get("offer_retargeting")
+    store_url = flags.get("store_url")
+    target_device_types = flags.get("target_device_types")
+    target_carrier = flags.get("target_carrier")
+    target_operating_system_version = flags.get("target_operating_system_version")
+    negative_keywords = flags.get("negative_keywords")
+    negative_keyword_shared_set_ids = flags.get("negative_keyword_shared_set_ids")
+    tracking_params = flags.get("tracking_params")
+
     _validate_tracking_params(tracking_params)
 
     group_type_norm = (group_type or "TEXT_AD_GROUP").upper().replace("-", "_")
@@ -897,6 +808,522 @@ def add(
         )
         if mobile_app_adgroup:
             adgroup_data["MobileAppAdGroup"] = mobile_app_adgroup
+
+    return adgroup_data
+
+
+# Documented per-call limit for adgroups.add is 1000 (Yandex docs, adgroups/add
+# page); the WSDL declares the AdGroups array unbounded. ADGROUPS_ADD_MAX_BATCH
+# is a conservative CHUNK SIZE (not the ceiling): a partial failure rolls back
+# at most this many ad groups.
+ADGROUPS_ADD_MAX_BATCH = 100
+
+# Batch row keys are the kebab flag names without the leading "--" plus "name",
+# "campaign-id", and "type"; map them to build_adgroup_object's dest names.
+_ADGROUPS_ROW_KEY_TO_DEST = {
+    label[2:]: dest for dest, label in _ADGROUPS_ADD_FLAG_FOR.items()
+}
+_ADGROUPS_ROW_ALLOWED_KEYS = frozenset(
+    {"name", "campaign-id", "type", *_ADGROUPS_ROW_KEY_TO_DEST}
+)
+# Repeatable flags accept a JSON list of the existing micro-format strings; keep
+# in sync with the `multiple=True` add options (--autotargeting-category).
+_ADGROUPS_ROW_MULTI_KEYS = {"autotargeting-category"}
+
+
+def _adgroups_add_param_types():
+    """Map each ``adgroups add`` row key (kebab, no ``--``) to its Click ParamType.
+
+    Built lazily from the registered command so a batch row is coerced through
+    the *exact same* type as the single-flag path (issue #564): e.g.
+    ``--campaign-id`` (IntRange(min=1)) or ``--feed-id`` (int) gets the identical
+    conversion/validation, so batch and single produce byte-identical payloads
+    instead of forwarding raw JSON. Boolean flags are excluded.
+    """
+    types = {}
+    for param in add.params:
+        if not isinstance(param, click.Option):
+            continue
+        key = param.opts[0].lstrip("-")
+        # click.STRING is the no-op default; only typed options need coercion.
+        # Inert keys that aren't row fields (--dry-run, --from-file) still land
+        # here but are unreachable: _ADGROUPS_ROW_ALLOWED_KEYS rejects them
+        # before coercion. Mirrors ads `_ads_add_param_types`.
+        if param.type is not click.STRING:
+            types[key] = param.type
+    return types
+
+
+_ADGROUPS_ROW_PARAM_TYPES = None
+
+
+def _coerce_adgroup_row_field(key, value, row_index):
+    """Coerce one scalar batch-row value to its single-flag form (issue #564).
+
+    Mirrors ``ads`` ``_coerce_ad_row_field``: rejects JSON arrays/objects/``null``
+    for any scalar field, stringifies JSON int/float/bool scalars, then runs
+    typed fields through their single-flag Click type so batch and single emit
+    byte-identical payloads (``"campaign-id": 1.9`` is rejected, not truncated;
+    ``"campaign-id": null`` / ``[1]`` raise a clear ``Ad group row N field``
+    error instead of an uncaught ``TypeError``).
+    """
+    global _ADGROUPS_ROW_PARAM_TYPES
+    if _ADGROUPS_ROW_PARAM_TYPES is None:
+        _ADGROUPS_ROW_PARAM_TYPES = _adgroups_add_param_types()
+    param_type = _ADGROUPS_ROW_PARAM_TYPES.get(key)
+
+    if value is None or isinstance(value, (list, dict)):
+        raise click.UsageError(
+            t(
+                "Ad group row {row_index} field {key!r}: expected a scalar, "
+                "got {arg0}"
+            ).format(row_index=row_index, key=key, arg0=type(value).__name__)
+        )
+
+    token = str(value)
+
+    if param_type is None:
+        return token
+
+    if isinstance(value, bool):
+        raise click.UsageError(
+            t(
+                "Ad group row {row_index} field {key!r}: expected {arg0}, got bool"
+            ).format(row_index=row_index, key=key, arg0=param_type.name)
+        )
+    try:
+        return param_type.convert(token, None, None)
+    except click.exceptions.BadParameter as exc:
+        raise click.UsageError(
+            t("Ad group row {row_index} field {key!r}: {arg0}").format(
+                row_index=row_index, key=key, arg0=exc.format_message()
+            )
+        )
+
+
+def _normalize_adgroup_row(row, row_index, default_campaign_id):
+    """Translate one flag-form batch row into a built ad-group object.
+
+    The row keys are kebab flag names without "--" plus ``name``, ``campaign-id``
+    (or the batch default), and ``type``. Each typed field is coerced through its
+    single-flag Click type so batch and single emit byte-identical payloads.
+    Unknown keys are rejected; ``build_adgroup_object`` does the subtype
+    validation, its UsageError re-raised under an ``Ad group row N`` prefix.
+    """
+    if not isinstance(row, dict):
+        raise click.UsageError(
+            t("Ad group row {row_index}: expected JSON object, got {arg0}").format(
+                row_index=row_index, arg0=type(row).__name__
+            )
+        )
+
+    unknown = sorted(set(row) - _ADGROUPS_ROW_ALLOWED_KEYS)
+    if unknown:
+        raise click.UsageError(
+            t(
+                "Unknown field {arg0!r} in ad group row {row_index}; allowed: {allowed}"
+            ).format(
+                arg0=unknown[0],
+                row_index=row_index,
+                allowed=", ".join(sorted(_ADGROUPS_ROW_ALLOWED_KEYS)),
+            )
+        )
+
+    if "campaign-id" in row:
+        campaign_id = _coerce_adgroup_row_field(
+            "campaign-id", row["campaign-id"], row_index
+        )
+    else:
+        campaign_id = default_campaign_id
+    if campaign_id is None:
+        raise click.UsageError(
+            t(
+                "Ad group row {row_index}: missing 'campaign-id' and no default "
+                "--campaign-id provided"
+            ).format(row_index=row_index)
+        )
+
+    if "name" not in row:
+        raise click.UsageError(
+            t("Ad group row {row_index}: missing required 'name'").format(
+                row_index=row_index
+            )
+        )
+    name = _coerce_adgroup_row_field("name", row["name"], row_index)
+
+    group_type = row.get("type")
+
+    flags = {}
+    for key, dest in _ADGROUPS_ROW_KEY_TO_DEST.items():
+        if key not in row:
+            continue
+        value = row[key]
+        if key in _ADGROUPS_ROW_MULTI_KEYS:
+            # A repeatable flag (--autotargeting-category) is a JSON list of the
+            # existing micro-format strings; reject anything else with row/field
+            # context instead of crashing downstream.
+            if not isinstance(value, list) or not all(
+                isinstance(item, str) for item in value
+            ):
+                raise click.UsageError(
+                    t(
+                        "Ad group row {row_index} field {key!r}: expected a JSON "
+                        "array of strings"
+                    ).format(row_index=row_index, key=key)
+                )
+            value = tuple(value)
+        else:
+            value = _coerce_adgroup_row_field(key, value, row_index)
+        flags[dest] = value
+
+    try:
+        return build_adgroup_object(
+            campaign_id=campaign_id,
+            name=name,
+            group_type=group_type,
+            flags=flags,
+        )
+    except click.UsageError as exc:
+        raise click.UsageError(
+            t("Ad group row {row_index}: {arg0}").format(
+                row_index=row_index, arg0=exc.format_message()
+            )
+        )
+
+
+def _bulk_add_adgroups(ctx, *, campaign_id, from_file, adgroups_json, dry_run):
+    if from_file is not None:
+        raw_rows = _batch.load_jsonl_rows(from_file)
+    else:
+        raw_rows = _batch.load_inline_rows(
+            adgroups_json or "",
+            invalid_json_key="--adgroups-json: invalid JSON: {arg0}",
+            not_array_key="--adgroups-json must be a JSON array of ad group objects",
+        )
+
+    if not raw_rows:
+        raise click.UsageError(t("Input contains no ad group rows."))
+
+    items = [
+        _normalize_adgroup_row(row, idx, campaign_id)
+        for idx, row in enumerate(raw_rows, start=1)
+    ]
+
+    # _post_adgroups routes the WHOLE body to API v501 when ANY ad group in it
+    # is a UnifiedAdGroup (unified performance groups require v501). A chunk that
+    # mixes unified and non-unified groups would route the non-unified ones to
+    # v501 too, so refuse the mix up front rather than send to the wrong endpoint
+    # (the single-item path never built a multi-item body, so this is new with
+    # batch mode). Same philosophy as _reject_mixed_update_subtype_flags.
+    has_unified = any("UnifiedAdGroup" in item for item in items)
+    has_non_unified = any("UnifiedAdGroup" not in item for item in items)
+    if has_unified and has_non_unified:
+        raise click.UsageError(
+            t(
+                "A batch may not mix UNIFIED_AD_GROUP with other ad group types "
+                "(unified groups use a different API endpoint). Split them into "
+                "separate --from-file runs."
+            )
+        )
+
+    _batch.send_batch(
+        ctx,
+        resource="adgroups",
+        method="add",
+        payload_key="AdGroups",
+        items=items,
+        max_batch=ADGROUPS_ADD_MAX_BATCH,
+        create_client=create_client,
+        dry_run=dry_run,
+        noun="ad groups",
+        post=_post_adgroups,
+    )
+
+
+@adgroups.command()
+@click.option("--name", help="Ad group name (required in single-item mode)")
+@click.option(
+    "--campaign-id",
+    type=click.IntRange(min=1),
+    help="Campaign ID (required in single-item mode; batch default in --from-file mode)",
+)
+@click.option(
+    "--type",
+    "group_type",
+    default="TEXT_AD_GROUP",
+    help=(
+        "Ad group type: TEXT_AD_GROUP, DYNAMIC_TEXT_AD_GROUP, "
+        "DYNAMIC_TEXT_FEED_AD_GROUP, CPM_BANNER_KEYWORDS_AD_GROUP, "
+        "CPM_BANNER_USER_PROFILE_AD_GROUP, CPM_VIDEO_AD_GROUP, "
+        "SMART_AD_GROUP, UNIFIED_AD_GROUP, or MOBILE_APP_AD_GROUP"
+    ),
+)
+@click.option(
+    "--region-ids",
+    help=(
+        "Comma-separated region IDs (WSDL AdGroupAddItem.RegionIds minOccurs=1; "
+        "required in single-item mode, per row in --from-file mode)"
+    ),
+)
+@click.option("--domain-url", help="Dynamic text ad group domain URL")
+@click.option(
+    "--autotargeting-category",
+    "autotargeting_categories",
+    multiple=True,
+    help=_AUTOTARGETING_CATEGORY_HELP,
+)
+@click.option(
+    "--autotargeting-settings-exact",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="DynamicTextAdGroup.AutotargetingSettings.Categories.Exact value",
+)
+@click.option(
+    "--autotargeting-settings-narrow",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="DynamicTextAdGroup.AutotargetingSettings.Categories.Narrow value",
+)
+@click.option(
+    "--autotargeting-settings-alternative",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="DynamicTextAdGroup.AutotargetingSettings.Categories.Alternative value",
+)
+@click.option(
+    "--autotargeting-settings-accessory",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="DynamicTextAdGroup.AutotargetingSettings.Categories.Accessory value",
+)
+@click.option(
+    "--autotargeting-settings-broader",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="DynamicTextAdGroup.AutotargetingSettings.Categories.Broader value",
+)
+@click.option(
+    "--autotargeting-settings-without-brands",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help="DynamicTextAdGroup.AutotargetingSettings.BrandOptions.WithoutBrands value",
+)
+@click.option(
+    "--autotargeting-settings-with-advertiser-brand",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help=(
+        "DynamicTextAdGroup.AutotargetingSettings.BrandOptions."
+        "WithAdvertiserBrand value"
+    ),
+)
+@click.option(
+    "--autotargeting-settings-with-competitors-brand",
+    type=click.Choice(["YES", "NO"], case_sensitive=False),
+    help=(
+        "DynamicTextAdGroup.AutotargetingSettings.BrandOptions."
+        "WithCompetitorsBrand value"
+    ),
+)
+@click.option(
+    "--feed-id",
+    type=int,
+    help=(
+        "TextAdGroupFeedParams.FeedId, SmartAdGroup.FeedId, or "
+        "DynamicTextFeedAdGroup.FeedId; required for SMART_AD_GROUP and "
+        "DYNAMIC_TEXT_FEED_AD_GROUP"
+    ),
+)
+@click.option(
+    "--feed-category-ids",
+    help="Comma-separated TextAdGroupFeedParams.FeedCategoryIds item IDs",
+)
+@click.option("--ad-title-source", help="Smart ad group title source")
+@click.option("--ad-body-source", help="Smart ad group body source")
+@click.option(
+    "--offer-retargeting",
+    type=click.Choice(_YES_NO_VALUES, case_sensitive=False),
+    help="UnifiedAdGroup.OfferRetargeting value: YES or NO",
+)
+@click.option(
+    "--store-url",
+    help="Mobile app ad group app store URL for MobileAppAdGroup.StoreUrl",
+)
+@click.option(
+    "--target-device-types",
+    help=(
+        "Comma-separated MobileAppAdGroup.TargetDeviceType values: "
+        "DEVICE_TYPE_MOBILE, DEVICE_TYPE_TABLET"
+    ),
+)
+@click.option(
+    "--target-carrier",
+    help=("MobileAppAdGroup.TargetCarrier value: WI_FI_ONLY or WI_FI_AND_CELLULAR"),
+)
+@click.option(
+    "--target-operating-system-version",
+    help="Minimum OS version for MobileAppAdGroup.TargetOperatingSystemVersion",
+)
+@click.option(
+    "--negative-keywords",
+    help=(
+        "Comma-separated ad-group negative keywords for NegativeKeywords.Items; "
+        "not compatible with CPM user-profile or video groups"
+    ),
+)
+@click.option(
+    "--negative-keyword-shared-set-ids",
+    help=(
+        "Comma-separated negative keyword shared set IDs for "
+        "NegativeKeywordSharedSetIds.Items; not compatible with CPM "
+        "user-profile or video groups"
+    ),
+)
+@click.option(
+    "--tracking-params",
+    "tracking_params",
+    help=(
+        "Tracking params query-string for AdGroupAddItem.TrackingParams "
+        "(max 1024 chars)"
+    ),
+)
+@click.option(
+    "--from-file",
+    "from_file",
+    type=click.Path(exists=True, dir_okay=False, readable=True),
+    help="Path to a JSONL file (one flag-form ad-group object per line) for batch add",
+)
+@click.option(
+    "--adgroups-json",
+    "adgroups_json",
+    help="Inline JSON array of flag-form ad-group objects for batch add",
+)
+@click.option("--dry-run", is_flag=True, help="Show request without sending")
+@click.pass_context
+@handle_api_errors
+def add(
+    ctx,
+    name,
+    campaign_id,
+    group_type,
+    region_ids,
+    domain_url,
+    autotargeting_categories,
+    autotargeting_settings_exact,
+    autotargeting_settings_narrow,
+    autotargeting_settings_alternative,
+    autotargeting_settings_accessory,
+    autotargeting_settings_broader,
+    autotargeting_settings_without_brands,
+    autotargeting_settings_with_advertiser_brand,
+    autotargeting_settings_with_competitors_brand,
+    feed_id,
+    feed_category_ids,
+    ad_title_source,
+    ad_body_source,
+    offer_retargeting,
+    store_url,
+    target_device_types,
+    target_carrier,
+    target_operating_system_version,
+    negative_keywords,
+    negative_keyword_shared_set_ids,
+    tracking_params,
+    from_file,
+    adgroups_json,
+    dry_run,
+):
+    """Add one or many ad groups.
+
+    Single-item mode uses typed flags (--name, --campaign-id, --type, ...).
+    Batch mode reads flag-form rows from --from-file (JSONL, one object per line)
+    or --adgroups-json (inline JSON array); each row is the same flag set keyed
+    by the kebab flag name without the leading dashes (e.g.
+    {"name":"G","campaign-id":12,"region-ids":"225","type":"TEXT_AD_GROUP"}).
+    --campaign-id is the batch default and may be overridden per row.
+    """
+    flags_local = {
+        "region_ids": region_ids,
+        "domain_url": domain_url,
+        "autotargeting_categories": autotargeting_categories,
+        "autotargeting_settings_exact": autotargeting_settings_exact,
+        "autotargeting_settings_narrow": autotargeting_settings_narrow,
+        "autotargeting_settings_alternative": autotargeting_settings_alternative,
+        "autotargeting_settings_accessory": autotargeting_settings_accessory,
+        "autotargeting_settings_broader": autotargeting_settings_broader,
+        "autotargeting_settings_without_brands": autotargeting_settings_without_brands,
+        "autotargeting_settings_with_advertiser_brand": (
+            autotargeting_settings_with_advertiser_brand
+        ),
+        "autotargeting_settings_with_competitors_brand": (
+            autotargeting_settings_with_competitors_brand
+        ),
+        "feed_id": feed_id,
+        "feed_category_ids": feed_category_ids,
+        "ad_title_source": ad_title_source,
+        "ad_body_source": ad_body_source,
+        "offer_retargeting": offer_retargeting,
+        "store_url": store_url,
+        "target_device_types": target_device_types,
+        "target_carrier": target_carrier,
+        "target_operating_system_version": target_operating_system_version,
+        "negative_keywords": negative_keywords,
+        "negative_keyword_shared_set_ids": negative_keyword_shared_set_ids,
+        "tracking_params": tracking_params,
+    }
+
+    modes_used = sum(1 for v in (from_file, adgroups_json) if v is not None)
+    if modes_used > 1:
+        raise click.UsageError(
+            t(
+                "Provide at most one of: --from-file or --adgroups-json — "
+                "they are mutually exclusive."
+            )
+        )
+    batch_mode = modes_used > 0
+
+    if batch_mode:
+        batch_incompatible = {
+            "--name": name,
+            **{
+                label: flags_local.get(dest)
+                for dest, label in _ADGROUPS_ADD_FLAG_FOR.items()
+            },
+        }
+        # --type carries a Click default ("TEXT_AD_GROUP"); only count it as
+        # provided when the operator actually passed it.
+        type_source = ctx.get_parameter_source("group_type")
+        type_explicit = (
+            type_source != click.core.ParameterSource.DEFAULT if type_source else False
+        )
+        if type_explicit:
+            batch_incompatible["--type"] = group_type
+        unsupported = sorted(
+            label
+            for label, value in batch_incompatible.items()
+            if value not in (None, ())
+        )
+        if unsupported:
+            raise click.UsageError(
+                t("{arg0} supported only with single-item mode").format(
+                    arg0=", ".join(unsupported)
+                )
+            )
+        _bulk_add_adgroups(
+            ctx,
+            campaign_id=campaign_id,
+            from_file=from_file,
+            adgroups_json=adgroups_json,
+            dry_run=dry_run,
+        )
+        return
+
+    if name is None:
+        raise click.UsageError(t("Missing option '--name'."))
+    if campaign_id is None:
+        raise click.UsageError(t("Missing option '--campaign-id'."))
+    if region_ids is None:
+        raise click.UsageError(t("Missing option '--region-ids'."))
+
+    adgroup_data = build_adgroup_object(
+        campaign_id=campaign_id,
+        name=name,
+        group_type=group_type,
+        flags=flags_local,
+    )
 
     body = {"method": "add", "params": {"AdGroups": [adgroup_data]}}
 
