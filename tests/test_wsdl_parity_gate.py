@@ -648,6 +648,7 @@ INTERNAL_VALIDATION: dict[tuple[str, str, str], str] = {
     ("creatives", "add", "VideoExtensionCreative"): "Missing option '--video-id'",
     ("keywords", "add", "Keyword"): "Provide exactly one of: --keyword",
     ("keywords", "add", "AdGroupId"): "Provide exactly one of: --keyword",
+    ("ads", "add", "AdGroupId"): "Missing option '--adgroup-id'.",
     ("feeds", "add", "SourceType"): "Provide exactly one of --url or --file-feed-path",
     ("sitelinks", "add", "Sitelinks"): "Provide exactly one of: --sitelink",
 }
@@ -5324,6 +5325,18 @@ INTERNAL_VALIDATION_PROBES: dict[tuple[str, str, str], list[str]] = {
     ("creatives", "add", "VideoExtensionCreative"): ["creatives", "add"],
     ("keywords", "add", "Keyword"): ["keywords", "add"],
     ("keywords", "add", "AdGroupId"): ["keywords", "add"],
+    ("ads", "add", "AdGroupId"): [
+        "ads",
+        "add",
+        "--type",
+        "TEXT_AD",
+        "--title",
+        "T",
+        "--text",
+        "B",
+        "--href",
+        "http://x",
+    ],
     ("feeds", "add", "SourceType"): [
         "feeds",
         "add",

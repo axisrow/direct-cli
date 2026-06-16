@@ -23548,3 +23548,197 @@ def test_agencyclients_delete_rejects_non_positive_id(bad):
     result = CliRunner().invoke(cli, ["agencyclients", "delete", "--id", bad])
     assert result.exit_code == 2, result.output
     assert "is not in the range" in result.output
+
+
+# --- ads add batch mode (issue #562) ---
+
+
+def test_ads_add_batch_from_jsonl(tmp_path):
+    rows = [
+        {
+            "type": "TEXT_AD",
+            "title": "T1",
+            "text": "Body 1",
+            "href": "https://a.example",
+            "adgroup-id": 111,
+        },
+        {
+            "type": "MOBILE_APP_AD",
+            "title": "App",
+            "text": "Promo",
+            "action": "DOWNLOAD",
+            "adgroup-id": 222,
+        },
+    ]
+    path = _write_jsonl(tmp_path, rows)
+    body = _dry_run("ads", "add", "--from-file", path)
+    assert body["chunks"] == 1
+    assert body["totalItems"] == 2
+    assert body["chunkSize"] == 100
+    assert body["firstChunk"]["method"] == "add"
+    ads = body["firstChunk"]["params"]["Ads"]
+    # Row -> build_ad_object yields the same object as the single-flag path.
+    assert ads[0] == {
+        "AdGroupId": 111,
+        "TextAd": {
+            "Mobile": "NO",
+            "Title": "T1",
+            "Text": "Body 1",
+            "Href": "https://a.example",
+        },
+    }
+    assert ads[1]["MobileAppAd"]["Action"] == "DOWNLOAD"
+
+
+def test_ads_add_batch_inline():
+    arr = json.dumps(
+        [
+            {
+                "type": "TEXT_AD",
+                "title": "T",
+                "text": "B",
+                "href": "https://a.example",
+                "adgroup-id": 1,
+            },
+        ]
+    )
+    body = _dry_run("ads", "add", "--ads-json", arr)
+    assert body["totalItems"] == 1
+    assert "TextAd" in body["firstChunk"]["params"]["Ads"][0]
+
+
+def test_ads_add_batch_chunks_at_100(tmp_path):
+    rows = [
+        {
+            "type": "TEXT_AD",
+            "title": f"T{i}",
+            "text": "B",
+            "href": "https://a.example",
+            "adgroup-id": 1,
+        }
+        for i in range(250)
+    ]
+    path = _write_jsonl(tmp_path, rows)
+    body = _dry_run("ads", "add", "--from-file", path)
+    assert body["chunks"] == 3
+    assert body["totalItems"] == 250
+    assert len(body["firstChunk"]["params"]["Ads"]) == 100
+
+
+def test_ads_add_batch_adgroup_default_and_override(tmp_path):
+    rows = [
+        {"type": "TEXT_AD", "title": "T", "text": "B", "href": "https://a.example"},
+        {
+            "type": "TEXT_AD",
+            "title": "T",
+            "text": "B",
+            "href": "https://a.example",
+            "adgroup-id": 999,
+        },
+    ]
+    path = _write_jsonl(tmp_path, rows)
+    body = _dry_run("ads", "add", "--adgroup-id", "5", "--from-file", path)
+    ads = body["firstChunk"]["params"]["Ads"]
+    assert ads[0]["AdGroupId"] == 5
+    assert ads[1]["AdGroupId"] == 999
+
+
+def test_ads_add_batch_rejects_unknown_field(tmp_path):
+    path = _write_jsonl(tmp_path, [{"type": "TEXT_AD", "foo": "bar", "adgroup-id": 1}])
+    result = _rejected("ads", "add", "--from-file", path)
+    assert "Unknown field 'foo' in ad row 1" in result.output
+
+
+def test_ads_add_batch_rejects_non_object_row(tmp_path):
+    path = _write_jsonl(tmp_path, [[1, 2, 3]])
+    result = _rejected("ads", "add", "--from-file", path)
+    assert "Ad row 1" in result.output
+    assert "expected JSON object" in result.output
+
+
+def test_ads_add_batch_rejects_empty_file(tmp_path):
+    path = tmp_path / "empty.jsonl"
+    path.write_text("\n", encoding="utf-8")
+    result = _rejected("ads", "add", "--from-file", str(path))
+    assert "Input contains no ad rows" in result.output
+
+
+def test_ads_add_batch_rejects_invalid_json(tmp_path):
+    path = tmp_path / "bad.jsonl"
+    path.write_text('{"type":"TEXT_AD"}\nnot json\n', encoding="utf-8")
+    result = _rejected("ads", "add", "--from-file", str(path))
+    assert "Row 2: invalid JSON" in result.output
+
+
+def test_ads_add_batch_rejects_incompatible_flag_per_row(tmp_path):
+    # --action is not valid for TEXT_AD; the per-row guard wraps the message.
+    path = _write_jsonl(
+        tmp_path,
+        [
+            {
+                "type": "TEXT_AD",
+                "title": "T",
+                "text": "B",
+                "href": "https://a.example",
+                "action": "INSTALL",
+                "adgroup-id": 1,
+            }
+        ],
+    )
+    result = _rejected("ads", "add", "--from-file", path)
+    assert "Ad row 1:" in result.output
+    assert "--action" in result.output
+
+
+def test_ads_add_batch_rejects_missing_required_field_per_row(tmp_path):
+    path = _write_jsonl(
+        tmp_path, [{"type": "TEXT_AD", "title": "T", "text": "B", "adgroup-id": 1}]
+    )
+    result = _rejected("ads", "add", "--from-file", path)
+    assert "Ad row 1:" in result.output
+    assert "TEXT_AD requires --href" in result.output
+
+
+def test_ads_add_batch_rejects_invalid_type_per_row(tmp_path):
+    path = _write_jsonl(tmp_path, [{"type": "NOPE", "adgroup-id": 1}])
+    result = _rejected("ads", "add", "--from-file", path)
+    assert "Ad row 1:" in result.output
+    assert "Invalid value for '--type'" in result.output
+
+
+def test_ads_add_batch_rejects_missing_adgroup_in_row(tmp_path):
+    path = _write_jsonl(
+        tmp_path,
+        [{"type": "TEXT_AD", "title": "T", "text": "B", "href": "https://a.example"}],
+    )
+    result = _rejected("ads", "add", "--from-file", path)
+    assert "Ad row 1:" in result.output
+    assert "adgroup-id" in result.output
+
+
+def test_ads_add_batch_rejects_mutex(tmp_path):
+    path = _write_jsonl(tmp_path, [{"type": "TEXT_AD", "adgroup-id": 1}])
+    result = _rejected("ads", "add", "--from-file", path, "--ads-json", "[]")
+    assert "mutually exclusive" in result.output
+
+
+def test_ads_add_batch_rejects_single_flag_in_batch(tmp_path):
+    path = _write_jsonl(tmp_path, [{"type": "TEXT_AD", "adgroup-id": 1}])
+    result = _rejected("ads", "add", "--from-file", path, "--title", "X")
+    assert "--title supported only with single-item mode" in result.output
+
+
+def test_ads_add_single_still_requires_adgroup_id():
+    result = _rejected(
+        "ads",
+        "add",
+        "--type",
+        "TEXT_AD",
+        "--title",
+        "T",
+        "--text",
+        "B",
+        "--href",
+        "https://a.example",
+    )
+    assert "Missing option '--adgroup-id'." in result.output

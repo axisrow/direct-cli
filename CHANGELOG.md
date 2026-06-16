@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+**Features — batch `ads add` via `--from-file` / `--ads-json` (#562, #558 follow-up):**
+
+- `ads add` now accepts a batch of flag-form ad rows from a JSONL file
+  (`--from-file`) or an inline JSON array (`--ads-json`); each row is the same
+  flag set keyed by the kebab flag name without the leading dashes (e.g.
+  `{"type":"TEXT_AD","title":"...","text":"...","href":"...","adgroup-id":1}`).
+  `--adgroup-id` becomes the batch default and may be overridden per row. Single
+  typed-flag mode is unchanged.
+- The ~400-line flag→object logic of `ads add` was extracted into a reusable,
+  ctx-free `build_ad_object()` so the single-flag command and the batch
+  normalizer emit byte-identical ad objects (golden-tested across every
+  subtype).
+- New shared `direct_cli/commands/_batch.py` engine (JSONL/inline loading,
+  chunking, per-chunk send with partial-success reporting, dry-run preview,
+  `add`/`update`-aware result key). `keywords add` was migrated onto it with no
+  behavior change (its existing batch suite is the proof).
+- Chunk size `ADS_ADD_MAX_BATCH = 100` (conservative chunk, not the 1000-object
+  API ceiling — a partial failure rolls back at most 100 ads).
+
 **Fixes — reject non-positive IDs before the request (#558):**
 
 - Mutating commands and lifecycle ops took their object-ID selector
