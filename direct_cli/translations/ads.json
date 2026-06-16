@@ -145,5 +145,7 @@
   "Ad row {row_index}: missing 'adgroup-id' and no default --adgroup-id provided": "Объявление, строка {row_index}: отсутствует 'adgroup-id' и не задан --adgroup-id по умолчанию",
   "Ad row {row_index}: {arg0}": "Объявление, строка {row_index}: {arg0}",
   "--ads-json: invalid JSON: {arg0}": "--ads-json: некорректный JSON: {arg0}",
-  "--ads-json must be a JSON array of ad objects": "--ads-json должен быть JSON-массивом объектов объявлений"
+  "--ads-json must be a JSON array of ad objects": "--ads-json должен быть JSON-массивом объектов объявлений",
+  "Ad row {row_index} field {key!r}: expected {arg0}, got bool": "Объявление, строка {row_index}, поле {key!r}: ожидался {arg0}, получено bool",
+  "Ad row {row_index} field {key!r}: {arg0}": "Объявление, строка {row_index}, поле {key!r}: {arg0}"
 }

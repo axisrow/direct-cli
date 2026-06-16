@@ -1507,15 +1507,69 @@ _ADS_ROW_ALLOWED_KEYS = frozenset({"type", "adgroup-id", *_ADS_ROW_KEY_TO_DEST})
 _ADS_ROW_MULTI_KEYS = {"mobile-app-feature", "feed-filter-condition"}
 
 
+def _ads_add_param_types():
+    """Map each ``ads add`` row key (kebab, no ``--``) to its Click ParamType.
+
+    Built lazily from the registered command so a batch row is coerced through
+    the *exact same* type as the single-flag path (issue #562 review): a value
+    like ``--price-extension-price`` (MICRO_RUBLES) or ``--adgroup-id``
+    (IntRange(min=1)) gets the identical conversion/validation, so batch and
+    single produce byte-identical payloads instead of forwarding raw JSON.
+    """
+    types: Dict[str, click.ParamType] = {}
+    for param in add.params:
+        if not isinstance(param, click.Option):
+            continue
+        key = param.opts[0].lstrip("-")
+        # click.STRING is the no-op default; only typed options need coercion.
+        if param.type is not click.STRING:
+            types[key] = param.type
+    return types
+
+
+_ADS_ROW_PARAM_TYPES: Optional[Dict[str, click.ParamType]] = None
+
+
+def _coerce_ad_row_field(key: str, value: Any, row_index: int) -> Any:
+    """Coerce one batch-row value through its single-flag Click type.
+
+    JSON booleans are rejected for typed numeric/choice fields (Click never
+    accepts a bool there); conversion errors are reported with the row index
+    and field, mirroring keywords' ``_coerce_keyword_field``.
+    """
+    global _ADS_ROW_PARAM_TYPES
+    if _ADS_ROW_PARAM_TYPES is None:
+        _ADS_ROW_PARAM_TYPES = _ads_add_param_types()
+    param_type = _ADS_ROW_PARAM_TYPES.get(key)
+    if param_type is None:
+        return value
+    if isinstance(value, bool):
+        raise click.UsageError(
+            t("Ad row {row_index} field {key!r}: expected {arg0}, got bool").format(
+                row_index=row_index, key=key, arg0=param_type.name
+            )
+        )
+    try:
+        return param_type.convert(value, None, None)
+    except click.exceptions.BadParameter as exc:
+        raise click.UsageError(
+            t("Ad row {row_index} field {key!r}: {arg0}").format(
+                row_index=row_index, key=key, arg0=exc.format_message()
+            )
+        )
+
+
 def _normalize_ad_row(
     row: Any, row_index: int, default_adgroup_id: Optional[int]
 ) -> Dict[str, Any]:
     """Translate one flag-form batch row into a built ad object.
 
     The row keys are kebab flag names without "--" plus ``type`` and
-    ``adgroup-id``. Unknown keys are rejected; ``build_ad_object`` does the
-    subtype validation, with its UsageError re-raised under an ``Ad row N``
-    prefix so the operator sees which row failed.
+    ``adgroup-id``. Each typed field is coerced through its single-flag Click
+    type so batch and single emit byte-identical payloads. Unknown keys are
+    rejected; ``build_ad_object`` does the subtype validation, with its
+    UsageError re-raised under an ``Ad row N`` prefix so the operator sees which
+    row failed.
     """
     if not isinstance(row, dict):
         raise click.UsageError(
@@ -1536,7 +1590,10 @@ def _normalize_ad_row(
             )
         )
 
-    adgroup_id = row.get("adgroup-id", default_adgroup_id)
+    if "adgroup-id" in row:
+        adgroup_id = _coerce_ad_row_field("adgroup-id", row["adgroup-id"], row_index)
+    else:
+        adgroup_id = default_adgroup_id
     if adgroup_id is None:
         raise click.UsageError(
             t(
@@ -1553,6 +1610,8 @@ def _normalize_ad_row(
         value = row[key]
         if key in _ADS_ROW_MULTI_KEYS and isinstance(value, list):
             value = tuple(value)
+        else:
+            value = _coerce_ad_row_field(key, value, row_index)
         flags[dest] = value
 
     mobile_provided = flags.pop("mobile", None)

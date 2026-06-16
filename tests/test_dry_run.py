@@ -23742,3 +23742,83 @@ def test_ads_add_single_still_requires_adgroup_id():
         "https://a.example",
     )
     assert "Missing option '--adgroup-id'." in result.output
+
+
+# --- ads add batch: typed-field coercion parity with single mode (#562 review) ---
+
+
+def test_ads_add_batch_rejects_non_positive_adgroup_id_in_row(tmp_path):
+    # IntRange(min=1) must apply per row, same as single --adgroup-id.
+    path = _write_jsonl(tmp_path, [{"type": "TEXT_AD", "adgroup-id": -5}])
+    result = _rejected("ads", "add", "--from-file", path)
+    assert "Ad row 1 field 'adgroup-id'" in result.output
+    assert "x>=1" in result.output
+
+
+def test_ads_add_batch_coerces_micro_rubles_like_single(tmp_path):
+    # A bare float must be rejected (MICRO_RUBLES is int micro-rubles), exactly
+    # like `--price-extension-price 12.5` in single mode — not forwarded raw.
+    path = _write_jsonl(
+        tmp_path,
+        [
+            {
+                "type": "TEXT_AD",
+                "title": "T",
+                "text": "B",
+                "href": "http://x",
+                "price-extension-price": 12.5,
+                "price-extension-price-qualifier": "FROM",
+                "price-extension-price-currency": "RUB",
+                "adgroup-id": 1,
+            }
+        ],
+    )
+    result = _rejected("ads", "add", "--from-file", path)
+    assert "Ad row 1 field 'price-extension-price'" in result.output
+
+
+def test_ads_add_batch_valid_micro_rubles_passes_through(tmp_path):
+    path = _write_jsonl(
+        tmp_path,
+        [
+            {
+                "type": "TEXT_AD",
+                "title": "T",
+                "text": "B",
+                "href": "http://x",
+                "price-extension-price": 12500000,
+                "price-extension-price-qualifier": "FROM",
+                "price-extension-price-currency": "RUB",
+                "adgroup-id": 1,
+            }
+        ],
+    )
+    body = _dry_run("ads", "add", "--from-file", path)
+    ad = body["firstChunk"]["params"]["Ads"][0]
+    assert ad["TextAd"]["PriceExtension"]["Price"] == 12500000
+
+
+def test_ads_add_batch_rejects_bool_for_typed_field(tmp_path):
+    path = _write_jsonl(tmp_path, [{"type": "TEXT_AD", "adgroup-id": True}])
+    result = _rejected("ads", "add", "--from-file", path)
+    assert "Ad row 1 field 'adgroup-id'" in result.output
+    assert "bool" in result.output
+
+
+def test_ads_add_batch_rejects_invalid_choice_in_row(tmp_path):
+    # --mobile is a YES/NO Choice; an invalid value must be rejected per row.
+    path = _write_jsonl(
+        tmp_path,
+        [
+            {
+                "type": "TEXT_AD",
+                "title": "T",
+                "text": "B",
+                "href": "http://x",
+                "mobile": "MAYBE",
+                "adgroup-id": 1,
+            }
+        ],
+    )
+    result = _rejected("ads", "add", "--from-file", path)
+    assert "Ad row 1 field 'mobile'" in result.output
