@@ -98,7 +98,9 @@ def get(
 
 
 @smartadtargets.command()
-@click.option("--adgroup-id", required=True, type=int, help="Ad group ID")
+@click.option(
+    "--adgroup-id", required=True, type=click.IntRange(min=1), help="Ad group ID"
+)
 @click.option("--name", required=True, help="Target name")
 @click.option("--audience", required=True, help="Audience value")
 @click.option(
@@ -159,7 +161,9 @@ def add(
 
 
 @smartadtargets.command()
-@click.option("--id", "target_id", required=True, type=int, help="Target ID")
+@click.option(
+    "--id", "target_id", required=True, type=click.IntRange(min=1), help="Target ID"
+)
 @click.option("--name", help="Target name")
 @click.option("--audience", help="Audience value")
 @click.option(
@@ -233,9 +237,9 @@ resume = _smartadtarget_lifecycle("resume", "Resume smart ad target")
 
 
 @smartadtargets.command(name="set-bids")
-@click.option("--id", "target_id", type=int, help="Target ID")
-@click.option("--adgroup-id", type=int, help="Ad group ID")
-@click.option("--campaign-id", type=int, help="Campaign ID")
+@click.option("--id", "target_id", type=click.IntRange(min=1), help="Target ID")
+@click.option("--adgroup-id", type=click.IntRange(min=1), help="Ad group ID")
+@click.option("--campaign-id", type=click.IntRange(min=1), help="Campaign ID")
 @click.option("--average-cpc", type=MICRO_RUBLES, help="Average CPC in micro-rubles")
 @click.option("--average-cpa", type=MICRO_RUBLES, help="Average CPA in micro-rubles")
 @click.option("--priority", help="Strategy priority")

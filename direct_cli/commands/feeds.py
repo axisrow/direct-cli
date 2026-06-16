@@ -291,7 +291,9 @@ def add(
 
 
 @feeds.command()
-@click.option("--id", "feed_id", required=True, type=int, help="Feed ID")
+@click.option(
+    "--id", "feed_id", required=True, type=click.IntRange(min=1), help="Feed ID"
+)
 @click.option("--name", help="Feed name")
 @click.option(
     "--url",

@@ -396,7 +396,11 @@ def get(
 
 
 @keywords.command()
-@click.option("--adgroup-id", type=int, help="Ad group ID (default in batch mode)")
+@click.option(
+    "--adgroup-id",
+    type=click.IntRange(min=1),
+    help="Ad group ID (default in batch mode)",
+)
 @click.option("--keyword", help="Keyword text (single-item mode)")
 @click.option("--bid", type=MICRO_RUBLES, help="Search bid in micro-rubles")
 @click.option("--context-bid", type=MICRO_RUBLES, help="Context bid in micro-rubles")

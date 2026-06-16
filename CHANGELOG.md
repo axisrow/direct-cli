@@ -4,15 +4,30 @@
 
 **Fixes — reject non-positive IDs before the request (#558):**
 
-- Mutating commands and lifecycle ops took `--id` / `--adgroup-id` /
-  `--campaign-id` as a bare `int`, which accepted `0` and negatives and
-  forwarded them to the API (opaque rejection). They now use
-  `click.IntRange(min=1)` and reject a non-positive id with a clear
-  `UsageError` (exit 2) before any request. Covers every `delete` / `suspend` /
-  `resume` / `archive` / `unarchive` / `moderate` lifecycle command (via the
-  shared `_lifecycle.py` factory) plus `ads add` / `ads update`,
-  `adgroups add` / `adgroups update`, and `keywords update`. The ad-image
-  lifecycle (`--hash`, a string) is unchanged.
+- Mutating commands and lifecycle ops took their object-ID selector
+  (`--id` / `--adgroup-id` / `--campaign-id` / `--keyword-id` / `--client-id`)
+  as a bare `int`, which accepted `0` and negatives and forwarded them to the
+  API (opaque rejection). Every such selector now uses `click.IntRange(min=1)`
+  and rejects a non-positive id with a clear `UsageError` (exit 2) before any
+  request. Coverage is the full mutation surface, not a subset:
+  - every `delete` / `suspend` / `resume` / `archive` / `unarchive` /
+    `moderate` lifecycle command (via the shared `_lifecycle.py` factory);
+  - `ads add` / `ads update`, `adgroups add` / `adgroups update`,
+    `keywords add` / `keywords update`;
+  - `campaigns update`, `feeds update`, `strategies update`,
+    `retargeting update`, `negativekeywordsharedsets update`, `vcards add`;
+  - `smartadtargets add` / `update` / `set-bids`,
+    `audiencetargets add` / `set-bids`, `dynamicads add` / `set-bids`,
+    `dynamicfeedadtargets add` / `set-bids`;
+  - the bid setters `bids set` / `set-auto`, `keywordbids set` / `set-auto`
+    (the `campaign-id` / `adgroup-id` / `keyword-id` "exactly one of" trios),
+    `bidmodifiers add` / `set`;
+  - `agencyclients update --client-id`.
+
+  The ad-image lifecycle (`--hash`, a string) is unchanged. Secondary
+  reference-ID flags that point at *other* objects inside a write payload
+  (e.g. `--feed-id`, `--counter-id`, `--vcard-id`, `--region-id`,
+  `--retargeting-list-id`) are left as-is for now and tracked as follow-up.
 - Batch-size caps (the docs allow up to 1000 objects per add/update and 10000
   ids per delete) are intentionally **not** added: the CLI builds a
   single-item payload for every mutation, so there is no caller-controllable

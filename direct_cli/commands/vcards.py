@@ -113,7 +113,9 @@ def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
 
 
 @vcards.command()
-@click.option("--campaign-id", required=True, type=int, help="Campaign ID")
+@click.option(
+    "--campaign-id", required=True, type=click.IntRange(min=1), help="Campaign ID"
+)
 @click.option("--country", required=True, help="Country")
 @click.option("--city", required=True, help="City")
 @click.option("--company-name", required=True, help="Company name")

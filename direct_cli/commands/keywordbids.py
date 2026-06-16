@@ -167,9 +167,9 @@ def get(
 
 
 @keywordbids.command()
-@click.option("--campaign-id", type=int, help="Campaign ID selector")
-@click.option("--adgroup-id", type=int, help="Ad group ID selector")
-@click.option("--keyword-id", type=int, help="Keyword ID selector")
+@click.option("--campaign-id", type=click.IntRange(min=1), help="Campaign ID selector")
+@click.option("--adgroup-id", type=click.IntRange(min=1), help="Ad group ID selector")
+@click.option("--keyword-id", type=click.IntRange(min=1), help="Keyword ID selector")
 @click.option("--search-bid", type=MICRO_RUBLES, help="Search bid in micro-rubles")
 @click.option("--network-bid", type=MICRO_RUBLES, help="Network bid in micro-rubles")
 @click.option(
@@ -244,9 +244,9 @@ def set(
 
 
 @keywordbids.command(name="set-auto")
-@click.option("--campaign-id", type=int, help="Campaign ID")
-@click.option("--adgroup-id", type=int, help="Ad group ID")
-@click.option("--keyword-id", type=int, help="Keyword ID")
+@click.option("--campaign-id", type=click.IntRange(min=1), help="Campaign ID")
+@click.option("--adgroup-id", type=click.IntRange(min=1), help="Ad group ID")
+@click.option("--keyword-id", type=click.IntRange(min=1), help="Keyword ID")
 @click.option(
     "--target-traffic-volume",
     type=int,

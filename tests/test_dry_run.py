@@ -23441,3 +23441,99 @@ def test_adimages_delete_still_accepts_hash_string():
     # be retyped to IntRange — a hash is not a positive integer.
     body = _dry_run("adimages", "delete", "--hash", "abc123hash")
     assert body["params"]["SelectionCriteria"]["AdImageHashes"] == ["abc123hash"]
+
+
+# --- Positive-ID preflight, full mutation sweep (issue #558) ---
+# The first pass only retyped 5 flags + the lifecycle factory; every OTHER
+# mutating object-ID selector kept type=int and forwarded Id=0 / negatives to
+# the API. IntRange(min=1) is rejected at parse time (exit 2) before any
+# request is built, so these only need the offending flag, not all required
+# options — Click validates the value before the missing-option check.
+
+# (resource, verb, flag) for every mutating object-ID selector now guarded.
+_POSITIVE_ID_MUTATION_SELECTORS = [
+    ("campaigns", "update", "--id"),
+    ("feeds", "update", "--id"),
+    ("strategies", "update", "--id"),
+    ("retargeting", "update", "--id"),
+    ("smartadtargets", "update", "--id"),
+    ("smartadtargets", "add", "--adgroup-id"),
+    ("negativekeywordsharedsets", "update", "--id"),
+    ("audiencetargets", "add", "--adgroup-id"),
+    ("dynamicads", "add", "--adgroup-id"),
+    ("dynamicfeedadtargets", "add", "--adgroup-id"),
+    ("vcards", "add", "--campaign-id"),
+    ("keywords", "add", "--adgroup-id"),
+    ("bidmodifiers", "set", "--id"),
+    ("agencyclients", "update", "--client-id"),
+]
+
+# Selector trios validated by add_single_id_selector ("exactly one of"):
+# IntRange must reject a non-positive value per option without breaking the
+# one-of logic (the one-of check runs on `is not None`, after the type check).
+_POSITIVE_ID_BID_SELECTORS = [
+    ("bids", "set", "--campaign-id"),
+    ("bids", "set", "--adgroup-id"),
+    ("bids", "set", "--keyword-id"),
+    ("bids", "set-auto", "--campaign-id"),
+    ("bids", "set-auto", "--adgroup-id"),
+    ("bids", "set-auto", "--keyword-id"),
+    ("keywordbids", "set", "--campaign-id"),
+    ("keywordbids", "set", "--adgroup-id"),
+    ("keywordbids", "set", "--keyword-id"),
+    ("keywordbids", "set-auto", "--campaign-id"),
+    ("keywordbids", "set-auto", "--adgroup-id"),
+    ("keywordbids", "set-auto", "--keyword-id"),
+    ("smartadtargets", "set-bids", "--id"),
+    ("smartadtargets", "set-bids", "--adgroup-id"),
+    ("smartadtargets", "set-bids", "--campaign-id"),
+    ("audiencetargets", "set-bids", "--id"),
+    ("audiencetargets", "set-bids", "--adgroup-id"),
+    ("audiencetargets", "set-bids", "--campaign-id"),
+    ("dynamicads", "set-bids", "--id"),
+    ("dynamicads", "set-bids", "--adgroup-id"),
+    ("dynamicads", "set-bids", "--campaign-id"),
+    ("dynamicfeedadtargets", "set-bids", "--id"),
+    ("dynamicfeedadtargets", "set-bids", "--adgroup-id"),
+    ("dynamicfeedadtargets", "set-bids", "--campaign-id"),
+    ("bidmodifiers", "add", "--campaign-id"),
+    ("bidmodifiers", "add", "--adgroup-id"),
+]
+
+
+@pytest.mark.parametrize("bad", ["0", "-1"])
+@pytest.mark.parametrize(
+    "resource,verb,flag",
+    _POSITIVE_ID_MUTATION_SELECTORS + _POSITIVE_ID_BID_SELECTORS,
+    ids=lambda v: v if isinstance(v, str) else None,
+)
+def test_mutation_object_id_selector_rejects_non_positive(resource, verb, flag, bad):
+    result = _rejected(resource, verb, flag, bad)
+    assert result.exit_code == 2, result.output
+    assert "is not in the range" in result.output
+
+
+def test_campaigns_update_allows_positive_id():
+    body = _dry_run("campaigns", "update", "--id", "9", "--name", "X")
+    assert body["params"]["Campaigns"][0]["Id"] == 9
+
+
+def test_bids_set_positive_campaign_id_selector_still_builds_payload():
+    # Guard the exactly-one-of selector: a positive id must pass the IntRange
+    # check AND the one-of logic and land in the payload.
+    body = _dry_run("bids", "set", "--campaign-id", "77", "--bid", "100000000")
+    assert body["params"]["Bids"][0]["CampaignId"] == 77
+
+
+def test_keywordbids_set_positive_adgroup_id_selector_still_builds_payload():
+    body = _dry_run(
+        "keywordbids", "set", "--adgroup-id", "42", "--search-bid", "100000000"
+    )
+    assert body["params"]["KeywordBids"][0]["AdGroupId"] == 42
+
+
+def test_agencyclients_update_rejects_non_positive_client_id():
+    # agencyclients update is a DANGEROUS command — this guard is parse-time
+    # validation only (no live mutation is exercised).
+    result = _rejected("agencyclients", "update", "--client-id", "0", "--phone", "1")
+    assert result.exit_code == 2, result.output

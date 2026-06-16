@@ -4232,7 +4232,9 @@ def add(
 
 
 @campaigns.command()
-@click.option("--id", "campaign_id", required=True, type=int, help="Campaign ID")
+@click.option(
+    "--id", "campaign_id", required=True, type=click.IntRange(min=1), help="Campaign ID"
+)
 @click.option("--name", help="New campaign name")
 @click.option("--status", help="New status")
 @click.option("--budget", type=MICRO_RUBLES, help="New daily budget in micro-rubles")

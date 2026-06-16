@@ -99,7 +99,9 @@ def get(
 
 
 @dynamicads.command()
-@click.option("--adgroup-id", required=True, type=int, help="Ad group ID")
+@click.option(
+    "--adgroup-id", required=True, type=click.IntRange(min=1), help="Ad group ID"
+)
 @click.option("--name", required=True, help="Target name")
 @click.option(
     "--condition",
@@ -153,9 +155,9 @@ resume = _dynamicad_lifecycle("resume", "Resume dynamic ad target")
 
 
 @dynamicads.command(name="set-bids")
-@click.option("--id", "target_id", type=int, help="Target ID")
-@click.option("--adgroup-id", type=int, help="Ad group ID")
-@click.option("--campaign-id", type=int, help="Campaign ID")
+@click.option("--id", "target_id", type=click.IntRange(min=1), help="Target ID")
+@click.option("--adgroup-id", type=click.IntRange(min=1), help="Ad group ID")
+@click.option("--campaign-id", type=click.IntRange(min=1), help="Campaign ID")
 @click.option("--bid", type=MICRO_RUBLES, help="Search bid in micro-rubles")
 @click.option("--context-bid", type=MICRO_RUBLES, help="Context bid in micro-rubles")
 @click.option("--priority", help="Strategy priority")
