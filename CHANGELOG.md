@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+**Fixes — `ads update` can now clear AdImageHash (#552):**
+
+- Added `--clear-image-hash` to `ads update`. The flag sends
+  `AdImageHash: null` (a nillable WSDL field) so an image can be removed from an
+  existing ad — e.g. unblocking a `TEXT_AD` whose image was restricted in
+  moderation — without recreating the ad. Verified against the live API: the
+  null payload resets the image while leaving the rest of the ad intact.
+  Covers all five subtypes that carry `AdImageHash` (`TEXT_AD`,
+  `DYNAMIC_TEXT_AD`, `TEXT_IMAGE_AD`, `MOBILE_APP_AD`, `MOBILE_APP_IMAGE_AD`).
+  `--image-hash` and `--clear-image-hash` are mutually exclusive, and
+  `--clear-image-hash` is rejected for subtypes without an `AdImageHash` field.
+  Previously there was no way to reset the image: `--image-hash ""` was dropped
+  by a truthy check, and `--image-hash null` sent the literal string `"null"`.
+
 **Fixes — docs-URL drift regression (re-fixes #463):**
 
 - Restored the four WSDL `docs` URLs for `dynamicads`,

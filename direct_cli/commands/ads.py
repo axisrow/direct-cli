@@ -86,6 +86,7 @@ TEXT_AD_UPDATE_FIELDS = {
     "text",
     "href",
     "image_hash",
+    "clear_image_hash",
     "title2",
     "display_url_path",
     "vcard_id",
@@ -110,6 +111,7 @@ MOBILE_APP_AD_UPDATE_FIELDS = {
     "title",
     "text",
     "image_hash",
+    "clear_image_hash",
     "action",
     "tracking_url",
     "age_label",
@@ -120,6 +122,7 @@ MOBILE_APP_AD_UPDATE_FIELDS = {
 
 TEXT_IMAGE_AD_UPDATE_FIELDS = {
     "image_hash",
+    "clear_image_hash",
     "final_url",
     "href",
     "turbo_page_id",
@@ -128,6 +131,7 @@ TEXT_IMAGE_AD_UPDATE_FIELDS = {
 
 MOBILE_APP_IMAGE_UPDATE_FIELDS = {
     "image_hash",
+    "clear_image_hash",
     "tracking_url",
     "erir_ad_description",
 }
@@ -269,12 +273,15 @@ def _build_text_ad_update_base(
     image_hash: Optional[str],
     sitelink_set_id: Optional[int],
     callout_setting: Optional[dict[str, object]],
+    clear_image_hash: bool = False,
 ) -> dict[str, object]:
     """Build fields inherited from WSDL TextAdUpdateBase."""
     text_ad_base: dict[str, object] = {}
     if vcard_id is not None:
         text_ad_base["VCardId"] = vcard_id
-    if image_hash:
+    if clear_image_hash:
+        text_ad_base["AdImageHash"] = None
+    elif image_hash:
         text_ad_base["AdImageHash"] = image_hash
     if sitelink_set_id is not None:
         text_ad_base["SitelinkSetId"] = sitelink_set_id
@@ -694,11 +701,14 @@ def _build_mobile_app_image_ad_update(
     image_hash: Optional[str],
     erir_ad_description: Optional[str],
     tracking_url: Optional[str],
+    clear_image_hash: bool = False,
 ) -> dict[str, object]:
     """Build MobileAppImageAdUpdate payload from typed flags."""
     mobile_app_image_ad: dict[str, object] = {}
 
-    if image_hash:
+    if clear_image_hash:
+        mobile_app_image_ad["AdImageHash"] = None
+    elif image_hash:
         mobile_app_image_ad["AdImageHash"] = image_hash
     if erir_ad_description:
         mobile_app_image_ad["ErirAdDescription"] = erir_ad_description
@@ -1749,6 +1759,14 @@ def add(
     ),
 )
 @click.option(
+    "--clear-image-hash",
+    is_flag=True,
+    help=(
+        "Set AdImageHash to null to remove the image (TEXT_AD / TEXT_IMAGE_AD / "
+        "MOBILE_APP_AD / DYNAMIC_TEXT_AD / MOBILE_APP_IMAGE_AD)"
+    ),
+)
+@click.option(
     "--image-hashes",
     help="Comma-separated ResponsiveAd.AdImageHashes.Items values",
 )
@@ -1936,6 +1954,7 @@ def update(
     texts,
     href,
     image_hash,
+    clear_image_hash,
     image_hashes,
     action,
     tracking_url,
@@ -1978,6 +1997,11 @@ def update(
             )
         )
 
+    if image_hash and clear_image_hash:
+        raise click.UsageError(
+            t("Use either --image-hash or --clear-image-hash, not both")
+        )
+
     ad_type_norm = ad_type.upper().replace("-", "_")
     supported_types = {
         "TEXT_AD",
@@ -2008,6 +2032,7 @@ def update(
         "DYNAMIC_TEXT_AD": {
             "text",
             "image_hash",
+            "clear_image_hash",
             "vcard_id",
             "sitelink_set_id",
             "callouts_add",
@@ -2048,6 +2073,7 @@ def update(
         "texts": texts,
         "href": href,
         "image_hash": image_hash,
+        "clear_image_hash": clear_image_hash or None,
         "image_hashes": image_hashes,
         "action": action,
         "tracking_url": tracking_url,
@@ -2087,6 +2113,7 @@ def update(
         "texts": "--texts",
         "href": "--href",
         "image_hash": "--image-hash",
+        "clear_image_hash": "--clear-image-hash",
         "image_hashes": "--image-hashes",
         "action": "--action",
         "tracking_url": "--tracking-url",
@@ -2152,6 +2179,7 @@ def update(
             image_hash,
             sitelink_set_id,
             callout_setting,
+            clear_image_hash=clear_image_hash,
         )
         if title:
             text_ad["Title"] = title
@@ -2187,6 +2215,7 @@ def update(
             image_hash,
             sitelink_set_id,
             callout_setting,
+            clear_image_hash=clear_image_hash,
         )
         if text:
             dynamic_text_ad["Text"] = text
@@ -2194,7 +2223,9 @@ def update(
             ad_data["DynamicTextAd"] = dynamic_text_ad
     elif ad_type_norm == "TEXT_IMAGE_AD":
         text_image_ad = {}
-        if image_hash:
+        if clear_image_hash:
+            text_image_ad["AdImageHash"] = None
+        elif image_hash:
             text_image_ad["AdImageHash"] = image_hash
         if final_url:
             text_image_ad["FinalUrl"] = final_url
@@ -2212,7 +2243,9 @@ def update(
             mobile_app_ad["Title"] = title
         if text:
             mobile_app_ad["Text"] = text
-        if image_hash:
+        if clear_image_hash:
+            mobile_app_ad["AdImageHash"] = None
+        elif image_hash:
             mobile_app_ad["AdImageHash"] = image_hash
         if action:
             mobile_app_ad["Action"] = action.upper()
@@ -2235,6 +2268,7 @@ def update(
             image_hash,
             erir_ad_description,
             tracking_url,
+            clear_image_hash=clear_image_hash,
         )
         if mobile_app_image_ad:
             ad_data["MobileAppImageAd"] = mobile_app_image_ad
@@ -2311,7 +2345,9 @@ def update(
 
 
 def _ad_lifecycle(method, help_text):
-    return make_lifecycle_command(ads, method, help_text, "ad_id", "Ad ID", create_client)
+    return make_lifecycle_command(
+        ads, method, help_text, "ad_id", "Ad ID", create_client
+    )
 
 
 delete = _ad_lifecycle("delete", "Delete ad")

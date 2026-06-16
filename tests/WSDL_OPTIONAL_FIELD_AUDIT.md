@@ -303,7 +303,7 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.update` | `ads.update` | `Id` | `long` | 1 | 1 | `supported` | covered by minOccurs>=1 parity gate |
 | `ads.update` | `ads.update` | `TextAd` | `TextAdUpdate` | 0 | 1 | `supported` | --type |
 | `ads.update` | `ads.update` | `TextAd.VCardId` | `long` | 0 | 1 | `supported` | --vcard-id |
-| `ads.update` | `ads.update` | `TextAd.AdImageHash` | `string` | 0 | 1 | `supported` | --image-hash |
+| `ads.update` | `ads.update` | `TextAd.AdImageHash` | `string` | 0 | 1 | `supported` | --clear-image-hash, --image-hash |
 | `ads.update` | `ads.update` | `TextAd.SitelinkSetId` | `long` | 0 | 1 | `supported` | --sitelink-set-id |
 | `ads.update` | `ads.update` | `TextAd.CalloutSetting` | `AdExtensionSetting` | 0 | 1 | `supported` | --callouts-add, --callouts-remove, --callouts-set |
 | `ads.update` | `ads.update` | `TextAd.CalloutSetting.AdExtensions` | `AdExtensionSettingItem` | 1 | unbounded | `supported` | --callouts-add, --callouts-remove, --callouts-set |
@@ -351,7 +351,7 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.update` | `ads.update` | `ResponsiveAd.ErirAdDescription` | `string` | 0 | 1 | `supported` | --erir-ad-description |
 | `ads.update` | `ads.update` | `DynamicTextAd` | `DynamicTextAdUpdate` | 0 | 1 | `supported` | --type |
 | `ads.update` | `ads.update` | `DynamicTextAd.VCardId` | `long` | 0 | 1 | `supported` | --vcard-id |
-| `ads.update` | `ads.update` | `DynamicTextAd.AdImageHash` | `string` | 0 | 1 | `supported` | --image-hash |
+| `ads.update` | `ads.update` | `DynamicTextAd.AdImageHash` | `string` | 0 | 1 | `supported` | --clear-image-hash, --image-hash |
 | `ads.update` | `ads.update` | `DynamicTextAd.SitelinkSetId` | `long` | 0 | 1 | `supported` | --sitelink-set-id |
 | `ads.update` | `ads.update` | `DynamicTextAd.CalloutSetting` | `AdExtensionSetting` | 0 | 1 | `supported` | --callouts-add, --callouts-remove, --callouts-set |
 | `ads.update` | `ads.update` | `DynamicTextAd.CalloutSetting.AdExtensions` | `AdExtensionSettingItem` | 1 | unbounded | `supported` | --callouts-add, --callouts-remove, --callouts-set |
@@ -363,7 +363,7 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.update` | `ads.update` | `MobileAppAd.Text` | `string` | 0 | 1 | `supported` | --text |
 | `ads.update` | `ads.update` | `MobileAppAd.TrackingUrl` | `string` | 0 | 1 | `supported` | --tracking-url |
 | `ads.update` | `ads.update` | `MobileAppAd.Action` | `MobileAppAdActionEnum` | 0 | 1 | `supported` | --action |
-| `ads.update` | `ads.update` | `MobileAppAd.AdImageHash` | `string` | 0 | 1 | `supported` | --image-hash |
+| `ads.update` | `ads.update` | `MobileAppAd.AdImageHash` | `string` | 0 | 1 | `supported` | --clear-image-hash, --image-hash |
 | `ads.update` | `ads.update` | `MobileAppAd.ErirAdDescription` | `string` | 0 | 1 | `supported` | --erir-ad-description |
 | `ads.update` | `ads.update` | `MobileAppAd.Features` | `MobileAppAdFeatureItem` | 0 | unbounded | `supported` | --mobile-app-feature |
 | `ads.update` | `ads.update` | `MobileAppAd.Features.Feature` | `MobileAppFeatureEnum` | 1 | 1 | `supported` | --mobile-app-feature |
@@ -372,13 +372,13 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `ads.update` | `ads.update` | `MobileAppAd.VideoExtension` | `VideoExtensionUpdateItem` | 0 | 1 | `supported` | --video-extension-creative-id |
 | `ads.update` | `ads.update` | `MobileAppAd.VideoExtension.CreativeId` | `long` | 0 | 1 | `supported` | --video-extension-creative-id |
 | `ads.update` | `ads.update` | `TextImageAd` | `TextImageAdUpdate` | 0 | 1 | `supported` | --type |
-| `ads.update` | `ads.update` | `TextImageAd.AdImageHash` | `string` | 0 | 1 | `supported` | --image-hash |
+| `ads.update` | `ads.update` | `TextImageAd.AdImageHash` | `string` | 0 | 1 | `supported` | --clear-image-hash, --image-hash |
 | `ads.update` | `ads.update` | `TextImageAd.ErirAdDescription` | `string` | 0 | 1 | `supported` | --erir-ad-description |
 | `ads.update` | `ads.update` | `TextImageAd.FinalUrl` | `string` | 0 | 1 | `supported` | --final-url |
 | `ads.update` | `ads.update` | `TextImageAd.Href` | `string` | 0 | 1 | `supported` | --href |
 | `ads.update` | `ads.update` | `TextImageAd.TurboPageId` | `long` | 0 | 1 | `supported` | --turbo-page-id |
 | `ads.update` | `ads.update` | `MobileAppImageAd` | `MobileAppImageAdUpdate` | 0 | 1 | `supported` | --type |
-| `ads.update` | `ads.update` | `MobileAppImageAd.AdImageHash` | `string` | 0 | 1 | `supported` | --image-hash |
+| `ads.update` | `ads.update` | `MobileAppImageAd.AdImageHash` | `string` | 0 | 1 | `supported` | --clear-image-hash, --image-hash |
 | `ads.update` | `ads.update` | `MobileAppImageAd.ErirAdDescription` | `string` | 0 | 1 | `supported` | --erir-ad-description |
 | `ads.update` | `ads.update` | `MobileAppImageAd.TrackingUrl` | `string` | 0 | 1 | `supported` | --tracking-url |
 | `ads.update` | `ads.update` | `MobileAppCpcVideoAdBuilderAd` | `MobileAppCpcVideoAdBuilderAdUpdate` | 0 | 1 | `supported` | --type |

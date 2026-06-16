@@ -2110,6 +2110,89 @@ def test_ads_update_image_hash_builds_nested_textimagead():
     assert "TextAd" not in ad
 
 
+@pytest.mark.parametrize(
+    "ad_type, block",
+    [
+        ("TEXT_AD", "TextAd"),
+        ("DYNAMIC_TEXT_AD", "DynamicTextAd"),
+        ("TEXT_IMAGE_AD", "TextImageAd"),
+        ("MOBILE_APP_AD", "MobileAppAd"),
+        ("MOBILE_APP_IMAGE_AD", "MobileAppImageAd"),
+    ],
+)
+def test_ads_update_clear_image_hash_sends_null(ad_type, block):
+    """--clear-image-hash sends AdImageHash=null to reset the image (issue #552)."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        ad_type,
+        "--clear-image-hash",
+    )
+    ad = body["params"]["Ads"][0]
+    assert ad["Id"] == 999
+    assert ad[block] == {"AdImageHash": None}
+
+
+def test_ads_update_clear_image_hash_counts_as_updatable_field():
+    """--clear-image-hash alone is a real change, not an empty-subtype no-op."""
+    body = _dry_run(
+        "ads",
+        "update",
+        "--id",
+        "999",
+        "--type",
+        "TEXT_AD",
+        "--clear-image-hash",
+    )
+    ad = body["params"]["Ads"][0]
+    assert ad == {"Id": 999, "TextAd": {"AdImageHash": None}}
+
+
+def test_ads_update_clear_image_hash_rejects_image_hash():
+    """--image-hash and --clear-image-hash are mutually exclusive."""
+    result = CliRunner().invoke(
+        cli,
+        [
+            "ads",
+            "update",
+            "--id",
+            "999",
+            "--type",
+            "TEXT_AD",
+            "--image-hash",
+            "abc",
+            "--clear-image-hash",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "--image-hash or --clear-image-hash" in result.output
+
+
+def test_ads_update_clear_image_hash_rejected_for_incompatible_type():
+    """--clear-image-hash on a subtype without AdImageHash must raise, not drop."""
+    result = CliRunner().invoke(
+        cli,
+        [
+            "ads",
+            "update",
+            "--id",
+            "999",
+            "--type",
+            "RESPONSIVE_AD",
+            "--clear-image-hash",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "--clear-image-hash is not compatible with --type RESPONSIVE_AD" in (
+        result.output
+    )
+
+
 def test_ads_update_incompatible_flag_explains_existing_subtype():
     result = CliRunner().invoke(
         cli,
