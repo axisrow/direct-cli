@@ -78,6 +78,14 @@ def raise_for_api_result_errors(data: Any) -> None:
             "the selected auth profile for the target client."
         )
 
+    if any(_error_code(error) == 8300 for error in result_errors):
+        lines.append(
+            "Code 8300 on delete/moderate usually means the ad is not in DRAFT "
+            "status. Status=UNKNOWN is an API fallback value (a status outside "
+            "the v5 enum), not a business status — such ads can only be "
+            "archived/unarchived, not deleted or sent to moderation."
+        )
+
     raise DirectAPIResultError("\n".join(lines))
 
 

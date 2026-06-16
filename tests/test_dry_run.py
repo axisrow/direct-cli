@@ -17726,6 +17726,21 @@ def test_get_with_filter_keeps_selection_criteria(command):
     assert body["params"]["SelectionCriteria"] == {"Ids": [1, 2]}
 
 
+def test_audiencetargets_get_requires_filter_message_names_workaround():
+    # Issue #554: the live API hard-rejects an empty SelectionCriteria for
+    # audiencetargets (8000 with no criteria, 4001 with {}), so whole-account
+    # paging is impossible. The guard message must say so and point at the
+    # campaigns-get → batched campaign-ids workaround.
+    result = CliRunner().invoke(
+        cli,
+        ["audiencetargets", "get", "--dry-run"],
+        env={"YANDEX_DIRECT_TOKEN": "test-token", "YANDEX_DIRECT_LOGIN": ""},
+    )
+    assert result.exit_code == 2, result.output
+    assert "whole-account paging is not available" in result.output
+    assert "campaigns get" in result.output
+
+
 # --- SelectionCriteria array-length preflight (issue #555 P0) ---
 # Limits verified live 2026-06-16; WSDL declares maxOccurs="unbounded".
 
@@ -23306,3 +23321,37 @@ def test_bidmodifiers_get_rejects_empty_nested_field_names_csv(flag, wsdl_key):
 
     assert result.exit_code != 0
     assert f"Provide a non-empty comma-separated {wsdl_key} list." in result.output
+
+
+# --- Error 8300 hint (issue #548), mirror of the existing 8800 hint ---
+
+
+def test_raise_for_api_result_errors_adds_8300_hint():
+    from direct_cli.output import raise_for_api_result_errors, DirectAPIResultError
+
+    data = {"Errors": [{"Code": 8300, "Message": "Operation cannot be performed"}]}
+    with pytest.raises(DirectAPIResultError) as exc:
+        raise_for_api_result_errors(data)
+    msg = str(exc.value)
+    assert "Code 8300 on delete/moderate" in msg
+    assert "Status=UNKNOWN" in msg
+    assert "archived/unarchived" in msg
+
+
+def test_raise_for_api_result_errors_8300_hint_only_when_8300_present():
+    from direct_cli.output import raise_for_api_result_errors, DirectAPIResultError
+
+    data = {"Errors": [{"Code": 8000, "Message": "other"}]}
+    with pytest.raises(DirectAPIResultError) as exc:
+        raise_for_api_result_errors(data)
+    assert "Code 8300" not in str(exc.value)
+
+
+def test_raise_for_api_result_errors_8300_hint_has_no_url_literal():
+    # CLAUDE.md: no URL literals outside the registry. The hint must not embed one.
+    from direct_cli.output import raise_for_api_result_errors, DirectAPIResultError
+
+    data = {"Errors": [{"Code": 8300, "Message": "x"}]}
+    with pytest.raises(DirectAPIResultError) as exc:
+        raise_for_api_result_errors(data)
+    assert "https://" not in str(exc.value)
