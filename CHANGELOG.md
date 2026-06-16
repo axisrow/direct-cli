@@ -42,6 +42,30 @@
   `--clear-image-hash` mutex, and the same Click-type coercion as the single
   path (a JSON float `id` is rejected, not truncated).
 
+**Features — batch `adgroups add` via `--from-file` / `--adgroups-json` (#564, #558 follow-up):**
+
+- `adgroups add` now accepts a batch of flag-form ad-group rows from a JSONL
+  file (`--from-file`) or an inline JSON array (`--adgroups-json`); each row is
+  the same flag set keyed by the kebab flag name without the leading dashes
+  (e.g. `{"name":"G","campaign-id":12,"region-ids":"225","type":"TEXT_AD_GROUP"}`).
+  `--campaign-id` becomes the batch default and may be overridden per row.
+  Single typed-flag mode is unchanged.
+- The flag→object logic of `adgroups add` (type validation, the
+  incompatible-flag guard, the negative-keyword compatibility check, region IDs,
+  and per-subtype assembly) was extracted into a reusable, ctx-free
+  `build_adgroup_object()` so the single-flag command and the batch normalizer
+  emit byte-identical ad-group objects (golden-tested across every subtype).
+  `--name` / `--campaign-id` / `--region-ids` become per-row in batch mode;
+  single-item mode still requires them (parity-gate `INTERNAL_VALIDATION`
+  entries). Per-row coercion runs every typed field through its single-flag
+  Click type (a JSON float `campaign-id` is rejected, not truncated).
+- The shared `_batch.send_batch` gained an optional `post` callable so
+  `adgroups` keeps its endpoint routing: a `UnifiedAdGroup` payload must use API
+  v501 (`_post_adgroups`). Because that routing keys off the whole body, a batch
+  may **not** mix `UNIFIED_AD_GROUP` with other ad-group types — the CLI refuses
+  the mix up front with a clear `UsageError` rather than send non-unified groups
+  to the v501 endpoint.
+
 **Fixes — reject non-positive IDs before the request (#558):**
 
 - Mutating commands and lifecycle ops took their object-ID selector

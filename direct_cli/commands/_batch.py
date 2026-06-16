@@ -111,6 +111,7 @@ def send_batch(
     noun: str,
     result_key: str = "AddResults",
     on_warn: Optional[Callable[[List[Any]], None]] = None,
+    post: Optional[Callable[[Any, dict], Any]] = None,
 ) -> None:
     """Chunk ``items`` and send each chunk through ``client.<resource>()``.
 
@@ -120,6 +121,11 @@ def send_batch(
     used in that partial-success message (e.g. ``"keywords"``, ``"ads"``).
     ``result_key`` is the response list name (``"AddResults"`` for ``add``,
     ``"UpdateResults"`` for ``update``).
+
+    ``post`` overrides how a chunk body is sent: a ``(client, body) -> response``
+    callable. It defaults to ``client.<resource>().post(data=body)``; ``adgroups``
+    passes its endpoint-routing ``_post_adgroups`` (UnifiedAdGroup payloads must
+    use API v501).
     """
     chunks = list(chunked(items, max_batch))
 
@@ -146,7 +152,10 @@ def send_batch(
                 err=True,
             )
             body = {"method": method, "params": {payload_key: chunk}}
-            response = getattr(client, resource)().post(data=body)
+            if post is not None:
+                response = post(client, body)
+            else:
+                response = getattr(client, resource)().post(data=body)
             chunk_results = normalize_results(response().extract(), result_key)
             # Only items without per-item Errors are "already applied" — the
             # partial-success diagnostic must not lie about failed items.
