@@ -1531,30 +1531,44 @@ _ADS_ROW_PARAM_TYPES: Optional[Dict[str, click.ParamType]] = None
 
 
 def _coerce_ad_row_field(key: str, value: Any, row_index: int) -> Any:
-    """Coerce one batch-row value through its single-flag Click type.
+    """Coerce one scalar batch-row value to its single-flag form.
 
-    JSON booleans are rejected for typed numeric/choice fields (Click never
-    accepts a bool there); conversion errors are reported with the row index
-    and field, mirroring keywords' ``_coerce_keyword_field``.
-
-    The scalar is stringified before ``convert`` so the Click type parses it
-    exactly as it parses a CLI token: ``IntRange``/``MICRO_RUBLES`` reject
-    ``"1.9"`` (whereas a raw Python ``float`` would be silently truncated via
-    ``int(value)``) — so a JSON ``1.9`` is rejected, not turned into ``1``.
+    The CLI only ever sees string tokens, so a batch row must too: this rejects
+    JSON arrays/objects/``null`` for any scalar field, stringifies JSON
+    int/float/bool scalars, then runs typed fields (``param_type is not None``)
+    through their single-flag Click type. The result is that batch and single
+    emit byte-identical payloads — e.g. ``"title": 123`` becomes ``"123"`` (as a
+    CLI token would), ``"adgroup-id": 1.9`` is rejected (not truncated to ``1``),
+    and ``"adgroup-id": null`` / ``[1]`` raise a clear ``Ad row N field`` error
+    instead of an uncaught ``TypeError``. Mirrors keywords' ``_coerce_keyword_field``.
     """
     global _ADS_ROW_PARAM_TYPES
     if _ADS_ROW_PARAM_TYPES is None:
         _ADS_ROW_PARAM_TYPES = _ads_add_param_types()
     param_type = _ADS_ROW_PARAM_TYPES.get(key)
+
+    # A scalar flag never accepts a JSON array/object/null — the single-flag CLI
+    # can only express a scalar token. Reject with row/field context up front.
+    if value is None or isinstance(value, (list, dict)):
+        raise click.UsageError(
+            t("Ad row {row_index} field {key!r}: expected a scalar, got {arg0}").format(
+                row_index=row_index, key=key, arg0=type(value).__name__
+            )
+        )
+
+    # The CLI passes every value as a string token; match that so a JSON int for
+    # a string field becomes "123" (not 123) and a typed field parses identically.
+    token = str(value)
+
     if param_type is None:
-        return value
+        return token
+
     if isinstance(value, bool):
         raise click.UsageError(
             t("Ad row {row_index} field {key!r}: expected {arg0}, got bool").format(
                 row_index=row_index, key=key, arg0=param_type.name
             )
         )
-    token = str(value) if isinstance(value, (int, float)) else value
     try:
         return param_type.convert(token, None, None)
     except click.exceptions.BadParameter as exc:
@@ -1614,7 +1628,19 @@ def _normalize_ad_row(
         if key not in row:
             continue
         value = row[key]
-        if key in _ADS_ROW_MULTI_KEYS and isinstance(value, list):
+        if key in _ADS_ROW_MULTI_KEYS:
+            # A repeatable flag (--mobile-app-feature/--feed-filter-condition) is
+            # a JSON list of the existing micro-format strings; reject anything
+            # else with row/field context instead of crashing downstream.
+            if not isinstance(value, list) or not all(
+                isinstance(item, str) for item in value
+            ):
+                raise click.UsageError(
+                    t(
+                        "Ad row {row_index} field {key!r}: expected a JSON array "
+                        "of strings"
+                    ).format(row_index=row_index, key=key)
+                )
             value = tuple(value)
         else:
             value = _coerce_ad_row_field(key, value, row_index)

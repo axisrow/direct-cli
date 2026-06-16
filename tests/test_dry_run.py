@@ -23889,3 +23889,69 @@ def test_ads_add_batch_accepts_genuine_int_ids(tmp_path):
     ad = body["firstChunk"]["params"]["Ads"][0]
     assert ad["AdGroupId"] == 7
     assert ad["TextAd"]["VCardId"] == 555
+
+
+def test_ads_add_batch_stringifies_scalar_string_field(tmp_path):
+    # A JSON int for a string field becomes "123" — same as the CLI token would,
+    # not a raw int in the payload.
+    path = _write_jsonl(
+        tmp_path,
+        [
+            {
+                "type": "TEXT_AD",
+                "title": 123,
+                "text": "B",
+                "href": "http://x",
+                "adgroup-id": 1,
+            }
+        ],
+    )
+    body = _dry_run("ads", "add", "--from-file", path)
+    assert body["firstChunk"]["params"]["Ads"][0]["TextAd"]["Title"] == "123"
+
+
+def test_ads_add_batch_rejects_object_for_string_field(tmp_path):
+    path = _write_jsonl(
+        tmp_path,
+        [
+            {
+                "type": "TEXT_AD",
+                "title": {"bad": 1},
+                "text": "B",
+                "href": "http://x",
+                "adgroup-id": 1,
+            }
+        ],
+    )
+    result = _rejected("ads", "add", "--from-file", path)
+    assert "Ad row 1 field 'title'" in result.output
+    assert "scalar" in result.output
+
+
+@pytest.mark.parametrize("bad", [None, [1], {"a": 1}])
+def test_ads_add_batch_rejects_non_scalar_typed_field(tmp_path, bad):
+    # null / list / object for a scalar field must be a clean UsageError, not an
+    # uncaught TypeError from int().
+    path = _write_jsonl(tmp_path, [{"type": "TEXT_AD", "adgroup-id": bad}])
+    result = _rejected("ads", "add", "--from-file", path)
+    assert "Ad row 1 field 'adgroup-id'" in result.output
+    assert "scalar" in result.output
+
+
+def test_ads_add_batch_rejects_non_list_multi_value(tmp_path):
+    path = _write_jsonl(
+        tmp_path,
+        [
+            {
+                "type": "MOBILE_APP_AD",
+                "title": "T",
+                "text": "B",
+                "action": "DOWNLOAD",
+                "mobile-app-feature": 5,
+                "adgroup-id": 1,
+            }
+        ],
+    )
+    result = _rejected("ads", "add", "--from-file", path)
+    assert "Ad row 1 field 'mobile-app-feature'" in result.output
+    assert "array of strings" in result.output

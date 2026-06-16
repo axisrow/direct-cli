@@ -147,5 +147,7 @@
   "--ads-json: invalid JSON: {arg0}": "--ads-json: некорректный JSON: {arg0}",
   "--ads-json must be a JSON array of ad objects": "--ads-json должен быть JSON-массивом объектов объявлений",
   "Ad row {row_index} field {key!r}: expected {arg0}, got bool": "Объявление, строка {row_index}, поле {key!r}: ожидался {arg0}, получено bool",
-  "Ad row {row_index} field {key!r}: {arg0}": "Объявление, строка {row_index}, поле {key!r}: {arg0}"
+  "Ad row {row_index} field {key!r}: {arg0}": "Объявление, строка {row_index}, поле {key!r}: {arg0}",
+  "Ad row {row_index} field {key!r}: expected a scalar, got {arg0}": "Объявление, строка {row_index}, поле {key!r}: ожидалось скалярное значение, получено {arg0}",
+  "Ad row {row_index} field {key!r}: expected a JSON array of strings": "Объявление, строка {row_index}, поле {key!r}: ожидался JSON-массив строк"
 }
