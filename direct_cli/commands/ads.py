@@ -2257,6 +2257,15 @@ def _normalize_ad_update_row(row: Any, row_index: int) -> Dict[str, Any]:
             value = _coerce_ad_update_row_field(key, value, row_index)
         flags[dest] = value
 
+    # Match single-mode ordering: the command validates --type before the
+    # --image-hash/--clear-image-hash mutex, so check the missing 'type' first.
+    if ad_type is None:
+        raise click.UsageError(
+            t("Ad update row {row_index}: missing required 'type'").format(
+                row_index=row_index
+            )
+        )
+
     # Reproduce the command-level --image-hash/--clear-image-hash mutex per row.
     if flags.get("image_hash") and flags.get("clear_image_hash"):
         raise click.UsageError(
@@ -2264,13 +2273,6 @@ def _normalize_ad_update_row(row: Any, row_index: int) -> Dict[str, Any]:
                 "Ad update row {row_index}: use either 'image-hash' or "
                 "'clear-image-hash', not both"
             ).format(row_index=row_index)
-        )
-
-    if ad_type is None:
-        raise click.UsageError(
-            t("Ad update row {row_index}: missing required 'type'").format(
-                row_index=row_index
-            )
         )
 
     try:
