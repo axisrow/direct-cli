@@ -199,6 +199,22 @@
   the four doc-removed services must keep WSDL `docs` URLs, failing in CI before
   the network preflight ever runs.
 
+**Bug Fixes — reject empty-string CSV-ID flags in `adgroups` (#570):**
+
+- `adgroups add` and `adgroups update` now reject an explicitly-provided
+  empty/whitespace value for `--region-ids`, `--negative-keyword-shared-set-ids`
+  and `--feed-category-ids` (e.g. `--region-ids ""`, `--region-ids " "`,
+  `--region-ids ","`, or a batch row `{"region-ids":""}`) with a clear
+  `UsageError` instead of silently dropping the field. Previously `parse_ids("")`
+  returned `None` and the `if region_ids:` guards treated a provided-but-empty
+  value identically to an omitted option; for `RegionIds` (WSDL `minOccurs=1` on
+  add) that stripped a required field and sent an invalid body to the live API.
+- The fix is centralized in a new `_require_nonempty_ids_option` helper that
+  distinguishes `None` (option omitted) from an all-blank value, so single mode
+  and `--from-file` / `--adgroups-json` batch mode behave identically for both
+  add and update. A genuinely malformed value with real tokens
+  (e.g. `225,,226`) still reports the precise `Invalid ID` error, unchanged.
+
 ## 0.4.2
 
 **BREAKING CHANGES - get requires SelectionCriteria (#498):**
