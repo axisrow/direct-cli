@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.3
 
 **Features — batch `ads add` via `--from-file` / `--ads-json` (#562, #558 follow-up):**
 
