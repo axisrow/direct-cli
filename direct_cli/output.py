@@ -88,9 +88,10 @@ def raise_for_api_result_errors(data: Any) -> None:
 
     if any(_error_mentions_adimagehash(error) for error in result_errors):
         lines.append(
-            "Code 5005 on AdImageHash: a server-side carousel image cannot be "
-            "cleared via the API — only in the Direct web interface. Workaround: "
-            "replace it with a single image via --image-hash <hash>."
+            "Code 5005 on AdImageHash: the image cannot be cleared via the API "
+            "(typically a server-side carousel image, removable only in the "
+            "Direct web interface). Workaround: replace it with a single image "
+            "via --image-hash <hash>."
         )
 
     raise DirectAPIResultError("\n".join(lines))
