@@ -24480,3 +24480,179 @@ def test_adgroups_add_single_still_requires_name():
 def test_adgroups_add_single_still_requires_region_ids():
     result = _rejected("adgroups", "add", "--name", "G", "--campaign-id", "1")
     assert "Missing option '--region-ids'." in result.output
+
+
+# --- adgroups update batch (issue #565) ---
+
+
+def test_adgroups_update_batch_from_jsonl(tmp_path):
+    rows = [
+        {"id": 5, "name": "New A"},
+        {"id": 6, "domain-url": "https://e.example"},
+    ]
+    path = _write_jsonl(tmp_path, rows)
+    body = _dry_run("adgroups", "update", "--from-file", path)
+    assert body["chunks"] == 1
+    assert body["totalItems"] == 2
+    assert body["chunkSize"] == 100
+    assert body["firstChunk"]["method"] == "update"
+    groups = body["firstChunk"]["params"]["AdGroups"]
+    # Row -> build_adgroup_update_object yields the same object as single path.
+    assert groups[0] == {"Id": 5, "Name": "New A"}
+    assert groups[1] == {
+        "Id": 6,
+        "DynamicTextAdGroup": {"DomainUrl": "https://e.example"},
+    }
+
+
+def test_adgroups_update_batch_inline():
+    arr = json.dumps([{"id": 5, "name": "X"}])
+    body = _dry_run("adgroups", "update", "--adgroups-json", arr)
+    assert body["totalItems"] == 1
+    assert body["firstChunk"]["params"]["AdGroups"][0] == {"Id": 5, "Name": "X"}
+
+
+def test_adgroups_update_batch_chunks_at_100(tmp_path):
+    rows = [{"id": i + 1, "name": f"G{i}"} for i in range(250)]
+    path = _write_jsonl(tmp_path, rows)
+    body = _dry_run("adgroups", "update", "--from-file", path)
+    assert body["chunks"] == 3
+    assert body["totalItems"] == 250
+    assert len(body["firstChunk"]["params"]["AdGroups"]) == 100
+
+
+def test_adgroups_update_batch_dynamic_feed_per_row(tmp_path):
+    rows = [{"id": 5, "dynamic-feed": True, "autotargeting-category": ["EXACT=YES"]}]
+    path = _write_jsonl(tmp_path, rows)
+    body = _dry_run("adgroups", "update", "--from-file", path)
+    assert body["firstChunk"]["params"]["AdGroups"][0] == {
+        "Id": 5,
+        "DynamicTextFeedAdGroup": {
+            "AutotargetingCategories": [{"Category": "EXACT", "Value": "YES"}]
+        },
+    }
+
+
+def test_adgroups_update_batch_dynamic_feed_false_is_noop(tmp_path):
+    # dynamic-feed:false is the flag-absent state; without another field the row
+    # is an empty-payload no-op and must be rejected.
+    path = _write_jsonl(tmp_path, [{"id": 5, "dynamic-feed": False}])
+    result = _rejected("adgroups", "update", "--from-file", path)
+    assert "Ad group update row 1" in result.output
+    assert "at least one updatable field" in result.output
+
+
+def test_adgroups_update_batch_rejects_unknown_field(tmp_path):
+    path = _write_jsonl(tmp_path, [{"id": 5, "foo": "bar"}])
+    result = _rejected("adgroups", "update", "--from-file", path)
+    assert "Unknown field 'foo' in ad group update row 1" in result.output
+
+
+def test_adgroups_update_batch_rejects_non_object_row(tmp_path):
+    path = _write_jsonl(tmp_path, [[1, 2, 3]])
+    result = _rejected("adgroups", "update", "--from-file", path)
+    assert "Ad group update row 1" in result.output
+    assert "expected JSON object" in result.output
+
+
+def test_adgroups_update_batch_rejects_empty_file(tmp_path):
+    path = tmp_path / "empty.jsonl"
+    path.write_text("\n", encoding="utf-8")
+    result = _rejected("adgroups", "update", "--from-file", str(path))
+    assert "Input contains no ad group rows" in result.output
+
+
+def test_adgroups_update_batch_rejects_invalid_json(tmp_path):
+    path = tmp_path / "bad.jsonl"
+    path.write_text('{"id":5,"name":"X"}\nnope\n', encoding="utf-8")
+    result = _rejected("adgroups", "update", "--from-file", str(path))
+    assert "Row 2: invalid JSON" in result.output
+
+
+def test_adgroups_update_batch_rejects_missing_id_in_row(tmp_path):
+    path = _write_jsonl(tmp_path, [{"name": "X"}])
+    result = _rejected("adgroups", "update", "--from-file", path)
+    assert "Ad group update row 1" in result.output
+    assert "missing required 'id'" in result.output
+
+
+def test_adgroups_update_batch_rejects_non_positive_id_in_row(tmp_path):
+    path = _write_jsonl(tmp_path, [{"id": -5, "name": "X"}])
+    result = _rejected("adgroups", "update", "--from-file", path)
+    assert "Ad group update row 1 field 'id'" in result.output
+    assert "x>=1" in result.output
+
+
+def test_adgroups_update_batch_rejects_float_id_in_row(tmp_path):
+    path = _write_jsonl(tmp_path, [{"id": 5.9, "name": "X"}])
+    result = _rejected("adgroups", "update", "--from-file", path)
+    assert "Ad group update row 1 field 'id'" in result.output
+
+
+def test_adgroups_update_batch_rejects_empty_payload_per_row(tmp_path):
+    path = _write_jsonl(tmp_path, [{"id": 5}])
+    result = _rejected("adgroups", "update", "--from-file", path)
+    assert "Ad group update row 1" in result.output
+    assert "at least one updatable field" in result.output
+
+
+def test_adgroups_update_batch_rejects_mixed_subtype_per_row(tmp_path):
+    # Mixing two subtype blocks in one row is rejected by the per-row guard.
+    path = _write_jsonl(
+        tmp_path,
+        [{"id": 5, "domain-url": "https://e.example", "ad-title-source": "FEED"}],
+    )
+    result = _rejected("adgroups", "update", "--from-file", path)
+    assert "Ad group update row 1" in result.output
+
+
+def test_adgroups_update_batch_rejects_non_bool_dynamic_feed(tmp_path):
+    path = _write_jsonl(tmp_path, [{"id": 5, "dynamic-feed": "yes"}])
+    result = _rejected("adgroups", "update", "--from-file", path)
+    assert "Ad group update row 1 field 'dynamic-feed'" in result.output
+    assert "boolean" in result.output
+
+
+def test_adgroups_update_batch_rejects_non_list_multi_value(tmp_path):
+    path = _write_jsonl(
+        tmp_path, [{"id": 5, "dynamic-feed": True, "autotargeting-category": 5}]
+    )
+    result = _rejected("adgroups", "update", "--from-file", path)
+    assert "Ad group update row 1 field 'autotargeting-category'" in result.output
+    assert "array of strings" in result.output
+
+
+def test_adgroups_update_batch_rejects_mixed_unified_and_non_unified(tmp_path):
+    # _post_adgroups routes the whole body to v501 if any item is unified.
+    rows = [
+        {"id": 5, "name": "T"},
+        {"id": 6, "offer-retargeting": "YES"},
+    ]
+    path = _write_jsonl(tmp_path, rows)
+    result = _rejected("adgroups", "update", "--from-file", path)
+    assert "may not mix UNIFIED_AD_GROUP" in result.output
+
+
+def test_adgroups_update_batch_rejects_mutex(tmp_path):
+    path = _write_jsonl(tmp_path, [{"id": 5, "name": "X"}])
+    result = _rejected(
+        "adgroups", "update", "--from-file", path, "--adgroups-json", "[]"
+    )
+    assert "mutually exclusive" in result.output
+
+
+def test_adgroups_update_batch_rejects_single_flag_in_batch(tmp_path):
+    path = _write_jsonl(tmp_path, [{"id": 5, "name": "X"}])
+    result = _rejected("adgroups", "update", "--from-file", path, "--name", "Y")
+    assert "--name supported only with single-item mode" in result.output
+
+
+def test_adgroups_update_batch_rejects_id_flag_in_batch(tmp_path):
+    path = _write_jsonl(tmp_path, [{"id": 5, "name": "X"}])
+    result = _rejected("adgroups", "update", "--from-file", path, "--id", "9")
+    assert "--id supported only with single-item mode" in result.output
+
+
+def test_adgroups_update_single_still_requires_id():
+    result = _rejected("adgroups", "update", "--name", "X")
+    assert "Missing option '--id'." in result.output

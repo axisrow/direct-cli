@@ -66,6 +66,28 @@
   the mix up front with a clear `UsageError` rather than send non-unified groups
   to the v501 endpoint.
 
+**Features — batch `adgroups update` via `--from-file` / `--adgroups-json` (#565, #558 follow-up):**
+
+- `adgroups update` now accepts a batch of flag-form ad-group-update rows from a
+  JSONL file (`--from-file`) or an inline JSON array (`--adgroups-json`); each
+  row is the same flag set keyed by the kebab flag name without the leading
+  dashes plus its own `id` (e.g. `{"id":5,"name":"New"}`). The `--dynamic-feed`
+  routing works per row as a JSON boolean. Single typed-flag mode is unchanged.
+- The subtype-dispatch body of `adgroups update` (the mixed-subtype reject
+  guard, per-subtype assembly, the `--dynamic-feed` DynamicTextAdGroup ↔
+  DynamicTextFeedAdGroup routing, and the empty-payload no-op guard) was
+  extracted into a reusable, ctx-free `build_adgroup_update_object()` so the
+  single-flag command and the batch normalizer emit byte-identical objects
+  (golden-tested across every subtype). `--id` becomes per-row in batch mode;
+  single-item mode still requires it (parity-gate `INTERNAL_VALIDATION` entry).
+  Per-row coercion runs every typed field through its single-flag Click type (a
+  JSON float `id` is rejected, not truncated).
+- Reuses the shared `_batch.send_batch` with `method="update"` /
+  `result_key="UpdateResults"` and the `post=_post_adgroups` endpoint routing.
+  As with `adgroups add`, a batch may **not** mix `UNIFIED_AD_GROUP` with other
+  ad-group types (unified groups use API v501) — the CLI refuses the mix up
+  front with a clear `UsageError`.
+
 **Fixes — reject non-positive IDs before the request (#558):**
 
 - Mutating commands and lifecycle ops took their object-ID selector
