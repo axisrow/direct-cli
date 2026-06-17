@@ -3,7 +3,7 @@ Campaigns commands
 """
 
 import re
-from typing import Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 import click
 
@@ -15,6 +15,7 @@ from ..utils import (
     build_selection_criteria,
     build_common_params,
     add_criteria_csv,
+    enforce_criteria_array_limits,
     get_default_fields,
     MICRO_RUBLES,
     parse_ids,
@@ -22,6 +23,7 @@ from ..utils import (
     parse_priority_goals_spec,
     parse_setting_specs,
 )
+
 from .._bidding_strategy import (
     BUDGET_TYPES,
     TEXT_CAMPAIGN_NETWORK_STRATEGY_TO_WSDL_SUBTYPE,
@@ -50,6 +52,12 @@ from .._bidding_strategy import (
     get_bidding_strategy_builder,
 )
 from .._flag_validation import reject_incompatible_flags
+
+# Yandex Direct campaigns.get caps SelectionCriteria.Ids at runtime
+# (the WSDL declares maxOccurs="unbounded"). Live measurement 2026-06-17 via
+# sandbox: --ids ×1001 → 4001 "Exceed the maximum number of IDs per array
+# SelectionCriteria.Ids" (N=10/100/1000 accepted).
+CAMPAIGNS_GET_CRITERIA_LIMITS = {"Ids": 1000}
 
 SMS_EVENTS = {"MONITORING", "MODERATION", "MONEY_IN", "MONEY_OUT", "FINISHED"}
 YES_NO = ["YES", "NO"]
@@ -979,6 +987,10 @@ def get(
     add_criteria_csv(criteria, "Statuses", statuses, upper=True)
     add_criteria_csv(criteria, "States", states, upper=True)
     add_criteria_csv(criteria, "StatusesPayment", payment_statuses, upper=True)
+
+    enforce_criteria_array_limits(
+        criteria, CAMPAIGNS_GET_CRITERIA_LIMITS, command_name="campaigns get"
+    )
 
     # Build params
     params = build_common_params(
@@ -2865,6 +2877,7 @@ def add(
     )
     package_bidding_strategy_obj = None
     smart_package_bidding_strategy_obj = None
+    package_label = ""
     if campaign_type_norm == "SMART_CAMPAIGN":
         smart_package_bidding_strategy_obj = _build_smart_package_bidding_strategy(
             package_strategy_id,
@@ -3327,10 +3340,10 @@ def add(
                 )
             )
 
-    campaign_data = {"Name": name, "StartDate": start_date}
+    campaign_data: dict[str, Any] = {"Name": name, "StartDate": start_date}
     parsed_settings = parse_setting_specs(list(settings))
     if campaign_type_norm == "TEXT_CAMPAIGN":
-        text_block = {"Settings": parsed_settings or []}
+        text_block: dict[str, Any] = {"Settings": parsed_settings or []}
         if package_bidding_strategy_obj is not None:
             text_block["PackageBiddingStrategy"] = package_bidding_strategy_obj
         else:
@@ -3465,7 +3478,7 @@ def add(
                     is_update=False,
                 )
             else:
-                text_search = {
+                text_search: dict[str, Any] = {
                     "BiddingStrategyType": (
                         (search_strategy or "HIGHEST_POSITION").upper()
                     )
@@ -3512,7 +3525,7 @@ def add(
                     is_update=False,
                 )
             else:
-                text_network = {
+                text_network: dict[str, Any] = {
                     "BiddingStrategyType": (network_strategy or "SERVING_OFF")
                 }
             text_block["BiddingStrategy"] = {
@@ -5449,7 +5462,7 @@ def update(
     dry_run,
 ):
     """Update campaign"""
-    campaign_data = {"Id": campaign_id}
+    campaign_data: dict[str, Any] = {"Id": campaign_id}
 
     if name:
         campaign_data["Name"] = name

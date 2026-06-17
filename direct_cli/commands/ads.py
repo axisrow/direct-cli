@@ -14,6 +14,7 @@ from . import _batch
 from ..utils import (
     add_criteria_csv,
     build_common_params,
+    enforce_criteria_array_limits,
     get_default_fields,
     MICRO_RUBLES,
     parse_condition_specs,
@@ -21,6 +22,20 @@ from ..utils import (
     parse_ids,
     parse_nested_field_names,
 )
+
+# Yandex Direct ads.get caps SelectionCriteria arrays at runtime (the WSDL
+# declares them maxOccurs="unbounded"). Live measurement 2026-06-17 via sandbox:
+# --campaign-ids ×11 → 4001 "Exceed the maximum number of IDs per array
+# SelectionCriteria.CampaignIds"; --adgroup-ids ×10001 → 4001 ".AdGroupIds"
+# (N=1000 accepted); --vcard-ids ×11 (with anchor --campaign-ids 1) → 4001
+# ".VCardIds"; --sitelink-set-ids ×11 (with anchor) → 4001 ".SitelinkSetIds".
+# Ids and AdExtensionIds accepted at N=10000.
+ADS_GET_CRITERIA_LIMITS = {
+    "CampaignIds": 10,
+    "AdGroupIds": 1000,
+    "VCardIds": 10,
+    "SitelinkSetIds": 10,
+}
 
 
 @click.group()
@@ -276,7 +291,7 @@ def _build_text_ad_update_base(
     vcard_id: Optional[int],
     image_hash: Optional[str],
     sitelink_set_id: Optional[int],
-    callout_setting: Optional[dict[str, object]],
+    callout_setting: Optional[dict[str, Any]],
     clear_image_hash: bool = False,
 ) -> dict[str, object]:
     """Build fields inherited from WSDL TextAdUpdateBase."""
@@ -434,7 +449,7 @@ def _build_responsive_ad_update(
     image_hashes: Optional[str],
     video_extension_ids: Optional[str],
     sitelink_set_id: Optional[int],
-    callout_setting: Optional[dict[str, object]],
+    callout_setting: Optional[dict[str, Any]],
     href: Optional[str],
     age_label: Optional[str],
     display_url_path: Optional[str],
@@ -481,7 +496,7 @@ def _build_responsive_ad_update(
 
 def _build_feed_based_ad_update(
     sitelink_set_id: Optional[int],
-    callout_setting: Optional[dict[str, object]],
+    callout_setting: Optional[dict[str, Any]],
     business_id: Optional[int],
     feed_filter_conditions: tuple[str, ...],
     title_sources: Optional[str],
@@ -1011,7 +1026,7 @@ def get(
         "TextAdFieldNames", get_default_fields("ads", "TextAdFieldNames")
     )
 
-    criteria = {}
+    criteria: dict[str, Any] = {}
     if ids:
         criteria["Ids"] = parse_ids(ids)
     if campaign_ids:
@@ -1041,6 +1056,10 @@ def get(
         criteria, "AdImageModerationStatuses", image_moderation_statuses, upper=True
     )
     add_criteria_csv(criteria, "AdExtensionIds", adextension_ids, integers=True)
+
+    enforce_criteria_array_limits(
+        criteria, ADS_GET_CRITERIA_LIMITS, command_name="ads get"
+    )
 
     if not criteria:
         raise click.UsageError(t("Provide at least one typed filter"))
@@ -1368,7 +1387,7 @@ def build_ad_object(*, adgroup_id, ad_type, mobile_provided, flags, flag_for=Non
 
         parsed_texts = _parse_required_csv_strings(texts, "--texts")
         parsed_titles = _parse_required_csv_strings(titles, "--titles")
-        responsive_ad = {
+        responsive_ad: dict[str, Any] = {
             "Texts": parsed_texts,
             "Titles": parsed_titles,
         }

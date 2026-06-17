@@ -845,6 +845,75 @@ class TestSelectionCriteriaPreflight(unittest.TestCase):
         self.assertIn("more than 10 elements", result.output)
         self.assertNotIn("4001", result.output)
 
+    # ----- Issue #571: extend preflight to remaining read-get commands -----
+
+    def _assert_preflight_rejects(self, cmd, flag, cap):
+        """Send `cap+1` synthetic ids to `<cmd> get --<flag>` and assert the
+        preflight rejects with exit 2 + "more than {cap} elements", with no
+        raw API error_code=4001 leaking through.
+        """
+        ids = ",".join(str(i) for i in range(1, cap + 2))
+        result = invoke_get(cmd, "get", f"--{flag}", ids)
+        self.assertEqual(result.exit_code, 2, result.output)
+        self.assertIn(f"more than {cap} elements", result.output)
+        self.assertNotIn("4001", result.output)
+
+    def test_ads_get_rejects_oversized_campaign_ids(self):
+        self._assert_preflight_rejects("ads", "campaign-ids", 10)
+
+    def test_ads_get_rejects_oversized_adgroup_ids(self):
+        self._assert_preflight_rejects("ads", "adgroup-ids", 1000)
+
+    def test_ads_get_rejects_oversized_vcard_ids(self):
+        self._assert_preflight_rejects("ads", "vcard-ids", 10)
+
+    def test_ads_get_rejects_oversized_sitelink_set_ids(self):
+        self._assert_preflight_rejects("ads", "sitelink-set-ids", 10)
+
+    def test_adgroups_get_rejects_oversized_campaign_ids(self):
+        self._assert_preflight_rejects("adgroups", "campaign-ids", 10)
+
+    def test_adgroups_get_rejects_oversized_negative_keyword_shared_set_ids(self):
+        self._assert_preflight_rejects(
+            "adgroups", "negative-keyword-shared-set-ids", 10
+        )
+
+    def test_bids_get_rejects_oversized_campaign_ids(self):
+        self._assert_preflight_rejects("bids", "campaign-ids", 10)
+
+    def test_bids_get_rejects_oversized_adgroup_ids(self):
+        self._assert_preflight_rejects("bids", "adgroup-ids", 1000)
+
+    def test_bidmodifiers_get_rejects_oversized_campaign_ids(self):
+        self._assert_preflight_rejects("bidmodifiers", "campaign-ids", 1000)
+
+    def test_campaigns_get_rejects_oversized_ids(self):
+        self._assert_preflight_rejects("campaigns", "ids", 1000)
+
+    def test_keywords_get_rejects_oversized_campaign_ids(self):
+        self._assert_preflight_rejects("keywords", "campaign-ids", 10)
+
+    def test_keywords_get_rejects_oversized_adgroup_ids(self):
+        self._assert_preflight_rejects("keywords", "adgroup-ids", 1000)
+
+    def test_dynamicfeedadtargets_get_rejects_oversized_campaign_ids(self):
+        self._assert_preflight_rejects("dynamicfeedadtargets", "campaign-ids", 2)
+
+    def test_dynamicfeedadtargets_get_rejects_oversized_adgroup_ids(self):
+        self._assert_preflight_rejects("dynamicfeedadtargets", "adgroup-ids", 1000)
+
+    def test_audiencetargets_get_rejects_oversized_campaign_ids(self):
+        self._assert_preflight_rejects("audiencetargets", "campaign-ids", 100)
+
+    def test_audiencetargets_get_rejects_oversized_adgroup_ids(self):
+        self._assert_preflight_rejects("audiencetargets", "adgroup-ids", 1000)
+
+    def test_audiencetargets_get_rejects_oversized_retargeting_list_ids(self):
+        self._assert_preflight_rejects("audiencetargets", "retargeting-list-ids", 1000)
+
+    def test_audiencetargets_get_rejects_oversized_interest_ids(self):
+        self._assert_preflight_rejects("audiencetargets", "interest-ids", 1000)
+
 
 if __name__ == "__main__":
     unittest.main()

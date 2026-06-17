@@ -2,6 +2,8 @@
 AudienceTargets commands
 """
 
+from typing import Any
+
 import click
 
 from ..api import client_from_ctx, create_client
@@ -12,11 +14,25 @@ from ..utils import (
     MICRO_RUBLES,
     add_criteria_csv,
     build_common_params,
+    enforce_criteria_array_limits,
     get_default_fields,
     get_options,
     parse_csv_strings,
     parse_ids,
 )
+
+# Yandex Direct audiencetargets.get caps SelectionCriteria arrays at runtime
+# (the WSDL declares them maxOccurs="unbounded"). Live measurement 2026-06-17
+# via sandbox: --campaign-ids ×1001 → 4001 "Exceed the maximum number of IDs
+# per array SelectionCriteria.CampaignIds" (N=100 accepted — unique among
+# *.get); --adgroup-ids/--retargeting-list-ids/--interest-ids ×10001 → 4001
+# (N=1000 accepted). Ids accepted at N=10000.
+AUDIENCETARGETS_GET_CRITERIA_LIMITS = {
+    "CampaignIds": 100,
+    "AdGroupIds": 1000,
+    "RetargetingListIds": 1000,
+    "InterestIds": 1000,
+}
 
 
 @click.group()
@@ -52,7 +68,7 @@ def get(
     """Get audience targets"""
     client = client_from_ctx(ctx, create_client)
 
-    criteria = {}
+    criteria: dict[str, Any] = {}
     if ids:
         criteria["Ids"] = parse_ids(ids)
     if adgroup_ids:
@@ -64,6 +80,12 @@ def get(
     )
     add_criteria_csv(criteria, "InterestIds", interest_ids, integers=True)
     add_criteria_csv(criteria, "States", states, upper=True)
+
+    enforce_criteria_array_limits(
+        criteria,
+        AUDIENCETARGETS_GET_CRITERIA_LIMITS,
+        command_name="audiencetargets get",
+    )
 
     if not criteria:
         raise click.UsageError(

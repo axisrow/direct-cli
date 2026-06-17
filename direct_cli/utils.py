@@ -194,6 +194,31 @@ def enforce_criteria_array_limits(
             )
 
 
+# Live-audited 2026-06-17 (sandbox, see scripts/measure_criteria_limits.py):
+# read-get commands and SelectionCriteria array keys where the API accepted
+# N=10000 — no preflight needed today. If Yandex adds a cap in the future,
+# the matching `<CMD>_GET_CRITERIA_LIMITS` constant must be added and the key
+# moved out of this list. See #571 for context.
+UNCAPPED_CRITERIA_KEYS = frozenset(
+    {
+        "strategies.Ids",
+        "sitelinks.Ids",
+        "vcards.Ids",
+        "adextensions.Ids",
+        "ads.Ids",
+        "ads.AdExtensionIds",
+        "adgroups.Ids",
+        "adgroups.TagIds",
+        "bids.KeywordIds",
+        "bidmodifiers.Ids",
+        "bidmodifiers.AdGroupIds",
+        "keywords.Ids",
+        "dynamicfeedadtargets.Ids",
+        "audiencetargets.Ids",
+    }
+)
+
+
 def build_selection_criteria(
     ids: Optional[List[int]] = None,
     status: Optional[str] = None,

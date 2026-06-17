@@ -2,6 +2,8 @@
 BidModifiers commands
 """
 
+from typing import Any
+
 import click
 
 from ..api import client_from_ctx, create_client
@@ -10,6 +12,7 @@ from ..output import format_output, handle_api_errors
 from ._lifecycle import make_lifecycle_command
 from ..utils import (
     build_common_params,
+    enforce_criteria_array_limits,
     get_default_fields,
     parse_csv_strings,
     parse_csv_upper,
@@ -17,6 +20,13 @@ from ..utils import (
     parse_nested_field_names,
 )
 from .._flag_validation import reject_incompatible_flags
+
+# Yandex Direct bidmodifiers.get caps SelectionCriteria.CampaignIds at runtime
+# (the WSDL declares maxOccurs="unbounded"). Live measurement 2026-06-17 via
+# sandbox: --campaign-ids ×10001 → 4001 "Exceed the maximum number of IDs per
+# array SelectionCriteria.CampaignIds" (N=1000 accepted). Ids and AdGroupIds
+# accepted at N=10000.
+BIDMODIFIERS_GET_CRITERIA_LIMITS = {"CampaignIds": 1000}
 
 
 @click.group()
@@ -203,7 +213,7 @@ def get(
     )
     parsed_nested = parse_nested_field_names(raw_nested)
 
-    criteria = {"Levels": [lv.upper() for lv in levels]}
+    criteria: dict[str, Any] = {"Levels": [lv.upper() for lv in levels]}
     if ids:
         criteria["Ids"] = parse_ids(ids)
     if campaign_ids:
@@ -212,6 +222,10 @@ def get(
         criteria["AdGroupIds"] = parse_ids(adgroup_ids)
     if types:
         criteria["Types"] = parse_csv_upper(types) or []
+
+    enforce_criteria_array_limits(
+        criteria, BIDMODIFIERS_GET_CRITERIA_LIMITS, command_name="bidmodifiers get"
+    )
 
     field_names = parse_csv_strings(fields) or get_default_fields("bidmodifiers")
     params = build_common_params(
