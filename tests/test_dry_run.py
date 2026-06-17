@@ -23957,6 +23957,531 @@ def test_ads_add_batch_rejects_non_list_multi_value(tmp_path):
     assert "array of strings" in result.output
 
 
+# --- ads update batch (issue #563) ---
+
+
+def test_ads_update_batch_from_jsonl(tmp_path):
+    rows = [
+        {"id": 5, "type": "TEXT_AD", "title": "New title"},
+        {"id": 6, "type": "DYNAMIC_TEXT_AD", "text": "Dyn"},
+    ]
+    path = _write_jsonl(tmp_path, rows)
+    body = _dry_run("ads", "update", "--from-file", path)
+    assert body["chunks"] == 1
+    assert body["totalItems"] == 2
+    assert body["chunkSize"] == 100
+    assert body["firstChunk"]["method"] == "update"
+    ads = body["firstChunk"]["params"]["Ads"]
+    # Row -> build_ad_update_object yields the same object as the single path.
+    assert ads[0] == {"Id": 5, "TextAd": {"Title": "New title"}}
+    assert ads[1] == {"Id": 6, "DynamicTextAd": {"Text": "Dyn"}}
+
+
+def test_ads_update_batch_inline():
+    arr = json.dumps([{"id": 5, "type": "TEXT_AD", "title": "T"}])
+    body = _dry_run("ads", "update", "--ads-json", arr)
+    assert body["totalItems"] == 1
+    assert body["firstChunk"]["params"]["Ads"][0] == {
+        "Id": 5,
+        "TextAd": {"Title": "T"},
+    }
+
+
+def test_ads_update_batch_chunks_at_100(tmp_path):
+    rows = [{"id": i + 1, "type": "TEXT_AD", "title": f"T{i}"} for i in range(250)]
+    path = _write_jsonl(tmp_path, rows)
+    body = _dry_run("ads", "update", "--from-file", path)
+    assert body["chunks"] == 3
+    assert body["totalItems"] == 250
+    assert len(body["firstChunk"]["params"]["Ads"]) == 100
+
+
+def test_ads_update_batch_clear_image_hash_per_row(tmp_path):
+    rows = [
+        {"id": 5, "type": "TEXT_AD", "clear-image-hash": True},
+        {"id": 6, "type": "TEXT_AD", "image-hash": "hhh"},
+    ]
+    path = _write_jsonl(tmp_path, rows)
+    body = _dry_run("ads", "update", "--from-file", path)
+    ads = body["firstChunk"]["params"]["Ads"]
+    assert ads[0] == {"Id": 5, "TextAd": {"AdImageHash": None}}
+    assert ads[1] == {"Id": 6, "TextAd": {"AdImageHash": "hhh"}}
+
+
+def test_ads_update_batch_clear_image_hash_false_is_noop(tmp_path):
+    # clear-image-hash:false is the flag-absent state; without another field the
+    # row is an empty-subtype no-op and must be rejected.
+    path = _write_jsonl(
+        tmp_path, [{"id": 5, "type": "TEXT_AD", "clear-image-hash": False}]
+    )
+    result = _rejected("ads", "update", "--from-file", path)
+    assert "Ad update row 1" in result.output
+    assert "at least one updatable field" in result.output
+
+
+def test_ads_update_batch_rejects_unknown_field(tmp_path):
+    path = _write_jsonl(tmp_path, [{"id": 5, "type": "TEXT_AD", "foo": "bar"}])
+    result = _rejected("ads", "update", "--from-file", path)
+    assert "Unknown field 'foo' in ad update row 1" in result.output
+
+
+def test_ads_update_batch_rejects_non_object_row(tmp_path):
+    path = _write_jsonl(tmp_path, [[1, 2, 3]])
+    result = _rejected("ads", "update", "--from-file", path)
+    assert "Ad update row 1" in result.output
+    assert "expected JSON object" in result.output
+
+
+def test_ads_update_batch_rejects_empty_file(tmp_path):
+    path = tmp_path / "empty.jsonl"
+    path.write_text("\n", encoding="utf-8")
+    result = _rejected("ads", "update", "--from-file", str(path))
+    assert "Input contains no ad rows" in result.output
+
+
+def test_ads_update_batch_rejects_invalid_json(tmp_path):
+    path = tmp_path / "bad.jsonl"
+    path.write_text('{"id":5,"type":"TEXT_AD","title":"T"}\nnope\n', encoding="utf-8")
+    result = _rejected("ads", "update", "--from-file", str(path))
+    assert "Row 2: invalid JSON" in result.output
+
+
+def test_ads_update_batch_rejects_missing_id_in_row(tmp_path):
+    path = _write_jsonl(tmp_path, [{"type": "TEXT_AD", "title": "T"}])
+    result = _rejected("ads", "update", "--from-file", path)
+    assert "Ad update row 1" in result.output
+    assert "missing required 'id'" in result.output
+
+
+def test_ads_update_batch_rejects_missing_type_in_row(tmp_path):
+    path = _write_jsonl(tmp_path, [{"id": 5, "title": "T"}])
+    result = _rejected("ads", "update", "--from-file", path)
+    assert "Ad update row 1" in result.output
+    assert "missing required 'type'" in result.output
+
+
+def test_ads_update_batch_rejects_non_positive_id_in_row(tmp_path):
+    # IntRange(min=1) must apply per row, same as single --id.
+    path = _write_jsonl(tmp_path, [{"id": -5, "type": "TEXT_AD", "title": "T"}])
+    result = _rejected("ads", "update", "--from-file", path)
+    assert "Ad update row 1 field 'id'" in result.output
+    assert "x>=1" in result.output
+
+
+def test_ads_update_batch_rejects_float_id_in_row(tmp_path):
+    # A bare float must be rejected (IntRange), not truncated to an int.
+    path = _write_jsonl(tmp_path, [{"id": 5.9, "type": "TEXT_AD", "title": "T"}])
+    result = _rejected("ads", "update", "--from-file", path)
+    assert "Ad update row 1 field 'id'" in result.output
+
+
+def test_ads_update_batch_coerces_micro_rubles_like_single(tmp_path):
+    # A bare float must be rejected (MICRO_RUBLES is int micro-rubles), exactly
+    # like `--price-extension-price 12.5` in single mode — not forwarded raw.
+    path = _write_jsonl(
+        tmp_path,
+        [
+            {
+                "id": 5,
+                "type": "TEXT_AD",
+                "price-extension-price": 12.5,
+                "price-extension-price-qualifier": "FROM",
+                "price-extension-price-currency": "RUB",
+            }
+        ],
+    )
+    result = _rejected("ads", "update", "--from-file", path)
+    assert "Ad update row 1 field 'price-extension-price'" in result.output
+
+
+def test_ads_update_batch_valid_micro_rubles_passes_through(tmp_path):
+    path = _write_jsonl(
+        tmp_path,
+        [
+            {
+                "id": 5,
+                "type": "TEXT_AD",
+                "price-extension-price": 12500000,
+                "price-extension-price-qualifier": "FROM",
+                "price-extension-price-currency": "RUB",
+            }
+        ],
+    )
+    body = _dry_run("ads", "update", "--from-file", path)
+    ad = body["firstChunk"]["params"]["Ads"][0]
+    assert ad["TextAd"]["PriceExtension"]["Price"] == 12500000
+
+
+def test_ads_update_batch_rejects_incompatible_flag_per_row(tmp_path):
+    # --action is not valid for TEXT_AD; the per-row guard wraps the message.
+    path = _write_jsonl(tmp_path, [{"id": 5, "type": "TEXT_AD", "action": "DOWNLOAD"}])
+    result = _rejected("ads", "update", "--from-file", path)
+    assert "Ad update row 1" in result.output
+
+
+def test_ads_update_batch_rejects_invalid_type_per_row(tmp_path):
+    path = _write_jsonl(tmp_path, [{"id": 5, "type": "NOPE", "title": "T"}])
+    result = _rejected("ads", "update", "--from-file", path)
+    assert "Ad update row 1" in result.output
+    assert "Invalid value for '--type'" in result.output
+
+
+def test_ads_update_batch_rejects_empty_subtype_per_row(tmp_path):
+    path = _write_jsonl(tmp_path, [{"id": 5, "type": "TEXT_AD"}])
+    result = _rejected("ads", "update", "--from-file", path)
+    assert "Ad update row 1" in result.output
+    assert "at least one updatable field" in result.output
+
+
+def test_ads_update_batch_rejects_image_hash_clear_mutex_per_row(tmp_path):
+    path = _write_jsonl(
+        tmp_path,
+        [{"id": 5, "type": "TEXT_AD", "image-hash": "hhh", "clear-image-hash": True}],
+    )
+    result = _rejected("ads", "update", "--from-file", path)
+    assert "Ad update row 1" in result.output
+    assert "clear-image-hash" in result.output
+
+
+def test_ads_update_batch_rejects_non_bool_clear_image_hash(tmp_path):
+    path = _write_jsonl(
+        tmp_path, [{"id": 5, "type": "TEXT_AD", "clear-image-hash": "yes"}]
+    )
+    result = _rejected("ads", "update", "--from-file", path)
+    assert "Ad update row 1 field 'clear-image-hash'" in result.output
+    assert "boolean" in result.output
+
+
+def test_ads_update_batch_rejects_mutex(tmp_path):
+    path = _write_jsonl(tmp_path, [{"id": 5, "type": "TEXT_AD", "title": "T"}])
+    result = _rejected("ads", "update", "--from-file", path, "--ads-json", "[]")
+    assert "mutually exclusive" in result.output
+
+
+def test_ads_update_batch_rejects_single_flag_in_batch(tmp_path):
+    path = _write_jsonl(tmp_path, [{"id": 5, "type": "TEXT_AD", "title": "T"}])
+    result = _rejected("ads", "update", "--from-file", path, "--title", "X")
+    assert "--title supported only with single-item mode" in result.output
+
+
+def test_ads_update_batch_rejects_id_flag_in_batch(tmp_path):
+    path = _write_jsonl(tmp_path, [{"id": 5, "type": "TEXT_AD", "title": "T"}])
+    result = _rejected("ads", "update", "--from-file", path, "--id", "9")
+    assert "--id supported only with single-item mode" in result.output
+
+
+def test_ads_update_single_still_requires_id():
+    result = _rejected("ads", "update", "--type", "TEXT_AD", "--title", "T")
+    assert "Missing option '--id'." in result.output
+
+
+def test_ads_update_batch_rejects_non_scalar_id(tmp_path):
+    path = _write_jsonl(tmp_path, [{"id": [5], "type": "TEXT_AD", "title": "T"}])
+    result = _rejected("ads", "update", "--from-file", path)
+    assert "Ad update row 1 field 'id'" in result.output
+    assert "expected a scalar" in result.output
+
+
+# --- adgroups add batch (issue #564) ---
+
+
+def test_adgroups_add_batch_from_jsonl(tmp_path):
+    rows = [
+        {"name": "G1", "campaign-id": 11, "region-ids": "225", "type": "TEXT_AD_GROUP"},
+        {
+            "name": "G2",
+            "campaign-id": 22,
+            "region-ids": "225,1",
+            "type": "DYNAMIC_TEXT_AD_GROUP",
+            "domain-url": "https://e.example",
+        },
+    ]
+    path = _write_jsonl(tmp_path, rows)
+    body = _dry_run("adgroups", "add", "--from-file", path)
+    assert body["chunks"] == 1
+    assert body["totalItems"] == 2
+    assert body["chunkSize"] == 100
+    assert body["firstChunk"]["method"] == "add"
+    groups = body["firstChunk"]["params"]["AdGroups"]
+    # Row -> build_adgroup_object yields the same object as the single path.
+    assert groups[0] == {"Name": "G1", "CampaignId": 11, "RegionIds": [225]}
+    assert groups[1] == {
+        "Name": "G2",
+        "CampaignId": 22,
+        "RegionIds": [225, 1],
+        "DynamicTextAdGroup": {"DomainUrl": "https://e.example"},
+    }
+
+
+def test_adgroups_add_batch_inline():
+    arr = json.dumps(
+        [{"name": "G", "campaign-id": 1, "region-ids": "225", "type": "TEXT_AD_GROUP"}]
+    )
+    body = _dry_run("adgroups", "add", "--adgroups-json", arr)
+    assert body["totalItems"] == 1
+    assert body["firstChunk"]["params"]["AdGroups"][0] == {
+        "Name": "G",
+        "CampaignId": 1,
+        "RegionIds": [225],
+    }
+
+
+def test_adgroups_add_batch_chunks_at_100(tmp_path):
+    rows = [
+        {"name": f"G{i}", "campaign-id": 1, "region-ids": "225"} for i in range(250)
+    ]
+    path = _write_jsonl(tmp_path, rows)
+    body = _dry_run("adgroups", "add", "--from-file", path)
+    assert body["chunks"] == 3
+    assert body["totalItems"] == 250
+    assert len(body["firstChunk"]["params"]["AdGroups"]) == 100
+
+
+def test_adgroups_add_batch_campaign_default_and_override(tmp_path):
+    rows = [
+        {"name": "G1", "region-ids": "225"},
+        {"name": "G2", "campaign-id": 999, "region-ids": "225"},
+    ]
+    path = _write_jsonl(tmp_path, rows)
+    body = _dry_run("adgroups", "add", "--campaign-id", "5", "--from-file", path)
+    groups = body["firstChunk"]["params"]["AdGroups"]
+    assert groups[0]["CampaignId"] == 5
+    assert groups[1]["CampaignId"] == 999
+
+
+def test_adgroups_add_batch_unified_routing_note(tmp_path):
+    # A UnifiedAdGroup row still builds correctly in batch mode; the real send
+    # would route via _post_adgroups (v501), but dry-run only previews the body.
+    rows = [
+        {
+            "name": "U",
+            "campaign-id": 1,
+            "region-ids": "225",
+            "type": "UNIFIED_AD_GROUP",
+            "offer-retargeting": "YES",
+        }
+    ]
+    path = _write_jsonl(tmp_path, rows)
+    body = _dry_run("adgroups", "add", "--from-file", path)
+    assert body["firstChunk"]["params"]["AdGroups"][0]["UnifiedAdGroup"] == {
+        "OfferRetargeting": "YES"
+    }
+
+
+def test_adgroups_add_batch_rejects_mixed_unified_and_non_unified(tmp_path):
+    # _post_adgroups routes the WHOLE body to v501 if any item is unified, so a
+    # mix would send non-unified groups to the wrong endpoint. Refuse it.
+    rows = [
+        {"name": "T", "campaign-id": 1, "region-ids": "225", "type": "TEXT_AD_GROUP"},
+        {
+            "name": "U",
+            "campaign-id": 1,
+            "region-ids": "225",
+            "type": "UNIFIED_AD_GROUP",
+            "offer-retargeting": "YES",
+        },
+    ]
+    path = _write_jsonl(tmp_path, rows)
+    result = _rejected("adgroups", "add", "--from-file", path)
+    assert "may not mix UNIFIED_AD_GROUP" in result.output
+
+
+def test_adgroups_add_batch_all_unified_is_allowed(tmp_path):
+    # An all-unified batch is fine — the whole body routes to v501 correctly.
+    rows = [
+        {
+            "name": f"U{i}",
+            "campaign-id": 1,
+            "region-ids": "225",
+            "type": "UNIFIED_AD_GROUP",
+            "offer-retargeting": "YES",
+        }
+        for i in range(2)
+    ]
+    path = _write_jsonl(tmp_path, rows)
+    body = _dry_run("adgroups", "add", "--from-file", path)
+    groups = body["firstChunk"]["params"]["AdGroups"]
+    assert all("UnifiedAdGroup" in g for g in groups)
+
+
+def test_adgroups_add_batch_rejects_unknown_field(tmp_path):
+    path = _write_jsonl(tmp_path, [{"name": "G", "campaign-id": 1, "foo": "bar"}])
+    result = _rejected("adgroups", "add", "--from-file", path)
+    assert "Unknown field 'foo' in ad group row 1" in result.output
+
+
+def test_adgroups_add_batch_rejects_non_object_row(tmp_path):
+    path = _write_jsonl(tmp_path, [[1, 2, 3]])
+    result = _rejected("adgroups", "add", "--from-file", path)
+    assert "Ad group row 1" in result.output
+    assert "expected JSON object" in result.output
+
+
+def test_adgroups_add_batch_rejects_empty_file(tmp_path):
+    path = tmp_path / "empty.jsonl"
+    path.write_text("\n", encoding="utf-8")
+    result = _rejected("adgroups", "add", "--from-file", str(path))
+    assert "Input contains no ad group rows" in result.output
+
+
+def test_adgroups_add_batch_rejects_invalid_json(tmp_path):
+    path = tmp_path / "bad.jsonl"
+    path.write_text(
+        '{"name":"G","campaign-id":1,"region-ids":"225"}\nnope\n', encoding="utf-8"
+    )
+    result = _rejected("adgroups", "add", "--from-file", str(path))
+    assert "Row 2: invalid JSON" in result.output
+
+
+def test_adgroups_add_batch_rejects_missing_name_in_row(tmp_path):
+    path = _write_jsonl(tmp_path, [{"campaign-id": 1, "region-ids": "225"}])
+    result = _rejected("adgroups", "add", "--from-file", path)
+    assert "Ad group row 1" in result.output
+    assert "missing required 'name'" in result.output
+
+
+def test_adgroups_add_batch_rejects_missing_campaign_in_row(tmp_path):
+    path = _write_jsonl(tmp_path, [{"name": "G", "region-ids": "225"}])
+    result = _rejected("adgroups", "add", "--from-file", path)
+    assert "Ad group row 1" in result.output
+    assert "missing 'campaign-id'" in result.output
+
+
+def test_adgroups_add_batch_rejects_missing_region_ids_in_row(tmp_path):
+    # RegionIds is WSDL minOccurs=1; single mode requires --region-ids, so the
+    # batch row must require it too (else a malformed body reaches the live API).
+    path = _write_jsonl(tmp_path, [{"name": "G", "campaign-id": 1}])
+    result = _rejected("adgroups", "add", "--from-file", path)
+    assert "Ad group row 1" in result.output
+    assert "missing required 'region-ids'" in result.output
+
+
+def test_adgroups_add_batch_rejects_incompatible_flag_per_row(tmp_path):
+    # --domain-url is not valid for TEXT_AD_GROUP; per-row guard wraps it.
+    path = _write_jsonl(
+        tmp_path,
+        [
+            {
+                "name": "G",
+                "campaign-id": 1,
+                "region-ids": "225",
+                "type": "TEXT_AD_GROUP",
+                "domain-url": "https://e.example",
+            }
+        ],
+    )
+    result = _rejected("adgroups", "add", "--from-file", path)
+    assert "Ad group row 1" in result.output
+
+
+def test_adgroups_add_batch_rejects_invalid_type_per_row(tmp_path):
+    path = _write_jsonl(
+        tmp_path, [{"name": "G", "campaign-id": 1, "region-ids": "225", "type": "NOPE"}]
+    )
+    result = _rejected("adgroups", "add", "--from-file", path)
+    assert "Ad group row 1" in result.output
+    assert "Invalid value for '--type'" in result.output
+
+
+def test_adgroups_add_batch_rejects_missing_required_subtype_field_per_row(tmp_path):
+    # SMART_AD_GROUP requires --feed-id; the per-row guard wraps the message.
+    path = _write_jsonl(
+        tmp_path,
+        [
+            {
+                "name": "G",
+                "campaign-id": 1,
+                "region-ids": "225",
+                "type": "SMART_AD_GROUP",
+            }
+        ],
+    )
+    result = _rejected("adgroups", "add", "--from-file", path)
+    assert "Ad group row 1" in result.output
+    assert "feed-id" in result.output
+
+
+def test_adgroups_add_batch_rejects_non_positive_campaign_id_in_row(tmp_path):
+    # IntRange(min=1) must apply per row, same as single --campaign-id.
+    path = _write_jsonl(
+        tmp_path, [{"name": "G", "campaign-id": -5, "region-ids": "225"}]
+    )
+    result = _rejected("adgroups", "add", "--from-file", path)
+    assert "Ad group row 1 field 'campaign-id'" in result.output
+    assert "x>=1" in result.output
+
+
+def test_adgroups_add_batch_rejects_float_campaign_id_in_row(tmp_path):
+    path = _write_jsonl(
+        tmp_path, [{"name": "G", "campaign-id": 5.9, "region-ids": "225"}]
+    )
+    result = _rejected("adgroups", "add", "--from-file", path)
+    assert "Ad group row 1 field 'campaign-id'" in result.output
+
+
+def test_adgroups_add_batch_rejects_non_scalar_field(tmp_path):
+    path = _write_jsonl(
+        tmp_path, [{"name": "G", "campaign-id": [1], "region-ids": "225"}]
+    )
+    result = _rejected("adgroups", "add", "--from-file", path)
+    assert "Ad group row 1 field 'campaign-id'" in result.output
+    assert "expected a scalar" in result.output
+
+
+def test_adgroups_add_batch_rejects_non_list_multi_value(tmp_path):
+    path = _write_jsonl(
+        tmp_path,
+        [
+            {
+                "name": "G",
+                "campaign-id": 1,
+                "region-ids": "225",
+                "type": "DYNAMIC_TEXT_AD_GROUP",
+                "domain-url": "https://e.example",
+                "autotargeting-category": 5,
+            }
+        ],
+    )
+    result = _rejected("adgroups", "add", "--from-file", path)
+    assert "Ad group row 1 field 'autotargeting-category'" in result.output
+    assert "array of strings" in result.output
+
+
+def test_adgroups_add_batch_stringifies_scalar_string_field(tmp_path):
+    # A JSON int for the string --name field becomes "123" (CLI-token parity).
+    path = _write_jsonl(
+        tmp_path, [{"name": 123, "campaign-id": 1, "region-ids": "225"}]
+    )
+    body = _dry_run("adgroups", "add", "--from-file", path)
+    assert body["firstChunk"]["params"]["AdGroups"][0]["Name"] == "123"
+
+
+def test_adgroups_add_batch_rejects_mutex(tmp_path):
+    path = _write_jsonl(
+        tmp_path, [{"name": "G", "campaign-id": 1, "region-ids": "225"}]
+    )
+    result = _rejected("adgroups", "add", "--from-file", path, "--adgroups-json", "[]")
+    assert "mutually exclusive" in result.output
+
+
+def test_adgroups_add_batch_rejects_single_flag_in_batch(tmp_path):
+    path = _write_jsonl(
+        tmp_path, [{"name": "G", "campaign-id": 1, "region-ids": "225"}]
+    )
+    result = _rejected("adgroups", "add", "--from-file", path, "--name", "X")
+    assert "--name supported only with single-item mode" in result.output
+
+
+def test_adgroups_add_single_still_requires_name():
+    result = _rejected("adgroups", "add", "--campaign-id", "1", "--region-ids", "225")
+    assert "Missing option '--name'." in result.output
+
+
+def test_adgroups_add_single_still_requires_region_ids():
+    result = _rejected("adgroups", "add", "--name", "G", "--campaign-id", "1")
+    assert "Missing option '--region-ids'." in result.output
+
+
 # --- adgroups update batch (issue #565) ---
 
 
