@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import time
@@ -32,6 +33,10 @@ from pathlib import Path
 
 RESULTS_PATH = Path(__file__).parent / "_criteria_limits_results.json"
 SLEEP_BETWEEN_CALLS = 1.0
+# Operator's `direct auth` profile to drive the sandbox from. Override via
+# YANDEX_DIRECT_MEASURE_PROFILE if the operator has no profile literally named
+# "default" (else `direct` errors out before the first probe).
+SANDBOX_PROFILE = os.environ.get("YANDEX_DIRECT_MEASURE_PROFILE", "default")
 
 # (command, flag, criteria_key). Order: cheapest first.
 TARGETS = [
@@ -88,7 +93,7 @@ def call_api(cmd: str, flag: str, n: int) -> tuple[bool, str]:
             "direct",
             "--sandbox",
             "--profile",
-            "default",
+            SANDBOX_PROFILE,
             cmd,
             "get",
             f"--{flag}",
