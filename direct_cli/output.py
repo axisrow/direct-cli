@@ -86,6 +86,13 @@ def raise_for_api_result_errors(data: Any) -> None:
             "archived/unarchived, not deleted or sent to moderation."
         )
 
+    if any(_error_mentions_adimagehash(error) for error in result_errors):
+        lines.append(
+            "Code 5005 on AdImageHash: a server-side carousel image cannot be "
+            "cleared via the API — only in the Direct web interface. Workaround: "
+            "replace it with a single image via --image-hash <hash>."
+        )
+
     raise DirectAPIResultError("\n".join(lines))
 
 
@@ -122,6 +129,17 @@ def _format_api_result_error(error: dict) -> str:
     if code is not None:
         return f"Error {code}"
     return f"Error: {format_json(error, indent=0)}"
+
+
+def _error_mentions_adimagehash(error: dict) -> bool:
+    # Code 5005 ("Field set incorrectly") is generic, so the AdImageHash hint
+    # must only fire when the error actually names that field — otherwise it
+    # would mis-attach to any 5005. The live envelope reports it as
+    # ``adImageHash=<[<null>]>`` in Details.
+    if _error_code(error) != 5005:
+        return False
+    blob = f"{error.get('Message', '')} {error.get('Details', '')}".lower()
+    return "adimagehash" in blob
 
 
 def _error_code(error: dict) -> Optional[int]:
