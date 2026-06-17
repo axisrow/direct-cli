@@ -14,11 +14,13 @@ from ._lifecycle import make_lifecycle_command
 from ..utils import (
     add_criteria_csv,
     build_common_params,
+    enforce_criteria_array_limits,
     get_default_fields,
     parse_csv_strings,
     parse_ids,
     parse_nested_field_names,
 )
+
 from .._autotargeting import (
     AUTOTARGETING_CATEGORIES,
     build_autotargeting_settings,
@@ -27,6 +29,14 @@ from .._autotargeting import (
     reject_legacy_autotargeting_mix,
 )
 from .._flag_validation import reject_incompatible_flags
+
+# Yandex Direct adgroups.get caps SelectionCriteria arrays at runtime (the WSDL
+# declares them maxOccurs="unbounded"). Live measurement 2026-06-17 via sandbox:
+# --campaign-ids ×11 → 4001 "Exceed the maximum number of IDs per array
+# SelectionCriteria.CampaignIds"; --negative-keyword-shared-set-ids ×11 (with
+# anchor --campaign-ids 1) → 4001 ".NegativeKeywordSharedSetIds". Ids and TagIds
+# accepted at N=10000.
+ADGROUPS_GET_CRITERIA_LIMITS = {"CampaignIds": 10, "NegativeKeywordSharedSetIds": 10}
 
 _TRACKING_PARAMS_MAX_LENGTH = 1024
 _SUPPORTED_ADGROUP_TYPES = (
@@ -349,7 +359,7 @@ def _provided_flags(provided_flags: dict[str, object]) -> list[str]:
 
 
 def _reject_mixed_update_subtype_flags(
-    subtype_flags: dict[str, dict[str, object]],
+    subtype_flags: dict[str, dict[str, Any]],
 ) -> None:
     """Reject update payloads that would target multiple ad group subtypes."""
     provided_by_subtype = [
@@ -555,7 +565,7 @@ def get(
     )
     parsed_nested = parse_nested_field_names(raw_nested)
 
-    criteria = {}
+    criteria: dict[str, Any] = {}
     if ids:
         criteria["Ids"] = parse_ids(ids)
     if campaign_ids:
@@ -573,6 +583,10 @@ def get(
         "NegativeKeywordSharedSetIds",
         negative_keyword_shared_set_ids,
         integers=True,
+    )
+
+    enforce_criteria_array_limits(
+        criteria, ADGROUPS_GET_CRITERIA_LIMITS, command_name="adgroups get"
     )
 
     if not criteria:
@@ -1485,7 +1499,9 @@ def build_adgroup_update_object(*, adgroup_id, flags):
         "--domain-url": domain_url,
         **autotargeting_settings_flags,
     }
-    dynamic_feed_flags = {"--dynamic-feed": True if dynamic_feed else None}
+    dynamic_feed_flags: dict[str, Any] = {
+        "--dynamic-feed": True if dynamic_feed else None
+    }
     if dynamic_feed:
         dynamic_feed_flags["--autotargeting-category"] = autotargeting_categories
     else:

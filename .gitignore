@@ -56,3 +56,6 @@ Thumbs.db
 *.log
 *.bak
 *.orig
+
+# Local measurement artifacts (regenerated via scripts/measure_criteria_limits.py)
+scripts/_criteria_limits_results.json

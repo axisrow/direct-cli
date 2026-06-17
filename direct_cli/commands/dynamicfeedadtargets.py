@@ -2,6 +2,8 @@
 DynamicFeedAdTargets commands
 """
 
+from typing import Any
+
 import click
 
 from ..api import client_from_ctx, create_client
@@ -11,6 +13,7 @@ from ._lifecycle import make_lifecycle_command
 from ..utils import (
     MICRO_RUBLES,
     build_common_params,
+    enforce_criteria_array_limits,
     get_default_fields,
     get_options,
     parse_condition_specs,
@@ -18,6 +21,14 @@ from ..utils import (
     parse_csv_upper,
     parse_ids,
 )
+
+# Yandex Direct dynamicfeedadtargets.get caps SelectionCriteria arrays at
+# runtime (the WSDL declares them maxOccurs="unbounded"). Live measurement
+# 2026-06-17 via sandbox: --campaign-ids ×3 → 4001 "Exceed the maximum number
+# of IDs per array SelectionCriteria.CampaignIds" (N=2 accepted, matches
+# dynamicads/smartadtargets); --adgroup-ids ×10001 → 4001 ".AdGroupIds"
+# (N=1000 accepted). Ids accepted at N=10000.
+DYNAMICFEEDADTARGETS_GET_CRITERIA_LIMITS = {"CampaignIds": 2, "AdGroupIds": 1000}
 
 
 @click.group()
@@ -53,7 +64,7 @@ def get(
         "dynamicfeedadtargets"
     )
 
-    criteria = {}
+    criteria: dict[str, Any] = {}
     if ids:
         criteria["Ids"] = parse_ids(ids)
     if adgroup_ids:
@@ -62,6 +73,12 @@ def get(
         criteria["CampaignIds"] = parse_ids(campaign_ids)
     if states:
         criteria["States"] = parse_csv_upper(states) or []
+
+    enforce_criteria_array_limits(
+        criteria,
+        DYNAMICFEEDADTARGETS_GET_CRITERIA_LIMITS,
+        command_name="dynamicfeedadtargets get",
+    )
 
     if not criteria:
         raise click.UsageError(t("Provide at least one typed filter"))

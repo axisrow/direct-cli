@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+**Features — preflight `SelectionCriteria` array caps on remaining read-get commands (#571):**
+
+- `ads`, `adgroups`, `bids`, `bidmodifiers`, `campaigns`, `keywords`,
+  `dynamicfeedadtargets`, `audiencetargets` `get` now reject over-long
+  `SelectionCriteria` arrays before the request and surface the array name and
+  ceiling instead of the opaque API `error_code=4001`. Extends the
+  `enforce_criteria_array_limits` discipline added in #555 to the rest of the
+  read-get surface. Per-filter caps were measured live against the Yandex Direct
+  sandbox on 2026-06-17 (see `scripts/measure_criteria_limits.py` and the
+  `*_GET_CRITERIA_LIMITS` constant in each command module for the exact
+  transcript).
+- Closes a downstream consistency gap: the MCP plugin
+  (`axisrow/yandex-direct-mcp-plugin#201`) can now drop its own batch-size
+  guard and forward the CLI error.
+
 ## 0.4.3
 
 **Fixes — known limitation: clearing a carousel AdImageHash (#574):**

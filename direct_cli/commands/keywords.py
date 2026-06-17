@@ -16,10 +16,12 @@ from ..utils import (
     MICRO_RUBLES,
     add_criteria_csv,
     build_common_params,
+    enforce_criteria_array_limits,
     get_default_fields,
     parse_csv_strings,
     parse_ids,
 )
+
 from .._autotargeting import (
     AUTOTARGETING_BRAND_OPTIONS,
     AUTOTARGETING_CATEGORIES,
@@ -30,6 +32,13 @@ from .._autotargeting import (
 )
 from ._lifecycle import make_lifecycle_command
 from . import _batch
+
+# Yandex Direct keywords.get caps SelectionCriteria arrays at runtime
+# (the WSDL declares them maxOccurs="unbounded"). Live measurement 2026-06-17
+# via sandbox: --campaign-ids ×11 → 4001 "Exceed the maximum number of IDs per
+# array SelectionCriteria.CampaignIds"; --adgroup-ids ×10001 → 4001 ".AdGroupIds"
+# (N=1000 accepted). Ids accepted at N=10000.
+KEYWORDS_GET_CRITERIA_LIMITS = {"CampaignIds": 10, "AdGroupIds": 1000}
 
 # Chunk size for batch `keywords add`: items from --from-file / --keywords-json
 # are split into chunks of this size and sent in a loop. This is a conservative
@@ -292,7 +301,7 @@ def get(
             )
         )
 
-    criteria = {}
+    criteria: dict[str, Any] = {}
     if ids:
         criteria["Ids"] = parse_ids(ids)
     if adgroup_ids:
@@ -306,6 +315,10 @@ def get(
     if modified_since:
         criteria["ModifiedSince"] = modified_since
     add_criteria_csv(criteria, "ServingStatuses", serving_statuses, upper=True)
+
+    enforce_criteria_array_limits(
+        criteria, KEYWORDS_GET_CRITERIA_LIMITS, command_name="keywords get"
+    )
 
     if not criteria:
         raise click.UsageError(t("Provide at least one typed filter"))
