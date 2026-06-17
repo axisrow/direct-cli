@@ -24691,6 +24691,14 @@ def test_adgroups_add_single_rejects_comma_only_region_ids():
     assert "--region-ids must not be empty." in result.output
 
 
+def test_adgroups_add_single_rejects_multi_blank_segment_region_ids():
+    # ", ," -> several blank segments, none with a real token: still empty.
+    result = _rejected(
+        "adgroups", "add", "--name", "G", "--campaign-id", "1", "--region-ids", ", ,"
+    )
+    assert "--region-ids must not be empty." in result.output
+
+
 def test_adgroups_add_single_rejects_empty_negative_keyword_shared_set_ids():
     result = _rejected(
         "adgroups",
