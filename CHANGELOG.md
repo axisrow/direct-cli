@@ -2,6 +2,21 @@
 
 ## 0.4.3
 
+**Fixes — known limitation: clearing a carousel AdImageHash (#574):**
+
+- `ads update --clear-image-hash` builds a valid scalar `AdImageHash: null`
+  (visible in `--dry-run`), but the live v5 API can reject it with `Error 5005`
+  (`adImageHash=<[<null>]>`). Root cause: the ad carries a **server-side
+  carousel image structure** that the documented `Ads.update` API does not
+  expose — `TextAd` has only a single `AdImageHash` (no `Carousel` field exists
+  anywhere in the v5 WSDL). Such a carousel image cannot be cleared through the
+  API; it can only be removed in the Direct web interface. The CLI now surfaces
+  a readable hint on `5005`/`AdImageHash` (explaining the carousel cause and the
+  workaround) instead of the opaque error. The request payload is unchanged —
+  the scalar null the CLI sends is correct; the rejection is the server's.
+  Workaround: replace the image with a single `--image-hash <other>`, which the
+  API accepts even on an active ad.
+
 **Features — batch `ads add` via `--from-file` / `--ads-json` (#562, #558 follow-up):**
 
 - `ads add` now accepts a batch of flag-form ad rows from a JSONL file

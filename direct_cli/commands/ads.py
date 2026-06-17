@@ -2755,7 +2755,11 @@ def add(
     help=(
         "Set AdImageHash to null to remove the image (TEXT_AD / DYNAMIC_TEXT_AD / "
         "MOBILE_APP_AD). Not available for TEXT_IMAGE_AD / MOBILE_APP_IMAGE_AD: "
-        "their AdImageHash is not nillable and the API rejects null."
+        "their AdImageHash is not nillable and the API rejects null. "
+        "Note: if the ad has a server-side carousel image, Yandex rejects the "
+        "reset with Error 5005 (carousel images are not exposed by Ads.update "
+        "and can only be removed in the Direct web interface); replace it with a "
+        "different --image-hash instead."
     ),
 )
 @click.option(

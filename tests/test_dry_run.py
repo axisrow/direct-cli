@@ -23357,6 +23357,55 @@ def test_raise_for_api_result_errors_8300_hint_has_no_url_literal():
     assert "https://" not in str(exc.value)
 
 
+# --- Error 5005 / AdImageHash hint (issue #574), mirror of the 8300 hint ---
+# Yandex rejects clearing a server-side carousel image (live envelope:
+# adImageHash=<[<null>]>); surface a readable hint + workaround instead.
+
+
+def test_raise_for_api_result_errors_adds_5005_adimagehash_hint():
+    from direct_cli.output import raise_for_api_result_errors, DirectAPIResultError
+
+    data = {
+        "Errors": [
+            {
+                "Code": 5005,
+                "Message": "Field set incorrectly",
+                "Details": "adImageHash=<[<null>]>",
+            }
+        ]
+    }
+    with pytest.raises(DirectAPIResultError) as exc:
+        raise_for_api_result_errors(data)
+    msg = str(exc.value)
+    assert "AdImageHash" in msg
+    assert "--image-hash" in msg
+
+
+def test_raise_for_api_result_errors_5005_hint_only_when_adimagehash_present():
+    # 5005 is the generic "Field set incorrectly"; the AdImageHash hint must not
+    # fire for an unrelated field.
+    from direct_cli.output import raise_for_api_result_errors, DirectAPIResultError
+
+    data = {
+        "Errors": [
+            {"Code": 5005, "Message": "Field set incorrectly", "Details": "Title=..."}
+        ]
+    }
+    with pytest.raises(DirectAPIResultError) as exc:
+        raise_for_api_result_errors(data)
+    assert "--image-hash" not in str(exc.value)
+
+
+def test_raise_for_api_result_errors_5005_hint_has_no_url_literal():
+    # CLAUDE.md: no URL literals outside the registry. The hint must not embed one.
+    from direct_cli.output import raise_for_api_result_errors, DirectAPIResultError
+
+    data = {"Errors": [{"Code": 5005, "Details": "adImageHash=<[<null>]>"}]}
+    with pytest.raises(DirectAPIResultError) as exc:
+        raise_for_api_result_errors(data)
+    assert "https://" not in str(exc.value)
+
+
 # --- Positive-ID preflight (issue #558) ---
 # Mutating commands and lifecycle ops take a single int id; type=int accepted
 # 0 and negatives. IntRange(min=1) rejects them with exit 2 before any request.
