@@ -82,6 +82,7 @@
   "Missing option '--name'.": "Отсутствует параметр '--name'.",
   "Missing option '--campaign-id'.": "Отсутствует параметр '--campaign-id'.",
   "Missing option '--region-ids'.": "Отсутствует параметр '--region-ids'.",
+  "{option_name} must not be empty.": "{option_name} не должен быть пустым.",
   "Input contains no ad group rows.": "Во входных данных нет строк групп объявлений.",
   "Ad group row {row_index}: expected JSON object, got {arg0}": "Группа объявлений, строка {row_index}: ожидался JSON-объект, получено {arg0}",
   "Unknown field {arg0!r} in ad group row {row_index}; allowed: {allowed}": "Неизвестное поле {arg0!r} в строке группы объявлений {row_index}; допустимо: {allowed}",

@@ -128,6 +128,31 @@ def _parse_ids_option(value: Optional[str], option_name: str) -> Optional[list[i
         ) from exc
 
 
+def _require_nonempty_ids_option(
+    value: Optional[str], option_name: str
+) -> Optional[list[int]]:
+    """Parse CSV IDs; reject an explicitly-provided empty/whitespace value.
+
+    ``None`` means the option was omitted -> return ``None`` (the caller decides
+    whether the field is required). A provided-but-empty string (``""``,
+    whitespace, or bare ``","``) is a user error, not an omission: silently
+    dropping it would build a body without the field (issue #570) -- for
+    ``RegionIds`` that strips a WSDL ``minOccurs=1`` field. Raise ``UsageError``
+    instead so the mistake surfaces locally rather than at the live API.
+    """
+    if value is None:
+        return None
+    # An all-blank value ("", "   ", ",", ", ,") carries no real ID. Left to
+    # _parse_ids_option it would either vanish ("" -> parse_ids None) or report a
+    # confusing "Invalid ID: ''" (int("") on a blank segment). Collapse every
+    # all-blank form into one clear empty-value error instead.
+    if not any(part.strip() for part in value.split(",")):
+        raise click.UsageError(
+            t("{option_name} must not be empty.").format(option_name=option_name)
+        )
+    return _parse_ids_option(value, option_name)  # reuses bad-int UsageError
+
+
 def _parse_enum_value(
     value: Optional[str], option_name: str, allowed_values: tuple[str, ...]
 ) -> Optional[str]:
@@ -298,7 +323,7 @@ def _build_text_adgroup_feed_params(
     feed_category_ids: Optional[str],
 ) -> Optional[dict[str, object]]:
     """Build TextAdGroupFeedParams from typed feed flags."""
-    parsed_feed_category_ids = _parse_ids_option(
+    parsed_feed_category_ids = _require_nonempty_ids_option(
         feed_category_ids,
         "--feed-category-ids",
     )
@@ -725,12 +750,13 @@ def build_adgroup_object(*, campaign_id, name, group_type, flags):
 
     adgroup_data = {"Name": name, "CampaignId": campaign_id}
 
-    if region_ids:
-        adgroup_data["RegionIds"] = _parse_ids_option(region_ids, "--region-ids")
+    parsed_region_ids = _require_nonempty_ids_option(region_ids, "--region-ids")
+    if parsed_region_ids is not None:
+        adgroup_data["RegionIds"] = parsed_region_ids
     parsed_negative_keywords = parse_csv_strings(negative_keywords)
     if parsed_negative_keywords:
         adgroup_data["NegativeKeywords"] = {"Items": parsed_negative_keywords}
-    parsed_negative_keyword_shared_set_ids = _parse_ids_option(
+    parsed_negative_keyword_shared_set_ids = _require_nonempty_ids_option(
         negative_keyword_shared_set_ids,
         "--negative-keyword-shared-set-ids",
     )
@@ -1495,12 +1521,13 @@ def build_adgroup_update_object(*, adgroup_id, flags):
 
     if status:
         adgroup_data["Status"] = status
-    if region_ids:
-        adgroup_data["RegionIds"] = _parse_ids_option(region_ids, "--region-ids")
+    parsed_region_ids = _require_nonempty_ids_option(region_ids, "--region-ids")
+    if parsed_region_ids is not None:
+        adgroup_data["RegionIds"] = parsed_region_ids
     parsed_negative_keywords = parse_csv_strings(negative_keywords)
     if parsed_negative_keywords:
         adgroup_data["NegativeKeywords"] = {"Items": parsed_negative_keywords}
-    parsed_negative_keyword_shared_set_ids = _parse_ids_option(
+    parsed_negative_keyword_shared_set_ids = _require_nonempty_ids_option(
         negative_keyword_shared_set_ids, "--negative-keyword-shared-set-ids"
     )
     if parsed_negative_keyword_shared_set_ids:

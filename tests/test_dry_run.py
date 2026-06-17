@@ -24656,3 +24656,186 @@ def test_adgroups_update_batch_rejects_id_flag_in_batch(tmp_path):
 def test_adgroups_update_single_still_requires_id():
     result = _rejected("adgroups", "update", "--name", "X")
     assert "Missing option '--id'." in result.output
+
+
+# --- empty-string CSV-ID flags rejected, not silently dropped (issue #570) ---
+#
+# parse_ids("") returns None, so the old `if region_ids:` guards treated a
+# provided-but-empty value identically to an omitted option and built a body
+# without the field. For RegionIds (add: WSDL minOccurs=1) that strips a
+# required field. _require_nonempty_ids_option now distinguishes None (omitted)
+# from "" / whitespace / "," (provided-but-empty -> UsageError). Same fix covers
+# --region-ids, --negative-keyword-shared-set-ids and --feed-category-ids across
+# single + batch, for both add and update.
+
+
+def test_adgroups_add_single_rejects_empty_region_ids():
+    result = _rejected(
+        "adgroups", "add", "--name", "G", "--campaign-id", "1", "--region-ids", ""
+    )
+    assert "--region-ids must not be empty." in result.output
+
+
+def test_adgroups_add_single_rejects_whitespace_region_ids():
+    result = _rejected(
+        "adgroups", "add", "--name", "G", "--campaign-id", "1", "--region-ids", "  "
+    )
+    assert "--region-ids must not be empty." in result.output
+
+
+def test_adgroups_add_single_rejects_comma_only_region_ids():
+    # parse_ids("") via "," split also collapses to empty -> same rejection.
+    result = _rejected(
+        "adgroups", "add", "--name", "G", "--campaign-id", "1", "--region-ids", ","
+    )
+    assert "--region-ids must not be empty." in result.output
+
+
+def test_adgroups_add_single_rejects_empty_negative_keyword_shared_set_ids():
+    result = _rejected(
+        "adgroups",
+        "add",
+        "--name",
+        "G",
+        "--campaign-id",
+        "1",
+        "--region-ids",
+        "225",
+        "--negative-keyword-shared-set-ids",
+        "",
+    )
+    assert "--negative-keyword-shared-set-ids must not be empty." in result.output
+
+
+def test_adgroups_add_single_rejects_empty_feed_category_ids():
+    # --feed-id present so the empty-feed-category check is what fires (not the
+    # "--feed-id is required" guard).
+    result = _rejected(
+        "adgroups",
+        "add",
+        "--name",
+        "G",
+        "--campaign-id",
+        "1",
+        "--region-ids",
+        "225",
+        "--type",
+        "TEXT_AD_GROUP",
+        "--feed-id",
+        "7",
+        "--feed-category-ids",
+        "",
+    )
+    assert "--feed-category-ids must not be empty." in result.output
+
+
+def test_adgroups_update_single_rejects_empty_region_ids():
+    # Pair with a valid --name so the empty-payload guard does not fire first.
+    result = _rejected(
+        "adgroups", "update", "--id", "5", "--name", "X", "--region-ids", ""
+    )
+    assert "--region-ids must not be empty." in result.output
+
+
+def test_adgroups_update_single_rejects_empty_negative_keyword_shared_set_ids():
+    result = _rejected(
+        "adgroups",
+        "update",
+        "--id",
+        "5",
+        "--name",
+        "X",
+        "--negative-keyword-shared-set-ids",
+        "",
+    )
+    assert "--negative-keyword-shared-set-ids must not be empty." in result.output
+
+
+def test_adgroups_update_single_rejects_empty_feed_category_ids():
+    result = _rejected(
+        "adgroups", "update", "--id", "5", "--feed-id", "7", "--feed-category-ids", ""
+    )
+    assert "--feed-category-ids must not be empty." in result.output
+
+
+def test_adgroups_add_batch_rejects_empty_region_ids_in_row(tmp_path):
+    path = _write_jsonl(tmp_path, [{"name": "G", "campaign-id": 1, "region-ids": ""}])
+    result = _rejected("adgroups", "add", "--from-file", path)
+    assert "Ad group row 1" in result.output
+    assert "--region-ids must not be empty." in result.output
+
+
+def test_adgroups_add_batch_rejects_empty_negative_keyword_shared_set_ids_in_row(
+    tmp_path,
+):
+    path = _write_jsonl(
+        tmp_path,
+        [
+            {
+                "name": "G",
+                "campaign-id": 1,
+                "region-ids": "225",
+                "negative-keyword-shared-set-ids": "",
+            }
+        ],
+    )
+    result = _rejected("adgroups", "add", "--from-file", path)
+    assert "Ad group row 1" in result.output
+    assert "--negative-keyword-shared-set-ids must not be empty." in result.output
+
+
+def test_adgroups_add_batch_rejects_empty_feed_category_ids_in_row(tmp_path):
+    path = _write_jsonl(
+        tmp_path,
+        [
+            {
+                "name": "G",
+                "campaign-id": 1,
+                "region-ids": "225",
+                "type": "TEXT_AD_GROUP",
+                "feed-id": 7,
+                "feed-category-ids": "",
+            }
+        ],
+    )
+    result = _rejected("adgroups", "add", "--from-file", path)
+    assert "Ad group row 1" in result.output
+    assert "--feed-category-ids must not be empty." in result.output
+
+
+def test_adgroups_update_batch_rejects_empty_region_ids_in_row(tmp_path):
+    path = _write_jsonl(tmp_path, [{"id": 5, "name": "X", "region-ids": ""}])
+    result = _rejected("adgroups", "update", "--from-file", path)
+    assert "Ad group update row 1" in result.output
+    assert "--region-ids must not be empty." in result.output
+
+
+def test_adgroups_update_batch_rejects_empty_negative_keyword_shared_set_ids_in_row(
+    tmp_path,
+):
+    path = _write_jsonl(
+        tmp_path,
+        [{"id": 5, "name": "X", "negative-keyword-shared-set-ids": ""}],
+    )
+    result = _rejected("adgroups", "update", "--from-file", path)
+    assert "Ad group update row 1" in result.output
+    assert "--negative-keyword-shared-set-ids must not be empty." in result.output
+
+
+def test_adgroups_update_batch_rejects_empty_feed_category_ids_in_row(tmp_path):
+    path = _write_jsonl(
+        tmp_path,
+        [{"id": 5, "feed-id": 7, "feed-category-ids": ""}],
+    )
+    result = _rejected("adgroups", "update", "--from-file", path)
+    assert "Ad group update row 1" in result.output
+    assert "--feed-category-ids must not be empty." in result.output
+
+
+def test_adgroups_add_valid_region_ids_still_passes_through():
+    # Guard against over-eager rejection: a non-empty CSV builds the field as
+    # before (byte-identical to pre-#570 behavior).
+    body = _dry_run(
+        "adgroups", "add", "--name", "G", "--campaign-id", "1", "--region-ids", "225"
+    )
+    assert body["params"]["AdGroups"][0]["RegionIds"] == [225]
