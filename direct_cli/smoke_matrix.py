@@ -20,6 +20,7 @@ DANGEROUS = "DANGEROUS"
 SMOKE_MATRIX = {
     SAFE: [
         "balance",
+        "trackingparams",
         "adextensions.get",
         "adgroups.get",
         "adimages.get",

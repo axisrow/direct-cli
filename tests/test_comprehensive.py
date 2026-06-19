@@ -40,6 +40,7 @@ class TestCommandsRegistered(unittest.TestCase):
         "clients",
         "agencyclients",
         "dictionaries",
+        "trackingparams",
         "changes",
         "reports",
         "turbopages",
