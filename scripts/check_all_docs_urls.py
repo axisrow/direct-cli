@@ -26,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from direct_cli._vendor.tapi_yandex_direct.resource_mapping import RESOURCE_MAPPING_V5
 from direct_cli.reports_coverage import REPORTS_SPEC_URLS
+from direct_cli.tracking_params import TRACKING_PARAMS_DOCS_URL  # noqa: E402
 
 USER_AGENT = "Mozilla/5.0 (direct-cli docs-drift checker)"
 CAPTCHA_MARKERS = ("showcaptcha", "smartcaptcha", "<title>captcha")
@@ -47,6 +48,7 @@ def collect_urls() -> dict[str, str]:
             urls[f"{svc}.{k}"] = v
     for k, v in REPORTS_SPEC_URLS.items():
         urls.setdefault(f"reports.{k}", v)
+    urls.setdefault("trackingparams.docs", TRACKING_PARAMS_DOCS_URL)
     return urls
 
 

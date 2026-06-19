@@ -37,6 +37,7 @@ from .commands.leads import leads
 from .commands.clients import clients
 from .commands.agencyclients import agencyclients
 from .commands.dictionaries import dictionaries
+from .commands.trackingparams import tracking_params
 from .commands.changes import changes
 from .commands.reports import reports
 from .commands.turbopages import turbopages
@@ -446,6 +447,7 @@ for command in (
     clients,
     agencyclients,
     dictionaries,
+    tracking_params,
     changes,
     reports,
     turbopages,

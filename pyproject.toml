@@ -118,6 +118,14 @@ testpaths = ["tests"]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
+# Default run is offline: skip the live-network markers so a plain `pytest` never
+# hits the Yandex API (those tests took ~76s and ran whenever a token was present
+# in .env). integration_write is intentionally NOT excluded — it replays VCR
+# cassettes offline (<1s). Run the network tiers explicitly, e.g.
+#   pytest -m integration            (real read-only API)
+#   pytest -m v4_live_read           (v4 Live read contracts)
+#   pytest -m "integration or v4_live_read or integration_live_write"
+addopts = "-m 'not integration and not v4_live_read and not integration_live_write'"
 markers = [
     "integration: marks tests as integration tests requiring a real API token (deselect with '-m \"not integration\"')",
     "integration_write: sandbox integration tests for write commands (replays VCR cassettes offline; --record-mode=rewrite needs YANDEX_DIRECT_TOKEN)",
