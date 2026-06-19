@@ -36,7 +36,8 @@ TRACKING_PARAMS = [
     {
         "Parameter": "{campaign_type}",
         "Description": "Тип кампании",
-        "Values": "type1..type6",
+        "Values": "type1 (перформанс), type2 (приложения), type3 (динамические), "
+        "type4 (смарт-баннеры), type6 (баннер на поиске)",
     },
     {
         "Parameter": "{ad_id} / {banner_id}",
