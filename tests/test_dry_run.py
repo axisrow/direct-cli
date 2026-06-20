@@ -96,6 +96,24 @@ def _rejected(*args: str) -> Result:
     return result
 
 
+def test_make_get_command_dry_run_needs_no_credentials():
+    """``make_get_command`` builds the client *after* the ``--dry-run`` guard
+    (same as the lifecycle factory and CLAUDE.md's "print request JSON without
+    calling the API"), so a migrated ``get --dry-run`` prints its payload with
+    no credentials configured. ``_dry_run`` invokes with an empty env and
+    asserts exit code 0, so it fails if credential resolution creeps back in.
+    """
+    for argv in (
+        ["advideos", "get", "--ids", "1"],
+        ["businesses", "get"],
+        ["vcards", "get"],
+        ["negativekeywordsharedsets", "get"],
+        ["turbopages", "get"],
+    ):
+        body = _dry_run(*argv)
+        assert body["method"] == "get", argv
+
+
 def test_get_selection_criteria_new_typed_flags_payloads():
     """Focused payload coverage for WSDL SelectionCriteria flags added for #146."""
     cases = [

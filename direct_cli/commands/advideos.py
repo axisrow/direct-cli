@@ -7,13 +7,8 @@ import click
 from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
-from ..utils import (
-    build_common_params,
-    get_default_fields,
-    get_options,
-    load_base64_file,
-    parse_csv_strings,
-)
+from ..utils import load_base64_file, parse_csv_strings
+from ._get import make_get_command
 
 
 @click.group()
@@ -21,39 +16,15 @@ def advideos():
     """Manage ad videos"""
 
 
-@advideos.command()
-@click.option("--ids", required=True, help="Comma-separated video IDs")
-@get_options
-@click.pass_context
-@handle_api_errors
-def get(ctx, ids, limit, fetch_all, output_format, output, fields, dry_run):
-    """Get ad videos"""
-    client = client_from_ctx(ctx, create_client)
-
-    field_names = parse_csv_strings(fields) or get_default_fields("advideos")
-
-    criteria = {"Ids": parse_csv_strings(ids) or []}
-
-    params = build_common_params(
-        criteria=criteria, field_names=field_names, limit=limit
-    )
-
-    body = {"method": "get", "params": params}
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    result = client.advideos().post(data=body)
-
-    if fetch_all:
-        items = []
-        for item in result().iter_items():
-            items.append(item)
-        format_output(items, output_format, output)
-    else:
-        data = result().extract()
-        format_output(data, output_format, output)
+get = make_get_command(
+    advideos,
+    create_client,
+    default_fields_key="advideos",
+    help_text="Get ad videos",
+    ids_help="Comma-separated video IDs",
+    ids_required=True,
+    criteria_builder=lambda ids, **_: {"Ids": parse_csv_strings(ids) or []},
+)
 
 
 @advideos.command()
