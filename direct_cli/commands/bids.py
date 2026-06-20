@@ -2,23 +2,17 @@
 Bids commands
 """
 
-from typing import Any
-
 import click
 
-from ..api import client_from_ctx, create_client
+from ..api import create_client
 from ._execute import execute_request
+from ._get import make_get_command
 from ..i18n import t
-from ..output import format_output, handle_api_errors
+from ..output import handle_api_errors
 from ..utils import (
     MICRO_RUBLES,
     add_criteria_csv,
     add_single_id_selector,
-    build_common_params,
-    enforce_criteria_array_limits,
-    get_default_fields,
-    get_options,
-    parse_csv_strings,
     parse_ids,
 )
 
@@ -35,31 +29,17 @@ def bids():
     """Manage bids"""
 
 
-@bids.command()
-@click.option("--campaign-ids", help="Comma-separated campaign IDs")
-@click.option("--adgroup-ids", help="Comma-separated ad group IDs")
-@click.option("--keyword-ids", help="Comma-separated keyword IDs")
-@click.option("--serving-statuses", help="Comma-separated serving statuses")
-@get_options
-@click.pass_context
-@handle_api_errors
-def get(
-    ctx,
-    campaign_ids,
-    adgroup_ids,
-    keyword_ids,
-    serving_statuses,
-    limit,
-    fetch_all,
-    output_format,
-    output,
-    fields,
-    dry_run,
+def _bids_get_criteria(
+    ids=None,
+    campaign_ids=None,
+    adgroup_ids=None,
+    keyword_ids=None,
+    serving_statuses=None,
+    **_,
 ):
-    """Get bids"""
-    client = client_from_ctx(ctx, create_client)
-
-    criteria: dict[str, Any] = {}
+    """SelectionCriteria for ``bids get``: optional CampaignIds/AdGroupIds/
+    KeywordIds id lists plus upper-cased ServingStatuses (no ``--ids`` filter)."""
+    criteria = {}
     if campaign_ids:
         criteria["CampaignIds"] = parse_ids(campaign_ids)
     if adgroup_ids:
@@ -67,41 +47,29 @@ def get(
     if keyword_ids:
         criteria["KeywordIds"] = parse_ids(keyword_ids)
     add_criteria_csv(criteria, "ServingStatuses", serving_statuses, upper=True)
+    return criteria
 
-    enforce_criteria_array_limits(
-        criteria, BIDS_GET_CRITERIA_LIMITS, command_name="bids get"
-    )
 
-    if not criteria:
-        raise click.UsageError(
-            t(
-                "bids get requires at least one filter: "
-                "--campaign-ids, --adgroup-ids, --keyword-ids, "
-                "or --serving-statuses."
-            )
-        )
-
-    field_names = parse_csv_strings(fields) or get_default_fields("bids")
-    params = build_common_params(
-        criteria=criteria, field_names=field_names, limit=limit
-    )
-
-    body = {"method": "get", "params": params}
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    result = client.bids().post(data=body)
-
-    if fetch_all:
-        items = []
-        for item in result().iter_items():
-            items.append(item)
-        format_output(items, output_format, output)
-    else:
-        data = result().extract()
-        format_output(data, output_format, output)
+get = make_get_command(
+    bids,
+    create_client,
+    default_fields_key="bids",
+    help_text="Get bids",
+    include_ids=False,
+    extra_options=(
+        click.option("--campaign-ids", help="Comma-separated campaign IDs"),
+        click.option("--adgroup-ids", help="Comma-separated ad group IDs"),
+        click.option("--keyword-ids", help="Comma-separated keyword IDs"),
+        click.option("--serving-statuses", help="Comma-separated serving statuses"),
+    ),
+    criteria_builder=_bids_get_criteria,
+    criteria_limits=BIDS_GET_CRITERIA_LIMITS,
+    require_criteria_message=(
+        "bids get requires at least one filter: "
+        "--campaign-ids, --adgroup-ids, --keyword-ids, "
+        "or --serving-statuses."
+    ),
+)
 
 
 @bids.command()

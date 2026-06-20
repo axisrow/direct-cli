@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+**Internal — `make_get_command` covers the criteria-limit `get`s `bids` / `bidmodifiers` (completes #587):**
+
+- `bids get` (criteria-limit + require-at-least-one-filter, no `--ids`) and
+  `bidmodifiers get` (criteria-limit + 13 optional nested `*FieldNames`
+  projections + a defaulted `--levels` criteria) now register through the
+  shared `make_get_command` factory, reusing its existing `criteria_limits`,
+  `require_criteria_message` and `nested_field_options` hooks (no new factory
+  parameters). Net −230 lines.
+- No CLI surface change: `--help` (option order, the 13 nested-field options,
+  the `--levels` choice/default), `--dry-run` payloads (the criteria-limit
+  enforcement, the `bids get` require-filter `UsageError`, the always-present
+  `Levels` criteria and nested-field params) are byte-identical (verified
+  against pre-migration baselines).
+- This closes the migratable surface of #587. The three remaining `get`s stay
+  hand-rolled as documented carve-outs, each for a structural reason the shared
+  factory deliberately does not encode: `leads get` (`--datetime-from` /
+  `--datetime-to` sit between `--limit` and `--fetch-all` — a bespoke option
+  order), `keywordbids get` (its nested `SearchFieldNames` / `NetworkFieldNames`
+  carry their own per-field defaults and are always emitted, unlike the factory's
+  provided-only nested projections), and `reports get` (a custom non-RPC TSV
+  stream, not a JSON-RPC `get`).
+
 **Internal — `make_get_command` covers the no-`--ids` / wire-quirk `get`s (part of #587):**
 
 - `agencyclients get` (no `--ids`; filters by `--logins` / `--archived`) and

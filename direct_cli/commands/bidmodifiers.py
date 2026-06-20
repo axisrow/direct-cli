@@ -2,23 +2,17 @@
 BidModifiers commands
 """
 
-from typing import Any
-
 import click
 
-from ..api import client_from_ctx, create_client
+from ..api import create_client
 from ..i18n import t
-from ..output import format_output, handle_api_errors
+from ..output import handle_api_errors
 from ._execute import execute_request
+from ._get import make_get_command
 from ._lifecycle import make_lifecycle_command
 from ..utils import (
-    build_common_params,
-    enforce_criteria_array_limits,
-    get_default_fields,
-    parse_csv_strings,
     parse_csv_upper,
     parse_ids,
-    parse_nested_field_names,
 )
 from .._flag_validation import reject_incompatible_flags
 
@@ -35,186 +29,13 @@ def bidmodifiers():
     """Manage bid modifiers"""
 
 
-@bidmodifiers.command()
-@click.option("--ids", help="Comma-separated bid modifier IDs")
-@click.option("--campaign-ids", help="Comma-separated campaign IDs")
-@click.option("--adgroup-ids", help="Comma-separated ad group IDs")
-@click.option("--types", help="Comma-separated bid modifier types")
-@click.option(
-    "--levels",
-    type=click.Choice(["CAMPAIGN", "AD_GROUP"], case_sensitive=False),
-    multiple=True,
-    default=("CAMPAIGN", "AD_GROUP"),
-    show_default=True,
-    help="Bid modifier levels to retrieve",
-)
-@click.option("--limit", type=int, help="Limit number of results")
-@click.option("--fetch-all", is_flag=True, help="Fetch all pages")
-@click.option("--format", "output_format", default="json", help="Output format")
-@click.option("--output", help="Output file")
-@click.option("--fields", help="Comma-separated field names")
-@click.option(
-    "--ad-group-adjustment-field-names",
-    help=(
-        "Comma-separated AdGroupAdjustmentFieldNames (e.g. BidModifier). "
-        "Sent as separate top-level request parameter per the "
-        "BidModifiersGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--demographics-adjustment-field-names",
-    help=(
-        "Comma-separated DemographicsAdjustmentFieldNames "
-        "(e.g. Gender,Age,BidModifier,Enabled). "
-        "Sent as separate top-level request parameter per the "
-        "BidModifiersGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--desktop-adjustment-field-names",
-    help=(
-        "Comma-separated DesktopAdjustmentFieldNames (e.g. BidModifier). "
-        "Sent as separate top-level request parameter per the "
-        "BidModifiersGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--desktop-only-adjustment-field-names",
-    help=(
-        "Comma-separated DesktopOnlyAdjustmentFieldNames (e.g. BidModifier). "
-        "Sent as separate top-level request parameter per the "
-        "BidModifiersGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--income-grade-adjustment-field-names",
-    help=(
-        "Comma-separated IncomeGradeAdjustmentFieldNames "
-        "(e.g. Grade,BidModifier,Enabled). "
-        "Sent as separate top-level request parameter per the "
-        "BidModifiersGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--mobile-adjustment-field-names",
-    help=(
-        "Comma-separated MobileAdjustmentFieldNames "
-        "(e.g. BidModifier,OperatingSystemType). "
-        "Sent as separate top-level request parameter per the "
-        "BidModifiersGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--regional-adjustment-field-names",
-    help=(
-        "Comma-separated RegionalAdjustmentFieldNames "
-        "(e.g. RegionId,BidModifier,Enabled). "
-        "Sent as separate top-level request parameter per the "
-        "BidModifiersGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--retargeting-adjustment-field-names",
-    help=(
-        "Comma-separated RetargetingAdjustmentFieldNames "
-        "(e.g. RetargetingConditionId,BidModifier,Accessible,Enabled). "
-        "Sent as separate top-level request parameter per the "
-        "BidModifiersGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--serp-layout-adjustment-field-names",
-    help=(
-        "Comma-separated SerpLayoutAdjustmentFieldNames "
-        "(e.g. SerpLayout,BidModifier,Enabled). "
-        "Sent as separate top-level request parameter per the "
-        "BidModifiersGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--smart-ad-adjustment-field-names",
-    help=(
-        "Comma-separated SmartAdAdjustmentFieldNames (e.g. BidModifier). "
-        "Sent as separate top-level request parameter per the "
-        "BidModifiersGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--smart-tv-adjustment-field-names",
-    help=(
-        "Comma-separated SmartTvAdjustmentFieldNames (e.g. BidModifier). "
-        "Sent as separate top-level request parameter per the "
-        "BidModifiersGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--tablet-adjustment-field-names",
-    help=(
-        "Comma-separated TabletAdjustmentFieldNames "
-        "(e.g. BidModifier,OperatingSystemType). "
-        "Sent as separate top-level request parameter per the "
-        "BidModifiersGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--video-adjustment-field-names",
-    help=(
-        "Comma-separated VideoAdjustmentFieldNames (e.g. BidModifier). "
-        "Sent as separate top-level request parameter per the "
-        "BidModifiersGetRequest WSDL."
-    ),
-)
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def get(
-    ctx,
-    ids,
-    campaign_ids,
-    adgroup_ids,
-    types,
-    levels,
-    limit,
-    fetch_all,
-    output_format,
-    output,
-    fields,
-    ad_group_adjustment_field_names,
-    demographics_adjustment_field_names,
-    desktop_adjustment_field_names,
-    desktop_only_adjustment_field_names,
-    income_grade_adjustment_field_names,
-    mobile_adjustment_field_names,
-    regional_adjustment_field_names,
-    retargeting_adjustment_field_names,
-    serp_layout_adjustment_field_names,
-    smart_ad_adjustment_field_names,
-    smart_tv_adjustment_field_names,
-    tablet_adjustment_field_names,
-    video_adjustment_field_names,
-    dry_run,
+def _bidmodifiers_get_criteria(
+    ids=None, campaign_ids=None, adgroup_ids=None, types=None, levels=(), **_
 ):
-    """Get bid modifiers"""
-    client = client_from_ctx(ctx, create_client)
-
-    raw_nested = (
-        ("AdGroupAdjustmentFieldNames", ad_group_adjustment_field_names),
-        ("DemographicsAdjustmentFieldNames", demographics_adjustment_field_names),
-        ("DesktopAdjustmentFieldNames", desktop_adjustment_field_names),
-        ("DesktopOnlyAdjustmentFieldNames", desktop_only_adjustment_field_names),
-        ("IncomeGradeAdjustmentFieldNames", income_grade_adjustment_field_names),
-        ("MobileAdjustmentFieldNames", mobile_adjustment_field_names),
-        ("RegionalAdjustmentFieldNames", regional_adjustment_field_names),
-        ("RetargetingAdjustmentFieldNames", retargeting_adjustment_field_names),
-        ("SerpLayoutAdjustmentFieldNames", serp_layout_adjustment_field_names),
-        ("SmartAdAdjustmentFieldNames", smart_ad_adjustment_field_names),
-        ("SmartTvAdjustmentFieldNames", smart_tv_adjustment_field_names),
-        ("TabletAdjustmentFieldNames", tablet_adjustment_field_names),
-        ("VideoAdjustmentFieldNames", video_adjustment_field_names),
-    )
-    parsed_nested = parse_nested_field_names(raw_nested)
-
-    criteria: dict[str, Any] = {"Levels": [lv.upper() for lv in levels]}
+    """SelectionCriteria for ``bidmodifiers get``: a mandatory upper-cased
+    ``Levels`` list plus optional Ids/CampaignIds/AdGroupIds id lists and an
+    upper-cased ``Types`` list (an empty ``--types`` CSV maps to ``[]``)."""
+    criteria = {"Levels": [lv.upper() for lv in levels]}
     if ids:
         criteria["Ids"] = parse_ids(ids)
     if campaign_ids:
@@ -223,33 +44,131 @@ def get(
         criteria["AdGroupIds"] = parse_ids(adgroup_ids)
     if types:
         criteria["Types"] = parse_csv_upper(types) or []
+    return criteria
 
-    enforce_criteria_array_limits(
-        criteria, BIDMODIFIERS_GET_CRITERIA_LIMITS, command_name="bidmodifiers get"
-    )
 
-    field_names = parse_csv_strings(fields) or get_default_fields("bidmodifiers")
-    params = build_common_params(
-        criteria=criteria, field_names=field_names, limit=limit
-    )
-    params.update(parsed_nested)
-
-    body = {"method": "get", "params": params}
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    result = client.bidmodifiers().post(data=body)
-
-    if fetch_all:
-        items = []
-        for item in result().iter_items():
-            items.append(item)
-        format_output(items, output_format, output)
-    else:
-        data = result().extract()
-        format_output(data, output_format, output)
+get = make_get_command(
+    bidmodifiers,
+    create_client,
+    default_fields_key="bidmodifiers",
+    help_text="Get bid modifiers",
+    ids_help="Comma-separated bid modifier IDs",
+    extra_options=(
+        click.option("--campaign-ids", help="Comma-separated campaign IDs"),
+        click.option("--adgroup-ids", help="Comma-separated ad group IDs"),
+        click.option("--types", help="Comma-separated bid modifier types"),
+        click.option(
+            "--levels",
+            type=click.Choice(["CAMPAIGN", "AD_GROUP"], case_sensitive=False),
+            multiple=True,
+            default=("CAMPAIGN", "AD_GROUP"),
+            show_default=True,
+            help="Bid modifier levels to retrieve",
+        ),
+    ),
+    criteria_builder=_bidmodifiers_get_criteria,
+    criteria_limits=BIDMODIFIERS_GET_CRITERIA_LIMITS,
+    nested_field_options=(
+        (
+            "--ad-group-adjustment-field-names",
+            "AdGroupAdjustmentFieldNames",
+            "Comma-separated AdGroupAdjustmentFieldNames (e.g. BidModifier). "
+            "Sent as separate top-level request parameter per the "
+            "BidModifiersGetRequest WSDL.",
+        ),
+        (
+            "--demographics-adjustment-field-names",
+            "DemographicsAdjustmentFieldNames",
+            "Comma-separated DemographicsAdjustmentFieldNames "
+            "(e.g. Gender,Age,BidModifier,Enabled). "
+            "Sent as separate top-level request parameter per the "
+            "BidModifiersGetRequest WSDL.",
+        ),
+        (
+            "--desktop-adjustment-field-names",
+            "DesktopAdjustmentFieldNames",
+            "Comma-separated DesktopAdjustmentFieldNames (e.g. BidModifier). "
+            "Sent as separate top-level request parameter per the "
+            "BidModifiersGetRequest WSDL.",
+        ),
+        (
+            "--desktop-only-adjustment-field-names",
+            "DesktopOnlyAdjustmentFieldNames",
+            "Comma-separated DesktopOnlyAdjustmentFieldNames (e.g. BidModifier). "
+            "Sent as separate top-level request parameter per the "
+            "BidModifiersGetRequest WSDL.",
+        ),
+        (
+            "--income-grade-adjustment-field-names",
+            "IncomeGradeAdjustmentFieldNames",
+            "Comma-separated IncomeGradeAdjustmentFieldNames "
+            "(e.g. Grade,BidModifier,Enabled). "
+            "Sent as separate top-level request parameter per the "
+            "BidModifiersGetRequest WSDL.",
+        ),
+        (
+            "--mobile-adjustment-field-names",
+            "MobileAdjustmentFieldNames",
+            "Comma-separated MobileAdjustmentFieldNames "
+            "(e.g. BidModifier,OperatingSystemType). "
+            "Sent as separate top-level request parameter per the "
+            "BidModifiersGetRequest WSDL.",
+        ),
+        (
+            "--regional-adjustment-field-names",
+            "RegionalAdjustmentFieldNames",
+            "Comma-separated RegionalAdjustmentFieldNames "
+            "(e.g. RegionId,BidModifier,Enabled). "
+            "Sent as separate top-level request parameter per the "
+            "BidModifiersGetRequest WSDL.",
+        ),
+        (
+            "--retargeting-adjustment-field-names",
+            "RetargetingAdjustmentFieldNames",
+            "Comma-separated RetargetingAdjustmentFieldNames "
+            "(e.g. RetargetingConditionId,BidModifier,Accessible,Enabled). "
+            "Sent as separate top-level request parameter per the "
+            "BidModifiersGetRequest WSDL.",
+        ),
+        (
+            "--serp-layout-adjustment-field-names",
+            "SerpLayoutAdjustmentFieldNames",
+            "Comma-separated SerpLayoutAdjustmentFieldNames "
+            "(e.g. SerpLayout,BidModifier,Enabled). "
+            "Sent as separate top-level request parameter per the "
+            "BidModifiersGetRequest WSDL.",
+        ),
+        (
+            "--smart-ad-adjustment-field-names",
+            "SmartAdAdjustmentFieldNames",
+            "Comma-separated SmartAdAdjustmentFieldNames (e.g. BidModifier). "
+            "Sent as separate top-level request parameter per the "
+            "BidModifiersGetRequest WSDL.",
+        ),
+        (
+            "--smart-tv-adjustment-field-names",
+            "SmartTvAdjustmentFieldNames",
+            "Comma-separated SmartTvAdjustmentFieldNames (e.g. BidModifier). "
+            "Sent as separate top-level request parameter per the "
+            "BidModifiersGetRequest WSDL.",
+        ),
+        (
+            "--tablet-adjustment-field-names",
+            "TabletAdjustmentFieldNames",
+            "Comma-separated TabletAdjustmentFieldNames "
+            "(e.g. BidModifier,OperatingSystemType). "
+            "Sent as separate top-level request parameter per the "
+            "BidModifiersGetRequest WSDL.",
+        ),
+        (
+            "--video-adjustment-field-names",
+            "VideoAdjustmentFieldNames",
+            "Comma-separated VideoAdjustmentFieldNames (e.g. BidModifier). "
+            "Sent as separate top-level request parameter per the "
+            "BidModifiersGetRequest WSDL.",
+        ),
+    ),
+)
 
 
 # Map CLI --type values to the nested BidModifier object field name.

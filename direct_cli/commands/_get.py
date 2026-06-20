@@ -13,6 +13,17 @@ single body — modeled on :func:`direct_cli.commands._lifecycle.make_lifecycle_
 same contract as the lifecycle factory: the ``--dry-run`` path needs no client,
 and the live path runs the module's real ``create_client`` (the VCR cassette
 read-tests replay it at the ``requests`` transport, so they are unaffected).
+
+Three ``get`` commands deliberately stay hand-rolled (issue #587), each for a
+structural reason this factory does not encode:
+
+* ``leads get`` — ``--datetime-from`` / ``--datetime-to`` sit between ``--limit``
+  and ``--fetch-all``, a bespoke option order the shared ``get_options`` stack
+  cannot reproduce (it always renders ``--limit`` / ``--fetch-all`` adjacent).
+* ``keywordbids get`` — its nested ``SearchFieldNames`` / ``NetworkFieldNames``
+  carry per-field defaults and are *always* emitted, unlike the provided-only
+  nested projections ``nested_field_options`` builds.
+* ``reports get`` — a custom non-RPC TSV stream, not a JSON-RPC ``get``.
 """
 
 from __future__ import annotations
