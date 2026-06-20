@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+**Internal — `make_get_command` covers the nested-`*FieldNames` `get`s (part of #587):**
+
+- `adimages get`, `retargeting get`, `sitelinks get`, `feeds get` and
+  `clients get` now register through the shared `make_get_command` factory
+  (net −175 lines). The factory gained three optional, generic parameters:
+  `nested_field_options` (a tuple of `(flag, WSDL key, help)` for nested
+  `*FieldNames` projections, parsed via the existing `parse_nested_field_names`
+  and rendered between `--fields` and `--dry-run`), `ids_criteria_key` (the
+  SelectionCriteria key for `--ids`; `clients` uses `ClientIds`), and
+  `fields_help` (a resource-specific `--fields` wording, e.g. sitelinks'
+  "Comma-separated SitelinksSet FieldNames"). The shared `get_options` decorator
+  (`utils.py`) gained matching `nested_options` / `fields_help` hooks, both
+  defaulting to current behavior so its other callers are unchanged.
+- No CLI surface change: `--help` (option order, the nested-field option
+  position, the custom `--fields` help), `--dry-run` payloads (including the
+  `ClientIds` key and nested-field params), and the provided-but-empty
+  `*FieldNames` `UsageError` are byte-identical (verified against
+  pre-migration baselines). Deferred to a follow-up: `adextensions` (emits an
+  empty `SelectionCriteria` + Page-before-nested key order), and `leads` /
+  `agencyclients` (no `--ids`; bespoke required criteria).
+
 **Internal — `make_get_command` covers the criteria-limit ad-target `get`s (part of #587):**
 
 - `dynamicads get`, `smartadtargets get` and `dynamicfeedadtargets get` — three

@@ -1019,7 +1019,7 @@ def get_docs_pages(service: str) -> Dict[str, str]:
     return dict(docs_pages) if docs_pages else {}
 
 
-def get_options(func):
+def get_options(func, *, nested_options=(), fields_help="Comma-separated field names"):
     """Apply the shared read/pagination option stack of a ``get`` command.
 
     Equivalent to writing, in this exact top-to-bottom order::
@@ -1029,19 +1029,29 @@ def get_options(func):
         @click.option("--format", "output_format", default="json", help="Output format")
         @click.option("--output", help="Output file")
         @click.option("--fields", help="Comma-separated field names")
+        # <nested_options here, in given order>
         @click.option("--dry-run", is_flag=True, help="Show request without sending")
 
     Click applies decorators bottom-up, so the options are added here in
-    reverse to keep ``--help`` listing them in the order above. Only commands
-    whose six shared options are contiguous and use exactly these definitions
-    use this decorator; commands with a divergent ``--fields`` help string,
-    interleaved resource options, or a different option subset keep their
-    explicit stack so the CLI surface stays byte-identical.
+    reverse to keep ``--help`` listing them in the order above. Commands whose
+    six shared options are contiguous and use exactly these definitions use this
+    decorator directly; ``make_get_command`` calls it with two keyword hooks so
+    a command with a divergent ``--fields`` help string (``fields_help``) or
+    nested ``*FieldNames`` options interleaved between ``--fields`` and
+    ``--dry-run`` (``nested_options``) still produces a byte-identical surface:
+
+    - ``fields_help``: the ``--fields`` help text (default ``"Comma-separated
+      field names"``).
+    - ``nested_options``: extra ``click.option`` decorators rendered after
+      ``--fields`` and before ``--dry-run`` (the position sitelinks/feeds/clients
+      put their ``*FieldNames`` options).
     """
     func = click.option("--dry-run", is_flag=True, help="Show request without sending")(
         func
     )
-    func = click.option("--fields", help="Comma-separated field names")(func)
+    for option in reversed(nested_options):
+        func = option(func)
+    func = click.option("--fields", help=fields_help)(func)
     func = click.option("--output", help="Output file")(func)
     func = click.option(
         "--format", "output_format", default="json", help="Output format"

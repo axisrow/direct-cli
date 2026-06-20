@@ -4,13 +4,13 @@ Clients commands
 
 import click
 
-from ..api import client_from_ctx, create_client
+from ..api import create_client
 from ._execute import execute_request
+from ._get import make_get_command
 from ..i18n import t
-from ..output import format_output, handle_api_errors
+from ..output import handle_api_errors
 from ..utils import (
     build_client_update_item,
-    build_common_params,
     build_erir_attributes,
     build_erir_contragent,
     build_erir_contract,
@@ -19,12 +19,8 @@ from ..utils import (
     CONTRACT_ACTION_TYPES,
     CONTRACT_SUBJECT_TYPES,
     CONTRACT_TYPES,
-    get_default_fields,
     parse_client_setting_specs,
-    parse_csv_strings,
     parse_email_subscription_specs,
-    parse_ids,
-    parse_nested_field_names,
     parse_positive_decimal_amount,
     parse_tin_info,
 )
@@ -35,113 +31,64 @@ def clients():
     """Manage clients"""
 
 
-@clients.command()
-@click.option("--ids", help="Comma-separated client IDs")
-@click.option("--limit", type=int, help="Limit number of results")
-@click.option("--fetch-all", is_flag=True, help="Fetch all pages")
-@click.option("--format", "output_format", default="json", help="Output format")
-@click.option("--output", help="Output file")
-@click.option("--fields", help="Comma-separated field names")
-@click.option(
-    "--contract-field-names",
-    help=(
-        "Comma-separated ContractFieldNames "
-        "(e.g. Number,Date,Price,Type,ActionType). "
-        "Sent as separate top-level request parameter per the "
-        "ClientsGetRequest WSDL."
+get = make_get_command(
+    clients,
+    create_client,
+    default_fields_key="clients",
+    help_text="Get clients",
+    ids_help="Comma-separated client IDs",
+    ids_criteria_key="ClientIds",
+    nested_field_options=(
+        (
+            "--contract-field-names",
+            "ContractFieldNames",
+            (
+                "Comma-separated ContractFieldNames "
+                "(e.g. Number,Date,Price,Type,ActionType). "
+                "Sent as separate top-level request parameter per the "
+                "ClientsGetRequest WSDL."
+            ),
+        ),
+        (
+            "--contragent-field-names",
+            "ContragentFieldNames",
+            (
+                "Comma-separated ContragentFieldNames "
+                "(e.g. Name,Phone,EpayNumber,RegNumber). "
+                "Sent as separate top-level request parameter per the "
+                "ClientsGetRequest WSDL."
+            ),
+        ),
+        (
+            "--contragent-tin-info-field-names",
+            "ContragentTinInfoFieldNames",
+            (
+                "Comma-separated ContragentTinInfoFieldNames (e.g. TinType,Tin). "
+                "Sent as separate top-level request parameter per the "
+                "ClientsGetRequest WSDL."
+            ),
+        ),
+        (
+            "--organization-field-names",
+            "OrganizationFieldNames",
+            (
+                "Comma-separated OrganizationFieldNames "
+                "(e.g. Name,EpayNumber,RegNumber,OkvedCode). "
+                "Sent as separate top-level request parameter per the "
+                "ClientsGetRequest WSDL."
+            ),
+        ),
+        (
+            "--tin-info-field-names",
+            "TinInfoFieldNames",
+            (
+                "Comma-separated TinInfoFieldNames (e.g. TinType,Tin). "
+                "Sent as separate top-level request parameter per the "
+                "ClientsGetRequest WSDL."
+            ),
+        ),
     ),
 )
-@click.option(
-    "--contragent-field-names",
-    help=(
-        "Comma-separated ContragentFieldNames "
-        "(e.g. Name,Phone,EpayNumber,RegNumber). "
-        "Sent as separate top-level request parameter per the "
-        "ClientsGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--contragent-tin-info-field-names",
-    help=(
-        "Comma-separated ContragentTinInfoFieldNames (e.g. TinType,Tin). "
-        "Sent as separate top-level request parameter per the "
-        "ClientsGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--organization-field-names",
-    help=(
-        "Comma-separated OrganizationFieldNames "
-        "(e.g. Name,EpayNumber,RegNumber,OkvedCode). "
-        "Sent as separate top-level request parameter per the "
-        "ClientsGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--tin-info-field-names",
-    help=(
-        "Comma-separated TinInfoFieldNames (e.g. TinType,Tin). "
-        "Sent as separate top-level request parameter per the "
-        "ClientsGetRequest WSDL."
-    ),
-)
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def get(
-    ctx,
-    ids,
-    limit,
-    fetch_all,
-    output_format,
-    output,
-    fields,
-    contract_field_names,
-    contragent_field_names,
-    contragent_tin_info_field_names,
-    organization_field_names,
-    tin_info_field_names,
-    dry_run,
-):
-    """Get clients"""
-    client = client_from_ctx(ctx, create_client)
-
-    field_names = parse_csv_strings(fields) or get_default_fields("clients")
-
-    raw_nested = (
-        ("ContractFieldNames", contract_field_names),
-        ("ContragentFieldNames", contragent_field_names),
-        ("ContragentTinInfoFieldNames", contragent_tin_info_field_names),
-        ("OrganizationFieldNames", organization_field_names),
-        ("TinInfoFieldNames", tin_info_field_names),
-    )
-    parsed_nested = parse_nested_field_names(raw_nested)
-
-    criteria = {}
-    if ids:
-        criteria["ClientIds"] = parse_ids(ids)
-
-    params = build_common_params(
-        criteria=criteria, field_names=field_names, limit=limit
-    )
-    params.update(parsed_nested)
-
-    body = {"method": "get", "params": params}
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    result = client.clients().post(data=body)
-
-    if fetch_all:
-        items = []
-        for item in result().iter_items():
-            items.append(item)
-        format_output(items, output_format, output)
-    else:
-        data = result().extract()
-        format_output(data, output_format, output)
 
 
 @clients.command()

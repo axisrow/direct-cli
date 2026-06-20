@@ -8,17 +8,12 @@ from typing import Dict, Optional
 
 import click
 
-from ..api import client_from_ctx, create_client
+from ..api import create_client
 from ..i18n import t
-from ..output import format_output, handle_api_errors
+from ..output import handle_api_errors
 from ._execute import execute_request
+from ._get import make_get_command
 from ._lifecycle import make_lifecycle_command
-from ..utils import (
-    build_common_params,
-    get_default_fields,
-    parse_csv_strings,
-    parse_ids,
-)
 
 _YES_NO = ["YES", "NO"]
 # Yandex Direct docs cap FileFeed.Data by total request size. This
@@ -122,89 +117,33 @@ def feeds():
     """Manage feeds"""
 
 
-@feeds.command()
-@click.option("--ids", help="Comma-separated feed IDs")
-@click.option("--limit", type=int, help="Limit number of results")
-@click.option("--fetch-all", is_flag=True, help="Fetch all pages")
-@click.option("--format", "output_format", default="json", help="Output format")
-@click.option("--output", help="Output file")
-@click.option("--fields", help="Comma-separated field names")
-@click.option(
-    "--file-feed-field-names",
-    help=(
-        "Comma-separated FileFeedFieldNames (e.g. Filename). "
-        "Sent as separate top-level request parameter per the "
-        "FeedsGetRequest WSDL."
+get = make_get_command(
+    feeds,
+    create_client,
+    default_fields_key="feeds",
+    help_text="Get feeds",
+    ids_help="Comma-separated feed IDs",
+    nested_field_options=(
+        (
+            "--file-feed-field-names",
+            "FileFeedFieldNames",
+            (
+                "Comma-separated FileFeedFieldNames (e.g. Filename). "
+                "Sent as separate top-level request parameter per the "
+                "FeedsGetRequest WSDL."
+            ),
+        ),
+        (
+            "--url-feed-field-names",
+            "UrlFeedFieldNames",
+            (
+                "Comma-separated UrlFeedFieldNames (e.g. Login,Url,RemoveUtmTags). "
+                "Sent as separate top-level request parameter per the "
+                "FeedsGetRequest WSDL."
+            ),
+        ),
     ),
 )
-@click.option(
-    "--url-feed-field-names",
-    help=(
-        "Comma-separated UrlFeedFieldNames (e.g. Login,Url,RemoveUtmTags). "
-        "Sent as separate top-level request parameter per the "
-        "FeedsGetRequest WSDL."
-    ),
-)
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def get(
-    ctx,
-    ids,
-    limit,
-    fetch_all,
-    output_format,
-    output,
-    fields,
-    file_feed_field_names,
-    url_feed_field_names,
-    dry_run,
-):
-    """Get feeds"""
-    client = client_from_ctx(ctx, create_client)
-
-    field_names = parse_csv_strings(fields) or get_default_fields("feeds")
-
-    parsed_file_feed_field_names = parse_csv_strings(file_feed_field_names)
-    if file_feed_field_names is not None and not parsed_file_feed_field_names:
-        raise click.UsageError(
-            t("Provide a non-empty comma-separated FileFeedFieldNames list.")
-        )
-
-    parsed_url_feed_field_names = parse_csv_strings(url_feed_field_names)
-    if url_feed_field_names is not None and not parsed_url_feed_field_names:
-        raise click.UsageError(
-            t("Provide a non-empty comma-separated UrlFeedFieldNames list.")
-        )
-
-    criteria = {}
-    if ids:
-        criteria["Ids"] = parse_ids(ids)
-
-    params = build_common_params(
-        criteria=criteria, field_names=field_names, limit=limit
-    )
-    if parsed_file_feed_field_names:
-        params["FileFeedFieldNames"] = parsed_file_feed_field_names
-    if parsed_url_feed_field_names:
-        params["UrlFeedFieldNames"] = parsed_url_feed_field_names
-
-    body = {"method": "get", "params": params}
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    result = client.feeds().post(data=body)
-
-    if fetch_all:
-        items = []
-        for item in result().iter_items():
-            items.append(item)
-        format_output(items, output_format, output)
-    else:
-        data = result().extract()
-        format_output(data, output_format, output)
 
 
 @feeds.command()

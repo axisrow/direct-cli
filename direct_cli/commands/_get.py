@@ -30,14 +30,19 @@ from ..utils import (
     parse_csv_strings,
     parse_csv_upper,
     parse_ids,
+    parse_nested_field_names,
 )
 
 
-def _default_ids_criteria(ids):
-    """Standard SelectionCriteria: an optional integer ``Ids`` list."""
+def _default_ids_criteria(ids, key="Ids"):
+    """Standard SelectionCriteria: an optional integer id list under *key*.
+
+    *key* is ``"Ids"`` for almost every resource; ``clients`` labels the same
+    ``--ids`` option ``ClientIds`` in its SelectionCriteria.
+    """
     criteria = {}
     if ids:
-        criteria["Ids"] = parse_ids(ids)
+        criteria[key] = parse_ids(ids)
     return criteria
 
 
@@ -73,6 +78,9 @@ def make_get_command(
     criteria_builder=None,
     criteria_limits=None,
     require_criteria_message=None,
+    nested_field_options=(),
+    ids_criteria_key="Ids",
+    fields_help="Comma-separated field names",
 ):
     """Build and register a v5 ``get`` command on *group*.
 
@@ -99,6 +107,17 @@ def make_get_command(
         require_criteria_message: optional i18n key; when set, an empty
             ``SelectionCriteria`` raises ``UsageError`` with this message
             (the "provide at least one filter" guard).
+        nested_field_options: tuple of ``(flag, WSDL key, help)`` for nested
+            ``*FieldNames`` projections (e.g. ``("--sitelink-field-names",
+            "SitelinkFieldNames", "…")``). Each renders a ``click.option``
+            between ``--fields`` and ``--dry-run`` and is parsed via
+            :func:`parse_nested_field_names` (which rejects a provided-but-empty
+            CSV), then merged into the request params after the common params.
+        ids_criteria_key: SelectionCriteria key for the default ``--ids``
+            builder (``"Ids"`` by default; ``clients`` uses ``"ClientIds"``).
+            Ignored when a custom *criteria_builder* is given.
+        fields_help: help text for the ``--fields`` option (a few resources use
+            a resource-specific wording instead of the shared default).
 
     Returns:
         The registered Click command.
@@ -109,7 +128,15 @@ def make_get_command(
     # resource module.
     svc = group.name
     module_name = group.callback.__module__
-    build_criteria = criteria_builder or (lambda ids, **_: _default_ids_criteria(ids))
+    build_criteria = criteria_builder or (
+        lambda ids, **_: _default_ids_criteria(ids, ids_criteria_key)
+    )
+    # (WSDL key, callback kwarg) for each nested *FieldNames option; Click maps
+    # ``--sitelink-field-names`` to the ``sitelink_field_names`` kwarg.
+    nested_specs = tuple(
+        (wsdl_key, flag[2:].replace("-", "_"))
+        for flag, wsdl_key, _help in nested_field_options
+    )
 
     @click.pass_context
     @handle_api_errors
@@ -129,6 +156,11 @@ def make_get_command(
         params = build_common_params(
             criteria=criteria, field_names=field_names, limit=limit
         )
+        if nested_specs:
+            raw_nested = tuple(
+                (wsdl_key, kwargs[kwarg]) for wsdl_key, kwarg in nested_specs
+            )
+            params.update(parse_nested_field_names(raw_nested))
         body = {"method": "get", "params": params}
 
         if dry_run:
@@ -153,8 +185,14 @@ def make_get_command(
             format_output(result().extract(), output_format, output)
 
     # Apply the option decorators in the original stack order so ``--help`` lists
-    # ``--ids``, then any resource options, then the six ``get_options`` entries.
-    get = get_options(get)
+    # ``--ids``, then any resource options, then the ``get_options`` entries (with
+    # any nested ``*FieldNames`` options rendered between ``--fields`` and
+    # ``--dry-run``).
+    nested_click_options = tuple(
+        click.option(flag, help=help_text)
+        for flag, _wsdl_key, help_text in nested_field_options
+    )
+    get = get_options(get, nested_options=nested_click_options, fields_help=fields_help)
     for option in reversed(extra_options):
         get = option(get)
     get = click.option("--ids", required=ids_required, help=ids_help)(get)
