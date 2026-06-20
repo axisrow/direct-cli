@@ -6,9 +6,10 @@ from typing import Dict, Optional
 
 import click
 
-from ..api import client_from_ctx, create_client
+from ..api import create_client
 from ..i18n import t
-from ..output import format_output, handle_api_errors
+from ..output import handle_api_errors
+from ._execute import execute_request
 from ._get import make_get_command
 from ._lifecycle import make_lifecycle_command
 
@@ -198,14 +199,7 @@ def add(
 
     body = {"method": "add", "params": {"VCards": [vcard]}}
 
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-
-    result = client.vcards().post(data=body)
-    format_output(result().extract(), "json", None)
+    execute_request(ctx, "vcards", body, dry_run, create_client)
 
 
 delete = make_lifecycle_command(

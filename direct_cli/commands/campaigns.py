@@ -10,6 +10,7 @@ import click
 from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
+from ._execute import execute_request
 from ._lifecycle import register_lifecycle_commands
 from ..utils import (
     build_selection_criteria,
@@ -4234,14 +4235,7 @@ def add(
 
     body = {"method": "add", "params": {"Campaigns": [campaign_data]}}
 
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-
-    result = client.campaigns().post(data=body)
-    format_output(result().extract(), "json", None)
+    execute_request(ctx, "campaigns", body, dry_run, create_client)
 
 
 @campaigns.command()
@@ -7197,14 +7191,7 @@ def update(
 
     body = {"method": "update", "params": {"Campaigns": [campaign_data]}}
 
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-
-    result = client.campaigns().post(data=body)
-    format_output(result().extract(), "json", None)
+    execute_request(ctx, "campaigns", body, dry_run, create_client)
 
 
 register_lifecycle_commands(

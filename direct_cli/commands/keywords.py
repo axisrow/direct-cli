@@ -30,6 +30,7 @@ from .._autotargeting import (
     parse_autotargeting_categories,
     reject_legacy_autotargeting_mix,
 )
+from ._execute import execute_request
 from ._lifecycle import register_lifecycle_commands
 from . import _batch
 
@@ -817,14 +818,7 @@ def update(
 
     body = {"method": "update", "params": {"Keywords": [keyword_data]}}
 
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-
-    result = client.keywords().post(data=body)
-    format_output(result().extract(), "json", None)
+    execute_request(ctx, "keywords", body, dry_run, create_client)
 
 
 register_lifecycle_commands(

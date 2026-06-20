@@ -7,6 +7,7 @@ import click
 from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
+from ._execute import execute_request
 from ._lifecycle import make_lifecycle_command
 from ..utils import add_criteria_csv, get_default_fields, parse_csv_strings, parse_ids
 
@@ -104,14 +105,7 @@ def add(ctx, callout_text, dry_run):
 
     body = {"method": "add", "params": {"AdExtensions": [ext_data]}}
 
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-
-    result = client.adextensions().post(data=body)
-    format_output(result().extract(), "json", None)
+    execute_request(ctx, "adextensions", body, dry_run, create_client)
 
 
 delete = make_lifecycle_command(

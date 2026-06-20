@@ -4,10 +4,11 @@ AdVideos commands
 
 import click
 
-from ..api import client_from_ctx, create_client
+from ..api import create_client
 from ..i18n import t
-from ..output import format_output, handle_api_errors
+from ..output import handle_api_errors
 from ..utils import load_base64_file, parse_csv_strings
+from ._execute import execute_request
 from ._get import make_get_command
 
 
@@ -57,11 +58,4 @@ def add(ctx, url, video_data, video_file, name, dry_run):
 
     body = {"method": "add", "params": {"AdVideos": [item]}}
 
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-
-    result = client.advideos().post(data=body)
-    format_output(result().extract(), "json", None)
+    execute_request(ctx, "advideos", body, dry_run, create_client)

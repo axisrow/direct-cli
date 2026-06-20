@@ -5,6 +5,7 @@ Creatives commands
 import click
 
 from ..api import client_from_ctx, create_client
+from ._execute import execute_request
 from ..i18n import t
 from ..output import format_output, handle_api_errors
 from ..utils import (
@@ -141,10 +142,4 @@ def add(ctx, video_id, dry_run):
         "params": {"Creatives": [{"VideoExtensionCreative": {"VideoId": video_id}}]},
     }
 
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-    result = client.creatives().post(data=body)
-    format_output(result().extract(), "json", None)
+    execute_request(ctx, "creatives", body, dry_run, create_client)

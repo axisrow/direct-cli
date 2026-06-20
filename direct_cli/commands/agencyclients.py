@@ -5,6 +5,7 @@ AgencyClients commands
 import click
 
 from ..api import client_from_ctx, create_client
+from ._execute import execute_request
 from ..i18n import t
 from ..output import format_output, handle_api_errors, print_error
 from ..utils import (
@@ -228,14 +229,7 @@ def add(
         },
     }
 
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-
-    result = client.agencyclients().post(data=body)
-    format_output(result().extract(), "json", None)
+    execute_request(ctx, "agencyclients", body, dry_run, create_client)
 
 
 @agencyclients.command(name="add-passport-organization")
@@ -280,13 +274,7 @@ def add_passport_organization(
 
     body = {"method": "addPassportOrganization", "params": params}
 
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-    result = client.agencyclients().post(data=body)
-    format_output(result().extract(), "json", None)
+    execute_request(ctx, "agencyclients", body, dry_run, create_client)
 
 
 @agencyclients.command(name="add-passport-organization-member")
@@ -323,13 +311,7 @@ def add_passport_organization_member(
         },
     }
 
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-    result = client.agencyclients().post(data=body)
-    format_output(result().extract(), "json", None)
+    execute_request(ctx, "agencyclients", body, dry_run, create_client)
 
 
 @agencyclients.command()
@@ -402,13 +384,7 @@ def update(
 
     body = {"method": "update", "params": {"Clients": [client_data]}}
 
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-    result = client.agencyclients().post(data=body)
-    format_output(result().extract(), "json", None)
+    execute_request(ctx, "agencyclients", body, dry_run, create_client)
 
 
 @agencyclients.command()

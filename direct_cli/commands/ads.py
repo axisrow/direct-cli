@@ -9,6 +9,7 @@ import click
 from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
+from ._execute import execute_request
 from ._lifecycle import register_lifecycle_commands
 from . import _batch
 from ..utils import (
@@ -2712,14 +2713,7 @@ def add(
 
     body = {"method": "add", "params": {"Ads": [ad_data]}}
 
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-
-    result = client.ads().post(data=body)
-    format_output(result().extract(), "json", None)
+    execute_request(ctx, "ads", body, dry_run, create_client)
 
 
 @ads.command()
@@ -3132,14 +3126,7 @@ def update(
 
     body = {"method": "update", "params": {"Ads": [ad_data]}}
 
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-
-    result = client.ads().post(data=body)
-    format_output(result().extract(), "json", None)
+    execute_request(ctx, "ads", body, dry_run, create_client)
 
 
 register_lifecycle_commands(
