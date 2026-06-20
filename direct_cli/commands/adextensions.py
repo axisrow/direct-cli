@@ -4,12 +4,12 @@ AdExtensions commands
 
 import click
 
-from ..api import client_from_ctx, create_client
-from ..i18n import t
-from ..output import format_output, handle_api_errors
+from ..api import create_client
+from ..output import handle_api_errors
 from ._execute import execute_request
+from ._get import make_get_command
 from ._lifecycle import make_lifecycle_command
-from ..utils import add_criteria_csv, get_default_fields, parse_csv_strings, parse_ids
+from ..utils import add_criteria_csv, parse_ids
 
 
 @click.group()
@@ -17,49 +17,11 @@ def adextensions():
     """Manage ad extensions"""
 
 
-@adextensions.command()
-@click.option("--ids", help="Comma-separated extension IDs")
-@click.option("--types", help="Filter by types")
-@click.option("--states", help="Comma-separated states")
-@click.option("--statuses", help="Comma-separated statuses")
-@click.option("--modified-since", help="ModifiedSince datetime")
-@click.option("--limit", type=int, help="Limit number of results")
-@click.option("--fetch-all", is_flag=True, help="Fetch all pages")
-@click.option("--format", "output_format", default="json", help="Output format")
-@click.option("--output", help="Output file")
-@click.option("--fields", help="Comma-separated field names")
-@click.option(
-    "--callout-field-names",
-    help="Comma-separated CalloutFieldNames (e.g. CalloutText)",
-)
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def get(
-    ctx,
-    ids,
-    types,
-    states,
-    statuses,
-    modified_since,
-    limit,
-    fetch_all,
-    output_format,
-    output,
-    fields,
-    callout_field_names,
-    dry_run,
+def _adextensions_criteria(
+    ids, types=None, states=None, statuses=None, modified_since=None, **_
 ):
-    """Get ad extensions"""
-    client = client_from_ctx(ctx, create_client)
-
-    field_names = parse_csv_strings(fields) or get_default_fields("adextensions")
-    parsed_callout_field_names = parse_csv_strings(callout_field_names)
-    if callout_field_names is not None and not parsed_callout_field_names:
-        raise click.UsageError(
-            t("Provide a non-empty comma-separated CalloutFieldNames list.")
-        )
-
+    """SelectionCriteria for ``adextensions get``: ``Ids`` + upper-cased
+    ``Types``/``States``/``Statuses`` + a ``ModifiedSince`` scalar."""
     criteria = {}
     if ids:
         criteria["Ids"] = parse_ids(ids)
@@ -68,30 +30,31 @@ def get(
     add_criteria_csv(criteria, "Statuses", statuses, upper=True)
     if modified_since:
         criteria["ModifiedSince"] = modified_since
+    return criteria
 
-    params = {"SelectionCriteria": criteria, "FieldNames": field_names}
-    if parsed_callout_field_names:
-        params["CalloutFieldNames"] = parsed_callout_field_names
 
-    if limit:
-        params["Page"] = {"Limit": limit}
-
-    body = {"method": "get", "params": params}
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    result = client.adextensions().post(data=body)
-
-    if fetch_all:
-        items = []
-        for item in result().iter_items():
-            items.append(item)
-        format_output(items, output_format, output)
-    else:
-        data = result().extract()
-        format_output(data, output_format, output)
+get = make_get_command(
+    adextensions,
+    create_client,
+    default_fields_key="adextensions",
+    help_text="Get ad extensions",
+    ids_help="Comma-separated extension IDs",
+    adextensions_wire_layout=True,
+    extra_options=(
+        click.option("--types", help="Filter by types"),
+        click.option("--states", help="Comma-separated states"),
+        click.option("--statuses", help="Comma-separated statuses"),
+        click.option("--modified-since", help="ModifiedSince datetime"),
+    ),
+    criteria_builder=_adextensions_criteria,
+    nested_field_options=(
+        (
+            "--callout-field-names",
+            "CalloutFieldNames",
+            "Comma-separated CalloutFieldNames (e.g. CalloutText)",
+        ),
+    ),
+)
 
 
 @adextensions.command()

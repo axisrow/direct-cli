@@ -81,6 +81,8 @@ def make_get_command(
     nested_field_options=(),
     ids_criteria_key="Ids",
     fields_help="Comma-separated field names",
+    include_ids=True,
+    adextensions_wire_layout=False,
 ):
     """Build and register a v5 ``get`` command on *group*.
 
@@ -120,6 +122,20 @@ def make_get_command(
             Ignored when a custom *criteria_builder* is given.
         fields_help: help text for the ``--fields`` option (a few resources use
             a resource-specific wording instead of the shared default).
+        include_ids: whether to render the ``--ids`` option (``True`` by
+            default). Set ``False`` for resources with no id filter
+            (``agencyclients`` filters by ``--logins`` / ``--archived``); the
+            command then needs a custom *criteria_builder* built from
+            *extra_options* only.
+        adextensions_wire_layout: reproduce ``adextensions``'s exact wire
+            layout — always emit ``SelectionCriteria`` (even empty) and order
+            nested ``*FieldNames`` before ``Page`` (the default builds params via
+            :func:`build_common_params`, which omits an empty criteria and puts
+            ``Page`` before the nested fields). This is a recorded API contract,
+            not a tidy-up target: the ``adextensions_get`` read cassette replays
+            ``"SelectionCriteria":{}`` and adextensions is deliberately excluded
+            from ``test_dry_run._SELECTION_CRITERIA_REQUIRED_GET_COMMANDS`` (the
+            live API accepts an empty criteria here, unlike adgroups/ads/keywords).
 
     Returns:
         The registered Click command.
@@ -143,7 +159,15 @@ def make_get_command(
     @click.pass_context
     @handle_api_errors
     def get(
-        ctx, ids, limit, fetch_all, output_format, output, fields, dry_run, **kwargs
+        ctx,
+        limit,
+        fetch_all,
+        output_format,
+        output,
+        fields,
+        dry_run,
+        ids=None,
+        **kwargs,
     ):
         field_names = parse_csv_strings(fields) or get_default_fields(
             default_fields_key
@@ -155,14 +179,23 @@ def make_get_command(
             )
         if require_criteria_message and not criteria:
             raise click.UsageError(t(require_criteria_message))
-        params = build_common_params(
-            criteria=criteria, field_names=field_names, limit=limit
-        )
+        if adextensions_wire_layout:
+            # Emit SelectionCriteria even when empty (a recorded API contract;
+            # see the param docstring) and hold Page until after the nested
+            # fields below.
+            params = {"SelectionCriteria": criteria, "FieldNames": field_names}
+        else:
+            params = build_common_params(
+                criteria=criteria, field_names=field_names, limit=limit
+            )
         if nested_specs:
             raw_nested = tuple(
                 (wsdl_key, kwargs[kwarg]) for wsdl_key, kwarg in nested_specs
             )
             params.update(parse_nested_field_names(raw_nested))
+        if adextensions_wire_layout and limit:
+            # Page after the nested *FieldNames, matching adextensions' layout.
+            params["Page"] = {"Limit": limit}
         body = {"method": "get", "params": params}
 
         if dry_run:
@@ -197,5 +230,6 @@ def make_get_command(
     get = get_options(get, nested_options=nested_click_options, fields_help=fields_help)
     for option in reversed(extra_options):
         get = option(get)
-    get = click.option("--ids", required=ids_required, help=ids_help)(get)
+    if include_ids:
+        get = click.option("--ids", required=ids_required, help=ids_help)(get)
     return group.command(name="get", help=help_text)(get)

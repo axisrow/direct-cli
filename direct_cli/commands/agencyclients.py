@@ -4,21 +4,19 @@ AgencyClients commands
 
 import click
 
-from ..api import client_from_ctx, create_client
+from ..api import create_client
 from ._execute import execute_request
+from ._get import make_get_command
 from ..i18n import t
-from ..output import format_output, handle_api_errors, print_error
+from ..output import handle_api_errors, print_error
 from ..utils import (
     assert_not_runtime_deprecated,
     build_client_update_item,
-    build_common_params,
     build_notification_update,
-    get_default_fields,
     parse_client_setting_specs,
     parse_csv_strings,
     parse_email_subscription_specs,
     parse_grant_specs,
-    parse_nested_field_names,
     parse_tin_info,
 )
 
@@ -61,121 +59,83 @@ def agencyclients():
     """Manage agency clients"""
 
 
-@agencyclients.command()
-@click.option("--logins", help="Comma-separated client logins")
-@click.option(
-    "--archived",
-    type=click.Choice(["YES", "NO"]),
-    default="NO",
-    show_default=True,
-    help="Filter archived clients",
-)
-@click.option("--limit", type=int, help="Limit number of results")
-@click.option("--fetch-all", is_flag=True, help="Fetch all pages")
-@click.option("--format", "output_format", default="json", help="Output format")
-@click.option("--output", help="Output file")
-@click.option("--fields", help="Comma-separated field names")
-@click.option(
-    "--contract-field-names",
-    help=(
-        "Comma-separated ContractFieldNames "
-        "(e.g. Number,Date,Price,Type,ActionType). "
-        "Sent as separate top-level request parameter per the "
-        "AgencyClientsGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--contragent-field-names",
-    help=(
-        "Comma-separated ContragentFieldNames "
-        "(e.g. Name,Phone,EpayNumber,RegNumber). "
-        "Sent as separate top-level request parameter per the "
-        "AgencyClientsGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--contragent-tin-info-field-names",
-    help=(
-        "Comma-separated ContragentTinInfoFieldNames (e.g. TinType,Tin). "
-        "Sent as separate top-level request parameter per the "
-        "AgencyClientsGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--organization-field-names",
-    help=(
-        "Comma-separated OrganizationFieldNames "
-        "(e.g. Name,EpayNumber,RegNumber,OkvedCode). "
-        "Sent as separate top-level request parameter per the "
-        "AgencyClientsGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--tin-info-field-names",
-    help=(
-        "Comma-separated TinInfoFieldNames (e.g. TinType,Tin). "
-        "Sent as separate top-level request parameter per the "
-        "AgencyClientsGetRequest WSDL."
-    ),
-)
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def get(
-    ctx,
-    logins,
-    archived,
-    limit,
-    fetch_all,
-    output_format,
-    output,
-    fields,
-    contract_field_names,
-    contragent_field_names,
-    contragent_tin_info_field_names,
-    organization_field_names,
-    tin_info_field_names,
-    dry_run,
-):
-    """Get agency clients"""
-    client = client_from_ctx(ctx, create_client)
-
-    field_names = parse_csv_strings(fields) or get_default_fields("agencyclients")
-
-    raw_nested = (
-        ("ContractFieldNames", contract_field_names),
-        ("ContragentFieldNames", contragent_field_names),
-        ("ContragentTinInfoFieldNames", contragent_tin_info_field_names),
-        ("OrganizationFieldNames", organization_field_names),
-        ("TinInfoFieldNames", tin_info_field_names),
-    )
-    parsed_nested = parse_nested_field_names(raw_nested)
-
+def _agencyclients_criteria(ids, logins=None, archived=None, **_):
+    """SelectionCriteria for ``agencyclients get``: mandatory ``Archived`` plus
+    an optional ``Logins`` list (this resource has no ``--ids`` filter)."""
     criteria = {"Archived": archived}
     if logins:
         criteria["Logins"] = parse_csv_strings(logins)
+    return criteria
 
-    params = build_common_params(
-        criteria=criteria, field_names=field_names, limit=limit
-    )
-    params.update(parsed_nested)
 
-    body = {"method": "get", "params": params}
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    result = client.agencyclients().post(data=body)
-
-    if fetch_all:
-        items = []
-        for item in result().iter_items():
-            items.append(item)
-        format_output(items, output_format, output)
-    else:
-        data = result().extract()
-        format_output(data, output_format, output)
+get = make_get_command(
+    agencyclients,
+    create_client,
+    default_fields_key="agencyclients",
+    help_text="Get agency clients",
+    include_ids=False,
+    extra_options=(
+        click.option("--logins", help="Comma-separated client logins"),
+        click.option(
+            "--archived",
+            type=click.Choice(["YES", "NO"]),
+            default="NO",
+            show_default=True,
+            help="Filter archived clients",
+        ),
+    ),
+    criteria_builder=_agencyclients_criteria,
+    nested_field_options=(
+        (
+            "--contract-field-names",
+            "ContractFieldNames",
+            (
+                "Comma-separated ContractFieldNames "
+                "(e.g. Number,Date,Price,Type,ActionType). "
+                "Sent as separate top-level request parameter per the "
+                "AgencyClientsGetRequest WSDL."
+            ),
+        ),
+        (
+            "--contragent-field-names",
+            "ContragentFieldNames",
+            (
+                "Comma-separated ContragentFieldNames "
+                "(e.g. Name,Phone,EpayNumber,RegNumber). "
+                "Sent as separate top-level request parameter per the "
+                "AgencyClientsGetRequest WSDL."
+            ),
+        ),
+        (
+            "--contragent-tin-info-field-names",
+            "ContragentTinInfoFieldNames",
+            (
+                "Comma-separated ContragentTinInfoFieldNames (e.g. TinType,Tin). "
+                "Sent as separate top-level request parameter per the "
+                "AgencyClientsGetRequest WSDL."
+            ),
+        ),
+        (
+            "--organization-field-names",
+            "OrganizationFieldNames",
+            (
+                "Comma-separated OrganizationFieldNames "
+                "(e.g. Name,EpayNumber,RegNumber,OkvedCode). "
+                "Sent as separate top-level request parameter per the "
+                "AgencyClientsGetRequest WSDL."
+            ),
+        ),
+        (
+            "--tin-info-field-names",
+            "TinInfoFieldNames",
+            (
+                "Comma-separated TinInfoFieldNames (e.g. TinType,Tin). "
+                "Sent as separate top-level request parameter per the "
+                "AgencyClientsGetRequest WSDL."
+            ),
+        ),
+    ),
+)
 
 
 @agencyclients.command()
