@@ -106,7 +106,7 @@ Builds dist artifacts, runs twine checks, uploads to TestPyPI + PyPI. Does **not
 ## Tests
 
 - **Unit** (`test_cli.py`, `test_comprehensive.py`) — no API calls, no token needed.
-- **Parallel by default:** `addopts` runs the offline tier with `-n auto` (pytest-xdist) across CPU cores; the suite is process-parallel-safe (env/cwd via `monkeypatch`, filesystem via `tmp_path`, the shared orphan store only in the excluded live tiers). Use `pytest -n0` to run sequentially for `pdb`/`-s`/debugging.
+- **Parallel by default:** `addopts` runs the offline tier with `-n auto` (pytest-xdist) across CPU cores; the suite is process-parallel-safe (env/cwd via `monkeypatch`, filesystem via `tmp_path`, the shared orphan store only in the excluded live tiers). Use `pytest -n0` to run sequentially for `pdb`/`-s`/debugging. The live tiers (`integration`/`v4_live_read`/`integration_live_write`) are **not** parallel-safe (real API + shared `~/.direct-cli` orphan store + ordered resource lifecycles); a `pytest_xdist_auto_num_workers` hook in `tests/conftest.py` auto-resolves `-n auto` to a single worker whenever a live marker is selected, so an explicit `pytest -m integration_live_write` stays serial.
 - **Integration** (`test_integration.py`, `@pytest.mark.integration`) — require `.env` with `YANDEX_DIRECT_TOKEN` and `YANDEX_DIRECT_LOGIN`. Auto-skip if absent.
 - **Credential resolution in tests:** env vars/current working directory `.env` first, then active `direct auth` profile, then skip. This matches the safe CLI default for base env vs. active profile: a developer machine with an active profile must not silently hit production on a plain `pytest`.
 

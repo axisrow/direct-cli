@@ -28,6 +28,26 @@ from direct_cli.cli import cli
 load_dotenv()
 
 
+# The live tiers (real API calls + the shared ``~/.direct-cli/test-orphans.json``
+# orphan store + ordered create→use→delete resource lifecycles) are NOT
+# parallel-safe. ``-n auto`` lives in ``addopts`` for the fast offline default,
+# but it must not fan an *explicit* live-tier selection across workers. This
+# xdist hook resolves ``-n auto`` to a single worker (serial) whenever the marker
+# expression positively selects a live tier; the offline default — which excludes
+# them via ``not ...`` — keeps the full CPU count. An explicit ``-n0`` always
+# wins (the hook is only consulted for ``-n auto``/``-n logical``).
+_LIVE_MARKERS = ("integration", "v4_live_read", "integration_live_write")
+
+
+def pytest_xdist_auto_num_workers(config):
+    """Force serial (one worker) when a live tier is explicitly selected."""
+    markexpr = config.getoption("markexpr") or ""
+    for marker in _LIVE_MARKERS:
+        if marker in markexpr and f"not {marker}" not in markexpr:
+            return 1
+    return None
+
+
 @pytest.fixture(autouse=True)
 def _block_login_resolve_network(monkeypatch):
     """Stop unit tests from ever hitting the network to resolve a client login.

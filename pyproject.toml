@@ -37,7 +37,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=6.0",
+    "pytest>=6.2",
     "pytest-cov>=2.0",
     "pytest-recording>=0.13",
     "pytest-xdist>=3.0",
