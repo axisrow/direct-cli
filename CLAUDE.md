@@ -10,7 +10,8 @@ CLI for the Yandex Direct API, built with Python and Click. Installed via pip, p
 
 ```bash
 pip install -e ".[dev]"              # Install in dev mode
-pytest                               # Unit tests (no token needed)
+pytest                               # Offline tests, parallel via xdist (no token needed)
+pytest -n0                           # Same offline tests, sequential (for pdb / -s / debugging)
 pytest -m integration -v             # Integration tests (needs .env with token)
 pytest tests/test_cli.py::TestCLI::test_cli_help  # Single test
 pytest -k "campaigns"                # Pattern match
@@ -105,6 +106,7 @@ Builds dist artifacts, runs twine checks, uploads to TestPyPI + PyPI. Does **not
 ## Tests
 
 - **Unit** (`test_cli.py`, `test_comprehensive.py`) — no API calls, no token needed.
+- **Parallel by default:** `addopts` runs the offline tier with `-n auto` (pytest-xdist) across CPU cores; the suite is process-parallel-safe (env/cwd via `monkeypatch`, filesystem via `tmp_path`, the shared orphan store only in the excluded live tiers). Use `pytest -n0` to run sequentially for `pdb`/`-s`/debugging.
 - **Integration** (`test_integration.py`, `@pytest.mark.integration`) — require `.env` with `YANDEX_DIRECT_TOKEN` and `YANDEX_DIRECT_LOGIN`. Auto-skip if absent.
 - **Credential resolution in tests:** env vars/current working directory `.env` first, then active `direct auth` profile, then skip. This matches the safe CLI default for base env vs. active profile: a developer machine with an active profile must not silently hit production on a plain `pytest`.
 
