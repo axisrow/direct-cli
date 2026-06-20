@@ -9,7 +9,7 @@ import click
 from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
-from ._lifecycle import make_lifecycle_command
+from ._lifecycle import register_lifecycle_commands
 from . import _batch
 from ..utils import (
     add_criteria_csv,
@@ -3142,15 +3142,17 @@ def update(
     format_output(result().extract(), "json", None)
 
 
-def _ad_lifecycle(method, help_text):
-    return make_lifecycle_command(
-        ads, method, help_text, "ad_id", "Ad ID", create_client
-    )
-
-
-delete = _ad_lifecycle("delete", "Delete ad")
-archive = _ad_lifecycle("archive", "Archive ad")
-unarchive = _ad_lifecycle("unarchive", "Unarchive ad")
-suspend = _ad_lifecycle("suspend", "Suspend ad")
-resume = _ad_lifecycle("resume", "Resume ad")
-moderate = _ad_lifecycle("moderate", "Moderate ad")
+register_lifecycle_commands(
+    ads,
+    "ad_id",
+    "Ad ID",
+    create_client,
+    [
+        ("delete", "Delete ad"),
+        ("archive", "Archive ad"),
+        ("unarchive", "Unarchive ad"),
+        ("suspend", "Suspend ad"),
+        ("resume", "Resume ad"),
+        ("moderate", "Moderate ad"),
+    ],
+)

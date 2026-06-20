@@ -7,7 +7,7 @@ import click
 from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
-from ._lifecycle import make_lifecycle_command
+from ._lifecycle import register_lifecycle_commands
 from ..utils import (
     MICRO_RUBLES,
     add_criteria_csv,
@@ -983,11 +983,13 @@ def update(
     format_output(result().extract(), "json", None)
 
 
-def _strategy_lifecycle(method, help_text):
-    return make_lifecycle_command(
-        strategies, method, help_text, "strategy_id", "Strategy ID", create_client
-    )
-
-
-archive = _strategy_lifecycle("archive", "Archive a strategy")
-unarchive = _strategy_lifecycle("unarchive", "Unarchive a strategy")
+register_lifecycle_commands(
+    strategies,
+    "strategy_id",
+    "Strategy ID",
+    create_client,
+    [
+        ("archive", "Archive a strategy"),
+        ("unarchive", "Unarchive a strategy"),
+    ],
+)

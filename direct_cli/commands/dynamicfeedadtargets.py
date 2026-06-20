@@ -9,7 +9,7 @@ import click
 from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
-from ._lifecycle import make_lifecycle_command
+from ._lifecycle import register_lifecycle_commands
 from ..utils import (
     MICRO_RUBLES,
     build_common_params,
@@ -155,15 +155,17 @@ def add(
     format_output(result().extract(), "json", None)
 
 
-def _dynamicfeedadtarget_lifecycle(method, help_text):
-    return make_lifecycle_command(
-        dynamicfeedadtargets, method, help_text, "target_id", "Target ID", create_client
-    )
-
-
-delete = _dynamicfeedadtarget_lifecycle("delete", "Delete dynamic feed ad target")
-suspend = _dynamicfeedadtarget_lifecycle("suspend", "Suspend dynamic feed ad target")
-resume = _dynamicfeedadtarget_lifecycle("resume", "Resume dynamic feed ad target")
+register_lifecycle_commands(
+    dynamicfeedadtargets,
+    "target_id",
+    "Target ID",
+    create_client,
+    [
+        ("delete", "Delete dynamic feed ad target"),
+        ("suspend", "Suspend dynamic feed ad target"),
+        ("resume", "Resume dynamic feed ad target"),
+    ],
+)
 
 
 @dynamicfeedadtargets.command(name="set-bids")

@@ -9,7 +9,7 @@ import click
 from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
-from ._lifecycle import make_lifecycle_command
+from ._lifecycle import register_lifecycle_commands
 from ..utils import (
     MICRO_RUBLES,
     add_criteria_csv,
@@ -221,12 +221,14 @@ def set_bids(ctx, target_id, adgroup_id, campaign_id, context_bid, priority, dry
     format_output(result().extract(), "json", None)
 
 
-def _audiencetarget_lifecycle(method, help_text):
-    return make_lifecycle_command(
-        audiencetargets, method, help_text, "target_id", "Target ID", create_client
-    )
-
-
-delete = _audiencetarget_lifecycle("delete", "Delete audience target")
-suspend = _audiencetarget_lifecycle("suspend", "Suspend audience target")
-resume = _audiencetarget_lifecycle("resume", "Resume audience target")
+register_lifecycle_commands(
+    audiencetargets,
+    "target_id",
+    "Target ID",
+    create_client,
+    [
+        ("delete", "Delete audience target"),
+        ("suspend", "Suspend audience target"),
+        ("resume", "Resume audience target"),
+    ],
+)

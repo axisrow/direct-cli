@@ -97,3 +97,18 @@ def make_lifecycle_command(
         format_output(result().extract(), "json", None)
 
     return _command
+
+
+def register_lifecycle_commands(group, id_param, id_help, create_client, specs):
+    """Register a batch of lifecycle commands sharing one id option.
+
+    Replaces the per-module ``_<resource>_lifecycle`` wrappers: each
+    ``(method, help_text)`` pair in *specs* is registered via
+    :func:`make_lifecycle_command` with the shared *id_param* / *id_help* /
+    *create_client*. The commands register themselves on *group* inside the
+    factory, so no return value is needed.
+    """
+    for method, help_text in specs:
+        make_lifecycle_command(
+            group, method, help_text, id_param, id_help, create_client
+        )
