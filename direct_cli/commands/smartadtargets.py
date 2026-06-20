@@ -7,7 +7,7 @@ import click
 from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
-from ._lifecycle import make_lifecycle_command
+from ._lifecycle import register_lifecycle_commands
 from ..utils import (
     MICRO_RUBLES,
     build_common_params,
@@ -225,15 +225,17 @@ def update(
     format_output(result().extract(), "json", None)
 
 
-def _smartadtarget_lifecycle(method, help_text):
-    return make_lifecycle_command(
-        smartadtargets, method, help_text, "target_id", "Target ID", create_client
-    )
-
-
-delete = _smartadtarget_lifecycle("delete", "Delete smart ad target")
-suspend = _smartadtarget_lifecycle("suspend", "Suspend smart ad target")
-resume = _smartadtarget_lifecycle("resume", "Resume smart ad target")
+register_lifecycle_commands(
+    smartadtargets,
+    "target_id",
+    "Target ID",
+    create_client,
+    [
+        ("delete", "Delete smart ad target"),
+        ("suspend", "Suspend smart ad target"),
+        ("resume", "Resume smart ad target"),
+    ],
+)
 
 
 @smartadtargets.command(name="set-bids")

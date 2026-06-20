@@ -7,7 +7,7 @@ import click
 from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
-from ._lifecycle import make_lifecycle_command
+from ._lifecycle import register_lifecycle_commands
 from ..utils import (
     MICRO_RUBLES,
     build_common_params,
@@ -143,15 +143,17 @@ def add(ctx, adgroup_id, name, conditions, bid, context_bid, priority, dry_run):
     format_output(result().extract(), "json", None)
 
 
-def _dynamicad_lifecycle(method, help_text):
-    return make_lifecycle_command(
-        dynamicads, method, help_text, "target_id", "Target ID", create_client
-    )
-
-
-delete = _dynamicad_lifecycle("delete", "Delete dynamic ad target")
-suspend = _dynamicad_lifecycle("suspend", "Suspend dynamic ad target")
-resume = _dynamicad_lifecycle("resume", "Resume dynamic ad target")
+register_lifecycle_commands(
+    dynamicads,
+    "target_id",
+    "Target ID",
+    create_client,
+    [
+        ("delete", "Delete dynamic ad target"),
+        ("suspend", "Suspend dynamic ad target"),
+        ("resume", "Resume dynamic ad target"),
+    ],
+)
 
 
 @dynamicads.command(name="set-bids")

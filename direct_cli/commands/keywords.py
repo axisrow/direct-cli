@@ -30,7 +30,7 @@ from .._autotargeting import (
     parse_autotargeting_categories,
     reject_legacy_autotargeting_mix,
 )
-from ._lifecycle import make_lifecycle_command
+from ._lifecycle import register_lifecycle_commands
 from . import _batch
 
 # Yandex Direct keywords.get caps SelectionCriteria arrays at runtime
@@ -827,12 +827,14 @@ def update(
     format_output(result().extract(), "json", None)
 
 
-def _keyword_lifecycle(method, help_text):
-    return make_lifecycle_command(
-        keywords, method, help_text, "keyword_id", "Keyword ID", create_client
-    )
-
-
-delete = _keyword_lifecycle("delete", "Delete keyword")
-suspend = _keyword_lifecycle("suspend", "Suspend keyword")
-resume = _keyword_lifecycle("resume", "Resume keyword")
+register_lifecycle_commands(
+    keywords,
+    "keyword_id",
+    "Keyword ID",
+    create_client,
+    [
+        ("delete", "Delete keyword"),
+        ("suspend", "Suspend keyword"),
+        ("resume", "Resume keyword"),
+    ],
+)

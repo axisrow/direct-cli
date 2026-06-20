@@ -10,7 +10,7 @@ import click
 from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
-from ._lifecycle import make_lifecycle_command
+from ._lifecycle import register_lifecycle_commands
 from ..utils import (
     build_selection_criteria,
     build_common_params,
@@ -7207,14 +7207,16 @@ def update(
     format_output(result().extract(), "json", None)
 
 
-def _campaign_lifecycle(method, help_text):
-    return make_lifecycle_command(
-        campaigns, method, help_text, "campaign_id", "Campaign ID", create_client
-    )
-
-
-delete = _campaign_lifecycle("delete", "Delete campaign")
-archive = _campaign_lifecycle("archive", "Archive campaign")
-unarchive = _campaign_lifecycle("unarchive", "Unarchive campaign")
-suspend = _campaign_lifecycle("suspend", "Suspend campaign")
-resume = _campaign_lifecycle("resume", "Resume campaign")
+register_lifecycle_commands(
+    campaigns,
+    "campaign_id",
+    "Campaign ID",
+    create_client,
+    [
+        ("delete", "Delete campaign"),
+        ("archive", "Archive campaign"),
+        ("unarchive", "Unarchive campaign"),
+        ("suspend", "Suspend campaign"),
+        ("resume", "Resume campaign"),
+    ],
+)
