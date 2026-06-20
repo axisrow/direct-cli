@@ -9,15 +9,9 @@ sitelinks).  No ``add``/``update``/``delete`` methods exist on this service.
 
 import click
 
-from ..api import client_from_ctx, create_client
-from ..output import format_output, handle_api_errors
-from ..utils import (
-    build_common_params,
-    get_default_fields,
-    get_options,
-    parse_csv_strings,
-    parse_ids,
-)
+from ..api import create_client
+from ..utils import parse_csv_strings, parse_ids
+from ._get import make_get_command
 
 
 @click.group()
@@ -25,43 +19,26 @@ def turbopages():
     """Manage Turbo Pages"""
 
 
-@turbopages.command()
-@click.option("--ids", help="Comma-separated Turbo Page IDs")
-@click.option("--bound-with-hrefs", help="Comma-separated hrefs bound with Turbo Pages")
-@get_options
-@click.pass_context
-@handle_api_errors
-def get(
-    ctx, ids, bound_with_hrefs, limit, fetch_all, output_format, output, fields, dry_run
-):
-    """Get Turbo Pages"""
-    client = client_from_ctx(ctx, create_client)
-
-    field_names = parse_csv_strings(fields) or get_default_fields("turbopages")
-
+def _turbopages_criteria(ids, bound_with_hrefs=None):
     criteria = {}
     if ids:
         criteria["Ids"] = parse_ids(ids)
     if bound_with_hrefs:
         criteria["BoundWithHrefs"] = parse_csv_strings(bound_with_hrefs) or []
+    return criteria
 
-    params = build_common_params(
-        criteria=criteria, field_names=field_names, limit=limit
-    )
 
-    body = {"method": "get", "params": params}
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    result = client.turbopages().post(data=body)
-
-    if fetch_all:
-        items = []
-        for item in result().iter_items():
-            items.append(item)
-        format_output(items, output_format, output)
-    else:
-        data = result().extract()
-        format_output(data, output_format, output)
+get = make_get_command(
+    turbopages,
+    create_client,
+    default_fields_key="turbopages",
+    help_text="Get Turbo Pages",
+    ids_help="Comma-separated Turbo Page IDs",
+    extra_options=[
+        click.option(
+            "--bound-with-hrefs",
+            help="Comma-separated hrefs bound with Turbo Pages",
+        )
+    ],
+    criteria_builder=_turbopages_criteria,
+)

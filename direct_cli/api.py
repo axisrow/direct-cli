@@ -2,6 +2,7 @@
 API client wrapper for Direct CLI
 """
 
+import sys
 from typing import Optional, Dict, Any, List
 
 from direct_cli._vendor.tapi_yandex_direct import YandexDirect
@@ -89,6 +90,25 @@ def client_from_ctx(ctx, create_client_fn) -> YandexDirect:
         login=ctx.obj.get("login"),
         sandbox=ctx.obj.get("sandbox"),
     )
+
+
+def resolve_module_create_client(module_name: str, fallback):
+    """Return a command module's *current* ``create_client``, for patchability.
+
+    The command factories (:mod:`direct_cli.commands._get`, and eventually the
+    lifecycle factory) capture ``create_client`` as a closure value at import
+    time. That pins the original function and would bypass a later
+    ``patch.object("direct_cli.commands.<module>", "create_client", ...)`` — the
+    patchability contract that unit tests and the coverage wire-payload capture
+    (``scripts/build_api_coverage_report.py``) rely on. Re-reading the attribute
+    from the live module at call time restores it. *fallback* is returned if the
+    module is somehow absent or lacks the attribute (it never should for a
+    registered command).
+    """
+    module = sys.modules.get(module_name)
+    if module is None:
+        return fallback
+    return getattr(module, "create_client", fallback)
 
 
 def create_v4_client(
