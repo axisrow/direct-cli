@@ -7,6 +7,7 @@ from typing import Any
 import click
 
 from ..api import client_from_ctx, create_client
+from ._execute import execute_request
 from ..i18n import t
 from ..output import format_output, handle_api_errors
 from ..utils import (
@@ -170,13 +171,7 @@ def set(
 
     body = {"method": "set", "params": {"Bids": [bid_data]}}
 
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-    result = client.bids().post(data=body)
-    format_output(result().extract(), "json", None)
+    execute_request(ctx, "bids", body, dry_run, create_client)
 
 
 @bids.command(name="set-auto")
@@ -231,10 +226,4 @@ def set_auto(
 
     body = {"method": "setAuto", "params": {"Bids": [bid_data]}}
 
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-    result = client.bids().post(data=body)
-    format_output(result().extract(), "json", None)
+    execute_request(ctx, "bids", body, dry_run, create_client)

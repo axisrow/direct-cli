@@ -9,6 +9,7 @@ import click
 from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
+from ._execute import execute_request
 from ._lifecycle import make_lifecycle_command
 from ..utils import (
     build_common_params,
@@ -432,14 +433,7 @@ def add(
 
     body = {"method": "add", "params": {"BidModifiers": [modifier_data]}}
 
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-
-    result = client.bidmodifiers().post(data=body)
-    format_output(result().extract(), "json", None)
+    execute_request(ctx, "bidmodifiers", body, dry_run, create_client)
 
 
 _DEPRECATED_BIDMODIFIERS_SET_OPTIONS = {
@@ -520,14 +514,7 @@ def set(ctx, modifier_id, value, dry_run):
 
     body = {"method": "set", "params": {"BidModifiers": [modifier_data]}}
 
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-
-    result = client.bidmodifiers().post(data=body)
-    format_output(result().extract(), "json", None)
+    execute_request(ctx, "bidmodifiers", body, dry_run, create_client)
 
 
 delete = make_lifecycle_command(

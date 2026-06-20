@@ -9,6 +9,7 @@ import click
 from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
+from ._execute import execute_request
 from ._lifecycle import register_lifecycle_commands
 from ..utils import (
     MICRO_RUBLES,
@@ -168,13 +169,7 @@ def add(
 
     body = {"method": "add", "params": {"AudienceTargets": [target_data]}}
 
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-    result = client.audiencetargets().post(data=body)
-    format_output(result().extract(), "json", None)
+    execute_request(ctx, "audiencetargets", body, dry_run, create_client)
 
 
 @audiencetargets.command(name="set-bids")
@@ -212,13 +207,7 @@ def set_bids(ctx, target_id, adgroup_id, campaign_id, context_bid, priority, dry
 
     body = {"method": "setBids", "params": {"Bids": [bid_data]}}
 
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-    result = client.audiencetargets().post(data=body)
-    format_output(result().extract(), "json", None)
+    execute_request(ctx, "audiencetargets", body, dry_run, create_client)
 
 
 register_lifecycle_commands(
