@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+**Internal — `make_get_command` covers the no-`--ids` / wire-quirk `get`s (part of #587):**
+
+- `agencyclients get` (no `--ids`; filters by `--logins` / `--archived`) and
+  `adextensions get` now register through the shared `make_get_command` factory.
+  The factory gained two more optional parameters: `include_ids` (set `False`
+  for resources with no id filter — the command supplies a custom
+  `criteria_builder` from its own options) and `adextensions_wire_layout` (a
+  single-command flag that reproduces adextensions' exact recorded wire layout:
+  always emit `SelectionCriteria` even when empty, and order nested
+  `*FieldNames` before `Page`). The empty `SelectionCriteria` is a recorded API
+  contract — the `adextensions_get` read cassette replays it and the API accepts
+  it, unlike adgroups/ads/keywords.
+- No CLI surface change: `--help`, `--dry-run` payloads (incl. the empty-criteria
+  and nested-before-`Page` cases) and the read cassettes are byte-identical
+  (verified against pre-migration baselines). Remaining carve-out: `leads get`,
+  whose `--datetime-from` / `--datetime-to` options sit between `--limit` and
+  `--fetch-all` — a bespoke option order that doesn't fit the shared
+  `get_options` stack, so it stays hand-rolled.
+
 **Internal — `make_get_command` covers the nested-`*FieldNames` `get`s (part of #587):**
 
 - `adimages get`, `retargeting get`, `sitelinks get`, `feeds get` and
