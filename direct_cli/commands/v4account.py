@@ -10,6 +10,7 @@ from ..i18n import t
 from ..utils import parse_csv_strings, parse_ids
 from ..v4.emit import emit_or_call_v4, emit_or_call_v4_finance
 from ..v4.money import parse_v4_money_sum
+from ..v4.parse import non_empty, parse_id_value_specs
 from ..v4_contracts import v4_method_contract
 
 # Cross-module helpers shared with v4finance commands. AccountManagement's
@@ -109,16 +110,6 @@ def _require_dry_run_or_sandbox(dry_run: bool, sandbox: bool) -> None:
     """Reject shared-account mutations outside explicit dry-run or sandbox."""
     if not dry_run and not sandbox:
         raise click.UsageError(t("--dry-run is required unless --sandbox is set"))
-
-
-def _non_empty(value: str, option_name: str) -> str:
-    """Normalize a required string option."""
-    normalized = (value or "").strip()
-    if not normalized:
-        raise click.UsageError(
-            t("{option_name} must not be empty").format(option_name=option_name)
-        )
-    return normalized
 
 
 def _parse_day_budget(value: Optional[str]) -> Optional[float]:
@@ -293,7 +284,7 @@ def _account_update_param(
 
     email_notification: dict = {}
     if email is not None:
-        email_notification["Email"] = _non_empty(email, "--email")
+        email_notification["Email"] = non_empty(email, "--email")
     if money_warning_value is not None:
         email_notification["MoneyWarningValue"] = money_warning_value
     if paused_by_day_budget is not None:
@@ -309,41 +300,23 @@ def _account_update_param(
 
 def _parse_account_payments(payments: tuple[str, ...], currency: str) -> list[dict]:
     """Parse repeated --payment ACCOUNT_ID=AMOUNT into PayCampElement-shaped items."""
-    if not payments:
-        raise click.UsageError(t("--payment is required"))
-    if len(payments) > 50:
-        raise click.UsageError(t("--payment accepts at most 50 entries per call"))
-
     normalized_currency = currency.upper()
-    parsed_items: list[dict] = []
-    seen_account_ids: set[int] = set()
-    for entry in payments:
-        spec = (entry or "").strip()
-        if "=" not in spec:
-            raise click.UsageError(t("--payment must use ACCOUNT_ID=AMOUNT"))
-        account_id_text, amount_text = spec.split("=", 1)
-        account_id_text = account_id_text.strip()
-        amount_text = amount_text.strip()
-        try:
-            account_id = int(account_id_text)
-        except ValueError as exc:
-            raise click.UsageError(
-                t("--payment account ID must be a positive integer")
-            ) from exc
-        if account_id <= 0:
-            raise click.UsageError(t("--payment account ID must be a positive integer"))
-        if account_id in seen_account_ids:
-            raise click.UsageError(t("--payment account IDs must be unique"))
-        seen_account_ids.add(account_id)
-        parsed_items.append(
-            {
-                "AccountID": account_id,
-                "Amount": parse_v4_money_sum(amount_text, option_name="--payment"),
-                "Currency": normalized_currency,
-            }
-        )
-
-    return parsed_items
+    positive_int_msg = t("--payment account ID must be a positive integer")
+    pairs = parse_id_value_specs(
+        payments,
+        required_msg=t("--payment is required"),
+        malformed_msg=t("--payment must use ACCOUNT_ID=AMOUNT"),
+        not_integer_msg=positive_int_msg,
+        non_positive_msg=positive_int_msg,
+        duplicate_msg=t("--payment account IDs must be unique"),
+        value_parser=lambda amt: parse_v4_money_sum(amt, option_name="--payment"),
+        max_entries=50,
+        max_entries_msg=t("--payment accepts at most 50 entries per call"),
+    )
+    return [
+        {"AccountID": account_id, "Amount": amount, "Currency": normalized_currency}
+        for account_id, amount in pairs
+    ]
 
 
 def _account_deposit_param(
@@ -418,7 +391,7 @@ def _account_transfer_param(
 def enable_shared_account(ctx, client_login, dry_run, output_format, output):
     """Enable a shared account for a client in sandbox, or preview the request."""
     _require_dry_run_or_sandbox(dry_run, ctx.obj.get("sandbox"))
-    param = {"Login": _non_empty(client_login, "--client-login")}
+    param = {"Login": non_empty(client_login, "--client-login")}
     emit_or_call_v4(
         ctx,
         "EnableSharedAccount",

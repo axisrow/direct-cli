@@ -2,22 +2,20 @@
 
 import click
 
-from ..i18n import t
-from ..utils import parse_ids, v4_output_options
+from ..utils import v4_output_options
 from ..v4.emit import emit_or_call_v4
+from ..v4.parse import parse_positive_ids
 from ..v4_contracts import v4_method_contract
 from .v4shells import V4_EPILOG
 
 
 def _campaign_ids_param(campaign_ids: str) -> dict:
     """Build the v4 Live CampaignIDInfo parameter."""
-    try:
-        ids = parse_ids(campaign_ids)
-    except ValueError as exc:
-        raise click.UsageError(str(exc))
-    if not ids:
-        raise click.UsageError(t("--campaign-ids must not be empty"))
-    return {"CampaignIDS": ids}
+    return {
+        "CampaignIDS": parse_positive_ids(
+            campaign_ids, "--campaign-ids", require_positive=False
+        )
+    }
 
 
 @click.group(epilog=V4_EPILOG)
