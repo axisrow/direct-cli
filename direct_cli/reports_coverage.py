@@ -11,6 +11,7 @@ import json
 import re
 from pathlib import Path
 
+from ._captcha import find_captcha_marker
 from .utils import get_docs_pages
 
 _REPORTS_DOCS_PAGES = get_docs_pages("reports")
@@ -31,20 +32,18 @@ REPORTS_SPEC_URLS: dict[str, str] = {
 
 REPORTS_CACHE_DIR = Path(__file__).resolve().parent.parent / "tests" / "reports_cache"
 
-_CAPTCHA_MARKERS = ("showcaptcha", "smartcaptcha", "<title>Captcha")
 _MIN_HTML_SIZE = 30_000
 
 
 def _assert_real_doc_page(url: str, html: str) -> None:
     """Reject captcha gateways or empty pages — they would silently poison the cache."""
-    lower = html.lower()
-    for marker in _CAPTCHA_MARKERS:
-        if marker.lower() in lower:
-            raise RuntimeError(
-                f"Yandex returned a captcha page for {url!r} (marker {marker!r}). "
-                "Likely the doc URL has moved — verify and update "
-                "RESOURCE_MAPPING_V5['reports']['docs_pages'] / REPORTS_SPEC_URLS."
-            )
+    marker = find_captcha_marker(html)
+    if marker is not None:
+        raise RuntimeError(
+            f"Yandex returned a captcha page for {url!r} (marker {marker!r}). "
+            "Likely the doc URL has moved — verify and update "
+            "RESOURCE_MAPPING_V5['reports']['docs_pages'] / REPORTS_SPEC_URLS."
+        )
     if len(html) < _MIN_HTML_SIZE:
         raise RuntimeError(
             f"Response for {url!r} is suspiciously small ({len(html)} bytes < "

@@ -13,6 +13,7 @@ import click
 from ..i18n import t
 from ..utils import parse_csv_strings, parse_ids, v4_output_options
 from ..v4.emit import emit_or_call_v4
+from ..v4.parse import parse_id_value_specs
 from ..v4_contracts import v4_method_contract
 from .v4shells import V4_EPILOG
 
@@ -73,37 +74,26 @@ def _set_param(associations: tuple[str, ...]) -> dict:
     (attach the image). Per the docs, AdID is required and omitting
     AdImageHash detaches the current image.
     """
-    if not associations:
-        raise click.UsageError(t("--association is required for set"))
-    items = []
-    seen_ad_ids = set()
-    for spec in associations:
-        spec = (spec or "").strip()
-        if not spec:
-            raise click.UsageError(t("--association must not be empty"))
-        if "=" in spec:
-            ad_id_text, ad_image_hash = spec.split("=", 1)
-            ad_image_hash = ad_image_hash.strip()
-        else:
-            ad_id_text, ad_image_hash = spec, ""
-        ad_id_text = ad_id_text.strip()
-        try:
-            ad_id = int(ad_id_text)
-        except ValueError as exc:
-            raise click.UsageError(
-                t("--association must be AD_ID or AD_ID=HASH with an integer AD_ID")
-            ) from exc
-        if ad_id <= 0:
-            raise click.UsageError(t("--association AD_ID must be a positive integer"))
-        if ad_id in seen_ad_ids:
-            raise click.UsageError(t("--association AD_ID values must be unique"))
-        seen_ad_ids.add(ad_id)
+    pairs = parse_id_value_specs(
+        associations,
+        required_msg=t("--association is required for set"),
+        empty_spec_msg=t("--association must not be empty"),
+        allow_bare_id=True,
+        not_integer_msg=t(
+            "--association must be AD_ID or AD_ID=HASH with an integer AD_ID"
+        ),
+        non_positive_msg=t("--association AD_ID must be a positive integer"),
+        duplicate_msg=t("--association AD_ID values must be unique"),
+        max_entries=10000,
+        max_entries_msg=t("--association accepts at most 10000 entries"),
+        max_check="after",
+    )
+    items: list = []
+    for ad_id, ad_image_hash in pairs:
         item: dict = {"AdID": ad_id}
         if ad_image_hash:
             item["AdImageHash"] = ad_image_hash
         items.append(item)
-    if len(items) > 10000:
-        raise click.UsageError(t("--association accepts at most 10000 entries"))
     return {"Action": "Set", "AdImageAssociations": items}
 
 

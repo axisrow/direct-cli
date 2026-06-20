@@ -2282,6 +2282,7 @@ class TestReportsCoverage:
     def test_reports_cache_files_are_real_content(self):
         """Guard against silent cache poisoning: every raw HTML must be a real
         Yandex docs page, not a captcha gateway or empty redirect."""
+        from direct_cli._captcha import find_captcha_marker
         from direct_cli.reports_coverage import REPORTS_CACHE_DIR, REPORTS_SPEC_URLS
 
         raw_dir = REPORTS_CACHE_DIR / "raw"
@@ -2293,12 +2294,12 @@ class TestReportsCoverage:
                 f"raw/{key}.html is suspiciously small ({len(html)} bytes < 30 KB). "
                 "Likely captcha or redirect — refresh and verify the URL."
             )
+            marker = find_captcha_marker(html)
+            assert marker is None, (
+                f"raw/{key}.html contains captcha marker {marker!r}. "
+                f"URL {REPORTS_SPEC_URLS[key]!r} likely retired by Yandex."
+            )
             lower = html.lower()
-            for marker in ("showcaptcha", "smartcaptcha", "<title>captcha"):
-                assert marker not in lower, (
-                    f"raw/{key}.html contains captcha marker {marker!r}. "
-                    f"URL {REPORTS_SPEC_URLS[key]!r} likely retired by Yandex."
-                )
             assert "direct/doc" in lower or "<h1" in lower, (
                 f"raw/{key}.html does not look like a Yandex docs page "
                 "(no /direct/doc/ link and no <h1>)."
@@ -2311,38 +2312,40 @@ class TestWsdlCacheFreshness:
     def test_wsdl_cache_files_are_real_content(self):
         from pathlib import Path
 
+        from direct_cli._captcha import find_captcha_marker
+
         cache = Path(__file__).resolve().parent / "wsdl_cache"
         xml_files = sorted(cache.glob("*.xml"))
         assert xml_files, "tests/wsdl_cache/*.xml is empty"
         for path in xml_files:
             text = path.read_text(encoding="utf-8")
-            assert len(text) >= 3_000, (
-                f"{path.name} is suspiciously small ({len(text)} bytes < 3 KB)"
-            )
-            lower = text.lower()
-            assert "showcaptcha" not in lower and "smartcaptcha" not in lower, (
-                f"{path.name} contains a captcha marker — refresh the cache"
-            )
+            assert (
+                len(text) >= 3_000
+            ), f"{path.name} is suspiciously small ({len(text)} bytes < 3 KB)"
+            assert (
+                find_captcha_marker(text) is None
+            ), f"{path.name} contains a captcha marker — refresh the cache"
             assert "<?xml" in text, f"{path.name} missing XML declaration"
-            assert "wsdl:definitions" in text or "xsd:schema" in text, (
-                f"{path.name} missing wsdl:definitions/xsd:schema — likely HTML"
-            )
+            assert (
+                "wsdl:definitions" in text or "xsd:schema" in text
+            ), f"{path.name} missing wsdl:definitions/xsd:schema — likely HTML"
 
     def test_imported_xsd_cache_files_are_real_content(self):
         from pathlib import Path
+
+        from direct_cli._captcha import find_captcha_marker
 
         imports = Path(__file__).resolve().parent / "wsdl_cache" / "imports"
         xsd_files = sorted(imports.glob("*.xsd"))
         assert xsd_files, "tests/wsdl_cache/imports/*.xsd is empty"
         for path in xsd_files:
             text = path.read_text(encoding="utf-8")
-            assert len(text) >= 1_000, (
-                f"{path.name} is suspiciously small ({len(text)} bytes < 1 KB)"
-            )
-            lower = text.lower()
-            assert "showcaptcha" not in lower and "smartcaptcha" not in lower, (
-                f"{path.name} contains a captcha marker — refresh the cache"
-            )
+            assert (
+                len(text) >= 1_000
+            ), f"{path.name} is suspiciously small ({len(text)} bytes < 1 KB)"
+            assert (
+                find_captcha_marker(text) is None
+            ), f"{path.name} contains a captcha marker — refresh the cache"
             assert "<?xml" in text, f"{path.name} missing XML declaration"
             assert "schema" in text, f"{path.name} missing schema element"
 

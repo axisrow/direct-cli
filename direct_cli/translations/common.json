@@ -9,7 +9,6 @@
   "Provide a target selector (--id, --adgroup-id, or --campaign-id)": "Укажите селектор цели (--id, --adgroup-id или --campaign-id)",
   "--autotargeting-category expects CATEGORY=YES|NO (for example EXACT=YES)": "--autotargeting-category ожидает CATEGORY=YES|NO (например, EXACT=YES)",
   "--payment is required": "--payment обязателен",
-  "--campaign-ids must not be empty": "--campaign-ids не должен быть пустым",
   "--phrases must not be empty": "--phrases не должен быть пустым",
   "Provide a non-empty comma-separated {wsdl_key} list.": "Укажите непустой список {wsdl_key} через запятую.",
   "{option_name} must not be empty": "{option_name} не должен быть пустым",

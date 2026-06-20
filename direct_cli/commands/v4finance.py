@@ -7,13 +7,14 @@ import click
 
 from ..i18n import t
 from ..output import format_output, handle_api_errors
-from ..utils import parse_csv_strings, parse_ids, v4_output_options
+from ..utils import parse_csv_strings, v4_output_options
 from ..v4.emit import (
     _masked_finance_body,
     emit_or_call_v4,
     emit_or_call_v4_finance,
 )
 from ..v4.money import build_finance_token, parse_v4_money_sum, validate_operation_num
+from ..v4.parse import non_empty, parse_id_value_specs, parse_positive_ids
 from ..v4_contracts import v4_method_contract
 from .v4shells import V4_EPILOG
 
@@ -52,41 +53,23 @@ def _logins_param(logins: str) -> list[str]:
 
 def _invoice_payments_param(payments: tuple[str, ...], currency: str) -> dict:
     """Build the v4 Live CreateInvoice payment object parameter."""
-    if not payments:
-        raise click.UsageError(t("--payment is required"))
-
     normalized_currency = currency.upper()
-    parsed_payments = []
-    seen_campaign_ids = set()
-    for payment in payments:
-        spec = (payment or "").strip()
-        if "=" not in spec:
-            raise click.UsageError(t("--payment must use CAMPAIGN_ID=AMOUNT"))
-        campaign_id_text, amount_text = spec.split("=", 1)
-        campaign_id_text = campaign_id_text.strip()
-        amount_text = amount_text.strip()
-        try:
-            campaign_id = int(campaign_id_text)
-        except ValueError as exc:
-            raise click.UsageError(
-                t("--payment campaign ID must be a positive integer")
-            ) from exc
-        if campaign_id <= 0:
-            raise click.UsageError(
-                t("--payment campaign ID must be a positive integer")
-            )
-        if campaign_id in seen_campaign_ids:
-            raise click.UsageError(t("--payment campaign IDs must be unique"))
-        seen_campaign_ids.add(campaign_id)
-        parsed_payments.append(
-            {
-                "CampaignID": campaign_id,
-                "Sum": parse_v4_money_sum(amount_text),
-                "Currency": normalized_currency,
-            }
-        )
-
-    return {"Payments": parsed_payments}
+    positive_int_msg = t("--payment campaign ID must be a positive integer")
+    pairs = parse_id_value_specs(
+        payments,
+        required_msg=t("--payment is required"),
+        malformed_msg=t("--payment must use CAMPAIGN_ID=AMOUNT"),
+        not_integer_msg=positive_int_msg,
+        non_positive_msg=positive_int_msg,
+        duplicate_msg=t("--payment campaign IDs must be unique"),
+        value_parser=parse_v4_money_sum,
+    )
+    return {
+        "Payments": [
+            {"CampaignID": campaign_id, "Sum": amount, "Currency": normalized_currency}
+            for campaign_id, amount in pairs
+        ]
+    }
 
 
 def _finance_credentials(
@@ -137,27 +120,9 @@ def _require_dry_run(dry_run: bool) -> None:
         raise click.UsageError(t("--dry-run is required for v4finance money commands"))
 
 
-def _non_empty_option(value: str, option_name: str) -> str:
-    """Normalize a required string option."""
-    normalized = (value or "").strip()
-    if not normalized:
-        raise click.UsageError(
-            t("{option_name} must not be empty").format(option_name=option_name)
-        )
-    return normalized
-
-
 def _campaign_ids_param(campaign_ids: str) -> list[int]:
     """Parse one or more campaign IDs."""
-    try:
-        parsed = parse_ids(campaign_ids)
-    except ValueError as exc:
-        raise click.UsageError(str(exc)) from exc
-    if not parsed:
-        raise click.UsageError(t("--campaign-ids must not be empty"))
-    if any(campaign_id <= 0 for campaign_id in parsed):
-        raise click.UsageError(t("--campaign-ids must contain only positive integers"))
-    return parsed
+    return parse_positive_ids(campaign_ids, "--campaign-ids")
 
 
 def _custom_transaction_id_param(custom_transaction_id: str) -> dict:
@@ -534,7 +499,7 @@ def pay_campaigns(
     )
     parsed_amount = parse_v4_money_sum(amount)
     parsed_campaign_ids = _campaign_ids_param(campaign_ids)
-    pay_method = _non_empty_option(pay_method, "--pay-method")
+    pay_method = non_empty(pay_method, "--pay-method")
     normalized_currency = currency.upper()
     contract_id = (contract_id or "").strip()
     if pay_method == "Bank" and not contract_id:

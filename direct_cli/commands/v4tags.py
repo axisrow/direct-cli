@@ -5,34 +5,16 @@ from typing import Optional
 import click
 
 from ..i18n import t
-from ..utils import parse_ids, v4_output_options
+from ..utils import v4_output_options
 from ..v4.emit import emit_or_call_v4
+from ..v4.parse import parse_positive_ids
 from ..v4_contracts import v4_method_contract
 from .v4shells import V4_EPILOG
 
 
-def _positive_ids_param(value: str, option_name: str) -> list[int]:
-    """Parse a required comma-separated positive integer list."""
-    try:
-        ids = parse_ids(value)
-    except ValueError as exc:
-        raise click.UsageError(str(exc)) from exc
-    if not ids:
-        raise click.UsageError(
-            t("{option_name} must not be empty").format(option_name=option_name)
-        )
-    if any(item <= 0 for item in ids):
-        raise click.UsageError(
-            t("{option_name} must contain only positive integers").format(
-                option_name=option_name
-            )
-        )
-    return ids
-
-
 def _tag_ids_param(tag_ids: str) -> list[int]:
     """Parse v4 banner tag IDs."""
-    parsed = _positive_ids_param(tag_ids, "--tag-ids")
+    parsed = parse_positive_ids(tag_ids, "--tag-ids")
     if len(parsed) > 30:
         raise click.UsageError(t("--tag-ids accepts at most 30 tag IDs"))
     return parsed
@@ -40,7 +22,7 @@ def _tag_ids_param(tag_ids: str) -> list[int]:
 
 def _get_campaigns_tags_param(campaign_ids: str) -> dict:
     """Build the v4 Live GetCampaignsTags parameter."""
-    return {"CampaignIDS": _positive_ids_param(campaign_ids, "--campaign-ids")}
+    return {"CampaignIDS": parse_positive_ids(campaign_ids, "--campaign-ids")}
 
 
 def _get_banners_tags_param(
@@ -50,12 +32,12 @@ def _get_banners_tags_param(
     if (campaign_ids is not None) == (banner_ids is not None):
         raise click.UsageError(t("Use exactly one of --campaign-ids or --banner-ids"))
     if campaign_ids is not None:
-        ids = _positive_ids_param(campaign_ids, "--campaign-ids")
+        ids = parse_positive_ids(campaign_ids, "--campaign-ids")
         if len(ids) > 10:
             raise click.UsageError(t("--campaign-ids accepts at most 10 campaign IDs"))
         return {"CampaignIDS": ids}
 
-    ids = _positive_ids_param(banner_ids or "", "--banner-ids")
+    ids = parse_positive_ids(banner_ids or "", "--banner-ids")
     if len(ids) > 2000:
         raise click.UsageError(t("--banner-ids accepts at most 2000 banner IDs"))
     return {"BannerIDS": ids}
@@ -123,7 +105,7 @@ def _update_banners_tags_param(
     banner_ids: str, tag_ids: Optional[str], clear_tags: bool
 ) -> list[dict]:
     """Build the v4 Live UpdateBannersTags parameter."""
-    parsed_banner_ids = _positive_ids_param(banner_ids, "--banner-ids")
+    parsed_banner_ids = parse_positive_ids(banner_ids, "--banner-ids")
     if clear_tags:
         if tag_ids is not None:
             raise click.UsageError(t("Use either --tag-ids or --clear-tags, not both"))

@@ -12,6 +12,8 @@ from functools import lru_cache
 from io import StringIO
 from pathlib import Path
 
+from ._captcha import find_captcha_marker
+
 WSDL_BASE_URL = "https://api.direct.yandex.com/v5/{service}?wsdl"
 # Imported XSD schemas are served from a different host than the WSDL
 # endpoints. If Yandex changes either domain, refresh_all_caches() and
@@ -167,8 +169,7 @@ _WSDL_REQUIRED_MARKERS = ("<?xml", "wsdl:definitions")
 
 def _assert_real_wsdl(url: str, xml_text: str) -> None:
     """Reject captcha gateways, HTML error pages, or empty XML responses."""
-    lower = xml_text.lower()
-    if "showcaptcha" in lower or "smartcaptcha" in lower:
+    if find_captcha_marker(xml_text) is not None:
         raise RuntimeError(
             f"Yandex returned a captcha page for WSDL endpoint {url!r}. "
             "Verify that WSDL_BASE_URL is still canonical."
@@ -237,8 +238,7 @@ _XSD_MIN_SIZE = 1_000
 def _assert_real_xsd(url: str, xml_text: str) -> None:
     """Same shape as _assert_real_wsdl, but for imported XSD schemas
     (smaller, no wsdl:definitions, only xsd:schema)."""
-    lower = xml_text.lower()
-    if "showcaptcha" in lower or "smartcaptcha" in lower:
+    if find_captcha_marker(xml_text) is not None:
         raise RuntimeError(
             f"Yandex returned a captcha page for XSD {url!r}. "
             "Verify that XSD_BASE_URL is still canonical."
