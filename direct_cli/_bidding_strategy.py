@@ -1378,22 +1378,27 @@ _TEXT_SEARCH_REQUIRED_TYPED_FLAGS_UPDATE: Dict[str, Dict[str, str]] = {
 }
 
 
-def _build_text_search_custom_period_budget(
+def _build_custom_period_budget(
+    flag_prefix: str,
+    campaign_label: str,
     spend_limit: Optional[int],
     start_date: Optional[str],
     end_date: Optional[str],
     auto_continue: Optional[str],
 ) -> Optional[dict]:
-    """Build a CustomPeriodBudget block from the four typed flags.
+    """Build a CustomPeriodBudget block from the four typed ``*-custom-period-*``
+    flags. All four must be provided together (WSDL ``CustomPeriodBudget``
+    minOccurs=1 on each leaf); returns ``None`` when none are provided.
 
-    All four flags must be provided together (WSDL minOccurs=1 each);
-    returns ``None`` when none are provided.
+    *flag_prefix* is the shared option prefix (e.g.
+    ``--text-search-custom-period-``) and *campaign_label* the error-message
+    label (e.g. ``TextCampaign``).
     """
     values = {
-        "--text-search-custom-period-spend-limit": spend_limit,
-        "--text-search-custom-period-start-date": start_date,
-        "--text-search-custom-period-end-date": end_date,
-        "--text-search-custom-period-auto-continue": auto_continue,
+        f"{flag_prefix}spend-limit": spend_limit,
+        f"{flag_prefix}start-date": start_date,
+        f"{flag_prefix}end-date": end_date,
+        f"{flag_prefix}auto-continue": auto_continue,
     }
     provided = [flag for flag, value in values.items() if value is not None]
     if not provided:
@@ -1401,7 +1406,7 @@ def _build_text_search_custom_period_budget(
     missing = [flag for flag, value in values.items() if value is None]
     if missing:
         raise click.UsageError(
-            "TextCampaign CustomPeriodBudget requires all four custom-period "
+            f"{campaign_label} CustomPeriodBudget requires all four custom-period "
             f"flags; missing {', '.join(sorted(missing))}"
         )
     assert spend_limit is not None
@@ -1416,20 +1421,28 @@ def _build_text_search_custom_period_budget(
     }
 
 
-def _build_text_search_exploration_budget(
+def _build_exploration_budget(
+    flag_prefix: str,
+    campaign_label: str,
     min_budget: Optional[int],
     is_custom: Optional[str],
+    *,
+    exploration_yes_only: bool,
 ) -> Optional[dict]:
-    """Build an ExplorationBudget block from the two typed flags.
+    """Build an ExplorationBudget block from the two typed ``*-exploration-*``
+    flags. Both fields are WSDL minOccurs=1; returns ``None`` when none are
+    provided.
 
-    Both fields are WSDL minOccurs=1; returns ``None`` when none are
-    provided. Per official Yandex docs only ``YES`` is accepted for
-    ``IsMinimumExplorationBudgetCustom`` — passing ``NO`` makes the API
-    raise an error, so the CLI rejects it up-front.
+    When *exploration_yes_only* is true (the TextCampaign **Search** precedent,
+    #388) only ``YES`` is accepted for ``IsMinimumExplorationBudgetCustom`` — the
+    public docs say the API rejects ``NO``, so the CLI rejects it up-front. Every
+    other surface follows the cached WSDL (``general:YesNoEnum``) and serializes
+    both ``YES`` and ``NO`` as-is. This single flag makes the one real behavioral
+    difference between the four call sites explicit.
     """
     values = {
-        "--text-search-exploration-min-budget": min_budget,
-        "--text-search-exploration-is-custom": is_custom,
+        f"{flag_prefix}min-budget": min_budget,
+        f"{flag_prefix}is-custom": is_custom,
     }
     provided = [flag for flag, value in values.items() if value is not None]
     if not provided:
@@ -1437,15 +1450,15 @@ def _build_text_search_exploration_budget(
     missing = [flag for flag, value in values.items() if value is None]
     if missing:
         raise click.UsageError(
-            "TextCampaign ExplorationBudget requires both ExplorationBudget "
+            f"{campaign_label} ExplorationBudget requires both ExplorationBudget "
             f"flags; missing {', '.join(sorted(missing))}"
         )
     assert min_budget is not None
     assert is_custom is not None
     normalized_is_custom = is_custom.upper()
-    if normalized_is_custom != "YES":
+    if exploration_yes_only and normalized_is_custom != "YES":
         raise click.UsageError(
-            "--text-search-exploration-is-custom must be YES; the Yandex "
+            f"{flag_prefix}is-custom must be YES; the Yandex "
             "Direct API rejects NO for IsMinimumExplorationBudgetCustom"
         )
     return {
@@ -1920,15 +1933,20 @@ def build_text_campaign_search_strategy(
 
     # CustomPeriodBudget / ExplorationBudget are all-or-none container checks;
     # build them first (search rejects IsMinimumExplorationBudgetCustom=NO).
-    custom_period = _build_text_search_custom_period_budget(
+    custom_period = _build_custom_period_budget(
+        "--text-search-custom-period-",
+        "TextCampaign",
         custom_period_spend_limit,
         custom_period_start_date,
         custom_period_end_date,
         custom_period_auto_continue,
     )
-    exploration_budget = _build_text_search_exploration_budget(
+    exploration_budget = _build_exploration_budget(
+        "--text-search-exploration-",
+        "TextCampaign",
         exploration_min_budget,
         exploration_is_custom,
+        exploration_yes_only=True,
     )
 
     config = _TextStrategyConfig(
@@ -3472,71 +3490,6 @@ _TEXT_NETWORK_REQUIRED_TYPED_FLAGS_UPDATE: Dict[str, Dict[str, str]] = {
 }
 
 
-def _build_text_network_custom_period_budget(
-    spend_limit: Optional[int],
-    start_date: Optional[str],
-    end_date: Optional[str],
-    auto_continue: Optional[str],
-) -> Optional[dict]:
-    """Build a CustomPeriodBudget block from the four ``--text-network-*``
-    custom-period flags. All four are required together (WSDL
-    ``CustomPeriodBudget`` minOccurs=1 on each leaf)."""
-    values = {
-        "--text-network-custom-period-spend-limit": spend_limit,
-        "--text-network-custom-period-start-date": start_date,
-        "--text-network-custom-period-end-date": end_date,
-        "--text-network-custom-period-auto-continue": auto_continue,
-    }
-    provided = [flag for flag, value in values.items() if value is not None]
-    if not provided:
-        return None
-    missing = [flag for flag, value in values.items() if value is None]
-    if missing:
-        raise click.UsageError(
-            "TextCampaign Network CustomPeriodBudget requires all four "
-            f"custom-period flags; missing {', '.join(sorted(missing))}"
-        )
-    assert spend_limit is not None
-    assert start_date is not None
-    assert end_date is not None
-    assert auto_continue is not None
-    return {
-        "SpendLimit": spend_limit,
-        "StartDate": start_date,
-        "EndDate": end_date,
-        "AutoContinue": auto_continue.upper(),
-    }
-
-
-def _build_text_network_exploration_budget(
-    min_budget: Optional[int],
-    is_custom: Optional[str],
-) -> Optional[dict]:
-    """Build an ExplorationBudget block. Both fields are WSDL
-    ``minOccurs=1`` (campaigns.xml lines 1973-1977); the typed flag
-    ``IsMinimumExplorationBudgetCustom`` accepts any value from
-    ``general:YesNoEnum`` (``YES``/``NO``)."""
-    values = {
-        "--text-network-exploration-min-budget": min_budget,
-        "--text-network-exploration-is-custom": is_custom,
-    }
-    provided = [flag for flag, value in values.items() if value is not None]
-    if not provided:
-        return None
-    missing = [flag for flag, value in values.items() if value is None]
-    if missing:
-        raise click.UsageError(
-            "TextCampaign Network ExplorationBudget requires both "
-            f"ExplorationBudget flags; missing {', '.join(sorted(missing))}"
-        )
-    assert min_budget is not None
-    assert is_custom is not None
-    return {
-        "MinimumExplorationBudget": min_budget,
-        "IsMinimumExplorationBudgetCustom": is_custom.upper(),
-    }
-
-
 def build_text_campaign_network_strategy(
     *,
     network_strategy: Optional[str],
@@ -3706,15 +3659,20 @@ def build_text_campaign_network_strategy(
 
     # CustomPeriodBudget / ExplorationBudget all-or-none container builders
     # (network accepts IsMinimumExplorationBudgetCustom=NO, unlike search).
-    custom_period = _build_text_network_custom_period_budget(
+    custom_period = _build_custom_period_budget(
+        "--text-network-custom-period-",
+        "TextCampaign Network",
         custom_period_spend_limit,
         custom_period_start_date,
         custom_period_end_date,
         custom_period_auto_continue,
     )
-    exploration_budget = _build_text_network_exploration_budget(
+    exploration_budget = _build_exploration_budget(
+        "--text-network-exploration-",
+        "TextCampaign Network",
         exploration_min_budget,
         exploration_is_custom,
+        exploration_yes_only=False,
     )
 
     config = _TextStrategyConfig(
@@ -4432,72 +4390,6 @@ _UNIFIED_NETWORK_REQUIRED_TYPED_FLAGS_UPDATE: Dict[str, Dict[str, str]] = {
 }
 
 
-def _build_unified_network_custom_period_budget(
-    spend_limit: Optional[int],
-    start_date: Optional[str],
-    end_date: Optional[str],
-    auto_continue: Optional[str],
-) -> Optional[dict]:
-    """Build a CustomPeriodBudget block from the four
-    ``--unified-network-custom-period-*`` flags. All four are required
-    together (WSDL ``CustomPeriodBudget`` minOccurs=1 on each leaf —
-    campaigns.xml 1965-1971)."""
-    values = {
-        "--unified-network-custom-period-spend-limit": spend_limit,
-        "--unified-network-custom-period-start-date": start_date,
-        "--unified-network-custom-period-end-date": end_date,
-        "--unified-network-custom-period-auto-continue": auto_continue,
-    }
-    provided = [flag for flag, value in values.items() if value is not None]
-    if not provided:
-        return None
-    missing = [flag for flag, value in values.items() if value is None]
-    if missing:
-        raise click.UsageError(
-            "UnifiedCampaign Network CustomPeriodBudget requires all four "
-            f"custom-period flags; missing {', '.join(sorted(missing))}"
-        )
-    assert spend_limit is not None
-    assert start_date is not None
-    assert end_date is not None
-    assert auto_continue is not None
-    return {
-        "SpendLimit": spend_limit,
-        "StartDate": start_date,
-        "EndDate": end_date,
-        "AutoContinue": auto_continue.upper(),
-    }
-
-
-def _build_unified_network_exploration_budget(
-    min_budget: Optional[int],
-    is_custom: Optional[str],
-) -> Optional[dict]:
-    """Build an ExplorationBudget block. Both fields are WSDL
-    ``minOccurs=1`` (campaigns.xml 1973-1977); the typed flag
-    ``IsMinimumExplorationBudgetCustom`` accepts any value from
-    ``general:YesNoEnum`` (``YES``/``NO``)."""
-    values = {
-        "--unified-network-exploration-min-budget": min_budget,
-        "--unified-network-exploration-is-custom": is_custom,
-    }
-    provided = [flag for flag, value in values.items() if value is not None]
-    if not provided:
-        return None
-    missing = [flag for flag, value in values.items() if value is None]
-    if missing:
-        raise click.UsageError(
-            "UnifiedCampaign Network ExplorationBudget requires both "
-            f"ExplorationBudget flags; missing {', '.join(sorted(missing))}"
-        )
-    assert min_budget is not None
-    assert is_custom is not None
-    return {
-        "MinimumExplorationBudget": min_budget,
-        "IsMinimumExplorationBudgetCustom": is_custom.upper(),
-    }
-
-
 def _assemble_unified_strategy_block(
     *,
     container: dict,
@@ -4722,7 +4614,9 @@ def build_unified_campaign_network_strategy(
 
     # CustomPeriodBudget and ExplorationBudget are all-or-none; build them
     # first and then validate subtype compatibility.
-    custom_period = _build_unified_network_custom_period_budget(
+    custom_period = _build_custom_period_budget(
+        "--unified-network-custom-period-",
+        "UnifiedCampaign Network",
         custom_period_spend_limit,
         custom_period_start_date,
         custom_period_end_date,
@@ -4736,9 +4630,12 @@ def build_unified_campaign_network_strategy(
             f"UnifiedCampaign Network CustomPeriodBudget is not valid for "
             f"{normalized_strategy}"
         )
-    exploration_budget = _build_unified_network_exploration_budget(
+    exploration_budget = _build_exploration_budget(
+        "--unified-network-exploration-",
+        "UnifiedCampaign Network",
         exploration_min_budget,
         exploration_is_custom,
+        exploration_yes_only=False,
     )
     if (
         exploration_budget is not None
@@ -5084,81 +4981,6 @@ _UNIFIED_SEARCH_MIN_PRIORITY_GOALS: Dict[str, int] = {
 _UNIFIED_CAMPAIGN_SEARCH_BUDGET_TYPES = ["WEEKLY_BUDGET", "CUSTOM_PERIOD_BUDGET"]
 
 
-def _build_unified_search_custom_period_budget(
-    spend_limit: Optional[int],
-    start_date: Optional[str],
-    end_date: Optional[str],
-    auto_continue: Optional[str],
-) -> Optional[dict]:
-    """Build a CustomPeriodBudget block from the four typed flags.
-
-    All four flags must be provided together (WSDL ``CustomPeriodBudget``
-    minOccurs=1 each); returns ``None`` when none are provided. Mirrors
-    the TextCampaign Search builder (#388).
-    """
-    values = {
-        "--unified-search-custom-period-spend-limit": spend_limit,
-        "--unified-search-custom-period-start-date": start_date,
-        "--unified-search-custom-period-end-date": end_date,
-        "--unified-search-custom-period-auto-continue": auto_continue,
-    }
-    provided = [flag for flag, value in values.items() if value is not None]
-    if not provided:
-        return None
-    missing = [flag for flag, value in values.items() if value is None]
-    if missing:
-        raise click.UsageError(
-            "UnifiedCampaign CustomPeriodBudget requires all four custom-period "
-            f"flags; missing {', '.join(sorted(missing))}"
-        )
-    assert spend_limit is not None
-    assert start_date is not None
-    assert end_date is not None
-    assert auto_continue is not None
-    return {
-        "SpendLimit": spend_limit,
-        "StartDate": start_date,
-        "EndDate": end_date,
-        "AutoContinue": auto_continue.upper(),
-    }
-
-
-def _build_unified_search_exploration_budget(
-    min_budget: Optional[int],
-    is_custom: Optional[str],
-) -> Optional[dict]:
-    """Build an ExplorationBudget block from the two typed flags.
-
-    Both fields are WSDL minOccurs=1; returns ``None`` when none are
-    provided. The cached WSDL declares ``IsMinimumExplorationBudgetCustom``
-    as ``general:YesNoEnum`` with NO restriction on which value is
-    accepted (campaigns.xml L1973-1977), and per the issue body the
-    cached WSDL is the canonical source. Both ``YES`` and ``NO`` are
-    serialized as-is — this intentionally diverges from the TextCampaign
-    Search precedent (#388) which deferred to a Yandex public-docs
-    YES-only constraint.
-    """
-    values = {
-        "--unified-search-exploration-min-budget": min_budget,
-        "--unified-search-exploration-is-custom": is_custom,
-    }
-    provided = [flag for flag, value in values.items() if value is not None]
-    if not provided:
-        return None
-    missing = [flag for flag, value in values.items() if value is None]
-    if missing:
-        raise click.UsageError(
-            "UnifiedCampaign ExplorationBudget requires both ExplorationBudget "
-            f"flags; missing {', '.join(sorted(missing))}"
-        )
-    assert min_budget is not None
-    assert is_custom is not None
-    return {
-        "MinimumExplorationBudget": min_budget,
-        "IsMinimumExplorationBudgetCustom": is_custom.upper(),
-    }
-
-
 def build_unified_campaign_search_base(
     *,
     search_strategy: Optional[str],
@@ -5387,7 +5209,9 @@ def build_unified_campaign_search_strategy(
     # CustomPeriodBudget and ExplorationBudget are container-level checks
     # — all-or-none. Build the nested dicts (or None) up-front and then
     # validate they belong to the chosen subtype.
-    custom_period = _build_unified_search_custom_period_budget(
+    custom_period = _build_custom_period_budget(
+        "--unified-search-custom-period-",
+        "UnifiedCampaign",
         custom_period_spend_limit,
         custom_period_start_date,
         custom_period_end_date,
@@ -5400,9 +5224,12 @@ def build_unified_campaign_search_strategy(
         raise click.UsageError(
             f"UnifiedCampaign CustomPeriodBudget is not valid for {normalized_strategy}"
         )
-    exploration_budget = _build_unified_search_exploration_budget(
+    exploration_budget = _build_exploration_budget(
+        "--unified-search-exploration-",
+        "UnifiedCampaign",
         exploration_min_budget,
         exploration_is_custom,
+        exploration_yes_only=False,
     )
     if (
         exploration_budget is not None
