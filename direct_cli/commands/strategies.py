@@ -4,19 +4,16 @@ Strategies commands
 
 import click
 
-from ..api import client_from_ctx, create_client
+from ..api import create_client
 from ..i18n import t
-from ..output import format_output, handle_api_errors
+from ..output import handle_api_errors
 from ._execute import execute_request
+from ._get import make_get_command
 from ._lifecycle import register_lifecycle_commands
 from ..utils import (
     MICRO_RUBLES,
     add_criteria_csv,
-    build_common_params,
-    get_default_fields,
-    parse_csv_strings,
     parse_ids,
-    parse_nested_field_names,
     validate_priority_goal_value,
 )
 
@@ -425,267 +422,149 @@ def strategies():
     """Manage strategies"""
 
 
-@strategies.command()
-@click.option("--ids", help="Comma-separated strategy IDs")
-@click.option(
-    "--types",
-    help="Comma-separated strategy types",
-)
-@click.option(
-    "--is-archived",
-    type=click.Choice(["YES", "NO"], case_sensitive=False),
-    help="Filter by archived status",
-)
-@click.option("--limit", type=int, help="Limit number of results")
-@click.option("--fetch-all", is_flag=True, help="Fetch all pages")
-@click.option("--format", "output_format", default="json", help="Output format")
-@click.option("--output", help="Output file")
-@click.option("--fields", help="Comma-separated field names")
-@click.option(
-    "--strategy-average-cpa-field-names",
-    help=(
-        "Comma-separated StrategyAverageCpaFieldNames "
-        "(e.g. AverageCpa,GoalId). Sent as separate top-level request "
-        "parameter per the StrategiesGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--strategy-average-cpa-multiple-goals-field-names",
-    help=(
-        "Comma-separated StrategyAverageCpaMultipleGoalsFieldNames "
-        "(e.g. WeeklySpendLimit,BidCeiling,PriorityGoals). Sent as separate "
-        "top-level request parameter per the StrategiesGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--strategy-average-cpa-per-campaign-field-names",
-    help=(
-        "Comma-separated StrategyAverageCpaPerCampaignFieldNames "
-        "(e.g. AverageCpa,GoalId). Sent as separate top-level request "
-        "parameter per the StrategiesGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--strategy-average-cpa-per-filter-field-names",
-    help=(
-        "Comma-separated StrategyAverageCpaPerFilterFieldNames "
-        "(e.g. AverageCpa,GoalId). Sent as separate top-level request "
-        "parameter per the StrategiesGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--strategy-average-cpc-field-names",
-    help=(
-        "Comma-separated StrategyAverageCpcFieldNames "
-        "(e.g. AverageCpc,WeeklySpendLimit). Sent as separate top-level "
-        "request parameter per the StrategiesGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--strategy-average-cpc-per-campaign-field-names",
-    help=(
-        "Comma-separated StrategyAverageCpcPerCampaignFieldNames "
-        "(e.g. AverageCpc,WeeklySpendLimit). Sent as separate top-level "
-        "request parameter per the StrategiesGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--strategy-average-cpc-per-filter-field-names",
-    help=(
-        "Comma-separated StrategyAverageCpcPerFilterFieldNames "
-        "(e.g. AverageCpc,WeeklySpendLimit). Sent as separate top-level "
-        "request parameter per the StrategiesGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--strategy-average-crr-field-names",
-    help=(
-        "Comma-separated StrategyAverageCrrFieldNames "
-        "(e.g. AverageCrr,GoalId). Sent as separate top-level request "
-        "parameter per the StrategiesGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--strategy-max-profit-field-names",
-    help=(
-        "Comma-separated StrategyMaxProfitFieldNames "
-        "(e.g. WeeklySpendLimit,BidCeiling). Sent as separate top-level "
-        "request parameter per the StrategiesGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--strategy-maximum-clicks-field-names",
-    help=(
-        "Comma-separated StrategyMaximumClicksFieldNames "
-        "(e.g. WeeklySpendLimit,BidCeiling). Sent as separate top-level "
-        "request parameter per the StrategiesGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--strategy-maximum-conversion-rate-field-names",
-    help=(
-        "Comma-separated StrategyMaximumConversionRateFieldNames "
-        "(e.g. WeeklySpendLimit,GoalId). Sent as separate top-level "
-        "request parameter per the StrategiesGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--strategy-pay-for-conversion-crr-field-names",
-    help=(
-        "Comma-separated StrategyPayForConversionCrrFieldNames "
-        "(e.g. Crr,GoalId). Sent as separate top-level request parameter "
-        "per the StrategiesGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--strategy-pay-for-conversion-field-names",
-    help=(
-        "Comma-separated StrategyPayForConversionFieldNames "
-        "(e.g. Cpa,GoalId). Sent as separate top-level request parameter "
-        "per the StrategiesGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--strategy-pay-for-conversion-multiple-goals-field-names",
-    help=(
-        "Comma-separated StrategyPayForConversionMultipleGoalsFieldNames "
-        "(e.g. WeeklySpendLimit,PriorityGoals). Sent as separate top-level "
-        "request parameter per the StrategiesGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--strategy-pay-for-conversion-per-campaign-field-names",
-    help=(
-        "Comma-separated StrategyPayForConversionPerCampaignFieldNames "
-        "(e.g. Cpa,GoalId). Sent as separate top-level request parameter "
-        "per the StrategiesGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--strategy-pay-for-conversion-per-filter-field-names",
-    help=(
-        "Comma-separated StrategyPayForConversionPerFilterFieldNames "
-        "(e.g. Cpa,GoalId). Sent as separate top-level request parameter "
-        "per the StrategiesGetRequest WSDL."
-    ),
-)
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def get(
-    ctx,
-    ids,
-    types,
-    is_archived,
-    limit,
-    fetch_all,
-    output_format,
-    output,
-    fields,
-    strategy_average_cpa_field_names,
-    strategy_average_cpa_multiple_goals_field_names,
-    strategy_average_cpa_per_campaign_field_names,
-    strategy_average_cpa_per_filter_field_names,
-    strategy_average_cpc_field_names,
-    strategy_average_cpc_per_campaign_field_names,
-    strategy_average_cpc_per_filter_field_names,
-    strategy_average_crr_field_names,
-    strategy_max_profit_field_names,
-    strategy_maximum_clicks_field_names,
-    strategy_maximum_conversion_rate_field_names,
-    strategy_pay_for_conversion_crr_field_names,
-    strategy_pay_for_conversion_field_names,
-    strategy_pay_for_conversion_multiple_goals_field_names,
-    strategy_pay_for_conversion_per_campaign_field_names,
-    strategy_pay_for_conversion_per_filter_field_names,
-    dry_run,
-):
-    """Get strategies"""
-    field_names = parse_csv_strings(fields) or get_default_fields("strategies")
-
-    raw_nested = (
-        ("StrategyAverageCpaFieldNames", strategy_average_cpa_field_names),
-        (
-            "StrategyAverageCpaMultipleGoalsFieldNames",
-            strategy_average_cpa_multiple_goals_field_names,
-        ),
-        (
-            "StrategyAverageCpaPerCampaignFieldNames",
-            strategy_average_cpa_per_campaign_field_names,
-        ),
-        (
-            "StrategyAverageCpaPerFilterFieldNames",
-            strategy_average_cpa_per_filter_field_names,
-        ),
-        ("StrategyAverageCpcFieldNames", strategy_average_cpc_field_names),
-        (
-            "StrategyAverageCpcPerCampaignFieldNames",
-            strategy_average_cpc_per_campaign_field_names,
-        ),
-        (
-            "StrategyAverageCpcPerFilterFieldNames",
-            strategy_average_cpc_per_filter_field_names,
-        ),
-        ("StrategyAverageCrrFieldNames", strategy_average_crr_field_names),
-        ("StrategyMaxProfitFieldNames", strategy_max_profit_field_names),
-        ("StrategyMaximumClicksFieldNames", strategy_maximum_clicks_field_names),
-        (
-            "StrategyMaximumConversionRateFieldNames",
-            strategy_maximum_conversion_rate_field_names,
-        ),
-        (
-            "StrategyPayForConversionCrrFieldNames",
-            strategy_pay_for_conversion_crr_field_names,
-        ),
-        (
-            "StrategyPayForConversionFieldNames",
-            strategy_pay_for_conversion_field_names,
-        ),
-        (
-            "StrategyPayForConversionMultipleGoalsFieldNames",
-            strategy_pay_for_conversion_multiple_goals_field_names,
-        ),
-        (
-            "StrategyPayForConversionPerCampaignFieldNames",
-            strategy_pay_for_conversion_per_campaign_field_names,
-        ),
-        (
-            "StrategyPayForConversionPerFilterFieldNames",
-            strategy_pay_for_conversion_per_filter_field_names,
-        ),
-    )
-    parsed_nested = parse_nested_field_names(raw_nested)
-
+def _strategies_get_criteria(ids=None, types=None, is_archived=None, **_):
+    """SelectionCriteria for ``strategies get``: optional ``Ids``, a plain
+    (non-upper-cased) ``Types`` list, and an upper-cased ``IsArchived`` scalar."""
     criteria = {}
     if ids:
         criteria["Ids"] = parse_ids(ids)
     add_criteria_csv(criteria, "Types", types)
     if is_archived:
         criteria["IsArchived"] = is_archived.upper()
+    return criteria
 
-    if not criteria:
-        raise click.UsageError(t("Provide at least one typed filter"))
 
-    params = build_common_params(
-        criteria=criteria, field_names=field_names, limit=limit
-    )
-    params.update(parsed_nested)
-
-    body = {"method": "get", "params": params}
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    client = client_from_ctx(ctx, create_client)
-    result = client.strategies().post(data=body)
-
-    if fetch_all:
-        items = []
-        for item in result().iter_items():
-            items.append(item)
-        format_output(items, output_format, output)
-    else:
-        format_output(result().extract(), output_format, output)
+get = make_get_command(
+    strategies,
+    create_client,
+    default_fields_key="strategies",
+    help_text="Get strategies",
+    ids_help="Comma-separated strategy IDs",
+    extra_options=(
+        click.option("--types", help="Comma-separated strategy types"),
+        click.option(
+            "--is-archived",
+            type=click.Choice(["YES", "NO"], case_sensitive=False),
+            help="Filter by archived status",
+        ),
+    ),
+    criteria_builder=_strategies_get_criteria,
+    require_criteria_message="Provide at least one typed filter",
+    nested_field_options=(
+        (
+            "--strategy-average-cpa-field-names",
+            "StrategyAverageCpaFieldNames",
+            "Comma-separated StrategyAverageCpaFieldNames "
+            "(e.g. AverageCpa,GoalId). Sent as separate top-level request "
+            "parameter per the StrategiesGetRequest WSDL.",
+        ),
+        (
+            "--strategy-average-cpa-multiple-goals-field-names",
+            "StrategyAverageCpaMultipleGoalsFieldNames",
+            "Comma-separated StrategyAverageCpaMultipleGoalsFieldNames "
+            "(e.g. WeeklySpendLimit,BidCeiling,PriorityGoals). Sent as separate "
+            "top-level request parameter per the StrategiesGetRequest WSDL.",
+        ),
+        (
+            "--strategy-average-cpa-per-campaign-field-names",
+            "StrategyAverageCpaPerCampaignFieldNames",
+            "Comma-separated StrategyAverageCpaPerCampaignFieldNames "
+            "(e.g. AverageCpa,GoalId). Sent as separate top-level request "
+            "parameter per the StrategiesGetRequest WSDL.",
+        ),
+        (
+            "--strategy-average-cpa-per-filter-field-names",
+            "StrategyAverageCpaPerFilterFieldNames",
+            "Comma-separated StrategyAverageCpaPerFilterFieldNames "
+            "(e.g. AverageCpa,GoalId). Sent as separate top-level request "
+            "parameter per the StrategiesGetRequest WSDL.",
+        ),
+        (
+            "--strategy-average-cpc-field-names",
+            "StrategyAverageCpcFieldNames",
+            "Comma-separated StrategyAverageCpcFieldNames "
+            "(e.g. AverageCpc,WeeklySpendLimit). Sent as separate top-level "
+            "request parameter per the StrategiesGetRequest WSDL.",
+        ),
+        (
+            "--strategy-average-cpc-per-campaign-field-names",
+            "StrategyAverageCpcPerCampaignFieldNames",
+            "Comma-separated StrategyAverageCpcPerCampaignFieldNames "
+            "(e.g. AverageCpc,WeeklySpendLimit). Sent as separate top-level "
+            "request parameter per the StrategiesGetRequest WSDL.",
+        ),
+        (
+            "--strategy-average-cpc-per-filter-field-names",
+            "StrategyAverageCpcPerFilterFieldNames",
+            "Comma-separated StrategyAverageCpcPerFilterFieldNames "
+            "(e.g. AverageCpc,WeeklySpendLimit). Sent as separate top-level "
+            "request parameter per the StrategiesGetRequest WSDL.",
+        ),
+        (
+            "--strategy-average-crr-field-names",
+            "StrategyAverageCrrFieldNames",
+            "Comma-separated StrategyAverageCrrFieldNames "
+            "(e.g. AverageCrr,GoalId). Sent as separate top-level request "
+            "parameter per the StrategiesGetRequest WSDL.",
+        ),
+        (
+            "--strategy-max-profit-field-names",
+            "StrategyMaxProfitFieldNames",
+            "Comma-separated StrategyMaxProfitFieldNames "
+            "(e.g. WeeklySpendLimit,BidCeiling). Sent as separate top-level "
+            "request parameter per the StrategiesGetRequest WSDL.",
+        ),
+        (
+            "--strategy-maximum-clicks-field-names",
+            "StrategyMaximumClicksFieldNames",
+            "Comma-separated StrategyMaximumClicksFieldNames "
+            "(e.g. WeeklySpendLimit,BidCeiling). Sent as separate top-level "
+            "request parameter per the StrategiesGetRequest WSDL.",
+        ),
+        (
+            "--strategy-maximum-conversion-rate-field-names",
+            "StrategyMaximumConversionRateFieldNames",
+            "Comma-separated StrategyMaximumConversionRateFieldNames "
+            "(e.g. WeeklySpendLimit,GoalId). Sent as separate top-level "
+            "request parameter per the StrategiesGetRequest WSDL.",
+        ),
+        (
+            "--strategy-pay-for-conversion-crr-field-names",
+            "StrategyPayForConversionCrrFieldNames",
+            "Comma-separated StrategyPayForConversionCrrFieldNames "
+            "(e.g. Crr,GoalId). Sent as separate top-level request parameter "
+            "per the StrategiesGetRequest WSDL.",
+        ),
+        (
+            "--strategy-pay-for-conversion-field-names",
+            "StrategyPayForConversionFieldNames",
+            "Comma-separated StrategyPayForConversionFieldNames "
+            "(e.g. Cpa,GoalId). Sent as separate top-level request parameter "
+            "per the StrategiesGetRequest WSDL.",
+        ),
+        (
+            "--strategy-pay-for-conversion-multiple-goals-field-names",
+            "StrategyPayForConversionMultipleGoalsFieldNames",
+            "Comma-separated StrategyPayForConversionMultipleGoalsFieldNames "
+            "(e.g. WeeklySpendLimit,PriorityGoals). Sent as separate top-level "
+            "request parameter per the StrategiesGetRequest WSDL.",
+        ),
+        (
+            "--strategy-pay-for-conversion-per-campaign-field-names",
+            "StrategyPayForConversionPerCampaignFieldNames",
+            "Comma-separated StrategyPayForConversionPerCampaignFieldNames "
+            "(e.g. Cpa,GoalId). Sent as separate top-level request parameter "
+            "per the StrategiesGetRequest WSDL.",
+        ),
+        (
+            "--strategy-pay-for-conversion-per-filter-field-names",
+            "StrategyPayForConversionPerFilterFieldNames",
+            "Comma-separated StrategyPayForConversionPerFilterFieldNames "
+            "(e.g. Cpa,GoalId). Sent as separate top-level request parameter "
+            "per the StrategiesGetRequest WSDL.",
+        ),
+    ),
+)
 
 
 @strategies.command()

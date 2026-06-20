@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 import click
 
 from ..api import client_from_ctx, create_client
+from ._get import make_get_command
 from ..i18n import t
 from ..output import (
     format_output,
@@ -15,10 +16,6 @@ from ..output import (
 from ..utils import (
     MICRO_RUBLES,
     add_criteria_csv,
-    build_common_params,
-    enforce_criteria_array_limits,
-    get_default_fields,
-    parse_csv_strings,
     parse_ids,
 )
 
@@ -214,95 +211,23 @@ def keywords():
     """Manage keywords"""
 
 
-@keywords.command()
-@click.option("--ids", help="Comma-separated keyword IDs")
-@click.option("--adgroup-ids", help="Comma-separated ad group IDs")
-@click.option("--campaign-ids", help="Comma-separated campaign IDs")
-@click.option("--status", help="Filter by status")
-@click.option("--statuses", help="Comma-separated statuses")
-@click.option("--states", help="Comma-separated states")
-@click.option("--modified-since", help="ModifiedSince datetime")
-@click.option("--serving-statuses", help="Comma-separated serving statuses")
-@click.option("--limit", type=int, help="Limit number of results")
-@click.option("--fetch-all", is_flag=True, help="Fetch all pages")
-@click.option("--format", "output_format", default="json", help="Output format")
-@click.option("--output", help="Output file")
-@click.option("--fields", help="Comma-separated field names")
-@click.option(
-    "--autotargeting-settings-brand-options-field-names",
-    help=(
-        "Comma-separated AutotargetingSettingsBrandOptionsFieldNames "
-        "(e.g. WithoutBrands,WithAdvertiserBrand,WithCompetitorsBrand). "
-        "Sent as separate top-level request parameter per the "
-        "KeywordsGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--autotargeting-settings-categories-field-names",
-    help=(
-        "Comma-separated AutotargetingSettingsCategoriesFieldNames "
-        "(e.g. Exact,Narrow,Alternative,Accessory,Broader). "
-        "Sent as separate top-level request parameter per the "
-        "KeywordsGetRequest WSDL."
-    ),
-)
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def get(
-    ctx,
-    ids,
-    adgroup_ids,
-    campaign_ids,
-    status,
-    statuses,
-    states,
-    modified_since,
-    serving_statuses,
-    limit,
-    fetch_all,
-    output_format,
-    output,
-    fields,
-    autotargeting_settings_brand_options_field_names,
-    autotargeting_settings_categories_field_names,
-    dry_run,
+def _keywords_get_criteria(
+    ids=None,
+    adgroup_ids=None,
+    campaign_ids=None,
+    status=None,
+    statuses=None,
+    states=None,
+    modified_since=None,
+    serving_statuses=None,
+    **_,
 ):
-    """Get keywords"""
+    """SelectionCriteria for ``keywords get``: optional Ids/AdGroupIds/CampaignIds,
+    a singular ``--status`` or upper-cased ``--statuses`` (mutually exclusive),
+    upper-cased States/ServingStatuses and a ModifiedSince scalar."""
     if status and statuses:
         raise click.UsageError(t("--status and --statuses are mutually exclusive"))
-
-    client = client_from_ctx(ctx, create_client)
-
-    field_names = parse_csv_strings(fields) or get_default_fields("keywords")
-
-    parsed_brand_options = parse_csv_strings(
-        autotargeting_settings_brand_options_field_names
-    )
-    if (
-        autotargeting_settings_brand_options_field_names is not None
-        and not parsed_brand_options
-    ):
-        raise click.UsageError(
-            t(
-                "Provide a non-empty comma-separated "
-                "AutotargetingSettingsBrandOptionsFieldNames list."
-            )
-        )
-
-    parsed_categories = parse_csv_strings(autotargeting_settings_categories_field_names)
-    if (
-        autotargeting_settings_categories_field_names is not None
-        and not parsed_categories
-    ):
-        raise click.UsageError(
-            t(
-                "Provide a non-empty comma-separated "
-                "AutotargetingSettingsCategoriesFieldNames list."
-            )
-        )
-
-    criteria: dict[str, Any] = {}
+    criteria = {}
     if ids:
         criteria["Ids"] = parse_ids(ids)
     if adgroup_ids:
@@ -316,38 +241,46 @@ def get(
     if modified_since:
         criteria["ModifiedSince"] = modified_since
     add_criteria_csv(criteria, "ServingStatuses", serving_statuses, upper=True)
+    return criteria
 
-    enforce_criteria_array_limits(
-        criteria, KEYWORDS_GET_CRITERIA_LIMITS, command_name="keywords get"
-    )
 
-    if not criteria:
-        raise click.UsageError(t("Provide at least one typed filter"))
-
-    params = build_common_params(
-        criteria=criteria, field_names=field_names, limit=limit
-    )
-    if parsed_brand_options:
-        params["AutotargetingSettingsBrandOptionsFieldNames"] = parsed_brand_options
-    if parsed_categories:
-        params["AutotargetingSettingsCategoriesFieldNames"] = parsed_categories
-
-    body = {"method": "get", "params": params}
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    result = client.keywords().post(data=body)
-
-    if fetch_all:
-        items = []
-        for item in result().iter_items():
-            items.append(item)
-        format_output(items, output_format, output)
-    else:
-        data = result().extract()
-        format_output(data, output_format, output)
+get = make_get_command(
+    keywords,
+    create_client,
+    default_fields_key="keywords",
+    help_text="Get keywords",
+    ids_help="Comma-separated keyword IDs",
+    extra_options=(
+        click.option("--adgroup-ids", help="Comma-separated ad group IDs"),
+        click.option("--campaign-ids", help="Comma-separated campaign IDs"),
+        click.option("--status", help="Filter by status"),
+        click.option("--statuses", help="Comma-separated statuses"),
+        click.option("--states", help="Comma-separated states"),
+        click.option("--modified-since", help="ModifiedSince datetime"),
+        click.option("--serving-statuses", help="Comma-separated serving statuses"),
+    ),
+    criteria_builder=_keywords_get_criteria,
+    criteria_limits=KEYWORDS_GET_CRITERIA_LIMITS,
+    require_criteria_message="Provide at least one typed filter",
+    nested_field_options=(
+        (
+            "--autotargeting-settings-brand-options-field-names",
+            "AutotargetingSettingsBrandOptionsFieldNames",
+            "Comma-separated AutotargetingSettingsBrandOptionsFieldNames "
+            "(e.g. WithoutBrands,WithAdvertiserBrand,WithCompetitorsBrand). "
+            "Sent as separate top-level request parameter per the "
+            "KeywordsGetRequest WSDL.",
+        ),
+        (
+            "--autotargeting-settings-categories-field-names",
+            "AutotargetingSettingsCategoriesFieldNames",
+            "Comma-separated AutotargetingSettingsCategoriesFieldNames "
+            "(e.g. Exact,Narrow,Alternative,Accessory,Broader). "
+            "Sent as separate top-level request parameter per the "
+            "KeywordsGetRequest WSDL.",
+        ),
+    ),
+)
 
 
 @keywords.command()

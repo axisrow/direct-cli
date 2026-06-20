@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+**Internal — `make_get_command` covers the complex Group-4 `get`s (#588):**
+
+- `adgroups get`, `keywords get`, `creatives get`, `strategies get` and
+  `audiencetargets get` now register through the shared `make_get_command`
+  factory (net −345 lines). They reuse the existing `extra_options` /
+  `criteria_builder` / `criteria_limits` / `require_criteria_message` /
+  `nested_field_options` hooks — the `--status`/`--statuses` mutual-exclusion
+  guard (adgroups/keywords) lives in the per-module `criteria_builder`, not a
+  new factory flag. adgroups (8) and strategies (16) exercise the factory's
+  largest nested-`*FieldNames` sets to date.
+- Factory ordering fix: nested `*FieldNames` are now parsed (and their
+  provided-but-empty-CSV `UsageError` raised) *before* both the criteria-limit
+  enforcement and the empty-criteria `require_criteria_message` guard, matching
+  the order every hand-rolled command used. So a `--<nested> ""` combined with
+  either no filter at all or an over-limit array reports the nested error, not
+  the require/limit one (pinned by a new `test_dry_run` regression test). The
+  parsed dict is still merged after the common params, so payload key order is
+  unchanged, and this also restores the pre-factory nested-before-limits order
+  for the already-migrated `bidmodifiers get`. No module lacking both a nested
+  option and a `criteria_limits`/`require_criteria_message` is affected.
+- No CLI surface change: `--help` (option order, all nested-field options, the
+  `--is-archived` choice/default), `--dry-run` payloads, and the error-precedence
+  edge cases (empty-nested vs. no-filter and vs. over-limit) are byte-identical,
+  verified against 33 pre-migration baselines captured via CliRunner from the
+  pre-migration tree. As with every prior `make_get_command` migration, the
+  factory resolves the API client only on the live path, so these five `get`s
+  now honor `--dry-run` as a token-free test seam (no behavior change vs. the
+  other factory-backed commands).
+- Two Group-4 `get`s stay hand-rolled as documented carve-outs (see `_get.py`):
+  `ads get` (its `TextAdFieldNames` is always emitted with a per-field default,
+  like the carved-out `keywordbids`) and `campaigns get` (its `--fields` rejects
+  an explicitly empty CSV instead of falling back to the default `FieldNames`).
+
 **Internal — `make_get_command` covers the criteria-limit `get`s `bids` / `bidmodifiers` (completes #587):**
 
 - `bids get` (criteria-limit + require-at-least-one-filter, no `--ids`) and

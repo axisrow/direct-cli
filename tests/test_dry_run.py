@@ -18341,6 +18341,35 @@ def test_strategies_get_rejects_empty_nested_field_names(flag, wsdl_key):
     assert f"Provide a non-empty comma-separated {wsdl_key} list." in result.output
 
 
+@pytest.mark.parametrize(
+    "resource,flag,wsdl_key",
+    [
+        (
+            "keywords",
+            "--autotargeting-settings-brand-options-field-names",
+            "AutotargetingSettingsBrandOptionsFieldNames",
+        ),
+        ("adgroups", "--smart-ad-group-field-names", "SmartAdGroupFieldNames"),
+    ],
+)
+def test_get_empty_nested_field_names_precedes_criteria_limit(resource, flag, wsdl_key):
+    """For the two ``get`` commands with BOTH criteria-limits and nested
+    ``*FieldNames`` (keywords, adgroups), an over-limit array AND an empty nested
+    CSV at once reports the nested error, not the array-limit error — pinning the
+    make_get_command check order against the pre-factory hand-rolled order (#588).
+    """
+    over_limit = ",".join(str(i) for i in range(1, 12))  # 11 CampaignIds > limit 10
+    result = CliRunner().invoke(
+        cli,
+        [resource, "get", "--campaign-ids", over_limit, flag, ",", "--dry-run"],
+    )
+
+    assert result.exit_code != 0
+    assert (
+        f"Provide a non-empty comma-separated {wsdl_key} list." in result.output
+    ), f"{resource}: expected the nested error to win, got: {result.output}"
+
+
 def test_strategies_add_payload():
     body = _dry_run(
         "strategies",

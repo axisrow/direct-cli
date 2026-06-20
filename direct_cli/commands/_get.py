@@ -14,15 +14,19 @@ same contract as the lifecycle factory: the ``--dry-run`` path needs no client,
 and the live path runs the module's real ``create_client`` (the VCR cassette
 read-tests replay it at the ``requests`` transport, so they are unaffected).
 
-Three ``get`` commands deliberately stay hand-rolled (issue #587), each for a
-structural reason this factory does not encode:
+Five ``get`` commands deliberately stay hand-rolled (issues #587, #588), each
+for a structural reason this factory does not encode:
 
 * ``leads get`` — ``--datetime-from`` / ``--datetime-to`` sit between ``--limit``
   and ``--fetch-all``, a bespoke option order the shared ``get_options`` stack
   cannot reproduce (it always renders ``--limit`` / ``--fetch-all`` adjacent).
-* ``keywordbids get`` — its nested ``SearchFieldNames`` / ``NetworkFieldNames``
-  carry per-field defaults and are *always* emitted, unlike the provided-only
-  nested projections ``nested_field_options`` builds.
+* ``keywordbids get`` and ``ads get`` — they emit a nested ``*FieldNames``
+  (``Search``/``NetworkFieldNames``; ``TextAdFieldNames``) with a per-field
+  default that is *always* present, unlike the provided-only nested projections
+  ``nested_field_options`` builds.
+* ``campaigns get`` — its ``--fields`` rejects an explicitly empty CSV
+  (``_parse_csv_option``) instead of the factory's silent fall-back to the
+  default ``FieldNames``.
 * ``reports get`` — a custom non-RPC TSV stream, not a JSON-RPC ``get``.
 """
 
@@ -184,6 +188,18 @@ def make_get_command(
             default_fields_key
         )
         criteria = build_criteria(ids, **kwargs)
+        # Validate provided-but-empty nested *FieldNames CSVs (parse_nested_field_names
+        # rejects them) before the criteria-limit enforcement and the empty-criteria
+        # guard, matching the hand-rolled order of every migrated command: with both
+        # an over-limit array and an empty "--<nested> ''" (or a "--<nested> ''" and
+        # no filter at all), the nested error is the one reported. The parsed dict is
+        # merged after the common params below, so the payload key order is unchanged.
+        parsed_nested = {}
+        if nested_specs:
+            raw_nested = tuple(
+                (wsdl_key, kwargs[kwarg]) for wsdl_key, kwarg in nested_specs
+            )
+            parsed_nested = parse_nested_field_names(raw_nested)
         if criteria_limits:
             enforce_criteria_array_limits(
                 criteria, criteria_limits, command_name=f"{svc} get"
@@ -199,11 +215,8 @@ def make_get_command(
             params = build_common_params(
                 criteria=criteria, field_names=field_names, limit=limit
             )
-        if nested_specs:
-            raw_nested = tuple(
-                (wsdl_key, kwargs[kwarg]) for wsdl_key, kwarg in nested_specs
-            )
-            params.update(parse_nested_field_names(raw_nested))
+        if parsed_nested:
+            params.update(parsed_nested)
         if adextensions_wire_layout and limit:
             # Page after the nested *FieldNames, matching adextensions' layout.
             params["Page"] = {"Limit": limit}
