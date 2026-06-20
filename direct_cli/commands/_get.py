@@ -98,6 +98,8 @@ def make_get_command(
         extra_options: extra ``click.option`` decorators for resource criteria,
             given in ``--help`` display order. They are applied between ``--ids``
             and the shared :func:`get_options` stack so the option order is kept.
+            Supply a matching *criteria_builder* to read them: the default
+            builder only maps ``--ids`` and discards every other option.
         criteria_builder: callable mapping the parsed options to a
             ``SelectionCriteria`` dict. It receives ``ids`` plus every extra
             option as keyword args; defaults to an optional ``Ids`` list.
