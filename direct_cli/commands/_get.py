@@ -103,6 +103,10 @@ def make_get_command(
     Returns:
         The registered Click command.
     """
+    # svc doubles as the client service attribute (``getattr(client, svc)``) and
+    # the ``criteria_limits`` error prefix (``f"{svc} get"``); both assume the
+    # group name matches the API service name, which holds for every current
+    # resource module.
     svc = group.name
     module_name = group.callback.__module__
     build_criteria = criteria_builder or (lambda ids, **_: _default_ids_criteria(ids))
