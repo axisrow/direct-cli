@@ -2,23 +2,17 @@
 AudienceTargets commands
 """
 
-from typing import Any
-
 import click
 
-from ..api import client_from_ctx, create_client
+from ..api import create_client
 from ..i18n import t
-from ..output import format_output, handle_api_errors
+from ..output import handle_api_errors
 from ._execute import execute_request
+from ._get import make_get_command
 from ._lifecycle import register_lifecycle_commands
 from ..utils import (
     MICRO_RUBLES,
     add_criteria_csv,
-    build_common_params,
-    enforce_criteria_array_limits,
-    get_default_fields,
-    get_options,
-    parse_csv_strings,
     parse_ids,
 )
 
@@ -41,35 +35,18 @@ def audiencetargets():
     """Manage audience targets"""
 
 
-@audiencetargets.command()
-@click.option("--ids", help="Comma-separated target IDs")
-@click.option("--adgroup-ids", help="Comma-separated ad group IDs")
-@click.option("--campaign-ids", help="Comma-separated campaign IDs")
-@click.option("--retargeting-list-ids", help="Comma-separated retargeting list IDs")
-@click.option("--interest-ids", help="Comma-separated interest IDs")
-@click.option("--states", help="Comma-separated states")
-@get_options
-@click.pass_context
-@handle_api_errors
-def get(
-    ctx,
-    ids,
-    adgroup_ids,
-    campaign_ids,
-    retargeting_list_ids,
-    interest_ids,
-    states,
-    limit,
-    fetch_all,
-    output_format,
-    output,
-    fields,
-    dry_run,
+def _audiencetargets_get_criteria(
+    ids=None,
+    adgroup_ids=None,
+    campaign_ids=None,
+    retargeting_list_ids=None,
+    interest_ids=None,
+    states=None,
+    **_,
 ):
-    """Get audience targets"""
-    client = client_from_ctx(ctx, create_client)
-
-    criteria: dict[str, Any] = {}
+    """SelectionCriteria for ``audiencetargets get``: optional Ids/AdGroupIds/
+    CampaignIds, integer RetargetingListIds/InterestIds and upper-cased States."""
+    criteria = {}
     if ids:
         criteria["Ids"] = parse_ids(ids)
     if adgroup_ids:
@@ -81,47 +58,36 @@ def get(
     )
     add_criteria_csv(criteria, "InterestIds", interest_ids, integers=True)
     add_criteria_csv(criteria, "States", states, upper=True)
+    return criteria
 
-    enforce_criteria_array_limits(
-        criteria,
-        AUDIENCETARGETS_GET_CRITERIA_LIMITS,
-        command_name="audiencetargets get",
-    )
 
-    if not criteria:
-        raise click.UsageError(
-            t(
-                "audiencetargets get requires at least one filter "
-                "(--ids, --adgroup-ids, --campaign-ids, --retargeting-list-ids, "
-                "--interest-ids, or --states). The Yandex Direct API rejects an "
-                "empty SelectionCriteria (error 8000/4001), so whole-account "
-                "paging is not available. To sweep the account, first run "
-                "`campaigns get`, then page `audiencetargets get` in batches of "
-                "campaign ids."
-            )
-        )
-
-    field_names = parse_csv_strings(fields) or get_default_fields("audiencetargets")
-    params = build_common_params(
-        criteria=criteria, field_names=field_names, limit=limit
-    )
-
-    body = {"method": "get", "params": params}
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    result = client.audiencetargets().post(data=body)
-
-    if fetch_all:
-        items = []
-        for item in result().iter_items():
-            items.append(item)
-        format_output(items, output_format, output)
-    else:
-        data = result().extract()
-        format_output(data, output_format, output)
+get = make_get_command(
+    audiencetargets,
+    create_client,
+    default_fields_key="audiencetargets",
+    help_text="Get audience targets",
+    ids_help="Comma-separated target IDs",
+    extra_options=(
+        click.option("--adgroup-ids", help="Comma-separated ad group IDs"),
+        click.option("--campaign-ids", help="Comma-separated campaign IDs"),
+        click.option(
+            "--retargeting-list-ids", help="Comma-separated retargeting list IDs"
+        ),
+        click.option("--interest-ids", help="Comma-separated interest IDs"),
+        click.option("--states", help="Comma-separated states"),
+    ),
+    criteria_builder=_audiencetargets_get_criteria,
+    criteria_limits=AUDIENCETARGETS_GET_CRITERIA_LIMITS,
+    require_criteria_message=(
+        "audiencetargets get requires at least one filter "
+        "(--ids, --adgroup-ids, --campaign-ids, --retargeting-list-ids, "
+        "--interest-ids, or --states). The Yandex Direct API rejects an "
+        "empty SelectionCriteria (error 8000/4001), so whole-account "
+        "paging is not available. To sweep the account, first run "
+        "`campaigns get`, then page `audiencetargets get` in batches of "
+        "campaign ids."
+    ),
+)
 
 
 @audiencetargets.command()

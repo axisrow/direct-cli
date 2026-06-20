@@ -10,15 +10,12 @@ from ..api import client_from_ctx, create_client
 from ..i18n import t
 from ..output import format_output, handle_api_errors
 from . import _batch
+from ._get import make_get_command
 from ._lifecycle import make_lifecycle_command
 from ..utils import (
     add_criteria_csv,
-    build_common_params,
-    enforce_criteria_array_limits,
-    get_default_fields,
     parse_csv_strings,
     parse_ids,
-    parse_nested_field_names,
 )
 
 from .._autotargeting import (
@@ -410,162 +407,26 @@ def _post_adgroups(client: Any, body: dict[str, Any]) -> Any:
     return client.adgroups().post(data=body)
 
 
-@adgroups.command()
-@click.option("--ids", help="Comma-separated ad group IDs")
-@click.option("--campaign-ids", help="Comma-separated campaign IDs")
-@click.option("--status", help="Filter by status")
-@click.option("--statuses", help="Comma-separated statuses")
-@click.option("--types", help="Filter by types")
-@click.option("--tag-ids", help="Comma-separated tag IDs")
-@click.option("--tags", help="Comma-separated tag names")
-@click.option("--app-icon-statuses", help="Comma-separated app icon statuses")
-@click.option("--serving-statuses", help="Comma-separated serving statuses")
-@click.option(
-    "--negative-keyword-shared-set-ids",
-    help="Comma-separated negative keyword shared set IDs",
-)
-@click.option("--limit", type=int, help="Limit number of results")
-@click.option("--fetch-all", is_flag=True, help="Fetch all pages")
-@click.option("--format", "output_format", default="json", help="Output format")
-@click.option("--output", help="Output file")
-@click.option("--fields", help="Comma-separated field names")
-@click.option(
-    "--autotargeting-settings-brand-options-field-names",
-    help=(
-        "Comma-separated AutotargetingSettingsBrandOptionsFieldNames "
-        "(e.g. WithoutBrands,WithAdvertiserBrand,WithCompetitorsBrand). "
-        "Sent as separate top-level request parameter per the "
-        "AdGroupsGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--autotargeting-settings-categories-field-names",
-    help=(
-        "Comma-separated AutotargetingSettingsCategoriesFieldNames "
-        "(e.g. Exact,Narrow,Alternative,Accessory,Broader). "
-        "Sent as separate top-level request parameter per the "
-        "AdGroupsGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--dynamic-text-ad-group-field-names",
-    help=(
-        "Comma-separated DynamicTextAdGroupFieldNames "
-        "(e.g. AutotargetingSettings,DomainUrl). "
-        "Sent as separate top-level request parameter per the "
-        "AdGroupsGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--dynamic-text-feed-ad-group-field-names",
-    help=(
-        "Comma-separated DynamicTextFeedAdGroupFieldNames "
-        "(e.g. Source,FeedId,SourceType). "
-        "Sent as separate top-level request parameter per the "
-        "AdGroupsGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--mobile-app-ad-group-field-names",
-    help=(
-        "Comma-separated MobileAppAdGroupFieldNames "
-        "(e.g. StoreUrl,TargetDeviceType,AppOperatingSystemType). "
-        "Sent as separate top-level request parameter per the "
-        "AdGroupsGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--smart-ad-group-field-names",
-    help=(
-        "Comma-separated SmartAdGroupFieldNames "
-        "(e.g. FeedId,AdTitleSource,AdBodySource). "
-        "Sent as separate top-level request parameter per the "
-        "AdGroupsGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--text-ad-group-feed-params-field-names",
-    help=(
-        "Comma-separated TextAdGroupFeedParamsFieldNames "
-        "(e.g. FeedId,FeedCategoryIds). "
-        "Sent as separate top-level request parameter per the "
-        "AdGroupsGetRequest WSDL."
-    ),
-)
-@click.option(
-    "--unified-ad-group-field-names",
-    help=(
-        "Comma-separated UnifiedAdGroupFieldNames (e.g. OfferRetargeting). "
-        "Sent as separate top-level request parameter per the "
-        "AdGroupsGetRequest WSDL."
-    ),
-)
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def get(
-    ctx,
-    ids,
-    campaign_ids,
-    status,
-    statuses,
-    types,
-    tag_ids,
-    tags,
-    app_icon_statuses,
-    serving_statuses,
-    negative_keyword_shared_set_ids,
-    limit,
-    fetch_all,
-    output_format,
-    output,
-    fields,
-    autotargeting_settings_brand_options_field_names,
-    autotargeting_settings_categories_field_names,
-    dynamic_text_ad_group_field_names,
-    dynamic_text_feed_ad_group_field_names,
-    mobile_app_ad_group_field_names,
-    smart_ad_group_field_names,
-    text_ad_group_feed_params_field_names,
-    unified_ad_group_field_names,
-    dry_run,
+def _adgroups_get_criteria(
+    ids=None,
+    campaign_ids=None,
+    status=None,
+    statuses=None,
+    types=None,
+    tag_ids=None,
+    tags=None,
+    app_icon_statuses=None,
+    serving_statuses=None,
+    negative_keyword_shared_set_ids=None,
+    **_,
 ):
-    """Get ad groups"""
+    """SelectionCriteria for ``adgroups get``: optional Ids/CampaignIds, a
+    singular ``--status`` or upper-cased ``--statuses`` (mutually exclusive),
+    upper-cased Types/AppIconStatuses/ServingStatuses, plain Tags, and integer
+    TagIds/NegativeKeywordSharedSetIds."""
     if status and statuses:
         raise click.UsageError(t("--status and --statuses are mutually exclusive"))
-
-    client = client_from_ctx(ctx, create_client)
-
-    field_names = parse_csv_strings(fields) or get_default_fields("adgroups")
-
-    raw_nested = (
-        (
-            "AutotargetingSettingsBrandOptionsFieldNames",
-            autotargeting_settings_brand_options_field_names,
-        ),
-        (
-            "AutotargetingSettingsCategoriesFieldNames",
-            autotargeting_settings_categories_field_names,
-        ),
-        (
-            "DynamicTextAdGroupFieldNames",
-            dynamic_text_ad_group_field_names,
-        ),
-        (
-            "DynamicTextFeedAdGroupFieldNames",
-            dynamic_text_feed_ad_group_field_names,
-        ),
-        ("MobileAppAdGroupFieldNames", mobile_app_ad_group_field_names),
-        ("SmartAdGroupFieldNames", smart_ad_group_field_names),
-        (
-            "TextAdGroupFeedParamsFieldNames",
-            text_ad_group_feed_params_field_names,
-        ),
-        ("UnifiedAdGroupFieldNames", unified_ad_group_field_names),
-    )
-    parsed_nested = parse_nested_field_names(raw_nested)
-
-    criteria: dict[str, Any] = {}
+    criteria = {}
     if ids:
         criteria["Ids"] = parse_ids(ids)
     if campaign_ids:
@@ -584,35 +445,98 @@ def get(
         negative_keyword_shared_set_ids,
         integers=True,
     )
+    return criteria
 
-    enforce_criteria_array_limits(
-        criteria, ADGROUPS_GET_CRITERIA_LIMITS, command_name="adgroups get"
-    )
 
-    if not criteria:
-        raise click.UsageError(t("Provide at least one typed filter"))
-
-    params = build_common_params(
-        criteria=criteria, field_names=field_names, limit=limit
-    )
-    params.update(parsed_nested)
-
-    body = {"method": "get", "params": params}
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    result = client.adgroups().post(data=body)
-
-    if fetch_all:
-        items = []
-        for item in result().iter_items():
-            items.append(item)
-        format_output(items, output_format, output)
-    else:
-        data = result().extract()
-        format_output(data, output_format, output)
+get = make_get_command(
+    adgroups,
+    create_client,
+    default_fields_key="adgroups",
+    help_text="Get ad groups",
+    ids_help="Comma-separated ad group IDs",
+    extra_options=(
+        click.option("--campaign-ids", help="Comma-separated campaign IDs"),
+        click.option("--status", help="Filter by status"),
+        click.option("--statuses", help="Comma-separated statuses"),
+        click.option("--types", help="Filter by types"),
+        click.option("--tag-ids", help="Comma-separated tag IDs"),
+        click.option("--tags", help="Comma-separated tag names"),
+        click.option("--app-icon-statuses", help="Comma-separated app icon statuses"),
+        click.option("--serving-statuses", help="Comma-separated serving statuses"),
+        click.option(
+            "--negative-keyword-shared-set-ids",
+            help="Comma-separated negative keyword shared set IDs",
+        ),
+    ),
+    criteria_builder=_adgroups_get_criteria,
+    criteria_limits=ADGROUPS_GET_CRITERIA_LIMITS,
+    require_criteria_message="Provide at least one typed filter",
+    nested_field_options=(
+        (
+            "--autotargeting-settings-brand-options-field-names",
+            "AutotargetingSettingsBrandOptionsFieldNames",
+            "Comma-separated AutotargetingSettingsBrandOptionsFieldNames "
+            "(e.g. WithoutBrands,WithAdvertiserBrand,WithCompetitorsBrand). "
+            "Sent as separate top-level request parameter per the "
+            "AdGroupsGetRequest WSDL.",
+        ),
+        (
+            "--autotargeting-settings-categories-field-names",
+            "AutotargetingSettingsCategoriesFieldNames",
+            "Comma-separated AutotargetingSettingsCategoriesFieldNames "
+            "(e.g. Exact,Narrow,Alternative,Accessory,Broader). "
+            "Sent as separate top-level request parameter per the "
+            "AdGroupsGetRequest WSDL.",
+        ),
+        (
+            "--dynamic-text-ad-group-field-names",
+            "DynamicTextAdGroupFieldNames",
+            "Comma-separated DynamicTextAdGroupFieldNames "
+            "(e.g. AutotargetingSettings,DomainUrl). "
+            "Sent as separate top-level request parameter per the "
+            "AdGroupsGetRequest WSDL.",
+        ),
+        (
+            "--dynamic-text-feed-ad-group-field-names",
+            "DynamicTextFeedAdGroupFieldNames",
+            "Comma-separated DynamicTextFeedAdGroupFieldNames "
+            "(e.g. Source,FeedId,SourceType). "
+            "Sent as separate top-level request parameter per the "
+            "AdGroupsGetRequest WSDL.",
+        ),
+        (
+            "--mobile-app-ad-group-field-names",
+            "MobileAppAdGroupFieldNames",
+            "Comma-separated MobileAppAdGroupFieldNames "
+            "(e.g. StoreUrl,TargetDeviceType,AppOperatingSystemType). "
+            "Sent as separate top-level request parameter per the "
+            "AdGroupsGetRequest WSDL.",
+        ),
+        (
+            "--smart-ad-group-field-names",
+            "SmartAdGroupFieldNames",
+            "Comma-separated SmartAdGroupFieldNames "
+            "(e.g. FeedId,AdTitleSource,AdBodySource). "
+            "Sent as separate top-level request parameter per the "
+            "AdGroupsGetRequest WSDL.",
+        ),
+        (
+            "--text-ad-group-feed-params-field-names",
+            "TextAdGroupFeedParamsFieldNames",
+            "Comma-separated TextAdGroupFeedParamsFieldNames "
+            "(e.g. FeedId,FeedCategoryIds). "
+            "Sent as separate top-level request parameter per the "
+            "AdGroupsGetRequest WSDL.",
+        ),
+        (
+            "--unified-ad-group-field-names",
+            "UnifiedAdGroupFieldNames",
+            "Comma-separated UnifiedAdGroupFieldNames (e.g. OfferRetargeting). "
+            "Sent as separate top-level request parameter per the "
+            "AdGroupsGetRequest WSDL.",
+        ),
+    ),
+)
 
 
 # dest -> "--flag" map for the `adgroups add` flag set. Hoisted to module level
