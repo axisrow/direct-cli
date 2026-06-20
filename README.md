@@ -798,7 +798,8 @@ Four tiers of tests live under `tests/`:
 
 ```bash
 pip install -e ".[dev]"
-pytest                              # fast tier — no token
+pytest                              # fast offline tier, parallel via xdist — no token
+pytest -n0                          # same offline tier, sequential (for pdb / -s)
 pytest -m integration -v            # read-only integration tests (needs token)
 pytest -m integration_write -v      # write cassette replay (no token needed)
 YANDEX_DIRECT_LIVE_WRITE=1 pytest -m integration_live_write -v  # live draft cassette replay (v5)

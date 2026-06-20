@@ -28,6 +28,48 @@ from direct_cli.cli import cli
 load_dotenv()
 
 
+# The live tiers (real API calls + the shared ``~/.direct-cli/test-orphans.json``
+# orphan store + ordered create→use→delete resource lifecycles) are NOT
+# parallel-safe. ``-n auto`` lives in ``addopts`` for the fast offline default,
+# but it must not fan an *explicit* live-tier selection across workers. This
+# xdist hook resolves ``-n auto`` to a single worker (serial) whenever the marker
+# expression positively selects a live tier; the offline default — which excludes
+# them via ``not ...`` — keeps the full CPU count. An explicit ``-n0`` always
+# wins (the hook is only consulted for ``-n auto``/``-n logical``).
+_LIVE_MARKERS = ("integration", "v4_live_read", "integration_live_write")
+
+
+def pytest_xdist_auto_num_workers(config):
+    """Force serial (one worker) when a live tier is explicitly selected.
+
+    The marker expression is evaluated with pytest's own parser (not a substring
+    check, which mishandles ``-m "integration and not integration_live_write"``):
+    if a test marked with exactly one live marker would be *selected* by the
+    current ``-m`` expression, the live tier is in play and ``-n auto`` resolves
+    to one worker.
+
+    The probe models a test carrying *only* the live marker, so a compound
+    ``-m "v4_live_read and <non-live>"`` would not serialize — but that is
+    unreachable here: every live test carries only its module-level live marker,
+    so such an intersection selects zero tests (no race possible).
+    """
+    markexpr = config.getoption("markexpr") or ""
+    if not markexpr:
+        return None
+    try:
+        from _pytest.mark.expression import Expression
+
+        expr = Expression.compile(markexpr)
+        for marker in _LIVE_MARKERS:
+            if expr.evaluate(lambda name, m=marker: name == m):
+                return 1
+        return None
+    except Exception:
+        # Private parser unavailable/changed (compile or evaluate): serialize if
+        # any live marker is named at all — over-serializing never races.
+        return 1 if any(m in markexpr for m in _LIVE_MARKERS) else None
+
+
 @pytest.fixture(autouse=True)
 def _block_login_resolve_network(monkeypatch):
     """Stop unit tests from ever hitting the network to resolve a client login.

@@ -37,9 +37,10 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=6.0",
+    "pytest>=6.2",
     "pytest-cov>=2.0",
     "pytest-recording>=0.13",
+    "pytest-xdist>=3.0",
     "vcrpy>=6.0",
     "black>=22.0",
     "flake8>=4.0",
@@ -125,7 +126,13 @@ python_functions = "test_*"
 #   pytest -m integration            (real read-only API)
 #   pytest -m v4_live_read           (v4 Live read contracts)
 #   pytest -m "integration or v4_live_read or integration_live_write"
-addopts = "-m 'not integration and not v4_live_read and not integration_live_write'"
+#
+# `-n auto` runs the offline suite in parallel across CPU cores via pytest-xdist
+# (the suite is process-parallel-safe: env/cwd changes go through monkeypatch,
+# filesystem writes use tmp_path, and the only shared-file writer — the orphan
+# store — lives in the excluded live tiers). Disable for debugging / pdb / -s
+# with `pytest -n0`.
+addopts = "-n auto -m 'not integration and not v4_live_read and not integration_live_write'"
 markers = [
     "integration: marks tests as integration tests requiring a real API token (deselect with '-m \"not integration\"')",
     "integration_write: sandbox integration tests for write commands (replays VCR cassettes offline; --record-mode=rewrite needs YANDEX_DIRECT_TOKEN)",
