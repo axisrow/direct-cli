@@ -32,7 +32,7 @@ def format_output(
 
     Args:
         data: Data to format
-        format_type: Output format ('json', 'table', 'csv', 'tsv')
+        format_type: Output format ('text', 'json', 'table', 'csv', 'tsv')
         output_file: Output file path (if None, print to stdout)
         headers: Column headers for table/csv/tsv format
 
@@ -43,6 +43,8 @@ def format_output(
 
     if format_type == "json":
         output = format_json(data)
+    elif format_type == "text":
+        output = format_text(data)
     elif format_type == "table":
         output = format_table(data, headers)
     elif format_type == "csv":
@@ -157,6 +159,30 @@ def format_json(data: Any, indent: int = 2) -> str:
     return json.dumps(data, ensure_ascii=False, indent=indent, default=str)
 
 
+def format_text(data: Any) -> str:
+    """Format data as a human-readable plain-text block.
+
+    The default for reference commands — the same kind of flat plain-text the
+    ``auth status`` / ``auth list`` commands print by hand (stylistic mirror, not
+    shared code): a list of records prints each record as ``key: value`` lines
+    separated by a blank line; a list of scalars prints one per line; a mapping
+    prints ``key: value`` lines; anything else falls back to ``str``.
+    """
+    if isinstance(data, list):
+        if not data:
+            return ""
+        if isinstance(data[0], dict):
+            blocks = [
+                "\n".join(f"{key}: {value}" for key, value in item.items())
+                for item in data
+            ]
+            return "\n\n".join(blocks)
+        return "\n".join(str(item) for item in data)
+    if isinstance(data, dict):
+        return "\n".join(f"{key}: {value}" for key, value in data.items())
+    return str(data)
+
+
 def format_table(data: Any, headers: Optional[List[str]] = None) -> str:
     """Format data as table"""
     if not tabulate:
@@ -167,6 +193,10 @@ def format_table(data: Any, headers: Optional[List[str]] = None) -> str:
             return tabulate(data, headers="keys", tablefmt="grid")
         elif isinstance(data[0], list):
             return tabulate(data, headers=headers or [], tablefmt="grid")
+        else:
+            # list of scalars -> a single "Value" column
+            rows = [[item] for item in data]
+            return tabulate(rows, headers=headers or ["Value"], tablefmt="grid")
     elif isinstance(data, dict):
         # Convert dict to list of lists for table display
         rows = [[k, v] for k, v in data.items()]
@@ -175,52 +205,43 @@ def format_table(data: Any, headers: Optional[List[str]] = None) -> str:
     return str(data)
 
 
-def format_csv(data: Any, headers: Optional[List[str]] = None) -> str:
-    """Format data as CSV"""
+def _format_delimited(data: Any, headers: Optional[List[str]], delimiter: str) -> str:
+    """Shared CSV/TSV writer — only the delimiter differs between the two."""
     output = StringIO()
 
     if isinstance(data, list) and len(data) > 0:
         if isinstance(data[0], dict):
             fieldnames = headers or list(data[0].keys())
-            writer = csv.DictWriter(output, fieldnames=fieldnames)
+            writer = csv.DictWriter(output, fieldnames=fieldnames, delimiter=delimiter)
             writer.writeheader()
             writer.writerows(data)
         elif isinstance(data[0], list):
-            writer = csv.writer(output)
+            writer = csv.writer(output, delimiter=delimiter)
             if headers:
                 writer.writerow(headers)
             writer.writerows(data)
+        else:
+            writer = csv.writer(output, delimiter=delimiter)
+            writer.writerow(headers or ["Value"])
+            for item in data:
+                writer.writerow([item])
     elif isinstance(data, dict):
-        writer = csv.writer(output)
+        writer = csv.writer(output, delimiter=delimiter)
         writer.writerow(["Key", "Value"])
         for k, v in data.items():
             writer.writerow([k, v])
 
     return output.getvalue()
+
+
+def format_csv(data: Any, headers: Optional[List[str]] = None) -> str:
+    """Format data as CSV"""
+    return _format_delimited(data, headers, delimiter=",")
 
 
 def format_tsv(data: Any, headers: Optional[List[str]] = None) -> str:
     """Format data as TSV"""
-    output = StringIO()
-
-    if isinstance(data, list) and len(data) > 0:
-        if isinstance(data[0], dict):
-            fieldnames = headers or list(data[0].keys())
-            writer = csv.DictWriter(output, fieldnames=fieldnames, delimiter="\t")
-            writer.writeheader()
-            writer.writerows(data)
-        elif isinstance(data[0], list):
-            writer = csv.writer(output, delimiter="\t")
-            if headers:
-                writer.writerow(headers)
-            writer.writerows(data)
-    elif isinstance(data, dict):
-        writer = csv.writer(output, delimiter="\t")
-        writer.writerow(["Key", "Value"])
-        for k, v in data.items():
-            writer.writerow([k, v])
-
-    return output.getvalue()
+    return _format_delimited(data, headers, delimiter="\t")
 
 
 def print_success(message: str) -> None:
