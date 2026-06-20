@@ -27,7 +27,6 @@
   "--logins must not be empty": "--logins не должен быть пустым",
   "Use either --finance-token or --master-token, not both": "Используйте либо --finance-token, либо --master-token, но не оба",
   "--dry-run is required for v4finance money commands": "--dry-run обязателен для денежных команд v4finance",
-  "--campaign-ids must contain only positive integers": "--campaign-ids должен содержать только положительные целые числа",
   "--custom-transaction-id must be exactly 32 latin letters or digits": "--custom-transaction-id должен содержать ровно 32 латинские буквы или цифры",
   "--contract-id is required when --pay-method Bank": "--contract-id обязателен при --pay-method Bank",
   "--payment must use CAMPAIGN_ID=AMOUNT": "--payment должен использовать формат CAMPAIGN_ID=AMOUNT",
