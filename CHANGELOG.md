@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+**Features — human-readable `text` output for reference commands (#578):**
+
+- Local reference commands now default to a human-readable `text` format instead
+  of raw JSON: `trackingparams` (dynamic tracking-parameter reference) and
+  `dictionaries list-names` (previously hardcoded JSON with no `--format`). Both
+  expose `--format {text,json,table,csv,tsv}` / `--output` via the new shared
+  `reference_output_options` decorator (sibling of `v4_output_options`, default
+  `text`). API-data commands keep their `json` default.
+- Global `output.py` fix: `--format table/csv/tsv` now render a list of scalar
+  values (e.g. dictionary names) as a single `Value` column instead of a Python
+  `repr` (`['Currencies', …]`) / empty output. Affects any caller that passes a
+  scalar list, not just the reference commands.
+
 **Features — preflight `SelectionCriteria` array caps on remaining read-get commands (#571):**
 
 - `ads`, `adgroups`, `bids`, `bidmodifiers`, `campaigns`, `keywords`,

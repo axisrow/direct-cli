@@ -6,7 +6,7 @@ import click
 
 from ..api import client_from_ctx, create_client
 from ..output import format_output, handle_api_errors
-from ..utils import parse_csv_strings, parse_ids
+from ..utils import parse_csv_strings, parse_ids, reference_output_options
 
 DICTIONARY_NAMES = [
     "Currencies",
@@ -80,6 +80,7 @@ def get_geo_regions(ctx, name, region_ids, exact_names, fields, output_format, o
 
 
 @dictionaries.command()
-def list_names():
+@reference_output_options
+def list_names(output_format, output):
     """List available dictionary names"""
-    format_output(DICTIONARY_NAMES, "json", None)
+    format_output(DICTIONARY_NAMES, output_format, output)

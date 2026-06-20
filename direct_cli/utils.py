@@ -1083,3 +1083,31 @@ def v4_output_options(func):
         type=click.Choice(["json", "table", "csv", "tsv"]),
         help="Output format",
     )(func)
+
+
+def reference_output_options(func):
+    """Apply the output-option stack of a local reference command.
+
+    Equivalent to, top-to-bottom::
+
+        @click.option(
+            "--format", "output_format", default="text",
+            type=click.Choice(["text", "json", "table", "csv", "tsv"]),
+            help="Output format",
+        )
+        @click.option("--output", help="Output file")
+
+    Like :func:`v4_output_options`, but the default is the human-readable
+    ``text`` (reference commands list values for a person, not a pipeline) and
+    there is no ``--dry-run`` (no API call). The shared convention for local
+    reference commands (``trackingparams``, ``dictionaries list-names``, …);
+    ``text`` is rendered by :func:`direct_cli.output.format_text`.
+    """
+    func = click.option("--output", help="Output file")(func)
+    return click.option(
+        "--format",
+        "output_format",
+        default="text",
+        type=click.Choice(["text", "json", "table", "csv", "tsv"]),
+        help="Output format",
+    )(func)

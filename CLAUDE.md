@@ -31,7 +31,9 @@ Click group-of-groups. Each Yandex Direct API resource = one file in `direct_cli
 
 **Shared utilities** (`utils.py`): `parse_ids`, `parse_json`, `build_selection_criteria`, `build_common_params`, `get_default_fields`, `COMMON_FIELDS` dict. All command modules import from here — don't duplicate.
 
-**Output** (`output.py`): `format_output()` supports json (default), table, csv, tsv. Colored helpers: `print_success`, `print_error`, `print_warning`, `print_info`.
+**Output** (`output.py`): `format_output()` supports json (default), table, csv, tsv, and `text` (human-readable plain blocks via `format_text`). Colored helpers: `print_success`, `print_error`, `print_warning`, `print_info`.
+
+**Reference commands** (local value lists / templates, e.g. `trackingparams`, `dictionaries list-names`) default to the human-readable `text` format and expose `--format {text,json,table,csv,tsv}` / `--output` via the shared `reference_output_options` decorator (`utils.py`, sibling of `v4_output_options`). API-data commands keep `json` default. New reference commands should use this decorator.
 
 ## Key Conventions
 

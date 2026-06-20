@@ -6,14 +6,14 @@ import click
 
 from ..output import format_output
 from ..tracking_params import TRACKING_PARAMS, TRACKING_PARAMS_DOCS_URL
+from ..utils import reference_output_options
 
 
 @click.command(
     name="trackingparams",
     epilog=f"\b\nDocumentation: {TRACKING_PARAMS_DOCS_URL}",
 )
-@click.option("--format", "output_format", default="json", help="Output format")
-@click.option("--output", help="Output file")
+@reference_output_options
 def tracking_params(output_format, output):
     """Dynamic tracking parameters reference (UTM template placeholders).
 
