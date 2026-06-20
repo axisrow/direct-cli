@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+**Internal — `make_get_command` covers the criteria-limit ad-target `get`s (part of #587):**
+
+- `dynamicads get`, `smartadtargets get` and `dynamicfeedadtargets get` — three
+  byte-for-byte identical command bodies — now register through the shared
+  `make_get_command` factory (`direct_cli/commands/_get.py`) instead of hand-rolled
+  copies (net −131 lines). The factory gained two optional, generic parameters:
+  `criteria_limits` (forwarded to `enforce_criteria_array_limits`, command name
+  derived as `"<group> get"`) and `require_criteria_message` (the "provide at
+  least one filter" guard), plus a shared `ids_adgroup_campaign_states_criteria`
+  builder for the `Ids`/`AdGroupIds`/`CampaignIds`/`States` selection shape.
+- No CLI surface change: `--help`, `--dry-run` payloads, the over-limit and
+  empty-criteria errors, and module patchability are byte-identical (verified
+  against pre-migration baselines). Group 2 (nested `*FieldNames`) and the
+  no-`--ids` commands (`bids`, `keywordbids`, `bidmodifiers`) follow in a
+  separate PR.
+
 **Features — human-readable `text` output for reference commands (#578):**
 
 - Local reference commands now default to a human-readable `text` format instead
