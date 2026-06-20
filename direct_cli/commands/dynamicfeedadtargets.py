@@ -2,25 +2,17 @@
 DynamicFeedAdTargets commands
 """
 
-from typing import Any
-
 import click
 
-from ..api import client_from_ctx, create_client
+from ..api import create_client
 from ..i18n import t
-from ..output import format_output, handle_api_errors
+from ..output import handle_api_errors
 from ._execute import execute_request
+from ._get import ids_adgroup_campaign_states_criteria, make_get_command
 from ._lifecycle import register_lifecycle_commands
 from ..utils import (
     MICRO_RUBLES,
-    build_common_params,
-    enforce_criteria_array_limits,
-    get_default_fields,
-    get_options,
     parse_condition_specs,
-    parse_csv_strings,
-    parse_csv_upper,
-    parse_ids,
 )
 
 # Yandex Direct dynamicfeedadtargets.get caps SelectionCriteria arrays at
@@ -37,73 +29,21 @@ def dynamicfeedadtargets():
     """Manage dynamic feed ad targets"""
 
 
-@dynamicfeedadtargets.command()
-@click.option("--ids", help="Comma-separated target IDs")
-@click.option("--adgroup-ids", help="Comma-separated ad group IDs")
-@click.option("--campaign-ids", help="Comma-separated campaign IDs")
-@click.option("--states", help="Comma-separated states")
-@get_options
-@click.pass_context
-@handle_api_errors
-def get(
-    ctx,
-    ids,
-    adgroup_ids,
-    campaign_ids,
-    states,
-    limit,
-    fetch_all,
-    output_format,
-    output,
-    fields,
-    dry_run,
-):
-    """Get dynamic feed ad targets"""
-    client = client_from_ctx(ctx, create_client)
-
-    field_names = parse_csv_strings(fields) or get_default_fields(
-        "dynamicfeedadtargets"
-    )
-
-    criteria: dict[str, Any] = {}
-    if ids:
-        criteria["Ids"] = parse_ids(ids)
-    if adgroup_ids:
-        criteria["AdGroupIds"] = parse_ids(adgroup_ids)
-    if campaign_ids:
-        criteria["CampaignIds"] = parse_ids(campaign_ids)
-    if states:
-        criteria["States"] = parse_csv_upper(states) or []
-
-    enforce_criteria_array_limits(
-        criteria,
-        DYNAMICFEEDADTARGETS_GET_CRITERIA_LIMITS,
-        command_name="dynamicfeedadtargets get",
-    )
-
-    if not criteria:
-        raise click.UsageError(t("Provide at least one typed filter"))
-
-    params = build_common_params(
-        criteria=criteria, field_names=field_names, limit=limit
-    )
-
-    body = {"method": "get", "params": params}
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    result = client.dynamicfeedadtargets().post(data=body)
-
-    if fetch_all:
-        items = []
-        for item in result().iter_items():
-            items.append(item)
-        format_output(items, output_format, output)
-    else:
-        data = result().extract()
-        format_output(data, output_format, output)
+get = make_get_command(
+    dynamicfeedadtargets,
+    create_client,
+    default_fields_key="dynamicfeedadtargets",
+    help_text="Get dynamic feed ad targets",
+    ids_help="Comma-separated target IDs",
+    extra_options=(
+        click.option("--adgroup-ids", help="Comma-separated ad group IDs"),
+        click.option("--campaign-ids", help="Comma-separated campaign IDs"),
+        click.option("--states", help="Comma-separated states"),
+    ),
+    criteria_builder=ids_adgroup_campaign_states_criteria,
+    criteria_limits=DYNAMICFEEDADTARGETS_GET_CRITERIA_LIMITS,
+    require_criteria_message="Provide at least one typed filter",
+)
 
 
 @dynamicfeedadtargets.command()

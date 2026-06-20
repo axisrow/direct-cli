@@ -20,12 +20,15 @@ from __future__ import annotations
 import click
 
 from ..api import client_from_ctx, resolve_module_create_client
+from ..i18n import t
 from ..output import format_output, handle_api_errors
 from ..utils import (
     build_common_params,
+    enforce_criteria_array_limits,
     get_default_fields,
     get_options,
     parse_csv_strings,
+    parse_csv_upper,
     parse_ids,
 )
 
@@ -35,6 +38,26 @@ def _default_ids_criteria(ids):
     criteria = {}
     if ids:
         criteria["Ids"] = parse_ids(ids)
+    return criteria
+
+
+def ids_adgroup_campaign_states_criteria(
+    ids, adgroup_ids=None, campaign_ids=None, states=None, **_
+):
+    """SelectionCriteria for the dynamic/smart ad-target ``get`` commands.
+
+    Optional integer ``Ids`` / ``AdGroupIds`` / ``CampaignIds`` lists plus an
+    upper-cased ``States`` list (an empty ``--states`` CSV maps to ``[]``), in
+    that key order — the shared shape of ``dynamicads``, ``smartadtargets`` and
+    ``dynamicfeedadtargets``.
+    """
+    criteria = _default_ids_criteria(ids)
+    if adgroup_ids:
+        criteria["AdGroupIds"] = parse_ids(adgroup_ids)
+    if campaign_ids:
+        criteria["CampaignIds"] = parse_ids(campaign_ids)
+    if states:
+        criteria["States"] = parse_csv_upper(states) or []
     return criteria
 
 
@@ -48,6 +71,8 @@ def make_get_command(
     ids_required=False,
     extra_options=(),
     criteria_builder=None,
+    criteria_limits=None,
+    require_criteria_message=None,
 ):
     """Build and register a v5 ``get`` command on *group*.
 
@@ -68,10 +93,20 @@ def make_get_command(
         criteria_builder: callable mapping the parsed options to a
             ``SelectionCriteria`` dict. It receives ``ids`` plus every extra
             option as keyword args; defaults to an optional ``Ids`` list.
+        criteria_limits: optional ``{SelectionCriteria key: max count}`` dict
+            enforced via :func:`enforce_criteria_array_limits` (command name
+            ``"<group> get"``) before the request is built.
+        require_criteria_message: optional i18n key; when set, an empty
+            ``SelectionCriteria`` raises ``UsageError`` with this message
+            (the "provide at least one filter" guard).
 
     Returns:
         The registered Click command.
     """
+    # svc doubles as the client service attribute (``getattr(client, svc)``) and
+    # the ``criteria_limits`` error prefix (``f"{svc} get"``); both assume the
+    # group name matches the API service name, which holds for every current
+    # resource module.
     svc = group.name
     module_name = group.callback.__module__
     build_criteria = criteria_builder or (lambda ids, **_: _default_ids_criteria(ids))
@@ -85,6 +120,12 @@ def make_get_command(
             default_fields_key
         )
         criteria = build_criteria(ids, **kwargs)
+        if criteria_limits:
+            enforce_criteria_array_limits(
+                criteria, criteria_limits, command_name=f"{svc} get"
+            )
+        if require_criteria_message and not criteria:
+            raise click.UsageError(t(require_criteria_message))
         params = build_common_params(
             criteria=criteria, field_names=field_names, limit=limit
         )
