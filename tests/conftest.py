@@ -47,6 +47,11 @@ def pytest_xdist_auto_num_workers(config):
     if a test marked with exactly one live marker would be *selected* by the
     current ``-m`` expression, the live tier is in play and ``-n auto`` resolves
     to one worker.
+
+    The probe models a test carrying *only* the live marker, so a compound
+    ``-m "v4_live_read and <non-live>"`` would not serialize — but that is
+    unreachable here: every live test carries only its module-level live marker,
+    so such an intersection selects zero tests (no race possible).
     """
     markexpr = config.getoption("markexpr") or ""
     if not markexpr:
@@ -55,14 +60,14 @@ def pytest_xdist_auto_num_workers(config):
         from _pytest.mark.expression import Expression
 
         expr = Expression.compile(markexpr)
+        for marker in _LIVE_MARKERS:
+            if expr.evaluate(lambda name, m=marker: name == m):
+                return 1
+        return None
     except Exception:
-        # Parser unavailable/changed: serialize if any live marker is named at
-        # all — over-serializing is always safe (it never races).
+        # Private parser unavailable/changed (compile or evaluate): serialize if
+        # any live marker is named at all — over-serializing never races.
         return 1 if any(m in markexpr for m in _LIVE_MARKERS) else None
-    for marker in _LIVE_MARKERS:
-        if expr.evaluate(lambda name, m=marker: name == m):
-            return 1
-    return None
 
 
 @pytest.fixture(autouse=True)
