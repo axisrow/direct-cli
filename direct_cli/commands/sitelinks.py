@@ -8,16 +8,13 @@ from typing import Any, Dict, List
 
 import click
 
-from ..api import client_from_ctx, create_client
+from ..api import create_client
 from ..i18n import t
-from ..output import format_output, handle_api_errors
+from ..output import handle_api_errors
 from ._execute import execute_request
+from ._get import make_get_command
 from ._lifecycle import make_lifecycle_command
 from ..utils import (
-    build_common_params,
-    get_default_fields,
-    parse_csv_strings,
-    parse_ids,
     parse_sitelink_specs,
 )
 
@@ -127,72 +124,26 @@ def sitelinks():
     """Manage sitelinks"""
 
 
-@sitelinks.command()
-@click.option("--ids", help="Comma-separated sitelink IDs")
-@click.option("--limit", type=int, help="Limit number of results")
-@click.option("--fetch-all", is_flag=True, help="Fetch all pages")
-@click.option("--format", "output_format", default="json", help="Output format")
-@click.option("--output", help="Output file")
-@click.option("--fields", help="Comma-separated SitelinksSet FieldNames")
-@click.option(
-    "--sitelink-field-names",
-    help=(
-        "Comma-separated SitelinkFieldNames controlling nested "
-        "Sitelinks[] item field selection (e.g. Title,Href,Description,"
-        "TurboPageId). Sent as a separate top-level request parameter "
-        "alongside FieldNames per the SitelinksGetRequest WSDL."
+get = make_get_command(
+    sitelinks,
+    create_client,
+    default_fields_key="sitelinks",
+    help_text="Get sitelinks",
+    ids_help="Comma-separated sitelink IDs",
+    fields_help="Comma-separated SitelinksSet FieldNames",
+    nested_field_options=(
+        (
+            "--sitelink-field-names",
+            "SitelinkFieldNames",
+            (
+                "Comma-separated SitelinkFieldNames controlling nested "
+                "Sitelinks[] item field selection (e.g. Title,Href,Description,"
+                "TurboPageId). Sent as a separate top-level request parameter "
+                "alongside FieldNames per the SitelinksGetRequest WSDL."
+            ),
+        ),
     ),
 )
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def get(
-    ctx,
-    ids,
-    limit,
-    fetch_all,
-    output_format,
-    output,
-    fields,
-    sitelink_field_names,
-    dry_run,
-):
-    """Get sitelinks"""
-    client = client_from_ctx(ctx, create_client)
-
-    field_names = parse_csv_strings(fields) or get_default_fields("sitelinks")
-    parsed_sitelink_field_names = parse_csv_strings(sitelink_field_names)
-    if sitelink_field_names is not None and not parsed_sitelink_field_names:
-        raise click.UsageError(
-            t("Provide a non-empty comma-separated SitelinkFieldNames list.")
-        )
-
-    criteria = {}
-    if ids:
-        criteria["Ids"] = parse_ids(ids)
-
-    params = build_common_params(
-        criteria=criteria, field_names=field_names, limit=limit
-    )
-    if parsed_sitelink_field_names:
-        params["SitelinkFieldNames"] = parsed_sitelink_field_names
-
-    body = {"method": "get", "params": params}
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    result = client.sitelinks().post(data=body)
-
-    if fetch_all:
-        items = []
-        for item in result().iter_items():
-            items.append(item)
-        format_output(items, output_format, output)
-    else:
-        data = result().extract()
-        format_output(data, output_format, output)
 
 
 @sitelinks.command()

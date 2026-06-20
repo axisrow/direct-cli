@@ -4,18 +4,15 @@ AdImages commands
 
 import click
 
-from ..api import client_from_ctx, create_client
+from ..api import create_client
 from ..i18n import t
-from ..output import format_output, handle_api_errors
+from ..output import handle_api_errors
 from ._execute import execute_request
+from ._get import make_get_command
 from ._lifecycle import make_lifecycle_command
 from ..utils import (
     add_criteria_csv,
-    build_common_params,
-    get_default_fields,
-    get_options,
     load_base64_file,
-    parse_csv_strings,
     parse_ids,
 )
 
@@ -25,57 +22,32 @@ def adimages():
     """Manage ad images"""
 
 
-@adimages.command()
-@click.option("--ids", help="Comma-separated image IDs")
-@click.option("--image-hashes", help="Comma-separated ad image hashes")
-@click.option("--associated", type=click.Choice(["YES", "NO"], case_sensitive=False))
-@get_options
-@click.pass_context
-@handle_api_errors
-def get(
-    ctx,
-    ids,
-    image_hashes,
-    associated,
-    limit,
-    fetch_all,
-    output_format,
-    output,
-    fields,
-    dry_run,
-):
-    """Get ad images"""
-    client = client_from_ctx(ctx, create_client)
-
-    field_names = parse_csv_strings(fields) or get_default_fields("adimages")
-
+def _adimages_criteria(ids, image_hashes=None, associated=None, **_):
+    """SelectionCriteria for ``adimages get``: ``Ids`` + ``AdImageHashes`` +
+    ``Associated``."""
     criteria = {}
     if ids:
         criteria["Ids"] = parse_ids(ids)
     add_criteria_csv(criteria, "AdImageHashes", image_hashes)
     if associated:
         criteria["Associated"] = associated.upper()
+    return criteria
 
-    params = build_common_params(
-        criteria=criteria, field_names=field_names, limit=limit
-    )
 
-    body = {"method": "get", "params": params}
-
-    if dry_run:
-        format_output(body, "json", None)
-        return
-
-    result = client.adimages().post(data=body)
-
-    if fetch_all:
-        items = []
-        for item in result().iter_items():
-            items.append(item)
-        format_output(items, output_format, output)
-    else:
-        data = result().extract()
-        format_output(data, output_format, output)
+get = make_get_command(
+    adimages,
+    create_client,
+    default_fields_key="adimages",
+    help_text="Get ad images",
+    ids_help="Comma-separated image IDs",
+    extra_options=(
+        click.option("--image-hashes", help="Comma-separated ad image hashes"),
+        click.option(
+            "--associated", type=click.Choice(["YES", "NO"], case_sensitive=False)
+        ),
+    ),
+    criteria_builder=_adimages_criteria,
+)
 
 
 @adimages.command()
