@@ -40,10 +40,27 @@ _LIVE_MARKERS = ("integration", "v4_live_read", "integration_live_write")
 
 
 def pytest_xdist_auto_num_workers(config):
-    """Force serial (one worker) when a live tier is explicitly selected."""
+    """Force serial (one worker) when a live tier is explicitly selected.
+
+    The marker expression is evaluated with pytest's own parser (not a substring
+    check, which mishandles ``-m "integration and not integration_live_write"``):
+    if a test marked with exactly one live marker would be *selected* by the
+    current ``-m`` expression, the live tier is in play and ``-n auto`` resolves
+    to one worker.
+    """
     markexpr = config.getoption("markexpr") or ""
+    if not markexpr:
+        return None
+    try:
+        from _pytest.mark.expression import Expression
+
+        expr = Expression.compile(markexpr)
+    except Exception:
+        # Parser unavailable/changed: serialize if any live marker is named at
+        # all — over-serializing is always safe (it never races).
+        return 1 if any(m in markexpr for m in _LIVE_MARKERS) else None
     for marker in _LIVE_MARKERS:
-        if marker in markexpr and f"not {marker}" not in markexpr:
+        if expr.evaluate(lambda name, m=marker: name == m):
             return 1
     return None
 
