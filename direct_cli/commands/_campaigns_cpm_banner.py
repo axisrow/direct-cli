@@ -6,7 +6,7 @@ Extracted verbatim from the former inline ``elif campaign_type_norm ==
 unchanged — ``campaigns.py`` delegates here.
 """
 
-from typing import Dict  # noqa: F401
+from typing import Dict
 
 from .._bidding_strategy import get_bidding_strategy_builder
 from ..utils import parse_setting_specs
