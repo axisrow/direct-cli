@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+**Internal — campaigns.py split, step 2 — CPM_BANNER (#613, part of #602):**
+
+- Extracted the `CPM_BANNER_CAMPAIGN` `add`/`update` subtype-block composition
+  (the former inline `elif campaign_type_norm == "CPM_BANNER_CAMPAIGN":`
+  branches) into a new sibling module
+  `direct_cli/commands/_campaigns_cpm_banner.py` (`build_add_block` /
+  `build_update_block`). Both commands now snapshot their CLI parameters once
+  (`p = dict(locals())`) and delegate. The CLI surface, every flag and every
+  `--dry-run` payload is byte-for-byte identical (28 `test_campaigns_*cpm*`
+  fixtures green). First per-campaign-type extraction; the remaining types
+  (`mobile_app`, `smart`, `dynamic`, `unified`, `text`) follow in subsequent PRs.
+
 **Internal — campaigns.py split, step 1 (#602):**
 
 - Extracted all shared constants (`CAMPAIGNS_GET_CRITERIA_LIMITS`, `YES_NO`,
