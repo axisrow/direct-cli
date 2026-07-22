@@ -23,6 +23,8 @@ flake8 direct_cli tests              # Lint
 
 Click group-of-groups. Each Yandex Direct API resource = one file in `direct_cli/commands/` with a Click group and subcommands (`get`, `add`, `update`, `delete`, `suspend`, `resume`, etc.). All groups registered in `direct_cli/cli.py` via `cli.add_command()`.
 
+**Campaigns split (issue #602):** `campaigns.py` is being decomposed incrementally. Step 1 moved all shared constants, validators, payload builders and the reusable TextCampaign strategy option groups into a sibling `direct_cli/commands/_campaigns_base.py`; `campaigns.py` re-imports every name, so the CLI surface is unchanged. Subsequent steps will move per-campaign-type logic (`text`, `unified`, `dynamic`, `smart`, `mobile_app`, `cpm_banner`) into the same package — never edit shared helpers in `campaigns.py`, edit `_campaigns_base.py`.
+
 **Request flow:** `cli.py` → `auth.py` (resolves token/login) → `api.py` (`create_client`) → `tapi_yandex_direct.YandexDirect` → Yandex API → `output.py` (format/print).
 
 **Credentials priority (CLI):** explicit CLI flags (`--token`, `--login`, `--profile`) > base env/current working directory `.env` (`YANDEX_DIRECT_TOKEN`, `YANDEX_DIRECT_LOGIN`) > active profile from `direct auth login` / `direct auth use` > 1Password/Bitwarden refs. Explicit `--profile` is isolated and does not fall back to base `.env` login. See `direct_cli/auth.py` (`get_credentials`) and README table for the full chain.
