@@ -615,11 +615,20 @@ def test_direct_money_flags_use_micro_rubles_only():
     root = Path(__file__).resolve().parents[1]
 
     for relative_path in (
-        "direct_cli/commands/ads.py",
+        "direct_cli/commands/ads/",
         "direct_cli/commands/campaigns.py",
         "direct_cli/utils.py",
     ):
-        content = (root / relative_path).read_text()
+        path = root / relative_path
+        if path.is_dir():
+            contents = [
+                p.read_text()
+                for p in sorted(path.iterdir())
+                if p.suffix == ".py" and p.name != "__init__.py"
+            ]
+            content = "\n".join(contents)
+        else:
+            content = path.read_text()
         for snippet in forbidden_snippets:
             assert snippet not in content
 
