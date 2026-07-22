@@ -400,12 +400,19 @@ class TestApiCoverage:
         )
 
     def test_dry_run_exclusion_focused_test_references_exist(self):
-        test_dry_run = Path(__file__).with_name("test_dry_run.py")
-        contents = test_dry_run.read_text()
-        declared_tests = set(re.findall(r"^def (test_[A-Za-z0-9_]+)\(", contents, re.M))
-        declared_tests.update(
-            re.findall(r"^\s+def (test_[A-Za-z0-9_]+)\(", contents, re.M)
-        )
+        # The historical monolith was split into thematic ``test_dry_run_*``
+        # modules (issue #604); rationales still spell the reference as
+        # ``test_dry_run.py::<test>``, so resolve the name across every module
+        # of the split suite rather than a single file.
+        declared_tests = set()
+        for path in sorted(Path(__file__).parent.glob("test_dry_run*.py")):
+            contents = path.read_text()
+            declared_tests.update(
+                re.findall(r"^def (test_[A-Za-z0-9_]+)\(", contents, re.M)
+            )
+            declared_tests.update(
+                re.findall(r"^\s+def (test_[A-Za-z0-9_]+)\(", contents, re.M)
+            )
 
         missing = []
         for key, rationale in DRY_RUN_PAYLOAD_EXCLUSIONS.items():

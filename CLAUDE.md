@@ -53,7 +53,7 @@ Click group-of-groups. Each Yandex Direct API resource = one file in `direct_cli
 - runtime-deprecated methods (see `RUNTIME_DEPRECATED_METHODS`);
 - v4 methods that have no v5 WSDL (covered by `direct_cli/v4_contracts.py`);
 - custom non-RPC endpoints (e.g. `reports.get` — TSV stream);
-- methods explicitly covered by `tests/test_dry_run.py::test_<service>_<op>_payload`.
+- methods explicitly covered by a `test_<service>_<op>_payload` test in the `tests/test_dry_run_*.py` module suite.
 
 A guard in `tests/test_api_coverage.py::test_dry_run_exclusions_have_no_helper_or_legacy_rationale` enforces this — any rationale outside those five categories that uses the banned phrasing is a mis-classification: write a `PAYLOAD_CASES` fixture instead. See post-mortem in issue #199.
 
@@ -108,6 +108,7 @@ Builds dist artifacts, runs twine checks, uploads to TestPyPI + PyPI. Does **not
 ## Tests
 
 - **Unit** (`test_cli.py`, `test_comprehensive.py`) — no API calls, no token needed.
+- **Dry-run payload tests** (`tests/test_dry_run_*.py`) — split by command type (issue #604): `test_dry_run.py` is the guard module (rationale + a `test_dry_run_module_is_importable` sanity check); `test_dry_run_shared.py` holds the `_dry_run`/`_read_dry_run`/`_rejected`/`_failing_run`/`_ids_csv`/`_write_jsonl` invocation helpers; `test_dry_run_<resource>.py` modules hold the per-service payload assertions. Add a new dry-run test to the owning module and import the helpers from `test_dry_run_shared`.
 - **Parallel by default:** `addopts` runs the offline tier with `-n auto` (pytest-xdist) across CPU cores; the suite is process-parallel-safe (env/cwd via `monkeypatch`, filesystem via `tmp_path`, the shared orphan store only in the excluded live tiers). Use `pytest -n0` to run sequentially for `pdb`/`-s`/debugging. The live tiers (`integration`/`v4_live_read`/`integration_live_write`) are **not** parallel-safe (real API + shared `~/.direct-cli` orphan store + ordered resource lifecycles); a `pytest_xdist_auto_num_workers` hook in `tests/conftest.py` auto-resolves `-n auto` to a single worker whenever a live marker is selected, so an explicit `pytest -m integration_live_write` stays serial.
 - **Integration** (`test_integration.py`, `@pytest.mark.integration`) — require `.env` with `YANDEX_DIRECT_TOKEN` and `YANDEX_DIRECT_LOGIN`. Auto-skip if absent.
 - **Credential resolution in tests:** env vars/current working directory `.env` first, then active `direct auth` profile, then skip. This matches the safe CLI default for base env vs. active profile: a developer machine with an active profile must not silently hit production on a plain `pytest`.
