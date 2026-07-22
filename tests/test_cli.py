@@ -607,7 +607,7 @@ class TestCLI(unittest.TestCase):
             def post(self, data):
                 return FakeResponse()
 
-        ads_module = import_module("direct_cli.commands.ads")
+        ads_module = import_module("direct_cli.commands.ads._cli")
         with patch.object(ads_module, "create_client", return_value=FakeClient()):
             result = self.runner.invoke(
                 cli,

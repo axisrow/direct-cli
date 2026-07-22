@@ -445,12 +445,18 @@ def _command_option_is_required(
 def capture_cli_request_body(cli_group: str, operation: str = "get") -> dict:
     """Invoke a CLI command with a fake client and return the request body."""
     module = importlib.import_module(f"direct_cli.commands.{cli_group}")
-    original_create_client = module.create_client
+    # For command packages (e.g., ads split into ads/), patch the _cli submodule
+    # where create_client lives, not the package __init__.py.
+    if hasattr(module, "_cli"):
+        patch_module = module._cli
+    else:
+        patch_module = module
+    original_create_client = patch_module.create_client
     captured = {}
     cli_command = _cli_command_name_for_operation(operation)
 
     try:
-        module.create_client = lambda **_: _CapturedClient(captured)
+        patch_module.create_client = lambda **_: _CapturedClient(captured)
         argv = [cli_group, cli_command]
         argv.extend(
             FIELD_OPERATION_CAPTURE_OPTION_FIXTURES.get((cli_group, operation), [])
@@ -462,7 +468,7 @@ def capture_cli_request_body(cli_group: str, operation: str = "get") -> dict:
 
         result = CliRunner().invoke(cli, argv)
     finally:
-        module.create_client = original_create_client
+        patch_module.create_client = original_create_client
 
     if result.exit_code != 0:
         raise RuntimeError(
@@ -658,15 +664,23 @@ def _validate_runtime_deprecated_methods(deprecated_methods=None) -> list[dict]:
             continue
 
         for mode, argv in modes:
-            original_create_client = getattr(module, "create_client", None)
+            # For command packages (e.g., ads split into ads/), patch the _cli
+            # submodule where create_client lives, not the package __init__.py.
+            if hasattr(module, "_cli"):
+                patch_module = module._cli
+            else:
+                patch_module = module
+            original_create_client = getattr(patch_module, "create_client", None)
             captured: dict = {}
             try:
                 if original_create_client is not None:
-                    module.create_client = lambda **_: _CapturedClient(captured)  # noqa: B023
+                    patch_module.create_client = lambda **_: _CapturedClient(
+                        captured
+                    )  # noqa: B023
                 result = CliRunner().invoke(cli, argv, standalone_mode=False)
             finally:
                 if original_create_client is not None:
-                    module.create_client = original_create_client
+                    patch_module.create_client = original_create_client
 
             if "body" in captured:
                 violations.append(
