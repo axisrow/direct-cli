@@ -6,7 +6,6 @@ See :mod:`tests.test_dry_run_shared` for the shared invocation helpers and
 """
 
 import json
-from unittest.mock import patch
 
 import pytest
 from click.testing import CliRunner
