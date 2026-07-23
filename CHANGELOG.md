@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+**Internal — campaigns.py split, step 1 (#602):**
+
+- Extracted all shared constants (`CAMPAIGNS_GET_CRITERIA_LIMITS`, `YES_NO`,
+  `ATTRIBUTION_MODELS`, …), typed-flag validators (`_validate_max_length`,
+  `_validate_sms_time`), payload builders (`_build_notification`,
+  `_build_time_targeting`, `_build_relevant_keywords`,
+  `_build_dynamic_placement_types`, `_build_frequency_cap`,
+  `_build_package_bidding_strategy`, `_build_smart_package_bidding_strategy`,
+  `_priority_goals_update_items`, `_route_cpa_flag`) and the reusable
+  TextCampaign strategy `click.option` groups (`_TEXT_*_STRATEGY_OPTIONS` and
+  their `*_UPDATE` variants) into a new sibling module
+  `direct_cli/commands/_campaigns_base.py`. `campaigns.py` re-imports every
+  name, so the CLI surface, every flag and every `--dry-run` payload is
+  byte-for-byte identical. First step of an incremental decomposition; the
+  per-campaign-type logic (`text`, `unified`, `dynamic`, `smart`,
+  `mobile_app`, `cpm_banner`) follows in subsequent PRs.
+
 **Internal — `make_get_command` covers the complex Group-4 `get`s (#588):**
 
 - `adgroups get`, `keywords get`, `creatives get`, `strategies get` and
