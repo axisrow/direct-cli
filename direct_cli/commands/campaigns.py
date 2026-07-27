@@ -88,6 +88,10 @@ from ._campaigns_base import (
 from ._execute import execute_request
 from ._lifecycle import register_lifecycle_commands
 
+# Per-campaign-type payload builders (issue #602 per-type split). Each module
+# owns the add/update subtype-block composition for one campaign type.
+from . import _campaigns_mobile_app as mobile_app  # noqa: E402,F401
+
 
 @click.group()
 def campaigns():
@@ -1507,6 +1511,10 @@ def add(
     dry_run,
 ):
     """Add new campaign"""
+    # Snapshot every CLI parameter once so the per-type payload builders can
+    # pull exactly the flags they need without a 200-argument call signature
+    # (issue #602 per-campaign-type split).
+    p = dict(locals())
     campaign_type_norm = (campaign_type or "TEXT_CAMPAIGN").upper().replace("-", "_")
     supported_types = {
         "TEXT_CAMPAIGN",
@@ -3388,58 +3396,12 @@ def add(
             smart_campaign["TrackingParams"] = tracking_params
         campaign_data["SmartCampaign"] = smart_campaign
     elif campaign_type_norm == "MOBILE_APP_CAMPAIGN":
-        mobile_builder = get_bidding_strategy_builder(
-            "MOBILE_APP_CAMPAIGN", "add", "full"
+        mobile_app.build_add_block(
+            p,
+            campaign_data,
+            parsed_settings,
+            negative_keyword_shared_set_ids_obj,
         )
-        if mobile_builder is not None:
-            mobile_bidding_strategy = mobile_builder(
-                search_strategy,
-                mobile_search_weekly_spend_limit,
-                mobile_search_bid_ceiling,
-                mobile_search_custom_period_spend_limit,
-                mobile_search_custom_period_start_date,
-                mobile_search_custom_period_end_date,
-                mobile_search_custom_period_auto_continue,
-                mobile_search_average_cpc,
-                mobile_search_average_cpi,
-                mobile_search_clicks_per_week,
-                None,
-                network_strategy,
-                mobile_network_weekly_spend_limit,
-                mobile_network_bid_ceiling,
-                mobile_network_custom_period_spend_limit,
-                mobile_network_custom_period_start_date,
-                mobile_network_custom_period_end_date,
-                mobile_network_custom_period_auto_continue,
-                mobile_network_average_cpc,
-                mobile_network_average_cpi,
-                mobile_network_clicks_per_week,
-                mobile_network_limit_percent,
-                None,
-                include_defaults=True,
-                is_update=False,
-            )
-        else:
-            mobile_bidding_strategy = {
-                "Search": {
-                    "BiddingStrategyType": (
-                        (search_strategy or "HIGHEST_POSITION").upper()
-                    )
-                },
-                "Network": {
-                    "BiddingStrategyType": ((network_strategy or "SERVING_OFF").upper())
-                },
-            }
-        mobile_campaign: dict[str, object] = {
-            "BiddingStrategy": mobile_bidding_strategy
-        }
-        if parsed_settings:
-            mobile_campaign["Settings"] = parsed_settings
-        if negative_keyword_shared_set_ids_obj is not None:
-            mobile_campaign["NegativeKeywordSharedSetIds"] = (
-                negative_keyword_shared_set_ids_obj
-            )
-        campaign_data["MobileAppCampaign"] = mobile_campaign
     elif campaign_type_norm == "CPM_BANNER_CAMPAIGN":
         cpm_builder = get_bidding_strategy_builder("CPM_BANNER_CAMPAIGN", "add", "full")
         if cpm_builder is not None:
@@ -4722,6 +4684,9 @@ def update(
     dry_run,
 ):
     """Update campaign"""
+    # Snapshot every CLI parameter once for the per-type payload builders
+    # (issue #602 per-campaign-type split).
+    p = dict(locals())
     campaign_data: dict[str, Any] = {"Id": campaign_id}
 
     if name:
@@ -6338,57 +6303,7 @@ def update(
                     bidding_strategy["Network"] = smart_network_block
                 sub_block["BiddingStrategy"] = bidding_strategy
         elif campaign_type_norm == "MOBILE_APP_CAMPAIGN":
-            parsed_settings = parse_setting_specs(list(settings))
-            if parsed_settings:
-                sub_block["Settings"] = parsed_settings
-            mobile_builder = get_bidding_strategy_builder(
-                "MOBILE_APP_CAMPAIGN", "update", "full"
-            )
-            if mobile_builder is not None:
-                mobile_bidding_strategy = mobile_builder(
-                    search_strategy,
-                    mobile_search_weekly_spend_limit,
-                    mobile_search_bid_ceiling,
-                    mobile_search_custom_period_spend_limit,
-                    mobile_search_custom_period_start_date,
-                    mobile_search_custom_period_end_date,
-                    mobile_search_custom_period_auto_continue,
-                    mobile_search_average_cpc,
-                    mobile_search_average_cpi,
-                    mobile_search_clicks_per_week,
-                    mobile_search_budget_type,
-                    network_strategy,
-                    mobile_network_weekly_spend_limit,
-                    mobile_network_bid_ceiling,
-                    mobile_network_custom_period_spend_limit,
-                    mobile_network_custom_period_start_date,
-                    mobile_network_custom_period_end_date,
-                    mobile_network_custom_period_auto_continue,
-                    mobile_network_average_cpc,
-                    mobile_network_average_cpi,
-                    mobile_network_clicks_per_week,
-                    mobile_network_limit_percent,
-                    mobile_network_budget_type,
-                    include_defaults=False,
-                    is_update=True,
-                )
-            else:
-                mobile_bidding_strategy = (
-                    {"Search": {"BiddingStrategyType": search_strategy.upper()}}
-                    if search_strategy is not None
-                    else None
-                )
-            if mobile_bidding_strategy is not None:
-                sub_block["BiddingStrategy"] = mobile_bidding_strategy
-            negative_keyword_shared_set_ids_obj = _array_of_integer_option(
-                "--negative-keyword-shared-set-ids",
-                negative_keyword_shared_set_ids,
-                max_items=NEGATIVE_KEYWORD_SHARED_SET_IDS_MAX_ITEMS,
-            )
-            if negative_keyword_shared_set_ids_obj is not None:
-                sub_block["NegativeKeywordSharedSetIds"] = (
-                    negative_keyword_shared_set_ids_obj
-                )
+            mobile_app.build_update_block(p, sub_block)
         elif campaign_type_norm == "CPM_BANNER_CAMPAIGN":
             parsed_settings = parse_setting_specs(list(settings))
             if parsed_settings:
