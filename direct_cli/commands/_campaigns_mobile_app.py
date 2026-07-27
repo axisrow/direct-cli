@@ -6,8 +6,6 @@ Extracted verbatim from the former inline ``elif campaign_type_norm ==
 unchanged — ``campaigns.py`` delegates here.
 """
 
-from typing import Dict
-
 from .._bidding_strategy import get_bidding_strategy_builder
 from ..utils import parse_setting_specs
 from ._campaigns_base import (
@@ -98,7 +96,7 @@ def build_add_block(
                 "BiddingStrategyType": ((network_strategy or "SERVING_OFF").upper())
             },
         }
-    mobile_campaign: Dict[str, object] = {"BiddingStrategy": mobile_bidding_strategy}
+    mobile_campaign: dict[str, object] = {"BiddingStrategy": mobile_bidding_strategy}
     if parsed_settings:
         mobile_campaign["Settings"] = parsed_settings
     if negative_keyword_shared_set_ids_obj is not None:
