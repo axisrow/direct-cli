@@ -12,23 +12,25 @@ share one ``is_unified`` / ``is_dynamic``-branched block); extracting
 it is deferred to a future sub-issue.
 """
 
-from typing import Any, Dict, Optional
+from __future__ import annotations
+
+from typing import Any
 
 import click
 
-from ..i18n import t
 from .._bidding_strategy import get_bidding_strategy_builder
+from ..i18n import t
 
 
 def build_add_block(
-    p: Dict[str, Any],
-    campaign_data: Dict[str, object],
-    parsed_settings: Optional[list],
-    counter_ids_obj: Optional[object],
-    priority_goals_items: Optional[list],
-    package_bidding_strategy_obj: Optional[object],
-    negative_keyword_shared_set_ids_obj: Optional[object],
-    dynamic_placement_types: Optional[object],
+    p: dict[str, Any],
+    campaign_data: dict[str, object],
+    parsed_settings: list | None,
+    counter_ids_obj: object | None,
+    priority_goals_items: list | None,
+    package_bidding_strategy_obj: object | None,
+    negative_keyword_shared_set_ids_obj: object | None,
+    dynamic_placement_types: object | None,
 ) -> None:
     """Build the ``DynamicTextCampaign`` add-item subtype block.
 
@@ -93,7 +95,7 @@ def build_add_block(
     dyn_search_exploration_budget = p["dyn_search_exploration_budget"]
     dyn_search_exploration_budget_custom = p["dyn_search_exploration_budget_custom"]
 
-    dyn_block: Dict[str, object] = {"Settings": parsed_settings or []}
+    dyn_block: dict[str, object] = {"Settings": parsed_settings or []}
     if package_bidding_strategy_obj is not None:
         dyn_block["PackageBiddingStrategy"] = package_bidding_strategy_obj
     else:
@@ -243,7 +245,7 @@ def build_add_block(
             if legacy_provided:
                 raise click.UsageError(
                     t(
-                        "DynamicTextCampaign Search typed flags (--dyn-search-*) cannot be combined with the legacy CPA-shape flags {arg0}; use the matching --dyn-search-* equivalent"  # noqa: E501
+                        "DynamicTextCampaign Search typed flags (--dyn-search-*) cannot be combined with the legacy CPA-shape flags {arg0}; use the matching --dyn-search-* equivalent"
                     ).format(arg0=", ".join(sorted(legacy_provided)))
                 )
         # WSDL DynamicTextCampaignAddItem.PriorityGoals (line 2186)
