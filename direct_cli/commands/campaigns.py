@@ -90,7 +90,7 @@ from ._lifecycle import register_lifecycle_commands
 
 # Per-campaign-type payload builders (issue #602 per-type split). Each module
 # owns the add/update subtype-block composition for one campaign type.
-from . import _campaigns_mobile_app as mobile_app  # noqa: E402,F401
+from . import _campaigns_mobile_app as mobile_app
 
 
 @click.group()
