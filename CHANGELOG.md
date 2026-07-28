@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+**Internal — campaigns.py split, step 3 (#615):**
+
+- Extracted the `SMART_CAMPAIGN` add/update subtype-block composition
+  (≈285 lines) into a new sibling module
+  `direct_cli/commands/_campaigns_smart.py`
+  (`build_add_block` / `build_update_block`). The `add` and `update`
+  commands now snapshot their CLI parameters once via `p = dict(locals())`
+  and delegate; the SmartCampaign builder pulls only the smart-relevant
+  flags from `p`. CLI surface, every flag and every `--dry-run` payload is
+  byte-for-byte identical (16 `test_campaigns_*smart*` fixtures green,
+  offline tier 2521 passed, WSDL parity + API coverage green).
+
 **Internal — campaigns.py split, step 1 (#602):**
 
 - Extracted all shared constants (`CAMPAIGNS_GET_CRITERIA_LIMITS`, `YES_NO`,
