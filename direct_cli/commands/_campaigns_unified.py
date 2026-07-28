@@ -6,10 +6,7 @@ Extracted verbatim from the former inline ``elif campaign_type_norm ==
 unchanged — ``campaigns.py`` delegates here.
 """
 
-from typing import Dict
-
 from .._bidding_strategy import (
-    UNIFIED_CAMPAIGN_NETWORK_STRATEGY_TO_WSDL_SUBTYPE,
     _UNIFIED_CAMPAIGN_SEARCH_STRATEGY_TO_WSDL_SUBTYPE,
     _UNIFIED_NETWORK_AVERAGE_CPA_SUBTYPES,
     _UNIFIED_NETWORK_BID_CEILING_SUBTYPES,
@@ -21,6 +18,7 @@ from .._bidding_strategy import (
     _UNIFIED_SEARCH_SUPPORTS_BID_CEILING,
     _UNIFIED_SEARCH_SUPPORTS_CRR,
     _UNIFIED_SEARCH_SUPPORTS_GOAL_ID,
+    UNIFIED_CAMPAIGN_NETWORK_STRATEGY_TO_WSDL_SUBTYPE,
     get_bidding_strategy_builder,
 )
 from ._campaigns_base import _route_cpa_flag
@@ -87,7 +85,7 @@ def build_add_block(
     search_placement_product_gallery = p["search_placement_product_gallery"]
     search_placement_dynamic_places = p["search_placement_dynamic_places"]
 
-    unified_block: Dict[str, object] = {"Settings": parsed_settings or []}
+    unified_block: dict[str, object] = {"Settings": parsed_settings or []}
     if package_bidding_strategy_obj is not None:
         unified_block["PackageBiddingStrategy"] = package_bidding_strategy_obj
     else:
