@@ -2647,7 +2647,9 @@ def add(
             text_search_custom_period_spend_limit=text_search_custom_period_spend_limit,
             text_search_custom_period_start_date=text_search_custom_period_start_date,
             text_search_custom_period_end_date=text_search_custom_period_end_date,
-            text_search_custom_period_auto_continue=text_search_custom_period_auto_continue,
+            text_search_custom_period_auto_continue=(
+                text_search_custom_period_auto_continue
+            ),
             text_search_average_cpc=text_search_average_cpc,
             text_search_pay_cpa=text_search_pay_cpa,
             text_search_clicks_per_week=text_search_clicks_per_week,
@@ -2658,10 +2660,14 @@ def add(
             text_search_exploration_is_custom=text_search_exploration_is_custom,
             network_strategy=network_strategy,
             text_network_weekly_spend_limit=text_network_weekly_spend_limit,
-            text_network_custom_period_spend_limit=text_network_custom_period_spend_limit,
+            text_network_custom_period_spend_limit=(
+                text_network_custom_period_spend_limit
+            ),
             text_network_custom_period_start_date=text_network_custom_period_start_date,
             text_network_custom_period_end_date=text_network_custom_period_end_date,
-            text_network_custom_period_auto_continue=text_network_custom_period_auto_continue,
+            text_network_custom_period_auto_continue=(
+                text_network_custom_period_auto_continue
+            ),
             text_network_average_cpc=text_network_average_cpc,
             text_network_pay_cpa=text_network_pay_cpa,
             text_network_clicks_per_week=text_network_clicks_per_week,
