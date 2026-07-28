@@ -2,31 +2,13 @@
 Campaigns commands
 """
 
-from typing import Any, Dict, Optional
+from __future__ import annotations
+
+from typing import Any
 
 import click
 
-from ..api import client_from_ctx, create_client
-from ..i18n import t
-from ..output import format_output, handle_api_errors
-from ._execute import execute_request
-from ._lifecycle import register_lifecycle_commands
-from ..utils import (
-    build_selection_criteria,
-    build_common_params,
-    add_criteria_csv,
-    enforce_criteria_array_limits,
-    get_default_fields,
-    MICRO_RUBLES,
-    parse_ids,
-    parse_priority_goals_spec,
-    parse_setting_specs,
-)
-
 from .._bidding_strategy import (
-    BUDGET_TYPES,
-    TEXT_CAMPAIGN_NETWORK_STRATEGY_TO_WSDL_SUBTYPE,
-    UNIFIED_CAMPAIGN_NETWORK_STRATEGY_TO_WSDL_SUBTYPE,
     _TEXT_CAMPAIGN_SEARCH_STRATEGY_TO_WSDL_SUBTYPE,
     _TEXT_NETWORK_AVERAGE_CPA_SUBTYPES,
     _TEXT_NETWORK_BID_CEILING_SUBTYPES,
@@ -48,9 +30,26 @@ from .._bidding_strategy import (
     _UNIFIED_SEARCH_SUPPORTS_BID_CEILING,
     _UNIFIED_SEARCH_SUPPORTS_CRR,
     _UNIFIED_SEARCH_SUPPORTS_GOAL_ID,
+    BUDGET_TYPES,
+    TEXT_CAMPAIGN_NETWORK_STRATEGY_TO_WSDL_SUBTYPE,
+    UNIFIED_CAMPAIGN_NETWORK_STRATEGY_TO_WSDL_SUBTYPE,
     get_bidding_strategy_builder,
 )
 from .._flag_validation import reject_incompatible_flags
+from ..api import client_from_ctx, create_client
+from ..i18n import t
+from ..output import format_output, handle_api_errors
+from ..utils import (
+    MICRO_RUBLES,
+    add_criteria_csv,
+    build_common_params,
+    build_selection_criteria,
+    enforce_criteria_array_limits,
+    get_default_fields,
+    parse_ids,
+    parse_priority_goals_spec,
+    parse_setting_specs,
+)
 
 # Shared constants, validators, payload builders and reusable TextCampaign
 # strategy option groups live in a sibling module (issue #602, step 1 of an
@@ -86,6 +85,8 @@ from ._campaigns_base import (
     _text_search_strategy_options_update,
     _validate_max_length,
 )
+from ._execute import execute_request
+from ._lifecycle import register_lifecycle_commands
 
 
 @click.group()
@@ -2812,7 +2813,7 @@ def add(
             text_block["TrackingParams"] = tracking_params
         campaign_data["TextCampaign"] = text_block
     elif campaign_type_norm == "UNIFIED_CAMPAIGN":
-        unified_block: Dict[str, object] = {"Settings": parsed_settings or []}
+        unified_block: dict[str, object] = {"Settings": parsed_settings or []}
         if package_bidding_strategy_obj is not None:
             unified_block["PackageBiddingStrategy"] = package_bidding_strategy_obj
         else:
@@ -3003,7 +3004,7 @@ def add(
             unified_block["TrackingParams"] = tracking_params
         campaign_data["UnifiedCampaign"] = unified_block
     elif campaign_type_norm == "DYNAMIC_TEXT_CAMPAIGN":
-        dyn_block: Dict[str, object] = {"Settings": parsed_settings or []}
+        dyn_block: dict[str, object] = {"Settings": parsed_settings or []}
         if package_bidding_strategy_obj is not None:
             dyn_block["PackageBiddingStrategy"] = package_bidding_strategy_obj
         else:
@@ -3208,7 +3209,7 @@ def add(
                     "(WSDL SmartCampaignAddItem.CounterId minOccurs=1)"
                 )
             )
-        smart_campaign: Dict[str, object] = {"CounterId": counter_id}
+        smart_campaign: dict[str, object] = {"CounterId": counter_id}
         if smart_package_bidding_strategy_obj is not None:
             smart_campaign["PackageBiddingStrategy"] = (
                 smart_package_bidding_strategy_obj
@@ -3328,7 +3329,7 @@ def add(
             smart_network_builder = get_bidding_strategy_builder(
                 "SMART_CAMPAIGN", "add", "network"
             )
-            network_block: Optional[dict]
+            network_block: dict | None
             if smart_network_builder is not None:
                 network_block = smart_network_builder(
                     effective_network_strategy,
@@ -3429,7 +3430,7 @@ def add(
                     "BiddingStrategyType": ((network_strategy or "SERVING_OFF").upper())
                 },
             }
-        mobile_campaign: Dict[str, object] = {
+        mobile_campaign: dict[str, object] = {
             "BiddingStrategy": mobile_bidding_strategy
         }
         if parsed_settings:
@@ -3462,7 +3463,7 @@ def add(
                     "BiddingStrategyType": ((network_strategy or "MANUAL_CPM").upper())
                 },
             }
-        cpm_campaign: Dict[str, object] = {"BiddingStrategy": cpm_bidding_strategy}
+        cpm_campaign: dict[str, object] = {"BiddingStrategy": cpm_bidding_strategy}
         if parsed_settings:
             cpm_campaign["Settings"] = parsed_settings
         if counter_ids_obj is not None:
@@ -5383,7 +5384,7 @@ def update(
                         arg0=", ".join(sorted(provided))
                     )
                 )
-        sub_block: Dict[str, object] = {}
+        sub_block: dict[str, object] = {}
         if campaign_type_norm in {
             "TEXT_CAMPAIGN",
             "UNIFIED_CAMPAIGN",
@@ -5438,7 +5439,7 @@ def update(
                 require_platforms=False,
             )
             if package_bidding_strategy_obj is not None:
-                package_incompatible: Dict[str, object] = {}
+                package_incompatible: dict[str, object] = {}
                 # Issue #373: ``UnifiedCampaignUpdateItem.PriorityGoals``
                 # (WSDL ``tests/wsdl_cache/campaigns.xml`` line 2259) is a
                 # nillable sibling of ``UnifiedCampaignUpdateItem.
@@ -5931,7 +5932,7 @@ def update(
                     unified_network_block is not None
                     or unified_search_block is not None
                 ):
-                    bs_u: Dict[str, object] = {}
+                    bs_u: dict[str, object] = {}
                     if unified_search_block is not None:
                         bs_u["Search"] = unified_search_block
                     if unified_network_block is not None:
@@ -6019,7 +6020,7 @@ def update(
                         else None
                     )
                 if dyn_network_block is not None or dyn_search_block is not None:
-                    bs: Dict[str, object] = {}
+                    bs: dict[str, object] = {}
                     if dyn_search_block is not None:
                         bs["Search"] = dyn_search_block
                     if dyn_network_block is not None:
@@ -6202,7 +6203,7 @@ def update(
                         else None
                     )
 
-                bidding_strategy_block: Dict[str, object] = {}
+                bidding_strategy_block: dict[str, object] = {}
                 if text_search is not None:
                     bidding_strategy_block["Search"] = text_search
                 if text_network is not None:
@@ -6330,7 +6331,7 @@ def update(
                     )
                 sub_block["PackageBiddingStrategy"] = smart_package_bidding_strategy_obj
             elif smart_search_block is not None or smart_network_block is not None:
-                bidding_strategy: Dict[str, object] = {}
+                bidding_strategy: dict[str, object] = {}
                 if smart_search_block is not None:
                     bidding_strategy["Search"] = smart_search_block
                 if smart_network_block is not None:
