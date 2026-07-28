@@ -174,17 +174,27 @@ def _assert_real_wsdl(url: str, xml_text: str) -> None:
             f"Yandex returned a captcha page for WSDL endpoint {url!r}. "
             "Verify that WSDL_BASE_URL is still canonical."
         )
-    if len(xml_text) < _WSDL_MIN_SIZE:
-        raise RuntimeError(
-            f"WSDL response for {url!r} is suspiciously small ({len(xml_text)} bytes "
-            f"< {_WSDL_MIN_SIZE}). Real Yandex WSDLs are well above 10 KB."
-        )
+    # Structural validation first — more reliable than a size heuristic.
     for marker in _WSDL_REQUIRED_MARKERS:
         if marker not in xml_text:
             raise RuntimeError(
                 f"WSDL response for {url!r} missing required marker {marker!r}. "
                 "Likely an HTML error page rather than an XML schema."
             )
+    # Allow small WSDL files that import types via XSD. Services such as
+    # adextensions, advideos, businesses, clients, keywordsresearch, leads,
+    # sitelinks and turbopages pull their types from external XSDs instead of
+    # inlining them, so they are legitimately below the 10 KB size floor that
+    # guards monolithic WSDLs (regression of #608 / #626).
+    if "xsd:import" in xml_text or "xsd:include" in xml_text:
+        return
+    # Only apply the size floor to monolithic WSDLs without XSD imports.
+    if len(xml_text) < _WSDL_MIN_SIZE:
+        raise RuntimeError(
+            f"WSDL response for {url!r} is suspiciously small ({len(xml_text)} bytes "
+            f"without XSD imports. Real monolithic Yandex WSDLs are well above "
+            f"{_WSDL_MIN_SIZE} bytes."
+        )
 
 
 def fetch_wsdl(service_name: str, use_cache: bool = True) -> str:
