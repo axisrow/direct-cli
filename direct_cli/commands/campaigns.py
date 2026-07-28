@@ -99,6 +99,10 @@ from . import _campaigns_smart as smart
 # owns the add/update subtype-block composition for one campaign type.
 from . import _campaigns_mobile_app as mobile_app
 
+# Per-campaign-type payload builders (issue #602 per-type split). Each module
+# owns the add/update subtype-block composition for one campaign type.
+from . import _campaigns_cpm_banner as cpm_banner
+
 
 @click.group()
 def campaigns():
@@ -2719,38 +2723,13 @@ def add(
             negative_keyword_shared_set_ids_obj,
         )
     elif campaign_type_norm == "CPM_BANNER_CAMPAIGN":
-        cpm_builder = get_bidding_strategy_builder("CPM_BANNER_CAMPAIGN", "add", "full")
-        if cpm_builder is not None:
-            cpm_bidding_strategy = cpm_builder(
-                search_strategy,
-                network_strategy,
-                average_cpm,
-                average_cpv,
-                strategy_spend_limit,
-                strategy_start_date,
-                strategy_end_date,
-                strategy_auto_continue,
-                include_defaults=True,
-            )
-        else:
-            cpm_bidding_strategy = {
-                "Search": {
-                    "BiddingStrategyType": ((search_strategy or "SERVING_OFF").upper())
-                },
-                "Network": {
-                    "BiddingStrategyType": ((network_strategy or "MANUAL_CPM").upper())
-                },
-            }
-        cpm_campaign: dict[str, object] = {"BiddingStrategy": cpm_bidding_strategy}
-        if parsed_settings:
-            cpm_campaign["Settings"] = parsed_settings
-        if counter_ids_obj is not None:
-            cpm_campaign["CounterIds"] = counter_ids_obj
-        if frequency_cap_obj is not None:
-            cpm_campaign["FrequencyCap"] = frequency_cap_obj
-        if video_target:
-            cpm_campaign["VideoTarget"] = video_target.upper()
-        campaign_data["CpmBannerCampaign"] = cpm_campaign
+        cpm_banner.build_add_block(
+            p,
+            campaign_data,
+            parsed_settings,
+            counter_ids_obj,
+            frequency_cap_obj,
+        )
 
     if budget:
         campaign_data["DailyBudget"] = {
@@ -5505,50 +5484,7 @@ def update(
         elif campaign_type_norm == "MOBILE_APP_CAMPAIGN":
             mobile_app.build_update_block(p, sub_block)
         elif campaign_type_norm == "CPM_BANNER_CAMPAIGN":
-            parsed_settings = parse_setting_specs(list(settings))
-            if parsed_settings:
-                sub_block["Settings"] = parsed_settings
-            cpm_builder = get_bidding_strategy_builder(
-                "CPM_BANNER_CAMPAIGN", "update", "full"
-            )
-            if cpm_builder is not None:
-                cpm_bidding_strategy = cpm_builder(
-                    search_strategy,
-                    network_strategy,
-                    average_cpm,
-                    average_cpv,
-                    strategy_spend_limit,
-                    strategy_start_date,
-                    strategy_end_date,
-                    strategy_auto_continue,
-                    include_defaults=False,
-                )
-            else:
-                cpm_bidding_strategy = None
-                if search_strategy is not None or network_strategy is not None:
-                    cpm_bidding_strategy = {}
-                    if search_strategy is not None:
-                        cpm_bidding_strategy["Search"] = {
-                            "BiddingStrategyType": search_strategy.upper()
-                        }
-                    if network_strategy is not None:
-                        cpm_bidding_strategy["Network"] = {
-                            "BiddingStrategyType": network_strategy.upper()
-                        }
-            if cpm_bidding_strategy is not None:
-                sub_block["BiddingStrategy"] = cpm_bidding_strategy
-            counter_ids_obj = _array_of_integer_option("--counter-ids", counter_ids)
-            if counter_ids_obj is not None:
-                sub_block["CounterIds"] = counter_ids_obj
-            frequency_cap_obj = _build_frequency_cap(
-                frequency_cap_impressions,
-                frequency_cap_period_days,
-                frequency_cap_period_all,
-            )
-            if frequency_cap_obj is not None:
-                sub_block["FrequencyCap"] = frequency_cap_obj
-            if video_target:
-                sub_block["VideoTarget"] = video_target.upper()
+            cpm_banner.build_update_block(p, sub_block)
         if tracking_params:
             sub_block["TrackingParams"] = tracking_params
         if not sub_block:
