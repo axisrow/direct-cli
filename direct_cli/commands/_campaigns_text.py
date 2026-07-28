@@ -10,7 +10,7 @@ split when the DYNAMIC / UNIFIED steps (4+5) are merged.
 is byte-for-byte identical to the former monolith.
 """
 
-from typing import Any
+from typing import Any, Optional
 
 from .._bidding_strategy import (
     TEXT_CAMPAIGN_NETWORK_STRATEGY_TO_WSDL_SUBTYPE,
@@ -31,7 +31,7 @@ from ._campaigns_base import _route_cpa_flag
 
 def build_add_block(
     campaign_data: dict[str, Any],
-    parsed_settings: list | None,
+    parsed_settings: Optional[list],
     package_bidding_strategy_obj,
     counter_ids_obj,
     priority_goals_items,
