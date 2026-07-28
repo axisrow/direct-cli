@@ -2357,6 +2357,74 @@ class TestWsdlCacheFreshness:
             assert "schema" in text, f"{path.name} missing schema element"
 
 
+class TestAssertRealWsdl:
+    """Regression guard for the XSD-import size-check bypass (#608 / #626).
+
+    PR #585 dropped the bypass that #608 added, so 8 services with small
+    WSDLs (adextensions, advideos, businesses, clients, keywordsresearch,
+    leads, sitelinks, turbopages) were silently rejected by the 10 KB size
+    floor. These tests fail the moment the bypass is removed again.
+    """
+
+    def test_accepts_small_wsdl_with_xsd_import(self):
+        # A sub-10KB WSDL that imports types via XSD is valid and must not be
+        # rejected by the size floor (the bypass short-circuits before it).
+        from direct_cli.wsdl_coverage import _assert_real_wsdl
+
+        small_import_wsdl = (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<wsdl:definitions xmlns:xsd="http://www.w3.org/2001/XMLSchema">'
+            '<xsd:import namespace="http://direct.yandex.ru"/>'
+            "</wsdl:definitions>"
+        )
+        assert len(small_import_wsdl) < 10_000  # precondition: genuinely small
+        # Must not raise.
+        _assert_real_wsdl("https://example.test/import?wsdl", small_import_wsdl)
+
+    def test_accepts_small_wsdl_with_xsd_include(self):
+        from direct_cli.wsdl_coverage import _assert_real_wsdl
+
+        small_include_wsdl = (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<wsdl:definitions xmlns:xsd="http://www.w3.org/2001/XMLSchema">'
+            '<xsd:schema><xsd:include schemaLocation="types.xsd"/></xsd:schema>'
+            "</wsdl:definitions>"
+        )
+        assert len(small_include_wsdl) < 10_000  # precondition: genuinely small
+        # Must not raise.
+        _assert_real_wsdl("https://example.test/include?wsdl", small_include_wsdl)
+
+    def test_rejects_small_monolithic_wsdl_without_imports(self):
+        # A small WSDL with no XSD imports is still suspicious — the size floor
+        # must keep guarding monolithic WSDLs.
+        from direct_cli.wsdl_coverage import _assert_real_wsdl
+
+        small_monolith = (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            "<wsdl:definitions></wsdl:definitions>"
+        )
+        assert len(small_monolith) < 10_000  # precondition: genuinely small
+        with pytest.raises(RuntimeError, match="suspiciously small"):
+            _assert_real_wsdl("https://example.test/monolith?wsdl", small_monolith)
+
+    def test_accepts_cached_xsdl_import_service(self):
+        # End-to-end guard against the 8 real affected services: the committed
+        # lead/turbopage caches are < 10 KB but carry xsd:import, so they must
+        # pass _assert_real_wsdl unchanged. If the bypass regresses, this raises.
+        from pathlib import Path
+
+        from direct_cli.wsdl_coverage import _assert_real_wsdl
+
+        cache_dir = Path(__file__).resolve().parent / "wsdl_cache"
+        for name in ("adextensions", "leads", "turbopages"):
+            xml = (cache_dir / f"{name}.xml").read_text(encoding="utf-8")
+            assert len(xml) < 10_000, f"{name}.xml grew past the size floor — revisit"
+            assert (
+                "xsd:import" in xml or "xsd:include" in xml
+            ), f"{name}.xml no longer uses XSD imports — bypass may be obsolete"
+            _assert_real_wsdl(f"https://example.test/{name}?wsdl", xml)
+
+
 class TestReportsParseFilter:
     """Unit tests for _parse_filter helper."""
 
@@ -2619,9 +2687,12 @@ def test_every_nested_fieldnames_param_has_cli_option():
     """
     missing: list[str] = []
 
-    for cli_group, api_service, operation, param_name in (
-        _iter_get_operation_fieldnames()
-    ):
+    for (
+        cli_group,
+        api_service,
+        operation,
+        param_name,
+    ) in _iter_get_operation_fieldnames():
         if param_name == "FieldNames":
             # Handled by the top-level ``--fields`` option on every get
             # subcommand. Coverage for ``--fields`` is enforced by the
