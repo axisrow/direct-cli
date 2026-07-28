@@ -2407,7 +2407,7 @@ class TestAssertRealWsdl:
         with pytest.raises(RuntimeError, match="suspiciously small"):
             _assert_real_wsdl("https://example.test/monolith?wsdl", small_monolith)
 
-    def test_accepts_cached_xsdl_import_service(self):
+    def test_accepts_cached_xsd_import_service(self):
         # End-to-end guard against the 8 real affected services: the committed
         # lead/turbopage caches are < 10 KB but carry xsd:import, so they must
         # pass _assert_real_wsdl unchanged. If the bypass regresses, this raises.
