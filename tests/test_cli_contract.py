@@ -46,6 +46,7 @@ DRY_RUN_EXCEPTIONS = {
     "masters.archive",
     "masters.resume",
     "masters.suspend",
+    "masters.update",
 }
 
 FORBIDDEN_HELP_TEXT = (

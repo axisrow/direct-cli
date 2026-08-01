@@ -44,13 +44,32 @@ def _load_grid_campaigns_fixture():
 
 
 class _FakeLocatorHandle:
-    """One matched element — the subset of Playwright's Locator API the parser uses."""
+    """One matched element — the subset of Playwright's Locator API the parser uses.
 
-    def __init__(self, text="", attrs=None, raises=False, on_click=None):
+    ``click``/``fill``/``check``/``uncheck``/``is_visible`` support
+    ``update_master``'s ``_set_*`` functions (issue #631) — ``on_click``/
+    ``on_fill``/``on_check`` are optional no-arg/one-arg callbacks so tests
+    can model the fake page's mutable state changing (mirrors
+    ``_FakeTextLocatorHandle.on_click`` used by suspend/resume tests).
+    """
+
+    def __init__(
+        self,
+        text="",
+        attrs=None,
+        raises=False,
+        visible=True,
+        on_click=None,
+        on_fill=None,
+        on_check=None,
+    ):
         self._text = text
         self._attrs = attrs or {}
         self._raises = raises
+        self._visible = visible
         self._on_click = on_click
+        self._on_fill = on_fill
+        self._on_check = on_check
 
     def inner_text(self):
         if self._raises:
@@ -63,12 +82,35 @@ class _FakeLocatorHandle:
     def get_attribute(self, name):
         return self._attrs.get(name)
 
+    def is_visible(self):
+        if self._raises:
+            raise PlaywrightError("element detached")
+        return self._visible
+
     def click(self):
         if self._raises:
-            raise PlaywrightError("element not found")
+            raise PlaywrightError("element detached")
         if self._on_click is not None:
             self._on_click()
 
+    def fill(self, value):
+        if self._raises:
+            raise PlaywrightError("element detached")
+        self._text = value
+        if self._on_fill is not None:
+            self._on_fill(value)
+
+    def check(self):
+        if self._raises:
+            raise PlaywrightError("element detached")
+        if self._on_check is not None:
+            self._on_check(True)
+
+    def uncheck(self):
+        if self._raises:
+            raise PlaywrightError("element detached")
+        if self._on_check is not None:
+            self._on_check(False)
 
 class _FakeLocator:
     """A Locator for one selector — holds every matched handle for that selector."""
@@ -1700,6 +1742,352 @@ class TestMastersArchiveCommand(unittest.TestCase):
         self.assertIn("ARCHIVED", result.output)
         self.assertIn("2", result.output)
         self.assertIn("boom on id 3", result.output)
+
+
+class TestSetWeeklyBudget(unittest.TestCase):
+    """``_set_weekly_budget`` (issue #631, Этап A) — fills the budget input."""
+
+    def test_fills_field_with_bare_integer(self):
+        state = {}
+        handle = _FakeLocatorHandle(
+            text="80 000", on_fill=lambda v: state.__setitem__("value", v)
+        )
+        page = FakePage(
+            locators={
+                browser_masters._WEEKLY_BUDGET_INPUT_XPATH: _FakeLocator([handle])
+            }
+        )
+
+        browser_masters._set_weekly_budget(page, 95000)
+
+        self.assertEqual(state["value"], "95000")
+
+    def test_raises_browser_session_error_when_field_missing(self):
+        page = FakePage(locators={})
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._set_weekly_budget(page, 95000)
+
+
+class TestSetDirectsHelps(unittest.TestCase):
+    """``_set_directs_helps`` (issue #631, Этап A) — check/uncheck, idempotent API."""
+
+    def test_enables_checkbox(self):
+        state = {"checked": False}
+        handle = _FakeLocatorHandle(on_check=lambda v: state.__setitem__("checked", v))
+        page = FakePage(
+            locators={
+                browser_masters._DIRECT_HELPS_CHECKBOX_XPATH: _FakeLocator([handle])
+            }
+        )
+
+        browser_masters._set_directs_helps(page, True)
+
+        self.assertTrue(state["checked"])
+
+    def test_disables_checkbox(self):
+        state = {"checked": True}
+        handle = _FakeLocatorHandle(on_check=lambda v: state.__setitem__("checked", v))
+        page = FakePage(
+            locators={
+                browser_masters._DIRECT_HELPS_CHECKBOX_XPATH: _FakeLocator([handle])
+            }
+        )
+
+        browser_masters._set_directs_helps(page, False)
+
+        self.assertFalse(state["checked"])
+
+    def test_raises_browser_session_error_when_checkbox_missing(self):
+        page = FakePage(locators={})
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._set_directs_helps(page, True)
+
+
+class TestSetPromotionGoal(unittest.TestCase):
+    """``_set_promotion_goal`` (issue #631, Этап A) — open dropdown, click, verify."""
+
+    def _page_for_goal_selection(self, target_label, trigger_text_after_click):
+        state = {"trigger_text": "Цель продвижения"}
+
+        def _select():
+            state["trigger_text"] = trigger_text_after_click
+
+        trigger = _FakeLocatorHandle(text="Цель продвижения")
+        # inner_text() must reflect the mutable state set by clicking the option.
+        trigger.inner_text = lambda: state["trigger_text"]
+
+        return FakePage(
+            locators={
+                browser_masters._PROMOTION_GOAL_BUTTON_XPATH: _FakeLocator([trigger])
+            },
+            text_buttons={
+                target_label: _FakeGetByTextLocator(
+                    [_FakeTextLocatorHandle(visible=True, on_click=_select)]
+                )
+            },
+        )
+
+    def test_selects_option_and_verifies(self):
+        page = self._page_for_goal_selection("Максимум переходов", "Максимум переходов")
+
+        browser_masters._set_promotion_goal(page, "max-clicks")
+
+    def test_raises_on_unknown_goal_key(self):
+        page = FakePage()
+
+        with self.assertRaises(ValueError):
+            browser_masters._set_promotion_goal(page, "not-a-real-goal")
+
+    def test_raises_when_dropdown_trigger_missing(self):
+        page = FakePage(locators={})
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._set_promotion_goal(page, "max-clicks")
+
+    def test_raises_when_option_not_found(self):
+        trigger = _FakeLocatorHandle(text="Цель продвижения")
+        page = FakePage(
+            locators={
+                browser_masters._PROMOTION_GOAL_BUTTON_XPATH: _FakeLocator([trigger])
+            },
+            text_buttons={},
+        )
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._set_promotion_goal(page, "max-clicks")
+
+    def test_raises_when_click_does_not_change_trigger_text(self):
+        # Option is clicked but the trigger's text never reflects the change.
+        page = self._page_for_goal_selection(
+            "Максимум переходов", "Цель продвижения"  # unchanged
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._set_promotion_goal(page, "max-clicks")
+        self.assertIn("does not show it", str(ctx.exception))
+
+
+class TestUpdateMaster(unittest.TestCase):
+    """``update_master`` (issue #631, Этап A) — partial updates, one whole-form save."""
+
+    def _page_with_save_button(self, extra_locators=None, extra_text_buttons=None):
+        save_clicks = []
+        save_handle = _FakeTextLocatorHandle(
+            visible=True, on_click=lambda: save_clicks.append(True)
+        )
+        text_buttons = {
+            browser_masters._SAVE_BUTTON_TEXT: _FakeGetByTextLocator([save_handle])
+        }
+        text_buttons.update(extra_text_buttons or {})
+        page = FakePage(
+            locators=extra_locators or {},
+            text_buttons=text_buttons,
+        )
+        return page, save_clicks
+
+    def test_updates_only_weekly_budget(self):
+        budget_state = {}
+        budget_handle = _FakeLocatorHandle(
+            on_fill=lambda v: budget_state.__setitem__("value", v)
+        )
+        page, save_clicks = self._page_with_save_button(
+            extra_locators={
+                browser_masters._WEEKLY_BUDGET_INPUT_XPATH: _FakeLocator(
+                    [budget_handle]
+                )
+            }
+        )
+
+        result = browser_masters.update_master(page, 107707079, weekly_budget=95000)
+
+        self.assertEqual(budget_state["value"], "95000")
+        self.assertEqual(len(save_clicks), 1)
+        self.assertEqual(result, {"CampaignId": 107707079, "WeeklyBudget": 95000})
+        self.assertEqual(
+            page.navigated_to,
+            [browser_masters.WIZARD_EDIT_URL.format(campaign_id=107707079)],
+        )
+
+    def test_updates_only_directs_helps(self):
+        checkbox_state = {"checked": False}
+        checkbox_handle = _FakeLocatorHandle(
+            on_check=lambda v: checkbox_state.__setitem__("checked", v)
+        )
+        page, save_clicks = self._page_with_save_button(
+            extra_locators={
+                browser_masters._DIRECT_HELPS_CHECKBOX_XPATH: _FakeLocator(
+                    [checkbox_handle]
+                )
+            }
+        )
+
+        result = browser_masters.update_master(page, 42, directs_helps=True)
+
+        self.assertTrue(checkbox_state["checked"])
+        self.assertEqual(len(save_clicks), 1)
+        self.assertEqual(result, {"CampaignId": 42, "DirectsHelps": True})
+
+    def test_updates_multiple_fields_in_one_call(self):
+        budget_state = {}
+        budget_handle = _FakeLocatorHandle(
+            on_fill=lambda v: budget_state.__setitem__("value", v)
+        )
+        checkbox_state = {"checked": False}
+        checkbox_handle = _FakeLocatorHandle(
+            on_check=lambda v: checkbox_state.__setitem__("checked", v)
+        )
+        page, save_clicks = self._page_with_save_button(
+            extra_locators={
+                browser_masters._WEEKLY_BUDGET_INPUT_XPATH: _FakeLocator(
+                    [budget_handle]
+                ),
+                browser_masters._DIRECT_HELPS_CHECKBOX_XPATH: _FakeLocator(
+                    [checkbox_handle]
+                ),
+            }
+        )
+
+        result = browser_masters.update_master(
+            page, 42, weekly_budget=50000, directs_helps=False
+        )
+
+        self.assertEqual(budget_state["value"], "50000")
+        self.assertFalse(checkbox_state["checked"])
+        self.assertEqual(len(save_clicks), 1)
+        self.assertEqual(
+            result,
+            {"CampaignId": 42, "WeeklyBudget": 50000, "DirectsHelps": False},
+        )
+
+    def test_raises_value_error_when_no_field_provided(self):
+        page = FakePage()
+
+        with self.assertRaises(ValueError):
+            browser_masters.update_master(page, 42)
+
+    def test_does_not_click_save_when_field_setter_fails(self):
+        # No locator registered for the budget field -> _set_weekly_budget
+        # raises before _click_save is ever reached.
+        page, save_clicks = self._page_with_save_button(extra_locators={})
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters.update_master(page, 42, weekly_budget=1000)
+
+        self.assertEqual(save_clicks, [])
+
+    def test_raises_when_save_button_missing(self):
+        page = FakePage(
+            locators={
+                browser_masters._WEEKLY_BUDGET_INPUT_XPATH: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                )
+            },
+            text_buttons={},
+        )
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters.update_master(page, 42, weekly_budget=1000)
+
+
+class TestMastersUpdateCommand(unittest.TestCase):
+    """CLI wiring for `masters update` (issue #631, Этап A)."""
+
+    def setUp(self):
+        self.runner = CliRunner()
+
+    def test_registered(self):
+        result = self.runner.invoke(cli, ["masters", "update", "--help"])
+        self.assertEqual(result.exit_code, 0)
+
+    def test_has_no_login_option(self):
+        result = self.runner.invoke(cli, ["masters", "update", "--help"])
+        self.assertNotIn("--login", result.output)
+
+    def test_documents_stage_a_flags(self):
+        result = self.runner.invoke(cli, ["masters", "update", "--help"])
+        self.assertIn("--weekly-budget", result.output)
+        self.assertIn("--promotion-goal", result.output)
+        self.assertIn("--directs-helps", result.output)
+
+    def test_calls_update_master_with_given_fields(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42, "WeeklyBudget": 95000}
+            result = self.runner.invoke(
+                cli, ["masters", "update", "42", "--weekly-budget", "95000"]
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        mock_update.assert_called_once()
+        args, kwargs = mock_update.call_args
+        self.assertEqual(args[1], 42)
+        self.assertEqual(kwargs["weekly_budget"], 95000)
+        self.assertIsNone(kwargs["promotion_goal"])
+        self.assertIsNone(kwargs["directs_helps"])
+
+    def test_passes_promotion_goal_choice(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli,
+                ["masters", "update", "42", "--promotion-goal", "max-clicks"],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(mock_update.call_args.kwargs["promotion_goal"], "max-clicks")
+
+    def test_rejects_unknown_promotion_goal(self):
+        result = self.runner.invoke(
+            cli, ["masters", "update", "42", "--promotion-goal", "bogus"]
+        )
+        self.assertNotEqual(result.exit_code, 0)
+
+    def test_passes_directs_helps_flag(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli, ["masters", "update", "42", "--directs-helps"]
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertTrue(mock_update.call_args.kwargs["directs_helps"])
+
+    def test_passes_no_directs_helps_flag(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli, ["masters", "update", "42", "--no-directs-helps"]
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertFalse(mock_update.call_args.kwargs["directs_helps"])
+
+    def test_errors_when_no_field_given(self):
+        result = self.runner.invoke(cli, ["masters", "update", "42"])
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("at least one", result.output)
+
+    def test_does_not_call_update_master_when_no_field_given(self):
+        with patch("direct_cli.browser.masters.update_master") as mock_update:
+            self.runner.invoke(cli, ["masters", "update", "42"])
+        mock_update.assert_not_called()
 
 
 class TestMastersLoginCommand(unittest.TestCase):

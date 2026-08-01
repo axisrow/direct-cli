@@ -1,0 +1,106 @@
+<!--
+Fixture: DOM/accessibility-tree findings for the Yandex Direct "Мастер кампаний" (Campaign
+Wizard) settings/edit page, Этап A only (issue #631) — captured 2026-08-01 via
+claude-in-chrome against a live account (campaign 107707079, "Мастер ИЖ Источник Жизни
+(холодный) 16.06", status: Остановлена). PII scrubbed (account name kept — already visible
+product UI, no secret value).
+
+Source URL:
+  https://direct.yandex.ru/wizard/campaigns/{id}/edit/?ulogin={login}
+
+Same server-side-rendered wizard as tests/fixtures/masters_wizard_overview.html's Настройки
+section — this fixture adds the accessibility-tree element shapes (tag/role, not just text)
+needed to implement mutating `_set_*` functions, which masters_wizard_overview.html's
+text-only capture didn't need for read-only `get`.
+
+Key finding — SINGLE FORM, SINGLE SAVE: the whole edit page is one form. There is exactly one
+"Сохранить кампанию" button at the very bottom (with "Отмена" beside it) that submits every
+section at once — there is NO per-section independent save. This resolves the open risk in
+issue #631's "Риски" section ("Нужно подтвердить... сохраняет ли форма все секции разом").
+Consequence for `update_master`: a partial update (only some fields passed) must still submit
+the whole form — every other field's current on-page value is left untouched by simply not
+touching its input before clicking save, not by any server-side partial-update semantics.
+
+Confirmed via accessibility-tree read (read_page, filter=interactive) plus targeted zoom
+screenshots before/after click (state was restored to original after the investigation — no
+live mutation was saved):
+
+1. Недельный бюджет (weekly budget) — plain text input.
+   - Located via `find`: `textbox "80 000"` under heading "Недельный бюджет".
+   - `page.get_by_role("heading", name="Недельный бюджет")` -> sibling/following textbox is the
+     amount. Value is the bare number with thousands grouping (e.g. "80 000"), currency
+     suffix "₽" is rendered OUTSIDE the input as adjacent static text, not part of the value.
+   - Setting: click, select-all, type the new bare integer (no grouping needed on input —
+     unconfirmed whether the widget re-formats on blur; safest is to type digits only, e.g.
+     "95000", and treat any comma/space grouping in the pre-fill as display-only).
+   - Sibling row: "Адаптация бюджета" (Процент увеличения бюджета / Не увеличивать бюджет) —
+     OUT OF SCOPE for Этап A (issue explicitly limits Этап A to weekly budget only, not budget
+     adaptation).
+
+2. "Директ помогает" (auto-apply recommendations) — plain HTML checkbox, NOT a custom
+   toggle-switch component.
+   - Located via `find`: `checkbox "Автоматически применять рекомендации"`, directly under
+     heading "Директ помогает".
+   - Confirmed via click + zoom screenshot: unchecked -> click -> renders as a filled blue
+     square with a checkmark (checked) -> click again -> reverts to an empty outlined square
+     (unchecked). Standard `Locator.check()`/`.uncheck()` semantics apply directly (idempotent,
+     unlike the suspend/resume buttons which need pre/post status verification because they
+     have no boolean form-field to query).
+   - IMPORTANT side effect discovered live: when checked, the page reveals a SECOND, dependent
+     checkbox — "Оптимизировать расширенные настройки — цели, подбор аудитории" — nested
+     directly below it. This nested checkbox is OUT OF SCOPE for Этап A (issue's Этап A list is
+     exactly: недельный бюджет, цель продвижения, "Директ помогает" toggle) but must be left
+     alone (not auto-toggled) by `_set_directs_helps` — do not blindly click "everything under
+     the heading".
+   - This section sits directly above the page's single "Сохранить кампанию"/"Отмена" button
+     pair (last section on the page).
+
+3. "Цель продвижения" (promotion goal) — custom combobox/dropdown, not a native <select>.
+   - Located via `find`: `button "Цель продвижения"` (the dropdown trigger). NOTE: the tool's
+     natural-language description initially read as "current value as its accessible name",
+     but the accessibility-tree text is the STATIC section label "Цель продвижения", not the
+     current selection — confirmed by re-reading the raw `read_page` node
+     (`button "Цель продвижения" [ref_166] type="button"`, unchanged across dropdown states).
+     The implementation locates this button via heading-proximity XPath (first `<button>`
+     following the "Цель продвижения" heading), not by matching a value string that changes.
+     Paired with a same-labelled `textbox` (search/filter input inside the dropdown, not the
+     value holder itself).
+   - Click the button to open the dropdown; it renders exactly TWO options as a list of
+     clickable rows, each with a title + one-line description:
+       - "Максимум целевых действий" — "Если хотите получать больше звонков и сообщений от
+         клиентов" — tagged "Рекомендуем" (badge) — this is the default in the fixture
+         campaign; current selection shows a checkmark beside it.
+       - "Максимум переходов" — "Если хотите получать больше кликов по объявлениям и
+         увеличить охват аудитории"
+   - No other enum values exist behind this control — confirmed by opening the dropdown and
+     reading its full option list, not by inference from partial text.
+   - CLI enum mapping (kebab-case per project convention, no WSDL to mirror since this has no
+     API surface): `--promotion-goal {max-conversions,max-clicks}` ->
+       max-conversions -> "Максимум целевых действий"
+       max-clicks      -> "Максимум переходов"
+   - Setting: click the button to open, click the row whose title text-matches the target
+     Russian label, and verify post-click that the button's accessible text now shows the
+     target label (mirrors the module's existing pattern of verifying a mutation actually took
+     effect rather than trusting the click alone — see `_suspend_or_resume`).
+   - Sibling control in the same "Цель продвижения" section: a second dropdown, "Цена целевого
+     действия" (e.g. "Средняя за неделю") — OUT OF SCOPE for Этап A (not listed in the issue's
+     Этап A field list).
+
+Accessibility-tree ref shape observed for the "Цель продвижения" section (`read_page`,
+filter=interactive, at the point in the page where this section renders):
+
+  textbox [ref] type="text"                       (unlabelled, adjacent to weekly-budget field)
+  button [ref] type="button"                       (Расписание показов dropdown, unrelated)
+  textbox [ref]
+  button [ref] type="button"                       (Аудитория dropdown, unrelated)
+  textbox [ref]
+  button "Цель продвижения" [ref] type="button"     <-- promotion-goal dropdown trigger
+  textbox [ref]                                      <-- promotion-goal dropdown's own filter input
+  button "Цена целевого действия" [ref] type="button" (out of scope)
+
+None of these controls expose a stable `id`/`name`/`data-testid` attribute in the accessibility
+tree snapshot — matching is by heading proximity (`find`-equivalent: nearest preceding
+`heading` node) or by the button/checkbox's own accessible name text, same fragility class
+already documented for `_extract_*`/`_click_action_button` in
+`direct_cli/browser/masters.py`'s module docstring. No stability guarantee from Yandex.
+-->

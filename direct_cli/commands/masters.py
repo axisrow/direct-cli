@@ -60,6 +60,7 @@ from typing import Optional
 import click
 from click.core import ParameterSource
 
+from ..browser.masters import PROMOTION_GOAL_CHOICES as _PROMOTION_GOAL_CHOICES
 from ..output import (
     format_output,
     handle_api_errors,
@@ -531,6 +532,74 @@ def suspend(
     results = _with_session(ctx, headful, profile_dir, chrome_profile, _suspend_all)
 
     format_output(results if len(results) != 1 else results[0], output_format, output)
+
+
+@masters.command()
+@click.argument("campaign_id", type=int)
+@click.option(
+    "--weekly-budget",
+    type=int,
+    help="Weekly budget in account currency (Недельный бюджет)",
+)
+@click.option(
+    "--promotion-goal",
+    type=click.Choice(sorted(_PROMOTION_GOAL_CHOICES)),
+    help="Promotion goal (Цель продвижения)",
+)
+@click.option(
+    "--directs-helps/--no-directs-helps",
+    "directs_helps",
+    default=None,
+    help="Auto-apply Yandex recommendations (Директ помогает)",
+)
+@_masters_browser_options
+@click.pass_context
+@handle_api_errors
+def update(
+    ctx,
+    campaign_id,
+    weekly_budget,
+    promotion_goal,
+    directs_helps,
+    headful,
+    profile_dir,
+    chrome_profile,
+    output_format,
+    output,
+):
+    """Update settings of one Мастер кампаний (Этап A fields only)
+
+    Covers exactly three fields: weekly budget, promotion goal, and the
+    "Директ помогает" auto-recommendations toggle. The edit page has a
+    single whole-form save (no per-section save) — see
+    ``direct_cli/browser/masters.py`` module docstring — so only the fields
+    passed here are changed; every other on-page field keeps its current
+    value. Later fields (headlines/texts, sitelinks, audience, media) are
+    tracked separately, see issue #631.
+    """
+    from ..browser.masters import update_master
+
+    if weekly_budget is None and promotion_goal is None and directs_helps is None:
+        raise click.UsageError(
+            "Provide at least one of --weekly-budget, --promotion-goal, "
+            "--directs-helps/--no-directs-helps."
+        )
+
+    result = _with_session(
+        ctx,
+        headful,
+        profile_dir,
+        chrome_profile,
+        lambda page: update_master(
+            page,
+            campaign_id,
+            weekly_budget=weekly_budget,
+            promotion_goal=promotion_goal,
+            directs_helps=directs_helps,
+        ),
+    )
+
+    format_output(result, output_format, output)
 
 
 @masters.command()
