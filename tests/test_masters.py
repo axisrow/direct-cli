@@ -1710,6 +1710,43 @@ class TestMastersLogoutCommand(unittest.TestCase):
         self.assertNotEqual(result.exit_code, 0, result.output)
         self.assertTrue(self.profile_dir.exists())
 
+    def test_logout_explicit_profile_dir_does_not_clear_pointer_to_a_different_profile(
+        self,
+    ):
+        """`logout --profile-dir A` must not wipe the pointer to a live profile B.
+
+        `logout` unconditionally unlinks PROFILE_POINTER_PATH after deleting
+        whatever `--profile-dir` resolved to. If the user logged into profile B
+        (recorded by the pointer) after an older profile A, then deletes A by
+        explicit path, the pointer to B — still on disk and in use — is wiped
+        too. The next read then falls back to the default location instead of B.
+        """
+        from direct_cli.browser.session import PROFILE_MARKER_NAME
+
+        old_profile = self.profile_dir  # profile A: about to be deleted
+        self._make_profile()
+
+        live_profile = Path(self._tmpdir.name) / "chrome-profile-b"
+        live_profile.mkdir(parents=True)
+        (live_profile / PROFILE_MARKER_NAME).touch()
+
+        from direct_cli.browser import session as session_module
+
+        session_module.remember_persistent_profile_dir(live_profile)
+
+        result = self.runner.invoke(
+            cli, ["masters", "logout", "--profile-dir", str(old_profile)]
+        )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertFalse(old_profile.exists())
+        self.assertTrue(live_profile.exists(), "unrelated live profile was deleted")
+        self.assertEqual(
+            session_module.configured_persistent_profile_dir(),
+            live_profile.resolve(),
+            "logout on an unrelated profile cleared the pointer to the live one",
+        )
+
 
 class TestCaptchaDetection(unittest.TestCase):
     def test_assert_not_captcha_raises_on_gate_markers(self):

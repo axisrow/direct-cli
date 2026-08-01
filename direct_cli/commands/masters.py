@@ -420,10 +420,19 @@ def logout(profile_dir):
 
     import shutil
 
+    # Read before the delete: an explicit --profile-dir may name a directory
+    # that isn't the one the pointer records (e.g. an old profile from before
+    # a later `login --profile-dir` moved it elsewhere). Only clear the
+    # pointer when it actually points at what's being deleted -- otherwise a
+    # cleanup of a stale profile would strand reads without their live one.
+    try:
+        pointer_target = PROFILE_POINTER_PATH.read_text(encoding="utf-8").strip()
+    except OSError:
+        pointer_target = None
+
     shutil.rmtree(resolved_profile_dir)
-    # Drop the pointer too, so reads fall back to the default location
-    # instead of resolving to a directory that no longer exists.
-    PROFILE_POINTER_PATH.unlink(missing_ok=True)
+    if pointer_target and Path(pointer_target) == resolved_profile_dir.resolve():
+        PROFILE_POINTER_PATH.unlink(missing_ok=True)
     print_info(f"Deleted persistent browser profile at {resolved_profile_dir}")
 
 
