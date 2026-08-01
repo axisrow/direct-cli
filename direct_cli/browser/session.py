@@ -23,6 +23,17 @@ persists the result of this decrypt-and-inject dance as a Playwright
 :func:`open_saved_session`. :func:`open_chrome_session` (decrypt every call,
 nothing persisted) remains the zero-setup fallback ``direct masters`` uses
 when no saved session exists — see ``direct_cli/commands/masters.py``.
+
+``direct masters login`` (issue #635) is a third, independent path that does
+not touch the user's real Chrome profile or the macOS Keychain at all:
+:func:`open_persistent_session` launches a bundled Chromium against its own
+persistent profile directory (``~/.direct-cli/chrome-profile/`` by default),
+and the user logs in by hand once via ``passport.yandex.ru``. Cookies then
+persist on disk the same way a real Chrome profile would (Chromium manages
+its own on-disk cookie store for a persistent context — no ``storage_state``
+capture/injection dance needed). This works identically on macOS/Linux/
+Windows and needs no Keychain access, at the cost of a one-time manual login
+instead of a transparent cookie copy.
 """
 
 import contextlib
@@ -39,6 +50,19 @@ if TYPE_CHECKING:
 _BROWSER_INSTALL_HINT = (
     'pip install "direct-cli[browser]" && playwright install chromium'
 )
+
+# Sibling of direct_cli/browser/store.py's PLAYWRIGHT_SESSION_PATH and
+# direct_cli/auth.py's AUTH_STORE_PATH under ~/.direct-cli/ — a dedicated
+# subdirectory so this profile's own Chromium lock files/caches never mix
+# with either of those.
+DEFAULT_PERSISTENT_PROFILE_DIR = Path.home() / ".direct-cli" / "chrome-profile"
+
+_PASSPORT_LOGIN_URL = "https://passport.yandex.ru/auth"
+
+# How long `direct masters login` waits for the user to finish logging in by
+# hand before giving up.
+_LOGIN_WAIT_TIMEOUT_MS = 5 * 60 * 1000
+_LOGIN_POLL_INTERVAL_MS = 1_000
 
 
 class BrowserSessionError(RuntimeError):
@@ -183,6 +207,114 @@ def open_chrome_session(
 
     with _launch_context(sync_playwright, headless=headless) as (_browser, context):
         context.add_cookies(cookies)
+        page = context.new_page()
+        yield page
+
+
+def _resolve_persistent_profile_dir(profile_dir: Optional[Path]) -> Path:
+    return profile_dir or DEFAULT_PERSISTENT_PROFILE_DIR
+
+
+@contextlib.contextmanager
+def _launch_persistent_context(
+    sync_playwright, profile_dir: Path, *, headless: bool
+) -> Generator[Any, None, None]:
+    """Shared launch/teardown for the CLI's own persistent Chromium profile.
+
+    Unlike :func:`_launch_context` (a fresh, throwaway context every call),
+    ``launch_persistent_context`` both launches the browser *and* returns the
+    context in one call — there is no separate ``Browser`` object to close,
+    Playwright owns that lifecycle internally for persistent contexts.
+    """
+    profile_dir.mkdir(parents=True, exist_ok=True)
+    with sync_playwright() as playwright:
+        context = playwright.chromium.launch_persistent_context(
+            str(profile_dir), headless=headless, locale="ru-RU"
+        )
+        try:
+            yield context
+        finally:
+            context.close()
+
+
+def login_persistent_session(
+    *,
+    profile_dir: Optional[Path] = None,
+    headless: bool = False,
+    timeout_ms: int = _LOGIN_WAIT_TIMEOUT_MS,
+) -> None:
+    """Open the CLI's own persistent Chromium profile for a one-time manual login.
+
+    Navigates to Yandex Passport's login page and polls (every
+    :data:`_LOGIN_POLL_INTERVAL_MS`) until :func:`assert_authenticated` no
+    longer raises against ``direct.yandex.ru`` — i.e. until the user has
+    finished logging in by hand in the visible window. Raises
+    :class:`BrowserAuthError` if ``timeout_ms`` elapses first.
+
+    Deliberately defaults ``headless=False``: a headless window cannot be
+    logged into by a human, so ``direct masters login`` always shows the
+    window regardless of ``--headful`` unless the caller overrides it
+    (e.g. for tests).
+    """
+    sync_playwright = _import_sync_playwright()
+    resolved_dir = _resolve_persistent_profile_dir(profile_dir)
+
+    # Deferred import: direct_cli/browser/masters.py's GRID_URL is the single
+    # canonical source for this URL (CLAUDE.md "No URL literals outside the
+    # registry"); imported here rather than at module load to avoid a
+    # session.py <-> masters.py import cycle (masters.py imports session.py).
+    from .masters import GRID_URL
+
+    with _launch_persistent_context(
+        sync_playwright, resolved_dir, headless=headless
+    ) as context:
+        page = context.new_page()
+        page.goto(_PASSPORT_LOGIN_URL, wait_until="domcontentloaded")
+
+        elapsed_ms = 0
+        while elapsed_ms < timeout_ms:
+            page.goto(GRID_URL, wait_until="domcontentloaded")
+            html = page.content()
+            assert_not_captcha(html)
+            try:
+                assert_authenticated(html)
+            except BrowserAuthError:
+                page.wait_for_timeout(_LOGIN_POLL_INTERVAL_MS)
+                elapsed_ms += _LOGIN_POLL_INTERVAL_MS
+                continue
+            return
+
+        raise BrowserAuthError(
+            f"Timed out after {timeout_ms // 1000}s waiting for login to "
+            f"{_PASSPORT_LOGIN_URL} to complete. Run `direct masters login` "
+            "again and finish signing in within the time limit."
+        )
+
+
+@contextlib.contextmanager
+def open_persistent_session(
+    *,
+    profile_dir: Optional[Path] = None,
+    headless: bool = True,
+) -> Generator["Page", None, None]:
+    """Launch the CLI's own persistent Chromium profile for regular use.
+
+    Raises :class:`BrowserSessionMissingError` if the profile directory
+    doesn't exist yet or Yandex serves its login page — the fix in both
+    cases is ``direct masters login``.
+    """
+    sync_playwright = _import_sync_playwright()
+    resolved_dir = _resolve_persistent_profile_dir(profile_dir)
+
+    if not resolved_dir.exists():
+        raise BrowserSessionMissingError(
+            f"No persistent browser profile found at {resolved_dir}. "
+            "Run: direct masters login"
+        )
+
+    with _launch_persistent_context(
+        sync_playwright, resolved_dir, headless=headless
+    ) as context:
         page = context.new_page()
         yield page
 

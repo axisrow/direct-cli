@@ -186,6 +186,13 @@ SMOKE_MATRIX = {
         # Manual-only, per scripts/test_dangerous_commands.sh.
         "masters.resume",
         "masters.suspend",
+        # Interactive, human-in-the-loop login (issue #635) -- opens a
+        # visible browser window and blocks for up to --timeout seconds
+        # waiting for a person to sign in by hand. Cannot run unattended in
+        # any automated smoke tier; unlike playwright.login (SAFE above,
+        # which reads an already-authenticated Chrome profile
+        # non-interactively), this always requires a human. Manual-only.
+        "masters.login",
         "v4adimage.set",
         "v4finance.create-invoice",
         "v4finance.pay-campaigns",

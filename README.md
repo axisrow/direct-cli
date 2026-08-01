@@ -68,6 +68,17 @@ installed, wrong Chrome profile, expired session), `direct playwright
 doctor` reports the full chain of checks without logging in or writing
 anything.
 
+**Keychain-free alternative:** `direct masters login` opens a visible
+browser window on a persistent Chromium profile owned by the CLI
+(`~/.direct-cli/chrome-profile/`) — log in by hand once via Yandex Passport,
+and the command exits once the session is confirmed. This never touches your
+real Chrome profile or the macOS Keychain at all, so it works identically on
+macOS/Linux/Windows; the cost is a one-time manual login instead of a
+transparent cookie copy. When this profile exists, `direct masters` prefers
+it automatically over the saved `playwright login` session. It's interactive
+(blocks for up to `--timeout` seconds, default 300, waiting for you to sign
+in), so it can't run unattended.
+
 ### Configuration
 
 Create a `.env` file in your working directory:
@@ -1098,6 +1109,17 @@ login` один раз, чтобы расшифровать и сохранит�
 Keychain. Если что-то в цепочке сломано (playwright не установлен, не тот
 профиль Chrome, сессия протухла) — `direct playwright doctor` покажет всю
 цепочку проверок, ничего не логинясь и не записывая на диск.
+
+**Альтернатива без Keychain:** `direct masters login` открывает видимое окно
+браузера на собственном персистентном Chromium-профиле CLI
+(`~/.direct-cli/chrome-profile/`) — войдите вручную через Яндекс Паспорт,
+команда завершится, как только сессия подтвердится. Она вообще не трогает
+ваш реальный профиль Chrome и не обращается к Keychain, поэтому одинаково
+работает на macOS/Linux/Windows; цена — однократный ручной вход вместо
+прозрачного копирования кук. Если этот профиль существует, `direct masters`
+автоматически предпочитает его сохранённой сессии `playwright login`.
+Команда интерактивная (ждёт до `--timeout` секунд, по умолчанию 300, пока вы
+не войдёте), поэтому не может выполняться без присмотра.
 
 ### Настройка
 

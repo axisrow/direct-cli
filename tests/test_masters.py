@@ -271,6 +271,7 @@ class TestMastersRegistered(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("list", result.output)
         self.assertIn("get", result.output)
+        self.assertIn("login", result.output)
 
     def test_masters_list_help(self):
         result = self.runner.invoke(cli, ["masters", "list", "--help"])
@@ -408,14 +409,44 @@ class _FakeBrowser:
         self.closed = True
 
 
-class _FakeChromium:
-    def __init__(self, browser):
-        self._browser = browser
+class _FakePersistentContext:
+    """Fakes the context ``launch_persistent_context`` returns directly.
+
+    Unlike ``_FakeBrowser``/``_FakeContext`` (a separate browser + context
+    pair for ``chromium.launch()``), a persistent context IS the return
+    value — there is no separate ``Browser`` object to close.
+    """
+
+    def __init__(self, pages=None):
+        self.closed = False
         self.launch_kwargs = None
+        self._pages = list(pages or [])
+
+    def new_page(self):
+        if self._pages:
+            return self._pages.pop(0)
+        return FakePage()
+
+    def close(self):
+        self.closed = True
+
+
+class _FakeChromium:
+    def __init__(self, browser, persistent_context=None):
+        self._browser = browser
+        self._persistent_context = persistent_context
+        self.launch_kwargs = None
+        self.launch_persistent_context_kwargs = None
+        self.launch_persistent_context_user_data_dir = None
 
     def launch(self, **kwargs):
         self.launch_kwargs = kwargs
         return self._browser
+
+    def launch_persistent_context(self, user_data_dir, **kwargs):
+        self.launch_persistent_context_user_data_dir = user_data_dir
+        self.launch_persistent_context_kwargs = kwargs
+        return self._persistent_context
 
 
 class _FakePlaywright:
@@ -478,9 +509,110 @@ class TestOpenChromeSession(unittest.TestCase):
         self.assertTrue(fake_browser.closed)
 
 
+class TestPersistentSession(unittest.TestCase):
+    """direct masters login (issue #635) — CLI-owned persistent Chromium
+    profile, no Keychain/real-Chrome-cookie involvement at all.
+
+    Uses real temp directories (rather than fake Path patching) because
+    _launch_persistent_context calls profile_dir.mkdir() for real.
+    """
+
+    def setUp(self):
+        import tempfile
+
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmpdir.cleanup)
+        self.profile_dir = Path(self._tmpdir.name) / "chrome-profile"
+
+    def test_open_persistent_session_raises_when_profile_missing(self):
+        pytest.importorskip("playwright")
+        from direct_cli.browser.session import (
+            BrowserSessionMissingError,
+            open_persistent_session,
+        )
+
+        with self.assertRaises(BrowserSessionMissingError) as ctx:
+            with open_persistent_session(profile_dir=self.profile_dir):
+                pass
+        self.assertIn("masters login", str(ctx.exception))
+
+    def test_open_persistent_session_launches_persistent_context(self):
+        pytest.importorskip("playwright")
+        from direct_cli.browser import session as session_module
+
+        self.profile_dir.mkdir(parents=True)
+        persistent_ctx = _FakePersistentContext()
+        fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
+        fake_playwright = _FakePlaywright(fake_chromium)
+
+        with patch("playwright.sync_api.sync_playwright", return_value=fake_playwright):
+            with session_module.open_persistent_session(
+                profile_dir=self.profile_dir
+            ) as page:
+                self.assertIsInstance(page, FakePage)
+
+        self.assertEqual(
+            fake_chromium.launch_persistent_context_user_data_dir,
+            str(self.profile_dir),
+        )
+        self.assertEqual(
+            fake_chromium.launch_persistent_context_kwargs["locale"], "ru-RU"
+        )
+        self.assertTrue(persistent_ctx.closed)
+
+    def test_login_persistent_session_returns_once_authenticated(self):
+        pytest.importorskip("playwright")
+        from direct_cli.browser import session as session_module
+
+        authed_page = FakePage(locators={}, html="<body>Кампания остановлена</body>")
+        persistent_ctx = _FakePersistentContext(pages=[authed_page])
+        fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
+        fake_playwright = _FakePlaywright(fake_chromium)
+
+        with patch("playwright.sync_api.sync_playwright", return_value=fake_playwright):
+            session_module.login_persistent_session(
+                profile_dir=self.profile_dir, timeout_ms=5_000
+            )
+
+        self.assertTrue(persistent_ctx.closed)
+        self.assertTrue(self.profile_dir.exists())
+
+    def test_login_persistent_session_times_out_if_never_authenticated(self):
+        pytest.importorskip("playwright")
+        from direct_cli.browser import session as session_module
+        from direct_cli.browser.session import BrowserAuthError
+
+        login_page = FakePage(locators={}, html="<body>Войдите с Яндекс ID</body>")
+        persistent_ctx = _FakePersistentContext(pages=[login_page])
+        fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
+        fake_playwright = _FakePlaywright(fake_chromium)
+
+        with patch("playwright.sync_api.sync_playwright", return_value=fake_playwright):
+            with self.assertRaises(BrowserAuthError) as ctx:
+                session_module.login_persistent_session(
+                    profile_dir=self.profile_dir,
+                    timeout_ms=1_000,
+                )
+        self.assertIn("Timed out", str(ctx.exception))
+
+
 class TestOpenSessionTiers(unittest.TestCase):
-    """_open_session's three-tier resolution: explicit profile / saved
-    session / fresh-decrypt fallback (with auth-error self-heal retry)."""
+    """_open_session's tiered resolution: explicit profile / persistent CLI
+    profile / saved session / fresh-decrypt fallback (with auth-error
+    self-heal retry)."""
+
+    def setUp(self):
+        # Every test in this class exercises tiers below 1.5 (persistent CLI
+        # profile) unless a test explicitly wants that tier -- patch
+        # DEFAULT_PERSISTENT_PROFILE_DIR to a guaranteed-nonexistent Path so
+        # these tests don't depend on whether the developer running them has
+        # ever run `direct masters login` for real.
+        patcher = patch(
+            "direct_cli.browser.session.DEFAULT_PERSISTENT_PROFILE_DIR",
+            Path("/nonexistent/chrome-profile"),
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def _list_ctx(self, args=None):
         from direct_cli.commands.masters import masters
@@ -507,6 +639,37 @@ class TestOpenSessionTiers(unittest.TestCase):
                     pass
         saved.assert_not_called()
         fresh.assert_called_once()
+
+    def test_persistent_profile_used_when_present(self):
+        """Tier 1.5: when the CLI's own persistent profile dir exists, it's
+        preferred over the saved storage_state session and the Keychain
+        decrypt path -- neither should be touched."""
+        from direct_cli.commands.masters import _open_session
+
+        with self._list_ctx() as ctx:
+            with (
+                patch(
+                    "direct_cli.browser.session.DEFAULT_PERSISTENT_PROFILE_DIR",
+                    Path("/fake/persistent/profile"),
+                ),
+                patch.object(Path, "exists", return_value=True),
+                patch(
+                    "direct_cli.browser.session.open_persistent_session"
+                ) as persistent,
+                patch("direct_cli.browser.store.session_status") as status,
+                patch("direct_cli.browser.session.open_saved_session") as saved,
+                patch("direct_cli.browser.session.open_chrome_session") as fresh,
+            ):
+                persistent.return_value.__enter__ = lambda self: "page"
+                persistent.return_value.__exit__ = lambda self, *a: False
+                with _open_session(
+                    ctx, headful=False, profile_dir=None, chrome_profile="Default"
+                ):
+                    pass
+        persistent.assert_called_once()
+        status.assert_not_called()
+        saved.assert_not_called()
+        fresh.assert_not_called()
 
     def test_fresh_saved_session_used_without_decrypting(self):
         from direct_cli.commands.masters import _open_session
@@ -1114,6 +1277,73 @@ class TestMastersSuspendResumeCommand(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertEqual(mock_resume.call_count, 1)
+
+
+class TestMastersLoginCommand(unittest.TestCase):
+    """CLI wiring for `masters login` (issue #635)."""
+
+    def setUp(self):
+        self.runner = CliRunner()
+
+    def test_login_registered(self):
+        result = self.runner.invoke(cli, ["masters", "login", "--help"])
+        self.assertEqual(result.exit_code, 0)
+
+    def test_login_has_no_output_format_options(self):
+        # login is interactive/side-effecting, not a data-fetching command --
+        # it has no --format/--output, unlike list/get/suspend/resume.
+        result = self.runner.invoke(cli, ["masters", "login", "--help"])
+        self.assertNotIn("--format", result.output)
+
+    def test_login_calls_login_persistent_session(self):
+        with patch("direct_cli.browser.session.login_persistent_session") as mock_login:
+            result = self.runner.invoke(cli, ["masters", "login"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        mock_login.assert_called_once()
+        _, kwargs = mock_login.call_args
+        self.assertEqual(kwargs["timeout_ms"], 300_000)
+        self.assertIsNone(kwargs["profile_dir"])
+
+    def test_login_passes_explicit_profile_dir_and_timeout(self):
+        with patch("direct_cli.browser.session.login_persistent_session") as mock_login:
+            result = self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "login",
+                    "--profile-dir",
+                    "/custom/profile",
+                    "--timeout",
+                    "30",
+                ],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        _, kwargs = mock_login.call_args
+        self.assertEqual(kwargs["profile_dir"], Path("/custom/profile"))
+        self.assertEqual(kwargs["timeout_ms"], 30_000)
+
+    def test_login_converts_browser_session_error_to_click_exception(self):
+        from direct_cli.browser.session import BrowserAuthError
+
+        with patch(
+            "direct_cli.browser.session.login_persistent_session",
+            side_effect=BrowserAuthError("timed out"),
+        ):
+            result = self.runner.invoke(cli, ["masters", "login"])
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("timed out", result.output)
+
+    def test_login_missing_playwright_raises_usage_error(self):
+        with patch.dict(
+            "sys.modules", {"playwright": None, "playwright.sync_api": None}
+        ):
+            result = self.runner.invoke(cli, ["masters", "login"])
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("playwright", result.output.lower())
 
 
 class TestCaptchaDetection(unittest.TestCase):

@@ -18,22 +18,28 @@ all — see ``direct_cli/browser/masters.py`` module docstring for why an
 explicit login actually broke ``list`` (HTTP 401 "Доступ ограничен" when the
 user's own login was passed as Yandex's managed-client ``ulogin`` param).
 
-Session resolution (``_open_session``) is three-tiered — see
-``direct_cli/commands/browser_session.py`` for ``direct playwright login``,
-which creates the saved session tier 2 prefers:
+Session resolution (``_open_session``) is multi-tiered — see
+``direct_cli/commands/browser_session.py`` for ``direct playwright login``
+(tier 2) and this module's own ``masters login`` command (tier 1.5, issue
+#635):
 
 1. Explicit ``--profile-dir``/``--chrome-profile`` on the command line ->
    always decrypt fresh from that specific Chrome profile (the user pointed
    at it deliberately; silently using a stale saved session instead would be
    a surprise).
+1.5. Otherwise, if the CLI's own persistent Chromium profile exists (set up
+   via ``direct masters login``) -> use it. Keychain-free and platform-
+   independent (unlike tiers 2/3, which both decrypt the user's real Chrome
+   profile), so it's preferred whenever present.
 2. Otherwise, a saved session from ``direct playwright login`` that isn't
    known-expired -> use it (skips the Keychain round-trip entirely).
 3. Otherwise -> decrypt fresh from Chrome, same as before this tier system
    existed. Zero-config `direct masters list` keeps working unchanged.
 
-A ``BrowserAuthError`` from tier 2 is retried once via tier 3 before
-surfacing — a stale saved session should self-heal rather than break
-`masters` until the user notices and reruns `playwright login` by hand. The
+A ``BrowserAuthError`` from tier 1.5 or tier 2 is retried once via tier 3
+before surfacing — a stale saved session should self-heal rather than break
+`masters` until the user notices and reruns `playwright login`/`masters
+login` by hand. The
 retry happens at the *operation* level (``_with_session``), not inside
 ``_open_session`` itself: ``BrowserAuthError`` from ``assert_authenticated``
 is raised by the caller's fetch call, deep inside the ``with page:`` body,
@@ -105,6 +111,7 @@ def _open_session(
         from ..browser.session import (
             BrowserSessionError,
             open_chrome_session,
+            open_persistent_session,
             open_saved_session,
         )
     except ImportError as exc:
@@ -130,6 +137,19 @@ def _open_session(
                 yield page
         except BrowserSessionError as exc:
             raise click.ClickException(str(exc)) from exc
+        return
+
+    from ..browser.session import DEFAULT_PERSISTENT_PROFILE_DIR
+
+    # Tier 1.5: the CLI's own persistent profile (issue #635, `direct masters
+    # login`) — Keychain-free and platform-independent, so it's preferred
+    # over the saved storage_state session whenever it has been set up.
+    # BrowserAuthError (a stale on-disk session) propagates to _with_session
+    # uncaught, exactly like tier 2's, so the same self-heal fallback
+    # applies.
+    if DEFAULT_PERSISTENT_PROFILE_DIR.exists():
+        with _fresh_or_saved(open_persistent_session, headless=not headful) as page:
+            yield page
         return
 
     from ..browser import store
@@ -262,6 +282,52 @@ def _masters_browser_options(func):
 @click.group()
 def masters():
     """Мастер кампаний (Campaign Wizard) — browser-only, no API"""
+
+
+@masters.command()
+@click.option(
+    "--profile-dir",
+    help="Directory for the CLI's own persistent Chrome profile "
+    "(default: ~/.direct-cli/chrome-profile/)",
+)
+@click.option(
+    "--timeout",
+    "timeout_seconds",
+    type=int,
+    default=300,
+    show_default=True,
+    help="Seconds to wait for manual login to complete",
+)
+def login(profile_dir, timeout_seconds):
+    """Log in once via a visible browser window, saved for future `masters` calls
+
+    Opens Yandex Passport in a persistent Chromium profile owned by the CLI
+    (issue #635) — separate from your real Chrome profile, so it needs no
+    Keychain access and works the same on macOS/Linux/Windows. Log in by
+    hand in the window that opens; the command exits once the session is
+    confirmed. Subsequent `direct masters` calls reuse this profile
+    automatically (see the module docstring's tier 1.5).
+    """
+    try:
+        from ..browser.session import BrowserSessionError, login_persistent_session
+    except ImportError as exc:
+        raise click.UsageError(
+            "playwright is required for `direct masters login` but is not "
+            f"installed. Run: {_BROWSER_INSTALL_HINT}"
+        ) from exc
+
+    resolved_profile_dir = Path(profile_dir) if profile_dir else None
+    try:
+        login_persistent_session(
+            profile_dir=resolved_profile_dir,
+            timeout_ms=timeout_seconds * 1000,
+        )
+    except BrowserSessionError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    print_info(
+        "Login confirmed. `direct masters` commands will now reuse this session."
+    )
 
 
 _STATUS_CHOICES = ("not-archived", "active", "stopped", "archived", "all")

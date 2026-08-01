@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+**Added — `direct masters login` (#635):**
+
+- New interactive command that opens a visible browser window on a
+  persistent Chromium profile owned by the CLI
+  (`~/.direct-cli/chrome-profile/` by default, overridable with
+  `--profile-dir`). Log in by hand once via Yandex Passport; the command
+  polls until the session is confirmed authenticated (or times out after
+  `--timeout` seconds, default 300) and exits.
+- Independent of `direct playwright login`/the macOS Keychain entirely —
+  this never touches the user's real Chrome profile, so it works
+  identically on macOS/Linux/Windows at the cost of a one-time manual login
+  instead of a transparent cookie copy.
+- `direct masters` (`list`/`get`/`suspend`/`resume`) prefers this persistent
+  profile automatically whenever it exists, ahead of the saved
+  `playwright login` session — see the new tier 1.5 in
+  `direct_cli/commands/masters.py`'s session-resolution docstring.
+- Interactive by design (blocks waiting for a human); classified
+  `DANGEROUS` in `direct_cli/smoke_matrix.py` and documented as
+  manual-only in `scripts/test_dangerous_commands.sh` — it cannot run in
+  any automated smoke tier.
+
 **Added — `direct masters suspend` / `direct masters resume` (#630):**
 
 - First mutating `masters` commands — stop/resume a Мастер кампаний by
