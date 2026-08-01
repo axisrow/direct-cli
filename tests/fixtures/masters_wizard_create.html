@@ -1,0 +1,279 @@
+<!--
+Fixture: recon notes + text-content snapshot of the Yandex Direct "Мастер кампаний"
+(Campaign Wizard) CREATE flow ("Конверсии и трафик" type), captured 2026-08-01 via
+claude-in-chrome against the same live account used for #628/#630/#631
+(ksamatadirect). Read-only recon per issue #632 step 0 — no campaign was actually
+created or saved (neither "Запустить кампанию" nor "Сохранить как черновик" was
+clicked); every field below is observed via DOM/accessibility-tree reads and one
+harmless invalid-input probe on step 1's URL field.
+
+Source URLs:
+  https://direct.yandex.ru/dna/grid/campaigns/                      (grid — "Добавить кампанию" entry point)
+  https://direct.yandex.ru/wizard/campaigns/new/?ulogin={login}     (wizard create flow)
+
+=====================================================================
+Entry point (grid "Добавить кампанию" button)
+=====================================================================
+
+Clicking "Добавить кампанию" on the grid opens a modal with THREE tabs, not a
+single flow:
+  - "Простой старт"
+  - "Мастер кампаний"   <- this is what issues #628/#630/#631/#632 are about
+  - "Режим эксперта"
+
+The "Мастер кампаний" tab itself offers SIX campaign-type tiles (a sub-menu one
+level above the create wizard, not part of the wizard proper):
+  - "Конверсии и трафик"        -> /wizard/campaigns/new/?ulogin={login}
+                                    (recon target below; universal ads, CPC/CPA)
+  - "Товарная кампания"          (Маркет/каталог товаров — not explored)
+  - "Продажи на маркетплейсах"   (Маркет/Ozon/Wildberries/Avito — not explored)
+  - "Подписчики в телеграм-канал" (not explored)
+  - "Продвижение бизнеса без сайта" (not explored)
+  - "Продвижение специалистов"   ("Новое" badge — not explored)
+
+Each tile almost certainly drives a DIFFERENT field set on its own /wizard/... URL
+(the campaign's underlying goal differs completely, e.g. no "landing URL" step for
+"Продвижение специалистов"). Do NOT assume "Конверсии и трафик"'s field list below
+generalizes to the other five types — issue #632's scope (and this recon) is
+"Конверсии и трафик" only, since that's what the project's existing live campaigns
+use (see campaignType=UNIVERSAL in tracking beacons, masters_wizard_overview.html).
+
+There is also a "Перейти в режим эксперта" link/button ON the create-wizard page
+itself (top-right, visible on every step) that navigates to:
+  /dna/campaigns-edit/?ulogin={login}&campaign-type=TEXT&is-new=1
+This is the ordinary (non-Мастер) TEXT campaign creation form — i.e. Yandex itself
+treats "Мастер кампаний" and "обычная кампания" as two branches of the SAME entry
+point, switchable at any time before saving. Not relevant to create_master's
+happy path but worth knowing: a user-facing --expert-mode escape hatch already
+exists natively in the UI if the wizard ever proves unworkable.
+
+=====================================================================
+Wizard shape: ONE micro-step + ONE long form (NOT a multi-page "Далее" wizard)
+=====================================================================
+
+Contrary to the issue's assumption of "N steps, each with its own Далее", the
+actual flow observed live is:
+
+  STEP 1 (separate page state, own URL /wizard/campaigns/new/): a single input
+    "Ссылка на сайт, соцсеть, маркетплейс или приложение" with an autocomplete
+    dropdown (recently-used URLs/domains from the account's history) plus a
+    "Создать лендинг" option (Directs offers to generate a landing page — not
+    explored). A "Далее" button next to the field is DISABLED (greyed, but
+    actually clickable — see validation note below) until text is entered.
+
+  STEP 2 (same URL, form replaces step 1 in place — no navigation): after
+    clicking "Далее" with a valid-looking URL, the page shows a LOADING SPINNER
+    for a surprisingly long time (10-15+ seconds observed live — this is Yandex
+    scanning/parsing the target site's content, not a fast client-side
+    transition) and then renders ONE long single-page form containing every
+    section that issue #631 lists (landing URL, headline/text variants, images,
+    video, sitelinks, region, schedule, audience, goal, Metrica counter, goals,
+    weekly budget, budget adaptation, "Директ помогает" toggle) plus a live ad
+    preview panel on the right ("Рекламная сеть — 1 из 6", paginated through
+    "‹"/"›" across 6 placement previews).
+
+    There is NO per-section "Save"/"Next" — the whole page is one form with
+    exactly two terminal actions at the very bottom:
+      "Запустить кампанию"       (primary button — launches immediately, no
+                                   intermediate review/confirm screen observed)
+      "Сохранить как черновик"   (secondary button — draft save)
+
+  => This directly answers issue #632's open question #2 in "Порядок работ":
+     drafts DO exist as a first-class action ("Сохранить как черновик"), separate
+     from launching. NOT explored live (user declined further live mutation for
+     this recon pass): what state a draft is in, whether it's resumable via a
+     stable URL/ID, and whether `masters update` (#631) can operate on a draft
+     the same way it operates on a launched campaign. This must be confirmed
+     before `create_master` decides whether to implement "minimal fields ->
+     launch -> update" (issue's approach) vs. "minimal fields -> save as draft
+     -> update -> launch separately".
+
+=====================================================================
+Step 1 field + validation behaviour
+=====================================================================
+
+Only one control: textbox "Ссылка на сайт, соцсеть, маркетплейс или приложение".
+
+Invalid input probe (typed "not-a-valid-url", no scheme/dot): the "Далее" button
+is NOT disabled (misleading — it looks enabled once ANY text is present, not
+specifically a well-formed URL). Clicking it does NOT navigate/advance. Instead
+an inline red error appears directly under the field:
+    "Некорректный формат ссылки"
+The field's border also turns red. This is a pure client-side format check (no
+network round-trip observed before the error appears) — cheap to replicate in
+`create_master`/CLI validation before ever hitting the network.
+
+Valid input tested: "https://ksamata.ru/" (an existing, already-promoted domain
+in this account) — accepted, advanced to step 2 after the long scan delay above.
+
+Autocomplete dropdown on focus lists the account's own previously-used
+destinations, each with a favicon/platform icon:
+    Ксамата           https://ksamata.ru/            (WordPress icon)
+    Клуб Ксамата      https://ok.ru/clubksamata       (Odnoklassniki icon)
+    Ксамата           https://gc.ksamata.ru/rd-prt?gcao=18940&gcpc=46481  (Я.Маркет-style icon)
+    Ксамата Директ    https://gc.ksamata.ru          (same icon)
+This is purely a UX convenience (browser-style autocomplete over account
+history) — not a required interaction, and NOT a place to source campaign data
+from (it lists arbitrary past URLs, not a canonical "sites for this account"
+API).
+
+=====================================================================
+Step 2: full field inventory ("Конверсии и трафик" type)
+=====================================================================
+
+Legend: [*] = visually marked as required with a red asterisk next to the label.
+        Everything else observed as NOT marked required, though several are
+        pre-populated by Yandex's own auto-fill/AI and may still be functionally
+        required in practice (server may reject if actually empty — NOT
+        confirmed live per the read-only constraint for this recon pass).
+
+Header: editable auto-generated campaign name, e.g. "ksamata.ru от 01.08.26"
+  (pencil-icon edit control next to it) — Yandex auto-names the campaign from
+  the domain + creation date; presumably overridable inline before save.
+
+1. "Ссылка на продвигаемую страницу" — the URL from step 1, editable, plus the
+   scanned site's title/favicon shown as a confirmation card below it
+   ("Центр оздоровления и китайской гимнастики цигун!" for ksamata.ru).
+   - "Дополнительные параметры" (collapsed accordion, opened during recon):
+     "UTM-метки и параметры URL" — free-text field, explicitly optional per its
+     own copy: "Если не используете профессиональные системы аналитики,
+     пропустите этот шаг. На эффективность продвижения это не повлияет."
+
+2. "Продвижение организации из Яндекс Бизнеса" [β] — toggle, OFF by default even
+   though Yandex found a matching organization card (name/address/phone shown
+   inline: "Ксамата", "проезд Воскресенские Ворота, Москва", "+7 (903) 144-49-87").
+   Opt-in only.
+
+3. "Резервная посадочная страница" [Новое] — optional fallback landing page for
+   when the primary is unreachable; starts empty with just an "Добавить" button.
+
+4. "Настройте внешний вид объявления" (section header/intro text only, not a field).
+
+5. "Варианты заголовков" [*] — REQUIRED. Repeatable list of headline strings,
+   pre-populated with 3 AI-generated variants when Yandex's site scan succeeds
+   (e.g. "Центр оздоровления и китайской гимнастики цигун!", "Оздоровительные
+   курсы цигун для спины и суставов", "Оздоровительная гимнастика цигун"). Each
+   item shows a live character count. Copy: "Будут чередоваться, эффективные
+   будут показываться чаще" (Yandex A/B-rotates and biases towards winners
+   automatically — matches the update-issue's existing "weighted list" framing,
+   though no user-settable weight control was seen here at creation time).
+
+6. "Варианты текстов объявлений" [*] — REQUIRED. Same shape as headlines, 3
+   AI-generated body variants pre-filled. Includes a dismissable tip: "Директ
+   персонализирует тексты для каждого пользователя. Это повышает конверсионность
+   кампаний в среднем на 12%." + "Показать примеры" link.
+
+7. "Изображения" — NOT marked required but pre-populated with 5 AI-selected/
+   generated images (thumbnails, each removable via an "x" overlay). Copy caps
+   this at 5: "Можно добавить до 5 штук". "Выбрать другие изображения" to
+   replace the set.
+
+8. "Варианты видео" — NOT marked required, pre-populated with 2 short video
+   clips (max per copy: "Максимум 2 видео"). "Загрузить или выбрать" to add/
+   replace.
+
+9. "Быстрые ссылки" — NOT marked required, starts with one empty sitelink
+   row (Ссылка / Название / Описание text inputs) plus "Добавить еще быструю
+   ссылку". References the same UTM-metки settings as field 1.
+
+10. Checkbox "Автоматически формировать описание для передачи в ЕРИР" — CHECKED
+    by default (Russian ad-disclosure law compliance field, auto-generates from
+    headlines/texts per its own help copy).
+
+11. "Объявления от нейросети" — a toggle (seen ON by default before scrolling
+    past it) — "дополнительные объявления... создаются на основе продвигаемой
+    страницы и информации о вашем бизнесе." Distinct from fields 5/6 above (an
+    extra AI-generated ad variant layer, not the user-entered ones).
+
+12. "Регион показов" [*] — REQUIRED, and CRITICALLY: UNLIKE every other section
+    above, this field is NOT pre-filled — it renders as an empty
+    "Введите или выберите из списка" combobox, plus a "Указать регион на карте"
+    alternate-entry link. This is the one field in the whole form a human
+    cannot skip filling in, and by extension the one `create_master` MUST accept
+    as a required CLI argument (candidate flag: `--regions`).
+
+13. "Расписание показов" — defaults to "Каждый день, круглосуточно" via a
+    dropdown/select; not marked required (has a sane default).
+
+14. "Аудитория" — defaults to "Подобрать оптимальную" via a dropdown; not marked
+    required (has a sane default, Yandex auto-targets).
+
+15. "Цель продвижения" — two side-by-side controls: a "Цель продвижения"
+    dropdown (defaulted to "Максимум целевых действий") and, per the earlier
+    get_page_text pass, a paired "Цена целевого действия" control defaulted to
+    "Средняя за неделю". Not marked required (sane defaults).
+
+16. "Счетчики Яндекс Метрики" — auto-populated with an existing counter found on
+    the domain: "yandex.ru/maps • 88834924" tagged "2 цели", removable via "x".
+    Not marked required in the UI, but note this is only unrequired because
+    Yandex auto-discovered a real counter already installed on ksamata.ru — an
+    account/domain with NO Metrica counter installed may hit a hard requirement
+    here that this recon pass could not observe (needs a second live check
+    against a domain with no counter before assuming this is always optional).
+
+17. "Целевые действия" — starts empty, "Добавить" button only; optional (CPA
+    per-goal target list, matches issue #631 field description).
+
+18. "Недельный бюджет" — empty numeric input with a "₽" suffix; not marked
+    required, but functionally this is very likely enforced server-side (a
+    campaign cannot run with an undefined budget) — NOT confirmed live (would
+    require attempting to launch, out of scope for this read-only pass).
+    Paired "Адаптация бюджета" -> "Процент увеличения бюджета" numeric field,
+    pre-filled with a suggested "10%" and an explanatory tooltip Yandex shows
+    automatically on scroll-into-view (not a click-triggered tooltip).
+
+19. "Директ помогает" section:
+    - Checkbox "Автоматически применять рекомендации" — CHECKED by default.
+    - Nested checkbox "Оптимизировать расширенные настройки — цели, подбор
+      аудитории" — also CHECKED by default, indented under the first (implies
+      it's only meaningful/visible while the parent is checked).
+
+Terminal actions (bottom of form, full-width stacked buttons):
+    "Запустить кампанию"        (primary, filled blue)
+    "Сохранить как черновик"    (secondary, outlined)
+
+=====================================================================
+Open questions for implementation (NOT resolved by this recon pass)
+=====================================================================
+
+- Minimum viable field set to actually submit successfully is UNCONFIRMED. Only
+  three fields are visually marked required (headlines, texts, region) — but
+  headlines/texts are auto-populated by Yandex's own AI scan of the landing
+  page, meaning in practice a human using this wizard almost never types them
+  manually. `create_master` must decide: accept AI-generated headline/text
+  defaults as-is (fastest path, matches typical human usage), or always require
+  the caller to pass explicit `--headlines`/`--texts` (safer/more predictable
+  for a CLI, avoids silently publishing AI-written ad copy the caller never
+  reviewed). Leaning towards the latter given the "no sandbox, no rollback"
+  risk profile called out in the issue, but this needs a product decision, not
+  just a technical one.
+- Whether Yandex enforces the AI-scan step at all if headlines/texts ARE passed
+  explicitly (i.e. can step 1's URL + step 2's required fields be submitted
+  immediately without waiting through the 10-15s scan, if the caller supplies
+  every required field via flags?) is unconfirmed — the live form always ran
+  the scan before rendering step 2, so there was no way to test "skip the scan"
+  in a read-only pass.
+- Whether "Сохранить как черновик" produces a stable, re-visitable campaign ID
+  (and via which URL) is unconfirmed — no save action was performed.
+- Whether the weekly budget field is truly optional at launch time (vs. only
+  optional-looking in an unsubmitted form) is unconfirmed.
+- The other five "Мастер кампаний" tile types (Товарная кампания, Продажи на
+  маркетплейсах, Подписчики в телеграм-канал, Продвижение бизнеса без сайта,
+  Продвижение специалистов) were not explored at all — each likely needs its
+  own recon pass if `masters add` is ever expected to support them; issue #632
+  as scoped only covers "Конверсии и трафик".
+
+=====================================================================
+Confirmation the unsubmitted form was never sent to Yandex
+=====================================================================
+
+At the end of this recon pass, navigating away from the unsaved step-2 form
+(without clicking either terminal button) triggered the browser's native
+"Leave site?" beforeunload confirmation — i.e. the wizard's own client-side
+code considers the in-progress form "dirty"/unsaved state, independent of any
+server round-trip. This is consistent with (and corroborates) the read-only
+constraint honoured throughout this recon: no POST/save happened, nothing was
+created in the ksamatadirect account. The tab was left in place rather than
+force-discarded, since forcing the dialog away has no bearing on server state
+and the tab does not need to stay open for any follow-up.
+-->
