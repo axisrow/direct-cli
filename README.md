@@ -32,8 +32,14 @@ the optional `browser` extra:
 pip install "direct-cli[browser]"
 playwright install chromium
 direct masters list
+direct masters list --status archived
 direct masters get 72349978
 ```
+
+`masters list` filters by status with `--status`
+(`not-archived`/`active`/`stopped`/`archived`/`all`, default `not-archived`).
+It always reads the logged-in browser session's own account — there is no
+`--login`/agency support for managed clients.
 
 If you see "Found no Yandex cookies", open https://direct.yandex.ru in Chrome
 and log in first. If you use a non-default Chrome profile, pass
@@ -1047,8 +1053,15 @@ unified_campaign`). Команды `direct masters list` / `direct masters get
 pip install "direct-cli[browser]"
 playwright install chromium
 direct masters list
+direct masters list --status archived
 direct masters get 72349978
 ```
+
+`masters list` фильтрует по статусу через `--status`
+(`not-archived`/`active`/`stopped`/`archived`/`all`, по умолчанию
+`not-archived`). Команда всегда читает свой собственный кабинет, в котором
+авторизован браузер — доступа к обслуживаемым клиентам (`--login`/агентство)
+нет.
 
 Если видите «Found no Yandex cookies», откройте https://direct.yandex.ru в
 Chrome и войдите в аккаунт. Если используете не дефолтный профиль Chrome —

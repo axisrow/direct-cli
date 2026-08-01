@@ -12,6 +12,12 @@ wrapper around.
 
 Read-only in this first version: ``list`` and ``get``. No mutations.
 
+No ``--login``/agency support (issue #639): this group only ever reads the
+logged-in user's own account, so it needs no Yandex Direct credentials at
+all — see ``direct_cli/browser/masters.py`` module docstring for why an
+explicit login actually broke ``list`` (HTTP 401 "Доступ ограничен" when the
+user's own login was passed as Yandex's managed-client ``ulogin`` param).
+
 Session resolution (``_open_session``) is three-tiered — see
 ``direct_cli/commands/browser_session.py`` for ``direct playwright login``,
 which creates the saved session tier 2 prefers:
@@ -43,17 +49,6 @@ from ..utils import parse_ids
 _BROWSER_INSTALL_HINT = (
     'pip install "direct-cli[browser]" && playwright install chromium'
 )
-
-
-def _require_login(ctx: click.Context, login: Optional[str]) -> str:
-    resolved = login or (ctx.obj or {}).get("login")
-    if not resolved:
-        raise click.UsageError(
-            "A Yandex Direct login is required to open Мастер кампаний "
-            "(used as ?ulogin=... in the Direct web UI). Pass --login, set "
-            "YANDEX_DIRECT_LOGIN, or select an active `direct auth` profile."
-        )
-    return resolved
 
 
 def _profile_options_explicit(ctx: click.Context) -> bool:
@@ -158,7 +153,6 @@ def _masters_browser_options(func):
 
     Equivalent to, top-to-bottom::
 
-        @click.option("--login", help="...")
         @click.option("--headful", is_flag=True, help="...")
         @click.option("--profile-dir", help="...")
         @click.option("--chrome-profile", default="Default", help="...")
@@ -167,7 +161,9 @@ def _masters_browser_options(func):
 
     Mirrors the shared-decorator convention in ``direct_cli.utils``
     (``v4_output_options`` / ``reference_output_options``) instead of
-    repeating this six-option stack on both ``list`` and ``get``.
+    repeating this five-option stack on both ``list`` and ``get``. No
+    ``--login`` (issue #639): this group only ever reads the logged-in
+    user's own account — see module docstring.
     """
     func = click.option("--output", help="Output file")(func)
     func = click.option(
@@ -181,11 +177,8 @@ def _masters_browser_options(func):
     func = click.option(
         "--profile-dir", help="Chrome user-data-dir to read cookies from"
     )(func)
-    func = click.option(
-        "--headful", is_flag=True, help="Show the browser window (for debugging)"
-    )(func)
     return click.option(
-        "--login", help="Yandex Direct login (defaults to resolved --login/profile)"
+        "--headful", is_flag=True, help="Show the browser window (for debugging)"
     )(func)
 
 
@@ -194,20 +187,27 @@ def masters():
     """Read Мастер кампаний (Campaign Wizard) — browser-only, no API"""
 
 
+_STATUS_CHOICES = ("not-archived", "active", "stopped", "archived", "all")
+
+
 @masters.command(name="list")
+@click.option(
+    "--status",
+    type=click.Choice(_STATUS_CHOICES),
+    default="not-archived",
+    help="Filter by campaign status (default: everything except archived)",
+)
 @_masters_browser_options
 @click.pass_context
 @handle_api_errors
 def list_masters(
-    ctx, login, headful, profile_dir, chrome_profile, output_format, output
+    ctx, status, headful, profile_dir, chrome_profile, output_format, output
 ):
     """List every Мастер кампаний in the account"""
     from ..browser.masters import fetch_masters_list
 
-    resolved_login = _require_login(ctx, login)
-
     with _open_session(ctx, headful, profile_dir, chrome_profile) as page:
-        result = fetch_masters_list(page, resolved_login)
+        result = fetch_masters_list(page, status)
 
     format_output(result, output_format, output)
 
@@ -220,7 +220,6 @@ def list_masters(
 def get(
     ctx,
     campaign_ids,
-    login,
     headful,
     profile_dir,
     chrome_profile,
@@ -230,12 +229,11 @@ def get(
     """Get one or more Мастер кампаний by ID (comma-separated)"""
     from ..browser.masters import fetch_master
 
-    resolved_login = _require_login(ctx, login)
     ids = parse_ids(campaign_ids) or []
 
     results = []
     with _open_session(ctx, headful, profile_dir, chrome_profile) as page:
         for campaign_id in ids:
-            results.append(fetch_master(page, campaign_id, resolved_login))
+            results.append(fetch_master(page, campaign_id))
 
     format_output(results if len(results) != 1 else results[0], output_format, output)

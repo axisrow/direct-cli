@@ -1,0 +1,72 @@
+{
+  "_comment": "Trimmed real GdCampaign rows captured live from POST /web-api/grid/api?operationName=GridCampaigns (issue #639 diagnosis). Personal/financial fields (sum, overdraft, contact info) stripped. 72349978/107707079 are the two STOPPED Мастера кампаний the user reported as missing from `masters list`; 77501358/100571135 are ARCHIVED Мастера (one TEXT, one CPM_BANNER); 75071838/74773845 are ordinary non-UAC campaigns that must never be classified as Мастера.",
+  "data": {
+    "client": {
+      "campaigns": {
+        "totalCount": 6,
+        "rowset": [
+          {
+            "id": "72349978",
+            "name": "Мастер ИД Исцеляющий Детокс (холодный) здоровье женщин JS 16.06",
+            "type": "TEXT",
+            "metaType": "DEFAULT_",
+            "source": "UAC",
+            "__typename": "GdTextCampaign",
+            "status": {"primaryStatus": "STOPPED"},
+            "startDate": "2022-03-23"
+          },
+          {
+            "id": "107707079",
+            "name": "Мастер ИЖ Источник Жизни (холодный) 16.06",
+            "type": "TEXT",
+            "metaType": "DEFAULT_",
+            "source": "UAC",
+            "__typename": "GdTextCampaign",
+            "status": {"primaryStatus": "STOPPED"},
+            "startDate": "2024-02-22"
+          },
+          {
+            "id": "77501358",
+            "name": "Мастер JS РД Радость Движения (холодный) конкуренты",
+            "type": "TEXT",
+            "metaType": "DEFAULT_",
+            "source": "UAC",
+            "__typename": "GdTextCampaign",
+            "status": {"primaryStatus": "ARCHIVED"},
+            "startDate": "2022-08-17"
+          },
+          {
+            "id": "100571135",
+            "name": "ИД Видео",
+            "type": "CPM_BANNER",
+            "metaType": "DEFAULT_",
+            "source": "UAC",
+            "__typename": "GdCpmBannerCampaign",
+            "status": {"primaryStatus": "ARCHIVED"},
+            "startDate": "2023-11-09"
+          },
+          {
+            "id": "75071838",
+            "name": "gc ЕВ ИД Холодный",
+            "type": "UNIFIED",
+            "metaType": "UNIFIED",
+            "source": "DC",
+            "__typename": "GdUnifiedCampaign",
+            "status": {"primaryStatus": "ARCHIVED"},
+            "startDate": "2022-06-06"
+          },
+          {
+            "id": "74773845",
+            "name": "ИД Ретаргет (Поиск) 27.04",
+            "type": "UNIFIED",
+            "metaType": "UNIFIED",
+            "source": "DC",
+            "__typename": "GdUnifiedCampaign",
+            "status": {"primaryStatus": "ACTIVE"},
+            "startDate": "2022-05-28"
+          }
+        ]
+      }
+    }
+  }
+}

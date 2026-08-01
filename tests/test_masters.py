@@ -3,13 +3,22 @@ Tests for `direct masters` — the Мастер кампаний (Campaign Wizar
 
 Мастер кампаний has no API surface at all (see direct_cli/browser/__init__.py),
 so unlike every other command module these tests never call a real API and
-never launch a real browser. The DOM parser in direct_cli/browser/masters.py is
-exercised against small fake Page/Locator objects that implement just the
-Playwright surface the parser calls (locator/nth/count/inner_text/
-get_attribute/goto) — see tests/fixtures/masters_wizard_overview.html for the
-live page structure these fakes are modeled on.
+never launch a real browser.
+
+``get`` (per-campaign overview) is a DOM parser exercised against small fake
+Page/Locator objects that implement just the Playwright surface it calls
+(locator/nth/count/inner_text/get_attribute/goto) — see
+tests/fixtures/masters_wizard_overview.html for the live page structure these
+fakes are modeled on.
+
+``list`` reads the campaigns grid's own JSON data call instead of the DOM
+(issue #639 found the grid is a virtualized SPA with no Мастер-related DOM to
+scrape) — see tests/fixtures/masters_grid_campaigns.json for the trimmed real
+GridCampaigns response these tests replay, and FakePage's ``request``/``on``
+additions below for how that replay is faked.
 """
 
+import json
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -20,8 +29,18 @@ from click.testing import CliRunner
 
 from direct_cli.browser import masters as browser_masters
 from direct_cli.browser.masters import PlaywrightError
-from direct_cli.browser.session import BrowserCaptchaError, BrowserSessionError
+from direct_cli.browser.session import (
+    BrowserCaptchaError,
+    BrowserSessionError,
+)
 from direct_cli.cli import cli
+
+FIXTURES_DIR = Path(__file__).parent / "fixtures"
+
+
+def _load_grid_campaigns_fixture():
+    with open(FIXTURES_DIR / "masters_grid_campaigns.json", encoding="utf-8") as f:
+        return json.load(f)
 
 
 class _FakeLocatorHandle:
@@ -61,19 +80,127 @@ class _FakeLocator:
         return self._handles[0] if self._handles else _FakeLocatorHandle(raises=True)
 
 
+class _FakeRequest:
+    def __init__(self, post_data=None, headers=None):
+        self.post_data = post_data
+        self.headers = headers or {"x-csrf-token": "fake"}
+
+
+class _FakeGridResponse:
+    """The subset of Playwright's Response ``_capture_grid_campaigns_request``
+    reads off the ``response`` event: ``url``, ``status``,
+    ``request.post_data``, ``request.headers``."""
+
+    def __init__(self, url, status=200, post_data=None, headers=None):
+        self.url = url
+        self.status = status
+        self.request = _FakeRequest(post_data, headers)
+
+
+class _FakeApiRequestContext:
+    """Fakes ``page.request`` — the replayed POST used for pagination."""
+
+    def __init__(self, pages=None, ok=True, status=200, raw_body=None):
+        # `pages`: list of dict payloads returned on successive .post() calls
+        # (one per pagination page); the last one repeats if exhausted.
+        self._pages = pages or []
+        self._call_count = 0
+        self._ok = ok
+        self._status = status
+        self._raw_body = raw_body
+        self.calls = []  # (url, data, headers) for assertions
+
+    def post(self, url, data=None, headers=None):
+        self.calls.append((url, data, headers))
+        idx = min(self._call_count, max(len(self._pages) - 1, 0))
+        self._call_count += 1
+        payload = self._pages[idx] if self._pages else {}
+        return _FakeApiResponse(
+            ok=self._ok, status=self._status, payload=payload, raw_body=self._raw_body
+        )
+
+
+class _FakeApiResponse:
+    def __init__(self, ok=True, status=200, payload=None, raw_body=None):
+        self.ok = ok
+        self.status = status
+        self._payload = payload
+        self._raw_body = raw_body
+
+    def json(self):
+        if self._raw_body is not None:
+            return json.loads(self._raw_body)  # may raise, on purpose
+        return self._payload
+
+
+class _FakeResponseInfo:
+    """Mimics Playwright's ``EventContextManager`` returned by ``expect_response``.
+
+    ``value`` is only resolved lazily (matching real Playwright, where the
+    listener started in ``__enter__`` but the wait happens on first access
+    to ``.value``, after the wrapped ``with`` block — e.g. ``goto`` — has
+    run and had a chance to trigger the response).
+    """
+
+    def __init__(self, page, predicate):
+        self._page = page
+        self._predicate = predicate
+
+    @property
+    def value(self):
+        candidate = self._page._grid_response
+        if candidate is not None and self._predicate(candidate):
+            return candidate
+        # Real Playwright raises its TimeoutError (a PlaywrightError
+        # subclass) when the predicate never matches within the timeout.
+        raise PlaywrightError("Timeout waiting for response")
+
+
+class _FakeExpectResponse:
+    """Context manager fake for ``page.expect_response(predicate, timeout=...)``."""
+
+    def __init__(self, page, predicate):
+        self._page = page
+        self._predicate = predicate
+
+    def __enter__(self):
+        return _FakeResponseInfo(self._page, self._predicate)
+
+    def __exit__(self, *exc_info):
+        return False
+
+
 class FakePage:
     """A Page whose ``locator(selector)`` result is pre-scripted per selector."""
 
-    def __init__(self, locators=None, body_text="", html="<html></html>"):
+    def __init__(
+        self,
+        locators=None,
+        body_text="",
+        html="<html></html>",
+        grid_response=None,
+        api_request=None,
+    ):
         self._locators = locators or {}
         self._body_text = body_text
         self._html = html
         self.navigated_to = []
         self.goto_wait_until = None
+        # If set, matched by expect_response()'s predicate once goto() has
+        # been called inside its `with` block — models the grid firing its
+        # GridCampaigns XHR during navigation.
+        self._grid_response = grid_response
+        self.request = api_request or _FakeApiRequestContext()
 
     def goto(self, url, wait_until=None):
         self.navigated_to.append(url)
         self.goto_wait_until = wait_until
+
+    def expect_response(self, predicate, timeout=None):
+        return _FakeExpectResponse(self, predicate)
+
+    def eval_on_selector_all(self, selector, expression):
+        return []
 
     def locator(self, selector):
         return self._locators.get(selector, _FakeLocator([]))
@@ -111,23 +238,45 @@ class TestMastersRegistered(unittest.TestCase):
         result = self.runner.invoke(cli, ["masters", "get", "--help"])
         self.assertEqual(result.exit_code, 0)
 
-    def test_masters_get_requires_login(self):
-        # No --login, no active profile/env in this invocation's environment ->
-        # the UsageError from commands/masters.py::_require_login must surface.
-        result = self.runner.invoke(
-            cli, ["masters", "get", "123"], env={"YANDEX_DIRECT_LOGIN": ""}
-        )
-        self.assertNotEqual(result.exit_code, 0)
-        self.assertIn("login is required", result.output.lower())
+    def test_masters_list_has_no_login_option(self):
+        # #639: --login built a `?ulogin=<own login>` URL, which Yandex
+        # rejects with HTTP 401 "Доступ ограничен" — masters only ever reads
+        # the logged-in browser session's own account, so the option is gone.
+        result = self.runner.invoke(cli, ["masters", "list", "--help"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertNotIn("--login", result.output)
 
-    def test_masters_list_missing_playwright_shows_install_hint(self):
+    def test_masters_get_has_no_login_option(self):
+        result = self.runner.invoke(cli, ["masters", "get", "--help"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertNotIn("--login", result.output)
+
+    def test_masters_list_has_status_option(self):
+        result = self.runner.invoke(cli, ["masters", "list", "--help"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("--status", result.output)
+
+    def test_masters_no_credentials_required(self):
+        # masters is in cli.py's _NO_CREDENTIALS_GROUPS -- no API token/login
+        # is needed to even reach the browser layer's own errors.
         with patch.dict(
             "sys.modules", {"playwright": None, "playwright.sync_api": None}
         ):
             result = self.runner.invoke(
                 cli,
-                ["masters", "list", "--login", "ksamatadirect"],
+                ["masters", "list"],
+                env={"YANDEX_DIRECT_TOKEN": "", "YANDEX_DIRECT_LOGIN": ""},
             )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("playwright", result.output.lower())
+        self.assertIn("pip install", result.output)
+        self.assertNotIn("token", result.output.lower())
+
+    def test_masters_list_missing_playwright_shows_install_hint(self):
+        with patch.dict(
+            "sys.modules", {"playwright": None, "playwright.sync_api": None}
+        ):
+            result = self.runner.invoke(cli, ["masters", "list"])
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("playwright", result.output.lower())
         self.assertIn("pip install", result.output)
@@ -409,74 +558,186 @@ class TestOpenSessionTiers(unittest.TestCase):
 
 
 class TestFetchMastersList(unittest.TestCase):
-    """Grid-row detection: keyed off the /wizard/campaigns/{id}/ href signal."""
+    """`list` reads the grid's GridCampaigns JSON call, not its DOM (#639):
+    the grid is a virtualized SPA and never renders a
+    ``a[href*='/wizard/campaigns/']`` anchor (confirmed live)."""
 
-    def test_detects_master_rows_only(self):
-        page = FakePage(
-            locators={
-                "a[href*='/wizard/campaigns/']": _FakeLocator(
-                    [
-                        _FakeLocatorHandle(
-                            text="Мастер ИД Исцеляющий Детокс (холодный)",
-                            attrs={
-                                "href": (
-                                    "/wizard/campaigns/72349978/?ulogin=ksamatadirect"
-                                )
-                            },
-                        ),
-                        _FakeLocatorHandle(
-                            text="Мастер ИЖ Источник Жизни (холодный)",
-                            attrs={
-                                "href": (
-                                    "/wizard/campaigns/107707079/?ulogin=ksamatadirect"
-                                )
-                            },
-                        ),
-                    ]
-                )
+    _GRID_REQUEST_BODY = {
+        "operationName": "GridCampaigns",
+        "variables": {
+            "login": "ksamatadirect",
+            "campaignInput": {
+                "filter": {},
+                "limitOffset": {"offset": 0, "limit": 200},
+            },
+        },
+        "query": "query GridCampaigns { ... }",
+    }
+
+    def _grid_response(self, post_data=None, status=200):
+        return _FakeGridResponse(
+            url=(
+                f"{browser_masters.GRID_API_URL}"
+                f"?operationName={browser_masters._GRID_CAMPAIGNS_OPERATION}"
+            ),
+            status=status,
+            post_data=post_data or json.dumps(self._GRID_REQUEST_BODY),
+        )
+
+    def _page(self, api_pages, grid_status=200, grid_post_data=None):
+        return FakePage(
+            grid_response=self._grid_response(
+                post_data=grid_post_data, status=grid_status
+            ),
+            api_request=_FakeApiRequestContext(pages=api_pages),
+        )
+
+    def test_selects_only_uac_source_rows(self):
+        fixture = _load_grid_campaigns_fixture()
+        page = self._page([fixture])
+
+        result = browser_masters.fetch_masters_list(page, status="all")
+
+        ids = {row["CampaignId"] for row in result}
+        # 72349978/107707079 (STOPPED), 77501358 (ARCHIVED TEXT), 100571135
+        # (ARCHIVED CPM_BANNER) are all source == "UAC" in the fixture.
+        self.assertEqual(ids, {72349978, 107707079, 77501358, 100571135})
+        # The two non-UAC rows (75071838, 74773845) must never appear.
+        self.assertNotIn(75071838, ids)
+        self.assertNotIn(74773845, ids)
+
+    def test_stopped_masters_included_by_default_status_filter(self):
+        # Regression for #639: the user's two STOPPED Мастера must be found
+        # under the *default* status filter, not just an explicit one.
+        fixture = _load_grid_campaigns_fixture()
+        page = self._page([fixture])
+
+        result = browser_masters.fetch_masters_list(page)  # default status
+
+        ids = {row["CampaignId"] for row in result}
+        self.assertIn(72349978, ids)
+        self.assertIn(107707079, ids)
+        stopped = next(r for r in result if r["CampaignId"] == 72349978)
+        self.assertEqual(stopped["Status"], "SUSPENDED")
+
+    def test_status_archived_returns_only_archived(self):
+        fixture = _load_grid_campaigns_fixture()
+        page = self._page([fixture])
+
+        result = browser_masters.fetch_masters_list(page, status="archived")
+
+        ids = {row["CampaignId"] for row in result}
+        self.assertEqual(ids, {77501358, 100571135})
+
+    def test_status_all_returns_every_uac_row(self):
+        fixture = _load_grid_campaigns_fixture()
+        page = self._page([fixture])
+
+        result = browser_masters.fetch_masters_list(page, status="all")
+
+        self.assertEqual(len(result), 4)
+
+    def test_paginates_past_the_page_limit(self):
+        # totalCount exceeds one page's rowset -> a second request must be
+        # made and its rows included, matching the live behaviour that
+        # motivated this (a real account's totalCount=224 vs. a 200-row page,
+        # see issue #639 diagnosis).
+        fixture = _load_grid_campaigns_fixture()
+        first_page_rows = fixture["data"]["client"]["campaigns"]["rowset"]
+        second_page_rows = [
+            {
+                "id": "999000001",
+                "name": "Мастер со второй страницы",
+                "type": "TEXT",
+                "metaType": "DEFAULT_",
+                "source": "UAC",
+                "__typename": "GdTextCampaign",
+                "status": {"primaryStatus": "STOPPED"},
+                "startDate": "2025-01-01",
             }
-        )
+        ]
+        total_count = len(first_page_rows) + len(second_page_rows)
+        first_page = {
+            "data": {
+                "client": {
+                    "campaigns": {
+                        "totalCount": total_count,
+                        "rowset": first_page_rows,
+                    }
+                }
+            }
+        }
+        second_page = {
+            "data": {
+                "client": {
+                    "campaigns": {
+                        "totalCount": total_count,
+                        "rowset": second_page_rows,
+                    }
+                }
+            }
+        }
+        page = self._page([first_page, second_page])
 
-        result = browser_masters.fetch_masters_list(page, "ksamatadirect")
+        result = browser_masters.fetch_masters_list(page, status="all")
 
-        self.assertEqual(
-            result,
-            [
-                {
-                    "CampaignId": 72349978,
-                    "Name": "Мастер ИД Исцеляющий Детокс (холодный)",
-                },
-                {
-                    "CampaignId": 107707079,
-                    "Name": "Мастер ИЖ Источник Жизни (холодный)",
-                },
-            ],
-        )
+        ids = {row["CampaignId"] for row in result}
+        self.assertIn(999000001, ids)
+        self.assertEqual(len(page.request.calls), 2)
 
-    def test_deduplicates_repeated_hrefs(self):
-        # A row can render more than one link to the same wizard URL (e.g. the
-        # campaign name AND the "Перейти" action both point at it) — the
-        # parser must not double-count the campaign.
-        handle = _FakeLocatorHandle(
-            text="Мастер X",
-            attrs={"href": "/wizard/campaigns/1/?ulogin=acc"},
-        )
+    def test_grid_url_never_contains_ulogin(self):
+        # #639: passing our own login as `ulogin` produced HTTP 401 "Доступ
+        # ограничен" — list() must never build that URL.
+        fixture = _load_grid_campaigns_fixture()
+        page = self._page([fixture])
+
+        browser_masters.fetch_masters_list(page, status="all")
+
+        self.assertTrue(page.navigated_to)
+        for url in page.navigated_to:
+            self.assertNotIn("ulogin", url)
+
+    def test_no_grid_campaigns_request_observed_raises(self):
+        # The grid fired no matching response at all (e.g. Yandex renamed the
+        # operation) -> a clear BrowserSessionError, not a silent empty list.
+        page = FakePage(grid_response=None)
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters.fetch_masters_list(page, status="all")
+
+    def test_non_ok_api_response_raises_browser_session_error(self):
+        fixture = _load_grid_campaigns_fixture()
         page = FakePage(
-            locators={"a[href*='/wizard/campaigns/']": _FakeLocator([handle, handle])}
+            grid_response=self._grid_response(),
+            api_request=_FakeApiRequestContext(pages=[fixture], ok=False, status=500),
         )
 
-        result = browser_masters.fetch_masters_list(page, "acc")
+        with self.assertRaises(BrowserSessionError):
+            browser_masters.fetch_masters_list(page, status="all")
 
-        self.assertEqual(result, [{"CampaignId": 1, "Name": "Мастер X"}])
+    def test_non_json_api_response_raises_browser_session_error(self):
+        page = FakePage(
+            grid_response=self._grid_response(),
+            api_request=_FakeApiRequestContext(raw_body="not json"),
+        )
 
-    def test_empty_grid_returns_empty_list_with_warning(self):
-        page = FakePage(locators={})
+        with self.assertRaises(BrowserSessionError):
+            browser_masters.fetch_masters_list(page, status="all")
+
+    def test_empty_result_prints_warning(self):
+        empty = {"data": {"client": {"campaigns": {"totalCount": 0, "rowset": []}}}}
+        page = self._page([empty])
 
         with patch("direct_cli.browser.masters.print_warning") as warn:
-            result = browser_masters.fetch_masters_list(page, "acc")
+            result = browser_masters.fetch_masters_list(page, status="all")
 
         self.assertEqual(result, [])
         warn.assert_called_once()
+
+    def test_unknown_status_filter_raises_value_error(self):
+        page = self._page([_load_grid_campaigns_fixture()])
+        with self.assertRaises(ValueError):
+            browser_masters.fetch_masters_list(page, status="bogus")
 
 
 class TestFetchMaster(unittest.TestCase):
@@ -517,7 +778,7 @@ class TestFetchMaster(unittest.TestCase):
     def test_parses_full_overview(self):
         page = self._page_for()
 
-        result = browser_masters.fetch_master(page, 72349978, "ksamatadirect")
+        result = browser_masters.fetch_master(page, 72349978)
 
         self.assertEqual(result["CampaignId"], 72349978)
         self.assertEqual(result["Name"], "Мастер Тест")
@@ -539,7 +800,7 @@ class TestFetchMaster(unittest.TestCase):
 
     def test_active_status_recognised(self):
         page = self._page_for(status_text="Кампания активна")
-        result = browser_masters.fetch_master(page, 1, "acc")
+        result = browser_masters.fetch_master(page, 1)
         self.assertEqual(result["Status"], "ACTIVE")
 
     def test_partial_result_on_unrecognised_sections(self):
@@ -549,7 +810,7 @@ class TestFetchMaster(unittest.TestCase):
         page = FakePage(locators={}, body_text="something Yandex changed the markup to")
 
         with patch("direct_cli.browser.masters.print_warning") as warn:
-            result = browser_masters.fetch_master(page, 999, "acc")
+            result = browser_masters.fetch_master(page, 999)
 
         self.assertEqual(result, {"CampaignId": 999})
         self.assertGreaterEqual(warn.call_count, 3)  # name, status, landing, stats
@@ -581,13 +842,13 @@ class TestCaptchaDetection(unittest.TestCase):
         page = FakePage(locators={}, html="<title>Captcha</title>")
 
         with self.assertRaises(BrowserCaptchaError):
-            browser_masters.fetch_masters_list(page, "acc")
+            browser_masters.fetch_masters_list(page)
 
     def test_fetch_master_raises_on_captcha_page(self):
         page = FakePage(locators={}, html="<script>smartCaptcha.render()</script>")
 
         with self.assertRaises(BrowserCaptchaError):
-            browser_masters.fetch_master(page, 1, "acc")
+            browser_masters.fetch_master(page, 1)
 
 
 class TestAuthDetection(unittest.TestCase):
@@ -615,27 +876,30 @@ class TestAuthDetection(unittest.TestCase):
         from direct_cli.browser.session import BrowserAuthError
 
         with self.assertRaises(BrowserAuthError):
-            browser_masters.fetch_masters_list(page, "acc")
+            browser_masters.fetch_masters_list(page)
 
     def test_fetch_master_raises_on_login_page(self):
         page = FakePage(locators={}, html="<body>Войдите с Яндекс ID</body>")
         from direct_cli.browser.session import BrowserAuthError
 
         with self.assertRaises(BrowserAuthError):
-            browser_masters.fetch_master(page, 1, "acc")
+            browser_masters.fetch_master(page, 1)
 
     def test_fetch_masters_list_waits_for_domcontentloaded_not_networkidle(self):
         # #634: networkidle never settles on Yandex's login page (it holds
         # long-poll connections), which is what turned an auth failure into
         # an opaque 30s timeout instead of a clear error. Guard against a
-        # silent regression back to networkidle.
+        # silent regression back to networkidle. (No captured grid response
+        # here -> raises BrowserSessionError right after the goto assertion,
+        # which is all this test needs to observe.)
         page = FakePage(locators={})
-        browser_masters.fetch_masters_list(page, "acc")
+        with self.assertRaises(BrowserSessionError):
+            browser_masters.fetch_masters_list(page)
         self.assertEqual(page.goto_wait_until, "domcontentloaded")
 
     def test_fetch_master_waits_for_domcontentloaded_not_networkidle(self):
         page = FakePage(locators={})
-        browser_masters.fetch_master(page, 1, "acc")
+        browser_masters.fetch_master(page, 1)
         self.assertEqual(page.goto_wait_until, "domcontentloaded")
 
 
