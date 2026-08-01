@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+**New — `direct playwright login` / `direct playwright doctor`:**
+
+- `direct masters` previously re-decrypted Chrome's Yandex cookies via the
+  macOS Keychain on every single call. `direct playwright login` decrypts
+  once and persists the result as a Playwright `storage_state` session
+  (`~/.direct-cli/playwright/session.json`, `0600`) — `direct masters`
+  automatically prefers this saved session over a fresh Keychain round-trip,
+  falling back transparently when no session is saved, `--profile-dir`/
+  `--chrome-profile` was passed explicitly, or the saved session has expired.
+  Purely additive: `direct masters` continues to work with zero setup.
+- `direct playwright doctor` reports the health of the whole pipeline
+  (playwright/cryptography installed, chromium downloaded, Chrome profile
+  found, Keychain key derivable, cookies decryptable, saved session
+  present/fresh) without ever logging in, launching a browser, or writing to
+  disk.
+- Neither command requires a Yandex Direct API token/login.
+
 **Fixed — `direct masters` didn't work on macOS at all (#634):**
 
 - `direct masters list`/`get` previously copied `Cookies` + `Local State`

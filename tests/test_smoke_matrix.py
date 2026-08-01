@@ -88,7 +88,7 @@ def test_smoke_matrix_counts_are_self_consistent():
     # Subcommands that map to an API service (excludes ``auth.*``).
     expected_api_cli_subcommands = 0
     for group_name, group in cli.commands.items():
-        if group_name == "auth":
+        if group_name in ("auth", "playwright"):
             continue
         if hasattr(group, "commands"):
             expected_api_cli_subcommands += len(group.commands)

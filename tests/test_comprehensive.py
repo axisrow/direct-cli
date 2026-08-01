@@ -65,6 +65,7 @@ class TestCommandsRegistered(unittest.TestCase):
         "v4meta",
         "auth",
         "masters",
+        "playwright",
     ]
 
     def test_all_expected_commands_registered(self):

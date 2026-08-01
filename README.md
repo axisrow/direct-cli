@@ -43,6 +43,16 @@ Read-only for now (`list`/`get`); since this data has no API contract, the
 parser degrades per-section (a warning, not a hard failure) if Yandex changes
 the page markup, rather than failing the whole command.
 
+**Browser session (optional but recommended):** `direct masters` decrypts
+your Chrome cookies fresh on every call by default, which means a Keychain
+prompt every time on macOS. Run `direct playwright login` once to decrypt
+and save a reusable session (`~/.direct-cli/playwright/session.json`, `0600`)
+— subsequent `direct masters` calls use it automatically and skip the
+Keychain round-trip. If something in the pipeline is broken (playwright not
+installed, wrong Chrome profile, expired session), `direct playwright
+doctor` reports the full chain of checks without logging in or writing
+anything.
+
 ### Configuration
 
 Create a `.env` file in your working directory:
@@ -1047,6 +1057,16 @@ Chrome и войдите в аккаунт. Если используете не
 Пока только чтение (`list`/`get`); поскольку у этих данных нет API-контракта,
 парсер деградирует посекционно (предупреждение, а не жёсткий отказ), если
 Яндекс изменит вёрстку страницы.
+
+**Браузерная сессия (опционально, но рекомендуется):** по умолчанию `direct
+masters` расшифровывает куки Chrome заново при каждом вызове — на macOS это
+означает запрос доступа к Keychain каждый раз. Выполните `direct playwright
+login` один раз, чтобы расшифровать и сохранить сессию
+(`~/.direct-cli/playwright/session.json`, права `0600`) — последующие вызовы
+`direct masters` используют её автоматически, без повторного обращения к
+Keychain. Если что-то в цепочке сломано (playwright не установлен, не тот
+профиль Chrome, сессия протухла) — `direct playwright doctor` покажет всю
+цепочку проверок, ничего не логинясь и не записывая на диск.
 
 ### Настройка
 

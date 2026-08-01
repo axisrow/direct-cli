@@ -360,7 +360,13 @@ _COOKIE_COLUMNS = (
 )
 
 
-def _find_cookie_db(profile_dir: Path) -> Path:
+def find_cookie_db(profile_dir: Path) -> Path:
+    """Locate the Chrome cookie sqlite database under ``profile_dir``.
+
+    Public (not ``_``-prefixed): ``direct_cli/browser/diagnostics.py`` uses
+    this directly as a standalone doctor check (``cookie_db_found``), not
+    just as an internal step of :func:`load_yandex_cookies`.
+    """
     for candidate in _COOKIE_DB_CANDIDATES:
         path = profile_dir / candidate
         if path.exists():
@@ -410,7 +416,7 @@ def load_yandex_cookies(
             match ``hosts``, or every matching cookie fails to decrypt (wrong
             or rotated key).
     """
-    source_db = _find_cookie_db(profile_dir / chrome_profile)
+    source_db = find_cookie_db(profile_dir / chrome_profile)
     resolved_key = key if key is not None else get_encryption_key()
 
     with tempfile.TemporaryDirectory(prefix="direct-cli-cookies-") as tmp:

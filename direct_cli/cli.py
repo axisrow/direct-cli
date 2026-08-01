@@ -63,9 +63,18 @@ from .commands.v4wordstat import v4wordstat
 from .commands.v4keywords import v4keywords
 from .commands.v4adimage import v4adimage
 from .commands.masters import masters
+from .commands.browser_session import playwright_group
 
 # Load .env file
 load_env_file()
+
+
+# Groups that need no Yandex Direct credentials at all: `auth` manages
+# credentials themselves, `playwright` manages a separate browser-cookie
+# session (see direct_cli/commands/browser_session.py) and reads neither
+# ctx.obj["token"] nor ctx.obj["login"] -- unlike `masters`, which DOES read
+# ctx.obj["login"] for its `?ulogin=` URL and must stay outside this set.
+_NO_CREDENTIALS_GROUPS = ("auth", "playwright")
 
 
 CLI_EPILOG = """\b
@@ -337,7 +346,7 @@ def cli(
     # its own context (see _LocalizedHelpMixin.format_help_text).
     set_active_locale(resolve_locale(ctx))
     active_profile = None
-    if ctx.invoked_subcommand != "auth":
+    if ctx.invoked_subcommand not in _NO_CREDENTIALS_GROUPS:
         active_profile = get_active_profile()
 
     explicit_token = _command_line_option_value(ctx, "token", token)
@@ -361,7 +370,7 @@ def cli(
     explicit_bw_login_ref = _command_line_option_value(
         ctx, "bw_login_ref", bw_login_ref
     )
-    if ctx.invoked_subcommand == "auth":
+    if ctx.invoked_subcommand in _NO_CREDENTIALS_GROUPS:
         ctx.obj["token"] = explicit_token
         ctx.obj["login"] = explicit_login
         ctx.obj["op_token_ref"] = op_token_ref
@@ -474,6 +483,7 @@ for command in (
     v4meta,
     auth,
     masters,
+    playwright_group,
 ):
     _register_command(command)
 
