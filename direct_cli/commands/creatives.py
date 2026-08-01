@@ -36,9 +36,7 @@ get = make_get_command(
     default_fields_key="creatives",
     help_text="Get creatives",
     ids_help="Comma-separated creative IDs",
-    extra_options=(
-        click.option("--types", help="Comma-separated creative types"),
-    ),
+    extra_options=(click.option("--types", help="Comma-separated creative types"),),
     criteria_builder=_creatives_get_criteria,
     require_criteria_message="Provide at least one typed filter",
     nested_field_options=(
