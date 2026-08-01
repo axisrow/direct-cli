@@ -29,6 +29,12 @@
   (not an error) if no profile exists. Also classified `DANGEROUS`
   (local credential-store mutation, same category as `auth login`/`auth
   use`).
+- `masters logout` refuses to delete anything `masters login` did not
+  create. Every profile now carries a `.direct-cli-profile` marker file,
+  and `logout` rejects a target that lacks it, is a symlink, or is not a
+  directory. Without this a mistyped or shell-expanded `--profile-dir`
+  (`.`, `~`) went straight into `shutil.rmtree` and recursively deleted an
+  arbitrary tree.
 
 **Added — `direct masters suspend` / `direct masters resume` (#630):**
 

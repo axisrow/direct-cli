@@ -342,8 +342,13 @@ def logout(profile_dir):
     The only way to revoke the on-disk Yandex session `masters login`
     creates (issue #635) short of a manual `rm -rf`. A no-op (with a
     warning, not an error) if no profile exists.
+
+    Refuses to touch anything `masters login` did not create: the target
+    must carry the CLI's own marker file, and must not be a symlink. A
+    mistyped or shell-expanded `--profile-dir` is rejected rather than
+    recursively deleted.
     """
-    from ..browser.session import DEFAULT_PERSISTENT_PROFILE_DIR
+    from ..browser.session import DEFAULT_PERSISTENT_PROFILE_DIR, PROFILE_MARKER_NAME
 
     resolved_profile_dir = (
         Path(profile_dir) if profile_dir else DEFAULT_PERSISTENT_PROFILE_DIR
@@ -352,6 +357,27 @@ def logout(profile_dir):
     if not resolved_profile_dir.exists():
         print_warning(f"No persistent browser profile found at {resolved_profile_dir}")
         return
+
+    # A symlink would have rmtree follow it out of the directory the user named.
+    if resolved_profile_dir.is_symlink():
+        raise click.ClickException(
+            f"Refusing to delete {resolved_profile_dir}: it is a symlink, not a "
+            "profile directory created by `direct masters login`."
+        )
+
+    if not resolved_profile_dir.is_dir():
+        raise click.ClickException(
+            f"Refusing to delete {resolved_profile_dir}: not a directory."
+        )
+
+    # Ownership marker: written by `masters login`, absent from every other
+    # directory on the machine. Without it a recursive delete is never safe.
+    if not (resolved_profile_dir / PROFILE_MARKER_NAME).is_file():
+        raise click.ClickException(
+            f"Refusing to delete {resolved_profile_dir}: it has no "
+            f"{PROFILE_MARKER_NAME} marker, so it was not created by "
+            "`direct masters login`. Delete it by hand if you are sure."
+        )
 
     import shutil
 

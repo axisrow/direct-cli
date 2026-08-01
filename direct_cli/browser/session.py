@@ -57,6 +57,12 @@ _BROWSER_INSTALL_HINT = (
 # with either of those.
 DEFAULT_PERSISTENT_PROFILE_DIR = Path.home() / ".direct-cli" / "chrome-profile"
 
+#: Marker file written into every profile directory the CLI creates. It is the
+#: sole proof of ownership `masters logout` accepts before deleting a tree — an
+#: arbitrary ``--profile-dir`` (a typo, a shell-expanded ``.``) has no marker and
+#: is refused rather than recursively removed.
+PROFILE_MARKER_NAME = ".direct-cli-profile"
+
 _PASSPORT_LOGIN_URL = "https://passport.yandex.ru/auth"
 
 # How long `direct masters login` waits for the user to finish logging in by
@@ -234,6 +240,7 @@ def _launch_persistent_context(
     """
     profile_dir.mkdir(parents=True, exist_ok=True)
     os.chmod(profile_dir, 0o700)
+    (profile_dir / PROFILE_MARKER_NAME).touch()
     with sync_playwright() as playwright:
         context = playwright.chromium.launch_persistent_context(
             str(profile_dir), headless=headless, locale="ru-RU"

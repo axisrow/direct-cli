@@ -1379,12 +1379,19 @@ class TestMastersLogoutCommand(unittest.TestCase):
         self.addCleanup(self._tmpdir.cleanup)
         self.profile_dir = Path(self._tmpdir.name) / "chrome-profile"
 
+    def _make_profile(self):
+        """Create a profile dir the way `masters login` does — marker included."""
+        from direct_cli.browser.session import PROFILE_MARKER_NAME
+
+        self.profile_dir.mkdir(parents=True)
+        (self.profile_dir / PROFILE_MARKER_NAME).touch()
+
     def test_logout_registered(self):
         result = self.runner.invoke(cli, ["masters", "logout", "--help"])
         self.assertEqual(result.exit_code, 0)
 
     def test_logout_deletes_existing_profile(self):
-        self.profile_dir.mkdir(parents=True)
+        self._make_profile()
         (self.profile_dir / "Cookies").write_text("fake")
 
         result = self.runner.invoke(
@@ -1407,11 +1414,50 @@ class TestMastersLogoutCommand(unittest.TestCase):
             "direct_cli.browser.session.DEFAULT_PERSISTENT_PROFILE_DIR",
             self.profile_dir,
         ):
-            self.profile_dir.mkdir(parents=True)
+            self._make_profile()
             result = self.runner.invoke(cli, ["masters", "logout"])
 
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertFalse(self.profile_dir.exists())
+
+    def test_logout_refuses_a_directory_it_did_not_create(self):
+        """`--profile-dir` pointing at an unrelated directory must not be deleted.
+
+        Codex review finding on PR #644: `logout` passes whatever `--profile-dir`
+        resolves to straight into `shutil.rmtree`, with no check that the target
+        is actually a profile this CLI created. A typo or a shell-expanded `.`
+        therefore recursively deletes an arbitrary tree.
+
+        `shutil.rmtree` is patched, so this test never deletes anything for real —
+        it only records the path the command *would* have destroyed.
+        """
+        victim = Path(self._tmpdir.name) / "not-a-profile"
+        victim.mkdir(parents=True)
+        (victim / "important.txt").write_text("user data")
+
+        with patch("shutil.rmtree") as rmtree:
+            result = self.runner.invoke(
+                cli, ["masters", "logout", "--profile-dir", str(victim)]
+            )
+
+        rmtree.assert_not_called()
+        self.assertNotEqual(result.exit_code, 0, result.output)
+        self.assertTrue(victim.exists())
+
+    def test_logout_refuses_a_symlinked_profile_dir(self):
+        """A symlink would let rmtree escape the directory the user named."""
+        self._make_profile()
+        link = Path(self._tmpdir.name) / "link-to-profile"
+        link.symlink_to(self.profile_dir, target_is_directory=True)
+
+        with patch("shutil.rmtree") as rmtree:
+            result = self.runner.invoke(
+                cli, ["masters", "logout", "--profile-dir", str(link)]
+            )
+
+        rmtree.assert_not_called()
+        self.assertNotEqual(result.exit_code, 0, result.output)
+        self.assertTrue(self.profile_dir.exists())
 
 
 class TestCaptchaDetection(unittest.TestCase):
