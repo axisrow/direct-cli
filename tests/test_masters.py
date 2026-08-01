@@ -525,7 +525,11 @@ class TestOpenSessionTiers(unittest.TestCase):
         info.assert_called_once()
         self.assertIn("playwright login", info.call_args[0][0])
 
-    def test_auth_error_from_saved_session_retries_once_via_fresh(self):
+    def test_auth_error_from_saved_session_enter_propagates_uncaught(self):
+        """_open_session itself no longer catches BrowserAuthError -- the
+        retry now lives one level up, in _with_session (see
+        TestWithSessionRetry). A BrowserAuthError raised on
+        open_saved_session's __enter__ must propagate straight through."""
         import contextlib
 
         from direct_cli.browser.session import BrowserAuthError
@@ -550,11 +554,102 @@ class TestOpenSessionTiers(unittest.TestCase):
             ):
                 fresh.return_value.__enter__ = lambda self: "page"
                 fresh.return_value.__exit__ = lambda self, *a: False
-                with _open_session(
-                    ctx, headful=False, profile_dir=None, chrome_profile="Default"
-                ):
-                    pass
-        fresh.assert_called_once()
+                with self.assertRaises(BrowserAuthError):
+                    with _open_session(
+                        ctx, headful=False, profile_dir=None, chrome_profile="Default"
+                    ):
+                        pass
+        fresh.assert_not_called()
+
+
+class TestWithSessionRetry(unittest.TestCase):
+    """_with_session retries the whole operation on BrowserAuthError.
+
+    Regression coverage for the double-yield bug: a stale saved session is
+    NOT caught on open (assert_authenticated runs inside the caller's
+    operation, after the session has already been yielded), so the retry
+    must re-run the operation against a fresh session rather than trying to
+    yield a second time from the same _open_session generator invocation
+    (which raises RuntimeError: generator didn't stop after throw()).
+    """
+
+    def _list_ctx(self, args=None):
+        from direct_cli.commands.masters import masters
+
+        list_cmd = masters.commands["list"]
+        return list_cmd.make_context("list", list(args or []))
+
+    def test_auth_error_raised_inside_operation_retries_via_fresh_session(self):
+        import contextlib
+
+        from direct_cli.browser.session import BrowserAuthError
+        from direct_cli.commands.masters import _with_session
+
+        @contextlib.contextmanager
+        def _fake_open_saved_session(**kwargs):
+            yield "saved-page"
+
+        @contextlib.contextmanager
+        def _fake_open_chrome_session(**kwargs):
+            yield "fresh-page"
+
+        calls = []
+
+        def operation(page):
+            calls.append(page)
+            if page == "saved-page":
+                # Mirrors assert_authenticated raising deep inside
+                # fetch_masters_list/fetch_master, after _open_session has
+                # already yielded the page to the caller.
+                raise BrowserAuthError("stale session, detected mid-body")
+            return f"ok:{page}"
+
+        with self._list_ctx() as ctx:
+            with (
+                patch(
+                    "direct_cli.browser.store.session_status",
+                    return_value={"exists": True, "error": None, "expired": False},
+                ),
+                patch(
+                    "direct_cli.browser.session.open_saved_session",
+                    _fake_open_saved_session,
+                ),
+                patch(
+                    "direct_cli.browser.session.open_chrome_session",
+                    _fake_open_chrome_session,
+                ),
+            ):
+                result = _with_session(ctx, False, None, "Default", operation)
+
+        self.assertEqual(result, "ok:fresh-page")
+        self.assertEqual(calls, ["saved-page", "fresh-page"])
+
+    def test_no_saved_session_runs_operation_once(self):
+        import contextlib
+
+        from direct_cli.commands.masters import _with_session
+
+        @contextlib.contextmanager
+        def _fake_open_chrome_session(**kwargs):
+            yield "fresh-page"
+
+        with self._list_ctx() as ctx:
+            with (
+                patch(
+                    "direct_cli.browser.store.session_status",
+                    return_value={"exists": False, "error": None, "expired": None},
+                ),
+                patch(
+                    "direct_cli.browser.session.open_chrome_session",
+                    _fake_open_chrome_session,
+                ),
+                patch("direct_cli.commands.masters.print_info"),
+            ):
+                result = _with_session(
+                    ctx, False, None, "Default", lambda page: f"ok:{page}"
+                )
+
+        self.assertEqual(result, "ok:fresh-page")
 
 
 class TestFetchMastersList(unittest.TestCase):
