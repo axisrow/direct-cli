@@ -71,10 +71,13 @@ load_env_file()
 
 # Groups that need no Yandex Direct credentials at all: `auth` manages
 # credentials themselves, `playwright` manages a separate browser-cookie
-# session (see direct_cli/commands/browser_session.py) and reads neither
-# ctx.obj["token"] nor ctx.obj["login"] -- unlike `masters`, which DOES read
-# ctx.obj["login"] for its `?ulogin=` URL and must stay outside this set.
-_NO_CREDENTIALS_GROUPS = ("auth", "playwright")
+# session (see direct_cli/commands/browser_session.py), and `masters` reads
+# Мастер кампаний for the logged-in browser session's own account only (no
+# agency/managed-client support, see direct_cli/browser/masters.py module
+# docstring -- issue #639 found that passing a login as `?ulogin=` there
+# actually broke access with HTTP 401). None of the three read
+# ctx.obj["token"] or ctx.obj["login"].
+_NO_CREDENTIALS_GROUPS = ("auth", "playwright", "masters")
 
 
 CLI_EPILOG = """\b

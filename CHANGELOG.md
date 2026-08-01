@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+**BREAKING CHANGES — `direct masters` no longer accepts `--login` (#639):**
+
+- `direct masters list`/`get` dropped the `--login` option. Passing your own
+  login there built a `?ulogin=<login>` URL, but `ulogin` is Yandex's
+  *managed-client* (agency) parameter — passing your own login as the managed
+  client produced "Доступ ограничен" and HTTP 401 on the grid's data calls,
+  which is exactly why `masters list` found nothing. `direct masters` only
+  ever reads the logged-in browser session's own account now; there is no
+  agency/managed-client support and no replacement flag.
+
+**Fixed — `direct masters list` found no Мастера кампаний at all (#639):**
+
+- Three independent bugs, found via live diagnosis: (1) the `--login`/
+  `ulogin` issue above; (2) the DOM selector
+  (`a[href*='/wizard/campaigns/']`) never matched anything, because the
+  campaigns grid is a virtualized SPA that renders zero such anchors; (3) the
+  `status-filter` URL query parameter was silently ignored by the grid.
+  `list` now replays the grid's own JSON data call
+  (`POST /web-api/grid/api?operationName=GridCampaigns`) instead of scraping
+  the DOM, paginates past its 200-row page limit, and filters status on the
+  client side using `status.primaryStatus`.
+
+**Added — `direct masters list --status`:**
+
+- New `--status` option (`not-archived` default, plus `active`, `stopped`,
+  `archived`, `all`) lets you see only archived Мастера кампаний, or every
+  status at once — previously `list` had no status filtering at all.
+
 **New — `direct playwright login` / `direct playwright doctor`:**
 
 - `direct masters` previously re-decrypted Chrome's Yandex cookies via the
