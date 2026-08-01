@@ -225,6 +225,7 @@ class FakePage:
         self._html = html
         self.navigated_to = []
         self.goto_wait_until = None
+        self.closed = False
         # If set, matched by expect_response()'s predicate once goto() has
         # been called inside its `with` block — models the grid firing its
         # GridCampaigns XHR during navigation.
@@ -237,6 +238,9 @@ class FakePage:
     def goto(self, url, wait_until=None):
         self.navigated_to.append(url)
         self.goto_wait_until = wait_until
+
+    def close(self):
+        self.closed = True
 
     def expect_response(self, predicate, timeout=None):
         return _FakeExpectResponse(self, predicate)
@@ -271,6 +275,8 @@ class TestMastersRegistered(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("list", result.output)
         self.assertIn("get", result.output)
+        self.assertIn("login", result.output)
+        self.assertIn("logout", result.output)
 
     def test_masters_list_help(self):
         result = self.runner.invoke(cli, ["masters", "list", "--help"])
@@ -408,14 +414,44 @@ class _FakeBrowser:
         self.closed = True
 
 
-class _FakeChromium:
-    def __init__(self, browser):
-        self._browser = browser
+class _FakePersistentContext:
+    """Fakes the context ``launch_persistent_context`` returns directly.
+
+    Unlike ``_FakeBrowser``/``_FakeContext`` (a separate browser + context
+    pair for ``chromium.launch()``), a persistent context IS the return
+    value — there is no separate ``Browser`` object to close.
+    """
+
+    def __init__(self, pages=None):
+        self.closed = False
         self.launch_kwargs = None
+        self._pages = list(pages or [])
+
+    def new_page(self):
+        if self._pages:
+            return self._pages.pop(0)
+        return FakePage()
+
+    def close(self):
+        self.closed = True
+
+
+class _FakeChromium:
+    def __init__(self, browser, persistent_context=None):
+        self._browser = browser
+        self._persistent_context = persistent_context
+        self.launch_kwargs = None
+        self.launch_persistent_context_kwargs = None
+        self.launch_persistent_context_user_data_dir = None
 
     def launch(self, **kwargs):
         self.launch_kwargs = kwargs
         return self._browser
+
+    def launch_persistent_context(self, user_data_dir, **kwargs):
+        self.launch_persistent_context_user_data_dir = user_data_dir
+        self.launch_persistent_context_kwargs = kwargs
+        return self._persistent_context
 
 
 class _FakePlaywright:
@@ -478,15 +514,340 @@ class TestOpenChromeSession(unittest.TestCase):
         self.assertTrue(fake_browser.closed)
 
 
+class TestPersistentSession(unittest.TestCase):
+    """direct masters login (issue #635) — CLI-owned persistent Chromium
+    profile, no Keychain/real-Chrome-cookie involvement at all.
+
+    Uses real temp directories (rather than fake Path patching) because
+    _launch_persistent_context calls profile_dir.mkdir() for real.
+    """
+
+    def setUp(self):
+        import tempfile
+
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmpdir.cleanup)
+        self.profile_dir = Path(self._tmpdir.name) / "chrome-profile"
+        # A completed login records its profile dir; keep that off the
+        # developer's real ~/.direct-cli.
+        pointer = patch(
+            "direct_cli.browser.session.PROFILE_POINTER_PATH",
+            Path(self._tmpdir.name) / "chrome-profile-path",
+        )
+        pointer.start()
+        self.addCleanup(pointer.stop)
+
+    def _make_profile(self):
+        """Create a profile dir the way a completed `masters login` leaves it."""
+        from direct_cli.browser.session import PROFILE_MARKER_NAME
+
+        self.profile_dir.mkdir(parents=True)
+        (self.profile_dir / PROFILE_MARKER_NAME).touch()
+
+    def test_login_refuses_to_mark_an_existing_unrelated_directory(self):
+        """`--profile-dir` at an existing directory must not be claimed.
+
+        Codex review finding on PR #644: the profile dir was created with
+        `exist_ok=True` and then unconditionally marked CLI-owned, so
+        `masters login --profile-dir ~` planted the ownership marker into the
+        user's home directory — and `masters logout` on the same path then
+        accepted that marker as authorization to `shutil.rmtree` it. A failed
+        login armed it just the same, because the marker was written before
+        Chromium even launched.
+        """
+        pytest.importorskip("playwright")
+        from direct_cli.browser import session as session_module
+        from direct_cli.browser.session import (
+            PROFILE_MARKER_NAME,
+            BrowserSessionError,
+        )
+
+        victim = Path(self._tmpdir.name) / "my-documents"
+        victim.mkdir()
+        (victim / "taxes.pdf").write_text("important")
+
+        persistent_ctx = _FakePersistentContext()
+        fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
+        fake_playwright = _FakePlaywright(fake_chromium)
+
+        with patch("playwright.sync_api.sync_playwright", return_value=fake_playwright):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                session_module.login_persistent_session(
+                    profile_dir=victim, timeout_ms=1_000
+                )
+
+        self.assertFalse(
+            (victim / PROFILE_MARKER_NAME).exists(),
+            "login planted an ownership marker in a directory it did not create",
+        )
+        self.assertTrue((victim / "taxes.pdf").exists())
+        self.assertIn("already exists", str(ctx.exception).lower())
+
+    def test_aborted_login_does_not_leave_a_profile_that_looks_usable(self):
+        """A login that never completed must not register as a usable profile.
+
+        `_launch_persistent_context` creates the directory before Chromium
+        starts, so a login the user ctrl-C's out of (or that times out) leaves
+        a directory behind with no session in it. If tier 1.5 accepted mere
+        directory existence, every later `masters` call would route through
+        that empty profile, launch a browser, fail auth, and only then fall
+        back — paying a wasted browser launch each time and bypassing the
+        user's working saved session.
+        """
+        pytest.importorskip("playwright")
+        from direct_cli.browser import session as session_module
+        from direct_cli.browser.session import BrowserAuthError
+
+        login_page = FakePage(locators={}, html="<body>Войдите с Яндекс ID</body>")
+        probe_page = FakePage(locators={}, html="<body>Войдите с Яндекс ID</body>")
+        persistent_ctx = _FakePersistentContext(pages=[login_page, probe_page])
+        fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
+        fake_playwright = _FakePlaywright(fake_chromium)
+
+        with patch("playwright.sync_api.sync_playwright", return_value=fake_playwright):
+            with self.assertRaises(BrowserAuthError):
+                session_module.login_persistent_session(
+                    profile_dir=self.profile_dir, timeout_ms=1_000
+                )
+
+        self.assertFalse(
+            session_module.persistent_profile_is_usable(self.profile_dir),
+            "an aborted login left a profile tier 1.5 would route through",
+        )
+
+    def test_recorded_profile_dir_is_absolute(self):
+        """The login pointer must not make later commands depend on cwd.
+
+        `masters login --profile-dir prof` recorded "prof" verbatim, so
+        `masters logout` run from a different directory resolved it against
+        *that* cwd — deleting a different profile, or none. The marker check
+        still bounded the damage, but which directory a command acts on must
+        not depend on where the user happens to be standing.
+        """
+        from direct_cli.browser import session as session_module
+
+        pointer = Path(self._tmpdir.name) / "chrome-profile-path"
+        with patch.object(session_module, "PROFILE_POINTER_PATH", pointer):
+            session_module.remember_persistent_profile_dir(Path("relative/profile"))
+            recorded = session_module.configured_persistent_profile_dir()
+
+        self.assertTrue(
+            recorded.is_absolute(),
+            f"recorded a cwd-dependent path: {recorded}",
+        )
+
+    def test_open_persistent_session_raises_when_profile_missing(self):
+        pytest.importorskip("playwright")
+        from direct_cli.browser.session import (
+            BrowserSessionMissingError,
+            open_persistent_session,
+        )
+
+        with self.assertRaises(BrowserSessionMissingError) as ctx:
+            with open_persistent_session(profile_dir=self.profile_dir):
+                pass
+        self.assertIn("masters login", str(ctx.exception))
+
+    def test_open_persistent_session_launches_persistent_context(self):
+        pytest.importorskip("playwright")
+        from direct_cli.browser import session as session_module
+
+        self._make_profile()
+        persistent_ctx = _FakePersistentContext()
+        fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
+        fake_playwright = _FakePlaywright(fake_chromium)
+
+        with patch("playwright.sync_api.sync_playwright", return_value=fake_playwright):
+            with session_module.open_persistent_session(
+                profile_dir=self.profile_dir
+            ) as page:
+                self.assertIsInstance(page, FakePage)
+
+        self.assertEqual(
+            fake_chromium.launch_persistent_context_user_data_dir,
+            str(self.profile_dir),
+        )
+        self.assertEqual(
+            fake_chromium.launch_persistent_context_kwargs["locale"], "ru-RU"
+        )
+        self.assertTrue(persistent_ctx.closed)
+
+    def test_open_persistent_session_chmods_profile_dir_0700(self):
+        # issue #635 risk: the profile holds a live Yandex session in
+        # plaintext-readable cookies -- must be 0700, same as
+        # direct_cli/browser/store.py's session file directory.
+        pytest.importorskip("playwright")
+        import stat
+
+        from direct_cli.browser import session as session_module
+        from direct_cli.browser.session import PROFILE_MARKER_NAME
+
+        # A real profile (marker present) that has somehow ended up
+        # world-readable -- reopening it must tighten the mode back to 0700.
+        self.profile_dir.mkdir(parents=True, mode=0o755)
+        (self.profile_dir / PROFILE_MARKER_NAME).touch()
+        persistent_ctx = _FakePersistentContext()
+        fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
+        fake_playwright = _FakePlaywright(fake_chromium)
+
+        with patch("playwright.sync_api.sync_playwright", return_value=fake_playwright):
+            with session_module.open_persistent_session(profile_dir=self.profile_dir):
+                pass
+
+        mode = stat.S_IMODE(self.profile_dir.stat().st_mode)
+        self.assertEqual(format(mode, "04o"), "0700")
+
+    def test_login_persistent_session_returns_once_authenticated(self):
+        pytest.importorskip("playwright")
+        from direct_cli.browser import session as session_module
+
+        # Page 1 is the visible Passport tab; page 2 is the poll probe whose
+        # HTML decides whether login has completed.
+        login_page = FakePage(locators={}, html="<body>Войдите с Яндекс ID</body>")
+        authed_page = FakePage(locators={}, html="<body>Кампания остановлена</body>")
+        persistent_ctx = _FakePersistentContext(pages=[login_page, authed_page])
+        fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
+        fake_playwright = _FakePlaywright(fake_chromium)
+
+        with patch("playwright.sync_api.sync_playwright", return_value=fake_playwright):
+            session_module.login_persistent_session(
+                profile_dir=self.profile_dir, timeout_ms=5_000
+            )
+
+        self.assertTrue(persistent_ctx.closed)
+        self.assertTrue(self.profile_dir.exists())
+
+    def test_login_persistent_session_times_out_if_never_authenticated(self):
+        pytest.importorskip("playwright")
+        from direct_cli.browser import session as session_module
+        from direct_cli.browser.session import BrowserAuthError
+
+        login_page = FakePage(locators={}, html="<body>Войдите с Яндекс ID</body>")
+        probe_page = FakePage(locators={}, html="<body>Войдите с Яндекс ID</body>")
+        persistent_ctx = _FakePersistentContext(pages=[login_page, probe_page])
+        fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
+        fake_playwright = _FakePlaywright(fake_chromium)
+
+        with patch("playwright.sync_api.sync_playwright", return_value=fake_playwright):
+            with self.assertRaises(BrowserAuthError) as ctx:
+                session_module.login_persistent_session(
+                    profile_dir=self.profile_dir,
+                    timeout_ms=1_000,
+                )
+        self.assertIn("Timed out", str(ctx.exception))
+        self.assertTrue(probe_page.closed, "poll probe page was left open")
+
+    def test_login_polling_does_not_navigate_the_page_the_user_is_typing_into(self):
+        """The visible login page must stay on Passport until login succeeds.
+
+        The poll loop checks authentication by driving the *same* page the
+        human is typing into. Every interval it navigates that page away to
+        the grid, wiping a half-filled login form and any 2FA prompt on it —
+        the user cannot finish signing in against a page that resets under
+        their hands once a second.
+        """
+        pytest.importorskip("playwright")
+        from direct_cli.browser import session as session_module
+        from direct_cli.browser.session import BrowserAuthError
+
+        login_page = FakePage(locators={}, html="<body>Войдите с Яндекс ID</body>")
+        probe_page = FakePage(locators={}, html="<body>Войдите с Яндекс ID</body>")
+        persistent_ctx = _FakePersistentContext(pages=[login_page, probe_page])
+        fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
+        fake_playwright = _FakePlaywright(fake_chromium)
+
+        with patch("playwright.sync_api.sync_playwright", return_value=fake_playwright):
+            with self.assertRaises(BrowserAuthError):
+                session_module.login_persistent_session(
+                    profile_dir=self.profile_dir,
+                    timeout_ms=3_000,
+                )
+
+        # The page the user interacts with is navigated exactly once: to
+        # Passport. Polling must not steer it anywhere else.
+        self.assertEqual(
+            login_page.navigated_to,
+            [session_module._PASSPORT_LOGIN_URL],
+            "poll loop navigated the user's login page away from Passport",
+        )
+
+
 class TestOpenSessionTiers(unittest.TestCase):
-    """_open_session's three-tier resolution: explicit profile / saved
-    session / fresh-decrypt fallback (with auth-error self-heal retry)."""
+    """_open_session's tiered resolution: explicit profile / persistent CLI
+    profile / saved session / fresh-decrypt fallback (with auth-error
+    self-heal retry)."""
+
+    def setUp(self):
+        # Every test in this class exercises tiers below 1.5 (persistent CLI
+        # profile) unless a test explicitly wants that tier -- patch
+        # DEFAULT_PERSISTENT_PROFILE_DIR to a guaranteed-nonexistent Path so
+        # these tests don't depend on whether the developer running them has
+        # ever run `direct masters login` for real.
+        patcher = patch(
+            "direct_cli.browser.session.DEFAULT_PERSISTENT_PROFILE_DIR",
+            Path("/nonexistent/chrome-profile"),
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        # Resolution goes through the login pointer -- keep it off the
+        # developer's real ~/.direct-cli so these tests never depend on
+        # whether `masters login` has been run on this machine.
+        pointer = patch(
+            "direct_cli.browser.session.PROFILE_POINTER_PATH",
+            Path("/nonexistent/chrome-profile-path"),
+        )
+        pointer.start()
+        self.addCleanup(pointer.stop)
 
     def _list_ctx(self, args=None):
         from direct_cli.commands.masters import masters
 
         list_cmd = masters.commands["list"]
         return list_cmd.make_context("list", list(args or []))
+
+    def test_custom_login_profile_dir_is_honoured_by_reads(self):
+        """A session saved by `login --profile-dir X` must be used by reads.
+
+        Tier 1.5 originally resolved the profile from
+        DEFAULT_PERSISTENT_PROFILE_DIR only and passed no profile_dir to
+        open_persistent_session, so `masters login --profile-dir X` reported
+        "Login confirmed" and then every list/get/suspend/resume ignored X
+        entirely -- falling through to the Keychain path the flag exists to
+        avoid.
+        """
+        import tempfile
+
+        from direct_cli.commands.masters import _open_session
+
+        tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(tmpdir.cleanup)
+        custom = Path(tmpdir.name) / "custom-profile"
+        (custom / "Default").mkdir(parents=True)
+        (custom / "Default" / "Cookies").write_bytes(b"")
+
+        with self._list_ctx() as ctx:
+            with (
+                patch(
+                    "direct_cli.commands.masters._configured_persistent_profile_dir",
+                    return_value=custom,
+                ),
+                patch(
+                    "direct_cli.browser.session.open_persistent_session"
+                ) as persistent,
+                patch("direct_cli.browser.session.open_saved_session") as saved,
+                patch("direct_cli.browser.session.open_chrome_session") as fresh,
+            ):
+                persistent.return_value.__enter__ = lambda self: "page"
+                persistent.return_value.__exit__ = lambda self, *a: False
+                with _open_session(
+                    ctx, headful=False, profile_dir=None, chrome_profile="Default"
+                ):
+                    pass
+
+        persistent.assert_called_once()
+        self.assertEqual(persistent.call_args.kwargs.get("profile_dir"), custom)
+        saved.assert_not_called()
+        fresh.assert_not_called()
 
     def test_explicit_profile_dir_bypasses_saved_session(self):
         from direct_cli.commands.masters import _open_session
@@ -507,6 +868,46 @@ class TestOpenSessionTiers(unittest.TestCase):
                     pass
         saved.assert_not_called()
         fresh.assert_called_once()
+
+    def test_persistent_profile_used_when_present(self):
+        """Tier 1.5: when the CLI's own persistent profile holds a session,
+        it's preferred over the saved storage_state session and the Keychain
+        decrypt path -- neither should be touched."""
+        import tempfile
+
+        from direct_cli.commands.masters import _open_session
+
+        tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(tmpdir.cleanup)
+        # A profile a completed login would leave: Chromium's cookie store is
+        # what makes it usable, not the directory merely existing.
+        profile = Path(tmpdir.name) / "chrome-profile"
+        (profile / "Default").mkdir(parents=True)
+        (profile / "Default" / "Cookies").write_bytes(b"")
+
+        with self._list_ctx() as ctx:
+            with (
+                patch(
+                    "direct_cli.commands.masters._configured_persistent_profile_dir",
+                    return_value=profile,
+                ),
+                patch(
+                    "direct_cli.browser.session.open_persistent_session"
+                ) as persistent,
+                patch("direct_cli.browser.store.session_status") as status,
+                patch("direct_cli.browser.session.open_saved_session") as saved,
+                patch("direct_cli.browser.session.open_chrome_session") as fresh,
+            ):
+                persistent.return_value.__enter__ = lambda self: "page"
+                persistent.return_value.__exit__ = lambda self, *a: False
+                with _open_session(
+                    ctx, headful=False, profile_dir=None, chrome_profile="Default"
+                ):
+                    pass
+        persistent.assert_called_once()
+        status.assert_not_called()
+        saved.assert_not_called()
+        fresh.assert_not_called()
 
     def test_fresh_saved_session_used_without_decrypting(self):
         from direct_cli.commands.masters import _open_session
@@ -1114,6 +1515,237 @@ class TestMastersSuspendResumeCommand(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertEqual(mock_resume.call_count, 1)
+
+
+class TestMastersLoginCommand(unittest.TestCase):
+    """CLI wiring for `masters login` (issue #635)."""
+
+    def setUp(self):
+        self.runner = CliRunner()
+        # CliRunner supplies a non-tty stdin, so `login` would refuse to run
+        # (it needs a human). Every test here exercises the interactive path;
+        # the non-interactive refusal has its own test that overrides this.
+        tty = patch(
+            "direct_cli.commands.masters._stdin_is_interactive", return_value=True
+        )
+        tty.start()
+        self.addCleanup(tty.stop)
+
+    def test_login_registered(self):
+        result = self.runner.invoke(cli, ["masters", "login", "--help"])
+        self.assertEqual(result.exit_code, 0)
+
+    def test_login_fails_fast_in_a_non_interactive_environment(self):
+        """In CI/a script, fail immediately instead of blocking for the timeout.
+
+        Issue #635 (Риски → Интерактивность): the command waits for a human, so
+        run non-interactively it must "падать сразу с понятным текстом, а не
+        висеть" — otherwise CI hangs for the full --timeout on a browser window
+        nobody can see.
+        """
+        with patch("direct_cli.browser.session.login_persistent_session") as login_fn:
+            with patch(
+                "direct_cli.commands.masters._stdin_is_interactive",
+                return_value=False,
+            ):
+                result = self.runner.invoke(cli, ["masters", "login"])
+
+        login_fn.assert_not_called()
+        self.assertNotEqual(result.exit_code, 0, result.output)
+        self.assertIn("interactive", result.output.lower())
+
+    def test_login_has_no_output_format_options(self):
+        # login is interactive/side-effecting, not a data-fetching command --
+        # it has no --format/--output, unlike list/get/suspend/resume.
+        result = self.runner.invoke(cli, ["masters", "login", "--help"])
+        self.assertNotIn("--format", result.output)
+
+    def test_login_calls_login_persistent_session(self):
+        with patch("direct_cli.browser.session.login_persistent_session") as mock_login:
+            result = self.runner.invoke(cli, ["masters", "login"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        mock_login.assert_called_once()
+        _, kwargs = mock_login.call_args
+        self.assertEqual(kwargs["timeout_ms"], 300_000)
+        self.assertIsNone(kwargs["profile_dir"])
+
+    def test_login_passes_explicit_profile_dir_and_timeout(self):
+        with patch("direct_cli.browser.session.login_persistent_session") as mock_login:
+            result = self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "login",
+                    "--profile-dir",
+                    "/custom/profile",
+                    "--timeout",
+                    "30",
+                ],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        _, kwargs = mock_login.call_args
+        self.assertEqual(kwargs["profile_dir"], Path("/custom/profile"))
+        self.assertEqual(kwargs["timeout_ms"], 30_000)
+
+    def test_login_converts_browser_session_error_to_click_exception(self):
+        from direct_cli.browser.session import BrowserAuthError
+
+        with patch(
+            "direct_cli.browser.session.login_persistent_session",
+            side_effect=BrowserAuthError("timed out"),
+        ):
+            result = self.runner.invoke(cli, ["masters", "login"])
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("timed out", result.output)
+
+    def test_login_missing_playwright_raises_usage_error(self):
+        with patch.dict(
+            "sys.modules", {"playwright": None, "playwright.sync_api": None}
+        ):
+            result = self.runner.invoke(cli, ["masters", "login"])
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("playwright", result.output.lower())
+
+
+class TestMastersLogoutCommand(unittest.TestCase):
+    """CLI wiring for `masters logout` (issue #635 risk: revocation)."""
+
+    def setUp(self):
+        self.runner = CliRunner()
+        import tempfile
+
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmpdir.cleanup)
+        self.profile_dir = Path(self._tmpdir.name) / "chrome-profile"
+
+        # Keep the login pointer off the developer's real ~/.direct-cli.
+        pointer = patch(
+            "direct_cli.browser.session.PROFILE_POINTER_PATH",
+            Path(self._tmpdir.name) / "chrome-profile-path",
+        )
+        pointer.start()
+        self.addCleanup(pointer.stop)
+
+    def _make_profile(self):
+        """Create a profile dir the way `masters login` does — marker included."""
+        from direct_cli.browser.session import PROFILE_MARKER_NAME
+
+        self.profile_dir.mkdir(parents=True)
+        (self.profile_dir / PROFILE_MARKER_NAME).touch()
+
+    def test_logout_registered(self):
+        result = self.runner.invoke(cli, ["masters", "logout", "--help"])
+        self.assertEqual(result.exit_code, 0)
+
+    def test_logout_deletes_existing_profile(self):
+        self._make_profile()
+        (self.profile_dir / "Cookies").write_text("fake")
+
+        result = self.runner.invoke(
+            cli, ["masters", "logout", "--profile-dir", str(self.profile_dir)]
+        )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertFalse(self.profile_dir.exists())
+
+    def test_logout_is_a_noop_warning_when_no_profile_exists(self):
+        result = self.runner.invoke(
+            cli, ["masters", "logout", "--profile-dir", str(self.profile_dir)]
+        )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertFalse(self.profile_dir.exists())
+
+    def test_logout_uses_default_persistent_profile_dir_when_unset(self):
+        with patch(
+            "direct_cli.browser.session.DEFAULT_PERSISTENT_PROFILE_DIR",
+            self.profile_dir,
+        ):
+            self._make_profile()
+            result = self.runner.invoke(cli, ["masters", "logout"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertFalse(self.profile_dir.exists())
+
+    def test_logout_refuses_a_directory_it_did_not_create(self):
+        """`--profile-dir` pointing at an unrelated directory must not be deleted.
+
+        Codex review finding on PR #644: `logout` passes whatever `--profile-dir`
+        resolves to straight into `shutil.rmtree`, with no check that the target
+        is actually a profile this CLI created. A typo or a shell-expanded `.`
+        therefore recursively deletes an arbitrary tree.
+
+        `shutil.rmtree` is patched, so this test never deletes anything for real —
+        it only records the path the command *would* have destroyed.
+        """
+        victim = Path(self._tmpdir.name) / "not-a-profile"
+        victim.mkdir(parents=True)
+        (victim / "important.txt").write_text("user data")
+
+        with patch("shutil.rmtree") as rmtree:
+            result = self.runner.invoke(
+                cli, ["masters", "logout", "--profile-dir", str(victim)]
+            )
+
+        rmtree.assert_not_called()
+        self.assertNotEqual(result.exit_code, 0, result.output)
+        self.assertTrue(victim.exists())
+
+    def test_logout_refuses_a_symlinked_profile_dir(self):
+        """A symlink would let rmtree escape the directory the user named."""
+        self._make_profile()
+        link = Path(self._tmpdir.name) / "link-to-profile"
+        link.symlink_to(self.profile_dir, target_is_directory=True)
+
+        with patch("shutil.rmtree") as rmtree:
+            result = self.runner.invoke(
+                cli, ["masters", "logout", "--profile-dir", str(link)]
+            )
+
+        rmtree.assert_not_called()
+        self.assertNotEqual(result.exit_code, 0, result.output)
+        self.assertTrue(self.profile_dir.exists())
+
+    def test_logout_explicit_profile_dir_does_not_clear_pointer_to_a_different_profile(
+        self,
+    ):
+        """`logout --profile-dir A` must not wipe the pointer to a live profile B.
+
+        `logout` unconditionally unlinks PROFILE_POINTER_PATH after deleting
+        whatever `--profile-dir` resolved to. If the user logged into profile B
+        (recorded by the pointer) after an older profile A, then deletes A by
+        explicit path, the pointer to B — still on disk and in use — is wiped
+        too. The next read then falls back to the default location instead of B.
+        """
+        from direct_cli.browser.session import PROFILE_MARKER_NAME
+
+        old_profile = self.profile_dir  # profile A: about to be deleted
+        self._make_profile()
+
+        live_profile = Path(self._tmpdir.name) / "chrome-profile-b"
+        live_profile.mkdir(parents=True)
+        (live_profile / PROFILE_MARKER_NAME).touch()
+
+        from direct_cli.browser import session as session_module
+
+        session_module.remember_persistent_profile_dir(live_profile)
+
+        result = self.runner.invoke(
+            cli, ["masters", "logout", "--profile-dir", str(old_profile)]
+        )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertFalse(old_profile.exists())
+        self.assertTrue(live_profile.exists(), "unrelated live profile was deleted")
+        self.assertEqual(
+            session_module.configured_persistent_profile_dir(),
+            live_profile.resolve(),
+            "logout on an unrelated profile cleared the pointer to the live one",
+        )
 
 
 class TestCaptchaDetection(unittest.TestCase):

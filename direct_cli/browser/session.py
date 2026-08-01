@@ -23,6 +23,17 @@ persists the result of this decrypt-and-inject dance as a Playwright
 :func:`open_saved_session`. :func:`open_chrome_session` (decrypt every call,
 nothing persisted) remains the zero-setup fallback ``direct masters`` uses
 when no saved session exists — see ``direct_cli/commands/masters.py``.
+
+``direct masters login`` (issue #635) is a third, independent path that does
+not touch the user's real Chrome profile or the macOS Keychain at all:
+:func:`open_persistent_session` launches a bundled Chromium against its own
+persistent profile directory (``~/.direct-cli/chrome-profile/`` by default),
+and the user logs in by hand once via ``passport.yandex.ru``. Cookies then
+persist on disk the same way a real Chrome profile would (Chromium manages
+its own on-disk cookie store for a persistent context — no ``storage_state``
+capture/injection dance needed). This works identically on macOS/Linux/
+Windows and needs no Keychain access, at the cost of a one-time manual login
+instead of a transparent cookie copy.
 """
 
 import contextlib
@@ -39,6 +50,25 @@ if TYPE_CHECKING:
 _BROWSER_INSTALL_HINT = (
     'pip install "direct-cli[browser]" && playwright install chromium'
 )
+
+# Sibling of direct_cli/browser/store.py's PLAYWRIGHT_SESSION_PATH and
+# direct_cli/auth.py's AUTH_STORE_PATH under ~/.direct-cli/ — a dedicated
+# subdirectory so this profile's own Chromium lock files/caches never mix
+# with either of those.
+DEFAULT_PERSISTENT_PROFILE_DIR = Path.home() / ".direct-cli" / "chrome-profile"
+
+#: Marker file written into every profile directory the CLI creates. It is the
+#: sole proof of ownership `masters logout` accepts before deleting a tree — an
+#: arbitrary ``--profile-dir`` (a typo, a shell-expanded ``.``) has no marker and
+#: is refused rather than recursively removed.
+PROFILE_MARKER_NAME = ".direct-cli-profile"
+
+_PASSPORT_LOGIN_URL = "https://passport.yandex.ru/auth"
+
+# How long `direct masters login` waits for the user to finish logging in by
+# hand before giving up.
+_LOGIN_WAIT_TIMEOUT_MS = 5 * 60 * 1000
+_LOGIN_POLL_INTERVAL_MS = 1_000
 
 
 class BrowserSessionError(RuntimeError):
@@ -183,6 +213,205 @@ def open_chrome_session(
 
     with _launch_context(sync_playwright, headless=headless) as (_browser, context):
         context.add_cookies(cookies)
+        page = context.new_page()
+        yield page
+
+
+def _resolve_persistent_profile_dir(profile_dir: Optional[Path]) -> Path:
+    return profile_dir or DEFAULT_PERSISTENT_PROFILE_DIR
+
+
+#: Records the profile directory the last `masters login` used, so read
+#: commands can find a session saved outside the default location. Without
+#: it `--profile-dir` would be accepted by `login` and silently ignored by
+#: everything else.
+PROFILE_POINTER_PATH = Path.home() / ".direct-cli" / "chrome-profile-path"
+
+
+def remember_persistent_profile_dir(profile_dir: Path) -> None:
+    """Record which profile directory `masters login` populated.
+
+    Stored absolute: a relative path would be re-resolved against whatever
+    directory a later command happened to run from, so `masters logout`
+    would act on a different profile depending on where the user stood.
+    """
+    PROFILE_POINTER_PATH.parent.mkdir(parents=True, exist_ok=True)
+    PROFILE_POINTER_PATH.write_text(str(profile_dir.resolve()), encoding="utf-8")
+    os.chmod(PROFILE_POINTER_PATH, 0o600)
+
+
+def configured_persistent_profile_dir() -> Path:
+    """Return the profile directory `masters` commands should read from.
+
+    The one recorded by the last `masters login --profile-dir`, else the
+    default location.
+    """
+    try:
+        recorded = PROFILE_POINTER_PATH.read_text(encoding="utf-8").strip()
+    except OSError:
+        return DEFAULT_PERSISTENT_PROFILE_DIR
+    # A hand-edited or truncated record must not silently resolve against the
+    # caller's cwd — only an absolute path is trustworthy here.
+    if not recorded or not Path(recorded).is_absolute():
+        return DEFAULT_PERSISTENT_PROFILE_DIR
+    return Path(recorded)
+
+
+def persistent_profile_is_usable(profile_dir: Optional[Path] = None) -> bool:
+    """Return whether a persistent profile holds an actual browser session.
+
+    Mere directory existence is not enough: ``_launch_persistent_context``
+    creates the directory (and its marker) before Chromium starts, so a login
+    the user aborted leaves an empty profile behind. Routing ``masters``
+    commands through it would launch a browser, fail auth, and fall back on
+    every single call. Chromium writes its cookie store only once it has
+    actually run, so that file is the honest signal.
+    """
+    resolved = _resolve_persistent_profile_dir(profile_dir)
+    return (resolved / "Default" / "Cookies").exists()
+
+
+@contextlib.contextmanager
+def _launch_persistent_context(
+    sync_playwright, profile_dir: Path, *, headless: bool
+) -> Generator[Any, None, None]:
+    """Shared launch/teardown for the CLI's own persistent Chromium profile.
+
+    Unlike :func:`_launch_context` (a fresh, throwaway context every call),
+    ``launch_persistent_context`` both launches the browser *and* returns the
+    context in one call — there is no separate ``Browser`` object to close,
+    Playwright owns that lifecycle internally for persistent contexts.
+
+    The profile directory holds a live Yandex session (cookies readable in
+    plaintext by the owning process) — chmod 0700 on every launch, the same
+    treatment ``direct_cli/browser/store.py`` and ``direct_cli/auth.py`` give
+    their own on-disk session files (issue #635 risk: "Хранение живой сессии
+    Яндекса на диске").
+
+    The ownership marker is only ever written into a directory this function
+    *created*. An existing directory must already carry the marker to be
+    reused; otherwise it belongs to someone else and is refused. Without that
+    asymmetry ``--profile-dir ~`` would mark the user's home directory as
+    CLI-owned, and ``masters logout`` would then accept that marker as
+    authorization to ``shutil.rmtree`` it.
+    """
+    marker = profile_dir / PROFILE_MARKER_NAME
+    try:
+        profile_dir.mkdir(parents=True, exist_ok=False)
+    except FileExistsError:
+        if not marker.is_file():
+            raise BrowserSessionError(
+                f"Refusing to use {profile_dir} as a browser profile: the "
+                "directory already exists and was not created by `direct "
+                f"masters login` (no {PROFILE_MARKER_NAME} marker). Pick a "
+                "path that does not exist yet, or delete that directory by "
+                "hand if you are sure."
+            ) from None
+    else:
+        marker.touch()
+
+    os.chmod(profile_dir, 0o700)
+    with sync_playwright() as playwright:
+        context = playwright.chromium.launch_persistent_context(
+            str(profile_dir), headless=headless, locale="ru-RU"
+        )
+        try:
+            yield context
+        finally:
+            context.close()
+
+
+def login_persistent_session(
+    *,
+    profile_dir: Optional[Path] = None,
+    headless: bool = False,
+    timeout_ms: int = _LOGIN_WAIT_TIMEOUT_MS,
+) -> None:
+    """Open the CLI's own persistent Chromium profile for a one-time manual login.
+
+    Navigates to Yandex Passport's login page and polls (every
+    :data:`_LOGIN_POLL_INTERVAL_MS`) until :func:`assert_authenticated` no
+    longer raises against ``direct.yandex.ru`` — i.e. until the user has
+    finished logging in by hand in the visible window. Raises
+    :class:`BrowserAuthError` if ``timeout_ms`` elapses first.
+
+    Deliberately defaults ``headless=False``: a headless window cannot be
+    logged into by a human, so ``direct masters login`` always shows the
+    window regardless of ``--headful`` unless the caller overrides it
+    (e.g. for tests).
+    """
+    sync_playwright = _import_sync_playwright()
+    resolved_dir = _resolve_persistent_profile_dir(profile_dir)
+
+    # Deferred import: direct_cli/browser/masters.py's GRID_URL is the single
+    # canonical source for this URL (CLAUDE.md "No URL literals outside the
+    # registry"); imported here rather than at module load to avoid a
+    # session.py <-> masters.py import cycle (masters.py imports session.py).
+    from .masters import GRID_URL
+
+    with _launch_persistent_context(
+        sync_playwright, resolved_dir, headless=headless
+    ) as context:
+        page = context.new_page()
+        page.goto(_PASSPORT_LOGIN_URL, wait_until="domcontentloaded")
+
+        # Poll on a second page, never on `page`: the human is typing into
+        # that one, and navigating it to the grid once a second would wipe a
+        # half-filled login form or a pending 2FA prompt out from under them.
+        # Both pages share the persistent context's cookie jar, so a login
+        # completed on `page` is immediately visible to `probe`.
+        probe = context.new_page()
+        try:
+            elapsed_ms = 0
+            while elapsed_ms < timeout_ms:
+                probe.goto(GRID_URL, wait_until="domcontentloaded")
+                html = probe.content()
+                assert_not_captcha(html)
+                try:
+                    assert_authenticated(html)
+                except BrowserAuthError:
+                    probe.wait_for_timeout(_LOGIN_POLL_INTERVAL_MS)
+                    elapsed_ms += _LOGIN_POLL_INTERVAL_MS
+                    continue
+                # Only once the session is real: read commands resolve the
+                # profile through this pointer, so recording an unfinished
+                # login would point them at an empty profile.
+                remember_persistent_profile_dir(resolved_dir)
+                return
+        finally:
+            probe.close()
+
+        raise BrowserAuthError(
+            f"Timed out after {timeout_ms // 1000}s waiting for login to "
+            f"{_PASSPORT_LOGIN_URL} to complete. Run `direct masters login` "
+            "again and finish signing in within the time limit."
+        )
+
+
+@contextlib.contextmanager
+def open_persistent_session(
+    *,
+    profile_dir: Optional[Path] = None,
+    headless: bool = True,
+) -> Generator["Page", None, None]:
+    """Launch the CLI's own persistent Chromium profile for regular use.
+
+    Raises :class:`BrowserSessionMissingError` if the profile directory
+    doesn't exist yet or Yandex serves its login page — the fix in both
+    cases is ``direct masters login``.
+    """
+    sync_playwright = _import_sync_playwright()
+    resolved_dir = _resolve_persistent_profile_dir(profile_dir)
+
+    if not resolved_dir.exists():
+        raise BrowserSessionMissingError(
+            f"No persistent browser profile found at {resolved_dir}. "
+            "Run: direct masters login"
+        )
+
+    with _launch_persistent_context(
+        sync_playwright, resolved_dir, headless=headless
+    ) as context:
         page = context.new_page()
         yield page
 

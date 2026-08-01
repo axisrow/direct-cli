@@ -2,6 +2,69 @@
 
 ## Unreleased
 
+**Added — `direct masters login` (#635):**
+
+- New interactive command that opens a visible browser window on a
+  persistent Chromium profile owned by the CLI
+  (`~/.direct-cli/chrome-profile/` by default, overridable with
+  `--profile-dir`). Log in by hand once via Yandex Passport; the command
+  polls until the session is confirmed authenticated (or times out after
+  `--timeout` seconds, default 300) and exits.
+- Independent of `direct playwright login`/the macOS Keychain entirely —
+  this never touches the user's real Chrome profile, so it works
+  identically on macOS/Linux/Windows at the cost of a one-time manual login
+  instead of a transparent cookie copy.
+- `direct masters` (`list`/`get`/`suspend`/`resume`) prefers this persistent
+  profile automatically whenever it exists, ahead of the saved
+  `playwright login` session — see the new tier 1.5 in
+  `direct_cli/commands/masters.py`'s session-resolution docstring.
+- Interactive by design (blocks waiting for a human); classified
+  `DANGEROUS` in `direct_cli/smoke_matrix.py` and documented as
+  manual-only in `scripts/test_dangerous_commands.sh` — it cannot run in
+  any automated smoke tier.
+- The profile directory is chmod'd `0700` (it holds a live Yandex session in
+  plaintext-readable cookies).
+- New `direct masters logout` deletes the profile — the only way to revoke
+  the on-disk session short of a manual `rm -rf`. A no-op with a warning
+  (not an error) if no profile exists. Also classified `DANGEROUS`
+  (local credential-store mutation, same category as `auth login`/`auth
+  use`).
+- `masters login` refuses to run without a terminal. It waits for a human,
+  so in CI or a script it now fails immediately with a clear message instead
+  of blocking for the full `--timeout` on a browser window nobody can see.
+- `masters login` polls for completion on a separate page instead of the
+  one the user is typing into. Previously the loop navigated the visible
+  Passport tab to the grid once a second, wiping a half-filled login form
+  or a pending 2FA prompt out from under the user.
+- `masters login` refuses a `--profile-dir` that already exists without the
+  CLI's own marker. Previously the marker was planted into whatever directory
+  was named — so `masters login --profile-dir ~` marked the home directory as
+  CLI-owned, and `masters logout` on the same path then accepted that marker
+  as authorization to `shutil.rmtree` it. A failed login armed it just the
+  same, since the marker was written before Chromium even launched.
+- `masters login --profile-dir X` is now honoured by the read commands. The
+  chosen directory is recorded, and `list`/`get`/`suspend`/`resume` resolve
+  the profile through that record. Previously tier 1.5 looked only at the
+  default location and passed no directory through, so a custom login path
+  reported "Login confirmed" and was then silently ignored by every read —
+  falling back to the Keychain the flag exists to avoid. `masters logout`
+  clears the record along with the profile.
+- The recorded profile path is stored and read as absolute. A relative value
+  would have been re-resolved against whatever directory a later command ran
+  from, so `masters logout` acted on a different profile depending on where
+  the user stood.
+- `masters` commands route through the persistent profile only when it holds
+  an actual browser session, not merely when the directory exists. An aborted
+  `masters login` leaves an empty profile behind; treating that as usable cost
+  a wasted browser launch on every later command and bypassed the user's
+  working saved session.
+- `masters logout` refuses to delete anything `masters login` did not
+  create. Every profile now carries a `.direct-cli-profile` marker file,
+  and `logout` rejects a target that lacks it, is a symlink, or is not a
+  directory. Without this a mistyped or shell-expanded `--profile-dir`
+  (`.`, `~`) went straight into `shutil.rmtree` and recursively deleted an
+  arbitrary tree.
+
 **Added — `direct masters suspend` / `direct masters resume` (#630):**
 
 - First mutating `masters` commands — stop/resume a Мастер кампаний by

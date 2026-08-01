@@ -19,6 +19,7 @@ Agency/account mutations:
 Local credential mutations:
   - direct auth login ...
   - direct auth use ...
+  - direct masters logout ...   (deletes ~/.direct-cli/chrome-profile/)
 
 V4 Live finance money mutations (0.3.3 exposes dry-run-only previews):
   - direct v4finance transfer-money --from-campaign-id ... --to-campaign-id ... --amount ... --currency RUB --dry-run
@@ -29,6 +30,10 @@ equivalent -- these always hit a real Yandex account; verify on one
 non-critical campaign, confirming before/after state in the web UI):
   - direct masters suspend <campaign_id>
   - direct masters resume <campaign_id>
+
+Interactive human-in-the-loop login (opens a visible browser window and
+blocks waiting for a person to sign in -- cannot run unattended):
+  - direct masters login
 
 Production commands that are only allowed in automated smoke tests with --sandbox:
   - direct bids set ...

@@ -186,6 +186,19 @@ SMOKE_MATRIX = {
         # Manual-only, per scripts/test_dangerous_commands.sh.
         "masters.resume",
         "masters.suspend",
+        # Interactive, human-in-the-loop login (issue #635) -- opens a
+        # visible browser window and blocks for up to --timeout seconds
+        # waiting for a person to sign in by hand. Cannot run unattended in
+        # any automated smoke tier; unlike playwright.login (SAFE above,
+        # which reads an already-authenticated Chrome profile
+        # non-interactively), this always requires a human. Manual-only.
+        "masters.login",
+        # Deletes the persistent Chrome profile masters.login creates
+        # (issue #635) -- a local credential-store mutation, same category
+        # as auth.login/auth.use above, not a read. An automated run
+        # against a developer's real ~/.direct-cli/chrome-profile/ would
+        # destroy a live session with no way to recreate it unattended.
+        "masters.logout",
         "v4adimage.set",
         "v4finance.create-invoice",
         "v4finance.pay-campaigns",

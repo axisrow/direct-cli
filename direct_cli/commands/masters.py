@@ -18,22 +18,28 @@ all — see ``direct_cli/browser/masters.py`` module docstring for why an
 explicit login actually broke ``list`` (HTTP 401 "Доступ ограничен" when the
 user's own login was passed as Yandex's managed-client ``ulogin`` param).
 
-Session resolution (``_open_session``) is three-tiered — see
-``direct_cli/commands/browser_session.py`` for ``direct playwright login``,
-which creates the saved session tier 2 prefers:
+Session resolution (``_open_session``) is multi-tiered — see
+``direct_cli/commands/browser_session.py`` for ``direct playwright login``
+(tier 2) and this module's own ``masters login`` command (tier 1.5, issue
+#635):
 
 1. Explicit ``--profile-dir``/``--chrome-profile`` on the command line ->
    always decrypt fresh from that specific Chrome profile (the user pointed
    at it deliberately; silently using a stale saved session instead would be
    a surprise).
+1.5. Otherwise, if the CLI's own persistent Chromium profile exists (set up
+   via ``direct masters login``) -> use it. Keychain-free and platform-
+   independent (unlike tiers 2/3, which both decrypt the user's real Chrome
+   profile), so it's preferred whenever present.
 2. Otherwise, a saved session from ``direct playwright login`` that isn't
    known-expired -> use it (skips the Keychain round-trip entirely).
 3. Otherwise -> decrypt fresh from Chrome, same as before this tier system
    existed. Zero-config `direct masters list` keeps working unchanged.
 
-A ``BrowserAuthError`` from tier 2 is retried once via tier 3 before
-surfacing — a stale saved session should self-heal rather than break
-`masters` until the user notices and reruns `playwright login` by hand. The
+A ``BrowserAuthError`` from tier 1.5 or tier 2 is retried once via tier 3
+before surfacing — a stale saved session should self-heal rather than break
+`masters` until the user notices and reruns `playwright login`/`masters
+login` by hand. The
 retry happens at the *operation* level (``_with_session``), not inside
 ``_open_session`` itself: ``BrowserAuthError`` from ``assert_authenticated``
 is raised by the caller's fetch call, deep inside the ``with page:`` body,
@@ -47,13 +53,14 @@ fallback rather than trying to yield twice from one generator call.
 """
 
 import contextlib
+import sys
 from pathlib import Path
 from typing import Optional
 
 import click
 from click.core import ParameterSource
 
-from ..output import format_output, handle_api_errors, print_info
+from ..output import format_output, handle_api_errors, print_info, print_warning
 from ..utils import parse_ids
 
 _BROWSER_INSTALL_HINT = (
@@ -105,6 +112,7 @@ def _open_session(
         from ..browser.session import (
             BrowserSessionError,
             open_chrome_session,
+            open_persistent_session,
             open_saved_session,
         )
     except ImportError as exc:
@@ -130,6 +138,29 @@ def _open_session(
                 yield page
         except BrowserSessionError as exc:
             raise click.ClickException(str(exc)) from exc
+        return
+
+    from ..browser.session import persistent_profile_is_usable
+
+    persistent_dir = _configured_persistent_profile_dir()
+
+    # Tier 1.5: the CLI's own persistent profile (issue #635, `direct masters
+    # login`) — Keychain-free and platform-independent, so it's preferred
+    # over the saved storage_state session whenever it has been set up.
+    # BrowserAuthError (a stale on-disk session) propagates to _with_session
+    # uncaught, exactly like tier 2's, so the same self-heal fallback
+    # applies.
+    #
+    # Tested for an actual session, not mere directory existence: an aborted
+    # `masters login` leaves an empty profile behind, and routing through it
+    # would cost a wasted browser launch on every command.
+    if persistent_profile_is_usable(persistent_dir):
+        with _fresh_or_saved(
+            open_persistent_session,
+            headless=not headful,
+            profile_dir=persistent_dir,
+        ) as page:
+            yield page
         return
 
     from ..browser import store
@@ -161,8 +192,15 @@ def _open_session(
         raise click.ClickException(str(exc)) from exc
 
 
+def _configured_persistent_profile_dir() -> Path:
+    """Where `masters login` last saved a session (default if never set)."""
+    from ..browser.session import configured_persistent_profile_dir
+
+    return configured_persistent_profile_dir()
+
+
 @contextlib.contextmanager
-def _fresh_or_saved(open_saved_session, *, headless: bool):
+def _fresh_or_saved(open_saved_session, *, headless: bool, **kwargs):
     """Tier 2 body: run ``open_saved_session``, converting non-auth errors.
 
     ``BrowserAuthError`` is intentionally left to propagate to the caller
@@ -173,7 +211,7 @@ def _fresh_or_saved(open_saved_session, *, headless: bool):
     from ..browser.session import BrowserAuthError, BrowserSessionError
 
     try:
-        with open_saved_session(headless=headless) as page:
+        with open_saved_session(headless=headless, **kwargs) as page:
             yield page
     except BrowserAuthError:
         raise
@@ -262,6 +300,140 @@ def _masters_browser_options(func):
 @click.group()
 def masters():
     """Мастер кампаний (Campaign Wizard) — browser-only, no API"""
+
+
+def _stdin_is_interactive() -> bool:
+    """Return whether a human is present to complete a browser login.
+
+    Mirrors ``direct_cli/commands/auth.py``'s helper of the same name.
+    """
+    return sys.stdin.isatty()
+
+
+@masters.command()
+@click.option(
+    "--profile-dir",
+    help="Directory for the CLI's own persistent Chrome profile "
+    "(default: ~/.direct-cli/chrome-profile/)",
+)
+@click.option(
+    "--timeout",
+    "timeout_seconds",
+    type=int,
+    default=300,
+    show_default=True,
+    help="Seconds to wait for manual login to complete",
+)
+def login(profile_dir, timeout_seconds):
+    """Log in once via a visible browser window, saved for future `masters` calls
+
+    Opens Yandex Passport in a persistent Chromium profile owned by the CLI
+    (issue #635) — separate from your real Chrome profile, so it needs no
+    Keychain access and works the same on macOS/Linux/Windows. Log in by
+    hand in the window that opens; the command exits once the session is
+    confirmed. Subsequent `direct masters` calls reuse this profile
+    automatically (see the module docstring's tier 1.5).
+
+    Requires a terminal: if run from CI or a script it fails immediately
+    rather than blocking on a browser window nobody can see.
+    """
+    # The command's whole purpose is to wait for a human. Without a TTY there
+    # is nobody to log in, so blocking for the full --timeout on an invisible
+    # window is never useful (issue #635, Риски -> Интерактивность).
+    if not _stdin_is_interactive():
+        raise click.ClickException(
+            "`direct masters login` needs an interactive terminal — it opens a "
+            "browser window and waits for you to log in by hand. Run it from a "
+            "terminal, not from CI or a script."
+        )
+
+    try:
+        from ..browser.session import BrowserSessionError, login_persistent_session
+    except ImportError as exc:
+        raise click.UsageError(
+            "playwright is required for `direct masters login` but is not "
+            f"installed. Run: {_BROWSER_INSTALL_HINT}"
+        ) from exc
+
+    resolved_profile_dir = Path(profile_dir) if profile_dir else None
+    try:
+        login_persistent_session(
+            profile_dir=resolved_profile_dir,
+            timeout_ms=timeout_seconds * 1000,
+        )
+    except BrowserSessionError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    print_info(
+        "Login confirmed. `direct masters` commands will now reuse this session."
+    )
+
+
+@masters.command()
+@click.option(
+    "--profile-dir",
+    help="Directory for the CLI's own persistent Chrome profile "
+    "(default: ~/.direct-cli/chrome-profile/)",
+)
+def logout(profile_dir):
+    """Delete the persistent Chrome profile created by `masters login`
+
+    The only way to revoke the on-disk Yandex session `masters login`
+    creates (issue #635) short of a manual `rm -rf`. A no-op (with a
+    warning, not an error) if no profile exists.
+
+    Refuses to touch anything `masters login` did not create: the target
+    must carry the CLI's own marker file, and must not be a symlink. A
+    mistyped or shell-expanded `--profile-dir` is rejected rather than
+    recursively deleted.
+    """
+    from ..browser.session import PROFILE_MARKER_NAME, PROFILE_POINTER_PATH
+
+    resolved_profile_dir = (
+        Path(profile_dir) if profile_dir else _configured_persistent_profile_dir()
+    )
+
+    if not resolved_profile_dir.exists():
+        print_warning(f"No persistent browser profile found at {resolved_profile_dir}")
+        return
+
+    # A symlink would have rmtree follow it out of the directory the user named.
+    if resolved_profile_dir.is_symlink():
+        raise click.ClickException(
+            f"Refusing to delete {resolved_profile_dir}: it is a symlink, not a "
+            "profile directory created by `direct masters login`."
+        )
+
+    if not resolved_profile_dir.is_dir():
+        raise click.ClickException(
+            f"Refusing to delete {resolved_profile_dir}: not a directory."
+        )
+
+    # Ownership marker: written by `masters login`, absent from every other
+    # directory on the machine. Without it a recursive delete is never safe.
+    if not (resolved_profile_dir / PROFILE_MARKER_NAME).is_file():
+        raise click.ClickException(
+            f"Refusing to delete {resolved_profile_dir}: it has no "
+            f"{PROFILE_MARKER_NAME} marker, so it was not created by "
+            "`direct masters login`. Delete it by hand if you are sure."
+        )
+
+    import shutil
+
+    # Read before the delete: an explicit --profile-dir may name a directory
+    # that isn't the one the pointer records (e.g. an old profile from before
+    # a later `login --profile-dir` moved it elsewhere). Only clear the
+    # pointer when it actually points at what's being deleted -- otherwise a
+    # cleanup of a stale profile would strand reads without their live one.
+    try:
+        pointer_target = PROFILE_POINTER_PATH.read_text(encoding="utf-8").strip()
+    except OSError:
+        pointer_target = None
+
+    shutil.rmtree(resolved_profile_dir)
+    if pointer_target and Path(pointer_target) == resolved_profile_dir.resolve():
+        PROFILE_POINTER_PATH.unlink(missing_ok=True)
+    print_info(f"Deleted persistent browser profile at {resolved_profile_dir}")
 
 
 _STATUS_CHOICES = ("not-archived", "active", "stopped", "archived", "all")
