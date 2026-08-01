@@ -1672,6 +1672,35 @@ class TestMastersArchiveCommand(unittest.TestCase):
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertEqual(mock_archive.call_count, 2)
 
+    def test_archive_reports_earlier_successes_when_a_later_id_fails(self):
+        # Regression: archive is irreversible (no `masters unarchive`) -- a
+        # naive list comprehension that aborts on the first exception would
+        # silently lose the report that ids 1/2 were already archived in
+        # production before id 3 failed. The per-ID outcome for every ID
+        # must reach the user, not just the last error.
+        def _fake_archive(page, campaign_id):
+            if campaign_id == 3:
+                raise BrowserSessionError("boom on id 3")
+            return {"CampaignId": campaign_id, "Status": "ARCHIVED"}
+
+        with (
+            patch(
+                "direct_cli.browser.masters.archive_master", side_effect=_fake_archive
+            ) as mock_archive,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            result = self.runner.invoke(cli, ["masters", "archive", "1,2,3,4"])
+
+        # All four IDs must be attempted -- a failure on id 3 must not skip
+        # id 4, and must not discard the already-mutated 1/2 from the report.
+        self.assertEqual(mock_archive.call_count, 4)
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("1", result.output)
+        self.assertIn("ARCHIVED", result.output)
+        self.assertIn("2", result.output)
+        self.assertIn("boom on id 3", result.output)
+
 
 class TestMastersLoginCommand(unittest.TestCase):
     """CLI wiring for `masters login` (issue #635)."""
