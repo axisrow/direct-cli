@@ -38,6 +38,22 @@ message asking the caller to re-run with ``--headful`` and report the actual
 text, rather than clicking the wrong element. Re-confirm the exact button
 text/behaviour against a live account before relying on this in production;
 update ``_SUSPEND_BUTTON_TEXTS``/``_RESUME_BUTTON_TEXTS`` accordingly.
+
+``archive_master`` (issue #633, live-recon confirmed no separate "delete"
+exists for Мастер кампаний — only archive; see the issue comment). Both
+the campaigns-grid row menu and the overview page's own "⋮" menu were
+inspected live: neither has a "Удалить" item, only "Архивировать" (grid
+row menu also has Перейти/Редактировать/Статистика/Запустить-Остановить;
+overview menu has only Клонировать/Архивировать). Confirmed live,
+stable ``data-testid`` attributes back the overview menu:
+``CampaignHeader.MenuTrigger`` (opens the "⋮" dropdown) and
+``CampaignHeader.Menu.archive`` (the "Архивировать" menu item) — unlike
+suspend/resume's text-based matching, this does not depend on Russian
+button copy. Archiving is verified via ``fetch_masters_list`` (the grid
+API's ``primaryStatus``), not the overview page's status text — no
+archived-campaign overview fixture has been captured, so there is no
+confirmed status-text marker for "archived" on that page the way there is
+for "Кампания остановлена"/"активна".
 """
 
 import json
@@ -114,6 +130,17 @@ _SUSPEND_BUTTON_TEXTS = ("Остановить кампанию", "Приост�
 # How long to wait, after clicking the action button, for the status text to
 # actually change before giving up and reporting a possible false success.
 _STATUS_CHANGE_TIMEOUT_MS = 10_000
+
+# Overview page's "⋮" menu, confirmed live (issue #633) — see module
+# docstring. Unlike _RESUME_BUTTON_TEXTS/_SUSPEND_BUTTON_TEXTS these are
+# selectors, not text-matched candidates: both testids were read directly off
+# a live account's DOM, not guessed.
+_MENU_TRIGGER_SELECTOR = '[data-testid="CampaignHeader.MenuTrigger"]'
+_ARCHIVE_MENU_ITEM_SELECTOR = '[data-testid="CampaignHeader.Menu.archive"]'
+
+# How long to wait, after clicking Архивировать, for the grid API to report
+# the campaign as ARCHIVED before giving up (see archive_master).
+_ARCHIVE_VERIFY_TIMEOUT_MS = 10_000
 
 
 def _is_grid_campaigns_request(response: Any) -> bool:
@@ -499,3 +526,83 @@ def resume_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
         target_status="ACTIVE",
         button_texts=_RESUME_BUTTON_TEXTS,
     )
+
+
+def _find_master_row(
+    page: "Page", campaign_id: int, *, status: str = "all"
+) -> Optional[Dict[str, Any]]:
+    """Return this campaign's row from ``fetch_masters_list``, or ``None``."""
+    for row in fetch_masters_list(page, status=status):
+        if row["CampaignId"] == campaign_id:
+            return row
+    return None
+
+
+def archive_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
+    """Archive a Мастер кампаний, verifying the grid actually reports it archived.
+
+    There is no separate "delete" for Мастер кампаний (issue #633 live
+    recon, documented in the module docstring) — this is the only
+    destructive/lifecycle action beyond suspend/resume. Idempotent: if the
+    campaign is already archived, does not click anything and returns the
+    current row with a warning (mirrors ``suspend_master``/``resume_master``).
+
+    Opens the campaign's overview page, clicks the "⋮" menu trigger, then the
+    "Архивировать" item (both selected via confirmed-live ``data-testid``
+    attributes, not guessed text — see module docstring), and re-reads the
+    campaigns grid via ``fetch_masters_list`` to confirm ``Status ==
+    "ARCHIVED"`` before reporting success — never trusting the click alone.
+    """
+    existing = _find_master_row(page, campaign_id)
+    if existing is None:
+        raise BrowserSessionError(
+            f"Could not find Мастер кампаний {campaign_id} in the campaigns "
+            "grid — check the ID, or it may already be gone."
+        )
+    if existing["Status"] == "ARCHIVED":
+        print_warning(f"Campaign {campaign_id} is already archived; not clicking.")
+        return existing
+
+    url = WIZARD_OVERVIEW_URL.format(campaign_id=campaign_id)
+    page.goto(url, wait_until="domcontentloaded")
+    assert_not_captcha(page.content())
+    assert_authenticated(page.content())
+
+    menu_trigger = page.locator(_MENU_TRIGGER_SELECTOR).first
+    try:
+        menu_trigger.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            f"Could not open the campaign menu for {campaign_id} "
+            f"({_MENU_TRIGGER_SELECTOR!r} not found/clickable) — Yandex may "
+            "have changed the overview page's markup."
+        ) from exc
+
+    archive_item = page.locator(_ARCHIVE_MENU_ITEM_SELECTOR).first
+    try:
+        archive_item.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            f"Could not find/click 'Архивировать' for campaign {campaign_id} "
+            f"({_ARCHIVE_MENU_ITEM_SELECTOR!r} not found) — Yandex may have "
+            "changed the overview page's menu."
+        ) from exc
+
+    deadline = time.monotonic() + _ARCHIVE_VERIFY_TIMEOUT_MS / 1000
+    updated = existing
+    while time.monotonic() < deadline:
+        updated = _find_master_row(page, campaign_id)
+        if updated is not None and updated["Status"] == "ARCHIVED":
+            break
+        page.wait_for_timeout(250)
+
+    if updated is None or updated["Status"] != "ARCHIVED":
+        raise BrowserSessionError(
+            f"Clicked 'Архивировать' for campaign {campaign_id}, but the "
+            f"campaigns grid did not report it as ARCHIVED within "
+            f"{_ARCHIVE_VERIFY_TIMEOUT_MS / 1000:.0f}s. The click may not "
+            "have hit the right element, or Yandex is slow to apply it — "
+            "verify manually before retrying."
+        )
+
+    return updated

@@ -60,7 +60,13 @@ from typing import Optional
 import click
 from click.core import ParameterSource
 
-from ..output import format_output, handle_api_errors, print_info, print_warning
+from ..output import (
+    format_output,
+    handle_api_errors,
+    print_error,
+    print_info,
+    print_warning,
+)
 from ..utils import parse_ids
 
 _BROWSER_INSTALL_HINT = (
@@ -558,3 +564,69 @@ def resume(
     results = _with_session(ctx, headful, profile_dir, chrome_profile, _resume_all)
 
     format_output(results if len(results) != 1 else results[0], output_format, output)
+
+
+@masters.command()
+@click.argument("campaign_ids")
+@_masters_browser_options
+@click.pass_context
+@handle_api_errors
+def archive(
+    ctx,
+    campaign_ids,
+    headful,
+    profile_dir,
+    chrome_profile,
+    output_format,
+    output,
+):
+    """Archive one or more Мастер кампаний by ID (comma-separated)
+
+    Мастер кампаний has no separate "delete" — archiving is the only
+    destructive/lifecycle action beyond suspend/resume (issue #633 live
+    recon: neither the campaigns-grid row menu nor the overview page's menu
+    has a "Удалить" item, only "Архивировать"). Irreversible from this CLI:
+    there is no `masters unarchive`. Clicks the overview page's "⋮" menu then
+    "Архивировать" (both confirmed live via stable `data-testid` attributes —
+    see `direct_cli/browser/masters.py` module docstring), and verifies via
+    the campaigns grid that the status actually became ARCHIVED before
+    reporting success; idempotent if already archived.
+
+    Every ID is attempted even if an earlier one fails: since archiving is
+    irreversible, a naive fail-fast loop would silently lose the report that
+    earlier IDs were already archived in production before a later one
+    errored (issue #645 review). Each ID's outcome (the archived row, or its
+    error) is reported; if any ID failed, the command exits non-zero after
+    printing every outcome, never just the last error.
+    """
+    from ..browser.masters import archive_master
+
+    ids = parse_ids(campaign_ids) or []
+
+    def _archive_all(page):
+        from ..browser.session import BrowserSessionError
+        from ..browser.masters import PlaywrightError
+
+        results = []
+        errors = []
+        for campaign_id in ids:
+            try:
+                results.append(archive_master(page, campaign_id))
+            except (BrowserSessionError, PlaywrightError) as exc:
+                errors.append((campaign_id, exc))
+                results.append({"CampaignId": campaign_id, "Error": str(exc)})
+        return results, errors
+
+    results, errors = _with_session(
+        ctx, headful, profile_dir, chrome_profile, _archive_all
+    )
+
+    format_output(results if len(results) != 1 else results[0], output_format, output)
+
+    if errors:
+        for campaign_id, exc in errors:
+            print_error(f"Campaign {campaign_id}: {exc}")
+        raise click.ClickException(
+            f"Failed to archive {len(errors)} of {len(ids)} campaign(s); "
+            "see per-ID results above."
+        )

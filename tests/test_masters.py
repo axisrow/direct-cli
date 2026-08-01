@@ -46,10 +46,11 @@ def _load_grid_campaigns_fixture():
 class _FakeLocatorHandle:
     """One matched element — the subset of Playwright's Locator API the parser uses."""
 
-    def __init__(self, text="", attrs=None, raises=False):
+    def __init__(self, text="", attrs=None, raises=False, on_click=None):
         self._text = text
         self._attrs = attrs or {}
         self._raises = raises
+        self._on_click = on_click
 
     def inner_text(self):
         if self._raises:
@@ -61,6 +62,12 @@ class _FakeLocatorHandle:
 
     def get_attribute(self, name):
         return self._attrs.get(name)
+
+    def click(self):
+        if self._raises:
+            raise PlaywrightError("element not found")
+        if self._on_click is not None:
+            self._on_click()
 
 
 class _FakeLocator:
@@ -1515,6 +1522,184 @@ class TestMastersSuspendResumeCommand(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertEqual(mock_resume.call_count, 1)
+
+
+class TestArchiveMaster(unittest.TestCase):
+    """archive_master (issue #633): click + verify via the campaigns grid.
+
+    Мастер кампаний has no separate "delete" (live recon, see module
+    docstring) — archive is the only destructive/lifecycle action left.
+    Unlike suspend/resume's text-matched candidate buttons, the overview
+    page's "⋮" menu and its "Архивировать" item are confirmed live via
+    stable ``data-testid`` selectors, so these tests exercise exact-selector
+    clicks rather than a candidate-list fallback.
+    """
+
+    def _row(self, status):
+        return {
+            "CampaignId": 42,
+            "Name": "Мастер тестовый",
+            "Status": status,
+            "Type": "TEXT",
+            "StartDate": "2025-01-01",
+        }
+
+    def _page_with_menu(self, menu_trigger=None, archive_item=None):
+        locators = {}
+        if menu_trigger is not None:
+            locators[browser_masters._MENU_TRIGGER_SELECTOR] = _FakeLocator(
+                [menu_trigger]
+            )
+        if archive_item is not None:
+            locators[browser_masters._ARCHIVE_MENU_ITEM_SELECTOR] = _FakeLocator(
+                [archive_item]
+            )
+        return FakePage(locators=locators)
+
+    def test_archives_and_verifies_via_grid(self):
+        state = {"status": "STOPPED"}
+
+        def _flip():
+            state["status"] = "ARCHIVED"
+
+        page = self._page_with_menu(
+            menu_trigger=_FakeLocatorHandle(),
+            archive_item=_FakeLocatorHandle(on_click=_flip),
+        )
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            side_effect=lambda page, status="all": [self._row(state["status"])],
+        ):
+            result = browser_masters.archive_master(page, 42)
+
+        self.assertEqual(result, self._row("ARCHIVED"))
+        self.assertEqual(
+            page.navigated_to,
+            [browser_masters.WIZARD_OVERVIEW_URL.format(campaign_id=42)],
+        )
+
+    def test_idempotent_when_already_archived(self):
+        page = self._page_with_menu()
+
+        with (
+            patch(
+                "direct_cli.browser.masters.fetch_masters_list",
+                return_value=[self._row("ARCHIVED")],
+            ),
+            patch("direct_cli.browser.masters.print_warning") as warn,
+        ):
+            result = browser_masters.archive_master(page, 42)
+
+        self.assertEqual(result, self._row("ARCHIVED"))
+        self.assertEqual(page.navigated_to, [])  # not clicking -> no navigation either
+        warn.assert_called_once()
+        self.assertIn("already archived", warn.call_args[0][0])
+
+    def test_raises_when_campaign_not_found_in_grid(self):
+        page = self._page_with_menu()
+
+        with patch("direct_cli.browser.masters.fetch_masters_list", return_value=[]):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.archive_master(page, 42)
+
+        self.assertIn("Could not find", str(ctx.exception))
+
+    def test_raises_when_menu_trigger_not_found(self):
+        page = self._page_with_menu()  # no menu_trigger locator registered
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            return_value=[self._row("STOPPED")],
+        ):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.archive_master(page, 42)
+
+        self.assertIn("Could not open the campaign menu", str(ctx.exception))
+
+    def test_raises_when_archive_menu_item_not_found(self):
+        page = self._page_with_menu(menu_trigger=_FakeLocatorHandle())
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            return_value=[self._row("STOPPED")],
+        ):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.archive_master(page, 42)
+
+        self.assertIn("Архивировать", str(ctx.exception))
+
+    def test_raises_when_status_never_becomes_archived(self):
+        # The click succeeds but the grid keeps reporting STOPPED -- must not
+        # report success on the click alone.
+        page = self._page_with_menu(
+            menu_trigger=_FakeLocatorHandle(),
+            archive_item=_FakeLocatorHandle(),
+        )
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            return_value=[self._row("STOPPED")],
+        ):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.archive_master(page, 42)
+
+        self.assertIn("did not report it as ARCHIVED", str(ctx.exception))
+
+
+class TestMastersArchiveCommand(unittest.TestCase):
+    """CLI wiring for `masters archive` (issue #633)."""
+
+    def setUp(self):
+        self.runner = CliRunner()
+
+    def test_archive_registered(self):
+        result = self.runner.invoke(cli, ["masters", "archive", "--help"])
+        self.assertEqual(result.exit_code, 0)
+
+    def test_archive_has_no_login_option(self):
+        result = self.runner.invoke(cli, ["masters", "archive", "--help"])
+        self.assertNotIn("--login", result.output)
+
+    def test_archive_calls_archive_master_per_id(self):
+        with (
+            patch("direct_cli.browser.masters.archive_master") as mock_archive,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            result = self.runner.invoke(cli, ["masters", "archive", "1,2"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(mock_archive.call_count, 2)
+
+    def test_archive_reports_earlier_successes_when_a_later_id_fails(self):
+        # Regression: archive is irreversible (no `masters unarchive`) -- a
+        # naive list comprehension that aborts on the first exception would
+        # silently lose the report that ids 1/2 were already archived in
+        # production before id 3 failed. The per-ID outcome for every ID
+        # must reach the user, not just the last error.
+        def _fake_archive(page, campaign_id):
+            if campaign_id == 3:
+                raise BrowserSessionError("boom on id 3")
+            return {"CampaignId": campaign_id, "Status": "ARCHIVED"}
+
+        with (
+            patch(
+                "direct_cli.browser.masters.archive_master", side_effect=_fake_archive
+            ) as mock_archive,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            result = self.runner.invoke(cli, ["masters", "archive", "1,2,3,4"])
+
+        # All four IDs must be attempted -- a failure on id 3 must not skip
+        # id 4, and must not discard the already-mutated 1/2 from the report.
+        self.assertEqual(mock_archive.call_count, 4)
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("1", result.output)
+        self.assertIn("ARCHIVED", result.output)
+        self.assertIn("2", result.output)
+        self.assertIn("boom on id 3", result.output)
 
 
 class TestMastersLoginCommand(unittest.TestCase):
