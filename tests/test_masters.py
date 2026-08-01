@@ -225,6 +225,7 @@ class FakePage:
         self._html = html
         self.navigated_to = []
         self.goto_wait_until = None
+        self.closed = False
         # If set, matched by expect_response()'s predicate once goto() has
         # been called inside its `with` block — models the grid firing its
         # GridCampaigns XHR during navigation.
@@ -237,6 +238,9 @@ class FakePage:
     def goto(self, url, wait_until=None):
         self.navigated_to.append(url)
         self.goto_wait_until = wait_until
+
+    def close(self):
+        self.closed = True
 
     def expect_response(self, predicate, timeout=None):
         return _FakeExpectResponse(self, predicate)
@@ -586,8 +590,11 @@ class TestPersistentSession(unittest.TestCase):
         pytest.importorskip("playwright")
         from direct_cli.browser import session as session_module
 
+        # Page 1 is the visible Passport tab; page 2 is the poll probe whose
+        # HTML decides whether login has completed.
+        login_page = FakePage(locators={}, html="<body>Войдите с Яндекс ID</body>")
         authed_page = FakePage(locators={}, html="<body>Кампания остановлена</body>")
-        persistent_ctx = _FakePersistentContext(pages=[authed_page])
+        persistent_ctx = _FakePersistentContext(pages=[login_page, authed_page])
         fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
         fake_playwright = _FakePlaywright(fake_chromium)
 
@@ -605,7 +612,8 @@ class TestPersistentSession(unittest.TestCase):
         from direct_cli.browser.session import BrowserAuthError
 
         login_page = FakePage(locators={}, html="<body>Войдите с Яндекс ID</body>")
-        persistent_ctx = _FakePersistentContext(pages=[login_page])
+        probe_page = FakePage(locators={}, html="<body>Войдите с Яндекс ID</body>")
+        persistent_ctx = _FakePersistentContext(pages=[login_page, probe_page])
         fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
         fake_playwright = _FakePlaywright(fake_chromium)
 
@@ -616,6 +624,41 @@ class TestPersistentSession(unittest.TestCase):
                     timeout_ms=1_000,
                 )
         self.assertIn("Timed out", str(ctx.exception))
+        self.assertTrue(probe_page.closed, "poll probe page was left open")
+
+    def test_login_polling_does_not_navigate_the_page_the_user_is_typing_into(self):
+        """The visible login page must stay on Passport until login succeeds.
+
+        The poll loop checks authentication by driving the *same* page the
+        human is typing into. Every interval it navigates that page away to
+        the grid, wiping a half-filled login form and any 2FA prompt on it —
+        the user cannot finish signing in against a page that resets under
+        their hands once a second.
+        """
+        pytest.importorskip("playwright")
+        from direct_cli.browser import session as session_module
+        from direct_cli.browser.session import BrowserAuthError
+
+        login_page = FakePage(locators={}, html="<body>Войдите с Яндекс ID</body>")
+        probe_page = FakePage(locators={}, html="<body>Войдите с Яндекс ID</body>")
+        persistent_ctx = _FakePersistentContext(pages=[login_page, probe_page])
+        fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
+        fake_playwright = _FakePlaywright(fake_chromium)
+
+        with patch("playwright.sync_api.sync_playwright", return_value=fake_playwright):
+            with self.assertRaises(BrowserAuthError):
+                session_module.login_persistent_session(
+                    profile_dir=self.profile_dir,
+                    timeout_ms=3_000,
+                )
+
+        # The page the user interacts with is navigated exactly once: to
+        # Passport. Polling must not steer it anywhere else.
+        self.assertEqual(
+            login_page.navigated_to,
+            [session_module._PASSPORT_LOGIN_URL],
+            "poll loop navigated the user's login page away from Passport",
+        )
 
 
 class TestOpenSessionTiers(unittest.TestCase):

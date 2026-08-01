@@ -29,6 +29,10 @@
   (not an error) if no profile exists. Also classified `DANGEROUS`
   (local credential-store mutation, same category as `auth login`/`auth
   use`).
+- `masters login` polls for completion on a separate page instead of the
+  one the user is typing into. Previously the loop navigated the visible
+  Passport tab to the grid once a second, wiping a half-filled login form
+  or a pending 2FA prompt out from under the user.
 - `masters logout` refuses to delete anything `masters login` did not
   create. Every profile now carries a `.direct-cli-profile` marker file,
   and `logout` rejects a target that lacks it, is a symlink, or is not a

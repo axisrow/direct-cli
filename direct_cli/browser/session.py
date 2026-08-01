@@ -285,18 +285,27 @@ def login_persistent_session(
         page = context.new_page()
         page.goto(_PASSPORT_LOGIN_URL, wait_until="domcontentloaded")
 
-        elapsed_ms = 0
-        while elapsed_ms < timeout_ms:
-            page.goto(GRID_URL, wait_until="domcontentloaded")
-            html = page.content()
-            assert_not_captcha(html)
-            try:
-                assert_authenticated(html)
-            except BrowserAuthError:
-                page.wait_for_timeout(_LOGIN_POLL_INTERVAL_MS)
-                elapsed_ms += _LOGIN_POLL_INTERVAL_MS
-                continue
-            return
+        # Poll on a second page, never on `page`: the human is typing into
+        # that one, and navigating it to the grid once a second would wipe a
+        # half-filled login form or a pending 2FA prompt out from under them.
+        # Both pages share the persistent context's cookie jar, so a login
+        # completed on `page` is immediately visible to `probe`.
+        probe = context.new_page()
+        try:
+            elapsed_ms = 0
+            while elapsed_ms < timeout_ms:
+                probe.goto(GRID_URL, wait_until="domcontentloaded")
+                html = probe.content()
+                assert_not_captcha(html)
+                try:
+                    assert_authenticated(html)
+                except BrowserAuthError:
+                    probe.wait_for_timeout(_LOGIN_POLL_INTERVAL_MS)
+                    elapsed_ms += _LOGIN_POLL_INTERVAL_MS
+                    continue
+                return
+        finally:
+            probe.close()
 
         raise BrowserAuthError(
             f"Timed out after {timeout_ms // 1000}s waiting for login to "
