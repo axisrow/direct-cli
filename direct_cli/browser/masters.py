@@ -68,6 +68,21 @@ per-section independent save. A partial ``update_master`` call (only some
 kwargs passed) therefore still submits the whole form; fields the caller
 didn't ask to change are simply left as their current on-page value by never
 touching their input, not via any server-side partial-update semantics.
+
+**Save verification.** ``_click_save`` only confirms the button was
+clickable — a click alone is not proof Yandex actually saved the change
+(client-side validation can silently reject a value and leave the form open
+with an inline error this module has no stable way to read, see issue
+#631's "Валидация на стороне Яндекса непрозрачна" risk). ``update_master``
+therefore re-navigates to the edit page after saving and re-reads every
+requested field via ``_verify_saved`` — if a field still doesn't match what
+was requested after a real reload, it raises ``BrowserSessionError`` rather
+than reporting false success. This mirrors ``_suspend_or_resume``'s
+"a click that doesn't visibly change the state is a hard error, not a
+silent success" convention, applied to the whole-form save instead of a
+single status field. Not yet covered: an inline validation-error TEXT is
+not itself surfaced to the caller (only the resulting mismatch is) — a
+follow-up could read and report Yandex's actual rejection reason.
 """
 
 import json
@@ -729,7 +744,11 @@ def _set_promotion_goal(page: "Page", goal: str) -> None:
             "markup. Re-run with --headful to inspect the page."
         ) from exc
 
-    option = page.get_by_text(label, exact=False)
+    # get_by_role scopes to actual clickable option rows (not any container
+    # whose text happens to contain the label as a substring) — see the
+    # cycle-review finding this fixed: the previous get_by_text(exact=False)
+    # could match an ancestor wrapper instead of the option itself.
+    option = page.get_by_role("option", name=label, exact=True)
     clicked = False
     try:
         count = option.count()
@@ -753,11 +772,14 @@ def _set_promotion_goal(page: "Page", goal: str) -> None:
             "the page's markup. Re-run with --headful to inspect the page."
         )
 
+    # Exact match, not substring: an exact accessible name is either the new
+    # selection or it isn't — a substring check could pass on unrelated text
+    # that merely contains part of the label.
     try:
         current = trigger.inner_text().strip()
     except PlaywrightError:
         current = ""
-    if label not in current:
+    if current != label:
         raise BrowserSessionError(
             f"Clicked the {label!r} option for 'Цель продвижения', but the "
             f"dropdown still does not show it (shows {current!r}). The "
@@ -773,7 +795,10 @@ def _click_save(page: "Page", campaign_id: int) -> None:
     button at the bottom (see module docstring) — there is no per-section
     save to target instead.
     """
-    save_button = page.get_by_text(_SAVE_BUTTON_TEXT, exact=False)
+    # get_by_role scopes to the actual <button> element (exact accessible
+    # name), not any ancestor container whose text merely contains this
+    # substring — see the cycle-review finding this fixed.
+    save_button = page.get_by_role("button", name=_SAVE_BUTTON_TEXT, exact=True)
     try:
         count = save_button.count()
     except PlaywrightError:
@@ -794,6 +819,111 @@ def _click_save(page: "Page", campaign_id: int) -> None:
     )
 
 
+def _read_weekly_budget(page: "Page") -> Optional[int]:
+    """Read the "Недельный бюджет" input's current bare-integer value.
+
+    Returns ``None`` if the field can't be found/read — the caller treats
+    that as "verification inconclusive", not as a specific budget value.
+    """
+    field = page.locator(_WEEKLY_BUDGET_INPUT_XPATH).first
+    try:
+        raw = field.input_value()
+    except PlaywrightError:
+        return None
+    digits = "".join(ch for ch in raw if ch.isdigit())
+    if not digits:
+        return None
+    try:
+        return int(digits)
+    except ValueError:
+        return None
+
+
+def _read_directs_helps(page: "Page") -> Optional[bool]:
+    """Read the "Директ помогает" checkbox's current checked state.
+
+    Returns ``None`` if the field can't be found/read (inconclusive).
+    """
+    checkbox = page.locator(_DIRECT_HELPS_CHECKBOX_XPATH).first
+    try:
+        return checkbox.is_checked()
+    except PlaywrightError:
+        return None
+
+
+def _read_promotion_goal_label(page: "Page") -> Optional[str]:
+    """Read the "Цель продвижения" dropdown trigger's current text.
+
+    Returns ``None`` if the trigger can't be found/read (inconclusive).
+    """
+    trigger = page.locator(_PROMOTION_GOAL_BUTTON_XPATH).first
+    try:
+        return trigger.inner_text().strip()
+    except PlaywrightError:
+        return None
+
+
+def _verify_saved(
+    page: "Page",
+    campaign_id: int,
+    *,
+    weekly_budget: Optional[int],
+    promotion_goal: Optional[str],
+    directs_helps: Optional[bool],
+) -> None:
+    """Reload the edit page and confirm every requested field actually saved.
+
+    Never trust the save-button click alone (mirrors ``_suspend_or_resume``'s
+    "a click that doesn't visibly change the state is a hard error, not a
+    silent success" convention) — Yandex's client-side validation can reject
+    a value and leave the form open with an inline error that this module
+    has no stable way to read (see module docstring's "known gap" note,
+    issue #631's own "Валидация... непрозрачна" risk). Re-navigating and
+    re-reading each touched field is the only reliable signal available:
+    if a field still doesn't match after a real reload, the save did not
+    take effect and this raises rather than reporting false success.
+    """
+    url = WIZARD_EDIT_URL.format(campaign_id=campaign_id)
+    page.goto(url, wait_until="domcontentloaded")
+    assert_not_captcha(page.content())
+    assert_authenticated(page.content())
+
+    mismatches = []
+
+    if weekly_budget is not None:
+        actual = _read_weekly_budget(page)
+        if actual != weekly_budget:
+            mismatches.append(
+                f"weekly_budget: expected {weekly_budget}, page now shows {actual!r}"
+            )
+
+    if directs_helps is not None:
+        actual_checked = _read_directs_helps(page)
+        if actual_checked != directs_helps:
+            mismatches.append(
+                f"directs_helps: expected {directs_helps}, page now shows "
+                f"{actual_checked!r}"
+            )
+
+    if promotion_goal is not None:
+        expected_label = PROMOTION_GOAL_CHOICES[promotion_goal]
+        actual_label = _read_promotion_goal_label(page)
+        if actual_label != expected_label:
+            mismatches.append(
+                f"promotion_goal: expected {expected_label!r}, page now shows "
+                f"{actual_label!r}"
+            )
+
+    if mismatches:
+        raise BrowserSessionError(
+            f"Clicked '{_SAVE_BUTTON_TEXT}' for campaign {campaign_id}, but "
+            "re-reading the edit page after reload shows it did not save "
+            "as requested: " + "; ".join(mismatches) + ". Yandex may have "
+            "rejected the value (client-side validation) or the save did "
+            "not complete — verify manually before retrying."
+        )
+
+
 def update_master(
     page: "Page",
     campaign_id: int,
@@ -809,6 +939,11 @@ def update_master(
     left alone keep their current on-page value simply by never having their
     input touched). Raises ``ValueError`` if no field is provided, mirroring
     the rest of the CLI's "nothing to update" guard for partial updates.
+
+    After clicking save, reloads the edit page and re-reads every requested
+    field to confirm it actually saved (see ``_verify_saved``) — a click
+    that doesn't visibly change the saved state is reported as a hard error,
+    not a silent success, mirroring ``_suspend_or_resume``.
 
     Later Этап (B/C/D) fields — headline/text lists, sitelinks, audience,
     Metrika counters/goals, budget adaptation, media — are out of scope for
@@ -833,6 +968,14 @@ def update_master(
         _set_directs_helps(page, directs_helps)
 
     _click_save(page, campaign_id)
+
+    _verify_saved(
+        page,
+        campaign_id,
+        weekly_budget=weekly_budget,
+        promotion_goal=promotion_goal,
+        directs_helps=directs_helps,
+    )
 
     result: Dict[str, Any] = {"CampaignId": campaign_id}
     if weekly_budget is not None:

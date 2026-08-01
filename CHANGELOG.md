@@ -38,9 +38,13 @@
   filling/toggling their input).
 - New `direct_cli/browser/masters.py` functions: `update_master` plus
   private `_set_weekly_budget`/`_set_directs_helps`/`_set_promotion_goal`
-  setters, following the module's existing "click, then verify the change
-  actually took effect" convention (`_suspend_or_resume`) rather than
-  trusting a click alone.
+  setters. Each field setter follows the module's existing "click, then
+  verify the change actually took effect" convention (`_suspend_or_resume`)
+  rather than trusting a click alone — but the final `_click_save` step does
+  not: it confirms the save button was clickable, not that Yandex actually
+  saved the change. See the known-gap note in the module docstring; a
+  follow-up live investigation of post-save DOM behaviour is needed before
+  this can be closed.
 - Later Этап (B/C/D) fields — headline/text variant lists, sitelinks,
   audience, Metrika counters/goals, budget adaptation, images/video — are
   tracked separately in issue #631 and not implemented here.

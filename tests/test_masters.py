@@ -51,6 +51,12 @@ class _FakeLocatorHandle:
     ``on_fill``/``on_check`` are optional no-arg/one-arg callbacks so tests
     can model the fake page's mutable state changing (mirrors
     ``_FakeTextLocatorHandle.on_click`` used by suspend/resume tests).
+    ``input_value``/``is_checked`` support the post-save read-back
+    verification in ``_verify_saved`` — they read the SAME mutable
+    ``checked``/``value`` state ``fill``/``check``/``uncheck`` write, via
+    ``state`` dict callables (``get_value``/``get_checked``), so a test can
+    model "the reload shows what was actually saved" instead of "whatever
+    was passed to fill/check".
     """
 
     def __init__(
@@ -62,6 +68,8 @@ class _FakeLocatorHandle:
         on_click=None,
         on_fill=None,
         on_check=None,
+        get_value=None,
+        get_checked=None,
     ):
         self._text = text
         self._attrs = attrs or {}
@@ -70,6 +78,8 @@ class _FakeLocatorHandle:
         self._on_click = on_click
         self._on_fill = on_fill
         self._on_check = on_check
+        self._get_value = get_value
+        self._get_checked = get_checked
 
     def inner_text(self):
         if self._raises:
@@ -111,6 +121,17 @@ class _FakeLocatorHandle:
             raise PlaywrightError("element detached")
         if self._on_check is not None:
             self._on_check(False)
+
+    def input_value(self):
+        if self._raises:
+            raise PlaywrightError("element detached")
+        return self._get_value() if self._get_value is not None else self._text
+
+    def is_checked(self):
+        if self._raises:
+            raise PlaywrightError("element detached")
+        return self._get_checked() if self._get_checked is not None else False
+
 
 class _FakeLocator:
     """A Locator for one selector — holds every matched handle for that selector."""
@@ -268,6 +289,7 @@ class FakePage:
         grid_response=None,
         api_request=None,
         text_buttons=None,
+        role_elements=None,
     ):
         self._locators = locators or {}
         self._body_text = body_text
@@ -283,6 +305,15 @@ class FakePage:
         # {text: _FakeGetByTextLocator} for get_by_text() — used by
         # suspend_master/resume_master's action-button click.
         self._text_buttons = text_buttons or {}
+        # [(role, accessible_name, handle), ...] for get_by_role() — honors
+        # `exact` the same way real Playwright does (substring vs. equality
+        # against `accessible_name`), so a fake test can actually catch a
+        # get_by_role() call whose `exact`/`name` doesn't match the real
+        # element, instead of always matching by selector-string identity
+        # (issue #631 cycle-review: the previous get_by_text-based fakes
+        # could not distinguish a correct role-scoped match from an
+        # accidental ancestor-container match).
+        self._role_elements = role_elements or []
 
     def goto(self, url, wait_until=None):
         self.navigated_to.append(url)
@@ -302,6 +333,20 @@ class FakePage:
 
     def get_by_text(self, text, exact=False):
         return self._text_buttons.get(text, _FakeGetByTextLocator([]))
+
+    def get_by_role(self, role, name=None, exact=False):
+        matched = []
+        for elem_role, elem_name, handle in self._role_elements:
+            if elem_role != role:
+                continue
+            if name is None:
+                matched.append(handle)
+            elif exact:
+                if elem_name == name:
+                    matched.append(handle)
+            elif name in elem_name:
+                matched.append(handle)
+        return _FakeGetByTextLocator(matched)
 
     def inner_text(self, selector=None):
         return self._body_text
@@ -1806,7 +1851,16 @@ class TestSetDirectsHelps(unittest.TestCase):
 
 
 class TestSetPromotionGoal(unittest.TestCase):
-    """``_set_promotion_goal`` (issue #631, Этап A) — open dropdown, click, verify."""
+    """``_set_promotion_goal`` (issue #631, Этап A) — open dropdown, click, verify.
+
+    Options are modeled via ``role_elements`` (role="option"), not
+    ``text_buttons`` — ``_set_promotion_goal`` uses
+    ``get_by_role("option", name=label, exact=True)`` (cycle-review fix: the
+    previous ``get_by_text(exact=False)`` risked matching an ancestor
+    container instead of the option row itself). Using ``role_elements``
+    here means these tests actually exercise the same exact-name matching
+    the real code performs, instead of matching by an opaque dict key.
+    """
 
     def _page_for_goal_selection(self, target_label, trigger_text_after_click):
         state = {"trigger_text": "Цель продвижения"}
@@ -1822,17 +1876,50 @@ class TestSetPromotionGoal(unittest.TestCase):
             locators={
                 browser_masters._PROMOTION_GOAL_BUTTON_XPATH: _FakeLocator([trigger])
             },
-            text_buttons={
-                target_label: _FakeGetByTextLocator(
-                    [_FakeTextLocatorHandle(visible=True, on_click=_select)]
+            role_elements=[
+                (
+                    "option",
+                    target_label,
+                    _FakeTextLocatorHandle(visible=True, on_click=_select),
                 )
-            },
+            ],
         )
 
     def test_selects_option_and_verifies(self):
         page = self._page_for_goal_selection("Максимум переходов", "Максимум переходов")
 
         browser_masters._set_promotion_goal(page, "max-clicks")
+
+        trigger = page.locator(browser_masters._PROMOTION_GOAL_BUTTON_XPATH).first
+        self.assertEqual(trigger.inner_text(), "Максимум переходов")
+
+    def test_does_not_match_option_whose_name_only_contains_label_as_substring(self):
+        # A decoy element whose accessible name merely CONTAINS the target
+        # label (e.g. an ancestor wrapper with extra description text) must
+        # NOT be treated as a match — get_by_role(..., exact=True) requires
+        # an exact accessible-name equality, not a substring.
+        state = {"trigger_text": "Цель продвижения"}
+        trigger = _FakeLocatorHandle(text="Цель продвижения")
+        trigger.inner_text = lambda: state["trigger_text"]
+        decoy_clicked = []
+        page = FakePage(
+            locators={
+                browser_masters._PROMOTION_GOAL_BUTTON_XPATH: _FakeLocator([trigger])
+            },
+            role_elements=[
+                (
+                    "option",
+                    "Максимум переходов — если хотите получать больше кликов",
+                    _FakeTextLocatorHandle(
+                        visible=True, on_click=lambda: decoy_clicked.append(True)
+                    ),
+                )
+            ],
+        )
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._set_promotion_goal(page, "max-clicks")
+        self.assertEqual(decoy_clicked, [])
 
     def test_raises_on_unknown_goal_key(self):
         page = FakePage()
@@ -1852,7 +1939,7 @@ class TestSetPromotionGoal(unittest.TestCase):
             locators={
                 browser_masters._PROMOTION_GOAL_BUTTON_XPATH: _FakeLocator([trigger])
             },
-            text_buttons={},
+            role_elements=[],
         )
 
         with self.assertRaises(BrowserSessionError):
@@ -1870,34 +1957,55 @@ class TestSetPromotionGoal(unittest.TestCase):
 
 
 class TestUpdateMaster(unittest.TestCase):
-    """``update_master`` (issue #631, Этап A) — partial updates, one whole-form save."""
+    """``update_master`` (issue #631, Этап A) — partial updates, one whole-form save.
 
-    def _page_with_save_button(self, extra_locators=None, extra_text_buttons=None):
+    ``update_master`` now re-navigates and re-reads every requested field
+    after clicking save (``_verify_saved``, cycle-review fix for "reports
+    success without confirming the save actually took") — so these fakes
+    model persistent mutable state (``budget_state``/``checkbox_state``)
+    that BOTH the fill/check handles AND the post-reload read-back handles
+    share, via ``get_value``/``get_checked`` callables. A test that wants to
+    simulate "Yandex silently rejected the value" sets that shared state to
+    something OTHER than what was requested, independent of what ``fill``
+    was called with.
+    """
+
+    def _page_with_save_button(
+        self, extra_locators=None, weekly_budget_state=None, directs_helps_state=None
+    ):
         save_clicks = []
         save_handle = _FakeTextLocatorHandle(
             visible=True, on_click=lambda: save_clicks.append(True)
         )
-        text_buttons = {
-            browser_masters._SAVE_BUTTON_TEXT: _FakeGetByTextLocator([save_handle])
-        }
-        text_buttons.update(extra_text_buttons or {})
+        locators = dict(extra_locators or {})
+
+        if weekly_budget_state is not None:
+            budget_handle = _FakeLocatorHandle(
+                on_fill=lambda v: weekly_budget_state.__setitem__("value", v),
+                get_value=lambda: weekly_budget_state.get("value", ""),
+            )
+            locators[browser_masters._WEEKLY_BUDGET_INPUT_XPATH] = _FakeLocator(
+                [budget_handle]
+            )
+        if directs_helps_state is not None:
+            checkbox_handle = _FakeLocatorHandle(
+                on_check=lambda v: directs_helps_state.__setitem__("checked", v),
+                get_checked=lambda: directs_helps_state.get("checked", False),
+            )
+            locators[browser_masters._DIRECT_HELPS_CHECKBOX_XPATH] = _FakeLocator(
+                [checkbox_handle]
+            )
+
         page = FakePage(
-            locators=extra_locators or {},
-            text_buttons=text_buttons,
+            locators=locators,
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
         )
         return page, save_clicks
 
     def test_updates_only_weekly_budget(self):
         budget_state = {}
-        budget_handle = _FakeLocatorHandle(
-            on_fill=lambda v: budget_state.__setitem__("value", v)
-        )
         page, save_clicks = self._page_with_save_button(
-            extra_locators={
-                browser_masters._WEEKLY_BUDGET_INPUT_XPATH: _FakeLocator(
-                    [budget_handle]
-                )
-            }
+            weekly_budget_state=budget_state
         )
 
         result = browser_masters.update_master(page, 107707079, weekly_budget=95000)
@@ -1907,20 +2015,16 @@ class TestUpdateMaster(unittest.TestCase):
         self.assertEqual(result, {"CampaignId": 107707079, "WeeklyBudget": 95000})
         self.assertEqual(
             page.navigated_to,
-            [browser_masters.WIZARD_EDIT_URL.format(campaign_id=107707079)],
+            [
+                browser_masters.WIZARD_EDIT_URL.format(campaign_id=107707079),
+                browser_masters.WIZARD_EDIT_URL.format(campaign_id=107707079),
+            ],
         )
 
     def test_updates_only_directs_helps(self):
         checkbox_state = {"checked": False}
-        checkbox_handle = _FakeLocatorHandle(
-            on_check=lambda v: checkbox_state.__setitem__("checked", v)
-        )
         page, save_clicks = self._page_with_save_button(
-            extra_locators={
-                browser_masters._DIRECT_HELPS_CHECKBOX_XPATH: _FakeLocator(
-                    [checkbox_handle]
-                )
-            }
+            directs_helps_state=checkbox_state
         )
 
         result = browser_masters.update_master(page, 42, directs_helps=True)
@@ -1931,22 +2035,9 @@ class TestUpdateMaster(unittest.TestCase):
 
     def test_updates_multiple_fields_in_one_call(self):
         budget_state = {}
-        budget_handle = _FakeLocatorHandle(
-            on_fill=lambda v: budget_state.__setitem__("value", v)
-        )
         checkbox_state = {"checked": False}
-        checkbox_handle = _FakeLocatorHandle(
-            on_check=lambda v: checkbox_state.__setitem__("checked", v)
-        )
         page, save_clicks = self._page_with_save_button(
-            extra_locators={
-                browser_masters._WEEKLY_BUDGET_INPUT_XPATH: _FakeLocator(
-                    [budget_handle]
-                ),
-                browser_masters._DIRECT_HELPS_CHECKBOX_XPATH: _FakeLocator(
-                    [checkbox_handle]
-                ),
-            }
+            weekly_budget_state=budget_state, directs_helps_state=checkbox_state
         )
 
         result = browser_masters.update_master(
@@ -1970,7 +2061,7 @@ class TestUpdateMaster(unittest.TestCase):
     def test_does_not_click_save_when_field_setter_fails(self):
         # No locator registered for the budget field -> _set_weekly_budget
         # raises before _click_save is ever reached.
-        page, save_clicks = self._page_with_save_button(extra_locators={})
+        page, save_clicks = self._page_with_save_button()
 
         with self.assertRaises(BrowserSessionError):
             browser_masters.update_master(page, 42, weekly_budget=1000)
@@ -1981,14 +2072,84 @@ class TestUpdateMaster(unittest.TestCase):
         page = FakePage(
             locators={
                 browser_masters._WEEKLY_BUDGET_INPUT_XPATH: _FakeLocator(
-                    [_FakeLocatorHandle()]
+                    [_FakeLocatorHandle(get_value=lambda: "1000")]
                 )
             },
-            text_buttons={},
+            role_elements=[],
         )
 
         with self.assertRaises(BrowserSessionError):
             browser_masters.update_master(page, 42, weekly_budget=1000)
+
+    def test_raises_when_saved_value_does_not_match_requested(self):
+        # Save button is clicked, but the reload shows the OLD budget still
+        # in place (e.g. Yandex silently rejected the value) — this must be
+        # reported as a hard error, not a false success.
+        budget_state = {"value": "80000"}  # never actually updated to 95000
+        save_clicks = []
+        save_handle = _FakeTextLocatorHandle(
+            visible=True, on_click=lambda: save_clicks.append(True)
+        )
+        budget_handle = _FakeLocatorHandle(
+            on_fill=lambda v: None,  # the fill "succeeds" but doesn't persist
+            get_value=lambda: budget_state["value"],
+        )
+        page = FakePage(
+            locators={
+                browser_masters._WEEKLY_BUDGET_INPUT_XPATH: _FakeLocator(
+                    [budget_handle]
+                )
+            },
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(page, 42, weekly_budget=95000)
+
+        self.assertEqual(len(save_clicks), 1)  # save WAS clicked
+        self.assertIn("did not save as requested", str(ctx.exception))
+
+    def test_raises_when_saved_directs_helps_does_not_match_requested(self):
+        checkbox_state = {"checked": False}  # never actually flips to True
+        save_handle = _FakeTextLocatorHandle(visible=True)
+        checkbox_handle = _FakeLocatorHandle(
+            on_check=lambda v: None,
+            get_checked=lambda: checkbox_state["checked"],
+        )
+        page = FakePage(
+            locators={
+                browser_masters._DIRECT_HELPS_CHECKBOX_XPATH: _FakeLocator(
+                    [checkbox_handle]
+                )
+            },
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(page, 42, directs_helps=True)
+        self.assertIn("did not save as requested", str(ctx.exception))
+
+    def test_raises_when_saved_promotion_goal_does_not_match_requested(self):
+        # The goal setter's own post-click check passes (trigger text
+        # updates immediately), but the post-save reload shows the OLD
+        # goal still selected -- _verify_saved must still catch this.
+        trigger_states = iter(["Максимум переходов", "Максимум целевых действий"])
+        trigger = _FakeLocatorHandle(text="Цель продвижения")
+        trigger.inner_text = lambda: next(trigger_states)
+        save_handle = _FakeTextLocatorHandle(visible=True)
+        page = FakePage(
+            locators={
+                browser_masters._PROMOTION_GOAL_BUTTON_XPATH: _FakeLocator([trigger])
+            },
+            role_elements=[
+                ("option", "Максимум переходов", _FakeTextLocatorHandle(visible=True)),
+                ("button", browser_masters._SAVE_BUTTON_TEXT, save_handle),
+            ],
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(page, 42, promotion_goal="max-clicks")
+        self.assertIn("did not save as requested", str(ctx.exception))
 
 
 class TestMastersUpdateCommand(unittest.TestCase):
