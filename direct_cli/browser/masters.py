@@ -1,5 +1,5 @@
 """
-Мастер кампаний (Campaign Wizard) read-only browser scraping.
+Мастер кампаний (Campaign Wizard) browser scraping and mutations.
 
 Мастер кампаний has no API surface at all — see the package docstring in
 ``direct_cli/browser/__init__.py``. ``get`` (per-campaign overview) reads the
@@ -24,10 +24,25 @@ grid's own campaign-type fields (``type``, ``metaType``, ``__typename`` are
 identical between a Мастер campaign and an ordinary one of the same type).
 The one field that does distinguish them, confirmed live against a real
 account, is ``source == "UAC"``.
+
+``suspend_master``/``resume_master`` (issue #630) — **not live-verified**.
+The overview page's "Возобновить кампанию" (resume) button text is confirmed
+live (see the fixture). The suspend-side button text is NOT confirmed live —
+this module tries a short list of plausible Russian labels
+(``_SUSPEND_BUTTON_TEXTS``) via Playwright's text-based locator matching
+(case-insensitive substring), and either action re-reads the page's status
+text after clicking to verify the change actually happened (never trusting
+the click alone — see ``_click_action_button``). If Yandex's real button text
+isn't in that list, both functions raise ``BrowserSessionError`` with a
+message asking the caller to re-run with ``--headful`` and report the actual
+text, rather than clicking the wrong element. Re-confirm the exact button
+text/behaviour against a live account before relying on this in production;
+update ``_SUSPEND_BUTTON_TEXTS``/``_RESUME_BUTTON_TEXTS`` accordingly.
 """
 
 import json
-from typing import TYPE_CHECKING, Any, Dict, List
+import time
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from ..output import print_warning
 from .session import BrowserSessionError, assert_authenticated, assert_not_captcha
@@ -88,6 +103,17 @@ _STAT_TILE_LABELS = {
     "За конверсию": "cost_per_conversion",
     "Расход": "cost",
 }
+
+# Overview-page action button text for resume/suspend (see module docstring:
+# resume is confirmed live via the fixture, suspend is NOT — this is a
+# best-effort candidate list of plausible Russian labels, matched
+# case-insensitively as a substring against every button's text).
+_RESUME_BUTTON_TEXTS = ("Возобновить кампанию", "Возобновить")
+_SUSPEND_BUTTON_TEXTS = ("Остановить кампанию", "Приостановить кампанию", "Остановить")
+
+# How long to wait, after clicking the action button, for the status text to
+# actually change before giving up and reporting a possible false success.
+_STATUS_CHANGE_TIMEOUT_MS = 10_000
 
 
 def _is_grid_campaigns_request(response: Any) -> bool:
@@ -339,3 +365,137 @@ def _extract_stat_tiles(page: "Page", result: Dict[str, Any]) -> None:
         print_warning(
             f"Could not read overview stat tiles for campaign {result['CampaignId']}."
         )
+
+
+def _read_status_text(page: "Page") -> Optional[str]:
+    """Return ``"SUSPENDED"``/``"ACTIVE"``/``None`` from the current page body.
+
+    Shares the same marker text as ``_extract_status`` but returns the value
+    directly instead of writing into a result dict — used by
+    ``suspend_master``/``resume_master`` both before and after clicking, to
+    verify the action actually changed the status rather than trusting the
+    click alone.
+    """
+    try:
+        body_text = page.inner_text("body")
+    except PlaywrightError:
+        return None
+    if "Кампания остановлена" in body_text:
+        return "SUSPENDED"
+    if "Кампания активна" in body_text or "Кампания включена" in body_text:
+        return "ACTIVE"
+    return None
+
+
+def _click_action_button(page: "Page", candidate_texts: Tuple[str, ...]) -> None:
+    """Click the first visible button matching one of ``candidate_texts``.
+
+    Raises :class:`BrowserSessionError` if none of the candidates match any
+    visible button — this deliberately does NOT fall back to clicking an
+    unrelated element, since suspend/resume is a real account mutation (see
+    module docstring: the suspend-side button text is not live-confirmed).
+    """
+    for text in candidate_texts:
+        locator = page.get_by_text(text, exact=False)
+        try:
+            count = locator.count()
+        except PlaywrightError:
+            continue
+        for i in range(count):
+            handle = locator.nth(i)
+            try:
+                if not handle.is_visible():
+                    continue
+                handle.click()
+                return
+            except PlaywrightError:
+                continue
+    raise BrowserSessionError(
+        "Could not find an action button matching any of "
+        f"{candidate_texts!r} on the campaign overview page. Yandex may "
+        "have changed the button's text — re-run with --headful to "
+        "inspect the page and report the actual text."
+    )
+
+
+def _suspend_or_resume(
+    page: "Page",
+    campaign_id: int,
+    *,
+    target_status: str,
+    button_texts: Tuple[str, ...],
+) -> Dict[str, Any]:
+    """Shared body for ``suspend_master``/``resume_master``.
+
+    Idempotent: if the campaign is already in ``target_status``, does not
+    click anything and returns the current state with a warning (mirrors the
+    rest of the CLI's suspend/resume convention). Otherwise clicks the
+    matching action button and re-reads the status to confirm the mutation
+    actually took effect — a click that doesn't visibly change the status is
+    reported as a hard error, not a silent success.
+    """
+    url = WIZARD_OVERVIEW_URL.format(campaign_id=campaign_id)
+    page.goto(url, wait_until="domcontentloaded")
+    assert_not_captcha(page.content())
+    assert_authenticated(page.content())
+
+    current_status = _read_status_text(page)
+    if current_status is None:
+        raise BrowserSessionError(
+            f"Could not determine current status for campaign {campaign_id} "
+            "(unrecognised status text) — refusing to click blind."
+        )
+    if current_status == target_status:
+        print_warning(
+            f"Campaign {campaign_id} is already {target_status}; not clicking."
+        )
+        return {"CampaignId": campaign_id, "Status": current_status}
+
+    _click_action_button(page, button_texts)
+
+    deadline = time.monotonic() + _STATUS_CHANGE_TIMEOUT_MS / 1000
+    new_status = current_status
+    while time.monotonic() < deadline:
+        new_status = _read_status_text(page)
+        if new_status == target_status:
+            break
+        page.wait_for_timeout(250)
+
+    if new_status != target_status:
+        raise BrowserSessionError(
+            f"Clicked the action button for campaign {campaign_id}, but its "
+            f"status did not change to {target_status} within "
+            f"{_STATUS_CHANGE_TIMEOUT_MS / 1000:.0f}s (still {new_status!r}). "
+            "The click may not have hit the right element, or Yandex is "
+            "slow to apply it — verify manually before retrying."
+        )
+
+    return {"CampaignId": campaign_id, "Status": new_status}
+
+
+def suspend_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
+    """Stop (suspend) a Мастер кампаний, verifying the status actually changed.
+
+    See module docstring: the "stop" button's exact text is NOT confirmed
+    live — ``_SUSPEND_BUTTON_TEXTS`` is a best-effort candidate list.
+    """
+    return _suspend_or_resume(
+        page,
+        campaign_id,
+        target_status="SUSPENDED",
+        button_texts=_SUSPEND_BUTTON_TEXTS,
+    )
+
+
+def resume_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
+    """Resume a stopped Мастер кампаний, verifying the status actually changed.
+
+    "Возобновить кампанию" is confirmed live (see module docstring /
+    ``tests/fixtures/masters_wizard_overview.html``).
+    """
+    return _suspend_or_resume(
+        page,
+        campaign_id,
+        target_status="ACTIVE",
+        button_texts=_RESUME_BUTTON_TEXTS,
+    )

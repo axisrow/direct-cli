@@ -34,6 +34,8 @@ playwright install chromium
 direct masters list
 direct masters list --status archived
 direct masters get 72349978
+direct masters suspend 72349978
+direct masters resume 72349978
 ```
 
 `masters list` filters by status with `--status`
@@ -45,9 +47,16 @@ If you see "Found no Yandex cookies", open https://direct.yandex.ru in Chrome
 and log in first. If you use a non-default Chrome profile, pass
 `--chrome-profile "Profile 1"`.
 
-Read-only for now (`list`/`get`); since this data has no API contract, the
-parser degrades per-section (a warning, not a hard failure) if Yandex changes
-the page markup, rather than failing the whole command.
+Since this data has no API contract, the parser degrades per-section (a
+warning, not a hard failure) if Yandex changes the page markup, rather than
+failing the whole command.
+
+`suspend`/`resume` click the campaign overview page's stop/start button and
+verify the status actually changed before reporting success — never trusting
+the click alone. They're idempotent (already-suspended/-active is a no-op
+warning, not an error). There is **no `--sandbox` for these** — Мастер
+кампаний has no API at all, so there is no isolated test copy; any mutation
+hits your real account.
 
 **Browser session (optional but recommended):** `direct masters` decrypts
 your Chrome cookies fresh on every call by default, which means a Keychain
@@ -1055,6 +1064,8 @@ playwright install chromium
 direct masters list
 direct masters list --status archived
 direct masters get 72349978
+direct masters suspend 72349978
+direct masters resume 72349978
 ```
 
 `masters list` фильтрует по статусу через `--status`
@@ -1067,9 +1078,16 @@ direct masters get 72349978
 Chrome и войдите в аккаунт. Если используете не дефолтный профиль Chrome —
 передайте `--chrome-profile "Profile 1"`.
 
-Пока только чтение (`list`/`get`); поскольку у этих данных нет API-контракта,
-парсер деградирует посекционно (предупреждение, а не жёсткий отказ), если
-Яндекс изменит вёрстку страницы.
+Поскольку у этих данных нет API-контракта, парсер деградирует посекционно
+(предупреждение, а не жёсткий отказ), если Яндекс изменит вёрстку страницы.
+
+`suspend`/`resume` кликают по кнопке остановки/возобновления на странице
+обзора кампании и проверяют, что статус реально изменился, прежде чем
+сообщить об успехе — сам факт клика успехом не считается. Обе команды
+идемпотентны (кампания уже в нужном статусе — предупреждение, а не ошибка).
+У этих команд **нет `--sandbox`** — у «Мастера кампаний» нет API вообще,
+поэтому нет изолированной тестовой копии; любая мутация идёт в боевой
+аккаунт.
 
 **Браузерная сессия (опционально, но рекомендуется):** по умолчанию `direct
 masters` расшифровывает куки Chrome заново при каждом вызове — на macOS это

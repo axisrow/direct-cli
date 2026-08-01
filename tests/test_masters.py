@@ -170,6 +170,44 @@ class _FakeExpectResponse:
         return False
 
 
+class _FakeTextLocatorHandle:
+    """One matched element for ``get_by_text`` — supports ``is_visible``/``click``.
+
+    ``on_click`` is an optional no-arg callback invoked when ``click()`` is
+    called — used to model a suspend/resume click flipping the fake page's
+    status text.
+    """
+
+    def __init__(self, visible=True, on_click=None, raises=False):
+        self._visible = visible
+        self._on_click = on_click
+        self._raises = raises
+
+    def is_visible(self):
+        if self._raises:
+            raise PlaywrightError("element detached")
+        return self._visible
+
+    def click(self):
+        if self._raises:
+            raise PlaywrightError("element detached")
+        if self._on_click is not None:
+            self._on_click()
+
+
+class _FakeGetByTextLocator:
+    """Fakes ``page.get_by_text(text, exact=False)`` — one handle list per text."""
+
+    def __init__(self, handles):
+        self._handles = handles
+
+    def count(self):
+        return len(self._handles)
+
+    def nth(self, i):
+        return self._handles[i]
+
+
 class FakePage:
     """A Page whose ``locator(selector)`` result is pre-scripted per selector."""
 
@@ -180,6 +218,7 @@ class FakePage:
         html="<html></html>",
         grid_response=None,
         api_request=None,
+        text_buttons=None,
     ):
         self._locators = locators or {}
         self._body_text = body_text
@@ -191,6 +230,9 @@ class FakePage:
         # GridCampaigns XHR during navigation.
         self._grid_response = grid_response
         self.request = api_request or _FakeApiRequestContext()
+        # {text: _FakeGetByTextLocator} for get_by_text() — used by
+        # suspend_master/resume_master's action-button click.
+        self._text_buttons = text_buttons or {}
 
     def goto(self, url, wait_until=None):
         self.navigated_to.append(url)
@@ -205,11 +247,17 @@ class FakePage:
     def locator(self, selector):
         return self._locators.get(selector, _FakeLocator([]))
 
+    def get_by_text(self, text, exact=False):
+        return self._text_buttons.get(text, _FakeGetByTextLocator([]))
+
     def inner_text(self, selector=None):
         return self._body_text
 
     def content(self):
         return self._html
+
+    def wait_for_timeout(self, timeout):
+        pass
 
 
 class TestMastersRegistered(unittest.TestCase):
@@ -909,6 +957,163 @@ class TestFetchMaster(unittest.TestCase):
 
         self.assertEqual(result, {"CampaignId": 999})
         self.assertGreaterEqual(warn.call_count, 3)  # name, status, landing, stats
+
+
+class TestSuspendResumeMaster(unittest.TestCase):
+    """suspend_master/resume_master (issue #630): click + verify, idempotent.
+
+    See direct_cli/browser/masters.py module docstring: the suspend-side
+    button text is NOT live-confirmed, only a best-effort candidate list --
+    these tests exercise the click/verify/idempotency mechanics against that
+    candidate list, not a live-verified button text.
+    """
+
+    def _page_with_button(
+        self, status_text, button_text, next_status_text=None, visible=True
+    ):
+        state = {"status": status_text}
+
+        def _flip():
+            state["status"] = next_status_text
+
+        page = FakePage(
+            text_buttons={
+                button_text: _FakeGetByTextLocator(
+                    [_FakeTextLocatorHandle(visible=visible, on_click=_flip)]
+                )
+            },
+        )
+        # inner_text("body") must reflect the current (mutable) status, so
+        # override the FakePage method rather than passing a fixed body_text.
+        page.inner_text = lambda selector=None: state["status"]
+        return page
+
+    def test_resume_clicks_confirmed_button_and_verifies(self):
+        page = self._page_with_button(
+            "Кампания остановлена",
+            "Возобновить кампанию",
+            next_status_text="Кампания активна",
+        )
+
+        result = browser_masters.resume_master(page, 42)
+
+        self.assertEqual(result, {"CampaignId": 42, "Status": "ACTIVE"})
+        self.assertEqual(
+            page.navigated_to,
+            [browser_masters.WIZARD_OVERVIEW_URL.format(campaign_id=42)],
+        )
+
+    def test_suspend_clicks_candidate_button_and_verifies(self):
+        page = self._page_with_button(
+            "Кампания активна",
+            "Остановить кампанию",
+            next_status_text="Кампания остановлена",
+        )
+
+        result = browser_masters.suspend_master(page, 42)
+
+        self.assertEqual(result, {"CampaignId": 42, "Status": "SUSPENDED"})
+
+    def test_resume_idempotent_when_already_active(self):
+        page = FakePage(body_text="Кампания активна")
+
+        with patch("direct_cli.browser.masters.print_warning") as warn:
+            result = browser_masters.resume_master(page, 7)
+
+        self.assertEqual(result, {"CampaignId": 7, "Status": "ACTIVE"})
+        warn.assert_called_once()
+        self.assertIn("already", warn.call_args[0][0])
+
+    def test_suspend_idempotent_when_already_suspended(self):
+        page = FakePage(body_text="Кампания остановлена")
+
+        with patch("direct_cli.browser.masters.print_warning"):
+            result = browser_masters.suspend_master(page, 7)
+
+        self.assertEqual(result, {"CampaignId": 7, "Status": "SUSPENDED"})
+
+    def test_resume_raises_when_no_candidate_button_found(self):
+        # None of _RESUME_BUTTON_TEXTS is present -- must not silently no-op.
+        page = FakePage(body_text="Кампания остановлена", text_buttons={})
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.resume_master(page, 7)
+        self.assertIn("--headful", str(ctx.exception))
+
+    def test_suspend_raises_when_click_does_not_change_status(self):
+        # The button is found and clicked, but the status text never flips --
+        # must not report success on the click alone (module docstring).
+        page = self._page_with_button(
+            "Кампания активна",
+            "Остановить кампанию",
+            next_status_text="Кампания активна",  # unchanged after "click"
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.suspend_master(page, 42)
+        self.assertIn("did not change", str(ctx.exception))
+
+    def test_resume_raises_when_current_status_unrecognised(self):
+        page = FakePage(body_text="something Yandex changed the markup to")
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.resume_master(page, 7)
+        self.assertIn("Could not determine current status", str(ctx.exception))
+
+    def test_suspend_button_invisible_is_skipped(self):
+        # An invisible match (e.g. a hidden template) must not be clicked --
+        # falls through to the "not found" error since it's the only handle.
+        page = self._page_with_button(
+            "Кампания активна", "Остановить кампанию", visible=False
+        )
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters.suspend_master(page, 42)
+
+
+class TestMastersSuspendResumeCommand(unittest.TestCase):
+    """CLI wiring for `masters suspend`/`masters resume`."""
+
+    def setUp(self):
+        self.runner = CliRunner()
+
+    def test_suspend_registered(self):
+        result = self.runner.invoke(cli, ["masters", "suspend", "--help"])
+        self.assertEqual(result.exit_code, 0)
+
+    def test_resume_registered(self):
+        result = self.runner.invoke(cli, ["masters", "resume", "--help"])
+        self.assertEqual(result.exit_code, 0)
+
+    def test_suspend_has_no_login_option(self):
+        result = self.runner.invoke(cli, ["masters", "suspend", "--help"])
+        self.assertNotIn("--login", result.output)
+
+    def test_resume_has_no_login_option(self):
+        result = self.runner.invoke(cli, ["masters", "resume", "--help"])
+        self.assertNotIn("--login", result.output)
+
+    def test_suspend_calls_suspend_master_per_id(self):
+        with (
+            patch("direct_cli.browser.masters.suspend_master") as mock_suspend,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            result = self.runner.invoke(cli, ["masters", "suspend", "1,2"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(mock_suspend.call_count, 2)
+
+    def test_resume_calls_resume_master_per_id(self):
+        with (
+            patch("direct_cli.browser.masters.resume_master") as mock_resume,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            result = self.runner.invoke(cli, ["masters", "resume", "1"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(mock_resume.call_count, 1)
 
 
 class TestCaptchaDetection(unittest.TestCase):

@@ -24,6 +24,12 @@ V4 Live finance money mutations (0.3.3 exposes dry-run-only previews):
   - direct v4finance transfer-money --from-campaign-id ... --to-campaign-id ... --amount ... --currency RUB --dry-run
   - direct v4finance pay-campaigns --campaign-ids ... --amount ... --contract-id ... --pay-method Bank --currency RUB --dry-run
 
+Browser-driven Мастер кампаний mutations (no API surface, no --sandbox
+equivalent -- these always hit a real Yandex account; verify on one
+non-critical campaign, confirming before/after state in the web UI):
+  - direct masters suspend <campaign_id>
+  - direct masters resume <campaign_id>
+
 Production commands that are only allowed in automated smoke tests with --sandbox:
   - direct bids set ...
   - direct bids set-auto ...
