@@ -53,6 +53,8 @@ SMOKE_MATRIX = {
         "masters.get",
         "masters.list",
         "negativekeywordsharedsets.get",
+        "playwright.doctor",
+        "playwright.login",
         "reports.get",
         "reports.list-types",
         "retargeting.get",
@@ -251,7 +253,7 @@ def smoke_summary() -> dict:
     from direct_cli.wsdl_coverage import CANONICAL_API_SERVICES, NON_WSDL_SERVICES
 
     registered = _registered_cli_commands()
-    non_api_groups = {"auth"}
+    non_api_groups = {"auth", "playwright"}
     api_commands = {
         command
         for command in registered
