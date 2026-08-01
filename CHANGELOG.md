@@ -22,6 +22,43 @@
   `suspend`/`resume`): Мастер кампаний has no API and thus no `--sandbox`
   isolation, so any exercise of this command hits a real account.
 
+**Added — `direct masters update` (#631, Этап A):**
+
+- New command that edits a single Мастер кампаний's settings page
+  (`/wizard/campaigns/{id}/edit/`). This first stage covers exactly three
+  simple scalar fields: `--weekly-budget` (integer, Недельный бюджет),
+  `--promotion-goal` (`max-conversions`/`max-clicks`, Цель продвижения), and
+  `--directs-helps`/`--no-directs-helps` (Директ помогает — auto-apply
+  Yandex recommendations). At least one flag is required.
+- Live investigation (see `tests/fixtures/masters_wizard_edit_stage_a.html`)
+  found the edit page is a single form with one "Сохранить кампанию" button
+  — there is no per-section independent save. `update_master` therefore
+  submits the whole form on every call; fields not passed as flags are left
+  untouched (their current on-page value is preserved simply by never
+  filling/toggling their input).
+- New `direct_cli/browser/masters.py` functions: `update_master` plus
+  private `_set_weekly_budget`/`_set_directs_helps`/`_set_promotion_goal`
+  setters. Each field setter follows the module's existing "click, then
+  verify the change actually took effect" convention (`_suspend_or_resume`)
+  rather than trusting a click alone. `update_master` itself also verifies:
+  after clicking save it re-navigates to the edit page and re-reads every
+  requested field (`_verify_saved`), raising `BrowserSessionError` on any
+  mismatch instead of reporting a false success — so a click that doesn't
+  actually persist (rejected validation, session/redirect failure) is a
+  hard error, not a silent success.
+- `_click_save` and `_set_promotion_goal`'s option click use
+  `get_by_role(..., exact=True)`, not a substring `get_by_text` match — an
+  exact accessible-name match, scoped to the actual button/option role,
+  avoids clicking an ancestor container whose text merely contains the
+  target label.
+- Later Этап (B/C/D) fields — headline/text variant lists, sitelinks,
+  audience, Metrika counters/goals, budget adaptation, images/video — are
+  tracked separately in issue #631 and not implemented here.
+- No `--sandbox` equivalent exists for this browser-driven mutation (same
+  rationale as `masters suspend`/`resume`, #630) — classified `DANGEROUS` in
+  `direct_cli/smoke_matrix.py` and documented as manual-only in
+  `scripts/test_dangerous_commands.sh`.
+
 **Added — `direct masters login` (#635):**
 
 - New interactive command that opens a visible browser window on a

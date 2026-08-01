@@ -37,12 +37,25 @@ direct masters get 72349978
 direct masters suspend 72349978
 direct masters resume 72349978
 direct masters archive 72349978
+direct masters update 72349978 --weekly-budget 95000
+direct masters update 72349978 --promotion-goal max-clicks --no-directs-helps
 ```
 
 `masters list` filters by status with `--status`
 (`not-archived`/`active`/`stopped`/`archived`/`all`, default `not-archived`).
 It always reads the logged-in browser session's own account — there is no
 `--login`/agency support for managed clients.
+
+`masters update` edits a single Мастер кампаний's settings page. It currently
+covers only the simplest scalar fields (Этап A of a larger, staged rollout —
+see `direct_cli/browser/masters.py` module docstring): `--weekly-budget`
+(integer), `--promotion-goal` (`max-conversions`/`max-clicks`), and
+`--directs-helps`/`--no-directs-helps` (auto-apply recommendations). At least
+one flag is required. The settings page is a single form with one save
+button — passing only some flags leaves every other field at its current
+value; it does not send a partial payload to a separate per-field endpoint.
+Later fields (headline/text variants, sitelinks, audience, Metrika
+counters/goals, budget adaptation, images/video) aren't implemented yet.
 
 If you see "Found no Yandex cookies", open https://direct.yandex.ru in Chrome
 and log in first. If you use a non-default Chrome profile, pass
@@ -1091,6 +1104,8 @@ direct masters get 72349978
 direct masters suspend 72349978
 direct masters resume 72349978
 direct masters archive 72349978
+direct masters update 72349978 --weekly-budget 95000
+direct masters update 72349978 --promotion-goal max-clicks --no-directs-helps
 ```
 
 `masters list` фильтрует по статусу через `--status`
@@ -1098,6 +1113,19 @@ direct masters archive 72349978
 `not-archived`). Команда всегда читает свой собственный кабинет, в котором
 авторизован браузер — доступа к обслуживаемым клиентам (`--login`/агентство)
 нет.
+
+`masters update` редактирует настройки одного «Мастера кампаний». Пока
+поддерживаются только простые скалярные поля (Этап A поэтапного плана — см.
+докстринг модуля `direct_cli/browser/masters.py`): `--weekly-budget`
+(недельный бюджет, целое число), `--promotion-goal`
+(`max-conversions`/`max-clicks` — цель продвижения) и
+`--directs-helps`/`--no-directs-helps` (автоприменение рекомендаций «Директ
+помогает»). Нужно указать хотя бы один флаг. Страница настроек — единая
+форма с одной кнопкой сохранения: если указать не все флаги, остальные поля
+останутся с текущим значением — это не частичный запрос к отдельному
+API-эндпоинту на каждое поле. Остальные поля (варианты заголовков/текстов,
+быстрые ссылки, аудитория, счётчики Метрики/цели, адаптация бюджета,
+изображения/видео) пока не реализованы.
 
 Если видите «Found no Yandex cookies», откройте https://direct.yandex.ru в
 Chrome и войдите в аккаунт. Если используете не дефолтный профиль Chrome —

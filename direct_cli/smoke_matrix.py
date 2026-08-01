@@ -190,6 +190,11 @@ SMOKE_MATRIX = {
         "masters.archive",
         "masters.resume",
         "masters.suspend",
+        # Browser-driven form mutation against Мастер кампаний (issue #631,
+        # Этап A). Same no-sandbox-equivalent rationale as suspend/resume
+        # above -- there is no way to isolate a live form save from
+        # production. Manual-only, per scripts/test_dangerous_commands.sh.
+        "masters.update",
         # Interactive, human-in-the-loop login (issue #635) -- opens a
         # visible browser window and blocks for up to --timeout seconds
         # waiting for a person to sign in by hand. Cannot run unattended in

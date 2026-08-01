@@ -30,6 +30,8 @@ equivalent -- these always hit a real Yandex account; verify on one
 non-critical campaign, confirming before/after state in the web UI):
   - direct masters suspend <campaign_id>
   - direct masters resume <campaign_id>
+  - direct masters update <campaign_id> --weekly-budget ... (Этап A: also
+    --promotion-goal, --directs-helps/--no-directs-helps)
 
 Interactive human-in-the-loop login (opens a visible browser window and
 blocks waiting for a person to sign in -- cannot run unattended):

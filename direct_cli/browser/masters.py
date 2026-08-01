@@ -54,6 +54,35 @@ API's ``primaryStatus``), not the overview page's status text — no
 archived-campaign overview fixture has been captured, so there is no
 confirmed status-text marker for "archived" on that page the way there is
 for "Кампания остановлена"/"активна".
+
+``update_master`` (issue #631, Этап A only) — live-verified against campaign
+107707079 (see ``tests/fixtures/masters_wizard_edit_stage_a.html`` for the
+full investigation notes). Covers exactly three fields: weekly budget,
+promotion goal, and the "Директ помогает" auto-recommendations toggle.
+Later stages (headline/text lists, sitelinks, audience, media uploads) are
+tracked separately in issue #631 and are NOT implemented here.
+
+Confirmed live: the edit page (``/wizard/campaigns/{id}/edit/``) is a single
+form with exactly one "Сохранить кампанию" button at the bottom — there is no
+per-section independent save. A partial ``update_master`` call (only some
+kwargs passed) therefore still submits the whole form; fields the caller
+didn't ask to change are simply left as their current on-page value by never
+touching their input, not via any server-side partial-update semantics.
+
+**Save verification.** ``_click_save`` only confirms the button was
+clickable — a click alone is not proof Yandex actually saved the change
+(client-side validation can silently reject a value and leave the form open
+with an inline error this module has no stable way to read, see issue
+#631's "Валидация на стороне Яндекса непрозрачна" risk). ``update_master``
+therefore re-navigates to the edit page after saving and re-reads every
+requested field via ``_verify_saved`` — if a field still doesn't match what
+was requested after a real reload, it raises ``BrowserSessionError`` rather
+than reporting false success. This mirrors ``_suspend_or_resume``'s
+"a click that doesn't visibly change the state is a hard error, not a
+silent success" convention, applied to the whole-form save instead of a
+single status field. Not yet covered: an inline validation-error TEXT is
+not itself surfaced to the caller (only the resulting mismatch is) — a
+follow-up could read and report Yandex's actual rejection reason.
 """
 
 import json
@@ -74,6 +103,7 @@ except ImportError:  # pragma: no cover - exercised only when playwright is abse
 GRID_URL = "https://direct.yandex.ru/dna/grid/campaigns/"
 GRID_API_URL = "https://direct.yandex.ru/web-api/grid/api"
 WIZARD_OVERVIEW_URL = "https://direct.yandex.ru/wizard/campaigns/{campaign_id}/"
+WIZARD_EDIT_URL = "https://direct.yandex.ru/wizard/campaigns/{campaign_id}/edit/"
 
 # The grid's own data call identifies itself via this query parameter.
 _GRID_CAMPAIGNS_OPERATION = "GridCampaigns"
@@ -141,6 +171,45 @@ _ARCHIVE_MENU_ITEM_SELECTOR = '[data-testid="CampaignHeader.Menu.archive"]'
 # How long to wait, after clicking Архивировать, for the grid API to report
 # the campaign as ARCHIVED before giving up (see archive_master).
 _ARCHIVE_VERIFY_TIMEOUT_MS = 10_000
+
+# "Цель продвижения" dropdown options, confirmed live by opening the dropdown
+# on the edit page — exactly these two rows exist, no others (see
+# tests/fixtures/masters_wizard_edit_stage_a.html). CLI-facing enum keys are
+# kebab-case (this field has no WSDL to mirror, unlike the rest of the CLI).
+PROMOTION_GOAL_CHOICES = {
+    "max-conversions": "Максимум целевых действий",
+    "max-clicks": "Максимум переходов",
+}
+
+# XPath fragment: the text input immediately following (as a descendant of an
+# adjacent sibling) the "Недельный бюджет" heading. Confirmed live — see
+# fixture. Headings on this page have no stable id/data-testid, so matching
+# is by heading text, same fragility class as _extract_*/_click_action_button.
+_WEEKLY_BUDGET_INPUT_XPATH = (
+    "xpath=//*[self::h1 or self::h2 or self::h3][normalize-space(text())="
+    "'Недельный бюджет']/following::input[1]"
+)
+
+# XPath fragment: the checkbox immediately following the "Директ помогает"
+# heading. Confirmed live — a plain HTML checkbox, not a custom toggle
+# component (see fixture). Deliberately scoped to the FIRST following
+# checkbox only, so the nested "Оптимизировать расширенные настройки..."
+# checkbox that appears once this one is checked is never touched.
+_DIRECT_HELPS_CHECKBOX_XPATH = (
+    "xpath=//*[self::h1 or self::h2 or self::h3][normalize-space(text())="
+    "'Директ помогает']/following::input[@type='checkbox'][1]"
+)
+
+# XPath fragment: the "Цель продвижения" dropdown's trigger button. Confirmed
+# live via accessibility-tree read: its accessible name is the static label
+# "Цель продвижения" (not the current selection) — it is the first <button>
+# following the section heading of the same name.
+_PROMOTION_GOAL_BUTTON_XPATH = (
+    "xpath=//*[self::h1 or self::h2 or self::h3][normalize-space(text())="
+    "'Цель продвижения']/following::button[1]"
+)
+
+_SAVE_BUTTON_TEXT = "Сохранить кампанию"
 
 
 def _is_grid_campaigns_request(response: Any) -> bool:
@@ -606,3 +675,336 @@ def archive_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
         )
 
     return updated
+
+
+def _set_weekly_budget(page: "Page", amount: int) -> None:
+    """Fill the "Недельный бюджет" input with ``amount`` (bare integer, no grouping).
+
+    Located by heading-proximity XPath (see ``_WEEKLY_BUDGET_INPUT_XPATH``) —
+    the input has no stable id/data-testid (see module docstring).
+    """
+    field = page.locator(_WEEKLY_BUDGET_INPUT_XPATH).first
+    try:
+        field.click()
+        field.fill(str(amount))
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            "Could not find or fill the weekly budget input ('Недельный "
+            "бюджет') on the campaign edit page — Yandex may have changed "
+            "the page's markup. Re-run with --headful to inspect the page."
+        ) from exc
+
+
+def _set_directs_helps(page: "Page", enabled: bool) -> None:
+    """Check/uncheck the "Директ помогает" auto-recommendations checkbox.
+
+    Scoped to the FIRST checkbox following the "Директ помогает" heading only
+    (see ``_DIRECT_HELPS_CHECKBOX_XPATH``) — checking it reveals a second,
+    nested checkbox ("Оптимизировать расширенные настройки...") that is out
+    of scope for Этап A and must be left untouched.
+    """
+    checkbox = page.locator(_DIRECT_HELPS_CHECKBOX_XPATH).first
+    try:
+        if enabled:
+            checkbox.check()
+        else:
+            checkbox.uncheck()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            "Could not find or toggle the 'Директ помогает' checkbox "
+            "('Автоматически применять рекомендации') on the campaign edit "
+            "page — Yandex may have changed the page's markup. Re-run with "
+            "--headful to inspect the page."
+        ) from exc
+
+
+def _trigger_shows_selection(trigger, label: str) -> bool:
+    """True if the "Цель продвижения" trigger button currently shows ``label``.
+
+    Confirmed live (2026-08-01 re-investigation, see
+    ``tests/fixtures/masters_wizard_edit_stage_a.html``): the trigger's
+    ``inner_text()`` is TWO lines — the static section label first, then the
+    current selection on its own line (unlike the accessibility-tree
+    computed NAME, which stays static and never carries the selection). An
+    exact match against the whole two-line string can therefore never
+    succeed; only the LAST line reflects the live selection.
+    """
+    try:
+        text = trigger.inner_text().strip()
+    except PlaywrightError:
+        return False
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return bool(lines) and lines[-1] == label
+
+
+def _set_promotion_goal(page: "Page", goal: str) -> None:
+    """Select ``goal`` (a key of ``PROMOTION_GOAL_CHOICES``) in the "Цель
+    продвижения" dropdown.
+
+    Opens the dropdown (click the trigger button), clicks the option row
+    whose text matches the target Russian label, then verifies the trigger
+    button's own text now reflects the new selection — mirrors
+    ``_suspend_or_resume``'s "never trust the click alone" convention.
+    """
+    label = PROMOTION_GOAL_CHOICES.get(goal)
+    if label is None:
+        raise ValueError(
+            f"Unknown promotion goal {goal!r}; expected one of "
+            f"{sorted(PROMOTION_GOAL_CHOICES)}."
+        )
+
+    trigger = page.locator(_PROMOTION_GOAL_BUTTON_XPATH).first
+    try:
+        trigger.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            "Could not find or open the 'Цель продвижения' dropdown on the "
+            "campaign edit page — Yandex may have changed the page's "
+            "markup. Re-run with --headful to inspect the page."
+        ) from exc
+
+    # get_by_role scopes to actual clickable option rows (not any container
+    # whose text happens to contain the label as a substring) — see the
+    # cycle-review finding this fixed: the previous get_by_text(exact=False)
+    # could match an ancestor wrapper instead of the option itself.
+    option = page.get_by_role("option", name=label, exact=True)
+    clicked = False
+    try:
+        count = option.count()
+    except PlaywrightError:
+        count = 0
+    for i in range(count):
+        handle = option.nth(i)
+        try:
+            if not handle.is_visible():
+                continue
+            handle.click()
+            clicked = True
+            break
+        except PlaywrightError:
+            continue
+
+    if not clicked:
+        raise BrowserSessionError(
+            f"Could not find the {label!r} option in the 'Цель продвижения' "
+            "dropdown on the campaign edit page — Yandex may have changed "
+            "the page's markup. Re-run with --headful to inspect the page."
+        )
+
+    if not _trigger_shows_selection(trigger, label):
+        try:
+            current = trigger.inner_text().strip()
+        except PlaywrightError:
+            current = ""
+        raise BrowserSessionError(
+            f"Clicked the {label!r} option for 'Цель продвижения', but the "
+            f"dropdown still does not show it (shows {current!r}). The "
+            "click may not have hit the right element — verify manually "
+            "before retrying."
+        )
+
+
+def _click_save(page: "Page", campaign_id: int) -> None:
+    """Click the edit page's single "Сохранить кампанию" button.
+
+    Confirmed live: the whole edit page is one form with exactly one save
+    button at the bottom (see module docstring) — there is no per-section
+    save to target instead.
+    """
+    # get_by_role scopes to the actual <button> element (exact accessible
+    # name), not any ancestor container whose text merely contains this
+    # substring — see the cycle-review finding this fixed.
+    save_button = page.get_by_role("button", name=_SAVE_BUTTON_TEXT, exact=True)
+    try:
+        count = save_button.count()
+    except PlaywrightError:
+        count = 0
+    for i in range(count):
+        handle = save_button.nth(i)
+        try:
+            if not handle.is_visible():
+                continue
+            handle.click()
+            return
+        except PlaywrightError:
+            continue
+    raise BrowserSessionError(
+        f"Could not find the '{_SAVE_BUTTON_TEXT}' button on the edit page "
+        f"for campaign {campaign_id} — Yandex may have changed the page's "
+        "markup. Re-run with --headful to inspect the page."
+    )
+
+
+def _read_weekly_budget(page: "Page") -> Optional[int]:
+    """Read the "Недельный бюджет" input's current bare-integer value.
+
+    Returns ``None`` if the field can't be found/read — the caller treats
+    that as "verification inconclusive", not as a specific budget value.
+    """
+    field = page.locator(_WEEKLY_BUDGET_INPUT_XPATH).first
+    try:
+        raw = field.input_value()
+    except PlaywrightError:
+        return None
+    digits = "".join(ch for ch in raw if ch.isdigit())
+    if not digits:
+        return None
+    try:
+        return int(digits)
+    except ValueError:
+        return None
+
+
+def _read_directs_helps(page: "Page") -> Optional[bool]:
+    """Read the "Директ помогает" checkbox's current checked state.
+
+    Returns ``None`` if the field can't be found/read (inconclusive).
+    """
+    checkbox = page.locator(_DIRECT_HELPS_CHECKBOX_XPATH).first
+    try:
+        return checkbox.is_checked()
+    except PlaywrightError:
+        return None
+
+
+def _read_promotion_goal_label(page: "Page") -> Optional[str]:
+    """Read the "Цель продвижения" dropdown trigger's current selection.
+
+    The trigger's ``inner_text()`` is two lines — the static section label,
+    then the current selection on its own line (see
+    ``_trigger_shows_selection``) — so this returns only the LAST line, not
+    the raw two-line text, to compare directly against a bare
+    ``PROMOTION_GOAL_CHOICES`` value. Returns ``None`` if the trigger can't
+    be found/read (inconclusive).
+    """
+    trigger = page.locator(_PROMOTION_GOAL_BUTTON_XPATH).first
+    try:
+        text = trigger.inner_text().strip()
+    except PlaywrightError:
+        return None
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return lines[-1] if lines else None
+
+
+def _verify_saved(
+    page: "Page",
+    campaign_id: int,
+    *,
+    weekly_budget: Optional[int],
+    promotion_goal: Optional[str],
+    directs_helps: Optional[bool],
+) -> None:
+    """Reload the edit page and confirm every requested field actually saved.
+
+    Never trust the save-button click alone (mirrors ``_suspend_or_resume``'s
+    "a click that doesn't visibly change the state is a hard error, not a
+    silent success" convention) — Yandex's client-side validation can reject
+    a value and leave the form open with an inline error that this module
+    has no stable way to read (see module docstring's "Save verification"
+    note, issue #631's own "Валидация... непрозрачна" risk). Re-navigating
+    and re-reading each touched field is the only reliable signal available:
+    if a field still doesn't match after a real reload, the save did not
+    take effect and this raises rather than reporting false success.
+    """
+    url = WIZARD_EDIT_URL.format(campaign_id=campaign_id)
+    page.goto(url, wait_until="domcontentloaded")
+    assert_not_captcha(page.content())
+    assert_authenticated(page.content())
+
+    mismatches = []
+
+    if weekly_budget is not None:
+        actual = _read_weekly_budget(page)
+        if actual != weekly_budget:
+            mismatches.append(
+                f"weekly_budget: expected {weekly_budget}, page now shows {actual!r}"
+            )
+
+    if directs_helps is not None:
+        actual_checked = _read_directs_helps(page)
+        if actual_checked != directs_helps:
+            mismatches.append(
+                f"directs_helps: expected {directs_helps}, page now shows "
+                f"{actual_checked!r}"
+            )
+
+    if promotion_goal is not None:
+        expected_label = PROMOTION_GOAL_CHOICES[promotion_goal]
+        actual_label = _read_promotion_goal_label(page)
+        if actual_label != expected_label:
+            mismatches.append(
+                f"promotion_goal: expected {expected_label!r}, page now shows "
+                f"{actual_label!r}"
+            )
+
+    if mismatches:
+        raise BrowserSessionError(
+            f"Clicked '{_SAVE_BUTTON_TEXT}' for campaign {campaign_id}, but "
+            "re-reading the edit page after reload shows it did not save "
+            "as requested: " + "; ".join(mismatches) + ". Yandex may have "
+            "rejected the value (client-side validation) or the save did "
+            "not complete — verify manually before retrying."
+        )
+
+
+def update_master(
+    page: "Page",
+    campaign_id: int,
+    *,
+    weekly_budget: Optional[int] = None,
+    promotion_goal: Optional[str] = None,
+    directs_helps: Optional[bool] = None,
+) -> Dict[str, Any]:
+    """Update one or more Этап A fields of a Мастер кампаний and save.
+
+    Only fields passed as non-``None`` are touched — see module docstring for
+    why this is safe despite the page having a single whole-form save (fields
+    left alone keep their current on-page value simply by never having their
+    input touched). Raises ``ValueError`` if no field is provided, mirroring
+    the rest of the CLI's "nothing to update" guard for partial updates.
+
+    After clicking save, reloads the edit page and re-reads every requested
+    field to confirm it actually saved (see ``_verify_saved``) — a click
+    that doesn't visibly change the saved state is reported as a hard error,
+    not a silent success, mirroring ``_suspend_or_resume``.
+
+    Later Этап (B/C/D) fields — headline/text lists, sitelinks, audience,
+    Metrika counters/goals, budget adaptation, media — are out of scope for
+    this function; see issue #631.
+    """
+    if weekly_budget is None and promotion_goal is None and directs_helps is None:
+        raise ValueError(
+            "update_master requires at least one field to update "
+            "(weekly_budget, promotion_goal, directs_helps)."
+        )
+
+    url = WIZARD_EDIT_URL.format(campaign_id=campaign_id)
+    page.goto(url, wait_until="domcontentloaded")
+    assert_not_captcha(page.content())
+    assert_authenticated(page.content())
+
+    if weekly_budget is not None:
+        _set_weekly_budget(page, weekly_budget)
+    if promotion_goal is not None:
+        _set_promotion_goal(page, promotion_goal)
+    if directs_helps is not None:
+        _set_directs_helps(page, directs_helps)
+
+    _click_save(page, campaign_id)
+
+    _verify_saved(
+        page,
+        campaign_id,
+        weekly_budget=weekly_budget,
+        promotion_goal=promotion_goal,
+        directs_helps=directs_helps,
+    )
+
+    result: Dict[str, Any] = {"CampaignId": campaign_id}
+    if weekly_budget is not None:
+        result["WeeklyBudget"] = weekly_budget
+    if promotion_goal is not None:
+        result["PromotionGoal"] = promotion_goal
+    if directs_helps is not None:
+        result["DirectsHelps"] = directs_helps
+    return result
