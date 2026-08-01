@@ -52,6 +52,9 @@ dev = [
     "types-setuptools",
     "types-tabulate",
 ]
+browser = [
+    "playwright>=1.40",
+]
 
 [project.scripts]
 direct = "direct_cli.cli:cli"
