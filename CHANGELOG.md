@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+**Added — `direct masters archive` (#633):**
+
+- New command that archives a Мастер кампаний. Live recon confirmed Yandex's
+  UI has **no separate "delete" action** for it — neither the campaigns
+  grid's row menu nor the overview page's own menu has a "Удалить" item,
+  only "Архивировать" (issue #633 comment documents the DOM structure
+  found live). This is the closest thing to delete Мастер кампаний has.
+- Clicks the overview page's "⋮" menu then "Архивировать" — both selected
+  via stable, confirmed-live `data-testid` attributes
+  (`CampaignHeader.MenuTrigger`/`CampaignHeader.Menu.archive`), unlike
+  `suspend`/`resume`'s best-effort text-matched candidate buttons.
+- Verifies success by re-reading the campaigns grid (`fetch_masters_list`)
+  and confirming the status actually became `ARCHIVED`, rather than
+  trusting the click alone. Idempotent: an already-archived campaign is a
+  no-op warning, not an error.
+- **Irreversible from this CLI** — there is no `masters unarchive`.
+  Classified `DANGEROUS` in `direct_cli/smoke_matrix.py` (same as
+  `suspend`/`resume`): Мастер кампаний has no API and thus no `--sandbox`
+  isolation, so any exercise of this command hits a real account.
+
 **Added — `direct masters login` (#635):**
 
 - New interactive command that opens a visible browser window on a

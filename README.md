@@ -36,6 +36,7 @@ direct masters list --status archived
 direct masters get 72349978
 direct masters suspend 72349978
 direct masters resume 72349978
+direct masters archive 72349978
 ```
 
 `masters list` filters by status with `--status`
@@ -57,6 +58,16 @@ the click alone. They're idempotent (already-suspended/-active is a no-op
 warning, not an error). There is **no `--sandbox` for these** — Мастер
 кампаний has no API at all, so there is no isolated test copy; any mutation
 hits your real account.
+
+`archive` is the closest thing to "delete" Мастер кампаний has: a live
+recon (issue #633) confirmed there is **no separate delete action** in
+Yandex's UI for it, neither in the campaigns grid's row menu nor the
+overview page's own menu — only "Архивировать". `masters archive` clicks
+that menu item and verifies the campaign actually shows up as archived in
+the campaigns grid before reporting success. It is idempotent
+(already-archived is a no-op warning) but **irreversible from this CLI** —
+there is no `masters unarchive`. Same no-`--sandbox` caveat as
+suspend/resume above.
 
 **Browser session (optional but recommended):** `direct masters` decrypts
 your Chrome cookies fresh on every call by default, which means a Keychain
@@ -1079,6 +1090,7 @@ direct masters list --status archived
 direct masters get 72349978
 direct masters suspend 72349978
 direct masters resume 72349978
+direct masters archive 72349978
 ```
 
 `masters list` фильтрует по статусу через `--status`
@@ -1101,6 +1113,17 @@ Chrome и войдите в аккаунт. Если используете не
 У этих команд **нет `--sandbox`** — у «Мастера кампаний» нет API вообще,
 поэтому нет изолированной тестовой копии; любая мутация идёт в боевой
 аккаунт.
+
+`archive` — это ближайший аналог «удаления» для «Мастера кампаний»: живая
+разведка (issue #633) подтвердила, что отдельного действия «удалить» в
+интерфейсе Яндекса для него **нет** — ни в меню строки на странице списка
+кампаний, ни в меню страницы обзора конкретного МК, только
+«Архивировать». `masters archive` кликает по этому пункту меню и
+проверяет через список кампаний, что кампания реально стала архивной,
+прежде чем сообщить об успехе. Команда идемпотентна (уже архивная кампания
+— предупреждение, а не ошибка), но **необратима из этого CLI** — команды
+`masters unarchive` нет. Тот же отказ от `--sandbox`, что и у
+suspend/resume выше.
 
 **Браузерная сессия (опционально, но рекомендуется):** по умолчанию `direct
 masters` расшифровывает куки Chrome заново при каждом вызове — на macOS это

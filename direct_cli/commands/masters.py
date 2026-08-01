@@ -558,3 +558,41 @@ def resume(
     results = _with_session(ctx, headful, profile_dir, chrome_profile, _resume_all)
 
     format_output(results if len(results) != 1 else results[0], output_format, output)
+
+
+@masters.command()
+@click.argument("campaign_ids")
+@_masters_browser_options
+@click.pass_context
+@handle_api_errors
+def archive(
+    ctx,
+    campaign_ids,
+    headful,
+    profile_dir,
+    chrome_profile,
+    output_format,
+    output,
+):
+    """Archive one or more Мастер кампаний by ID (comma-separated)
+
+    Мастер кампаний has no separate "delete" — archiving is the only
+    destructive/lifecycle action beyond suspend/resume (issue #633 live
+    recon: neither the campaigns-grid row menu nor the overview page's menu
+    has a "Удалить" item, only "Архивировать"). Irreversible from this CLI:
+    there is no `masters unarchive`. Clicks the overview page's "⋮" menu then
+    "Архивировать" (both confirmed live via stable `data-testid` attributes —
+    see `direct_cli/browser/masters.py` module docstring), and verifies via
+    the campaigns grid that the status actually became ARCHIVED before
+    reporting success; idempotent if already archived.
+    """
+    from ..browser.masters import archive_master
+
+    ids = parse_ids(campaign_ids) or []
+
+    def _archive_all(page):
+        return [archive_master(page, campaign_id) for campaign_id in ids]
+
+    results = _with_session(ctx, headful, profile_dir, chrome_profile, _archive_all)
+
+    format_output(results if len(results) != 1 else results[0], output_format, output)

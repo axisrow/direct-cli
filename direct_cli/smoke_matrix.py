@@ -178,12 +178,16 @@ SMOKE_MATRIX = {
         "agencyclients.update",
         "auth.login",
         "auth.use",
-        # Browser-driven mutations against Мастер кампаний (issue #630).
-        # Мастер кампаний has no API surface at all, so there is no
+        # Browser-driven mutations against Мастер кампаний (issues #630,
+        # #633). Мастер кампаний has no API surface at all, so there is no
         # --sandbox equivalent to isolate these from a real Yandex
         # account — unlike API-backed suspend/resume (WRITE_SANDBOX
-        # above), any smoke exercise of these two hits production.
+        # above), any smoke exercise of these hits production.
+        # masters.archive is also irreversible from this CLI (no
+        # `masters unarchive` — Мастер кампаний has no separate "delete",
+        # only archive; see issue #633).
         # Manual-only, per scripts/test_dangerous_commands.sh.
+        "masters.archive",
         "masters.resume",
         "masters.suspend",
         # Interactive, human-in-the-loop login (issue #635) -- opens a
