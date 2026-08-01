@@ -32,6 +32,12 @@ non-critical campaign, confirming before/after state in the web UI):
   - direct masters resume <campaign_id>
   - direct masters update <campaign_id> --weekly-budget ... (Этап A: also
     --promotion-goal, --directs-helps/--no-directs-helps)
+  - direct masters archive <campaign_id>
+    (irreversible -- there is no `masters unarchive`)
+  - direct masters add <url> --headline ... --text ... --region ...
+    (creates a brand-new campaign -- NOT idempotent, a second run creates a
+    second campaign; verify with --draft first, then delete/archive the
+    test campaign by hand after checking it in the web UI)
 
 Interactive human-in-the-loop login (opens a visible browser window and
 blocks waiting for a person to sign in -- cannot run unattended):

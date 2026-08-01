@@ -46,17 +46,18 @@ def _load_grid_campaigns_fixture():
 class _FakeLocatorHandle:
     """One matched element — the subset of Playwright's Locator API the parser uses.
 
-    ``click``/``fill``/``check``/``uncheck``/``is_visible`` support
-    ``update_master``'s ``_set_*`` functions (issue #631) — ``on_click``/
-    ``on_fill``/``on_check`` are optional no-arg/one-arg callbacks so tests
-    can model the fake page's mutable state changing (mirrors
-    ``_FakeTextLocatorHandle.on_click`` used by suspend/resume tests).
-    ``input_value``/``is_checked`` support the post-save read-back
-    verification in ``_verify_saved`` — they read the SAME mutable
-    ``checked``/``value`` state ``fill``/``check``/``uncheck`` write, via
-    ``state`` dict callables (``get_value``/``get_checked``), so a test can
-    model "the reload shows what was actually saved" instead of "whatever
-    was passed to fill/check".
+    ``click``/``fill``/``check``/``uncheck``/``press``/``is_visible`` support
+    ``update_master``'s ``_set_*`` functions (issue #631) and
+    ``create_master``'s private helpers (issue #632) — ``on_click``/
+    ``on_fill``/``on_check``/``on_press`` are optional no-arg/one-arg
+    callbacks so tests can model the fake page's mutable state changing
+    (mirrors ``_FakeTextLocatorHandle.on_click`` used by suspend/resume
+    tests). ``input_value``/``is_checked`` support the post-save/post-create
+    read-back verification in ``_verify_saved``/``_verify_created`` — they
+    read the SAME mutable ``checked``/``value`` state ``fill``/``check``/
+    ``uncheck`` write, via ``state`` dict callables (``get_value``/
+    ``get_checked``), so a test can model "the reload shows what was
+    actually saved" instead of "whatever was passed to fill/check".
     """
 
     def __init__(
@@ -68,6 +69,7 @@ class _FakeLocatorHandle:
         on_click=None,
         on_fill=None,
         on_check=None,
+        on_press=None,
         get_value=None,
         get_checked=None,
     ):
@@ -78,6 +80,7 @@ class _FakeLocatorHandle:
         self._on_click = on_click
         self._on_fill = on_fill
         self._on_check = on_check
+        self._on_press = on_press
         self._get_value = get_value
         self._get_checked = get_checked
 
@@ -121,6 +124,12 @@ class _FakeLocatorHandle:
             raise PlaywrightError("element detached")
         if self._on_check is not None:
             self._on_check(False)
+
+    def press(self, key):
+        if self._raises:
+            raise PlaywrightError("element detached")
+        if self._on_press is not None:
+            self._on_press(key)
 
     def input_value(self):
         if self._raises:
@@ -290,6 +299,7 @@ class FakePage:
         api_request=None,
         text_buttons=None,
         role_elements=None,
+        placeholders=None,
     ):
         self._locators = locators or {}
         self._body_text = body_text
@@ -314,6 +324,9 @@ class FakePage:
         # could not distinguish a correct role-scoped match from an
         # accidental ancestor-container match).
         self._role_elements = role_elements or []
+        # {placeholder: _FakeLocator} for get_by_placeholder() — used by
+        # create_master's step-1 URL field (issue #632).
+        self._placeholders = placeholders or {}
 
     def goto(self, url, wait_until=None):
         self.navigated_to.append(url)
@@ -347,6 +360,9 @@ class FakePage:
             elif name in elem_name:
                 matched.append(handle)
         return _FakeGetByTextLocator(matched)
+
+    def get_by_placeholder(self, placeholder):
+        return self._placeholders.get(placeholder, _FakeLocatorHandle(raises=True))
 
     def inner_text(self, selector=None):
         return self._body_text
@@ -2648,6 +2664,762 @@ class TestBrowserSessionErrors(unittest.TestCase):
         from direct_cli.browser.session import ChromeCookieError
 
         self.assertTrue(issubclass(ChromeCookieError, BrowserSessionError))
+
+
+class TestFillLandingUrl(unittest.TestCase):
+    """``_fill_landing_url`` (issue #632) — step 1's URL field + "Далее".
+
+    "Далее" is modeled via ``role_elements`` (role="button"), not
+    ``text_buttons`` — ``_fill_landing_url`` uses ``get_by_role("button",
+    name=_CREATE_NEXT_BUTTON_TEXT, exact=True)`` (ported from the
+    ``_click_save``/``_set_promotion_goal`` fix, issue #631 review): the
+    previous ``get_by_text(exact=False)`` risked matching an ancestor
+    container instead of the button itself.
+    """
+
+    def _page(self, url_state=None, next_clicks=None, error_visible=False):
+        url_state = url_state if url_state is not None else {}
+        next_clicks = next_clicks if next_clicks is not None else []
+        field = _FakeLocatorHandle(on_fill=lambda v: url_state.__setitem__("url", v))
+        return FakePage(
+            placeholders={browser_masters._CREATE_URL_INPUT_PLACEHOLDER: field},
+            role_elements=[
+                (
+                    "button",
+                    browser_masters._CREATE_NEXT_BUTTON_TEXT,
+                    _FakeTextLocatorHandle(
+                        visible=True, on_click=lambda: next_clicks.append(True)
+                    ),
+                )
+            ],
+            text_buttons={
+                browser_masters._CREATE_INVALID_URL_TEXT: _FakeGetByTextLocator(
+                    [_FakeTextLocatorHandle()] if error_visible else []
+                ),
+            },
+        )
+
+    def test_fills_field_and_clicks_next(self):
+        url_state = {}
+        next_clicks = []
+        page = self._page(url_state=url_state, next_clicks=next_clicks)
+
+        browser_masters._fill_landing_url(page, "https://ksamata.ru/")
+
+        self.assertEqual(url_state["url"], "https://ksamata.ru/")
+        self.assertEqual(len(next_clicks), 1)
+
+    def test_raises_when_url_field_missing(self):
+        page = FakePage(placeholders={})
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._fill_landing_url(page, "https://ksamata.ru/")
+
+    def test_raises_when_next_button_missing(self):
+        page = FakePage(
+            placeholders={
+                browser_masters._CREATE_URL_INPUT_PLACEHOLDER: _FakeLocatorHandle()
+            },
+            role_elements=[],
+        )
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._fill_landing_url(page, "https://ksamata.ru/")
+
+    def test_does_not_click_a_decoy_whose_name_only_contains_the_button_text(self):
+        # A decoy element whose accessible name merely CONTAINS
+        # _CREATE_NEXT_BUTTON_TEXT (e.g. "Далее по списку") must NOT be
+        # treated as a match — exact=True requires exact equality.
+        decoy_clicked = []
+        page = FakePage(
+            placeholders={
+                browser_masters._CREATE_URL_INPUT_PLACEHOLDER: _FakeLocatorHandle()
+            },
+            role_elements=[
+                (
+                    "button",
+                    f"{browser_masters._CREATE_NEXT_BUTTON_TEXT} по списку",
+                    _FakeTextLocatorHandle(
+                        visible=True, on_click=lambda: decoy_clicked.append(True)
+                    ),
+                )
+            ],
+        )
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._fill_landing_url(page, "https://ksamata.ru/")
+        self.assertEqual(decoy_clicked, [])
+
+    def test_raises_on_invalid_url_format_error(self):
+        page = self._page(error_visible=True)
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._fill_landing_url(page, "not-a-valid-url")
+        self.assertIn("malformed", str(ctx.exception))
+
+
+class TestWaitForStep2(unittest.TestCase):
+    """``_wait_for_step2`` (issue #632) — polls for the "Регион показов" heading."""
+
+    def test_returns_once_heading_present(self):
+        page = FakePage(
+            text_buttons={
+                "Регион показов": _FakeGetByTextLocator([_FakeTextLocatorHandle()])
+            }
+        )
+
+        browser_masters._wait_for_step2(page)  # must not raise
+
+    def test_raises_when_heading_never_appears(self):
+        page = FakePage(text_buttons={})
+
+        with (
+            patch.object(browser_masters, "_CREATE_STEP2_TIMEOUT_MS", 10),
+            self.assertRaises(BrowserSessionError),
+        ):
+            browser_masters._wait_for_step2(page)
+
+
+class TestAddRepeatingValues(unittest.TestCase):
+    """``_add_repeating_values`` (issue #632) — headline/text list entry."""
+
+    def test_fills_and_presses_enter_for_each_value(self):
+        filled = []
+        pressed = []
+        handle = _FakeLocatorHandle(
+            on_fill=lambda v: filled.append(v),
+            on_press=lambda k: pressed.append(k),
+        )
+        page = FakePage(locators={"xpath=//fake": _FakeLocator([handle])})
+
+        browser_masters._add_repeating_values(
+            page, "xpath=//fake", ["Заголовок 1", "Заголовок 2"]
+        )
+
+        self.assertEqual(filled, ["Заголовок 1", "Заголовок 2"])
+        self.assertEqual(pressed, ["Enter", "Enter"])
+
+    def test_raises_when_field_missing(self):
+        page = FakePage(locators={})
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._add_repeating_values(page, "xpath=//fake", ["x"])
+
+
+class TestReadRepeatingValues(unittest.TestCase):
+    """``_read_repeating_values`` (issue #632) — post-add read-back used by
+    ``_verify_created``."""
+
+    def test_reads_current_value_of_every_matched_input(self):
+        handles = [
+            _FakeLocatorHandle(get_value=lambda: "Заголовок 1"),
+            _FakeLocatorHandle(get_value=lambda: "Заголовок 2"),
+        ]
+        page = FakePage(locators={"xpath=//fake": _FakeLocator(handles)})
+
+        values = browser_masters._read_repeating_values(page, "xpath=//fake")
+
+        self.assertEqual(values, ["Заголовок 1", "Заголовок 2"])
+
+    def test_returns_empty_list_when_no_matches(self):
+        page = FakePage(locators={})
+
+        values = browser_masters._read_repeating_values(page, "xpath=//fake")
+
+        self.assertEqual(values, [])
+
+    def test_unreadable_input_reads_as_empty_string_not_a_hard_failure(self):
+        handles = [
+            _FakeLocatorHandle(get_value=lambda: "ok"),
+            _FakeLocatorHandle(raises=True),
+        ]
+        page = FakePage(locators={"xpath=//fake": _FakeLocator(handles)})
+
+        values = browser_masters._read_repeating_values(page, "xpath=//fake")
+
+        self.assertEqual(values, ["ok", ""])
+
+
+class TestSetRegion(unittest.TestCase):
+    """``_set_region`` (issue #632) — the one genuinely-empty required field.
+
+    Suggestions are modeled via ``role_elements`` (role="option"), not
+    ``text_buttons`` — ``_set_region`` uses ``get_by_role("option",
+    name=region, exact=True)`` (ported from ``_set_promotion_goal``'s fix,
+    issue #631 review): the previous ``get_by_text(exact=False)`` risked
+    matching an ancestor container instead of the suggestion row itself.
+    """
+
+    def _page_for_region(self, region, option_visible=True):
+        field_state = {}
+        field = _FakeLocatorHandle(
+            on_fill=lambda v: field_state.__setitem__("value", v)
+        )
+        return (
+            FakePage(
+                locators={browser_masters._REGION_INPUT_XPATH: _FakeLocator([field])},
+                role_elements=(
+                    [("option", region, _FakeTextLocatorHandle(visible=True))]
+                    if option_visible
+                    else []
+                ),
+            ),
+            field_state,
+        )
+
+    def test_fills_and_selects_each_region(self):
+        page, field_state = self._page_for_region("Москва")
+
+        browser_masters._set_region(page, ["Москва"])
+
+        self.assertEqual(field_state["value"], "Москва")
+
+    def test_raises_when_field_missing(self):
+        page = FakePage(locators={})
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._set_region(page, ["Москва"])
+
+    def test_raises_when_suggestion_not_found(self):
+        page, _ = self._page_for_region("Атлантида", option_visible=False)
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._set_region(page, ["Атлантида"])
+        self.assertIn("Атлантида", str(ctx.exception))
+
+    def test_does_not_select_a_decoy_whose_name_only_contains_the_region(self):
+        # A decoy option whose accessible name merely CONTAINS the region
+        # name (e.g. "Москва и область") must NOT be treated as a match.
+        field = _FakeLocatorHandle()
+        decoy_clicked = []
+        page = FakePage(
+            locators={browser_masters._REGION_INPUT_XPATH: _FakeLocator([field])},
+            role_elements=[
+                (
+                    "option",
+                    "Москва и область",
+                    _FakeTextLocatorHandle(
+                        visible=True, on_click=lambda: decoy_clicked.append(True)
+                    ),
+                )
+            ],
+        )
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._set_region(page, ["Москва"])
+        self.assertEqual(decoy_clicked, [])
+
+
+class TestReadRegionTags(unittest.TestCase):
+    """``_read_region_tags`` (issue #632) — best-effort, NOT live-verified
+    (see docstring)."""
+
+    def test_returns_current_field_value(self):
+        page = FakePage(
+            locators={
+                browser_masters._REGION_INPUT_XPATH: _FakeLocator(
+                    [_FakeLocatorHandle(get_value=lambda: "Москва")]
+                )
+            }
+        )
+
+        self.assertEqual(browser_masters._read_region_tags(page), ["Москва"])
+
+    def test_returns_empty_list_when_field_missing(self):
+        page = FakePage(locators={})
+
+        self.assertEqual(browser_masters._read_region_tags(page), [])
+
+
+class TestSetWeeklyBudgetOnCreate(unittest.TestCase):
+    """``_set_weekly_budget_on_create`` (issue #632)."""
+
+    def test_fills_field_with_bare_integer(self):
+        state = {}
+        handle = _FakeLocatorHandle(on_fill=lambda v: state.__setitem__("value", v))
+        page = FakePage(
+            locators={
+                browser_masters._WEEKLY_BUDGET_INPUT_XPATH: _FakeLocator([handle])
+            }
+        )
+
+        browser_masters._set_weekly_budget_on_create(page, 50000)
+
+        self.assertEqual(state["value"], "50000")
+
+    def test_raises_when_field_missing(self):
+        page = FakePage(locators={})
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._set_weekly_budget_on_create(page, 50000)
+
+
+class TestClickTerminalButton(unittest.TestCase):
+    """``_click_terminal_button`` (issue #632) — launch vs. draft, role-scoped.
+
+    Uses ``get_by_role("button", name=text, exact=True)`` (ported from
+    ``_click_save``'s fix, issue #631 review): the previous
+    ``get_by_text(exact=False)`` risked matching an ancestor container
+    instead of the button itself.
+    """
+
+    def test_clicks_matching_visible_button(self):
+        clicks = []
+        page = FakePage(
+            role_elements=[
+                (
+                    "button",
+                    browser_masters._LAUNCH_BUTTON_TEXT,
+                    _FakeTextLocatorHandle(
+                        visible=True, on_click=lambda: clicks.append(True)
+                    ),
+                )
+            ]
+        )
+
+        browser_masters._click_terminal_button(
+            page, browser_masters._LAUNCH_BUTTON_TEXT
+        )
+
+        self.assertEqual(len(clicks), 1)
+
+    def test_raises_when_button_missing(self):
+        page = FakePage(role_elements=[])
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._click_terminal_button(
+                page, browser_masters._SAVE_DRAFT_BUTTON_TEXT
+            )
+
+    def test_does_not_click_a_decoy_whose_name_only_contains_the_button_text(self):
+        # A decoy element whose accessible name merely CONTAINS the target
+        # text (e.g. "Запустить кампанию сейчас") must NOT be treated as a
+        # match — exact=True requires exact equality.
+        decoy_clicked = []
+        page = FakePage(
+            role_elements=[
+                (
+                    "button",
+                    f"{browser_masters._LAUNCH_BUTTON_TEXT} сейчас",
+                    _FakeTextLocatorHandle(
+                        visible=True, on_click=lambda: decoy_clicked.append(True)
+                    ),
+                )
+            ]
+        )
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._click_terminal_button(
+                page, browser_masters._LAUNCH_BUTTON_TEXT
+            )
+        self.assertEqual(decoy_clicked, [])
+
+
+class TestVerifyCreated(unittest.TestCase):
+    """``_verify_created`` (issue #632) — ported from ``update_master``'s
+    ``_verify_saved`` (issue #631 review finding): a click on the terminal
+    button is not proof Yandex accepted the form.
+    """
+
+    def _page(self, headline_values, text_values, budget_value=None):
+        locators = {
+            browser_masters._HEADLINES_ADD_INPUT_XPATH: _FakeLocator(
+                [_FakeLocatorHandle(get_value=lambda v=v: v) for v in headline_values]
+            ),
+            browser_masters._TEXTS_ADD_INPUT_XPATH: _FakeLocator(
+                [_FakeLocatorHandle(get_value=lambda v=v: v) for v in text_values]
+            ),
+        }
+        if budget_value is not None:
+            locators[browser_masters._WEEKLY_BUDGET_INPUT_XPATH] = _FakeLocator(
+                [_FakeLocatorHandle(get_value=lambda: budget_value)]
+            )
+        return FakePage(locators=locators)
+
+    def test_passes_when_every_requested_value_is_present(self):
+        page = self._page(["Заголовок"], ["Текст объявления"])
+
+        browser_masters._verify_created(
+            page,
+            headlines=["Заголовок"],
+            texts=["Текст объявления"],
+            weekly_budget=None,
+        )  # must not raise
+
+    def test_raises_when_a_headline_is_missing(self):
+        page = self._page(["Другой заголовок"], ["Текст объявления"])
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._verify_created(
+                page,
+                headlines=["Заголовок"],
+                texts=["Текст объявления"],
+                weekly_budget=None,
+            )
+        self.assertIn("did not take effect as requested", str(ctx.exception))
+
+    def test_raises_when_a_text_is_missing(self):
+        page = self._page(["Заголовок"], ["Другой текст"])
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._verify_created(
+                page,
+                headlines=["Заголовок"],
+                texts=["Текст объявления"],
+                weekly_budget=None,
+            )
+
+    def test_raises_when_weekly_budget_does_not_match(self):
+        page = self._page(["Заголовок"], ["Текст объявления"], budget_value="10000")
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._verify_created(
+                page,
+                headlines=["Заголовок"],
+                texts=["Текст объявления"],
+                weekly_budget=50000,
+            )
+
+    def test_ignores_weekly_budget_when_not_requested(self):
+        page = self._page(["Заголовок"], ["Текст объявления"], budget_value="10000")
+
+        browser_masters._verify_created(
+            page,
+            headlines=["Заголовок"],
+            texts=["Текст объявления"],
+            weekly_budget=None,
+        )  # must not raise -- caller never asked for a budget
+
+
+class TestCreateMaster(unittest.TestCase):
+    """``create_master`` (issue #632) — end-to-end wiring of the helpers above."""
+
+    def _full_page(self):
+        url_state = {}
+        headline_state = []
+        text_state = []
+        region_state = {}
+        budget_state = {}
+        launch_clicks = []
+        draft_clicks = []
+
+        url_field = _FakeLocatorHandle(
+            on_fill=lambda v: url_state.__setitem__("url", v)
+        )
+        headline_last = {"value": ""}
+
+        def _fill_headline(v):
+            headline_state.append(v)
+            headline_last["value"] = v
+
+        headline_field = _FakeLocatorHandle(
+            on_fill=_fill_headline, get_value=lambda: headline_last["value"]
+        )
+        text_last = {"value": ""}
+
+        def _fill_text(v):
+            text_state.append(v)
+            text_last["value"] = v
+
+        text_field = _FakeLocatorHandle(
+            on_fill=_fill_text, get_value=lambda: text_last["value"]
+        )
+        region_field = _FakeLocatorHandle(
+            on_fill=lambda v: region_state.__setitem__("value", v)
+        )
+        budget_field = _FakeLocatorHandle(
+            on_fill=lambda v: budget_state.__setitem__("value", v),
+            get_value=lambda: budget_state.get("value", ""),
+        )
+
+        page = FakePage(
+            placeholders={browser_masters._CREATE_URL_INPUT_PLACEHOLDER: url_field},
+            locators={
+                browser_masters._HEADLINES_ADD_INPUT_XPATH: _FakeLocator(
+                    [headline_field]
+                ),
+                browser_masters._TEXTS_ADD_INPUT_XPATH: _FakeLocator([text_field]),
+                browser_masters._REGION_INPUT_XPATH: _FakeLocator([region_field]),
+                browser_masters._WEEKLY_BUDGET_INPUT_XPATH: _FakeLocator(
+                    [budget_field]
+                ),
+            },
+            role_elements=[
+                (
+                    "button",
+                    browser_masters._CREATE_NEXT_BUTTON_TEXT,
+                    _FakeTextLocatorHandle(visible=True),
+                ),
+                ("option", "Москва", _FakeTextLocatorHandle(visible=True)),
+                (
+                    "button",
+                    browser_masters._LAUNCH_BUTTON_TEXT,
+                    _FakeTextLocatorHandle(
+                        visible=True, on_click=lambda: launch_clicks.append(True)
+                    ),
+                ),
+                (
+                    "button",
+                    browser_masters._SAVE_DRAFT_BUTTON_TEXT,
+                    _FakeTextLocatorHandle(
+                        visible=True, on_click=lambda: draft_clicks.append(True)
+                    ),
+                ),
+            ],
+            text_buttons={
+                browser_masters._CREATE_INVALID_URL_TEXT: _FakeGetByTextLocator([]),
+                "Регион показов": _FakeGetByTextLocator([_FakeTextLocatorHandle()]),
+            },
+        )
+        return page, {
+            "url": url_state,
+            "headlines": headline_state,
+            "texts": text_state,
+            "region": region_state,
+            "budget": budget_state,
+            "launch_clicks": launch_clicks,
+            "draft_clicks": draft_clicks,
+        }
+
+    def test_launches_by_default(self):
+        page, state = self._full_page()
+
+        result = browser_masters.create_master(
+            page,
+            "https://ksamata.ru/",
+            headlines=["Заголовок"],
+            texts=["Текст объявления"],
+            regions=["Москва"],
+        )
+
+        self.assertEqual(state["url"]["url"], "https://ksamata.ru/")
+        self.assertEqual(state["headlines"], ["Заголовок"])
+        self.assertEqual(state["texts"], ["Текст объявления"])
+        self.assertEqual(state["region"]["value"], "Москва")
+        self.assertEqual(len(state["launch_clicks"]), 1)
+        self.assertEqual(len(state["draft_clicks"]), 0)
+        self.assertEqual(
+            result,
+            {
+                "LandingUrl": "https://ksamata.ru/",
+                "Headlines": ["Заголовок"],
+                "Texts": ["Текст объявления"],
+                "Regions": ["Москва"],
+                "Launched": True,
+            },
+        )
+        self.assertEqual(page.navigated_to, [browser_masters.WIZARD_CREATE_URL])
+
+    def test_saves_as_draft_when_launch_false(self):
+        page, state = self._full_page()
+
+        result = browser_masters.create_master(
+            page,
+            "https://ksamata.ru/",
+            headlines=["Заголовок"],
+            texts=["Текст объявления"],
+            regions=["Москва"],
+            launch=False,
+        )
+
+        self.assertEqual(len(state["draft_clicks"]), 1)
+        self.assertEqual(len(state["launch_clicks"]), 0)
+        self.assertFalse(result["Launched"])
+
+    def test_includes_weekly_budget_when_given(self):
+        page, state = self._full_page()
+
+        result = browser_masters.create_master(
+            page,
+            "https://ksamata.ru/",
+            headlines=["Заголовок"],
+            texts=["Текст объявления"],
+            regions=["Москва"],
+            weekly_budget=50000,
+        )
+
+        self.assertEqual(state["budget"]["value"], "50000")
+        self.assertEqual(result["WeeklyBudget"], 50000)
+
+    def test_omits_weekly_budget_key_when_not_given(self):
+        page, _ = self._full_page()
+
+        result = browser_masters.create_master(
+            page,
+            "https://ksamata.ru/",
+            headlines=["Заголовок"],
+            texts=["Текст объявления"],
+            regions=["Москва"],
+        )
+
+        self.assertNotIn("WeeklyBudget", result)
+
+    def test_raises_value_error_when_no_headlines(self):
+        page, _ = self._full_page()
+
+        with self.assertRaises(ValueError):
+            browser_masters.create_master(
+                page, "https://ksamata.ru/", headlines=[], texts=["t"], regions=["r"]
+            )
+
+    def test_raises_value_error_when_no_texts(self):
+        page, _ = self._full_page()
+
+        with self.assertRaises(ValueError):
+            browser_masters.create_master(
+                page, "https://ksamata.ru/", headlines=["h"], texts=[], regions=["r"]
+            )
+
+    def test_raises_value_error_when_no_regions(self):
+        page, _ = self._full_page()
+
+        with self.assertRaises(ValueError):
+            browser_masters.create_master(
+                page, "https://ksamata.ru/", headlines=["h"], texts=["t"], regions=[]
+            )
+
+    def test_invalid_url_stops_before_step2(self):
+        page, _ = self._full_page()
+        page._text_buttons[browser_masters._CREATE_INVALID_URL_TEXT] = (
+            _FakeGetByTextLocator([_FakeTextLocatorHandle()])
+        )
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters.create_master(
+                page,
+                "not-a-valid-url",
+                headlines=["h"],
+                texts=["t"],
+                regions=["Москва"],
+            )
+
+    def test_raises_when_terminal_click_does_not_actually_save_headline(self):
+        # The launch button is clicked, but re-reading the headline field
+        # afterwards shows the OLD value still in place (e.g. Yandex
+        # silently rejected it) -- this must be a hard error, not a false
+        # success (mirrors update_master's _verify_saved regression test).
+        page, state = self._full_page()
+        # Sabotage: the headline field never actually reflects the fill.
+        page._locators[browser_masters._HEADLINES_ADD_INPUT_XPATH] = _FakeLocator(
+            [_FakeLocatorHandle(get_value=lambda: "Старый заголовок")]
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.create_master(
+                page,
+                "https://ksamata.ru/",
+                headlines=["Заголовок"],
+                texts=["Текст объявления"],
+                regions=["Москва"],
+            )
+        self.assertEqual(len(state["launch_clicks"]), 1)  # the click DID happen
+        self.assertIn("did not take effect as requested", str(ctx.exception))
+
+
+class TestMastersAddCommand(unittest.TestCase):
+    """CLI wiring for `masters add` (issue #632)."""
+
+    def setUp(self):
+        self.runner = CliRunner()
+
+    def test_registered(self):
+        result = self.runner.invoke(cli, ["masters", "add", "--help"])
+        self.assertEqual(result.exit_code, 0)
+
+    def test_has_no_login_option(self):
+        result = self.runner.invoke(cli, ["masters", "add", "--help"])
+        self.assertNotIn("--login", result.output)
+
+    def test_headline_text_region_are_required(self):
+        result = self.runner.invoke(cli, ["masters", "add", "https://ksamata.ru/"])
+        self.assertNotEqual(result.exit_code, 0)
+
+    def test_calls_create_master_with_given_fields(self):
+        with (
+            patch("direct_cli.browser.masters.create_master") as mock_create,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_create.return_value = {"Launched": True}
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            result = self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "add",
+                    "https://ksamata.ru/",
+                    "--headline",
+                    "Заголовок 1",
+                    "--headline",
+                    "Заголовок 2",
+                    "--text",
+                    "Текст",
+                    "--region",
+                    "Москва",
+                ],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        mock_create.assert_called_once()
+        _, kwargs = mock_create.call_args
+        self.assertEqual(kwargs["headlines"], ["Заголовок 1", "Заголовок 2"])
+        self.assertEqual(kwargs["texts"], ["Текст"])
+        self.assertEqual(kwargs["regions"], ["Москва"])
+        self.assertTrue(kwargs["launch"])
+
+    def test_draft_flag_disables_launch(self):
+        with (
+            patch("direct_cli.browser.masters.create_master") as mock_create,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_create.return_value = {"Launched": False}
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            result = self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "add",
+                    "https://ksamata.ru/",
+                    "--headline",
+                    "h",
+                    "--text",
+                    "t",
+                    "--region",
+                    "Москва",
+                    "--draft",
+                ],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        _, kwargs = mock_create.call_args
+        self.assertFalse(kwargs["launch"])
+
+    def test_passes_weekly_budget(self):
+        with (
+            patch("direct_cli.browser.masters.create_master") as mock_create,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_create.return_value = {"Launched": True}
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            result = self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "add",
+                    "https://ksamata.ru/",
+                    "--headline",
+                    "h",
+                    "--text",
+                    "t",
+                    "--region",
+                    "Москва",
+                    "--weekly-budget",
+                    "50000",
+                ],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        _, kwargs = mock_create.call_args
+        self.assertEqual(kwargs["weekly_budget"], 50000)
 
 
 if __name__ == "__main__":

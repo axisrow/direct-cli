@@ -83,8 +83,39 @@ silent success" convention, applied to the whole-form save instead of a
 single status field. Not yet covered: an inline validation-error TEXT is
 not itself surfaced to the caller (only the resulting mismatch is) — a
 follow-up could read and report Yandex's actual rejection reason.
+
+``create_master`` (issue #632) — live recon only, NOT live-verified end to end
+(no campaign was ever actually launched/saved during recon — see
+``tests/fixtures/masters_wizard_create.html``). Covers exactly the "Конверсии
+и трафик" Мастер кампаний type (the other five tile types on the create
+modal — Товарная кампания, Продажи на маркетплейсах, Подписчики в
+телеграм-канал, Продвижение бизнеса без сайта, Продвижение специалистов — are
+out of scope; each is a materially different form). The create flow is NOT a
+multi-page "Далее" wizard as the issue assumed: it is one micro-step (a
+landing-page URL field with client-side format validation) followed by a
+single long form covering every field ``update_master`` above already knows
+about, terminating in exactly two buttons — "Запустить кампанию" (launch) and
+"Сохранить как черновик" (save as draft) — instead of ``update_master``'s one
+"Сохранить кампанию". Confirmed live: only three fields carry a required-field
+marker in the UI — headline variants, ad-text variants, and the display
+region — and of those three, only the region starts genuinely empty (Yandex
+auto-populates headlines/texts by scanning the landing page). This module
+therefore requires the caller to pass headlines/texts/regions explicitly
+rather than trusting Yandex's AI-generated copy silently, given the "no
+sandbox, no rollback" risk profile called out in issue #632.
+
+**Save/launch verification.** Ported from ``update_master``'s
+``_verify_saved`` pattern (issue #631 review finding, see the CHANGELOG
+entry): ``create_master`` does not trust a single click of the launch/draft
+button as proof anything actually happened — see ``_verify_created`` below.
+Dropdown-style option clicks additionally use ``get_by_role(...,
+exact=True)`` instead of a substring ``get_by_text`` match, for the same
+reason ``_set_promotion_goal``/``_click_save`` were fixed: a container whose
+text merely contains the target string is not the same element as an actual
+clickable button/option row.
 """
 
+import contextlib
 import json
 import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
@@ -181,6 +212,45 @@ PROMOTION_GOAL_CHOICES = {
     "max-clicks": "Максимум переходов",
 }
 
+# create_master (issue #632) — confirmed live, see
+# tests/fixtures/masters_wizard_create.html.
+WIZARD_CREATE_URL = "https://direct.yandex.ru/wizard/campaigns/new/"
+
+# Step 1's only field. No stable id/data-testid (see module docstring) — text
+# matches the exact live placeholder.
+_CREATE_URL_INPUT_PLACEHOLDER = "Ссылка на сайт, соцсеть, маркетплейс или приложение"
+
+# Step 1's "Далее" button — confirmed live it is clickable even with a
+# malformed URL (it does not disable on format), so a click is always
+# required to surface the inline validation error below.
+_CREATE_NEXT_BUTTON_TEXT = "Далее"
+
+# Confirmed live: this exact string appears under the URL field when the
+# "Далее" click rejects the value as not a well-formed URL. Pure
+# client-side check, no network round-trip.
+_CREATE_INVALID_URL_TEXT = "Некорректный формат ссылки"
+
+# How long to wait for step 2's long form to render after clicking "Далее" —
+# confirmed live this can take 10-15s+ (Yandex scans the landing page's
+# content to pre-fill headlines/texts/images), well within this budget.
+_CREATE_STEP2_TIMEOUT_MS = 30_000
+
+# Step 2 field locators — heading-proximity XPath, same convention as
+# update_master's _WEEKLY_BUDGET_INPUT_XPATH etc. (no stable id/data-testid).
+_HEADLINES_ADD_INPUT_XPATH = (
+    "xpath=//*[self::h1 or self::h2 or self::h3][normalize-space(text())="
+    "'Варианты заголовков']/following::input[1]"
+)
+_TEXTS_ADD_INPUT_XPATH = (
+    "xpath=//*[self::h1 or self::h2 or self::h3][normalize-space(text())="
+    "'Варианты текстов объявлений']/following::textarea[1]"
+    "|xpath=//*[self::h1 or self::h2 or self::h3][normalize-space(text())="
+    "'Варианты текстов объявлений']/following::input[1]"
+)
+_REGION_INPUT_XPATH = (
+    "xpath=//*[self::h1 or self::h2 or self::h3][normalize-space(text())="
+    "'Регион показов']/following::input[1]"
+)
 # XPath fragment: the text input immediately following (as a descendant of an
 # adjacent sibling) the "Недельный бюджет" heading. Confirmed live — see
 # fixture. Headings on this page have no stable id/data-testid, so matching
@@ -210,6 +280,16 @@ _PROMOTION_GOAL_BUTTON_XPATH = (
 )
 
 _SAVE_BUTTON_TEXT = "Сохранить кампанию"
+_LAUNCH_BUTTON_TEXT = "Запустить кампанию"
+_SAVE_DRAFT_BUTTON_TEXT = "Сохранить как черновик"
+
+# Confirmed live: navigating away from an unsubmitted create form triggers
+# the browser's native beforeunload "Leave site?" dialog — the wizard
+# considers an in-progress, un-launched/un-drafted form "dirty" client-side
+# state, independent of any server round-trip (see fixture). Not acted on by
+# this module (no dialog-handling code needed for launch/draft themselves,
+# which navigate away deliberately) — documented here only as the signal
+# that confirmed no earlier recon pass had accidentally persisted anything.
 
 
 def _is_grid_campaigns_request(response: Any) -> bool:
@@ -1007,4 +1087,411 @@ def update_master(
         result["PromotionGoal"] = promotion_goal
     if directs_helps is not None:
         result["DirectsHelps"] = directs_helps
+    return result
+
+
+def _fill_landing_url(page: "Page", url: str) -> None:
+    """Fill step 1's URL field and click "Далее" to advance to step 2.
+
+    Confirmed live: "Далее" is clickable even when the field holds a
+    malformed value — it does not disable on format, so a click is always
+    needed to trigger the (purely client-side) validation. If Yandex
+    rejects the format, this raises :class:`BrowserSessionError` immediately
+    instead of waiting the full step-2 timeout for a page that will never
+    render (see ``_CREATE_INVALID_URL_TEXT``).
+    """
+    field = page.get_by_placeholder(_CREATE_URL_INPUT_PLACEHOLDER)
+    try:
+        field.click()
+        field.fill(url)
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            "Could not find or fill the landing-page URL field on the "
+            "Мастер кампаний create page — Yandex may have changed the "
+            "page's markup. Re-run with --headful to inspect the page."
+        ) from exc
+
+    # get_by_role scopes to the actual <button> element (exact accessible
+    # name), mirroring the fix applied to update_master's _click_save/
+    # _set_promotion_goal (issue #631 review) — a get_by_text(exact=False)
+    # substring match could hit an ancestor container instead of the button.
+    next_button = page.get_by_role("button", name=_CREATE_NEXT_BUTTON_TEXT, exact=True)
+    clicked = False
+    try:
+        count = next_button.count()
+    except PlaywrightError:
+        count = 0
+    for i in range(count):
+        handle = next_button.nth(i)
+        try:
+            if not handle.is_visible():
+                continue
+            handle.click()
+            clicked = True
+            break
+        except PlaywrightError:
+            continue
+    if not clicked:
+        raise BrowserSessionError(
+            f"Could not find the {_CREATE_NEXT_BUTTON_TEXT!r} button on the "
+            "Мастер кампаний create page — Yandex may have changed the "
+            "page's markup. Re-run with --headful to inspect the page."
+        )
+
+    error = page.get_by_text(_CREATE_INVALID_URL_TEXT, exact=False)
+    try:
+        count = error.count()
+    except PlaywrightError:
+        count = 0
+    if count:
+        raise BrowserSessionError(
+            f"Yandex rejected {url!r} as a malformed URL "
+            f"({_CREATE_INVALID_URL_TEXT!r}) — pass a well-formed "
+            "http(s):// URL."
+        )
+
+
+def _wait_for_step2(page: "Page") -> None:
+    """Block until step 2's long form has rendered.
+
+    Confirmed live this can take 10-15s+ after clicking "Далее" — Yandex
+    scans the landing page's content server-side to pre-fill headlines,
+    texts, and images before rendering the rest of the form. Polls for the
+    "Регион показов" heading (the one field guaranteed to be present and
+    genuinely empty — see module docstring) rather than a fixed sleep.
+    """
+    region_heading = page.get_by_text("Регион показов", exact=False)
+    deadline = time.monotonic() + _CREATE_STEP2_TIMEOUT_MS / 1000
+    while time.monotonic() < deadline:
+        with contextlib.suppress(PlaywrightError):
+            if region_heading.count():
+                return
+        page.wait_for_timeout(250)
+
+    raise BrowserSessionError(
+        "Timed out waiting for the Мастер кампаний create form's step 2 "
+        f"(the 'Регион показов' section) to render within "
+        f"{_CREATE_STEP2_TIMEOUT_MS / 1000:.0f}s. Yandex may be slow to "
+        "scan the landing page, or the page's markup changed — re-run with "
+        "--headful to inspect the page."
+    )
+
+
+def _add_repeating_values(page: "Page", xpath: str, values: List[str]) -> None:
+    """Fill+submit each of ``values`` into a repeating list field (headlines/texts).
+
+    Confirmed live these sections start pre-populated by Yandex's own AI
+    scan of the landing page (see module docstring) — this module does not
+    clear that pre-filled list first; it only ever adds the caller's own
+    values on top, since the create-page's DOM offers no stable "clear all"
+    control and blindly clicking every visible "x" risks removing an
+    unrelated section's items (sitelinks, images) that share the same close
+    icon. Callers who want the AI-generated defaults gone entirely must
+    remove them by hand (``--headful``) before scripting the rest.
+    """
+    for value in values:
+        field = page.locator(xpath).first
+        try:
+            field.click()
+            field.fill(value)
+            field.press("Enter")
+        except PlaywrightError as exc:
+            raise BrowserSessionError(
+                f"Could not add {value!r} via the create page's input at "
+                f"{xpath!r} — Yandex may have changed the page's markup. "
+                "Re-run with --headful to inspect the page."
+            ) from exc
+
+
+def _read_repeating_values(page: "Page", xpath: str) -> List[str]:
+    """Read every value currently entered into a repeating list field.
+
+    Used by ``_verify_created`` to confirm ``_add_repeating_values`` actually
+    persisted each value — mirrors ``update_master``'s ``_read_weekly_budget``
+    etc. Returns whatever the matched inputs currently hold; an unreadable
+    input is treated as an empty string rather than aborting the whole read,
+    since a partial mismatch is exactly what the caller needs to see.
+    """
+    values = []
+    locator = page.locator(xpath)
+    try:
+        count = locator.count()
+    except PlaywrightError:
+        return values
+    for i in range(count):
+        try:
+            values.append(locator.nth(i).input_value())
+        except PlaywrightError:
+            values.append("")
+    return values
+
+
+def _set_region(page: "Page", regions: List[str]) -> None:
+    """Fill the "Регион показов" combobox with each of ``regions``.
+
+    The one field confirmed live to start genuinely empty (see module
+    docstring) — every other required-looking section has an AI-generated
+    or sane default. Selects each typed region from the dropdown's first
+    matching suggestion, mirroring how a human picks from the combobox
+    rather than typing free text the server may not accept.
+
+    Uses ``get_by_role("option", ...)`` rather than a substring
+    ``get_by_text`` match, same fix as ``update_master``'s
+    ``_set_promotion_goal`` (issue #631 review): a container whose text
+    merely contains the region name is not the same element as the actual
+    clickable suggestion row.
+    """
+    field = page.locator(_REGION_INPUT_XPATH).first
+    for region in regions:
+        try:
+            field.click()
+            field.fill(region)
+        except PlaywrightError as exc:
+            raise BrowserSessionError(
+                "Could not find or fill the 'Регион показов' field on the "
+                "Мастер кампаний create page — Yandex may have changed the "
+                "page's markup. Re-run with --headful to inspect the page."
+            ) from exc
+
+        option = page.get_by_role("option", name=region, exact=True)
+        try:
+            count = option.count()
+        except PlaywrightError:
+            count = 0
+        clicked = False
+        for i in range(count):
+            handle = option.nth(i)
+            try:
+                if not handle.is_visible():
+                    continue
+                handle.click()
+                clicked = True
+                break
+            except PlaywrightError:
+                continue
+        if not clicked:
+            raise BrowserSessionError(
+                f"Could not find {region!r} in the 'Регион показов' "
+                "suggestion list on the Мастер кампаний create page — check "
+                "the region name matches Yandex's own wording."
+            )
+
+
+def _read_region_tags(page: "Page") -> List[str]:
+    """Read the "Регион показов" field's currently selected region tags.
+
+    The combobox is expected to render each accepted selection as a
+    removable tag/chip rather than leaving it in the free-text input (typing
+    and selecting an option clears the input back to empty — confirmed by
+    ``_set_region``'s own click-then-fill-again loop over multiple regions).
+    This function has NOT been live-verified against the actual tag markup
+    (issue #632 step 0 recon was read-only, see module docstring) — it reads
+    the same input's current value as a best-effort fallback, which will
+    only ever reflect the LAST region typed, not the full accepted set. A
+    follow-up live pass must confirm the real tag-list markup and replace
+    this with an accurate reader before trusting multi-region verification.
+    """
+    field = page.locator(_REGION_INPUT_XPATH).first
+    try:
+        return [field.input_value()]
+    except PlaywrightError:
+        return []
+
+
+def _set_weekly_budget_on_create(page: "Page", amount: int) -> None:
+    """Fill the create page's "Недельный бюджет" input (same shape as update_master's).
+
+    A separate function (not shared with ``update_master``'s
+    ``_set_weekly_budget``, issue #631) because the two pages are otherwise
+    unrelated DOM trees — the XPath happens to match by coincidence (both
+    key off the same heading text), not by design; keeping them separate
+    avoids a false coupling if either page's markup drifts independently.
+    """
+    field = page.locator(_WEEKLY_BUDGET_INPUT_XPATH).first
+    try:
+        field.click()
+        field.fill(str(amount))
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            "Could not find or fill the weekly budget input ('Недельный "
+            "бюджет') on the Мастер кампаний create page — Yandex may have "
+            "changed the page's markup. Re-run with --headful to inspect "
+            "the page."
+        ) from exc
+
+
+def _click_terminal_button(page: "Page", text: str) -> None:
+    """Click one of the create page's two terminal buttons (launch/draft).
+
+    Uses ``get_by_role("button", ..., exact=True)`` rather than a substring
+    ``get_by_text`` match — same fix applied to ``update_master``'s
+    ``_click_save`` (issue #631 review): scopes to the actual clickable
+    button element, not any ancestor container whose text merely contains
+    this label.
+    """
+    button = page.get_by_role("button", name=text, exact=True)
+    try:
+        count = button.count()
+    except PlaywrightError:
+        count = 0
+    for i in range(count):
+        handle = button.nth(i)
+        try:
+            if not handle.is_visible():
+                continue
+            handle.click()
+            return
+        except PlaywrightError:
+            continue
+    raise BrowserSessionError(
+        f"Could not find the {text!r} button on the Мастер кампаний create "
+        "page — Yandex may have changed the page's markup. Re-run with "
+        "--headful to inspect the page."
+    )
+
+
+def _verify_created(
+    page: "Page",
+    *,
+    headlines: List[str],
+    texts: List[str],
+    weekly_budget: Optional[int],
+) -> None:
+    """Confirm the fields this module actually set are still present after the
+    terminal click, rather than trusting the click alone.
+
+    Ported from ``update_master``'s ``_verify_saved`` (issue #631 review
+    finding): a click on "Запустить кампанию"/"Сохранить как черновик" is not
+    proof Yandex accepted the form — client-side validation can reject a
+    value silently. Unlike ``_verify_saved``, this does NOT re-navigate and
+    reload first: issue #632 step 0 recon never confirmed what URL the
+    launch/draft click lands on (module docstring), so there is no known
+    page to reload yet. This re-reads the CURRENT page's fields immediately
+    after the click instead — a strictly weaker check than a real reload,
+    but the strongest one available until a live pass confirms the
+    post-click destination. Region is intentionally NOT verified here: see
+    ``_read_region_tags``'s docstring for why its reader is not yet reliable
+    enough to gate a hard failure on.
+    """
+    mismatches = []
+
+    actual_headlines = _read_repeating_values(page, _HEADLINES_ADD_INPUT_XPATH)
+    for headline in headlines:
+        if headline not in actual_headlines:
+            mismatches.append(
+                f"headline {headline!r} not found among current values "
+                f"{actual_headlines!r}"
+            )
+
+    actual_texts = _read_repeating_values(page, _TEXTS_ADD_INPUT_XPATH)
+    for text in texts:
+        if text not in actual_texts:
+            mismatches.append(
+                f"text {text!r} not found among current values {actual_texts!r}"
+            )
+
+    if weekly_budget is not None:
+        field = page.locator(_WEEKLY_BUDGET_INPUT_XPATH).first
+        try:
+            raw = field.input_value()
+        except PlaywrightError:
+            raw = ""
+        digits = "".join(ch for ch in raw if ch.isdigit())
+        actual_budget = int(digits) if digits else None
+        if actual_budget != weekly_budget:
+            mismatches.append(
+                f"weekly_budget: expected {weekly_budget}, page now shows "
+                f"{actual_budget!r}"
+            )
+
+    if mismatches:
+        raise BrowserSessionError(
+            "Clicked the create page's terminal button, but re-reading the "
+            "page afterwards shows it did not take effect as requested: "
+            + "; ".join(mismatches)
+            + ". Yandex may have rejected the form "
+            "(client-side validation) or the click did not land — verify "
+            "manually before retrying."
+        )
+
+
+def create_master(
+    page: "Page",
+    url: str,
+    *,
+    headlines: List[str],
+    texts: List[str],
+    regions: List[str],
+    weekly_budget: Optional[int] = None,
+    launch: bool = True,
+) -> Dict[str, Any]:
+    """Create a new Мастер кампаний ("Конверсии и трафик" type) end to end.
+
+    Not idempotent (see issue #632 module docstring / issue body): calling
+    this twice with the same arguments creates a SECOND campaign, not an
+    update to the first — Мастер кампаний has no API-level duplicate
+    detection the way ``campaigns add`` does. Callers must not blindly
+    retry a failed/uncertain call without first checking ``masters list``.
+
+    ``headlines``/``texts``/``regions`` are required CLI-side (not merely
+    UI-required) even though Yandex's own wizard auto-populates
+    headlines/texts by scanning ``url``'s content — this module refuses to
+    silently launch AI-generated ad copy the caller never reviewed, given
+    there is no sandbox and no rollback for Мастер кампаний (issue #632
+    "Риски"). Pass the AI-suggested text back explicitly if that's what you
+    want published.
+
+    ``launch=True`` (default) clicks "Запустить кампанию"; ``launch=False``
+    clicks "Сохранить как черновик" instead. After clicking, re-reads the
+    headline/text/budget fields to confirm the form actually reflects what
+    was requested (see ``_verify_created``) rather than trusting the click
+    alone — mirrors ``update_master``'s ``_verify_saved`` convention (issue
+    #631 review). Neither button's post-click landing page was live-verified
+    during recon (issue #632 step 0 was read-only, see
+    ``tests/fixtures/masters_wizard_create.html``) — in particular, where the
+    created/drafted campaign's ID can be read from (URL redirect vs. an
+    on-page confirmation element) is NOT yet determined, so this returns
+    only the fields the caller supplied, not a ``CampaignId`` — a follow-up
+    live pass must confirm the ID source before that can be added.
+    """
+    if not headlines:
+        raise ValueError("create_master requires at least one headline.")
+    if not texts:
+        raise ValueError("create_master requires at least one ad text.")
+    if not regions:
+        raise ValueError("create_master requires at least one region.")
+
+    page.goto(WIZARD_CREATE_URL, wait_until="domcontentloaded")
+    assert_not_captcha(page.content())
+    assert_authenticated(page.content())
+
+    _fill_landing_url(page, url)
+    _wait_for_step2(page)
+
+    _add_repeating_values(page, _HEADLINES_ADD_INPUT_XPATH, headlines)
+    _add_repeating_values(page, _TEXTS_ADD_INPUT_XPATH, texts)
+    _set_region(page, regions)
+    if weekly_budget is not None:
+        _set_weekly_budget_on_create(page, weekly_budget)
+
+    _click_terminal_button(
+        page, _LAUNCH_BUTTON_TEXT if launch else _SAVE_DRAFT_BUTTON_TEXT
+    )
+
+    _verify_created(
+        page,
+        headlines=headlines,
+        texts=texts,
+        weekly_budget=weekly_budget,
+    )
+
+    result: Dict[str, Any] = {
+        "LandingUrl": url,
+        "Headlines": headlines,
+        "Texts": texts,
+        "Regions": regions,
+        "Launched": launch,
+    }
+    if weekly_budget is not None:
+        result["WeeklyBudget"] = weekly_budget
     return result
