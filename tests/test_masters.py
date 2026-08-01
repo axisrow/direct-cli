@@ -15,6 +15,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import click
+import pytest
 from click.testing import CliRunner
 
 from direct_cli.browser import masters as browser_masters
@@ -224,6 +225,11 @@ class TestOpenChromeSession(unittest.TestCase):
     rather than relying on a real Chrome launched on a copied profile."""
 
     def test_injects_decrypted_cookies_without_requesting_real_chrome_channel(self):
+        # playwright is the optional `browser` extra, not an offline test
+        # dependency — the offline CI job doesn't install it, and this test
+        # patches "playwright.sync_api.sync_playwright" by string path, which
+        # requires the real import to succeed.
+        pytest.importorskip("playwright")
         from direct_cli.browser import session as session_module
 
         fake_browser = _FakeBrowser()
