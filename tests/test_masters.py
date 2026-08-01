@@ -529,6 +529,84 @@ class TestPersistentSession(unittest.TestCase):
         self.addCleanup(self._tmpdir.cleanup)
         self.profile_dir = Path(self._tmpdir.name) / "chrome-profile"
 
+    def _make_profile(self):
+        """Create a profile dir the way a completed `masters login` leaves it."""
+        from direct_cli.browser.session import PROFILE_MARKER_NAME
+
+        self.profile_dir.mkdir(parents=True)
+        (self.profile_dir / PROFILE_MARKER_NAME).touch()
+
+    def test_login_refuses_to_mark_an_existing_unrelated_directory(self):
+        """`--profile-dir` at an existing directory must not be claimed.
+
+        Codex review finding on PR #644: the profile dir was created with
+        `exist_ok=True` and then unconditionally marked CLI-owned, so
+        `masters login --profile-dir ~` planted the ownership marker into the
+        user's home directory — and `masters logout` on the same path then
+        accepted that marker as authorization to `shutil.rmtree` it. A failed
+        login armed it just the same, because the marker was written before
+        Chromium even launched.
+        """
+        pytest.importorskip("playwright")
+        from direct_cli.browser import session as session_module
+        from direct_cli.browser.session import (
+            PROFILE_MARKER_NAME,
+            BrowserSessionError,
+        )
+
+        victim = Path(self._tmpdir.name) / "my-documents"
+        victim.mkdir()
+        (victim / "taxes.pdf").write_text("important")
+
+        persistent_ctx = _FakePersistentContext()
+        fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
+        fake_playwright = _FakePlaywright(fake_chromium)
+
+        with patch("playwright.sync_api.sync_playwright", return_value=fake_playwright):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                session_module.login_persistent_session(
+                    profile_dir=victim, timeout_ms=1_000
+                )
+
+        self.assertFalse(
+            (victim / PROFILE_MARKER_NAME).exists(),
+            "login planted an ownership marker in a directory it did not create",
+        )
+        self.assertTrue((victim / "taxes.pdf").exists())
+        self.assertIn("already exists", str(ctx.exception).lower())
+
+    def test_aborted_login_does_not_leave_a_profile_that_looks_usable(self):
+        """A login that never completed must not register as a usable profile.
+
+        `_launch_persistent_context` creates the directory before Chromium
+        starts, so a login the user ctrl-C's out of (or that times out) leaves
+        a directory behind with no session in it. If tier 1.5 accepted mere
+        directory existence, every later `masters` call would route through
+        that empty profile, launch a browser, fail auth, and only then fall
+        back — paying a wasted browser launch each time and bypassing the
+        user's working saved session.
+        """
+        pytest.importorskip("playwright")
+        from direct_cli.browser import session as session_module
+        from direct_cli.browser.session import BrowserAuthError
+
+        login_page = FakePage(locators={}, html="<body>Войдите с Яндекс ID</body>")
+        probe_page = FakePage(locators={}, html="<body>Войдите с Яндекс ID</body>")
+        persistent_ctx = _FakePersistentContext(pages=[login_page, probe_page])
+        fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
+        fake_playwright = _FakePlaywright(fake_chromium)
+
+        with patch("playwright.sync_api.sync_playwright", return_value=fake_playwright):
+            with self.assertRaises(BrowserAuthError):
+                session_module.login_persistent_session(
+                    profile_dir=self.profile_dir, timeout_ms=1_000
+                )
+
+        self.assertFalse(
+            session_module.persistent_profile_is_usable(self.profile_dir),
+            "an aborted login left a profile tier 1.5 would route through",
+        )
+
     def test_open_persistent_session_raises_when_profile_missing(self):
         pytest.importorskip("playwright")
         from direct_cli.browser.session import (
@@ -545,7 +623,7 @@ class TestPersistentSession(unittest.TestCase):
         pytest.importorskip("playwright")
         from direct_cli.browser import session as session_module
 
-        self.profile_dir.mkdir(parents=True)
+        self._make_profile()
         persistent_ctx = _FakePersistentContext()
         fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
         fake_playwright = _FakePlaywright(fake_chromium)
@@ -573,8 +651,12 @@ class TestPersistentSession(unittest.TestCase):
         import stat
 
         from direct_cli.browser import session as session_module
+        from direct_cli.browser.session import PROFILE_MARKER_NAME
 
+        # A real profile (marker present) that has somehow ended up
+        # world-readable -- reopening it must tighten the mode back to 0700.
         self.profile_dir.mkdir(parents=True, mode=0o755)
+        (self.profile_dir / PROFILE_MARKER_NAME).touch()
         persistent_ctx = _FakePersistentContext()
         fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
         fake_playwright = _FakePlaywright(fake_chromium)
@@ -706,18 +788,27 @@ class TestOpenSessionTiers(unittest.TestCase):
         fresh.assert_called_once()
 
     def test_persistent_profile_used_when_present(self):
-        """Tier 1.5: when the CLI's own persistent profile dir exists, it's
-        preferred over the saved storage_state session and the Keychain
+        """Tier 1.5: when the CLI's own persistent profile holds a session,
+        it's preferred over the saved storage_state session and the Keychain
         decrypt path -- neither should be touched."""
+        import tempfile
+
         from direct_cli.commands.masters import _open_session
+
+        tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(tmpdir.cleanup)
+        # A profile a completed login would leave: Chromium's cookie store is
+        # what makes it usable, not the directory merely existing.
+        profile = Path(tmpdir.name) / "chrome-profile"
+        (profile / "Default").mkdir(parents=True)
+        (profile / "Default" / "Cookies").write_bytes(b"")
 
         with self._list_ctx() as ctx:
             with (
                 patch(
                     "direct_cli.browser.session.DEFAULT_PERSISTENT_PROFILE_DIR",
-                    Path("/fake/persistent/profile"),
+                    profile,
                 ),
-                patch.object(Path, "exists", return_value=True),
                 patch(
                     "direct_cli.browser.session.open_persistent_session"
                 ) as persistent,

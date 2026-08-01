@@ -221,6 +221,20 @@ def _resolve_persistent_profile_dir(profile_dir: Optional[Path]) -> Path:
     return profile_dir or DEFAULT_PERSISTENT_PROFILE_DIR
 
 
+def persistent_profile_is_usable(profile_dir: Optional[Path] = None) -> bool:
+    """Return whether a persistent profile holds an actual browser session.
+
+    Mere directory existence is not enough: ``_launch_persistent_context``
+    creates the directory (and its marker) before Chromium starts, so a login
+    the user aborted leaves an empty profile behind. Routing ``masters``
+    commands through it would launch a browser, fail auth, and fall back on
+    every single call. Chromium writes its cookie store only once it has
+    actually run, so that file is the honest signal.
+    """
+    resolved = _resolve_persistent_profile_dir(profile_dir)
+    return (resolved / "Default" / "Cookies").exists()
+
+
 @contextlib.contextmanager
 def _launch_persistent_context(
     sync_playwright, profile_dir: Path, *, headless: bool
@@ -237,10 +251,30 @@ def _launch_persistent_context(
     treatment ``direct_cli/browser/store.py`` and ``direct_cli/auth.py`` give
     their own on-disk session files (issue #635 risk: "Хранение живой сессии
     Яндекса на диске").
+
+    The ownership marker is only ever written into a directory this function
+    *created*. An existing directory must already carry the marker to be
+    reused; otherwise it belongs to someone else and is refused. Without that
+    asymmetry ``--profile-dir ~`` would mark the user's home directory as
+    CLI-owned, and ``masters logout`` would then accept that marker as
+    authorization to ``shutil.rmtree`` it.
     """
-    profile_dir.mkdir(parents=True, exist_ok=True)
+    marker = profile_dir / PROFILE_MARKER_NAME
+    try:
+        profile_dir.mkdir(parents=True, exist_ok=False)
+    except FileExistsError:
+        if not marker.is_file():
+            raise BrowserSessionError(
+                f"Refusing to use {profile_dir} as a browser profile: the "
+                "directory already exists and was not created by `direct "
+                f"masters login` (no {PROFILE_MARKER_NAME} marker). Pick a "
+                "path that does not exist yet, or delete that directory by "
+                "hand if you are sure."
+            ) from None
+    else:
+        marker.touch()
+
     os.chmod(profile_dir, 0o700)
-    (profile_dir / PROFILE_MARKER_NAME).touch()
     with sync_playwright() as playwright:
         context = playwright.chromium.launch_persistent_context(
             str(profile_dir), headless=headless, locale="ru-RU"

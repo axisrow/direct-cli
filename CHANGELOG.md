@@ -36,6 +36,17 @@
   one the user is typing into. Previously the loop navigated the visible
   Passport tab to the grid once a second, wiping a half-filled login form
   or a pending 2FA prompt out from under the user.
+- `masters login` refuses a `--profile-dir` that already exists without the
+  CLI's own marker. Previously the marker was planted into whatever directory
+  was named — so `masters login --profile-dir ~` marked the home directory as
+  CLI-owned, and `masters logout` on the same path then accepted that marker
+  as authorization to `shutil.rmtree` it. A failed login armed it just the
+  same, since the marker was written before Chromium even launched.
+- `masters` commands route through the persistent profile only when it holds
+  an actual browser session, not merely when the directory exists. An aborted
+  `masters login` leaves an empty profile behind; treating that as usable cost
+  a wasted browser launch on every later command and bypassed the user's
+  working saved session.
 - `masters logout` refuses to delete anything `masters login` did not
   create. Every profile now carries a `.direct-cli-profile` marker file,
   and `logout` rejects a target that lacks it, is a symlink, or is not a

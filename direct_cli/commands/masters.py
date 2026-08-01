@@ -140,7 +140,7 @@ def _open_session(
             raise click.ClickException(str(exc)) from exc
         return
 
-    from ..browser.session import DEFAULT_PERSISTENT_PROFILE_DIR
+    from ..browser.session import persistent_profile_is_usable
 
     # Tier 1.5: the CLI's own persistent profile (issue #635, `direct masters
     # login`) — Keychain-free and platform-independent, so it's preferred
@@ -148,7 +148,11 @@ def _open_session(
     # BrowserAuthError (a stale on-disk session) propagates to _with_session
     # uncaught, exactly like tier 2's, so the same self-heal fallback
     # applies.
-    if DEFAULT_PERSISTENT_PROFILE_DIR.exists():
+    #
+    # Tested for an actual session, not mere directory existence: an aborted
+    # `masters login` leaves an empty profile behind, and routing through it
+    # would cost a wasted browser launch on every command.
+    if persistent_profile_is_usable():
         with _fresh_or_saved(open_persistent_session, headless=not headful) as page:
             yield page
         return
