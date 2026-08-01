@@ -7,10 +7,18 @@ see ``direct_cli/browser/session.py`` and ``direct_cli/browser/masters.py``.
 nothing in this package is imported unless a browser-backed command actually runs.
 """
 
-from .session import BrowserCaptchaError, BrowserSessionError, open_chrome_session
+from .session import (
+    BrowserAuthError,
+    BrowserCaptchaError,
+    BrowserSessionError,
+    ChromeCookieError,
+    open_chrome_session,
+)
 
 __all__ = [
+    "BrowserAuthError",
     "BrowserCaptchaError",
     "BrowserSessionError",
+    "ChromeCookieError",
     "open_chrome_session",
 ]

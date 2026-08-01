@@ -20,9 +20,13 @@ pip install direct-cli
 in the web interface, and must not be confused with `UNIFIED_CAMPAIGN` (an
 unrelated v5 API campaign type already supported by `campaigns add/get --type
 unified_campaign`). `direct masters list` / `direct masters get <ids>` read it
-by driving a real Chrome session via Playwright on a throwaway copy of your
-own Chrome cookies — no separate login. Requires the optional `browser`
-extra:
+by decrypting your existing Chrome cookies for `yandex.ru` and injecting them
+into a Playwright-driven browser — no separate login. Only those cookies are
+ever read; the rest of your Chrome profile is never touched. On macOS the
+cookie key lives in your login Keychain, so the first run shows a one-time
+system permission dialog — click Allow. Linux is supported when Chrome uses
+its basic (non-keyring) password store; Windows isn't supported yet. Requires
+the optional `browser` extra:
 
 ```bash
 pip install "direct-cli[browser]"
@@ -30,6 +34,10 @@ playwright install chromium
 direct masters list
 direct masters get 72349978
 ```
+
+If you see "Found no Yandex cookies", open https://direct.yandex.ru in Chrome
+and log in first. If you use a non-default Chrome profile, pass
+`--chrome-profile "Profile 1"`.
 
 Read-only for now (`list`/`get`); since this data has no API contract, the
 parser degrades per-section (a warning, not a hard failure) if Yandex changes
@@ -1016,9 +1024,14 @@ pip install direct-cli
 веб-интерфейсе, и его нельзя путать с `UNIFIED_CAMPAIGN` (это отдельный тип
 кампании в v5 API, уже поддержанный через `campaigns add/get --type
 unified_campaign`). Команды `direct masters list` / `direct masters get
-<id>` читают его, запуская настоящую сессию Chrome через Playwright на
-временной копии ваших куки Chrome — отдельный вход не нужен. Требует
-опциональный extra `browser`:
+<id>` читают его, расшифровывая ваши существующие куки Chrome для
+`yandex.ru` и передавая их в браузер, управляемый Playwright — отдельный
+вход не нужен. Читаются только эти куки, остальной профиль Chrome не
+затрагивается. На macOS ключ шифрования кук лежит в вашей связке ключей
+(Keychain), поэтому при первом запуске macOS покажет системный запрос
+доступа — нужно нажать «Разрешить». Linux поддерживается, если Chrome
+использует базовое (не keyring) хранилище паролей; Windows пока не
+поддерживается. Требует опциональный extra `browser`:
 
 ```bash
 pip install "direct-cli[browser]"
@@ -1026,6 +1039,10 @@ playwright install chromium
 direct masters list
 direct masters get 72349978
 ```
+
+Если видите «Found no Yandex cookies», откройте https://direct.yandex.ru в
+Chrome и войдите в аккаунт. Если используете не дефолтный профиль Chrome —
+передайте `--chrome-profile "Profile 1"`.
 
 Пока только чтение (`list`/`get`); поскольку у этих данных нет API-контракта,
 парсер деградирует посекционно (предупреждение, а не жёсткий отказ), если

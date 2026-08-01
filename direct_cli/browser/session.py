@@ -6,32 +6,27 @@ Reuses the user's own Chrome cookies so ``direct masters`` can read Мастер
 no API surface at all (see module docstring in ``direct_cli/browser/__init__.py``).
 
 Playwright cannot attach to a Chrome profile that is currently open (the
-profile directory is locked), so this module copies the minimal set of files
-Chromium needs to decrypt cookies (``Cookies``, ``Local State``, and the
-``Default`` subdirectory they live in) into a throwaway temporary directory,
-then launches a persistent context against that copy with
-``channel="chrome"``. The live Chrome window is never touched and does not
-need to be closed. The temp copy is always removed on exit, success or not.
+profile directory is locked), so this module does not launch Chrome on the
+user's real profile at all. Instead it decrypts the user's Yandex Direct
+cookies itself (see ``direct_cli/browser/_chrome_crypto.py`` — on macOS the
+cookie AES key lives only in the login Keychain, never in ``Local State``,
+which is why an earlier version of this module that merely *copied*
+``Cookies``/``Local State`` into a temp profile did not work, see #634) and
+injects the decrypted cookies into a fresh, bundled Chromium context via
+``BrowserContext.add_cookies()``. The user's own Chrome window is never
+touched and does not need to be closed.
 """
 
 import contextlib
 import os
 import platform
-import shutil
-import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Generator, Optional
 
-from .._captcha import find_captcha_marker
+from .._captcha import find_captcha_marker, find_marker
 
 if TYPE_CHECKING:
     from playwright.sync_api import Page
-
-# Files/directories inside a Chrome user-data-dir that are sufficient for
-# Chromium to decrypt and present saved cookies. Copying the whole profile is
-# unnecessary (and slow — profiles can be gigabytes with cache/history).
-_PROFILE_COOKIE_FILES = ("Cookies", "Cookies-journal", "Network/Cookies")
-_PROFILE_ROOT_FILES = ("Local State",)
 
 
 class BrowserSessionError(RuntimeError):
@@ -40,6 +35,31 @@ class BrowserSessionError(RuntimeError):
 
 class BrowserCaptchaError(BrowserSessionError):
     """Raised when Yandex serves a SmartCaptcha gate instead of real content."""
+
+
+class BrowserAuthError(BrowserSessionError):
+    """Raised when Yandex serves its login page instead of Direct content.
+
+    Distinct from a Keychain/decryption failure (:class:`ChromeCookieError`):
+    this means the cookies decrypted fine but the session they represent is
+    no longer valid (expired, or belongs to a different account) — see
+    ``assert_authenticated``.
+    """
+
+
+class ChromeCookieError(BrowserSessionError):
+    """Raised when Chrome's cookie store cannot be read or decrypted.
+
+    See ``direct_cli/browser/_chrome_crypto.py`` for the macOS Keychain /
+    AES-128-CBC decryption pipeline this wraps.
+    """
+
+
+# Markers that appear only on Yandex Passport's login page, never on a real
+# Direct page. Declared once, ``_captcha.py``-style, rather than duplicated
+# across call sites (see CLAUDE.md "No URL literals outside the registry" and
+# the #426 post-mortem it cites).
+_LOGIN_PAGE_MARKERS = ("passport.yandex.ru/auth", "Войдите с Яндекс ID")
 
 
 def default_chrome_profile_dir() -> Optional[Path]:
@@ -62,31 +82,6 @@ def default_chrome_profile_dir() -> Optional[Path]:
     return None
 
 
-def _copy_profile_cookies(source_root: Path, dest_root: Path, profile: str) -> None:
-    """Copy just the cookie-decryption files for one Chrome profile."""
-    for name in _PROFILE_ROOT_FILES:
-        src = source_root / name
-        if src.exists():
-            shutil.copy2(src, dest_root / name)
-
-    src_profile_dir = source_root / profile
-    if not src_profile_dir.exists():
-        raise BrowserSessionError(
-            f"Chrome profile directory not found: {src_profile_dir}. "
-            "Pass --profile-dir to point at your actual Chrome user-data-dir, "
-            "or --chrome-profile if you use a profile other than 'Default'."
-        )
-
-    dest_profile_dir = dest_root / profile
-    for rel_name in _PROFILE_COOKIE_FILES:
-        src = src_profile_dir / rel_name
-        if not src.exists():
-            continue
-        dest = dest_profile_dir / rel_name
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dest)
-
-
 @contextlib.contextmanager
 def open_chrome_session(
     *,
@@ -94,7 +89,7 @@ def open_chrome_session(
     chrome_profile: str = "Default",
     headless: bool = True,
 ) -> Generator["Page", None, None]:
-    """Launch Chrome (via Playwright) on a throwaway copy of the user's cookies.
+    """Launch a bundled Chromium with the user's decrypted Yandex cookies injected.
 
     Yields a ready-to-use Playwright ``Page``. Import of ``playwright`` is
     deferred to this function so the rest of the CLI has no hard dependency on
@@ -121,21 +116,25 @@ def open_chrome_session(
             "Pass --profile-dir to point at your actual Chrome user-data-dir."
         )
 
-    with tempfile.TemporaryDirectory(prefix="direct-cli-chrome-") as tmp:
-        tmp_root = Path(tmp)
-        _copy_profile_cookies(source_root, tmp_root, chrome_profile)
+    # Deferred import: this pulls in _chrome_crypto (and, transitively, the
+    # optional `cryptography` package) only once we actually know playwright
+    # and the profile directory are usable.
+    from . import _chrome_crypto
 
-        with sync_playwright() as playwright:
-            context = playwright.chromium.launch_persistent_context(
-                str(tmp_root),
-                channel="chrome",
-                headless=headless,
-            )
+    cookies = _chrome_crypto.load_yandex_cookies(source_root, chrome_profile)
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=headless)
+        try:
+            context = browser.new_context(locale="ru-RU")
+            context.add_cookies(cookies)
+            page = context.new_page()
             try:
-                page = context.pages[0] if context.pages else context.new_page()
                 yield page
             finally:
                 context.close()
+        finally:
+            browser.close()
 
 
 def assert_not_captcha(html: str) -> None:
@@ -151,4 +150,28 @@ def assert_not_captcha(html: str) -> None:
             "Yandex served a SmartCaptcha challenge instead of the Direct page. "
             "Open direct.yandex.ru in your regular Chrome window, solve the "
             "captcha there, then retry."
+        )
+
+
+def assert_authenticated(html: str) -> None:
+    """Raise :class:`BrowserAuthError` if ``html`` looks like Yandex's login page.
+
+    Injected cookies can decrypt successfully yet represent an expired or
+    wrong-account session — before #634 this surfaced only as a
+    ``Page.goto`` timeout, because Yandex's login page holds long-poll
+    connections and ``wait_until="networkidle"`` never settles on it. Callers
+    should use ``wait_until="domcontentloaded"`` and call this immediately
+    after, so an auth failure is reported explicitly instead of as an opaque
+    30-second timeout.
+
+    Uses the same ``find_marker`` scan primitive as
+    :func:`assert_not_captcha` (``direct_cli._captcha``), just against a
+    different marker set.
+    """
+    if find_marker(html, _LOGIN_PAGE_MARKERS) is not None:
+        raise BrowserAuthError(
+            "Yandex served its login page instead of Direct. Your Chrome "
+            "session cookies are expired or belong to a different "
+            "account. Open https://direct.yandex.ru in Chrome, log in, "
+            "then retry."
         )
