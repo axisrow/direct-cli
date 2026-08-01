@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+**Fixed — `direct masters add`: URL field selector (#650):**
+
+- Yandex replaced step 1's plain `<input placeholder="...">` with a Combobox
+  whose text control is a `contenteditable` `<div role="textbox">` — the
+  placeholder text itself is unchanged, but Playwright's
+  `get_by_placeholder()` only matches `<input>`/`<textarea>` elements, so it
+  silently stopped finding the field and every `masters add` call failed
+  with "Could not find or fill the landing-page URL field".
+- Live re-recon (2026-08-02) found the field now carries a stable
+  `data-testid="CampaignFormUrl.Textinput"`, and the "Далее" button next to
+  it carries `data-testid="CampaignFormUrl.button"` — both selected directly
+  now instead of by placeholder text / accessible name. The field is filled
+  via `.type()` (keystroke simulation) instead of `.fill()`, since `.fill()`
+  does not work on a `contenteditable` element.
+- Also confirmed live: unlike before, the "Далее" button only renders once
+  the field has text — Playwright's own click-time actionability wait
+  handles this without extra polling.
+
 ## 0.5.1
 
 **Added — `direct masters archive` (#633):**

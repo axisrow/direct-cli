@@ -113,6 +113,13 @@ class _FakeLocatorHandle:
         if self._on_fill is not None:
             self._on_fill(value)
 
+    def type(self, value, delay=None):  # noqa: A003 - mirrors Playwright's Locator.type
+        # Same fake behaviour as fill() — _fill_landing_url uses type()
+        # instead of fill() because the real element is a contenteditable
+        # <div>, not an <input>/<textarea> (issue #650), but the fake only
+        # needs to record what was entered.
+        self.fill(value)
+
     def check(self):
         if self._raises:
             raise PlaywrightError("element detached")
@@ -299,7 +306,6 @@ class FakePage:
         api_request=None,
         text_buttons=None,
         role_elements=None,
-        placeholders=None,
     ):
         self._locators = locators or {}
         self._body_text = body_text
@@ -324,9 +330,6 @@ class FakePage:
         # could not distinguish a correct role-scoped match from an
         # accidental ancestor-container match).
         self._role_elements = role_elements or []
-        # {placeholder: _FakeLocator} for get_by_placeholder() — used by
-        # create_master's step-1 URL field (issue #632).
-        self._placeholders = placeholders or {}
 
     def goto(self, url, wait_until=None):
         self.navigated_to.append(url)
@@ -360,9 +363,6 @@ class FakePage:
             elif name in elem_name:
                 matched.append(handle)
         return _FakeGetByTextLocator(matched)
-
-    def get_by_placeholder(self, placeholder):
-        return self._placeholders.get(placeholder, _FakeLocatorHandle(raises=True))
 
     def inner_text(self, selector=None):
         return self._body_text
@@ -2667,31 +2667,27 @@ class TestBrowserSessionErrors(unittest.TestCase):
 
 
 class TestFillLandingUrl(unittest.TestCase):
-    """``_fill_landing_url`` (issue #632) — step 1's URL field + "Далее".
+    """``_fill_landing_url`` (issue #632, re-recon issue #650) — step 1's URL
+    field + "Далее".
 
-    "Далее" is modeled via ``role_elements`` (role="button"), not
-    ``text_buttons`` — ``_fill_landing_url`` uses ``get_by_role("button",
-    name=_CREATE_NEXT_BUTTON_TEXT, exact=True)`` (ported from the
-    ``_click_save``/``_set_promotion_goal`` fix, issue #631 review): the
-    previous ``get_by_text(exact=False)`` risked matching an ancestor
-    container instead of the button itself.
+    Both the URL field and the "Далее" button are located via
+    ``page.locator(...)`` on their ``data-testid`` (issue #650 re-recon,
+    2026-08-02) — Yandex replaced the plain ``<input placeholder="...">``
+    with a Combobox whose text control is a ``contenteditable`` ``<div
+    role="textbox">`` that ``get_by_placeholder()``/``get_by_role()`` can no
+    longer find the same way.
     """
 
     def _page(self, url_state=None, next_clicks=None, error_visible=False):
         url_state = url_state if url_state is not None else {}
         next_clicks = next_clicks if next_clicks is not None else []
         field = _FakeLocatorHandle(on_fill=lambda v: url_state.__setitem__("url", v))
+        next_button = _FakeLocatorHandle(on_click=lambda: next_clicks.append(True))
         return FakePage(
-            placeholders={browser_masters._CREATE_URL_INPUT_PLACEHOLDER: field},
-            role_elements=[
-                (
-                    "button",
-                    browser_masters._CREATE_NEXT_BUTTON_TEXT,
-                    _FakeTextLocatorHandle(
-                        visible=True, on_click=lambda: next_clicks.append(True)
-                    ),
-                )
-            ],
+            locators={
+                browser_masters._CREATE_URL_INPUT_TESTID: _FakeLocator([field]),
+                browser_masters._CREATE_NEXT_BUTTON_TESTID: _FakeLocator([next_button]),
+            },
             text_buttons={
                 browser_masters._CREATE_INVALID_URL_TEXT: _FakeGetByTextLocator(
                     [_FakeTextLocatorHandle()] if error_visible else []
@@ -2710,45 +2706,22 @@ class TestFillLandingUrl(unittest.TestCase):
         self.assertEqual(len(next_clicks), 1)
 
     def test_raises_when_url_field_missing(self):
-        page = FakePage(placeholders={})
+        page = FakePage(locators={})
 
         with self.assertRaises(BrowserSessionError):
             browser_masters._fill_landing_url(page, "https://ksamata.ru/")
 
     def test_raises_when_next_button_missing(self):
         page = FakePage(
-            placeholders={
-                browser_masters._CREATE_URL_INPUT_PLACEHOLDER: _FakeLocatorHandle()
+            locators={
+                browser_masters._CREATE_URL_INPUT_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
             },
-            role_elements=[],
         )
 
         with self.assertRaises(BrowserSessionError):
             browser_masters._fill_landing_url(page, "https://ksamata.ru/")
-
-    def test_does_not_click_a_decoy_whose_name_only_contains_the_button_text(self):
-        # A decoy element whose accessible name merely CONTAINS
-        # _CREATE_NEXT_BUTTON_TEXT (e.g. "Далее по списку") must NOT be
-        # treated as a match — exact=True requires exact equality.
-        decoy_clicked = []
-        page = FakePage(
-            placeholders={
-                browser_masters._CREATE_URL_INPUT_PLACEHOLDER: _FakeLocatorHandle()
-            },
-            role_elements=[
-                (
-                    "button",
-                    f"{browser_masters._CREATE_NEXT_BUTTON_TEXT} по списку",
-                    _FakeTextLocatorHandle(
-                        visible=True, on_click=lambda: decoy_clicked.append(True)
-                    ),
-                )
-            ],
-        )
-
-        with self.assertRaises(BrowserSessionError):
-            browser_masters._fill_landing_url(page, "https://ksamata.ru/")
-        self.assertEqual(decoy_clicked, [])
 
     def test_raises_on_invalid_url_format_error(self):
         page = self._page(error_visible=True)
@@ -3132,9 +3105,12 @@ class TestCreateMaster(unittest.TestCase):
             get_value=lambda: budget_state.get("value", ""),
         )
 
+        next_button = _FakeLocatorHandle()
+
         page = FakePage(
-            placeholders={browser_masters._CREATE_URL_INPUT_PLACEHOLDER: url_field},
             locators={
+                browser_masters._CREATE_URL_INPUT_TESTID: _FakeLocator([url_field]),
+                browser_masters._CREATE_NEXT_BUTTON_TESTID: _FakeLocator([next_button]),
                 browser_masters._HEADLINES_ADD_INPUT_XPATH: _FakeLocator(
                     [headline_field]
                 ),
@@ -3145,11 +3121,6 @@ class TestCreateMaster(unittest.TestCase):
                 ),
             },
             role_elements=[
-                (
-                    "button",
-                    browser_masters._CREATE_NEXT_BUTTON_TEXT,
-                    _FakeTextLocatorHandle(visible=True),
-                ),
                 ("option", "Москва", _FakeTextLocatorHandle(visible=True)),
                 (
                     "button",

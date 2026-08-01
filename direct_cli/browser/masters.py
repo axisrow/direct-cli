@@ -216,14 +216,19 @@ PROMOTION_GOAL_CHOICES = {
 # tests/fixtures/masters_wizard_create.html.
 WIZARD_CREATE_URL = "https://direct.yandex.ru/wizard/campaigns/new/"
 
-# Step 1's only field. No stable id/data-testid (see module docstring) — text
-# matches the exact live placeholder.
-_CREATE_URL_INPUT_PLACEHOLDER = "Ссылка на сайт, соцсеть, маркетплейс или приложение"
+# Step 1's only field (issue #650 re-recon, 2026-08-02): Yandex replaced the
+# plain <input placeholder="..."> with a Combobox whose text control is a
+# contenteditable <div role="textbox"> — confirmed live it still carries the
+# same placeholder text, but Playwright's get_by_placeholder() only matches
+# <input>/<textarea> elements, so it silently stopped finding this field.
+# The field DOES carry a stable data-testid now, unlike most of this page
+# (see module docstring) — confirmed live via page.content().
+_CREATE_URL_INPUT_TESTID = '[data-testid="CampaignFormUrl.Textinput"]'
 
-# Step 1's "Далее" button — confirmed live it is clickable even with a
-# malformed URL (it does not disable on format), so a click is always
-# required to surface the inline validation error below.
-_CREATE_NEXT_BUTTON_TEXT = "Далее"
+# Step 1's "Далее" button — confirmed live (issue #650 re-recon) it now also
+# carries a stable data-testid, and only renders/becomes clickable after the
+# URL field has text (unlike the old always-present button this replaced).
+_CREATE_NEXT_BUTTON_TESTID = '[data-testid="CampaignFormUrl.button"]'
 
 # Confirmed live: this exact string appears under the URL field when the
 # "Далее" click rejects the value as not a well-formed URL. Pure
@@ -1093,17 +1098,30 @@ def update_master(
 def _fill_landing_url(page: "Page", url: str) -> None:
     """Fill step 1's URL field and click "Далее" to advance to step 2.
 
-    Confirmed live: "Далее" is clickable even when the field holds a
-    malformed value — it does not disable on format, so a click is always
-    needed to trigger the (purely client-side) validation. If Yandex
-    rejects the format, this raises :class:`BrowserSessionError` immediately
-    instead of waiting the full step-2 timeout for a page that will never
-    render (see ``_CREATE_INVALID_URL_TEXT``).
+    Field located by ``_CREATE_URL_INPUT_TESTID`` (issue #650 re-recon,
+    2026-08-02) — Yandex replaced the plain ``<input placeholder="...">``
+    with a Combobox whose text control is a ``contenteditable`` ``<div
+    role="textbox">`` that ``get_by_placeholder()`` (matches only
+    ``<input>``/``<textarea>``) can no longer find, even though the
+    placeholder text itself is unchanged. ``.fill()`` does not work on a
+    contenteditable div, so this types the URL via keyboard events instead
+    (also what triggers the "Далее" button to render — see below).
+
+    Confirmed live: unlike the old always-present button this replaced, the
+    "Далее" button now only renders once the field has text — this waits
+    for it via Playwright's own actionability check (``click()`` auto-waits
+    for the element to appear and become visible) rather than an immediate
+    ``count()``. It is clickable even when the field holds a malformed
+    value — it does not disable on format, so a click is always needed to
+    trigger the (purely client-side) validation. If Yandex rejects the
+    format, this raises :class:`BrowserSessionError` immediately instead of
+    waiting the full step-2 timeout for a page that will never render (see
+    ``_CREATE_INVALID_URL_TEXT``).
     """
-    field = page.get_by_placeholder(_CREATE_URL_INPUT_PLACEHOLDER)
+    field = page.locator(_CREATE_URL_INPUT_TESTID).first
     try:
         field.click()
-        field.fill(url)
+        field.type(url)
     except PlaywrightError as exc:
         raise BrowserSessionError(
             "Could not find or fill the landing-page URL field on the "
@@ -1111,32 +1129,15 @@ def _fill_landing_url(page: "Page", url: str) -> None:
             "page's markup. Re-run with --headful to inspect the page."
         ) from exc
 
-    # get_by_role scopes to the actual <button> element (exact accessible
-    # name), mirroring the fix applied to update_master's _click_save/
-    # _set_promotion_goal (issue #631 review) — a get_by_text(exact=False)
-    # substring match could hit an ancestor container instead of the button.
-    next_button = page.get_by_role("button", name=_CREATE_NEXT_BUTTON_TEXT, exact=True)
-    clicked = False
+    next_button = page.locator(_CREATE_NEXT_BUTTON_TESTID).first
     try:
-        count = next_button.count()
-    except PlaywrightError:
-        count = 0
-    for i in range(count):
-        handle = next_button.nth(i)
-        try:
-            if not handle.is_visible():
-                continue
-            handle.click()
-            clicked = True
-            break
-        except PlaywrightError:
-            continue
-    if not clicked:
+        next_button.click()
+    except PlaywrightError as exc:
         raise BrowserSessionError(
-            f"Could not find the {_CREATE_NEXT_BUTTON_TEXT!r} button on the "
-            "Мастер кампаний create page — Yandex may have changed the "
-            "page's markup. Re-run with --headful to inspect the page."
-        )
+            "Could not find or click the 'Далее' button on the Мастер "
+            "кампаний create page — Yandex may have changed the page's "
+            "markup. Re-run with --headful to inspect the page."
+        ) from exc
 
     error = page.get_by_text(_CREATE_INVALID_URL_TEXT, exact=False)
     try:
