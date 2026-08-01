@@ -221,6 +221,33 @@ def _resolve_persistent_profile_dir(profile_dir: Optional[Path]) -> Path:
     return profile_dir or DEFAULT_PERSISTENT_PROFILE_DIR
 
 
+#: Records the profile directory the last `masters login` used, so read
+#: commands can find a session saved outside the default location. Without
+#: it `--profile-dir` would be accepted by `login` and silently ignored by
+#: everything else.
+PROFILE_POINTER_PATH = Path.home() / ".direct-cli" / "chrome-profile-path"
+
+
+def remember_persistent_profile_dir(profile_dir: Path) -> None:
+    """Record which profile directory `masters login` populated."""
+    PROFILE_POINTER_PATH.parent.mkdir(parents=True, exist_ok=True)
+    PROFILE_POINTER_PATH.write_text(str(profile_dir), encoding="utf-8")
+    os.chmod(PROFILE_POINTER_PATH, 0o600)
+
+
+def configured_persistent_profile_dir() -> Path:
+    """Return the profile directory `masters` commands should read from.
+
+    The one recorded by the last `masters login --profile-dir`, else the
+    default location.
+    """
+    try:
+        recorded = PROFILE_POINTER_PATH.read_text(encoding="utf-8").strip()
+    except OSError:
+        return DEFAULT_PERSISTENT_PROFILE_DIR
+    return Path(recorded) if recorded else DEFAULT_PERSISTENT_PROFILE_DIR
+
+
 def persistent_profile_is_usable(profile_dir: Optional[Path] = None) -> bool:
     """Return whether a persistent profile holds an actual browser session.
 
@@ -337,6 +364,10 @@ def login_persistent_session(
                     probe.wait_for_timeout(_LOGIN_POLL_INTERVAL_MS)
                     elapsed_ms += _LOGIN_POLL_INTERVAL_MS
                     continue
+                # Only once the session is real: read commands resolve the
+                # profile through this pointer, so recording an unfinished
+                # login would point them at an empty profile.
+                remember_persistent_profile_dir(resolved_dir)
                 return
         finally:
             probe.close()

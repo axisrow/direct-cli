@@ -142,6 +142,8 @@ def _open_session(
 
     from ..browser.session import persistent_profile_is_usable
 
+    persistent_dir = _configured_persistent_profile_dir()
+
     # Tier 1.5: the CLI's own persistent profile (issue #635, `direct masters
     # login`) — Keychain-free and platform-independent, so it's preferred
     # over the saved storage_state session whenever it has been set up.
@@ -152,8 +154,12 @@ def _open_session(
     # Tested for an actual session, not mere directory existence: an aborted
     # `masters login` leaves an empty profile behind, and routing through it
     # would cost a wasted browser launch on every command.
-    if persistent_profile_is_usable():
-        with _fresh_or_saved(open_persistent_session, headless=not headful) as page:
+    if persistent_profile_is_usable(persistent_dir):
+        with _fresh_or_saved(
+            open_persistent_session,
+            headless=not headful,
+            profile_dir=persistent_dir,
+        ) as page:
             yield page
         return
 
@@ -186,8 +192,15 @@ def _open_session(
         raise click.ClickException(str(exc)) from exc
 
 
+def _configured_persistent_profile_dir() -> Path:
+    """Where `masters login` last saved a session (default if never set)."""
+    from ..browser.session import configured_persistent_profile_dir
+
+    return configured_persistent_profile_dir()
+
+
 @contextlib.contextmanager
-def _fresh_or_saved(open_saved_session, *, headless: bool):
+def _fresh_or_saved(open_saved_session, *, headless: bool, **kwargs):
     """Tier 2 body: run ``open_saved_session``, converting non-auth errors.
 
     ``BrowserAuthError`` is intentionally left to propagate to the caller
@@ -198,7 +211,7 @@ def _fresh_or_saved(open_saved_session, *, headless: bool):
     from ..browser.session import BrowserAuthError, BrowserSessionError
 
     try:
-        with open_saved_session(headless=headless) as page:
+        with open_saved_session(headless=headless, **kwargs) as page:
             yield page
     except BrowserAuthError:
         raise
@@ -374,10 +387,10 @@ def logout(profile_dir):
     mistyped or shell-expanded `--profile-dir` is rejected rather than
     recursively deleted.
     """
-    from ..browser.session import DEFAULT_PERSISTENT_PROFILE_DIR, PROFILE_MARKER_NAME
+    from ..browser.session import PROFILE_MARKER_NAME, PROFILE_POINTER_PATH
 
     resolved_profile_dir = (
-        Path(profile_dir) if profile_dir else DEFAULT_PERSISTENT_PROFILE_DIR
+        Path(profile_dir) if profile_dir else _configured_persistent_profile_dir()
     )
 
     if not resolved_profile_dir.exists():
@@ -408,6 +421,9 @@ def logout(profile_dir):
     import shutil
 
     shutil.rmtree(resolved_profile_dir)
+    # Drop the pointer too, so reads fall back to the default location
+    # instead of resolving to a directory that no longer exists.
+    PROFILE_POINTER_PATH.unlink(missing_ok=True)
     print_info(f"Deleted persistent browser profile at {resolved_profile_dir}")
 
 

@@ -42,6 +42,13 @@
   CLI-owned, and `masters logout` on the same path then accepted that marker
   as authorization to `shutil.rmtree` it. A failed login armed it just the
   same, since the marker was written before Chromium even launched.
+- `masters login --profile-dir X` is now honoured by the read commands. The
+  chosen directory is recorded, and `list`/`get`/`suspend`/`resume` resolve
+  the profile through that record. Previously tier 1.5 looked only at the
+  default location and passed no directory through, so a custom login path
+  reported "Login confirmed" and was then silently ignored by every read —
+  falling back to the Keychain the flag exists to avoid. `masters logout`
+  clears the record along with the profile.
 - `masters` commands route through the persistent profile only when it holds
   an actual browser session, not merely when the directory exists. An aborted
   `masters login` leaves an empty profile behind; treating that as usable cost

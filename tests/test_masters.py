@@ -760,12 +760,65 @@ class TestOpenSessionTiers(unittest.TestCase):
         )
         patcher.start()
         self.addCleanup(patcher.stop)
+        # Resolution goes through the login pointer -- keep it off the
+        # developer's real ~/.direct-cli so these tests never depend on
+        # whether `masters login` has been run on this machine.
+        pointer = patch(
+            "direct_cli.browser.session.PROFILE_POINTER_PATH",
+            Path("/nonexistent/chrome-profile-path"),
+        )
+        pointer.start()
+        self.addCleanup(pointer.stop)
 
     def _list_ctx(self, args=None):
         from direct_cli.commands.masters import masters
 
         list_cmd = masters.commands["list"]
         return list_cmd.make_context("list", list(args or []))
+
+    def test_custom_login_profile_dir_is_honoured_by_reads(self):
+        """A session saved by `login --profile-dir X` must be used by reads.
+
+        Tier 1.5 originally resolved the profile from
+        DEFAULT_PERSISTENT_PROFILE_DIR only and passed no profile_dir to
+        open_persistent_session, so `masters login --profile-dir X` reported
+        "Login confirmed" and then every list/get/suspend/resume ignored X
+        entirely -- falling through to the Keychain path the flag exists to
+        avoid.
+        """
+        import tempfile
+
+        from direct_cli.commands.masters import _open_session
+
+        tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(tmpdir.cleanup)
+        custom = Path(tmpdir.name) / "custom-profile"
+        (custom / "Default").mkdir(parents=True)
+        (custom / "Default" / "Cookies").write_bytes(b"")
+
+        with self._list_ctx() as ctx:
+            with (
+                patch(
+                    "direct_cli.commands.masters._configured_persistent_profile_dir",
+                    return_value=custom,
+                ),
+                patch(
+                    "direct_cli.browser.session.open_persistent_session"
+                ) as persistent,
+                patch("direct_cli.browser.session.open_saved_session") as saved,
+                patch("direct_cli.browser.session.open_chrome_session") as fresh,
+            ):
+                persistent.return_value.__enter__ = lambda self: "page"
+                persistent.return_value.__exit__ = lambda self, *a: False
+                with _open_session(
+                    ctx, headful=False, profile_dir=None, chrome_profile="Default"
+                ):
+                    pass
+
+        persistent.assert_called_once()
+        self.assertEqual(persistent.call_args.kwargs.get("profile_dir"), custom)
+        saved.assert_not_called()
+        fresh.assert_not_called()
 
     def test_explicit_profile_dir_bypasses_saved_session(self):
         from direct_cli.commands.masters import _open_session
@@ -806,8 +859,8 @@ class TestOpenSessionTiers(unittest.TestCase):
         with self._list_ctx() as ctx:
             with (
                 patch(
-                    "direct_cli.browser.session.DEFAULT_PERSISTENT_PROFILE_DIR",
-                    profile,
+                    "direct_cli.commands.masters._configured_persistent_profile_dir",
+                    return_value=profile,
                 ),
                 patch(
                     "direct_cli.browser.session.open_persistent_session"
@@ -1539,6 +1592,14 @@ class TestMastersLogoutCommand(unittest.TestCase):
         self._tmpdir = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmpdir.cleanup)
         self.profile_dir = Path(self._tmpdir.name) / "chrome-profile"
+
+        # Keep the login pointer off the developer's real ~/.direct-cli.
+        pointer = patch(
+            "direct_cli.browser.session.PROFILE_POINTER_PATH",
+            Path(self._tmpdir.name) / "chrome-profile-path",
+        )
+        pointer.start()
+        self.addCleanup(pointer.stop)
 
     def _make_profile(self):
         """Create a profile dir the way `masters login` does — marker included."""
