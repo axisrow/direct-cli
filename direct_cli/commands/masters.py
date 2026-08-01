@@ -27,7 +27,17 @@ which creates the saved session tier 2 prefers:
 
 A ``BrowserAuthError`` from tier 2 is retried once via tier 3 before
 surfacing — a stale saved session should self-heal rather than break
-`masters` until the user notices and reruns `playwright login` by hand.
+`masters` until the user notices and reruns `playwright login` by hand. The
+retry happens at the *operation* level (``_with_session``), not inside
+``_open_session`` itself: ``BrowserAuthError`` from ``assert_authenticated``
+is raised by the caller's fetch call, deep inside the ``with page:`` body,
+not just on session-open. A ``@contextlib.contextmanager`` generator can
+``yield`` only once per invocation — attempting a second ``yield`` after
+catching an exception thrown back in via ``.throw()`` raises ``RuntimeError:
+generator didn't stop after throw()`` instead of falling back. So the retry
+boundary must wrap the whole ``with _open_session(...): operation(page)``
+call, re-entering ``_open_session`` a second time for the fresh-decrypt
+fallback rather than trying to yield twice from one generator call.
 """
 
 import contextlib
@@ -84,10 +94,20 @@ def _open_session(
     raised by callers using this session) only surfaces on ``__enter__``,
     which is outside a try/except placed around the bare function call (see
     the regression test for #634 in tests/test_masters.py).
+
+    Tier 2's ``BrowserAuthError`` is deliberately NOT caught here and
+    retried via tier 3 inside this same generator -- a
+    ``@contextlib.contextmanager`` generator can only ``yield`` once per
+    invocation, and ``BrowserAuthError`` from ``assert_authenticated`` is
+    raised by the caller deep inside the ``with page:`` body, not just on
+    session-open. Catching it here and falling through to a second ``yield``
+    would raise ``RuntimeError: generator didn't stop after throw()``,
+    masking the original error. The tier-2-to-3 retry instead happens one
+    level up, in :func:`_with_session`, which re-enters this function a
+    second time for the fresh-decrypt fallback.
     """
     try:
         from ..browser.session import (
-            BrowserAuthError,
             BrowserSessionError,
             open_chrome_session,
             open_saved_session,
@@ -125,20 +145,13 @@ def _open_session(
     )
 
     # Tier 2: a saved, not-known-expired session -- skips the Keychain
-    # round-trip entirely.
+    # round-trip entirely. BrowserAuthError propagates to _with_session
+    # uncaught (see docstring above); every other BrowserSessionError is a
+    # hard failure reported as-is.
     if use_saved:
-        try:
-            with open_saved_session(headless=not headful) as page:
-                yield page
-            return
-        except BrowserAuthError:
-            # Stale saved session despite passing the expiry check (Yandex
-            # invalidated it server-side) -- self-heal via tier 3 rather
-            # than surfacing an error the user has to interpret and retry
-            # by hand.
-            pass
-        except BrowserSessionError as exc:
-            raise click.ClickException(str(exc)) from exc
+        with _fresh_or_saved(open_saved_session, headless=not headful) as page:
+            yield page
+        return
 
     # Tier 3: zero-config fallback, identical to pre-tier-system behaviour.
     try:
@@ -149,6 +162,70 @@ def _open_session(
                 "Tip: run `direct playwright login` to save this session "
                 "and skip the Keychain prompt next time."
             )
+    except BrowserSessionError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+
+@contextlib.contextmanager
+def _fresh_or_saved(open_saved_session, *, headless: bool):
+    """Tier 2 body: run ``open_saved_session``, converting non-auth errors.
+
+    ``BrowserAuthError`` is intentionally left to propagate to the caller
+    (:func:`_with_session`) uncaught -- it is not a hard failure, it is the
+    self-heal-via-fresh-decrypt signal. Every other ``BrowserSessionError``
+    is a real failure, reported the same way tier 1/3 report it.
+    """
+    from ..browser.session import BrowserAuthError, BrowserSessionError
+
+    try:
+        with open_saved_session(headless=headless) as page:
+            yield page
+    except BrowserAuthError:
+        raise
+    except BrowserSessionError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+
+def _with_session(
+    ctx: click.Context,
+    headful: bool,
+    profile_dir: Optional[str],
+    chrome_profile: str,
+    operation,
+):
+    """Run ``operation(page)`` under a resolved browser session, retrying once.
+
+    A saved session (tier 2) that turns out to be stale server-side raises
+    ``BrowserAuthError`` from *inside* ``operation`` (via
+    ``assert_authenticated``), not from opening the session -- so the retry
+    has to re-run ``operation`` itself under a fresh session (tier 3), not
+    just re-enter the context manager. See :func:`_open_session`'s docstring
+    for why the retry can't live inside a single ``@contextmanager`` call.
+    """
+    from ..browser.session import BrowserAuthError
+
+    try:  # noqa: SIM105 -- must fall through to the retry below, not suppress
+        with _open_session(ctx, headful, profile_dir, chrome_profile) as page:
+            return operation(page)
+    except BrowserAuthError:
+        # Stale saved session despite passing the expiry check (Yandex
+        # invalidated it server-side) -- self-heal below by re-running the
+        # whole operation against a forced fresh decrypt, rather than
+        # surfacing an error the user has to interpret and retry by hand.
+        # contextlib.suppress would swallow this and return None instead of
+        # falling through to the fresh-session retry code below.
+        pass
+
+    from ..browser.session import BrowserSessionError, open_chrome_session
+
+    resolved_profile_dir = Path(profile_dir) if profile_dir else None
+    try:
+        with open_chrome_session(
+            profile_dir=resolved_profile_dir,
+            chrome_profile=chrome_profile,
+            headless=not headful,
+        ) as page:
+            return operation(page)
     except BrowserSessionError as exc:
         raise click.ClickException(str(exc)) from exc
 
@@ -206,8 +283,13 @@ def list_masters(
 
     resolved_login = _require_login(ctx, login)
 
-    with _open_session(ctx, headful, profile_dir, chrome_profile) as page:
-        result = fetch_masters_list(page, resolved_login)
+    result = _with_session(
+        ctx,
+        headful,
+        profile_dir,
+        chrome_profile,
+        lambda page: fetch_masters_list(page, resolved_login),
+    )
 
     format_output(result, output_format, output)
 
@@ -233,9 +315,9 @@ def get(
     resolved_login = _require_login(ctx, login)
     ids = parse_ids(campaign_ids) or []
 
-    results = []
-    with _open_session(ctx, headful, profile_dir, chrome_profile) as page:
-        for campaign_id in ids:
-            results.append(fetch_master(page, campaign_id, resolved_login))
+    def _fetch_all(page):
+        return [fetch_master(page, campaign_id, resolved_login) for campaign_id in ids]
+
+    results = _with_session(ctx, headful, profile_dir, chrome_profile, _fetch_all)
 
     format_output(results if len(results) != 1 else results[0], output_format, output)
