@@ -1349,10 +1349,37 @@ class TestMastersLoginCommand(unittest.TestCase):
 
     def setUp(self):
         self.runner = CliRunner()
+        # CliRunner supplies a non-tty stdin, so `login` would refuse to run
+        # (it needs a human). Every test here exercises the interactive path;
+        # the non-interactive refusal has its own test that overrides this.
+        tty = patch(
+            "direct_cli.commands.masters._stdin_is_interactive", return_value=True
+        )
+        tty.start()
+        self.addCleanup(tty.stop)
 
     def test_login_registered(self):
         result = self.runner.invoke(cli, ["masters", "login", "--help"])
         self.assertEqual(result.exit_code, 0)
+
+    def test_login_fails_fast_in_a_non_interactive_environment(self):
+        """In CI/a script, fail immediately instead of blocking for the timeout.
+
+        Issue #635 (Риски → Интерактивность): the command waits for a human, so
+        run non-interactively it must "падать сразу с понятным текстом, а не
+        висеть" — otherwise CI hangs for the full --timeout on a browser window
+        nobody can see.
+        """
+        with patch("direct_cli.browser.session.login_persistent_session") as login_fn:
+            with patch(
+                "direct_cli.commands.masters._stdin_is_interactive",
+                return_value=False,
+            ):
+                result = self.runner.invoke(cli, ["masters", "login"])
+
+        login_fn.assert_not_called()
+        self.assertNotEqual(result.exit_code, 0, result.output)
+        self.assertIn("interactive", result.output.lower())
 
     def test_login_has_no_output_format_options(self):
         # login is interactive/side-effecting, not a data-fetching command --

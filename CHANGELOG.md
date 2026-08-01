@@ -29,6 +29,9 @@
   (not an error) if no profile exists. Also classified `DANGEROUS`
   (local credential-store mutation, same category as `auth login`/`auth
   use`).
+- `masters login` refuses to run without a terminal. It waits for a human,
+  so in CI or a script it now fails immediately with a clear message instead
+  of blocking for the full `--timeout` on a browser window nobody can see.
 - `masters login` polls for completion on a separate page instead of the
   one the user is typing into. Previously the loop navigated the visible
   Passport tab to the grid once a second, wiping a half-filled login form

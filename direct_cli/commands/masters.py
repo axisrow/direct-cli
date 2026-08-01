@@ -53,6 +53,7 @@ fallback rather than trying to yield twice from one generator call.
 """
 
 import contextlib
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -284,6 +285,14 @@ def masters():
     """Мастер кампаний (Campaign Wizard) — browser-only, no API"""
 
 
+def _stdin_is_interactive() -> bool:
+    """Return whether a human is present to complete a browser login.
+
+    Mirrors ``direct_cli/commands/auth.py``'s helper of the same name.
+    """
+    return sys.stdin.isatty()
+
+
 @masters.command()
 @click.option(
     "--profile-dir",
@@ -307,7 +316,20 @@ def login(profile_dir, timeout_seconds):
     hand in the window that opens; the command exits once the session is
     confirmed. Subsequent `direct masters` calls reuse this profile
     automatically (see the module docstring's tier 1.5).
+
+    Requires a terminal: run from CI or a script it fails immediately
+    rather than blocking on a browser window nobody can see.
     """
+    # The command's whole purpose is to wait for a human. Without a TTY there
+    # is nobody to log in, so blocking for the full --timeout on an invisible
+    # window is never useful (issue #635, Риски -> Интерактивность).
+    if not _stdin_is_interactive():
+        raise click.ClickException(
+            "`direct masters login` needs an interactive terminal — it opens a "
+            "browser window and waits for you to log in by hand. Run it from a "
+            "terminal, not from CI or a script."
+        )
+
     try:
         from ..browser.session import BrowserSessionError, login_persistent_session
     except ImportError as exc:
