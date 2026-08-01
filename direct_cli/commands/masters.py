@@ -334,7 +334,7 @@ def login(profile_dir, timeout_seconds):
     confirmed. Subsequent `direct masters` calls reuse this profile
     automatically (see the module docstring's tier 1.5).
 
-    Requires a terminal: run from CI or a script it fails immediately
+    Requires a terminal: if run from CI or a script it fails immediately
     rather than blocking on a browser window nobody can see.
     """
     # The command's whole purpose is to wait for a human. Without a TTY there
