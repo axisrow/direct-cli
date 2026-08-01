@@ -33,9 +33,7 @@ def test_retargeting_cassette_records_full_lifecycle() -> None:
     update/delete coverage. This guard fails if any lifecycle method is missing,
     catching that regression offline.
     """
-    body = _cassette_body(
-        "test_v5_live_draft_retargeting_add_update_delete.yaml"
-    )
+    body = _cassette_body("test_v5_live_draft_retargeting_add_update_delete.yaml")
     for method in ('"method":"add"', '"method":"update"', '"method":"delete"'):
         assert method in body, (
             f"retargeting cassette is missing {method} — it looks re-recorded "
@@ -53,9 +51,7 @@ def test_audiencetargets_add_delete_cassette_records_full_lifecycle() -> None:
     full lifecycle to a skip-only, add-rejected cassette. This guard fails offline
     if either lifecycle method is missing.
     """
-    body = _cassette_body(
-        "test_v5_live_draft_audiencetargets_add_delete.yaml"
-    )
+    body = _cassette_body("test_v5_live_draft_audiencetargets_add_delete.yaml")
     for method in ('"method":"add"', '"method":"delete"'):
         assert method in body, (
             f"audiencetargets add/delete cassette is missing {method} — it looks "
@@ -71,9 +67,7 @@ def test_audiencetargets_suspend_resume_cassette_records_full_lifecycle() -> Non
     re-record turns the add+delete+suspend+resume lifecycle into a skip-only
     recording. This guard fails offline if any lifecycle method is missing.
     """
-    body = _cassette_body(
-        "test_v5_live_draft_audiencetargets_suspend_resume.yaml"
-    )
+    body = _cassette_body("test_v5_live_draft_audiencetargets_suspend_resume.yaml")
     for method in (
         '"method":"add"',
         '"method":"delete"',

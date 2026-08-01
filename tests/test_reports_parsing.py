@@ -9,7 +9,6 @@ from direct_cli._vendor.tapi_yandex_direct.tapi_yandex_direct import (
     YandexDirectClientAdapter,
 )
 
-
 FIELD_NAMES = ["Month", "Impressions", "Clicks", "Cost"]
 REPORT_ROWS = [
     ["2026-03-01", "10", "2", "1500000"],

@@ -5,7 +5,6 @@ See :mod:`tests.test_dry_run_shared` for the shared invocation helpers and
 ``tests/test_dry_run.py`` for the rationale behind the whole suite.
 """
 
-
 import pytest
 from click.testing import CliRunner
 

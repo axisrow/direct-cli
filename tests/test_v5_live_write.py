@@ -203,9 +203,9 @@ def _extract_first_id(output: str, key: str = "AddResults") -> int | str:
 
     assert items, f"No result items in response: {output[:500]}"
     first = items[0]
-    assert "Errors" not in first or not first["Errors"], (
-        f"API rejected add: {first.get('Errors')}"
-    )
+    assert (
+        "Errors" not in first or not first["Errors"]
+    ), f"API rejected add: {first.get('Errors')}"
     assert "Id" in first, f"No Id in add result: {first}"
     raw = first["Id"]
     try:
@@ -227,9 +227,9 @@ def _extract_field(output: str, field: str = "Id", key: str = "AddResults") -> A
 
     assert items, f"No result items in response: {output[:500]}"
     first = items[0]
-    assert "Errors" not in first or not first["Errors"], (
-        f"API rejected request: {first.get('Errors')}"
-    )
+    assert (
+        "Errors" not in first or not first["Errors"]
+    ), f"API rejected request: {first.get('Errors')}"
     assert field in first, f"No {field} in result: {first}"
     return first[field]
 
@@ -473,9 +473,9 @@ def test_v5_live_draft_adimages_add_get_delete() -> None:
             result_data = data.get("result", data)
             images = result_data.get("AdImages", [])
         hashes_in_response = {img.get("AdImageHash") for img in images}
-        assert img_hash in hashes_in_response, (
-            f"Uploaded image hash {img_hash} not found in get response"
-        )
+        assert (
+            img_hash in hashes_in_response
+        ), f"Uploaded image hash {img_hash} not found in get response"
     finally:
         r = _invoke_live("adimages", "delete", "--hash", str(img_hash))
         if r.exit_code != 0:
@@ -924,9 +924,9 @@ def test_v5_live_draft_dynamicads_add_delete() -> None:
         else:
             result_data = data.get("result", data)
             targets = result_data.get("DynamicTextAdTargets", [])
-        assert any(t.get("Id") == did for t in targets), (
-            f"Dynamic ad target {did} not found in get response"
-        )
+        assert any(
+            t.get("Id") == did for t in targets
+        ), f"Dynamic ad target {did} not found in get response"
     finally:
         if did is not None:
             _invoke_live("dynamicads", "delete", "--id", str(did))

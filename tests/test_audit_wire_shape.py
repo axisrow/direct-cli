@@ -13,7 +13,6 @@ from pathlib import Path
 
 import pytest
 
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 _AUDIT_PATH = REPO_ROOT / "scripts" / "audit_wire_shape.py"
 
@@ -65,9 +64,9 @@ Sum Сумма. Да Currency Валюта. Да
 def test_extract_request_section_skips_toc_and_keeps_body():
     section = audit.extract_request_section(_MOCK_LIVE_PAGE)
     assert "PayCampElement" in section
-    assert "ResultCode" not in section, (
-        "response-side fields must NOT leak into the request section"
-    )
+    assert (
+        "ResultCode" not in section
+    ), "response-side fields must NOT leak into the request section"
 
 
 def test_parse_schema_blocks_captures_paycampelement_with_currency():
@@ -100,12 +99,8 @@ def test_parse_live4_hints_extracts_newly_required():
 
 def test_collect_example_keys_walks_nested_lists_and_dicts():
     example = {
-        "FromCampaigns": [
-            {"CampaignID": 1, "Sum": 1.0, "Currency": "RUB"}
-        ],
-        "ToCampaigns": [
-            {"CampaignID": 2, "Sum": 1.0, "Currency": "RUB"}
-        ],
+        "FromCampaigns": [{"CampaignID": 1, "Sum": 1.0, "Currency": "RUB"}],
+        "ToCampaigns": [{"CampaignID": 2, "Sum": 1.0, "Currency": "RUB"}],
     }
     keys = audit._collect_example_keys(example)
     assert keys == {
@@ -169,9 +164,7 @@ def test_audit_v5_treats_wsdl_base_as_single_group_target(monkeypatch):
 
     def fake_fetch_doc(url, retries, pause):
         fetched_urls.append(url)
-        return audit.FetchResult(
-            url=url, status="thin", html=wsdl_body, attempts=3
-        )
+        return audit.FetchResult(url=url, status="thin", html=wsdl_body, attempts=3)
 
     monkeypatch.setattr(audit, "fetch_doc", fake_fetch_doc)
     monkeypatch.setattr(
