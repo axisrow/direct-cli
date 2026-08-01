@@ -718,6 +718,25 @@ def _set_directs_helps(page: "Page", enabled: bool) -> None:
         ) from exc
 
 
+def _trigger_shows_selection(trigger, label: str) -> bool:
+    """True if the "Цель продвижения" trigger button currently shows ``label``.
+
+    Confirmed live (2026-08-01 re-investigation, see
+    ``tests/fixtures/masters_wizard_edit_stage_a.html``): the trigger's
+    ``inner_text()`` is TWO lines — the static section label first, then the
+    current selection on its own line (unlike the accessibility-tree
+    computed NAME, which stays static and never carries the selection). An
+    exact match against the whole two-line string can therefore never
+    succeed; only the LAST line reflects the live selection.
+    """
+    try:
+        text = trigger.inner_text().strip()
+    except PlaywrightError:
+        return False
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return bool(lines) and lines[-1] == label
+
+
 def _set_promotion_goal(page: "Page", goal: str) -> None:
     """Select ``goal`` (a key of ``PROMOTION_GOAL_CHOICES``) in the "Цель
     продвижения" dropdown.
@@ -772,14 +791,11 @@ def _set_promotion_goal(page: "Page", goal: str) -> None:
             "the page's markup. Re-run with --headful to inspect the page."
         )
 
-    # Exact match, not substring: an exact accessible name is either the new
-    # selection or it isn't — a substring check could pass on unrelated text
-    # that merely contains part of the label.
-    try:
-        current = trigger.inner_text().strip()
-    except PlaywrightError:
-        current = ""
-    if current != label:
+    if not _trigger_shows_selection(trigger, label):
+        try:
+            current = trigger.inner_text().strip()
+        except PlaywrightError:
+            current = ""
         raise BrowserSessionError(
             f"Clicked the {label!r} option for 'Цель продвижения', but the "
             f"dropdown still does not show it (shows {current!r}). The "
@@ -852,15 +868,22 @@ def _read_directs_helps(page: "Page") -> Optional[bool]:
 
 
 def _read_promotion_goal_label(page: "Page") -> Optional[str]:
-    """Read the "Цель продвижения" dropdown trigger's current text.
+    """Read the "Цель продвижения" dropdown trigger's current selection.
 
-    Returns ``None`` if the trigger can't be found/read (inconclusive).
+    The trigger's ``inner_text()`` is two lines — the static section label,
+    then the current selection on its own line (see
+    ``_trigger_shows_selection``) — so this returns only the LAST line, not
+    the raw two-line text, to compare directly against a bare
+    ``PROMOTION_GOAL_CHOICES`` value. Returns ``None`` if the trigger can't
+    be found/read (inconclusive).
     """
     trigger = page.locator(_PROMOTION_GOAL_BUTTON_XPATH).first
     try:
-        return trigger.inner_text().strip()
+        text = trigger.inner_text().strip()
     except PlaywrightError:
         return None
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return lines[-1] if lines else None
 
 
 def _verify_saved(
@@ -877,9 +900,9 @@ def _verify_saved(
     "a click that doesn't visibly change the state is a hard error, not a
     silent success" convention) — Yandex's client-side validation can reject
     a value and leave the form open with an inline error that this module
-    has no stable way to read (see module docstring's "known gap" note,
-    issue #631's own "Валидация... непрозрачна" risk). Re-navigating and
-    re-reading each touched field is the only reliable signal available:
+    has no stable way to read (see module docstring's "Save verification"
+    note, issue #631's own "Валидация... непрозрачна" risk). Re-navigating
+    and re-reading each touched field is the only reliable signal available:
     if a field still doesn't match after a real reload, the save did not
     take effect and this raises rather than reporting false success.
     """

@@ -84,7 +84,38 @@ live mutation was saved):
      effect rather than trusting the click alone — see `_suspend_or_resume`).
    - Sibling control in the same "Цель продвижения" section: a second dropdown, "Цена целевого
      действия" (e.g. "Средняя за неделю") — OUT OF SCOPE for Этап A (not listed in the issue's
-     Этап A field list).
+     Этап A field list). Side effect confirmed live (2026-08-01 re-investigation): switching
+     the promotion goal to "Максимум переходов" relabels this sibling control's static text
+     from "Цена целевого действия" to "Цена перехода" too — not acted on by `_set_promotion_goal`
+     (out of scope), documented here only so a future stage isn't surprised by it.
+
+   **RE-INVESTIGATED LIVE 2026-08-01 (cycle-review follow-up, issue #631 PR #646): accessible
+   name vs. `innerText` — these are DIFFERENT and do NOT agree; the current exact-match
+   verification code is WRONG as a result — see below.** The paragraph above (captured in Step
+   0) is correct about the accessibility-tree computed NAME staying static — verified again via
+   `read_page`: `button "Цель продвижения" [ref_19]`, unchanged whether the dropdown shows
+   "Максимум целевых действий" or "Максимум переходов". But `_set_promotion_goal`'s
+   verification calls Playwright's `Locator.inner_text()`, a DIFFERENT API that reads the
+   element's rendered DOM text content, not its computed accessibility name — and these
+   genuinely diverge here. Confirmed via `element.innerText` read directly (before AND after
+   clicking the alternate option, on the live trigger button):
+     - Before any click: `innerText` = `"Цель продвижения\nМаксимум целевых действий"` (TWO
+       lines — the static section label first, then the current selection on its own line).
+     - After clicking "Максимум переходов": `innerText` = `"Цель продвижения\nМаксимум
+       переходов"` — the second line DID change to reflect the new selection.
+   So `inner_text()` DOES carry the live selection and CAN be used to verify a selection took
+   effect. BUT the current code compares the WHOLE two-line string for exact equality
+   (`current != label`, where `label` is the bare one-line value like `"Максимум переходов"`)
+   — that exact comparison can NEVER succeed, since `current` always has the static label line
+   prepended too. This is a real bug introduced by the cycle-review fix that switched from a
+   substring check (`label not in current`, which DID work — the bare label is a substring of
+   the two-line text) to an exact-equality check as a "tighten the match" fix for a DIFFERENT
+   finding (ancestor/decoy-text false positives) — exact-equality was the wrong tool for THIS
+   comparison; the fix should instead check that the LAST LINE of `current` equals `label`
+   (splitting on the header line), not that the whole string equals it. Same bug applies to
+   `_verify_saved`'s `_read_promotion_goal_label` read-back comparison. State was restored
+   live (clicked back to "Максимум целевых действий") and the edit page was left via a plain
+   navigation with NO unsaved-changes warning, confirming no live mutation was saved.
 
 Accessibility-tree ref shape observed for the "Цель продвижения" section (`read_page`,
 filter=interactive, at the point in the page where this section renders):

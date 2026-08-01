@@ -40,11 +40,17 @@
   private `_set_weekly_budget`/`_set_directs_helps`/`_set_promotion_goal`
   setters. Each field setter follows the module's existing "click, then
   verify the change actually took effect" convention (`_suspend_or_resume`)
-  rather than trusting a click alone — but the final `_click_save` step does
-  not: it confirms the save button was clickable, not that Yandex actually
-  saved the change. See the known-gap note in the module docstring; a
-  follow-up live investigation of post-save DOM behaviour is needed before
-  this can be closed.
+  rather than trusting a click alone. `update_master` itself also verifies:
+  after clicking save it re-navigates to the edit page and re-reads every
+  requested field (`_verify_saved`), raising `BrowserSessionError` on any
+  mismatch instead of reporting a false success — so a click that doesn't
+  actually persist (rejected validation, session/redirect failure) is a
+  hard error, not a silent success.
+- `_click_save` and `_set_promotion_goal`'s option click use
+  `get_by_role(..., exact=True)`, not a substring `get_by_text` match — an
+  exact accessible-name match, scoped to the actual button/option role,
+  avoids clicking an ancestor container whose text merely contains the
+  target label.
 - Later Этап (B/C/D) fields — headline/text variant lists, sitelinks,
   audience, Metrika counters/goals, budget adaptation, images/video — are
   tracked separately in issue #631 and not implemented here.

@@ -1860,17 +1860,27 @@ class TestSetPromotionGoal(unittest.TestCase):
     container instead of the option row itself). Using ``role_elements``
     here means these tests actually exercise the same exact-name matching
     the real code performs, instead of matching by an opaque dict key.
+
+    The trigger's ``inner_text()`` is modeled as TWO lines (static section
+    label, then the current selection) — confirmed live 2026-08-01 (see
+    ``tests/fixtures/masters_wizard_edit_stage_a.html``). A single-line fake
+    would not have caught the regression where the verification code
+    compared the WHOLE two-line ``inner_text()`` for exact equality against
+    the bare one-line label (always false) instead of just its last line.
     """
 
-    def _page_for_goal_selection(self, target_label, trigger_text_after_click):
-        state = {"trigger_text": "Цель продвижения"}
+    _TRIGGER_LABEL = "Цель продвижения"
+
+    def _page_for_goal_selection(self, target_label, selected_line_after_click):
+        state = {"selected_line": "Максимум целевых действий"}
 
         def _select():
-            state["trigger_text"] = trigger_text_after_click
+            state["selected_line"] = selected_line_after_click
 
-        trigger = _FakeLocatorHandle(text="Цель продвижения")
-        # inner_text() must reflect the mutable state set by clicking the option.
-        trigger.inner_text = lambda: state["trigger_text"]
+        trigger = _FakeLocatorHandle(text=self._TRIGGER_LABEL)
+        # inner_text() must reflect the mutable state set by clicking the
+        # option — two lines, matching the live-confirmed shape.
+        trigger.inner_text = lambda: f"{self._TRIGGER_LABEL}\n{state['selected_line']}"
 
         return FakePage(
             locators={
@@ -1891,7 +1901,7 @@ class TestSetPromotionGoal(unittest.TestCase):
         browser_masters._set_promotion_goal(page, "max-clicks")
 
         trigger = page.locator(browser_masters._PROMOTION_GOAL_BUTTON_XPATH).first
-        self.assertEqual(trigger.inner_text(), "Максимум переходов")
+        self.assertEqual(trigger.inner_text(), "Цель продвижения\nМаксимум переходов")
 
     def test_does_not_match_option_whose_name_only_contains_label_as_substring(self):
         # A decoy element whose accessible name merely CONTAINS the target
@@ -1946,14 +1956,63 @@ class TestSetPromotionGoal(unittest.TestCase):
             browser_masters._set_promotion_goal(page, "max-clicks")
 
     def test_raises_when_click_does_not_change_trigger_text(self):
-        # Option is clicked but the trigger's text never reflects the change.
+        # Option is clicked but the trigger's selected line never changes.
         page = self._page_for_goal_selection(
-            "Максимум переходов", "Цель продвижения"  # unchanged
+            "Максимум переходов",
+            "Максимум целевых действий",  # unchanged
         )
 
         with self.assertRaises(BrowserSessionError) as ctx:
             browser_masters._set_promotion_goal(page, "max-clicks")
         self.assertIn("does not show it", str(ctx.exception))
+
+
+class TestClickSave(unittest.TestCase):
+    """``_click_save`` (issue #631, Этап A) — role-scoped, exact-name button match.
+
+    ``_click_save`` uses ``get_by_role("button", name=_SAVE_BUTTON_TEXT,
+    exact=True)`` (cycle-review fix: the previous ``get_by_text(exact=False)``
+    risked matching an ancestor container instead of the button itself).
+    """
+
+    def test_does_not_click_a_decoy_whose_name_only_contains_the_button_text(self):
+        # A decoy element whose accessible name merely CONTAINS
+        # _SAVE_BUTTON_TEXT (e.g. an ancestor wrapper with extra text) must
+        # NOT be treated as a match — exact=True requires exact equality.
+        decoy_clicked = []
+        page = FakePage(
+            role_elements=[
+                (
+                    "button",
+                    f"{browser_masters._SAVE_BUTTON_TEXT} и отмена",
+                    _FakeTextLocatorHandle(
+                        visible=True, on_click=lambda: decoy_clicked.append(True)
+                    ),
+                )
+            ],
+        )
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._click_save(page, 42)
+        self.assertEqual(decoy_clicked, [])
+
+    def test_clicks_the_exact_match_button(self):
+        clicks = []
+        page = FakePage(
+            role_elements=[
+                (
+                    "button",
+                    browser_masters._SAVE_BUTTON_TEXT,
+                    _FakeTextLocatorHandle(
+                        visible=True, on_click=lambda: clicks.append(True)
+                    ),
+                )
+            ],
+        )
+
+        browser_masters._click_save(page, 42)
+
+        self.assertEqual(clicks, [True])
 
 
 class TestUpdateMaster(unittest.TestCase):
@@ -2132,10 +2191,17 @@ class TestUpdateMaster(unittest.TestCase):
     def test_raises_when_saved_promotion_goal_does_not_match_requested(self):
         # The goal setter's own post-click check passes (trigger text
         # updates immediately), but the post-save reload shows the OLD
-        # goal still selected -- _verify_saved must still catch this.
-        trigger_states = iter(["Максимум переходов", "Максимум целевых действий"])
+        # goal still selected -- _verify_saved must still catch this. The
+        # trigger's inner_text() is modeled as two lines (static label +
+        # selection), matching the live-confirmed shape.
+        trigger_texts = iter(
+            [
+                "Цель продвижения\nМаксимум переходов",
+                "Цель продвижения\nМаксимум целевых действий",
+            ]
+        )
         trigger = _FakeLocatorHandle(text="Цель продвижения")
-        trigger.inner_text = lambda: next(trigger_states)
+        trigger.inner_text = lambda: next(trigger_texts)
         save_handle = _FakeTextLocatorHandle(visible=True)
         page = FakePage(
             locators={
