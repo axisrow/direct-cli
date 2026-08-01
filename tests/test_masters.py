@@ -528,6 +528,14 @@ class TestPersistentSession(unittest.TestCase):
         self._tmpdir = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmpdir.cleanup)
         self.profile_dir = Path(self._tmpdir.name) / "chrome-profile"
+        # A completed login records its profile dir; keep that off the
+        # developer's real ~/.direct-cli.
+        pointer = patch(
+            "direct_cli.browser.session.PROFILE_POINTER_PATH",
+            Path(self._tmpdir.name) / "chrome-profile-path",
+        )
+        pointer.start()
+        self.addCleanup(pointer.stop)
 
     def _make_profile(self):
         """Create a profile dir the way a completed `masters login` leaves it."""
@@ -605,6 +613,27 @@ class TestPersistentSession(unittest.TestCase):
         self.assertFalse(
             session_module.persistent_profile_is_usable(self.profile_dir),
             "an aborted login left a profile tier 1.5 would route through",
+        )
+
+    def test_recorded_profile_dir_is_absolute(self):
+        """The login pointer must not make later commands depend on cwd.
+
+        `masters login --profile-dir prof` recorded "prof" verbatim, so
+        `masters logout` run from a different directory resolved it against
+        *that* cwd — deleting a different profile, or none. The marker check
+        still bounded the damage, but which directory a command acts on must
+        not depend on where the user happens to be standing.
+        """
+        from direct_cli.browser import session as session_module
+
+        pointer = Path(self._tmpdir.name) / "chrome-profile-path"
+        with patch.object(session_module, "PROFILE_POINTER_PATH", pointer):
+            session_module.remember_persistent_profile_dir(Path("relative/profile"))
+            recorded = session_module.configured_persistent_profile_dir()
+
+        self.assertTrue(
+            recorded.is_absolute(),
+            f"recorded a cwd-dependent path: {recorded}",
         )
 
     def test_open_persistent_session_raises_when_profile_missing(self):

@@ -229,9 +229,14 @@ PROFILE_POINTER_PATH = Path.home() / ".direct-cli" / "chrome-profile-path"
 
 
 def remember_persistent_profile_dir(profile_dir: Path) -> None:
-    """Record which profile directory `masters login` populated."""
+    """Record which profile directory `masters login` populated.
+
+    Stored absolute: a relative path would be re-resolved against whatever
+    directory a later command happened to run from, so `masters logout`
+    would act on a different profile depending on where the user stood.
+    """
     PROFILE_POINTER_PATH.parent.mkdir(parents=True, exist_ok=True)
-    PROFILE_POINTER_PATH.write_text(str(profile_dir), encoding="utf-8")
+    PROFILE_POINTER_PATH.write_text(str(profile_dir.resolve()), encoding="utf-8")
     os.chmod(PROFILE_POINTER_PATH, 0o600)
 
 
@@ -245,7 +250,11 @@ def configured_persistent_profile_dir() -> Path:
         recorded = PROFILE_POINTER_PATH.read_text(encoding="utf-8").strip()
     except OSError:
         return DEFAULT_PERSISTENT_PROFILE_DIR
-    return Path(recorded) if recorded else DEFAULT_PERSISTENT_PROFILE_DIR
+    # A hand-edited or truncated record must not silently resolve against the
+    # caller's cwd — only an absolute path is trustworthy here.
+    if not recorded or not Path(recorded).is_absolute():
+        return DEFAULT_PERSISTENT_PROFILE_DIR
+    return Path(recorded)
 
 
 def persistent_profile_is_usable(profile_dir: Optional[Path] = None) -> bool:

@@ -49,6 +49,10 @@
   reported "Login confirmed" and was then silently ignored by every read —
   falling back to the Keychain the flag exists to avoid. `masters logout`
   clears the record along with the profile.
+- The recorded profile path is stored and read as absolute. A relative value
+  would have been re-resolved against whatever directory a later command ran
+  from, so `masters logout` acted on a different profile depending on where
+  the user stood.
 - `masters` commands route through the persistent profile only when it holds
   an actual browser session, not merely when the directory exists. An aborted
   `masters login` leaves an empty profile behind; treating that as usable cost
