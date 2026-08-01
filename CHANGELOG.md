@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.1
 
 **Added — `direct masters archive` (#633):**
 
