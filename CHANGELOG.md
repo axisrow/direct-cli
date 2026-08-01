@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+**Fixed — `direct masters` didn't work on macOS at all (#634):**
+
+- `direct masters list`/`get` previously copied `Cookies` + `Local State`
+  into a throwaway Chrome profile, assuming Chromium would decrypt the
+  cookies itself. On macOS this silently failed: the cookie AES key lives
+  only in the login Keychain (`Chrome Safe Storage`); `Local State`'s
+  `os_crypt.encrypted_key` is populated only on Windows. Every cookie was
+  discarded, producing an unauthenticated session that landed on Yandex's
+  login page and then timed out (`networkidle` never settles there, since
+  the login page holds long-poll connections).
+- `direct masters` now reads the Keychain password itself, derives Chrome's
+  AES-128-CBC key, decrypts only the Yandex Direct cookies it needs, and
+  injects them into a fresh bundled-Chromium context via `add_cookies()` —
+  no more temp-profile copying, and `channel="chrome"` (which required a
+  real Google Chrome install) is no longer needed.
+- Login-page and expired-session failures are now reported explicitly
+  (`BrowserAuthError`) instead of surfacing as an opaque 30s timeout.
+- New optional dependency in the `browser` extra: `cryptography>=41`.
+- Linux is supported (Chrome's basic/no-keyring password store only);
+  Windows is not yet.
+
 **New — `direct masters` (#628):**
 
 - Added `direct masters list` / `direct masters get <ids>` — read-only access
@@ -9,12 +30,13 @@
   surface at all** (do not confuse with `UNIFIED_CAMPAIGN`, an unrelated v5
   API campaign type already supported by `campaigns add/get --type
   unified_campaign`). These commands drive a real Chrome session via
-  Playwright, reusing a throwaway copy of the user's own Chrome cookies —
-  no separate login flow. Requires the optional `browser` extra:
-  `pip install "direct-cli[browser]" && playwright install chromium`.
-  `direct masters` degrades gracefully (per-section warnings, not a hard
-  failure) when Yandex's page markup changes, since this data has no API
-  contract to rely on. See `direct_cli/browser/` for the scraping layer.
+  Playwright, decrypting and reusing the user's own Chrome cookies for
+  `yandex.ru` — no separate login flow (see the Fixed entry above for the
+  macOS Keychain decryption path added in #634). Requires the optional
+  `browser` extra: `pip install "direct-cli[browser]" && playwright install
+  chromium`. `direct masters` degrades gracefully (per-section warnings, not
+  a hard failure) when Yandex's page markup changes, since this data has no
+  API contract to rely on. See `direct_cli/browser/` for the scraping layer.
 
 **Internal — campaigns.py split, step 1 — CPM_BANNER (#613, part of #602):**
 

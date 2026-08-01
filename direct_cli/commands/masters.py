@@ -6,13 +6,14 @@ the web interface, and must not be confused with ``UNIFIED_CAMPAIGN``, an
 unrelated v5 API campaign type already supported by ``campaigns add/get
 --type unified_campaign`` (see ``direct_cli/commands/_campaigns_unified.py``).
 This group reads Мастер кампаний by driving a real Chrome session (via
-Playwright) on a throwaway copy of the user's own Chrome cookies — see
+Playwright) with the user's own Yandex cookies decrypted and injected — see
 ``direct_cli/browser/`` for the browser layer this group is a thin Click
 wrapper around.
 
 Read-only in this first version: ``list`` and ``get``. No mutations.
 """
 
+import contextlib
 from pathlib import Path
 from typing import Optional
 
@@ -37,7 +38,18 @@ def _require_login(ctx: click.Context, login: Optional[str]) -> str:
     return resolved
 
 
+@contextlib.contextmanager
 def _open_session(headful: bool, profile_dir: Optional[str], chrome_profile: str):
+    """Open a browser session, converting session errors to ClickException.
+
+    Wrapping the *whole* ``with open_chrome_session(...)`` block (rather than
+    only the call that constructs it) matters because ``open_chrome_session``
+    is itself a contextmanager: an error raised inside its generator body
+    (Keychain/decryption failures, and BrowserAuthError/BrowserCaptchaError
+    raised by callers using this session) only surfaces on ``__enter__``,
+    which is outside a try/except placed around the bare function call (see
+    the regression test for #634 in tests/test_masters.py).
+    """
     try:
         from ..browser.session import BrowserSessionError, open_chrome_session
     except ImportError as exc:
@@ -47,11 +59,12 @@ def _open_session(headful: bool, profile_dir: Optional[str], chrome_profile: str
         ) from exc
 
     try:
-        return open_chrome_session(
+        with open_chrome_session(
             profile_dir=Path(profile_dir) if profile_dir else None,
             chrome_profile=chrome_profile,
             headless=not headful,
-        )
+        ) as page:
+            yield page
     except BrowserSessionError as exc:
         raise click.ClickException(str(exc)) from exc
 
@@ -79,10 +92,10 @@ def _masters_browser_options(func):
     func = click.option(
         "--chrome-profile",
         default="Default",
-        help="Chrome profile subdirectory to copy cookies from (e.g. 'Profile 1')",
+        help="Chrome profile subdirectory to read cookies from (e.g. 'Profile 1')",
     )(func)
     func = click.option(
-        "--profile-dir", help="Chrome user-data-dir to copy cookies from"
+        "--profile-dir", help="Chrome user-data-dir to read cookies from"
     )(func)
     func = click.option(
         "--headful", is_flag=True, help="Show the browser window (for debugging)"
@@ -106,15 +119,11 @@ def list_masters(
 ):
     """List every Мастер кампаний in the account"""
     from ..browser.masters import fetch_masters_list
-    from ..browser.session import BrowserCaptchaError
 
     resolved_login = _require_login(ctx, login)
 
     with _open_session(headful, profile_dir, chrome_profile) as page:
-        try:
-            result = fetch_masters_list(page, resolved_login)
-        except BrowserCaptchaError as exc:
-            raise click.ClickException(str(exc)) from exc
+        result = fetch_masters_list(page, resolved_login)
 
     format_output(result, output_format, output)
 
@@ -136,7 +145,6 @@ def get(
 ):
     """Get one or more Мастер кампаний by ID (comma-separated)"""
     from ..browser.masters import fetch_master
-    from ..browser.session import BrowserCaptchaError
 
     resolved_login = _require_login(ctx, login)
     ids = parse_ids(campaign_ids) or []
@@ -144,9 +152,6 @@ def get(
     results = []
     with _open_session(headful, profile_dir, chrome_profile) as page:
         for campaign_id in ids:
-            try:
-                results.append(fetch_master(page, campaign_id, resolved_login))
-            except BrowserCaptchaError as exc:
-                raise click.ClickException(str(exc)) from exc
+            results.append(fetch_master(page, campaign_id, resolved_login))
 
     format_output(results if len(results) != 1 else results[0], output_format, output)

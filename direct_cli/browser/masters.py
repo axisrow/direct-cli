@@ -19,7 +19,7 @@ import re
 from typing import TYPE_CHECKING, Any, Dict, List
 
 from ..output import print_warning
-from .session import assert_not_captcha
+from .session import assert_authenticated, assert_not_captcha
 
 if TYPE_CHECKING:
     from playwright.sync_api import Page
@@ -54,8 +54,13 @@ def fetch_masters_list(page: "Page", login: str) -> List[Dict[str, Any]]:
     default) and filters rows by the ``/wizard/campaigns/{id}/`` href signal.
     """
     url = f"{GRID_URL}?ulogin={login}&status-filter=ALL_EXCEPT_ARCHIVED"
-    page.goto(url, wait_until="networkidle")
+    # domcontentloaded, not networkidle: Yandex's login page holds long-poll
+    # connections that keep the network "busy" forever, so networkidle never
+    # settles there — it turned an auth failure into an opaque 30s timeout
+    # instead of the explicit assert_authenticated error below (#634).
+    page.goto(url, wait_until="domcontentloaded")
     assert_not_captcha(page.content())
+    assert_authenticated(page.content())
 
     rows = page.locator("a[href*='/wizard/campaigns/']")
     count = rows.count()
@@ -93,8 +98,9 @@ def fetch_master(page: "Page", campaign_id: int, login: str) -> Dict[str, Any]:
     internal markup has no stability guarantee (see module docstring).
     """
     url = f"{WIZARD_OVERVIEW_URL.format(campaign_id=campaign_id)}?ulogin={login}"
-    page.goto(url, wait_until="networkidle")
+    page.goto(url, wait_until="domcontentloaded")
     assert_not_captcha(page.content())
+    assert_authenticated(page.content())
 
     result: Dict[str, Any] = {"CampaignId": campaign_id}
 
