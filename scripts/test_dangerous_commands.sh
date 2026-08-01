@@ -19,6 +19,7 @@ Agency/account mutations:
 Local credential mutations:
   - direct auth login ...
   - direct auth use ...
+  - direct masters logout ...   (deletes ~/.direct-cli/chrome-profile/)
 
 V4 Live finance money mutations (0.3.3 exposes dry-run-only previews):
   - direct v4finance transfer-money --from-campaign-id ... --to-campaign-id ... --amount ... --currency RUB --dry-run

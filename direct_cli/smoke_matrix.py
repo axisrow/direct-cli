@@ -193,6 +193,12 @@ SMOKE_MATRIX = {
         # which reads an already-authenticated Chrome profile
         # non-interactively), this always requires a human. Manual-only.
         "masters.login",
+        # Deletes the persistent Chrome profile masters.login creates
+        # (issue #635) -- a local credential-store mutation, same category
+        # as auth.login/auth.use above, not a read. An automated run
+        # against a developer's real ~/.direct-cli/chrome-profile/ would
+        # destroy a live session with no way to recreate it unattended.
+        "masters.logout",
         "v4adimage.set",
         "v4finance.create-invoice",
         "v4finance.pay-campaigns",

@@ -272,6 +272,7 @@ class TestMastersRegistered(unittest.TestCase):
         self.assertIn("list", result.output)
         self.assertIn("get", result.output)
         self.assertIn("login", result.output)
+        self.assertIn("logout", result.output)
 
     def test_masters_list_help(self):
         result = self.runner.invoke(cli, ["masters", "list", "--help"])
@@ -559,6 +560,27 @@ class TestPersistentSession(unittest.TestCase):
             fake_chromium.launch_persistent_context_kwargs["locale"], "ru-RU"
         )
         self.assertTrue(persistent_ctx.closed)
+
+    def test_open_persistent_session_chmods_profile_dir_0700(self):
+        # issue #635 risk: the profile holds a live Yandex session in
+        # plaintext-readable cookies -- must be 0700, same as
+        # direct_cli/browser/store.py's session file directory.
+        pytest.importorskip("playwright")
+        import stat
+
+        from direct_cli.browser import session as session_module
+
+        self.profile_dir.mkdir(parents=True, mode=0o755)
+        persistent_ctx = _FakePersistentContext()
+        fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
+        fake_playwright = _FakePlaywright(fake_chromium)
+
+        with patch("playwright.sync_api.sync_playwright", return_value=fake_playwright):
+            with session_module.open_persistent_session(profile_dir=self.profile_dir):
+                pass
+
+        mode = stat.S_IMODE(self.profile_dir.stat().st_mode)
+        self.assertEqual(format(mode, "04o"), "0700")
 
     def test_login_persistent_session_returns_once_authenticated(self):
         pytest.importorskip("playwright")
@@ -1344,6 +1366,52 @@ class TestMastersLoginCommand(unittest.TestCase):
 
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("playwright", result.output.lower())
+
+
+class TestMastersLogoutCommand(unittest.TestCase):
+    """CLI wiring for `masters logout` (issue #635 risk: revocation)."""
+
+    def setUp(self):
+        self.runner = CliRunner()
+        import tempfile
+
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmpdir.cleanup)
+        self.profile_dir = Path(self._tmpdir.name) / "chrome-profile"
+
+    def test_logout_registered(self):
+        result = self.runner.invoke(cli, ["masters", "logout", "--help"])
+        self.assertEqual(result.exit_code, 0)
+
+    def test_logout_deletes_existing_profile(self):
+        self.profile_dir.mkdir(parents=True)
+        (self.profile_dir / "Cookies").write_text("fake")
+
+        result = self.runner.invoke(
+            cli, ["masters", "logout", "--profile-dir", str(self.profile_dir)]
+        )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertFalse(self.profile_dir.exists())
+
+    def test_logout_is_a_noop_warning_when_no_profile_exists(self):
+        result = self.runner.invoke(
+            cli, ["masters", "logout", "--profile-dir", str(self.profile_dir)]
+        )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertFalse(self.profile_dir.exists())
+
+    def test_logout_uses_default_persistent_profile_dir_when_unset(self):
+        with patch(
+            "direct_cli.browser.session.DEFAULT_PERSISTENT_PROFILE_DIR",
+            self.profile_dir,
+        ):
+            self.profile_dir.mkdir(parents=True)
+            result = self.runner.invoke(cli, ["masters", "logout"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertFalse(self.profile_dir.exists())
 
 
 class TestCaptchaDetection(unittest.TestCase):

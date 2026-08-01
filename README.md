@@ -77,7 +77,9 @@ macOS/Linux/Windows; the cost is a one-time manual login instead of a
 transparent cookie copy. When this profile exists, `direct masters` prefers
 it automatically over the saved `playwright login` session. It's interactive
 (blocks for up to `--timeout` seconds, default 300, waiting for you to sign
-in), so it can't run unattended.
+in), so it can't run unattended. Run `direct masters logout` to delete the
+profile and revoke the on-disk session (a no-op warning, not an error, if
+none exists).
 
 ### Configuration
 
@@ -1119,7 +1121,9 @@ Keychain. Если что-то в цепочке сломано (playwright не
 прозрачного копирования кук. Если этот профиль существует, `direct masters`
 автоматически предпочитает его сохранённой сессии `playwright login`.
 Команда интерактивная (ждёт до `--timeout` секунд, по умолчанию 300, пока вы
-не войдёте), поэтому не может выполняться без присмотра.
+не войдёте), поэтому не может выполняться без присмотра. Выполните `direct
+masters logout`, чтобы удалить профиль и отозвать сессию на диске (если
+профиля нет — предупреждение, а не ошибка).
 
 ### Настройка
 

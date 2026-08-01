@@ -59,7 +59,7 @@ from typing import Optional
 import click
 from click.core import ParameterSource
 
-from ..output import format_output, handle_api_errors, print_info
+from ..output import format_output, handle_api_errors, print_info, print_warning
 from ..utils import parse_ids
 
 _BROWSER_INSTALL_HINT = (
@@ -328,6 +328,35 @@ def login(profile_dir, timeout_seconds):
     print_info(
         "Login confirmed. `direct masters` commands will now reuse this session."
     )
+
+
+@masters.command()
+@click.option(
+    "--profile-dir",
+    help="Directory for the CLI's own persistent Chrome profile "
+    "(default: ~/.direct-cli/chrome-profile/)",
+)
+def logout(profile_dir):
+    """Delete the persistent Chrome profile created by `masters login`
+
+    The only way to revoke the on-disk Yandex session `masters login`
+    creates (issue #635) short of a manual `rm -rf`. A no-op (with a
+    warning, not an error) if no profile exists.
+    """
+    from ..browser.session import DEFAULT_PERSISTENT_PROFILE_DIR
+
+    resolved_profile_dir = (
+        Path(profile_dir) if profile_dir else DEFAULT_PERSISTENT_PROFILE_DIR
+    )
+
+    if not resolved_profile_dir.exists():
+        print_warning(f"No persistent browser profile found at {resolved_profile_dir}")
+        return
+
+    import shutil
+
+    shutil.rmtree(resolved_profile_dir)
+    print_info(f"Deleted persistent browser profile at {resolved_profile_dir}")
 
 
 _STATUS_CHOICES = ("not-archived", "active", "stopped", "archived", "all")

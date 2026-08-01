@@ -225,8 +225,15 @@ def _launch_persistent_context(
     ``launch_persistent_context`` both launches the browser *and* returns the
     context in one call — there is no separate ``Browser`` object to close,
     Playwright owns that lifecycle internally for persistent contexts.
+
+    The profile directory holds a live Yandex session (cookies readable in
+    plaintext by the owning process) — chmod 0700 on every launch, the same
+    treatment ``direct_cli/browser/store.py`` and ``direct_cli/auth.py`` give
+    their own on-disk session files (issue #635 risk: "Хранение живой сессии
+    Яндекса на диске").
     """
     profile_dir.mkdir(parents=True, exist_ok=True)
+    os.chmod(profile_dir, 0o700)
     with sync_playwright() as playwright:
         context = playwright.chromium.launch_persistent_context(
             str(profile_dir), headless=headless, locale="ru-RU"

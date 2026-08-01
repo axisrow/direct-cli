@@ -22,6 +22,13 @@
   `DANGEROUS` in `direct_cli/smoke_matrix.py` and documented as
   manual-only in `scripts/test_dangerous_commands.sh` — it cannot run in
   any automated smoke tier.
+- The profile directory is chmod'd `0700` (it holds a live Yandex session in
+  plaintext-readable cookies).
+- New `direct masters logout` deletes the profile — the only way to revoke
+  the on-disk session short of a manual `rm -rf`. A no-op with a warning
+  (not an error) if no profile exists. Also classified `DANGEROUS`
+  (local credential-store mutation, same category as `auth login`/`auth
+  use`).
 
 **Added — `direct masters suspend` / `direct masters resume` (#630):**
 
