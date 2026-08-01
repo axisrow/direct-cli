@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+**Added — `direct masters add --region-id` (#652):**
+
+- New `--region-id` option resolves a numeric `RegionId` to Yandex's
+  canonical `GeoRegionName` via the `GeoRegions` dictionary
+  (`dictionaries.getGeoRegions`), instead of requiring the user to guess the
+  exact wording the "Регион показов" widget accepts. Repeat for multiple
+  regions, same as `--region`. Combines with `--region` — resolved names are
+  appended to any `--region` values given.
+- At least one of `--region`/`--region-id` is now required (previously only
+  `--region`, always required); an unknown `RegionId` raises a `UsageError`
+  pointing at `direct dictionaries get-geo-regions`.
+- Unlike the rest of `direct masters` (which needs no Yandex Direct API
+  credentials — see module docstring), resolving `--region-id` does need
+  valid API credentials, since it makes one `dictionaries.getGeoRegions`
+  call before opening the browser session.
+- Not a breaking change: `--region`'s existing text-based behavior is
+  unchanged.
+
 **Fixed — `direct masters add`: URL field selector (#650):**
 
 - Yandex replaced step 1's plain `<input placeholder="...">` with a Combobox

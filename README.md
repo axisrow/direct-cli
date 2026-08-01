@@ -40,6 +40,7 @@ direct masters archive 72349978
 direct masters update 72349978 --weekly-budget 95000
 direct masters update 72349978 --promotion-goal max-clicks --no-directs-helps
 direct masters add https://example.com/ --headline "Заголовок 1" --headline "Заголовок 2" --text "Текст объявления" --region Москва --weekly-budget 50000 --draft
+direct masters add https://example.com/ --headline "Заголовок 1" --text "Текст объявления" --region-id 213 --weekly-budget 50000 --draft
 ```
 
 `masters list` filters by status with `--status`
@@ -87,11 +88,19 @@ suspend/resume above.
 same create wizard a human uses. **It is NOT idempotent** — running it twice
 with the same arguments creates a *second* campaign, not an update to the
 first, since Мастер кампаний has no API-level duplicate detection the way
-`campaigns add` does. `--headline`/`--text`/`--region` are required (repeat
-the flag for multiple values): even though Yandex's own wizard can
-auto-generate headlines/texts by scanning the landing page, `add` refuses to
-silently publish AI-written ad copy you never reviewed — pass the text you
-actually want published. By default the campaign launches immediately; pass
+`campaigns add` does. `--headline`/`--text` are required (repeat the flag
+for multiple values): even though Yandex's own wizard can auto-generate
+headlines/texts by scanning the landing page, `add` refuses to silently
+publish AI-written ad copy you never reviewed — pass the text you actually
+want published. At least one of `--region`/`--region-id` is required
+(repeat for multiple regions, and they combine): `--region` takes Yandex's
+exact region wording as free text, while `--region-id` (issue #652) takes a
+numeric `RegionId` and resolves it to the canonical name via the
+`GeoRegions` dictionary (`direct dictionaries get-geo-regions`) — use
+`--region-id` to avoid guessing the widget's exact text. Unlike the rest of
+`masters`, resolving `--region-id` requires valid Yandex Direct API
+credentials (same chain as any other command). By default the campaign
+launches immediately; pass
 `--draft` to save it as a draft instead (Сохранить как черновик) without
 going live. There is **no `--sandbox`** for this command either — verify with
 `--draft` first and check the result in the web UI before launching for real.
@@ -1121,6 +1130,7 @@ direct masters archive 72349978
 direct masters update 72349978 --weekly-budget 95000
 direct masters update 72349978 --promotion-goal max-clicks --no-directs-helps
 direct masters add https://example.com/ --headline "Заголовок 1" --headline "Заголовок 2" --text "Текст объявления" --region Москва --weekly-budget 50000 --draft
+direct masters add https://example.com/ --headline "Заголовок 1" --text "Текст объявления" --region-id 213 --weekly-budget 50000 --draft
 ```
 
 `masters list` фильтрует по статусу через `--status`
@@ -1172,12 +1182,21 @@ suspend/resume выше.
 wizard создания, что и человек в браузере. **Команда НЕ идемпотентна** —
 повторный запуск с теми же аргументами создаст ВТОРУЮ кампанию, а не обновит
 первую: у Мастера кампаний нет API-уровня для дедупликации, в отличие от
-`campaigns add`. `--headline`/`--text`/`--region` обязательны (повторяйте
-флаг для нескольких значений): хотя wizard Яндекса умеет сам сгенерировать
+`campaigns add`. `--headline`/`--text` обязательны (повторяйте флаг для
+нескольких значений): хотя wizard Яндекса умеет сам сгенерировать
 заголовки/тексты, сканируя посадочную страницу, `add` не станет молча
 публиковать AI-сгенерированный текст, который вы не проверили — передавайте
-явно тот текст, который хотите опубликовать. По умолчанию кампания
-запускается сразу; передайте `--draft`, чтобы сохранить её как черновик
+явно тот текст, который хотите опубликовать. Нужен хотя бы один из
+`--region`/`--region-id` (повторяйте для нескольких регионов, значения
+объединяются): `--region` принимает точную формулировку Яндекса как
+свободный текст, а `--region-id` (issue #652) — числовой `RegionId`,
+который резолвится в каноническое имя через словарь `GeoRegions` (`direct
+dictionaries get-geo-regions`) — используйте `--region-id`, чтобы не
+угадывать точный текст виджета. В отличие от остальных команд `masters`,
+резолвинг `--region-id` требует действительных учётных данных Yandex Direct
+API (та же цепочка приоритетов, что и у любой другой команды). По умолчанию
+кампания запускается сразу; передайте `--draft`, чтобы сохранить её как
+черновик
 («Сохранить как черновик») без запуска. У этой команды тоже **нет
 `--sandbox`** — сначала проверьте с `--draft` и посмотрите результат в
 веб-интерфейсе, прежде чем запускать по-настоящему.

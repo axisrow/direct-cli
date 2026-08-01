@@ -21,7 +21,7 @@ additions below for how that replay is faked.
 import json
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import click
 import pytest
@@ -3391,6 +3391,172 @@ class TestMastersAddCommand(unittest.TestCase):
         self.assertEqual(result.exit_code, 0, result.output)
         _, kwargs = mock_create.call_args
         self.assertEqual(kwargs["weekly_budget"], 50000)
+
+    def test_region_or_region_id_is_required(self):
+        result = self.runner.invoke(
+            cli,
+            [
+                "masters",
+                "add",
+                "https://ksamata.ru/",
+                "--headline",
+                "h",
+                "--text",
+                "t",
+            ],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("--region/--region-id", result.output)
+
+    def test_region_id_resolves_via_geo_regions_dictionary(self):
+        service = Mock()
+        service.post.return_value = Mock(
+            data={
+                "result": {
+                    "GeoRegions": [{"GeoRegionId": 213, "GeoRegionName": "Москва"}]
+                }
+            }
+        )
+        client = Mock()
+        client.dictionaries.return_value = service
+
+        with (
+            patch("direct_cli.browser.masters.create_master") as mock_create,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+            patch("direct_cli.commands.masters.create_client", return_value=client),
+        ):
+            mock_create.return_value = {"Launched": True}
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            result = self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "add",
+                    "https://ksamata.ru/",
+                    "--headline",
+                    "h",
+                    "--text",
+                    "t",
+                    "--region-id",
+                    "213",
+                ],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        service.post.assert_called_once()
+        body = service.post.call_args.kwargs["data"]
+        self.assertEqual(body["method"], "getGeoRegions")
+        self.assertEqual(body["params"]["SelectionCriteria"]["RegionIds"], [213])
+        _, kwargs = mock_create.call_args
+        self.assertEqual(kwargs["regions"], ["Москва"])
+
+    def test_region_and_region_id_combine(self):
+        service = Mock()
+        service.post.return_value = Mock(
+            data={
+                "result": {
+                    "GeoRegions": [
+                        {"GeoRegionId": 2, "GeoRegionName": "Санкт-Петербург"}
+                    ]
+                }
+            }
+        )
+        client = Mock()
+        client.dictionaries.return_value = service
+
+        with (
+            patch("direct_cli.browser.masters.create_master") as mock_create,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+            patch("direct_cli.commands.masters.create_client", return_value=client),
+        ):
+            mock_create.return_value = {"Launched": True}
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            result = self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "add",
+                    "https://ksamata.ru/",
+                    "--headline",
+                    "h",
+                    "--text",
+                    "t",
+                    "--region",
+                    "Москва",
+                    "--region-id",
+                    "2",
+                ],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        _, kwargs = mock_create.call_args
+        self.assertEqual(kwargs["regions"], ["Москва", "Санкт-Петербург"])
+
+    def test_unknown_region_id_raises_usage_error(self):
+        service = Mock()
+        service.post.return_value = Mock(data={"result": {"GeoRegions": []}})
+        client = Mock()
+        client.dictionaries.return_value = service
+
+        with (
+            patch("direct_cli.browser.masters.create_master") as mock_create,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+            patch("direct_cli.commands.masters.create_client", return_value=client),
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            result = self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "add",
+                    "https://ksamata.ru/",
+                    "--headline",
+                    "h",
+                    "--text",
+                    "t",
+                    "--region-id",
+                    "999999",
+                ],
+            )
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("Unknown --region-id value(s): 999999", result.output)
+        mock_create.assert_not_called()
+
+
+class TestResolveRegionIds(unittest.TestCase):
+    """Unit tests for `_resolve_region_ids` (issue #652)."""
+
+    def test_empty_region_ids_skips_api_call(self):
+        from direct_cli.commands.masters import _resolve_region_ids
+
+        with patch("direct_cli.commands.masters.create_client") as mock_create_client:
+            result = _resolve_region_ids(Mock(), ())
+
+        self.assertEqual(result, [])
+        mock_create_client.assert_not_called()
+
+    def test_resolves_multiple_ids_preserving_order(self):
+        from direct_cli.commands.masters import _resolve_region_ids
+
+        service = Mock()
+        service.post.return_value = Mock(
+            data={
+                "result": {
+                    "GeoRegions": [
+                        {"GeoRegionId": 2, "GeoRegionName": "Санкт-Петербург"},
+                        {"GeoRegionId": 213, "GeoRegionName": "Москва"},
+                    ]
+                }
+            }
+        )
+        client = Mock()
+        client.dictionaries.return_value = service
+
+        with patch("direct_cli.commands.masters.create_client", return_value=client):
+            result = _resolve_region_ids(Mock(), (213, 2))
+
+        self.assertEqual(result, ["Москва", "Санкт-Петербург"])
 
 
 if __name__ == "__main__":
