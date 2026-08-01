@@ -1,0 +1,118 @@
+<!--
+Fixture: text-content snapshot of the Yandex Direct "Мастер кампаний" (Campaign Wizard)
+overview + settings pages, captured 2026-07-31 via Chrome DevTools / claude-in-chrome
+against a live account (PII scrubbed: account name, phone, email, campaign IDs kept
+as they are already visible in the product UI and carry no secret value).
+
+Source URLs:
+  https://direct.yandex.ru/wizard/campaigns/{id}/?ulogin={login}          (Обзор — overview/stats)
+  https://direct.yandex.ru/wizard/campaigns/{id}/edit/?ulogin={login}     (Настройки — settings)
+
+Key finding: this page is server-side rendered. There is NO dedicated JSON/XHR endpoint
+carrying the Мастер кампаний (Campaign Wizard) data — network capture during page load
+showed only tracking beacons (mc.yandex.ru, yandex.ru/clck/click) and one unrelated
+`web-api/grid/api?operationName=RecommendationsList` call (recommendations widget, not
+wizard campaign data). This contradicts the original plan assumption that campaign data
+would arrive via a `web-api/grid/api` JSON response to intercept.
+
+=> Primary extraction path must be reading rendered DOM/text content of the wizard page,
+   not response interception. Use get_page_text-equivalent (innerText extraction) plus a
+   read_page/accessibility-tree pass for structured fields (labelled inputs on the
+   settings page). This fixture captures both pages' text content as the ground truth
+   for the normalizer instead of a JSON payload.
+
+Structural confirmation via accessibility-tree read (read_page, filter=all, depth=6) on the
+overview page — this is what the parser actually keys off, not raw innerText position:
+  - `heading` node holds the campaign title exactly (no surrounding noise).
+  - meta line is a plain `generic` text node: "・Создана {DD.MM.YYYY}" plus a sibling link
+    whose text is "№{campaign_id}".
+  - status is a standalone `generic` text node ("Кампания остановлена" / "Кампания активна").
+  - domain is a `link` node (href = the landing URL with UTM placeholders already resolved
+    at the top of the query string, before the `?utm_source=...` template starts).
+  - stat tiles are `button` nodes, each containing two `generic` children: numeric value
+    first, then the label (Показы/Клики/Конверсии/За конверсию/Расход) — order is fixed and
+    matches the metrics named above.
+  - each detail table (`Регионы`, `Тип устройства`, autotargeting, "Тематические слова") is a
+    `table` node whose first N children are the column header labels (as plain `generic`
+    text), followed by a flat, ungrouped sequence of `generic` cell values — i.e. the
+    accessibility tree does NOT expose row boundaries; the parser must chunk the flat cell
+    list by the known column count for that table to reconstruct rows.
+  - "Элементы объявления" sub-tables (Заголовок/Текст объявления/Изображение/Видео) follow the
+    same flat table shape: header pair ("Заголовок"/"Эффективность" etc.) then repeating
+    (asset value, effectiveness-button) pairs — the effectiveness indicator itself has no
+    accessible text/label, so it can only be surfaced as "present, unlabelled" in v1, not as
+    an enum value.
+
+Overview page (Обзор) text content — key fields:
+  - Title (H1): campaign name, e.g. "Мастер ИД Исцеляющий Детокс (холодный) здоровье женщин JS 16.06"
+  - Status badge: "Кампания остановлена" / "Кампания активна" (+ "Возобновить кампанию" button when stopped)
+  - Meta line: "№{campaign_id} · Создана {DD.MM.YYYY} · {domain}"
+  - Date range picker: "{D month} — {D month}" (default last ~14-30 days)
+  - Stat tiles (order fixed): Показы, Клики(и), Конверсии, Ср. цена за конверсию, Расход
+  - Daily chart (canvas, no accessible data — would need to reconstruct from tile totals only)
+  - "Элементы объявления" section: tabs Заголовок / Текст объявления / Изображение / Видео,
+    each row = asset text/filename + "Эффективность" indicator (icon-only, not text-labelled
+    in innerText — needs accessibility-tree read for the actual effectiveness enum)
+  - "Пол и возраст" breakdown (donut + table: Мужчины/Женщины/Пол неизвестен %, age buckets)
+  - "Регионы" table: Регион, Показы, Клики, Конверсии, Ср. цена конверсии, Расход (many rows)
+  - "Тип устройства" breakdown: Смартфоны/Десктопы/Планшеты % + table
+  - "Как вас находят" — autotargeting categories table (Целевые запросы, Альтернативные
+    запросы, Сопутствующие запросы, Без категории) + "Тематические слова" phrase table
+    (truncated client-side: "Показать ещё N из M")
+
+Settings page (Настройки) text content — key fields:
+  - "Ссылка на продвигаемую страницу" — landing URL with UTM template placeholders
+  - "Резервная посадочная страница" (optional, may be empty/"Добавить")
+  - "Варианты заголовков" — list of headline strings, each with a numeric weight/count badge
+  - "Варианты текстов объявлений" — list of body text strings with weight badges
+  - "Изображения" / "Варианты видео" — asset galleries (max 5 images / 2 videos per UI copy)
+  - "Быстрые ссылки" — sitelink title + URL pairs (UTM-templated), "Добавить ещё быструю ссылку"
+  - "Расписание показов" — e.g. "Каждый день, круглосуточно"
+  - "Аудитория" section:
+      - Пол и возраст: "Любой пол" / explicit, age range "от N до N/55+"
+      - "Интересы и поисковые запросы" — flat list of keyword/interest strings (order as
+        entered, no structure beyond a flat tag list) + a running count (e.g. "93")
+      - "Рекомендуем добавить" — suggested interests (site-derived, e.g. domain names)
+  - "Устройства пользователей" — "Любые" / restricted
+  - "Цель продвижения" — e.g. "Максимум целевых действий"
+  - "Цена целевого действия" — e.g. "Средняя за неделю"
+  - "Счетчики Яндекс Метрики" — counter domain + numeric counter ID + goal count
+    (e.g. "gc.ksamata.ru • 72112213", "30 целей")
+  - "Целевые действия" table — Цель / Средняя цена за достижение цели (per-goal CPA target)
+  - "Недельный бюджет" — numeric field (currency)
+  - "Адаптация бюджета" — "Процент увеличения бюджета" / "Не увеличивать бюджет"
+  - "Директ помогает" — "Автоматически применять рекомендации" toggle
+
+Campaign type tag observed in tracking beacon query string: campaignType=UNIVERSAL
+(this is the Мастер кампаний internal type tag — NOT UNIFIED_CAMPAIGN, which is an
+unrelated v5 API campaign type already supported by direct_cli/commands/_campaigns_unified.py).
+
+Grid detection signal (list page, /dna/grid/campaigns/): a Мастер кампаний row visibly has
+THREE action links — "Перейти", "Редактировать", "Статистика" — versus TWO ("Редактировать",
+"Статистика") for every other campaign type.
+
+Confirmed via accessibility-tree read (read_page, filter=interactive) on a live row:
+
+  Мастер кампаний row (campaign 72349978):
+    link "Мастер ИД Исцеляющий Детокс ..." href="/wizard/campaigns/72349978/?ulogin=ksamatadirect"
+    link "Перейти"       href="/wizard/campaigns/72349978/?ulogin=ksamatadirect"
+    link "Редактировать" href="/wizard/campaigns/72349978/edit/?ulogin=ksamatadirect"
+    link "Статистика"    href="/dna/reports/library/performance-campaigns?...&campaignIds=72349978&campaignTypes=CAMPAIGN_TYPE_UC_TEXT&..."
+
+  Regular (non-master) campaign row (campaign 70100795), for contrast:
+    link "Конкуренты ИЖ Холодный -50% 20.07" href="/dna/grid/groups?ulogin=ksamatadirect&campaigns-ids=70100795"
+    link "Редактировать" href="/dna/campaigns-edit?ulogin=ksamatadirect&campaigns-ids=70100795"
+    link "Статистика"    href="/dna/reports/library/performance-campaigns?...&campaignIds=70100795&campaignTypes=CAMPAIGN_TYPE_UNIFIED&..."
+    (only two action links; no "Перейти")
+
+Best detection rule — do NOT count links (fragile to future UI additions). Instead check
+either of these two equivalent signals on a grid row:
+  (a) the campaign name link's href matches `/wizard/campaigns/{id}/` (path-based, most direct), or
+  (b) the "Статистика" link's href query string contains `campaignTypes=CAMPAIGN_TYPE_UC_TEXT`
+      (this is the Мастер кампаний internal type tag in the reports service — distinct from
+      `CAMPAIGN_TYPE_UNIFIED` used by every regular campaign type, including UNIFIED_CAMPAIGN
+      from the v5 API).
+Signal (a) is preferred and is what the parser implements: a direct structural match with no
+dependency on query-string parameter order or the reports service's naming, and no need to
+parse "Статистика"'s href away from surrounding UI text/label (locale-dependent).
+-->

@@ -14,6 +14,27 @@ Command-line interface for the Yandex Direct API.
 pip install direct-cli
 ```
 
+### Мастер кампаний (Campaign Wizard) — browser-only
+
+Мастер кампаний has **no Yandex Direct API surface at all** — it only exists
+in the web interface, and must not be confused with `UNIFIED_CAMPAIGN` (an
+unrelated v5 API campaign type already supported by `campaigns add/get --type
+unified_campaign`). `direct masters list` / `direct masters get <ids>` read it
+by driving a real Chrome session via Playwright on a throwaway copy of your
+own Chrome cookies — no separate login. Requires the optional `browser`
+extra:
+
+```bash
+pip install "direct-cli[browser]"
+playwright install chromium
+direct masters list
+direct masters get 72349978
+```
+
+Read-only for now (`list`/`get`); since this data has no API contract, the
+parser degrades per-section (a warning, not a hard failure) if Yandex changes
+the page markup, rather than failing the whole command.
+
 ### Configuration
 
 Create a `.env` file in your working directory:
@@ -988,6 +1009,27 @@ MIT
 ```bash
 pip install direct-cli
 ```
+
+### Мастер кампаний — только через браузер
+
+У «Мастера кампаний» **нет никакого API** — он существует только в
+веб-интерфейсе, и его нельзя путать с `UNIFIED_CAMPAIGN` (это отдельный тип
+кампании в v5 API, уже поддержанный через `campaigns add/get --type
+unified_campaign`). Команды `direct masters list` / `direct masters get
+<id>` читают его, запуская настоящую сессию Chrome через Playwright на
+временной копии ваших куки Chrome — отдельный вход не нужен. Требует
+опциональный extra `browser`:
+
+```bash
+pip install "direct-cli[browser]"
+playwright install chromium
+direct masters list
+direct masters get 72349978
+```
+
+Пока только чтение (`list`/`get`); поскольку у этих данных нет API-контракта,
+парсер деградирует посекционно (предупреждение, а не жёсткий отказ), если
+Яндекс изменит вёрстку страницы.
 
 ### Настройка
 

@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+**New — `direct masters` (#628):**
+
+- Added `direct masters list` / `direct masters get <ids>` — read-only access
+  to Мастер кампаний (Campaign Wizard), which has **no Yandex Direct API
+  surface at all** (do not confuse with `UNIFIED_CAMPAIGN`, an unrelated v5
+  API campaign type already supported by `campaigns add/get --type
+  unified_campaign`). These commands drive a real Chrome session via
+  Playwright, reusing a throwaway copy of the user's own Chrome cookies —
+  no separate login flow. Requires the optional `browser` extra:
+  `pip install "direct-cli[browser]" && playwright install chromium`.
+  `direct masters` degrades gracefully (per-section warnings, not a hard
+  failure) when Yandex's page markup changes, since this data has no API
+  contract to rely on. See `direct_cli/browser/` for the scraping layer.
+
 **Internal — campaigns.py split, step 1 — CPM_BANNER (#613, part of #602):**
 
 - Extracted the `CPM_BANNER_CAMPAIGN` `add`/`update` subtype-block composition

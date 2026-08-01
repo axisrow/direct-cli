@@ -62,6 +62,7 @@ from .commands.v4tags import v4tags
 from .commands.v4wordstat import v4wordstat
 from .commands.v4keywords import v4keywords
 from .commands.v4adimage import v4adimage
+from .commands.masters import masters
 
 # Load .env file
 load_env_file()
@@ -472,6 +473,7 @@ for command in (
     v4forecast,
     v4meta,
     auth,
+    masters,
 ):
     _register_command(command)
 

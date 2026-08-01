@@ -50,6 +50,8 @@ SMOKE_MATRIX = {
         "keywordsresearch.deduplicate",
         "keywordsresearch.has-search-volume",
         "leads.get",
+        "masters.get",
+        "masters.list",
         "negativekeywordsharedsets.get",
         "reports.get",
         "reports.list-types",
