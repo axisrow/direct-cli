@@ -39,6 +39,7 @@ direct masters resume 72349978
 direct masters archive 72349978
 direct masters update 72349978 --weekly-budget 95000
 direct masters update 72349978 --promotion-goal max-clicks --no-directs-helps
+direct masters add https://example.com/ --headline "Заголовок 1" --headline "Заголовок 2" --text "Текст объявления" --region Москва --weekly-budget 50000 --draft
 ```
 
 `masters list` filters by status with `--status`
@@ -81,6 +82,19 @@ the campaigns grid before reporting success. It is idempotent
 (already-archived is a no-op warning) but **irreversible from this CLI** —
 there is no `masters unarchive`. Same no-`--sandbox` caveat as
 suspend/resume above.
+
+`add` creates a brand-new "Конверсии и трафик" Мастер кампаний by driving the
+same create wizard a human uses. **It is NOT idempotent** — running it twice
+with the same arguments creates a *second* campaign, not an update to the
+first, since Мастер кампаний has no API-level duplicate detection the way
+`campaigns add` does. `--headline`/`--text`/`--region` are required (repeat
+the flag for multiple values): even though Yandex's own wizard can
+auto-generate headlines/texts by scanning the landing page, `add` refuses to
+silently publish AI-written ad copy you never reviewed — pass the text you
+actually want published. By default the campaign launches immediately; pass
+`--draft` to save it as a draft instead (Сохранить как черновик) without
+going live. There is **no `--sandbox`** for this command either — verify with
+`--draft` first and check the result in the web UI before launching for real.
 
 **Browser session (optional but recommended):** `direct masters` decrypts
 your Chrome cookies fresh on every call by default, which means a Keychain
@@ -1106,6 +1120,7 @@ direct masters resume 72349978
 direct masters archive 72349978
 direct masters update 72349978 --weekly-budget 95000
 direct masters update 72349978 --promotion-goal max-clicks --no-directs-helps
+direct masters add https://example.com/ --headline "Заголовок 1" --headline "Заголовок 2" --text "Текст объявления" --region Москва --weekly-budget 50000 --draft
 ```
 
 `masters list` фильтрует по статусу через `--status`
@@ -1152,6 +1167,20 @@ Chrome и войдите в аккаунт. Если используете не
 — предупреждение, а не ошибка), но **необратима из этого CLI** — команды
 `masters unarchive` нет. Тот же отказ от `--sandbox`, что и у
 suspend/resume выше.
+
+`add` создаёт новый Мастер кампаний типа «Конверсии и трафик», проходя тот же
+wizard создания, что и человек в браузере. **Команда НЕ идемпотентна** —
+повторный запуск с теми же аргументами создаст ВТОРУЮ кампанию, а не обновит
+первую: у Мастера кампаний нет API-уровня для дедупликации, в отличие от
+`campaigns add`. `--headline`/`--text`/`--region` обязательны (повторяйте
+флаг для нескольких значений): хотя wizard Яндекса умеет сам сгенерировать
+заголовки/тексты, сканируя посадочную страницу, `add` не станет молча
+публиковать AI-сгенерированный текст, который вы не проверили — передавайте
+явно тот текст, который хотите опубликовать. По умолчанию кампания
+запускается сразу; передайте `--draft`, чтобы сохранить её как черновик
+(«Сохранить как черновик») без запуска. У этой команды тоже **нет
+`--sandbox`** — сначала проверьте с `--draft` и посмотрите результат в
+веб-интерфейсе, прежде чем запускать по-настоящему.
 
 **Браузерная сессия (опционально, но рекомендуется):** по умолчанию `direct
 masters` расшифровывает куки Chrome заново при каждом вызове — на macOS это

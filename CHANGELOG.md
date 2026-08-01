@@ -59,6 +59,53 @@
   `direct_cli/smoke_matrix.py` and documented as manual-only in
   `scripts/test_dangerous_commands.sh`.
 
+**Added — `direct masters add` (#632):**
+
+- New command that creates a brand-new "Конверсии и трафик" Мастер кампаний
+  by driving the same multi-field create wizard a human uses in the browser
+  (`https://direct.yandex.ru/wizard/campaigns/new/`) — Мастер кампаний has no
+  API surface at all, same as `list`/`get`/`suspend`/`resume`.
+- Live recon (issue #632 step 0, see
+  `tests/fixtures/masters_wizard_create.html`) found the create flow is NOT
+  the multi-page "Далее" wizard the issue originally assumed: it is one
+  micro-step (a landing-page URL field with client-side format validation)
+  followed by a single long form, terminating in two buttons — "Запустить
+  кампанию" (launch) and "Сохранить как черновик" (save as draft) — instead
+  of `masters update`'s one "Сохранить кампанию".
+- `--headline`/`--text`/`--region` are required (repeat the flag for
+  multiple values) even though Yandex's own wizard can auto-generate
+  headlines/texts by scanning the landing page — `add` refuses to silently
+  publish AI-written ad copy the caller never reviewed, given there is no
+  sandbox or rollback for Мастер кампаний mutations.
+- `--weekly-budget` is optional. `--draft`/`--launch` (default `--launch`)
+  selects which terminal button is clicked.
+- **NOT idempotent**: running this twice with the same arguments creates a
+  *second* campaign, not an update to the first — documented prominently in
+  the command's own `--help` and in the README, per the issue's explicit
+  "Риски" requirement.
+- Classified `DANGEROUS` in `direct_cli/smoke_matrix.py` and documented as
+  manual-only (verify with `--draft` first) in
+  `scripts/test_dangerous_commands.sh` — no `--sandbox` equivalent exists for
+  Мастер кампаний.
+- After clicking the terminal button, re-reads the headline/text/budget
+  fields to confirm the form actually reflects what was requested
+  (`_verify_created`) rather than trusting the click alone — ported from
+  `masters update`'s `_verify_saved` pattern (issue #631 review finding).
+  Dropdown/option clicks (`_fill_landing_url`'s "Далее", `_set_region`'s
+  suggestion, `_click_terminal_button`'s launch/draft button) use
+  `get_by_role(..., exact=True)`, not a substring `get_by_text` match — same
+  fix applied to `update_master`'s `_click_save`/`_set_promotion_goal`, to
+  avoid clicking an ancestor container whose text merely contains the
+  target label.
+- Not end-to-end live-verified: step 0 recon was deliberately read-only (no
+  campaign was created or saved during recon) — see the browser module's
+  docstring for what remains to be confirmed against a real account before
+  relying on this in production. In particular, `_verify_created` cannot
+  re-navigate and reload the way `_verify_saved` does (the post-click
+  destination URL is unconfirmed), so it only re-reads the current page
+  immediately after the click — a strictly weaker check pending a live
+  pass.
+
 **Added — `direct masters login` (#635):**
 
 - New interactive command that opens a visible browser window on a

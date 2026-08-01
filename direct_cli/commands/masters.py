@@ -10,7 +10,9 @@ Playwright) with the user's own Yandex cookies decrypted and injected — see
 ``direct_cli/browser/`` for the browser layer this group is a thin Click
 wrapper around.
 
-Read-only in this first version: ``list`` and ``get``. No mutations.
+Read-only: ``list`` and ``get``. Mutations: ``suspend``/``resume`` (issue
+#630) and ``add`` (issue #632, create — NOT idempotent, no sandbox/rollback,
+see ``add``'s own docstring).
 
 No ``--login``/agency support (issue #639): this group only ever reads the
 logged-in user's own account, so it needs no Yandex Direct credentials at
@@ -699,3 +701,94 @@ def archive(
             f"Failed to archive {len(errors)} of {len(ids)} campaign(s); "
             "see per-ID results above."
         )
+
+
+@masters.command()
+@click.argument("url")
+@click.option(
+    "--headline",
+    "headlines",
+    multiple=True,
+    required=True,
+    help="Ad headline variant (Варианты заголовков) — repeat for multiple",
+)
+@click.option(
+    "--text",
+    "texts",
+    multiple=True,
+    required=True,
+    help="Ad text variant (Варианты текстов объявлений) — repeat for multiple",
+)
+@click.option(
+    "--region",
+    "regions",
+    multiple=True,
+    required=True,
+    help="Display region (Регион показов) — repeat for multiple",
+)
+@click.option(
+    "--weekly-budget",
+    type=int,
+    help="Weekly budget in account currency (Недельный бюджет)",
+)
+@click.option(
+    "--draft/--launch",
+    "draft",
+    default=False,
+    help="Save as a draft (Сохранить как черновик) instead of launching "
+    "immediately (Запустить кампанию, the default)",
+)
+@_masters_browser_options
+@click.pass_context
+@handle_api_errors
+def add(
+    ctx,
+    url,
+    headlines,
+    texts,
+    regions,
+    weekly_budget,
+    draft,
+    headful,
+    profile_dir,
+    chrome_profile,
+    output_format,
+    output,
+):
+    """Create a new Мастер кампаний ("Конверсии и трафик" type)
+
+    NOT idempotent: running this twice with the same arguments creates a
+    SECOND campaign, not an update to the first — Мастер кампаний has no
+    API-level duplicate detection the way `campaigns add` does. There is no
+    sandbox and no rollback for Мастер кампаний mutations (issue #632) —
+    double check --region/--headline/--text before running this for real.
+
+    --headline/--text are required even though Yandex's own wizard can
+    auto-generate them by scanning the landing page: this command refuses
+    to silently publish AI-written ad copy you never reviewed. If you want
+    the AI-suggested text, open the wizard once in a browser, copy what it
+    proposes, and pass it back explicitly.
+
+    By default the campaign is launched immediately (--launch). Pass
+    --draft to save it as a draft instead (Сохранить как черновик) without
+    going live.
+    """
+    from ..browser.masters import create_master
+
+    result = _with_session(
+        ctx,
+        headful,
+        profile_dir,
+        chrome_profile,
+        lambda page: create_master(
+            page,
+            url,
+            headlines=list(headlines),
+            texts=list(texts),
+            regions=list(regions),
+            weekly_budget=weekly_budget,
+            launch=not draft,
+        ),
+    )
+
+    format_output(result, output_format, output)

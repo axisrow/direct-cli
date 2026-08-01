@@ -195,6 +195,13 @@ SMOKE_MATRIX = {
         # above -- there is no way to isolate a live form save from
         # production. Manual-only, per scripts/test_dangerous_commands.sh.
         "masters.update",
+        # Creates a brand-new Мастер кампаний (issue #632) — no API surface,
+        # no sandbox, and NOT idempotent (a second run creates a second
+        # campaign, not an update). Riskiest command in this whole group:
+        # an aborted/half-completed run can leave a live, partially
+        # configured campaign in the account with no automated rollback.
+        # Manual-only, per scripts/test_dangerous_commands.sh.
+        "masters.add",
         # Interactive, human-in-the-loop login (issue #635) -- opens a
         # visible browser window and blocks for up to --timeout seconds
         # waiting for a person to sign in by hand. Cannot run unattended in
