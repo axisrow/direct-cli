@@ -37,7 +37,7 @@ def _require_login(ctx: click.Context, login: Optional[str]) -> str:
     return resolved
 
 
-def _open_session(headful: bool, profile_dir: Optional[str]):
+def _open_session(headful: bool, profile_dir: Optional[str], chrome_profile: str):
     try:
         from ..browser.session import BrowserSessionError, open_chrome_session
     except ImportError as exc:
@@ -49,6 +49,7 @@ def _open_session(headful: bool, profile_dir: Optional[str]):
     try:
         return open_chrome_session(
             profile_dir=Path(profile_dir) if profile_dir else None,
+            chrome_profile=chrome_profile,
             headless=not headful,
         )
     except BrowserSessionError as exc:
@@ -63,16 +64,22 @@ def _masters_browser_options(func):
         @click.option("--login", help="...")
         @click.option("--headful", is_flag=True, help="...")
         @click.option("--profile-dir", help="...")
+        @click.option("--chrome-profile", default="Default", help="...")
         @click.option("--format", "output_format", default="json", help="...")
         @click.option("--output", help="...")
 
     Mirrors the shared-decorator convention in ``direct_cli.utils``
     (``v4_output_options`` / ``reference_output_options``) instead of
-    repeating this five-option stack on both ``list`` and ``get``.
+    repeating this six-option stack on both ``list`` and ``get``.
     """
     func = click.option("--output", help="Output file")(func)
     func = click.option(
         "--format", "output_format", default="json", help="Output format"
+    )(func)
+    func = click.option(
+        "--chrome-profile",
+        default="Default",
+        help="Chrome profile subdirectory to copy cookies from (e.g. 'Profile 1')",
     )(func)
     func = click.option(
         "--profile-dir", help="Chrome user-data-dir to copy cookies from"
@@ -94,14 +101,16 @@ def masters():
 @_masters_browser_options
 @click.pass_context
 @handle_api_errors
-def list_masters(ctx, login, headful, profile_dir, output_format, output):
+def list_masters(
+    ctx, login, headful, profile_dir, chrome_profile, output_format, output
+):
     """List every Мастер кампаний in the account"""
     from ..browser.masters import fetch_masters_list
     from ..browser.session import BrowserCaptchaError
 
     resolved_login = _require_login(ctx, login)
 
-    with _open_session(headful, profile_dir) as page:
+    with _open_session(headful, profile_dir, chrome_profile) as page:
         try:
             result = fetch_masters_list(page, resolved_login)
         except BrowserCaptchaError as exc:
@@ -115,7 +124,16 @@ def list_masters(ctx, login, headful, profile_dir, output_format, output):
 @_masters_browser_options
 @click.pass_context
 @handle_api_errors
-def get(ctx, campaign_ids, login, headful, profile_dir, output_format, output):
+def get(
+    ctx,
+    campaign_ids,
+    login,
+    headful,
+    profile_dir,
+    chrome_profile,
+    output_format,
+    output,
+):
     """Get one or more Мастер кампаний by ID (comma-separated)"""
     from ..browser.masters import fetch_master
     from ..browser.session import BrowserCaptchaError
@@ -124,7 +142,7 @@ def get(ctx, campaign_ids, login, headful, profile_dir, output_format, output):
     ids = parse_ids(campaign_ids) or []
 
     results = []
-    with _open_session(headful, profile_dir) as page:
+    with _open_session(headful, profile_dir, chrome_profile) as page:
         for campaign_id in ids:
             try:
                 results.append(fetch_master(page, campaign_id, resolved_login))

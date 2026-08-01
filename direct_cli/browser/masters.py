@@ -19,6 +19,7 @@ import re
 from typing import TYPE_CHECKING, Any, Dict, List
 
 from ..output import print_warning
+from .session import assert_not_captcha
 
 if TYPE_CHECKING:
     from playwright.sync_api import Page
@@ -54,6 +55,7 @@ def fetch_masters_list(page: "Page", login: str) -> List[Dict[str, Any]]:
     """
     url = f"{GRID_URL}?ulogin={login}&status-filter=ALL_EXCEPT_ARCHIVED"
     page.goto(url, wait_until="networkidle")
+    assert_not_captcha(page.content())
 
     rows = page.locator("a[href*='/wizard/campaigns/']")
     count = rows.count()
@@ -92,6 +94,7 @@ def fetch_master(page: "Page", campaign_id: int, login: str) -> Dict[str, Any]:
     """
     url = f"{WIZARD_OVERVIEW_URL.format(campaign_id=campaign_id)}?ulogin={login}"
     page.goto(url, wait_until="networkidle")
+    assert_not_captcha(page.content())
 
     result: Dict[str, Any] = {"CampaignId": campaign_id}
 

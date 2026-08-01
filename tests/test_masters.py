@@ -61,9 +61,10 @@ class _FakeLocator:
 class FakePage:
     """A Page whose ``locator(selector)`` result is pre-scripted per selector."""
 
-    def __init__(self, locators=None, body_text=""):
+    def __init__(self, locators=None, body_text="", html="<html></html>"):
         self._locators = locators or {}
         self._body_text = body_text
+        self._html = html
         self.navigated_to = []
 
     def goto(self, url, wait_until=None):
@@ -74,6 +75,9 @@ class FakePage:
 
     def inner_text(self, selector=None):
         return self._body_text
+
+    def content(self):
+        return self._html
 
 
 class TestMastersRegistered(unittest.TestCase):
@@ -91,6 +95,12 @@ class TestMastersRegistered(unittest.TestCase):
     def test_masters_list_help(self):
         result = self.runner.invoke(cli, ["masters", "list", "--help"])
         self.assertEqual(result.exit_code, 0)
+
+    def test_masters_list_help_documents_chrome_profile_flag(self):
+        # session.py's error message tells users with a non-Default Chrome
+        # profile to pass --chrome-profile — that flag must actually exist.
+        result = self.runner.invoke(cli, ["masters", "list", "--help"])
+        self.assertIn("--chrome-profile", result.output)
 
     def test_masters_get_help(self):
         result = self.runner.invoke(cli, ["masters", "get", "--help"])
@@ -282,6 +292,22 @@ class TestCaptchaDetection(unittest.TestCase):
 
         # Must not raise.
         assert_not_captcha("<html><body>Кампания остановлена</body></html>")
+
+    def test_fetch_masters_list_raises_on_captcha_page(self):
+        # A live SmartCaptcha gate is served as an ordinary 200 HTML page, so
+        # page.goto() itself never raises — fetch_masters_list must check the
+        # rendered content and surface BrowserCaptchaError explicitly, per
+        # issue #628 risk item 5 ("не молча падать" — never fail silently).
+        page = FakePage(locators={}, html="<title>Captcha</title>")
+
+        with self.assertRaises(BrowserCaptchaError):
+            browser_masters.fetch_masters_list(page, "acc")
+
+    def test_fetch_master_raises_on_captcha_page(self):
+        page = FakePage(locators={}, html="<script>smartCaptcha.render()</script>")
+
+        with self.assertRaises(BrowserCaptchaError):
+            browser_masters.fetch_master(page, 1, "acc")
 
 
 class TestBrowserSessionErrors(unittest.TestCase):
