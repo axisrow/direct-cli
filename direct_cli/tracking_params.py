@@ -14,7 +14,7 @@ see CLAUDE.md "No URL literals outside the registry".
 """
 
 # Yandex help page for tracking parameters — single literal (url-tags registry point).
-TRACKING_PARAMS_DOCS_URL = "https://yandex.ru/support/direct/statistics/url-tags.html"
+TRACKING_PARAMS_DOCS_URL = "https://yandex.ru/support/direct/ru/statistics/url-tags"
 
 # Each entry: placeholder name, human description, possible values.
 TRACKING_PARAMS = [
