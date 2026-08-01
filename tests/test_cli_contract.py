@@ -40,6 +40,11 @@ MUTATING_COMMANDS = {
 DRY_RUN_EXCEPTIONS = {
     # This command rejects locally because the API has no delete operation.
     "agencyclients.delete",
+    # Мастер кампаний (issue #630) has no API surface at all -- these click a
+    # button in a real browser session against production, there is no
+    # request payload to preview. See direct_cli/browser/masters.py.
+    "masters.resume",
+    "masters.suspend",
 }
 
 FORBIDDEN_HELP_TEXT = (

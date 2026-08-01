@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+**Added — `direct masters suspend` / `direct masters resume` (#630):**
+
+- First mutating `masters` commands — stop/resume a Мастер кампаний by
+  clicking its overview page's action button, then re-reading the status to
+  confirm the change actually took effect (the click alone is never treated
+  as success). Both are idempotent: a campaign already in the target status
+  is a no-op with a warning, not an error. Neither has a `--sandbox`
+  equivalent — Мастер кампаний has no API surface at all, so there is no
+  isolated test copy; every mutation hits the real account (classified
+  `DANGEROUS` in `direct_cli/smoke_matrix.py`, manual-only per
+  `scripts/test_dangerous_commands.sh`).
+- **Not live-verified:** the resume button's text ("Возобновить кампанию")
+  is confirmed against a live account; the suspend/stop button's exact text
+  is not — `direct_cli/browser/masters.py` tries a short list of plausible
+  Russian labels and raises a clear error (suggesting `--headful`) if none
+  match, rather than clicking the wrong element.
+
 **BREAKING CHANGES — `direct masters` no longer accepts `--login` (#639):**
 
 - `direct masters list`/`get` dropped the `--login` option. Passing your own

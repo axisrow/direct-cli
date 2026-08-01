@@ -261,7 +261,7 @@ def _masters_browser_options(func):
 
 @click.group()
 def masters():
-    """Read Мастер кампаний (Campaign Wizard) — browser-only, no API"""
+    """Мастер кампаний (Campaign Wizard) — browser-only, no API"""
 
 
 _STATUS_CHOICES = ("not-archived", "active", "stopped", "archived", "all")
@@ -317,5 +317,72 @@ def get(
         return [fetch_master(page, campaign_id) for campaign_id in ids]
 
     results = _with_session(ctx, headful, profile_dir, chrome_profile, _fetch_all)
+
+    format_output(results if len(results) != 1 else results[0], output_format, output)
+
+
+@masters.command()
+@click.argument("campaign_ids")
+@_masters_browser_options
+@click.pass_context
+@handle_api_errors
+def suspend(
+    ctx,
+    campaign_ids,
+    headful,
+    profile_dir,
+    chrome_profile,
+    output_format,
+    output,
+):
+    """Stop one or more Мастер кампаний by ID (comma-separated)
+
+    Not live-verified (issue #630): clicks the overview page's stop button,
+    matched by a best-effort list of candidate Russian labels — see
+    ``direct_cli/browser/masters.py`` module docstring. Verifies the status
+    actually changed before reporting success; idempotent if already
+    stopped.
+    """
+    from ..browser.masters import suspend_master
+
+    ids = parse_ids(campaign_ids) or []
+
+    def _suspend_all(page):
+        return [suspend_master(page, campaign_id) for campaign_id in ids]
+
+    results = _with_session(ctx, headful, profile_dir, chrome_profile, _suspend_all)
+
+    format_output(results if len(results) != 1 else results[0], output_format, output)
+
+
+@masters.command()
+@click.argument("campaign_ids")
+@_masters_browser_options
+@click.pass_context
+@handle_api_errors
+def resume(
+    ctx,
+    campaign_ids,
+    headful,
+    profile_dir,
+    chrome_profile,
+    output_format,
+    output,
+):
+    """Resume one or more stopped Мастер кампаний by ID (comma-separated)
+
+    Clicks the overview page's "Возобновить кампанию" button (confirmed
+    live — see ``direct_cli/browser/masters.py`` module docstring). Verifies
+    the status actually changed before reporting success; idempotent if
+    already active.
+    """
+    from ..browser.masters import resume_master
+
+    ids = parse_ids(campaign_ids) or []
+
+    def _resume_all(page):
+        return [resume_master(page, campaign_id) for campaign_id in ids]
+
+    results = _with_session(ctx, headful, profile_dir, chrome_profile, _resume_all)
 
     format_output(results if len(results) != 1 else results[0], output_format, output)
