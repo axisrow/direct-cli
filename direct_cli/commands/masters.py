@@ -62,6 +62,7 @@ from typing import Optional
 import click
 from click.core import ParameterSource
 
+from ..api import client_from_ctx, create_client
 from ..browser.masters import PROMOTION_GOAL_CHOICES as _PROMOTION_GOAL_CHOICES
 from ..output import (
     format_output,
@@ -703,6 +704,76 @@ def archive(
         )
 
 
+def _resolve_region_ids(ctx: click.Context, region_ids: "tuple[int, ...]") -> list:
+    """Resolve RegionId values to Yandex's canonical GeoRegionName via the
+    GeoRegions dictionary — the exact text the Мастер кампаний region widget
+    accepts, so callers don't have to guess Yandex's own wording (issue #652).
+
+    Unlike the rest of this group (see module docstring — masters needs no
+    Yandex Direct API credentials), this one lookup does require valid API
+    credentials, resolved the same way as any other command: it is only
+    reached when the caller actually passes ``--region-id``.
+    """
+    if not region_ids:
+        return []
+    client = client_from_ctx(ctx, create_client)
+    body = {
+        "method": "getGeoRegions",
+        "params": {
+            "FieldNames": ["GeoRegionId", "GeoRegionName"],
+            "SelectionCriteria": {"RegionIds": list(region_ids)},
+        },
+    }
+    result = client.dictionaries().post(data=body)
+    found = {
+        item["GeoRegionId"]: item["GeoRegionName"]
+        for item in result.data["result"]["GeoRegions"]
+    }
+    missing = [rid for rid in region_ids if rid not in found]
+    if missing:
+        raise click.UsageError(
+            "Unknown --region-id value(s): "
+            f"{', '.join(str(m) for m in missing)} — check `direct "
+            "dictionaries get-geo-regions` for valid IDs."
+        )
+
+    # Yandex's GeoRegions names are not globally unique (distinct IDs under
+    # different parents can share a name, e.g. several "Сосновка" entries).
+    # `_set_region` matches the browser widget's autocomplete by exact name
+    # text and clicks the first visible option with no RegionId/parent
+    # verification, so a resolved name that is ambiguous in the full
+    # dictionary could silently select the wrong region before an immediate
+    # live launch (issue #652 follow-up). Look up every GeoRegions entry
+    # sharing one of the resolved names (SelectionCriteria is mandatory per
+    # the WSDL — GetGeoRegionsRequest.SelectionCriteria has minOccurs=1 — so
+    # ExactNames must be supplied) and refuse rather than guess if any name
+    # has more than one distinct owning RegionId.
+    resolved = [found[rid] for rid in region_ids]
+    name_check = client.dictionaries().post(
+        data={
+            "method": "getGeoRegions",
+            "params": {
+                "FieldNames": ["GeoRegionId", "GeoRegionName"],
+                "SelectionCriteria": {"ExactNames": sorted(set(resolved))},
+            },
+        }
+    )
+    name_owners = {}
+    for item in name_check.data["result"]["GeoRegions"]:
+        name_owners.setdefault(item["GeoRegionName"], set()).add(item["GeoRegionId"])
+
+    ambiguous = sorted({name for name in resolved if len(name_owners[name]) > 1})
+    if ambiguous:
+        raise click.UsageError(
+            "--region-id resolved to ambiguous region name(s): "
+            f"{', '.join(ambiguous)} — multiple RegionIds share this name "
+            "in Yandex's GeoRegions dictionary, so the region widget cannot "
+            "be matched reliably. Use --region with the fully qualified "
+            "text instead."
+        )
+    return resolved
+
+
 @masters.command()
 @click.argument("url")
 @click.option(
@@ -723,8 +794,18 @@ def archive(
     "--region",
     "regions",
     multiple=True,
-    required=True,
-    help="Display region (Регион показов) — repeat for multiple",
+    help="Display region (Регион показов) by exact Yandex wording — repeat "
+    "for multiple. At least one of --region/--region-id is required.",
+)
+@click.option(
+    "--region-id",
+    "region_ids",
+    multiple=True,
+    type=int,
+    help="Display region by RegionId (GeoRegions dictionary) — repeat for "
+    "multiple, resolved to Yandex's canonical region name via `direct "
+    "dictionaries get-geo-regions`. Requires Yandex Direct API credentials "
+    "(unlike the rest of `masters`). Combines with --region.",
 )
 @click.option(
     "--weekly-budget",
@@ -747,6 +828,7 @@ def add(
     headlines,
     texts,
     regions,
+    region_ids,
     weekly_budget,
     draft,
     headful,
@@ -761,7 +843,8 @@ def add(
     SECOND campaign, not an update to the first — Мастер кампаний has no
     API-level duplicate detection the way `campaigns add` does. There is no
     sandbox and no rollback for Мастер кампаний mutations (issue #632) —
-    double check --region/--headline/--text before running this for real.
+    double check --region/--region-id/--headline/--text before running this
+    for real.
 
     --headline/--text are required even though Yandex's own wizard can
     auto-generate them by scanning the landing page: this command refuses
@@ -769,11 +852,22 @@ def add(
     the AI-suggested text, open the wizard once in a browser, copy what it
     proposes, and pass it back explicitly.
 
+    At least one of --region/--region-id is required. --region-id is
+    resolved to Yandex's canonical region name via the GeoRegions dictionary
+    (issue #652) — use it instead of --region to avoid guessing the exact
+    wording the region widget expects; it requires Yandex Direct API
+    credentials, unlike the rest of this command.
+
     By default the campaign is launched immediately (--launch). Pass
     --draft to save it as a draft instead (Сохранить как черновик) without
     going live.
     """
     from ..browser.masters import create_master
+
+    if not regions and not region_ids:
+        raise click.UsageError("At least one of --region/--region-id is required.")
+
+    all_regions = list(regions) + _resolve_region_ids(ctx, region_ids)
 
     result = _with_session(
         ctx,
@@ -785,7 +879,7 @@ def add(
             url,
             headlines=list(headlines),
             texts=list(texts),
-            regions=list(regions),
+            regions=all_regions,
             weekly_budget=weekly_budget,
             launch=not draft,
         ),
