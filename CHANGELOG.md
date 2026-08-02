@@ -2,6 +2,76 @@
 
 ## Unreleased
 
+**Added — `direct masters update --image` (#670, Этап D):**
+
+- New repeatable `--image "N=/path/to/file.png"` flag on `direct masters
+  update <CAMPAIGN_ID>` replaces the image currently at position N of the
+  campaign's image set with a local PNG/JPEG/GIF file, driven through the
+  edit page's image manager modal (`ImageSuggestionsEditorModal`).
+- **Known limitation — the image set is reordered.** Yandex has no "replace
+  this slot" primitive for images at all, only "remove from the set" and
+  "add to the set", so the point replacement is composed from the two.
+  Confirmed live 2026-08-02 (campaign 713234191, Save never clicked, no
+  campaign mutated): a newly uploaded image is always appended to the END
+  of the set, never inserted at the freed position — replacing position 2
+  of `[A, B, C, D]` yields `[A, C, D, NEW]`, not `[A, NEW, C, D]`. The
+  flag therefore means "replace the image currently at position N" (which
+  one to drop), not "put the new image at position N". This has no effect
+  on ad delivery — Yandex rotates images by performance regardless of their
+  order — but the CLI help, README and this entry say so rather than
+  implying a true positional swap.
+- **No fixed slot count, unlike headlines/texts.** The edit page renders
+  exactly as many `ContentImage` elements as the campaign has images, keyed
+  by a Yandex content ID rather than an index, so the real upper bound for
+  N is read fresh from the page. `_IMAGES_MAX_COUNT = 5` (Yandex's hard cap
+  on set size) bounds CLI parsing only — `--image "5=..."` on a campaign
+  with four images is refused by the browser layer as out of range, not
+  silently appended as a fifth.
+- **An empty image set is a legitimate state** (there is no "at least one"
+  invariant as there is for headlines/texts), and it gets its own explicit
+  error rather than a generic out-of-range one — this command only replaces
+  images that already exist, it does not add the first one.
+- The edit page is an SPA: `goto(..., wait_until="domcontentloaded")`
+  returns before the images section exists, and reading too early yields an
+  empty list indistinguishable from "this campaign genuinely has no
+  images". Live-confirmed to produce a false "no images" failure on four
+  consecutive campaigns that demonstrably had four images each. Hence
+  `_wait_for_images_editor`, which reports a timeout as a hard error
+  instead of silently treating it as an empty set.
+- Nonexistent paths and extensions Yandex won't accept are rejected as a
+  `UsageError` before any browser session opens, with the accepted suffixes
+  imported from the browser layer's own `_IMAGE_UPLOAD_SUFFIXES` (mirroring
+  the page's `accept="image/png,image/jpeg,image/jpg,image/gif"`, confirmed
+  live) so the two can't drift.
+- Post-save verification is **set-membership**, not positional, matching
+  the append-to-end behaviour above; identity is read from the content ID
+  in the `data-testid`, not from the thumbnail's visual availability (a
+  broken preview does not mean a missing image — observed live).
+- Because both the removal and the upload happen inside the same open
+  modal, any failure before `Save` leaves the campaign's saved image set
+  untouched — every error message says so explicitly.
+- Adding an image beyond the current set, deleting one without replacement,
+  picking from the modal's `USER`/`WEB_SITE`/`AI_GENERATED`/`NEURO_STOCK`
+  libraries, and video are all out of scope (video is a separate follow-up:
+  it uses a different control and a different processing pipeline).
+- Each image is replaced through its own open/remove/upload/Save modal
+  cycle, so replacing N images costs N cycles. Batching them into a single
+  modal session looks possible (`set_input_files` accepts a list) but is
+  not live-verified, so it is deliberately left for a follow-up.
+
+**Changed — shared scaffolding in `direct_cli/browser/masters.py` (#670):**
+
+- New `_poll_until` replaces five hand-rolled `deadline` /
+  `wait_for_timeout(250)` loops and the two sentinel flags (`removed`,
+  `uploaded`) that only existed because those loops were inline. It also
+  makes `PlaywrightError` suppression uniform — previously only one of the
+  five loops suppressed it.
+- New `_read_testid_suffixes` collapses `_read_image_content_ids` and
+  `_read_modal_selected_thumb_urls`, which were the same prefix-scraping
+  body twice.
+- New `_validate_image_paths` lifts the extension/existence check out of
+  the Click callback body.
+
 **Added — `direct masters update --headline`/`--text` (#665, Этап B):**
 
 - New `--headline "N=text"` / `--text "N=text"` flags on `direct masters
