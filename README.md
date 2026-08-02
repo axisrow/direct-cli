@@ -41,6 +41,8 @@ direct masters update 72349978 --weekly-budget 95000
 direct masters update 72349978 --promotion-goal max-clicks --no-directs-helps
 direct masters add https://example.com/ --headline "Заголовок 1" --headline "Заголовок 2" --text "Текст объявления" --region Москва --weekly-budget 50000 --draft
 direct masters add https://example.com/ --headline "Заголовок 1" --text "Текст объявления" --region-id 213 --weekly-budget 50000 --draft
+direct masters copy 72349978
+direct masters copy 72349978 --launch
 ```
 
 `masters list` filters by status with `--status`
@@ -104,6 +106,19 @@ launches immediately; pass
 `--draft` to save it as a draft instead (Сохранить как черновик) without
 going live. There is **no `--sandbox`** for this command either — verify with
 `--draft` first and check the result in the web UI before launching for real.
+
+`copy` clones an existing Мастер кампаний via the overview page's "⋮" menu →
+"Клонировать" — the same action a human uses in the web UI. Yandex pre-fills
+the new campaign from the source's headlines, texts, images, budget, and
+**display region verbatim**, which sidesteps the region text-matching issues
+`add --region`/`--region-id` can hit (issues #652/#656/#657) since nothing is
+retyped or re-matched. Nothing on the copy is renamed or edited beyond what
+Yandex itself does (it appends " — N" to the name) — this command is
+intentionally a 1:1 mirror of the web UI's clone action; use `masters update`
+afterwards for any further changes. **Not idempotent**, same as `add`:
+running it twice creates a SECOND copy, not an update to the first. By
+default the copy is saved as a draft (`--draft`); pass `--launch` to launch
+it immediately in production instead. Same no-`--sandbox` caveat as `add`.
 
 **Browser session (optional but recommended):** `direct masters` decrypts
 your Chrome cookies fresh on every call by default, which means a Keychain
@@ -1131,6 +1146,8 @@ direct masters update 72349978 --weekly-budget 95000
 direct masters update 72349978 --promotion-goal max-clicks --no-directs-helps
 direct masters add https://example.com/ --headline "Заголовок 1" --headline "Заголовок 2" --text "Текст объявления" --region Москва --weekly-budget 50000 --draft
 direct masters add https://example.com/ --headline "Заголовок 1" --text "Текст объявления" --region-id 213 --weekly-budget 50000 --draft
+direct masters copy 72349978
+direct masters copy 72349978 --launch
 ```
 
 `masters list` фильтрует по статусу через `--status`
@@ -1200,6 +1217,20 @@ API (та же цепочка приоритетов, что и у любой д
 («Сохранить как черновик») без запуска. У этой команды тоже **нет
 `--sandbox`** — сначала проверьте с `--draft` и посмотрите результат в
 веб-интерфейсе, прежде чем запускать по-настоящему.
+
+`copy` клонирует существующий Мастер кампаний через меню «⋮» на странице
+обзора → «Клонировать» — то же действие, что и у человека в веб-интерфейсе.
+Яндекс сам предзаполняет новую кампанию заголовками, текстами, изображениями,
+бюджетом и **регионом показов в исходном виде** — это полностью обходит
+проблемы матчинга региона по тексту у `add --region`/`--region-id` (issues
+#652/#656/#657), потому что регион нигде заново не набирается и не матчится.
+Копия не переименовывается и не редактируется сверх того, что делает сам
+Яндекс (он добавляет суффикс «— N» к названию) — команда намеренно 1:1
+повторяет действие клонирования из веб-интерфейса; для дальнейших правок
+используйте `masters update`. **Команда НЕ идемпотентна**, как и `add`:
+повторный запуск создаст ВТОРУЮ копию, а не обновит первую. По умолчанию
+копия сохраняется как черновик (`--draft`); передайте `--launch`, чтобы
+запустить её сразу в продакшене. Тот же отказ от `--sandbox`, что и у `add`.
 
 **Браузерная сессия (опционально, но рекомендуется):** по умолчанию `direct
 masters` расшифровывает куки Chrome заново при каждом вызове — на macOS это
