@@ -100,7 +100,7 @@ class _FakeLocatorHandle:
             raise PlaywrightError("element detached")
         return self._visible
 
-    def click(self):
+    def click(self, timeout=None):
         if self._raises:
             raise PlaywrightError("element detached")
         if self._on_click is not None:
@@ -147,6 +147,59 @@ class _FakeLocatorHandle:
         if self._raises:
             raise PlaywrightError("element detached")
         return self._get_checked() if self._get_checked is not None else False
+
+    def count(self):
+        # Playwright's `Locator.first` is itself a Locator, so `.first.count()`
+        # is legal and answers "did the selector match anything?" — 0 when it
+        # matched nothing (which is what `raises=True` models here, since
+        # `_FakeLocator.first` hands back a raising handle for an empty match),
+        # 1 otherwise. `_set_region` uses exactly this to decide whether the
+        # region popup is already open before clicking the launcher again.
+        return 0 if self._raises else 1
+
+
+class _FakeContentEditableHandle(_FakeLocatorHandle):
+    """A slot that models the REAL contenteditable semantics (issue #655 review).
+
+    ``_FakeLocatorHandle.type()`` delegates to ``fill()``, which REPLACES the
+    field's content — real ``Locator.type()`` on a ``contenteditable``
+    APPENDS from the caret, which is the entire reason ``_clear_text_field``
+    exists. A fake that replaces cannot observe a missing/failed clear, so it
+    silently passes code that would splice the caller's value into Yandex's
+    AI-generated copy (or leave that copy in place entirely).
+
+    ``supports_modifier`` models Playwright <1.44, where ``ControlOrMeta`` is
+    rejected server-side with ``Unknown modifier`` — the failure mode that
+    makes the suppressed clear a no-op on the versions ``pyproject.toml``
+    permits.
+    """
+
+    def __init__(self, *args, supports_modifier=True, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._supports_modifier = supports_modifier
+        self._selected_all = False
+
+    def type(self, value, delay=None):  # noqa: A003 - mirrors Locator.type
+        if self._raises:
+            raise PlaywrightError("element detached")
+        # APPEND, exactly like the real contenteditable.
+        self._text = self._text + value
+        if self._on_fill is not None:
+            self._on_fill(value)
+
+    def press(self, key):
+        if self._raises:
+            raise PlaywrightError("element detached")
+        if key == "ControlOrMeta+a":
+            if not self._supports_modifier:
+                # Playwright <1.44 throws this from input.ts, server-side.
+                raise PlaywrightError("Unknown modifier ControlOrMeta")
+            self._selected_all = True
+        elif key == "Backspace" and self._selected_all:
+            self._text = ""
+            self._selected_all = False
+        if self._on_press is not None:
+            self._on_press(key)
 
 
 class _FakeLocator:
@@ -2752,153 +2805,501 @@ class TestWaitForStep2(unittest.TestCase):
         ):
             browser_masters._wait_for_step2(page)
 
+    def test_timeout_message_says_the_page_is_still_on_step_1(self):
+        # Issue #653: which step the page is stuck on changes the diagnosis
+        # entirely, and re-running --headful just to find out is expensive on
+        # a page with no sandbox — so the error must say it. Step 1's URL
+        # field still being in the DOM means "Далее" never advanced the form.
+        page = FakePage(
+            text_buttons={},
+            locators={
+                browser_masters._CREATE_URL_INPUT_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                )
+            },
+        )
+
+        with (
+            patch.object(browser_masters, "_CREATE_STEP2_TIMEOUT_MS", 10),
+            self.assertRaises(BrowserSessionError) as ctx,
+        ):
+            browser_masters._wait_for_step2(page)
+        self.assertIn("still showing step 1", str(ctx.exception))
+
+    def test_timeout_message_says_the_page_left_step_1(self):
+        # The other branch: step 1's URL field is gone, so step 2 rendered but
+        # without the expected section — that points at a markup change.
+        page = FakePage(text_buttons={}, locators={})
+
+        with (
+            patch.object(browser_masters, "_CREATE_STEP2_TIMEOUT_MS", 10),
+            self.assertRaises(BrowserSessionError) as ctx,
+        ):
+            browser_masters._wait_for_step2(page)
+        self.assertIn("has left step 1", str(ctx.exception))
+
 
 class TestAddRepeatingValues(unittest.TestCase):
-    """``_add_repeating_values`` (issue #632) — headline/text list entry."""
+    """``_add_repeating_values`` (issue #632, re-recon #653) — headline/text
+    fixed-slot entry.
 
-    def test_fills_and_presses_enter_for_each_value(self):
-        filled = []
-        pressed = []
-        handle = _FakeLocatorHandle(
-            on_fill=lambda v: filled.append(v),
-            on_press=lambda k: pressed.append(k),
+    Issue #653 re-recon (2026-08-02): Yandex replaced the old "single
+    current-variant input, fill + Enter" flow with a FIXED set of
+    pre-rendered contenteditable ``<div role="textbox">`` slots, each its
+    own ``data-testid`` (``CampaignTitles{N}.textarea`` etc.) — so the fake
+    now keys ``page._locators`` by per-slot selector, and the function
+    types via ``.click()`` + ``.type()`` (contenteditable divs have no
+    ``.fill()``/Enter-to-submit semantics) instead of pressing Enter.
+    """
+
+    def test_types_into_each_slot_by_index(self):
+        typed = []
+        handles = {
+            0: _FakeLocatorHandle(on_fill=lambda v: typed.append((0, v))),
+            1: _FakeLocatorHandle(on_fill=lambda v: typed.append((1, v))),
+        }
+        page = FakePage(
+            locators={
+                '[data-testid="fake0.textarea"]': _FakeLocator([handles[0]]),
+                '[data-testid="fake1.textarea"]': _FakeLocator([handles[1]]),
+            }
         )
-        page = FakePage(locators={"xpath=//fake": _FakeLocator([handle])})
 
         browser_masters._add_repeating_values(
-            page, "xpath=//fake", ["Заголовок 1", "Заголовок 2"]
+            page, "fake{index}.textarea", 2, ["Заголовок 1", "Заголовок 2"]
         )
 
-        self.assertEqual(filled, ["Заголовок 1", "Заголовок 2"])
-        self.assertEqual(pressed, ["Enter", "Enter"])
+        self.assertEqual(typed, [(0, "Заголовок 1"), (1, "Заголовок 2")])
+
+    def test_clears_each_slot_before_typing(self):
+        """Slots arrive PRE-FILLED with Yandex's AI copy (issue #653).
+
+        ``.type()`` appends from wherever the click left the caret, so
+        without an explicit clear the caller's value is spliced into the
+        middle of Yandex's text — confirmed live as
+        ``'Центр оздоровления и китайско<typed>й гимнастики цигун!'``.
+        """
+        events = []
+        field = _FakeLocatorHandle(
+            text="Центр оздоровления и китайской гимнастики цигун!",
+            on_press=lambda key: events.append(("press", key)),
+            on_fill=lambda v: events.append(("type", v)),
+        )
+        page = FakePage(
+            locators={'[data-testid="fake0.textarea"]': _FakeLocator([field])}
+        )
+
+        browser_masters._add_repeating_values(
+            page, "fake{index}.textarea", 1, ["Тест фикса 653"]
+        )
+
+        # The clear must happen BEFORE the type, not after.
+        self.assertEqual(
+            events,
+            [
+                ("press", "ControlOrMeta+a"),
+                ("press", "Backspace"),
+                ("type", "Тест фикса 653"),
+            ],
+        )
 
     def test_raises_when_field_missing(self):
         page = FakePage(locators={})
 
         with self.assertRaises(BrowserSessionError):
-            browser_masters._add_repeating_values(page, "xpath=//fake", ["x"])
+            browser_masters._add_repeating_values(
+                page, "fake{index}.textarea", 1, ["x"]
+            )
+
+    def test_raises_when_more_values_than_slots(self):
+        page = FakePage(locators={})
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._add_repeating_values(
+                page, "fake{index}.textarea", 1, ["a", "b"]
+            )
+        self.assertIn("only renders 1 slots", str(ctx.exception))
+
+    def test_clears_every_slot_not_just_the_ones_being_filled(self):
+        """Unused slots must not keep Yandex's AI copy (issue #655 review).
+
+        The page renders a FIXED set of slots, most pre-filled by Yandex's
+        AI scan. Filling only the first ``len(values)`` of them leaves the
+        rest populated, and every non-empty slot is a published ad variant —
+        so a single ``--headline`` would launch that headline PLUS four
+        AI-written ones the caller never reviewed. That directly violates
+        this module's stated contract ("refuses to silently launch
+        AI-generated ad copy the caller never reviewed", see create_master's
+        docstring) on a page with no sandbox and no rollback.
+        """
+        slots = {
+            0: _FakeContentEditableHandle(text=""),
+            1: _FakeContentEditableHandle(
+                text="Центр оздоровления и китайской гимнастики!"
+            ),
+            2: _FakeContentEditableHandle(text="Цигун в Москве — записаться"),
+        }
+        page = FakePage(
+            locators={
+                f'[data-testid="fake{i}.textarea"]': _FakeLocator([handle])
+                for i, handle in slots.items()
+            }
+        )
+
+        browser_masters._add_repeating_values(
+            page, "fake{index}.textarea", 3, ["Мой заголовок"]
+        )
+
+        self.assertEqual(slots[0].inner_text(), "Мой заголовок")
+        # The AI-generated leftovers must be GONE, not merely un-touched.
+        self.assertEqual(slots[1].inner_text(), "")
+        self.assertEqual(slots[2].inner_text(), "")
+
+    def test_aborts_when_a_slot_cannot_be_cleared(self):
+        """A failed clear must abort BEFORE anything is typed (issue #655).
+
+        ``pyproject.toml`` permits ``playwright>=1.40``, but ``ControlOrMeta``
+        only exists from 1.44 — on 1.40-1.43 the modifier press throws
+        ``Unknown modifier`` server-side. Silently swallowing that leaves the
+        slot pre-filled and ``.type()`` then splices the caller's value into
+        Yandex's copy; ``create_master`` clicks Launch before it re-reads
+        anything, so the mangled variant ships. Failing loudly is the only
+        safe outcome on a page with no rollback.
+        """
+        slot = _FakeContentEditableHandle(
+            text="Центр оздоровления и китайской гимнастики!",
+            supports_modifier=False,
+        )
+        page = FakePage(
+            locators={'[data-testid="fake0.textarea"]': _FakeLocator([slot])}
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._add_repeating_values(
+                page, "fake{index}.textarea", 1, ["Мой заголовок"]
+            )
+
+        # The pre-filled copy must be left untouched rather than spliced into.
+        self.assertEqual(
+            slot.inner_text(), "Центр оздоровления и китайской гимнастики!"
+        )
+        self.assertIn("clear", str(ctx.exception).lower())
+
+    def test_aborts_when_an_unused_slot_cannot_be_clicked(self):
+        """A click failure on an UNUSED slot must not be a soft skip
+        (issue #655 round-2 review, Codex).
+
+        The previous fix treated ``value is None`` (a trailing slot with no
+        caller-supplied value) as safe to skip on a click failure, reasoning
+        the slot "may simply not be rendered". But a click can also fail on
+        a slot that IS rendered and IS still holding Yandex's AI copy — an
+        overlay, a transient obstruction, anything short of "truly absent".
+        ``create_master`` clicks the terminal LAUNCH button before
+        ``_verify_created`` ever re-reads the page, so skipping here risks
+        publishing unreviewed copy from a live, no-rollback campaign and
+        only discovering it after the fact. Must fail before any click.
+        """
+        slot0 = _FakeContentEditableHandle(text="")
+        slot1 = _FakeLocatorHandle(text="Центр оздоровления и китайской гимнастики!")
+        slot1.click = lambda timeout=None: (_ for _ in ()).throw(
+            PlaywrightError("intercepted: element obscured")
+        )
+        page = FakePage(
+            locators={
+                '[data-testid="fake0.textarea"]': _FakeLocator([slot0]),
+                '[data-testid="fake1.textarea"]': _FakeLocator([slot1]),
+            }
+        )
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._add_repeating_values(
+                page, "fake{index}.textarea", 2, ["Мой заголовок"]
+            )
+
+        # slot1's AI copy must survive untouched — the whole point is that
+        # this must fail loudly instead of silently leaving it live.
+        self.assertEqual(
+            slot1.inner_text(), "Центр оздоровления и китайской гимнастики!"
+        )
 
 
 class TestReadRepeatingValues(unittest.TestCase):
-    """``_read_repeating_values`` (issue #632) — post-add read-back used by
-    ``_verify_created``."""
+    """``_read_repeating_values`` (issue #632, re-recon #653) — post-add
+    read-back used by ``_verify_created``.
 
-    def test_reads_current_value_of_every_matched_input(self):
-        handles = [
-            _FakeLocatorHandle(get_value=lambda: "Заголовок 1"),
-            _FakeLocatorHandle(get_value=lambda: "Заголовок 2"),
-        ]
-        page = FakePage(locators={"xpath=//fake": _FakeLocator(handles)})
+    Reads each slot's contenteditable div via ``inner_text()``, not
+    ``input_value()`` (a contenteditable div has no ``value`` attribute).
+    """
 
-        values = browser_masters._read_repeating_values(page, "xpath=//fake")
+    def test_reads_inner_text_of_every_slot(self):
+        handles = {
+            0: _FakeLocatorHandle(text="Заголовок 1"),
+            1: _FakeLocatorHandle(text="Заголовок 2"),
+        }
+        page = FakePage(
+            locators={
+                '[data-testid="fake0.textarea"]': _FakeLocator([handles[0]]),
+                '[data-testid="fake1.textarea"]': _FakeLocator([handles[1]]),
+            }
+        )
+
+        values = browser_masters._read_repeating_values(page, "fake{index}.textarea", 2)
 
         self.assertEqual(values, ["Заголовок 1", "Заголовок 2"])
 
-    def test_returns_empty_list_when_no_matches(self):
+    def test_missing_slot_reads_as_empty_string(self):
         page = FakePage(locators={})
 
-        values = browser_masters._read_repeating_values(page, "xpath=//fake")
+        values = browser_masters._read_repeating_values(page, "fake{index}.textarea", 2)
 
-        self.assertEqual(values, [])
+        self.assertEqual(values, ["", ""])
 
-    def test_unreadable_input_reads_as_empty_string_not_a_hard_failure(self):
-        handles = [
-            _FakeLocatorHandle(get_value=lambda: "ok"),
-            _FakeLocatorHandle(raises=True),
-        ]
-        page = FakePage(locators={"xpath=//fake": _FakeLocator(handles)})
+    def test_unreadable_slot_reads_as_empty_string_not_a_hard_failure(self):
+        handles = {
+            0: _FakeLocatorHandle(text="ok"),
+            1: _FakeLocatorHandle(raises=True),
+        }
+        page = FakePage(
+            locators={
+                '[data-testid="fake0.textarea"]': _FakeLocator([handles[0]]),
+                '[data-testid="fake1.textarea"]': _FakeLocator([handles[1]]),
+            }
+        )
 
-        values = browser_masters._read_repeating_values(page, "xpath=//fake")
+        values = browser_masters._read_repeating_values(page, "fake{index}.textarea", 2)
 
         self.assertEqual(values, ["ok", ""])
 
 
 class TestSetRegion(unittest.TestCase):
-    """``_set_region`` (issue #632) — the one genuinely-empty required field.
+    """``_set_region`` (issue #632, re-recon #653) — the one genuinely-empty
+    required field.
 
-    Suggestions are modeled via ``role_elements`` (role="option"), not
-    ``text_buttons`` — ``_set_region`` uses ``get_by_role("option",
-    name=region, exact=True)`` (ported from ``_set_promotion_goal``'s fix,
-    issue #631 review): the previous ``get_by_text(exact=False)`` risked
-    matching an ancestor container instead of the suggestion row itself.
+    Issue #653 re-recon (2026-08-02): Yandex replaced the old text-combobox
+    with a tree/tag-group widget. The fake models: clicking the launcher
+    (``_REGION_LAUNCHER_TESTID``) reveals a separate filter field
+    (``_REGION_EDITOR_TESTID``), typing into it is a no-op on the fake page
+    (the real tree-filtering is server/client-state this fake does not
+    model), and the node is matched by an XPath string built from
+    ``_xpath_literal(region)`` — the fake's ``locator()`` keys on that exact
+    XPath string, same convention ``_REGION_INPUT_XPATH`` used pre-#653.
+
+    The fake models the real toggle semantics confirmed live: the LABEL is
+    what gets clicked (the ``<input>`` it wraps is not actionable), and the
+    input's checked state is what gets read back — so a label click flips the
+    input, exactly like the real control.
     """
 
-    def _page_for_region(self, region, option_visible=True):
-        field_state = {}
-        field = _FakeLocatorHandle(
-            on_fill=lambda v: field_state.__setitem__("value", v)
-        )
+    def _label_xpath(self, region):
         return (
-            FakePage(
-                locators={browser_masters._REGION_INPUT_XPATH: _FakeLocator([field])},
-                role_elements=(
-                    [("option", region, _FakeTextLocatorHandle(visible=True))]
-                    if option_visible
-                    else []
-                ),
-            ),
-            field_state,
+            "xpath=//label[@data-testid='RegionsTreeNode.Checkbox.label']"
+            f"[normalize-space(.)={browser_masters._xpath_literal(region)}]"
         )
 
+    def _checkbox_xpath(self, region):
+        return (
+            f"{self._label_xpath(region)}"
+            f"//input[@data-testid='{browser_masters._REGION_CHECKBOX_TESTID}']"
+        )
+
+    def _region_node(self, region, checked, visible=True):
+        """A (label, input) pair whose label click toggles the input."""
+        state = {"checked": False}
+
+        def _toggle():
+            state["checked"] = not state["checked"]
+            if state["checked"]:
+                checked.append(region)
+
+        label = _FakeLocatorHandle(visible=visible, on_click=_toggle)
+        box = _FakeLocatorHandle(get_checked=lambda: state["checked"])
+        return label, box
+
+    def _page_for_region(self, region, checkbox_visible=True):
+        launcher = _FakeLocatorHandle()
+        editor = _FakeLocatorHandle()
+        locators = {
+            browser_masters._REGION_LAUNCHER_TESTID: _FakeLocator([launcher]),
+            browser_masters._REGION_EDITOR_TESTID: _FakeLocator([editor]),
+        }
+        checked = []
+        if checkbox_visible:
+            label, box = self._region_node(region, checked)
+            locators[self._label_xpath(region)] = _FakeLocator([label])
+            locators[self._checkbox_xpath(region)] = _FakeLocator([box])
+        return FakePage(locators=locators), checked
+
     def test_fills_and_selects_each_region(self):
-        page, field_state = self._page_for_region("Москва")
+        page, checked = self._page_for_region("Москва")
 
         browser_masters._set_region(page, ["Москва"])
 
-        self.assertEqual(field_state["value"], "Москва")
+        self.assertEqual(checked, ["Москва"])
 
-    def test_raises_when_field_missing(self):
+    def test_raises_when_launcher_missing(self):
         page = FakePage(locators={})
 
         with self.assertRaises(BrowserSessionError):
             browser_masters._set_region(page, ["Москва"])
 
-    def test_raises_when_suggestion_not_found(self):
-        page, _ = self._page_for_region("Атлантида", option_visible=False)
+    def test_raises_when_checkbox_not_found(self):
+        page, _ = self._page_for_region("Атлантида", checkbox_visible=False)
 
-        with self.assertRaises(BrowserSessionError) as ctx:
+        with (
+            patch.object(browser_masters, "_REGION_FILTER_TIMEOUT_MS", 10),
+            self.assertRaises(BrowserSessionError) as ctx,
+        ):
             browser_masters._set_region(page, ["Атлантида"])
         self.assertIn("Атлантида", str(ctx.exception))
 
     def test_does_not_select_a_decoy_whose_name_only_contains_the_region(self):
-        # A decoy option whose accessible name merely CONTAINS the region
-        # name (e.g. "Москва и область") must NOT be treated as a match.
-        field = _FakeLocatorHandle()
+        # A decoy checkbox whose label merely CONTAINS the region name
+        # (e.g. "Москва и область") must NOT be treated as a match — the
+        # fake only registers a locator for the EXACT-match XPath, so a
+        # lookup for "Москва" never finds "Москва и область"'s checkbox.
+        launcher = _FakeLocatorHandle()
+        editor = _FakeLocatorHandle()
         decoy_clicked = []
         page = FakePage(
-            locators={browser_masters._REGION_INPUT_XPATH: _FakeLocator([field])},
-            role_elements=[
-                (
-                    "option",
-                    "Москва и область",
-                    _FakeTextLocatorHandle(
-                        visible=True, on_click=lambda: decoy_clicked.append(True)
-                    ),
-                )
-            ],
+            locators={
+                browser_masters._REGION_LAUNCHER_TESTID: _FakeLocator([launcher]),
+                browser_masters._REGION_EDITOR_TESTID: _FakeLocator([editor]),
+                self._label_xpath("Москва и область"): _FakeLocator(
+                    [
+                        _FakeLocatorHandle(
+                            visible=True, on_click=lambda: decoy_clicked.append(True)
+                        )
+                    ]
+                ),
+            },
         )
 
-        with self.assertRaises(BrowserSessionError):
+        with (
+            patch.object(browser_masters, "_REGION_FILTER_TIMEOUT_MS", 10),
+            self.assertRaises(BrowserSessionError),
+        ):
             browser_masters._set_region(page, ["Москва"])
         self.assertEqual(decoy_clicked, [])
 
+    def test_retry_does_not_reclick_launcher_and_clears_before_retyping(self):
+        """A retry must start from a known state, not the previous attempt's.
 
-class TestReadRegionTags(unittest.TestCase):
-    """``_read_region_tags`` (issue #632) — best-effort, NOT live-verified
-    (see docstring)."""
+        Issue #653 live testing: the launcher TOGGLES the popup, so clicking
+        it again while the popup is open closes it, and ``type()`` APPENDS to
+        a contenteditable, so re-typing without clearing yields
+        "МоскваМосква" — which filters the tree to zero nodes and can never
+        match. Either mistake turns attempts 2..N into guaranteed no-ops that
+        only add latency, so both are pinned here.
 
-    def test_returns_current_field_value(self):
+        The fake models the popup already being open (the editor locator
+        matches from the start) and the checkbox only appearing on the second
+        attempt.
+        """
+        launcher_clicks = []
+        launcher = _FakeLocatorHandle(on_click=lambda: launcher_clicks.append(True))
+        typed = []
+        presses = []
+        editor = _FakeLocatorHandle(on_fill=typed.append, on_press=presses.append)
+
+        checked = []
+        label, box = self._region_node("Москва", checked)
+
+        class _FlakyLabelLocator:
+            """Matches nothing on the first attempt, one label afterwards.
+
+            Keyed on how many times the region was TYPED (one per attempt) —
+            not on how many times ``count()`` was called, which the caller
+            polls repeatedly within a single attempt.
+            """
+
+            def count(self):
+                return 0 if len(typed) <= 1 else 1
+
+            def nth(self, i):
+                return label
+
         page = FakePage(
             locators={
-                browser_masters._REGION_INPUT_XPATH: _FakeLocator(
-                    [_FakeLocatorHandle(get_value=lambda: "Москва")]
-                )
+                browser_masters._REGION_LAUNCHER_TESTID: _FakeLocator([launcher]),
+                browser_masters._REGION_EDITOR_TESTID: _FakeLocator([editor]),
+                self._label_xpath("Москва"): _FlakyLabelLocator(),
+                self._checkbox_xpath("Москва"): _FakeLocator([box]),
+            },
+        )
+
+        with patch.object(browser_masters, "_REGION_FILTER_TIMEOUT_MS", 10):
+            browser_masters._set_region(page, ["Москва"])
+
+        self.assertEqual(checked, ["Москва"])
+        # The popup was already open, so the launcher must never be clicked
+        # (clicking it would have closed the popup).
+        self.assertEqual(launcher_clicks, [])
+        # Two attempts typed the region — each preceded by a clear, so the
+        # editor never accumulates "МоскваМосква".
+        self.assertEqual(typed, ["Москва", "Москва"])
+        self.assertEqual(
+            presses, ["ControlOrMeta+a", "Backspace", "ControlOrMeta+a", "Backspace"]
+        )
+
+    def test_clicks_launcher_when_popup_is_not_open(self):
+        # Mirror of the test above: when the editor is absent (popup closed),
+        # the launcher MUST be clicked to open it.
+        launcher_clicks = []
+        launcher = _FakeLocatorHandle(on_click=lambda: launcher_clicks.append(True))
+        page = FakePage(
+            locators={
+                browser_masters._REGION_LAUNCHER_TESTID: _FakeLocator([launcher]),
+                # No _REGION_EDITOR_TESTID entry -> `.first` raises -> count()==0.
+                self._label_xpath("Москва"): _FakeLocator([]),
+            },
+        )
+
+        with (
+            patch.object(browser_masters, "_REGION_FILTER_TIMEOUT_MS", 10),
+            self.assertRaises(BrowserSessionError),
+        ):
+            browser_masters._set_region(page, ["Москва"])
+
+        self.assertEqual(len(launcher_clicks), browser_masters._REGION_OPEN_ATTEMPTS)
+
+
+class TestXpathLiteral(unittest.TestCase):
+    """``_xpath_literal`` — safe XPath 1.0 string-literal quoting."""
+
+    def test_quotes_a_plain_value(self):
+        self.assertEqual(browser_masters._xpath_literal("Москва"), "'Москва'")
+
+    def test_handles_a_value_containing_a_single_quote(self):
+        result = browser_masters._xpath_literal("O'Brien")
+        # Must not naively produce 'O'Brien' (invalid XPath) — concat() form.
+        self.assertNotEqual(result, "'O'Brien'")
+        self.assertTrue(result.startswith("concat("))
+
+
+class TestReadRegionTags(unittest.TestCase):
+    """``_read_region_tags`` (issue #632, re-recon #653) — live-verified tag
+    reader for the tree/tag-group widget's accepted selections."""
+
+    def test_returns_every_tag_when_wrapper_present(self):
+        page = FakePage(
+            locators={
+                browser_masters._REGION_TAGS_WRAPPER_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                browser_masters._REGION_TAG_TESTID_PATTERN: _FakeLocator(
+                    [
+                        _FakeLocatorHandle(text="Москва"),
+                        _FakeLocatorHandle(text="Санкт-Петербург"),
+                    ]
+                ),
             }
         )
 
-        self.assertEqual(browser_masters._read_region_tags(page), ["Москва"])
+        self.assertEqual(
+            browser_masters._read_region_tags(page), ["Москва", "Санкт-Петербург"]
+        )
 
-    def test_returns_empty_list_when_field_missing(self):
+    def test_returns_empty_list_when_wrapper_missing(self):
         page = FakePage(locators={})
 
         self.assertEqual(browser_masters._read_region_tags(page), [])
@@ -2995,14 +3396,21 @@ class TestVerifyCreated(unittest.TestCase):
     """
 
     def _page(self, headline_values, text_values, budget_value=None):
-        locators = {
-            browser_masters._HEADLINES_ADD_INPUT_XPATH: _FakeLocator(
-                [_FakeLocatorHandle(get_value=lambda v=v: v) for v in headline_values]
-            ),
-            browser_masters._TEXTS_ADD_INPUT_XPATH: _FakeLocator(
-                [_FakeLocatorHandle(get_value=lambda v=v: v) for v in text_values]
-            ),
-        }
+        locators = {}
+        for index, value in enumerate(headline_values):
+            selector = (
+                '[data-testid="'
+                + browser_masters._HEADLINES_TESTID_TEMPLATE.format(index=index)
+                + '"]'
+            )
+            locators[selector] = _FakeLocator([_FakeLocatorHandle(text=value)])
+        for index, value in enumerate(text_values):
+            selector = (
+                '[data-testid="'
+                + browser_masters._TEXTS_TESTID_TEMPLATE.format(index=index)
+                + '"]'
+            )
+            locators[selector] = _FakeLocator([_FakeLocatorHandle(text=value)])
         if budget_value is not None:
             locators[browser_masters._WEEKLY_BUDGET_INPUT_XPATH] = _FakeLocator(
                 [_FakeLocatorHandle(get_value=lambda: budget_value)]
@@ -3018,6 +3426,46 @@ class TestVerifyCreated(unittest.TestCase):
             texts=["Текст объявления"],
             weekly_budget=None,
         )  # must not raise
+
+    def test_raises_when_an_unrequested_headline_variant_survives(self):
+        """Extra non-empty slots are published variants (issue #655 review).
+
+        The membership-only check this replaced ("is each requested value
+        present?") passed happily while four AI-written headlines sat in the
+        remaining slots. Every non-empty slot ships as an ad variant, so a
+        leftover the clear missed must be a hard failure — this is the
+        defense-in-depth layer behind ``_add_repeating_values``' clear.
+        """
+        page = self._page(
+            ["Заголовок", "Центр оздоровления и китайской гимнастики!"],
+            ["Текст объявления"],
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._verify_created(
+                page,
+                headlines=["Заголовок"],
+                texts=["Текст объявления"],
+                weekly_budget=None,
+            )
+        self.assertIn("unrequested headline variants", str(ctx.exception))
+        self.assertIn("Центр оздоровления", str(ctx.exception))
+
+    def test_raises_when_an_unrequested_text_variant_survives(self):
+        # Same invariant on the ad-text slots.
+        page = self._page(
+            ["Заголовок"],
+            ["Текст объявления", "Приходите на пробное занятие цигун!"],
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._verify_created(
+                page,
+                headlines=["Заголовок"],
+                texts=["Текст объявления"],
+                weekly_budget=None,
+            )
+        self.assertIn("unrequested ad-text variants", str(ctx.exception))
 
     def test_raises_when_a_headline_is_missing(self):
         page = self._page(["Другой заголовок"], ["Текст объявления"])
@@ -3067,11 +3515,11 @@ class TestVerifyCreated(unittest.TestCase):
 class TestCreateMaster(unittest.TestCase):
     """``create_master`` (issue #632) — end-to-end wiring of the helpers above."""
 
-    def _full_page(self):
+    def _full_page(self, region="Москва"):
         url_state = {}
         headline_state = []
         text_state = []
-        region_state = {}
+        region_checked = []
         budget_state = {}
         launch_clicks = []
         draft_clicks = []
@@ -3097,9 +3545,8 @@ class TestCreateMaster(unittest.TestCase):
         text_field = _FakeLocatorHandle(
             on_fill=_fill_text, get_value=lambda: text_last["value"]
         )
-        region_field = _FakeLocatorHandle(
-            on_fill=lambda v: region_state.__setitem__("value", v)
-        )
+        region_launcher = _FakeLocatorHandle()
+        region_editor = _FakeLocatorHandle()
         budget_field = _FakeLocatorHandle(
             on_fill=lambda v: budget_state.__setitem__("value", v),
             get_value=lambda: budget_state.get("value", ""),
@@ -3107,21 +3554,75 @@ class TestCreateMaster(unittest.TestCase):
 
         next_button = _FakeLocatorHandle()
 
+        # The real page always renders every slot (issue #653 recon: exactly
+        # 5 headline / 3 text slots, no "add another" control) — registering
+        # only slot 0 was unrealistic and hid the issue #655 round-2 finding
+        # that a click failure on an UNUSED slot must still be fatal. Slot 0
+        # is the caller-filled one (headline_field/text_field, wired to
+        # headline_state/text_state below); the rest start genuinely empty,
+        # same as the real create page's trailing slots.
+        headline_selector = (
+            '[data-testid="'
+            + browser_masters._HEADLINES_TESTID_TEMPLATE.format(index=0)
+            + '"]'
+        )
+        text_selector = (
+            '[data-testid="'
+            + browser_masters._TEXTS_TESTID_TEMPLATE.format(index=0)
+            + '"]'
+        )
+        extra_headline_selectors = {
+            '[data-testid="'
+            + browser_masters._HEADLINES_TESTID_TEMPLATE.format(index=i)
+            + '"]': _FakeLocator([_FakeContentEditableHandle(text="")])
+            for i in range(1, browser_masters._HEADLINES_SLOT_COUNT)
+        }
+        extra_text_selectors = {
+            '[data-testid="'
+            + browser_masters._TEXTS_TESTID_TEMPLATE.format(index=i)
+            + '"]': _FakeLocator([_FakeContentEditableHandle(text="")])
+            for i in range(1, browser_masters._TEXTS_SLOT_COUNT)
+        }
+        region_label_xpath = (
+            "xpath=//label[@data-testid='RegionsTreeNode.Checkbox.label']"
+            f"[normalize-space(.)={browser_masters._xpath_literal(region)}]"
+        )
+        region_checkbox_xpath = (
+            f"{region_label_xpath}"
+            f"//input[@data-testid='{browser_masters._REGION_CHECKBOX_TESTID}']"
+        )
+        # The label is what gets clicked; the input is what gets read back
+        # (confirmed live — see _set_region). Model the real toggle.
+        region_state = {"checked": False}
+
+        def _toggle_region():
+            region_state["checked"] = not region_state["checked"]
+            if region_state["checked"]:
+                region_checked.append(region)
+
         page = FakePage(
             locators={
                 browser_masters._CREATE_URL_INPUT_TESTID: _FakeLocator([url_field]),
                 browser_masters._CREATE_NEXT_BUTTON_TESTID: _FakeLocator([next_button]),
-                browser_masters._HEADLINES_ADD_INPUT_XPATH: _FakeLocator(
-                    [headline_field]
+                headline_selector: _FakeLocator([headline_field]),
+                text_selector: _FakeLocator([text_field]),
+                **extra_headline_selectors,
+                **extra_text_selectors,
+                browser_masters._REGION_LAUNCHER_TESTID: _FakeLocator(
+                    [region_launcher]
                 ),
-                browser_masters._TEXTS_ADD_INPUT_XPATH: _FakeLocator([text_field]),
-                browser_masters._REGION_INPUT_XPATH: _FakeLocator([region_field]),
+                browser_masters._REGION_EDITOR_TESTID: _FakeLocator([region_editor]),
+                region_label_xpath: _FakeLocator(
+                    [_FakeLocatorHandle(visible=True, on_click=_toggle_region)]
+                ),
+                region_checkbox_xpath: _FakeLocator(
+                    [_FakeLocatorHandle(get_checked=lambda: region_state["checked"])]
+                ),
                 browser_masters._WEEKLY_BUDGET_INPUT_XPATH: _FakeLocator(
                     [budget_field]
                 ),
             },
             role_elements=[
-                ("option", "Москва", _FakeTextLocatorHandle(visible=True)),
                 (
                     "button",
                     browser_masters._LAUNCH_BUTTON_TEXT,
@@ -3146,7 +3647,7 @@ class TestCreateMaster(unittest.TestCase):
             "url": url_state,
             "headlines": headline_state,
             "texts": text_state,
-            "region": region_state,
+            "region_checked": region_checked,
             "budget": budget_state,
             "launch_clicks": launch_clicks,
             "draft_clicks": draft_clicks,
@@ -3166,7 +3667,7 @@ class TestCreateMaster(unittest.TestCase):
         self.assertEqual(state["url"]["url"], "https://ksamata.ru/")
         self.assertEqual(state["headlines"], ["Заголовок"])
         self.assertEqual(state["texts"], ["Текст объявления"])
-        self.assertEqual(state["region"]["value"], "Москва")
+        self.assertEqual(state["region_checked"], ["Москва"])
         self.assertEqual(len(state["launch_clicks"]), 1)
         self.assertEqual(len(state["draft_clicks"]), 0)
         self.assertEqual(
@@ -3264,16 +3765,85 @@ class TestCreateMaster(unittest.TestCase):
                 regions=["Москва"],
             )
 
-    def test_raises_when_terminal_click_does_not_actually_save_headline(self):
-        # The launch button is clicked, but re-reading the headline field
-        # afterwards shows the OLD value still in place (e.g. Yandex
-        # silently rejected it) -- this must be a hard error, not a false
-        # success (mirrors update_master's _verify_saved regression test).
+    def test_raises_before_launch_when_a_headline_slot_did_not_actually_clear(
+        self,
+    ):
+        """The terminal button must NOT be clicked if pre-click state is
+        already wrong (issue #655 round-3 review, Codex).
+
+        Every round of this issue's review (1, 2, 3) found a new way for a
+        slot's true content to diverge from what ``_add_repeating_values``
+        believes it wrote — a click failure, an unused slot, a no-op
+        keypress that succeeds without exception. ``_verify_created``
+        already re-reads and compares state correctly; the actual defect was
+        never in the check, it was that ``create_master`` only ran that
+        check AFTER ``_click_terminal_button`` already launched the
+        campaign. This pins the fix at the level that closes ALL variants:
+        the state check must gate the click, not just report on it
+        afterwards.
+
+        Sabotage: slot 0's ``press()`` succeeds without raising (models a
+        prevented Backspace / lost selection / re-render race — issue #655
+        round-3 finding) but never actually clears the field, so
+        ``.type()`` appends onto the stale AI copy instead of replacing it.
+        """
         page, state = self._full_page()
-        # Sabotage: the headline field never actually reflects the fill.
-        page._locators[browser_masters._HEADLINES_ADD_INPUT_XPATH] = _FakeLocator(
-            [_FakeLocatorHandle(get_value=lambda: "Старый заголовок")]
+        stuck_handle = _FakeLocatorHandle(text="Старый заголовок")
+        stuck_handle.press = lambda key: None  # succeeds, does nothing
+        stuck_handle.type = lambda value, delay=None: None  # never reflects
+        headline_selector = (
+            '[data-testid="'
+            + browser_masters._HEADLINES_TESTID_TEMPLATE.format(index=0)
+            + '"]'
         )
+        page._locators[headline_selector] = _FakeLocator([stuck_handle])
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.create_master(
+                page,
+                "https://ksamata.ru/",
+                headlines=["Заголовок"],
+                texts=["Текст объявления"],
+                regions=["Москва"],
+            )
+        # The whole point: caught BEFORE the irreversible click, not after.
+        self.assertEqual(len(state["launch_clicks"]), 0)
+        self.assertIn("before clicking", str(ctx.exception))
+
+    def test_raises_when_terminal_click_does_not_actually_save_headline(self):
+        # The headline field reflects correctly right up until the click,
+        # but Yandex's OWN post-click processing (client-side validation on
+        # submit, not on type) reverts it — the pre-click gate above cannot
+        # catch this, since the field looked correct at check time and only
+        # diverges as a side effect of the click itself. _verify_created
+        # remains the backstop for this case.
+        page, state = self._full_page()
+        stuck_handle = _FakeLocatorHandle(text="Старый заголовок")
+
+        def _type(value, delay=None):
+            stuck_handle._text = value
+
+        stuck_handle.type = _type
+        headline_selector = (
+            '[data-testid="'
+            + browser_masters._HEADLINES_TESTID_TEMPLATE.format(index=0)
+            + '"]'
+        )
+        page._locators[headline_selector] = _FakeLocator([stuck_handle])
+
+        launch_handle = next(
+            handle
+            for role, name, handle in page._role_elements
+            if role == "button" and name == browser_masters._LAUNCH_BUTTON_TEXT
+        )
+        real_on_click = launch_handle._on_click
+
+        def _revert_then_click():
+            stuck_handle._text = "Старый заголовок"
+            if real_on_click is not None:
+                real_on_click()
+
+        launch_handle._on_click = _revert_then_click
 
         with self.assertRaises(BrowserSessionError) as ctx:
             browser_masters.create_master(

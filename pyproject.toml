@@ -53,7 +53,12 @@ dev = [
     "types-tabulate",
 ]
 browser = [
-    "playwright>=1.40",
+    # >=1.44: `direct masters add` clears the create page's pre-filled
+    # contenteditable slots via the "ControlOrMeta" modifier, which older
+    # versions reject server-side with "Unknown modifier" (issue #655
+    # review). A failed clear there would splice the caller's ad copy into
+    # Yandex's AI-generated text on a page with no rollback.
+    "playwright>=1.44",
     "cryptography>=41",
 ]
 
