@@ -736,7 +736,37 @@ def _resolve_region_ids(ctx: click.Context, region_ids: "tuple[int, ...]") -> li
             f"{', '.join(str(m) for m in missing)} — check `direct "
             "dictionaries get-geo-regions` for valid IDs."
         )
-    return [found[rid] for rid in region_ids]
+
+    # Yandex's GeoRegions names are not globally unique (distinct IDs under
+    # different parents can share a name, e.g. several "Сосновка" entries).
+    # `_set_region` matches the browser widget's autocomplete by exact name
+    # text and clicks the first visible option with no RegionId/parent
+    # verification, so a resolved name that is ambiguous in the full
+    # dictionary could silently select the wrong region before an immediate
+    # live launch (issue #652 follow-up). Check each resolved name against
+    # every GeoRegions entry (not just the requested IDs) and refuse rather
+    # than guess.
+    all_regions = client.dictionaries().post(
+        data={
+            "method": "getGeoRegions",
+            "params": {"FieldNames": ["GeoRegionId", "GeoRegionName"]},
+        }
+    )
+    name_owners = {}
+    for item in all_regions.data["result"]["GeoRegions"]:
+        name_owners.setdefault(item["GeoRegionName"], set()).add(item["GeoRegionId"])
+
+    resolved = [found[rid] for rid in region_ids]
+    ambiguous = sorted({name for name in resolved if len(name_owners[name]) > 1})
+    if ambiguous:
+        raise click.UsageError(
+            "--region-id resolved to ambiguous region name(s): "
+            f"{', '.join(ambiguous)} — multiple RegionIds share this name "
+            "in Yandex's GeoRegions dictionary, so the region widget cannot "
+            "be matched reliably. Use --region with the fully qualified "
+            "text instead."
+        )
+    return resolved
 
 
 @masters.command()

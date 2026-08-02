@@ -3443,8 +3443,7 @@ class TestMastersAddCommand(unittest.TestCase):
             )
 
         self.assertEqual(result.exit_code, 0, result.output)
-        service.post.assert_called_once()
-        body = service.post.call_args.kwargs["data"]
+        body = service.post.call_args_list[0].kwargs["data"]
         self.assertEqual(body["method"], "getGeoRegions")
         self.assertEqual(body["params"]["SelectionCriteria"]["RegionIds"], [213])
         _, kwargs = mock_create.call_args
@@ -3557,6 +3556,79 @@ class TestResolveRegionIds(unittest.TestCase):
             result = _resolve_region_ids(Mock(), (213, 2))
 
         self.assertEqual(result, ["Москва", "Санкт-Петербург"])
+
+    def test_ambiguous_region_name_raises_usage_error(self):
+        """Two distinct RegionIds sharing one GeoRegionName must not resolve
+        silently — `_set_region`'s browser-side exact-name match would click
+        whichever same-named option appears first, risking a live launch
+        against the wrong geography (issue #652 follow-up)."""
+        from direct_cli.commands.masters import _resolve_region_ids
+
+        service = Mock()
+        service.post.side_effect = [
+            Mock(
+                data={
+                    "result": {
+                        "GeoRegions": [
+                            {"GeoRegionId": 111, "GeoRegionName": "Сосновка"}
+                        ]
+                    }
+                }
+            ),
+            Mock(
+                data={
+                    "result": {
+                        "GeoRegions": [
+                            {"GeoRegionId": 111, "GeoRegionName": "Сосновка"},
+                            {"GeoRegionId": 222, "GeoRegionName": "Сосновка"},
+                        ]
+                    }
+                }
+            ),
+        ]
+        client = Mock()
+        client.dictionaries.return_value = service
+
+        with patch("direct_cli.commands.masters.create_client", return_value=client):
+            with self.assertRaises(click.UsageError) as cm:
+                _resolve_region_ids(Mock(), (111,))
+
+        self.assertIn("ambiguous", str(cm.exception).lower())
+        self.assertIn("Сосновка", str(cm.exception))
+        self.assertIn("--region", str(cm.exception))
+
+    def test_unique_region_name_resolves_normally(self):
+        """A RegionId whose name has no duplicates elsewhere in the full
+        dictionary must still resolve without raising."""
+        from direct_cli.commands.masters import _resolve_region_ids
+
+        service = Mock()
+        service.post.side_effect = [
+            Mock(
+                data={
+                    "result": {
+                        "GeoRegions": [{"GeoRegionId": 213, "GeoRegionName": "Москва"}]
+                    }
+                }
+            ),
+            Mock(
+                data={
+                    "result": {
+                        "GeoRegions": [
+                            {"GeoRegionId": 213, "GeoRegionName": "Москва"},
+                            {"GeoRegionId": 2, "GeoRegionName": "Санкт-Петербург"},
+                        ]
+                    }
+                }
+            ),
+        ]
+        client = Mock()
+        client.dictionaries.return_value = service
+
+        with patch("direct_cli.commands.masters.create_client", return_value=client):
+            result = _resolve_region_ids(Mock(), (213,))
+
+        self.assertEqual(result, ["Москва"])
 
 
 if __name__ == "__main__":

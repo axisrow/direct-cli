@@ -15,8 +15,15 @@
   pointing at `direct dictionaries get-geo-regions`.
 - Unlike the rest of `direct masters` (which needs no Yandex Direct API
   credentials — see module docstring), resolving `--region-id` does need
-  valid API credentials, since it makes one `dictionaries.getGeoRegions`
-  call before opening the browser session.
+  valid API credentials, since it makes `dictionaries.getGeoRegions`
+  call(s) before opening the browser session.
+- `GeoRegionName` values are not globally unique in Yandex's dictionary
+  (distinct `RegionId`s under different parents can share a name); since
+  the browser-side region widget matches by exact name text with no
+  `RegionId`/parent verification, a `--region-id` that resolves to an
+  ambiguous name now raises a `UsageError` instead of silently risking a
+  live launch against the wrong geography — use `--region` with the fully
+  qualified text for such names.
 - Not a breaking change: `--region`'s existing text-based behavior is
   unchanged.
 
