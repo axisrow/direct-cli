@@ -20,6 +20,50 @@
   the field has text — Playwright's own click-time actionability wait
   handles this without extra polling.
 
+**Fixed — `direct masters add`: step 2 selectors (#653):**
+
+- With #650's step-1 fix in place, `masters add` reached step 2 and failed
+  there instead: headlines, texts and the region field had all migrated to
+  new markup. Live re-recon (2026-08-02) confirmed each one.
+- **Headlines/texts** are no longer a single "current variant" input plus an
+  "add another" control. Yandex now pre-renders a FIXED set of
+  `contenteditable` slots (5 headlines, 3 texts) addressed by stable
+  `data-testid`s (`CampaignTitles{N}.textarea` / `CampaignTexts{N}.textarea`),
+  mostly AI-pre-filled from the landing page. Each value is now typed into
+  its own slot by index, and read back via `inner_text()` (a
+  `contenteditable` `<div>` has no `value`). Passing more values than there
+  are slots is now a clear error instead of a silent drop.
+- Each slot is **cleared before typing**: it arrives pre-filled with Yandex's
+  AI-generated copy and `.type()` appends from wherever the click left the
+  caret, so without this the value was spliced into the middle of Yandex's
+  text (confirmed live as `Центр оздоровления и китайско<typed>й гимнастики
+  цигун!`) and the campaign would have been drafted with mangled ad copy.
+- **Region** moved from a text combobox with autocomplete to a tree/tag-group
+  widget (`RegionsTreeTagGroup`), which needed a genuinely different
+  selection flow, not a new selector for the old one: open the popup via its
+  launcher, type into the separate filter field that only exists while the
+  popup is open, then tick the checkbox whose label is an EXACT match —
+  typing a region auto-expands its parents and children, so a "contains"
+  match would select the wrong node. Selected regions are read back from the
+  widget's tags rather than from an input's value.
+- The region click targets the **label**, not the `<input>` it wraps: the
+  input resolves and even reports `is_visible() == True`, but clicking it
+  times out on Playwright's actionability check, since the real hit target is
+  the styled label. The input is still used to read state back — a label
+  click toggles, so the read-back confirms the region really ended up
+  selected instead of silently unchecking an already-selected one.
+- The open→filter→select sequence is retried, and each retry starts from a
+  known state: the launcher toggles the popup (so it is only clicked when the
+  popup is closed) and typing appends to a `contenteditable` (so the filter
+  field is cleared before every retype). Without both, retries could only
+  ever be no-ops.
+- A step-2 timeout now reports whether the page is still on step 1 (Yandex
+  still scanning the landing page) or already past it (markup change),
+  instead of leaving `--headful` as the only way to tell.
+- Re-verified live and left unchanged: weekly budget, "Директ помогает" and
+  "Цель продвижения" still render under real headings, so their existing
+  heading-proximity locators were not broken by this migration.
+
 ## 0.5.1
 
 **Added — `direct masters archive` (#633):**

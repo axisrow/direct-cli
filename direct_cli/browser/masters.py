@@ -113,6 +113,20 @@ exact=True)`` instead of a substring ``get_by_text`` match, for the same
 reason ``_set_promotion_goal``/``_click_save`` were fixed: a container whose
 text merely contains the target string is not the same element as an actual
 clickable button/option row.
+
+**Step 2 markup migration (issue #653, re-recon 2026-08-02).** Following
+#650's URL-field fix, live testing found the rest of step 2 had ALSO
+migrated to new markup — headlines/texts moved from a "single current-
+variant input, fill + Enter" flow to a FIXED set of pre-rendered
+contenteditable slots (``CampaignTitles{N}.textarea``/
+``CampaignTexts{N}.textarea``, 5/3 slots respectively, most pre-filled with
+Yandex's AI-generated copy — see ``_add_repeating_values``), and the region
+picker moved from a text combobox with an autocomplete dropdown to a
+tree/tag-group widget (``RegionsTreeEditor``) whose typed filter
+auto-expands every ancestor/descendant of a match — see ``_set_region``.
+Weekly budget, "Директ помогает", and "Цель продвижения" were re-confirmed
+live to still use their pre-#653 heading-proximity XPaths unchanged (they
+were not affected by this markup migration).
 """
 
 import contextlib
@@ -240,30 +254,122 @@ _CREATE_INVALID_URL_TEXT = "Некорректный формат ссылки"
 # content to pre-fill headlines/texts/images), well within this budget.
 _CREATE_STEP2_TIMEOUT_MS = 30_000
 
-# Step 2 field locators — heading-proximity XPath, same convention as
-# update_master's _WEEKLY_BUDGET_INPUT_XPATH etc. (no stable id/data-testid).
-_HEADLINES_ADD_INPUT_XPATH = (
-    "xpath=//*[self::h1 or self::h2 or self::h3][normalize-space(text())="
-    "'Варианты заголовков']/following::input[1]"
+# Step 2 field locators for headlines/texts (issue #653 re-recon,
+# 2026-08-02): Yandex replaced the single "current variant input + Enter"
+# flow with a FIXED set of pre-rendered slots, each its own contenteditable
+# <div role="textbox"> carrying a stable data-testid
+# ``CampaignTitles{N}.textarea``/``CampaignTexts{N}.textarea`` (N = 0-based
+# slot index) — confirmed live via ``document.querySelectorAll('[data-testid]')``
+# on the create page. Confirmed live: exactly 5 headline slots and 3 text
+# slots render, no "add another" control exists — most slots start
+# pre-filled with Yandex's own AI-generated copy from scanning the landing
+# page (see module docstring), only the trailing slots are genuinely empty.
+# The old heading-proximity XPath (matched only h1/h2/h3) silently stopped
+# matching because "Варианты заголовков"/"Варианты текстов объявлений" are
+# plain text nodes on this page, not headings.
+_HEADLINES_SLOT_COUNT = 5
+_TEXTS_SLOT_COUNT = 3
+_HEADLINES_TESTID_TEMPLATE = "CampaignTitles{index}.textarea"
+_TEXTS_TESTID_TEMPLATE = "CampaignTexts{index}.textarea"
+
+# Region picker (issue #653 re-recon, 2026-08-02): Yandex replaced the old
+# text-combobox-with-suggestions flow with a tree/tag-group widget
+# (``data-testid="RegionsTreeEditor"``). Confirmed live: the tag group's
+# ``RegionsTreeTagGroup.launcher`` is a <button>, not a text field — clicking
+# it opens the tree popup AND reveals a SEPARATE contenteditable filter field
+# (``RegionsTreeTagGroup.editor``, only present in the DOM once the popup is
+# open) that must be typed into. Typing filters the tree AND auto-expands
+# every ancestor/descendant of a match (e.g. typing "Москва" also renders
+# "Москва и область" and every district inside Москва) — so selection must
+# scope to a checkbox (``RegionsTreeNode.Checkbox.input``, a real HTML
+# checkbox with a stable ``id="region-node-<id>"`` but no stable id known
+# ahead of time by name) whose LABEL text is an EXACT match, not merely
+# contains the typed region name, same fix class as
+# _set_promotion_goal's get_by_role(exact=True). A selected region renders
+# as a removable tag inside ``RegionsTreeTagGroup.tags-wrapper``.
+_REGION_LAUNCHER_TESTID = '[data-testid="RegionsTreeTagGroup.launcher"]'
+_REGION_EDITOR_TESTID = '[data-testid="RegionsTreeTagGroup.editor"]'
+_REGION_CHECKBOX_TESTID = "RegionsTreeNode.Checkbox.input"
+# How long to poll for the tree's checkbox list after typing a filter —
+# the tree re-filters asynchronously (debounced), so an immediate count()
+# can race it and see zero matches for a region that does exist.
+_REGION_FILTER_TIMEOUT_MS = 8_000
+# How long to wait for the editor field to appear after clicking the
+# launcher (live testing, issue #653: this can occasionally not render on
+# the first click under real network conditions).
+_REGION_EDITOR_APPEAR_TIMEOUT_MS = 3_000
+# How many times to retry the whole open-popup→type→poll sequence per
+# region before giving up — live testing found a single attempt is
+# occasionally not enough (see docstring). Each retry must be IDEMPOTENT to
+# be worth anything: the launcher toggles the popup (so re-clicking it while
+# open closes it) and type() appends to a contenteditable (so re-typing
+# without clearing yields "МоскваМосква", matching nothing) — _set_region
+# therefore only clicks the launcher when the editor is absent, and clears
+# the field via _clear_text_field before every type(). Don't "simplify" that
+# back into an unconditional click + type: it turns attempts 2..N into
+# guaranteed no-ops that only add latency.
+_REGION_OPEN_ATTEMPTS = 3
+# Each accepted region tag also renders a same-prefixed close button
+# (``RegionsTreeTagGroup.tag.{N}.close``, confirmed live) — the
+# ``:not([data-testid$=".close"])`` exclusion keeps _read_region_tags from
+# reading the close button (empty text) as a phantom extra tag.
+_REGION_TAGS_WRAPPER_TESTID = '[data-testid="RegionsTreeTagGroup.tags-wrapper"]'
+_REGION_TAG_TESTID_PATTERN = (
+    '[data-testid^="RegionsTreeTagGroup.tag."]:not([data-testid$=".close"])'
 )
-_TEXTS_ADD_INPUT_XPATH = (
-    "xpath=//*[self::h1 or self::h2 or self::h3][normalize-space(text())="
-    "'Варианты текстов объявлений']/following::textarea[1]"
-    "|xpath=//*[self::h1 or self::h2 or self::h3][normalize-space(text())="
-    "'Варианты текстов объявлений']/following::input[1]"
-)
-_REGION_INPUT_XPATH = (
-    "xpath=//*[self::h1 or self::h2 or self::h3][normalize-space(text())="
-    "'Регион показов']/following::input[1]"
-)
-# XPath fragment: the text input immediately following (as a descendant of an
-# adjacent sibling) the "Недельный бюджет" heading. Confirmed live — see
-# fixture. Headings on this page have no stable id/data-testid, so matching
-# is by heading text, same fragility class as _extract_*/_click_action_button.
+
+# Weekly budget / "Директ помогает" / "Цель продвижения" (issue #653
+# re-recon, 2026-08-02): confirmed live these three still render under
+# genuine h1/h2/h3 headings on the create page (unlike headlines/texts/
+# region above), so the pre-existing heading-proximity XPaths continue to
+# match the correct element — re-confirmed by comparing the XPath match
+# against each field's own data-testid
+# (``BudgetWithSuggest.PriceTextInput``,
+# ``CampaignRecommendationsEditor.AcceptRecommendations.input``,
+# ``CampaignTargetSelect.TargetSelect``) via a live DOM read. Left as-is
+# (heading-proximity XPath, same convention as update_master's
+# _WEEKLY_BUDGET_INPUT_XPATH) rather than switched to data-testid, since
+# they were not broken by the markup change that broke headlines/texts/
+# region.
 _WEEKLY_BUDGET_INPUT_XPATH = (
     "xpath=//*[self::h1 or self::h2 or self::h3][normalize-space(text())="
     "'Недельный бюджет']/following::input[1]"
 )
+
+
+def _xpath_literal(value: str) -> str:
+    """Render ``value`` as a safely-quoted XPath 1.0 string literal.
+
+    XPath 1.0 has no string-escaping mechanism — a value containing both
+    ``'`` and ``"`` cannot be quoted directly. Region names are not expected
+    to contain quotes, but ``concat()``-splitting on ``'`` keeps this
+    correct even if one ever does, rather than building a query that could
+    break out of the literal.
+    """
+    if "'" not in value:
+        return f"'{value}'"
+    parts = value.split("'")
+    return "concat(" + ', "\'", '.join(f"'{part}'" for part in parts) + ")"
+
+
+def _clear_text_field(field: Any) -> None:
+    """Empty a focused contenteditable field via select-all + Backspace.
+
+    ``.fill("")`` does not work on the ``contenteditable`` ``<div
+    role="textbox">`` elements this page uses (same constraint that forces
+    ``.type()`` over ``.fill()`` everywhere else in this module), and
+    ``.type()`` APPENDS — so any retry that re-types into a field must clear
+    it first or it accumulates text (``"МоскваМосква"``) that matches
+    nothing. ``ControlOrMeta`` keeps this correct on both macOS and Linux.
+
+    Best-effort: a field that refuses the key presses is left as-is rather
+    than aborting the caller, since the caller's own poll/verify step is
+    what ultimately decides success.
+    """
+    with contextlib.suppress(PlaywrightError):
+        field.press("ControlOrMeta+a")
+        field.press("Backspace")
+
 
 # XPath fragment: the checkbox immediately following the "Директ помогает"
 # heading. Confirmed live — a plain HTML checkbox, not a custom toggle
@@ -1169,134 +1275,276 @@ def _wait_for_step2(page: "Page") -> None:
                 return
         page.wait_for_timeout(250)
 
+    # Which step the page is actually stuck on changes the diagnosis
+    # entirely, and re-running --headful just to find out is expensive on a
+    # page with no sandbox — so report it in the error itself. Step 1's URL
+    # field is gone from the DOM once step 2 renders, so its presence means
+    # "Далее" never advanced the form.
+    still_on_step1 = False
+    with contextlib.suppress(PlaywrightError):
+        still_on_step1 = bool(page.locator(_CREATE_URL_INPUT_TESTID).count())
+    where = (
+        "The page is still showing step 1 (the URL field), so 'Далее' never "
+        "advanced the form — Yandex may still be scanning the landing page."
+        if still_on_step1
+        else "The page has left step 1, so step 2 rendered but without the "
+        "expected 'Регион показов' section — its markup may have changed."
+    )
+
     raise BrowserSessionError(
         "Timed out waiting for the Мастер кампаний create form's step 2 "
         f"(the 'Регион показов' section) to render within "
-        f"{_CREATE_STEP2_TIMEOUT_MS / 1000:.0f}s. Yandex may be slow to "
-        "scan the landing page, or the page's markup changed — re-run with "
+        f"{_CREATE_STEP2_TIMEOUT_MS / 1000:.0f}s. {where} Re-run with "
         "--headful to inspect the page."
     )
 
 
-def _add_repeating_values(page: "Page", xpath: str, values: List[str]) -> None:
-    """Fill+submit each of ``values`` into a repeating list field (headlines/texts).
+def _add_repeating_values(
+    page: "Page", testid_template: str, slot_count: int, values: List[str]
+) -> None:
+    """Fill each of ``values`` into successive slots of a fixed-size repeating
+    list field (headlines/texts) — issue #653 re-recon, 2026-08-02.
+
+    Yandex replaced the old "single current-variant input, fill + Enter"
+    flow with a FIXED set of pre-rendered contenteditable ``<div
+    role="textbox">`` slots (``testid_template.format(index=N)``, confirmed
+    live via ``CampaignTitles{N}.textarea``/``CampaignTexts{N}.textarea``) —
+    there is no "add another" control, and ``.fill()``/``.press("Enter")``
+    do not work on a contenteditable div (same class of markup change as
+    ``_fill_landing_url``'s URL field, issue #650). This types into each
+    slot in order via ``.click()`` + ``.type()`` instead.
 
     Confirmed live these sections start pre-populated by Yandex's own AI
-    scan of the landing page (see module docstring) — this module does not
-    clear that pre-filled list first; it only ever adds the caller's own
-    values on top, since the create-page's DOM offers no stable "clear all"
-    control and blindly clicking every visible "x" risks removing an
-    unrelated section's items (sitelinks, images) that share the same close
-    icon. Callers who want the AI-generated defaults gone entirely must
-    remove them by hand (``--headful``) before scripting the rest.
+    scan of the landing page (see module docstring), so each slot is CLEARED
+    before typing — ``.type()`` appends from wherever the click left the
+    caret, which otherwise splices the caller's value into the middle of
+    Yandex's copy instead of replacing it. Callers
+    whose values would overflow ``slot_count`` (more values than available
+    slots) get a hard error rather than a silent drop, since Мастер
+    кампаний has no rollback (module docstring's "no sandbox" risk).
     """
-    for value in values:
-        field = page.locator(xpath).first
+    if len(values) > slot_count:
+        raise BrowserSessionError(
+            f"Cannot add {len(values)} values — the create page only "
+            f"renders {slot_count} slots for this field. Reduce the number "
+            "of values, or clear some of Yandex's AI-generated defaults by "
+            "hand first (--headful)."
+        )
+
+    for index, value in enumerate(values):
+        selector = f'[data-testid="{testid_template.format(index=index)}"]'
+        field = page.locator(selector).first
         try:
             field.click()
-            field.fill(value)
-            field.press("Enter")
+            # The slot arrives pre-filled with Yandex's AI-generated copy and
+            # type() appends from wherever the click put the caret, so without
+            # this the value lands INSIDE the existing text (confirmed live:
+            # "Центр оздоровления и китайско<typed>й гимнастики цигун!").
+            _clear_text_field(field)
+            field.type(value)
         except PlaywrightError as exc:
             raise BrowserSessionError(
-                f"Could not add {value!r} via the create page's input at "
-                f"{xpath!r} — Yandex may have changed the page's markup. "
+                f"Could not add {value!r} via the create page's field at "
+                f"{selector!r} — Yandex may have changed the page's markup. "
                 "Re-run with --headful to inspect the page."
             ) from exc
 
 
-def _read_repeating_values(page: "Page", xpath: str) -> List[str]:
-    """Read every value currently entered into a repeating list field.
+def _read_repeating_values(
+    page: "Page", testid_template: str, slot_count: int
+) -> List[str]:
+    """Read every value currently held by a fixed-size repeating list field.
 
     Used by ``_verify_created`` to confirm ``_add_repeating_values`` actually
     persisted each value — mirrors ``update_master``'s ``_read_weekly_budget``
-    etc. Returns whatever the matched inputs currently hold; an unreadable
-    input is treated as an empty string rather than aborting the whole read,
-    since a partial mismatch is exactly what the caller needs to see.
+    etc. Reads each slot's ``.textarea`` contenteditable div via
+    ``inner_text()`` (not ``input_value()`` — a contenteditable div has no
+    ``value`` attribute, same as ``_fill_landing_url``'s field). An
+    unreadable/missing slot is treated as an empty string rather than
+    aborting the whole read, since a partial mismatch is exactly what the
+    caller needs to see.
     """
     values = []
-    locator = page.locator(xpath)
-    try:
-        count = locator.count()
-    except PlaywrightError:
-        return values
-    for i in range(count):
+    for index in range(slot_count):
+        selector = f'[data-testid="{testid_template.format(index=index)}"]'
+        field = page.locator(selector).first
         try:
-            values.append(locator.nth(i).input_value())
+            values.append(field.inner_text())
         except PlaywrightError:
             values.append("")
     return values
 
 
 def _set_region(page: "Page", regions: List[str]) -> None:
-    """Fill the "Регион показов" combobox with each of ``regions``.
+    """Select each of ``regions`` in the "Регион показов" tree/tag widget.
 
-    The one field confirmed live to start genuinely empty (see module
-    docstring) — every other required-looking section has an AI-generated
-    or sane default. Selects each typed region from the dropdown's first
-    matching suggestion, mirroring how a human picks from the combobox
-    rather than typing free text the server may not accept.
+    Issue #653 re-recon, 2026-08-02: Yandex replaced the old text-combobox
+    (a single input with an autocomplete dropdown) with a tree/tag-group
+    widget (``RegionsTreeEditor``/``RegionsTreeTagGroup``) — confirmed live
+    this is the one field that still starts genuinely empty (see module
+    docstring). Clicks the launcher button to open the tree popup (this
+    reveals a SEPARATE contenteditable filter field, ``RegionsTreeTagGroup
+    .editor`` — confirmed live it does not exist in the DOM until the popup
+    is open), types the region name into that field (confirmed live this
+    filters the tree and auto-expands every ancestor/descendant of a text
+    match — e.g. typing "Москва" also renders the parent "Москва и область"
+    and every district inside Москва), then checks the checkbox whose LABEL
+    text is an EXACT match — same fix class as ``update_master``'s
+    ``_set_promotion_goal`` (issue #631 review): a checkbox whose label
+    merely CONTAINS the region name (a parent or child in the auto-expanded
+    tree) is not the same node as the region itself.
 
-    Uses ``get_by_role("option", ...)`` rather than a substring
-    ``get_by_text`` match, same fix as ``update_master``'s
-    ``_set_promotion_goal`` (issue #631 review): a container whose text
-    merely contains the region name is not the same element as the actual
-    clickable suggestion row.
+    The click targets the LABEL, not the ``<input>`` it wraps: confirmed live
+    the input resolves and reports ``is_visible() == True`` but is not
+    actionable (Playwright's click times out on it), since the real hit
+    target is the styled label. The input is still used to READ state — a
+    label click toggles, so an already-checked region would be unchecked, and
+    the read-back confirms the region really ended up selected.
+
+    The open→type→poll sequence is retried up to ``_REGION_OPEN_ATTEMPTS``
+    times, and each retry is idempotent by construction — see that
+    constant's comment for why an unconditional re-click + re-type would
+    make attempts 2..N guaranteed no-ops.
     """
-    field = page.locator(_REGION_INPUT_XPATH).first
     for region in regions:
-        try:
-            field.click()
-            field.fill(region)
-        except PlaywrightError as exc:
-            raise BrowserSessionError(
-                "Could not find or fill the 'Регион показов' field on the "
-                "Мастер кампаний create page — Yandex may have changed the "
-                "page's markup. Re-run with --headful to inspect the page."
-            ) from exc
+        # XPath, not a plain data-testid selector: the tree auto-expands
+        # every ancestor/descendant of a text match (see docstring), so
+        # multiple RegionsTreeNode.Checkbox.label elements can be on screen
+        # at once — this scopes to the one whose FULL text (normalize-space
+        # of the element, not merely its direct text-node children — the
+        # region name is confirmed live to sit inside a nested <span>, so
+        # normalize-space(text()) always evaluates empty and never matches)
+        # equals the target region exactly, then descends to its checkbox.
+        label_xpath = (
+            "xpath=//label[@data-testid='RegionsTreeNode.Checkbox.label']"
+            f"[normalize-space(.)={_xpath_literal(region)}]"
+        )
+        # Click the LABEL, read state from the <input>. Confirmed live (issue
+        # #653): the <input type="checkbox" id="region-node-213"> the label
+        # wraps resolves and even reports is_visible() == True, but clicking
+        # it times out on Playwright's actionability check — it is a custom
+        # control whose real hit target is the styled label, not the input.
+        # Targeting the input directly is exactly why this failed with
+        # "Could not find 'Москва'" even though the locator matched.
+        label = page.locator(label_xpath)
+        checkbox = page.locator(
+            f"{label_xpath}//input[@data-testid='{_REGION_CHECKBOX_TESTID}']"
+        )
 
-        option = page.get_by_role("option", name=region, exact=True)
-        try:
-            count = option.count()
-        except PlaywrightError:
-            count = 0
+        # Live testing (issue #653) found opening the popup and filtering
+        # the tree is flaky under real network conditions — the popup can
+        # fail to render the editor field on the first launcher click, and
+        # the debounced filter can take longer than one poll window to
+        # settle. Rather than a single click + single poll window, this
+        # retries the whole open→type→poll sequence up to
+        # _REGION_OPEN_ATTEMPTS times, so a single stuck attempt doesn't
+        # fail the whole call.
+        #
+        # Each attempt must start from a KNOWN state, not from the previous
+        # attempt's leftovers, or the retry is worse than no retry at all:
+        #   * the launcher toggles the popup, so clicking it again while the
+        #     popup is already open CLOSES it (or is swallowed by the popup
+        #     overlay) — only click it when the editor is absent;
+        #   * type() APPENDS to a contenteditable, so a second type(region)
+        #     on an uncleared field yields "МоскваМосква", which filters the
+        #     tree down to zero nodes and can never match.
         clicked = False
-        for i in range(count):
-            handle = option.nth(i)
+        last_open_exc = None
+        for _ in range(_REGION_OPEN_ATTEMPTS):
+            launcher = page.locator(_REGION_LAUNCHER_TESTID).first
+            editor = page.locator(_REGION_EDITOR_TESTID).first
             try:
-                if not handle.is_visible():
-                    continue
-                handle.click()
-                clicked = True
-                break
-            except PlaywrightError:
+                # The editor only exists in the DOM while the popup is open
+                # (confirmed live), so its presence is the open/closed test.
+                if not editor.count():
+                    launcher.click()
+                editor.click(timeout=_REGION_EDITOR_APPEAR_TIMEOUT_MS)
+                _clear_text_field(editor)
+                editor.type(region)
+            except PlaywrightError as exc:
+                last_open_exc = exc
                 continue
+
+            # The tree re-filters asynchronously (debounced) after typing,
+            # so an immediate count() can race the filter and see zero
+            # matches even for a region that does exist — poll briefly
+            # instead of checking once.
+            deadline = time.monotonic() + _REGION_FILTER_TIMEOUT_MS / 1000
+            count = 0
+            while time.monotonic() < deadline:
+                try:
+                    count = label.count()
+                except PlaywrightError:
+                    count = 0
+                if count:
+                    break
+                page.wait_for_timeout(100)
+            for i in range(count):
+                handle = label.nth(i)
+                try:
+                    if not handle.is_visible():
+                        continue
+                    handle.click()
+                except PlaywrightError:
+                    continue
+                # Clicking a label that is already checked would UNCHECK the
+                # region, so confirm the input actually ended up checked
+                # rather than trusting the click — same read-back convention
+                # as _verify_created/_verify_saved.
+                with contextlib.suppress(PlaywrightError):
+                    if checkbox.nth(i).is_checked():
+                        clicked = True
+                        break
+            if clicked:
+                break
+
         if not clicked:
+            if (
+                last_open_exc is not None
+                and not page.locator(_REGION_LAUNCHER_TESTID).count()
+            ):
+                raise BrowserSessionError(
+                    "Could not find or open the 'Регион показов' field on "
+                    "the Мастер кампаний create page — Yandex may have "
+                    "changed the page's markup. Re-run with --headful to "
+                    "inspect the page."
+                ) from last_open_exc
             raise BrowserSessionError(
-                f"Could not find {region!r} in the 'Регион показов' "
-                "suggestion list on the Мастер кампаний create page — check "
-                "the region name matches Yandex's own wording."
+                f"Could not find {region!r} in the 'Регион показов' tree on "
+                "the Мастер кампаний create page — check the region name "
+                "matches Yandex's own wording."
             )
 
 
 def _read_region_tags(page: "Page") -> List[str]:
-    """Read the "Регион показов" field's currently selected region tags.
+    """Read the "Регион показов" widget's currently selected region tags.
 
-    The combobox is expected to render each accepted selection as a
-    removable tag/chip rather than leaving it in the free-text input (typing
-    and selecting an option clears the input back to empty — confirmed by
-    ``_set_region``'s own click-then-fill-again loop over multiple regions).
-    This function has NOT been live-verified against the actual tag markup
-    (issue #632 step 0 recon was read-only, see module docstring) — it reads
-    the same input's current value as a best-effort fallback, which will
-    only ever reflect the LAST region typed, not the full accepted set. A
-    follow-up live pass must confirm the real tag-list markup and replace
-    this with an accurate reader before trusting multi-region verification.
+    Issue #653 re-recon, 2026-08-02: confirmed live each accepted selection
+    renders as a removable tag inside ``RegionsTreeTagGroup.tags-wrapper``
+    (``RegionsTreeTagGroup.tag.{N}``), replacing the earlier
+    single-input-value best-effort fallback (issue #632 step 0, never
+    live-verified) — this now reads the full accepted set, not just the
+    last region typed.
     """
-    field = page.locator(_REGION_INPUT_XPATH).first
+    wrapper = page.locator(_REGION_TAGS_WRAPPER_TESTID)
     try:
-        return [field.input_value()]
+        count = wrapper.count()
     except PlaywrightError:
         return []
+    if not count:
+        return []
+    tags = page.locator(_REGION_TAG_TESTID_PATTERN)
+    try:
+        tag_count = tags.count()
+    except PlaywrightError:
+        return []
+    values = []
+    for i in range(tag_count):
+        try:
+            values.append(tags.nth(i).inner_text())
+        except PlaywrightError:
+            values.append("")
+    return values
 
 
 def _set_weekly_budget_on_create(page: "Page", amount: int) -> None:
@@ -1370,13 +1618,16 @@ def _verify_created(
     page to reload yet. This re-reads the CURRENT page's fields immediately
     after the click instead — a strictly weaker check than a real reload,
     but the strongest one available until a live pass confirms the
-    post-click destination. Region is intentionally NOT verified here: see
-    ``_read_region_tags``'s docstring for why its reader is not yet reliable
-    enough to gate a hard failure on.
+    post-click destination. Region is intentionally NOT verified here even
+    though ``_read_region_tags`` is now live-verified (issue #653): a
+    reload-based verification (mirroring ``_verify_saved``) is a bigger,
+    separately-scoped change than this issue's markup fix.
     """
     mismatches = []
 
-    actual_headlines = _read_repeating_values(page, _HEADLINES_ADD_INPUT_XPATH)
+    actual_headlines = _read_repeating_values(
+        page, _HEADLINES_TESTID_TEMPLATE, _HEADLINES_SLOT_COUNT
+    )
     for headline in headlines:
         if headline not in actual_headlines:
             mismatches.append(
@@ -1384,7 +1635,9 @@ def _verify_created(
                 f"{actual_headlines!r}"
             )
 
-    actual_texts = _read_repeating_values(page, _TEXTS_ADD_INPUT_XPATH)
+    actual_texts = _read_repeating_values(
+        page, _TEXTS_TESTID_TEMPLATE, _TEXTS_SLOT_COUNT
+    )
     for text in texts:
         if text not in actual_texts:
             mismatches.append(
@@ -1469,8 +1722,10 @@ def create_master(
     _fill_landing_url(page, url)
     _wait_for_step2(page)
 
-    _add_repeating_values(page, _HEADLINES_ADD_INPUT_XPATH, headlines)
-    _add_repeating_values(page, _TEXTS_ADD_INPUT_XPATH, texts)
+    _add_repeating_values(
+        page, _HEADLINES_TESTID_TEMPLATE, _HEADLINES_SLOT_COUNT, headlines
+    )
+    _add_repeating_values(page, _TEXTS_TESTID_TEMPLATE, _TEXTS_SLOT_COUNT, texts)
     _set_region(page, regions)
     if weekly_budget is not None:
         _set_weekly_budget_on_create(page, weekly_budget)
