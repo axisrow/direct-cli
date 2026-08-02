@@ -1702,19 +1702,30 @@ def update_master(
 
     # Snapshotted BEFORE any image mutation — ``_verify_saved`` needs to know
     # which content IDs were replaced (to confirm they're gone) and which
-    # were left alone (to confirm they're still there); by the time
-    # ``_set_image`` runs, the requested index no longer maps onto the same
-    # content ID it did when the caller specified it. The wait matters here
-    # too: an unrendered section would snapshot an empty "before" set and
-    # silently verify nothing afterwards.
+    # were left alone (to confirm they're still there). This snapshot is
+    # ALSO what each ``_set_image`` call is resolved against (by content ID,
+    # never by re-deriving a live position): a naive per-position loop would
+    # resolve later ``--image`` flags against the set as ``_set_image`` left
+    # it after an earlier replacement — which always appends to the end
+    # (see ``_set_image``'s docstring) — silently removing a DIFFERENT image
+    # than the one the caller named. Found independently by two reviewers in
+    # cycle-review round 1 of PR #670/#672. The wait matters here too: an
+    # unrendered section would snapshot an empty "before" set and silently
+    # verify nothing afterwards.
     if images:
         _wait_for_images_editor(page)
     images_before_ids = _read_image_content_ids(page) if images else []
     images_replaced_ids: Set[str] = set()
     for index, path in (images or {}).items():
-        if index < len(images_before_ids):
-            images_replaced_ids.add(images_before_ids[index])
-        _set_image(page, index, path)
+        if index >= len(images_before_ids):
+            raise BrowserSessionError(
+                f"Image position {index + 1} is out of range — this "
+                f"campaign currently has {len(images_before_ids)} image(s) "
+                f"(positions 1-{len(images_before_ids)})."
+            )
+        target_content_id = images_before_ids[index]
+        images_replaced_ids.add(target_content_id)
+        _set_image(page, index, path, target_content_id=target_content_id)
 
     # Determined BEFORE clicking, while the page still reflects what's about
     # to be clicked — after the click, _verify_saved's own reload leaves no
@@ -2285,9 +2296,11 @@ def _read_modal_selected_thumb_urls(page: "Page") -> List[str]:
     )
 
 
-def _set_image(page: "Page", index: int, path: str) -> None:
-    """Replace the image currently at position ``index`` (0-based) of the
-    campaign's image set with the file at ``path``.
+def _set_image(page: "Page", index: int, path: str, *, target_content_id: str) -> None:
+    """Replace the image identified by ``target_content_id`` — the image
+    originally at position ``index`` (0-based) when the caller snapshotted
+    the set, before any of this call's siblings ran — with the file at
+    ``path``.
 
     Issue #670 (Этап D, part of the #648 umbrella). Unlike headlines/texts'
     ``_set_repeating_value``, Yandex has no "replace this slot" primitive at
@@ -2295,15 +2308,20 @@ def _set_image(page: "Page", index: int, path: str) -> None:
     inside the ``ImageSuggestionsEditorModal`` opened via ``_open_images_modal``.
     This function composes the two into one synthetic point-replacement:
 
-    1. Read the current set; refuse if empty (images are optional — unlike
-       headlines/texts, a campaign can legitimately have zero) or if
-       ``index`` is out of the set's ACTUAL bounds (there are no fixed
-       slots to size against, unlike ``_set_repeating_value``'s
-       ``slot_count``).
+    1. Locate ``target_content_id`` in the current set; refuse if the set is
+       empty (images are optional — unlike headlines/texts, a campaign can
+       legitimately have zero) or if that content ID is no longer present
+       (it must always be found on the FIRST replacement in a batch; a
+       later one going missing means an earlier replacement in the same
+       call already removed it — a caller bug, not a live-page race, so
+       this raises rather than silently no-op'ing).
     2. Open the modal.
-    3. Remove the card at ``index`` from the modal's right-hand panel
+    3. Remove that image's card from the modal's right-hand panel
        (confirmed live: this panel's order matches the page's image order
-       positionally — see ``_read_modal_selected_thumb_urls``).
+       positionally — see ``_read_modal_selected_thumb_urls`` — but this
+       function locates by content ID, not by re-deriving a position, so it
+       is immune to any prior reordering within the same ``update_master``
+       call).
     4. Upload the new file via the modal's hidden file input.
     5. Poll for the new card to appear in the panel — Yandex processes the
        upload asynchronously before it shows up there (confirmed live: not
@@ -2321,6 +2339,19 @@ def _set_image(page: "Page", index: int, path: str) -> None:
     of position), so this is a cosmetic limitation, not a functional one —
     but callers (the CLI help text, README, CHANGELOG) MUST say so rather
     than imply a true positional swap.
+
+    **``index`` is used only for user-facing error messages — never to
+    locate the image to remove.** A previous version resolved ``index``
+    against the LIVE, already-reordered set on each call; since a
+    replacement always appends to the end, a second ``--image`` in the same
+    ``update_master`` call would silently resolve against a set that had
+    already shifted because of the first, removing a DIFFERENT image than
+    the one the caller named — found independently by two reviewers in
+    cycle-review round 1 of PR #670/#672, and reproduced via
+    ``tests/test_masters.py::test_update_master_replaces_multiple_images_by_original_position``.
+    ``target_content_id`` is resolved once, by the caller
+    (``update_master``), against the set as it stood before any
+    replacement in the batch ran, closing that gap.
 
     Because both the removal and the upload happen inside the same open
     modal, a failure at any point before ``Save`` leaves the campaign's
@@ -2347,19 +2378,29 @@ def _set_image(page: "Page", index: int, path: str) -> None:
             f"(positions 1-{len(current_ids)})."
         )
 
+    if target_content_id not in current_ids:
+        raise BrowserSessionError(
+            f"Image position {index + 1} (content ID {target_content_id}) "
+            "is no longer present in the campaign's image set — an earlier "
+            "--image replacement in this same command already removed it. "
+            "Re-run with the remaining --image flags only, after checking "
+            "the campaign's current image set."
+        )
+
     _open_images_modal(page)
 
     before_urls = _read_modal_selected_thumb_urls(page)
-    if index >= len(before_urls):
+    modal_ids = _read_image_content_ids(page)
+    if target_content_id not in modal_ids or len(modal_ids) != len(before_urls):
         raise BrowserSessionError(
-            f"Image position {index + 1} is out of range inside the image "
-            f"manager modal — it shows {len(before_urls)} selected image(s), "
-            f"which does not match "
-            f"the {len(current_ids)} shown on the edit page itself. Yandex "
-            "may have changed the page's markup. Re-run with --headful to "
-            "inspect the page."
+            f"Image position {index + 1} (content ID {target_content_id}) "
+            f"could not be matched inside the image manager modal — it "
+            f"shows {len(before_urls)} selected image(s), which does not "
+            f"match the {len(current_ids)} shown on the edit page itself. "
+            "Yandex may have changed the page's markup. Re-run with "
+            "--headful to inspect the page."
         )
-    target_url = before_urls[index]
+    target_url = before_urls[modal_ids.index(target_content_id)]
 
     remove_selector = (
         f'[data-testid="'

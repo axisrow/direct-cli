@@ -3014,6 +3014,46 @@ class TestUpdateMaster(unittest.TestCase):
         self.assertEqual(len(page_save_clicks), 1)
         self.assertEqual(result, {"CampaignId": 42, "Images": {1: "/tmp/fake.png"}})
 
+    def test_update_master_replaces_multiple_images_by_original_position(self):
+        """Two ``--image`` flags in one call must resolve BOTH positions
+        against the ORIGINAL (pre-mutation) set, not the live, already
+        reordered one.
+
+        Found independently by both reviewers in cycle-review round 1 of
+        PR #672: ``_set_image`` re-reads the live page on every call, and
+        the image manager appends replacements to the END of the set
+        (confirmed live), so a naive per-position loop resolves the second
+        ``--image`` against a set that has already shifted because of the
+        first. Replacing positions 1 and 2 of ``[a, b, c, d]`` must remove
+        exactly ``a`` and ``b`` — never a third, untouched image like
+        ``c`` — regardless of set reordering in between.
+        """
+        page_save_clicks = []
+        save_handle = _FakeTextLocatorHandle(
+            visible=True, on_click=lambda: page_save_clicks.append(True)
+        )
+        page = _FakeImagesPage(
+            ["a", "b", "c", "d"],
+            upload_ids=["new1", "new2"],
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+
+        result = browser_masters.update_master(
+            page, 42, images={0: "/tmp/one.png", 1: "/tmp/two.png"}
+        )
+
+        self.assertEqual(set(page.ids), {"c", "d", "new1", "new2"})
+        self.assertNotIn("a", page.ids)
+        self.assertNotIn("b", page.ids)
+        self.assertEqual(len(page_save_clicks), 1)
+        self.assertEqual(
+            result,
+            {
+                "CampaignId": 42,
+                "Images": {0: "/tmp/one.png", 1: "/tmp/two.png"},
+            },
+        )
+
     def test_update_master_raises_when_saved_image_set_does_not_match(self):
         """Mirrors the headline "silently rejected" test — the page-level
         save WAS clicked, but the post-reload re-read still shows the image
@@ -4542,7 +4582,9 @@ class TestWaitForImagesEditor(unittest.TestCase):
         page = _NoEditorPage([])
         with patch.object(browser_masters, "_IMAGES_EDITOR_TIMEOUT_MS", 1):
             with self.assertRaises(BrowserSessionError) as ctx:
-                browser_masters._set_image(page, 0, "/tmp/fake.png")
+                browser_masters._set_image(
+                    page, 0, "/tmp/fake.png", target_content_id="a"
+                )
 
         self.assertIn("did not render", str(ctx.exception))
         self.assertNotIn("no images", str(ctx.exception).lower())
@@ -4556,7 +4598,7 @@ class TestSetImage(unittest.TestCase):
     def test_replaces_the_requested_position_only(self):
         page = _FakeImagesPage(["a", "b", "c"], upload_ids=["new"])
 
-        browser_masters._set_image(page, 1, "/tmp/fake.png")
+        browser_masters._set_image(page, 1, "/tmp/fake.png", target_content_id="b")
 
         # Confirmed-live behaviour: the new image lands at the END of the
         # set, not back at position 1 — see _set_image's own docstring.
@@ -4568,7 +4610,7 @@ class TestSetImage(unittest.TestCase):
         page = _FakeImagesPage([])
 
         with self.assertRaises(BrowserSessionError) as ctx:
-            browser_masters._set_image(page, 0, "/tmp/fake.png")
+            browser_masters._set_image(page, 0, "/tmp/fake.png", target_content_id="a")
 
         self.assertIn("no images", str(ctx.exception).lower())
         self.assertEqual(page.save_clicks, [])
@@ -4577,9 +4619,29 @@ class TestSetImage(unittest.TestCase):
         page = _FakeImagesPage(["a", "b"])
 
         with self.assertRaises(BrowserSessionError) as ctx:
-            browser_masters._set_image(page, 5, "/tmp/fake.png")
+            browser_masters._set_image(
+                page, 5, "/tmp/fake.png", target_content_id="nonexistent"
+            )
 
         self.assertIn("out of range", str(ctx.exception).lower())
+        self.assertEqual(page.ids, ["a", "b"])
+        self.assertEqual(page.save_clicks, [])
+
+    def test_raises_when_target_content_id_already_gone(self):
+        """Models the caller-contract violation this signature exists to
+        prevent: a second ``_set_image`` in the same batch naming a content
+        ID an earlier call in the SAME batch already removed. A live page
+        race is not the scenario here — ``update_master`` always resolves
+        ``target_content_id`` from its own pre-batch snapshot, so this can
+        only happen if a caller passes a stale/already-consumed ID."""
+        page = _FakeImagesPage(["a", "b"])
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._set_image(
+                page, 0, "/tmp/fake.png", target_content_id="already-removed"
+            )
+
+        self.assertIn("no longer present", str(ctx.exception).lower())
         self.assertEqual(page.ids, ["a", "b"])
         self.assertEqual(page.save_clicks, [])
 
@@ -4600,7 +4662,9 @@ class TestSetImage(unittest.TestCase):
         # failure, and never hardcodes it (a `finally:` assignment would).
         with patch.object(browser_masters, "_IMAGE_UPLOAD_TIMEOUT_MS", 1):
             with self.assertRaises(BrowserSessionError) as ctx:
-                browser_masters._set_image(page, 0, "/tmp/fake.png")
+                browser_masters._set_image(
+                    page, 0, "/tmp/fake.png", target_content_id="a"
+                )
 
         self.assertIn("no new", str(ctx.exception).lower())
         self.assertEqual(page.save_clicks, [])
@@ -4626,7 +4690,9 @@ class TestSetImage(unittest.TestCase):
         page.locator = _locator
         with patch.object(browser_masters, "_IMAGE_MODAL_OPEN_TIMEOUT_MS", 1):
             with self.assertRaises(BrowserSessionError) as ctx:
-                browser_masters._set_image(page, 0, "/tmp/fake.png")
+                browser_masters._set_image(
+                    page, 0, "/tmp/fake.png", target_content_id="a"
+                )
 
         self.assertIn("still shown", str(ctx.exception).lower())
         self.assertEqual(page.save_clicks, [])
