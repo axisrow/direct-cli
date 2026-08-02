@@ -41,6 +41,7 @@ direct masters update 72349978 --weekly-budget 95000
 direct masters update 72349978 --promotion-goal max-clicks --no-directs-helps
 direct masters update 72349978 --name "Мастер ИЖ Источник Жизни (тёплый)"
 direct masters update 72349978 --headline "2=Новый заголовок" --text "1=Новый текст"
+direct masters update 72349978 --image "2=/path/to/banner.png"
 direct masters add https://example.com/ --headline "Заголовок 1" --headline "Заголовок 2" --text "Текст объявления" --region Москва --weekly-budget 50000 --draft
 direct masters add https://example.com/ --headline "Заголовок 1" --text "Текст объявления" --region-id 213 --weekly-budget 50000 --draft
 direct masters copy 72349978
@@ -54,14 +55,16 @@ It always reads the logged-in browser session's own account — there is no
 
 `masters update` edits a single Мастер кампаний's settings page. It currently
 covers the simplest scalar fields (Этап A of a larger, staged rollout — see
-`direct_cli/browser/masters.py` module docstring), the campaign name, and
-point-replacement of individual headline/ad-text variants (Этап B):
+`direct_cli/browser/masters.py` module docstring), the campaign name,
+point-replacement of individual headline/ad-text variants (Этап B), and
+point-replacement of individual images (Этап D):
 `--weekly-budget` (integer), `--promotion-goal`
 (`max-conversions`/`max-clicks`), `--directs-helps`/`--no-directs-helps`
-(auto-apply recommendations), `--name` (Название кампании), and
+(auto-apply recommendations), `--name` (Название кампании),
 `--headline`/`--text` (repeatable `"N=text"`, N is the 1-based variant slot
-shown on the edit page — 1-5 for headlines, 1-3 for ad text). At least one
-flag is required. The settings page is a single form with one save button —
+shown on the edit page — 1-5 for headlines, 1-3 for ad text), and `--image`
+(repeatable `"N=/path/to/file.png"`, N is the 1-based position in the
+campaign's *current* image set). At least one flag is required. The settings page is a single form with one save button —
 passing only some flags leaves every other field at its current value; it
 does not send a partial payload to a separate per-field endpoint. Unlike the
 other fields, `--name` is edited through a separate header modal, not a plain
@@ -79,9 +82,31 @@ Writing to a slot that is currently empty is refused (`UsageError`) — this
 only edits variants that already exist, it does not add new ones. An empty or
 whitespace-only replacement (`--headline "1="`) is refused for the mirror-image
 reason: blanking a slot would delete a live ad variant, not replace it.
-Deleting a variant and editing variant weights aren't implemented yet. Later fields
-(sitelinks, audience, Metrika counters/goals, budget adaptation, images/
-video) aren't implemented yet either.
+Deleting a variant and editing variant weights aren't implemented yet.
+
+`--image "N=/path/to/file.png"` replaces the image currently at position N of
+the campaign's image set with a local PNG/JPEG/GIF file, through the edit
+page's image manager modal. **Known limitation — the set is reordered.**
+Yandex has no "replace this slot" primitive for images at all, only "remove
+from the set" and "add to the set", so a point replacement is composed from
+the two — and a newly uploaded image is always appended to the END of the set
+(confirmed live), never inserted at the freed position. Replacing position 2
+of `[A, B, C, D]` therefore yields `[A, C, D, NEW]`, not `[A, NEW, C, D]`.
+The flag's semantics are "replace the image that is currently at position N"
+(which one to drop), not "put the new image at position N". This has no
+effect on ad delivery — Yandex rotates images by performance regardless of
+their order in the set. Unlike headlines/texts there is no fixed slot count:
+the upper bound for N is whatever the campaign actually has (up to Yandex's
+cap of 5), read fresh from the page, and a campaign with no images at all is
+a legitimate state that `--image` refuses with its own explicit error rather
+than a generic "out of range". Nonexistent paths and extensions Yandex won't
+accept are rejected before any browser opens. Adding an image beyond the
+current set and deleting one without replacement are out of scope. Because
+both the removal and the upload happen inside the same open modal, any
+failure before Save leaves the campaign's saved image set untouched.
+
+Later fields (sitelinks, audience, Metrika counters/goals, budget adaptation,
+video) aren't implemented yet.
 
 A DRAFT campaign's edit page has no "Сохранить кампанию" button at all —
 `masters update` on a DRAFT saves it via "Сохранить как черновик" by
@@ -1173,6 +1198,7 @@ direct masters update 72349978 --weekly-budget 95000
 direct masters update 72349978 --promotion-goal max-clicks --no-directs-helps
 direct masters update 72349978 --name "Мастер ИЖ Источник Жизни (тёплый)"
 direct masters update 72349978 --headline "2=Новый заголовок" --text "1=Новый текст"
+direct masters update 72349978 --image "2=/path/to/banner.png"
 direct masters add https://example.com/ --headline "Заголовок 1" --headline "Заголовок 2" --text "Текст объявления" --region Москва --weekly-budget 50000 --draft
 direct masters add https://example.com/ --headline "Заголовок 1" --text "Текст объявления" --region-id 213 --weekly-budget 50000 --draft
 direct masters copy 72349978
@@ -1187,14 +1213,17 @@ direct masters copy 72349978 --launch
 
 `masters update` редактирует настройки одного «Мастера кампаний». Пока
 поддерживаются простые скалярные поля (Этап A поэтапного плана — см.
-докстринг модуля `direct_cli/browser/masters.py`), название кампании и
-точечная замена отдельных вариантов заголовков/текстов (Этап B):
+докстринг модуля `direct_cli/browser/masters.py`), название кампании,
+точечная замена отдельных вариантов заголовков/текстов (Этап B) и точечная
+замена отдельных изображений (Этап D):
 `--weekly-budget` (недельный бюджет, целое число), `--promotion-goal`
 (`max-conversions`/`max-clicks` — цель продвижения),
 `--directs-helps`/`--no-directs-helps` (автоприменение рекомендаций «Директ
-помогает»), `--name` (Название кампании) и `--headline`/`--text`
+помогает»), `--name` (Название кампании), `--headline`/`--text`
 (повторяемые, формат `"N=текст"`, N — номер слота варианта на странице
-редактирования, 1-based: 1-5 для заголовков, 1-3 для текстов). Нужно указать
+редактирования, 1-based: 1-5 для заголовков, 1-3 для текстов) и `--image`
+(повторяемый, формат `"N=/путь/к/файлу.png"`, N — 1-based позиция в
+*текущем* наборе изображений кампании). Нужно указать
 хотя бы один флаг. Страница настроек — единая форма с одной кнопкой
 сохранения: если указать не все флаги, остальные поля останутся с текущим
 значением — это не частичный запрос к отдельному API-эндпоинту на каждое
@@ -1212,9 +1241,33 @@ direct masters copy 72349978 --launch
 `direct_cli/browser/masters.py::_set_repeating_value`. Запись в пустой слот
 запрещена (`UsageError`) — команда только редактирует уже существующие
 варианты, а не добавляет новые; удаление варианта и редактирование весов
-вариантов пока не реализованы. Остальные поля (быстрые ссылки, аудитория,
-счётчики Метрики/цели, адаптация бюджета, изображения/видео) тоже пока не
-реализованы.
+вариантов пока не реализованы.
+
+`--image "N=/путь/к/файлу.png"` заменяет изображение, которое сейчас стоит на
+позиции N набора кампании, локальным файлом PNG/JPEG/GIF — через модалку
+менеджера изображений на странице редактирования. **Известное ограничение —
+набор переупорядочивается.** У Яндекса вообще нет примитива «заменить
+изображение в позиции», есть только «удалить из набора» и «добавить в набор»,
+поэтому точечная замена собирается из этих двух операций — а загруженное
+изображение всегда встаёт в КОНЕЦ набора (подтверждено живьём), а не на
+освободившуюся позицию. Замена позиции 2 в наборе `[A, B, C, D]` даёт
+`[A, C, D, NEW]`, а не `[A, NEW, C, D]`. Семантика флага — «заменить
+изображение, которое сейчас на позиции N» (какое именно убрать), а не
+«поставить новое на позицию N». На показы это не влияет: Яндекс всё равно
+ротирует изображения по эффективности независимо от их порядка в наборе.
+В отличие от заголовков и текстов, фиксированного числа слотов здесь нет:
+верхняя граница N — это фактическое число изображений у кампании (в пределах
+жёсткого лимита Яндекса в 5 штук), прочитанное со страницы, а кампания вообще
+без изображений — законное состояние, на котором `--image` падает отдельной
+внятной ошибкой, а не generic «out of range». Несуществующий путь и
+неподдерживаемое расширение отлетают ещё до открытия браузера. Добавление
+изображения сверх текущего набора и удаление изображения без замены — вне
+объёма. Поскольку и удаление, и загрузка происходят внутри одной открытой
+модалки, любая ошибка до Save оставляет сохранённый набор изображений
+кампании нетронутым.
+
+Остальные поля (быстрые ссылки, аудитория, счётчики Метрики/цели, адаптация
+бюджета, видео) тоже пока не реализованы.
 
 У черновика («DRAFT») страница редактирования вообще не имеет кнопки
 «Сохранить кампанию» — `masters update` на черновике по умолчанию сохраняет

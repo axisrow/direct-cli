@@ -202,7 +202,7 @@ import contextlib
 import json
 import re
 import time
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple
 
 from ..output import print_warning
 from .session import (
@@ -363,6 +363,50 @@ _HEADLINES_SLOT_COUNT = 5
 _TEXTS_SLOT_COUNT = 3
 _HEADLINES_TESTID_TEMPLATE = "CampaignTitles{index}.textarea"
 _TEXTS_TESTID_TEMPLATE = "CampaignTexts{index}.textarea"
+
+# Images (issue #670, Этап D). Confirmed live 2026-08-02 against DRAFT clone
+# 713234191 that images are a COMPLETELY different shape from headlines/texts
+# above: there is no fixed slot count in the DOM at all — the edit page
+# renders exactly as many ``ContentImage``/``CloseButton`` pairs as the
+# campaign actually has images (observed: 4), keyed by a Yandex-assigned
+# content ID, not a 0-based slot index. "Можно добавить до 5 штук" is an
+# upper bound on the SET, not a slot count — unlike headlines/texts, an
+# images set may legitimately be EMPTY (zero images is a valid state; there
+# is no "at least one" invariant here). ``_IMAGES_MAX_COUNT`` therefore
+# bounds the CLI's slot-number parsing only; the real per-campaign ceiling is
+# always ``len(_read_image_content_ids(page))``, read fresh from the page.
+_IMAGES_MAX_COUNT = 5
+_IMAGES_EDITOR_SELECTOR = '[data-testid="ImageSuggestionsEditor"]'
+_IMAGES_CONTENT_TESTID_PREFIX = "ImageSuggestionsEditor.CampaignContents.ContentImage."
+_IMAGES_OPEN_MODAL_SELECTOR = '[data-testid="ImageSuggestionsEditor.Open"]'
+_IMAGES_MODAL_SELECTOR = '[data-testid="ImageSuggestionsEditorModal"]'
+_IMAGES_MODAL_FILE_INPUT_SELECTOR = (
+    '[data-testid="ImageSuggestionsEditorModal.UploadZone.filePicker"]'
+)
+_IMAGES_MODAL_SELECTED_PREFIX = (
+    "ImageSuggestionsEditorModal.SelectedImagesContainer.SelectedImage."
+)
+_IMAGES_MODAL_REMOVE_TESTID_TEMPLATE = (
+    "ImageSuggestionsEditorModal.SelectedImagesContainer.SelectedImage."
+    "{thumb_url}.CloseButton"
+)
+_IMAGES_MODAL_SAVE_SELECTOR = '[data-testid="ImageSuggestionsEditorModal.Save"]'
+# ``accept=`` on Yandex's own file input (the selector above) is
+# ``image/png,image/jpeg,image/jpg,image/gif`` — confirmed live 2026-08-02.
+# Lives here, next to the input it describes, so the CLI's fail-fast check
+# can't drift from what the page actually accepts (same reasoning as
+# ``_IMAGES_MAX_COUNT``).
+_IMAGE_UPLOAD_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
+_IMAGE_MODAL_OPEN_TIMEOUT_MS = 10_000
+_IMAGE_UPLOAD_TIMEOUT_MS = 60_000
+# The edit page is an SPA: ``goto(..., wait_until="domcontentloaded")``
+# returns long before the images section exists in the DOM. Reading the set
+# too early yields an empty list, which is INDISTINGUISHABLE from the
+# legitimate "this campaign genuinely has no images" state — live-confirmed
+# 2026-08-02 to make `--image` fail with a false "no images" on campaigns
+# that demonstrably had four. Hence an explicit wait for the section itself
+# before any read that a decision depends on (see `_wait_for_images_editor`).
+_IMAGES_EDITOR_TIMEOUT_MS = 30_000
 
 # Region picker (issue #653 re-recon, 2026-08-02): Yandex replaced the old
 # text-combobox-with-suggestions flow with a tree/tag-group widget
@@ -1473,6 +1517,8 @@ def _verify_saved(
     name: Optional[str] = None,
     headlines: Optional[Dict[int, str]] = None,
     texts: Optional[Dict[int, str]] = None,
+    images_before_ids: Optional[List[str]] = None,
+    images_replaced_ids: Optional[Set[str]] = None,
     clicked_button_label: str = _SAVE_BUTTON_TEXT,
 ) -> None:
     """Reload the edit page and confirm every requested field actually saved.
@@ -1531,6 +1577,13 @@ def _verify_saved(
             requested=texts,
         )
     )
+    mismatches.extend(
+        _verify_image_mismatches(
+            page,
+            before_ids=images_before_ids or [],
+            replaced_ids=images_replaced_ids or set(),
+        )
+    )
 
     if mismatches:
         raise BrowserSessionError(
@@ -1552,9 +1605,10 @@ def update_master(
     name: Optional[str] = None,
     headlines: Optional[Dict[int, str]] = None,
     texts: Optional[Dict[int, str]] = None,
+    images: Optional[Dict[int, str]] = None,
     launch: bool = False,
 ) -> Dict[str, Any]:
-    """Update one or more Этап A/B fields (plus the campaign name) and save.
+    """Update one or more Этап A/B/D fields (plus the campaign name) and save.
 
     Only fields passed as non-``None`` are touched — see module docstring for
     why this is safe despite the page having a single whole-form save (fields
@@ -1584,9 +1638,22 @@ def update_master(
     ``copy_master`` this function needs no extra guard against
     ``_with_session``'s whole-operation retry on ``BrowserAuthError``.
 
-    Later Этап (C/D) fields — sitelinks, audience, Metrika counters/goals,
-    budget adaptation, media — are out of scope for this function; see
-    issue #648.
+    ``images`` (issue #670, Этап D) maps a 0-based POSITION (not a content
+    ID — content IDs are Yandex-assigned and unknown to callers ahead of
+    time) to a local file path, and replaces the image currently at that
+    position. Unlike ``headlines``/``texts``, this is NOT a literal
+    positional swap — Yandex has no "replace in place" primitive for
+    images, so this composes remove+add inside the image manager modal, and
+    the newly uploaded image always lands at the END of the set (confirmed
+    live — see ``_set_image``'s docstring). The set may legitimately be
+    EMPTY (images are optional, unlike headlines/texts); writing to an
+    empty set, or to a position beyond the campaign's actual image count,
+    raises ``BrowserSessionError``.
+
+    Later Этап C fields — sitelinks, audience, Metrika counters/goals,
+    budget adaptation — plus video (a separate follow-up issue, different
+    upload control/pipeline) are out of scope for this function; see issue
+    #648.
 
     ``launch`` (issue #668) matters only when ``campaign_id`` is currently a
     DRAFT: that edit page has no "Сохранить кампанию" button at all, only a
@@ -1603,11 +1670,12 @@ def update_master(
         and name is None
         and not headlines
         and not texts
+        and not images
     ):
         raise ValueError(
             "update_master requires at least one field to update "
             "(weekly_budget, promotion_goal, directs_helps, name, "
-            "headlines, texts)."
+            "headlines, texts, images)."
         )
 
     url = WIZARD_EDIT_URL.format(campaign_id=campaign_id)
@@ -1632,6 +1700,33 @@ def update_master(
             page, _TEXTS_TESTID_TEMPLATE, _TEXTS_SLOT_COUNT, index, value
         )
 
+    # Snapshotted BEFORE any image mutation — ``_verify_saved`` needs to know
+    # which content IDs were replaced (to confirm they're gone) and which
+    # were left alone (to confirm they're still there). This snapshot is
+    # ALSO what each ``_set_image`` call is resolved against (by content ID,
+    # never by re-deriving a live position): a naive per-position loop would
+    # resolve later ``--image`` flags against the set as ``_set_image`` left
+    # it after an earlier replacement — which always appends to the end
+    # (see ``_set_image``'s docstring) — silently removing a DIFFERENT image
+    # than the one the caller named. Found independently by two reviewers in
+    # cycle-review round 1 of PR #670/#672. The wait matters here too: an
+    # unrendered section would snapshot an empty "before" set and silently
+    # verify nothing afterwards.
+    if images:
+        _wait_for_images_editor(page)
+    images_before_ids = _read_image_content_ids(page) if images else []
+    images_replaced_ids: Set[str] = set()
+    for index, path in (images or {}).items():
+        if index >= len(images_before_ids):
+            raise BrowserSessionError(
+                f"Image position {index + 1} is out of range — this "
+                f"campaign currently has {len(images_before_ids)} image(s) "
+                f"(positions 1-{len(images_before_ids)})."
+            )
+        target_content_id = images_before_ids[index]
+        images_replaced_ids.add(target_content_id)
+        _set_image(page, index, path, target_content_id=target_content_id)
+
     # Determined BEFORE clicking, while the page still reflects what's about
     # to be clicked — after the click, _verify_saved's own reload leaves no
     # way to tell which button this run actually used.
@@ -1644,17 +1739,38 @@ def update_master(
 
     _click_save(page, campaign_id, launch=launch)
 
-    _verify_saved(
-        page,
-        campaign_id,
-        weekly_budget=weekly_budget,
-        promotion_goal=promotion_goal,
-        directs_helps=directs_helps,
-        name=name,
-        headlines=headlines,
-        texts=texts,
-        clicked_button_label=clicked_button_label,
-    )
+    # The terminal-button click above already happened — irreversible, and
+    # for images NOT idempotent (a retry would re-snapshot the
+    # already-mutated set and replace DIFFERENT images than the ones the
+    # caller named; see _set_image's docstring). If the saved session is
+    # invalidated in exactly this window, _verify_saved's own
+    # assert_authenticated raises BrowserAuthError; letting that propagate
+    # as-is would make _with_session (direct_cli/commands/masters.py) retry
+    # this ENTIRE update_master call under a fresh session. Re-raise as a
+    # plain BrowserSessionError so that retry does not trigger — mirrors
+    # copy_master's identical guard around its own post-click verification.
+    try:
+        _verify_saved(
+            page,
+            campaign_id,
+            weekly_budget=weekly_budget,
+            promotion_goal=promotion_goal,
+            directs_helps=directs_helps,
+            name=name,
+            headlines=headlines,
+            texts=texts,
+            images_before_ids=images_before_ids,
+            images_replaced_ids=images_replaced_ids,
+            clicked_button_label=clicked_button_label,
+        )
+    except BrowserAuthError as exc:
+        raise BrowserSessionError(
+            f"Clicked '{clicked_button_label}' for campaign {campaign_id}, "
+            "but the session was invalidated while verifying the save — "
+            "the requested changes were likely already applied; check "
+            f"campaign {campaign_id} manually rather than retrying "
+            "(image replacements are not idempotent)."
+        ) from exc
 
     result: Dict[str, Any] = {"CampaignId": campaign_id}
     if weekly_budget is not None:
@@ -1669,6 +1785,8 @@ def update_master(
         result["Headlines"] = headlines
     if texts:
         result["Texts"] = texts
+    if images:
+        result["Images"] = images
     return result
 
 
@@ -2013,6 +2131,424 @@ def _set_repeating_value(
             f"at {selector!r} — Yandex may have changed the page's markup. "
             "Re-run with --headful to inspect the page."
         ) from exc
+
+
+def _poll_until(
+    page: "Page",
+    predicate: "Callable[[], bool]",
+    timeout_ms: int,
+    *,
+    tick_ms: int = 250,
+) -> bool:
+    """Poll ``predicate`` until it is true or ``timeout_ms`` elapses.
+
+    Returns ``True`` if the predicate became true, ``False`` on timeout, so
+    each caller keeps its own (deliberately site-specific) ``BrowserSessionError``
+    message rather than sharing a generic one.
+
+    ``PlaywrightError`` from the predicate is suppressed and treated as
+    "not yet" — a locator query racing a mid-render DOM is the normal case
+    these loops exist to absorb.
+    """
+    deadline = time.monotonic() + timeout_ms / 1000
+    while time.monotonic() < deadline:
+        with contextlib.suppress(PlaywrightError):
+            if predicate():
+                return True
+        page.wait_for_timeout(tick_ms)
+    return False
+
+
+def _read_testid_suffixes(
+    page: "Page", prefix: str, *, skip_suffixes: "tuple[str, ...]" = ()
+) -> List[str]:
+    """Read every ``data-testid`` starting with ``prefix``, in DOM order,
+    with ``prefix`` stripped off.
+
+    Shared by the two image readers below — both scrape a testid prefix off
+    ``page`` directly (matching every other reader in this module, which
+    always locates by a single full ``data-testid`` selector rather than a
+    scoped container + chained sub-locator).
+
+    A locator failure yields ``[]`` rather than raising: for images an empty
+    result is a legitimate state, and callers that need to distinguish it
+    from "not rendered yet" wait for the section first
+    (``_wait_for_images_editor``).
+    """
+    try:
+        elements = page.locator(f'[data-testid^="{prefix}"]')
+        count = elements.count()
+    except PlaywrightError:
+        return []
+
+    suffixes = []
+    for i in range(count):
+        testid = elements.nth(i).get_attribute("data-testid")
+        if not testid:
+            continue
+        suffix = testid[len(prefix) :]
+        if skip_suffixes and suffix.endswith(skip_suffixes):
+            continue
+        suffixes.append(suffix)
+    return suffixes
+
+
+def _wait_for_images_editor(page: "Page") -> None:
+    """Block until the edit page's "Изображения" section has rendered.
+
+    The edit page is a client-rendered SPA — ``goto(...,
+    wait_until="domcontentloaded")`` (what every entry point in this module
+    uses, deliberately: Yandex holds long-poll connections, so
+    ``networkidle`` never settles) returns while this section is still
+    absent from the DOM.
+
+    Without this wait, ``_read_image_content_ids`` returns ``[]`` for a
+    campaign that simply has not rendered yet, and an empty list is
+    INDISTINGUISHABLE from the legitimate "this campaign has no images"
+    state (images are optional — unlike headlines/texts). Live-confirmed
+    2026-08-02: four consecutive DRAFT campaigns were reported as having no
+    images by ``masters update --image`` while the very same edit pages
+    demonstrably rendered four ``ContentImage`` elements each.
+
+    Absence of the section after the timeout is reported as a hard error
+    rather than silently treated as "no images", for the same reason.
+    """
+    if _poll_until(
+        page,
+        lambda: page.locator(_IMAGES_EDITOR_SELECTOR).first.count() > 0,
+        _IMAGES_EDITOR_TIMEOUT_MS,
+    ):
+        return
+
+    raise BrowserSessionError(
+        "The edit page's 'Изображения' section did not render within "
+        f"{_IMAGES_EDITOR_TIMEOUT_MS / 1000:.0f}s, so this command cannot "
+        "tell whether the campaign has images or not. Yandex may have "
+        "changed the page's markup, or the page may still be loading. "
+        "Re-run with --headful to inspect the page."
+    )
+
+
+def _read_image_content_ids(page: "Page") -> List[str]:
+    """Read the campaign's current image set as an ordered list of Yandex
+    content IDs.
+
+    Unlike ``_read_repeating_values`` (headlines/texts), there is no fixed
+    slot count to iterate — the edit page renders exactly as many
+    ``ImageSuggestionsEditor.CampaignContents.ContentImage.<contentId>``
+    elements as the campaign actually has images, in DOM order (confirmed
+    live 2026-08-02, campaign 713234191, stable across reloads). An EMPTY
+    list is a valid, normal result — images are optional, unlike headlines/
+    texts which always have at least one variant.
+
+    A broken/unloaded thumbnail does not affect this: the ``ContentImage``
+    element (and its ``data-testid``) is present in the DOM regardless of
+    whether the underlying thumb URL actually rendered — confirmed live,
+    2 of 4 images had a broken-image icon while still being fully valid,
+    counted images. So content ID, never the thumb URL's load state, is the
+    only thing this reads.
+
+    Selects directly off ``page`` by the ``ContentImage`` testid prefix
+    (matching every other reader in this module — ``_read_repeating_values``
+    etc. — which always locates by a single full ``data-testid`` selector,
+    never a scoped container + chained sub-locator).
+    """
+    return _read_testid_suffixes(page, _IMAGES_CONTENT_TESTID_PREFIX)
+
+
+def _open_images_modal(page: "Page") -> None:
+    """Click "Выбрать другие изображения" and wait for the image manager
+    modal to actually render.
+
+    Confirmed live 2026-08-02: the modal (``ImageSuggestionsEditorModal``) is
+    not in the DOM at all until this button is clicked — a fresh element,
+    not merely hidden — so this must poll for its appearance rather than
+    assume the click was synchronous.
+    """
+    open_button = page.locator(_IMAGES_OPEN_MODAL_SELECTOR).first
+    try:
+        open_button.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            "Could not find/click the 'Выбрать другие изображения' button — "
+            "Yandex may have changed the page's markup. Re-run with "
+            "--headful to inspect the page."
+        ) from exc
+
+    if _poll_until(
+        page,
+        lambda: page.locator(_IMAGES_MODAL_SELECTOR).first.count() > 0,
+        _IMAGE_MODAL_OPEN_TIMEOUT_MS,
+    ):
+        return
+
+    raise BrowserSessionError(
+        "Clicked 'Выбрать другие изображения' but the image manager modal "
+        f"did not appear within {_IMAGE_MODAL_OPEN_TIMEOUT_MS / 1000:.0f}s "
+        "— Yandex may have changed the page's markup. Re-run with "
+        "--headful to inspect the page."
+    )
+
+
+def _read_modal_selected_thumb_urls(page: "Page") -> List[str]:
+    """Read the image manager modal's right-hand "Выбранные изображения"
+    panel as an ordered list of thumb URLs.
+
+    Confirmed live 2026-08-02: this panel's DOM order matches the edit
+    page's own image order exactly (same 4 thumb URLs, same sequence) — so
+    the Nth entry here corresponds to the Nth ``ContentImage`` on the page,
+    letting slot index N map onto this panel positionally without ever
+    needing to correlate a content ID with a thumb URL.
+
+    Selects directly off ``page``, same reasoning as
+    ``_read_image_content_ids``.
+
+    Each card renders THREE testids sharing the same thumb-URL prefix (the
+    card itself, ``.Content``, ``.CloseButton`` — confirmed live) — only the
+    bare thumb URL (no further ``.`` suffix) identifies one distinct image;
+    the sub-elements would otherwise be double-counted, hence the skip list.
+    """
+    return _read_testid_suffixes(
+        page,
+        _IMAGES_MODAL_SELECTED_PREFIX,
+        skip_suffixes=(".Content", ".CloseButton"),
+    )
+
+
+def _set_image(page: "Page", index: int, path: str, *, target_content_id: str) -> None:
+    """Replace the image identified by ``target_content_id`` — the image
+    originally at position ``index`` (0-based) when the caller snapshotted
+    the set, before any of this call's siblings ran — with the file at
+    ``path``.
+
+    Issue #670 (Этап D, part of the #648 umbrella). Unlike headlines/texts'
+    ``_set_repeating_value``, Yandex has no "replace this slot" primitive at
+    all for images — only "remove from the set" and "add to the set", both
+    inside the ``ImageSuggestionsEditorModal`` opened via ``_open_images_modal``.
+    This function composes the two into one synthetic point-replacement:
+
+    1. Locate ``target_content_id`` in the current set; refuse if the set is
+       empty (images are optional — unlike headlines/texts, a campaign can
+       legitimately have zero) or if that content ID is no longer present
+       (it must always be found on the FIRST replacement in a batch; a
+       later one going missing means an earlier replacement in the same
+       call already removed it — a caller bug, not a live-page race, so
+       this raises rather than silently no-op'ing).
+    2. Open the modal.
+    3. Remove that image's card from the modal's right-hand panel
+       (confirmed live: this panel's order matches the page's image order
+       positionally — see ``_read_modal_selected_thumb_urls`` — but this
+       function locates by content ID, not by re-deriving a position, so it
+       is immune to any prior reordering within the same ``update_master``
+       call).
+    4. Upload the new file via the modal's hidden file input.
+    5. Poll for the new card to appear in the panel — Yandex processes the
+       upload asynchronously before it shows up there (confirmed live: not
+       instant).
+    6. Click "Добавить в кампанию" (Save) to commit the whole modal
+       operation back onto the edit page in one shot.
+
+    **Confirmed live 2026-08-02, campaign 713234191 (real DOM mutation,
+    Save never clicked, page abandoned afterwards — no campaign mutation):
+    a newly uploaded image is always appended to the END of the set, never
+    inserted at the freed position.** So this is NOT a literal positional
+    replacement — replacing position 2 of ``[A, B, C, D]`` yields
+    ``[A, C, D, NEW]``, not ``[A, NEW, C, D]``. The set's order carries no
+    product meaning (Yandex rotates/biases images by performance regardless
+    of position), so this is a cosmetic limitation, not a functional one —
+    but callers (the CLI help text, README, CHANGELOG) MUST say so rather
+    than imply a true positional swap.
+
+    **``index`` is used only for user-facing error messages — never to
+    locate the image to remove.** A previous version resolved ``index``
+    against the LIVE, already-reordered set on each call; since a
+    replacement always appends to the end, a second ``--image`` in the same
+    ``update_master`` call would silently resolve against a set that had
+    already shifted because of the first, removing a DIFFERENT image than
+    the one the caller named — found independently by two reviewers in
+    cycle-review round 1 of PR #670/#672, and reproduced via
+    ``tests/test_masters.py::test_update_master_replaces_multiple_images_by_original_position``.
+    ``target_content_id`` is resolved once, by the caller
+    (``update_master``), against the set as it stood before any
+    replacement in the batch ran, closing that gap.
+
+    Because both the removal and the upload happen inside the same open
+    modal, a failure at any point before ``Save`` leaves the campaign's
+    actual saved image set untouched — the modal can simply be abandoned
+    (``Cancel`` or navigating away), unlike a mid-way failure that had
+    already committed a change to the live page.
+    """
+    # Must precede the read: an empty result is only meaningful once the
+    # section has actually rendered (see _wait_for_images_editor).
+    _wait_for_images_editor(page)
+    current_ids = _read_image_content_ids(page)
+
+    if not current_ids:
+        raise BrowserSessionError(
+            "This campaign has no images — there is nothing to replace. "
+            "Adding a brand-new image (to an empty set) is not supported "
+            "by this command."
+        )
+
+    if index >= len(current_ids):
+        raise BrowserSessionError(
+            f"Image position {index + 1} is out of range — this campaign "
+            f"currently has {len(current_ids)} image(s) "
+            f"(positions 1-{len(current_ids)})."
+        )
+
+    if target_content_id not in current_ids:
+        raise BrowserSessionError(
+            f"Image position {index + 1} (content ID {target_content_id}) "
+            "is no longer present in the campaign's image set — an earlier "
+            "--image replacement in this same command already removed it. "
+            "Re-run with the remaining --image flags only, after checking "
+            "the campaign's current image set."
+        )
+
+    _open_images_modal(page)
+
+    before_urls = _read_modal_selected_thumb_urls(page)
+    modal_ids = _read_image_content_ids(page)
+    if target_content_id not in modal_ids or len(modal_ids) != len(before_urls):
+        raise BrowserSessionError(
+            f"Image position {index + 1} (content ID {target_content_id}) "
+            f"could not be matched inside the image manager modal — it "
+            f"shows {len(before_urls)} selected image(s), which does not "
+            f"match the {len(current_ids)} shown on the edit page itself. "
+            "Yandex may have changed the page's markup. Re-run with "
+            "--headful to inspect the page."
+        )
+    target_url = before_urls[modal_ids.index(target_content_id)]
+
+    remove_selector = (
+        f'[data-testid="'
+        f"{_IMAGES_MODAL_REMOVE_TESTID_TEMPLATE.format(thumb_url=target_url)}"
+        f'"]'
+    )
+    try:
+        page.locator(remove_selector).first.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            f"Could not remove the image at position {index + 1} inside "
+            "the image manager modal — Yandex may have changed the page's "
+            "markup. Re-run with --headful to inspect the page. The "
+            "campaign's saved image set has NOT been changed (the modal "
+            "was never saved)."
+        ) from exc
+
+    if not _poll_until(
+        page,
+        lambda: target_url not in _read_modal_selected_thumb_urls(page),
+        _IMAGE_MODAL_OPEN_TIMEOUT_MS,
+    ):
+        raise BrowserSessionError(
+            f"Clicked to remove the image at position {index + 1} inside "
+            "the image manager modal, but it is still shown there after "
+            f"{_IMAGE_MODAL_OPEN_TIMEOUT_MS / 1000:.0f}s. The campaign's "
+            "saved image set has NOT been changed (the modal was never "
+            "saved) — close the browser and retry."
+        )
+
+    try:
+        page.locator(_IMAGES_MODAL_FILE_INPUT_SELECTOR).first.set_input_files(path)
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            f"Could not upload {path!r} inside the image manager modal — "
+            "Yandex may have changed the page's markup. Re-run with "
+            "--headful to inspect the page. The campaign's saved image set "
+            "has NOT been changed (the modal was never saved)."
+        ) from exc
+
+    # One image was just removed, so the post-removal panel holds
+    # ``len(before_urls) - 1``; the upload has landed once the panel grows
+    # back to at least its original size.
+    if not _poll_until(
+        page,
+        lambda: len(_read_modal_selected_thumb_urls(page)) >= len(before_urls),
+        _IMAGE_UPLOAD_TIMEOUT_MS,
+    ):
+        raise BrowserSessionError(
+            f"Uploaded {path!r} inside the image manager modal, but no new "
+            f"image appeared there within {_IMAGE_UPLOAD_TIMEOUT_MS / 1000:.0f}s "
+            "— Yandex's asynchronous processing may have failed or be "
+            "unusually slow. The campaign's saved image set has NOT been "
+            "changed (the modal was never saved) — close the browser and "
+            "retry."
+        )
+
+    try:
+        page.locator(_IMAGES_MODAL_SAVE_SELECTOR).first.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            "Could not find/click 'Добавить в кампанию' to commit the "
+            "image manager modal — Yandex may have changed the page's "
+            "markup. Re-run with --headful to inspect the page. The "
+            "campaign's saved image set has NOT been changed (the modal "
+            "was never saved)."
+        ) from exc
+
+    if _poll_until(
+        page,
+        lambda: page.locator(_IMAGES_MODAL_SELECTOR).first.count() == 0,
+        _IMAGE_MODAL_OPEN_TIMEOUT_MS,
+    ):
+        return
+
+    raise BrowserSessionError(
+        "Clicked 'Добавить в кампанию' but the image manager modal did not "
+        f"close within {_IMAGE_MODAL_OPEN_TIMEOUT_MS / 1000:.0f}s — the "
+        "commit may not have completed. Verify manually before retrying."
+    )
+
+
+def _verify_image_mismatches(
+    page: "Page", *, before_ids: List[str], replaced_ids: Set[str]
+) -> List[str]:
+    """Re-read the campaign's saved image set and confirm every replaced
+    image is actually gone and every untouched image is still present.
+
+    Unlike ``_verify_repeating_value_mismatches``, this is NOT a positional
+    comparison — a newly uploaded image always lands at the end of the set
+    (see ``_set_image``'s docstring), so "position N now shows something
+    different" is not a meaningful check. What IS meaningful, and what
+    Yandex's silent-validation-rejection failure mode (module docstring)
+    would actually break, is: (a) every content ID this call meant to
+    replace is gone from the saved set, (b) every content ID it did NOT
+    touch is still there, and (c) the set size is unchanged (removed count
+    == added count). A rejected/failed upload would leave a replaced ID
+    still present, which (a) catches.
+    """
+    if not replaced_ids:
+        return []
+
+    # ``_verify_saved`` re-navigates before calling this, so the section is
+    # once again mid-render — reading straight away would report every image
+    # as missing (see ``_wait_for_images_editor``).
+    _wait_for_images_editor(page)
+    actual_ids = set(_read_image_content_ids(page))
+    kept_ids = [cid for cid in before_ids if cid not in replaced_ids]
+
+    mismatches = []
+    still_present = sorted(replaced_ids & actual_ids)
+    if still_present:
+        mismatches.append(
+            "image(s) that should have been replaced are still present: "
+            + ", ".join(still_present)
+        )
+    missing_kept = sorted(cid for cid in kept_ids if cid not in actual_ids)
+    if missing_kept:
+        mismatches.append(
+            "image(s) that should have been left untouched are now "
+            "missing: " + ", ".join(missing_kept)
+        )
+    expected_size = len(kept_ids) + len(replaced_ids)
+    if len(actual_ids) != expected_size:
+        mismatches.append(
+            f"image set now has {len(actual_ids)} image(s), expected "
+            f"{expected_size}"
+        )
+    return mismatches
 
 
 def _set_region(page: "Page", regions: List[str]) -> None:

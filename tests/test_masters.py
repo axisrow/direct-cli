@@ -73,6 +73,7 @@ class _FakeLocatorHandle:
         on_press=None,
         get_value=None,
         get_checked=None,
+        on_upload=None,
     ):
         self._text = text
         self._attrs = attrs or {}
@@ -84,6 +85,7 @@ class _FakeLocatorHandle:
         self._on_press = on_press
         self._get_value = get_value
         self._get_checked = get_checked
+        self._on_upload = on_upload
 
     def inner_text(self):
         if self._raises:
@@ -157,6 +159,16 @@ class _FakeLocatorHandle:
         # 1 otherwise. `_set_region` uses exactly this to decide whether the
         # region popup is already open before clicking the launcher again.
         return 0 if self._raises else 1
+
+    def set_input_files(self, path):
+        # Models Playwright's Locator.set_input_files() on the image manager
+        # modal's hidden <input type="file"> (issue #670, Этап D) — a fake
+        # test supplies ``on_upload`` to mutate whatever shared state models
+        # "a new image now appears in the modal's selected panel".
+        if self._raises:
+            raise PlaywrightError("element detached")
+        if self._on_upload is not None:
+            self._on_upload(path)
 
 
 class _FakeContentEditableHandle(_FakeLocatorHandle):
@@ -2979,6 +2991,160 @@ class TestUpdateMaster(unittest.TestCase):
         with self.assertRaises(ValueError):
             browser_masters.update_master(page, 42, headlines={})
 
+    def test_raises_value_error_when_only_empty_images_dict_provided(self):
+        page = FakePage()
+
+        with self.assertRaises(ValueError):
+            browser_masters.update_master(page, 42, images={})
+
+    def test_update_master_replaces_an_image(self):
+        page_save_clicks = []
+        save_handle = _FakeTextLocatorHandle(
+            visible=True, on_click=lambda: page_save_clicks.append(True)
+        )
+        page = _FakeImagesPage(
+            ["a", "b", "c"],
+            upload_ids=["new"],
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+
+        result = browser_masters.update_master(page, 42, images={1: "/tmp/fake.png"})
+
+        self.assertEqual(page.ids, ["a", "c", "new"])
+        self.assertEqual(len(page_save_clicks), 1)
+        self.assertEqual(result, {"CampaignId": 42, "Images": {1: "/tmp/fake.png"}})
+
+    def test_update_master_replaces_multiple_images_by_original_position(self):
+        """Two ``--image`` flags in one call must resolve BOTH positions
+        against the ORIGINAL (pre-mutation) set, not the live, already
+        reordered one.
+
+        Found independently by both reviewers in cycle-review round 1 of
+        PR #672: ``_set_image`` re-reads the live page on every call, and
+        the image manager appends replacements to the END of the set
+        (confirmed live), so a naive per-position loop resolves the second
+        ``--image`` against a set that has already shifted because of the
+        first. Replacing positions 1 and 2 of ``[a, b, c, d]`` must remove
+        exactly ``a`` and ``b`` — never a third, untouched image like
+        ``c`` — regardless of set reordering in between.
+        """
+        page_save_clicks = []
+        save_handle = _FakeTextLocatorHandle(
+            visible=True, on_click=lambda: page_save_clicks.append(True)
+        )
+        page = _FakeImagesPage(
+            ["a", "b", "c", "d"],
+            upload_ids=["new1", "new2"],
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+
+        result = browser_masters.update_master(
+            page, 42, images={0: "/tmp/one.png", 1: "/tmp/two.png"}
+        )
+
+        self.assertEqual(set(page.ids), {"c", "d", "new1", "new2"})
+        self.assertNotIn("a", page.ids)
+        self.assertNotIn("b", page.ids)
+        self.assertEqual(len(page_save_clicks), 1)
+        self.assertEqual(
+            result,
+            {
+                "CampaignId": 42,
+                "Images": {0: "/tmp/one.png", 1: "/tmp/two.png"},
+            },
+        )
+
+    def test_update_master_raises_when_saved_image_set_does_not_match(self):
+        """Mirrors the headline "silently rejected" test — the page-level
+        save WAS clicked, but the post-reload re-read still shows the image
+        that was supposed to be gone."""
+        page_save_clicks = []
+        save_handle = _FakeTextLocatorHandle(
+            visible=True, on_click=lambda: page_save_clicks.append(True)
+        )
+        page = _FakeImagesPage(
+            ["a", "b", "c"],
+            upload_ids=["new"],
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+        # Sabotage AFTER _set_image runs but BEFORE _verify_saved's reload —
+        # models Yandex accepting the modal's own Save but the page-level
+        # terminal save silently not persisting the change.
+        original_click = save_handle._on_click
+
+        def _click():
+            original_click()
+            page.ids = ["a", "b", "c"]  # revert, as if nothing was saved
+
+        save_handle._on_click = _click
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(page, 42, images={1: "/tmp/fake.png"})
+
+        self.assertEqual(len(page_save_clicks), 1)
+        self.assertIn("did not save as requested", str(ctx.exception))
+
+    def test_auth_error_during_post_save_image_verification_is_not_retried(self):
+        """Mirrors ``copy_master``'s
+        ``test_auth_error_during_post_click_verification_is_not_retried``.
+
+        By the time ``_verify_saved`` reloads the edit page, every requested
+        image replacement has ALREADY been committed via its own modal Save
+        — irreversible from here, and NOT idempotent for images the way
+        ``_set_repeating_value`` is for headlines/texts (replacement always
+        appends to the end of the set — see ``_set_image``'s docstring), so
+        a positional re-application on retry would replace DIFFERENT images
+        than the ones the caller named. If the saved session is invalidated
+        in exactly this window, ``_verify_saved``'s own
+        ``assert_authenticated`` raises ``BrowserAuthError`` — letting that
+        propagate as-is would make ``_with_session``
+        (``direct_cli/commands/masters.py``) retry this ENTIRE
+        ``update_master`` call under a fresh session, re-snapshotting the
+        now-already-mutated image set and removing further, untouched
+        images. This must surface as a plain ``BrowserSessionError`` (not
+        ``BrowserAuthError``), so ``_with_session``'s retry-on-auth-error
+        does not fire — found via adversarial review (Codex) in
+        cycle-review round 2 of PR #672.
+        """
+        page_save_clicks = []
+        save_handle = _FakeTextLocatorHandle(
+            visible=True, on_click=lambda: page_save_clicks.append(True)
+        )
+        page = _FakeImagesPage(
+            ["a", "b", "c", "d"],
+            upload_ids=["new1", "new2"],
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+
+        original_assert_authenticated = browser_masters.assert_authenticated
+        calls = []
+
+        def _assert_authenticated(content):
+            calls.append(True)
+            # First call happens before any mutation (module convention);
+            # only the post-save reload inside _verify_saved (second call)
+            # hits the invalidated session.
+            if len(calls) >= 2:
+                raise BrowserAuthError("stale session, detected mid-body")
+            return original_assert_authenticated(content)
+
+        with patch.object(
+            browser_masters,
+            "assert_authenticated",
+            side_effect=_assert_authenticated,
+        ):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.update_master(
+                    page, 42, images={0: "/tmp/one.png", 1: "/tmp/two.png"}
+                )
+
+        self.assertNotIsInstance(ctx.exception, BrowserAuthError)
+        self.assertEqual(len(page_save_clicks), 1)
+        # The images WERE already replaced (irreversibly) before the auth
+        # error surfaced -- the error message must say so rather than
+        # implying nothing happened.
+        self.assertIn("42", str(ctx.exception))
+
 
 class TestMastersUpdateCommand(unittest.TestCase):
     """CLI wiring for `masters update` (issue #631, Этап A)."""
@@ -3325,6 +3491,113 @@ class TestMastersUpdateCommand(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertTrue(mock_update.call_args.kwargs["launch"])
+
+    def test_documents_image_flag(self):
+        result = self.runner.invoke(cli, ["masters", "update", "--help"])
+        self.assertIn("--image", result.output)
+
+    def test_image_uses_path_not_text_in_format_error(self):
+        """--image must show its OWN vocabulary ("N=path"), not Этап B's
+        "N=text" — regression guard for the shared parser's parameterization
+        (issue #670): the two option's defaults must never bleed into each
+        other."""
+        result = self.runner.invoke(
+            cli, ["masters", "update", "42", "--image", "no equals here"]
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn('"N=path"', result.output)
+        self.assertNotIn('"N=text"', result.output)
+
+    def test_headline_format_error_still_says_text_after_image_added(self):
+        """The Этап B regression anchor itself, byte-for-byte — proves
+        adding --image's overrides did not change --headline's defaults."""
+        result = self.runner.invoke(
+            cli, ["masters", "update", "42", "--headline", "no equals here"]
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn('"N=text"', result.output)
+
+    def test_rejects_a_nonexistent_image_path(self):
+        result = self.runner.invoke(
+            cli, ["masters", "update", "42", "--image", "1=/no/such/file.png"]
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("does not exist", result.output.lower())
+
+    def test_rejects_an_unsupported_image_extension(self):
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(suffix=".txt") as f:
+            result = self.runner.invoke(
+                cli, ["masters", "update", "42", "--image", f"1={f.name}"]
+            )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("unsupported extension", result.output.lower())
+
+    def test_rejects_an_out_of_range_image_slot(self):
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(suffix=".png") as f:
+            result = self.runner.invoke(
+                cli, ["masters", "update", "42", "--image", f"6={f.name}"]
+            )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("1-5", result.output)
+
+    def test_rejects_an_empty_image_replacement(self):
+        result = self.runner.invoke(cli, ["masters", "update", "42", "--image", "1="])
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("empty", result.output.lower())
+        self.assertNotIn("ad variant", result.output.lower())
+
+    def test_image_format_errors_do_not_open_a_browser_session(self):
+        with patch("direct_cli.commands.masters._with_session") as mock_with_session:
+            result = self.runner.invoke(
+                cli, ["masters", "update", "42", "--image", "bogus"]
+            )
+        self.assertNotEqual(result.exit_code, 0)
+        mock_with_session.assert_not_called()
+
+    def test_nonexistent_image_path_does_not_open_a_browser_session(self):
+        with patch("direct_cli.commands.masters._with_session") as mock_with_session:
+            result = self.runner.invoke(
+                cli, ["masters", "update", "42", "--image", "1=/no/such/file.png"]
+            )
+        self.assertNotEqual(result.exit_code, 0)
+        mock_with_session.assert_not_called()
+
+    def test_image_flag_alone_satisfies_the_at_least_one_field_guard(self):
+        import tempfile
+
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            with tempfile.NamedTemporaryFile(suffix=".png") as f:
+                result = self.runner.invoke(
+                    cli, ["masters", "update", "42", "--image", f"1={f.name}"]
+                )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+
+    def test_calls_update_master_with_parsed_images(self):
+        import tempfile
+
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            with tempfile.NamedTemporaryFile(suffix=".jpg") as f:
+                result = self.runner.invoke(
+                    cli, ["masters", "update", "42", "--image", f"2={f.name}"]
+                )
+
+                self.assertEqual(result.exit_code, 0, result.output)
+                self.assertEqual(mock_update.call_args.kwargs["images"], {1: f.name})
 
 
 class TestMastersLoginCommand(unittest.TestCase):
@@ -4193,6 +4466,341 @@ class TestSetRepeatingValue(unittest.TestCase):
 
         self.assertEqual(field.inner_text(), "Старый заголовок")
         self.assertIn("empty", str(ctx.exception).lower())
+
+
+class _FakeImagesPage(FakePage):
+    """Models the image set + image manager modal (issue #670, Этап D).
+
+    Unlike headlines/texts, there is no fixed slot count — the page and the
+    modal's "Выбранные изображения" panel each render a variable-length list
+    of cards. This fake keeps ONE shared ``ids`` list (content IDs, standing
+    in 1:1 for thumb URLs too, since ``_set_image`` never needs to tell them
+    apart — see ``_read_modal_selected_thumb_urls``'s docstring) that both
+    ``_read_image_content_ids`` (via the page-level ``ContentImage.*``
+    locator) and ``_read_modal_selected_thumb_urls``/the remove buttons (via
+    the modal-level ``SelectedImage.*`` locators) read/mutate — mirroring
+    how ``_page_with_save_button``'s ``budget_state``/``headline_handles``
+    share mutable state between the "edit" and "post-save reload" phases of
+    one ``update_master`` call.
+
+    ``open_images_modal`` toggles whether ``ImageSuggestionsEditorModal`` is
+    present at all — real Playwright only renders it after the "Выбрать
+    другие изображения" click (confirmed live), and ``_open_images_modal``'s
+    polling loop depends on that transition being observable.
+    """
+
+    def __init__(self, ids, *, save_clicks=None, upload_ids=None, **kwargs):
+        super().__init__(**kwargs)
+        self.ids = list(ids)
+        self.modal_open = False
+        self.save_clicks = save_clicks if save_clicks is not None else []
+        # Content IDs assigned to successive set_input_files() uploads, one
+        # per call, in order — mirrors a test wanting deterministic new IDs
+        # without depending on upload ordering internals.
+        self._upload_ids = list(upload_ids or [])
+        self._upload_call = 0
+
+    def locator(self, selector):
+        if selector == browser_masters._IMAGES_EDITOR_SELECTOR:
+            # The images section itself — present as soon as the (fake) page
+            # has rendered, which is what `_wait_for_images_editor` polls for
+            # before trusting an empty read as "this campaign has no images".
+            return _FakeLocator([_FakeLocatorHandle()])
+        if not self.modal_open and selector == browser_masters._IMAGES_MODAL_SELECTOR:
+            return _FakeLocator([])
+        if self.modal_open and selector == browser_masters._IMAGES_MODAL_SELECTOR:
+            return _FakeLocator([_FakeLocatorHandle()])
+        if selector == browser_masters._IMAGES_OPEN_MODAL_SELECTOR:
+            return _FakeLocator(
+                [_FakeLocatorHandle(on_click=lambda: setattr(self, "modal_open", True))]
+            )
+        if selector == browser_masters._IMAGES_MODAL_FILE_INPUT_SELECTOR:
+            return _FakeLocator([_FakeLocatorHandle(on_upload=self._upload)])
+        if selector == browser_masters._IMAGES_MODAL_SAVE_SELECTOR:
+            return _FakeLocator(
+                [
+                    _FakeLocatorHandle(
+                        on_click=lambda: (
+                            self.save_clicks.append(True),
+                            setattr(self, "modal_open", False),
+                        )
+                    )
+                ]
+            )
+        selector_prefix = (
+            f'[data-testid^="{browser_masters._IMAGES_CONTENT_TESTID_PREFIX}"]'
+        )
+        if selector == selector_prefix:
+            return _FakeLocator(
+                [
+                    _FakeLocatorHandle(attrs={"data-testid": self._content_testid(cid)})
+                    for cid in self.ids
+                ]
+            )
+        modal_prefix = (
+            f'[data-testid^="{browser_masters._IMAGES_MODAL_SELECTED_PREFIX}"]'
+        )
+        if selector == modal_prefix:
+            return _FakeLocator(
+                [
+                    _FakeLocatorHandle(
+                        attrs={"data-testid": self._selected_testid(cid)}
+                    )
+                    for cid in self.ids
+                ]
+            )
+        for cid in self.ids:
+            remove_testid = browser_masters._IMAGES_MODAL_REMOVE_TESTID_TEMPLATE.format(
+                thumb_url=cid
+            )
+            remove_selector = f'[data-testid="{remove_testid}"]'
+            if selector == remove_selector:
+                bound_cid = cid
+                return _FakeLocator(
+                    [
+                        _FakeLocatorHandle(
+                            on_click=lambda bound_cid=bound_cid: self.ids.remove(
+                                bound_cid
+                            )
+                        )
+                    ]
+                )
+        return super().locator(selector)
+
+    def _content_testid(self, content_id):
+        return f"{browser_masters._IMAGES_CONTENT_TESTID_PREFIX}{content_id}"
+
+    def _selected_testid(self, content_id):
+        return f"{browser_masters._IMAGES_MODAL_SELECTED_PREFIX}{content_id}"
+
+    def _upload(self, path):
+        if self._upload_call < len(self._upload_ids):
+            new_id = self._upload_ids[self._upload_call]
+        else:
+            new_id = f"uploaded-{self._upload_call}"
+        self._upload_call += 1
+        self.ids.append(new_id)
+
+
+class TestReadImageContentIds(unittest.TestCase):
+    """``_read_image_content_ids`` (issue #670, Этап D)."""
+
+    def test_reads_ids_in_dom_order(self):
+        page = _FakeImagesPage(["a", "b", "c"])
+
+        self.assertEqual(browser_masters._read_image_content_ids(page), ["a", "b", "c"])
+
+    def test_empty_set_is_not_an_error(self):
+        """Unlike headlines/texts, zero images is a legitimate campaign state."""
+        page = _FakeImagesPage([])
+
+        self.assertEqual(browser_masters._read_image_content_ids(page), [])
+
+
+class TestWaitForImagesEditor(unittest.TestCase):
+    """``_wait_for_images_editor`` (issue #670) — regression guard for a bug
+    found during live verification.
+
+    The edit page is an SPA: ``goto(wait_until="domcontentloaded")`` returns
+    while the images section is still absent, so reading the set straight
+    away yields ``[]`` — indistinguishable from "this campaign genuinely has
+    no images". Live-confirmed: four consecutive DRAFT campaigns were
+    rejected with "no images" by ``masters update --image`` while their edit
+    pages demonstrably rendered four images each.
+    """
+
+    def test_returns_once_the_section_is_present(self):
+        page = _FakeImagesPage(["a"])
+
+        browser_masters._wait_for_images_editor(page)  # must not raise
+
+    def test_raises_rather_than_reporting_no_images(self):
+        """A section that never renders is a hard error, NOT an empty set."""
+
+        class _NoEditorPage(_FakeImagesPage):
+            def locator(self, selector):
+                if selector == browser_masters._IMAGES_EDITOR_SELECTOR:
+                    return _FakeLocator([])
+                return super().locator(selector)
+
+        page = _NoEditorPage([])
+        with patch.object(browser_masters, "_IMAGES_EDITOR_TIMEOUT_MS", 1):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters._wait_for_images_editor(page)
+
+        self.assertIn("did not render", str(ctx.exception))
+
+    def test_set_image_does_not_claim_no_images_before_the_section_renders(self):
+        """The end-to-end shape of the live bug: `_set_image` must not
+        report "no images" for a page whose section has not rendered yet."""
+
+        class _NoEditorPage(_FakeImagesPage):
+            def locator(self, selector):
+                if selector == browser_masters._IMAGES_EDITOR_SELECTOR:
+                    return _FakeLocator([])
+                return super().locator(selector)
+
+        page = _NoEditorPage([])
+        with patch.object(browser_masters, "_IMAGES_EDITOR_TIMEOUT_MS", 1):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters._set_image(
+                    page, 0, "/tmp/fake.png", target_content_id="a"
+                )
+
+        self.assertIn("did not render", str(ctx.exception))
+        self.assertNotIn("no images", str(ctx.exception).lower())
+
+
+class TestSetImage(unittest.TestCase):
+    """``_set_image`` (issue #670, Этап D) — synthetic point-replacement
+    composed from the image manager modal's remove+upload+save.
+    """
+
+    def test_replaces_the_requested_position_only(self):
+        page = _FakeImagesPage(["a", "b", "c"], upload_ids=["new"])
+
+        browser_masters._set_image(page, 1, "/tmp/fake.png", target_content_id="b")
+
+        # Confirmed-live behaviour: the new image lands at the END of the
+        # set, not back at position 1 — see _set_image's own docstring.
+        self.assertEqual(page.ids, ["a", "c", "new"])
+        self.assertEqual(len(page.save_clicks), 1)
+        self.assertFalse(page.modal_open)
+
+    def test_raises_when_image_set_is_empty(self):
+        page = _FakeImagesPage([])
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._set_image(page, 0, "/tmp/fake.png", target_content_id="a")
+
+        self.assertIn("no images", str(ctx.exception).lower())
+        self.assertEqual(page.save_clicks, [])
+
+    def test_raises_when_position_out_of_range(self):
+        page = _FakeImagesPage(["a", "b"])
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._set_image(
+                page, 5, "/tmp/fake.png", target_content_id="nonexistent"
+            )
+
+        self.assertIn("out of range", str(ctx.exception).lower())
+        self.assertEqual(page.ids, ["a", "b"])
+        self.assertEqual(page.save_clicks, [])
+
+    def test_raises_when_target_content_id_already_gone(self):
+        """Models the caller-contract violation this signature exists to
+        prevent: a second ``_set_image`` in the same batch naming a content
+        ID an earlier call in the SAME batch already removed. A live page
+        race is not the scenario here — ``update_master`` always resolves
+        ``target_content_id`` from its own pre-batch snapshot, so this can
+        only happen if a caller passes a stale/already-consumed ID."""
+        page = _FakeImagesPage(["a", "b"])
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._set_image(
+                page, 0, "/tmp/fake.png", target_content_id="already-removed"
+            )
+
+        self.assertIn("no longer present", str(ctx.exception).lower())
+        self.assertEqual(page.ids, ["a", "b"])
+        self.assertEqual(page.save_clicks, [])
+
+    def test_does_not_save_when_upload_never_appears(self):
+        """A stalled/failed async upload must not be committed via Save."""
+        page = _FakeImagesPage(["a", "b"], upload_ids=[])
+        # Sabotage the upload: the file input exists but never actually adds
+        # a new card to the selected panel.
+        original_locator = page.locator
+
+        def _locator(selector):
+            if selector == browser_masters._IMAGES_MODAL_FILE_INPUT_SELECTOR:
+                return _FakeLocator([_FakeLocatorHandle(on_upload=lambda path: None)])
+            return original_locator(selector)
+
+        page.locator = _locator
+        # Keep the test fast — patch.object restores the real value even on
+        # failure, and never hardcodes it (a `finally:` assignment would).
+        with patch.object(browser_masters, "_IMAGE_UPLOAD_TIMEOUT_MS", 1):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters._set_image(
+                    page, 0, "/tmp/fake.png", target_content_id="a"
+                )
+
+        self.assertIn("no new", str(ctx.exception).lower())
+        self.assertEqual(page.save_clicks, [])
+        # The removed image must NOT still be missing from the caller's
+        # perspective of "nothing was saved" — the campaign's actually-saved
+        # set is untouched because Save was never clicked, even though the
+        # modal's own in-progress state lost it.
+
+    def test_removed_image_not_still_present_raises(self):
+        """Models Yandex's own remove click silently failing."""
+        page = _FakeImagesPage(["a", "b"])
+        original_locator = page.locator
+
+        def _locator(selector):
+            remove_testid = browser_masters._IMAGES_MODAL_REMOVE_TESTID_TEMPLATE.format(
+                thumb_url="a"
+            )
+            remove_selector = f'[data-testid="{remove_testid}"]'
+            if selector == remove_selector:
+                return _FakeLocator([_FakeLocatorHandle(on_click=lambda: None)])
+            return original_locator(selector)
+
+        page.locator = _locator
+        with patch.object(browser_masters, "_IMAGE_MODAL_OPEN_TIMEOUT_MS", 1):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters._set_image(
+                    page, 0, "/tmp/fake.png", target_content_id="a"
+                )
+
+        self.assertIn("still shown", str(ctx.exception).lower())
+        self.assertEqual(page.save_clicks, [])
+
+
+class TestVerifyImageMismatches(unittest.TestCase):
+    """``_verify_image_mismatches`` (issue #670, Этап D) — set-membership
+    verification, NOT positional (see ``_set_image``'s docstring for why).
+    """
+
+    def test_no_mismatches_when_replaced_gone_and_kept_present(self):
+        page = _FakeImagesPage(["a", "c", "new"])  # "b" was replaced by "new"
+
+        mismatches = browser_masters._verify_image_mismatches(
+            page, before_ids=["a", "b", "c"], replaced_ids={"b"}
+        )
+
+        self.assertEqual(mismatches, [])
+
+    def test_flags_a_replaced_id_still_present(self):
+        """Yandex silently rejected the replacement — "b" never left."""
+        page = _FakeImagesPage(["a", "b", "c"])
+
+        mismatches = browser_masters._verify_image_mismatches(
+            page, before_ids=["a", "b", "c"], replaced_ids={"b"}
+        )
+
+        self.assertTrue(any("still present" in m for m in mismatches))
+
+    def test_flags_a_kept_id_that_went_missing(self):
+        """Something clobbered an image the caller never asked to touch."""
+        page = _FakeImagesPage(["a", "new"])  # "c" vanished unexpectedly
+
+        mismatches = browser_masters._verify_image_mismatches(
+            page, before_ids=["a", "b", "c"], replaced_ids={"b"}
+        )
+
+        self.assertTrue(any("missing" in m for m in mismatches))
+
+    def test_no_requested_replacements_is_a_no_op(self):
+        page = _FakeImagesPage(["a", "b", "c"])
+
+        mismatches = browser_masters._verify_image_mismatches(
+            page, before_ids=[], replaced_ids=set()
+        )
+
+        self.assertEqual(mismatches, [])
 
 
 class TestSetRegion(unittest.TestCase):
