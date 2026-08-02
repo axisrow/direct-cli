@@ -2,6 +2,75 @@
 
 ## Unreleased
 
+**Added — `direct masters update --headline`/`--text` (#665, Этап B):**
+
+- New `--headline "N=text"` / `--text "N=text"` flags on `direct masters
+  update <CAMPAIGN_ID>` replace one existing headline/ad-text variant slot
+  at a time (N is the 1-based slot shown on the edit page — 1-5 for
+  headlines, 1-3 for ad text). Repeatable for multiple slots in one call.
+- **Deliberate departure from this CLI's dominant list-field convention**:
+  everywhere else, `update` replaces the WHOLE array in one call (e.g.
+  `campaigns update --negative-keywords`, built on
+  `_campaigns_base.py::_array_of_string_option`, which never reads the
+  existing array before overwriting it). Мастер кампаний has no API at all
+  — every mutation is a live page edit through a small, fixed set of slots
+  — and forcing every variant to be re-typed to fix one typo would defeat
+  the point of a partial update. A future refactor may want to unify this
+  with the rest of the CLI's convention, but that isn't settled and is out
+  of scope here. See `direct_cli/browser/masters.py::_set_repeating_value`
+  for the full rationale.
+- Writing to a slot that is currently empty is refused (`UsageError`) —
+  this only replaces variants that already exist, it does not add new
+  ones. Deleting a variant (clearing a slot) and editing variant weights
+  are tracked as separate follow-ups, not implemented here.
+- An out-of-range slot number (`--headline "6="`, `--text "4=x"`) is
+  rejected at the CLI boundary too, with the bounds imported from the
+  browser layer's own `_HEADLINES_SLOT_COUNT`/`_TEXTS_SLOT_COUNT` so the
+  two can't drift. Previously only `_set_repeating_value` caught it, so a
+  purely invalid argument launched a browser (and possibly an auth prompt)
+  before failing as a `BrowserSessionError` instead of a `UsageError`.
+- An empty or whitespace-only replacement (`--headline "1="`) is likewise
+  refused, at the CLI boundary before any browser session opens and again
+  in `_set_repeating_value` for non-CLI callers. Blanking a slot is a
+  *delete*, not a replace, and it would have failed silently: the slot is
+  cleared, `""` typed, the form saved, and the post-save check compares the
+  re-read slot against the requested value — `"" == ""` matches, so the
+  deletion of a live ad variant would have been reported as a successful
+  update (found in review by both reviewers).
+- The edit page's slots (`CampaignTitles{N}.textarea`/
+  `CampaignTexts{N}.textarea`, 5/3 slots) turned out identical in shape and
+  count to the create page's (#653), confirmed via a read-only recon
+  against campaign 107707079 before writing any code — see
+  `tests/fixtures/masters_wizard_edit_stage_b.html`.
+- Reuses `_clear_text_field`/`_read_repeating_values` from the create-page
+  implementation as-is; does NOT reuse `_add_repeating_values` (that
+  function's contract — clear and rewrite every slot — is the opposite of
+  a point replacement).
+- Live-verified end to end against a real DRAFT campaign (713231614): a
+  headline slot was replaced, confirmed saved via reload, then reverted to
+  its original text the same way.
+
+**Fixed — `direct masters update` on DRAFT campaigns (#668):**
+
+- A DRAFT campaign's edit page has no "Сохранить кампанию" button at all —
+  only `CampaignFormControls.saveDraft.button`/`.save.button` (the latter
+  labelled "Запустить кампанию" here, which PUBLISHES the campaign — same
+  testid suffix as the non-DRAFT save button, different label and
+  consequence). `update_master` now detects DRAFT via the presence of
+  `saveDraft.button` and clicks it by default (keeping DRAFT status); pass
+  `--launch` to publish while saving instead. Previously `update` failed
+  cleanly on any DRAFT campaign (issue #660's original gap) — this closes
+  that gap for `update` specifically (`get`/`archive`/`suspend`/`resume`
+  on DRAFT remain tracked separately in #660).
+- Live-recon (2026-08-02, campaign 713231614) found the draft-save click
+  redirects away from `/edit/` to the campaign's overview page, and NOT
+  instantly (~5s observed) — `update_master`'s original immediate
+  post-click reload raced this redirect and produced a false "did not save
+  as requested" error even though the edit WAS actually saved server-side.
+  Fixed by polling `page.url` until it leaves `/edit/` before re-navigating
+  to verify, mirroring the pattern `copy_master` already uses for its own
+  post-click redirect.
+
 **Added — `direct masters update --name` (#663):**
 
 - New `--name` flag on `direct masters update <CAMPAIGN_ID>` renames a Мастер

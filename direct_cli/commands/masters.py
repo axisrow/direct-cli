@@ -537,6 +537,67 @@ def suspend(
     format_output(results if len(results) != 1 else results[0], output_format, output)
 
 
+def _parse_repeating_slot_options(
+    option_name: str, values: "tuple[str, ...]", slot_count: int
+) -> "dict[int, str]":
+    """Parse repeated ``"N=text"`` CLI values into a 0-based slot index map.
+
+    N is the 1-based slot number shown to the user (matches how a person
+    would count "headline 1, headline 2, ..." reading the edit page); the
+    browser layer (``update_master``/``_set_repeating_value``) works in
+    0-based indices like the rest of ``masters.py``'s slot machinery, so the
+    conversion happens here, at the CLI boundary. All format errors are
+    raised as ``click.UsageError`` before any browser session is opened,
+    rather than surfacing mid-session as a ``BrowserSessionError``.
+
+    ``slot_count`` is the number of slots the page actually renders for this
+    field (5 headlines / 3 texts), taken from the browser layer's own
+    constants so the two can't drift apart. The upper bound is enforced here
+    as well as in ``_set_repeating_value``: an oversized slot number is a
+    purely invalid CLI argument, and letting it through would launch a
+    browser (and possibly an auth prompt) only to fail with a
+    ``BrowserSessionError`` — contradicting this helper's fail-fast contract.
+    """
+    parsed: "dict[int, str]" = {}
+    for raw in values:
+        if "=" not in raw:
+            raise click.UsageError(
+                f'{option_name} value {raw!r} must be in the form "N=text" '
+                '(e.g. "2=New headline").'
+            )
+        index_part, text = raw.split("=", 1)
+        try:
+            slot_number = int(index_part.strip())
+        except ValueError:
+            raise click.UsageError(
+                f"{option_name} slot number {index_part!r} must be an " "integer."
+            )
+        if slot_number < 1:
+            raise click.UsageError(
+                f"{option_name} slot number {slot_number} must be 1 or "
+                f"greater (this field has slots 1-{slot_count})."
+            )
+        if slot_number > slot_count:
+            raise click.UsageError(
+                f"{option_name} slot number {slot_number} is out of range — "
+                f"this field has {slot_count} slots (1-{slot_count})."
+            )
+        index = slot_number - 1
+        if index in parsed:
+            raise click.UsageError(
+                f"{option_name} slot {slot_number} was specified more than " "once."
+            )
+        if not text.strip():
+            raise click.UsageError(
+                f"{option_name} slot {slot_number} was given an empty "
+                "replacement, which would DELETE that ad variant rather than "
+                "replace it. Removing a variant is not supported — pass the "
+                "replacement text, or edit the campaign with --headful."
+            )
+        parsed[index] = text
+    return parsed
+
+
 @masters.command()
 @click.argument("campaign_id", type=int)
 @click.option(
@@ -559,6 +620,39 @@ def suspend(
     "--name",
     help="New campaign name (Название кампании)",
 )
+@click.option(
+    "--headline",
+    "headlines",
+    multiple=True,
+    help=(
+        'Replace an EXISTING headline variant: "N=text" where N is the '
+        "1-based slot number (1-5). Repeat for multiple slots. Writing to "
+        "an empty slot is refused — this only replaces variants that "
+        "already exist, it does not add new ones. Other headline variants "
+        "are left untouched."
+    ),
+)
+@click.option(
+    "--text",
+    "texts",
+    multiple=True,
+    help=(
+        'Replace an EXISTING ad-text variant: "N=text" where N is the '
+        "1-based slot number (1-3). Repeat for multiple slots. Writing to "
+        "an empty slot is refused — this only replaces variants that "
+        "already exist, it does not add new ones. Other ad-text variants "
+        "are left untouched."
+    ),
+)
+@click.option(
+    "--launch",
+    is_flag=True,
+    default=False,
+    help=(
+        "If CAMPAIGN_ID is currently a DRAFT, publish it while saving "
+        "(default: keep it a DRAFT). Has no effect on a non-DRAFT campaign."
+    ),
+)
 @_masters_browser_options
 @click.pass_context
 @handle_api_errors
@@ -569,21 +663,38 @@ def update(
     promotion_goal,
     directs_helps,
     name,
+    headlines,
+    texts,
+    launch,
     headful,
     profile_dir,
     chrome_profile,
     output_format,
     output,
 ):
-    """Update settings of one Мастер кампаний (Этап A fields, plus name)
+    """Update settings of one Мастер кампаний (Этап A/B fields, plus name)
 
-    Covers exactly four fields: weekly budget, promotion goal, the "Директ
-    помогает" auto-recommendations toggle, and the campaign name. The edit
-    page has a single whole-form save (no per-section save) — see
-    ``direct_cli/browser/masters.py`` module docstring — so only the fields
-    passed here are changed; every other on-page field keeps its current
-    value. Later fields (headlines/texts, sitelinks, audience, media) are
-    tracked separately, see issue #631.
+    Covers weekly budget, promotion goal, the "Директ помогает"
+    auto-recommendations toggle, the campaign name, and per-slot headline/
+    ad-text variant replacement. The edit page has a single whole-form save
+    (no per-section save) — see ``direct_cli/browser/masters.py`` module
+    docstring — so only the fields passed here are changed; every other
+    on-page field keeps its current value.
+
+    ``--headline``/``--text`` replace ONE variant slot at a time rather than
+    the whole variant list — unlike this CLI's usual list-field convention
+    (e.g. ``campaigns update --negative-keywords``, which replaces the
+    entire array). This is deliberate: Мастер кампаний has no API, variant
+    sets can be large, and forcing every variant to be re-typed to fix one
+    typo defeats the point of a partial update — see
+    ``direct_cli/browser/masters.py::_set_repeating_value`` for the full
+    rationale. Later fields (sitelinks, audience, Metrika counters/goals,
+    budget adaptation, media) are tracked separately, see issue #648.
+
+    A DRAFT campaign's edit page has no "Сохранить кампанию" button at all —
+    only a save-as-draft/launch pair (issue #668). ``update`` saves it as a
+    draft by default (keeping DRAFT status); pass ``--launch`` to publish it
+    instead while saving. Has no effect on a non-DRAFT campaign.
     """
     from ..browser.masters import update_master
 
@@ -592,11 +703,23 @@ def update(
         and promotion_goal is None
         and directs_helps is None
         and name is None
+        and not headlines
+        and not texts
     ):
         raise click.UsageError(
             "Provide at least one of --weekly-budget, --promotion-goal, "
-            "--directs-helps/--no-directs-helps, --name."
+            "--directs-helps/--no-directs-helps, --name, --headline, --text."
         )
+
+    # Slot counts come from the browser layer's own constants (imported here
+    # rather than at module load, matching this module's other deferred
+    # browser imports) so the CLI's bound can't drift from the page's.
+    from ..browser.masters import _HEADLINES_SLOT_COUNT, _TEXTS_SLOT_COUNT
+
+    parsed_headlines = _parse_repeating_slot_options(
+        "--headline", headlines, _HEADLINES_SLOT_COUNT
+    )
+    parsed_texts = _parse_repeating_slot_options("--text", texts, _TEXTS_SLOT_COUNT)
 
     result = _with_session(
         ctx,
@@ -610,6 +733,9 @@ def update(
             promotion_goal=promotion_goal,
             directs_helps=directs_helps,
             name=name,
+            headlines=parsed_headlines,
+            texts=parsed_texts,
+            launch=launch,
         ),
     )
 

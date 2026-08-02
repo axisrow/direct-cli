@@ -40,6 +40,7 @@ direct masters archive 72349978
 direct masters update 72349978 --weekly-budget 95000
 direct masters update 72349978 --promotion-goal max-clicks --no-directs-helps
 direct masters update 72349978 --name "Мастер ИЖ Источник Жизни (тёплый)"
+direct masters update 72349978 --headline "2=Новый заголовок" --text "1=Новый текст"
 direct masters add https://example.com/ --headline "Заголовок 1" --headline "Заголовок 2" --text "Текст объявления" --region Москва --weekly-budget 50000 --draft
 direct masters add https://example.com/ --headline "Заголовок 1" --text "Текст объявления" --region-id 213 --weekly-budget 50000 --draft
 direct masters copy 72349978
@@ -53,18 +54,39 @@ It always reads the logged-in browser session's own account — there is no
 
 `masters update` edits a single Мастер кампаний's settings page. It currently
 covers the simplest scalar fields (Этап A of a larger, staged rollout — see
-`direct_cli/browser/masters.py` module docstring) plus the campaign name:
+`direct_cli/browser/masters.py` module docstring), the campaign name, and
+point-replacement of individual headline/ad-text variants (Этап B):
 `--weekly-budget` (integer), `--promotion-goal`
 (`max-conversions`/`max-clicks`), `--directs-helps`/`--no-directs-helps`
-(auto-apply recommendations), and `--name` (Название кампании). At least one
+(auto-apply recommendations), `--name` (Название кампании), and
+`--headline`/`--text` (repeatable `"N=text"`, N is the 1-based variant slot
+shown on the edit page — 1-5 for headlines, 1-3 for ad text). At least one
 flag is required. The settings page is a single form with one save button —
 passing only some flags leaves every other field at its current value; it
 does not send a partial payload to a separate per-field endpoint. Unlike the
-other three fields, `--name` is edited through a separate header modal, not
-a plain form input — but it is still persisted only by that same terminal
-save button, not by the modal's own "Применить". Later fields (headline/text
-variants, sitelinks, audience, Metrika counters/goals, budget adaptation,
-images/video) aren't implemented yet.
+other fields, `--name` is edited through a separate header modal, not a plain
+form input — but it is still persisted only by that same terminal save
+button, not by the modal's own "Применить".
+
+`--headline`/`--text` **replace one existing variant at a time** rather than
+the whole variant list — a deliberate departure from this CLI's usual
+list-field convention (e.g. `campaigns update --negative-keywords` replaces
+the entire array in one call). Мастер кампаний has no API, variant sets can
+be large, and forcing every variant to be re-typed just to fix one typo would
+defeat the point of a partial update — see
+`direct_cli/browser/masters.py::_set_repeating_value` for the full rationale.
+Writing to a slot that is currently empty is refused (`UsageError`) — this
+only edits variants that already exist, it does not add new ones. An empty or
+whitespace-only replacement (`--headline "1="`) is refused for the mirror-image
+reason: blanking a slot would delete a live ad variant, not replace it.
+Deleting a variant and editing variant weights aren't implemented yet. Later fields
+(sitelinks, audience, Metrika counters/goals, budget adaptation, images/
+video) aren't implemented yet either.
+
+A DRAFT campaign's edit page has no "Сохранить кампанию" button at all —
+`masters update` on a DRAFT saves it via "Сохранить как черновик" by
+default, keeping it a DRAFT; pass `--launch` to publish it while saving
+instead ("Запустить кампанию"). Has no effect on a non-DRAFT campaign.
 
 If you see "Found no Yandex cookies", open https://direct.yandex.ru in Chrome
 and log in first. If you use a non-default Chrome profile, pass
@@ -1150,6 +1172,7 @@ direct masters archive 72349978
 direct masters update 72349978 --weekly-budget 95000
 direct masters update 72349978 --promotion-goal max-clicks --no-directs-helps
 direct masters update 72349978 --name "Мастер ИЖ Источник Жизни (тёплый)"
+direct masters update 72349978 --headline "2=Новый заголовок" --text "1=Новый текст"
 direct masters add https://example.com/ --headline "Заголовок 1" --headline "Заголовок 2" --text "Текст объявления" --region Москва --weekly-budget 50000 --draft
 direct masters add https://example.com/ --headline "Заголовок 1" --text "Текст объявления" --region-id 213 --weekly-budget 50000 --draft
 direct masters copy 72349978
@@ -1164,19 +1187,40 @@ direct masters copy 72349978 --launch
 
 `masters update` редактирует настройки одного «Мастера кампаний». Пока
 поддерживаются простые скалярные поля (Этап A поэтапного плана — см.
-докстринг модуля `direct_cli/browser/masters.py`) и название кампании:
+докстринг модуля `direct_cli/browser/masters.py`), название кампании и
+точечная замена отдельных вариантов заголовков/текстов (Этап B):
 `--weekly-budget` (недельный бюджет, целое число), `--promotion-goal`
 (`max-conversions`/`max-clicks` — цель продвижения),
 `--directs-helps`/`--no-directs-helps` (автоприменение рекомендаций «Директ
-помогает») и `--name` (Название кампании). Нужно указать хотя бы один флаг.
-Страница настроек — единая форма с одной кнопкой сохранения: если указать не
-все флаги, остальные поля останутся с текущим значением — это не частичный
-запрос к отдельному API-эндпоинту на каждое поле. В отличие от трёх
-остальных полей, `--name` редактируется через отдельную модалку в шапке, а
-не обычное поле формы — но сохраняется всё той же общей кнопкой, а не
-собственной кнопкой «Применить» модалки. Остальные поля (варианты
-заголовков/текстов, быстрые ссылки, аудитория, счётчики Метрики/цели,
-адаптация бюджета, изображения/видео) пока не реализованы.
+помогает»), `--name` (Название кампании) и `--headline`/`--text`
+(повторяемые, формат `"N=текст"`, N — номер слота варианта на странице
+редактирования, 1-based: 1-5 для заголовков, 1-3 для текстов). Нужно указать
+хотя бы один флаг. Страница настроек — единая форма с одной кнопкой
+сохранения: если указать не все флаги, остальные поля останутся с текущим
+значением — это не частичный запрос к отдельному API-эндпоинту на каждое
+поле. В отличие от остальных полей, `--name` редактируется через отдельную
+модалку в шапке, а не обычное поле формы — но сохраняется всё той же общей
+кнопкой, а не собственной кнопкой «Применить» модалки.
+
+`--headline`/`--text` **заменяют один существующий вариант за раз**, а не
+весь набор целиком — это сознательное отступление от обычной конвенции CLI
+для list-полей (например, `campaigns update --negative-keywords` заменяет
+весь массив одним вызовом). У Мастера кампаний нет API, наборы вариантов
+могут быть большими, и заставлять перепечатывать все варианты ради
+исправления одной опечатки противоречило бы смыслу частичного обновления —
+полное обоснование см. в
+`direct_cli/browser/masters.py::_set_repeating_value`. Запись в пустой слот
+запрещена (`UsageError`) — команда только редактирует уже существующие
+варианты, а не добавляет новые; удаление варианта и редактирование весов
+вариантов пока не реализованы. Остальные поля (быстрые ссылки, аудитория,
+счётчики Метрики/цели, адаптация бюджета, изображения/видео) тоже пока не
+реализованы.
+
+У черновика («DRAFT») страница редактирования вообще не имеет кнопки
+«Сохранить кампанию» — `masters update` на черновике по умолчанию сохраняет
+через «Сохранить как черновик» (статус DRAFT сохраняется); чтобы вместо
+этого опубликовать кампанию при сохранении, передайте `--launch`
+(«Запустить кампанию»). На не-черновиковой кампании флаг не имеет эффекта.
 
 Если видите «Found no Yandex cookies», откройте https://direct.yandex.ru в
 Chrome и войдите в аккаунт. Если используете не дефолтный профиль Chrome —
