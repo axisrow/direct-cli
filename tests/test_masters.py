@@ -2373,7 +2373,11 @@ class TestUpdateMaster(unittest.TestCase):
     """
 
     def _page_with_save_button(
-        self, extra_locators=None, weekly_budget_state=None, directs_helps_state=None
+        self,
+        extra_locators=None,
+        weekly_budget_state=None,
+        directs_helps_state=None,
+        name_state=None,
     ):
         save_clicks = []
         save_handle = _FakeTextLocatorHandle(
@@ -2396,6 +2400,32 @@ class TestUpdateMaster(unittest.TestCase):
             )
             locators[browser_masters._DIRECT_HELPS_CHECKBOX_XPATH] = _FakeLocator(
                 [checkbox_handle]
+            )
+        if name_state is not None:
+            # The rename modal's "Применить" only updates the header's
+            # optimistic state on click -- the header handle's own text is
+            # what _read_campaign_name reads back after a reload, so
+            # on_fill here writes to the SAME state _read_campaign_name's
+            # get_value reads, mirroring the budget/checkbox pattern above.
+            edit_button_handle = _FakeLocatorHandle()
+            name_input_handle = _FakeLocatorHandle(
+                on_fill=lambda v: name_state.__setitem__("value", v),
+                get_value=lambda: name_state.get("value", ""),
+            )
+            accept_handle = _FakeLocatorHandle()
+            header_handle = _FakeLocatorHandle()
+            header_handle.inner_text = lambda: name_state.get("value", "")
+            locators[browser_masters._EDIT_NAME_BUTTON_SELECTOR] = _FakeLocator(
+                [edit_button_handle]
+            )
+            locators[browser_masters._NAME_MODAL_INPUT_SELECTOR] = _FakeLocator(
+                [name_input_handle]
+            )
+            locators[browser_masters._NAME_MODAL_ACCEPT_SELECTOR] = _FakeLocator(
+                [accept_handle]
+            )
+            locators[browser_masters._NAME_HEADER_SELECTOR] = _FakeLocator(
+                [header_handle]
             )
 
         page = FakePage(
@@ -2453,6 +2483,74 @@ class TestUpdateMaster(unittest.TestCase):
             result,
             {"CampaignId": 42, "WeeklyBudget": 50000, "DirectsHelps": False},
         )
+
+    def test_updates_only_name(self):
+        name_state = {}
+        page, save_clicks = self._page_with_save_button(name_state=name_state)
+
+        result = browser_masters.update_master(page, 42, name="Новое имя")
+
+        self.assertEqual(name_state["value"], "Новое имя")
+        self.assertEqual(len(save_clicks), 1)
+        self.assertEqual(result, {"CampaignId": 42, "Name": "Новое имя"})
+
+    def test_updates_name_together_with_weekly_budget(self):
+        budget_state = {}
+        name_state = {}
+        page, save_clicks = self._page_with_save_button(
+            weekly_budget_state=budget_state, name_state=name_state
+        )
+
+        result = browser_masters.update_master(
+            page, 42, weekly_budget=50000, name="Новое имя"
+        )
+
+        self.assertEqual(budget_state["value"], "50000")
+        self.assertEqual(name_state["value"], "Новое имя")
+        self.assertEqual(len(save_clicks), 1)
+        self.assertEqual(
+            result, {"CampaignId": 42, "WeeklyBudget": 50000, "Name": "Новое имя"}
+        )
+
+    def test_raises_when_saved_name_does_not_match_requested(self):
+        # The modal's "Применить" click "succeeds", but the state backing
+        # the header text never actually changes (Yandex silently rejected
+        # the rename, or the terminal save didn't persist it).
+        name_state = {"value": "Старое имя"}
+        save_handle = _FakeTextLocatorHandle(visible=True)
+        edit_button_handle = _FakeLocatorHandle()
+        name_input_handle = _FakeLocatorHandle(
+            on_fill=lambda v: None,  # the fill "succeeds" but doesn't persist
+            get_value=lambda: name_state["value"],
+        )
+        accept_handle = _FakeLocatorHandle()
+        header_handle = _FakeLocatorHandle()
+        header_handle.inner_text = lambda: name_state["value"]
+        page = FakePage(
+            locators={
+                browser_masters._EDIT_NAME_BUTTON_SELECTOR: _FakeLocator(
+                    [edit_button_handle]
+                ),
+                browser_masters._NAME_MODAL_INPUT_SELECTOR: _FakeLocator(
+                    [name_input_handle]
+                ),
+                browser_masters._NAME_MODAL_ACCEPT_SELECTOR: _FakeLocator(
+                    [accept_handle]
+                ),
+                browser_masters._NAME_HEADER_SELECTOR: _FakeLocator([header_handle]),
+            },
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(page, 42, name="Новое имя")
+        self.assertIn("did not save as requested", str(ctx.exception))
+
+    def test_does_not_click_save_when_name_edit_button_missing(self):
+        page = FakePage(role_elements=[])
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters.update_master(page, 42, name="Новое имя")
 
     def test_raises_value_error_when_no_field_provided(self):
         page = FakePage()
@@ -2580,6 +2678,7 @@ class TestMastersUpdateCommand(unittest.TestCase):
         self.assertIn("--weekly-budget", result.output)
         self.assertIn("--promotion-goal", result.output)
         self.assertIn("--directs-helps", result.output)
+        self.assertIn("--name", result.output)
 
     def test_calls_update_master_with_given_fields(self):
         with (
@@ -2599,6 +2698,21 @@ class TestMastersUpdateCommand(unittest.TestCase):
         self.assertEqual(kwargs["weekly_budget"], 95000)
         self.assertIsNone(kwargs["promotion_goal"])
         self.assertIsNone(kwargs["directs_helps"])
+        self.assertIsNone(kwargs["name"])
+
+    def test_passes_name_flag(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42, "Name": "Новое имя"}
+            result = self.runner.invoke(
+                cli, ["masters", "update", "42", "--name", "Новое имя"]
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(mock_update.call_args.kwargs["name"], "Новое имя")
 
     def test_passes_promotion_goal_choice(self):
         with (

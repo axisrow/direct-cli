@@ -1,0 +1,79 @@
+<!--
+Fixture: DOM findings for renaming a Мастер кампаний (Campaign Wizard), issue #663 —
+captured 2026-08-02 via direct Playwright recon (open_saved_session, headless) against a
+live account. Two campaigns inspected to cover both edit-page shapes:
+  - 713231614 (DRAFT, a masters copy clone — see #659) — mutated live: renamed to a test
+    value, confirmed via reload + `direct masters list --status all`, then renamed back to
+    its original name "Мастер ИЖ Источник Жизни (холодный) 16.06 — 2".
+  - 107707079 (SUSPENDED, a real non-draft campaign) — read-only: opened the rename modal,
+    read the pre-filled value, closed without applying. No live mutation was saved.
+
+Source URL (both):
+  https://direct.yandex.ru/wizard/campaigns/{id}/edit/?ulogin={login}
+
+KEY FINDING — rename does NOT go through the page's single whole-form save described in
+tests/fixtures/masters_wizard_edit_stage_a.html. It is a separate two-step flow:
+
+1. Header edit button — confirmed identical on both DRAFT and non-DRAFT edit pages:
+   `button[data-testid="CampaignHeader.EditName.Button"]`, a small pencil icon inside
+   `h2[data-testid="CampaignHeader.Title.Content"]`, next to
+   `span[data-testid="CampaignHeader.TitleName"]` (the current name, read-only text).
+   Clicking it opens a MODAL (`div[data-testid="ModalEditTitle"]`), not an inline edit.
+
+2. Modal contents:
+   - Heading text: "Название кампании"
+   - Input: `input[data-testid="ModalEditTitle.CampaignName"]`, a plain `<input type="text">`
+     (NOT contenteditable — `_clear_text_field` is not needed), pre-filled with the current
+     name, `id="react-aria...:r1r2:"` (dynamic, do not rely on it).
+   - Buttons: `button[data-testid="AcceptButton"]` ("Применить"),
+     `button[data-testid="CloseButton"]` ("Отмена"),
+     `button[data-testid="ModalEditTitle.CloseButton"]` (the "X" icon, also cancels).
+
+3. CONFIRMED LIVE (713231614): clicking "Применить" updates
+   `CampaignHeader.TitleName`'s text IMMEDIATELY in the DOM, closes the modal, but this is
+   ONLY THE FORM'S LOCAL STATE — reloading the page at this point (without touching the
+   page's own terminal save button) reverts the name to its old value. The rename is only
+   persisted once the page's own terminal save action is taken:
+   - DRAFT pages: `button[data-testid="CampaignFormControls.saveDraft.button"]`
+     ("Сохранить как черновик") or `.save.button` ("Запустить кампанию") — the same two
+     buttons `create_master`/`copy_master` already use via `_click_terminal_button`
+     (`_SAVE_DRAFT_BUTTON_TEXT`/`_LAUNCH_BUTTON_TEXT`).
+   - Non-DRAFT pages (confirmed via `CampaignFormControls.*` testid enumeration on
+     107707079, not clicked): only `CampaignFormControls.save.button` ("Сохранить
+     кампанию") + `.cancelEdit.button` ("Отмена") — no draft button — i.e. the SAME single
+     "Сохранить кампанию" button `_click_save`/`update_master` already use.
+
+   This means a rename combined with an Этап A field (weekly_budget/promotion_goal/
+   directs_helps) on a NON-DRAFT campaign can share one `_click_save` + `_verify_saved`
+   call, exactly like update_master already does — the modal-apply step just needs to run
+   BEFORE that shared save, as an extra "fill" step alongside `_set_weekly_budget` etc.
+
+   DRAFT campaigns are OUT OF SCOPE for `update_master` today (issue #660: DRAFT overview
+   has no `CampaignHeader.MenuTrigger`, `masters get`/`archive`/`suspend`/`resume` don't
+   work on it either). CONFIRMED LIVE via the actual CLI (`direct masters update 713231614
+   --name ...`), not just recon: the DRAFT edit page has NO "Сохранить кампанию" button at
+   all (only "Запустить кампанию"/"Сохранить как черновик") — `_click_save` correctly fails
+   with its existing "Yandex may have changed the page's markup" error instead of silently
+   doing nothing. No data was corrupted: the rename modal's optimistic header update never
+   reached a save click, so `direct masters list --status all` afterwards showed the
+   ORIGINAL name unchanged. This is #660's pre-existing limitation surfacing through a new
+   code path, not a new bug introduced by #663 — fixing DRAFT support for `update_master`
+   (e.g. falling back to `_click_terminal_button` when "Сохранить кампанию" is absent) is
+   tracked there, not here.
+
+4. Verification signal: `fetch_masters_list`'s grid `Name` field (`row["name"]`,
+   browser/masters.py:602) reflected the change correctly and immediately after the
+   DRAFT's `saveDraft` click — confirmed live:
+
+     direct masters list --status all
+     -> {"CampaignId": 713231614, "Name": "МК тест переименования 663", "Status": "DRAFT", ...}
+
+   Status stayed "DRAFT" (rename did not publish the draft as a side effect). This confirms
+   the grid's `Name` field is a reliable independent verification source for
+   `_verify_saved`, same rationale `archive_master` already uses for status.
+
+5. Not yet confirmed live: server-side validation behaviour for an empty/invalid name
+   (e.g. does "Применить" reject an empty string client-side, or does Yandex accept it and
+   only reject on the terminal save?). Treat as unconfirmed until observed; `_set_campaign_name`
+   should still wrap Playwright errors in `BrowserSessionError` per module convention.
+-->

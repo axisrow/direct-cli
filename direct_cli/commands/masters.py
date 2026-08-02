@@ -555,6 +555,10 @@ def suspend(
     default=None,
     help="Auto-apply Yandex recommendations (Директ помогает)",
 )
+@click.option(
+    "--name",
+    help="New campaign name (Название кампании)",
+)
 @_masters_browser_options
 @click.pass_context
 @handle_api_errors
@@ -564,17 +568,18 @@ def update(
     weekly_budget,
     promotion_goal,
     directs_helps,
+    name,
     headful,
     profile_dir,
     chrome_profile,
     output_format,
     output,
 ):
-    """Update settings of one Мастер кампаний (Этап A fields only)
+    """Update settings of one Мастер кампаний (Этап A fields, plus name)
 
-    Covers exactly three fields: weekly budget, promotion goal, and the
-    "Директ помогает" auto-recommendations toggle. The edit page has a
-    single whole-form save (no per-section save) — see
+    Covers exactly four fields: weekly budget, promotion goal, the "Директ
+    помогает" auto-recommendations toggle, and the campaign name. The edit
+    page has a single whole-form save (no per-section save) — see
     ``direct_cli/browser/masters.py`` module docstring — so only the fields
     passed here are changed; every other on-page field keeps its current
     value. Later fields (headlines/texts, sitelinks, audience, media) are
@@ -582,10 +587,15 @@ def update(
     """
     from ..browser.masters import update_master
 
-    if weekly_budget is None and promotion_goal is None and directs_helps is None:
+    if (
+        weekly_budget is None
+        and promotion_goal is None
+        and directs_helps is None
+        and name is None
+    ):
         raise click.UsageError(
             "Provide at least one of --weekly-budget, --promotion-goal, "
-            "--directs-helps/--no-directs-helps."
+            "--directs-helps/--no-directs-helps, --name."
         )
 
     result = _with_session(
@@ -599,6 +609,7 @@ def update(
             weekly_budget=weekly_budget,
             promotion_goal=promotion_goal,
             directs_helps=directs_helps,
+            name=name,
         ),
     )
 

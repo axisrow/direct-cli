@@ -39,6 +39,7 @@ direct masters resume 72349978
 direct masters archive 72349978
 direct masters update 72349978 --weekly-budget 95000
 direct masters update 72349978 --promotion-goal max-clicks --no-directs-helps
+direct masters update 72349978 --name "Мастер ИЖ Источник Жизни (тёплый)"
 direct masters add https://example.com/ --headline "Заголовок 1" --headline "Заголовок 2" --text "Текст объявления" --region Москва --weekly-budget 50000 --draft
 direct masters add https://example.com/ --headline "Заголовок 1" --text "Текст объявления" --region-id 213 --weekly-budget 50000 --draft
 direct masters copy 72349978
@@ -51,15 +52,19 @@ It always reads the logged-in browser session's own account — there is no
 `--login`/agency support for managed clients.
 
 `masters update` edits a single Мастер кампаний's settings page. It currently
-covers only the simplest scalar fields (Этап A of a larger, staged rollout —
-see `direct_cli/browser/masters.py` module docstring): `--weekly-budget`
-(integer), `--promotion-goal` (`max-conversions`/`max-clicks`), and
-`--directs-helps`/`--no-directs-helps` (auto-apply recommendations). At least
-one flag is required. The settings page is a single form with one save
-button — passing only some flags leaves every other field at its current
-value; it does not send a partial payload to a separate per-field endpoint.
-Later fields (headline/text variants, sitelinks, audience, Metrika
-counters/goals, budget adaptation, images/video) aren't implemented yet.
+covers the simplest scalar fields (Этап A of a larger, staged rollout — see
+`direct_cli/browser/masters.py` module docstring) plus the campaign name:
+`--weekly-budget` (integer), `--promotion-goal`
+(`max-conversions`/`max-clicks`), `--directs-helps`/`--no-directs-helps`
+(auto-apply recommendations), and `--name` (Название кампании). At least one
+flag is required. The settings page is a single form with one save button —
+passing only some flags leaves every other field at its current value; it
+does not send a partial payload to a separate per-field endpoint. Unlike the
+other three fields, `--name` is edited through a separate header modal, not
+a plain form input — but it is still persisted only by that same terminal
+save button, not by the modal's own "Применить". Later fields (headline/text
+variants, sitelinks, audience, Metrika counters/goals, budget adaptation,
+images/video) aren't implemented yet.
 
 If you see "Found no Yandex cookies", open https://direct.yandex.ru in Chrome
 and log in first. If you use a non-default Chrome profile, pass
@@ -1144,6 +1149,7 @@ direct masters resume 72349978
 direct masters archive 72349978
 direct masters update 72349978 --weekly-budget 95000
 direct masters update 72349978 --promotion-goal max-clicks --no-directs-helps
+direct masters update 72349978 --name "Мастер ИЖ Источник Жизни (тёплый)"
 direct masters add https://example.com/ --headline "Заголовок 1" --headline "Заголовок 2" --text "Текст объявления" --region Москва --weekly-budget 50000 --draft
 direct masters add https://example.com/ --headline "Заголовок 1" --text "Текст объявления" --region-id 213 --weekly-budget 50000 --draft
 direct masters copy 72349978
@@ -1157,17 +1163,20 @@ direct masters copy 72349978 --launch
 нет.
 
 `masters update` редактирует настройки одного «Мастера кампаний». Пока
-поддерживаются только простые скалярные поля (Этап A поэтапного плана — см.
-докстринг модуля `direct_cli/browser/masters.py`): `--weekly-budget`
-(недельный бюджет, целое число), `--promotion-goal`
-(`max-conversions`/`max-clicks` — цель продвижения) и
+поддерживаются простые скалярные поля (Этап A поэтапного плана — см.
+докстринг модуля `direct_cli/browser/masters.py`) и название кампании:
+`--weekly-budget` (недельный бюджет, целое число), `--promotion-goal`
+(`max-conversions`/`max-clicks` — цель продвижения),
 `--directs-helps`/`--no-directs-helps` (автоприменение рекомендаций «Директ
-помогает»). Нужно указать хотя бы один флаг. Страница настроек — единая
-форма с одной кнопкой сохранения: если указать не все флаги, остальные поля
-останутся с текущим значением — это не частичный запрос к отдельному
-API-эндпоинту на каждое поле. Остальные поля (варианты заголовков/текстов,
-быстрые ссылки, аудитория, счётчики Метрики/цели, адаптация бюджета,
-изображения/видео) пока не реализованы.
+помогает») и `--name` (Название кампании). Нужно указать хотя бы один флаг.
+Страница настроек — единая форма с одной кнопкой сохранения: если указать не
+все флаги, остальные поля останутся с текущим значением — это не частичный
+запрос к отдельному API-эндпоинту на каждое поле. В отличие от трёх
+остальных полей, `--name` редактируется через отдельную модалку в шапке, а
+не обычное поле формы — но сохраняется всё той же общей кнопкой, а не
+собственной кнопкой «Применить» модалки. Остальные поля (варианты
+заголовков/текстов, быстрые ссылки, аудитория, счётчики Метрики/цели,
+адаптация бюджета, изображения/видео) пока не реализованы.
 
 Если видите «Found no Yandex cookies», откройте https://direct.yandex.ru в
 Chrome и войдите в аккаунт. Если используете не дефолтный профиль Chrome —
