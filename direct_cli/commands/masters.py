@@ -704,6 +704,59 @@ def archive(
         )
 
 
+@masters.command()
+@click.argument("campaign_id", type=int)
+@click.option(
+    "--launch/--draft",
+    "launch",
+    default=False,
+    help="Launch the clone immediately (Запустить кампанию) instead of "
+    "saving it as a draft (Сохранить как черновик, the default)",
+)
+@_masters_browser_options
+@click.pass_context
+@handle_api_errors
+def copy(
+    ctx,
+    campaign_id,
+    launch,
+    headful,
+    profile_dir,
+    chrome_profile,
+    output_format,
+    output,
+):
+    """Clone an existing Мастер кампаний by ID (Клонировать)
+
+    Mirrors the web UI's overview-page "⋮" menu → "Клонировать": Yandex
+    pre-fills a new campaign from the source's headlines, texts, images,
+    region, budget, and everything else — including the display region
+    verbatim, which sidesteps the text-matching issues `masters add
+    --region`/`--region-id` can hit (issues #652/#656/#657). Nothing on the
+    copy is renamed or edited beyond what Yandex itself does (it appends
+    " — N" to the name) — use `masters update` afterwards for any further
+    changes.
+
+    NOT idempotent: running this twice creates a SECOND copy, not an update
+    to the first — there is no sandbox and no rollback for Мастер кампаний
+    mutations.
+
+    By default the copy is saved as a draft (--draft) without going live.
+    Pass --launch to launch it immediately in production instead.
+    """
+    from ..browser.masters import copy_master
+
+    result = _with_session(
+        ctx,
+        headful,
+        profile_dir,
+        chrome_profile,
+        lambda page: copy_master(page, campaign_id, launch=launch),
+    )
+
+    format_output(result, output_format, output)
+
+
 def _resolve_region_ids(ctx: click.Context, region_ids: "tuple[int, ...]") -> list:
     """Resolve RegionId values to Yandex's canonical GeoRegionName via the
     GeoRegions dictionary — the exact text the Мастер кампаний region widget

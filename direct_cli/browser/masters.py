@@ -127,10 +127,41 @@ auto-expands every ancestor/descendant of a match — see ``_set_region``.
 Weekly budget, "Директ помогает", and "Цель продвижения" were re-confirmed
 live to still use their pre-#653 heading-proximity XPaths unchanged (they
 were not affected by this markup migration).
+
+``copy_master`` (issue #659, live-verified end to end against campaign
+107707079 — a draft copy, 713231614, was actually created and confirmed in
+the campaigns grid during recon). The overview menu's "Клонировать" item
+(``CampaignHeader.Menu.clone``, confirmed live alongside
+``CampaignHeader.Menu.archive`` — see the ``archive_master`` note above) does
+NOT clone instantly: it navigates to ``WIZARD_CREATE_URL``, landing on the
+same step-2 form ``create_master`` uses, pre-filled end to end from the
+source campaign (headlines, texts, images, video, display region, Metrika
+counters, target actions, weekly budget) — Yandex itself appends " — N" to
+the cloned campaign's name. ``_wait_for_step2`` (already used by
+``create_master``) is reused as-is: the pre-fill is server-side and just as
+slow (confirmed live ~14s), and the clone form's "Регион показов" heading is
+the same marker. The same two terminal buttons apply
+(``_LAUNCH_BUTTON_TEXT``/``_SAVE_DRAFT_BUTTON_TEXT`` via
+``_click_terminal_button``) — ``copy_master`` defaults to the draft button,
+mirroring ``create_master``'s CLI-level ``--draft`` default. After clicking,
+Yandex redirects ``page.url`` to ``WIZARD_OVERVIEW_URL`` with the new
+campaign's ID (confirmed live, ~7s after the click) — the primary ID source
+— and this is cross-checked against a ``fetch_masters_list`` grid diff
+(confirmed to agree during recon) before reporting success, following the
+module's "never trust the click alone" convention.
+
+**Not fixed here (see issue #660):** a freshly created ``DRAFT`` campaign's
+overview page turned out, live, to be the editable wizard form itself (no
+"⋮" menu, no ``CampaignHeader.MenuTrigger``) rather than the
+stats-dashboard overview every other status renders — so ``masters get``/
+``archive``/``suspend``/``resume`` (untested against ``DRAFT`` until this
+recon) cannot yet read or act on a campaign in that state. ``copy_master``
+itself does not depend on any of those working.
 """
 
 import contextlib
 import json
+import re
 import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
@@ -212,10 +243,22 @@ _STATUS_CHANGE_TIMEOUT_MS = 10_000
 # a live account's DOM, not guessed.
 _MENU_TRIGGER_SELECTOR = '[data-testid="CampaignHeader.MenuTrigger"]'
 _ARCHIVE_MENU_ITEM_SELECTOR = '[data-testid="CampaignHeader.Menu.archive"]'
+# Confirmed live (issue #659) alongside the archive item above — same menu,
+# same testid convention.
+_CLONE_MENU_ITEM_SELECTOR = '[data-testid="CampaignHeader.Menu.clone"]'
 
 # How long to wait, after clicking Архивировать, for the grid API to report
 # the campaign as ARCHIVED before giving up (see archive_master).
 _ARCHIVE_VERIFY_TIMEOUT_MS = 10_000
+
+# How long to wait, after clicking the clone form's terminal button, for
+# Yandex to redirect page.url to the new campaign's overview URL (confirmed
+# live ~7s, issue #659) before giving up on copy_master.
+_CLONE_VERIFY_TIMEOUT_MS = 20_000
+
+# Matches WIZARD_OVERVIEW_URL's {campaign_id} once Yandex redirects there
+# after a successful clone save/launch (see copy_master).
+_WIZARD_OVERVIEW_URL_ID_RE = re.compile(r"/wizard/campaigns/(\d+)/")
 
 # "Цель продвижения" dropdown options, confirmed live by opening the dropdown
 # on the edit page — exactly these two rows exist, no others (see
@@ -876,6 +919,105 @@ def archive_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
         )
 
     return updated
+
+
+def copy_master(
+    page: "Page", campaign_id: int, *, launch: bool = False
+) -> Dict[str, Any]:
+    """Clone a Мастер кампаний via the overview menu's "Клонировать" item.
+
+    Live-verified end to end (issue #659, campaign 107707079 → draft copy
+    713231614 — see module docstring). "Клонировать" does not clone
+    instantly: it navigates to the same step-2 create form ``create_master``
+    uses, pre-filled from the source campaign (headlines, texts, images,
+    region, budget, ...). Not idempotent, like ``create_master``: calling
+    this twice creates a SECOND copy, not an update to the first — there is
+    no rollback for Мастер кампаний.
+
+    ``launch=False`` (default) clicks "Сохранить как черновик" — the copy is
+    created but not launched, mirroring ``masters add``'s ``--draft``
+    default. ``launch=True`` clicks "Запустить кампанию" instead, launching
+    the copy immediately in production.
+    """
+    existing = _find_master_row(page, campaign_id)
+    if existing is None:
+        raise BrowserSessionError(
+            f"Could not find Мастер кампаний {campaign_id} in the campaigns "
+            "grid — check the ID, or it may already be gone."
+        )
+
+    url = WIZARD_OVERVIEW_URL.format(campaign_id=campaign_id)
+    page.goto(url, wait_until="domcontentloaded")
+    assert_not_captcha(page.content())
+    assert_authenticated(page.content())
+
+    menu_trigger = page.locator(_MENU_TRIGGER_SELECTOR).first
+    try:
+        menu_trigger.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            f"Could not open the campaign menu for {campaign_id} "
+            f"({_MENU_TRIGGER_SELECTOR!r} not found/clickable) — Yandex may "
+            "have changed the overview page's markup."
+        ) from exc
+
+    clone_item = page.locator(_CLONE_MENU_ITEM_SELECTOR).first
+    try:
+        clone_item.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            f"Could not find/click 'Клонировать' for campaign {campaign_id} "
+            f"({_CLONE_MENU_ITEM_SELECTOR!r} not found) — Yandex may have "
+            "changed the overview page's menu."
+        ) from exc
+
+    _wait_for_step2(page)
+    _click_terminal_button(
+        page, _LAUNCH_BUTTON_TEXT if launch else _SAVE_DRAFT_BUTTON_TEXT
+    )
+
+    deadline = time.monotonic() + _CLONE_VERIFY_TIMEOUT_MS / 1000
+    new_id: Optional[int] = None
+    while time.monotonic() < deadline:
+        match = _WIZARD_OVERVIEW_URL_ID_RE.search(page.url)
+        # Must be a DIFFERENT campaign ID than the source: page.url still
+        # holds the source's own overview URL from the goto() above until
+        # Yandex actually redirects to the clone's, so matching the source's
+        # ID here is not evidence of anything having happened yet.
+        if match and int(match.group(1)) != campaign_id:
+            new_id = int(match.group(1))
+            break
+        page.wait_for_timeout(250)
+
+    if new_id is None:
+        raise BrowserSessionError(
+            f"Clicked '{_LAUNCH_BUTTON_TEXT if launch else _SAVE_DRAFT_BUTTON_TEXT}' "
+            f"after cloning campaign {campaign_id}, but Yandex did not "
+            f"redirect to the new campaign's overview page within "
+            f"{_CLONE_VERIFY_TIMEOUT_MS / 1000:.0f}s — verify manually "
+            "before retrying (this is not idempotent)."
+        )
+
+    updated = None
+    deadline = time.monotonic() + _CLONE_VERIFY_TIMEOUT_MS / 1000
+    while time.monotonic() < deadline:
+        updated = _find_master_row(page, new_id, status="all")
+        if updated is not None:
+            break
+        page.wait_for_timeout(250)
+
+    if updated is None:
+        raise BrowserSessionError(
+            f"Yandex redirected to campaign {new_id} after cloning "
+            f"{campaign_id}, but it did not appear in the campaigns grid "
+            f"within {_CLONE_VERIFY_TIMEOUT_MS / 1000:.0f}s — verify "
+            "manually before retrying (this is not idempotent)."
+        )
+
+    result = dict(updated)
+    result["SourceCampaignId"] = campaign_id
+    result["Launched"] = launch
+    return result
 
 
 def _set_weekly_budget(page: "Page", amount: int) -> None:

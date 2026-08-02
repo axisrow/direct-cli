@@ -202,6 +202,11 @@ SMOKE_MATRIX = {
         # configured campaign in the account with no automated rollback.
         # Manual-only, per scripts/test_dangerous_commands.sh.
         "masters.add",
+        # Clones an existing Мастер кампаний (issue #659) — same risk
+        # profile as masters.add: no API surface, no sandbox, and NOT
+        # idempotent (a second run creates a second copy, not an update).
+        # Manual-only, per scripts/test_dangerous_commands.sh.
+        "masters.copy",
         # Interactive, human-in-the-loop login (issue #635) -- opens a
         # visible browser window and blocks for up to --timeout seconds
         # waiting for a person to sign in by hand. Cannot run unattended in

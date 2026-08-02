@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+**Added — `direct masters copy` (#659):**
+
+- New `direct masters copy <CAMPAIGN_ID>` clones an existing Мастер кампаний
+  via the overview page's "⋮" menu → "Клонировать" (`CampaignHeader.Menu.clone`,
+  confirmed live), the same action a human uses in the web UI. Yandex
+  pre-fills the new campaign end to end from the source (headlines, texts,
+  images, video, display region, Metrika counters, target actions, weekly
+  budget) — including the display region **verbatim**, which sidesteps the
+  region text-matching issues `add --region`/`--region-id` can hit (issues
+  #652/#656/#657) entirely, since nothing is retyped or re-matched.
+- Live-verified end to end (campaign 107707079 → draft copy 713231614,
+  confirmed both via the post-click URL redirect to the new campaign's
+  overview page and via a `fetch_masters_list` grid diff before reporting
+  success).
+- `--draft`/`--launch` mirror `masters add`'s flag, but with the opposite,
+  safer default: the copy is saved as a draft unless `--launch` is passed
+  explicitly.
+- Scope is intentionally narrow: `copy` is a 1:1 mirror of the web UI's
+  clone action only — it does not rename, retarget, or edit any field on the
+  copy beyond what Yandex itself does (it appends " — N" to the name). Use
+  `masters update` afterwards for any further changes.
+- **Not idempotent**, same as `add`: running it twice creates a SECOND copy,
+  not an update to the first. No `--sandbox` — Мастер кампаний has no API at
+  all, so there is no isolated test copy.
+- Follow-up (not in this change): flags to override individual fields on the
+  clone form, and a separate gap found during recon — `masters get`/
+  `archive`/`suspend`/`resume` do not yet work against a freshly created
+  `DRAFT`-status campaign (issue #660).
+
 **Added — `direct masters add --region-id` (#652):**
 
 - New `--region-id` option resolves a numeric `RegionId` to Yandex's

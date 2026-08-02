@@ -366,6 +366,11 @@ class FakePage:
         self.navigated_to = []
         self.goto_wait_until = None
         self.closed = False
+        # Mutated by goto() and settable directly by a test's on_click
+        # callback to simulate Yandex's post-click redirect (see
+        # TestCopyMaster) — copy_master polls this the same way
+        # archive_master polls fetch_masters_list.
+        self.url = ""
         # If set, matched by expect_response()'s predicate once goto() has
         # been called inside its `with` block — models the grid firing its
         # GridCampaigns XHR during navigation.
@@ -387,6 +392,7 @@ class FakePage:
     def goto(self, url, wait_until=None):
         self.navigated_to.append(url)
         self.goto_wait_until = wait_until
+        self.url = url
 
     def close(self):
         self.closed = True
@@ -1856,6 +1862,233 @@ class TestMastersArchiveCommand(unittest.TestCase):
         self.assertIn("ARCHIVED", result.output)
         self.assertIn("2", result.output)
         self.assertIn("boom on id 3", result.output)
+
+
+class TestCopyMaster(unittest.TestCase):
+    """``copy_master`` (issue #659): click Клонировать, then the clone form's
+
+    terminal button, verified via both the post-click URL redirect and the
+    campaigns grid — live-verified end to end (see module docstring, campaign
+    107707079 -> draft copy 713231614).
+    """
+
+    SOURCE_ID = 42
+    NEW_ID = 4200
+
+    def _source_row(self, status="STOPPED"):
+        return {
+            "CampaignId": self.SOURCE_ID,
+            "Name": "Мастер тестовый",
+            "Status": status,
+            "Type": "TEXT",
+            "StartDate": "2025-01-01",
+        }
+
+    def _new_row(self, status="DRAFT"):
+        return {
+            "CampaignId": self.NEW_ID,
+            "Name": "Мастер тестовый — 2",
+            "Status": status,
+            "Type": "TEXT",
+            "StartDate": "2026-08-02",
+        }
+
+    def _page(
+        self,
+        menu_trigger=None,
+        clone_item=None,
+        region_heading=True,
+        terminal_button_text=None,
+        redirect_on_click=True,
+    ):
+        locators = {}
+        if menu_trigger is not None:
+            locators[browser_masters._MENU_TRIGGER_SELECTOR] = _FakeLocator(
+                [menu_trigger]
+            )
+        if clone_item is not None:
+            locators[browser_masters._CLONE_MENU_ITEM_SELECTOR] = _FakeLocator(
+                [clone_item]
+            )
+
+        text_buttons = {}
+        if region_heading:
+            text_buttons["Регион показов"] = _FakeGetByTextLocator(
+                [_FakeTextLocatorHandle()]
+            )
+
+        page = FakePage(locators=locators, text_buttons=text_buttons)
+
+        if terminal_button_text is not None:
+
+            def _on_terminal_click():
+                if redirect_on_click:
+                    page.url = browser_masters.WIZARD_OVERVIEW_URL.format(
+                        campaign_id=self.NEW_ID
+                    )
+
+            page._role_elements = [
+                (
+                    "button",
+                    terminal_button_text,
+                    _FakeTextLocatorHandle(visible=True, on_click=_on_terminal_click),
+                )
+            ]
+        return page
+
+    def test_copies_saves_as_draft_by_default_and_verifies(self):
+        page = self._page(
+            menu_trigger=_FakeLocatorHandle(),
+            clone_item=_FakeLocatorHandle(),
+            terminal_button_text=browser_masters._SAVE_DRAFT_BUTTON_TEXT,
+        )
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            side_effect=lambda page, status="all": [
+                self._source_row(),
+                self._new_row(),
+            ],
+        ):
+            result = browser_masters.copy_master(page, self.SOURCE_ID)
+
+        self.assertEqual(result["SourceCampaignId"], self.SOURCE_ID)
+        self.assertEqual(result["CampaignId"], self.NEW_ID)
+        self.assertEqual(result["Status"], "DRAFT")
+        self.assertFalse(result["Launched"])
+        self.assertEqual(
+            page.navigated_to[0],
+            browser_masters.WIZARD_OVERVIEW_URL.format(campaign_id=self.SOURCE_ID),
+        )
+
+    def test_launch_true_clicks_launch_button(self):
+        page = self._page(
+            menu_trigger=_FakeLocatorHandle(),
+            clone_item=_FakeLocatorHandle(),
+            terminal_button_text=browser_masters._LAUNCH_BUTTON_TEXT,
+        )
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            side_effect=lambda page, status="all": [
+                self._source_row(),
+                self._new_row(status="ACTIVE"),
+            ],
+        ):
+            result = browser_masters.copy_master(page, self.SOURCE_ID, launch=True)
+
+        self.assertTrue(result["Launched"])
+        self.assertEqual(result["Status"], "ACTIVE")
+
+    def test_raises_when_source_campaign_not_found(self):
+        page = self._page()
+
+        with patch("direct_cli.browser.masters.fetch_masters_list", return_value=[]):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.copy_master(page, self.SOURCE_ID)
+
+        self.assertIn("Could not find", str(ctx.exception))
+
+    def test_raises_when_menu_trigger_not_found(self):
+        page = self._page()  # no menu_trigger locator registered
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            return_value=[self._source_row()],
+        ):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.copy_master(page, self.SOURCE_ID)
+
+        self.assertIn("Could not open the campaign menu", str(ctx.exception))
+
+    def test_raises_when_clone_menu_item_not_found(self):
+        page = self._page(menu_trigger=_FakeLocatorHandle())
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            return_value=[self._source_row()],
+        ):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.copy_master(page, self.SOURCE_ID)
+
+        self.assertIn("Клонировать", str(ctx.exception))
+
+    def test_raises_when_no_redirect_after_terminal_click(self):
+        # The terminal button is clicked but Yandex never redirects -- must
+        # not report success on the click alone (not idempotent, so a false
+        # success here is expensive to clean up).
+        page = self._page(
+            menu_trigger=_FakeLocatorHandle(),
+            clone_item=_FakeLocatorHandle(),
+            terminal_button_text=browser_masters._SAVE_DRAFT_BUTTON_TEXT,
+            redirect_on_click=False,
+        )
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            return_value=[self._source_row()],
+        ):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.copy_master(page, self.SOURCE_ID)
+
+        self.assertIn("did not redirect", str(ctx.exception))
+
+    def test_raises_when_new_campaign_never_appears_in_grid(self):
+        # The redirect happens (page.url changes) but the grid never reports
+        # the new campaign -- must not trust the URL alone either.
+        page = self._page(
+            menu_trigger=_FakeLocatorHandle(),
+            clone_item=_FakeLocatorHandle(),
+            terminal_button_text=browser_masters._SAVE_DRAFT_BUTTON_TEXT,
+        )
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            return_value=[self._source_row()],  # never includes NEW_ID
+        ):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.copy_master(page, self.SOURCE_ID)
+
+        self.assertIn("did not appear in the campaigns grid", str(ctx.exception))
+
+
+class TestMastersCopyCommand(unittest.TestCase):
+    """CLI wiring for `masters copy` (issue #659)."""
+
+    def setUp(self):
+        self.runner = CliRunner()
+
+    def test_copy_registered(self):
+        result = self.runner.invoke(cli, ["masters", "copy", "--help"])
+        self.assertEqual(result.exit_code, 0)
+
+    def test_copy_has_no_login_option(self):
+        result = self.runner.invoke(cli, ["masters", "copy", "--help"])
+        self.assertNotIn("--login", result.output)
+
+    def test_copy_defaults_to_draft(self):
+        with (
+            patch("direct_cli.browser.masters.copy_master") as mock_copy,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_copy.return_value = {"CampaignId": 99, "SourceCampaignId": 42}
+            result = self.runner.invoke(cli, ["masters", "copy", "42"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        mock_copy.assert_called_once_with(mock_copy.call_args[0][0], 42, launch=False)
+
+    def test_copy_launch_flag_passes_through(self):
+        with (
+            patch("direct_cli.browser.masters.copy_master") as mock_copy,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_copy.return_value = {"CampaignId": 99, "SourceCampaignId": 42}
+            result = self.runner.invoke(cli, ["masters", "copy", "42", "--launch"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        mock_copy.assert_called_once_with(mock_copy.call_args[0][0], 42, launch=True)
 
 
 class TestSetWeeklyBudget(unittest.TestCase):
