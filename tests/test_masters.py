@@ -2985,6 +2985,43 @@ class TestAddRepeatingValues(unittest.TestCase):
         )
         self.assertIn("clear", str(ctx.exception).lower())
 
+    def test_aborts_when_an_unused_slot_cannot_be_clicked(self):
+        """A click failure on an UNUSED slot must not be a soft skip
+        (issue #655 round-2 review, Codex).
+
+        The previous fix treated ``value is None`` (a trailing slot with no
+        caller-supplied value) as safe to skip on a click failure, reasoning
+        the slot "may simply not be rendered". But a click can also fail on
+        a slot that IS rendered and IS still holding Yandex's AI copy — an
+        overlay, a transient obstruction, anything short of "truly absent".
+        ``create_master`` clicks the terminal LAUNCH button before
+        ``_verify_created`` ever re-reads the page, so skipping here risks
+        publishing unreviewed copy from a live, no-rollback campaign and
+        only discovering it after the fact. Must fail before any click.
+        """
+        slot0 = _FakeContentEditableHandle(text="")
+        slot1 = _FakeLocatorHandle(text="Центр оздоровления и китайской гимнастики!")
+        slot1.click = lambda timeout=None: (_ for _ in ()).throw(
+            PlaywrightError("intercepted: element obscured")
+        )
+        page = FakePage(
+            locators={
+                '[data-testid="fake0.textarea"]': _FakeLocator([slot0]),
+                '[data-testid="fake1.textarea"]': _FakeLocator([slot1]),
+            }
+        )
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._add_repeating_values(
+                page, "fake{index}.textarea", 2, ["Мой заголовок"]
+            )
+
+        # slot1's AI copy must survive untouched — the whole point is that
+        # this must fail loudly instead of silently leaving it live.
+        self.assertEqual(
+            slot1.inner_text(), "Центр оздоровления и китайской гимнастики!"
+        )
+
 
 class TestReadRepeatingValues(unittest.TestCase):
     """``_read_repeating_values`` (issue #632, re-recon #653) — post-add
@@ -3517,6 +3554,13 @@ class TestCreateMaster(unittest.TestCase):
 
         next_button = _FakeLocatorHandle()
 
+        # The real page always renders every slot (issue #653 recon: exactly
+        # 5 headline / 3 text slots, no "add another" control) — registering
+        # only slot 0 was unrealistic and hid the issue #655 round-2 finding
+        # that a click failure on an UNUSED slot must still be fatal. Slot 0
+        # is the caller-filled one (headline_field/text_field, wired to
+        # headline_state/text_state below); the rest start genuinely empty,
+        # same as the real create page's trailing slots.
         headline_selector = (
             '[data-testid="'
             + browser_masters._HEADLINES_TESTID_TEMPLATE.format(index=0)
@@ -3527,6 +3571,18 @@ class TestCreateMaster(unittest.TestCase):
             + browser_masters._TEXTS_TESTID_TEMPLATE.format(index=0)
             + '"]'
         )
+        extra_headline_selectors = {
+            '[data-testid="'
+            + browser_masters._HEADLINES_TESTID_TEMPLATE.format(index=i)
+            + '"]': _FakeLocator([_FakeContentEditableHandle(text="")])
+            for i in range(1, browser_masters._HEADLINES_SLOT_COUNT)
+        }
+        extra_text_selectors = {
+            '[data-testid="'
+            + browser_masters._TEXTS_TESTID_TEMPLATE.format(index=i)
+            + '"]': _FakeLocator([_FakeContentEditableHandle(text="")])
+            for i in range(1, browser_masters._TEXTS_SLOT_COUNT)
+        }
         region_label_xpath = (
             "xpath=//label[@data-testid='RegionsTreeNode.Checkbox.label']"
             f"[normalize-space(.)={browser_masters._xpath_literal(region)}]"
@@ -3550,6 +3606,8 @@ class TestCreateMaster(unittest.TestCase):
                 browser_masters._CREATE_NEXT_BUTTON_TESTID: _FakeLocator([next_button]),
                 headline_selector: _FakeLocator([headline_field]),
                 text_selector: _FakeLocator([text_field]),
+                **extra_headline_selectors,
+                **extra_text_selectors,
                 browser_masters._REGION_LAUNCHER_TESTID: _FakeLocator(
                     [region_launcher]
                 ),

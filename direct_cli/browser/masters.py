@@ -1337,12 +1337,17 @@ def _add_repeating_values(
       leftover AI-written ones they never reviewed — precisely what
       ``create_master``'s contract refuses to do.
 
-    A slot that cannot be cleared is fatal rather than best-effort: typing
-    after a failed clear produces mangled copy, and ``create_master`` clicks
-    the terminal button before it re-reads anything. Callers whose values
-    would overflow ``slot_count`` (more values than available slots) get a
-    hard error rather than a silent drop, since Мастер кампаний has no
-    rollback (module docstring's "no sandbox" risk).
+    A slot that cannot even be clicked, or cannot be cleared, is fatal for
+    EVERY slot — including one with no caller-supplied value. A click
+    failure does not distinguish "not rendered" from "obstructed but still
+    holding Yandex's AI copy" (issue #655 round-2 review, Codex): treating
+    it as safe-to-skip once let a click failure on a populated slot slip
+    through, and ``create_master`` clicks the terminal LAUNCH button before
+    ``_verify_created`` ever re-reads the page — so a skipped-but-populated
+    slot would publish unreviewed copy from a live campaign before anyone
+    found out, with no rollback. Callers whose values would overflow
+    ``slot_count`` (more values than available slots) get a hard error
+    rather than a silent drop, for the same reason.
     """
     if len(values) > slot_count:
         raise BrowserSessionError(
@@ -1371,13 +1376,16 @@ def _add_repeating_values(
             # "Центр оздоровления и китайско<typed>й гимнастики цигун!").
             cleared = _clear_text_field(field)
         except PlaywrightError as exc:
-            if value is None:
-                # A trailing slot that cannot even be focused is not
-                # necessarily fatal — it may simply not be rendered. Verify
-                # below catches it if it did hold copy.
-                continue
+            # Fatal even for an unused slot (``value is None``): a click
+            # failure does not distinguish "not rendered" from "obstructed
+            # but still holding Yandex's AI copy" (issue #655 round-2
+            # review, Codex) — and ``create_master`` clicks the terminal
+            # LAUNCH button before ``_verify_created`` ever re-reads the
+            # page, so a skipped-but-populated slot would publish unreviewed
+            # copy from a live, no-rollback campaign before anyone finds out.
+            target = f"{value!r}" if value is not None else "an unused slot"
             raise BrowserSessionError(
-                f"Could not add {value!r} via the create page's field at "
+                f"Could not add {target} via the create page's field at "
                 f"{selector!r} — Yandex may have changed the page's markup. "
                 "Re-run with --headful to inspect the page."
             ) from exc
