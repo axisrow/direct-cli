@@ -1662,37 +1662,32 @@ def _click_terminal_button(page: "Page", text: str) -> None:
     )
 
 
-def _verify_created(
-    page: "Page",
-    *,
-    headlines: List[str],
-    texts: List[str],
-    weekly_budget: Optional[int],
-) -> None:
-    """Confirm the fields this module actually set are still present after the
-    terminal click, rather than trusting the click alone.
+def _repeating_values_mismatches(
+    page: "Page", *, headlines: List[str], texts: List[str]
+) -> List[str]:
+    """Compare the create page's CURRENT headline/text slot contents against
+    what the caller asked for — the one check both a pre-click gate and the
+    post-click ``_verify_created`` backstop need (issue #655 round-3 review).
 
-    Ported from ``update_master``'s ``_verify_saved`` (issue #631 review
-    finding): a click on "Запустить кампанию"/"Сохранить как черновик" is not
-    proof Yandex accepted the form — client-side validation can reject a
-    value silently. Unlike ``_verify_saved``, this does NOT re-navigate and
-    reload first: issue #632 step 0 recon never confirmed what URL the
-    launch/draft click lands on (module docstring), so there is no known
-    page to reload yet. This re-reads the CURRENT page's fields immediately
-    after the click instead — a strictly weaker check than a real reload,
-    but the strongest one available until a live pass confirms the
-    post-click destination. Region is intentionally NOT verified here even
-    though ``_read_region_tags`` is now live-verified (issue #653): a
-    reload-based verification (mirroring ``_verify_saved``) is a bigger,
-    separately-scoped change than this issue's markup fix.
+    Every round of this issue's review found a NEW way for a slot's true
+    content to diverge from what ``_add_repeating_values`` believes it
+    wrote (a click failure, an unused slot, a keypress that succeeds
+    without actually clearing anything) — but this comparison itself was
+    correct from the start each time. The actual defect was never the
+    check, it was that ``create_master`` only ran it AFTER
+    ``_click_terminal_button`` had already launched the campaign. Sharing
+    this one function between a pre-click gate and the existing post-click
+    read lets one fix close every variant, instead of patching each new
+    way to reach a stale slot one at a time.
+
+    Both directions matter. A missing value means the form did not take
+    what was asked for; an EXTRA non-empty value means a slot still holds
+    Yandex's AI-generated copy, which ships as a published ad variant the
+    caller never reviewed. Checking only membership let the latter through
+    silently (issue #655 review).
     """
     mismatches = []
 
-    # Both directions matter. A missing value means the form did not take
-    # what was asked for; an EXTRA non-empty value means a slot still holds
-    # Yandex's AI-generated copy, which ships as a published ad variant the
-    # caller never reviewed (issue #655 review). Checking only membership
-    # let the latter through silently.
     actual_headlines = _read_repeating_values(
         page, _HEADLINES_TESTID_TEMPLATE, _HEADLINES_SLOT_COUNT
     )
@@ -1725,6 +1720,42 @@ def _verify_created(
             "— these are Yandex's AI-generated copy and would be published "
             "alongside yours"
         )
+
+    return mismatches
+
+
+def _verify_created(
+    page: "Page",
+    *,
+    headlines: List[str],
+    texts: List[str],
+    weekly_budget: Optional[int],
+) -> None:
+    """Confirm the fields this module actually set are still present after the
+    terminal click, rather than trusting the click alone.
+
+    Ported from ``update_master``'s ``_verify_saved`` (issue #631 review
+    finding): a click on "Запустить кампанию"/"Сохранить как черновик" is not
+    proof Yandex accepted the form — client-side validation can reject a
+    value silently. Unlike ``_verify_saved``, this does NOT re-navigate and
+    reload first: issue #632 step 0 recon never confirmed what URL the
+    launch/draft click lands on (module docstring), so there is no known
+    page to reload yet. This re-reads the CURRENT page's fields immediately
+    after the click instead — a strictly weaker check than a real reload,
+    but the strongest one available until a live pass confirms the
+    post-click destination. Region is intentionally NOT verified here even
+    though ``_read_region_tags`` is now live-verified (issue #653): a
+    reload-based verification (mirroring ``_verify_saved``) is a bigger,
+    separately-scoped change than this issue's markup fix.
+
+    This is the BACKSTOP for divergences that only appear as a side effect
+    of the click itself (e.g. Yandex's own post-click validation reverting
+    a field) — ``create_master`` also runs
+    ``_repeating_values_mismatches`` BEFORE the click, which catches every
+    divergence that already existed at click time (see that function's
+    docstring).
+    """
+    mismatches = _repeating_values_mismatches(page, headlines=headlines, texts=texts)
 
     if weekly_budget is not None:
         field = page.locator(_WEEKLY_BUDGET_INPUT_XPATH).first
@@ -1811,6 +1842,26 @@ def create_master(
     _set_region(page, regions)
     if weekly_budget is not None:
         _set_weekly_budget_on_create(page, weekly_budget)
+
+    # Gate the click, don't just report on it afterwards (issue #655
+    # round-3 review): _add_repeating_values believing it wrote the right
+    # values is not the same as the page actually holding them — a click
+    # failure, an unused slot, or a keypress that succeeds without clearing
+    # anything can all leave a slot stale without _add_repeating_values
+    # itself raising. Checking here, before the terminal button, means an
+    # already-live discrepancy is caught before anything is published,
+    # instead of only being reported on by _verify_created afterwards.
+    pre_click_mismatches = _repeating_values_mismatches(
+        page, headlines=headlines, texts=texts
+    )
+    if pre_click_mismatches:
+        raise BrowserSessionError(
+            "Refusing to click the create page's terminal button: before "
+            "clicking, the headline/text slots do not currently hold what "
+            "was requested: " + "; ".join(pre_click_mismatches) + ". Yandex "
+            "may have changed the page's markup, or a slot silently failed "
+            "to clear — re-run with --headful to inspect the page."
+        )
 
     _click_terminal_button(
         page, _LAUNCH_BUTTON_TEXT if launch else _SAVE_DRAFT_BUTTON_TEXT

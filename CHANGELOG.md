@@ -53,6 +53,17 @@
 - The `browser` extra now requires **`playwright>=1.44`** (was `>=1.40`):
   clearing a slot uses the `ControlOrMeta` modifier, which older versions
   reject server-side with `Unknown modifier`.
+- A click failure on an **unused** slot (no caller-supplied value for it) is
+  now fatal too, not a soft skip — a click failure does not distinguish
+  "not rendered" from "obstructed but still holding AI-generated copy".
+- The headline/text state check now runs **before** the terminal
+  "Запустить кампанию"/"Сохранить как черновик" click, not only after: a
+  clear that reports success without exception (a prevented Backspace, a
+  lost selection, a rerender) can leave a slot's stale text intact, and
+  `.type()` would append onto it rather than replace it. `create_master`
+  now refuses to click the terminal button at all if the headline/text
+  slots don't already match what was requested, instead of publishing the
+  mismatch and only reporting it afterward.
 - **Region** moved from a text combobox with autocomplete to a tree/tag-group
   widget (`RegionsTreeTagGroup`), which needed a genuinely different
   selection flow, not a new selector for the old one: open the popup via its

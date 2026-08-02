@@ -3765,24 +3765,85 @@ class TestCreateMaster(unittest.TestCase):
                 regions=["Москва"],
             )
 
-    def test_raises_when_terminal_click_does_not_actually_save_headline(self):
-        # The launch button is clicked, but re-reading the headline field
-        # afterwards shows the OLD value still in place (e.g. Yandex
-        # silently rejected it) -- this must be a hard error, not a false
-        # success (mirrors update_master's _verify_saved regression test).
+    def test_raises_before_launch_when_a_headline_slot_did_not_actually_clear(
+        self,
+    ):
+        """The terminal button must NOT be clicked if pre-click state is
+        already wrong (issue #655 round-3 review, Codex).
+
+        Every round of this issue's review (1, 2, 3) found a new way for a
+        slot's true content to diverge from what ``_add_repeating_values``
+        believes it wrote — a click failure, an unused slot, a no-op
+        keypress that succeeds without exception. ``_verify_created``
+        already re-reads and compares state correctly; the actual defect was
+        never in the check, it was that ``create_master`` only ran that
+        check AFTER ``_click_terminal_button`` already launched the
+        campaign. This pins the fix at the level that closes ALL variants:
+        the state check must gate the click, not just report on it
+        afterwards.
+
+        Sabotage: slot 0's ``press()`` succeeds without raising (models a
+        prevented Backspace / lost selection / re-render race — issue #655
+        round-3 finding) but never actually clears the field, so
+        ``.type()`` appends onto the stale AI copy instead of replacing it.
+        """
         page, state = self._full_page()
-        # Sabotage: slot 0's headline field never actually reflects the
-        # type() — inner_text() always reads back the stale value, even
-        # though click()/type() succeed without raising (mirrors "Yandex
-        # silently rejected it" — the click alone is not proof of anything).
         stuck_handle = _FakeLocatorHandle(text="Старый заголовок")
-        stuck_handle.type = lambda value, delay=None: None
+        stuck_handle.press = lambda key: None  # succeeds, does nothing
+        stuck_handle.type = lambda value, delay=None: None  # never reflects
         headline_selector = (
             '[data-testid="'
             + browser_masters._HEADLINES_TESTID_TEMPLATE.format(index=0)
             + '"]'
         )
         page._locators[headline_selector] = _FakeLocator([stuck_handle])
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.create_master(
+                page,
+                "https://ksamata.ru/",
+                headlines=["Заголовок"],
+                texts=["Текст объявления"],
+                regions=["Москва"],
+            )
+        # The whole point: caught BEFORE the irreversible click, not after.
+        self.assertEqual(len(state["launch_clicks"]), 0)
+        self.assertIn("before clicking", str(ctx.exception))
+
+    def test_raises_when_terminal_click_does_not_actually_save_headline(self):
+        # The headline field reflects correctly right up until the click,
+        # but Yandex's OWN post-click processing (client-side validation on
+        # submit, not on type) reverts it — the pre-click gate above cannot
+        # catch this, since the field looked correct at check time and only
+        # diverges as a side effect of the click itself. _verify_created
+        # remains the backstop for this case.
+        page, state = self._full_page()
+        stuck_handle = _FakeLocatorHandle(text="Старый заголовок")
+
+        def _type(value, delay=None):
+            stuck_handle._text = value
+
+        stuck_handle.type = _type
+        headline_selector = (
+            '[data-testid="'
+            + browser_masters._HEADLINES_TESTID_TEMPLATE.format(index=0)
+            + '"]'
+        )
+        page._locators[headline_selector] = _FakeLocator([stuck_handle])
+
+        launch_handle = next(
+            handle
+            for role, name, handle in page._role_elements
+            if role == "button" and name == browser_masters._LAUNCH_BUTTON_TEXT
+        )
+        real_on_click = launch_handle._on_click
+
+        def _revert_then_click():
+            stuck_handle._text = "Старый заголовок"
+            if real_on_click is not None:
+                real_on_click()
+
+        launch_handle._on_click = _revert_then_click
 
         with self.assertRaises(BrowserSessionError) as ctx:
             browser_masters.create_master(
