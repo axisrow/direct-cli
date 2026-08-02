@@ -23,6 +23,14 @@
   this only replaces variants that already exist, it does not add new
   ones. Deleting a variant (clearing a slot) and editing variant weights
   are tracked as separate follow-ups, not implemented here.
+- An empty or whitespace-only replacement (`--headline "1="`) is likewise
+  refused, at the CLI boundary before any browser session opens and again
+  in `_set_repeating_value` for non-CLI callers. Blanking a slot is a
+  *delete*, not a replace, and it would have failed silently: the slot is
+  cleared, `""` typed, the form saved, and the post-save check compares the
+  re-read slot against the requested value — `"" == ""` matches, so the
+  deletion of a live ad variant would have been reported as a successful
+  update (found in review by both reviewers).
 - The edit page's slots (`CampaignTitles{N}.textarea`/
   `CampaignTexts{N}.textarea`, 5/3 slots) turned out identical in shape and
   count to the create page's (#653), confirmed via a read-only recon

@@ -573,6 +573,13 @@ def _parse_repeating_slot_options(
             raise click.UsageError(
                 f"{option_name} slot {slot_number} was specified more than " "once."
             )
+        if not text.strip():
+            raise click.UsageError(
+                f"{option_name} slot {slot_number} was given an empty "
+                "replacement, which would DELETE that ad variant rather than "
+                "replace it. Removing a variant is not supported — pass the "
+                "replacement text, or edit the campaign with --headful."
+            )
         parsed[index] = text
     return parsed
 

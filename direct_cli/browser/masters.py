@@ -1949,6 +1949,22 @@ def _set_repeating_value(
             f"{slot_count} slots on the edit page."
         )
 
+    # Checked BEFORE the field is read or cleared: an empty replacement is a
+    # DELETE, not a replace, and deleting a variant is out of scope for Этап
+    # B (issue #665). It is also the silent kind of damage — the slot would
+    # be cleared, "" typed, the form saved, and
+    # ``_verify_repeating_value_mismatches`` would then compare the re-read
+    # slot against the REQUESTED value, find "" == "", and report the
+    # deletion as a successful update. The CLI refuses this earlier
+    # (``_parse_repeating_slot_options``); this guard keeps the browser layer
+    # safe for any other caller too.
+    if not value.strip():
+        raise BrowserSessionError(
+            f"Refusing to write an empty value to slot {index + 1}: that "
+            "would delete the existing ad variant rather than replace it, "
+            "which this command does not support."
+        )
+
     selector = f'[data-testid="{testid_template.format(index=index)}"]'
     field = page.locator(selector).first
 

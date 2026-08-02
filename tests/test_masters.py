@@ -3205,6 +3205,36 @@ class TestMastersUpdateCommand(unittest.TestCase):
         self.assertNotEqual(result.exit_code, 0)
         mock_with_session.assert_not_called()
 
+    def test_rejects_an_empty_headline_replacement(self):
+        """``--headline "1="`` would DELETE variant 1, not replace it.
+
+        Deleting a variant is explicitly out of scope for Этап B (issue
+        #665), and the failure mode is silent: the slot gets cleared, the
+        empty string typed, the form saved, and the post-save check compares
+        the re-read slot against the requested value — both empty, so it
+        matches and the delete is reported as a successful update.
+        """
+        result = self.runner.invoke(
+            cli, ["masters", "update", "42", "--headline", "1="]
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("empty", result.output.lower())
+
+    def test_rejects_a_whitespace_only_text_replacement(self):
+        result = self.runner.invoke(cli, ["masters", "update", "42", "--text", "2=   "])
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("empty", result.output.lower())
+
+    def test_empty_replacement_does_not_open_a_browser_session(self):
+        """The refusal must land before any live page is touched — an
+        already-open edit page is a live, no-rollback mutation surface."""
+        with patch("direct_cli.commands.masters._with_session") as mock_with_session:
+            result = self.runner.invoke(
+                cli, ["masters", "update", "42", "--headline", "1="]
+            )
+        self.assertNotEqual(result.exit_code, 0)
+        mock_with_session.assert_not_called()
+
     def test_headline_flag_alone_satisfies_the_at_least_one_field_guard(self):
         with (
             patch("direct_cli.browser.masters.update_master") as mock_update,
@@ -4078,6 +4108,46 @@ class TestSetRepeatingValue(unittest.TestCase):
             browser_masters._set_repeating_value(
                 page, "fake{index}.textarea", 5, 0, "Новый заголовок"
             )
+
+    def test_refuses_to_blank_a_slot_with_an_empty_value(self):
+        """An empty replacement would DELETE a live ad variant.
+
+        Deleting a variant is explicitly out of scope for Этап B (issue #665
+        lists it under "Явно вне объёма"), and the damage is silent: the slot
+        is cleared, the empty string is typed, the form is saved, and
+        ``_verify_repeating_value_mismatches`` then compares the re-read slot
+        against the REQUESTED value — ``"" == ""`` matches, so the delete is
+        reported as a successful update. On an active campaign that is a live
+        ad mutation with no rollback (and with ``--launch`` on a DRAFT, it is
+        published immediately). Guarded here as well as at the CLI boundary
+        so the browser layer is safe for any caller, not just the CLI.
+        """
+        field = _FakeContentEditableHandle(text="Старый заголовок")
+        page = FakePage(
+            locators={'[data-testid="fake0.textarea"]': _FakeLocator([field])}
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._set_repeating_value(page, "fake{index}.textarea", 5, 0, "")
+
+        # The existing variant must survive untouched — not cleared-then-failed.
+        self.assertEqual(field.inner_text(), "Старый заголовок")
+        self.assertIn("empty", str(ctx.exception).lower())
+
+    def test_refuses_to_blank_a_slot_with_a_whitespace_only_value(self):
+        """Whitespace-only is the same delete wearing a disguise."""
+        field = _FakeContentEditableHandle(text="Старый заголовок")
+        page = FakePage(
+            locators={'[data-testid="fake0.textarea"]': _FakeLocator([field])}
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._set_repeating_value(
+                page, "fake{index}.textarea", 5, 0, "   "
+            )
+
+        self.assertEqual(field.inner_text(), "Старый заголовок")
+        self.assertIn("empty", str(ctx.exception).lower())
 
 
 class TestSetRegion(unittest.TestCase):

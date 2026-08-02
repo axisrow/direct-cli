@@ -76,8 +76,10 @@ be large, and forcing every variant to be re-typed just to fix one typo would
 defeat the point of a partial update — see
 `direct_cli/browser/masters.py::_set_repeating_value` for the full rationale.
 Writing to a slot that is currently empty is refused (`UsageError`) — this
-only edits variants that already exist, it does not add new ones; deleting a
-variant and editing variant weights aren't implemented yet. Later fields
+only edits variants that already exist, it does not add new ones. An empty or
+whitespace-only replacement (`--headline "1="`) is refused for the mirror-image
+reason: blanking a slot would delete a live ad variant, not replace it.
+Deleting a variant and editing variant weights aren't implemented yet. Later fields
 (sitelinks, audience, Metrika counters/goals, budget adaptation, images/
 video) aren't implemented yet either.
 
