@@ -2358,6 +2358,190 @@ class TestClickSave(unittest.TestCase):
         self.assertEqual(clicks, [True])
 
 
+class TestDraftEditPageSave(unittest.TestCase):
+    """``_is_draft_edit_page``/``_click_save`` DRAFT path (issue #668).
+
+    A DRAFT campaign's edit page has NO "Сохранить кампанию" button at all
+    — only ``CampaignFormControls.saveDraft.button``/``.save.button``, the
+    latter labelled "Запустить кампанию" (publishes) here, unlike the
+    non-DRAFT page's "Сохранить кампанию" — live-confirmed against campaign
+    713231614, see the module docstring's "DRAFT support" note.
+    """
+
+    def test_is_draft_edit_page_true_when_save_draft_button_present(self):
+        page = FakePage(
+            locators={
+                browser_masters._DRAFT_SAVE_DRAFT_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                )
+            }
+        )
+
+        self.assertTrue(browser_masters._is_draft_edit_page(page))
+
+    def test_is_draft_edit_page_false_when_absent(self):
+        page = FakePage(locators={})
+
+        self.assertFalse(browser_masters._is_draft_edit_page(page))
+
+    def test_click_save_on_draft_clicks_save_draft_button_by_default(self):
+        clicks = []
+        page = FakePage(
+            locators={
+                browser_masters._DRAFT_SAVE_DRAFT_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle(on_click=lambda: clicks.append("draft"))]
+                ),
+                browser_masters._DRAFT_LAUNCH_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle(on_click=lambda: clicks.append("launch"))]
+                ),
+            }
+        )
+
+        browser_masters._click_save(page, 713231614)
+
+        # The publish button must never be touched unless --launch was
+        # explicitly requested.
+        self.assertEqual(clicks, ["draft"])
+
+    def test_click_save_on_draft_clicks_launch_button_when_requested(self):
+        clicks = []
+        page = FakePage(
+            locators={
+                browser_masters._DRAFT_SAVE_DRAFT_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle(on_click=lambda: clicks.append("draft"))]
+                ),
+                browser_masters._DRAFT_LAUNCH_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle(on_click=lambda: clicks.append("launch"))]
+                ),
+            }
+        )
+
+        browser_masters._click_save(page, 713231614, launch=True)
+
+        self.assertEqual(clicks, ["launch"])
+
+    def test_click_save_on_draft_raises_when_button_missing(self):
+        page = FakePage(
+            locators={
+                browser_masters._DRAFT_SAVE_DRAFT_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                )
+                # _DRAFT_LAUNCH_BUTTON_TESTID deliberately absent.
+            }
+        )
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._click_save(page, 713231614, launch=True)
+
+    def test_click_save_prefers_non_draft_path_when_save_draft_button_absent(self):
+        # Regression guard: a non-DRAFT page must keep using the plain
+        # "Сохранить кампанию" role-scoped match, not the DRAFT testid path.
+        clicks = []
+        page = FakePage(
+            locators={},
+            role_elements=[
+                (
+                    "button",
+                    browser_masters._SAVE_BUTTON_TEXT,
+                    _FakeTextLocatorHandle(
+                        visible=True, on_click=lambda: clicks.append(True)
+                    ),
+                )
+            ],
+        )
+
+        browser_masters._click_save(page, 42)
+
+        self.assertEqual(clicks, [True])
+
+
+class TestUpdateMasterDraftSupport(unittest.TestCase):
+    """``update_master`` end to end on a DRAFT campaign (issue #668)."""
+
+    def _draft_page_with_headline_slot(self, *, saved_text_after_save):
+        # _verify_saved re-navigates to the SAME edit URL after saving —
+        # FakePage's goto() is a no-op that just records the URL, so the
+        # same locator objects (and their mutable state) are seen both
+        # before and after the "reload", exactly like the non-DRAFT
+        # TestUpdateMaster fakes above.
+        #
+        # _click_draft_terminal_button (issue #668 live-recon fix) polls
+        # page.url until it leaves "/edit/" before returning, mirroring the
+        # click's real ~5s redirect to the overview page — on_click here
+        # mutates page.url the same way TestCopyMaster's fakes do, so the
+        # poll resolves immediately instead of burning the real timeout.
+        slot = _FakeContentEditableHandle(text="Старый заголовок")
+        draft_clicks = []
+        selector = (
+            f"[data-testid="
+            f'"{browser_masters._HEADLINES_TESTID_TEMPLATE.format(index=0)}"]'
+        )
+
+        def _on_draft_click():
+            draft_clicks.append(True)
+            page.url = browser_masters.WIZARD_OVERVIEW_URL.format(campaign_id=713231614)
+
+        page = FakePage(
+            locators={
+                browser_masters._DRAFT_SAVE_DRAFT_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle(on_click=_on_draft_click)]
+                ),
+                selector: _FakeLocator([slot]),
+            }
+        )
+        page.url = browser_masters.WIZARD_EDIT_URL.format(campaign_id=713231614)
+        return page, slot, draft_clicks
+
+    def test_updates_headline_on_draft_campaign_saving_as_draft(self):
+        page, slot, draft_clicks = self._draft_page_with_headline_slot(
+            saved_text_after_save="Новый заголовок"
+        )
+
+        result = browser_masters.update_master(
+            page, 713231614, headlines={0: "Новый заголовок"}
+        )
+
+        self.assertEqual(slot.inner_text(), "Новый заголовок")
+        self.assertEqual(len(draft_clicks), 1)
+        self.assertEqual(
+            result, {"CampaignId": 713231614, "Headlines": {0: "Новый заголовок"}}
+        )
+
+    def test_error_message_on_draft_mismatch_names_the_draft_button_not_save(self):
+        # The mismatch error text must reflect the button THIS run actually
+        # clicked, not a hard-coded "Сохранить кампанию" that was never on
+        # the page.
+        slot = _FakeContentEditableHandle(text="Старый заголовок")
+        slot.type = lambda value, delay=None: None  # write silently rejected
+        selector = (
+            f"[data-testid="
+            f'"{browser_masters._HEADLINES_TESTID_TEMPLATE.format(index=0)}"]'
+        )
+
+        def _on_draft_click():
+            page.url = browser_masters.WIZARD_OVERVIEW_URL.format(campaign_id=713231614)
+
+        page = FakePage(
+            locators={
+                browser_masters._DRAFT_SAVE_DRAFT_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle(on_click=_on_draft_click)]
+                ),
+                selector: _FakeLocator([slot]),
+            }
+        )
+        page.url = browser_masters.WIZARD_EDIT_URL.format(campaign_id=713231614)
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(
+                page, 713231614, headlines={0: "Новый заголовок"}
+            )
+
+        self.assertIn(
+            f"'{browser_masters._SAVE_DRAFT_BUTTON_TEXT}'", str(ctx.exception)
+        )
+        self.assertNotIn(browser_masters._SAVE_BUTTON_TEXT, str(ctx.exception))
+
+
 class TestUpdateMaster(unittest.TestCase):
     """``update_master`` (issue #631, Этап A) — partial updates, one whole-form save.
 
@@ -2378,12 +2562,51 @@ class TestUpdateMaster(unittest.TestCase):
         weekly_budget_state=None,
         directs_helps_state=None,
         name_state=None,
+        headlines_state=None,
+        texts_state=None,
     ):
         save_clicks = []
         save_handle = _FakeTextLocatorHandle(
             visible=True, on_click=lambda: save_clicks.append(True)
         )
         locators = dict(extra_locators or {})
+        headline_handles = {}
+        text_handles = {}
+
+        def _add_repeating_slot_locators(state, testid_template, slot_count, out):
+            # ``state`` maps 0-based index -> starting text, pre-populated
+            # by the test with whatever the fake edit page starts showing
+            # (a real slot is either filled or empty; ``_set_repeating_value``
+            # refuses to write to an empty one, mirroring the live page).
+            #
+            # FakePage reuses the SAME handle object across both goto()
+            # calls inside one update_master() run (save, then the
+            # post-save reload), just like the real page keeps rendering
+            # the same slot — so a plain _FakeContentEditableHandle's own
+            # mutable ``_text`` already carries the mutation
+            # ``_set_repeating_value`` made into ``_verify_saved``'s re-read.
+            # ``out`` hands the handles back to the caller so a test can
+            # assert on ``handle.inner_text()`` directly.
+            for index in range(slot_count):
+                selector = f'[data-testid="{testid_template.format(index=index)}"]'
+                handle = _FakeContentEditableHandle(text=state.get(index, ""))
+                locators[selector] = _FakeLocator([handle])
+                out[index] = handle
+
+        if headlines_state is not None:
+            _add_repeating_slot_locators(
+                headlines_state,
+                browser_masters._HEADLINES_TESTID_TEMPLATE,
+                browser_masters._HEADLINES_SLOT_COUNT,
+                headline_handles,
+            )
+        if texts_state is not None:
+            _add_repeating_slot_locators(
+                texts_state,
+                browser_masters._TEXTS_TESTID_TEMPLATE,
+                browser_masters._TEXTS_SLOT_COUNT,
+                text_handles,
+            )
 
         if weekly_budget_state is not None:
             budget_handle = _FakeLocatorHandle(
@@ -2432,6 +2655,11 @@ class TestUpdateMaster(unittest.TestCase):
             locators=locators,
             role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
         )
+        # Attached rather than returned as extra tuple elements, so the
+        # many existing ``page, save_clicks = ...`` two-value call sites
+        # above don't all need updating for this one new capability.
+        page.headline_handles = headline_handles
+        page.text_handles = text_handles
         return page, save_clicks
 
     def test_updates_only_weekly_budget(self):
@@ -2658,6 +2886,99 @@ class TestUpdateMaster(unittest.TestCase):
             browser_masters.update_master(page, 42, promotion_goal="max-clicks")
         self.assertIn("did not save as requested", str(ctx.exception))
 
+    def test_updates_only_one_headline_slot(self):
+        headlines_state = {0: "Старый заголовок", 1: "Другой заголовок"}
+        page, save_clicks = self._page_with_save_button(headlines_state=headlines_state)
+
+        result = browser_masters.update_master(
+            page, 42, headlines={0: "Новый заголовок"}
+        )
+
+        self.assertEqual(page.headline_handles[0].inner_text(), "Новый заголовок")
+        # Slot 1 must be left exactly as it was.
+        self.assertEqual(page.headline_handles[1].inner_text(), "Другой заголовок")
+        self.assertEqual(len(save_clicks), 1)
+        self.assertEqual(
+            result, {"CampaignId": 42, "Headlines": {0: "Новый заголовок"}}
+        )
+
+    def test_updates_headline_and_text_together_with_weekly_budget(self):
+        budget_state = {}
+        headlines_state = {0: "Старый заголовок"}
+        texts_state = {0: "Старый текст"}
+        page, save_clicks = self._page_with_save_button(
+            weekly_budget_state=budget_state,
+            headlines_state=headlines_state,
+            texts_state=texts_state,
+        )
+
+        result = browser_masters.update_master(
+            page,
+            42,
+            weekly_budget=60000,
+            headlines={0: "Новый заголовок"},
+            texts={0: "Новый текст"},
+        )
+
+        self.assertEqual(budget_state["value"], "60000")
+        self.assertEqual(page.headline_handles[0].inner_text(), "Новый заголовок")
+        self.assertEqual(page.text_handles[0].inner_text(), "Новый текст")
+        self.assertEqual(len(save_clicks), 1)
+        self.assertEqual(
+            result,
+            {
+                "CampaignId": 42,
+                "WeeklyBudget": 60000,
+                "Headlines": {0: "Новый заголовок"},
+                "Texts": {0: "Новый текст"},
+            },
+        )
+
+    def test_raises_when_saved_headline_does_not_match_requested(self):
+        # The setter's write "succeeds", but the post-save reload shows the
+        # OLD value still in the slot (mirrors the budget/goal equivalents
+        # above) — must be a hard error, not a false success.
+        headlines_state = {0: "Старый заголовок"}
+        save_clicks = []
+        save_handle = _FakeTextLocatorHandle(
+            visible=True, on_click=lambda: save_clicks.append(True)
+        )
+        slot = _FakeContentEditableHandle(text=headlines_state[0])
+        # Detach the write from the shared state entirely, unlike the
+        # normal helper wiring, to simulate Yandex silently rejecting it.
+        slot.type = lambda value, delay=None: None
+        selector = (
+            f"[data-testid="
+            f'"{browser_masters._HEADLINES_TESTID_TEMPLATE.format(index=0)}"]'
+        )
+        page = FakePage(
+            locators={selector: _FakeLocator([slot])},
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(page, 42, headlines={0: "Новый заголовок"})
+
+        self.assertEqual(len(save_clicks), 1)  # save WAS clicked
+        self.assertIn("did not save as requested", str(ctx.exception))
+
+    def test_does_not_click_save_when_headline_slot_is_empty(self):
+        headlines_state = {0: ""}  # empty slot -> _set_repeating_value refuses
+        page, save_clicks = self._page_with_save_button(headlines_state=headlines_state)
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters.update_master(page, 42, headlines={0: "Новый заголовок"})
+
+        self.assertEqual(save_clicks, [])
+
+    def test_raises_value_error_when_only_empty_headlines_dict_provided(self):
+        # An empty dict is falsy — same "nothing to update" guard as every
+        # other field, not treated as "update with zero slots".
+        page = FakePage()
+
+        with self.assertRaises(ValueError):
+            browser_masters.update_master(page, 42, headlines={})
+
 
 class TestMastersUpdateCommand(unittest.TestCase):
     """CLI wiring for `masters update` (issue #631, Этап A)."""
@@ -2772,6 +3093,163 @@ class TestMastersUpdateCommand(unittest.TestCase):
         with patch("direct_cli.browser.masters.update_master") as mock_update:
             self.runner.invoke(cli, ["masters", "update", "42"])
         mock_update.assert_not_called()
+
+    def test_documents_headline_and_text_flags(self):
+        result = self.runner.invoke(cli, ["masters", "update", "--help"])
+        self.assertIn("--headline", result.output)
+        self.assertIn("--text", result.output)
+
+    def test_passes_headline_slot_as_zero_based_index(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli, ["masters", "update", "42", "--headline", "2=Новый заголовок"]
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        # User-facing slot 2 (1-based) -> browser layer's 0-based index 1.
+        self.assertEqual(
+            mock_update.call_args.kwargs["headlines"], {1: "Новый заголовок"}
+        )
+
+    def test_passes_multiple_headline_and_text_slots(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "update",
+                    "42",
+                    "--headline",
+                    "1=Заголовок один",
+                    "--headline",
+                    "3=Заголовок три",
+                    "--text",
+                    "2=Текст два",
+                ],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(
+            mock_update.call_args.kwargs["headlines"],
+            {0: "Заголовок один", 2: "Заголовок три"},
+        )
+        self.assertEqual(mock_update.call_args.kwargs["texts"], {1: "Текст два"})
+
+    def test_headline_value_containing_equals_sign_splits_on_first_only(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli,
+                ["masters", "update", "42", "--headline", "1=x=y=z"],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(mock_update.call_args.kwargs["headlines"], {0: "x=y=z"})
+
+    def test_rejects_headline_without_equals_sign(self):
+        result = self.runner.invoke(
+            cli, ["masters", "update", "42", "--headline", "no equals here"]
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn('"N=text"', result.output)
+
+    def test_rejects_non_numeric_slot_number(self):
+        result = self.runner.invoke(
+            cli, ["masters", "update", "42", "--headline", "abc=Текст"]
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("integer", result.output)
+
+    def test_rejects_slot_number_below_one(self):
+        result = self.runner.invoke(
+            cli, ["masters", "update", "42", "--headline", "0=Текст"]
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("1 or greater", result.output)
+
+    def test_rejects_duplicate_slot_number(self):
+        result = self.runner.invoke(
+            cli,
+            [
+                "masters",
+                "update",
+                "42",
+                "--headline",
+                "1=Первый",
+                "--headline",
+                "1=Второй",
+            ],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("more than once", result.output)
+
+    def test_format_errors_do_not_open_a_browser_session(self):
+        with patch("direct_cli.commands.masters._with_session") as mock_with_session:
+            result = self.runner.invoke(
+                cli, ["masters", "update", "42", "--headline", "bogus"]
+            )
+        self.assertNotEqual(result.exit_code, 0)
+        mock_with_session.assert_not_called()
+
+    def test_headline_flag_alone_satisfies_the_at_least_one_field_guard(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli, ["masters", "update", "42", "--headline", "1=Текст"]
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+
+    def test_documents_launch_flag(self):
+        result = self.runner.invoke(cli, ["masters", "update", "--help"])
+        self.assertIn("--launch", result.output)
+
+    def test_launch_flag_defaults_to_false(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli, ["masters", "update", "42", "--weekly-budget", "1000"]
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertFalse(mock_update.call_args.kwargs["launch"])
+
+    def test_passes_launch_flag(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli,
+                ["masters", "update", "42", "--weekly-budget", "1000", "--launch"],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertTrue(mock_update.call_args.kwargs["launch"])
 
 
 class TestMastersLoginCommand(unittest.TestCase):
@@ -3478,6 +3956,128 @@ class TestReadRepeatingValues(unittest.TestCase):
         values = browser_masters._read_repeating_values(page, "fake{index}.textarea", 2)
 
         self.assertEqual(values, ["ok", ""])
+
+
+class TestSetRepeatingValue(unittest.TestCase):
+    """``_set_repeating_value`` (issue #665, Этап B) — point replacement of
+    ONE existing headline/text slot on the edit page.
+
+    Unlike ``_add_repeating_values`` (the create-page setter, which clears
+    and rewrites every slot unconditionally), this only ever touches the
+    one requested slot — the rest of the fakes' slots must stay untouched
+    across every scenario, mirroring the module's own docstring contract.
+    """
+
+    def test_replaces_a_filled_slot(self):
+        events = []
+        field = _FakeContentEditableHandle(
+            text="Старый заголовок",
+            on_press=lambda key: events.append(("press", key)),
+            on_fill=lambda v: events.append(("type", v)),
+        )
+        page = FakePage(
+            locators={'[data-testid="fake0.textarea"]': _FakeLocator([field])}
+        )
+
+        browser_masters._set_repeating_value(
+            page, "fake{index}.textarea", 5, 0, "Новый заголовок"
+        )
+
+        self.assertEqual(field.inner_text(), "Новый заголовок")
+        # Clear must happen before typing, same convention as
+        # _add_repeating_values.
+        self.assertEqual(
+            events,
+            [
+                ("press", "ControlOrMeta+a"),
+                ("press", "Backspace"),
+                ("type", "Новый заголовок"),
+            ],
+        )
+
+    def test_other_slots_are_never_touched(self):
+        untouched = _FakeContentEditableHandle(text="Не трогать")
+        target = _FakeContentEditableHandle(text="Старый текст")
+        page = FakePage(
+            locators={
+                '[data-testid="fake0.textarea"]': _FakeLocator([untouched]),
+                '[data-testid="fake1.textarea"]': _FakeLocator([target]),
+            }
+        )
+
+        browser_masters._set_repeating_value(
+            page, "fake{index}.textarea", 2, 1, "Новый текст"
+        )
+
+        self.assertEqual(untouched.inner_text(), "Не трогать")
+        self.assertEqual(target.inner_text(), "Новый текст")
+
+    def test_raises_when_slot_is_empty(self):
+        """Writing to an empty slot would add a new variant, not replace one
+        — refused rather than silently treated as "add" (issue #665)."""
+        field = _FakeContentEditableHandle(text="")
+        page = FakePage(
+            locators={'[data-testid="fake0.textarea"]': _FakeLocator([field])}
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._set_repeating_value(
+                page, "fake{index}.textarea", 5, 0, "Новый заголовок"
+            )
+
+        self.assertIn("empty", str(ctx.exception).lower())
+        # Nothing should have been typed into the empty slot.
+        self.assertEqual(field.inner_text(), "")
+
+    def test_raises_when_index_out_of_range(self):
+        page = FakePage(locators={})
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._set_repeating_value(
+                page, "fake{index}.textarea", 3, 5, "x"
+            )
+
+        self.assertIn("out of range", str(ctx.exception).lower())
+
+    def test_raises_when_field_missing(self):
+        page = FakePage(locators={})
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._set_repeating_value(
+                page, "fake{index}.textarea", 1, 0, "x"
+            )
+
+    def test_aborts_when_slot_cannot_be_cleared(self):
+        """Same ``supports_modifier=False`` (Playwright <1.44) guard as
+        ``_add_repeating_values`` — must fail loudly, not splice text."""
+        field = _FakeContentEditableHandle(
+            text="Старый заголовок", supports_modifier=False
+        )
+        page = FakePage(
+            locators={'[data-testid="fake0.textarea"]': _FakeLocator([field])}
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._set_repeating_value(
+                page, "fake{index}.textarea", 5, 0, "Новый заголовок"
+            )
+
+        self.assertEqual(field.inner_text(), "Старый заголовок")
+        self.assertIn("clear", str(ctx.exception).lower())
+
+    def test_click_failure_raises_browser_session_error(self):
+        field = _FakeContentEditableHandle(text="Старый заголовок")
+        field.click = lambda timeout=None: (_ for _ in ()).throw(
+            PlaywrightError("element detached")
+        )
+        page = FakePage(
+            locators={'[data-testid="fake0.textarea"]': _FakeLocator([field])}
+        )
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._set_repeating_value(
+                page, "fake{index}.textarea", 5, 0, "Новый заголовок"
+            )
 
 
 class TestSetRegion(unittest.TestCase):

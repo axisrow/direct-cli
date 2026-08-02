@@ -55,12 +55,23 @@ archived-campaign overview fixture has been captured, so there is no
 confirmed status-text marker for "archived" on that page the way there is
 for "Кампания остановлена"/"активна".
 
-``update_master`` (issue #631, Этап A only) — live-verified against campaign
+``update_master`` (issue #631, Этап A) — live-verified against campaign
 107707079 (see ``tests/fixtures/masters_wizard_edit_stage_a.html`` for the
 full investigation notes). Covers exactly three fields: weekly budget,
 promotion goal, and the "Директ помогает" auto-recommendations toggle.
-Later stages (headline/text lists, sitelinks, audience, media uploads) are
-tracked separately in issue #631 and are NOT implemented here.
+
+``update_master`` headlines/texts (issue #665, Этап B) — live-verified
+against campaign 107707079 (see
+``tests/fixtures/masters_wizard_edit_stage_b.html``). Replaces the text of
+ONE existing headline/text slot at a time (``_set_repeating_value``), NOT
+the whole variant list — a deliberate departure from this CLI's usual
+"update replaces the whole array" list-field convention (see
+``_set_repeating_value``'s own docstring for the rationale). Writing to an
+empty slot (adding a brand-new variant) is refused; deleting a variant and
+editing variant weights are both tracked as separate follow-ups, not
+implemented here. Later stages (sitelinks, audience, Metrika counters/goals,
+budget adaptation, media uploads) are tracked in issue #648 and are NOT
+implemented here.
 
 ``name`` (issue #663) — live-verified against campaigns 713231614 (DRAFT)
 and 107707079 (non-draft, read-only recon) — see
@@ -71,11 +82,24 @@ above, the name is edited via a separate modal
 "Применить" only updates the page's optimistic/local state — the rename is
 persisted only by the same terminal save action every other field here
 relies on, so this module never trusts the modal click alone (verified via
-the header's displayed name after a real reload). Same pre-existing DRAFT
-limitation as issue #660 applies (no "Сохранить кампанию" button on a DRAFT
-campaign) — ``update_master`` fails cleanly via ``_click_save``'s existing
-error rather than corrupting the name; fixing DRAFT support is out of scope
-for #663, see #660.
+the header's displayed name after a real reload).
+
+**DRAFT support** (issue #668). A DRAFT campaign's edit page renders NO
+"Сохранить кампанию" button at all — only
+``CampaignFormControls.saveDraft.button`` ("Сохранить как черновик") and
+``CampaignFormControls.save.button`` (labelled "Запустить кампанию" here,
+NOT "Сохранить кампанию" — same testid suffix as the non-DRAFT save button,
+different label and consequence: this one publishes the draft). Confirmed
+live against campaign 713231614 (2026-08-02, read-only recon before any
+code change). ``_is_draft_edit_page`` detects DRAFT by the presence of
+``saveDraft.button`` itself, so the detection and the click it gates can
+never disagree about what "DRAFT" means. ``update_master``'s ``launch``
+kwarg (CLI: ``masters update --launch``) defaults to ``False`` — saving a
+DRAFT keeps it a DRAFT unless the caller explicitly asks to publish it,
+mirroring ``create_master``/``copy_master``'s own draft-preserving
+defaults. Originally out of scope for #663 (see #660's initial gap report);
+#665's live verification needed a working DRAFT save path to exercise, so
+it was implemented here instead of deferred further.
 
 Confirmed live: the edit page (``/wizard/campaigns/{id}/edit/``) is a single
 form with exactly one "Сохранить кампанию" button at the bottom — there is no
@@ -276,6 +300,11 @@ _ARCHIVE_VERIFY_TIMEOUT_MS = 10_000
 # live ~7s, issue #659) before giving up on copy_master.
 _CLONE_VERIFY_TIMEOUT_MS = 20_000
 
+# How long to wait for the DRAFT edit page's saveDraft/launch click to
+# redirect away from /edit/ (issue #668) — live-confirmed ~5s in one recon,
+# generous headroom for a slower response.
+_DRAFT_SAVE_REDIRECT_TIMEOUT_MS = 20_000
+
 # Matches WIZARD_OVERVIEW_URL's {campaign_id} once Yandex redirects there
 # after a successful clone save/launch (see copy_master).
 _WIZARD_OVERVIEW_URL_ID_RE = re.compile(r"/wizard/campaigns/(\d+)/")
@@ -471,6 +500,20 @@ _NAME_MODAL_ACCEPT_SELECTOR = '[data-testid="AcceptButton"]'
 _SAVE_BUTTON_TEXT = "Сохранить кампанию"
 _LAUNCH_BUTTON_TEXT = "Запустить кампанию"
 _SAVE_DRAFT_BUTTON_TEXT = "Сохранить как черновик"
+
+# DRAFT edit page's terminal buttons (issue #668, live-confirmed 2026-08-02
+# against campaign 713231614 — see the module docstring's "DRAFT support"
+# note). A DRAFT edit page has NO "Сохранить кампанию" button at all — only
+# these two, under a shared testid prefix. Matched by data-testid rather than
+# accessible-name text (unlike ``_click_save``/``_click_terminal_button``)
+# because ``CampaignFormControls.save.button``'s TEXT is "Запустить
+# кампанию" here — the same testid suffix (``save.button``) that means
+# "Сохранить кампанию" on a non-DRAFT page means "publish this draft" on a
+# DRAFT one, so the label alone can't disambiguate; the testid can.
+_DRAFT_SAVE_DRAFT_BUTTON_TESTID = (
+    '[data-testid="CampaignFormControls.saveDraft.button"]'
+)
+_DRAFT_LAUNCH_BUTTON_TESTID = '[data-testid="CampaignFormControls.save.button"]'
 
 # Confirmed live: navigating away from an unsubmitted create form triggers
 # the browser's native beforeunload "Leave site?" dialog — the wizard
@@ -1214,13 +1257,97 @@ def _set_promotion_goal(page: "Page", goal: str) -> None:
         )
 
 
-def _click_save(page: "Page", campaign_id: int) -> None:
-    """Click the edit page's single "Сохранить кампанию" button.
+def _click_draft_terminal_button(
+    page: "Page", campaign_id: int, *, launch: bool
+) -> None:
+    """Click a DRAFT edit page's save-as-draft/launch button (issue #668).
 
-    Confirmed live: the whole edit page is one form with exactly one save
-    button at the bottom (see module docstring) — there is no per-section
-    save to target instead.
+    A DRAFT campaign's edit page has no "Сохранить кампанию" button at all
+    — only ``CampaignFormControls.saveDraft.button`` ("Сохранить как
+    черновик") and ``CampaignFormControls.save.button`` ("Запустить
+    кампанию", which PUBLISHES the campaign — a real, no-rollback mutation).
+    Matched by ``data-testid``, not accessible-name text, because the same
+    testid SUFFIX (``save.button``) carries a different label — and a
+    different consequence — depending on whether the page is DRAFT or not
+    (see the constants' own comment). ``launch`` defaults to ``False`` at
+    every call site in this module; only an explicit ``masters update
+    --launch`` sets it, mirroring ``create_master``/``copy_master``'s
+    draft-preserving defaults.
+
+    **Live-confirmed 2026-08-02 (real mutation against campaign 713231614,
+    reverted immediately after observing this):** unlike the non-DRAFT
+    "Сохранить кампанию" button, this click redirects the page away from
+    ``/edit/`` to the campaign's overview page (``page.url`` becomes
+    ``/wizard/campaigns/{id}/...``, no longer ``/edit/``) — and NOT
+    instantly; ~5s elapsed before the redirect completed in this recon. The
+    edit itself WAS actually saved server-side (confirmed by reloading
+    ``/edit/`` afterwards), but ``update_master``'s original ``_click_save``
+    → immediate ``_verify_saved`` reload raced this redirect and read a
+    transitional state, producing a false "did not save as requested"
+    error. This function therefore waits for ``page.url`` to actually leave
+    ``/edit/`` before returning, so the caller's subsequent re-navigation to
+    the edit URL lands after Yandex's own redirect has settled, not during
+    it — same "poll page.url until it actually changes" pattern
+    ``copy_master`` already uses for its own post-click redirect.
     """
+    selector = (
+        _DRAFT_LAUNCH_BUTTON_TESTID if launch else _DRAFT_SAVE_DRAFT_BUTTON_TESTID
+    )
+    button_label = _LAUNCH_BUTTON_TEXT if launch else _SAVE_DRAFT_BUTTON_TEXT
+    handle = page.locator(selector).first
+    try:
+        handle.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            f"Could not find the {button_label!r} button on the DRAFT edit "
+            f"page for campaign {campaign_id} — Yandex may have changed "
+            "the page's markup. Re-run with --headful to inspect the page."
+        ) from exc
+
+    deadline = time.monotonic() + _DRAFT_SAVE_REDIRECT_TIMEOUT_MS / 1000
+    while time.monotonic() < deadline:
+        if "/edit/" not in page.url:
+            return
+        page.wait_for_timeout(250)
+
+    raise BrowserSessionError(
+        f"Clicked {button_label!r} for DRAFT campaign {campaign_id}, but "
+        "Yandex did not redirect away from the edit page within "
+        f"{_DRAFT_SAVE_REDIRECT_TIMEOUT_MS / 1000:.0f}s — the edit may not "
+        "have saved. Verify manually before retrying."
+    )
+
+
+def _is_draft_edit_page(page: "Page") -> bool:
+    """True if the edit page currently open is a DRAFT campaign's.
+
+    Detected by the presence of ``CampaignFormControls.saveDraft.button`` —
+    the one control that exists ONLY on a DRAFT edit page (issue #668,
+    confirmed live: a non-DRAFT edit page has no draft-save button at all,
+    only "Сохранить кампанию"). Detecting via the very button
+    ``_click_draft_terminal_button`` would click keeps this check and that
+    click from ever disagreeing about what "DRAFT" means here.
+    """
+    try:
+        return page.locator(_DRAFT_SAVE_DRAFT_BUTTON_TESTID).first.count() > 0
+    except PlaywrightError:
+        return False
+
+
+def _click_save(page: "Page", campaign_id: int, *, launch: bool = False) -> None:
+    """Click the edit page's save button — "Сохранить кампанию" on a
+    non-DRAFT campaign, or the DRAFT-specific save-as-draft/launch button.
+
+    Confirmed live: the whole non-DRAFT edit page is one form with exactly
+    one save button at the bottom (see module docstring) — there is no
+    per-section save to target instead. A DRAFT campaign's edit page has a
+    DIFFERENT pair of terminal buttons entirely (issue #668) — see
+    ``_click_draft_terminal_button``.
+    """
+    if _is_draft_edit_page(page):
+        _click_draft_terminal_button(page, campaign_id, launch=launch)
+        return
+
     # get_by_role scopes to the actual <button> element (exact accessible
     # name), not any ancestor container whose text merely contains this
     # substring — see the cycle-review finding this fixed.
@@ -1308,6 +1435,34 @@ def _read_campaign_name(page: "Page") -> Optional[str]:
         return None
 
 
+def _verify_repeating_value_mismatches(
+    page: "Page",
+    *,
+    testid_template: str,
+    slot_count: int,
+    label: str,
+    requested: Optional[Dict[int, str]],
+) -> List[str]:
+    """Re-read only the slots ``update_master`` was asked to change and
+    report any that don't match — unlike ``_repeating_values_mismatches``
+    (the create-page check), slots NOT in ``requested`` are never flagged:
+    leftover variants are the normal, intentional state of a partial update,
+    not evidence something went wrong (issue #665).
+    """
+    if not requested:
+        return []
+    actual = _read_repeating_values(page, testid_template, slot_count)
+    mismatches = []
+    for index, expected in requested.items():
+        current = actual[index] if index < len(actual) else ""
+        if current != expected:
+            mismatches.append(
+                f"{label} slot {index + 1}: expected {expected!r}, page now "
+                f"shows {current!r}"
+            )
+    return mismatches
+
+
 def _verify_saved(
     page: "Page",
     campaign_id: int,
@@ -1316,6 +1471,9 @@ def _verify_saved(
     promotion_goal: Optional[str],
     directs_helps: Optional[bool],
     name: Optional[str] = None,
+    headlines: Optional[Dict[int, str]] = None,
+    texts: Optional[Dict[int, str]] = None,
+    clicked_button_label: str = _SAVE_BUTTON_TEXT,
 ) -> None:
     """Reload the edit page and confirm every requested field actually saved.
 
@@ -1355,13 +1513,32 @@ def _verify_saved(
                 f"{label}: expected {expected!r}, page now shows {actual!r}"
             )
 
+    mismatches.extend(
+        _verify_repeating_value_mismatches(
+            page,
+            testid_template=_HEADLINES_TESTID_TEMPLATE,
+            slot_count=_HEADLINES_SLOT_COUNT,
+            label="headline",
+            requested=headlines,
+        )
+    )
+    mismatches.extend(
+        _verify_repeating_value_mismatches(
+            page,
+            testid_template=_TEXTS_TESTID_TEMPLATE,
+            slot_count=_TEXTS_SLOT_COUNT,
+            label="text",
+            requested=texts,
+        )
+    )
+
     if mismatches:
         raise BrowserSessionError(
-            f"Clicked '{_SAVE_BUTTON_TEXT}' for campaign {campaign_id}, but "
-            "re-reading the edit page after reload shows it did not save "
-            "as requested: " + "; ".join(mismatches) + ". Yandex may have "
-            "rejected the value (client-side validation) or the save did "
-            "not complete — verify manually before retrying."
+            f"Clicked '{clicked_button_label}' for campaign {campaign_id}, "
+            "but re-reading the edit page after reload shows it did not "
+            "save as requested: " + "; ".join(mismatches) + ". Yandex may "
+            "have rejected the value (client-side validation) or the save "
+            "did not complete — verify manually before retrying."
         )
 
 
@@ -1373,8 +1550,11 @@ def update_master(
     promotion_goal: Optional[str] = None,
     directs_helps: Optional[bool] = None,
     name: Optional[str] = None,
+    headlines: Optional[Dict[int, str]] = None,
+    texts: Optional[Dict[int, str]] = None,
+    launch: bool = False,
 ) -> Dict[str, Any]:
-    """Update one or more Этап A fields (plus the campaign name) and save.
+    """Update one or more Этап A/B fields (plus the campaign name) and save.
 
     Only fields passed as non-``None`` are touched — see module docstring for
     why this is safe despite the page having a single whole-form save (fields
@@ -1386,6 +1566,16 @@ def update_master(
     rather than a plain form field — see module docstring — but is persisted
     by the same terminal ``_click_save`` as every other field here.
 
+    ``headlines``/``texts`` (issue #665, Этап B) map a 0-based slot index to
+    its replacement text and REPLACE ONLY THOSE SLOTS — every other headline/
+    text variant on the campaign is left exactly as it was. This is a
+    deliberate departure from this CLI's dominant list-field convention
+    (``campaigns update --negative-keywords`` and similar replace the WHOLE
+    array in one shot) — see ``_set_repeating_value``'s docstring for why a
+    full-array rewrite doesn't fit here. Writing to a slot that is currently
+    empty raises ``BrowserSessionError`` — adding a brand-new variant is a
+    different operation, not covered here (see issue #665's follow-ups).
+
     After clicking save, reloads the edit page and re-reads every requested
     field to confirm it actually saved (see ``_verify_saved``) — a click
     that doesn't visibly change the saved state is reported as a hard error,
@@ -1394,19 +1584,30 @@ def update_master(
     ``copy_master`` this function needs no extra guard against
     ``_with_session``'s whole-operation retry on ``BrowserAuthError``.
 
-    Later Этап (B/C/D) fields — headline/text lists, sitelinks, audience,
-    Metrika counters/goals, budget adaptation, media — are out of scope for
-    this function; see issue #631.
+    Later Этап (C/D) fields — sitelinks, audience, Metrika counters/goals,
+    budget adaptation, media — are out of scope for this function; see
+    issue #648.
+
+    ``launch`` (issue #668) matters only when ``campaign_id`` is currently a
+    DRAFT: that edit page has no "Сохранить кампанию" button at all, only a
+    save-as-draft/launch pair (see ``_click_save``/``_is_draft_edit_page``).
+    Defaults to ``False`` — DRAFT stays DRAFT unless the caller explicitly
+    asks to publish it, mirroring ``create_master``/``copy_master``'s own
+    draft-preserving defaults. Has no effect on a non-DRAFT campaign, which
+    always uses the single "Сохранить кампанию" button regardless.
     """
     if (
         weekly_budget is None
         and promotion_goal is None
         and directs_helps is None
         and name is None
+        and not headlines
+        and not texts
     ):
         raise ValueError(
             "update_master requires at least one field to update "
-            "(weekly_budget, promotion_goal, directs_helps, name)."
+            "(weekly_budget, promotion_goal, directs_helps, name, "
+            "headlines, texts)."
         )
 
     url = WIZARD_EDIT_URL.format(campaign_id=campaign_id)
@@ -1422,8 +1623,26 @@ def update_master(
         _set_promotion_goal(page, promotion_goal)
     if directs_helps is not None:
         _set_directs_helps(page, directs_helps)
+    for index, value in (headlines or {}).items():
+        _set_repeating_value(
+            page, _HEADLINES_TESTID_TEMPLATE, _HEADLINES_SLOT_COUNT, index, value
+        )
+    for index, value in (texts or {}).items():
+        _set_repeating_value(
+            page, _TEXTS_TESTID_TEMPLATE, _TEXTS_SLOT_COUNT, index, value
+        )
 
-    _click_save(page, campaign_id)
+    # Determined BEFORE clicking, while the page still reflects what's about
+    # to be clicked — after the click, _verify_saved's own reload leaves no
+    # way to tell which button this run actually used.
+    if _is_draft_edit_page(page):
+        clicked_button_label = (
+            _LAUNCH_BUTTON_TEXT if launch else _SAVE_DRAFT_BUTTON_TEXT
+        )
+    else:
+        clicked_button_label = _SAVE_BUTTON_TEXT
+
+    _click_save(page, campaign_id, launch=launch)
 
     _verify_saved(
         page,
@@ -1432,6 +1651,9 @@ def update_master(
         promotion_goal=promotion_goal,
         directs_helps=directs_helps,
         name=name,
+        headlines=headlines,
+        texts=texts,
+        clicked_button_label=clicked_button_label,
     )
 
     result: Dict[str, Any] = {"CampaignId": campaign_id}
@@ -1443,6 +1665,10 @@ def update_master(
         result["DirectsHelps"] = directs_helps
     if name is not None:
         result["Name"] = name
+    if headlines:
+        result["Headlines"] = headlines
+    if texts:
+        result["Texts"] = texts
     return result
 
 
@@ -1671,6 +1897,106 @@ def _read_repeating_values(
         except PlaywrightError:
             values.append("")
     return values
+
+
+def _set_repeating_value(
+    page: "Page", testid_template: str, slot_count: int, index: int, value: str
+) -> None:
+    """Replace the value in ONE existing slot of a fixed-size repeating list
+    field (headlines/texts), leaving every other slot untouched.
+
+    Issue #665 (Этап B, part of the #648 umbrella). This is a DIFFERENT
+    contract from ``_add_repeating_values``: that function clears and
+    rewrites every slot (create-page semantics — Yandex pre-fills every slot
+    with AI-generated copy, so a partial write there would publish leftover
+    unreviewed variants). ``update_master`` is a partial-update command by
+    project convention, and headline/text variant sets on a live campaign can
+    be large — forcing the caller to re-type every other variant just to fix
+    one typo is the opposite of what "partial update" means. So this module
+    deliberately does NOT reuse ``_add_repeating_values`` here; it edits
+    exactly the one requested slot.
+
+    This is also a deliberate departure from this CLI's dominant list-field
+    convention, where ``update`` commands replace the ENTIRE array in one
+    shot (e.g. ``campaigns update --negative-keywords``, built via
+    ``_array_of_string_option`` — see ``direct_cli/commands/
+    _campaigns_base.py``). That convention exists because those fields go
+    through the WSDL API's ``ArrayOfString`` semantics, where a full-array
+    write is cheap and the array is typically short. Мастер кампаний has no
+    API at all — every mutation is a live page edit — and forcing a
+    full-list rewrite through five/three fixed slots would be both more
+    error-prone (misordering a variant silently changes ad copy) and no
+    safer than a targeted slot write. A future refactor MAY want to
+    unify this with the rest of the CLI's list-update convention, but that
+    is not settled and is explicitly out of scope here.
+
+    Confirmed live (2026-08-02, campaign 107707079, read-only recon — see
+    ``tests/fixtures/masters_wizard_edit_stage_b.html``) that the edit page's
+    slots are IDENTICAL in shape and count to the create page's: same
+    ``testid_template``, same ``slot_count`` (5 headlines / 3 texts), same
+    contenteditable ``<div role="textbox">`` shape ``_clear_text_field``/
+    ``_read_repeating_values`` already handle correctly.
+
+    Writing to an EMPTY slot is refused (``BrowserSessionError``) rather
+    than treated as "add a new variant" — that is a materially different
+    operation (publishing a variant that did not exist before, on a page
+    with no sandbox/rollback) tracked as a separate follow-up, not silently
+    folded into "update an existing one".
+    """
+    if index >= slot_count:
+        raise BrowserSessionError(
+            f"Slot index {index + 1} is out of range — this field only has "
+            f"{slot_count} slots on the edit page."
+        )
+
+    selector = f'[data-testid="{testid_template.format(index=index)}"]'
+    field = page.locator(selector).first
+
+    try:
+        current = field.inner_text()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            f"Could not read the current value of slot {index + 1} at "
+            f"{selector!r} — Yandex may have changed the page's markup. "
+            "Re-run with --headful to inspect the page."
+        ) from exc
+
+    if not current:
+        raise BrowserSessionError(
+            f"Slot {index + 1} at {selector!r} is currently empty. Writing "
+            "to an empty slot would add a new ad variant, which this "
+            "command does not support — only replacing an existing "
+            "variant's text."
+        )
+
+    try:
+        field.click()
+        cleared = _clear_text_field(field)
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            f"Could not replace slot {index + 1}'s value via the edit "
+            f"page's field at {selector!r} — Yandex may have changed the "
+            "page's markup. Re-run with --headful to inspect the page."
+        ) from exc
+
+    if not cleared:
+        raise BrowserSessionError(
+            f"Could not clear slot {index + 1}'s existing value at "
+            f"{selector!r} before typing the replacement. Typing without "
+            "clearing would splice the new text into the old one. This "
+            "usually means Playwright is older than 1.44 (the version that "
+            "added the 'ControlOrMeta' modifier) — upgrade with "
+            "'pip install -U playwright'."
+        )
+
+    try:
+        field.type(value)
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            f"Could not type the replacement value into slot {index + 1} "
+            f"at {selector!r} — Yandex may have changed the page's markup. "
+            "Re-run with --headful to inspect the page."
+        ) from exc
 
 
 def _set_region(page: "Page", regions: List[str]) -> None:

@@ -1,0 +1,86 @@
+<!--
+Fixture: DOM findings for editing headline/text variants on the Yandex Direct
+"Мастер кампаний" (Campaign Wizard) edit page, Этап B (issue #665, part of the
+#648 umbrella) — captured 2026-08-02 via claude-in-chrome, read-only, against
+campaign 107707079 ("Мастер ИЖ Источник Жизни (холодный) 16.06", status:
+Остановлена). No campaign was mutated — no field was clicked/typed into, no
+save button was pressed; the recon read `data-testid`/`innerText` via
+`document.querySelector` only, then navigated away.
+
+Source URL:
+  https://direct.yandex.ru/wizard/campaigns/{id}/edit/?ulogin={login}
+
+Note: navigating WITHOUT `?ulogin=<login>` on this account redirected to
+Yandex Passport's account-chooser login page instead of the edit form —
+`?ulogin=<login>` was required to land on the edit page directly in this
+browser session (unrelated to the CLI's own session handling, which already
+appends `ulogin` server-side per the module docstring).
+
+KEY FINDING — edit-page slots are IDENTICAL in shape and count to the
+create-page slots #653 already documented (module docstring's "Step 2 markup
+migration" note, `_HEADLINES_TESTID_TEMPLATE`/`_TEXTS_TESTID_TEMPLATE`,
+`_HEADLINES_SLOT_COUNT=5`/`_TEXTS_SLOT_COUNT=3`, browser/masters.py:333-336).
+This was NOT assumed — it needed live confirmation, since #650/#653 both found
+the create page's markup drifted from prior recons without any project-visible
+signal. Confirmed via `document.querySelectorAll('[data-testid]')`:
+
+  CampaignTitles0, CampaignTitles0.textarea, CampaignTitles0.clear
+  CampaignTitles1, CampaignTitles1.textarea, CampaignTitles1.clear
+  CampaignTitles2, CampaignTitles2.textarea, CampaignTitles2.clear
+  CampaignTitles3, CampaignTitles3.textarea, CampaignTitles3.clear
+  CampaignTitles4, CampaignTitles4.textarea, CampaignTitles4.clear
+  CampaignTexts0, CampaignTexts0.textarea, CampaignTexts0.clear
+  CampaignTexts1, CampaignTexts1.textarea, CampaignTexts1.clear
+  CampaignTexts2, CampaignTexts2.textarea, CampaignTexts2.clear
+
+Exactly 5 headline slots (index 0-4) and 3 text slots (index 0-2) — matches
+`_HEADLINES_SLOT_COUNT`/`_TEXTS_SLOT_COUNT` exactly. The existing constants
+and templates (`_HEADLINES_TESTID_TEMPLATE`, `_TEXTS_TESTID_TEMPLATE`,
+`_read_repeating_values`, `_clear_text_field`) apply to the edit page
+unchanged — no new `_EDIT_*` constants needed.
+
+Each `.textarea` element, confirmed via direct DOM inspection:
+  tag: DIV
+  role: "textbox"
+  contenteditable: "true"
+  childElementCount: 0 (no nested markup — innerText/textContent are clean,
+    no character-counter or other UI noise sharing the node)
+
+This is the SAME markup shape `_clear_text_field`/`_read_repeating_values`
+already handle for the create page — no new read/clear logic needed, only a
+new point-replacement setter (`_set_repeating_value`, issue #665) that reuses
+both.
+
+BONUS FINDING (not in scope for #665, useful for a future "delete variant"
+issue): each slot also renders its own `{prefix}{N}.clear` button
+(`CampaignTitlesN.clear` / `CampaignTextsN.clear`) — a per-slot clear control,
+not present in `_add_repeating_values`'s docstring notes on the create page
+(create page slots don't need individual clear buttons since every slot gets
+cleared unconditionally there). Not investigated further — out of scope here.
+
+Slot contents observed live (all slots pre-filled on this real campaign — a
+good target for Этап B's live verification, since a point-replacement setter
+that refuses to write to an EMPTY slot needs a filled slot to exercise the
+success path):
+
+  CampaignTitles0: "1 упражнение для сердца и вен! Онлайн-курс ценой 0₽"
+  CampaignTitles1: "Источник Жизни: 3-дневный бесплатный онлайн-курс"
+  CampaignTitles2: "Забытые секреты для сердца, сосудов и вен!"
+  CampaignTitles3: "Упражнения для вен! Бесплатный онлайн курс гимнастики!"
+  CampaignTitles4: "Упражнения для сердца, сосудов и вен! Бесплатно!"
+  CampaignTexts0: "Бесплатно и эффективно занимайтесь Цигун дома!"
+  CampaignTexts1: "Практические упражнения всего 5 минут в день! Эффективно
+    делать дома!"
+  CampaignTexts2: "Узнайте упражнения, которые эффективно выполнять в
+    домашних условиях!"
+
+No weight/priority control was found near these slots in this recon (only
+`.textarea` and `.clear` per slot) — consistent with
+`masters_wizard_create.html`'s finding that Yandex auto-rotates variants
+without a user-settable weight widget. Not investigated further here; left
+for a separate issue per the #665 plan.
+
+No live mutation occurred: navigated away via a plain URL change (back to the
+campaigns grid), not the page's own save/cancel controls, and no field was
+ever typed into or cleared.
+-->
