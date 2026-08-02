@@ -538,7 +538,7 @@ def suspend(
 
 
 def _parse_repeating_slot_options(
-    option_name: str, values: "tuple[str, ...]"
+    option_name: str, values: "tuple[str, ...]", slot_count: int
 ) -> "dict[int, str]":
     """Parse repeated ``"N=text"`` CLI values into a 0-based slot index map.
 
@@ -549,6 +549,14 @@ def _parse_repeating_slot_options(
     conversion happens here, at the CLI boundary. All format errors are
     raised as ``click.UsageError`` before any browser session is opened,
     rather than surfacing mid-session as a ``BrowserSessionError``.
+
+    ``slot_count`` is the number of slots the page actually renders for this
+    field (5 headlines / 3 texts), taken from the browser layer's own
+    constants so the two can't drift apart. The upper bound is enforced here
+    as well as in ``_set_repeating_value``: an oversized slot number is a
+    purely invalid CLI argument, and letting it through would launch a
+    browser (and possibly an auth prompt) only to fail with a
+    ``BrowserSessionError`` — contradicting this helper's fail-fast contract.
     """
     parsed: "dict[int, str]" = {}
     for raw in values:
@@ -566,7 +574,13 @@ def _parse_repeating_slot_options(
             )
         if slot_number < 1:
             raise click.UsageError(
-                f"{option_name} slot number {slot_number} must be 1 or " "greater."
+                f"{option_name} slot number {slot_number} must be 1 or "
+                f"greater (this field has slots 1-{slot_count})."
+            )
+        if slot_number > slot_count:
+            raise click.UsageError(
+                f"{option_name} slot number {slot_number} is out of range — "
+                f"this field has {slot_count} slots (1-{slot_count})."
             )
         index = slot_number - 1
         if index in parsed:
@@ -697,8 +711,15 @@ def update(
             "--directs-helps/--no-directs-helps, --name, --headline, --text."
         )
 
-    parsed_headlines = _parse_repeating_slot_options("--headline", headlines)
-    parsed_texts = _parse_repeating_slot_options("--text", texts)
+    # Slot counts come from the browser layer's own constants (imported here
+    # rather than at module load, matching this module's other deferred
+    # browser imports) so the CLI's bound can't drift from the page's.
+    from ..browser.masters import _HEADLINES_SLOT_COUNT, _TEXTS_SLOT_COUNT
+
+    parsed_headlines = _parse_repeating_slot_options(
+        "--headline", headlines, _HEADLINES_SLOT_COUNT
+    )
+    parsed_texts = _parse_repeating_slot_options("--text", texts, _TEXTS_SLOT_COUNT)
 
     result = _with_session(
         ctx,

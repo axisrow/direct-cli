@@ -3205,6 +3205,51 @@ class TestMastersUpdateCommand(unittest.TestCase):
         self.assertNotEqual(result.exit_code, 0)
         mock_with_session.assert_not_called()
 
+    def test_rejects_an_out_of_range_headline_slot(self):
+        """``--headline "6=x"`` names a slot the edit page does not have.
+
+        The edit page renders a FIXED 5 headline / 3 text slots, so an
+        oversized slot number is a purely invalid CLI argument — it must be
+        refused here, as a UsageError, not carried into a browser session
+        only for ``_set_repeating_value`` to reject it as a
+        BrowserSessionError after a Chromium launch and possible auth prompt.
+        """
+        result = self.runner.invoke(
+            cli, ["masters", "update", "42", "--headline", "6=x"]
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("1-5", result.output)
+
+    def test_rejects_an_out_of_range_text_slot(self):
+        result = self.runner.invoke(cli, ["masters", "update", "42", "--text", "4=x"])
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("1-3", result.output)
+
+    def test_accepts_the_last_valid_slot_of_each_field(self):
+        """The upper bound is inclusive — 5 headlines and 3 texts are valid."""
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli,
+                ["masters", "update", "42", "--headline", "5=a", "--text", "3=b"],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(mock_update.call_args.kwargs["headlines"], {4: "a"})
+        self.assertEqual(mock_update.call_args.kwargs["texts"], {2: "b"})
+
+    def test_out_of_range_slot_does_not_open_a_browser_session(self):
+        with patch("direct_cli.commands.masters._with_session") as mock_with_session:
+            result = self.runner.invoke(
+                cli, ["masters", "update", "42", "--headline", "6=x"]
+            )
+        self.assertNotEqual(result.exit_code, 0)
+        mock_with_session.assert_not_called()
+
     def test_rejects_an_empty_headline_replacement(self):
         """``--headline "1="`` would DELETE variant 1, not replace it.
 

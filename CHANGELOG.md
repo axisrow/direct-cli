@@ -23,6 +23,12 @@
   this only replaces variants that already exist, it does not add new
   ones. Deleting a variant (clearing a slot) and editing variant weights
   are tracked as separate follow-ups, not implemented here.
+- An out-of-range slot number (`--headline "6="`, `--text "4=x"`) is
+  rejected at the CLI boundary too, with the bounds imported from the
+  browser layer's own `_HEADLINES_SLOT_COUNT`/`_TEXTS_SLOT_COUNT` so the
+  two can't drift. Previously only `_set_repeating_value` caught it, so a
+  purely invalid argument launched a browser (and possibly an auth prompt)
+  before failing as a `BrowserSessionError` instead of a `UsageError`.
 - An empty or whitespace-only replacement (`--headline "1="`) is likewise
   refused, at the CLI boundary before any browser session opens and again
   in `_set_repeating_value` for non-CLI callers. Blanking a slot is a
