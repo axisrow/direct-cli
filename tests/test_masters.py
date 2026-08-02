@@ -30,6 +30,7 @@ from click.testing import CliRunner
 from direct_cli.browser import masters as browser_masters
 from direct_cli.browser.masters import PlaywrightError
 from direct_cli.browser.session import (
+    BrowserAuthError,
     BrowserCaptchaError,
     BrowserSessionError,
 )
@@ -2050,6 +2051,46 @@ class TestCopyMaster(unittest.TestCase):
                 browser_masters.copy_master(page, self.SOURCE_ID)
 
         self.assertIn("did not appear in the campaigns grid", str(ctx.exception))
+
+    def test_auth_error_during_post_click_verification_is_not_retried(self):
+        # The clone/terminal-button click has ALREADY happened (irreversible,
+        # not idempotent) by the time verification runs. If the saved session
+        # is invalidated exactly in that window, fetch_masters_list's own
+        # assert_authenticated raises BrowserAuthError -- which _with_session
+        # (direct_cli/commands/masters.py) would otherwise catch and retry
+        # the WHOLE copy_master call under a fresh session, re-clicking
+        # Клонировать and the terminal button and creating a SECOND copy (or,
+        # with --launch, a second live campaign spending real budget). This
+        # must surface as a plain BrowserSessionError (not BrowserAuthError),
+        # so _with_session's retry-on-BrowserAuthError does not fire, and the
+        # error message must reference NEW_ID so the caller can check
+        # manually instead of losing track of the clone that already exists.
+        page = self._page(
+            menu_trigger=_FakeLocatorHandle(),
+            clone_item=_FakeLocatorHandle(),
+            terminal_button_text=browser_masters._SAVE_DRAFT_BUTTON_TEXT,
+        )
+
+        calls = []
+
+        def _fetch_masters_list(page, status="all"):
+            # First call (before the click) looks up the source campaign and
+            # must succeed; only the post-click lookup (finding new_id) hits
+            # the invalidated session.
+            calls.append(status)
+            if len(calls) == 1:
+                return [self._source_row()]
+            raise BrowserAuthError("stale session, detected mid-body")
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            side_effect=_fetch_masters_list,
+        ):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.copy_master(page, self.SOURCE_ID)
+
+        self.assertNotIsInstance(ctx.exception, BrowserAuthError)
+        self.assertIn(str(self.NEW_ID), str(ctx.exception))
 
 
 class TestMastersCopyCommand(unittest.TestCase):

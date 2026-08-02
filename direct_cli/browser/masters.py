@@ -166,7 +166,12 @@ import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from ..output import print_warning
-from .session import BrowserSessionError, assert_authenticated, assert_not_captcha
+from .session import (
+    BrowserAuthError,
+    BrowserSessionError,
+    assert_authenticated,
+    assert_not_captcha,
+)
 
 if TYPE_CHECKING:
     from playwright.sync_api import Page
@@ -998,13 +1003,32 @@ def copy_master(
             "before retrying (this is not idempotent)."
         )
 
+    # The clone/terminal-button click above already happened — irreversible,
+    # not idempotent (a retry would re-click and create a SECOND copy). If
+    # the saved session is invalidated in exactly this window,
+    # fetch_masters_list's own assert_authenticated raises BrowserAuthError;
+    # letting that propagate as-is would make _with_session
+    # (direct_cli/commands/masters.py) retry this ENTIRE function under a
+    # fresh session, silently duplicating the campaign. Re-raise as a plain
+    # BrowserSessionError so that retry does not trigger, and name new_id so
+    # the caller can check the clone that already exists instead of losing
+    # track of it.
     updated = None
     deadline = time.monotonic() + _CLONE_VERIFY_TIMEOUT_MS / 1000
-    while time.monotonic() < deadline:
-        updated = _find_master_row(page, new_id, status="all")
-        if updated is not None:
-            break
-        page.wait_for_timeout(250)
+    try:
+        while time.monotonic() < deadline:
+            updated = _find_master_row(page, new_id, status="all")
+            if updated is not None:
+                break
+            page.wait_for_timeout(250)
+    except BrowserAuthError as exc:
+        raise BrowserSessionError(
+            f"Yandex redirected to campaign {new_id} after cloning "
+            f"{campaign_id}, but the session was invalidated while "
+            "verifying it in the campaigns grid — the clone was likely "
+            f"created; check campaign {new_id} manually rather than "
+            "retrying (this is not idempotent)."
+        ) from exc
 
     if updated is None:
         raise BrowserSessionError(

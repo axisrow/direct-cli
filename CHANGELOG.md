@@ -30,6 +30,12 @@
   clone form, and a separate gap found during recon — `masters get`/
   `archive`/`suspend`/`resume` do not yet work against a freshly created
   `DRAFT`-status campaign (issue #660).
+- If the saved browser session is invalidated in the narrow window between
+  the clone's terminal-button click and its post-click grid verification,
+  `copy_master` now surfaces a plain error naming the already-created
+  campaign instead of letting `_with_session`'s auth-retry silently
+  re-run the whole clone (which would create a second copy — or, with
+  `--launch`, a second live campaign — with no trace of the first).
 
 **Added — `direct masters add --region-id` (#652):**
 
