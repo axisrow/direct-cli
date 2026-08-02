@@ -3597,6 +3597,13 @@ class TestResolveRegionIds(unittest.TestCase):
         self.assertIn("Сосновка", str(cm.exception))
         self.assertIn("--region", str(cm.exception))
 
+        second_call_body = service.post.call_args_list[1].kwargs["data"]
+        self.assertIn("SelectionCriteria", second_call_body["params"])
+        self.assertEqual(
+            second_call_body["params"]["SelectionCriteria"]["ExactNames"],
+            ["Сосновка"],
+        )
+
     def test_unique_region_name_resolves_normally(self):
         """A RegionId whose name has no duplicates elsewhere in the full
         dictionary must still resolve without raising."""

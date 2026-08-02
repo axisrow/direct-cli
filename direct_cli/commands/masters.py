@@ -743,20 +743,25 @@ def _resolve_region_ids(ctx: click.Context, region_ids: "tuple[int, ...]") -> li
     # text and clicks the first visible option with no RegionId/parent
     # verification, so a resolved name that is ambiguous in the full
     # dictionary could silently select the wrong region before an immediate
-    # live launch (issue #652 follow-up). Check each resolved name against
-    # every GeoRegions entry (not just the requested IDs) and refuse rather
-    # than guess.
-    all_regions = client.dictionaries().post(
+    # live launch (issue #652 follow-up). Look up every GeoRegions entry
+    # sharing one of the resolved names (SelectionCriteria is mandatory per
+    # the WSDL — GetGeoRegionsRequest.SelectionCriteria has minOccurs=1 — so
+    # ExactNames must be supplied) and refuse rather than guess if any name
+    # has more than one distinct owning RegionId.
+    resolved = [found[rid] for rid in region_ids]
+    name_check = client.dictionaries().post(
         data={
             "method": "getGeoRegions",
-            "params": {"FieldNames": ["GeoRegionId", "GeoRegionName"]},
+            "params": {
+                "FieldNames": ["GeoRegionId", "GeoRegionName"],
+                "SelectionCriteria": {"ExactNames": sorted(set(resolved))},
+            },
         }
     )
     name_owners = {}
-    for item in all_regions.data["result"]["GeoRegions"]:
+    for item in name_check.data["result"]["GeoRegions"]:
         name_owners.setdefault(item["GeoRegionName"], set()).add(item["GeoRegionId"])
 
-    resolved = [found[rid] for rid in region_ids]
     ambiguous = sorted({name for name in resolved if len(name_owners[name]) > 1})
     if ambiguous:
         raise click.UsageError(
