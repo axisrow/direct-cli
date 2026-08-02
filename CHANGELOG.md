@@ -33,11 +33,26 @@
   its own slot by index, and read back via `inner_text()` (a
   `contenteditable` `<div>` has no `value`). Passing more values than there
   are slots is now a clear error instead of a silent drop.
-- Each slot is **cleared before typing**: it arrives pre-filled with Yandex's
-  AI-generated copy and `.type()` appends from wherever the click left the
-  caret, so without this the value was spliced into the middle of Yandex's
-  text (confirmed live as `Центр оздоровления и китайско<typed>й гимнастики
-  цигун!`) and the campaign would have been drafted with mangled ad copy.
+- **Every** slot is **cleared before typing** — not just the ones being
+  filled. Two separate hazards: `.type()` appends from wherever the click
+  left the caret, so an uncleared slot got the value spliced into the middle
+  of Yandex's text (confirmed live as `Центр оздоровления и китайско<typed>й
+  гимнастики цигун!`); and every non-empty slot is a *published ad variant*,
+  so leaving the unused ones pre-filled meant a single `--headline` launched
+  that headline plus four AI-written ones the caller never reviewed. Both
+  violate this module's contract of never publishing unreviewed copy on a
+  page with no sandbox and no rollback.
+- A slot that cannot be cleared is now a **hard error** instead of a silent
+  best-effort skip: the terminal "Запустить кампанию" click happens before
+  any read-back, so a swallowed clear failure would have shipped mangled
+  copy and only reported an uncertain result afterwards.
+- `_verify_created` now also rejects **unrequested** headline/text variants,
+  not just missing ones. The previous membership-only check ("is each
+  requested value present?") passed while AI-generated leftovers sat in the
+  remaining slots.
+- The `browser` extra now requires **`playwright>=1.44`** (was `>=1.40`):
+  clearing a slot uses the `ControlOrMeta` modifier, which older versions
+  reject server-side with `Unknown modifier`.
 - **Region** moved from a text combobox with autocomplete to a tree/tag-group
   widget (`RegionsTreeTagGroup`), which needed a genuinely different
   selection flow, not a new selector for the old one: open the popup via its

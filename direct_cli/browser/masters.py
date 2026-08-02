@@ -352,7 +352,7 @@ def _xpath_literal(value: str) -> str:
     return "concat(" + ', "\'", '.join(f"'{part}'" for part in parts) + ")"
 
 
-def _clear_text_field(field: Any) -> None:
+def _clear_text_field(field: Any) -> bool:
     """Empty a focused contenteditable field via select-all + Backspace.
 
     ``.fill("")`` does not work on the ``contenteditable`` ``<div
@@ -360,15 +360,25 @@ def _clear_text_field(field: Any) -> None:
     ``.type()`` over ``.fill()`` everywhere else in this module), and
     ``.type()`` APPENDS — so any retry that re-types into a field must clear
     it first or it accumulates text (``"МоскваМосква"``) that matches
-    nothing. ``ControlOrMeta`` keeps this correct on both macOS and Linux.
+    nothing. ``ControlOrMeta`` keeps this correct on both macOS and Linux,
+    but it only exists from Playwright 1.44 — older versions reject it
+    server-side with ``Unknown modifier`` (hence the floor in
+    ``pyproject.toml``).
 
-    Best-effort: a field that refuses the key presses is left as-is rather
-    than aborting the caller, since the caller's own poll/verify step is
-    what ultimately decides success.
+    Returns whether the field was actually cleared. Callers that go on to
+    ``.type()`` into a PRE-FILLED slot must treat ``False`` as fatal: typing
+    after a failed clear splices the caller's value into Yandex's own copy,
+    and ``create_master`` clicks Launch before it re-reads anything, so the
+    mangled variant would ship on a page with no rollback (issue #655
+    review). Callers that merely re-type into a scratch filter field (the
+    region popup) can retry instead, since their own poll decides success.
     """
-    with contextlib.suppress(PlaywrightError):
+    try:
         field.press("ControlOrMeta+a")
         field.press("Backspace")
+    except PlaywrightError:
+        return False
+    return True
 
 
 # XPath fragment: the checkbox immediately following the "Директ помогает"
@@ -1315,13 +1325,24 @@ def _add_repeating_values(
     slot in order via ``.click()`` + ``.type()`` instead.
 
     Confirmed live these sections start pre-populated by Yandex's own AI
-    scan of the landing page (see module docstring), so each slot is CLEARED
-    before typing — ``.type()`` appends from wherever the click left the
-    caret, which otherwise splices the caller's value into the middle of
-    Yandex's copy instead of replacing it. Callers
-    whose values would overflow ``slot_count`` (more values than available
-    slots) get a hard error rather than a silent drop, since Мастер
-    кампаний has no rollback (module docstring's "no sandbox" risk).
+    scan of the landing page (see module docstring), so EVERY slot is
+    CLEARED — not just the ``len(values)`` being written. Two distinct
+    reasons, both found by the issue #655 review:
+
+    * ``.type()`` appends from wherever the click left the caret, so a slot
+      that is not cleared first gets the caller's value spliced into the
+      middle of Yandex's copy rather than replacing it.
+    * every non-empty slot is a PUBLISHED ad variant, so leaving the unused
+      trailing slots pre-filled would launch the caller's headline plus the
+      leftover AI-written ones they never reviewed — precisely what
+      ``create_master``'s contract refuses to do.
+
+    A slot that cannot be cleared is fatal rather than best-effort: typing
+    after a failed clear produces mangled copy, and ``create_master`` clicks
+    the terminal button before it re-reads anything. Callers whose values
+    would overflow ``slot_count`` (more values than available slots) get a
+    hard error rather than a silent drop, since Мастер кампаний has no
+    rollback (module docstring's "no sandbox" risk).
     """
     if len(values) > slot_count:
         raise BrowserSessionError(
@@ -1331,16 +1352,50 @@ def _add_repeating_values(
             "hand first (--headful)."
         )
 
-    for index, value in enumerate(values):
+    # EVERY slot is cleared, not just the ``len(values)`` being filled: each
+    # non-empty slot is a published ad variant, and most of them arrive
+    # pre-filled with Yandex's AI scan of the landing page. Clearing only the
+    # slots we write would launch the caller's headline PLUS the leftover
+    # AI-written ones they never reviewed — exactly what this module's
+    # contract refuses to do (see create_master's docstring), on a page with
+    # no sandbox and no rollback (issue #655 review).
+    for index in range(slot_count):
         selector = f'[data-testid="{testid_template.format(index=index)}"]'
         field = page.locator(selector).first
+        value = values[index] if index < len(values) else None
         try:
             field.click()
             # The slot arrives pre-filled with Yandex's AI-generated copy and
             # type() appends from wherever the click put the caret, so without
             # this the value lands INSIDE the existing text (confirmed live:
             # "Центр оздоровления и китайско<typed>й гимнастики цигун!").
-            _clear_text_field(field)
+            cleared = _clear_text_field(field)
+        except PlaywrightError as exc:
+            if value is None:
+                # A trailing slot that cannot even be focused is not
+                # necessarily fatal — it may simply not be rendered. Verify
+                # below catches it if it did hold copy.
+                continue
+            raise BrowserSessionError(
+                f"Could not add {value!r} via the create page's field at "
+                f"{selector!r} — Yandex may have changed the page's markup. "
+                "Re-run with --headful to inspect the page."
+            ) from exc
+
+        if not cleared:
+            raise BrowserSessionError(
+                f"Could not clear the create page's field at {selector!r} "
+                "before typing. Typing into a slot that still holds Yandex's "
+                "AI-generated copy would splice the two together and launch "
+                "ad copy you never reviewed, so this aborts instead. This "
+                "usually means Playwright is older than 1.44 (the version "
+                "that added the 'ControlOrMeta' modifier) — upgrade with "
+                "'pip install -U playwright'."
+            )
+
+        if value is None:
+            continue
+        try:
             field.type(value)
         except PlaywrightError as exc:
             raise BrowserSessionError(
@@ -1625,6 +1680,11 @@ def _verify_created(
     """
     mismatches = []
 
+    # Both directions matter. A missing value means the form did not take
+    # what was asked for; an EXTRA non-empty value means a slot still holds
+    # Yandex's AI-generated copy, which ships as a published ad variant the
+    # caller never reviewed (issue #655 review). Checking only membership
+    # let the latter through silently.
     actual_headlines = _read_repeating_values(
         page, _HEADLINES_TESTID_TEMPLATE, _HEADLINES_SLOT_COUNT
     )
@@ -1634,6 +1694,13 @@ def _verify_created(
                 f"headline {headline!r} not found among current values "
                 f"{actual_headlines!r}"
             )
+    extra_headlines = [v for v in actual_headlines if v and v not in headlines]
+    if extra_headlines:
+        mismatches.append(
+            f"unrequested headline variants still on the page: "
+            f"{extra_headlines!r} — these are Yandex's AI-generated copy and "
+            "would be published alongside yours"
+        )
 
     actual_texts = _read_repeating_values(
         page, _TEXTS_TESTID_TEMPLATE, _TEXTS_SLOT_COUNT
@@ -1643,6 +1710,13 @@ def _verify_created(
             mismatches.append(
                 f"text {text!r} not found among current values {actual_texts!r}"
             )
+    extra_texts = [v for v in actual_texts if v and v not in texts]
+    if extra_texts:
+        mismatches.append(
+            f"unrequested ad-text variants still on the page: {extra_texts!r} "
+            "— these are Yandex's AI-generated copy and would be published "
+            "alongside yours"
+        )
 
     if weekly_budget is not None:
         field = page.locator(_WEEKLY_BUDGET_INPUT_XPATH).first

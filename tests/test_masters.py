@@ -158,6 +158,50 @@ class _FakeLocatorHandle:
         return 0 if self._raises else 1
 
 
+class _FakeContentEditableHandle(_FakeLocatorHandle):
+    """A slot that models the REAL contenteditable semantics (issue #655 review).
+
+    ``_FakeLocatorHandle.type()`` delegates to ``fill()``, which REPLACES the
+    field's content — real ``Locator.type()`` on a ``contenteditable``
+    APPENDS from the caret, which is the entire reason ``_clear_text_field``
+    exists. A fake that replaces cannot observe a missing/failed clear, so it
+    silently passes code that would splice the caller's value into Yandex's
+    AI-generated copy (or leave that copy in place entirely).
+
+    ``supports_modifier`` models Playwright <1.44, where ``ControlOrMeta`` is
+    rejected server-side with ``Unknown modifier`` — the failure mode that
+    makes the suppressed clear a no-op on the versions ``pyproject.toml``
+    permits.
+    """
+
+    def __init__(self, *args, supports_modifier=True, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._supports_modifier = supports_modifier
+        self._selected_all = False
+
+    def type(self, value, delay=None):  # noqa: A003 - mirrors Locator.type
+        if self._raises:
+            raise PlaywrightError("element detached")
+        # APPEND, exactly like the real contenteditable.
+        self._text = self._text + value
+        if self._on_fill is not None:
+            self._on_fill(value)
+
+    def press(self, key):
+        if self._raises:
+            raise PlaywrightError("element detached")
+        if key == "ControlOrMeta+a":
+            if not self._supports_modifier:
+                # Playwright <1.44 throws this from input.ts, server-side.
+                raise PlaywrightError("Unknown modifier ControlOrMeta")
+            self._selected_all = True
+        elif key == "Backspace" and self._selected_all:
+            self._text = ""
+            self._selected_all = False
+        if self._on_press is not None:
+            self._on_press(key)
+
+
 class _FakeLocator:
     """A Locator for one selector — holds every matched handle for that selector."""
 
@@ -2876,6 +2920,71 @@ class TestAddRepeatingValues(unittest.TestCase):
             )
         self.assertIn("only renders 1 slots", str(ctx.exception))
 
+    def test_clears_every_slot_not_just_the_ones_being_filled(self):
+        """Unused slots must not keep Yandex's AI copy (issue #655 review).
+
+        The page renders a FIXED set of slots, most pre-filled by Yandex's
+        AI scan. Filling only the first ``len(values)`` of them leaves the
+        rest populated, and every non-empty slot is a published ad variant —
+        so a single ``--headline`` would launch that headline PLUS four
+        AI-written ones the caller never reviewed. That directly violates
+        this module's stated contract ("refuses to silently launch
+        AI-generated ad copy the caller never reviewed", see create_master's
+        docstring) on a page with no sandbox and no rollback.
+        """
+        slots = {
+            0: _FakeContentEditableHandle(text=""),
+            1: _FakeContentEditableHandle(
+                text="Центр оздоровления и китайской гимнастики!"
+            ),
+            2: _FakeContentEditableHandle(text="Цигун в Москве — записаться"),
+        }
+        page = FakePage(
+            locators={
+                f'[data-testid="fake{i}.textarea"]': _FakeLocator([handle])
+                for i, handle in slots.items()
+            }
+        )
+
+        browser_masters._add_repeating_values(
+            page, "fake{index}.textarea", 3, ["Мой заголовок"]
+        )
+
+        self.assertEqual(slots[0].inner_text(), "Мой заголовок")
+        # The AI-generated leftovers must be GONE, not merely un-touched.
+        self.assertEqual(slots[1].inner_text(), "")
+        self.assertEqual(slots[2].inner_text(), "")
+
+    def test_aborts_when_a_slot_cannot_be_cleared(self):
+        """A failed clear must abort BEFORE anything is typed (issue #655).
+
+        ``pyproject.toml`` permits ``playwright>=1.40``, but ``ControlOrMeta``
+        only exists from 1.44 — on 1.40-1.43 the modifier press throws
+        ``Unknown modifier`` server-side. Silently swallowing that leaves the
+        slot pre-filled and ``.type()`` then splices the caller's value into
+        Yandex's copy; ``create_master`` clicks Launch before it re-reads
+        anything, so the mangled variant ships. Failing loudly is the only
+        safe outcome on a page with no rollback.
+        """
+        slot = _FakeContentEditableHandle(
+            text="Центр оздоровления и китайской гимнастики!",
+            supports_modifier=False,
+        )
+        page = FakePage(
+            locators={'[data-testid="fake0.textarea"]': _FakeLocator([slot])}
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._add_repeating_values(
+                page, "fake{index}.textarea", 1, ["Мой заголовок"]
+            )
+
+        # The pre-filled copy must be left untouched rather than spliced into.
+        self.assertEqual(
+            slot.inner_text(), "Центр оздоровления и китайской гимнастики!"
+        )
+        self.assertIn("clear", str(ctx.exception).lower())
+
 
 class TestReadRepeatingValues(unittest.TestCase):
     """``_read_repeating_values`` (issue #632, re-recon #653) — post-add
@@ -3280,6 +3389,46 @@ class TestVerifyCreated(unittest.TestCase):
             texts=["Текст объявления"],
             weekly_budget=None,
         )  # must not raise
+
+    def test_raises_when_an_unrequested_headline_variant_survives(self):
+        """Extra non-empty slots are published variants (issue #655 review).
+
+        The membership-only check this replaced ("is each requested value
+        present?") passed happily while four AI-written headlines sat in the
+        remaining slots. Every non-empty slot ships as an ad variant, so a
+        leftover the clear missed must be a hard failure — this is the
+        defense-in-depth layer behind ``_add_repeating_values``' clear.
+        """
+        page = self._page(
+            ["Заголовок", "Центр оздоровления и китайской гимнастики!"],
+            ["Текст объявления"],
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._verify_created(
+                page,
+                headlines=["Заголовок"],
+                texts=["Текст объявления"],
+                weekly_budget=None,
+            )
+        self.assertIn("unrequested headline variants", str(ctx.exception))
+        self.assertIn("Центр оздоровления", str(ctx.exception))
+
+    def test_raises_when_an_unrequested_text_variant_survives(self):
+        # Same invariant on the ad-text slots.
+        page = self._page(
+            ["Заголовок"],
+            ["Текст объявления", "Приходите на пробное занятие цигун!"],
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._verify_created(
+                page,
+                headlines=["Заголовок"],
+                texts=["Текст объявления"],
+                weekly_budget=None,
+            )
+        self.assertIn("unrequested ad-text variants", str(ctx.exception))
 
     def test_raises_when_a_headline_is_missing(self):
         page = self._page(["Другой заголовок"], ["Текст объявления"])
