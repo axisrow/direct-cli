@@ -62,6 +62,21 @@ promotion goal, and the "Директ помогает" auto-recommendations tog
 Later stages (headline/text lists, sitelinks, audience, media uploads) are
 tracked separately in issue #631 and are NOT implemented here.
 
+``name`` (issue #663) — live-verified against campaigns 713231614 (DRAFT)
+and 107707079 (non-draft, read-only recon) — see
+``tests/fixtures/masters_wizard_edit_name.html``. Unlike the Этап A fields
+above, the name is edited via a separate modal
+(``CampaignHeader.EditName.Button`` → ``ModalEditTitle.CampaignName`` →
+"Применить") rather than a plain form input, but the modal's own
+"Применить" only updates the page's optimistic/local state — the rename is
+persisted only by the same terminal save action every other field here
+relies on, so this module never trusts the modal click alone (verified via
+the header's displayed name after a real reload). Same pre-existing DRAFT
+limitation as issue #660 applies (no "Сохранить кампанию" button on a DRAFT
+campaign) — ``update_master`` fails cleanly via ``_click_save``'s existing
+error rather than corrupting the name; fixing DRAFT support is out of scope
+for #663, see #660.
+
 Confirmed live: the edit page (``/wizard/campaigns/{id}/edit/``) is a single
 form with exactly one "Сохранить кампанию" button at the bottom — there is no
 per-section independent save. A partial ``update_master`` call (only some
@@ -447,6 +462,11 @@ _PROMOTION_GOAL_BUTTON_XPATH = (
     "xpath=//*[self::h1 or self::h2 or self::h3][normalize-space(text())="
     "'Цель продвижения']/following::button[1]"
 )
+
+_EDIT_NAME_BUTTON_SELECTOR = '[data-testid="CampaignHeader.EditName.Button"]'
+_NAME_HEADER_SELECTOR = '[data-testid="CampaignHeader.TitleName"]'
+_NAME_MODAL_INPUT_SELECTOR = '[data-testid="ModalEditTitle.CampaignName"]'
+_NAME_MODAL_ACCEPT_SELECTOR = '[data-testid="AcceptButton"]'
 
 _SAVE_BUTTON_TEXT = "Сохранить кампанию"
 _LAUNCH_BUTTON_TEXT = "Запустить кампанию"
@@ -1062,6 +1082,29 @@ def _set_weekly_budget(page: "Page", amount: int) -> None:
         ) from exc
 
 
+def _set_campaign_name(page: "Page", name: str) -> None:
+    """Rename the campaign via the header's "Название кампании" modal.
+
+    Unlike every other Этап A field, the name lives behind a separate modal
+    opened by the header's pencil icon (``_EDIT_NAME_BUTTON_SELECTOR``) —
+    see the module docstring for why the modal's own "Применить" isn't the
+    real save.
+    """
+    edit_button = page.locator(_EDIT_NAME_BUTTON_SELECTOR).first
+    try:
+        edit_button.click()
+        name_input = page.locator(_NAME_MODAL_INPUT_SELECTOR).first
+        name_input.click()
+        name_input.fill(name)
+        page.locator(_NAME_MODAL_ACCEPT_SELECTOR).first.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            "Could not find or fill the campaign name modal ('Название "
+            "кампании') on the campaign edit page — Yandex may have changed "
+            "the page's markup. Re-run with --headful to inspect the page."
+        ) from exc
+
+
 def _set_directs_helps(page: "Page", enabled: bool) -> None:
     """Check/uncheck the "Директ помогает" auto-recommendations checkbox.
 
@@ -1253,6 +1296,18 @@ def _read_promotion_goal_label(page: "Page") -> Optional[str]:
     return lines[-1] if lines else None
 
 
+def _read_campaign_name(page: "Page") -> Optional[str]:
+    """Read the edit page header's current campaign name.
+
+    Returns ``None`` if the header can't be found/read (inconclusive).
+    """
+    header = page.locator(_NAME_HEADER_SELECTOR).first
+    try:
+        return header.inner_text().strip()
+    except PlaywrightError:
+        return None
+
+
 def _verify_saved(
     page: "Page",
     campaign_id: int,
@@ -1260,6 +1315,7 @@ def _verify_saved(
     weekly_budget: Optional[int],
     promotion_goal: Optional[str],
     directs_helps: Optional[bool],
+    name: Optional[str] = None,
 ) -> None:
     """Reload the edit page and confirm every requested field actually saved.
 
@@ -1278,30 +1334,25 @@ def _verify_saved(
     assert_not_captcha(page.content())
     assert_authenticated(page.content())
 
+    checks = [
+        ("weekly_budget", weekly_budget, _read_weekly_budget),
+        ("directs_helps", directs_helps, _read_directs_helps),
+        (
+            "promotion_goal",
+            None if promotion_goal is None else PROMOTION_GOAL_CHOICES[promotion_goal],
+            _read_promotion_goal_label,
+        ),
+        ("name", name, _read_campaign_name),
+    ]
+
     mismatches = []
-
-    if weekly_budget is not None:
-        actual = _read_weekly_budget(page)
-        if actual != weekly_budget:
+    for label, expected, reader in checks:
+        if expected is None:
+            continue
+        actual = reader(page)
+        if actual != expected:
             mismatches.append(
-                f"weekly_budget: expected {weekly_budget}, page now shows {actual!r}"
-            )
-
-    if directs_helps is not None:
-        actual_checked = _read_directs_helps(page)
-        if actual_checked != directs_helps:
-            mismatches.append(
-                f"directs_helps: expected {directs_helps}, page now shows "
-                f"{actual_checked!r}"
-            )
-
-    if promotion_goal is not None:
-        expected_label = PROMOTION_GOAL_CHOICES[promotion_goal]
-        actual_label = _read_promotion_goal_label(page)
-        if actual_label != expected_label:
-            mismatches.append(
-                f"promotion_goal: expected {expected_label!r}, page now shows "
-                f"{actual_label!r}"
+                f"{label}: expected {expected!r}, page now shows {actual!r}"
             )
 
     if mismatches:
@@ -1321,8 +1372,9 @@ def update_master(
     weekly_budget: Optional[int] = None,
     promotion_goal: Optional[str] = None,
     directs_helps: Optional[bool] = None,
+    name: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Update one or more Этап A fields of a Мастер кампаний and save.
+    """Update one or more Этап A fields (plus the campaign name) and save.
 
     Only fields passed as non-``None`` are touched — see module docstring for
     why this is safe despite the page having a single whole-form save (fields
@@ -1330,19 +1382,31 @@ def update_master(
     input touched). Raises ``ValueError`` if no field is provided, mirroring
     the rest of the CLI's "nothing to update" guard for partial updates.
 
+    ``name`` (issue #663) is set via a separate modal (``_set_campaign_name``)
+    rather than a plain form field — see module docstring — but is persisted
+    by the same terminal ``_click_save`` as every other field here.
+
     After clicking save, reloads the edit page and re-reads every requested
     field to confirm it actually saved (see ``_verify_saved``) — a click
     that doesn't visibly change the saved state is reported as a hard error,
-    not a silent success, mirroring ``_suspend_or_resume``.
+    not a silent success, mirroring ``_suspend_or_resume``. Renaming is
+    idempotent (re-applying the same name is harmless), so unlike
+    ``copy_master`` this function needs no extra guard against
+    ``_with_session``'s whole-operation retry on ``BrowserAuthError``.
 
     Later Этап (B/C/D) fields — headline/text lists, sitelinks, audience,
     Metrika counters/goals, budget adaptation, media — are out of scope for
     this function; see issue #631.
     """
-    if weekly_budget is None and promotion_goal is None and directs_helps is None:
+    if (
+        weekly_budget is None
+        and promotion_goal is None
+        and directs_helps is None
+        and name is None
+    ):
         raise ValueError(
             "update_master requires at least one field to update "
-            "(weekly_budget, promotion_goal, directs_helps)."
+            "(weekly_budget, promotion_goal, directs_helps, name)."
         )
 
     url = WIZARD_EDIT_URL.format(campaign_id=campaign_id)
@@ -1350,6 +1414,8 @@ def update_master(
     assert_not_captcha(page.content())
     assert_authenticated(page.content())
 
+    if name is not None:
+        _set_campaign_name(page, name)
     if weekly_budget is not None:
         _set_weekly_budget(page, weekly_budget)
     if promotion_goal is not None:
@@ -1365,6 +1431,7 @@ def update_master(
         weekly_budget=weekly_budget,
         promotion_goal=promotion_goal,
         directs_helps=directs_helps,
+        name=name,
     )
 
     result: Dict[str, Any] = {"CampaignId": campaign_id}
@@ -1374,6 +1441,8 @@ def update_master(
         result["PromotionGoal"] = promotion_goal
     if directs_helps is not None:
         result["DirectsHelps"] = directs_helps
+    if name is not None:
+        result["Name"] = name
     return result
 
 

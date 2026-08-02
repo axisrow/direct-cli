@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+**Added — `direct masters update --name` (#663):**
+
+- New `--name` flag on `direct masters update <CAMPAIGN_ID>` renames a Мастер
+  кампаний, closing the gap `masters copy`'s docstring already pointed to
+  (Yandex's own "— N" suffix on clones doesn't increment on repeated clones
+  of the same source, so two copies can end up with the identical name).
+- Edited via a separate header modal rather than a plain form input like the
+  other three Этап A fields, but persisted only by the same terminal save
+  action — see `direct_cli/browser/masters.py` module docstring.
+- Can be combined with `--weekly-budget`/`--promotion-goal`/
+  `--directs-helps` in the same call, sharing the page's single whole-form
+  save.
+
 **Added — `direct masters copy` (#659):**
 
 - New `direct masters copy <CAMPAIGN_ID>` clones an existing Мастер кампаний
