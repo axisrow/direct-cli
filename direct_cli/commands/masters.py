@@ -538,32 +538,55 @@ def suspend(
 
 
 def _parse_repeating_slot_options(
-    option_name: str, values: "tuple[str, ...]", slot_count: int
+    option_name: str,
+    values: "tuple[str, ...]",
+    slot_count: int,
+    *,
+    value_label: str = "text",
+    value_example: str = "New headline",
+    empty_hint: str = (
+        "which would DELETE that ad variant rather than replace it. "
+        "Removing a variant is not supported — pass the replacement text, "
+        "or edit the campaign with --headful."
+    ),
 ) -> "dict[int, str]":
-    """Parse repeated ``"N=text"`` CLI values into a 0-based slot index map.
+    """Parse repeated ``"N=<value_label>"`` CLI values into a 0-based slot
+    index map.
 
     N is the 1-based slot number shown to the user (matches how a person
     would count "headline 1, headline 2, ..." reading the edit page); the
-    browser layer (``update_master``/``_set_repeating_value``) works in
-    0-based indices like the rest of ``masters.py``'s slot machinery, so the
-    conversion happens here, at the CLI boundary. All format errors are
-    raised as ``click.UsageError`` before any browser session is opened,
-    rather than surfacing mid-session as a ``BrowserSessionError``.
+    browser layer (``update_master``/``_set_repeating_value``/``_set_image``)
+    works in 0-based indices like the rest of ``masters.py``'s slot
+    machinery, so the conversion happens here, at the CLI boundary. All
+    format errors are raised as ``click.UsageError`` before any browser
+    session is opened, rather than surfacing mid-session as a
+    ``BrowserSessionError``.
 
-    ``slot_count`` is the number of slots the page actually renders for this
-    field (5 headlines / 3 texts), taken from the browser layer's own
-    constants so the two can't drift apart. The upper bound is enforced here
-    as well as in ``_set_repeating_value``: an oversized slot number is a
-    purely invalid CLI argument, and letting it through would launch a
-    browser (and possibly an auth prompt) only to fail with a
-    ``BrowserSessionError`` — contradicting this helper's fail-fast contract.
+    ``slot_count`` is the upper bound this field can ever have — for
+    headlines/texts that's the page's fixed slot count (5/3, from the
+    browser layer's own constants so the two can't drift apart); for images
+    (issue #670, Этап D) there are no fixed slots at all, so this is
+    ``_IMAGES_MAX_COUNT`` (Yandex's hard cap on the set size) — the actual,
+    possibly-empty, per-campaign ceiling is only known once the browser
+    layer reads the live page, and is enforced there
+    (``_set_image``/``_read_image_content_ids``). Rejecting an
+    obviously-oversized slot number here is still worth doing eagerly: it is
+    a purely invalid CLI argument, and letting it through would launch a
+    browser (and possibly an auth prompt) only to fail downstream —
+    contradicting this helper's fail-fast contract.
+
+    ``value_label``/``value_example``/``empty_hint``
+    parameterize the two messages that are specific to what "N=..." holds
+    (headline/ad-text copy vs. an image file path) — added for ``--image``
+    (issue #670). Defaults keep the original Этап B (``--headline``/
+    ``--text``) wording byte-for-byte; only ``--image`` passes overrides.
     """
     parsed: "dict[int, str]" = {}
     for raw in values:
         if "=" not in raw:
             raise click.UsageError(
-                f'{option_name} value {raw!r} must be in the form "N=text" '
-                '(e.g. "2=New headline").'
+                f"{option_name} value {raw!r} must be in the form "
+                f'"N={value_label}" (e.g. "2={value_example}").'
             )
         index_part, text = raw.split("=", 1)
         try:
@@ -580,7 +603,7 @@ def _parse_repeating_slot_options(
         if slot_number > slot_count:
             raise click.UsageError(
                 f"{option_name} slot number {slot_number} is out of range — "
-                f"this field has {slot_count} slots (1-{slot_count})."
+                f"this field has slots (1-{slot_count})."
             )
         index = slot_number - 1
         if index in parsed:
@@ -590,12 +613,37 @@ def _parse_repeating_slot_options(
         if not text.strip():
             raise click.UsageError(
                 f"{option_name} slot {slot_number} was given an empty "
-                "replacement, which would DELETE that ad variant rather than "
-                "replace it. Removing a variant is not supported — pass the "
-                "replacement text, or edit the campaign with --headful."
+                f"replacement, {empty_hint}"
             )
         parsed[index] = text
     return parsed
+
+
+def _validate_image_paths(parsed_images: "dict[int, str]") -> None:
+    """Reject ``--image`` paths that don't exist or that Yandex won't accept.
+
+    Runs before any browser session (and possibly an auth prompt) is opened,
+    mirroring every other format error in this command. The accepted
+    extensions come from the browser layer's own ``_IMAGE_UPLOAD_SUFFIXES``
+    (imported here rather than at module load, matching this module's other
+    deferred browser imports) so the CLI's check can't drift from what
+    Yandex's file input actually accepts.
+    """
+    from ..browser.masters import _IMAGE_UPLOAD_SUFFIXES
+
+    for index, raw_path in parsed_images.items():
+        slot = index + 1
+        path = Path(raw_path)
+        if not path.is_file():
+            raise click.UsageError(
+                f"--image path {raw_path!r} (slot {slot}) does not exist or "
+                "is not a file."
+            )
+        if path.suffix.lower() not in _IMAGE_UPLOAD_SUFFIXES:
+            raise click.UsageError(
+                f"--image path {raw_path!r} (slot {slot}) has an unsupported "
+                f"extension {path.suffix!r} — Yandex accepts PNG, JPEG, or GIF."
+            )
 
 
 @masters.command()
@@ -645,6 +693,26 @@ def _parse_repeating_slot_options(
     ),
 )
 @click.option(
+    "--image",
+    "images",
+    multiple=True,
+    help=(
+        'Replace an EXISTING image: "N=path" where N is the 1-based '
+        "position of the image currently shown on the edit page (position "
+        "count is whatever the campaign actually has — up to 5, and may be "
+        "0 if the campaign has no images at all, in which case this "
+        "refuses). Repeat for multiple positions. path must be a local "
+        "PNG/JPEG/GIF file. Writing to a position beyond the campaign's "
+        "current image count is refused — this only replaces images that "
+        "already exist, it does not add new ones. NOTE: Yandex has no "
+        "in-place image replacement — the image at position N is removed "
+        "and the new one is appended to the END of the set, so the set's "
+        "order changes (this has no effect on ad delivery: Yandex rotates "
+        "images by performance regardless of position). Other images are "
+        "left untouched."
+    ),
+)
+@click.option(
     "--launch",
     is_flag=True,
     default=False,
@@ -665,6 +733,7 @@ def update(
     name,
     headlines,
     texts,
+    images,
     launch,
     headful,
     profile_dir,
@@ -672,24 +741,30 @@ def update(
     output_format,
     output,
 ):
-    """Update settings of one Мастер кампаний (Этап A/B fields, plus name)
+    """Update settings of one Мастер кампаний (Этап A/B/D fields, plus name)
 
     Covers weekly budget, promotion goal, the "Директ помогает"
-    auto-recommendations toggle, the campaign name, and per-slot headline/
-    ad-text variant replacement. The edit page has a single whole-form save
-    (no per-section save) — see ``direct_cli/browser/masters.py`` module
-    docstring — so only the fields passed here are changed; every other
-    on-page field keeps its current value.
+    auto-recommendations toggle, the campaign name, per-slot headline/
+    ad-text variant replacement, and per-position image replacement. The
+    edit page has a single whole-form save (no per-section save) — see
+    ``direct_cli/browser/masters.py`` module docstring — so only the fields
+    passed here are changed; every other on-page field keeps its current
+    value.
 
-    ``--headline``/``--text`` replace ONE variant slot at a time rather than
-    the whole variant list — unlike this CLI's usual list-field convention
-    (e.g. ``campaigns update --negative-keywords``, which replaces the
-    entire array). This is deliberate: Мастер кампаний has no API, variant
-    sets can be large, and forcing every variant to be re-typed to fix one
-    typo defeats the point of a partial update — see
+    ``--headline``/``--text``/``--image`` each replace ONE existing
+    slot/position at a time rather than the whole list — unlike this CLI's
+    usual list-field convention (e.g. ``campaigns update
+    --negative-keywords``, which replaces the entire array). This is
+    deliberate: Мастер кампаний has no API, variant sets can be large, and
+    forcing every variant to be re-typed to fix one typo defeats the point
+    of a partial update — see
     ``direct_cli/browser/masters.py::_set_repeating_value`` for the full
-    rationale. Later fields (sitelinks, audience, Metrika counters/goals,
-    budget adaptation, media) are tracked separately, see issue #648.
+    rationale. ``--image`` additionally has NO in-place replacement at all
+    on Yandex's side — see its own help text and
+    ``direct_cli/browser/masters.py::_set_image`` for why the image set's
+    order changes as a result. Later fields (sitelinks, audience, Metrika
+    counters/goals, budget adaptation) and video (a separate follow-up
+    issue) are tracked separately, see issue #648.
 
     A DRAFT campaign's edit page has no "Сохранить кампанию" button at all —
     only a save-as-draft/launch pair (issue #668). ``update`` saves it as a
@@ -705,21 +780,40 @@ def update(
         and name is None
         and not headlines
         and not texts
+        and not images
     ):
         raise click.UsageError(
             "Provide at least one of --weekly-budget, --promotion-goal, "
-            "--directs-helps/--no-directs-helps, --name, --headline, --text."
+            "--directs-helps/--no-directs-helps, --name, --headline, "
+            "--text, --image."
         )
 
     # Slot counts come from the browser layer's own constants (imported here
     # rather than at module load, matching this module's other deferred
     # browser imports) so the CLI's bound can't drift from the page's.
-    from ..browser.masters import _HEADLINES_SLOT_COUNT, _TEXTS_SLOT_COUNT
+    from ..browser.masters import (
+        _HEADLINES_SLOT_COUNT,
+        _IMAGES_MAX_COUNT,
+        _TEXTS_SLOT_COUNT,
+    )
 
     parsed_headlines = _parse_repeating_slot_options(
         "--headline", headlines, _HEADLINES_SLOT_COUNT
     )
     parsed_texts = _parse_repeating_slot_options("--text", texts, _TEXTS_SLOT_COUNT)
+    parsed_images = _parse_repeating_slot_options(
+        "--image",
+        images,
+        _IMAGES_MAX_COUNT,
+        value_label="path",
+        value_example="/path/to/image.jpg",
+        empty_hint=(
+            "which is not a valid image path. Removing an image without a "
+            "replacement is not supported — pass a replacement file, or "
+            "edit the campaign with --headful."
+        ),
+    )
+    _validate_image_paths(parsed_images)
 
     result = _with_session(
         ctx,
@@ -735,6 +829,7 @@ def update(
             name=name,
             headlines=parsed_headlines,
             texts=parsed_texts,
+            images=parsed_images,
             launch=launch,
         ),
     )

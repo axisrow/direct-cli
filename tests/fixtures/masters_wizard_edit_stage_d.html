@@ -1,0 +1,119 @@
+<!--
+Fixture: DOM findings for editing images on the Yandex Direct "Мастер кампаний"
+(Campaign Wizard) edit page, Этап D — images only (issue #670, part of the
+#648 umbrella) — captured 2026-08-02 via claude-in-chrome against DRAFT clone
+713234191 ("Мастер ИД Исцеляющий Детокс (холодный) клфразы сентябрь 2022 JS
+28.06 ии — 2", status: DRAFT).
+
+Two phases:
+
+Phase 1 — read-only: page/modal markup read via
+`document.querySelectorAll('[data-testid]')` and targeted DOM reads. No field
+was clicked/typed into, no save button was pressed.
+
+Phase 2 — a real DOM mutation, but NOT a campaign mutation: two probe PNGs
+were uploaded into the image manager modal's hidden file input (via a
+synthetic `File`/`DataTransfer`, since this recon has no real file picker to
+drive) to answer the one question read-only inspection could not: where does
+a newly uploaded image land in the set? `ImageSuggestionsEditorModal.Save`
+("Добавить в кампанию") was NEVER clicked, and the modal was abandoned by
+navigating away rather than using its own Cancel/Save controls. Re-opening the
+edit page afterwards confirmed the campaign's saved image set was unchanged —
+still the same 4 original content IDs, in the same order.
+
+Source URL:
+  https://direct.yandex.ru/wizard/campaigns/{id}/edit/?ulogin={login}
+
+KEY FINDING #1 — the issue's original "5 fixed slots" hypothesis (modeled on
+`_HEADLINES_SLOT_COUNT`/`_TEXTS_SLOT_COUNT`) is WRONG. The page renders
+exactly as many image cards as the campaign actually has (4, here), not a
+fixed 5 — "Можно добавить до 5 штук" is an upper bound on the SET, not a slot
+count. There are no empty slots in the DOM to discriminate against, unlike
+headlines/texts. Confirmed testids (edit page):
+
+  ImageSuggestionsEditor
+  ImageSuggestionsEditor.HeaderHelp.HelpButton
+  ImageSuggestionsEditor.CampaignContents
+  ImageSuggestionsEditor.CampaignContents.ContentImage.<contentId>
+  ImageSuggestionsEditor.CampaignContents.CloseButton.<contentId>
+  ImageSuggestionsEditor.Open                    <- "Выбрать другие изображения"
+
+Four `ContentImage`/`CloseButton` pairs observed, keyed by a Yandex-assigned
+numeric content ID (NOT a 0-based slot index the way `CampaignTitlesN` is):
+
+  3271043491215551029
+  3271047625691389195
+  3271068856356873853
+  3271089191340751814
+
+Order is stable across reloads — this is what `_read_image_content_ids`
+relies on for positional mapping. Two of the four cards rendered with a
+broken-image icon (thumbnail failed to load) while still being fully valid,
+counted images — confirming content ID, never thumbnail load state, is the
+correct signal to read.
+
+KEY FINDING #2 — there is no `<input type="file">` anywhere on the edit page
+itself (0 matches for `input[type=file]`). It only appears once the "Выбрать
+другие изображения" button opens a modal:
+
+  ImageSuggestionsEditorModal
+  ImageSuggestionsEditorModal.CloseButton
+  ImageSuggestionsEditorModal.ImageSourcePanel
+  ImageSuggestionsEditorModal.ImageSourcePanel.UPLOAD
+  ImageSuggestionsEditorModal.ImageSourcePanel.USER
+  ImageSuggestionsEditorModal.ImageSourcePanel.USER.Counter
+  ImageSuggestionsEditorModal.ImageSourcePanel.WEB_SITE
+  ImageSuggestionsEditorModal.ImageSourcePanel.AI_GENERATED
+  ImageSuggestionsEditorModal.ImageSourcePanel.NEURO_STOCK
+  ImageSuggestionsEditorModal.UploadZone
+  ImageSuggestionsEditorModal.UploadZone.openFilePicker   <- "Загрузить изображения"
+  ImageSuggestionsEditorModal.UploadZone.filePicker        <- hidden <input type="file">,
+                                                               accept="image/png,image/jpeg,image/jpg,image/gif",
+                                                               multiple
+  ImageSuggestionsEditorModal.SelectedImagesContainer
+  ImageSuggestionsEditorModal.SelectedImagesContainer.SelectedImage.<thumbUrl>
+  ImageSuggestionsEditorModal.SelectedImagesContainer.SelectedImage.<thumbUrl>.Content
+  ImageSuggestionsEditorModal.SelectedImagesContainer.SelectedImage.<thumbUrl>.CloseButton
+  ImageSuggestionsEditorModal.Save                         <- "Добавить в кампанию"
+  ImageSuggestionsEditorModal.Cancel                        <- "Отмена"
+
+KEY FINDING #3 — Yandex has NO "replace this image in place" primitive at
+all; only "remove from the set" (either the page's own CloseButton, or the
+modal's right-hand "Выбранные изображения" panel — the latter shows the
+whole set with its own crosses, confirmed via the "4 из 5" counter text) and
+"add to the set" (modal upload). This module composes remove+upload+save
+inside ONE modal session into a synthetic point-replacement
+(`_set_image`) — doing both inside the modal, rather than removing on the
+page first, means a failure before Save leaves the campaign's saved set
+completely untouched.
+
+Confirmed live: the modal's "Выбранные изображения" panel renders cards in
+the SAME order as the page's own image cards (same 4 thumb URLs, same
+sequence) — so position N maps onto the panel positionally, with no need to
+correlate a content ID with a thumb URL.
+
+KEY FINDING #4 (Phase 2, the one read-only inspection could not answer) — a
+newly uploaded image is always appended to the END of the set, never
+inserted at the freed position. Uploading two probe PNGs (after having
+already probed the modal's markup once) landed both at the tail of the
+panel — the original 4 images stayed in their original order at positions
+1-4. This means `--image "N=path"` is NOT a literal positional swap:
+replacing position 2 of [A, B, C, D] yields [A, C, D, NEW], not
+[A, NEW, C, D]. Since Yandex rotates/biases images by performance regardless
+of position (same "Изображения чередуются, эффективные показываются чаще"
+copy as the create page), this has no product-visible effect on ad
+delivery — but it must be documented, not silently implied to be a true
+positional replacement (`--image`'s CLI help text, README, CHANGELOG).
+
+Also observed in Phase 2: the panel does not block exceeding the 5-image cap
+client-side (6 cards were briefly shown after both probe uploads, and the "N
+из 5" counter text disappeared) — so the CLI enforces the cap itself, rather
+than trusting the modal's own UI to reject an oversized set before Save.
+
+Confirmed no campaign mutation: after both phases, re-opening
+`/wizard/campaigns/713234191/edit/?ulogin=ksamatadirect` showed the same 4
+original content IDs, same order, `ImageSuggestionsEditorModal` absent from
+the DOM (i.e. no modal state carried over) — the two probe uploads existed
+only inside the modal's own component state and were discarded when the
+modal was abandoned without `Save`.
+-->
