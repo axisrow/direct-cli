@@ -3084,6 +3084,67 @@ class TestUpdateMaster(unittest.TestCase):
         self.assertEqual(len(page_save_clicks), 1)
         self.assertIn("did not save as requested", str(ctx.exception))
 
+    def test_auth_error_during_post_save_image_verification_is_not_retried(self):
+        """Mirrors ``copy_master``'s
+        ``test_auth_error_during_post_click_verification_is_not_retried``.
+
+        By the time ``_verify_saved`` reloads the edit page, every requested
+        image replacement has ALREADY been committed via its own modal Save
+        — irreversible from here, and NOT idempotent for images the way
+        ``_set_repeating_value`` is for headlines/texts (replacement always
+        appends to the end of the set — see ``_set_image``'s docstring), so
+        a positional re-application on retry would replace DIFFERENT images
+        than the ones the caller named. If the saved session is invalidated
+        in exactly this window, ``_verify_saved``'s own
+        ``assert_authenticated`` raises ``BrowserAuthError`` — letting that
+        propagate as-is would make ``_with_session``
+        (``direct_cli/commands/masters.py``) retry this ENTIRE
+        ``update_master`` call under a fresh session, re-snapshotting the
+        now-already-mutated image set and removing further, untouched
+        images. This must surface as a plain ``BrowserSessionError`` (not
+        ``BrowserAuthError``), so ``_with_session``'s retry-on-auth-error
+        does not fire — found via adversarial review (Codex) in
+        cycle-review round 2 of PR #672.
+        """
+        page_save_clicks = []
+        save_handle = _FakeTextLocatorHandle(
+            visible=True, on_click=lambda: page_save_clicks.append(True)
+        )
+        page = _FakeImagesPage(
+            ["a", "b", "c", "d"],
+            upload_ids=["new1", "new2"],
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+
+        original_assert_authenticated = browser_masters.assert_authenticated
+        calls = []
+
+        def _assert_authenticated(content):
+            calls.append(True)
+            # First call happens before any mutation (module convention);
+            # only the post-save reload inside _verify_saved (second call)
+            # hits the invalidated session.
+            if len(calls) >= 2:
+                raise BrowserAuthError("stale session, detected mid-body")
+            return original_assert_authenticated(content)
+
+        with patch.object(
+            browser_masters,
+            "assert_authenticated",
+            side_effect=_assert_authenticated,
+        ):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.update_master(
+                    page, 42, images={0: "/tmp/one.png", 1: "/tmp/two.png"}
+                )
+
+        self.assertNotIsInstance(ctx.exception, BrowserAuthError)
+        self.assertEqual(len(page_save_clicks), 1)
+        # The images WERE already replaced (irreversibly) before the auth
+        # error surfaced -- the error message must say so rather than
+        # implying nothing happened.
+        self.assertIn("42", str(ctx.exception))
+
 
 class TestMastersUpdateCommand(unittest.TestCase):
     """CLI wiring for `masters update` (issue #631, Этап A)."""

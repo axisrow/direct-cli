@@ -1739,19 +1739,38 @@ def update_master(
 
     _click_save(page, campaign_id, launch=launch)
 
-    _verify_saved(
-        page,
-        campaign_id,
-        weekly_budget=weekly_budget,
-        promotion_goal=promotion_goal,
-        directs_helps=directs_helps,
-        name=name,
-        headlines=headlines,
-        texts=texts,
-        images_before_ids=images_before_ids,
-        images_replaced_ids=images_replaced_ids,
-        clicked_button_label=clicked_button_label,
-    )
+    # The terminal-button click above already happened — irreversible, and
+    # for images NOT idempotent (a retry would re-snapshot the
+    # already-mutated set and replace DIFFERENT images than the ones the
+    # caller named; see _set_image's docstring). If the saved session is
+    # invalidated in exactly this window, _verify_saved's own
+    # assert_authenticated raises BrowserAuthError; letting that propagate
+    # as-is would make _with_session (direct_cli/commands/masters.py) retry
+    # this ENTIRE update_master call under a fresh session. Re-raise as a
+    # plain BrowserSessionError so that retry does not trigger — mirrors
+    # copy_master's identical guard around its own post-click verification.
+    try:
+        _verify_saved(
+            page,
+            campaign_id,
+            weekly_budget=weekly_budget,
+            promotion_goal=promotion_goal,
+            directs_helps=directs_helps,
+            name=name,
+            headlines=headlines,
+            texts=texts,
+            images_before_ids=images_before_ids,
+            images_replaced_ids=images_replaced_ids,
+            clicked_button_label=clicked_button_label,
+        )
+    except BrowserAuthError as exc:
+        raise BrowserSessionError(
+            f"Clicked '{clicked_button_label}' for campaign {campaign_id}, "
+            "but the session was invalidated while verifying the save — "
+            "the requested changes were likely already applied; check "
+            f"campaign {campaign_id} manually rather than retrying "
+            "(image replacements are not idempotent)."
+        ) from exc
 
     result: Dict[str, Any] = {"CampaignId": campaign_id}
     if weekly_budget is not None:
