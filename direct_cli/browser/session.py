@@ -111,7 +111,22 @@ class BrowserSessionMissingError(BrowserSessionError):
 # Direct page. Declared once, ``_captcha.py``-style, rather than duplicated
 # across call sites (see CLAUDE.md "No URL literals outside the registry" and
 # the #426 post-mortem it cites).
-_LOGIN_PAGE_MARKERS = ("passport.yandex.ru/auth", "Войдите с Яндекс ID")
+#
+# issue #666: Yandex migrated the login page from ``/auth`` to
+# ``/pwl-yandex`` and dropped "Войдите с Яндекс ID" from the HTML entirely —
+# live-confirmed 2026-08-02 via a real expired saved session redirected to
+# ``passport.yandex.ru/pwl-yandex?...&cause=auth&...``. Both original markers
+# went stale at once, so ``assert_authenticated`` silently treated a real
+# login page as authenticated, turning an expired/invalid session into an
+# opaque grid-request timeout instead of a clear ``BrowserAuthError``. The
+# old markers are kept alongside the new one rather than replaced outright —
+# Yandex could roll the URL back, and a marker that's merely unused costs
+# nothing.
+_LOGIN_PAGE_MARKERS = (
+    "passport.yandex.ru/auth",
+    "passport.yandex.ru/pwl-yandex",
+    "Войдите с Яндекс ID",
+)
 
 
 def default_chrome_profile_dir() -> Optional[Path]:

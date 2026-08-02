@@ -3054,6 +3054,27 @@ class TestAuthDetection(unittest.TestCase):
             with self.assertRaises(BrowserAuthError):
                 assert_authenticated(marker_html)
 
+    def test_assert_authenticated_raises_on_current_pwl_yandex_login_page(self):
+        # Live re-recon 2026-08-02 (issue #666): Yandex Passport's login page
+        # has migrated from /auth to /pwl-yandex, and no longer renders the
+        # "Войдите с Яндекс ID" text anywhere in the HTML — confirmed via a
+        # real open_saved_session() + goto(GRID_URL) against an actual
+        # expired/invalid saved session. Both #634 markers went stale at the
+        # same time, so assert_authenticated silently passed a real login
+        # page through as "authenticated", turning an expired session into
+        # an opaque `masters list` timeout ("waiting for event 'response'")
+        # instead of a clear BrowserAuthError.
+        from direct_cli.browser.session import BrowserAuthError, assert_authenticated
+
+        html = (
+            "<title>Авторизация</title>"
+            "<script>window.__CONSTANTS__ = {'baseUrl':'/pwl-yandex',"
+            "'authUrl':'https://passport.yandex.ru/pwl-yandex?retpath=..."
+            "&origin=direct', ...};</script>"
+        )
+        with self.assertRaises(BrowserAuthError):
+            assert_authenticated(html)
+
     def test_assert_authenticated_passes_on_real_content(self):
         from direct_cli.browser.session import assert_authenticated
 
