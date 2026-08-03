@@ -717,6 +717,17 @@ _GOAL_PRICE_INPUT_TESTID = '[data-testid="CampaignTargetSelect.PriceInput"]'
 # succeed server-side.
 _GOAL_PRICE_WAIT_TIMEOUT_MS = 5_000
 
+# How long _verify_saved's _read_until_matches retries a field reader before
+# trusting its value (issue #706 live testing): _wait_for_edit_form only
+# polls the first HEADLINE slot, near the top of the page — the weekly-
+# budget input, "Директ помогает" checkbox, "Цель продвижения" dropdown, and
+# name header all sit elsewhere on the same form and can still be hydrating
+# (still showing the PRE-reload value) once that wait returns, the same race
+# _GOAL_PRICE_WAIT_TIMEOUT_MS was added for. A one-shot read of any of them
+# right after _wait_for_edit_form can misreport a save that DID succeed
+# server-side as a mismatch.
+_VERIFY_FIELD_READ_TIMEOUT_MS = 5_000
+
 _EDIT_NAME_BUTTON_SELECTOR = '[data-testid="CampaignHeader.EditName.Button"]'
 _NAME_HEADER_SELECTOR = '[data-testid="CampaignHeader.TitleName"]'
 _NAME_MODAL_INPUT_SELECTOR = '[data-testid="ModalEditTitle.CampaignName"]'
@@ -1902,6 +1913,35 @@ def _verify_repeating_value_mismatches(
     return mismatches
 
 
+def _read_until_matches(
+    page: "Page",
+    reader: "Callable[[Page], Any]",
+    expected: Any,
+    *,
+    timeout_ms: int = _VERIFY_FIELD_READ_TIMEOUT_MS,
+) -> Any:
+    """Retry ``reader(page)`` until it returns ``expected`` or ``timeout_ms`` elapses.
+
+    ``_wait_for_edit_form`` only guarantees the first headline slot has
+    rendered — a one-shot call to ``_read_weekly_budget``/
+    ``_read_directs_helps``/``_read_promotion_goal_label``/
+    ``_read_campaign_name`` right after it can catch that field still
+    showing its pre-reload value while the rest of the form is still
+    hydrating (issue #706, same race ``_read_goal_price`` was hardened
+    against in issue #696). Returns the LAST value read — on a genuine
+    mismatch (Yandex actually rejected the save) that is the settled,
+    correct-but-wrong value, so ``_verify_saved`` still reports it
+    accurately once the retries are exhausted.
+    """
+    last: Any = None
+    deadline = time.monotonic() + timeout_ms / 1000
+    while True:
+        last = reader(page)
+        if last == expected or time.monotonic() >= deadline:
+            return last
+        page.wait_for_timeout(250)
+
+
 def _verify_saved(
     page: "Page",
     campaign_id: int,
@@ -1950,7 +1990,7 @@ def _verify_saved(
     for label, expected, reader in checks:
         if expected is None:
             continue
-        actual = reader(page)
+        actual = _read_until_matches(page, reader, expected)
         if actual != expected:
             mismatches.append(
                 f"{label}: expected {expected!r}, page now shows {actual!r}"
