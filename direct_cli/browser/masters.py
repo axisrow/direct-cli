@@ -329,6 +329,15 @@ _STAT_TILES_TIMEOUT_MS = 30_000
 # ticks (~2s of continuous silence at the default tick rate) is comfortably
 # below that real-world render time while still returning well short of
 # the full timeout for a campaign that genuinely never renders more tiles.
+#
+# KNOWN ACCEPTED TRADE-OFF (tracked in #708): no finite tick count can
+# fully close the race between "campaign genuinely has fewer tiles" and
+# "tiles just haven't rendered yet" without a real DOM settled/loading
+# marker for the stat-tiles section, which does not exist in this code
+# (unlike _OVERVIEW_TITLE_SELECTOR for the header, #683, or
+# _wait_for_images_editor's section marker, #670). This value fixes the
+# confirmed-live #683 scenario and narrows the window versus a 1-tick
+# check; it does not eliminate it. See #708 for finding a real marker.
 _STAT_TILES_STABLE_TICKS = 8
 
 # Overview page's "⋮" menu, confirmed live (issue #633) — see module
