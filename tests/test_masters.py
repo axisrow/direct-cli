@@ -274,6 +274,13 @@ class _FakeLocator:
     def first(self):
         return self._handles[0] if self._handles else _FakeLocatorHandle(raises=True)
 
+    def all_inner_texts(self):
+        # Models Locator.all_inner_texts() — used by _read_target_actions
+        # (issue #707) to read a target-action row's label off its
+        # `[data-testid="Text"]` child (not unique across rows, so scoped by
+        # a compound CSS selector rather than `.first`).
+        return [handle.inner_text() for handle in self._handles]
+
 
 class _FakeRequest:
     def __init__(self, post_data=None, headers=None):
@@ -1905,6 +1912,12 @@ class TestFetchMaster(unittest.TestCase):
                     [_FakeLocatorHandle(text="191,07 ₽\nЗа конверсию")]
                 ),
             },
+            # _is_draft_overview_page's own _poll_until (which runs first,
+            # to decide DRAFT vs. non-DRAFT) also ticks this same counter —
+            # without a recognisable status marker in body_text it would
+            # never resolve and burn its own real-time timeout budget before
+            # _extract_stat_tiles ever got a chance to run.
+            body_text="Кампания активна",
         )
         with patch.object(browser_masters, "_STAT_TILES_TIMEOUT_MS", 10_000):
             result = browser_masters.fetch_master(page, 1)
@@ -1927,7 +1940,12 @@ class TestFetchMaster(unittest.TestCase):
             def wait_for_timeout(self, timeout):
                 self.tick_count += 1
 
-        page = _TickCountingPage(locators={}, body_text="something Yandex changed")
+        # _is_draft_overview_page's own _poll_until (which runs first, to
+        # decide DRAFT vs. non-DRAFT) also ticks this same counter — needs a
+        # recognisable status marker in body_text or it never resolves and
+        # burns its own real-time timeout budget before _extract_stat_tiles
+        # ever gets a chance to run.
+        page = _TickCountingPage(locators={}, body_text="Кампания активна")
         with patch.object(browser_masters, "_STAT_TILES_TIMEOUT_MS", 10_000):
             with patch("direct_cli.browser.masters.print_warning"):
                 result = browser_masters.fetch_master(page, 1)
@@ -3132,6 +3150,223 @@ class TestGoalPriceMatches(unittest.TestCase):
         self.assertFalse(browser_masters._goal_price_matches(500, "not-a-number"))
 
 
+class _FakeTargetActionsPage(FakePage):
+    """Models the "Целевые действия" table (issue #707).
+
+    ``rows``: ``{goal_id: {"name": str, "price": str}}`` — one existing row
+    per key. Mirrors ``_FakeImagesPage``'s "one shared dict both the reader
+    and any mutation act on" shape, but keyed by Yandex Metrika goal id
+    rather than a positional list (there is no fixed slot count here
+    either, same reasoning as images).
+    """
+
+    def __init__(self, rows, *, section_present=True, **kwargs):
+        super().__init__(**kwargs)
+        self.rows = dict(rows)
+        self.section_present = section_present
+
+    def locator(self, selector):
+        edit_form_ready_selector = (
+            f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'
+        )
+        if selector == edit_form_ready_selector:
+            return _FakeLocator([_FakeLocatorHandle()])
+        if selector == browser_masters._TARGET_ACTIONS_SECTION_TESTID:
+            return _FakeLocator([_FakeLocatorHandle()] if self.section_present else [])
+        row_prefix = (
+            f'[data-testid^="TargetActions.'
+            f'{browser_masters._TARGET_ACTIONS_CATEGORY}."]'
+        )
+        if selector == row_prefix:
+            return _FakeLocator(
+                [
+                    _FakeLocatorHandle(attrs={"data-testid": self._row_testid(gid)})
+                    for gid in self.rows
+                ]
+            )
+        for goal_id, row in self.rows.items():
+            name_selector = (
+                f'[data-testid="{self._row_testid(goal_id)}"] ' '[data-testid="Text"]'
+            )
+            if selector == name_selector:
+                return _FakeLocator([_FakeLocatorHandle(text=row["name"])])
+            price_testid = browser_masters._TARGET_ACTION_PRICE_TESTID_TEMPLATE.format(
+                category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=goal_id
+            )
+            if selector == f'[data-testid="{price_testid}"]':
+                return _FakeLocator([_FakeLocatorHandle(text=row["price"])])
+        return super().locator(selector)
+
+    def _row_testid(self, goal_id):
+        return browser_masters._TARGET_ACTION_ROW_TESTID_TEMPLATE.format(
+            category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=goal_id
+        )
+
+
+class TestReadTargetActions(unittest.TestCase):
+    """``_read_target_actions`` (issue #707)."""
+
+    def test_reads_one_row(self):
+        page = _FakeTargetActionsPage(
+            {159614149: {"name": "Регистрация", "price": "150"}}
+        )
+
+        self.assertEqual(
+            browser_masters._read_target_actions(page),
+            [{"GoalId": 159614149, "Name": "Регистрация", "Price": 150.0}],
+        )
+
+    def test_reads_multiple_rows(self):
+        page = _FakeTargetActionsPage(
+            {
+                159614149: {"name": "Регистрация", "price": "150"},
+                281285474: {"name": "Заказ", "price": "500"},
+            }
+        )
+
+        results = browser_masters._read_target_actions(page)
+
+        self.assertEqual(len(results), 2)
+        self.assertEqual({r["GoalId"] for r in results}, {159614149, 281285474})
+
+    def test_row_with_no_price_yet_reads_none(self):
+        page = _FakeTargetActionsPage({159614149: {"name": "Регистрация", "price": ""}})
+
+        self.assertEqual(
+            browser_masters._read_target_actions(page),
+            [{"GoalId": 159614149, "Name": "Регистрация", "Price": None}],
+        )
+
+    def test_empty_table_is_not_an_error(self):
+        page = _FakeTargetActionsPage({})
+
+        self.assertEqual(browser_masters._read_target_actions(page), [])
+
+    def test_section_absent_returns_empty_list(self):
+        # e.g. promotion goal is 'max-clicks', not 'max-conversions' — the
+        # table doesn't exist on the page at all, same "absent, not an
+        # error" convention as _read_goal_price under the opposite goal.
+        page = _FakeTargetActionsPage(
+            {159614149: {"name": "Регистрация", "price": "150"}},
+            section_present=False,
+        )
+
+        self.assertEqual(browser_masters._read_target_actions(page), [])
+
+
+class TestParseTargetActionPrice(unittest.TestCase):
+    """``_parse_target_action_price`` — same tolerant numeric parsing as
+    ``_goal_price_matches``, but returning the parsed value (or ``None``)
+    rather than a boolean match."""
+
+    def test_parses_plain_integer_string(self):
+        self.assertEqual(browser_masters._parse_target_action_price("150"), 150.0)
+
+    def test_parses_comma_decimal(self):
+        self.assertEqual(browser_masters._parse_target_action_price("12,5"), 12.5)
+
+    def test_parses_nbsp_thousands_separator(self):
+        self.assertEqual(browser_masters._parse_target_action_price("1\xa0500"), 1500.0)
+
+    def test_empty_string_is_none_not_zero(self):
+        self.assertIsNone(browser_masters._parse_target_action_price(""))
+
+    def test_whitespace_only_is_none(self):
+        self.assertIsNone(browser_masters._parse_target_action_price("   "))
+
+    def test_unparseable_value_is_none(self):
+        self.assertIsNone(browser_masters._parse_target_action_price("not-a-number"))
+
+
+class TestTargetActionPriceMatches(unittest.TestCase):
+    """``_target_action_price_matches`` — mirrors ``_goal_price_matches``,
+    but compares already-parsed floats (the caller parses via
+    ``_parse_target_action_price`` first)."""
+
+    def test_matches_identical_value(self):
+        self.assertTrue(browser_masters._target_action_price_matches(150.0, 150.0))
+
+    def test_does_not_match_different_value(self):
+        self.assertFalse(browser_masters._target_action_price_matches(150.0, 200.0))
+
+    def test_does_not_match_none(self):
+        self.assertFalse(browser_masters._target_action_price_matches(150.0, None))
+
+
+class TestSetTargetActionPrice(unittest.TestCase):
+    """``_set_target_action_price`` (issue #707)."""
+
+    def test_fills_existing_row(self):
+        state = {"value": ""}
+        field = _FakeLocatorHandle()
+        field.fill = lambda value: state.__setitem__("value", value)
+        price_testid = browser_masters._TARGET_ACTION_PRICE_TESTID_TEMPLATE.format(
+            category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=159614149
+        )
+        page = FakePage(
+            locators={f'[data-testid="{price_testid}"]': _FakeLocator([field])}
+        )
+
+        browser_masters._set_target_action_price(page, 159614149, 200)
+
+        self.assertEqual(state["value"], "200")
+
+    def test_raises_when_row_not_present(self):
+        page = FakePage(locators={})
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._set_target_action_price(page, 159614149, 200)
+        self.assertIn("159614149", str(ctx.exception))
+        self.assertIn("max-conversions", str(ctx.exception))
+
+    def test_raises_when_field_click_fails(self):
+        price_testid = browser_masters._TARGET_ACTION_PRICE_TESTID_TEMPLATE.format(
+            category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=159614149
+        )
+        page = FakePage(
+            locators={
+                f'[data-testid="{price_testid}"]': _FakeLocator(
+                    [_FakeLocatorHandle(raises=True)]
+                )
+            }
+        )
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._set_target_action_price(page, 159614149, 200)
+
+
+class TestFetchMasterTargetActions(unittest.TestCase):
+    """``fetch_master_target_actions`` (issue #707) — ``masters targetactions
+    get``'s browser layer, read-only."""
+
+    def test_returns_target_actions_and_count(self):
+        page = _FakeTargetActionsPage(
+            {159614149: {"name": "Регистрация", "price": "150"}}
+        )
+
+        result = browser_masters.fetch_master_target_actions(page, 713234191)
+
+        self.assertEqual(
+            result,
+            {
+                "CampaignId": 713234191,
+                "TargetActions": [
+                    {"GoalId": 159614149, "Name": "Регистрация", "Price": 150.0}
+                ],
+                "Count": 1,
+            },
+        )
+
+    def test_empty_table_is_a_valid_result(self):
+        page = _FakeTargetActionsPage({})
+
+        result = browser_masters.fetch_master_target_actions(page, 713234191)
+
+        self.assertEqual(
+            result, {"CampaignId": 713234191, "TargetActions": [], "Count": 0}
+        )
+
+
 class TestClickSave(unittest.TestCase):
     """``_click_save`` (issue #631, Этап A) — role-scoped, exact-name button match.
 
@@ -3387,6 +3622,7 @@ class TestUpdateMaster(unittest.TestCase):
         headlines_state=None,
         texts_state=None,
         goal_price_state=None,
+        target_action_prices_state=None,
     ):
         save_clicks = []
         save_handle = _FakeTextLocatorHandle(
@@ -3482,6 +3718,48 @@ class TestUpdateMaster(unittest.TestCase):
             locators[browser_masters._GOAL_PRICE_INPUT_TESTID] = _FakeLocator(
                 [price_handle]
             )
+
+        if target_action_prices_state is not None:
+            # ``target_action_prices_state``: {goal_id: starting price string}
+            # — one existing row per key, mirroring goal_price_state's single
+            # field but keyed by goal id (issue #707).
+            section_selector = browser_masters._TARGET_ACTIONS_SECTION_TESTID
+            locators[section_selector] = _FakeLocator([_FakeLocatorHandle()])
+            row_prefix_selector = (
+                f'[data-testid^="TargetActions.'
+                f'{browser_masters._TARGET_ACTIONS_CATEGORY}."]'
+            )
+            row_handles = []
+            for goal_id in target_action_prices_state:
+                row_testid = browser_masters._TARGET_ACTION_ROW_TESTID_TEMPLATE.format(
+                    category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=goal_id
+                )
+                row_handles.append(
+                    _FakeLocatorHandle(attrs={"data-testid": row_testid})
+                )
+
+                def _make_state_writer(goal_id=goal_id):
+                    return lambda v: target_action_prices_state.__setitem__(goal_id, v)
+
+                price_testid = (
+                    browser_masters._TARGET_ACTION_PRICE_TESTID_TEMPLATE.format(
+                        category=browser_masters._TARGET_ACTIONS_CATEGORY,
+                        goal_id=goal_id,
+                    )
+                )
+                locators[f'[data-testid="{price_testid}"]'] = _FakeLocator(
+                    [
+                        _FakeLocatorHandle(
+                            on_fill=_make_state_writer(),
+                            get_value=(
+                                lambda goal_id=goal_id: target_action_prices_state[
+                                    goal_id
+                                ]
+                            ),
+                        )
+                    ]
+                )
+            locators[row_prefix_selector] = _FakeLocator(row_handles)
 
         # Issue #684: every WIZARD_EDIT_URL goto() now polls
         # _wait_for_edit_form for the first headline slot before trusting
@@ -3620,6 +3898,91 @@ class TestUpdateMaster(unittest.TestCase):
         result = browser_masters.update_master(page, 42, weekly_budget=95000)
 
         self.assertEqual(result, {"CampaignId": 42, "WeeklyBudget": 95000})
+
+    def test_updates_only_target_action_price(self):
+        prices_state = {159614149: "150"}
+        page, save_clicks = self._page_with_save_button(
+            target_action_prices_state=prices_state
+        )
+
+        result = browser_masters.update_master(
+            page, 42, target_action_prices={159614149: 200}
+        )
+
+        self.assertEqual(prices_state[159614149], "200")
+        self.assertEqual(len(save_clicks), 1)
+        self.assertEqual(
+            result, {"CampaignId": 42, "TargetActionPrices": {159614149: 200}}
+        )
+
+    def test_updates_multiple_target_action_prices_in_one_call(self):
+        prices_state = {159614149: "150", 281285474: "50"}
+        page, save_clicks = self._page_with_save_button(
+            target_action_prices_state=prices_state
+        )
+
+        browser_masters.update_master(
+            page, 42, target_action_prices={159614149: 200, 281285474: 75}
+        )
+
+        self.assertEqual(prices_state[159614149], "200")
+        self.assertEqual(prices_state[281285474], "75")
+        self.assertEqual(len(save_clicks), 1)
+
+    def test_raises_when_target_action_goal_not_in_table(self):
+        page, _ = self._page_with_save_button(
+            target_action_prices_state={159614149: "150"}
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(
+                page, 42, target_action_prices={999999999: 100}
+            )
+        self.assertIn("999999999", str(ctx.exception))
+        self.assertIn("max-conversions", str(ctx.exception))
+
+    def test_raises_when_saved_target_action_price_does_not_match_requested(self):
+        # Fills fine, but the post-save reload shows a DIFFERENT value than
+        # requested (Yandex rejected it client-side) — mirrors
+        # test_raises_when_saved_goal_price_does_not_match_requested.
+        price_state = {"value": "999"}
+        price_handle = _FakeLocatorHandle(
+            on_fill=lambda v: None,  # fill() is a no-op — value never changes
+            get_value=lambda: price_state["value"],
+        )
+        row_testid = browser_masters._TARGET_ACTION_ROW_TESTID_TEMPLATE.format(
+            category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=159614149
+        )
+        price_testid = browser_masters._TARGET_ACTION_PRICE_TESTID_TEMPLATE.format(
+            category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=159614149
+        )
+        row_prefix_selector = (
+            f'[data-testid^="TargetActions.'
+            f'{browser_masters._TARGET_ACTIONS_CATEGORY}."]'
+        )
+        save_handle = _FakeTextLocatorHandle(visible=True)
+        edit_form_ready_selector = (
+            f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'
+        )
+        page = FakePage(
+            locators={
+                browser_masters._TARGET_ACTIONS_SECTION_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                row_prefix_selector: _FakeLocator(
+                    [_FakeLocatorHandle(attrs={"data-testid": row_testid})]
+                ),
+                f'[data-testid="{price_testid}"]': _FakeLocator([price_handle]),
+                edit_form_ready_selector: _FakeLocator([_FakeLocatorHandle()]),
+            },
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(
+                page, 42, target_action_prices={159614149: 500}
+            )
+        self.assertIn("did not save as requested", str(ctx.exception))
 
     def test_updates_multiple_fields_in_one_call(self):
         budget_state = {}
@@ -4249,6 +4612,153 @@ class TestMastersUpdateCommand(unittest.TestCase):
             )
         mock_update.assert_not_called()
 
+    def test_documents_target_action_price_flag(self):
+        result = self.runner.invoke(cli, ["masters", "update", "--help"])
+        self.assertIn("--target-action-price", result.output)
+
+    def test_passes_target_action_price(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "update",
+                    "42",
+                    "--promotion-goal",
+                    "max-conversions",
+                    "--target-action-price",
+                    "159614149=200",
+                ],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(
+            mock_update.call_args.kwargs["target_action_prices"], {159614149: 200.0}
+        )
+        self.assertEqual(
+            mock_update.call_args.kwargs["promotion_goal"], "max-conversions"
+        )
+
+    def test_passes_multiple_target_action_prices(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "update",
+                    "42",
+                    "--target-action-price",
+                    "159614149=200",
+                    "--target-action-price",
+                    "281285474=75",
+                ],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(
+            mock_update.call_args.kwargs["target_action_prices"],
+            {159614149: 200.0, 281285474: 75.0},
+        )
+
+    def test_target_action_price_alone_is_a_valid_field(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli,
+                ["masters", "update", "42", "--target-action-price", "159614149=200"],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIsNone(mock_update.call_args.kwargs["promotion_goal"])
+
+    def test_rejects_target_action_price_with_max_clicks(self):
+        result = self.runner.invoke(
+            cli,
+            [
+                "masters",
+                "update",
+                "42",
+                "--promotion-goal",
+                "max-clicks",
+                "--target-action-price",
+                "159614149=200",
+            ],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("max-clicks", result.output)
+
+    def test_does_not_call_update_master_when_target_action_price_rejected(self):
+        with patch("direct_cli.browser.masters.update_master") as mock_update:
+            self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "update",
+                    "42",
+                    "--promotion-goal",
+                    "max-clicks",
+                    "--target-action-price",
+                    "159614149=200",
+                ],
+            )
+        mock_update.assert_not_called()
+
+    def test_rejects_malformed_target_action_price_value(self):
+        result = self.runner.invoke(
+            cli,
+            ["masters", "update", "42", "--target-action-price", "not-valid"],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+
+    def test_rejects_non_integer_target_action_goal_id(self):
+        result = self.runner.invoke(
+            cli,
+            ["masters", "update", "42", "--target-action-price", "abc=200"],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+
+    def test_rejects_non_numeric_target_action_price(self):
+        result = self.runner.invoke(
+            cli,
+            [
+                "masters",
+                "update",
+                "42",
+                "--target-action-price",
+                "159614149=abc",
+            ],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+
+    def test_rejects_duplicate_target_action_goal(self):
+        result = self.runner.invoke(
+            cli,
+            [
+                "masters",
+                "update",
+                "42",
+                "--target-action-price",
+                "159614149=200",
+                "--target-action-price",
+                "159614149=300",
+            ],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+
     def test_passes_directs_helps_flag(self):
         with (
             patch("direct_cli.browser.masters.update_master") as mock_update,
@@ -4865,6 +5375,41 @@ class TestMastersAdimagesCommand(unittest.TestCase):
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("cap", result.output.lower())
         mock_with_session.assert_not_called()
+
+
+class TestMastersTargetActionsCommand(unittest.TestCase):
+    """CLI wiring for `masters targetactions get` (issue #707)."""
+
+    def setUp(self):
+        self.runner = CliRunner()
+
+    def test_group_registered(self):
+        result = self.runner.invoke(cli, ["masters", "targetactions", "--help"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("get", result.output)
+
+    def test_get_help_registered(self):
+        result = self.runner.invoke(cli, ["masters", "targetactions", "get", "--help"])
+        self.assertEqual(result.exit_code, 0)
+
+    def test_get_calls_fetch_master_target_actions(self):
+        with (
+            patch(
+                "direct_cli.browser.masters.fetch_master_target_actions"
+            ) as mock_fetch,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_fetch.return_value = {
+                "CampaignId": 42,
+                "TargetActions": [],
+                "Count": 0,
+            }
+            result = self.runner.invoke(cli, ["masters", "targetactions", "get", "42"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        mock_fetch.assert_called_once()
+        self.assertEqual(mock_fetch.call_args.args[1], 42)
 
 
 class TestMastersLoginCommand(unittest.TestCase):

@@ -749,13 +749,14 @@ _PROMOTION_GOAL_OPTION_TESTID_TEMPLATE = (
 # (DIRECT_CLICK) — confirmed live it does NOT exist at all for
 # "max-conversions" (INVOLVED_CONVERSION), whose price is instead set
 # per-goal in the separate "Целевые действия" table
-# (``TargetActions.<id>.PriceInput``, out of scope here). Even under
-# max-clicks, the field only renders while the "Цена перехода" strategy
-# selector is on its default AVG_PRICE value ("Средняя за неделю") — it
-# disappears entirely under the OPTIMUM ("Без ограничений") strategy, which
-# has no fixed/target price at all. This module never touches the strategy
-# selector itself, so --goal-price only works against a campaign whose
-# current strategy is (or defaults to) AVG_PRICE.
+# (``TargetActions.<id>.PriceInput`` — see ``--target-action-price``,
+# issue #707). Even under max-clicks, the field only renders while the
+# "Цена перехода" strategy selector is on its default AVG_PRICE value
+# ("Средняя за неделю") — it disappears entirely under the OPTIMUM ("Без
+# ограничений") strategy, which has no fixed/target price at all. This
+# module never touches the strategy selector itself, so --goal-price only
+# works against a campaign whose current strategy is (or defaults to)
+# AVG_PRICE.
 _GOAL_PRICE_INPUT_TESTID = '[data-testid="CampaignTargetSelect.PriceInput"]'
 
 # How long _read_goal_price waits for the field to render before concluding
@@ -778,6 +779,48 @@ _GOAL_PRICE_WAIT_TIMEOUT_MS = 5_000
 # right after _wait_for_edit_form can misreport a save that DID succeed
 # server-side as a mismatch.
 _VERIFY_FIELD_READ_TIMEOUT_MS = 5_000
+
+# "Целевые действия" table (issue #707 recon, 2026-08-04, live campaign
+# 713234191, ksamatadirect account, promotion goal max-conversions): a
+# SEPARATE per-goal price table from ``--goal-price`` above — confirmed live
+# it renders ONLY under "max-conversions" (the opposite gating from
+# ``_GOAL_PRICE_INPUT_TESTID``, which is max-clicks only). One <tr
+# data-testid="TargetActions.OTHER.<goalId>"> per goal the campaign already
+# optimizes for; ``<goalId>`` is Yandex Metrika's own numeric goal ID (e.g.
+# 159614149), read from the campaign's linked Metrika counter (visible on
+# the same page as "gc.<domain> · <counterId> · N целей") — NOT a
+# Direct-assigned id. "OTHER" is the only category testid observed live;
+# no other category value has ever been seen, so this module hard-codes it
+# rather than parsing it out of each row's own testid.
+#
+# Each row's lone <td data-testid="TableCell"> holds, in DOM order: the
+# goal's label as the FIRST `[data-testid="Text"]` child (e.g.
+# "Регистрация" — confirmed live goal labels are NOT unique across an
+# account's Metrika counter, e.g. "Регистрация JS"/"Регистрация JS
+# ретаргет" both exist as distinct goal IDs — so a label can never safely
+# identify a row, only the numeric goal ID can), then the
+# ``TargetActions.OTHER.<goalId>.PriceInput`` <input type="text">, a second
+# `Text` node (the "₽" suffix), and a
+# ``TargetActions.OTHER.<goalId>.CloseButton`` (removes the goal — out of
+# scope here, this module only ever fills an EXISTING row's price, same
+# "no add/remove, only replace" convention as ``_set_repeating_value``).
+#
+# There is no separate "select this goal for optimization" control — a
+# goal's presence AS A ROW in this table (added via
+# ``TargetActions.OTHER.MiniGrid.AddButton``'s search popup, out of scope
+# here) is what makes it "selected"; filling its ``PriceInput`` is the only
+# action, confirming issue #707's open question about whether a distinct
+# selection flag is needed (it is not).
+_TARGET_ACTIONS_SECTION_TESTID = '[data-testid="TargetActionsSection"]'
+_TARGET_ACTIONS_CATEGORY = "OTHER"
+_TARGET_ACTION_ROW_TESTID_TEMPLATE = "TargetActions.{category}.{goal_id}"
+_TARGET_ACTION_PRICE_TESTID_TEMPLATE = "TargetActions.{category}.{goal_id}.PriceInput"
+
+# How long to wait for the "Целевые действия" section to render before
+# concluding a requested goal row genuinely isn't there — same hydration
+# race as ``_GOAL_PRICE_WAIT_TIMEOUT_MS`` (this section sits even lower on
+# the edit page, below "Цель продвижения").
+_TARGET_ACTION_WAIT_TIMEOUT_MS = 5_000
 
 _EDIT_NAME_BUTTON_SELECTOR = '[data-testid="CampaignHeader.EditName.Button"]'
 _NAME_HEADER_SELECTOR = '[data-testid="CampaignHeader.TitleName"]'
@@ -1829,6 +1872,135 @@ def _set_goal_price(page: "Page", goal_price: float) -> None:
         ) from exc
 
 
+def _set_target_action_price(page: "Page", goal_id: int, price: float) -> None:
+    """Fill the "Целевые действия" table's price input for an EXISTING goal row.
+
+    ``goal_id`` is Yandex Metrika's own numeric goal id (see
+    ``_TARGET_ACTION_ROW_TESTID_TEMPLATE``'s docstring) — the goal must
+    already be a row in the table (added via the page's own "Добавить"
+    search popup, out of scope here); this only replaces its price, the
+    same "no add/remove, only replace existing" convention as
+    ``_set_repeating_value``/``_set_goal_price``. Raises
+    ``BrowserSessionError`` naming that requirement if the row is absent,
+    rather than silently no-op'ing.
+
+    Uses ``click()`` (not a one-shot presence check) before filling, same
+    reasoning as ``_set_goal_price``: this section sits even lower on the
+    edit page and can still be hydrating when ``_wait_for_edit_form``
+    returns.
+    """
+    testid = _TARGET_ACTION_PRICE_TESTID_TEMPLATE.format(
+        category=_TARGET_ACTIONS_CATEGORY, goal_id=goal_id
+    )
+    field = page.locator(f'[data-testid="{testid}"]').first
+    try:
+        field.click()
+        field.fill(_format_goal_price(price))
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            f"Could not find or fill the target-action price input for goal "
+            f"{goal_id} in the 'Целевые действия' table on the campaign "
+            "edit page. This table only exists when the promotion goal is "
+            "'max-conversions', and only shows goals already added to it — "
+            f"pass --promotion-goal max-conversions, and confirm goal "
+            f"{goal_id} is already listed (add it via --headful first if "
+            "not; adding a brand-new goal row is not supported by this CLI "
+            "yet). If the goal should already be there, Yandex may have "
+            "changed the page's markup — re-run with --headful to inspect "
+            "the page."
+        ) from exc
+
+
+def _read_target_actions(page: "Page") -> List[Dict[str, Any]]:
+    """Read the "Целевые действия" table's current rows.
+
+    Returns a list of ``{"GoalId": int, "Name": str, "Price": Optional[float]}``
+    — one entry per goal row currently in the table (see
+    ``_TARGET_ACTION_ROW_TESTID_TEMPLATE``'s docstring). Returns ``[]`` both
+    when the section can't be found/read AND when it legitimately does not
+    exist for the campaign's current promotion goal (mirrors
+    ``_read_goal_price``'s "inconclusive/absent" convention) — callers that
+    need to distinguish "no goals configured" from "section not on this
+    page" should check ``promotion_goal`` separately.
+
+    Goal ids are discovered via ``_read_testid_suffixes`` on the row-testid
+    prefix (same convention as ``_read_image_content_ids``), skipping the
+    ``.PriceInput``/``.CloseButton`` children that share the prefix. Each
+    row's label is read via a compound CSS selector scoping ``[data-testid=
+    "Text"]`` (not itself unique — every row shares that testid) to that
+    ONE row's own full testid, rather than a chained sub-locator — matching
+    every other reader in this module's "select directly off ``page``" rule
+    (see ``_read_testid_suffixes``'s docstring) while still disambiguating
+    between rows, which a bare prefix scan cannot do for a repeated child
+    testid.
+    """
+    section = page.locator(_TARGET_ACTIONS_SECTION_TESTID).first
+    try:
+        section.wait_for(state="visible", timeout=_TARGET_ACTION_WAIT_TIMEOUT_MS)
+    except PlaywrightError:
+        return []
+
+    prefix = f"TargetActions.{_TARGET_ACTIONS_CATEGORY}."
+    row_suffixes = _read_testid_suffixes(
+        page, prefix, skip_suffixes=(".PriceInput", ".CloseButton")
+    )
+
+    goal_ids: List[int] = []
+    for suffix in row_suffixes:
+        try:
+            goal_ids.append(int(suffix))
+        except ValueError:
+            continue
+
+    results: List[Dict[str, Any]] = []
+    for goal_id in goal_ids:
+        row_testid = _TARGET_ACTION_ROW_TESTID_TEMPLATE.format(
+            category=_TARGET_ACTIONS_CATEGORY, goal_id=goal_id
+        )
+        name_selector = f'[data-testid="{row_testid}"] [data-testid="Text"]'
+        try:
+            texts = page.locator(name_selector).all_inner_texts()
+        except PlaywrightError:
+            texts = []
+        name = texts[0].strip() if texts else None
+
+        price_testid = _TARGET_ACTION_PRICE_TESTID_TEMPLATE.format(
+            category=_TARGET_ACTIONS_CATEGORY, goal_id=goal_id
+        )
+        try:
+            raw_price = page.locator(
+                f'[data-testid="{price_testid}"]'
+            ).first.input_value()
+        except PlaywrightError:
+            raw_price = ""
+        price = _parse_target_action_price(raw_price)
+
+        results.append({"GoalId": goal_id, "Name": name, "Price": price})
+
+    return results
+
+
+def _parse_target_action_price(raw: str) -> Optional[float]:
+    """Parse a target-action price input's raw string value, same
+    normalization as ``_goal_price_matches`` (comma decimal separator,
+    possible thin-space grouping). Returns ``None`` for an empty/unparseable
+    value rather than 0.0 — a goal row with no price set yet is a distinct
+    state from a price of zero."""
+    normalized = raw.strip().replace(",", ".").replace("\xa0", "")
+    if not normalized:
+        return None
+    try:
+        return float(normalized)
+    except ValueError:
+        return None
+
+
+def _target_action_price_matches(expected: float, actual: Optional[float]) -> bool:
+    """Compare a requested ``--target-action-price`` against the page's
+    re-read value, mirroring ``_goal_price_matches``."""
+    return actual is not None and actual == expected
+
+
 def _format_goal_price(goal_price: float) -> str:
     """Render ``goal_price`` the way ``--weekly-budget``-style numeric CLI
     fields are rendered: an integer value with no trailing ``.0`` (the
@@ -2129,6 +2301,7 @@ def _verify_saved(
     images_before_ids: Optional[List[str]] = None,
     images_replaced_ids: Optional[Set[str]] = None,
     goal_price: Optional[float] = None,
+    target_action_prices: Optional[Dict[int, float]] = None,
     clicked_button_label: str = _SAVE_BUTTON_TEXT,
 ) -> None:
     """Reload the edit page and confirm every requested field actually saved.
@@ -2178,6 +2351,18 @@ def _verify_saved(
                 f"{actual_goal_price!r}"
             )
 
+    if target_action_prices:
+        actual_target_actions = {
+            row["GoalId"]: row["Price"] for row in _read_target_actions(page)
+        }
+        for goal_id, expected_price in target_action_prices.items():
+            actual_price = actual_target_actions.get(goal_id)
+            if not _target_action_price_matches(expected_price, actual_price):
+                mismatches.append(
+                    f"target_action_price[{goal_id}]: expected "
+                    f"{expected_price!r}, page now shows {actual_price!r}"
+                )
+
     mismatches.extend(
         _verify_repeating_value_mismatches(
             page,
@@ -2221,6 +2406,7 @@ def update_master(
     weekly_budget: Optional[int] = None,
     promotion_goal: Optional[str] = None,
     goal_price: Optional[float] = None,
+    target_action_prices: Optional[Dict[int, float]] = None,
     directs_helps: Optional[bool] = None,
     name: Optional[str] = None,
     headlines: Optional[Dict[int, str]] = None,
@@ -2286,17 +2472,28 @@ def update_master(
     ``goal_price`` (issue #696) sets the "Цель продвижения" block's target
     price. Confirmed live this field ONLY exists on the page when the
     campaign's promotion goal is (or is being set to) "max-clicks" — under
-    "max-conversions" the price is instead per-goal in a separate table,
-    out of scope here. Passing ``goal_price`` does not implicitly change
-    ``promotion_goal``; if the campaign's CURRENT goal is not "max-clicks"
-    and ``promotion_goal="max-clicks"`` isn't also passed in this same
-    call, ``_set_goal_price`` raises ``BrowserSessionError`` naming the
-    field as not found, since it genuinely is not on the page yet.
+    "max-conversions" the price is instead per-goal in the separate
+    "Целевые действия" table, covered by ``target_action_prices`` below.
+    Passing ``goal_price`` does not implicitly change ``promotion_goal``;
+    if the campaign's CURRENT goal is not "max-clicks" and
+    ``promotion_goal="max-clicks"`` isn't also passed in this same call,
+    ``_set_goal_price`` raises ``BrowserSessionError`` naming the field as
+    not found, since it genuinely is not on the page yet.
+
+    ``target_action_prices`` (issue #707) maps a Yandex Metrika goal id to
+    its target price in the "Целевые действия" table — the "max-
+    conversions" counterpart to ``goal_price`` above. Only exists on the
+    page under "max-conversions", and only for a goal ALREADY listed as a
+    row in that table (added via the page's own "Добавить" search popup,
+    out of scope here) — see ``_set_target_action_price``'s docstring.
+    Passing a goal id not currently in the table raises
+    ``BrowserSessionError`` naming that requirement.
     """
     if (
         weekly_budget is None
         and promotion_goal is None
         and goal_price is None
+        and not target_action_prices
         and directs_helps is None
         and name is None
         and not headlines
@@ -2305,8 +2502,9 @@ def update_master(
     ):
         raise ValueError(
             "update_master requires at least one field to update "
-            "(weekly_budget, promotion_goal, goal_price, directs_helps, "
-            "name, headlines, texts, images)."
+            "(weekly_budget, promotion_goal, goal_price, "
+            "target_action_prices, directs_helps, name, headlines, texts, "
+            "images)."
         )
 
     url = WIZARD_EDIT_URL.format(campaign_id=campaign_id)
@@ -2323,6 +2521,8 @@ def update_master(
         _set_promotion_goal(page, promotion_goal)
     if goal_price is not None:
         _set_goal_price(page, goal_price)
+    for goal_id, price in (target_action_prices or {}).items():
+        _set_target_action_price(page, goal_id, price)
     if directs_helps is not None:
         _set_directs_helps(page, directs_helps)
     for index, value in (headlines or {}).items():
@@ -2396,6 +2596,7 @@ def update_master(
             images_before_ids=images_before_ids,
             images_replaced_ids=images_replaced_ids,
             goal_price=goal_price,
+            target_action_prices=target_action_prices,
             clicked_button_label=clicked_button_label,
         )
     except BrowserAuthError as exc:
@@ -2414,6 +2615,8 @@ def update_master(
         result["PromotionGoal"] = promotion_goal
     if goal_price is not None:
         result["GoalPrice"] = goal_price
+    if target_action_prices:
+        result["TargetActionPrices"] = target_action_prices
     if directs_helps is not None:
         result["DirectsHelps"] = directs_helps
     if name is not None:
@@ -2490,6 +2693,34 @@ def fetch_master_images(page: "Page", campaign_id: int) -> Dict[str, Any]:
         "Images": images,
         "Count": len(content_ids),
         "MaxCount": _IMAGES_MAX_COUNT,
+    }
+
+
+def fetch_master_target_actions(page: "Page", campaign_id: int) -> Dict[str, Any]:
+    """Read a campaign's current "Целевые действия" (target action / CPA)
+    table — see ``_read_target_actions``'s docstring for the row shape.
+
+    Read-only, mirrors ``fetch_master_images``: navigates straight to the
+    edit page (this data does not exist on the overview page ``fetch_master``
+    reads — see issue #707) and reads without ever touching Save.
+
+    An empty list is a legitimate result — either the campaign's promotion
+    goal is not "max-conversions" (the table doesn't exist on the page at
+    all), or it is but no goal has been added to it yet. This function does
+    not distinguish the two; callers that need to know which should also
+    check ``promotion_goal`` via ``fetch_master``.
+    """
+    page.goto(WIZARD_EDIT_URL.format(campaign_id=campaign_id), wait_until="commit")
+    assert_not_captcha(page.content())
+    assert_authenticated(page.content())
+    _wait_for_edit_form(page, campaign_id)
+
+    target_actions = _read_target_actions(page)
+
+    return {
+        "CampaignId": campaign_id,
+        "TargetActions": target_actions,
+        "Count": len(target_actions),
     }
 
 

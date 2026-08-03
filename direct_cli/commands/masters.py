@@ -625,6 +625,52 @@ def _parse_repeating_slot_options(
     return parsed
 
 
+def _parse_target_action_price_options(
+    values: "tuple[str, ...]",
+) -> "dict[int, float]":
+    """Parse repeated ``--target-action-price "goal_id=price"`` CLI values
+    into a goal-id-keyed price map.
+
+    Unlike ``_parse_repeating_slot_options`` (1-based slot NUMBER, a fixed
+    small range), the key here is Yandex Metrika's own numeric goal id
+    (unbounded, no fixed count known ahead of time — see
+    ``direct_cli/browser/masters.py::_read_target_actions``'s docstring for
+    why a goal can only be identified by this id, never by its label). All
+    format errors are raised as ``click.UsageError`` before any browser
+    session is opened, mirroring every other CLI-boundary parse in this
+    module.
+    """
+    parsed: "dict[int, float]" = {}
+    for raw in values:
+        if "=" not in raw:
+            raise click.UsageError(
+                f"--target-action-price value {raw!r} must be in the form "
+                '"goal_id=price" (e.g. "159614149=150").'
+            )
+        goal_part, price_part = raw.split("=", 1)
+        try:
+            goal_id = int(goal_part.strip())
+        except ValueError:
+            raise click.UsageError(
+                f"--target-action-price goal_id {goal_part!r} must be an "
+                "integer (the Yandex Metrika goal ID, as shown by "
+                "`masters targetactions get`)."
+            )
+        try:
+            price = float(price_part.strip())
+        except ValueError:
+            raise click.UsageError(
+                f"--target-action-price price {price_part!r} for goal "
+                f"{goal_id} must be a number."
+            )
+        if goal_id in parsed:
+            raise click.UsageError(
+                f"--target-action-price goal {goal_id} was specified more " "than once."
+            )
+        parsed[goal_id] = price
+    return parsed
+
+
 def _validate_image_path(raw_path: str, *, option_name: str, context: str) -> None:
     """Reject one image path that doesn't exist or that Yandex won't accept.
 
@@ -956,6 +1002,47 @@ def adimages_set(
     format_output(result, output_format, output)
 
 
+@masters.group("targetactions")
+def targetactions():
+    """Read a Мастер кампаний campaign's "Целевые действия" (target action /
+    CPA) table (browser-driven, no API)
+
+    Мастер кампаний has no Yandex Direct API surface (see this module's own
+    docstring), and this table lives only on the campaign's edit page (issue
+    #707) — same reasoning as the ``adimages`` group above. Read-only for
+    now: writing a goal's price is ``masters update --target-action-price``;
+    adding a brand-new goal row is not supported by this CLI yet.
+    """
+
+
+@targetactions.command("get")
+@click.argument("campaign_id", type=int)
+@_masters_browser_options
+@click.pass_context
+@handle_api_errors
+def targetactions_get(
+    ctx, campaign_id, headful, profile_dir, chrome_profile, output_format, output
+):
+    """Get a Мастер кампаний campaign's current target-action (CPA) goals
+
+    An empty list is a valid, successful result (``Count: 0``) — either the
+    campaign's promotion goal is not "max-conversions" (the table doesn't
+    exist on the page at all), or no goal has been added to it yet. Use
+    ``masters get`` to check the campaign's current promotion goal.
+    """
+    from ..browser.masters import fetch_master_target_actions
+
+    result = _with_session(
+        ctx,
+        headful,
+        profile_dir,
+        chrome_profile,
+        lambda page: fetch_master_target_actions(page, campaign_id),
+    )
+
+    format_output(result, output_format, output)
+
+
 @masters.command()
 @click.argument("campaign_id", type=int)
 @click.option(
@@ -976,9 +1063,24 @@ def adimages_set(
         "Цена перехода), in account currency. Only exists on the page "
         "when the campaign's promotion goal is (or is being set to via "
         "--promotion-goal in this same call) 'max-clicks' — under "
-        "'max-conversions' the price is set per-goal in a separate table "
-        "not covered by this flag, and this fails with an error naming "
-        "that requirement."
+        "'max-conversions' the price is set per-goal in the 'Целевые "
+        "действия' table instead, see --target-action-price."
+    ),
+)
+@click.option(
+    "--target-action-price",
+    "target_action_prices",
+    multiple=True,
+    help=(
+        "Set an EXISTING target action's (goal's) CPA price: \"goal_id="
+        'price" where goal_id is the Yandex Metrika goal ID shown by '
+        "`masters targetactions get`. Repeat for multiple goals. Only "
+        "exists on the page when the campaign's promotion goal is (or is "
+        "being set to via --promotion-goal in this same call) "
+        "'max-conversions'; under 'max-clicks' the price is set once for "
+        "the whole campaign via --goal-price instead. The goal must "
+        "already be listed in the 'Целевые действия' table — adding a "
+        "brand-new goal row is not supported by this CLI yet."
     ),
 )
 @click.option(
@@ -1053,6 +1155,7 @@ def update(
     weekly_budget,
     promotion_goal,
     goal_price,
+    target_action_prices,
     directs_helps,
     name,
     headlines,
@@ -1078,11 +1181,21 @@ def update(
     ``--goal-price`` (issue #696) sets the "Цель продвижения" block's
     target price — but that field only exists on the page when the
     campaign's promotion goal is 'max-clicks': under 'max-conversions' the
-    price is per-goal in a separate table this CLI does not cover. Passing
-    ``--goal-price`` together with ``--promotion-goal max-conversions`` is
-    therefore refused up front, and passing ``--goal-price`` alone (no
-    ``--promotion-goal``) fails against a campaign whose CURRENT goal isn't
-    already 'max-clicks' — the field genuinely is not on the page yet.
+    price is per-goal in the separate "Целевые действия" table instead, see
+    ``--target-action-price``. Passing ``--goal-price`` together with
+    ``--promotion-goal max-conversions`` is therefore refused up front, and
+    passing ``--goal-price`` alone (no ``--promotion-goal``) fails against a
+    campaign whose CURRENT goal isn't already 'max-clicks' — the field
+    genuinely is not on the page yet.
+
+    ``--target-action-price`` (issue #707) is the 'max-conversions'
+    counterpart: sets an EXISTING goal's CPA price in the "Целевые
+    действия" table, keyed by the goal's Yandex Metrika id (see `masters
+    targetactions get`). Only exists on the page under 'max-conversions' —
+    passing it together with ``--promotion-goal max-clicks`` is refused up
+    front, mirroring ``--goal-price``'s own guard. The goal must already be
+    a row in the table; adding a brand-new goal is not supported by this
+    CLI yet.
 
     ``--headline``/``--text``/``--image`` each replace ONE existing
     slot/position at a time rather than the whole list — unlike this CLI's
@@ -1110,6 +1223,7 @@ def update(
         weekly_budget is None
         and promotion_goal is None
         and goal_price is None
+        and not target_action_prices
         and directs_helps is None
         and name is None
         and not headlines
@@ -1118,18 +1232,30 @@ def update(
     ):
         raise click.UsageError(
             "Provide at least one of --weekly-budget, --promotion-goal, "
-            "--goal-price, --directs-helps/--no-directs-helps, --name, "
-            "--headline, --text, --image."
+            "--goal-price, --target-action-price, "
+            "--directs-helps/--no-directs-helps, --name, --headline, "
+            "--text, --image."
         )
 
     if goal_price is not None and promotion_goal == "max-conversions":
         raise click.UsageError(
             "--goal-price has no effect under --promotion-goal "
             "max-conversions — that goal's price is set per-target-action "
-            "in the 'Целевые действия' table, which this CLI does not "
-            "cover yet. --goal-price only applies to --promotion-goal "
-            "max-clicks."
+            "via --target-action-price instead. --goal-price only applies "
+            "to --promotion-goal max-clicks."
         )
+
+    if target_action_prices and promotion_goal == "max-clicks":
+        raise click.UsageError(
+            "--target-action-price has no effect under --promotion-goal "
+            "max-clicks — that goal's price is set once for the whole "
+            "campaign via --goal-price instead. --target-action-price only "
+            "applies to --promotion-goal max-conversions."
+        )
+
+    parsed_target_action_prices = _parse_target_action_price_options(
+        target_action_prices
+    )
 
     # Slot counts come from the browser layer's own constants (imported here
     # rather than at module load, matching this module's other deferred
@@ -1169,6 +1295,7 @@ def update(
             weekly_budget=weekly_budget,
             promotion_goal=promotion_goal,
             goal_price=goal_price,
+            target_action_prices=parsed_target_action_prices,
             directs_helps=directs_helps,
             name=name,
             headlines=parsed_headlines,
