@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+**Fixed — grid navigation `domcontentloaded` timeout (#682):**
+
+- `_capture_grid_campaigns_request` (`direct_cli/browser/masters.py`) — the
+  single navigation point for the campaigns grid, used by `masters list`,
+  `get`, `archive`, and `update` — navigated with
+  `wait_until="domcontentloaded"`. Live diagnosis in #671 found the grid is
+  a virtualized SPA whose `document.readyState` never advances past
+  `"interactive"`, so `domcontentloaded` could wait out its full 30s
+  timeout even though the grid's own `GridCampaigns` data request had
+  already fired.
+- Switched to `wait_until="commit"`, which only waits for the response
+  headers and the start of the document body — safe here because the
+  actual wait for grid data is `page.expect_response(...)`, not the
+  `goto` call itself. `assert_not_captcha`/`assert_authenticated` still
+  see valid HTML at `commit` time: both are server-rendered gate pages
+  (not part of the grid SPA), so their marker text is present in the
+  initial document body before any client-side JS runs.
+- Confirmed live 2026-08-03: `direct masters list --status all` completes
+  in ~15-25s across repeated runs (previously could exhaust the 30s
+  `expect_response` timeout).
+
 **Added — `direct masters adimages delete/set` (#648):**
 
 - Completes the `masters adimages` subgroup, so a campaign's image set can

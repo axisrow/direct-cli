@@ -620,14 +620,27 @@ def _capture_grid_campaigns_request(page: "Page") -> Dict[str, Any]:
     settles and burns its full timeout even though ``GridCampaigns`` fired
     seconds earlier — ``expect_response`` blocks on the actual event instead
     of sampling on an interval, and needs no listener cleanup.
+
+    Uses ``wait_until="commit"``, not ``"domcontentloaded"`` (#682): live
+    diagnosis in #671 found the grid is a virtualized SPA whose
+    ``document.readyState`` never advances past ``"interactive"``, so
+    ``domcontentloaded`` itself was timing out after 30s waiting for an
+    event that never fires. ``commit`` only waits for the network response
+    headers and the start of the document body — earlier than
+    ``domcontentloaded`` — which is safe here because the actual wait for
+    grid data is ``expect_response`` above, not the ``goto`` call. The
+    captcha/login-page checks below still see valid HTML at ``commit``
+    time: both are server-rendered gate pages (not part of the grid SPA),
+    so their marker text is present in the initial document body Yandex
+    sends, before any client-side JS runs.
     """
     with page.expect_response(
         _is_grid_campaigns_request, timeout=_GRID_CAPTURE_TIMEOUT_MS
     ) as response_info:
-        # domcontentloaded, not networkidle: see docstring. No ulogin here
-        # (see module docstring): passing our own login as the
+        # commit, not domcontentloaded/networkidle: see docstring. No
+        # ulogin here (see module docstring): passing our own login as the
         # managed-client param produces "Доступ ограничен" + HTTP 401.
-        page.goto(GRID_URL, wait_until="domcontentloaded")
+        page.goto(GRID_URL, wait_until="commit")
         assert_not_captcha(page.content())
         assert_authenticated(page.content())
 
