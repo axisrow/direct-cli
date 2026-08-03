@@ -294,15 +294,33 @@ STATUS_FILTERS = {
 # (fetch_master's status-text parser already produces "SUSPENDED"/"ACTIVE").
 _PRIMARY_STATUS_TO_CLI_STATUS = {"STOPPED": "SUSPENDED"}
 
-# Fixed order of the overview page's stat tiles, confirmed live (see fixture).
-_STAT_TILE_LABELS = {
-    "Показа": "impressions",
-    "Показов": "impressions",
-    "Кликов": "clicks",
-    "Конверсии": "conversions",
-    "Конверсий": "conversions",
-    "За конверсию": "cost_per_conversion",
-    "Расход": "cost",
+# Stat-tiles section render marker (issue #708, live recon 2026-08-04 against
+# 12 live ACTIVE campaigns in one account — see _extract_stat_tiles). Each
+# tile carries a stable ``data-testid`` of ``ChartSummary.<key>`` (confirmed
+# live: shows/clicks/conversions/cpa/cost — see _STAT_TILE_TESTID_KEYS)
+# inside the same ``ChartSummary`` chart-container the overview
+# page always renders. Unlike the previous text-based button scan, this
+# needs no label/whitespace normalisation and no consecutive-stable-tick
+# heuristic: live recon (12/12 runs, 9 distinct campaigns, 50ms poll
+# granularity) found the DOM has NO partial state at all — the section
+# renders zero ``ChartSummary.*`` nodes, then all five atomically in the
+# same React commit (first-observed-with-any-tile-present == first-observed-
+# with-all-five-present in every run). Network capture of the same loads
+# confirmed why: the tiles are driven by a single
+# ``GET /wizard/web-api/aggregate?...`` XHR whose response arrives ~1-2ms
+# before the DOM update, not a piecemeal per-tile render — so unlike
+# _wait_for_images_editor's stub/ghost render passes, there is no
+# loading-skeleton state to distinguish from "genuinely fewer tiles" here,
+# because live data never showed fewer than 5. This resolves #708's
+# open question for the confirmed-live shape: wait for the marker, don't
+# guess with a tick count.
+_STAT_TILE_TESTID_PREFIX = "ChartSummary."
+_STAT_TILE_TESTID_KEYS = {
+    "shows": "impressions",
+    "clicks": "clicks",
+    "conversions": "conversions",
+    "cpa": "cost_per_conversion",
+    "cost": "cost",
 }
 
 # Overview-page action button text for resume/suspend (see module docstring:
@@ -331,36 +349,22 @@ _OVERVIEW_TITLE_SELECTOR = '[data-testid="CampaignHeader.Title"]'
 # tree paints anything at all.
 _OVERVIEW_LOAD_TIMEOUT_MS = 30_000
 
-# How long _extract_stat_tiles retries after the title has rendered but
-# before the stat tiles themselves have (issue #683). Confirmed live
-# (campaign 72349978, headless): the title (`_OVERVIEW_TITLE_SELECTOR`) is
-# present well before the stat tile buttons finish rendering — a single
-# post-title read intermittently found 0 of them despite the campaign
-# genuinely having 5. As slow as _OVERVIEW_LOAD_TIMEOUT_MS itself: live
-# headless recon measured the tiles finishing their OWN render up to ~15s
-# after the title, not the sub-second gap a headful/extension browser
-# showed — these are two independent SPA render passes, not one paint.
+# How long _extract_stat_tiles waits for _STAT_TILE_TESTID_PREFIX's marker
+# after the title has rendered but before the stat tiles themselves have
+# (issue #683). Confirmed live (campaign 72349978, headless): the title
+# (`_OVERVIEW_TITLE_SELECTOR`) is present well before the stat tiles finish
+# rendering — a single post-title read intermittently found 0 of them
+# despite the campaign genuinely having 5. As slow as
+# _OVERVIEW_LOAD_TIMEOUT_MS itself: live headless recon measured the tiles
+# finishing their OWN render up to ~15s after the title, not the sub-second
+# gap a headful/extension browser showed — these are two independent SPA
+# render passes, not one paint. #708's follow-up recon found the real
+# marker (see _STAT_TILE_TESTID_PREFIX) so this timeout now gates a single
+# explicit wait instead of a tick-stabilization heuristic, but the same
+# generous budget still applies since the underlying render latency is
+# unchanged.
 _STAT_TILES_TIMEOUT_MS = 30_000
 
-# How many CONSECUTIVE poll ticks the found stat-tile key set must stay
-# unchanged before _extract_stat_tiles treats it as final (cycle-review
-# #697 finding, Codex): a single unchanged tick is indistinguishable from
-# "the page just hasn't started rendering tiles yet" -- at _poll_until's
-# default 250ms tick, one quiet tick is only 250ms of evidence against a
-# render this file itself documents as taking up to ~15s. 8 consecutive
-# ticks (~2s of continuous silence at the default tick rate) is comfortably
-# below that real-world render time while still returning well short of
-# the full timeout for a campaign that genuinely never renders more tiles.
-#
-# KNOWN ACCEPTED TRADE-OFF (tracked in #708): no finite tick count can
-# fully close the race between "campaign genuinely has fewer tiles" and
-# "tiles just haven't rendered yet" without a real DOM settled/loading
-# marker for the stat-tiles section, which does not exist in this code
-# (unlike _OVERVIEW_TITLE_SELECTOR for the header, #683, or
-# _wait_for_images_editor's section marker, #670). This value fixes the
-# confirmed-live #683 scenario and narrows the window versus a 1-tick
-# check; it does not eliminate it. See #708 for finding a real marker.
-_STAT_TILES_STABLE_TICKS = 8
 
 # How long to wait, after launch_master's click already redirected away from
 # /edit/, for the overview page's own status text to report MODERATION
@@ -1279,72 +1283,38 @@ def _extract_landing_url(page: "Page", result: Dict[str, Any]) -> None:
 
 
 def _extract_stat_tiles(page: "Page", result: Dict[str, Any]) -> None:
-    # Stat tiles render near the top of the page, well before the dozens of
-    # nav/tab/edit buttons further down — stop as soon as every known label
-    # is found instead of walking every button on the page.
-    #
-    # Confirmed live 2026-08-03 (issue #683, campaign 72349978): the tiles
-    # render AFTER _OVERVIEW_TITLE_SELECTOR (which _goto_overview_page
-    # already waited for) — a single read right after that wait
-    # intermittently found 0 tiles for a campaign that demonstrably has 5.
-    # Retries for a short bounded window rather than reading once, mirroring
-    # _wait_for_images_editor's "outer container present, content not yet
-    # settled" guard (#670) applied to this page's own two-stage render.
-    #
-    # Stops as soon as the found set STABILIZES for _STAT_TILES_STABLE_TICKS
-    # consecutive ticks (unchanged from tick to tick), not only when every
-    # known key is found (cycle-review #697 finding): a campaign that
-    # genuinely has fewer than 5 tiles -- DRAFT with no stats dashboard, or
-    # Yandex simply not rendering a metric -- would otherwise always burn
-    # the full _STAT_TILES_TIMEOUT_MS waiting for keys that will never
-    # appear. Live-measured: a single-tile fixture took the full 30s under
-    # the old all-keys-required condition.
-    #
-    # Requires SEVERAL consecutive stable ticks, not just one (cycle-review
-    # #697 re-review finding, Codex): a single unchanged tick is only
-    # ~250ms of evidence -- indistinguishable from "the page hasn't started
-    # rendering tiles yet" on a render this file itself documents as taking
-    # up to ~15s. A reproduction confirmed a naive one-tick check returns
-    # an empty/partial result after the very first poll, before the real
-    # tiles have had any chance to render at all.
-    wanted_keys = set(_STAT_TILE_LABELS.values())
+    # Confirmed live 2026-08-04 (issue #708, 12 runs across 9 distinct ACTIVE
+    # campaigns): the stat tiles carry a stable ``data-testid`` of
+    # ``ChartSummary.<key>`` (see _STAT_TILE_TESTID_KEYS) and render
+    # atomically — the first poll tick that observes ANY ChartSummary.* node
+    # always already has all five. There is therefore a real settled marker
+    # here (unlike the previous text-based button scan this replaced, which
+    # needed a consecutive-stable-tick heuristic to guess when rendering had
+    # finished — see #683/#697 history in git blame): wait for the marker's
+    # first appearance, then read the fixed testid set directly, no scanning
+    # every button on the page and no label/whitespace matching required.
+    _poll_until(
+        page,
+        lambda: page.locator(f'[data-testid^="{_STAT_TILE_TESTID_PREFIX}"]').count()
+        > 0,
+        _STAT_TILES_TIMEOUT_MS,
+    )
+
     stats: Dict[str, str] = {}
-    previous_keys: Optional[frozenset] = None
-    stable_ticks = 0
-
-    def _scan() -> bool:
-        nonlocal previous_keys, stable_ticks
-        buttons = page.locator("button")
-        count = buttons.count()
+    try:
+        tiles = page.locator(f'[data-testid^="{_STAT_TILE_TESTID_PREFIX}"]')
+        count = tiles.count()
         for i in range(count):
-            if stats.keys() >= wanted_keys:
-                break
-            try:
-                text = buttons.nth(i).inner_text().strip()
-            except PlaywrightError:
+            testid = tiles.nth(i).get_attribute("data-testid") or ""
+            suffix = testid[len(_STAT_TILE_TESTID_PREFIX) :]
+            key = _STAT_TILE_TESTID_KEYS.get(suffix)
+            if not key:
                 continue
-            lines = [line.strip() for line in text.splitlines() if line.strip()]
-            if len(lines) != 2:
-                continue
-            value, label = lines
-            # Confirmed live 2026-08-03 (campaign 72349978): "За конверсию"
-            # renders with a non-breaking space (U+00A0) between the words,
-            # not a plain one — normalise before the lookup so
-            # _STAT_TILE_LABELS' plain-space keys still match.
-            key = _STAT_TILE_LABELS.get(label.replace("\xa0", " "))
-            if key and key not in stats:
+            value = tiles.nth(i).inner_text().strip()
+            if value:
                 stats[key] = value
-        if stats.keys() >= wanted_keys:
-            return True
-        current_keys = frozenset(stats.keys())
-        if current_keys == previous_keys:
-            stable_ticks += 1
-        else:
-            stable_ticks = 0
-        previous_keys = current_keys
-        return stable_ticks >= _STAT_TILES_STABLE_TICKS
-
-    _poll_until(page, _scan, _STAT_TILES_TIMEOUT_MS)
+    except PlaywrightError:
+        pass
 
     if stats:
         result["Stats"] = stats
