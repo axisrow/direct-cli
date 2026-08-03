@@ -19,6 +19,7 @@ additions below for how that replay is faked.
 """
 
 import json
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -1789,6 +1790,43 @@ class TestFetchMaster(unittest.TestCase):
         )
         result = browser_masters.fetch_master(page, 1)
         self.assertEqual(result["Stats"], {"cost_per_conversion": "191,07 ₽"})
+
+    def test_stable_partial_tile_set_returns_without_waiting_out_the_timeout(self):
+        # cycle-review #697 finding (Codex): the old completion condition
+        # required every one of the 5 known keys before _poll_until could
+        # return true, so a campaign that genuinely has fewer tiles (fewer
+        # metrics enabled, or Yandex not rendering one) always burned the
+        # full _STAT_TILES_TIMEOUT_MS. A stable (unchanged-between-ticks)
+        # partial set must now return as soon as it stabilizes, not after
+        # the full timeout -- proven here via an artificially large timeout
+        # that the fix must NOT actually wait out.
+        page = FakePage(
+            locators={
+                "button": _FakeLocator(
+                    [_FakeLocatorHandle(text="191,07 ₽\nЗа конверсию")]
+                ),
+            },
+        )
+        start = time.monotonic()
+        with patch.object(browser_masters, "_STAT_TILES_TIMEOUT_MS", 10_000):
+            result = browser_masters.fetch_master(page, 1)
+        elapsed = time.monotonic() - start
+        self.assertEqual(result["Stats"], {"cost_per_conversion": "191,07 ₽"})
+        self.assertLess(elapsed, 2.0)
+
+    def test_zero_tiles_returns_without_waiting_out_the_timeout(self):
+        # Same fix, empty-set edge case (cycle-review #697): the old
+        # condition never matched an empty `stats` dict against
+        # `wanted_keys`, so a page with no recognisable stat tiles at all
+        # also burned the full timeout.
+        page = FakePage(locators={}, body_text="something Yandex changed")
+        start = time.monotonic()
+        with patch.object(browser_masters, "_STAT_TILES_TIMEOUT_MS", 10_000):
+            with patch("direct_cli.browser.masters.print_warning"):
+                result = browser_masters.fetch_master(page, 1)
+        elapsed = time.monotonic() - start
+        self.assertNotIn("Stats", result)
+        self.assertLess(elapsed, 2.0)
 
     def test_partial_result_on_unrecognised_sections(self):
         # A page whose title element IS present (so _goto_overview_page is
@@ -4617,6 +4655,56 @@ class TestGotoOverviewPage(unittest.TestCase):
 
         with self.assertRaises(BrowserAuthError):
             browser_masters._goto_overview_page(page, 1)
+
+    def test_captcha_appearing_mid_poll_raises_not_swallowed_as_timeout(self):
+        # cycle-review #697 finding (claude/review): a captcha gate that
+        # appears AFTER the upfront check (e.g. the session expires while
+        # waiting) must still surface as BrowserCaptchaError, not be
+        # swallowed as "not yet ready" and reported as a generic render
+        # timeout. Mirrors _wait_for_edit_form's own
+        # _edit_form_terminal_state pattern (#689): the captcha/auth check
+        # must live outside _poll_until's suppressed predicate.
+        #
+        # PlaywrightError is patched to the real playwright.sync_api.Error
+        # here to exercise the exact runtime configuration where the bug
+        # bites: with playwright installed, BrowserCaptchaError/
+        # BrowserAuthError are NOT subclasses of PlaywrightError, so
+        # contextlib.suppress(PlaywrightError) can't hide them regardless
+        # of where the check lives -- the swallow only happens when
+        # PlaywrightError is aliased to the bare Exception (the
+        # no-playwright offline fallback, masters.py's own import
+        # try/except), which every raise is a subclass of.
+        html_sequence = iter(
+            ["<html></html>", "<script>smartCaptcha.render()</script>"]
+        )
+
+        class _CaptchaAfterFirstTickPage(FakePage):
+            def content(self):
+                return next(html_sequence, "<script>smartCaptcha.render()</script>")
+
+        page = _CaptchaAfterFirstTickPage(locators={})
+        del page._locators[browser_masters._OVERVIEW_TITLE_SELECTOR]
+
+        with patch.object(browser_masters, "PlaywrightError", Exception):
+            with self.assertRaises(BrowserCaptchaError):
+                browser_masters._goto_overview_page(page, 1)
+
+    def test_auth_failure_appearing_mid_poll_raises_not_swallowed_as_timeout(self):
+        # Same fix, auth-error variant (cycle-review #697 finding). See the
+        # sibling captcha test above for why PlaywrightError is patched to
+        # the bare Exception.
+        html_sequence = iter(["<html></html>", "<body>Войдите с Яндекс ID</body>"])
+
+        class _AuthFailureAfterFirstTickPage(FakePage):
+            def content(self):
+                return next(html_sequence, "<body>Войдите с Яндекс ID</body>")
+
+        page = _AuthFailureAfterFirstTickPage(locators={})
+        del page._locators[browser_masters._OVERVIEW_TITLE_SELECTOR]
+
+        with patch.object(browser_masters, "PlaywrightError", Exception):
+            with self.assertRaises(BrowserAuthError):
+                browser_masters._goto_overview_page(page, 1)
 
 
 class TestBrowserSessionErrors(unittest.TestCase):

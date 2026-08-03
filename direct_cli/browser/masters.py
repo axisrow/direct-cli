@@ -219,6 +219,7 @@ from ..output import print_warning
 from .session import (
     _LOGIN_PAGE_MARKERS,
     BrowserAuthError,
+    BrowserCaptchaError,
     BrowserSessionError,
     assert_authenticated,
     assert_not_captcha,
@@ -850,6 +851,17 @@ def _goto_overview_page(page: "Page", campaign_id: int) -> None:
     behavior on the happy path -- it only matters when the gate is already
     present at commit time, which is exactly the case that must not depend
     on ``_poll_until``'s first tick actually running promptly.
+
+    The captcha/auth check happens OUTSIDE ``_poll_until``'s predicate (via
+    ``_overview_terminal_state``, which returns a marker instead of
+    raising), same pattern as ``_wait_for_edit_form``/
+    ``_edit_form_terminal_state`` (issue #689): ``_poll_until`` suppresses
+    ``PlaywrightError``, which is aliased to the broad ``Exception`` when
+    Playwright isn't installed (the offline-unit-test import fallback
+    above) — in that environment a raise from inside the predicate would
+    be silently swallowed as "not yet" instead of propagating, and this
+    function would misreport a real captcha/auth failure as its own
+    generic render-timeout (cycle-review #697 finding).
     """
     url = WIZARD_OVERVIEW_URL.format(campaign_id=campaign_id)
     page.goto(url, wait_until="commit")
@@ -858,14 +870,26 @@ def _goto_overview_page(page: "Page", campaign_id: int) -> None:
     assert_not_captcha(initial_html)
     assert_authenticated(initial_html)
 
-    def _rendered() -> bool:
+    def _terminal_state() -> "Optional[str]":
         html = page.content()
-        assert_not_captcha(html)
-        assert_authenticated(html)
-        return page.locator(_OVERVIEW_TITLE_SELECTOR).first.count() > 0
+        try:
+            assert_not_captcha(html)
+            assert_authenticated(html)
+        except BrowserCaptchaError:
+            return "captcha"
+        except BrowserAuthError:
+            return "auth"
+        if page.locator(_OVERVIEW_TITLE_SELECTOR).first.count() > 0:
+            return "ready"
+        return None
 
-    if _poll_until(page, _rendered, _OVERVIEW_LOAD_TIMEOUT_MS):
+    state = _poll_until_terminal(page, _terminal_state, _OVERVIEW_LOAD_TIMEOUT_MS)
+    if state == "ready":
         return
+    if state == "captcha":
+        assert_not_captcha(page.content())  # re-raises BrowserCaptchaError
+    if state == "auth":
+        assert_authenticated(page.content())  # re-raises BrowserAuthError
 
     raise BrowserSessionError(
         f"The wizard overview page for campaign {campaign_id} did not "
@@ -954,10 +978,21 @@ def _extract_stat_tiles(page: "Page", result: Dict[str, Any]) -> None:
     # Retries for a short bounded window rather than reading once, mirroring
     # _wait_for_images_editor's "outer container present, content not yet
     # settled" guard (#670) applied to this page's own two-stage render.
+    #
+    # Stops as soon as the found set STABILIZES across a tick (unchanged
+    # from the previous scan), not only when every known key is found
+    # (cycle-review #697 finding): a campaign that genuinely has fewer than
+    # 5 tiles -- DRAFT with no stats dashboard, or Yandex simply not
+    # rendering a metric -- would otherwise always burn the full
+    # _STAT_TILES_TIMEOUT_MS waiting for keys that will never appear.
+    # Live-measured: a single-tile fixture took the full 30s under the old
+    # all-keys-required condition.
     wanted_keys = set(_STAT_TILE_LABELS.values())
     stats: Dict[str, str] = {}
+    previous_keys: Optional[frozenset] = None
 
     def _scan() -> bool:
+        nonlocal previous_keys
         buttons = page.locator("button")
         count = buttons.count()
         for i in range(count):
@@ -978,7 +1013,12 @@ def _extract_stat_tiles(page: "Page", result: Dict[str, Any]) -> None:
             key = _STAT_TILE_LABELS.get(label.replace("\xa0", " "))
             if key and key not in stats:
                 stats[key] = value
-        return stats.keys() >= wanted_keys
+        if stats.keys() >= wanted_keys:
+            return True
+        current_keys = frozenset(stats.keys())
+        stabilized = current_keys == previous_keys
+        previous_keys = current_keys
+        return stabilized
 
     _poll_until(page, _scan, _STAT_TILES_TIMEOUT_MS)
 
