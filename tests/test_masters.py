@@ -3574,6 +3574,53 @@ class TestUpdateMaster(unittest.TestCase):
             browser_masters.update_master(page, 42, goal_price=500)
         self.assertIn("did not save as requested", str(ctx.exception))
 
+    def test_verify_saved_survives_delayed_weekly_budget_hydration(self):
+        # Issue #706: _wait_for_edit_form's poll only waits for the FIRST
+        # HEADLINE slot (_EDIT_FORM_READY_TESTID) to appear — a different,
+        # earlier-in-the-DOM section than the weekly-budget input further
+        # down the page. _read_weekly_budget reads input_value() exactly
+        # once, right after that wait returns, with no poll/retry of its
+        # own (unlike _read_goal_price, which was already hardened for this
+        # in issue #696 via wait_for(state="visible")). Models the budget
+        # input's value still showing the PRE-save figure for one tick after
+        # the reload, settling to the actually-saved value only afterwards
+        # — the same class of hydration race #700 fixed for
+        # _is_draft_overview_page, just on a different field.
+        ticks = {"count": 0}
+        budget_state = {"value": "95000"}
+
+        def _get_budget_value():
+            if ticks["count"] < 1:
+                return "80000"  # stale pre-save snapshot
+            return budget_state["value"]
+
+        budget_handle = _FakeLocatorHandle(
+            on_fill=lambda v: budget_state.__setitem__("value", v),
+            get_value=_get_budget_value,
+        )
+        save_handle = _FakeTextLocatorHandle(visible=True)
+        edit_form_ready_selector = (
+            f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'
+        )
+
+        class _DelayedBudgetPage(FakePage):
+            def wait_for_timeout(self, timeout):
+                ticks["count"] += 1
+
+        page = _DelayedBudgetPage(
+            locators={
+                browser_masters._WEEKLY_BUDGET_INPUT_XPATH: _FakeLocator(
+                    [budget_handle]
+                ),
+                edit_form_ready_selector: _FakeLocator([_FakeLocatorHandle()]),
+            },
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+
+        result = browser_masters.update_master(page, 42, weekly_budget=95000)
+
+        self.assertEqual(result, {"CampaignId": 42, "WeeklyBudget": 95000})
+
     def test_updates_multiple_fields_in_one_call(self):
         budget_state = {}
         checkbox_state = {"checked": False}
@@ -3762,8 +3809,21 @@ class TestUpdateMaster(unittest.TestCase):
                 "Цель продвижения\nМаксимум целевых действий",
             ]
         )
+        # _read_until_matches (issue #706) retries the reader until it
+        # settles or times out — the fake models a real page's stable value
+        # by repeating the LAST scripted line once the iterator is
+        # exhausted, instead of raising StopIteration on a second read.
+        import contextlib
+
+        last_text = {"value": None}
+
+        def _next_trigger_text():
+            with contextlib.suppress(StopIteration):
+                last_text["value"] = next(trigger_texts)
+            return last_text["value"]
+
         trigger = _FakeLocatorHandle(text="Цель продвижения")
-        trigger.inner_text = lambda: next(trigger_texts)
+        trigger.inner_text = _next_trigger_text
         save_handle = _FakeTextLocatorHandle(visible=True)
         edit_form_ready_selector = (
             f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'
