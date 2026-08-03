@@ -2615,6 +2615,78 @@ class TestMastersArchiveCommand(unittest.TestCase):
         self.assertIn("boom on id 3", result.output)
 
 
+class TestClickDraftTerminalButton(unittest.TestCase):
+    """``_click_draft_terminal_button`` (issue #668, retry added in #704):
+    cycle-review PR #711 regression — the retry must not double-submit a
+    healthy click. This file's own docstring/comments document a healthy
+    redirect as taking ~5s (up to 5-10s); the retry threshold
+    (``_DRAFT_SAVE_CLICK_RETRY_MS``) must be comfortably longer than that,
+    or a click that is still legitimately in flight gets clicked again.
+    """
+
+    def _edit_page_with_delayed_redirect(self, *, redirect_at_s, launch=False):
+        """A DRAFT edit page whose terminal button redirects away from
+        ``/edit/`` only once simulated wall-clock time reaches
+        ``redirect_at_s`` — models a healthy click whose redirect simply
+        hasn't landed yet, not a stuck one.
+        """
+        clock = {"now": 0.0}
+        click_count = {"n": 0}
+
+        def _on_click():
+            click_count["n"] += 1
+
+        testid = (
+            browser_masters._DRAFT_LAUNCH_BUTTON_TESTID
+            if launch
+            else browser_masters._DRAFT_SAVE_DRAFT_BUTTON_TESTID
+        )
+        page = FakePage(
+            locators={testid: _FakeLocator([_FakeLocatorHandle(on_click=_on_click)])}
+        )
+        page.url = browser_masters.WIZARD_EDIT_URL.format(campaign_id=713231614)
+
+        def _wait_for_timeout(timeout):
+            clock["now"] += timeout / 1000
+            if clock["now"] >= redirect_at_s and "/edit/" in page.url:
+                page.url = browser_masters.WIZARD_OVERVIEW_URL.format(
+                    campaign_id=713231614
+                )
+
+        page.wait_for_timeout = _wait_for_timeout
+        return page, click_count, clock
+
+    def test_does_not_double_click_a_healthy_five_second_redirect(self):
+        # Regression (cycle-review PR #711, Codex finding): a healthy click
+        # whose redirect lands at the ~5s this file documents as typical
+        # must be clicked exactly once -- not retried into a double submit
+        # of the no-rollback terminal save/launch button.
+        page, click_count, clock = self._edit_page_with_delayed_redirect(
+            redirect_at_s=5.0
+        )
+
+        with patch.object(browser_masters.time, "monotonic", lambda: clock["now"]):
+            browser_masters._click_draft_terminal_button(page, 713231614, launch=False)
+
+        self.assertEqual(click_count["n"], 1)
+
+    def test_retries_once_when_the_click_truly_stuck(self):
+        # The retry still exists for its original purpose (issue #704
+        # hydration race): a click that never redirects within the retry
+        # threshold must be retried exactly once.
+        page, click_count, clock = self._edit_page_with_delayed_redirect(
+            redirect_at_s=1_000_000.0
+        )
+
+        with patch.object(browser_masters.time, "monotonic", lambda: clock["now"]):
+            with self.assertRaises(BrowserSessionError):
+                browser_masters._click_draft_terminal_button(
+                    page, 713231614, launch=False
+                )
+
+        self.assertEqual(click_count["n"], 2)
+
+
 class TestLaunchMaster(unittest.TestCase):
     """``launch_master`` (issue #704): publish a DRAFT via the edit page's
     launch button, then verify via the overview page's own status text —

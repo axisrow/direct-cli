@@ -426,9 +426,16 @@ _DRAFT_SAVE_REDIRECT_TIMEOUT_MS = 20_000
 # How long into the redirect wait to retry the click once if no redirect has
 # happened yet (issue #704 recon: a click that lands before later page
 # sections finish hydrating can silently no-op — see
-# _click_draft_terminal_button's docstring). Short enough that a healthy
-# click's own ~5-10s redirect isn't mistaken for a stuck one.
-_DRAFT_SAVE_CLICK_RETRY_MS = 4_000
+# _click_draft_terminal_button's docstring). Long enough that a healthy
+# click's own ~5-10s redirect completes before this fires — only a
+# genuinely stuck click (no-op due to the hydration race) reaches this
+# retry. A shorter threshold here double-submits the terminal
+# save/launch click on every healthy run whose redirect happens to land
+# past it (cycle-review PR #711: a 4_000ms threshold — shorter than the
+# ~5s redirect this same file documents as typical — was proven to fire
+# on a deterministic 5s-redirect simulation, submitting the no-rollback
+# launch click twice).
+_DRAFT_SAVE_CLICK_RETRY_MS = 12_000
 
 # Matches WIZARD_OVERVIEW_URL's {campaign_id} once Yandex redirects there
 # after a successful clone save/launch (see copy_master).
