@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+**Fixed — images-section "ghost" render pass caused false "no images" reads (#687):**
+
+- `_wait_for_images_editor` (`direct_cli/browser/masters.py`) previously
+  trusted "editor present, no `StubN`" as a settled state. Live diagnosis
+  found a third, earlier render stage — before any `StubN` placeholder
+  round begins, `ImageSuggestionsEditor` briefly mounts with zero `StubN`
+  AND zero `ContentImage` elements (observed live: under 1s to ~14.5s) —
+  indistinguishable from a genuine empty-set settle by DOM shape alone.
+  Confirmed 100% reproducible across 3 consecutive live runs: the
+  pre-fix guard returned within ~4s reading `[]` for a campaign with 5
+  real images, the exact "no images" false negative #687 describes.
+- Fixed by only trusting "no `StubN`" once a real `StubN` round has been
+  observed and cleared, OR `ContentImage` elements are already present,
+  OR the "nothing yet" reading holds continuously for
+  `_IMAGES_GHOST_GRACE_S` (20s) — covering a genuinely empty image set.
+  `_IMAGES_EDITOR_TIMEOUT_MS` bumped 30s → 60s to accommodate the
+  worst observed combined ghost+real timeline (43.6s, 11 repeat runs).
+- Confirmed live 2026-08-03: `masters adimages get` on two campaigns with
+  5 images each now correctly reads all images (previously reproducibly
+  empty).
+- Re-verified live 2026-08-03 in combination with PR #689's `commit` +
+  `_wait_for_edit_form` navigation changes (raised as a possible gap by
+  issue #695): direct instrumentation and 8 subsequent `masters adimages
+  get` runs across both campaigns all correctly read 5 images each
+  (12.3s-28.1s elapsed); no occurrence of a stuck/never-hydrating section
+  was observed.
+
 **Fixed — grid navigation `domcontentloaded` timeout (#682):**
 
 - `_capture_grid_campaigns_request` (`direct_cli/browser/masters.py`) — the
