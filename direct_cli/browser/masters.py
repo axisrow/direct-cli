@@ -851,8 +851,9 @@ def _goto_overview_page(page: "Page", campaign_id: int) -> None:
     page.goto(url, wait_until="commit")
 
     def _rendered() -> bool:
-        assert_not_captcha(page.content())
-        assert_authenticated(page.content())
+        html = page.content()
+        assert_not_captcha(html)
+        assert_authenticated(html)
         return page.locator(_OVERVIEW_TITLE_SELECTOR).first.count() > 0
 
     if _poll_until(page, _rendered, _OVERVIEW_LOAD_TIMEOUT_MS):
@@ -949,7 +950,6 @@ def _extract_stat_tiles(page: "Page", result: Dict[str, Any]) -> None:
     stats: Dict[str, str] = {}
 
     def _scan() -> bool:
-        stats.clear()
         buttons = page.locator("button")
         count = buttons.count()
         for i in range(count):
@@ -970,7 +970,7 @@ def _extract_stat_tiles(page: "Page", result: Dict[str, Any]) -> None:
             key = _STAT_TILE_LABELS.get(label.replace("\xa0", " "))
             if key and key not in stats:
                 stats[key] = value
-        return bool(stats)
+        return stats.keys() >= wanted_keys
 
     _poll_until(page, _scan, _STAT_TILES_TIMEOUT_MS)
 
