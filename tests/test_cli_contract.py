@@ -67,10 +67,22 @@ def _option_names(command):
     }
 
 
+def _walk_leaf_commands(group_path, group):
+    """Yield (group_path, leaf_name, command) recursing into any subcommand
+    that is itself a group. A flat one-level walk would either yield a
+    nested group itself as an opaque "command" (never checking its own
+    leaves) or miss them outright.
+    """
+    for name, command in sorted(getattr(group, "commands", {}).items()):
+        if hasattr(command, "commands"):
+            yield from _walk_leaf_commands(f"{group_path}.{name}", command)
+        else:
+            yield group_path, name, command
+
+
 def _subcommands():
     for group_name, group in sorted(cli.commands.items()):
-        for command_name, command in sorted(getattr(group, "commands", {}).items()):
-            yield group_name, command_name, command
+        yield from _walk_leaf_commands(group_name, group)
 
 
 def _readme_direct_example_lines():
@@ -138,8 +150,9 @@ def test_help_output_does_not_advertise_raw_payload_inputs():
     offenders = []
 
     for group_name, command_name, _command in _subcommands():
-        result = runner.invoke(cli, [group_name, command_name, "--help"])
-        assert result.exit_code == 0, f"direct {group_name} {command_name} --help"
+        argv = group_name.split(".") + [command_name, "--help"]
+        result = runner.invoke(cli, argv)
+        assert result.exit_code == 0, f"direct {' '.join(argv)}"
         for forbidden in FORBIDDEN_HELP_TEXT:
             if forbidden in result.output:
                 offenders.append(f"{group_name}.{command_name}: {forbidden}")
@@ -192,16 +205,21 @@ def test_readme_bash_blocks_do_not_use_deprecated_direct_cli_executable():
 
 def test_smoke_matrix_entries_are_registered_canonical_commands():
     registered = set()
-    for group_name, group in cli.commands.items():
-        for command_name in getattr(group, "commands", {}):
-            registered.add(f"{group_name}.{command_name}")
+    for group_path, command_name, _command in _subcommands():
+        registered.add(f"{group_path}.{command_name}")
 
     offenders = []
     for commands in SMOKE_MATRIX.values():
         for command in commands:
             if "." in command:
-                group_name, command_name = command.split(".", 1)
-                if not GROUP_NAME_RE.fullmatch(group_name):
+                # The leaf name is always the LAST segment: a nested group
+                # makes the group path itself dotted (``a.b.leaf``), so
+                # splitting on the FIRST dot would mis-parse it.
+                group_name, command_name = command.rsplit(".", 1)
+                if not all(
+                    GROUP_NAME_RE.fullmatch(segment)
+                    for segment in group_name.split(".")
+                ):
                     offenders.append(f"{command}: noncanonical group")
                 if not COMMAND_NAME_RE.fullmatch(command_name):
                     offenders.append(f"{command}: noncanonical command")

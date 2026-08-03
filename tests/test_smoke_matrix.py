@@ -35,12 +35,27 @@ def _load_sandbox_runner_module():
     return module
 
 
+def _walk_leaf_command_keys(prefix: str, group):
+    """Recurse into any subcommand that is itself a group.
+
+    Deliberately a local re-implementation rather than an import of
+    ``direct_cli.smoke_matrix._walk_leaf_command_keys``: these tests are an
+    independent oracle for the smoke summary's counts, and importing the
+    implementation they check would make them tautological.
+    """
+    for name, command in group.commands.items():
+        key = f"{prefix}.{name}"
+        if hasattr(command, "commands"):
+            yield from _walk_leaf_command_keys(key, command)
+        else:
+            yield key
+
+
 def _registered_cli_commands() -> set[str]:
     registered = set()
     for group_name, group in cli.commands.items():
         if hasattr(group, "commands"):
-            for command_name in group.commands:
-                registered.add(command_key(group_name, command_name))
+            registered.update(_walk_leaf_command_keys(group_name, group))
         else:
             registered.add(group_name)
     return registered
@@ -75,13 +90,14 @@ def test_smoke_matrix_counts_are_self_consistent():
     # smoke_matrix.smoke_summary.
     expected_cli_groups = len(cli.commands)
 
-    # Subcommands registered everywhere — counts ``group.subcommand`` for
-    # groups with ``.commands`` plus bare top-level commands. Matches
-    # ``_registered_cli_commands()`` in smoke_matrix.
+    # Subcommands registered everywhere — counts LEAF commands (recursing
+    # into any nested group) for groups with ``.commands`` plus bare
+    # top-level commands. Matches ``_registered_cli_commands()`` in
+    # smoke_matrix.
     expected_cli_subcommands = 0
     for group in cli.commands.values():
         if hasattr(group, "commands"):
-            expected_cli_subcommands += len(group.commands)
+            expected_cli_subcommands += len(list(_walk_leaf_command_keys("", group)))
         else:
             expected_cli_subcommands += 1
 
@@ -91,7 +107,9 @@ def test_smoke_matrix_counts_are_self_consistent():
         if group_name in ("auth", "playwright"):
             continue
         if hasattr(group, "commands"):
-            expected_api_cli_subcommands += len(group.commands)
+            expected_api_cli_subcommands += len(
+                list(_walk_leaf_command_keys("", group))
+            )
         else:
             expected_api_cli_subcommands += 1
 
