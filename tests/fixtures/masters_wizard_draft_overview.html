@@ -1,0 +1,111 @@
+<!--
+Fixture: text-content/DOM snapshot of the Yandex Direct "Мастер кампаний" (Campaign
+Wizard) DRAFT overview page, captured 2026-08-04 via Chrome DevTools / claude-in-chrome
+against a live account (PII scrubbed: account name kept as it is already visible in the
+product UI and carries no secret value).
+
+Source URL:
+  https://direct.yandex.ru/wizard/campaigns/713231614/?ulogin=ksamatadirect
+  (same WIZARD_OVERVIEW_URL every other status renders a stats dashboard at — NOT the
+  /edit/ URL. Campaign 713231614 is the draft copy left over from issue #659's live recon
+  of `masters copy`, status DRAFT confirmed via `masters list --status all`.)
+
+## Key finding (issue #660)
+
+A DRAFT campaign's overview page is NOT the stats-dashboard overview every other status
+(ACTIVE/SUSPENDED/ARCHIVED) renders — it IS the editable wizard form itself, the same
+form `masters update`'s DRAFT edit-page path (issue #668) already knows how to save. This
+confirms the gap `masters copy`'s live recon first reported:
+
+  - No `[data-testid="CampaignHeader.MenuTrigger"]` anywhere on the page — confirmed via
+    `document.querySelectorAll('[data-testid]')`, filtered for the string "MenuTrigger":
+    zero matches. `archive_master`'s "⋮" menu click has nothing to click.
+  - No "Кампания остановлена"/"Кампания активна" body text anywhere — `_read_status_text`
+    (suspend_master/resume_master's current-status check) returns None on this page, which
+    is exactly the "refusing to click blind" BrowserSessionError path, but with a
+    misleading message ("unrecognised status text") since the real reason is "this
+    campaign has no such status at all, being a draft".
+  - No stat tiles (`button` nodes with a two-line numeric-value/label body) — the page has
+    dozens of buttons (image pickers, sitelink editors, region tree nodes, ...) but none
+    match the Показы/Клики/Конверсии/... shape `_extract_stat_tiles` looks for.
+
+## Confirmed data-testid attributes (header + terminal buttons)
+
+Via `document.querySelectorAll('[data-testid]')` on the live page:
+
+  CampaignHeader                              -- header container (name + status + meta line)
+  CampaignHeader.Title                        -- name row (name text + edit-pencil button)
+  CampaignHeader.Title.Content
+  CampaignHeader.TitleName                    -- campaign name text node itself
+  CampaignHeader.EditName.Button              -- pencil icon that opens the rename modal
+                                                  (same ModalEditTitle.CampaignName flow as
+                                                  issue #663's non-DRAFT `name` support)
+  CampaignHeader.Status                       -- status badge text node, reads "Черновик"
+  BudgetWithSuggest                           -- weekly-budget form field container
+  BudgetWithSuggest.PriceTextInput            -- the actual <input>, .value = "80 000"
+                                                  (space-grouped digits, currency symbol
+                                                  rendered as a separate sibling "₽" label,
+                                                  NOT part of the input's value)
+  CampaignFormControls.save.button            -- "Запустить кампанию" (publish + launch)
+  CampaignFormControls.saveDraft.button       -- "Сохранить как черновик" (stays DRAFT)
+                                                  same testids `_click_draft_terminal_button`
+                                                  already uses on the /edit/ page (issue
+                                                  #668) -- confirms this overview URL and
+                                                  the edit URL render the SAME form for a
+                                                  DRAFT campaign, just reached differently.
+
+`document.querySelector('[data-testid="CampaignHeader"]').innerText`:
+
+  Конверсии и трафик
+  Мастер ИЖ-1 Сосуды и вены (холодный)
+  Черновик
+  №713231614
+  ・Создана 02.08.2026
+  ・
+  lp.ksamata.ru
+
+Accessibility-tree read (read_page, filter=all, depth=6) confirms the same structure a
+human/screen-reader sees, matching the plain-form shape used by the rest of the wizard
+create/edit flow (`masters_wizard_create.html`, `masters_wizard_edit_stage_a.html`):
+
+  heading "Мастер ИЖ-1 Сосуды и вены (холодный)"
+   generic "Мастер ИЖ-1 Сосуды и вены (холодный)"
+   button [ref=EditName.Button, pencil icon]
+  generic "Черновик"
+  generic "・Создана 02.08.2026"
+   link "№713231614"
+  ... (full form: landing URL field, headline/text variants, images, sitelinks,
+      schedule, audience, promotion goal, Metrika counters, target actions,
+      weekly budget input showing "80 000", adaptive-budget field, "Директ
+      помогает" toggle) ...
+  button "Запустить кампанию"
+  button "Сохранить как черновик"
+
+## No delete action anywhere
+
+Checked live, both on this overview page and on the campaigns grid row for the same
+campaign (`/dna/grid/campaigns/`): neither exposes a "Удалить"/delete action for a DRAFT
+Мастер кампаний. The grid row's own context menu for a DRAFT row offers only
+Перейти/Редактировать/Статистика (no Архивировать either — archiving from the grid
+appears to require a non-DRAFT status too, though this wasn't the focus of this recon).
+This matches issue #633's earlier finding that Мастер кампаний has no delete at all, only
+archive — and archive itself is unavailable to a DRAFT. A DRAFT campaign therefore has no
+CLI-reachable lifecycle action besides `masters update --launch` (publish it, after which
+the normal ACTIVE-status archive/suspend/resume paths apply) or leaving it as an inert
+draft indefinitely.
+
+## Parser implication
+
+`fetch_master` detects a DRAFT overview page via `CampaignHeader.Status` reading exactly
+"Черновик" (`_is_draft_overview_page`) and, when true, reads Name/Status/WeeklyBudget from
+the form's header + budget input instead of the dashboard extractors — no LandingUrl (the
+form's URL field is a plain input, not the confirmed-live `a[href*='utm_source=']` link
+the non-DRAFT extractor keys off) and no Stats (nothing has run yet). `archive_master`
+already reads the campaign's grid row (`Status` field, already exposing "DRAFT" — see
+`_PRIMARY_STATUS_TO_CLI_STATUS`/`STATUS_FILTERS` in the module) before ever navigating to
+the overview page, so it refuses on `existing["Status"] == "DRAFT"` without an extra
+navigation. `suspend_master`/`resume_master` don't have a pre-navigation grid read (they
+only need the overview page's own status text), so they call
+`_is_draft_overview_page` right after `goto()`, before `_read_status_text` would otherwise
+misreport "unrecognised status text" as the failure reason.
+-->

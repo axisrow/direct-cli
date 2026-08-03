@@ -2,6 +2,52 @@
 
 ## Unreleased
 
+**Fixed — `masters get`/`archive`/`suspend`/`resume` on `DRAFT` campaigns (#660):**
+
+- A `DRAFT` Мастер кампаний's overview page (`WIZARD_OVERVIEW_URL` itself, no
+  `/edit/`) renders the editable wizard form, not the stats-dashboard
+  overview every other status renders — no `CampaignHeader.MenuTrigger`, no
+  status text, no stat tiles. This previously made `masters get` degrade to
+  `{"CampaignId": ..., "LandingUrl": ...}` (with unhelpful "Could not read
+  campaign name"/"Could not determine status" warnings) and made `masters
+  archive`/`suspend`/`resume` crash with `BrowserSessionError` on a missing
+  selector.
+- `fetch_master` (`direct_cli/browser/masters.py`) now detects a `DRAFT`
+  overview page via `CampaignHeader.Status` reading "Черновик"
+  (`_is_draft_overview_page`) and reads `Name`/`Status`/`WeeklyBudget` from
+  the form's header and budget input instead of the dashboard extractors —
+  no `LandingUrl`/`Stats` (the form has neither).
+- `archive_master`/`suspend_master`/`resume_master` now refuse a `DRAFT`
+  campaign with a clear `BrowserSessionError` explaining there is no
+  archive/suspend/resume action available for a draft (launch it first via
+  `masters update --launch`), instead of crashing on a missing selector.
+  No delete action exists for a Мастер кампаний draft anywhere in the UI
+  (checked live, both the overview page and the grid row's own menu).
+- Live-verified against campaign 713231614 (the draft copy left over from
+  #659's recon) — see `tests/fixtures/masters_wizard_draft_overview.html`.
+- `_is_draft_overview_page` checks `.count() == 0` before calling
+  `inner_text()` on the `CampaignHeader.Status` locator — a non-DRAFT
+  overview page has no such node at all, and calling `inner_text()` directly
+  would make Playwright auto-wait its full actionability timeout (default
+  30s) on every `masters get`/`suspend`/`resume` call before falling through
+  to the normal dashboard extractors (caught in review; the module's other
+  presence checks, e.g. `_is_draft_edit_page`, already use `.count()` for
+  exactly this reason).
+- That same `.count() == 0` snapshot, taken immediately after
+  `goto(..., wait_until="domcontentloaded")`, raced the SPA's own hydration
+  — the same class of bug issue #685 already fixed for the create page's
+  step 1 field. `_is_draft_overview_page` now polls (up to 15s) for EITHER
+  `CampaignHeader.Status` (DRAFT) or the non-DRAFT dashboard's own status
+  body text (`_read_status_text`'s markers) to actually render before
+  classifying the page, instead of concluding "not DRAFT" from a page that
+  simply hadn't finished rendering yet (caught in review).
+- The status-node poll above still only checked node *presence*
+  (`.count() > 0`), not its text — a framework can mount
+  `CampaignHeader.Status` before filling in its content, which would read
+  as "rendered" while the node is still empty and misclassify a real DRAFT
+  campaign as non-DRAFT. `_is_draft_overview_page` now polls for the node's
+  actual (trimmed) text, not just its presence (caught in review).
+
 **Fixed — images-section "ghost" render pass caused false "no images" reads (#687):**
 
 - `_wait_for_images_editor` (`direct_cli/browser/masters.py`) previously
