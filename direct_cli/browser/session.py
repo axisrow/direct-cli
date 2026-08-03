@@ -458,7 +458,18 @@ def login_persistent_session(
     ) as context:
         page = context.new_page()
         page.goto(_PASSPORT_LOGIN_URL, wait_until="commit")
-        _wait_for_marker(page, _PASSPORT_PAGE_MARKERS)
+        if not _wait_for_marker(page, _PASSPORT_PAGE_MARKERS):
+            # Fail closed: a timed-out marker means the page never rendered
+            # far enough to trust `page.content()` — an in-progress/blank
+            # shell may contain neither the login-page nor captcha markers
+            # `assert_authenticated`/`assert_not_captcha` scan for, which
+            # would otherwise let an unrendered page sail through as if it
+            # were a real one (issue #692 cycle-review).
+            raise BrowserSessionError(
+                f"Timed out waiting for {_PASSPORT_LOGIN_URL} to render. "
+                "This can happen on a slow connection — retry `direct "
+                "masters login`."
+            )
 
         # Poll on a second page, never on `page`: the human is typing into
         # that one, and navigating it to the grid once a second would wipe a
@@ -478,11 +489,21 @@ def login_persistent_session(
                 # interval, not `_PAGE_MARKER_TIMEOUT_MS`, so a slow-to-paint
                 # page degrades to "try again next tick" rather than
                 # stalling this loop's own cadence.
-                _wait_for_marker(
+                marker_found = _wait_for_marker(
                     probe,
                     _DIRECT_OR_PASSPORT_PAGE_MARKERS,
                     timeout_ms=_LOGIN_POLL_INTERVAL_MS,
                 )
+                if not marker_found:
+                    # Neither page rendered far enough this tick to trust
+                    # `probe.content()` — a blank/in-progress shell can
+                    # contain neither the login-page nor captcha markers, so
+                    # treat this exactly like "not authenticated yet" rather
+                    # than risking `assert_authenticated` passing an
+                    # unrendered page (issue #692 cycle-review). This is the
+                    # expected outcome on a slow tick, not an error.
+                    elapsed_ms += _LOGIN_POLL_INTERVAL_MS
+                    continue
                 html = probe.content()
                 assert_not_captcha(html)
                 try:
@@ -586,7 +607,15 @@ def capture_storage_state(
             # the grid, and `assert_authenticated` below is what turns that
             # into the specific `BrowserAuthError` (see `_wait_for_marker`'s
             # docstring for why a single marker would be wrong here).
-            _wait_for_marker(page, _DIRECT_OR_PASSPORT_PAGE_MARKERS)
+            if not _wait_for_marker(page, _DIRECT_OR_PASSPORT_PAGE_MARKERS):
+                # Fail closed: an unrendered page can contain neither the
+                # login-page nor captcha markers the checks below scan for,
+                # which would otherwise let it pass as if it were a
+                # verified, authenticated grid (issue #692 cycle-review).
+                raise BrowserAuthError(
+                    f"Timed out waiting for {GRID_URL} to render while "
+                    "verifying the session. Retry `direct playwright login`."
+                )
             html = page.content()
             assert_not_captcha(html)
             assert_authenticated(html)

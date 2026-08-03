@@ -1011,6 +1011,61 @@ class TestPersistentSession(unittest.TestCase):
         self.assertEqual(login_page.goto_wait_until, "commit")
         self.assertEqual(authed_page.goto_wait_until, "commit")
 
+    def test_login_fails_closed_when_passport_marker_never_appears(self):
+        """Issue #692 cycle-review: `_wait_for_marker`'s `False` return must
+        not be discarded. A blank/unrendered Passport page matches neither
+        `_PASSPORT_PAGE_MARKERS` nor `_LOGIN_PAGE_MARKERS` — trusting
+        `page.content()` regardless would let an unrendered page slip past
+        `assert_authenticated` undetected, instead of failing loudly."""
+        pytest.importorskip("playwright")
+        from direct_cli.browser import session as session_module
+
+        blank_page = FakePage(locators={}, html="<html></html>")
+        persistent_ctx = _FakePersistentContext(pages=[blank_page])
+        fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
+        fake_playwright = _FakePlaywright(fake_chromium)
+
+        with (
+            patch("playwright.sync_api.sync_playwright", return_value=fake_playwright),
+            patch.object(session_module, "_PAGE_MARKER_TIMEOUT_MS", 10),
+        ):
+            with self.assertRaises(session_module.BrowserSessionError) as ctx:
+                session_module.login_persistent_session(
+                    profile_dir=self.profile_dir, timeout_ms=5_000
+                )
+        self.assertIn("Timed out", str(ctx.exception))
+        self.assertFalse(
+            session_module.PROFILE_POINTER_PATH.exists(),
+            "an unrendered login must not be recorded as a usable profile",
+        )
+
+    def test_login_poll_treats_unrendered_tick_as_not_yet_authenticated(self):
+        """Issue #692 cycle-review: a tick where neither the grid nor
+        Passport marker appears must be treated like "not authenticated
+        yet" (same as an explicit `BrowserAuthError`), not like a
+        successful, verified login — a blank grid response matches neither
+        `_LOGIN_PAGE_MARKERS` nor a captcha marker, so `assert_authenticated`
+        alone would silently accept it."""
+        pytest.importorskip("playwright")
+        from direct_cli.browser import session as session_module
+        from direct_cli.browser.session import BrowserAuthError
+
+        login_page = _passport_page()
+        blank_probe = FakePage(locators={}, html="<html></html>")
+        persistent_ctx = _FakePersistentContext(pages=[login_page, blank_probe])
+        fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
+        fake_playwright = _FakePlaywright(fake_chromium)
+
+        with patch("playwright.sync_api.sync_playwright", return_value=fake_playwright):
+            with self.assertRaises(BrowserAuthError):
+                session_module.login_persistent_session(
+                    profile_dir=self.profile_dir,
+                    timeout_ms=1_000,
+                )
+
+        # The unfinished login must never be recorded as a usable profile.
+        self.assertFalse(session_module.PROFILE_POINTER_PATH.exists())
+
 
 class _FakeVerifyContext(_FakeContext):
     """A ``_FakeContext`` whose ``new_page()`` returns one pre-built page and
@@ -1098,6 +1153,40 @@ class TestCaptureStorageState(unittest.TestCase):
                 session_module.capture_storage_state()
 
         self.assertEqual(page.goto_wait_until, "commit")
+
+    def test_verify_fails_closed_when_grid_marker_never_appears(self):
+        """Issue #692 cycle-review: `_wait_for_marker`'s `False` return must
+        not be discarded here either — a blank/unrendered grid response
+        matches neither `_LOGIN_PAGE_MARKERS` nor a captcha marker, so
+        trusting `page.content()` regardless would let
+        ``capture_storage_state(verify=True)`` return unverified cookies as
+        if the session had been confirmed."""
+        pytest.importorskip("playwright")
+        from direct_cli.browser import session as session_module
+        from direct_cli.browser.session import BrowserAuthError
+
+        blank_page = FakePage(locators={}, html="<html></html>")
+        fake_browser = _FakeBrowser()
+        fake_context = _FakeVerifyContext(blank_page, storage_state={"cookies": []})
+        fake_browser.new_context = lambda **kwargs: fake_context
+        fake_chromium = _FakeChromium(fake_browser)
+        fake_playwright = _FakePlaywright(fake_chromium)
+
+        with (
+            patch("playwright.sync_api.sync_playwright", return_value=fake_playwright),
+            self._patch_decrypt(),
+            patch.object(
+                session_module,
+                "default_chrome_profile_dir",
+                return_value=Path("/fake/chrome/profile"),
+            ),
+            patch.object(Path, "exists", return_value=True),
+            patch.object(session_module, "_PAGE_MARKER_TIMEOUT_MS", 10),
+        ):
+            with self.assertRaises(BrowserAuthError) as ctx:
+                session_module.capture_storage_state()
+
+        self.assertIn("Timed out", str(ctx.exception))
 
 
 class TestOpenSessionTiers(unittest.TestCase):
