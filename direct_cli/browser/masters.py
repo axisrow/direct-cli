@@ -189,13 +189,34 @@ campaign's ID (confirmed live, ~7s after the click) — the primary ID source
 (confirmed to agree during recon) before reporting success, following the
 module's "never trust the click alone" convention.
 
-**Not fixed here (see issue #660):** a freshly created ``DRAFT`` campaign's
-overview page turned out, live, to be the editable wizard form itself (no
-"⋮" menu, no ``CampaignHeader.MenuTrigger``) rather than the
-stats-dashboard overview every other status renders — so ``masters get``/
-``archive``/``suspend``/``resume`` (untested against ``DRAFT`` until this
-recon) cannot yet read or act on a campaign in that state. ``copy_master``
-itself does not depend on any of those working.
+**DRAFT overview page** (issue #660, live-confirmed 2026-08-04 against
+campaign 713231614 — see ``tests/fixtures/masters_wizard_draft_overview.html``).
+A freshly created ``DRAFT`` campaign's overview page (``WIZARD_OVERVIEW_URL``
+itself, no ``/edit/``) turns out to BE the editable wizard form — no "⋮"
+menu, no ``CampaignHeader.MenuTrigger``, no "Кампания остановлена"/"активна"
+status text, no stat tiles — rather than the stats-dashboard overview every
+other status renders. It reuses the SAME header testids the edit page's
+DRAFT path already relies on for its terminal save/launch buttons
+(``CampaignFormControls.saveDraft.button``/``CampaignFormControls.save.button``,
+see "DRAFT support" above), plus ``CampaignHeader.TitleName``,
+``CampaignHeader.Status`` (reads "Черновик"), and
+``BudgetWithSuggest.PriceTextInput`` for the weekly budget field.
+``fetch_master`` detects this via ``_is_draft_overview_page`` (keyed off
+``CampaignHeader.Status`` reading "Черновик", mirroring
+``_is_draft_edit_page``'s "detection and the click it gates can never
+disagree" rationale) and reads name/status/weekly budget from the form
+instead of the dashboard extractors — no ``LandingUrl``/``Stats`` (the form
+has no rendered landing-URL link with the confirmed ``utm_source=`` marker,
+and obviously no stats yet). No delete action exists for a Мастер кампаний
+draft anywhere in the UI (checked live: neither this page nor the grid row's
+own menu has one) — so ``archive_master``/``suspend_master``/
+``resume_master`` all refuse with a clear ``BrowserSessionError`` on a
+``DRAFT`` campaign instead of clicking blind at selectors that don't exist
+on this page (``archive_master`` already reads the campaign's grid row
+before navigating, so this is a plain status check added there;
+``suspend``/``resume`` check ``_is_draft_overview_page`` right after
+navigating, before ``_read_status_text`` would otherwise report "unrecognised
+status text"). ``copy_master`` itself does not depend on any of these working.
 """
 
 import contextlib
@@ -306,6 +327,19 @@ _CLONE_MENU_ITEM_SELECTOR = '[data-testid="CampaignHeader.Menu.clone"]'
 # How long to wait, after clicking Архивировать, for the grid API to report
 # the campaign as ARCHIVED before giving up (see archive_master).
 _ARCHIVE_VERIFY_TIMEOUT_MS = 10_000
+
+# DRAFT overview page support (issue #660, live-confirmed 2026-08-04 against
+# campaign 713231614 — see the module docstring's "DRAFT overview page" note).
+# A DRAFT campaign's overview page (WIZARD_OVERVIEW_URL itself, no "/edit/")
+# renders the editable wizard form, not the stats dashboard: no
+# CampaignHeader.MenuTrigger, no status text ("Кампания остановлена"/
+# "активна"), no stat tiles. It reuses the SAME header/terminal-button testids
+# as the edit page's DRAFT path (_DRAFT_SAVE_DRAFT_BUTTON_TESTID/
+# _DRAFT_LAUNCH_BUTTON_TESTID above), plus its own header ones below.
+_CAMPAIGN_HEADER_TITLE_NAME_SELECTOR = '[data-testid="CampaignHeader.TitleName"]'
+_CAMPAIGN_HEADER_STATUS_SELECTOR = '[data-testid="CampaignHeader.Status"]'
+_BUDGET_INPUT_SELECTOR = '[data-testid="BudgetWithSuggest.PriceTextInput"]'
+_DRAFT_STATUS_TEXT = "Черновик"
 
 # How long to wait, after clicking the clone form's terminal button, for
 # Yandex to redirect page.url to the new campaign's overview URL (confirmed
@@ -807,11 +841,20 @@ def fetch_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
 
     No ``ulogin`` on the URL (see module docstring) — confirmed live that
     Yandex itself redirects to the correct ``?ulogin=<chief login>``.
+
+    A DRAFT campaign renders a different page at this same URL (issue #660,
+    see module docstring's "DRAFT overview page" note) — no status text, no
+    stat tiles, the header uses different testids. ``_fetch_draft_master``
+    handles that case; every other status keeps using the stats-dashboard
+    extractors below.
     """
     url = WIZARD_OVERVIEW_URL.format(campaign_id=campaign_id)
     page.goto(url, wait_until="domcontentloaded")
     assert_not_captcha(page.content())
     assert_authenticated(page.content())
+
+    if _is_draft_overview_page(page):
+        return _fetch_draft_master(page, campaign_id)
 
     result: Dict[str, Any] = {"CampaignId": campaign_id}
 
@@ -819,6 +862,51 @@ def fetch_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
     _extract_status(page, result)
     _extract_landing_url(page, result)
     _extract_stat_tiles(page, result)
+
+    return result
+
+
+def _is_draft_overview_page(page: "Page") -> bool:
+    """True if the overview page currently open is a DRAFT campaign's.
+
+    Detected by ``CampaignHeader.Status`` reading "Черновик" — the same
+    testid the non-DRAFT dashboard doesn't have at all (its status instead
+    lives in plain body text, see ``_read_status_text``), so this check and
+    the DRAFT-specific extractors it gates can never disagree about what
+    "DRAFT" means (mirrors ``_is_draft_edit_page``'s own rationale).
+    """
+    try:
+        handle = page.locator(_CAMPAIGN_HEADER_STATUS_SELECTOR).first
+        return handle.inner_text().strip() == _DRAFT_STATUS_TEXT
+    except PlaywrightError:
+        return False
+
+
+def _fetch_draft_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
+    """Read name/status/weekly budget from a DRAFT campaign's overview page.
+
+    No stat tiles, no landing-URL link with the confirmed ``utm_source=``
+    marker the non-DRAFT extractor keys off (the form's landing-URL field is
+    a plain input, not a rendered link) — DRAFT results simply omit
+    ``LandingUrl``/``Stats`` rather than guessing at a different selector.
+    """
+    result: Dict[str, Any] = {"CampaignId": campaign_id, "Status": "DRAFT"}
+
+    try:
+        result["Name"] = (
+            page.locator(_CAMPAIGN_HEADER_TITLE_NAME_SELECTOR)
+            .first.inner_text()
+            .strip()
+        )
+    except PlaywrightError:
+        print_warning(f"Could not read campaign name for {campaign_id}.")
+
+    try:
+        result["WeeklyBudget"] = (
+            page.locator(_BUDGET_INPUT_SELECTOR).first.input_value().strip()
+        )
+    except PlaywrightError:
+        print_warning(f"Could not read weekly budget for {campaign_id}.")
 
     return result
 
@@ -958,11 +1046,23 @@ def _suspend_or_resume(
     matching action button and re-reads the status to confirm the mutation
     actually took effect — a click that doesn't visibly change the status is
     reported as a hard error, not a silent success.
+
+    A DRAFT campaign's overview page has no ACTIVE/SUSPENDED status and no
+    action button to click (issue #660, see module docstring's "DRAFT
+    overview page" note) — refuses with a clear error instead of clicking
+    blind or misreporting a made-up status.
     """
     url = WIZARD_OVERVIEW_URL.format(campaign_id=campaign_id)
     page.goto(url, wait_until="domcontentloaded")
     assert_not_captcha(page.content())
     assert_authenticated(page.content())
+
+    if _is_draft_overview_page(page):
+        raise BrowserSessionError(
+            f"Campaign {campaign_id} is a DRAFT — it has no ACTIVE/SUSPENDED "
+            "state to suspend/resume. Launch it first (masters update "
+            '--launch, or the wizard\'s "Запустить кампанию" button).'
+        )
 
     current_status = _read_status_text(page)
     if current_status is None:
@@ -1060,6 +1160,13 @@ def archive_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
     if existing["Status"] == "ARCHIVED":
         print_warning(f"Campaign {campaign_id} is already archived; not clicking.")
         return existing
+    if existing["Status"] == "DRAFT":
+        raise BrowserSessionError(
+            f"Campaign {campaign_id} is a DRAFT — its overview page has no "
+            '"⋮" menu to archive from (issue #660), and no delete action '
+            "exists for a Мастер кампаний draft anywhere in the UI. Launch "
+            "it first (masters update --launch) if you want to archive it."
+        )
 
     url = WIZARD_OVERVIEW_URL.format(campaign_id=campaign_id)
     page.goto(url, wait_until="domcontentloaded")

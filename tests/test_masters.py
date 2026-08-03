@@ -1794,6 +1794,90 @@ class TestFetchMaster(unittest.TestCase):
         self.assertGreaterEqual(warn.call_count, 3)  # name, status, landing, stats
 
 
+class TestFetchMasterDraft(unittest.TestCase):
+    """DRAFT overview-page parsing (issue #660): name/status/weekly budget only.
+
+    See tests/fixtures/masters_wizard_draft_overview.html for the live recon
+    this is modeled on — a DRAFT campaign's overview page IS the editable
+    wizard form (no status text, no stat tiles, no MenuTrigger), reusing the
+    edit page's own CampaignFormControls testids plus its own header ones.
+    """
+
+    def _draft_page(
+        self, title="Мастер ИЖ-1 Сосуды и вены (холодный)", budget="80 000"
+    ):
+        return FakePage(
+            locators={
+                browser_masters._CAMPAIGN_HEADER_STATUS_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle(text=browser_masters._DRAFT_STATUS_TEXT)]
+                ),
+                browser_masters._CAMPAIGN_HEADER_TITLE_NAME_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle(text=title)]
+                ),
+                browser_masters._BUDGET_INPUT_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle(text=budget)]
+                ),
+            },
+        )
+
+    def test_parses_draft_overview(self):
+        page = self._draft_page()
+
+        result = browser_masters.fetch_master(page, 713231614)
+
+        self.assertEqual(
+            result,
+            {
+                "CampaignId": 713231614,
+                "Status": "DRAFT",
+                "Name": "Мастер ИЖ-1 Сосуды и вены (холодный)",
+                "WeeklyBudget": "80 000",
+            },
+        )
+
+    def test_draft_result_has_no_landing_url_or_stats(self):
+        result = browser_masters.fetch_master(self._draft_page(), 1)
+
+        self.assertNotIn("LandingUrl", result)
+        self.assertNotIn("Stats", result)
+
+    def test_draft_partial_result_on_missing_name_and_budget(self):
+        page = FakePage(
+            locators={
+                browser_masters._CAMPAIGN_HEADER_STATUS_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle(text=browser_masters._DRAFT_STATUS_TEXT)]
+                ),
+            },
+        )
+
+        with patch("direct_cli.browser.masters.print_warning") as warn:
+            result = browser_masters.fetch_master(page, 1)
+
+        self.assertEqual(result, {"CampaignId": 1, "Status": "DRAFT"})
+        self.assertEqual(warn.call_count, 2)  # name, budget
+
+    def test_non_draft_page_unaffected(self):
+        # A page whose CampaignHeader.Status reads something other than
+        # "Черновик" must fall through to the normal dashboard extractors,
+        # not be misdetected as a draft.
+        page = FakePage(
+            locators={
+                browser_masters._CAMPAIGN_HEADER_STATUS_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle(text="Активна")]
+                ),
+                "h1, [role=heading]": _FakeLocator(
+                    [_FakeLocatorHandle(text="Обычная")]
+                ),
+            },
+            body_text="Кампания активна",
+        )
+
+        result = browser_masters.fetch_master(page, 1)
+
+        self.assertEqual(result["Status"], "ACTIVE")
+        self.assertNotIn("WeeklyBudget", result)
+
+
 class TestSuspendResumeMaster(unittest.TestCase):
     """suspend_master/resume_master (issue #630): click + verify, idempotent.
 
@@ -1904,6 +1988,37 @@ class TestSuspendResumeMaster(unittest.TestCase):
 
         with self.assertRaises(BrowserSessionError):
             browser_masters.suspend_master(page, 42)
+
+    def _draft_page(self):
+        return FakePage(
+            locators={
+                browser_masters._CAMPAIGN_HEADER_STATUS_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle(text=browser_masters._DRAFT_STATUS_TEXT)]
+                ),
+            },
+        )
+
+    def test_suspend_raises_clear_error_on_draft(self):
+        # issue #660: a DRAFT campaign has no ACTIVE/SUSPENDED status or
+        # action button at all — must refuse with a DRAFT-specific message,
+        # not "unrecognised status text" (_read_status_text would return
+        # None on this page, which is a different, misleading failure mode).
+        page = self._draft_page()
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.suspend_master(page, 713231614)
+        self.assertIn("DRAFT", str(ctx.exception))
+        self.assertEqual(
+            page.navigated_to,
+            [browser_masters.WIZARD_OVERVIEW_URL.format(campaign_id=713231614)],
+        )
+
+    def test_resume_raises_clear_error_on_draft(self):
+        page = self._draft_page()
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.resume_master(page, 713231614)
+        self.assertIn("DRAFT", str(ctx.exception))
 
 
 class TestMastersSuspendResumeCommand(unittest.TestCase):
@@ -2072,6 +2187,23 @@ class TestArchiveMaster(unittest.TestCase):
                 browser_masters.archive_master(page, 42)
 
         self.assertIn("did not report it as ARCHIVED", str(ctx.exception))
+
+    def test_raises_clear_error_on_draft_without_navigating(self):
+        # issue #660: the grid already reports DRAFT before any navigation
+        # happens, and a DRAFT overview page has no "⋮" menu to click at all
+        # — refuse immediately with a clear message instead of navigating
+        # and hitting "Could not open the campaign menu".
+        page = self._page_with_menu()
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            return_value=[self._row("DRAFT")],
+        ):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.archive_master(page, 42)
+
+        self.assertIn("DRAFT", str(ctx.exception))
+        self.assertEqual(page.navigated_to, [])
 
 
 class TestMastersArchiveCommand(unittest.TestCase):

@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+**Fixed — `masters get`/`archive`/`suspend`/`resume` on `DRAFT` campaigns (#660):**
+
+- A `DRAFT` Мастер кампаний's overview page (`WIZARD_OVERVIEW_URL` itself, no
+  `/edit/`) renders the editable wizard form, not the stats-dashboard
+  overview every other status renders — no `CampaignHeader.MenuTrigger`, no
+  status text, no stat tiles. This previously made `masters get` degrade to
+  `{"CampaignId": ..., "LandingUrl": ...}` (with unhelpful "Could not read
+  campaign name"/"Could not determine status" warnings) and made `masters
+  archive`/`suspend`/`resume` crash with `BrowserSessionError` on a missing
+  selector.
+- `fetch_master` (`direct_cli/browser/masters.py`) now detects a `DRAFT`
+  overview page via `CampaignHeader.Status` reading "Черновик"
+  (`_is_draft_overview_page`) and reads `Name`/`Status`/`WeeklyBudget` from
+  the form's header and budget input instead of the dashboard extractors —
+  no `LandingUrl`/`Stats` (the form has neither).
+- `archive_master`/`suspend_master`/`resume_master` now refuse a `DRAFT`
+  campaign with a clear `BrowserSessionError` explaining there is no
+  archive/suspend/resume action available for a draft (launch it first via
+  `masters update --launch`), instead of crashing on a missing selector.
+  No delete action exists for a Мастер кампаний draft anywhere in the UI
+  (checked live, both the overview page and the grid row's own menu).
+- Live-verified against campaign 713231614 (the draft copy left over from
+  #659's recon) — see `tests/fixtures/masters_wizard_draft_overview.html`.
+
 **Fixed — images-section "ghost" render pass caused false "no images" reads (#687):**
 
 - `_wait_for_images_editor` (`direct_cli/browser/masters.py`) previously
