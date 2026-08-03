@@ -423,20 +423,6 @@ _CLONE_VERIFY_TIMEOUT_MS = 20_000
 # generous headroom for a slower response.
 _DRAFT_SAVE_REDIRECT_TIMEOUT_MS = 20_000
 
-# How long into the redirect wait to retry the click once if no redirect has
-# happened yet (issue #704 recon: a click that lands before later page
-# sections finish hydrating can silently no-op — see
-# _click_draft_terminal_button's docstring). Long enough that a healthy
-# click's own ~5-10s redirect completes before this fires — only a
-# genuinely stuck click (no-op due to the hydration race) reaches this
-# retry. A shorter threshold here double-submits the terminal
-# save/launch click on every healthy run whose redirect happens to land
-# past it (cycle-review PR #711: a 4_000ms threshold — shorter than the
-# ~5s redirect this same file documents as typical — was proven to fire
-# on a deterministic 5s-redirect simulation, submitting the no-rollback
-# launch click twice).
-_DRAFT_SAVE_CLICK_RETRY_MS = 12_000
-
 # Matches WIZARD_OVERVIEW_URL's {campaign_id} once Yandex redirects there
 # after a successful clone save/launch (see copy_master).
 _WIZARD_OVERVIEW_URL_ID_RE = re.compile(r"/wizard/campaigns/(\d+)/")
@@ -2180,49 +2166,48 @@ def _click_draft_terminal_button(
     (which only waits for the first headline slot to render) can silently
     no-op — the click lands before later-loading page sections (the
     "Продвижение организации"/preview panels, confirmed live via screenshot)
-    finish hydrating, and the button's own handler isn't wired up yet. A
-    second click a few seconds later, once the page has visibly settled,
-    reliably triggers the real submit-and-redirect. Clicking the SAME button
-    twice is safe here (the page is unchanged, still DRAFT, until the click
-    actually takes) — so this retries the click once, partway through the
-    redirect wait, rather than requiring every caller to add its own
-    pre-click settle delay.
+    finish hydrating, and the button's own handler isn't wired up yet. An
+    earlier version of this function retried the click once, purely on
+    elapsed time, if no redirect had happened yet — cycle-review PR #711
+    (Codex) proved this structurally double-submits the no-rollback
+    save/launch click: ANY threshold shorter than the full redirect-wait
+    window is, by construction, still reachable by a healthy click whose
+    redirect simply lands a bit later than usual (proven live for both a
+    4s and a 12s threshold against this file's own documented ~5-10s
+    redirect range) — a time-only retry cannot distinguish "stuck" from
+    "still in flight" without a positive failure signal this page does not
+    expose. So this function clicks exactly once and fails loudly if
+    Yandex never redirects, rather than risk a silent double mutation —
+    the hydration race from the #704 recon now surfaces as an explicit
+    "verify manually" error instead of an auto-retried click.
     """
     selector = (
         _DRAFT_LAUNCH_BUTTON_TESTID if launch else _DRAFT_SAVE_DRAFT_BUTTON_TESTID
     )
     button_label = _LAUNCH_BUTTON_TEXT if launch else _SAVE_DRAFT_BUTTON_TEXT
     handle = page.locator(selector).first
+    try:
+        handle.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            f"Could not find the {button_label!r} button on the DRAFT edit "
+            f"page for campaign {campaign_id} — Yandex may have changed "
+            "the page's markup. Re-run with --headful to inspect the page."
+        ) from exc
 
-    def _click():
-        try:
-            handle.click()
-        except PlaywrightError as exc:
-            raise BrowserSessionError(
-                f"Could not find the {button_label!r} button on the DRAFT "
-                f"edit page for campaign {campaign_id} — Yandex may have "
-                "changed the page's markup. Re-run with --headful to "
-                "inspect the page."
-            ) from exc
-
-    _click()
-
-    retry_deadline = time.monotonic() + _DRAFT_SAVE_CLICK_RETRY_MS / 1000
-    retried = False
     deadline = time.monotonic() + _DRAFT_SAVE_REDIRECT_TIMEOUT_MS / 1000
     while time.monotonic() < deadline:
         if "/edit/" not in page.url:
             return
-        if not retried and time.monotonic() >= retry_deadline:
-            _click()
-            retried = True
         page.wait_for_timeout(250)
 
     raise BrowserSessionError(
         f"Clicked {button_label!r} for DRAFT campaign {campaign_id}, but "
         "Yandex did not redirect away from the edit page within "
         f"{_DRAFT_SAVE_REDIRECT_TIMEOUT_MS / 1000:.0f}s — the edit may not "
-        "have saved. Verify manually before retrying."
+        "have saved (or the click landed before the page finished "
+        "hydrating and silently no-op'd — issue #704 recon). Reload the "
+        "edit page and verify manually before retrying."
     )
 
 
