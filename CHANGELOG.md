@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+**Fixed — `_wait_for_images_editor` returned during a loading-stub state,
+under-reporting a campaign's real image count (#648):**
+
+- The edit page's "Изображения" section renders in TWO stages — first
+  `ImageSuggestionsEditor` itself appears with four
+  `ImageSuggestionsEditor.CampaignContents.StubN` loading placeholders and
+  NEITHER `ContentImage.*` nor `.Open` present yet, then roughly 3s later
+  the stubs are replaced by the real content. `_wait_for_images_editor`
+  previously returned as soon as the outer container existed — i.e.
+  during the stub window — so `_read_image_content_ids` read `[]` for a
+  campaign that demonstrably had 4 real images, and `masters update
+  --image` then refused to replace anything with "campaign has no images".
+- **Confirmed live 2026-08-03, campaigns 713234191 and 713234204** (both
+  with 4 real images each): the images section read back as empty before
+  this fix and as 4 images after it. The two campaigns and their symptom
+  exactly mirror the four-DRAFT regression `_wait_for_images_editor` was
+  originally written to guard against (2026-08-02) — the guard just
+  didn't cover this second render stage.
+- `_wait_for_images_editor` now also polls until no
+  `ImageSuggestionsEditor.CampaignContents.StubN` element remains, so
+  every caller observes only the settled state, never the transient one.
+  The timeout error message now says "did not finish rendering... may
+  still be showing loading placeholders" instead of "did not render", to
+  describe the stub case accurately.
+
 **Added — `direct masters update --image` (#670, Этап D):**
 
 - New repeatable `--image "N=/path/to/file.png"` flag on `direct masters

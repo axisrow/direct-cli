@@ -4628,7 +4628,7 @@ class TestWaitForImagesEditor(unittest.TestCase):
             with self.assertRaises(BrowserSessionError) as ctx:
                 browser_masters._wait_for_images_editor(page)
 
-        self.assertIn("did not render", str(ctx.exception))
+        self.assertIn("did not finish rendering", str(ctx.exception))
 
     def test_set_image_does_not_claim_no_images_before_the_section_renders(self):
         """The end-to-end shape of the live bug: `_set_image` must not
@@ -4647,8 +4647,68 @@ class TestWaitForImagesEditor(unittest.TestCase):
                     page, 0, "/tmp/fake.png", target_content_id="a"
                 )
 
-        self.assertIn("did not render", str(ctx.exception))
+        self.assertIn("did not finish rendering", str(ctx.exception))
         self.assertNotIn("no images", str(ctx.exception).lower())
+
+    def test_waits_out_the_loading_stub_state_before_returning(self):
+        """Live-confirmed 2026-08-03 regression (campaigns 713234191 and
+        713234204, both with 4 real images): ``ImageSuggestionsEditor``
+        itself renders FIRST with four ``...CampaignContents.StubN``
+        loading placeholders, and NEITHER ``ContentImage.*`` nor ``.Open``
+        exist yet — only ~3s later do the stubs get replaced by the real
+        content. Waiting on ``_IMAGES_EDITOR_SELECTOR`` alone (the original
+        implementation) returned during this stub window, so a campaign
+        that demonstrably had 4 images read back as having none and
+        ``masters update --image`` refused to replace anything.
+        """
+
+        class _StubThenContentPage(_FakeImagesPage):
+            def __init__(self, *args, stub_ticks=2, **kwargs):
+                super().__init__(*args, **kwargs)
+                self._stub_ticks_remaining = stub_ticks
+
+            def locator(self, selector):
+                stub_prefix = (
+                    f'[data-testid^="{browser_masters._IMAGES_STUB_TESTID_PREFIX}"]'
+                )
+                if selector == stub_prefix:
+                    if self._stub_ticks_remaining > 0:
+                        self._stub_ticks_remaining -= 1
+                        return _FakeLocator([_FakeLocatorHandle() for _ in range(4)])
+                    return _FakeLocator([])
+                return super().locator(selector)
+
+        page = _StubThenContentPage(["a", "b", "c", "d"], stub_ticks=2)
+
+        browser_masters._wait_for_images_editor(page)  # must not raise
+
+        # Confirms the wait actually consumed the stub ticks rather than
+        # returning on the very first (still-stubbed) poll.
+        self.assertEqual(page._stub_ticks_remaining, 0)
+        self.assertEqual(
+            browser_masters._read_image_content_ids(page), ["a", "b", "c", "d"]
+        )
+
+    def test_raises_if_stubs_never_clear(self):
+        """A section stuck showing loading placeholders forever must be a
+        hard error, not silently treated as an empty (or populated) set."""
+
+        class _StuckStubPage(_FakeImagesPage):
+            def locator(self, selector):
+                stub_prefix = (
+                    f'[data-testid^="{browser_masters._IMAGES_STUB_TESTID_PREFIX}"]'
+                )
+                if selector == stub_prefix:
+                    return _FakeLocator([_FakeLocatorHandle() for _ in range(4)])
+                return super().locator(selector)
+
+        page = _StuckStubPage(["a", "b", "c", "d"])
+        with patch.object(browser_masters, "_IMAGES_EDITOR_TIMEOUT_MS", 1):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters._wait_for_images_editor(page)
+
+        self.assertIn("did not finish rendering", str(ctx.exception))
+        self.assertIn("loading placeholders", str(ctx.exception))
 
 
 class TestSetImage(unittest.TestCase):
