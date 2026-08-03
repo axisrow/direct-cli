@@ -50,6 +50,11 @@ SMOKE_MATRIX = {
         "keywordsresearch.deduplicate",
         "keywordsresearch.has-search-volume",
         "leads.get",
+        "masters.adimages.get",
+        # Read-only: opens the image manager modal to read thumb URLs but
+        # never clicks Save (see fetch_master_images's docstring) — nothing
+        # commits to the campaign, so this is safe to exercise like any
+        # other *.get.
         "masters.get",
         "masters.list",
         "negativekeywordsharedsets.get",
