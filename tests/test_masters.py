@@ -1898,29 +1898,47 @@ class TestFetchMaster(unittest.TestCase):
         # few ticks to stabilize -- 60x slower than the ~0.07s this test
         # takes locally). Tick count is deterministic regardless of how
         # slowly wall-clock time actually elapses between ticks.
-        class _TickCountingPage(FakePage):
-            def __init__(self, *args, **kwargs):
-                super().__init__(*args, **kwargs)
-                self.tick_count = 0
+        # _poll_until's deadline check (`while time.monotonic() < deadline`)
+        # relies on real wall-clock time elapsing -- a `wait_for_timeout`
+        # override that only counts calls without actually advancing the
+        # clock (the original form of this fixture) makes the loop spin as
+        # fast as the CPU allows, burning the FULL real _STAT_TILES_TIMEOUT_MS
+        # in wall-clock terms regardless of how few "ticks" the logic itself
+        # needed -- on a fast/CI runner this racks up millions of iterations
+        # before the deadline elapses (observed live on GitHub Actions: PR
+        # #711's rebase CI run failed with "4588300 not less than 40",
+        # confirming this was never actually fixed by asserting tick count
+        # alone). Patching time.monotonic to advance in lockstep with each
+        # wait_for_timeout call makes the deadline check trip after exactly
+        # the intended number of ticks, independent of real elapsed time.
+        #
+        # body_text must contain a recognised (non-DRAFT) status marker --
+        # see the sibling zero-tiles test's comment for why an unrecognised
+        # (here: empty/default) body_text would otherwise let
+        # _is_draft_overview_page burn its own full 60-tick budget before
+        # _extract_stat_tiles (what this test actually exercises) ever runs.
+        clock = {"now": 0.0}
+        with patch.object(browser_masters.time, "monotonic", lambda: clock["now"]):
 
-            def wait_for_timeout(self, timeout):
-                self.tick_count += 1
+            class _TickCountingPage(FakePage):
+                def __init__(self, *args, **kwargs):
+                    super().__init__(*args, **kwargs)
+                    self.tick_count = 0
 
-        page = _TickCountingPage(
-            locators={
-                "button": _FakeLocator(
-                    [_FakeLocatorHandle(text="191,07 ₽\nЗа конверсию")]
-                ),
-            },
-            # _is_draft_overview_page's own _poll_until (which runs first,
-            # to decide DRAFT vs. non-DRAFT) also ticks this same counter —
-            # without a recognisable status marker in body_text it would
-            # never resolve and burn its own real-time timeout budget before
-            # _extract_stat_tiles ever got a chance to run.
-            body_text="Кампания активна",
-        )
-        with patch.object(browser_masters, "_STAT_TILES_TIMEOUT_MS", 10_000):
-            result = browser_masters.fetch_master(page, 1)
+                def wait_for_timeout(self, timeout):
+                    self.tick_count += 1
+                    clock["now"] += timeout / 1000
+
+            page = _TickCountingPage(
+                locators={
+                    "button": _FakeLocator(
+                        [_FakeLocatorHandle(text="191,07 ₽\nЗа конверсию")]
+                    ),
+                },
+                body_text="Кампания активна",
+            )
+            with patch.object(browser_masters, "_STAT_TILES_TIMEOUT_MS", 10_000):
+                result = browser_masters.fetch_master(page, 1)
         self.assertEqual(result["Stats"], {"cost_per_conversion": "191,07 ₽"})
         # Must stop once the set stabilizes, not burn through the full
         # 10_000ms / 250ms = 40-tick timeout budget.
@@ -1931,24 +1949,35 @@ class TestFetchMaster(unittest.TestCase):
         # condition never matched an empty `stats` dict against
         # `wanted_keys`, so a page with no recognisable stat tiles at all
         # also burned the full timeout. See the sibling test above for why
-        # this asserts tick count rather than wall-clock elapsed time.
-        class _TickCountingPage(FakePage):
-            def __init__(self, *args, **kwargs):
-                super().__init__(*args, **kwargs)
-                self.tick_count = 0
+        # this asserts tick count rather than wall-clock elapsed time, and
+        # why time.monotonic is patched to advance with each tick.
+        #
+        # body_text must contain a recognised (non-DRAFT) status marker --
+        # issue #660's _is_draft_overview_page (fetch_master's very first
+        # call after _goto_overview_page) polls up to
+        # _DRAFT_OVERVIEW_DETECT_TIMEOUT_MS (15s / 60 ticks at the default
+        # rate) for EITHER a DRAFT marker OR _read_status_text to recognise
+        # something -- an unrecognisable body_text like the plain
+        # "something Yandex changed" used elsewhere in this file silently
+        # burns that ENTIRE budget before _extract_stat_tiles (what this
+        # test actually exercises) ever runs, inflating tick_count by 60 on
+        # top of the stat-tile poll's own ticks.
+        clock = {"now": 0.0}
+        with patch.object(browser_masters.time, "monotonic", lambda: clock["now"]):
 
-            def wait_for_timeout(self, timeout):
-                self.tick_count += 1
+            class _TickCountingPage(FakePage):
+                def __init__(self, *args, **kwargs):
+                    super().__init__(*args, **kwargs)
+                    self.tick_count = 0
 
-        # _is_draft_overview_page's own _poll_until (which runs first, to
-        # decide DRAFT vs. non-DRAFT) also ticks this same counter — needs a
-        # recognisable status marker in body_text or it never resolves and
-        # burns its own real-time timeout budget before _extract_stat_tiles
-        # ever gets a chance to run.
-        page = _TickCountingPage(locators={}, body_text="Кампания активна")
-        with patch.object(browser_masters, "_STAT_TILES_TIMEOUT_MS", 10_000):
-            with patch("direct_cli.browser.masters.print_warning"):
-                result = browser_masters.fetch_master(page, 1)
+                def wait_for_timeout(self, timeout):
+                    self.tick_count += 1
+                    clock["now"] += timeout / 1000
+
+            page = _TickCountingPage(locators={}, body_text="Кампания активна")
+            with patch.object(browser_masters, "_STAT_TILES_TIMEOUT_MS", 10_000):
+                with patch("direct_cli.browser.masters.print_warning"):
+                    result = browser_masters.fetch_master(page, 1)
         self.assertNotIn("Stats", result)
         self.assertLess(page.tick_count, 40)
 
