@@ -202,6 +202,7 @@ import contextlib
 import json
 import re
 import time
+from urllib.parse import urlsplit
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -2266,7 +2267,20 @@ def _fill_landing_url(page: "Page", url: str) -> None:
     # real URL has one (see docstring), and querying each candidate
     # separately keeps this a plain data-testid lookup like every other
     # locator in this module.
-    url_candidates = [url, url.rstrip("/")] if url.endswith("/") else [url]
+    #
+    # Scoped to the bare-domain-root case ONLY (``urlsplit(url).path == "/"``)
+    # — confirmed live is exactly "https://host/" vs. the stored
+    # "https://host". Generalizing this to any URL ending in "/" would also
+    # strip a PATH's trailing slash (e.g. "/sale/" -> "/sale"), which is not
+    # confirmed to be the same destination and was never observed live —
+    # matching on that alone risked selecting an unintended suggestion and
+    # launching the campaign against a different landing page (Codex review,
+    # PR #703 round 1).
+    url_candidates = (
+        [url, url.rstrip("/")]
+        if url.endswith("/") and urlsplit(url).path == "/"
+        else [url]
+    )
     option_locators = [
         page.locator(f'[data-testid="CampaignFormUrl.listBox.{candidate}"]')
         for candidate in url_candidates
@@ -4034,6 +4048,11 @@ def create_master(
         page, _HEADLINES_TESTID_TEMPLATE, _HEADLINES_SLOT_COUNT, headlines
     )
     _add_repeating_values(page, _TEXTS_TESTID_TEMPLATE, _TEXTS_SLOT_COUNT, texts)
+    # Known-broken on accounts matching the one re-recon'd for #690/#703: the
+    # region picker _set_region needs (RegionsTreeTagGroup.launcher) was
+    # confirmed absent from a fully-loaded step 2 there — see issue #705.
+    # #690 scoped step 1 only, so this is not fixed here; _set_region raises
+    # its own clear BrowserSessionError when the launcher can't be found.
     _set_region(page, regions)
     if weekly_budget is not None:
         _set_weekly_budget_on_create(page, weekly_budget)

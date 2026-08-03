@@ -4578,6 +4578,7 @@ class TestFillLandingUrl(unittest.TestCase):
         matching_option=None,
         option_clicks=None,
         field_handle=None,
+        unrelated_option=None,
     ):
         url_state = url_state if url_state is not None else {}
         next_clicks = next_clicks if next_clicks is not None else []
@@ -4598,6 +4599,13 @@ class TestFillLandingUrl(unittest.TestCase):
             )
             locators[f'[data-testid="CampaignFormUrl.listBox.{matching_option}"]'] = (
                 _FakeLocator([option_handle])
+            )
+        if unrelated_option:
+            # Confirmed live: a URL with no EXACT suggestion match still
+            # renders the popup (unrelated history) while "Далее" is also
+            # present and enabled — see _fill_landing_url's docstring.
+            locators[f'[data-testid="CampaignFormUrl.listBox.{unrelated_option}"]'] = (
+                _FakeLocator([_FakeLocatorHandle()])
             )
         return FakePage(
             locators=locators,
@@ -4650,6 +4658,22 @@ class TestFillLandingUrl(unittest.TestCase):
         browser_masters._fill_landing_url(page, "https://ksamata.ru/")
 
         self.assertEqual(len(option_clicks), 1)
+
+    def test_does_not_match_suggestion_by_stripping_a_path_trailing_slash(self):
+        """A suggestion for a DIFFERENT path (``/sale`` without the slash)
+        must never be treated as a match for ``/sale/`` — only the bare
+        domain-root case (confirmed live) drops the trailing slash. Matching
+        on path/query would risk launching against an unintended destination
+        (Codex review, PR #703 round 1)."""
+        next_clicks = []
+        page = self._page(
+            next_clicks=next_clicks,
+            unrelated_option="https://site.ru/sale",  # no trailing slash
+        )
+
+        browser_masters._fill_landing_url(page, "https://site.ru/sale/")
+
+        self.assertEqual(len(next_clicks), 1)
 
     def test_raises_when_url_field_missing(self):
         page = FakePage(locators={})
