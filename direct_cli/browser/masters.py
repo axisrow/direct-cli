@@ -841,14 +841,22 @@ def _goto_overview_page(page: "Page", campaign_id: int) -> None:
     other status, making it the earliest common marker every caller here can
     rely on regardless of campaign status.
 
-    ``assert_not_captcha``/``assert_authenticated`` run on every poll tick
-    (not just once after the wait) so a captcha gate or an expired session
-    is reported immediately via its own specific error, instead of only
-    surfacing after burning the full ``_OVERVIEW_LOAD_TIMEOUT_MS`` waiting
-    for a title that a login/captcha page will never render.
+    ``assert_not_captcha``/``assert_authenticated`` run once immediately
+    after navigation AND on every poll tick, so a captcha gate or an
+    expired session is reported via its own specific error right away,
+    instead of only surfacing after burning the full
+    ``_OVERVIEW_LOAD_TIMEOUT_MS`` waiting for a title that a login/captcha
+    page will never render. The extra upfront check does not change
+    behavior on the happy path -- it only matters when the gate is already
+    present at commit time, which is exactly the case that must not depend
+    on ``_poll_until``'s first tick actually running promptly.
     """
     url = WIZARD_OVERVIEW_URL.format(campaign_id=campaign_id)
     page.goto(url, wait_until="commit")
+
+    initial_html = page.content()
+    assert_not_captcha(initial_html)
+    assert_authenticated(initial_html)
 
     def _rendered() -> bool:
         html = page.content()
