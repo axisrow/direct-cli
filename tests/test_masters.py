@@ -374,6 +374,16 @@ class FakePage:
         role_elements=None,
     ):
         self._locators = locators or {}
+        # Every overview-page test implicitly exercises _goto_overview_page
+        # (issue #683), which polls for this exact testid before returning
+        # control to the caller — default it present so existing tests that
+        # don't care about the wait mechanics aren't all forced to register
+        # it explicitly. A test that DOES care (e.g. the DRAFT-shaped
+        # "marker never appears" timeout case) removes it from `locators`.
+        self._locators.setdefault(
+            browser_masters._OVERVIEW_TITLE_SELECTOR,
+            _FakeLocator([_FakeLocatorHandle()]),
+        )
         self._body_text = body_text
         self._html = html
         self.navigated_to = []
@@ -1707,7 +1717,9 @@ class TestFetchMaster(unittest.TestCase):
     def _page_for(self, title="Мастер Тест", status_text="Кампания остановлена"):
         return FakePage(
             locators={
-                "h1, [role=heading]": _FakeLocator([_FakeLocatorHandle(text=title)]),
+                browser_masters._OVERVIEW_TITLE_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle(text=title)]
+                ),
                 "a[href*='utm_source=']": _FakeLocator(
                     [
                         _FakeLocatorHandle(
@@ -1764,11 +1776,38 @@ class TestFetchMaster(unittest.TestCase):
         result = browser_masters.fetch_master(page, 1)
         self.assertEqual(result["Status"], "ACTIVE")
 
+    def test_stat_label_with_non_breaking_space_still_matches(self):
+        # Confirmed live 2026-08-03 (issue #683, campaign 72349978): "За
+        # конверсию" renders with U+00A0 between the words, not a plain
+        # space — _STAT_TILE_LABELS' plain-space key must still match.
+        page = FakePage(
+            locators={
+                "button": _FakeLocator(
+                    [_FakeLocatorHandle(text="191,07 ₽\nЗа\xa0конверсию")]
+                ),
+            },
+        )
+        result = browser_masters.fetch_master(page, 1)
+        self.assertEqual(result["Stats"], {"cost_per_conversion": "191,07 ₽"})
+
     def test_partial_result_on_unrecognised_sections(self):
-        # A page with none of the expected sections must not raise — every
-        # extractor degrades to omitting its field plus a warning, per the
-        # module's "best-effort" contract (see fetch_master docstring).
+        # A page whose title element IS present (so _goto_overview_page is
+        # satisfied the overview page is ready — see TestGotoOverviewPage
+        # for the "never renders at all" case) but whose text can't be read,
+        # and whose other sections weren't recognised, must not raise —
+        # every extractor degrades to omitting its field plus a warning, per
+        # the module's "best-effort" contract (see fetch_master docstring).
+        class _PresentButUnreadableTitle(_FakeLocatorHandle):
+            def count(self):
+                return 1  # matched -> _goto_overview_page's wait is satisfied
+
+            def inner_text(self):
+                raise PlaywrightError("element detached")
+
         page = FakePage(locators={}, body_text="something Yandex changed the markup to")
+        page._locators[browser_masters._OVERVIEW_TITLE_SELECTOR] = _FakeLocator(
+            [_PresentButUnreadableTitle()]
+        )
 
         with patch("direct_cli.browser.masters.print_warning") as warn:
             result = browser_masters.fetch_master(page, 999)
@@ -4444,13 +4483,140 @@ class TestAuthDetection(unittest.TestCase):
             browser_masters.fetch_masters_list(page)
         self.assertEqual(page.goto_wait_until, "commit")
 
-    def test_fetch_master_waits_for_domcontentloaded_not_networkidle(self):
-        # fetch_master navigates to the wizard overview page, not the grid
+    def test_fetch_master_uses_commit_not_domcontentloaded(self):
+        # #683: domcontentloaded raced the overview page's client-rendered
+        # header (live-confirmed intermittent "Could not read campaign name"
+        # against campaign 72349978) -- _goto_overview_page now uses
+        # wait_until="commit" and polls for the header marker itself instead
+        # of trusting an implicit DOM-ready signal. fetch_master navigates to
+        # the wizard overview page, not the grid
         # (_capture_grid_campaigns_request) — out of scope for #682, which
         # only touches the grid's own goto.
         page = FakePage(locators={})
         browser_masters.fetch_master(page, 1)
-        self.assertEqual(page.goto_wait_until, "domcontentloaded")
+        self.assertEqual(page.goto_wait_until, "commit")
+
+
+class TestGotoOverviewPage(unittest.TestCase):
+    """_goto_overview_page (issue #683): the shared wait every wizard
+    overview entry point (get/suspend/resume/archive/copy) now goes through.
+
+    domcontentloaded raced the overview page's client-rendered header --
+    live-confirmed intermittent "Could not read campaign name" against
+    campaign 72349978 while status/landing-URL/stats all read back fine.
+    wait_until="commit" plus an explicit poll for
+    _OVERVIEW_TITLE_SELECTOR (the "<h2 data-testid=CampaignHeader.Title>"
+    element, confirmed live present on BOTH DRAFT and non-DRAFT overview
+    pages, unlike _MENU_TRIGGER_SELECTOR which #660 found absent on DRAFT)
+    replaces it.
+    """
+
+    def test_every_overview_entry_point_uses_commit(self):
+        # fetch_master (get), _suspend_or_resume (suspend/resume),
+        # archive_master, and copy_master all navigate through
+        # _goto_overview_page -- each must request wait_until="commit", not
+        # domcontentloaded (#683).
+        page = FakePage(locators={})
+        browser_masters.fetch_master(page, 1)
+        self.assertEqual(page.goto_wait_until, "commit")
+
+        page = FakePage(body_text="Кампания активна")
+        browser_masters.resume_master(page, 1)
+        self.assertEqual(page.goto_wait_until, "commit")
+
+        page = FakePage(
+            locators={
+                browser_masters._MENU_TRIGGER_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                browser_masters._ARCHIVE_MENU_ITEM_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+            },
+        )
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            side_effect=[
+                [
+                    {
+                        "CampaignId": 1,
+                        "Name": "x",
+                        "Status": "STOPPED",
+                        "Type": "TEXT",
+                        "StartDate": "2025-01-01",
+                    }
+                ],
+                [
+                    {
+                        "CampaignId": 1,
+                        "Name": "x",
+                        "Status": "ARCHIVED",
+                        "Type": "TEXT",
+                        "StartDate": "2025-01-01",
+                    }
+                ],
+            ],
+        ):
+            browser_masters.archive_master(page, 1)
+        self.assertEqual(page.goto_wait_until, "commit")
+
+    def test_waits_for_title_marker_before_returning(self):
+        # A page whose header hasn't rendered yet on the first poll tick
+        # must not be treated as ready -- mirrors _wait_for_images_editor's
+        # own "stub state" guard (#670).
+        remaining = {"ticks": 2}
+        title_selector = browser_masters._OVERVIEW_TITLE_SELECTOR
+
+        class _SlowHeaderPage(FakePage):
+            def locator(self, selector):
+                if selector == title_selector:
+                    if remaining["ticks"] > 0:
+                        remaining["ticks"] -= 1
+                        return _FakeLocator([])
+                    return _FakeLocator([_FakeLocatorHandle()])
+                return super().locator(selector)
+
+        page = _SlowHeaderPage(locators={})
+
+        browser_masters.fetch_master(page, 1)  # must not raise
+
+        self.assertEqual(remaining["ticks"], 0)
+
+    def test_raises_when_title_marker_never_appears(self):
+        # A DRAFT campaign's overview page has no _MENU_TRIGGER_SELECTOR
+        # (issue #660, not fixed here) -- archive_master/copy_master still
+        # fail on it, but as a clear bounded timeout, not an indefinite
+        # hang. Simulated here via a header that never renders at all.
+        page = FakePage(locators={})
+        del page._locators[browser_masters._OVERVIEW_TITLE_SELECTOR]
+
+        with patch.object(browser_masters, "_OVERVIEW_LOAD_TIMEOUT_MS", 1):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters._goto_overview_page(page, 999)
+
+        self.assertIn("did not render within", str(ctx.exception))
+        self.assertIn("999", str(ctx.exception))
+
+    def test_reports_captcha_immediately_without_waiting_out_the_timeout(self):
+        # A captcha gate is reported via its own specific error as soon as
+        # it's detected, rather than only after burning the full
+        # _OVERVIEW_LOAD_TIMEOUT_MS waiting for a header a captcha page will
+        # never render.
+        page = FakePage(
+            locators={},
+            html="<script>smartCaptcha.render()</script>",
+        )
+        del page._locators[browser_masters._OVERVIEW_TITLE_SELECTOR]
+
+        with self.assertRaises(BrowserCaptchaError):
+            browser_masters._goto_overview_page(page, 1)
+
+    def test_reports_auth_failure_immediately_without_waiting_out_the_timeout(self):
+        page = FakePage(locators={}, html="<body>Войдите с Яндекс ID</body>")
+        del page._locators[browser_masters._OVERVIEW_TITLE_SELECTOR]
+
+        with self.assertRaises(BrowserAuthError):
+            browser_masters._goto_overview_page(page, 1)
 
 
 class TestBrowserSessionErrors(unittest.TestCase):
