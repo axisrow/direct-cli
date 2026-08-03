@@ -3581,6 +3581,7 @@ def _poll_until(
     timeout_ms: int,
     *,
     tick_ms: int = 250,
+    clock: "Callable[[], float]" = time.monotonic,
 ) -> bool:
     """Poll ``predicate`` until it is true or ``timeout_ms`` elapses.
 
@@ -3591,9 +3592,19 @@ def _poll_until(
     ``PlaywrightError`` from the predicate is suppressed and treated as
     "not yet" — a locator query racing a mid-render DOM is the normal case
     these loops exist to absorb.
+
+    ``clock`` defaults to ``time.monotonic`` (unchanged production
+    behaviour) but can be swapped for a fake clock in tests (issue #715):
+    the previous hard-coded ``time.monotonic()`` measured real wall-clock
+    time, so a test mocking ``page.wait_for_timeout`` as a no-op tick
+    counter got a tick count purely determined by how many iterations the
+    host CPU spun through before real time elapsed — non-deterministic
+    under a loaded CI runner. A fake clock that only advances inside
+    ``wait_for_timeout`` makes the deadline (and therefore the tick count)
+    deterministic instead.
     """
-    deadline = time.monotonic() + timeout_ms / 1000
-    while time.monotonic() < deadline:
+    deadline = clock() + timeout_ms / 1000
+    while clock() < deadline:
         with contextlib.suppress(PlaywrightError):
             if predicate():
                 return True
@@ -3721,6 +3732,7 @@ def _poll_until_terminal(
     timeout_ms: int,
     *,
     tick_ms: int = 250,
+    clock: "Callable[[], float]" = time.monotonic,
 ) -> "Optional[str]":
     """Like ``_poll_until``, but for a predicate returning a terminal-state
     string (truthy, non-``None``) instead of a bare bool.
@@ -3730,9 +3742,12 @@ def _poll_until_terminal(
     true/false — see ``_edit_form_terminal_state``. ``PlaywrightError`` is
     suppressed the same way ``_poll_until`` does, for the same reason (a
     locator query racing a mid-render DOM is expected, not a failure).
+
+    ``clock`` defaults to ``time.monotonic`` — see ``_poll_until``'s
+    docstring (issue #715) for why this is injectable.
     """
-    deadline = time.monotonic() + timeout_ms / 1000
-    while time.monotonic() < deadline:
+    deadline = clock() + timeout_ms / 1000
+    while clock() < deadline:
         with contextlib.suppress(PlaywrightError):
             state = predicate()
             if state is not None:
