@@ -53,6 +53,27 @@
   treats an unrendered tick as "not authenticated yet" rather than a
   successful, verified login (cycle-review on #692).
 
+**Fixed — `wait_until="domcontentloaded"` timeout on `masters` wizard-edit
+navigation (#684):**
+
+- All four `WIZARD_EDIT_URL` navigation sites (`_verify_saved`,
+  `update_master`, `_open_images_editor`, `_verify_saved_images`) switched
+  from `page.goto(url, wait_until="domcontentloaded")` to
+  `wait_until="commit"` — `domcontentloaded` was observed to time out under
+  real network conditions on this SPA (Yandex holds long-poll connections
+  that can make even that early a lifecycle event hang), while `commit`
+  only waits on the response itself and never hangs on page-internal
+  behaviour.
+- `commit` guarantees nothing about the DOM, so every site now polls a new
+  `_wait_for_edit_form` helper for the edit form's first headline slot
+  (`CampaignTitles0.textarea` — guaranteed present on any rendered edit
+  page, DRAFT or not, since headlines are not optional) before touching
+  the page, mirroring `_wait_for_images_editor`'s existing "wait for real
+  content, not just the navigation call" discipline.
+- `fetch_master_images`'s existing `_wait_for_images_editor` call is
+  unaffected — confirmed this fix composes cleanly with it (the form-ready
+  wait happens first, then the images-specific stub wait, as before).
+
 **Added — `direct masters adimages delete/set` (#648):**
 
 - Completes the `masters adimages` subgroup, so a campaign's image set can

@@ -383,6 +383,19 @@ _TEXTS_SLOT_COUNT = 3
 _HEADLINES_TESTID_TEMPLATE = "CampaignTitles{index}.textarea"
 _TEXTS_TESTID_TEMPLATE = "CampaignTexts{index}.textarea"
 
+# Edit-page-ready marker (issue #684). ``goto(..., wait_until="commit")``
+# returns as soon as the response headers are received — before ANY of the
+# SPA's own JS has run — so every call site that immediately reads/writes a
+# form field needs an explicit wait for real content first, same reasoning
+# as ``_IMAGES_EDITOR_TIMEOUT_MS`` below. The first headline slot
+# (``CampaignTitles0.textarea``) is the marker: headlines are not optional
+# like images (see ``_HEADLINES_SLOT_COUNT``'s module-level comment), so
+# slot 0 is guaranteed present on every rendered edit page, DRAFT or not
+# (the DRAFT edit page still renders headlines/texts — see module docstring's
+# "DRAFT support" note).
+_EDIT_FORM_READY_TESTID = _HEADLINES_TESTID_TEMPLATE.format(index=0)
+_EDIT_FORM_READY_TIMEOUT_MS = 30_000
+
 # Images (issue #670, Этап D). Confirmed live 2026-08-02 against DRAFT clone
 # 713234191 that images are a COMPLETELY different shape from headlines/texts
 # above: there is no fixed slot count in the DOM at all — the edit page
@@ -1579,9 +1592,10 @@ def _verify_saved(
     take effect and this raises rather than reporting false success.
     """
     url = WIZARD_EDIT_URL.format(campaign_id=campaign_id)
-    page.goto(url, wait_until="domcontentloaded")
+    page.goto(url, wait_until="commit")
     assert_not_captcha(page.content())
     assert_authenticated(page.content())
+    _wait_for_edit_form(page, campaign_id)
 
     checks = [
         ("weekly_budget", weekly_budget, _read_weekly_budget),
@@ -1724,9 +1738,10 @@ def update_master(
         )
 
     url = WIZARD_EDIT_URL.format(campaign_id=campaign_id)
-    page.goto(url, wait_until="domcontentloaded")
+    page.goto(url, wait_until="commit")
     assert_not_captcha(page.content())
     assert_authenticated(page.content())
+    _wait_for_edit_form(page, campaign_id)
 
     if name is not None:
         _set_campaign_name(page, name)
@@ -1848,10 +1863,11 @@ def _open_images_editor(page: "Page", campaign_id: int) -> List[str]:
     """
     page.goto(
         WIZARD_EDIT_URL.format(campaign_id=campaign_id),
-        wait_until="domcontentloaded",
+        wait_until="commit",
     )
     assert_not_captcha(page.content())
     assert_authenticated(page.content())
+    _wait_for_edit_form(page, campaign_id)
 
     _wait_for_images_editor(page)
     return _read_image_content_ids(page)
@@ -2517,6 +2533,42 @@ def _read_testid_suffixes(
     return suffixes
 
 
+def _wait_for_edit_form(page: "Page", campaign_id: int) -> None:
+    """Block until the edit page's form has actually rendered.
+
+    Issue #684: every ``WIZARD_EDIT_URL`` navigation in this module now uses
+    ``wait_until="commit"`` (fires as soon as the response starts arriving,
+    before any redirect/parse/JS has happened) instead of the previous
+    ``wait_until="domcontentloaded"`` — ``domcontentloaded`` on this SPA was
+    observed to time out under real network conditions (the page's own
+    long-poll connections can make even that early a lifecycle event hang;
+    see the module's "The edit page is an SPA" comment on
+    ``_IMAGES_EDITOR_TIMEOUT_MS`` for the same long-poll reasoning).
+    ``commit`` never hangs on page-internal behaviour — it only waits on the
+    network response itself — but it also guarantees nothing about the DOM,
+    so every call site must wait for a real content marker afterwards
+    instead of trusting the navigation call alone.
+
+    Polls for ``_EDIT_FORM_READY_TESTID`` (the first headline slot) rather
+    than a fixed sleep, same convention as ``_wait_for_step2``/
+    ``_wait_for_images_editor``.
+    """
+    if _poll_until(
+        page,
+        lambda: page.locator(f'[data-testid="{_EDIT_FORM_READY_TESTID}"]').count() > 0,
+        _EDIT_FORM_READY_TIMEOUT_MS,
+    ):
+        return
+
+    raise BrowserSessionError(
+        f"The edit page for campaign {campaign_id} did not finish rendering "
+        f"within {_EDIT_FORM_READY_TIMEOUT_MS / 1000:.0f}s (the "
+        f"'{_EDIT_FORM_READY_TESTID}' field never appeared). Yandex may have "
+        "changed the page's markup, the campaign may not exist, or the page "
+        "may still be loading. Re-run with --headful to inspect the page."
+    )
+
+
 def _wait_for_images_editor(page: "Page") -> None:
     """Block until the edit page's "Изображения" section has rendered ITS
     ACTUAL CONTENT, not just its outer container.
@@ -3176,9 +3228,10 @@ def _verify_saved_images(
     ``_verify_image_set_mismatches``.
     """
     url = WIZARD_EDIT_URL.format(campaign_id=campaign_id)
-    page.goto(url, wait_until="domcontentloaded")
+    page.goto(url, wait_until="commit")
     assert_not_captcha(page.content())
     assert_authenticated(page.content())
+    _wait_for_edit_form(page, campaign_id)
 
     mismatches = _verify_image_set_mismatches(
         page,

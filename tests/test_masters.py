@@ -2898,6 +2898,19 @@ class TestUpdateMaster(unittest.TestCase):
                 [header_handle]
             )
 
+        # Issue #684: every WIZARD_EDIT_URL goto() now polls
+        # _wait_for_edit_form for the first headline slot before trusting
+        # the page. headlines_state already adds a real handle for slot 0
+        # when a test cares about headline content; otherwise stand in with
+        # a bare present handle, mirroring _FakeImagesPage's treatment of
+        # _IMAGES_EDITOR_SELECTOR as "always present once the page renders".
+        edit_form_ready_selector = (
+            f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'
+        )
+        locators.setdefault(
+            edit_form_ready_selector, _FakeLocator([_FakeLocatorHandle()])
+        )
+
         page = FakePage(
             locators=locators,
             role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
@@ -3001,6 +3014,9 @@ class TestUpdateMaster(unittest.TestCase):
         accept_handle = _FakeLocatorHandle()
         header_handle = _FakeLocatorHandle()
         header_handle.inner_text = lambda: name_state["value"]
+        edit_form_ready_selector = (
+            f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'
+        )
         page = FakePage(
             locators={
                 browser_masters._EDIT_NAME_BUTTON_SELECTOR: _FakeLocator(
@@ -3013,6 +3029,7 @@ class TestUpdateMaster(unittest.TestCase):
                     [accept_handle]
                 ),
                 browser_masters._NAME_HEADER_SELECTOR: _FakeLocator([header_handle]),
+                edit_form_ready_selector: _FakeLocator([_FakeLocatorHandle()]),
             },
             role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
         )
@@ -3069,11 +3086,15 @@ class TestUpdateMaster(unittest.TestCase):
             on_fill=lambda v: None,  # the fill "succeeds" but doesn't persist
             get_value=lambda: budget_state["value"],
         )
+        edit_form_ready_selector = (
+            f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'
+        )
         page = FakePage(
             locators={
                 browser_masters._WEEKLY_BUDGET_INPUT_XPATH: _FakeLocator(
                     [budget_handle]
-                )
+                ),
+                edit_form_ready_selector: _FakeLocator([_FakeLocatorHandle()]),
             },
             role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
         )
@@ -3091,11 +3112,15 @@ class TestUpdateMaster(unittest.TestCase):
             on_check=lambda v: None,
             get_checked=lambda: checkbox_state["checked"],
         )
+        edit_form_ready_selector = (
+            f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'
+        )
         page = FakePage(
             locators={
                 browser_masters._DIRECT_HELPS_CHECKBOX_XPATH: _FakeLocator(
                     [checkbox_handle]
-                )
+                ),
+                edit_form_ready_selector: _FakeLocator([_FakeLocatorHandle()]),
             },
             role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
         )
@@ -3119,9 +3144,13 @@ class TestUpdateMaster(unittest.TestCase):
         trigger = _FakeLocatorHandle(text="Цель продвижения")
         trigger.inner_text = lambda: next(trigger_texts)
         save_handle = _FakeTextLocatorHandle(visible=True)
+        edit_form_ready_selector = (
+            f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'
+        )
         page = FakePage(
             locators={
-                browser_masters._PROMOTION_GOAL_BUTTON_XPATH: _FakeLocator([trigger])
+                browser_masters._PROMOTION_GOAL_BUTTON_XPATH: _FakeLocator([trigger]),
+                edit_form_ready_selector: _FakeLocator([_FakeLocatorHandle()]),
             },
             role_elements=[
                 ("option", "Максимум переходов", _FakeTextLocatorHandle(visible=True)),
@@ -4987,6 +5016,15 @@ class _FakeImagesPage(FakePage):
         self.upload_paths = []
 
     def locator(self, selector):
+        edit_form_ready_selector = (
+            f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'
+        )
+        if selector == edit_form_ready_selector:
+            # Issue #684: _wait_for_edit_form's marker — headlines always
+            # render on the edit page regardless of the images fake's own
+            # state, same "present as soon as the page has rendered"
+            # treatment as _IMAGES_EDITOR_SELECTOR just below.
+            return _FakeLocator([_FakeLocatorHandle()])
         if selector == browser_masters._IMAGES_EDITOR_SELECTOR:
             # The images section itself — present as soon as the (fake) page
             # has rendered, which is what `_wait_for_images_editor` polls for
@@ -5197,6 +5235,144 @@ class TestWaitForImagesEditor(unittest.TestCase):
 
         self.assertIn("did not finish rendering", str(ctx.exception))
         self.assertIn("loading placeholders", str(ctx.exception))
+
+
+class TestWaitForEditForm(unittest.TestCase):
+    """``_wait_for_edit_form`` (issue #684) — regression guard for the
+    ``domcontentloaded`` navigation timeout.
+
+    Every ``WIZARD_EDIT_URL`` ``goto()`` now uses ``wait_until="commit"``
+    (never hangs on the SPA's own long-poll connections) instead of
+    ``domcontentloaded``, which was observed to time out. ``commit``
+    guarantees nothing about the DOM, so every call site polls this
+    function for the first headline slot before trusting the page.
+    """
+
+    def _edit_form_ready_selector(self):
+        return f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'
+
+    def test_returns_once_the_first_headline_slot_is_present(self):
+        page = FakePage(
+            locators={
+                self._edit_form_ready_selector(): _FakeLocator([_FakeLocatorHandle()])
+            }
+        )
+
+        browser_masters._wait_for_edit_form(page, 42)  # must not raise
+
+    def test_raises_if_the_marker_never_appears(self):
+        page = FakePage(locators={})
+        with patch.object(browser_masters, "_EDIT_FORM_READY_TIMEOUT_MS", 1):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters._wait_for_edit_form(page, 42)
+
+        self.assertIn("did not finish rendering", str(ctx.exception))
+        self.assertIn("42", str(ctx.exception))
+        self.assertIn(browser_masters._EDIT_FORM_READY_TESTID, str(ctx.exception))
+
+    def test_polls_rather_than_failing_on_the_first_absence(self):
+        """Mirrors ``_wait_for_images_editor``'s stub-window test: the
+        marker appearing on a LATER poll (not the first) must still be
+        accepted, not just an immediately-present one."""
+
+        class _AppearsAfterTicksPage(FakePage):
+            def __init__(self, *args, absent_ticks=2, **kwargs):
+                super().__init__(*args, **kwargs)
+                self._absent_ticks_remaining = absent_ticks
+
+            def locator(self, selector):
+                if (
+                    selector
+                    == (
+                        f'[data-testid="' f'{browser_masters._EDIT_FORM_READY_TESTID}"]'
+                    )
+                    and self._absent_ticks_remaining > 0
+                ):
+                    self._absent_ticks_remaining -= 1
+                    return _FakeLocator([])
+                return super().locator(selector)
+
+        page = _AppearsAfterTicksPage(
+            locators={
+                self._edit_form_ready_selector(): _FakeLocator([_FakeLocatorHandle()])
+            },
+            absent_ticks=2,
+        )
+
+        browser_masters._wait_for_edit_form(page, 42)  # must not raise
+
+        self.assertEqual(page._absent_ticks_remaining, 0)
+
+
+class TestWizardEditNavigationUsesCommit(unittest.TestCase):
+    """Issue #684: all four ``WIZARD_EDIT_URL`` navigation sites must use
+    ``wait_until="commit"`` (never hangs on the SPA's long-poll
+    connections) and wait for ``_wait_for_edit_form`` before touching the
+    page — regression guard against reintroducing
+    ``wait_until="domcontentloaded"``, which was observed to time out.
+    """
+
+    def test_verify_saved_uses_commit_and_waits_for_the_form(self):
+        page, save_clicks = TestUpdateMaster()._page_with_save_button(
+            weekly_budget_state={"value": "80000"}
+        )
+
+        browser_masters.update_master(page, 42, weekly_budget=80000)
+
+        self.assertEqual(page.goto_wait_until, "commit")
+
+    def test_update_master_uses_commit_for_the_initial_navigation(self):
+        navigated_wait_untils = []
+
+        class _RecordingPage(FakePage):
+            def goto(self, url, wait_until=None):
+                navigated_wait_untils.append(wait_until)
+                super().goto(url, wait_until=wait_until)
+
+        edit_form_ready_selector = (
+            f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'
+        )
+        budget_state = {"value": "80000"}
+        budget_handle = _FakeLocatorHandle(
+            on_fill=lambda v: budget_state.__setitem__("value", v),
+            get_value=lambda: budget_state["value"],
+        )
+        save_handle = _FakeTextLocatorHandle(visible=True)
+        page = _RecordingPage(
+            locators={
+                browser_masters._WEEKLY_BUDGET_INPUT_XPATH: _FakeLocator(
+                    [budget_handle]
+                ),
+                edit_form_ready_selector: _FakeLocator([_FakeLocatorHandle()]),
+            },
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+
+        browser_masters.update_master(page, 42, weekly_budget=95000)
+
+        # Both the initial edit and _verify_saved's post-save reload.
+        self.assertEqual(navigated_wait_untils, ["commit", "commit"])
+
+    def test_open_images_editor_uses_commit(self):
+        page = _FakeImagesPage(["a"])
+
+        browser_masters._open_images_editor(page, 42)
+
+        self.assertEqual(page.goto_wait_until, "commit")
+
+    def test_verify_saved_images_uses_commit(self):
+        page = _FakeImagesPage(["a"])
+
+        browser_masters._verify_saved_images(
+            page,
+            42,
+            expected_kept_ids=["a"],
+            removed_ids=set(),
+            expected_added_count=0,
+            clicked_button_label="Сохранить кампанию",
+        )
+
+        self.assertEqual(page.goto_wait_until, "commit")
 
 
 class TestSetImage(unittest.TestCase):
