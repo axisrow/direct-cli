@@ -44,6 +44,9 @@ direct masters update 72349978 --headline "2=Новый заголовок" --te
 direct masters update 72349978 --image "2=/path/to/banner.png"
 direct masters adimages get 72349978
 direct masters adimages add 72349978 --image-file /path/to/a.png --image-file /path/to/b.png
+direct masters adimages delete 72349978 --position 2
+direct masters adimages delete 72349978 --all
+direct masters adimages set 72349978 --image-file /path/to/a.png --image-file /path/to/b.png
 direct masters add https://example.com/ --headline "Заголовок 1" --headline "Заголовок 2" --text "Текст объявления" --region Москва --weekly-budget 50000 --draft
 direct masters add https://example.com/ --headline "Заголовок 1" --text "Текст объявления" --region-id 213 --weekly-budget 50000 --draft
 direct masters copy 72349978
@@ -109,19 +112,27 @@ adimages` below. Because both the removal and the upload happen inside the
 same open modal, any failure before Save leaves the campaign's saved image
 set untouched.
 
-`masters adimages get/add` mirrors `direct adimages get/add`'s vocabulary
-(the API-side ad-image group) for a campaign's whole image set. Unlike
-`--image`, an empty image set is a completely normal state here — a
-campaign can start with zero images and `adimages add` works from there,
-exactly like ad images on a text ad via the API. `adimages get` is
-read-only and never saves. `adimages add --image-file PATH` (repeatable)
-appends files, refusing if the campaign's current count plus the new files
-would exceed Yandex's cap of 5; it accepts `--launch` (same
-draft-publishing semantics as `masters update`) and, like `--image`, is
-NOT idempotent — a retried call after a partial failure may upload
-duplicates. Every removal and upload happens inside one open modal with a
-single Save at the end, so any earlier failure leaves the saved set
-untouched.
+`masters adimages get/add/delete/set` is the full CRUD counterpart to
+`--image`, mirroring `direct adimages get/add/delete`'s vocabulary (the
+API-side ad-image group) for a campaign's whole image set. Unlike `--image`,
+an empty image set is a completely normal state on both ends here — a
+campaign can start with zero images (`adimages add` works from an empty
+set), and every image can be deleted (`adimages delete --all`), exactly like
+ad images on a text ad via the API. `adimages get` is read-only and never
+saves. `adimages add --image-file PATH` (repeatable) appends files, refusing
+if the campaign's current count plus the new files would exceed Yandex's cap
+of 5. `adimages delete` removes images addressed by `--position` (1-based,
+as shown by `adimages get`), `--content-id`, or `--all`; `--all` on an
+already-empty set is an idempotent no-op, but naming a specific position or
+content ID that doesn't exist is always an error. `adimages set --image-file
+PATH` (repeatable) replaces the ENTIRE set — every current image is removed
+and every given file uploaded inside one modal session; with no
+`--image-file` at all it would delete every image, so it requires an
+explicit `--allow-empty` to confirm (or use `adimages delete --all`
+instead). All three mutating subcommands accept `--launch` (same
+draft-publishing semantics as `masters update`) and, like `--image`, are
+NOT idempotent for `add`/`set` — a retried call after a partial failure may
+upload duplicates.
 
 Later fields (sitelinks, audience, Metrika counters/goals, budget adaptation,
 video) aren't implemented yet.
@@ -1219,6 +1230,9 @@ direct masters update 72349978 --headline "2=Новый заголовок" --te
 direct masters update 72349978 --image "2=/path/to/banner.png"
 direct masters adimages get 72349978
 direct masters adimages add 72349978 --image-file /path/to/a.png --image-file /path/to/b.png
+direct masters adimages delete 72349978 --position 2
+direct masters adimages delete 72349978 --all
+direct masters adimages set 72349978 --image-file /path/to/a.png --image-file /path/to/b.png
 direct masters add https://example.com/ --headline "Заголовок 1" --headline "Заголовок 2" --text "Текст объявления" --region Москва --weekly-budget 50000 --draft
 direct masters add https://example.com/ --headline "Заголовок 1" --text "Текст объявления" --region-id 213 --weekly-budget 50000 --draft
 direct masters copy 72349978
@@ -1287,20 +1301,28 @@ direct masters copy 72349978 --launch
 происходят внутри одной открытой модалки, любая ошибка до Save оставляет
 сохранённый набор изображений кампании нетронутым.
 
-`masters adimages get/add` повторяет словарь `direct adimages get/add`
-(API-группа изображений объявлений) для всего набора изображений кампании.
-В отличие от `--image`, пустой набор изображений здесь — совершенно
-нормальное состояние: кампания может начинаться без единого изображения, и
-`adimages add` работает и с пустым набором, точно как изображения
-объявлений через API. `adimages get` — только чтение, никогда не
-сохраняет. `adimages add --image-file PATH` (можно повторять) добавляет
-файлы, отказывая, если текущее число изображений плюс новые превысит лимит
-Яндекса в 5 штук; принимает `--launch` (та же семантика публикации
-черновика, что и у `masters update`) и, как и `--image`, НЕ идемпотентна —
-повторный вызов после частичного сбоя может загрузить дубликаты. Все
-удаления и загрузки происходят внутри одной открытой модалки с единственным
-Save в конце, поэтому любая более ранняя ошибка оставляет сохранённый набор
-нетронутым.
+`masters adimages get/add/delete/set` — полноценный CRUD-аналог `--image`
+для всего набора изображений кампании, повторяющий словарь `direct adimages
+get/add/delete` (API-группа изображений объявлений). В отличие от `--image`,
+пустой набор изображений здесь — совершенно нормальное состояние с обеих
+сторон: кампания может начинаться без единого изображения (`adimages add`
+работает и с пустым набором), и все изображения можно удалить (`adimages
+delete --all`), точно как изображения объявлений через API. `adimages get`
+— только чтение, никогда не сохраняет. `adimages add --image-file PATH`
+(можно повторять) добавляет файлы, отказывая, если текущее число изображений
+плюс новые превысит лимит Яндекса в 5 штук. `adimages delete` удаляет
+изображения по `--position` (1-based, как показывает `adimages get`),
+`--content-id` или `--all`; `--all` на уже пустом наборе — идемпотентный
+no-op, а вот конкретная позиция или content ID, которых не существует, —
+всегда ошибка. `adimages set --image-file PATH` (можно повторять) заменяет
+ВЕСЬ набор целиком — все текущие изображения удаляются, а все переданные
+файлы загружаются внутри одной модалки; без единого `--image-file` команда
+удалила бы все изображения, поэтому требуется явный `--allow-empty` для
+подтверждения (или используйте `adimages delete --all`). Все три
+мутирующие подкоманды принимают `--launch` (та же семантика публикации
+черновика, что и у `masters update`) и, как и `--image`, НЕ идемпотентны для
+`add`/`set` — повторный вызов после частичного сбоя может загрузить
+дубликаты.
 
 Остальные поля (быстрые ссылки, аудитория, счётчики Метрики/цели, адаптация
 бюджета, видео) тоже пока не реализованы.

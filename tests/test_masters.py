@@ -3622,6 +3622,19 @@ class TestMastersAdimagesCommand(unittest.TestCase):
         self.assertIn("--image-file", result.output)
         self.assertIn("--launch", result.output)
 
+    def test_delete_help_documents_addressing_flags(self):
+        result = self.runner.invoke(cli, ["masters", "adimages", "delete", "--help"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("--position", result.output)
+        self.assertIn("--content-id", result.output)
+        self.assertIn("--all", result.output)
+
+    def test_set_help_documents_allow_empty(self):
+        result = self.runner.invoke(cli, ["masters", "adimages", "set", "--help"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("--image-file", result.output)
+        self.assertIn("--allow-empty", result.output)
+
     def test_get_calls_fetch_master_images(self):
         with (
             patch("direct_cli.browser.masters.fetch_master_images") as mock_fetch,
@@ -3708,6 +3721,123 @@ class TestMastersAdimagesCommand(unittest.TestCase):
         self.assertEqual(args[1], 42)
         self.assertEqual(kwargs["paths"], [f.name])
         self.assertTrue(kwargs["launch"])
+
+    def test_delete_rejects_when_no_addressing_flag_given(self):
+        result = self.runner.invoke(cli, ["masters", "adimages", "delete", "42"])
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("at least one", result.output.lower())
+
+    def test_delete_rejects_all_combined_with_position(self):
+        result = self.runner.invoke(
+            cli, ["masters", "adimages", "delete", "42", "--all", "--position", "1"]
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("cannot be combined", result.output.lower())
+
+    def test_delete_rejects_position_zero(self):
+        result = self.runner.invoke(
+            cli, ["masters", "adimages", "delete", "42", "--position", "0"]
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("out of range", result.output.lower())
+
+    def test_delete_rejects_duplicate_positions(self):
+        result = self.runner.invoke(
+            cli,
+            [
+                "masters",
+                "adimages",
+                "delete",
+                "42",
+                "--position",
+                "1",
+                "--position",
+                "1",
+            ],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("more than once", result.output.lower())
+
+    def test_delete_calls_delete_master_images_with_zero_based_positions(self):
+        with (
+            patch("direct_cli.browser.masters.delete_master_images") as mock_delete,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_delete.return_value = {"CampaignId": 42, "Deleted": 1, "Count": 1}
+            result = self.runner.invoke(
+                cli,
+                ["masters", "adimages", "delete", "42", "--position", "2"],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        kwargs = mock_delete.call_args.kwargs
+        self.assertEqual(kwargs["positions"], [1])
+        self.assertIsNone(kwargs["content_ids"])
+        self.assertFalse(kwargs["all_images"])
+
+    def test_delete_calls_delete_master_images_with_all(self):
+        with (
+            patch("direct_cli.browser.masters.delete_master_images") as mock_delete,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_delete.return_value = {"CampaignId": 42, "Deleted": 3, "Count": 0}
+            result = self.runner.invoke(
+                cli, ["masters", "adimages", "delete", "42", "--all"]
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        kwargs = mock_delete.call_args.kwargs
+        self.assertTrue(kwargs["all_images"])
+
+    def test_set_rejects_no_files_without_allow_empty(self):
+        result = self.runner.invoke(cli, ["masters", "adimages", "set", "42"])
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("allow-empty", result.output.lower())
+        self.assertIn("delete --all", result.output)
+
+    def test_set_with_allow_empty_calls_set_master_images_with_no_paths(self):
+        with (
+            patch("direct_cli.browser.masters.set_master_images") as mock_set,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_set.return_value = {"CampaignId": 42, "Count": 0}
+            result = self.runner.invoke(
+                cli, ["masters", "adimages", "set", "42", "--allow-empty"]
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(mock_set.call_args.kwargs["paths"], [])
+
+    def test_set_calls_set_master_images_with_paths(self):
+        import tempfile
+
+        with (
+            tempfile.NamedTemporaryFile(suffix=".png") as f,
+            patch("direct_cli.browser.masters.set_master_images") as mock_set,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_set.return_value = {"CampaignId": 42, "Count": 1}
+            result = self.runner.invoke(
+                cli, ["masters", "adimages", "set", "42", "--image-file", f.name]
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(mock_set.call_args.kwargs["paths"], [f.name])
+
+    def test_set_rejects_more_files_than_the_cap(self):
+        with patch("direct_cli.commands.masters._with_session") as mock_with_session:
+            args = ["masters", "adimages", "set", "42"]
+            for i in range(6):
+                args += ["--image-file", f"/tmp/{i}.png"]
+            result = self.runner.invoke(cli, args)
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("cap", result.output.lower())
+        mock_with_session.assert_not_called()
 
 
 class TestMastersLoginCommand(unittest.TestCase):
@@ -4610,7 +4740,7 @@ class _FakeImagesPage(FakePage):
         self._upload_ids = list(upload_ids or [])
         self._upload_call = 0
         # Every path passed to set_input_files(), in call order — lets
-        # ``masters adimages add`` tests assert upload sequencing
+        # ``masters adimages set``/``add`` tests assert upload sequencing
         # (e.g. "removed everything, then uploaded in the order given").
         self.upload_paths = []
 
@@ -5086,8 +5216,8 @@ class TestVerifyImageSetMismatches(unittest.TestCase):
         self.assertEqual(mismatches, [])
 
     def test_asserts_the_set_is_now_empty(self):
-        """Removing every image — the old ``_verify_image_mismatches``
-        couldn't express this at all."""
+        """The ``delete --all`` / ``set`` with no files case — the old
+        ``_verify_image_mismatches`` couldn't express this at all."""
         page = _FakeImagesPage([])
 
         mismatches = browser_masters._verify_image_set_mismatches(
@@ -5261,6 +5391,133 @@ class TestAddMasterImages(unittest.TestCase):
                 browser_masters.add_master_images(page, 42, paths=["/tmp/a.png"])
 
         self.assertIn("not idempotent", str(ctx.exception).lower())
+
+
+class TestDeleteMasterImages(unittest.TestCase):
+    """``delete_master_images`` — by position, by content ID, or ``--all``."""
+
+    def _page_with_save(self, ids, **kwargs):
+        save_clicks = []
+        save_handle = _FakeTextLocatorHandle(
+            visible=True, on_click=lambda: save_clicks.append(True)
+        )
+        page = _FakeImagesPage(
+            ids,
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+            **kwargs,
+        )
+        return page, save_clicks
+
+    def test_deletes_by_position(self):
+        page, save_clicks = self._page_with_save(["a", "b", "c"])
+
+        result = browser_masters.delete_master_images(page, 42, positions=[1])
+
+        self.assertEqual(page.ids, ["a", "c"])
+        self.assertEqual(len(save_clicks), 1)
+        self.assertEqual(result, {"CampaignId": 42, "Deleted": 1, "Count": 2})
+
+    def test_deletes_by_content_id(self):
+        page, save_clicks = self._page_with_save(["a", "b", "c"])
+
+        result = browser_masters.delete_master_images(page, 42, content_ids=["b"])
+
+        self.assertEqual(page.ids, ["a", "c"])
+        self.assertEqual(result, {"CampaignId": 42, "Deleted": 1, "Count": 2})
+
+    def test_deletes_all(self):
+        page, save_clicks = self._page_with_save(["a", "b", "c"])
+
+        result = browser_masters.delete_master_images(page, 42, all_images=True)
+
+        self.assertEqual(page.ids, [])
+        self.assertEqual(len(save_clicks), 1)
+        self.assertEqual(result, {"CampaignId": 42, "Deleted": 3, "Count": 0})
+
+    def test_all_on_an_already_empty_set_is_an_idempotent_no_op(self):
+        page, save_clicks = self._page_with_save([])
+
+        result = browser_masters.delete_master_images(page, 42, all_images=True)
+
+        self.assertEqual(result, {"CampaignId": 42, "Deleted": 0, "Count": 0})
+        self.assertEqual(save_clicks, [])
+        self.assertFalse(page.modal_open)
+
+    def test_out_of_range_position_raises(self):
+        page, save_clicks = self._page_with_save(["a", "b"])
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.delete_master_images(page, 42, positions=[5])
+
+        self.assertIn("out of range", str(ctx.exception).lower())
+        self.assertEqual(save_clicks, [])
+
+    def test_unknown_content_id_raises(self):
+        page, save_clicks = self._page_with_save(["a", "b"])
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.delete_master_images(page, 42, content_ids=["ghost"])
+
+        self.assertIn("not present", str(ctx.exception).lower())
+        self.assertEqual(save_clicks, [])
+
+
+class TestSetMasterImages(unittest.TestCase):
+    """``set_master_images`` — whole-set replacement in one modal."""
+
+    def _page_with_save(self, ids, **kwargs):
+        save_clicks = []
+        save_handle = _FakeTextLocatorHandle(
+            visible=True, on_click=lambda: save_clicks.append(True)
+        )
+        page = _FakeImagesPage(
+            ids,
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+            **kwargs,
+        )
+        return page, save_clicks
+
+    def test_full_replacement_in_one_modal(self):
+        page, save_clicks = self._page_with_save(["a", "b", "c"], upload_ids=["x", "y"])
+
+        result = browser_masters.set_master_images(
+            page, 42, paths=["/tmp/x.png", "/tmp/y.png"]
+        )
+
+        self.assertEqual(page.ids, ["x", "y"])
+        self.assertEqual(len(save_clicks), 1)
+        self.assertEqual(result, {"CampaignId": 42, "Count": 2})
+
+    def test_empty_paths_empties_the_set(self):
+        page, save_clicks = self._page_with_save(["a", "b"])
+
+        result = browser_masters.set_master_images(page, 42, paths=[])
+
+        self.assertEqual(page.ids, [])
+        self.assertEqual(len(save_clicks), 1)
+        self.assertEqual(result, {"CampaignId": 42, "Count": 0})
+
+    def test_already_empty_with_no_paths_is_a_no_op(self):
+        page, save_clicks = self._page_with_save([])
+
+        result = browser_masters.set_master_images(page, 42, paths=[])
+
+        self.assertEqual(result, {"CampaignId": 42, "Count": 0})
+        self.assertEqual(save_clicks, [])
+        self.assertFalse(page.modal_open)
+
+    def test_exceeding_the_cap_raises(self):
+        page, save_clicks = self._page_with_save([])
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.set_master_images(
+                page,
+                42,
+                paths=[f"/tmp/{i}.png" for i in range(6)],
+            )
+
+        self.assertIn("cap", str(ctx.exception).lower())
+        self.assertEqual(save_clicks, [])
 
 
 class TestVerifyImageMismatches(unittest.TestCase):

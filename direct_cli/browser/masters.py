@@ -1929,6 +1929,130 @@ def add_master_images(
     }
 
 
+def delete_master_images(
+    page: "Page",
+    campaign_id: int,
+    *,
+    positions: Optional[Sequence[int]] = None,
+    content_ids: Optional[Sequence[str]] = None,
+    all_images: bool = False,
+    launch: bool = False,
+) -> Dict[str, Any]:
+    """Delete images from the campaign's image set, addressed by 0-based
+    ``positions``, explicit ``content_ids``, or ``all_images=True`` for
+    every image currently in the set.
+
+    ``all_images=True`` against an already-empty set is an idempotent
+    no-op success (mirrors ``suspend``/``resume``'s "idempotent if already
+    X" convention) — no modal is opened, nothing is saved. Naming a
+    specific position or content ID that does not exist is always an
+    error, empty set or not.
+    """
+    if not positions and not content_ids and not all_images:
+        raise ValueError(
+            "delete_master_images requires positions, content_ids, or "
+            "all_images=True."
+        )
+
+    before_ids = _open_images_editor(page, campaign_id)
+
+    if all_images:
+        if not before_ids:
+            return {"CampaignId": campaign_id, "Deleted": 0, "Count": 0}
+        targets: List[str] = list(before_ids)
+    else:
+        targets = []
+        for position in positions or ():
+            if position >= len(before_ids):
+                raise BrowserSessionError(
+                    f"Image position {position + 1} is out of range — "
+                    f"this campaign currently has {len(before_ids)} "
+                    f"image(s) (positions 1-{len(before_ids)})."
+                )
+            cid = before_ids[position]
+            if cid not in targets:
+                targets.append(cid)
+        for content_id in content_ids or ():
+            if content_id not in before_ids:
+                raise BrowserSessionError(
+                    f"Content ID {content_id!r} is not present in "
+                    f"campaign {campaign_id}'s current image set."
+                )
+            if content_id not in targets:
+                targets.append(content_id)
+
+    _apply_image_operations(
+        page,
+        remove_content_ids=targets,
+        upload_paths=(),
+    )
+
+    final_ids = _save_and_verify_images(
+        page,
+        campaign_id,
+        expected_kept_ids=[cid for cid in before_ids if cid not in targets],
+        removed_ids=set(targets),
+        expected_added_count=0,
+        launch=launch,
+        not_idempotent_noun="image deletions",
+    )
+
+    return {
+        "CampaignId": campaign_id,
+        "Deleted": len(targets),
+        "Count": len(final_ids),
+    }
+
+
+def set_master_images(
+    page: "Page",
+    campaign_id: int,
+    *,
+    paths: Sequence[str],
+    launch: bool = False,
+) -> Dict[str, Any]:
+    """Replace the campaign's ENTIRE image set with ``paths`` — every
+    current image is removed, then every file in ``paths`` is uploaded, in
+    one modal session. ``paths=()`` empties the set entirely.
+
+    Removals and uploads happen inside the SAME ``_apply_image_operations``
+    call, so a full at-cap replacement (e.g. 5 images out, 5 images in)
+    never transiently exceeds Yandex's cap — the removals are applied to
+    the modal's live selection before any upload begins.
+    """
+    if len(paths) > _IMAGES_MAX_COUNT:
+        raise BrowserSessionError(
+            f"Cannot set {len(paths)} images — Yandex's cap is "
+            f"{_IMAGES_MAX_COUNT} images per campaign."
+        )
+
+    before_ids = _open_images_editor(page, campaign_id)
+
+    if not before_ids and not paths:
+        return {"CampaignId": campaign_id, "Count": 0}
+
+    _apply_image_operations(
+        page,
+        remove_content_ids=before_ids,
+        upload_paths=paths,
+    )
+
+    final_ids = _save_and_verify_images(
+        page,
+        campaign_id,
+        expected_kept_ids=[],
+        removed_ids=set(before_ids),
+        expected_added_count=len(paths),
+        launch=launch,
+        not_idempotent_noun="image replacements",
+    )
+
+    return {
+        "CampaignId": campaign_id,
+        "Count": len(final_ids),
+    }
+
+
 def _fill_landing_url(page: "Page", url: str) -> None:
     """Fill step 1's URL field and click "Далее" to advance to step 2.
 
@@ -2691,11 +2815,16 @@ def _apply_image_operations(
     legitimate outcomes (unlike headlines/texts, images have no "at least
     one" invariant — see ``_IMAGES_MAX_COUNT``'s module-level comment).
 
-    **Not live-verified:** uploading via a single
-    ``set_input_files([path1, path2, ...])`` call with multiple paths —
-    real Playwright accepts a list, but PR #672's recon never exercised
-    it, so this uploads strictly one path per call, sequentially, to stay
-    on already-confirmed ground.
+    **Not live-verified (flag for live smoke before relying on this in
+    production):** whether Yandex's "Добавить в кампанию" button stays
+    clickable when the modal's selection is reduced to zero mid-session
+    (the ``delete``-everything / ``set``-with-nothing-kept case) — this
+    matters most for ``masters adimages delete --all`` and ``masters
+    adimages set`` replacing every image. Also not verified: uploading via
+    a single ``set_input_files([path1, path2, ...])`` call with multiple
+    paths — real Playwright accepts a list, but PR #672's recon never
+    exercised it, so this uploads strictly one path per call, sequentially,
+    to stay on already-confirmed ground.
 
     Removals are located by the target's thumb URL, captured from the
     modal's panel BEFORE any removal in this call runs — exactly the
@@ -2844,8 +2973,8 @@ def _verify_image_mismatches(
     ``update_master``/``_verify_saved`` call it with the before/replaced
     vocabulary, and because the empty-``replaced_ids`` early return is
     specific to ``--image`` (nothing requested ⇒ nothing to verify),
-    whereas the general version must still assert an empty end state when
-    every image is removed.
+    whereas the general version must still assert an empty end state for
+    ``adimages delete --all``.
     """
     if not replaced_ids:
         return []
@@ -2887,8 +3016,8 @@ def _verify_image_set_mismatches(
 
     Unlike ``_verify_image_mismatches``, this does NOT early-return when
     ``removed_ids`` is empty — ``expected_kept_ids=[]`` with
-    ``expected_added_count=0`` (removing every image) must still assert
-    the saved set is actually empty.
+    ``expected_added_count=0`` (the ``delete --all`` / ``set`` with no
+    files case) must still assert the saved set is actually empty.
     """
     # ``_verify_saved_images`` re-navigates before calling this, so the
     # section is once again mid-render — reading straight away would
@@ -2932,7 +3061,7 @@ def _save_and_verify_images(
     set matches the expected end state; return the fresh content ID list.
 
     The whole post-``_apply_image_operations`` tail shared by
-    the image-set mutations built on ``_apply_image_operations``:
+    ``add_master_images``/``delete_master_images``/``set_master_images``:
     resolve the draft-aware button label, click it, verify, and translate a
     mid-verification session expiry into a "do NOT retry" error (these
     commands are not idempotent, so ``_with_session``'s auto-retry must not
@@ -2978,7 +3107,8 @@ def _verify_saved_images(
     """Reload the edit page, confirm the saved image set matches the
     expected end state, and return the fresh content ID list on success.
 
-    Shared post-save verification for the image-set mutations — mirrors
+    Shared post-save verification for ``add_master_images``/
+    ``delete_master_images``/``set_master_images`` — mirrors
     ``_verify_saved``'s re-navigate-and-re-read discipline (never trust the
     save click alone; Yandex's client-side validation can silently reject
     a value) but scoped to just the image set, via

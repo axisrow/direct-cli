@@ -14,10 +14,11 @@ Read-only: ``list`` and ``get``. Mutations: ``suspend``/``resume`` (issue
 #630) and ``add`` (issue #632, create — NOT idempotent, no sandbox/rollback,
 see ``add``'s own docstring). ``update`` (issue #631) edits a campaign's
 settings, including point-replacement of individual images via
-``--image``. ``adimages get``/``add`` (issue #648) read a campaign's whole
-image set and append to it — mirrors the API-side ``direct adimages
-get``/``add`` vocabulary, treats an empty image set as legitimate (unlike
-``update --image``), and ``add`` is likewise NOT idempotent.
+``--image``. ``adimages get/add/delete/set`` (issue #648) is the full CRUD
+counterpart for a campaign's whole image set — mirrors the API-side
+``direct adimages get/add/delete`` vocabulary, treats an empty image set as
+legitimate on both ends (unlike ``update --image``), and is likewise NOT
+idempotent for ``add``/``delete``/``set``.
 
 No ``--login``/agency support (issue #639): this group only ever reads the
 logged-in user's own account, so it needs no Yandex Direct credentials at
@@ -678,15 +679,17 @@ def adimages():
     docstring), so unlike ``direct adimages get/add/delete`` (API-backed ad
     images, ``direct_cli/commands/adimages.py``) every subcommand here drives
     a real browser session against the campaign's edit page. The vocabulary
-    is deliberately the same. There is no ``--dry-run``: there is no
-    request payload to preview for a browser-driven mutation, matching
-    ``masters update``'s existing precedent.
+    is deliberately the same — ``get``/``add``/``delete``, plus ``set`` for a
+    whole-set replacement the API-side group has no equivalent for — but
+    there is no ``--dry-run``: there is no request payload to preview for a
+    browser-driven mutation, matching ``masters update``'s existing
+    precedent.
 
     Unlike ``masters update --image`` (point-replacement of one existing
     image only, refuses on an empty set), these commands treat an empty
-    image set as a completely normal state — a campaign can legitimately
-    have zero images and ``add`` works from there, exactly like ad images
-    on a text ad via the API.
+    image set as a completely normal state on both ends — a campaign can
+    start with zero images, and every image can be deleted, exactly like ad
+    images on a text ad via the API.
     """
 
 
@@ -768,6 +771,184 @@ def adimages_add(
         profile_dir,
         chrome_profile,
         lambda page: add_master_images(
+            page, campaign_id, paths=list(image_files), launch=launch
+        ),
+    )
+
+    format_output(result, output_format, output)
+
+
+@adimages.command("delete")
+@click.argument("campaign_id", type=int)
+@click.option(
+    "--position",
+    "positions",
+    multiple=True,
+    type=int,
+    help=(
+        "1-based position of an image to delete, as shown by `masters "
+        "adimages get` — repeat for multiple. Mutually exclusive with --all."
+    ),
+)
+@click.option(
+    "--content-id",
+    "content_ids",
+    multiple=True,
+    help=(
+        "Yandex content ID of an image to delete, as shown by `masters "
+        "adimages get` — repeat for multiple. The positional analogue of "
+        "the API group's `adimages delete --hash`. Mutually exclusive "
+        "with --all."
+    ),
+)
+@click.option(
+    "--all",
+    "all_images",
+    is_flag=True,
+    default=False,
+    help=(
+        "Delete EVERY image in the campaign. Leaving a campaign with zero "
+        "images is a valid state. Mutually exclusive with --position/"
+        "--content-id. Idempotent if the campaign already has no images."
+    ),
+)
+@click.option(
+    "--launch",
+    is_flag=True,
+    default=False,
+    help=(
+        "If CAMPAIGN_ID is currently a DRAFT, publish it while saving "
+        "(default: keep it a DRAFT). Has no effect on a non-DRAFT campaign."
+    ),
+)
+@_masters_browser_options
+@click.pass_context
+@handle_api_errors
+def adimages_delete(
+    ctx,
+    campaign_id,
+    positions,
+    content_ids,
+    all_images,
+    launch,
+    headful,
+    profile_dir,
+    chrome_profile,
+    output_format,
+    output,
+):
+    """Delete one or more images from a Мастер кампаний campaign"""
+    from ..browser.masters import _IMAGES_MAX_COUNT, delete_master_images
+
+    if not positions and not content_ids and not all_images:
+        raise click.UsageError(
+            "Provide at least one of --position, --content-id, or --all."
+        )
+    if all_images and (positions or content_ids):
+        raise click.UsageError(
+            "--all cannot be combined with --position/--content-id — "
+            "pass --all on its own to delete every image, or list "
+            "specific --position/--content-id values without --all."
+        )
+    if len(set(positions)) != len(positions):
+        raise click.UsageError(
+            "--position was specified more than once for the same slot."
+        )
+    for position in positions:
+        if position < 1 or position > _IMAGES_MAX_COUNT:
+            raise click.UsageError(
+                f"--position {position} is out of range — expected "
+                f"1-{_IMAGES_MAX_COUNT}."
+            )
+
+    result = _with_session(
+        ctx,
+        headful,
+        profile_dir,
+        chrome_profile,
+        lambda page: delete_master_images(
+            page,
+            campaign_id,
+            positions=[p - 1 for p in positions] or None,
+            content_ids=list(content_ids) or None,
+            all_images=all_images,
+            launch=launch,
+        ),
+    )
+
+    format_output(result, output_format, output)
+
+
+@adimages.command("set")
+@click.argument("campaign_id", type=int)
+@click.option(
+    "--image-file",
+    "image_files",
+    multiple=True,
+    help="Local PNG/JPEG/GIF file — repeat for multiple. Replaces the WHOLE image set.",
+)
+@click.option(
+    "--allow-empty",
+    is_flag=True,
+    default=False,
+    help=(
+        "Permit `set` with no --image-file, i.e. delete every image. "
+        "Without this flag, `set` with no files is refused as a likely "
+        "mistake (e.g. an empty shell glob)."
+    ),
+)
+@click.option(
+    "--launch",
+    is_flag=True,
+    default=False,
+    help=(
+        "If CAMPAIGN_ID is currently a DRAFT, publish it while saving "
+        "(default: keep it a DRAFT). Has no effect on a non-DRAFT campaign."
+    ),
+)
+@_masters_browser_options
+@click.pass_context
+@handle_api_errors
+def adimages_set(
+    ctx,
+    campaign_id,
+    image_files,
+    allow_empty,
+    launch,
+    headful,
+    profile_dir,
+    chrome_profile,
+    output_format,
+    output,
+):
+    """Replace a Мастер кампаний campaign's ENTIRE image set
+
+    Every current image is removed and every ``--image-file`` is uploaded,
+    inside one modal session. With no ``--image-file`` this deletes every
+    image — pass ``--allow-empty`` to confirm, or use ``masters adimages
+    delete --all`` instead.
+    """
+    from ..browser.masters import _IMAGES_MAX_COUNT, set_master_images
+
+    if not image_files and not allow_empty:
+        raise click.UsageError(
+            "'set' with no --image-file would delete every image. Pass "
+            "--allow-empty to confirm, or use 'masters adimages delete "
+            "--all'."
+        )
+    if len(image_files) > _IMAGES_MAX_COUNT:
+        raise click.UsageError(
+            f"--image-file was passed {len(image_files)} times — Yandex's "
+            f"cap is {_IMAGES_MAX_COUNT} images per campaign."
+        )
+    _validate_image_files(image_files)
+
+    result = _with_session(
+        ctx,
+        headful,
+        profile_dir,
+        chrome_profile,
+        lambda page: set_master_images(
             page, campaign_id, paths=list(image_files), launch=launch
         ),
     )
