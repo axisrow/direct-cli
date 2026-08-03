@@ -453,7 +453,20 @@ _IMAGE_UPLOAD_TIMEOUT_MS = 60_000
 # 2026-08-02 to make `--image` fail with a false "no images" on campaigns
 # that demonstrably had four. Hence an explicit wait for the section itself
 # before any read that a decision depends on (see `_wait_for_images_editor`).
-_IMAGES_EDITOR_TIMEOUT_MS = 30_000
+# Bumped 30s -> 60s for issue #687's "ghost" render pass (see
+# `_wait_for_images_editor`): that pass alone was observed lasting up to
+# ~14.5s live before the real stub round even begins, and one full
+# ghost+real timeline was clocked at 43.6s live (11 repeat runs, both
+# campaigns) — so the original 30s budget, and even a first attempt at 45s,
+# left too little margin.
+_IMAGES_EDITOR_TIMEOUT_MS = 60_000
+# How long a "no StubN observed yet, no ContentImage yet" reading must hold
+# continuously before `_wait_for_images_editor` trusts it as a genuinely
+# empty/already-settled campaign rather than issue #687's ghost render pass
+# (see that function's docstring). The ghost pass was observed live lasting
+# up to ~14.5s, so this must clear that with margin; a truly empty campaign
+# pays this as fixed latency once per edit-page visit.
+_IMAGES_GHOST_GRACE_S = 20.0
 
 # Region picker (issue #653 re-recon, 2026-08-02): Yandex replaced the old
 # text-combobox-with-suggestions flow with a tree/tag-group widget
@@ -2675,17 +2688,135 @@ def _wait_for_images_editor(page: "Page") -> None:
     This function now also polls until no ``_IMAGES_STUB_TESTID_PREFIX``
     element remains, so a caller never observes the mid-render stub state.
 
-    Absence of the section (or persistence of the stub state) after the
-    timeout is reported as a hard error rather than silently treated as
-    "no images", for the same reason.
+    **Third render stage, root-caused live 2026-08-03 for issue #687 (both
+    campaigns above, 6 independent repeat runs, both with 5 real images by
+    the time of this investigation):** BEFORE the ``StubN`` round described
+    above even begins, ``ImageSuggestionsEditor`` briefly mounts a first
+    time with ``.Open`` present but ZERO ``StubN`` and ZERO ``ContentImage``
+    elements — a stale/ghost render, most likely the section's own
+    "collapsed" resting state re-appearing for one paint before the real
+    data fetch kicks off, not a genuine settle. This ghost pass never shows
+    a single ``StubN`` element; the real pass always does. Observed
+    live 2026-08-03: the ghost pass alone can last from under a second up to
+    ~14.5s, and the check that existed before this fix — "editor present AND
+    zero ``StubN``" — is trivially true throughout it, so it is
+    indistinguishable from a real settle by DOM shape alone. This is exactly
+    the false-negative-to-false-positive drift #673 already fixed one render
+    stage earlier (empty container -> unsettled stub round), one stage
+    earlier still: ``masters adimages get``/``update --image`` calling
+    ``_wait_for_images_editor`` at that instant would read ``[]`` for a
+    campaign confirmed live to have 5 images, reproducing #687's exact
+    "no images" false negative. Confirmed by direct instrumentation of this
+    function, unmodified, before the fix below: it returned within ~4s with
+    ``_read_image_content_ids`` reading ``[]`` on a campaign with 5 images,
+    100% reproducible across 3 consecutive live runs.
+
+    The fix cannot be a fixed debounce window — the ghost pass's observed
+    duration (under 1s to ~14.5s) makes any fixed wait either too short
+    (still catches the ghost) or too close to the whole timeout budget (too
+    slow). Instead "no ``StubN``" is only trusted once ANY of:
+
+    (a) at least one real ``StubN`` element has actually been observed
+        first — the ghost pass never produces one;
+    (b) ``ContentImage`` elements are already present — confirmed live:
+        their count is always 0 throughout the ghost pass, so their
+        presence is never a false positive, and this also covers a
+        campaign whose images were already loaded with no stub round at
+        all (e.g. a fast-enough fetch, or a repeat read on an
+        already-hydrated page — the shape every other test in this class
+        exercises);
+    (c) the "editor present, no ``StubN``, no ``ContentImage``" reading
+        holds continuously for ``_IMAGES_GHOST_GRACE_S`` — the ghost pass
+        and a genuinely empty image set are otherwise indistinguishable by
+        DOM shape at a single instant (images are legitimately optional —
+        see ``_IMAGES_MAX_COUNT``'s module comment), so a truly empty
+        campaign is only trusted once that reading has outlasted the
+        ghost pass's worst observed duration, at the cost of paying that
+        wait once per edit-page visit.
+
+    Verified live 2026-08-03: 11/11 repeat runs across both non-empty
+    campaigns (after correcting an initial false-negative batch that turned
+    out to be testing a stale editable install pointing at a different
+    checkout — see the worktree caveat below) settle on the correct, stable
+    image count via (a)/(b), with a worst observed combined ghost+real
+    timeline of 43.6s (see ``_IMAGES_EDITOR_TIMEOUT_MS``'s bump to
+    accommodate it with margin). Path (c) has no live test campaign with a
+    genuinely empty image set available at investigation time (every DRAFT
+    campaign on the verification account already had images) — its
+    correctness rests on the offline fixture in
+    ``tests/test_masters.py::TestWaitForImagesEditor`` and the invariant
+    that the ghost pass never lasted longer than ~14.5s across every run
+    observed. If a live campaign with zero images later shows a ghost pass
+    longer than ``_IMAGES_GHOST_GRACE_S``, this path would misreport "no
+    images" prematurely — re-verify against one if hydration issues
+    resurface on empty-image campaigns specifically.
+
+    **Re-verified live 2026-08-03 in combination with PR #689 (issue #695):**
+    the live verification above originally ran before PR #689 landed
+    ``wait_until="commit"`` + ``_wait_for_edit_form`` on the other three
+    ``WIZARD_EDIT_URL`` navigation sites. After rebasing this fix onto
+    #689, direct instrumentation of both campaigns (post-``_wait_for_edit_form``,
+    reading the same ``editor``/``stub``/``content`` counts this function
+    itself checks) confirmed the same three-stage render — ghost pass
+    (≤2.3s here), a real ``StubN`` round, then content — settling within
+    ~3-6s, well inside the ``_IMAGES_GHOST_GRACE_S``/timeout budget. 8
+    subsequent ``masters adimages get`` runs across both campaigns (via
+    this fixed code, not the pre-#687 guard) all correctly read 5 images
+    each, elapsed 12.3s-28.1s. No occurrence of #695's original symptom
+    (section stuck at ``children == 0`` for 20+ seconds with no stub round
+    ever appearing) was observed in this combined verification — #695's
+    concern was a reasonable one to raise pending confirmation, but did
+    not reproduce here.
+
+    Absence of the section (or persistence of the stub state, or a settle
+    declared before any ``StubN`` round was ever observed) after the timeout
+    is reported as a hard error rather than silently treated as "no images",
+    for the same reason.
     """
 
+    stubs_ever_seen = False
+    empty_since: Optional[float] = None
+
     def _content_settled() -> bool:
+        nonlocal stubs_ever_seen, empty_since
         if page.locator(_IMAGES_EDITOR_SELECTOR).first.count() == 0:
+            empty_since = None
             return False
-        return (
-            page.locator(f'[data-testid^="{_IMAGES_STUB_TESTID_PREFIX}"]').count() == 0
-        )
+        stub_count = page.locator(
+            f'[data-testid^="{_IMAGES_STUB_TESTID_PREFIX}"]'
+        ).count()
+        if stub_count > 0:
+            stubs_ever_seen = True
+            empty_since = None
+            return False
+        if stubs_ever_seen:
+            # A real StubN round has already been observed and cleared —
+            # this "no StubN" reading is trustworthy regardless of content
+            # count (zero is the legitimate "campaign has no images" state).
+            return True
+        content_count = page.locator(
+            f'[data-testid^="{_IMAGES_CONTENT_TESTID_PREFIX}"]'
+        ).count()
+        if content_count > 0:
+            # Confirmed live: content count is always 0 throughout the ghost
+            # pass (see the docstring note above), so its presence here is
+            # never a false positive — this is a campaign whose images were
+            # already loaded server-side with no stub round at all.
+            return True
+        # No StubN round has ever been seen AND there is no content yet —
+        # this is EITHER the ghost pass (transient, confirmed live to last
+        # up to ~14.5s) OR a campaign that genuinely has zero images and
+        # settled straight into that state with no stub round to observe.
+        # These are indistinguishable by DOM shape alone at a single instant,
+        # so require this exact state (no editor mutation observed) to hold
+        # continuously for `_IMAGES_GHOST_GRACE_S` before trusting it — long
+        # enough to outlast the ghost pass, short enough not to matter for a
+        # page that is genuinely already settled.
+        now = time.monotonic()
+        if empty_since is None:
+            empty_since = now
+            return False
+        return (now - empty_since) >= _IMAGES_GHOST_GRACE_S
 
     if _poll_until(page, _content_settled, _IMAGES_EDITOR_TIMEOUT_MS):
         return
