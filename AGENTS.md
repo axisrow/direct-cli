@@ -15,16 +15,18 @@ The current CLI convention is defined as follows.
 The canonical command shape is:
 
 ```bash
-direct <group> <command> [flags]
+direct <group> [<group> ...] <command> [flags]
 ```
+
+A command is a path of one or more group segments followed by a leaf command name. Most commands use a single group segment; nested groups are allowed and already shipped (`direct masters adimages get|add|delete|set`). Every group segment in the path is validated with the same `group` rule below; the leaf is validated with the `command` rule.
 
 Naming rules:
 
-- `group`:
+- `group` (each segment in the path):
   - lowercase ASCII only
   - no underscores
   - multiword groups are concatenated
-  - examples: `dynamicads`, `smartadtargets`, `negativekeywordsharedsets`
+  - examples: `dynamicads`, `smartadtargets`, `negativekeywordsharedsets`, `masters adimages`
 
 - `command`:
   - lowercase only
@@ -110,6 +112,7 @@ direct keywordsresearch has-search-volume --keywords "buy laptop,buy desktop"
 direct smartadtargets update --id 456 --priority HIGH
 direct dynamicads set-bids --id 789 --bid 12.5
 direct dictionaries get-geo-regions --region-ids 225 --fields GeoRegionId,GeoRegionName
+direct masters adimages get 123
 ```
 
 Invalid examples:
