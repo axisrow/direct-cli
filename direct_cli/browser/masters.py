@@ -2265,25 +2265,33 @@ def _read_until_matches(
     expected: Any,
     *,
     timeout_ms: int = _VERIFY_FIELD_READ_TIMEOUT_MS,
+    matches: "Optional[Callable[[Any, Any], bool]]" = None,
 ) -> Any:
-    """Retry ``reader(page)`` until it returns ``expected`` or ``timeout_ms`` elapses.
+    """Retry ``reader(page)`` until it matches ``expected`` or ``timeout_ms`` elapses.
 
     ``_wait_for_edit_form`` only guarantees the first headline slot has
     rendered — a one-shot call to ``_read_weekly_budget``/
     ``_read_directs_helps``/``_read_promotion_goal_label``/
-    ``_read_campaign_name`` right after it can catch that field still
-    showing its pre-reload value while the rest of the form is still
-    hydrating (issue #706, same race ``_read_goal_price`` was hardened
-    against in issue #696). Returns the LAST value read — on a genuine
-    mismatch (Yandex actually rejected the save) that is the settled,
-    correct-but-wrong value, so ``_verify_saved`` still reports it
-    accurately once the retries are exhausted.
+    ``_read_campaign_name``/``_read_goal_price``/``_read_target_actions``
+    right after it can catch that field still showing its pre-reload value
+    while the rest of the form is still hydrating (issue #706/#716, same
+    race ``_read_goal_price`` was first hardened against in issue #696).
+    Returns the LAST value read — on a genuine mismatch (Yandex actually
+    rejected the save) that is the settled, correct-but-wrong value, so
+    ``_verify_saved`` still reports it accurately once the retries are
+    exhausted.
+
+    ``matches`` defaults to ``==`` but accepts a predicate for callers whose
+    "did it match" comparison isn't plain equality (e.g. ``_goal_price_matches``'s
+    comma/dot normalization, or ``target_action_prices``' per-goal lookup into
+    the list ``_read_target_actions`` returns).
     """
+    is_match = matches or (lambda actual, exp: actual == exp)
     last: Any = None
     deadline = time.monotonic() + timeout_ms / 1000
     while True:
         last = reader(page)
-        if last == expected or time.monotonic() >= deadline:
+        if is_match(last, expected) or time.monotonic() >= deadline:
             return last
         page.wait_for_timeout(250)
 
@@ -2344,7 +2352,12 @@ def _verify_saved(
             )
 
     if goal_price is not None:
-        actual_goal_price = _read_goal_price(page)
+        actual_goal_price = _read_until_matches(
+            page,
+            _read_goal_price,
+            goal_price,
+            matches=lambda actual, expected: _goal_price_matches(expected, actual),
+        )
         if not _goal_price_matches(goal_price, actual_goal_price):
             mismatches.append(
                 f"goal_price: expected {goal_price!r}, page now shows "
@@ -2352,9 +2365,24 @@ def _verify_saved(
             )
 
     if target_action_prices:
-        actual_target_actions = {
-            row["GoalId"]: row["Price"] for row in _read_target_actions(page)
-        }
+
+        def _read_target_action_prices(p: "Page") -> Dict[int, Optional[float]]:
+            return {row["GoalId"]: row["Price"] for row in _read_target_actions(p)}
+
+        def _target_action_prices_match(
+            actual: Dict[int, Optional[float]], expected: Dict[int, float]
+        ) -> bool:
+            return all(
+                _target_action_price_matches(price, actual.get(goal_id))
+                for goal_id, price in expected.items()
+            )
+
+        actual_target_actions = _read_until_matches(
+            page,
+            _read_target_action_prices,
+            target_action_prices,
+            matches=_target_action_prices_match,
+        )
         for goal_id, expected_price in target_action_prices.items():
             actual_price = actual_target_actions.get(goal_id)
             if not _target_action_price_matches(expected_price, actual_price):

@@ -3899,6 +3899,105 @@ class TestUpdateMaster(unittest.TestCase):
 
         self.assertEqual(result, {"CampaignId": 42, "WeeklyBudget": 95000})
 
+    def test_verify_saved_survives_delayed_goal_price_hydration(self):
+        # Issue #716: goal_price's one-shot _read_goal_price() call in
+        # _verify_saved wasn't wrapped in _read_until_matches (unlike the
+        # four fields #706 hardened) — same hydration race, different
+        # field. Models the target-price input still showing the PRE-save
+        # figure for one tick after reload, settling to the actually-saved
+        # value only afterwards.
+        ticks = {"count": 0}
+        price_state = {"value": "500"}
+
+        def _get_price_value():
+            if ticks["count"] < 1:
+                return "999"  # stale pre-save snapshot
+            return price_state["value"]
+
+        price_handle = _FakeLocatorHandle(
+            on_fill=lambda v: price_state.__setitem__("value", v),
+            get_value=_get_price_value,
+        )
+        save_handle = _FakeTextLocatorHandle(visible=True)
+        edit_form_ready_selector = (
+            f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'
+        )
+
+        class _DelayedPricePage(FakePage):
+            def wait_for_timeout(self, timeout):
+                ticks["count"] += 1
+
+        page = _DelayedPricePage(
+            locators={
+                browser_masters._GOAL_PRICE_INPUT_TESTID: _FakeLocator([price_handle]),
+                edit_form_ready_selector: _FakeLocator([_FakeLocatorHandle()]),
+            },
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+
+        result = browser_masters.update_master(page, 42, goal_price=500)
+
+        self.assertEqual(result, {"CampaignId": 42, "GoalPrice": 500})
+
+    def test_verify_saved_survives_delayed_target_action_price_hydration(self):
+        # Issue #716: target_action_prices' one-shot _read_target_actions()
+        # call in _verify_saved wasn't wrapped in _read_until_matches either
+        # — the "Целевые действия" table sits even lower on the edit page
+        # (per _set_target_action_price's own docstring) so it is at least
+        # as exposed to this hydration race as weekly_budget/goal_price.
+        ticks = {"count": 0}
+        price_state = {"value": "200"}
+
+        def _get_price_value():
+            if ticks["count"] < 1:
+                return "150"  # stale pre-save snapshot
+            return price_state["value"]
+
+        price_handle = _FakeLocatorHandle(
+            on_fill=lambda v: price_state.__setitem__("value", v),
+            get_value=_get_price_value,
+        )
+        row_testid = browser_masters._TARGET_ACTION_ROW_TESTID_TEMPLATE.format(
+            category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=159614149
+        )
+        price_testid = browser_masters._TARGET_ACTION_PRICE_TESTID_TEMPLATE.format(
+            category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=159614149
+        )
+        row_prefix_selector = (
+            f'[data-testid^="TargetActions.'
+            f'{browser_masters._TARGET_ACTIONS_CATEGORY}."]'
+        )
+        save_handle = _FakeTextLocatorHandle(visible=True)
+        edit_form_ready_selector = (
+            f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'
+        )
+
+        class _DelayedTargetActionPage(FakePage):
+            def wait_for_timeout(self, timeout):
+                ticks["count"] += 1
+
+        page = _DelayedTargetActionPage(
+            locators={
+                browser_masters._TARGET_ACTIONS_SECTION_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                row_prefix_selector: _FakeLocator(
+                    [_FakeLocatorHandle(attrs={"data-testid": row_testid})]
+                ),
+                f'[data-testid="{price_testid}"]': _FakeLocator([price_handle]),
+                edit_form_ready_selector: _FakeLocator([_FakeLocatorHandle()]),
+            },
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+
+        result = browser_masters.update_master(
+            page, 42, target_action_prices={159614149: 200}
+        )
+
+        self.assertEqual(
+            result, {"CampaignId": 42, "TargetActionPrices": {159614149: 200}}
+        )
+
     def test_updates_only_target_action_price(self):
         prices_state = {159614149: "150"}
         page, save_clicks = self._page_with_save_button(
