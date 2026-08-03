@@ -241,6 +241,7 @@ from ..output import print_warning
 from .session import (
     _LOGIN_PAGE_MARKERS,
     BrowserAuthError,
+    BrowserCaptchaError,
     BrowserSessionError,
     assert_authenticated,
     assert_not_captcha,
@@ -315,10 +316,60 @@ _SUSPEND_BUTTON_TEXTS = ("Остановить кампанию", "Приост�
 # actually change before giving up and reporting a possible false success.
 _STATUS_CHANGE_TIMEOUT_MS = 10_000
 
+# Overview page's header title, confirmed live (issue #683) as the earliest
+# stable marker of a rendered wizard overview page — present on BOTH a
+# DRAFT campaign's page (which has no "⋮" menu at all, see _MENU_TRIGGER_
+# SELECTOR below and issue #660) and every other status. Unlike the plain
+# `h1, [role=heading]` CSS selector `_extract_title` uses (which matches
+# nothing here — the real element is an `<h2 data-testid="CampaignHeader.
+# Title">` with no explicit `role` attribute), this selector is exact.
+_OVERVIEW_TITLE_SELECTOR = '[data-testid="CampaignHeader.Title"]'
+
+# How long to wait for `_OVERVIEW_TITLE_SELECTOR` to render after navigating
+# to WIZARD_OVERVIEW_URL (issue #683). Confirmed live: the overview page can
+# take several seconds after `wait_until="commit"` returns before its React
+# tree paints anything at all.
+_OVERVIEW_LOAD_TIMEOUT_MS = 30_000
+
+# How long _extract_stat_tiles retries after the title has rendered but
+# before the stat tiles themselves have (issue #683). Confirmed live
+# (campaign 72349978, headless): the title (`_OVERVIEW_TITLE_SELECTOR`) is
+# present well before the stat tile buttons finish rendering — a single
+# post-title read intermittently found 0 of them despite the campaign
+# genuinely having 5. As slow as _OVERVIEW_LOAD_TIMEOUT_MS itself: live
+# headless recon measured the tiles finishing their OWN render up to ~15s
+# after the title, not the sub-second gap a headful/extension browser
+# showed — these are two independent SPA render passes, not one paint.
+_STAT_TILES_TIMEOUT_MS = 30_000
+
+# How many CONSECUTIVE poll ticks the found stat-tile key set must stay
+# unchanged before _extract_stat_tiles treats it as final (cycle-review
+# #697 finding, Codex): a single unchanged tick is indistinguishable from
+# "the page just hasn't started rendering tiles yet" -- at _poll_until's
+# default 250ms tick, one quiet tick is only 250ms of evidence against a
+# render this file itself documents as taking up to ~15s. 8 consecutive
+# ticks (~2s of continuous silence at the default tick rate) is comfortably
+# below that real-world render time while still returning well short of
+# the full timeout for a campaign that genuinely never renders more tiles.
+#
+# KNOWN ACCEPTED TRADE-OFF (tracked in #708): no finite tick count can
+# fully close the race between "campaign genuinely has fewer tiles" and
+# "tiles just haven't rendered yet" without a real DOM settled/loading
+# marker for the stat-tiles section, which does not exist in this code
+# (unlike _OVERVIEW_TITLE_SELECTOR for the header, #683, or
+# _wait_for_images_editor's section marker, #670). This value fixes the
+# confirmed-live #683 scenario and narrows the window versus a 1-tick
+# check; it does not eliminate it. See #708 for finding a real marker.
+_STAT_TILES_STABLE_TICKS = 8
+
 # Overview page's "⋮" menu, confirmed live (issue #633) — see module
 # docstring. Unlike _RESUME_BUTTON_TEXTS/_SUSPEND_BUTTON_TEXTS these are
 # selectors, not text-matched candidates: both testids were read directly off
-# a live account's DOM, not guessed.
+# a live account's DOM, not guessed. NOT present on a DRAFT campaign's
+# overview page (issue #660) — callers that need it (archive_master,
+# copy_master) still only wait for _OVERVIEW_TITLE_SELECTOR via
+# _goto_overview_page; DRAFT support for the menu-based actions remains the
+# tracked #660 gap, not something this fixes.
 _MENU_TRIGGER_SELECTOR = '[data-testid="CampaignHeader.MenuTrigger"]'
 _ARCHIVE_MENU_ITEM_SELECTOR = '[data-testid="CampaignHeader.Menu.archive"]'
 # Confirmed live (issue #659) alongside the archive item above — same menu,
@@ -934,6 +985,90 @@ def fetch_masters_list(
     return masters
 
 
+def _goto_overview_page(page: "Page", campaign_id: int) -> None:
+    """Navigate to a campaign's wizard overview page and block until it has
+    actually rendered (issue #683).
+
+    Every entry point that reads/mutates the overview page previously used
+    ``page.goto(url, wait_until="domcontentloaded")`` and immediately trusted
+    the page to be ready — but the overview page is a client-rendered SPA,
+    same as the edit page ``_wait_for_images_editor`` guards against (#670):
+    ``domcontentloaded`` fires while the header/menu/stats are all still
+    absent from the DOM. Live-confirmed 2026-08-03 against campaign
+    72349978: ``fetch_master`` intermittently failed to read the campaign
+    name (``h1, [role=heading]`` — a selector that, separately, never
+    matches this page's real ``<h2 data-testid="CampaignHeader.Title">``
+    element at all) while status/landing-URL/stats all read back fine, a
+    classic race between the read and the still-in-flight render.
+
+    ``wait_until="commit"`` (fires as soon as the navigation's response
+    headers arrive, before ANY DOM work) replaces ``domcontentloaded`` here
+    so this function's own poll loop is what actually waits for content,
+    rather than layering an unreliable implicit wait under an also-unreliable
+    explicit one. It polls for ``_OVERVIEW_TITLE_SELECTOR`` — confirmed live
+    to render on both a DRAFT campaign's overview page (which has no "⋮"
+    menu at all, see ``_MENU_TRIGGER_SELECTOR`` and issue #660) and every
+    other status, making it the earliest common marker every caller here can
+    rely on regardless of campaign status.
+
+    ``assert_not_captcha``/``assert_authenticated`` run once immediately
+    after navigation AND on every poll tick, so a captcha gate or an
+    expired session is reported via its own specific error right away,
+    instead of only surfacing after burning the full
+    ``_OVERVIEW_LOAD_TIMEOUT_MS`` waiting for a title that a login/captcha
+    page will never render. The extra upfront check does not change
+    behavior on the happy path -- it only matters when the gate is already
+    present at commit time, which is exactly the case that must not depend
+    on ``_poll_until``'s first tick actually running promptly.
+
+    The captcha/auth check happens OUTSIDE ``_poll_until``'s predicate (via
+    ``_terminal_state``, which returns a marker instead of raising), same
+    pattern as ``_wait_for_edit_form``/
+    ``_edit_form_terminal_state`` (issue #689): ``_poll_until`` suppresses
+    ``PlaywrightError``, which is aliased to the broad ``Exception`` when
+    Playwright isn't installed (the offline-unit-test import fallback
+    above) — in that environment a raise from inside the predicate would
+    be silently swallowed as "not yet" instead of propagating, and this
+    function would misreport a real captcha/auth failure as its own
+    generic render-timeout (cycle-review #697 finding).
+    """
+    url = WIZARD_OVERVIEW_URL.format(campaign_id=campaign_id)
+    page.goto(url, wait_until="commit")
+
+    initial_html = page.content()
+    assert_not_captcha(initial_html)
+    assert_authenticated(initial_html)
+
+    def _terminal_state() -> "Optional[str]":
+        html = page.content()
+        try:
+            assert_not_captcha(html)
+            assert_authenticated(html)
+        except BrowserCaptchaError:
+            return "captcha"
+        except BrowserAuthError:
+            return "auth"
+        if page.locator(_OVERVIEW_TITLE_SELECTOR).first.count() > 0:
+            return "ready"
+        return None
+
+    state = _poll_until_terminal(page, _terminal_state, _OVERVIEW_LOAD_TIMEOUT_MS)
+    if state == "ready":
+        return
+    if state == "captcha":
+        assert_not_captcha(page.content())  # re-raises BrowserCaptchaError
+    if state == "auth":
+        assert_authenticated(page.content())  # re-raises BrowserAuthError
+
+    raise BrowserSessionError(
+        f"The wizard overview page for campaign {campaign_id} did not "
+        f"render within {_OVERVIEW_LOAD_TIMEOUT_MS / 1000:.0f}s (no "
+        f"{_OVERVIEW_TITLE_SELECTOR!r} appeared) — Yandex may have changed "
+        "the page's markup, or the page may still be loading. Re-run with "
+        "--headful to inspect the page."
+    )
+
+
 def fetch_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
     """Fetch overview details for one Мастер кампаний by navigating its wizard page.
 
@@ -950,10 +1085,7 @@ def fetch_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
     handles that case; every other status keeps using the stats-dashboard
     extractors below.
     """
-    url = WIZARD_OVERVIEW_URL.format(campaign_id=campaign_id)
-    page.goto(url, wait_until="domcontentloaded")
-    assert_not_captcha(page.content())
-    assert_authenticated(page.content())
+    _goto_overview_page(page, campaign_id)
 
     if _is_draft_overview_page(page):
         return _fetch_draft_master(page, campaign_id)
@@ -1038,7 +1170,13 @@ def _fetch_draft_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
 
 
 def _extract_title(page: "Page", result: Dict[str, Any]) -> None:
-    heading = page.locator("h1, [role=heading]").first
+    # Confirmed live 2026-08-03 (issue #683 investigation, campaign
+    # 72349978): the overview page's real title element is
+    # `<h2 data-testid="CampaignHeader.Title">` — no `role` attribute, so
+    # the previous `h1, [role=heading]` CSS selector never matched it at
+    # all. _goto_overview_page already waits for this exact selector
+    # (_OVERVIEW_TITLE_SELECTOR) before this function ever runs.
+    heading = page.locator(_OVERVIEW_TITLE_SELECTOR).first
     try:
         result["Name"] = heading.inner_text().strip()
     except PlaywrightError:
@@ -1079,24 +1217,69 @@ def _extract_stat_tiles(page: "Page", result: Dict[str, Any]) -> None:
     # Stat tiles render near the top of the page, well before the dozens of
     # nav/tab/edit buttons further down — stop as soon as every known label
     # is found instead of walking every button on the page.
+    #
+    # Confirmed live 2026-08-03 (issue #683, campaign 72349978): the tiles
+    # render AFTER _OVERVIEW_TITLE_SELECTOR (which _goto_overview_page
+    # already waited for) — a single read right after that wait
+    # intermittently found 0 tiles for a campaign that demonstrably has 5.
+    # Retries for a short bounded window rather than reading once, mirroring
+    # _wait_for_images_editor's "outer container present, content not yet
+    # settled" guard (#670) applied to this page's own two-stage render.
+    #
+    # Stops as soon as the found set STABILIZES for _STAT_TILES_STABLE_TICKS
+    # consecutive ticks (unchanged from tick to tick), not only when every
+    # known key is found (cycle-review #697 finding): a campaign that
+    # genuinely has fewer than 5 tiles -- DRAFT with no stats dashboard, or
+    # Yandex simply not rendering a metric -- would otherwise always burn
+    # the full _STAT_TILES_TIMEOUT_MS waiting for keys that will never
+    # appear. Live-measured: a single-tile fixture took the full 30s under
+    # the old all-keys-required condition.
+    #
+    # Requires SEVERAL consecutive stable ticks, not just one (cycle-review
+    # #697 re-review finding, Codex): a single unchanged tick is only
+    # ~250ms of evidence -- indistinguishable from "the page hasn't started
+    # rendering tiles yet" on a render this file itself documents as taking
+    # up to ~15s. A reproduction confirmed a naive one-tick check returns
+    # an empty/partial result after the very first poll, before the real
+    # tiles have had any chance to render at all.
     wanted_keys = set(_STAT_TILE_LABELS.values())
     stats: Dict[str, str] = {}
-    buttons = page.locator("button")
-    count = buttons.count()
-    for i in range(count):
+    previous_keys: Optional[frozenset] = None
+    stable_ticks = 0
+
+    def _scan() -> bool:
+        nonlocal previous_keys, stable_ticks
+        buttons = page.locator("button")
+        count = buttons.count()
+        for i in range(count):
+            if stats.keys() >= wanted_keys:
+                break
+            try:
+                text = buttons.nth(i).inner_text().strip()
+            except PlaywrightError:
+                continue
+            lines = [line.strip() for line in text.splitlines() if line.strip()]
+            if len(lines) != 2:
+                continue
+            value, label = lines
+            # Confirmed live 2026-08-03 (campaign 72349978): "За конверсию"
+            # renders with a non-breaking space (U+00A0) between the words,
+            # not a plain one — normalise before the lookup so
+            # _STAT_TILE_LABELS' plain-space keys still match.
+            key = _STAT_TILE_LABELS.get(label.replace("\xa0", " "))
+            if key and key not in stats:
+                stats[key] = value
         if stats.keys() >= wanted_keys:
-            break
-        try:
-            text = buttons.nth(i).inner_text().strip()
-        except PlaywrightError:
-            continue
-        lines = [line.strip() for line in text.splitlines() if line.strip()]
-        if len(lines) != 2:
-            continue
-        value, label = lines
-        key = _STAT_TILE_LABELS.get(label)
-        if key and key not in stats:
-            stats[key] = value
+            return True
+        current_keys = frozenset(stats.keys())
+        if current_keys == previous_keys:
+            stable_ticks += 1
+        else:
+            stable_ticks = 0
+        previous_keys = current_keys
+        return stable_ticks >= _STAT_TILES_STABLE_TICKS
+
+    _poll_until(page, _scan, _STAT_TILES_TIMEOUT_MS)
 
     if stats:
         result["Stats"] = stats
@@ -1178,10 +1361,7 @@ def _suspend_or_resume(
     overview page" note) — refuses with a clear error instead of clicking
     blind or misreporting a made-up status.
     """
-    url = WIZARD_OVERVIEW_URL.format(campaign_id=campaign_id)
-    page.goto(url, wait_until="domcontentloaded")
-    assert_not_captcha(page.content())
-    assert_authenticated(page.content())
+    _goto_overview_page(page, campaign_id)
 
     if _is_draft_overview_page(page):
         raise BrowserSessionError(
@@ -1294,10 +1474,7 @@ def archive_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
             "it first (masters update --launch) if you want to archive it."
         )
 
-    url = WIZARD_OVERVIEW_URL.format(campaign_id=campaign_id)
-    page.goto(url, wait_until="domcontentloaded")
-    assert_not_captcha(page.content())
-    assert_authenticated(page.content())
+    _goto_overview_page(page, campaign_id)
 
     menu_trigger = page.locator(_MENU_TRIGGER_SELECTOR).first
     try:
@@ -1364,10 +1541,7 @@ def copy_master(
             "grid — check the ID, or it may already be gone."
         )
 
-    url = WIZARD_OVERVIEW_URL.format(campaign_id=campaign_id)
-    page.goto(url, wait_until="domcontentloaded")
-    assert_not_captcha(page.content())
-    assert_authenticated(page.content())
+    _goto_overview_page(page, campaign_id)
 
     menu_trigger = page.locator(_MENU_TRIGGER_SELECTOR).first
     try:
