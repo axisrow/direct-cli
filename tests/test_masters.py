@@ -4468,6 +4468,26 @@ class TestAuthDetection(unittest.TestCase):
         with self.assertRaises(BrowserAuthError):
             browser_masters.fetch_master(page, 1)
 
+    def test_fetch_masters_list_login_page_not_masked_without_playwright(self):
+        # CI's "quality" job runs the offline suite without the playwright
+        # package installed, so PlaywrightError falls back to bare Exception
+        # (see the import fallback in direct_cli/browser/masters.py). Once
+        # _capture_grid_campaigns_request's whole `with page.expect_response`
+        # block (goto/assert_* included) moved inside one try/except
+        # PlaywrightError (issue #694 fix), that broad except-Exception
+        # fallback started swallowing assert_authenticated's BrowserAuthError
+        # too, relabelling it as the generic "could not observe the grid's
+        # data request" timeout error instead of letting it propagate --
+        # confirmed live on CI (PR #698). Simulate the no-playwright fallback
+        # here directly so this regression is caught locally too, regardless
+        # of whether playwright happens to be installed in the dev env.
+        page = FakePage(locators={}, html="<body>Войдите с Яндекс ID</body>")
+        from direct_cli.browser.session import BrowserAuthError
+
+        with patch.object(browser_masters, "PlaywrightError", Exception):
+            with self.assertRaises(BrowserAuthError):
+                browser_masters.fetch_masters_list(page)
+
     def test_fetch_masters_list_waits_for_commit_not_networkidle(self):
         # #634: networkidle never settles on Yandex's login page (it holds
         # long-poll connections), which is what turned an auth failure into

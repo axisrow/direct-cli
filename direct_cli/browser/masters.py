@@ -670,6 +670,14 @@ def _capture_grid_campaigns_request(page: "Page") -> Dict[str, Any]:
             assert_not_captcha(page.content())
             assert_authenticated(page.content())
         response = response_info.value
+    except BrowserSessionError:
+        # assert_not_captcha/assert_authenticated raise BrowserCaptchaError/
+        # BrowserAuthError (both BrowserSessionError subclasses) -- these
+        # must propagate as-is, not be relabelled as the generic timeout
+        # error below. Without this PlaywrightError falls back to bare
+        # Exception when the playwright package isn't installed (see the
+        # import fallback above), which would otherwise swallow them too.
+        raise
     except PlaywrightError as exc:
         # Playwright's EventContextManager.__exit__ resolves
         # response_info.value itself when the `with` block exits without
