@@ -214,8 +214,10 @@ from typing import (
     Tuple,
 )
 
+from .._captcha import find_captcha_marker, find_marker
 from ..output import print_warning
 from .session import (
+    _LOGIN_PAGE_MARKERS,
     BrowserAuthError,
     BrowserSessionError,
     assert_authenticated,
@@ -382,6 +384,19 @@ _HEADLINES_SLOT_COUNT = 5
 _TEXTS_SLOT_COUNT = 3
 _HEADLINES_TESTID_TEMPLATE = "CampaignTitles{index}.textarea"
 _TEXTS_TESTID_TEMPLATE = "CampaignTexts{index}.textarea"
+
+# Edit-page-ready marker (issue #684). ``goto(..., wait_until="commit")``
+# returns as soon as the response headers are received — before ANY of the
+# SPA's own JS has run — so every call site that immediately reads/writes a
+# form field needs an explicit wait for real content first, same reasoning
+# as ``_IMAGES_EDITOR_TIMEOUT_MS`` below. The first headline slot
+# (``CampaignTitles0.textarea``) is the marker: headlines are not optional
+# like images (see ``_HEADLINES_SLOT_COUNT``'s module-level comment), so
+# slot 0 is guaranteed present on every rendered edit page, DRAFT or not
+# (the DRAFT edit page still renders headlines/texts — see module docstring's
+# "DRAFT support" note).
+_EDIT_FORM_READY_TESTID = _HEADLINES_TESTID_TEMPLATE.format(index=0)
+_EDIT_FORM_READY_TIMEOUT_MS = 30_000
 
 # Images (issue #670, Этап D). Confirmed live 2026-08-02 against DRAFT clone
 # 713234191 that images are a COMPLETELY different shape from headlines/texts
@@ -1579,9 +1594,10 @@ def _verify_saved(
     take effect and this raises rather than reporting false success.
     """
     url = WIZARD_EDIT_URL.format(campaign_id=campaign_id)
-    page.goto(url, wait_until="domcontentloaded")
+    page.goto(url, wait_until="commit")
     assert_not_captcha(page.content())
     assert_authenticated(page.content())
+    _wait_for_edit_form(page, campaign_id)
 
     checks = [
         ("weekly_budget", weekly_budget, _read_weekly_budget),
@@ -1724,9 +1740,10 @@ def update_master(
         )
 
     url = WIZARD_EDIT_URL.format(campaign_id=campaign_id)
-    page.goto(url, wait_until="domcontentloaded")
+    page.goto(url, wait_until="commit")
     assert_not_captcha(page.content())
     assert_authenticated(page.content())
+    _wait_for_edit_form(page, campaign_id)
 
     if name is not None:
         _set_campaign_name(page, name)
@@ -1848,10 +1865,11 @@ def _open_images_editor(page: "Page", campaign_id: int) -> List[str]:
     """
     page.goto(
         WIZARD_EDIT_URL.format(campaign_id=campaign_id),
-        wait_until="domcontentloaded",
+        wait_until="commit",
     )
     assert_not_captcha(page.content())
     assert_authenticated(page.content())
+    _wait_for_edit_form(page, campaign_id)
 
     _wait_for_images_editor(page)
     return _read_image_content_ids(page)
@@ -2517,6 +2535,112 @@ def _read_testid_suffixes(
     return suffixes
 
 
+def _wait_for_edit_form(page: "Page", campaign_id: int) -> None:
+    """Block until the edit page's form has actually rendered.
+
+    Issue #684: every ``WIZARD_EDIT_URL`` navigation in this module now uses
+    ``wait_until="commit"`` (fires as soon as the response starts arriving,
+    before any redirect/parse/JS has happened) instead of the previous
+    ``wait_until="domcontentloaded"`` — ``domcontentloaded`` on this SPA was
+    observed to time out under real network conditions (the page's own
+    long-poll connections can make even that early a lifecycle event hang;
+    see the module's "The edit page is an SPA" comment on
+    ``_IMAGES_EDITOR_TIMEOUT_MS`` for the same long-poll reasoning).
+    ``commit`` never hangs on page-internal behaviour — it only waits on the
+    network response itself — but it also guarantees nothing about the DOM,
+    so every call site must wait for a real content marker afterwards
+    instead of trusting the navigation call alone.
+
+    Polls for ``_EDIT_FORM_READY_TESTID`` (the first headline slot) rather
+    than a fixed sleep, same convention as ``_wait_for_step2``/
+    ``_wait_for_images_editor``. Also re-checks for a captcha/login page on
+    every tick (cycle-review #689 finding): the one-shot
+    ``assert_not_captcha``/``assert_authenticated`` checks each call site
+    runs right after ``goto(..., wait_until="commit")`` only see whatever
+    the response committed with — a captcha gate or an expired-session
+    redirect that the SPA's own JS renders in *after* that point would be
+    invisible to those checks and would otherwise surface here as a
+    generic timeout instead of the specific ``BrowserCaptchaError``/
+    ``BrowserAuthError`` callers rely on to know not to retry a
+    non-idempotent operation (e.g. ``_verify_saved_images``).
+
+    The captcha/auth check happens OUTSIDE ``_poll_until``'s predicate
+    (via ``_edit_form_terminal_state``, which returns a marker instead of
+    raising) rather than inside it: ``_poll_until`` suppresses
+    ``PlaywrightError``, which is aliased to the broad ``Exception`` when
+    Playwright isn't installed (the offline-unit-test import fallback
+    above) — in that environment a raise from inside the predicate would
+    be silently swallowed as "not yet" instead of propagating, and this
+    function would misreport a real captcha/auth failure as its own
+    generic render-timeout.
+    """
+    state = _poll_until_terminal(
+        page,
+        lambda: _edit_form_terminal_state(page),
+        _EDIT_FORM_READY_TIMEOUT_MS,
+    )
+    if state == "ready":
+        return
+    if state == "captcha":
+        assert_not_captcha(page.content())  # re-raises BrowserCaptchaError
+    if state == "auth":
+        assert_authenticated(page.content())  # re-raises BrowserAuthError
+
+    raise BrowserSessionError(
+        f"The edit page for campaign {campaign_id} did not finish rendering "
+        f"within {_EDIT_FORM_READY_TIMEOUT_MS / 1000:.0f}s (the "
+        f"'{_EDIT_FORM_READY_TESTID}' field never appeared). Yandex may have "
+        "changed the page's markup, the campaign may not exist, or the page "
+        "may still be loading. Re-run with --headful to inspect the page."
+    )
+
+
+def _edit_form_terminal_state(page: "Page") -> "Optional[str]":
+    """Predicate for ``_wait_for_edit_form``'s poll loop.
+
+    Returns ``"ready"`` once the form marker is present, ``"captcha"``/
+    ``"auth"`` if a captcha or login page appears instead, or ``None`` to
+    keep polling. Deliberately returns rather than raises — see
+    ``_wait_for_edit_form``'s docstring for why the caller re-runs
+    ``assert_not_captcha``/``assert_authenticated`` itself, outside the
+    poll loop, to actually raise.
+    """
+    html = page.content()
+    if find_captcha_marker(html) is not None:
+        return "captcha"
+    if find_marker(html, _LOGIN_PAGE_MARKERS) is not None:
+        return "auth"
+    if page.locator(f'[data-testid="{_EDIT_FORM_READY_TESTID}"]').count() > 0:
+        return "ready"
+    return None
+
+
+def _poll_until_terminal(
+    page: "Page",
+    predicate: "Callable[[], Optional[str]]",
+    timeout_ms: int,
+    *,
+    tick_ms: int = 250,
+) -> "Optional[str]":
+    """Like ``_poll_until``, but for a predicate returning a terminal-state
+    string (truthy, non-``None``) instead of a bare bool.
+
+    Used where the poll loop must distinguish several ready-to-stop states
+    (e.g. "form rendered" vs. "captcha appeared") rather than a single
+    true/false — see ``_edit_form_terminal_state``. ``PlaywrightError`` is
+    suppressed the same way ``_poll_until`` does, for the same reason (a
+    locator query racing a mid-render DOM is expected, not a failure).
+    """
+    deadline = time.monotonic() + timeout_ms / 1000
+    while time.monotonic() < deadline:
+        with contextlib.suppress(PlaywrightError):
+            state = predicate()
+            if state is not None:
+                return state
+        page.wait_for_timeout(tick_ms)
+    return None
+
+
 def _wait_for_images_editor(page: "Page") -> None:
     """Block until the edit page's "Изображения" section has rendered ITS
     ACTUAL CONTENT, not just its outer container.
@@ -3176,9 +3300,10 @@ def _verify_saved_images(
     ``_verify_image_set_mismatches``.
     """
     url = WIZARD_EDIT_URL.format(campaign_id=campaign_id)
-    page.goto(url, wait_until="domcontentloaded")
+    page.goto(url, wait_until="commit")
     assert_not_captcha(page.content())
     assert_authenticated(page.content())
+    _wait_for_edit_form(page, campaign_id)
 
     mismatches = _verify_image_set_mismatches(
         page,
