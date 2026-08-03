@@ -25,6 +25,14 @@
   (checked live, both the overview page and the grid row's own menu).
 - Live-verified against campaign 713231614 (the draft copy left over from
   #659's recon) — see `tests/fixtures/masters_wizard_draft_overview.html`.
+- `_is_draft_overview_page` checks `.count() == 0` before calling
+  `inner_text()` on the `CampaignHeader.Status` locator — a non-DRAFT
+  overview page has no such node at all, and calling `inner_text()` directly
+  would make Playwright auto-wait its full actionability timeout (default
+  30s) on every `masters get`/`suspend`/`resume` call before falling through
+  to the normal dashboard extractors (caught in review; the module's other
+  presence checks, e.g. `_is_draft_edit_page`, already use `.count()` for
+  exactly this reason).
 
 **Fixed — images-section "ghost" render pass caused false "no images" reads (#687):**
 

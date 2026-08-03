@@ -874,9 +874,17 @@ def _is_draft_overview_page(page: "Page") -> bool:
     lives in plain body text, see ``_read_status_text``), so this check and
     the DRAFT-specific extractors it gates can never disagree about what
     "DRAFT" means (mirrors ``_is_draft_edit_page``'s own rationale).
+
+    Uses ``.count()`` to check presence before ``inner_text()`` — like every
+    other presence check in this module (e.g. ``_is_draft_edit_page``) — so a
+    non-DRAFT page (which has no ``CampaignHeader.Status`` node at all) is
+    recognised immediately instead of Playwright auto-waiting its full
+    actionability timeout for a selector that will never appear.
     """
     try:
         handle = page.locator(_CAMPAIGN_HEADER_STATUS_SELECTOR).first
+        if handle.count() == 0:
+            return False
         return handle.inner_text().strip() == _DRAFT_STATUS_TEXT
     except PlaywrightError:
         return False

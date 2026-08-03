@@ -1877,6 +1877,30 @@ class TestFetchMasterDraft(unittest.TestCase):
         self.assertEqual(result["Status"], "ACTIVE")
         self.assertNotIn("WeeklyBudget", result)
 
+    def test_absent_status_node_detected_via_count_not_inner_text(self):
+        # Regression: a non-DRAFT overview page has NO CampaignHeader.Status
+        # node at all (its status lives in plain body text instead, see
+        # _read_status_text) — _is_draft_overview_page must recognise that
+        # via .count() == 0 and return False immediately, the same way
+        # _is_draft_edit_page does, rather than calling inner_text() on the
+        # locator's raising `.first` handle. Real Playwright's inner_text()
+        # auto-waits its full actionability timeout (default 30s) for a
+        # selector that will never appear before raising — calling it here
+        # would silently stall every non-DRAFT masters get/suspend/resume.
+        page = FakePage(
+            locators={
+                "h1, [role=heading]": _FakeLocator(
+                    [_FakeLocatorHandle(text="Обычная")]
+                ),
+            },
+            body_text="Кампания активна",
+        )
+
+        self.assertFalse(browser_masters._is_draft_overview_page(page))
+
+        result = browser_masters.fetch_master(page, 1)
+        self.assertEqual(result["Status"], "ACTIVE")
+
 
 class TestSuspendResumeMaster(unittest.TestCase):
     """suspend_master/resume_master (issue #630): click + verify, idempotent.
