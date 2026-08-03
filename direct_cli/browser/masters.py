@@ -378,6 +378,19 @@ _TEXTS_TESTID_TEMPLATE = "CampaignTexts{index}.textarea"
 _IMAGES_MAX_COUNT = 5
 _IMAGES_EDITOR_SELECTOR = '[data-testid="ImageSuggestionsEditor"]'
 _IMAGES_CONTENT_TESTID_PREFIX = "ImageSuggestionsEditor.CampaignContents.ContentImage."
+# Loading skeleton the section renders BEFORE the real content resolves —
+# confirmed live 2026-08-03 against campaigns 713234191/713234204 (both with
+# 4 real images): ``ImageSuggestionsEditor`` itself appears first with four
+# ``ImageSuggestionsEditor.CampaignContents.StubN`` placeholders (N=0-3) and
+# NEITHER ``ContentImage.*`` NOR ``.Open`` present yet; the stubs are
+# replaced by the real content ~3s later. Waiting only for
+# ``_IMAGES_EDITOR_SELECTOR`` (what this constant guarded before) is
+# insufficient — it returns during the stub window, so
+# ``_read_image_content_ids`` reads ``[]`` for a campaign that demonstrably
+# has 4 images, exactly the "empty list indistinguishable from not-yet-
+# rendered" failure mode ``_wait_for_images_editor``'s own docstring already
+# describes but did not fully guard against. See ``_wait_for_images_editor``.
+_IMAGES_STUB_TESTID_PREFIX = "ImageSuggestionsEditor.CampaignContents.Stub"
 _IMAGES_OPEN_MODAL_SELECTOR = '[data-testid="ImageSuggestionsEditor.Open"]'
 _IMAGES_MODAL_SELECTOR = '[data-testid="ImageSuggestionsEditorModal"]'
 _IMAGES_MODAL_FILE_INPUT_SELECTOR = (
@@ -2210,22 +2223,42 @@ def _wait_for_images_editor(page: "Page") -> None:
     images by ``masters update --image`` while the very same edit pages
     demonstrably rendered four ``ContentImage`` elements each.
 
-    Absence of the section after the timeout is reported as a hard error
-    rather than silently treated as "no images", for the same reason.
+    **Two-stage render, confirmed live 2026-08-03 (campaigns 713234191 and
+    713234204, both with 4 real images):** ``ImageSuggestionsEditor`` itself
+    (the selector this function used to wait on exclusively) appears FIRST
+    with four ``ImageSuggestionsEditor.CampaignContents.StubN`` loading
+    placeholders and NEITHER ``ContentImage.*`` nor ``.Open`` present yet —
+    then, roughly 3s later, the stubs are replaced by the real content.
+    Returning as soon as the outer container exists (the original
+    ``_IMAGES_EDITOR_SELECTOR``-only check) reproduces the exact bug this
+    function's docstring already describes, just one render stage later:
+    a campaign that demonstrably has 4 images reads back as having none,
+    and ``--image`` then refuses to replace anything. This function now
+    also polls until no ``_IMAGES_STUB_TESTID_PREFIX`` element remains, so
+    a caller never observes the mid-render stub state.
+
+    Absence of the section (or persistence of the stub state) after the
+    timeout is reported as a hard error rather than silently treated as
+    "no images", for the same reason.
     """
-    if _poll_until(
-        page,
-        lambda: page.locator(_IMAGES_EDITOR_SELECTOR).first.count() > 0,
-        _IMAGES_EDITOR_TIMEOUT_MS,
-    ):
+
+    def _content_settled() -> bool:
+        if page.locator(_IMAGES_EDITOR_SELECTOR).first.count() == 0:
+            return False
+        return (
+            page.locator(f'[data-testid^="{_IMAGES_STUB_TESTID_PREFIX}"]').count() == 0
+        )
+
+    if _poll_until(page, _content_settled, _IMAGES_EDITOR_TIMEOUT_MS):
         return
 
     raise BrowserSessionError(
-        "The edit page's 'Изображения' section did not render within "
-        f"{_IMAGES_EDITOR_TIMEOUT_MS / 1000:.0f}s, so this command cannot "
-        "tell whether the campaign has images or not. Yandex may have "
-        "changed the page's markup, or the page may still be loading. "
-        "Re-run with --headful to inspect the page."
+        "The edit page's 'Изображения' section did not finish rendering "
+        f"within {_IMAGES_EDITOR_TIMEOUT_MS / 1000:.0f}s (it may still be "
+        "showing loading placeholders), so this command cannot tell "
+        "whether the campaign has images or not. Yandex may have changed "
+        "the page's markup, or the page may still be loading. Re-run with "
+        "--headful to inspect the page."
     )
 
 
