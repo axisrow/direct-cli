@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+**Added — `direct masters adimages delete/set` (#648):**
+
+- Completes the `masters adimages` subgroup, so a campaign's image set can
+  be managed end-to-end rather than only read (`get`) or appended to
+  (`add`):
+  - `adimages delete <ID>` removes images addressed by `--position`
+    (1-based, as shown by `adimages get`), `--content-id`, or `--all`.
+    `--all` on an already-empty set is an idempotent no-op; naming a
+    position or content ID that doesn't exist is always an error. `--all`
+    cannot be combined with `--position`/`--content-id` — the combination
+    is ambiguous and risks silent data loss, so it is a `UsageError`
+    rather than a silent "ignore the narrower ones".
+  - `adimages set <ID> --image-file PATH` replaces the WHOLE set inside
+    one modal session (every current image removed, every given file
+    uploaded), so a 5→5 replacement never transiently exceeds the cap.
+    With no files it requires `--allow-empty`, guarding against an
+    accidentally-empty shell glob wiping the set — the empty end state
+    stays reachable, just deliberately (or via `delete --all`).
+- **Leaving a campaign with zero images is a valid end state.** This is
+  what `_verify_image_set_mismatches`'s absolute end-state check (added
+  with `adimages get`) exists for: `delete --all` genuinely asserts the
+  saved set is now empty rather than inferring it from a count delta.
+- Both accept `--launch` (same draft-publishing semantics as `masters
+  update`) and are classified DANGEROUS: they can remove every image in a
+  campaign and are not idempotent.
+- **Confirmed live 2026-08-03** on DRAFT campaign 713234191:
+  `delete --position`, `delete --all`, `set` (full replacement) and
+  `set --allow-empty` all round-tripped correctly across a fresh reload.
+  This also settles the one previously-unverified risk — Yandex's Save
+  control stays clickable when the modal's selection is reduced to zero.
+
 **Added — `direct masters adimages add` (#648):**
 
 - `adimages add <ID> --image-file PATH` (repeatable) appends local
