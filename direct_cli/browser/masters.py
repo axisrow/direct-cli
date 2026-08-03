@@ -214,8 +214,10 @@ from typing import (
     Tuple,
 )
 
+from .._captcha import find_captcha_marker, find_marker
 from ..output import print_warning
 from .session import (
+    _LOGIN_PAGE_MARKERS,
     BrowserAuthError,
     BrowserSessionError,
     assert_authenticated,
@@ -2551,23 +2553,38 @@ def _wait_for_edit_form(page: "Page", campaign_id: int) -> None:
 
     Polls for ``_EDIT_FORM_READY_TESTID`` (the first headline slot) rather
     than a fixed sleep, same convention as ``_wait_for_step2``/
-    ``_wait_for_images_editor``. Also re-checks ``assert_not_captcha``/
-    ``assert_authenticated`` on every tick (cycle-review #689 finding):
-    the one-shot checks each call site runs right after ``goto(...,
-    wait_until="commit")`` only see whatever the response committed with —
-    a captcha gate or an expired-session redirect that the SPA's own JS
-    renders in *after* that point would be invisible to those checks and
-    would otherwise surface here as a generic timeout instead of the
-    specific ``BrowserCaptchaError``/``BrowserAuthError`` callers rely on
-    to know not to retry a non-idempotent operation (e.g.
-    ``_verify_saved_images``).
+    ``_wait_for_images_editor``. Also re-checks for a captcha/login page on
+    every tick (cycle-review #689 finding): the one-shot
+    ``assert_not_captcha``/``assert_authenticated`` checks each call site
+    runs right after ``goto(..., wait_until="commit")`` only see whatever
+    the response committed with — a captcha gate or an expired-session
+    redirect that the SPA's own JS renders in *after* that point would be
+    invisible to those checks and would otherwise surface here as a
+    generic timeout instead of the specific ``BrowserCaptchaError``/
+    ``BrowserAuthError`` callers rely on to know not to retry a
+    non-idempotent operation (e.g. ``_verify_saved_images``).
+
+    The captcha/auth check happens OUTSIDE ``_poll_until``'s predicate
+    (via ``_edit_form_terminal_state``, which returns a marker instead of
+    raising) rather than inside it: ``_poll_until`` suppresses
+    ``PlaywrightError``, which is aliased to the broad ``Exception`` when
+    Playwright isn't installed (the offline-unit-test import fallback
+    above) — in that environment a raise from inside the predicate would
+    be silently swallowed as "not yet" instead of propagating, and this
+    function would misreport a real captcha/auth failure as its own
+    generic render-timeout.
     """
-    if _poll_until(
+    state = _poll_until_terminal(
         page,
-        lambda: _edit_form_ready_or_raise(page),
+        lambda: _edit_form_terminal_state(page),
         _EDIT_FORM_READY_TIMEOUT_MS,
-    ):
+    )
+    if state == "ready":
         return
+    if state == "captcha":
+        assert_not_captcha(page.content())  # re-raises BrowserCaptchaError
+    if state == "auth":
+        assert_authenticated(page.content())  # re-raises BrowserAuthError
 
     raise BrowserSessionError(
         f"The edit page for campaign {campaign_id} did not finish rendering "
@@ -2578,20 +2595,50 @@ def _wait_for_edit_form(page: "Page", campaign_id: int) -> None:
     )
 
 
-def _edit_form_ready_or_raise(page: "Page") -> bool:
+def _edit_form_terminal_state(page: "Page") -> "Optional[str]":
     """Predicate for ``_wait_for_edit_form``'s poll loop.
 
-    Checked on every tick rather than once before the loop starts, so a
-    captcha/login page that renders in after the initial ``commit``
-    response is caught with its specific error instead of being missed and
-    only surfacing later as ``_wait_for_edit_form``'s generic timeout.
-    ``assert_not_captcha``/``assert_authenticated`` raise on a match, which
-    ``_poll_until`` lets propagate (it only suppresses ``PlaywrightError``).
+    Returns ``"ready"`` once the form marker is present, ``"captcha"``/
+    ``"auth"`` if a captcha or login page appears instead, or ``None`` to
+    keep polling. Deliberately returns rather than raises — see
+    ``_wait_for_edit_form``'s docstring for why the caller re-runs
+    ``assert_not_captcha``/``assert_authenticated`` itself, outside the
+    poll loop, to actually raise.
     """
     html = page.content()
-    assert_not_captcha(html)
-    assert_authenticated(html)
-    return page.locator(f'[data-testid="{_EDIT_FORM_READY_TESTID}"]').count() > 0
+    if find_captcha_marker(html) is not None:
+        return "captcha"
+    if find_marker(html, _LOGIN_PAGE_MARKERS) is not None:
+        return "auth"
+    if page.locator(f'[data-testid="{_EDIT_FORM_READY_TESTID}"]').count() > 0:
+        return "ready"
+    return None
+
+
+def _poll_until_terminal(
+    page: "Page",
+    predicate: "Callable[[], Optional[str]]",
+    timeout_ms: int,
+    *,
+    tick_ms: int = 250,
+) -> "Optional[str]":
+    """Like ``_poll_until``, but for a predicate returning a terminal-state
+    string (truthy, non-``None``) instead of a bare bool.
+
+    Used where the poll loop must distinguish several ready-to-stop states
+    (e.g. "form rendered" vs. "captcha appeared") rather than a single
+    true/false — see ``_edit_form_terminal_state``. ``PlaywrightError`` is
+    suppressed the same way ``_poll_until`` does, for the same reason (a
+    locator query racing a mid-render DOM is expected, not a failure).
+    """
+    deadline = time.monotonic() + timeout_ms / 1000
+    while time.monotonic() < deadline:
+        with contextlib.suppress(PlaywrightError):
+            state = predicate()
+            if state is not None:
+                return state
+        page.wait_for_timeout(tick_ms)
+    return None
 
 
 def _wait_for_images_editor(page: "Page") -> None:

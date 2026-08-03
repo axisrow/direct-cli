@@ -5351,6 +5351,41 @@ class TestWaitForEditForm(unittest.TestCase):
         with self.assertRaises(BrowserAuthError):
             browser_masters._wait_for_edit_form(page, 42)
 
+    def test_raises_browser_captcha_error_even_when_playwright_error_is_broad_exception(
+        self,
+    ):
+        """Regression guard for the CI failure this fix caused before this
+        commit: ``PlaywrightError`` falls back to the broad ``Exception``
+        (module top, ``ImportError`` branch) when Playwright isn't
+        installed — the case for this repo's offline unit-test CI job.
+        ``_poll_until``/``_poll_until_terminal`` suppress ``PlaywrightError``
+        inside their loop, so if the captcha/auth check were allowed to
+        *raise* from inside the polled predicate (as an earlier version of
+        this fix did), that broad alias would silently swallow
+        ``BrowserCaptchaError``/``BrowserAuthError`` too in this
+        environment, and the poll would run out the clock and report a
+        generic ``BrowserSessionError`` instead — exactly what broke CI.
+        This test patches ``PlaywrightError`` to ``Exception`` directly
+        (rather than relying on a real Playwright-absent environment) so
+        the regression is caught locally too, not just in CI."""
+
+        class _CaptchaAppearsAfterTicksPage(FakePage):
+            def __init__(self, *args, clean_ticks=2, **kwargs):
+                super().__init__(*args, **kwargs)
+                self._clean_ticks_remaining = clean_ticks
+
+            def content(self):
+                if self._clean_ticks_remaining > 0:
+                    self._clean_ticks_remaining -= 1
+                    return "<html></html>"
+                return "<html>showCaptcha marker here</html>"
+
+        page = _CaptchaAppearsAfterTicksPage(locators={}, clean_ticks=2)
+
+        with patch.object(browser_masters, "PlaywrightError", Exception):
+            with self.assertRaises(BrowserCaptchaError):
+                browser_masters._wait_for_edit_form(page, 42)
+
 
 class TestWizardEditNavigationUsesCommit(unittest.TestCase):
     """Issue #684: all four ``WIZARD_EDIT_URL`` navigation sites must use
