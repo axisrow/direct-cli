@@ -853,8 +853,8 @@ def _goto_overview_page(page: "Page", campaign_id: int) -> None:
     on ``_poll_until``'s first tick actually running promptly.
 
     The captcha/auth check happens OUTSIDE ``_poll_until``'s predicate (via
-    ``_overview_terminal_state``, which returns a marker instead of
-    raising), same pattern as ``_wait_for_edit_form``/
+    ``_terminal_state``, which returns a marker instead of raising), same
+    pattern as ``_wait_for_edit_form``/
     ``_edit_form_terminal_state`` (issue #689): ``_poll_until`` suppresses
     ``PlaywrightError``, which is aliased to the broad ``Exception`` when
     Playwright isn't installed (the offline-unit-test import fallback
