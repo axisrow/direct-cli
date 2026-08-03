@@ -39,6 +39,7 @@ instead of a transparent cookie copy.
 import contextlib
 import os
 import platform
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Generator, Optional, Tuple
 
@@ -46,6 +47,11 @@ from .._captcha import find_captcha_marker, find_marker
 
 if TYPE_CHECKING:
     from playwright.sync_api import Browser, Page
+
+try:
+    from playwright.sync_api import Error as PlaywrightError
+except ImportError:  # pragma: no cover - exercised only when playwright is absent
+    PlaywrightError = Exception  # type: ignore[assignment,misc]
 
 _BROWSER_INSTALL_HINT = (
     'pip install "direct-cli[browser]" && playwright install chromium'
@@ -127,6 +133,89 @@ _LOGIN_PAGE_MARKERS = (
     "passport.yandex.ru/pwl-yandex",
     "Войдите с Яндекс ID",
 )
+
+# DOM markers this module polls for after ``wait_until="commit"`` navigations
+# — see ``_wait_for_marker``'s docstring for why ``commit`` replaced
+# ``domcontentloaded`` here (issue #686). Both are the outer shell of their
+# respective page, present regardless of which specific sub-state (account
+# picker, password form, 2FA prompt; populated grid vs. empty one) is
+# showing, so waiting on them cannot itself race the thing a caller actually
+# wants to inspect next (``page.content()`` for the auth/captcha checks, or —
+# for the Passport case — the human's own typing into the form).
+#
+# ``auth-logo`` confirmed live 2026-08-03 against a real
+# ``passport.yandex.ru/pwl-yandex/auth/list`` response (Yandex's own account
+# picker) — the Passport page shell's logo, present on every Passport screen
+# (login form, account list, 2FA) since it's part of the shared layout, not
+# any single step's own markup.
+_PASSPORT_PAGE_MARKERS = ('[data-testid="auth-logo"]',)
+
+# ``Sidebar`` confirmed live 2026-08-03 against a real, authenticated
+# ``https://direct.yandex.ru/dna/grid/campaigns/`` response — Direct's own
+# left navigation shell, present on every authenticated Direct page
+# regardless of the grid's own virtualized content (issue #639: the grid
+# never renders a stable content marker of its own, only its
+# ``GridCampaigns`` data call does — see ``direct_cli/browser/masters.py``'s
+# ``_capture_grid_campaigns_request``). Waiting on the general Direct shell
+# is sufficient here: both call sites only need ``page.content()`` to be
+# real markup for the captcha/auth checks, not the grid's own data.
+_DIRECT_PAGE_MARKERS = ('[data-testid="Sidebar"]',)
+
+# Union of both marker sets — for a navigation that can legitimately land on
+# either page (see ``_wait_for_marker``'s "Accepts multiple selectors"
+# paragraph).
+_DIRECT_OR_PASSPORT_PAGE_MARKERS = _DIRECT_PAGE_MARKERS + _PASSPORT_PAGE_MARKERS
+
+# Both markers render fast (page-shell chrome, not the data-heavy content
+# behind it) — comfortably inside the same budget the module's other
+# navigation timeouts use.
+_PAGE_MARKER_TIMEOUT_MS = 30_000
+_PAGE_MARKER_POLL_MS = 250
+
+
+def _wait_for_marker(
+    page: "Page",
+    selectors: "Tuple[str, ...]",
+    timeout_ms: int = _PAGE_MARKER_TIMEOUT_MS,
+) -> bool:
+    """Poll until any of ``selectors`` appears in ``page``'s DOM, or on timeout.
+
+    Used after ``wait_until="commit"`` navigations to Yandex Passport and the
+    Direct campaigns grid. ``commit`` only waits for the network response to
+    begin — it returns as soon as the browser has committed to the
+    navigation, before any of the SPA's own JS has run. ``domcontentloaded``
+    would normally be the next step up, but both Passport and the grid keep
+    long-poll connections open (see ``BrowserAuthError``'s docstring and
+    ``_capture_grid_campaigns_request`` in ``masters.py``), so
+    ``domcontentloaded`` — which Playwright fires once the HTML parser
+    finishes, external long-poll requests notwithstanding — is not the
+    problem; the problem observed live (issue #686) was ``goto`` itself
+    occasionally timing out on ``domcontentloaded`` during Passport's own
+    slow initial paint. Polling for a concrete DOM marker instead means every
+    caller observes an actually-rendered page, on a budget independent of
+    whichever network event Playwright happens to fire first.
+
+    Accepts multiple selectors (matched as "any of") rather than one,
+    because a single ``goto`` can legitimately land on either page: the
+    ``login_persistent_session`` polling loop re-navigates to the grid every
+    tick, but an unfinished login redirects that same URL back to Passport —
+    waiting on the grid's marker alone would burn ``timeout_ms`` every tick
+    until the user finishes logging in.
+
+    Returns ``True`` once a marker is found, ``False`` on timeout — mirrors
+    ``direct_cli/browser/masters.py``'s ``_poll_until`` so a timeout is a
+    normal, non-raising outcome the caller decides how to handle (a
+    ``BrowserAuthError``/``BrowserCaptchaError`` from the content-based
+    checks that follow it is almost always the more specific error the user
+    should see, rather than a generic "marker never appeared").
+    """
+    deadline = time.monotonic() + timeout_ms / 1000
+    while time.monotonic() < deadline:
+        with contextlib.suppress(PlaywrightError):
+            if any(page.locator(selector).first.count() > 0 for selector in selectors):
+                return True
+        page.wait_for_timeout(_PAGE_MARKER_POLL_MS)
+    return False
 
 
 def default_chrome_profile_dir() -> Optional[Path]:
@@ -368,7 +457,19 @@ def login_persistent_session(
         sync_playwright, resolved_dir, headless=headless
     ) as context:
         page = context.new_page()
-        page.goto(_PASSPORT_LOGIN_URL, wait_until="domcontentloaded")
+        page.goto(_PASSPORT_LOGIN_URL, wait_until="commit")
+        if not _wait_for_marker(page, _PASSPORT_PAGE_MARKERS):
+            # Fail closed: a timed-out marker means the page never rendered
+            # far enough to trust `page.content()` — an in-progress/blank
+            # shell may contain neither the login-page nor captcha markers
+            # `assert_authenticated`/`assert_not_captcha` scan for, which
+            # would otherwise let an unrendered page sail through as if it
+            # were a real one (issue #692 cycle-review).
+            raise BrowserSessionError(
+                f"Timed out waiting for {_PASSPORT_LOGIN_URL} to render. "
+                "This can happen on a slow connection — retry `direct "
+                "masters login`."
+            )
 
         # Poll on a second page, never on `page`: the human is typing into
         # that one, and navigating it to the grid once a second would wipe a
@@ -379,7 +480,30 @@ def login_persistent_session(
         try:
             elapsed_ms = 0
             while elapsed_ms < timeout_ms:
-                probe.goto(GRID_URL, wait_until="domcontentloaded")
+                probe.goto(GRID_URL, wait_until="commit")
+                # Either marker is a valid landing spot here: an unfinished
+                # login redirects the grid URL right back to Passport, so
+                # waiting on the grid's own marker alone would burn the full
+                # timeout every tick until the user finishes logging in (see
+                # `_wait_for_marker`'s docstring). Capped at the poll
+                # interval, not `_PAGE_MARKER_TIMEOUT_MS`, so a slow-to-paint
+                # page degrades to "try again next tick" rather than
+                # stalling this loop's own cadence.
+                marker_found = _wait_for_marker(
+                    probe,
+                    _DIRECT_OR_PASSPORT_PAGE_MARKERS,
+                    timeout_ms=_LOGIN_POLL_INTERVAL_MS,
+                )
+                if not marker_found:
+                    # Neither page rendered far enough this tick to trust
+                    # `probe.content()` — a blank/in-progress shell can
+                    # contain neither the login-page nor captcha markers, so
+                    # treat this exactly like "not authenticated yet" rather
+                    # than risking `assert_authenticated` passing an
+                    # unrendered page (issue #692 cycle-review). This is the
+                    # expected outcome on a slow tick, not an error.
+                    elapsed_ms += _LOGIN_POLL_INTERVAL_MS
+                    continue
                 html = probe.content()
                 assert_not_captcha(html)
                 try:
@@ -477,7 +601,21 @@ def capture_storage_state(
             from .masters import GRID_URL
 
             page = context.new_page()
-            page.goto(GRID_URL, wait_until="domcontentloaded")
+            page.goto(GRID_URL, wait_until="commit")
+            # Either marker is a valid landing spot: a bad/expired cookie
+            # jar redirects the grid URL to Passport instead of rendering
+            # the grid, and `assert_authenticated` below is what turns that
+            # into the specific `BrowserAuthError` (see `_wait_for_marker`'s
+            # docstring for why a single marker would be wrong here).
+            if not _wait_for_marker(page, _DIRECT_OR_PASSPORT_PAGE_MARKERS):
+                # Fail closed: an unrendered page can contain neither the
+                # login-page nor captcha markers the checks below scan for,
+                # which would otherwise let it pass as if it were a
+                # verified, authenticated grid (issue #692 cycle-review).
+                raise BrowserAuthError(
+                    f"Timed out waiting for {GRID_URL} to render while "
+                    "verifying the session. Retry `direct playwright login`."
+                )
             html = page.content()
             assert_not_captcha(html)
             assert_authenticated(html)
@@ -543,10 +681,20 @@ def assert_authenticated(html: str) -> None:
     Injected cookies can decrypt successfully yet represent an expired or
     wrong-account session — before #634 this surfaced only as a
     ``Page.goto`` timeout, because Yandex's login page holds long-poll
-    connections and ``wait_until="networkidle"`` never settles on it. Callers
-    should use ``wait_until="domcontentloaded"`` and call this immediately
+    connections and ``wait_until="networkidle"`` never settles on it.
+    ``wait_until="domcontentloaded"`` fixed that, but issue #686 found it
+    still occasionally timed out on Passport's own slow initial paint, so
+    every ``goto`` this module makes to Passport or the Direct grid now uses
+    ``wait_until="commit"`` (returns as soon as the navigation is committed,
+    before any of the target SPA's own JS runs) followed by
+    :func:`_wait_for_marker` polling for a concrete DOM marker
+    (``_PASSPORT_PAGE_MARKERS``/``_DIRECT_PAGE_MARKERS``) — only once that
+    marker is present is the page actually rendered enough for
+    ``page.content()`` to reflect the real page (login page or Direct page)
+    rather than an in-progress shell. Callers should follow this same
+    ``commit`` + marker-poll pattern and call this function immediately
     after, so an auth failure is reported explicitly instead of as an opaque
-    30-second timeout.
+    timeout.
 
     Uses the same ``find_marker`` scan primitive as
     :func:`assert_not_captcha` (``direct_cli._captcha``), just against a

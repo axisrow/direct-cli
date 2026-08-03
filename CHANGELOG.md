@@ -23,6 +23,36 @@
   in ~15-25s across repeated runs (previously could exhaust the 30s
   `expect_response` timeout).
 
+**Fixed — `direct playwright login`/`doctor` navigation could time out on
+`wait_until="domcontentloaded"` (#686):**
+
+- The three navigations in `direct_cli/browser/session.py`
+  (`login_persistent_session`'s Passport tab and poll probe,
+  `capture_storage_state`'s grid verification) occasionally timed out on
+  `domcontentloaded` during Passport's own slow initial paint — the same
+  long-poll-connections issue #634 already worked around for
+  `networkidle`, one navigation-event tier down.
+- All three now use `wait_until="commit"` (returns as soon as the
+  navigation is committed, before the target SPA's own JS runs) followed by
+  a new `_wait_for_marker` poll for a concrete DOM marker —
+  `[data-testid="auth-logo"]` for Passport, `[data-testid="Sidebar"]` for
+  the authenticated Direct/grid shell (confirmed live 2026-08-03). Only
+  once the marker is present does the caller trust `page.content()` for its
+  captcha/auth checks.
+- `login_persistent_session`'s polling loop (re-navigates to the grid every
+  tick while the user is still logging in by hand) accepts either marker,
+  capped at the poll interval rather than the full marker timeout — an
+  unfinished login redirects the grid URL right back to Passport, and
+  waiting on the grid's marker alone would burn the full timeout every
+  tick until the user finishes.
+- The marker poll now fails closed: if neither marker ever appears (a
+  blank/unrendered shell, matching none of the captcha/login-page markers
+  either), `login_persistent_session`'s initial Passport navigation and
+  `capture_storage_state`'s grid verification raise instead of trusting an
+  unrendered page's `page.content()`, and the login-completion poll loop
+  treats an unrendered tick as "not authenticated yet" rather than a
+  successful, verified login (cycle-review on #692).
+
 **Added — `direct masters adimages delete/set` (#648):**
 
 - Completes the `masters adimages` subgroup, so a campaign's image set can
