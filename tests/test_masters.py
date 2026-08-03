@@ -339,6 +339,29 @@ class _FakeExpectResponse:
         return False
 
 
+class _FakeExpectResponseExitRaises(_FakeExpectResponse):
+    """Faithfully mimics real Playwright's ``EventContextManager.__exit__``.
+
+    Real Playwright resolves ``response_info.value`` itself inside
+    ``__exit__`` when the wrapped ``with`` block exits without raising — so
+    a ``expect_response`` timeout surfaces as an exception from the `with`
+    block's own exit, NOT from a later, separate access to
+    ``response_info.value`` (see issue #694). ``_FakeExpectResponse``/
+    ``_FakeResponseInfo`` above resolve lazily on ``.value`` access instead,
+    which cannot reproduce that ordering bug — this subclass raises in
+    ``__exit__`` itself when no matching response was ever observed, to
+    exercise the real failure mode.
+    """
+
+    def __exit__(self, *exc_info):
+        if exc_info[0] is not None:
+            return False
+        candidate = self._page._grid_response
+        if candidate is None or not self._predicate(candidate):
+            raise PlaywrightError("Timeout waiting for response")
+        return False
+
+
 class _FakeTextLocatorHandle:
     """One matched element for ``get_by_text`` — supports ``is_visible``/``click``.
 
@@ -428,6 +451,8 @@ class FakePage:
         self.closed = True
 
     def expect_response(self, predicate, timeout=None):
+        if getattr(self, "_expect_response_exit_raises", False):
+            return _FakeExpectResponseExitRaises(self, predicate)
         return _FakeExpectResponse(self, predicate)
 
     def eval_on_selector_all(self, selector, expression):
@@ -1679,6 +1704,21 @@ class TestFetchMastersList(unittest.TestCase):
         # The grid fired no matching response at all (e.g. Yandex renamed the
         # operation) -> a clear BrowserSessionError, not a silent empty list.
         page = FakePage(grid_response=None)
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters.fetch_masters_list(page, status="all")
+
+    def test_expect_response_timeout_from_with_exit_raises_browser_session_error(
+        self,
+    ):
+        # #694: real Playwright's EventContextManager.__exit__ resolves
+        # response_info.value itself and raises the TimeoutError there when
+        # the `with` block exits cleanly but no matching response ever
+        # arrived -- so the timeout must be caught by wrapping the whole
+        # `with page.expect_response(...): goto(...); ...` block, not just a
+        # later, separate read of response_info.value after the block.
+        page = FakePage(grid_response=None)
+        page._expect_response_exit_raises = True
 
         with self.assertRaises(BrowserSessionError):
             browser_masters.fetch_masters_list(page, status="all")
@@ -4444,6 +4484,26 @@ class TestAuthDetection(unittest.TestCase):
 
         with self.assertRaises(BrowserAuthError):
             browser_masters.fetch_master(page, 1)
+
+    def test_fetch_masters_list_login_page_not_masked_without_playwright(self):
+        # CI's "quality" job runs the offline suite without the playwright
+        # package installed, so PlaywrightError falls back to bare Exception
+        # (see the import fallback in direct_cli/browser/masters.py). Once
+        # _capture_grid_campaigns_request's whole `with page.expect_response`
+        # block (goto/assert_* included) moved inside one try/except
+        # PlaywrightError (issue #694 fix), that broad except-Exception
+        # fallback started swallowing assert_authenticated's BrowserAuthError
+        # too, relabelling it as the generic "could not observe the grid's
+        # data request" timeout error instead of letting it propagate --
+        # confirmed live on CI (PR #698). Simulate the no-playwright fallback
+        # here directly so this regression is caught locally too, regardless
+        # of whether playwright happens to be installed in the dev env.
+        page = FakePage(locators={}, html="<body>Войдите с Яндекс ID</body>")
+        from direct_cli.browser.session import BrowserAuthError
+
+        with patch.object(browser_masters, "PlaywrightError", Exception):
+            with self.assertRaises(BrowserAuthError):
+                browser_masters.fetch_masters_list(page)
 
     def test_fetch_masters_list_waits_for_commit_not_networkidle(self):
         # #634: networkidle never settles on Yandex's login page (it holds

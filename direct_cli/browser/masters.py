@@ -671,19 +671,34 @@ def _capture_grid_campaigns_request(page: "Page") -> Dict[str, Any]:
     so their marker text is present in the initial document body Yandex
     sends, before any client-side JS runs.
     """
-    with page.expect_response(
-        _is_grid_campaigns_request, timeout=_GRID_CAPTURE_TIMEOUT_MS
-    ) as response_info:
-        # commit, not domcontentloaded/networkidle: see docstring. No
-        # ulogin here (see module docstring): passing our own login as the
-        # managed-client param produces "Доступ ограничен" + HTTP 401.
-        page.goto(GRID_URL, wait_until="commit")
-        assert_not_captcha(page.content())
-        assert_authenticated(page.content())
-
     try:
+        with page.expect_response(
+            _is_grid_campaigns_request, timeout=_GRID_CAPTURE_TIMEOUT_MS
+        ) as response_info:
+            # commit, not domcontentloaded/networkidle: see docstring. No
+            # ulogin here (see module docstring): passing our own login as
+            # the managed-client param produces "Доступ ограничен" + HTTP
+            # 401.
+            page.goto(GRID_URL, wait_until="commit")
+            assert_not_captcha(page.content())
+            assert_authenticated(page.content())
         response = response_info.value
+    except BrowserSessionError:
+        # assert_not_captcha/assert_authenticated raise BrowserCaptchaError/
+        # BrowserAuthError (both BrowserSessionError subclasses) -- these
+        # must propagate as-is, not be relabelled as the generic timeout
+        # error below. Without this PlaywrightError falls back to bare
+        # Exception when the playwright package isn't installed (see the
+        # import fallback above), which would otherwise swallow them too.
+        raise
     except PlaywrightError as exc:
+        # Playwright's EventContextManager.__exit__ resolves
+        # response_info.value itself when the `with` block exits without
+        # raising — so a expect_response timeout surfaces as the `with`
+        # block's own exit, not as an exception from reading
+        # response_info.value afterwards (issue #694). The whole block
+        # (goto/assert_* included) must be inside this try, or the timeout
+        # escapes uncaught.
         raise BrowserSessionError(
             "Could not observe the campaigns grid's data request "
             f"(operationName={_GRID_CAMPAIGNS_OPERATION}) within "
