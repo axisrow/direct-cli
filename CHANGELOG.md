@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+**Added — `masters update --target-action-price` / `masters targetactions get` (#707):**
+
+- Live recon (2026-08-04, campaign 713234191, `ksamatadirect` account,
+  promotion goal `max-conversions`) confirmed the "Целевые действия" table
+  is the `max-conversions` counterpart to `--goal-price`'s `max-clicks`-only
+  field (#696): a single `<table>` (`TargetActions.OTHER.MiniGrid`) with one
+  `<tr data-testid="TargetActions.OTHER.<goalId>">` per goal already added
+  to the campaign, where `<goalId>` is Yandex Metrika's own numeric goal id
+  (read from the campaign's linked Metrika counter) — confirmed goal LABELS
+  are not unique across an account (e.g. "Регистрация"/"Регистрация JS"/
+  "Регистрация JS ретаргет" are distinct goals), so a goal can only be
+  addressed by this numeric id, never by name. There is no separate
+  "select this goal" control — a goal's presence as a row is what makes it
+  selected; filling its price is the only action.
+- `masters update --target-action-price "<goal_id>=<price>"` (repeatable,
+  like `--headline`/`--text` from #665) sets an EXISTING goal row's price.
+  Only applies under `--promotion-goal max-conversions`; refused up front
+  together with `--promotion-goal max-clicks`, mirroring `--goal-price`'s
+  own guard in the opposite direction. The goal must already be a row in
+  the table — adding a brand-new goal is not covered by this CLI yet.
+  Verified via `_verify_saved`'s existing reload-and-reread convention
+  (#704) — a save that Yandex silently rejects client-side is reported as
+  a hard error, not a false success.
+- `masters targetactions get <campaign_id>` (new group, mirrors
+  `masters adimages get`) reads the table read-only — `GoalId`/`Name`/
+  `Price` per row — for auditing which goal/price is configured across a
+  batch of campaigns, without needing to also fetch/parse `masters get`.
+  A new group rather than folded into `masters get`: this data lives only
+  on the `/edit/` page (a separate `page.goto` from `masters get`'s
+  overview-page read), same reasoning as why `adimages` is its own group.
+- Part of #681/#648 (Этап C, target actions/CPA sub-item), split out as
+  #707.
+
 **Fixed — `masters get`/`archive`/`suspend`/`resume` on `DRAFT` campaigns (#660):**
 
 - A `DRAFT` Мастер кампаний's overview page (`WIZARD_OVERVIEW_URL` itself, no

@@ -57,6 +57,11 @@ SMOKE_MATRIX = {
         # other *.get.
         "masters.get",
         "masters.list",
+        # Read-only: navigates to the edit page and reads the "Целевые
+        # действия" table, never clicks Save (see
+        # fetch_master_target_actions's docstring) — same "opens the edit
+        # page but never commits" safety as masters.adimages.get above.
+        "masters.targetactions.get",
         "negativekeywordsharedsets.get",
         "playwright.doctor",
         "playwright.login",
