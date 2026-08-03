@@ -35,6 +35,26 @@
 - Part of #681/#648 (Этап C, target actions/CPA sub-item), split out as
   #707.
 
+**Fixed — `dictionaries get-geo-regions` ignored `--locale`, always returned English names (#658):**
+
+- `GeoRegionName`/`ParentGeoRegionNames` always came back in English regardless
+  of `--locale ru`/`en`, unlike the Direct web UI (including the Мастер
+  кампаний region widget), which shows Russian names by default.
+- The v5 API adapter already supports an `Accept-Language` header
+  (`language` client param, same mechanism `reports get --language` uses) —
+  `dictionaries get-geo-regions` (`direct_cli/commands/dictionaries.py`) just
+  never set it. It now builds its client with
+  `language=resolve_locale(ctx)`, so the resolved `--locale` (CLI flag >
+  `YANDEX_DIRECT_CLI_LOCALE` env var > `ru` default) reaches the API as
+  `Accept-Language`.
+- Live-verified against the production API: `--locale ru` now returns
+  "Москва"/"Москва и область"/"Россия" for region IDs 213/1/225; `--locale en`
+  still returns "Moscow"/"Moscow and Moscow Oblast"/"Russia"; the no-flag
+  default now also returns Russian names, matching the CLI's documented `ru`
+  default (previously always English regardless of default).
+- `dictionaries get` (the generic multi-dictionary command) is unaffected —
+  only `get-geo-regions` builds its own client with the resolved locale.
+
 **Fixed — `masters get`/`archive`/`suspend`/`resume` on `DRAFT` campaigns (#660):**
 
 - A `DRAFT` Мастер кампаний's overview page (`WIZARD_OVERVIEW_URL` itself, no
