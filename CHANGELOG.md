@@ -33,6 +33,14 @@
   to the normal dashboard extractors (caught in review; the module's other
   presence checks, e.g. `_is_draft_edit_page`, already use `.count()` for
   exactly this reason).
+- That same `.count() == 0` snapshot, taken immediately after
+  `goto(..., wait_until="domcontentloaded")`, raced the SPA's own hydration
+  — the same class of bug issue #685 already fixed for the create page's
+  step 1 field. `_is_draft_overview_page` now polls (up to 15s) for EITHER
+  `CampaignHeader.Status` (DRAFT) or the non-DRAFT dashboard's own status
+  body text (`_read_status_text`'s markers) to actually render before
+  classifying the page, instead of concluding "not DRAFT" from a page that
+  simply hadn't finished rendering yet (caught in review).
 
 **Fixed — images-section "ghost" render pass caused false "no images" reads (#687):**
 

@@ -1901,6 +1901,59 @@ class TestFetchMasterDraft(unittest.TestCase):
         result = browser_masters.fetch_master(page, 1)
         self.assertEqual(result["Status"], "ACTIVE")
 
+    def test_draft_detected_after_delayed_hydration(self):
+        # Regression: goto(..., wait_until="domcontentloaded") returns before
+        # the SPA has necessarily rendered CampaignHeader.Status yet (the
+        # same race issue #685 fixed for the create page's step 1 field via
+        # _poll_until) — _is_draft_overview_page must not give up on the
+        # first, pre-hydration snapshot. Models the status node appearing
+        # only after one wait_for_timeout tick.
+        ticks = {"count": 0}
+
+        class _DelayedStatusPage(FakePage):
+            def locator(self, selector):
+                if (
+                    selector == browser_masters._CAMPAIGN_HEADER_STATUS_SELECTOR
+                    and ticks["count"] < 1
+                ):
+                    return _FakeLocator([])
+                return super().locator(selector)
+
+            def wait_for_timeout(self, timeout):
+                ticks["count"] += 1
+
+        page = _DelayedStatusPage(
+            locators={
+                browser_masters._CAMPAIGN_HEADER_STATUS_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle(text=browser_masters._DRAFT_STATUS_TEXT)]
+                ),
+            },
+        )
+
+        self.assertTrue(browser_masters._is_draft_overview_page(page))
+        self.assertEqual(ticks["count"], 1)
+
+    def test_non_draft_detected_after_delayed_hydration(self):
+        # Same race, non-DRAFT side: the status BODY TEXT (not a testid, see
+        # _read_status_text) also only settles after the SPA hydrates —
+        # the poll must wait for it instead of concluding "no DRAFT marker
+        # yet" means DRAFT is ruled out for good.
+        ticks = {"count": 0}
+
+        class _DelayedBodyPage(FakePage):
+            def inner_text(self, selector=None):
+                if selector == "body" and ticks["count"] < 1:
+                    return ""
+                return "Кампания активна"
+
+            def wait_for_timeout(self, timeout):
+                ticks["count"] += 1
+
+        page = _DelayedBodyPage()
+
+        self.assertFalse(browser_masters._is_draft_overview_page(page))
+        self.assertEqual(ticks["count"], 1)
+
 
 class TestSuspendResumeMaster(unittest.TestCase):
     """suspend_master/resume_master (issue #630): click + verify, idempotent.

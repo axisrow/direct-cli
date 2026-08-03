@@ -341,6 +341,15 @@ _CAMPAIGN_HEADER_STATUS_SELECTOR = '[data-testid="CampaignHeader.Status"]'
 _BUDGET_INPUT_SELECTOR = '[data-testid="BudgetWithSuggest.PriceTextInput"]'
 _DRAFT_STATUS_TEXT = "Черновик"
 
+# How long to wait, right after navigating to the overview page, for EITHER
+# CampaignHeader.Status (DRAFT) or the non-DRAFT dashboard's own status body
+# text (see _read_status_text) to hydrate before classifying the page.
+# wait_until="domcontentloaded" returns before the SPA's client-side render
+# has necessarily produced either — the same race that #685 already fixed
+# for the create page's step 1 field (_wait_for_create_step1) via
+# _poll_until rather than a bare .count() snapshot.
+_DRAFT_OVERVIEW_DETECT_TIMEOUT_MS = 15_000
+
 # How long to wait, after clicking the clone form's terminal button, for
 # Yandex to redirect page.url to the new campaign's overview URL (confirmed
 # live ~7s, issue #659) before giving up on copy_master.
@@ -875,17 +884,30 @@ def _is_draft_overview_page(page: "Page") -> bool:
     the DRAFT-specific extractors it gates can never disagree about what
     "DRAFT" means (mirrors ``_is_draft_edit_page``'s own rationale).
 
-    Uses ``.count()`` to check presence before ``inner_text()`` — like every
-    other presence check in this module (e.g. ``_is_draft_edit_page``) — so a
-    non-DRAFT page (which has no ``CampaignHeader.Status`` node at all) is
-    recognised immediately instead of Playwright auto-waiting its full
-    actionability timeout for a selector that will never appear.
+    ``goto(..., wait_until="domcontentloaded")`` returns before the SPA has
+    necessarily rendered either shape (the same race issue #685 hit for the
+    create page's step 1 field — see ``_wait_for_create_step1``), so this
+    polls, up to ``_DRAFT_OVERVIEW_DETECT_TIMEOUT_MS``, until EITHER
+    ``CampaignHeader.Status`` (DRAFT) OR one of the non-DRAFT dashboard's own
+    status-text markers (``_read_status_text``'s "Кампания остановлена"/
+    "активна"/"включена") has actually appeared, before deciding — a bare
+    ``.count()`` snapshot right after ``goto`` could read "0" simply because
+    neither shape has rendered yet.
     """
+
+    def _either_rendered() -> bool:
+        return (
+            page.locator(_CAMPAIGN_HEADER_STATUS_SELECTOR).first.count() > 0
+            or _read_status_text(page) is not None
+        )
+
+    _poll_until(page, _either_rendered, _DRAFT_OVERVIEW_DETECT_TIMEOUT_MS)
+
     try:
-        handle = page.locator(_CAMPAIGN_HEADER_STATUS_SELECTOR).first
-        if handle.count() == 0:
+        status_locator = page.locator(_CAMPAIGN_HEADER_STATUS_SELECTOR).first
+        if status_locator.count() == 0:
             return False
-        return handle.inner_text().strip() == _DRAFT_STATUS_TEXT
+        return status_locator.inner_text().strip() == _DRAFT_STATUS_TEXT
     except PlaywrightError:
         return False
 
