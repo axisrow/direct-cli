@@ -182,6 +182,53 @@ this campaign type is NOT resolved by this pass — _set_region/_read_region_tag
 were not touched and are out of scope for issue #690, which is step 1 only.
 
 =====================================================================
+RE-RECON, 2026-08-04 (issue #705): region picker DOES render — was a
+render-timing snapshot, not a removed field
+=====================================================================
+
+Follow-up live re-recon (same ksamatadirect account, headless Playwright via
+a saved `direct playwright login` session, read-only — step 1 filled with
+https://ksamata.ru/, step 2 reached via _wait_for_step2, NO launch/save
+click) found the "Регион показов" section renders normally shortly after
+_wait_for_step2 returns:
+
+- The heading text "Регион показов" IS present (label text observed:
+  "Страны, области, города" directly on the FormField, "Регион показов" as
+  the outer section heading per the full-page screenshot).
+- All of _set_region/_read_region_tags's existing data-testid selectors are
+  UNCHANGED and confirmed working end-to-end (opened the tree via
+  RegionsTreeTagGroup.launcher, typed into RegionsTreeTagGroup.editor,
+  selected "Москва" via RegionsTreeNode.Checkbox.label exact match, read it
+  back from RegionsTreeTagGroup.tags-wrapper) — ran _set_region(page,
+  ["Москва"]) directly with no code changes and it succeeded on the first
+  attempt across 3 repeated runs.
+- Structural nesting changed one level: the launcher/tree now sits inside a
+  NEW wrapper, GroupRegionsHyperlocalInput.Tree (sibling of
+  GroupRegionsHyperlocalInput.link, "Указать регион на карте" — an
+  alternate map-based entry point, not explored) > RegionsTreeEditor >
+  RegionsTreeEditor.RegionsTreeTagGroup > RegionsTreeTagGroup. None of
+  _set_region's selectors are DOM-depth-sensitive (all are bare
+  data-testid attribute matches), so this extra nesting required no code
+  change.
+- The section takes a small but nonzero moment to render after
+  _wait_for_step2 (which now polls CampaignTitles0.textarea, per the #690
+  re-recon above) returns — observed ~0.4s in one direct measurement,
+  launcher count() was 0 immediately after _wait_for_step2 and appeared
+  within that window. _set_region's launcher.click() already tolerates
+  this via Playwright's default actionability wait (up to 30s), and in
+  create_master's real call sequence the two _add_repeating_values calls
+  for headlines/texts run first and consume more than enough time for the
+  section to be fully rendered by the time _set_region is reached.
+
+Conclusion: issue #705's original symptom (RegionsTreeTagGroup.launcher
+confirmed absent from a "fully-loaded" step 2) was captured on a page that
+had not actually finished rendering everything yet — likely because that
+recon pass's step 2 wait was based on the pre-#703 "Регион показов" heading
+marker itself, which cannot detect its own section's absence versus a
+timing gap. No code change to _set_region/_read_region_tags was needed;
+the section is confirmed reliably present and functional as-is.
+
+=====================================================================
 Step 2: full field inventory ("Конверсии и трафик" type)
 =====================================================================
 

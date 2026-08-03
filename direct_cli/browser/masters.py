@@ -2699,13 +2699,16 @@ def _wait_for_step2(page: "Page") -> None:
     Polls for ``CampaignTitles0.textarea`` (issue #690 re-recon,
     2026-08-04) rather than the "Регион показов" heading this used before:
     live testing found the region picker section (``RegionsTreeEditor`` /
-    "Регион показов") no longer renders on this page at all — its
-    ``data-testid``s and heading text are both completely absent from a
-    fully-loaded step 2 in the account tested. Headlines slot 0 is used
-    instead for the same reason ``_EDIT_FORM_READY_TESTID`` picked it on the
-    edit page: it is the one field guaranteed present and stably
-    identified by ``data-testid`` on every step 2 render (see
-    ``_HEADLINES_SLOT_COUNT``'s docstring).
+    "Регион показов") had not yet rendered at the point that snapshot was
+    taken. Headlines slot 0 is used instead for the same reason
+    ``_EDIT_FORM_READY_TESTID`` picked it on the edit page: it is the one
+    field guaranteed present and stably identified by ``data-testid`` on
+    every step 2 render (see ``_HEADLINES_SLOT_COUNT``'s docstring).
+
+    Issue #705 re-recon, same day: confirmed the region picker section DOES
+    render on this same account shortly after this function returns — it was
+    a render-timing snapshot, not a removed field (see ``_set_region``'s
+    docstring and the fixture's 2026-08-04 region re-recon notes).
     """
     headlines_ready = page.locator(f'[data-testid="{_EDIT_FORM_READY_TESTID}"]')
     if _poll_until(
@@ -3977,6 +3980,17 @@ def _set_region(page: "Page", regions: List[str]) -> None:
     times, and each retry is idempotent by construction — see that
     constant's comment for why an unconditional re-click + re-type would
     make attempts 2..N guaranteed no-ops.
+
+    Issue #705 re-recon, 2026-08-04: live re-testing on the account where
+    #690/#703 found this section apparently missing confirms it renders
+    reliably, and all the testids above are unchanged — the launcher now
+    sits one level deeper (``GroupRegionsHyperlocalInput.Tree`` >
+    ``RegionsTreeEditor`` > ``RegionsTreeEditor.RegionsTreeTagGroup`` >
+    ``RegionsTreeTagGroup``), but every selector this function uses is a
+    bare ``data-testid`` match, not a DOM-depth-sensitive path, so the
+    extra nesting needed no code change. This function's existing
+    retry/actionability-wait already tolerates the section's few-hundred-ms
+    render lag after ``_wait_for_step2`` returns.
     """
     for region in regions:
         # XPath, not a plain data-testid selector: the tree auto-expands
@@ -4356,11 +4370,16 @@ def create_master(
         page, _HEADLINES_TESTID_TEMPLATE, _HEADLINES_SLOT_COUNT, headlines
     )
     _add_repeating_values(page, _TEXTS_TESTID_TEMPLATE, _TEXTS_SLOT_COUNT, texts)
-    # Known-broken on accounts matching the one re-recon'd for #690/#703: the
-    # region picker _set_region needs (RegionsTreeTagGroup.launcher) was
-    # confirmed absent from a fully-loaded step 2 there — see issue #705.
-    # #690 scoped step 1 only, so this is not fixed here; _set_region raises
-    # its own clear BrowserSessionError when the launcher can't be found.
+    # Issue #705 re-recon, 2026-08-04: on the account where #690/#703's
+    # re-recon found the "Регион показов" section (and its heading/testids)
+    # completely absent from a fully-loaded step 2, that turned out to be a
+    # snapshot taken mid-render, not a permanently removed field — live
+    # re-testing confirms the section (RegionsTreeEditor/RegionsTreeTagGroup,
+    # nested one level deeper under GroupRegionsHyperlocalInput.Tree) renders
+    # reliably shortly after _wait_for_step2 returns, and _set_region's
+    # existing launcher-click already tolerates that short race (Playwright's
+    # default actionability wait covers the ~0.4s gap observed live). No
+    # markup change was needed.
     _set_region(page, regions)
     if weekly_budget is not None:
         _set_weekly_budget_on_create(page, weekly_budget)
