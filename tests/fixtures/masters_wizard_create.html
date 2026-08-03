@@ -118,6 +118,70 @@ from (it lists arbitrary past URLs, not a canonical "sites for this account"
 API).
 
 =====================================================================
+RE-RECON, 2026-08-04 (issue #690): step 1 markup migrated to a Combobox
+=====================================================================
+
+The plain <input placeholder="..."> above no longer exists (broke #650's
+_fill_landing_url, which relied on it having a stable "Далее" button that
+was always present once the field had text). Live re-recon against the same
+ksamatadirect account found:
+
+- The field is now a Combobox: a contenteditable <div role="textbox"
+  data-testid="CampaignFormUrl.Textinput">. Typing into it is unreliable at
+  Playwright's default (no per-key delay) AND even at a 150ms delay — the
+  widget intermittently drops characters from the MIDDLE of the typed
+  string (confirmed via textContent reads immediately after typing, e.g.
+  "https://ksamata.ru/novaya-..." losing "ksamata" entirely). The fix
+  (_type_landing_url) types with an 80ms delay, reads textContent back, and
+  retries (clearing first) up to 5 times if it doesn't match — every live
+  retry needed at most 2 attempts. Locator.fill() does NOT work as a
+  substitute despite succeeding without error: it sets the DOM text
+  directly without the real input events the widget listens for, so
+  neither the suggestions popup nor "Далее" ever reacts afterwards.
+
+- ANY typed URL — matched in the account's suggestion history or not —
+  renders a suggestions Combobox popup after ~1-3s (role="listbox",
+  data-testid="CampaignFormUrl.listBox", containing role="option" children
+  each carrying data-testid="CampaignFormUrl.listBox.<raw suggestion url>").
+  A URL with NO real match still shows this popup — full of unrelated
+  history — but ALSO renders "Далее" (data-testid="CampaignFormUrl.button")
+  already enabled next to it.
+
+- A URL that DOES match an item in the account's history (exactly, or
+  after stripping the typed URL's trailing slash — Yandex stores
+  suggestions without one even when the real campaign URL has one) has NO
+  "Далее" button in the DOM at all while the popup is open — only the
+  matching listBox option. Clicking that option is enough to advance:
+  Yandex re-validates the URL server-side, and after ~8-11s (same "scanning
+  the landing page" delay as clicking "Далее" always took) the SPA moves on
+  to step 2 on its own, with NO "Далее" click ever happening. (The button
+  reappears briefly, disabled, then becomes enabled-but-invisible without
+  ever being clicked, exactly as step 2's markup takes over the DOM — this
+  is what caused #690's original symptom: the button's count() flipping
+  looked like a markup change broke the click entirely, when actually
+  clicking it was never the right action for this path.)
+
+- A URL with NO history match: "Далее" is real and clickable and DOES need
+  a click — confirmed against a fresh, unused ksamata.ru subpage.
+
+=====================================================================
+RE-RECON, 2026-08-04 (issue #690): step 2's region picker section is gone
+=====================================================================
+
+Live re-recon (same account, same recon pass as above) found the fully-
+rendered step 2 form no longer contains ANY trace of the "Регион показов"
+section documented in item 12 below — no heading text, no
+RegionsTreeEditor/RegionsTreeTagGroup data-testids at all. This was used as
+_wait_for_step2's readiness marker before this recon and is no longer
+reliable. The fix switches that marker to the first headline slot
+(data-testid="CampaignTitles0.textarea"), which IS still present and
+stably identified (same marker _wait_for_edit_form already uses on the
+edit page). Whether the region picker moved elsewhere in the form, is
+gated behind a not-yet-expanded section, or is genuinely no longer part of
+this campaign type is NOT resolved by this pass — _set_region/_read_region_tags
+were not touched and are out of scope for issue #690, which is step 1 only.
+
+=====================================================================
 Step 2: full field inventory ("Конверсии и трафик" type)
 =====================================================================
 

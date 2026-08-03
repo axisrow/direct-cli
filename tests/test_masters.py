@@ -158,6 +158,14 @@ class _FakeLocatorHandle:
         # needs to record what was entered.
         self.fill(value)
 
+    def text_content(self):
+        # Supports _type_landing_url's retry-with-verify loop (issue #690):
+        # it reads this back after every type() to confirm the widget didn't
+        # drop characters, same underlying state fill()/type() write to.
+        if self._raises:
+            raise PlaywrightError("element detached")
+        return self._text
+
     def check(self):
         if self._raises:
             raise PlaywrightError("element detached")
@@ -2455,7 +2463,7 @@ class TestCopyMaster(unittest.TestCase):
         self,
         menu_trigger=None,
         clone_item=None,
-        region_heading=True,
+        step2_ready=True,
         terminal_button_text=None,
         redirect_on_click=True,
     ):
@@ -2468,14 +2476,12 @@ class TestCopyMaster(unittest.TestCase):
             locators[browser_masters._CLONE_MENU_ITEM_SELECTOR] = _FakeLocator(
                 [clone_item]
             )
-
-        text_buttons = {}
-        if region_heading:
-            text_buttons["Регион показов"] = _FakeGetByTextLocator(
-                [_FakeTextLocatorHandle()]
+        if step2_ready:
+            locators[f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'] = (
+                _FakeLocator([_FakeLocatorHandle()])
             )
 
-        page = FakePage(locators=locators, text_buttons=text_buttons)
+        page = FakePage(locators=locators)
 
         if terminal_button_text is not None:
 
@@ -5045,27 +5051,63 @@ class TestBrowserSessionErrors(unittest.TestCase):
 
 
 class TestFillLandingUrl(unittest.TestCase):
-    """``_fill_landing_url`` (issue #632, re-recon issue #650) — step 1's URL
-    field + "Далее".
+    """``_fill_landing_url`` (issue #632, re-recon issues #650/#690) — step
+    1's URL field, then either a matching suggestion or "Далее".
 
-    Both the URL field and the "Далее" button are located via
-    ``page.locator(...)`` on their ``data-testid`` (issue #650 re-recon,
-    2026-08-02) — Yandex replaced the plain ``<input placeholder="...">``
-    with a Combobox whose text control is a ``contenteditable`` ``<div
-    role="textbox">`` that ``get_by_placeholder()``/``get_by_role()`` can no
-    longer find the same way.
+    The URL field and the "Далее" button are located via ``page.locator(...)``
+    on their ``data-testid`` (issue #650 re-recon, 2026-08-02) — Yandex
+    replaced the plain ``<input placeholder="...">`` with a Combobox whose
+    text control is a ``contenteditable`` ``<div role="textbox">`` that
+    ``get_by_placeholder()``/``get_by_role()`` can no longer find the same
+    way.
+
+    Issue #690 re-recon (2026-08-04, live): typing a URL Yandex recognises
+    from the account's own suggestion history renders a
+    ``CampaignFormUrl.listBox.<url>`` option INSTEAD of enabling the "Далее"
+    button (whose ``data-testid`` is then absent from the DOM entirely) —
+    clicking that option is enough to advance, no "Далее" click needed. A
+    URL with no such match only ever gets the button.
     """
 
-    def _page(self, url_state=None, next_clicks=None, error_visible=False):
+    def _page(
+        self,
+        url_state=None,
+        next_clicks=None,
+        error_visible=False,
+        matching_option=None,
+        option_clicks=None,
+        field_handle=None,
+        unrelated_option=None,
+    ):
         url_state = url_state if url_state is not None else {}
         next_clicks = next_clicks if next_clicks is not None else []
-        field = _FakeLocatorHandle(on_fill=lambda v: url_state.__setitem__("url", v))
+        option_clicks = option_clicks if option_clicks is not None else []
+        field = field_handle or _FakeContentEditableHandle(
+            on_fill=lambda v: url_state.__setitem__("url", v)
+        )
         next_button = _FakeLocatorHandle(on_click=lambda: next_clicks.append(True))
+        locators = {
+            browser_masters._CREATE_URL_INPUT_TESTID: _FakeLocator([field]),
+            browser_masters._CREATE_NEXT_BUTTON_TESTID: _FakeLocator(
+                [] if matching_option else [next_button]
+            ),
+        }
+        if matching_option:
+            option_handle = _FakeLocatorHandle(
+                on_click=lambda: option_clicks.append(True)
+            )
+            locators[f'[data-testid="CampaignFormUrl.listBox.{matching_option}"]'] = (
+                _FakeLocator([option_handle])
+            )
+        if unrelated_option:
+            # Confirmed live: a URL with no EXACT suggestion match still
+            # renders the popup (unrelated history) while "Далее" is also
+            # present and enabled — see _fill_landing_url's docstring.
+            locators[f'[data-testid="CampaignFormUrl.listBox.{unrelated_option}"]'] = (
+                _FakeLocator([_FakeLocatorHandle()])
+            )
         return FakePage(
-            locators={
-                browser_masters._CREATE_URL_INPUT_TESTID: _FakeLocator([field]),
-                browser_masters._CREATE_NEXT_BUTTON_TESTID: _FakeLocator([next_button]),
-            },
+            locators=locators,
             text_buttons={
                 browser_masters._CREATE_INVALID_URL_TEXT: _FakeGetByTextLocator(
                     [_FakeTextLocatorHandle()] if error_visible else []
@@ -5073,7 +5115,7 @@ class TestFillLandingUrl(unittest.TestCase):
             },
         )
 
-    def test_fills_field_and_clicks_next(self):
+    def test_fills_field_and_clicks_next_when_no_suggestion_matches(self):
         url_state = {}
         next_clicks = []
         page = self._page(url_state=url_state, next_clicks=next_clicks)
@@ -5083,22 +5125,89 @@ class TestFillLandingUrl(unittest.TestCase):
         self.assertEqual(url_state["url"], "https://ksamata.ru/")
         self.assertEqual(len(next_clicks), 1)
 
+    def test_clicks_matching_suggestion_instead_of_next_button(self):
+        """Issue #690: a history match renders a listBox option and the
+        "Далее" button's own data-testid is absent — clicking the option is
+        the only way to advance, and "Далее" must never be clicked."""
+        url_state = {}
+        next_clicks = []
+        option_clicks = []
+        page = self._page(
+            url_state=url_state,
+            next_clicks=next_clicks,
+            matching_option="https://ksamata.ru",
+            option_clicks=option_clicks,
+        )
+
+        browser_masters._fill_landing_url(page, "https://ksamata.ru/")
+
+        self.assertEqual(len(option_clicks), 1)
+        self.assertEqual(len(next_clicks), 0)
+
+    def test_clicks_matching_suggestion_ignoring_trailing_slash(self):
+        """Confirmed live: Yandex stores the suggestion WITHOUT the trailing
+        slash the campaign's real URL has — the typed URL (with slash) must
+        still match it."""
+        option_clicks = []
+        page = self._page(
+            matching_option="https://ksamata.ru",  # no trailing slash
+            option_clicks=option_clicks,
+        )
+
+        browser_masters._fill_landing_url(page, "https://ksamata.ru/")
+
+        self.assertEqual(len(option_clicks), 1)
+
+    def test_does_not_match_suggestion_by_stripping_a_path_trailing_slash(self):
+        """A suggestion for a DIFFERENT path (``/sale`` without the slash)
+        must never be treated as a match for ``/sale/`` — only the bare
+        domain-root case (confirmed live) drops the trailing slash. Matching
+        on path/query would risk launching against an unintended destination
+        (Codex review, PR #703 round 1)."""
+        next_clicks = []
+        page = self._page(
+            next_clicks=next_clicks,
+            unrelated_option="https://site.ru/sale",  # no trailing slash
+        )
+
+        browser_masters._fill_landing_url(page, "https://site.ru/sale/")
+
+        self.assertEqual(len(next_clicks), 1)
+
+    def test_does_not_match_suggestion_by_stripping_a_query_trailing_slash(self):
+        """Same risk as the path case, but for a query value ending in "/":
+        ``urlsplit(url).path`` alone is "/" here even though the URL is NOT
+        a bare domain root — the query must also be empty before stripping
+        (Codex review, PR #703 round 2)."""
+        next_clicks = []
+        page = self._page(
+            next_clicks=next_clicks,
+            unrelated_option="https://site.ru/?next=",  # no trailing slash
+        )
+
+        browser_masters._fill_landing_url(page, "https://site.ru/?next=/")
+
+        self.assertEqual(len(next_clicks), 1)
+
     def test_raises_when_url_field_missing(self):
         page = FakePage(locators={})
 
         with self.assertRaises(BrowserSessionError):
             browser_masters._fill_landing_url(page, "https://ksamata.ru/")
 
-    def test_raises_when_next_button_missing(self):
+    def test_raises_when_neither_suggestion_nor_button_appears(self):
         page = FakePage(
             locators={
                 browser_masters._CREATE_URL_INPUT_TESTID: _FakeLocator(
-                    [_FakeLocatorHandle()]
+                    [_FakeContentEditableHandle()]
                 ),
             },
         )
 
-        with self.assertRaises(BrowserSessionError):
+        with (
+            patch.object(browser_masters, "_CREATE_URL_RESPONSE_TIMEOUT_MS", 1),
+            self.assertRaises(BrowserSessionError),
+        ):
             browser_masters._fill_landing_url(page, "https://ksamata.ru/")
 
     def test_raises_on_invalid_url_format_error(self):
@@ -5108,21 +5217,67 @@ class TestFillLandingUrl(unittest.TestCase):
             browser_masters._fill_landing_url(page, "not-a-valid-url")
         self.assertIn("malformed", str(ctx.exception))
 
+    def test_retries_typing_when_widget_drops_characters(self):
+        """Issue #690: the real Combobox intermittently drops characters
+        from the typed URL — this asserts _fill_landing_url actually
+        notices via a text_content() mismatch and retries rather than
+        silently proceeding with a mangled value."""
+        field = _FakeContentEditableHandle(supports_modifier=True)
+        # First type() call is deliberately mangled (drops "ksamata"); the
+        # SECOND call (after _clear_text_field) types correctly - modelled
+        # by overriding .type() to mangle only the first invocation.
+        original_type = field.type
+        call_count = {"n": 0}
+
+        def _flaky_type(value, delay=None):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                original_type(value.replace("ksamata", ""), delay=delay)
+            else:
+                original_type(value, delay=delay)
+
+        field.type = _flaky_type
+        page = self._page(field_handle=field)
+
+        browser_masters._fill_landing_url(page, "https://ksamata.ru/")
+
+        self.assertEqual(call_count["n"], 2)
+        self.assertEqual(field.text_content(), "https://ksamata.ru/")
+
+    def test_raises_when_widget_never_stops_dropping_characters(self):
+        field = _FakeContentEditableHandle()
+        original_type = field.type
+        field.type = lambda value, delay=None: original_type("garbled", delay=delay)
+        page = self._page(field_handle=field)
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._fill_landing_url(page, "https://ksamata.ru/")
+        self.assertIn("dropping keystrokes", str(ctx.exception))
+
 
 class TestWaitForStep2(unittest.TestCase):
-    """``_wait_for_step2`` (issue #632) — polls for the "Регион показов" heading."""
+    """``_wait_for_step2`` (issue #632, re-recon #690) — polls for the first
+    headline slot (``CampaignTitles0.textarea``), not the "Регион показов"
+    heading this used before: issue #690 re-recon (2026-08-04) found the
+    region picker no longer renders at all on a fully-loaded step 2 in the
+    account tested — its data-testids and heading text were both completely
+    absent.
+    """
 
-    def test_returns_once_heading_present(self):
+    def _step2_ready_selector(self):
+        return f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'
+
+    def test_returns_once_first_headline_slot_present(self):
         page = FakePage(
-            text_buttons={
-                "Регион показов": _FakeGetByTextLocator([_FakeTextLocatorHandle()])
+            locators={
+                self._step2_ready_selector(): _FakeLocator([_FakeLocatorHandle()])
             }
         )
 
         browser_masters._wait_for_step2(page)  # must not raise
 
-    def test_raises_when_heading_never_appears(self):
-        page = FakePage(text_buttons={})
+    def test_raises_when_marker_never_appears(self):
+        page = FakePage(locators={})
 
         with (
             patch.object(browser_masters, "_CREATE_STEP2_TIMEOUT_MS", 10),
@@ -5134,9 +5289,8 @@ class TestWaitForStep2(unittest.TestCase):
         # Issue #653: which step the page is stuck on changes the diagnosis
         # entirely, and re-running --headful just to find out is expensive on
         # a page with no sandbox — so the error must say it. Step 1's URL
-        # field still being in the DOM means "Далее" never advanced the form.
+        # field still being in the DOM means the form never advanced.
         page = FakePage(
-            text_buttons={},
             locators={
                 browser_masters._CREATE_URL_INPUT_TESTID: _FakeLocator(
                     [_FakeLocatorHandle()]
@@ -5153,8 +5307,9 @@ class TestWaitForStep2(unittest.TestCase):
 
     def test_timeout_message_says_the_page_left_step_1(self):
         # The other branch: step 1's URL field is gone, so step 2 rendered but
-        # without the expected section — that points at a markup change.
-        page = FakePage(text_buttons={}, locators={})
+        # without the expected first headline slot — that points at a markup
+        # change.
+        page = FakePage(locators={})
 
         with (
             patch.object(browser_masters, "_CREATE_STEP2_TIMEOUT_MS", 10),
@@ -7305,7 +7460,7 @@ class TestCreateMaster(unittest.TestCase):
         launch_clicks = []
         draft_clicks = []
 
-        url_field = _FakeLocatorHandle(
+        url_field = _FakeContentEditableHandle(
             on_fill=lambda v: url_state.__setitem__("url", v)
         )
         headline_last = {"value": ""}
@@ -7421,7 +7576,6 @@ class TestCreateMaster(unittest.TestCase):
             ],
             text_buttons={
                 browser_masters._CREATE_INVALID_URL_TEXT: _FakeGetByTextLocator([]),
-                "Регион показов": _FakeGetByTextLocator([_FakeTextLocatorHandle()]),
             },
         )
         return page, {

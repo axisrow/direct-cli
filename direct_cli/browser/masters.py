@@ -223,6 +223,7 @@ import contextlib
 import json
 import re
 import time
+from urllib.parse import urlsplit
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -399,7 +400,36 @@ _CREATE_URL_INPUT_TESTID = '[data-testid="CampaignFormUrl.Textinput"]'
 # Step 1's "Далее" button — confirmed live (issue #650 re-recon) it now also
 # carries a stable data-testid, and only renders/becomes clickable after the
 # URL field has text (unlike the old always-present button this replaced).
+# Issue #690 re-recon (2026-08-04): this button ONLY renders when the typed
+# URL has NO match in the account's suggestion history (see
+# _CREATE_URL_LISTBOX_TESTID below) — when a match exists, Yandex shows a
+# suggestions dropdown instead and this button never appears at all (count()
+# stays 0 the whole time), so _fill_landing_url must not treat its absence
+# as an error on its own.
 _CREATE_NEXT_BUTTON_TESTID = '[data-testid="CampaignFormUrl.button"]'
+
+# Issue #690 re-recon (2026-08-04, live against ksamatadirect account):
+# typing ANY URL — matched in the account's suggestion history or not —
+# renders a Combobox suggestions popup (a `role="listbox"` whose options
+# each carry a `data-testid` of `CampaignFormUrl.listBox.<raw suggestion
+# url>`, confirmed live), showing unrelated history when there's no real
+# match. _CREATE_NEXT_BUTTON_TESTID is absent from the DOM only while a
+# suggestion EXACTLY matching the typed URL exists — see _fill_landing_url,
+# which locates that one option directly by its full data-testid rather
+# than matching the popup as a whole, so an unrelated suggestion already
+# showing is never clicked by mistake.
+
+# How long to wait for either the suggestions popup or the "Далее" button to
+# appear after typing — confirmed live the popup can take ~1-3s to render
+# (it does its own debounced lookup against the account's history).
+_CREATE_URL_RESPONSE_TIMEOUT_MS = 8_000
+
+# Per-keystroke delay and retry budget for _type_landing_url (issue #690
+# re-recon, 2026-08-04) — see its docstring for why a retry-with-verify loop
+# is needed at all. 80ms is a human-typing-like rate; every live retry
+# observed succeeded within 2 attempts, so 5 leaves generous headroom.
+_TYPE_URL_DELAY_MS = 80
+_TYPE_URL_MAX_ATTEMPTS = 5
 
 # Confirmed live: this exact string appears under the URL field when the
 # "Далее" click rejects the value as not a well-formed URL. Pure
@@ -2433,43 +2463,173 @@ def set_master_images(
     }
 
 
+def _type_landing_url(field: Any, url: str) -> None:
+    """Type ``url`` into step 1's contenteditable field, verifying it landed.
+
+    Issue #690 re-recon (2026-08-04): typing this field via
+    ``field.type(url)`` intermittently drops characters from the MIDDLE of
+    the string — confirmed live via ``textContent`` reads immediately after
+    typing (e.g. typing produced ``"https://.ru/novaya-..."`` with
+    ``"ksamata"`` simply missing), not just a trailing/leading truncation.
+    This reproduces at both the Playwright default (no per-key delay) and a
+    150ms delay, just less often at the latter — it is the widget's own
+    debounced-suggestion lookup racing a keystroke burst, not something a
+    fixed delay alone reliably avoids. ``field.fill()`` does not help either
+    despite succeeding without error: it sets the DOM text directly without
+    the real ``input`` events this Combobox listens for, so neither the
+    suggestions popup nor the "Далее" button ever appears afterwards
+    (confirmed live: polled 10s with zero reaction from the widget).
+
+    The only reliable approach found live is retry-with-verify: type with a
+    human-like delay, read ``textContent`` back, and retry (clearing first,
+    since ``.type()`` APPENDS to a contenteditable — see
+    ``_clear_text_field``) if it doesn't match. Every attempt observed live
+    needed at most 2 tries; ``_TYPE_URL_MAX_ATTEMPTS`` leaves generous
+    headroom above that.
+    """
+    actual: Optional[str] = None
+    for attempt in range(_TYPE_URL_MAX_ATTEMPTS):
+        if attempt:
+            _clear_text_field(field)
+        try:
+            field.type(url, delay=_TYPE_URL_DELAY_MS)
+        except PlaywrightError as exc:
+            raise BrowserSessionError(
+                "Could not type into the landing-page URL field on the "
+                "Мастер кампаний create page — Yandex may have changed the "
+                "page's markup. Re-run with --headful to inspect the page."
+            ) from exc
+        try:
+            actual = field.text_content()
+        except PlaywrightError:
+            actual = None
+        if actual == url:
+            return
+
+    raise BrowserSessionError(
+        f"Typed {url!r} into the landing-page URL field on the Мастер "
+        f"кампаний create page {_TYPE_URL_MAX_ATTEMPTS} times, but the "
+        f"field still shows {actual!r} — Yandex's Combobox widget appears "
+        "to be dropping keystrokes. Re-run with --headful to inspect the "
+        "page."
+    )
+
+
 def _fill_landing_url(page: "Page", url: str) -> None:
-    """Fill step 1's URL field and click "Далее" to advance to step 2.
+    """Fill step 1's URL field and advance to step 2.
 
     Field located by ``_CREATE_URL_INPUT_TESTID`` (issue #650 re-recon,
     2026-08-02) — Yandex replaced the plain ``<input placeholder="...">``
     with a Combobox whose text control is a ``contenteditable`` ``<div
     role="textbox">`` that ``get_by_placeholder()`` (matches only
     ``<input>``/``<textarea>``) can no longer find, even though the
-    placeholder text itself is unchanged. ``.fill()`` does not work on a
-    contenteditable div, so this types the URL via keyboard events instead
-    (also what triggers the "Далее" button to render — see below).
+    placeholder text itself is unchanged. See ``_type_landing_url`` for why
+    typing itself needs a retry-with-verify loop.
 
-    Confirmed live: unlike the old always-present button this replaced, the
-    "Далее" button now only renders once the field has text — this waits
-    for it via Playwright's own actionability check (``click()`` auto-waits
-    for the element to appear and become visible) rather than an immediate
-    ``count()``. It is clickable even when the field holds a malformed
-    value — it does not disable on format, so a click is always needed to
-    trigger the (purely client-side) validation. If Yandex rejects the
-    format, this raises :class:`BrowserSessionError` immediately instead of
-    waiting the full step-2 timeout for a page that will never render (see
-    ``_CREATE_INVALID_URL_TEXT``).
+    **Two distinct continuations, not one "Далее" click** (issue #690
+    re-recon): typing a URL Yandex recognises from the account's own
+    history (previously used landing pages, e.g. a bare match of a
+    previously created campaign's URL) renders a suggestions Combobox popup
+    (confirmed live: a ``role="listbox"`` containing one ``role="option"``
+    per suggestion, each carrying a ``data-testid`` of
+    ``CampaignFormUrl.listBox.<raw suggestion url>``) INSTEAD of enabling
+    ``_CREATE_NEXT_BUTTON_TESTID`` — the button's own data-testid is
+    completely absent from the DOM the whole time this popup is open.
+    Selecting the matching option is enough to advance: Yandex re-validates
+    the URL server-side and the SPA moves on to step 2 on its own within
+    ~10s, with no "Далее" click at all (confirmed live: the button
+    reappears disabled, then becomes enabled-but-invisible, without ever
+    being clicked, exactly when step 2's own markup takes over the DOM).
+    Confirmed live: Yandex stores the suggestion WITHOUT a trailing slash
+    even when the campaign's actual URL has one (``.../ksamata.ru`` for a
+    site whose real landing is ``.../ksamata.ru/``) — the testid is matched
+    against both the exact ``url`` and its trailing-slash-stripped form so
+    a same-site match isn't missed over that alone.
+
+    A URL with NO exact suggestion match still renders this popup — showing
+    the account's unrelated suggestion history instead (confirmed live) —
+    but with ``_CREATE_NEXT_BUTTON_TESTID`` also present and already
+    enabled; this is matched by exact ``data-testid``, not accessible-name
+    text, precisely so an unrelated suggestion is never clicked by mistake.
     """
     field = page.locator(_CREATE_URL_INPUT_TESTID).first
     try:
         field.click()
-        field.type(url)
     except PlaywrightError as exc:
         raise BrowserSessionError(
-            "Could not find or fill the landing-page URL field on the "
+            "Could not find or click the landing-page URL field on the "
             "Мастер кампаний create page — Yandex may have changed the "
             "page's markup. Re-run with --headful to inspect the page."
         ) from exc
 
-    next_button = page.locator(_CREATE_NEXT_BUTTON_TESTID).first
+    _type_landing_url(field, url)
+
+    next_button = page.locator(_CREATE_NEXT_BUTTON_TESTID)
+    # Two candidate testids, not one combined CSS selector: confirmed live
+    # Yandex stores the suggestion without a trailing slash even when the
+    # real URL has one (see docstring), and querying each candidate
+    # separately keeps this a plain data-testid lookup like every other
+    # locator in this module.
+    #
+    # Scoped to the bare-domain-root case ONLY — confirmed live is exactly
+    # "https://host/" vs. the stored "https://host", i.e. path == "/" AND no
+    # query/fragment. Generalizing this to any URL ending in "/" would also
+    # strip a PATH's trailing slash (e.g. "/sale/" -> "/sale") or a QUERY
+    # VALUE's trailing slash (e.g. "/?next=/" -> "/?next="), neither of
+    # which is confirmed to be the same destination and neither was
+    # observed live — matching on that alone risked selecting an unintended
+    # suggestion and launching the campaign against a different landing
+    # page (Codex review, PR #703 rounds 1 and 2).
+    split_url = urlsplit(url)
+    url_candidates = (
+        [url, url.rstrip("/")]
+        if url.endswith("/")
+        and split_url.path == "/"
+        and not split_url.query
+        and not split_url.fragment
+        else [url]
+    )
+    option_locators = [
+        page.locator(f'[data-testid="CampaignFormUrl.listBox.{candidate}"]')
+        for candidate in url_candidates
+    ]
+
+    def _matching_option():
+        for locator in option_locators:
+            if locator.count():
+                return locator
+        return None
+
+    def _suggestion_or_button_ready() -> bool:
+        return _matching_option() is not None or bool(next_button.count())
+
+    if not _poll_until(
+        page, _suggestion_or_button_ready, _CREATE_URL_RESPONSE_TIMEOUT_MS
+    ):
+        raise BrowserSessionError(
+            "Neither a matching suggestion nor the 'Далее' button appeared "
+            "after typing the landing-page URL on the Мастер кампаний "
+            "create page within "
+            f"{_CREATE_URL_RESPONSE_TIMEOUT_MS / 1000:.0f}s — Yandex may "
+            "have changed the page's markup. Re-run with --headful to "
+            "inspect the page."
+        )
+
+    matching_option = _matching_option()
+    if matching_option is not None:
+        try:
+            matching_option.first.click()
+        except PlaywrightError as exc:
+            raise BrowserSessionError(
+                f"Could not click the matching suggestion for {url!r} on "
+                "the Мастер кампаний create page — Yandex may have changed "
+                "the page's markup. Re-run with --headful to inspect the "
+                "page."
+            ) from exc
+        return
+
     try:
-        next_button.click()
+        next_button.first.click()
     except PlaywrightError as exc:
         raise BrowserSessionError(
             "Could not find or click the 'Далее' button on the Мастер "
@@ -2532,39 +2692,46 @@ def _wait_for_create_step1(page: "Page") -> None:
 def _wait_for_step2(page: "Page") -> None:
     """Block until step 2's long form has rendered.
 
-    Confirmed live this can take 10-15s+ after clicking "Далее" — Yandex
-    scans the landing page's content server-side to pre-fill headlines,
-    texts, and images before rendering the rest of the form. Polls for the
-    "Регион показов" heading (the one field guaranteed to be present and
-    genuinely empty — see module docstring) rather than a fixed sleep.
+    Confirmed live this can take 10-15s+ after advancing from step 1 —
+    Yandex scans the landing page's content server-side to pre-fill
+    headlines, texts, and images before rendering the rest of the form.
+
+    Polls for ``CampaignTitles0.textarea`` (issue #690 re-recon,
+    2026-08-04) rather than the "Регион показов" heading this used before:
+    live testing found the region picker section (``RegionsTreeEditor`` /
+    "Регион показов") no longer renders on this page at all — its
+    ``data-testid``s and heading text are both completely absent from a
+    fully-loaded step 2 in the account tested. Headlines slot 0 is used
+    instead for the same reason ``_EDIT_FORM_READY_TESTID`` picked it on the
+    edit page: it is the one field guaranteed present and stably
+    identified by ``data-testid`` on every step 2 render (see
+    ``_HEADLINES_SLOT_COUNT``'s docstring).
     """
-    region_heading = page.get_by_text("Регион показов", exact=False)
-    deadline = time.monotonic() + _CREATE_STEP2_TIMEOUT_MS / 1000
-    while time.monotonic() < deadline:
-        with contextlib.suppress(PlaywrightError):
-            if region_heading.count():
-                return
-        page.wait_for_timeout(250)
+    headlines_ready = page.locator(f'[data-testid="{_EDIT_FORM_READY_TESTID}"]')
+    if _poll_until(
+        page, lambda: bool(headlines_ready.count()), _CREATE_STEP2_TIMEOUT_MS
+    ):
+        return
 
     # Which step the page is actually stuck on changes the diagnosis
     # entirely, and re-running --headful just to find out is expensive on a
     # page with no sandbox — so report it in the error itself. Step 1's URL
     # field is gone from the DOM once step 2 renders, so its presence means
-    # "Далее" never advanced the form.
+    # the form never advanced.
     still_on_step1 = False
     with contextlib.suppress(PlaywrightError):
         still_on_step1 = bool(page.locator(_CREATE_URL_INPUT_TESTID).count())
     where = (
-        "The page is still showing step 1 (the URL field), so 'Далее' never "
-        "advanced the form — Yandex may still be scanning the landing page."
+        "The page is still showing step 1 (the URL field), so it never "
+        "advanced — Yandex may still be scanning the landing page."
         if still_on_step1
         else "The page has left step 1, so step 2 rendered but without the "
-        "expected 'Регион показов' section — its markup may have changed."
+        "expected first headline slot — its markup may have changed."
     )
 
     raise BrowserSessionError(
         "Timed out waiting for the Мастер кампаний create form's step 2 "
-        f"(the 'Регион показов' section) to render within "
+        f"(the first headline slot) to render within "
         f"{_CREATE_STEP2_TIMEOUT_MS / 1000:.0f}s. {where} Re-run with "
         "--headful to inspect the page."
     )
@@ -4189,6 +4356,11 @@ def create_master(
         page, _HEADLINES_TESTID_TEMPLATE, _HEADLINES_SLOT_COUNT, headlines
     )
     _add_repeating_values(page, _TEXTS_TESTID_TEMPLATE, _TEXTS_SLOT_COUNT, texts)
+    # Known-broken on accounts matching the one re-recon'd for #690/#703: the
+    # region picker _set_region needs (RegionsTreeTagGroup.launcher) was
+    # confirmed absent from a fully-loaded step 2 there — see issue #705.
+    # #690 scoped step 1 only, so this is not fixed here; _set_region raises
+    # its own clear BrowserSessionError when the launcher can't be found.
     _set_region(page, regions)
     if weekly_budget is not None:
         _set_weekly_budget_on_create(page, weekly_budget)
