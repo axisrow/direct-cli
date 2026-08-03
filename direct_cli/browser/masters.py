@@ -1983,10 +1983,13 @@ def delete_master_images(
     every image currently in the set.
 
     ``all_images=True`` against an already-empty set is an idempotent
-    no-op success (mirrors ``suspend``/``resume``'s "idempotent if already
-    X" convention) — no modal is opened, nothing is saved. Naming a
-    specific position or content ID that does not exist is always an
-    error, empty set or not.
+    no-op success when ``launch=False`` (mirrors ``suspend``/``resume``'s
+    "idempotent if already X" convention) — no modal is opened, nothing is
+    saved. With ``launch=True``, the no-op still applies to the images (the
+    modal is never opened), but the DRAFT-publish click still happens —
+    ``--launch`` is a second, independent request that an empty image set
+    must not swallow (issue #678). Naming a specific position or content ID
+    that does not exist is always an error, empty set or not.
     """
     if not positions and not content_ids and not all_images:
         raise ValueError(
@@ -1997,7 +2000,7 @@ def delete_master_images(
     before_ids = _open_images_editor(page, campaign_id)
 
     if all_images:
-        if not before_ids:
+        if not before_ids and not launch:
             return {"CampaignId": campaign_id, "Deleted": 0, "Count": 0}
         targets: List[str] = list(before_ids)
     else:
@@ -2059,6 +2062,12 @@ def set_master_images(
     call, so a full at-cap replacement (e.g. 5 images out, 5 images in)
     never transiently exceeds Yandex's cap — the removals are applied to
     the modal's live selection before any upload begins.
+
+    An already-empty set with ``paths=()`` is a no-op for the images (the
+    modal is never opened) when ``launch=False``. With ``launch=True`` the
+    DRAFT-publish click still happens — ``--launch`` is a second,
+    independent request that an empty image set must not swallow (issue
+    #678).
     """
     if len(paths) > _IMAGES_MAX_COUNT:
         raise BrowserSessionError(
@@ -2068,7 +2077,7 @@ def set_master_images(
 
     before_ids = _open_images_editor(page, campaign_id)
 
-    if not before_ids and not paths:
+    if not before_ids and not paths and not launch:
         return {"CampaignId": campaign_id, "Count": 0}
 
     _apply_image_operations(
