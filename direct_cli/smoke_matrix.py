@@ -266,14 +266,27 @@ def commands_for_category(category: str) -> list[str]:
     return list(SMOKE_MATRIX[category])
 
 
+def _walk_leaf_command_keys(prefix: str, group) -> Iterable[str]:
+    """Yield dotted command keys for every LEAF command under ``group``,
+    recursing into any subcommand that is itself a group. A two-level-only
+    walk would either treat a nested group as one opaque leaf or (worse)
+    silently drop its own subcommands from smoke classification entirely.
+    """
+    for name, command in group.commands.items():
+        key = f"{prefix}.{name}"
+        if hasattr(command, "commands"):
+            yield from _walk_leaf_command_keys(key, command)
+        else:
+            yield key
+
+
 def _registered_cli_commands() -> set[str]:
     from direct_cli.cli import cli
 
     registered = set()
     for group_name, group in cli.commands.items():
         if hasattr(group, "commands"):
-            for command_name in group.commands:
-                registered.add(command_key(group_name, command_name))
+            registered.update(_walk_leaf_command_keys(group_name, group))
         else:
             registered.add(group_name)
     return registered
