@@ -14,9 +14,10 @@ Read-only: ``list`` and ``get``. Mutations: ``suspend``/``resume`` (issue
 #630) and ``add`` (issue #632, create — NOT idempotent, no sandbox/rollback,
 see ``add``'s own docstring). ``update`` (issue #631) edits a campaign's
 settings, including point-replacement of individual images via
-``--image``. ``adimages get`` (issue #648) reads a campaign's whole image
-set, mirroring the API-side ``direct adimages get`` vocabulary and
-treating an empty set as legitimate (unlike ``update --image``).
+``--image``. ``adimages get``/``add`` (issue #648) read a campaign's whole
+image set and append to it — mirrors the API-side ``direct adimages
+get``/``add`` vocabulary, treats an empty image set as legitimate (unlike
+``update --image``), and ``add`` is likewise NOT idempotent.
 
 No ``--login``/agency support (issue #639): this group only ever reads the
 logged-in user's own account, so it needs no Yandex Direct credentials at
@@ -623,8 +624,8 @@ def _parse_repeating_slot_options(
     return parsed
 
 
-def _validate_image_paths(parsed_images: "dict[int, str]") -> None:
-    """Reject ``--image`` paths that don't exist or that Yandex won't accept.
+def _validate_image_path(raw_path: str, *, option_name: str, context: str) -> None:
+    """Reject one image path that doesn't exist or that Yandex won't accept.
 
     Runs before any browser session (and possibly an auth prompt) is opened,
     mirroring every other format error in this command. The accepted
@@ -632,22 +633,41 @@ def _validate_image_paths(parsed_images: "dict[int, str]") -> None:
     (imported here rather than at module load, matching this module's other
     deferred browser imports) so the CLI's check can't drift from what
     Yandex's file input actually accepts.
+
+    Shared by ``_validate_image_paths`` (``--image "N=path"``, slot-indexed)
+    and ``_validate_image_files`` (``--image-file path``, no slot) — ``context``
+    supplies whatever slot/position wording the caller wants appended to the
+    error, or an empty string for none.
     """
     from ..browser.masters import _IMAGE_UPLOAD_SUFFIXES
 
+    path = Path(raw_path)
+    if not path.is_file():
+        raise click.UsageError(
+            f"{option_name} path {raw_path!r}{context} does not exist or "
+            "is not a file."
+        )
+    if path.suffix.lower() not in _IMAGE_UPLOAD_SUFFIXES:
+        raise click.UsageError(
+            f"{option_name} path {raw_path!r}{context} has an unsupported "
+            f"extension {path.suffix!r} — Yandex accepts PNG, JPEG, or GIF."
+        )
+
+
+def _validate_image_paths(parsed_images: "dict[int, str]") -> None:
+    """Reject ``--image "N=path"`` paths that don't exist or that Yandex
+    won't accept. See ``_validate_image_path`` for the per-path check."""
     for index, raw_path in parsed_images.items():
-        slot = index + 1
-        path = Path(raw_path)
-        if not path.is_file():
-            raise click.UsageError(
-                f"--image path {raw_path!r} (slot {slot}) does not exist or "
-                "is not a file."
-            )
-        if path.suffix.lower() not in _IMAGE_UPLOAD_SUFFIXES:
-            raise click.UsageError(
-                f"--image path {raw_path!r} (slot {slot}) has an unsupported "
-                f"extension {path.suffix!r} — Yandex accepts PNG, JPEG, or GIF."
-            )
+        _validate_image_path(
+            raw_path, option_name="--image", context=f" (slot {index + 1})"
+        )
+
+
+def _validate_image_files(paths: "tuple[str, ...]") -> None:
+    """Reject ``--image-file`` paths that don't exist or that Yandex won't
+    accept. See ``_validate_image_path`` for the per-path check."""
+    for raw_path in paths:
+        _validate_image_path(raw_path, option_name="--image-file", context="")
 
 
 @masters.group("adimages")
@@ -658,12 +678,15 @@ def adimages():
     docstring), so unlike ``direct adimages get/add/delete`` (API-backed ad
     images, ``direct_cli/commands/adimages.py``) every subcommand here drives
     a real browser session against the campaign's edit page. The vocabulary
-    is deliberately the same.
+    is deliberately the same. There is no ``--dry-run``: there is no
+    request payload to preview for a browser-driven mutation, matching
+    ``masters update``'s existing precedent.
 
     Unlike ``masters update --image`` (point-replacement of one existing
-    image only, refuses on an empty set), this group treats an empty image
-    set as a completely normal state — a campaign can legitimately have
-    zero images, exactly like ad images on a text ad via the API.
+    image only, refuses on an empty set), these commands treat an empty
+    image set as a completely normal state — a campaign can legitimately
+    have zero images and ``add`` works from there, exactly like ad images
+    on a text ad via the API.
     """
 
 
@@ -688,6 +711,65 @@ def adimages_get(
         profile_dir,
         chrome_profile,
         lambda page: fetch_master_images(page, campaign_id),
+    )
+
+    format_output(result, output_format, output)
+
+
+@adimages.command("add")
+@click.argument("campaign_id", type=int)
+@click.option(
+    "--image-file",
+    "image_files",
+    multiple=True,
+    required=True,
+    help=(
+        "Local PNG/JPEG/GIF file to append to the campaign's image set — "
+        "repeat for multiple files. Works even if the campaign currently "
+        "has no images."
+    ),
+)
+@click.option(
+    "--launch",
+    is_flag=True,
+    default=False,
+    help=(
+        "If CAMPAIGN_ID is currently a DRAFT, publish it while saving "
+        "(default: keep it a DRAFT). Has no effect on a non-DRAFT campaign."
+    ),
+)
+@_masters_browser_options
+@click.pass_context
+@handle_api_errors
+def adimages_add(
+    ctx,
+    campaign_id,
+    image_files,
+    launch,
+    headful,
+    profile_dir,
+    chrome_profile,
+    output_format,
+    output,
+):
+    """Append one or more local images to a Мастер кампаний campaign"""
+    from ..browser.masters import _IMAGES_MAX_COUNT, add_master_images
+
+    if len(image_files) > _IMAGES_MAX_COUNT:
+        raise click.UsageError(
+            f"--image-file was passed {len(image_files)} times — Yandex's "
+            f"cap is {_IMAGES_MAX_COUNT} images per campaign."
+        )
+    _validate_image_files(image_files)
+
+    result = _with_session(
+        ctx,
+        headful,
+        profile_dir,
+        chrome_profile,
+        lambda page: add_master_images(
+            page, campaign_id, paths=list(image_files), launch=launch
+        ),
     )
 
     format_output(result, output_format, output)
