@@ -38,6 +38,23 @@ from direct_cli.cli import cli
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
+# `_IMAGES_GHOST_GRACE_S` (issue #687) makes `_wait_for_images_editor` hold a
+# "no StubN, no ContentImage yet" reading for real wall-clock seconds before
+# trusting it as a genuinely empty image set, to survive a live ghost render
+# pass no fake page here ever produces. Every test in this module drives fake
+# Page/Locator objects with no real timing behaviour at all, so patched to 0
+# for the whole module — otherwise every empty-image-set test (there are
+# many, across several classes) would pay the real production grace period.
+_images_ghost_grace_patch = patch.object(browser_masters, "_IMAGES_GHOST_GRACE_S", 0.0)
+
+
+def setUpModule():
+    _images_ghost_grace_patch.start()
+
+
+def tearDownModule():
+    _images_ghost_grace_patch.stop()
+
 
 def _load_grid_campaigns_fixture():
     with open(FIXTURES_DIR / "masters_grid_campaigns.json", encoding="utf-8") as f:
@@ -5138,6 +5155,11 @@ class TestWaitForImagesEditor(unittest.TestCase):
     """
 
     def test_returns_once_the_section_is_present(self):
+        """The base fixture renders content immediately with no ``StubN``
+        tick at all — the "campaign has no images" shape the ghost-pass gate
+        (issue #687) must NOT mistake for the ghost pass, since here
+        ``ContentImage`` elements are present from tick one, unlike the
+        ghost pass which never has any."""
         page = _FakeImagesPage(["a"])
 
         browser_masters._wait_for_images_editor(page)  # must not raise
@@ -5238,6 +5260,109 @@ class TestWaitForImagesEditor(unittest.TestCase):
 
         self.assertIn("did not finish rendering", str(ctx.exception))
         self.assertIn("loading placeholders", str(ctx.exception))
+
+    def test_does_not_settle_on_the_ghost_pass_before_stubs_appear(self):
+        """Issue #687, root-caused live 2026-08-03: BEFORE the ``StubN``
+        round even begins, ``ImageSuggestionsEditor`` briefly mounts with
+        ZERO ``StubN`` and ZERO ``ContentImage`` elements — a ghost render
+        that looks identical, by DOM shape alone, to a genuine settle
+        (``editor`` present, no ``StubN``). The pre-#687 guard (editor
+        present AND no ``StubN``) returned during this ghost pass on 3/3
+        live repeats, reading ``[]`` for a campaign confirmed to have 5
+        images. The fix requires having actually observed at least one
+        ``StubN`` tick before trusting "no ``StubN``" as a settle."""
+
+        class _GhostThenStubThenContentPage(_FakeImagesPage):
+            def __init__(self, *args, ghost_ticks=3, stub_ticks=2, **kwargs):
+                super().__init__(*args, **kwargs)
+                self._ghost_ticks_remaining = ghost_ticks
+                self._stub_ticks_remaining = stub_ticks
+
+            def locator(self, selector):
+                stub_prefix = (
+                    f'[data-testid^="{browser_masters._IMAGES_STUB_TESTID_PREFIX}"]'
+                )
+                if selector == stub_prefix:
+                    if self._ghost_ticks_remaining > 0:
+                        self._ghost_ticks_remaining -= 1
+                        return _FakeLocator([])
+                    if self._stub_ticks_remaining > 0:
+                        self._stub_ticks_remaining -= 1
+                        return _FakeLocator([_FakeLocatorHandle() for _ in range(4)])
+                    return _FakeLocator([])
+                content_prefix = (
+                    f'[data-testid^="{browser_masters._IMAGES_CONTENT_TESTID_PREFIX}"]'
+                )
+                if selector == content_prefix and (
+                    self._ghost_ticks_remaining > 0 or self._stub_ticks_remaining > 0
+                ):
+                    return _FakeLocator([])
+                return super().locator(selector)
+
+        page = _GhostThenStubThenContentPage(
+            ["a", "b", "c", "d"], ghost_ticks=3, stub_ticks=2
+        )
+
+        # The module-wide grace-period patch (see setUpModule) would let the
+        # ghost pass settle instantly on its own; force it back up so this
+        # test exercises the StubN-gate path specifically, not the grace
+        # period's separate fallback (covered by its own tests below).
+        with patch.object(browser_masters, "_IMAGES_GHOST_GRACE_S", 9999.0):
+            browser_masters._wait_for_images_editor(page)  # must not raise
+
+        # Settling must have consumed BOTH the ghost pass and the real stub
+        # round, not returned during the ghost pass's "no StubN" window.
+        self.assertEqual(page._ghost_ticks_remaining, 0)
+        self.assertEqual(page._stub_ticks_remaining, 0)
+        self.assertEqual(
+            browser_masters._read_image_content_ids(page), ["a", "b", "c", "d"]
+        )
+
+    def test_raises_if_stuck_in_the_ghost_pass_forever(self):
+        """A page stuck showing the ghost pass (no StubN ever observed) must
+        be a hard error, not a false "settle" on the pre-#687 guard's logic
+        nor a false "no images"."""
+
+        class _StuckGhostPage(_FakeImagesPage):
+            def locator(self, selector):
+                stub_prefix = (
+                    f'[data-testid^="{browser_masters._IMAGES_STUB_TESTID_PREFIX}"]'
+                )
+                if selector == stub_prefix:
+                    return _FakeLocator([])
+                content_prefix = (
+                    f'[data-testid^="{browser_masters._IMAGES_CONTENT_TESTID_PREFIX}"]'
+                )
+                if selector == content_prefix:
+                    return _FakeLocator([])
+                return super().locator(selector)
+
+        page = _StuckGhostPage(["a", "b", "c", "d"])
+        with (
+            patch.object(browser_masters, "_IMAGES_GHOST_GRACE_S", 9999.0),
+            patch.object(browser_masters, "_IMAGES_EDITOR_TIMEOUT_MS", 1),
+        ):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters._wait_for_images_editor(page)
+
+        self.assertIn("did not finish rendering", str(ctx.exception))
+
+    def test_settles_a_genuinely_empty_set_after_the_grace_period_with_no_stub_round(
+        self,
+    ):
+        """A campaign with zero images can settle into "editor present, no
+        StubN, no ContentImage" straight away with no stub round at all —
+        the module-wide grace-period patch (see setUpModule) makes this
+        instant for every OTHER test in this file, so this test explicitly
+        restores a real, non-zero grace period to prove the fallback itself
+        works, not just that patching it to 0 short-circuits it."""
+
+        page = _FakeImagesPage([])  # base fixture: no stubs, no content, ever
+
+        with patch.object(browser_masters, "_IMAGES_GHOST_GRACE_S", 0.05):
+            browser_masters._wait_for_images_editor(page)  # must not raise
+
+        self.assertEqual(browser_masters._read_image_content_ids(page), [])
 
 
 class TestWaitForEditForm(unittest.TestCase):
