@@ -4161,19 +4161,26 @@ class TestAuthDetection(unittest.TestCase):
         with self.assertRaises(BrowserAuthError):
             browser_masters.fetch_master(page, 1)
 
-    def test_fetch_masters_list_waits_for_domcontentloaded_not_networkidle(self):
+    def test_fetch_masters_list_waits_for_commit_not_networkidle(self):
         # #634: networkidle never settles on Yandex's login page (it holds
         # long-poll connections), which is what turned an auth failure into
-        # an opaque 30s timeout instead of a clear error. Guard against a
-        # silent regression back to networkidle. (No captured grid response
-        # here -> raises BrowserSessionError right after the goto assertion,
-        # which is all this test needs to observe.)
+        # an opaque 30s timeout instead of a clear error. #682: the grid's
+        # own document.readyState never advances past "interactive" either,
+        # so domcontentloaded itself was timing out — commit is the
+        # earliest wait_until that still lets expect_response observe the
+        # navigation. Guard against a silent regression back to
+        # networkidle/domcontentloaded. (No captured grid response here ->
+        # raises BrowserSessionError right after the goto assertion, which
+        # is all this test needs to observe.)
         page = FakePage(locators={})
         with self.assertRaises(BrowserSessionError):
             browser_masters.fetch_masters_list(page)
-        self.assertEqual(page.goto_wait_until, "domcontentloaded")
+        self.assertEqual(page.goto_wait_until, "commit")
 
     def test_fetch_master_waits_for_domcontentloaded_not_networkidle(self):
+        # fetch_master navigates to the wizard overview page, not the grid
+        # (_capture_grid_campaigns_request) — out of scope for #682, which
+        # only touches the grid's own goto.
         page = FakePage(locators={})
         browser_masters.fetch_master(page, 1)
         self.assertEqual(page.goto_wait_until, "domcontentloaded")
