@@ -132,6 +132,15 @@ class _FakeLocatorHandle:
     def click(self, timeout=None):
         if self._raises:
             raise PlaywrightError("element detached")
+        if not self._visible:
+            # Real Playwright's click() carries an actionability auto-wait
+            # and times out (raising) against an element that never becomes
+            # visible — models that terminal case. A handle whose
+            # is_visible() flips True after some number of calls (see
+            # test_does_not_raise_when_option_is_still_hydrating) still
+            # succeeds here, since that test never calls click() while
+            # _visible is False.
+            raise PlaywrightError("Timeout waiting for element to be visible")
         if self._on_click is not None:
             self._on_click()
 
@@ -2554,6 +2563,48 @@ class TestSetPromotionGoal(unittest.TestCase):
 
         with self.assertRaises(BrowserSessionError):
             browser_masters._set_promotion_goal(page, "max-clicks")
+
+    def test_does_not_raise_when_option_is_still_hydrating(self):
+        # Regression test (issue #696 cycle-review finding): the option row
+        # can still be hydrating/animating in immediately after
+        # trigger.click() opens the dropdown — is_visible() reports False on
+        # the very first check even though the element becomes visible and
+        # clickable moments later, exactly the class of race _set_goal_price/
+        # _read_goal_price were fixed for elsewhere in this same module. A
+        # one-shot is_visible() gate (with no actionability wait) treats this
+        # transient state as "option not found" and raises — even though
+        # click() itself would have waited for and hit the element fine.
+        state = {"selected_line": "Максимум целевых действий", "visible_checks": 0}
+
+        def _select():
+            state["selected_line"] = "Максимум переходов"
+
+        trigger = _FakeLocatorHandle(text=self._TRIGGER_LABEL)
+        trigger.inner_text = lambda: f"{self._TRIGGER_LABEL}\n{state['selected_line']}"
+
+        option = _FakeLocatorHandle(visible=True, on_click=_select)
+
+        def _is_visible_after_hydration():
+            # False on the first check (still hydrating), True from then on —
+            # models the option becoming visible moments after the dropdown
+            # opens. click() (unlike a one-shot is_visible() gate) would wait
+            # for and hit this element without issue.
+            state["visible_checks"] += 1
+            return state["visible_checks"] > 1
+
+        option.is_visible = _is_visible_after_hydration
+        option_selector = f'[data-testid="{self._option_testid("max-clicks")}"]'
+
+        page = FakePage(
+            locators={
+                browser_masters._PROMOTION_GOAL_BUTTON_XPATH: _FakeLocator([trigger]),
+                option_selector: _FakeLocator([option]),
+            },
+        )
+
+        browser_masters._set_promotion_goal(page, "max-clicks")
+
+        self.assertEqual(state["selected_line"], "Максимум переходов")
 
     def test_raises_when_click_does_not_change_trigger_text(self):
         # Option is clicked but the trigger's selected line never changes.

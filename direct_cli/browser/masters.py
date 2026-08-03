@@ -1395,9 +1395,8 @@ def _set_promotion_goal(page: "Page", goal: str) -> None:
     option = page.locator(f'[data-testid="{option_testid}"]').first
     clicked = False
     try:
-        if option.is_visible():
-            option.click()
-            clicked = True
+        option.click()
+        clicked = True
     except PlaywrightError:
         clicked = False
 
