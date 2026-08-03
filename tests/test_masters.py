@@ -1954,6 +1954,32 @@ class TestFetchMasterDraft(unittest.TestCase):
         self.assertFalse(browser_masters._is_draft_overview_page(page))
         self.assertEqual(ticks["count"], 1)
 
+    def test_draft_status_node_mounted_but_empty_is_not_settled(self):
+        # Regression (Codex, cycle-review round 3 of PR #700): a framework
+        # can mount CampaignHeader.Status before filling in its text — node
+        # PRESENCE alone must not be read as "hydration done", or a real
+        # DRAFT campaign whose status text arrives late gets misclassified
+        # as non-DRAFT. Models the node existing (count() > 0) from the
+        # start but its inner_text() staying "" until one polling tick later.
+        ticks = {"count": 0}
+
+        class _EmptyThenFilledStatusPage(FakePage):
+            def locator(self, selector):
+                if selector == browser_masters._CAMPAIGN_HEADER_STATUS_SELECTOR:
+                    text = (
+                        "" if ticks["count"] < 1 else browser_masters._DRAFT_STATUS_TEXT
+                    )
+                    return _FakeLocator([_FakeLocatorHandle(text=text)])
+                return super().locator(selector)
+
+            def wait_for_timeout(self, timeout):
+                ticks["count"] += 1
+
+        page = _EmptyThenFilledStatusPage()
+
+        self.assertTrue(browser_masters._is_draft_overview_page(page))
+        self.assertEqual(ticks["count"], 1)
+
 
 class TestSuspendResumeMaster(unittest.TestCase):
     """suspend_master/resume_master (issue #630): click + verify, idempotent.

@@ -888,28 +888,31 @@ def _is_draft_overview_page(page: "Page") -> bool:
     necessarily rendered either shape (the same race issue #685 hit for the
     create page's step 1 field — see ``_wait_for_create_step1``), so this
     polls, up to ``_DRAFT_OVERVIEW_DETECT_TIMEOUT_MS``, until EITHER
-    ``CampaignHeader.Status`` (DRAFT) OR one of the non-DRAFT dashboard's own
-    status-text markers (``_read_status_text``'s "Кампания остановлена"/
-    "активна"/"включена") has actually appeared, before deciding — a bare
-    ``.count()`` snapshot right after ``goto`` could read "0" simply because
-    neither shape has rendered yet.
+    ``CampaignHeader.Status`` reads its final text (DRAFT) OR one of the
+    non-DRAFT dashboard's own status-text markers (``_read_status_text``'s
+    "Кампания остановлена"/"активна"/"включена") has appeared, before
+    deciding. Checking the status node's mere *presence* would not be
+    enough — a framework can mount an element before filling in its text,
+    so this reads the node's actual (trimmed) text on every poll tick,
+    not just whether it exists yet.
     """
 
+    def _read_draft_status_text() -> str:
+        try:
+            return (
+                page.locator(_CAMPAIGN_HEADER_STATUS_SELECTOR)
+                .first.inner_text()
+                .strip()
+            )
+        except PlaywrightError:
+            return ""
+
     def _either_rendered() -> bool:
-        return (
-            page.locator(_CAMPAIGN_HEADER_STATUS_SELECTOR).first.count() > 0
-            or _read_status_text(page) is not None
-        )
+        return bool(_read_draft_status_text()) or _read_status_text(page) is not None
 
     _poll_until(page, _either_rendered, _DRAFT_OVERVIEW_DETECT_TIMEOUT_MS)
 
-    try:
-        status_locator = page.locator(_CAMPAIGN_HEADER_STATUS_SELECTOR).first
-        if status_locator.count() == 0:
-            return False
-        return status_locator.inner_text().strip() == _DRAFT_STATUS_TEXT
-    except PlaywrightError:
-        return False
+    return _read_draft_status_text() == _DRAFT_STATUS_TEXT
 
 
 def _fetch_draft_master(page: "Page", campaign_id: int) -> Dict[str, Any]:

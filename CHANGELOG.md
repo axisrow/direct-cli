@@ -41,6 +41,12 @@
   body text (`_read_status_text`'s markers) to actually render before
   classifying the page, instead of concluding "not DRAFT" from a page that
   simply hadn't finished rendering yet (caught in review).
+- The status-node poll above still only checked node *presence*
+  (`.count() > 0`), not its text — a framework can mount
+  `CampaignHeader.Status` before filling in its content, which would read
+  as "rendered" while the node is still empty and misclassify a real DRAFT
+  campaign as non-DRAFT. `_is_draft_overview_page` now polls for the node's
+  actual (trimmed) text, not just its presence (caught in review).
 
 **Fixed — images-section "ghost" render pass caused false "no images" reads (#687):**
 
