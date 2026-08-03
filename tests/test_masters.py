@@ -322,6 +322,29 @@ class _FakeExpectResponse:
         return False
 
 
+class _FakeExpectResponseExitRaises(_FakeExpectResponse):
+    """Faithfully mimics real Playwright's ``EventContextManager.__exit__``.
+
+    Real Playwright resolves ``response_info.value`` itself inside
+    ``__exit__`` when the wrapped ``with`` block exits without raising — so
+    a ``expect_response`` timeout surfaces as an exception from the `with`
+    block's own exit, NOT from a later, separate access to
+    ``response_info.value`` (see issue #694). ``_FakeExpectResponse``/
+    ``_FakeResponseInfo`` above resolve lazily on ``.value`` access instead,
+    which cannot reproduce that ordering bug — this subclass raises in
+    ``__exit__`` itself when no matching response was ever observed, to
+    exercise the real failure mode.
+    """
+
+    def __exit__(self, *exc_info):
+        if exc_info[0] is not None:
+            return False
+        candidate = self._page._grid_response
+        if candidate is None or not self._predicate(candidate):
+            raise PlaywrightError("Timeout waiting for response")
+        return False
+
+
 class _FakeTextLocatorHandle:
     """One matched element for ``get_by_text`` — supports ``is_visible``/``click``.
 
@@ -411,6 +434,8 @@ class FakePage:
         self.closed = True
 
     def expect_response(self, predicate, timeout=None):
+        if getattr(self, "_expect_response_exit_raises", False):
+            return _FakeExpectResponseExitRaises(self, predicate)
         return _FakeExpectResponse(self, predicate)
 
     def eval_on_selector_all(self, selector, expression):
@@ -1662,6 +1687,21 @@ class TestFetchMastersList(unittest.TestCase):
         # The grid fired no matching response at all (e.g. Yandex renamed the
         # operation) -> a clear BrowserSessionError, not a silent empty list.
         page = FakePage(grid_response=None)
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters.fetch_masters_list(page, status="all")
+
+    def test_expect_response_timeout_from_with_exit_raises_browser_session_error(
+        self,
+    ):
+        # #694: real Playwright's EventContextManager.__exit__ resolves
+        # response_info.value itself and raises the TimeoutError there when
+        # the `with` block exits cleanly but no matching response ever
+        # arrived -- so the timeout must be caught by wrapping the whole
+        # `with page.expect_response(...): goto(...); ...` block, not just a
+        # later, separate read of response_info.value after the block.
+        page = FakePage(grid_response=None)
+        page._expect_response_exit_raises = True
 
         with self.assertRaises(BrowserSessionError):
             browser_masters.fetch_masters_list(page, status="all")
