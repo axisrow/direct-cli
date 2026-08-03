@@ -200,13 +200,16 @@ SMOKE_MATRIX = {
         # above -- there is no way to isolate a live form save from
         # production. Manual-only, per scripts/test_dangerous_commands.sh.
         "masters.update",
-        # Browser-driven image upload against Мастер кампаний (masters
-        # adimages add). Same no-sandbox-equivalent rationale as
-        # masters.update above — there is no way to isolate a live modal
-        # save from production. Uploads real files, and is NOT idempotent
-        # (a retried add appends again). Manual-only, per
+        # Browser-driven image-set mutations against Мастер кампаний (masters
+        # adimages). Same no-sandbox-equivalent rationale as masters.update
+        # above — there is no way to isolate a live modal save from
+        # production. add/set upload real files; delete/set can remove every
+        # image in the campaign. Not idempotent (a retried add/delete would
+        # touch a set that already changed). Manual-only, per
         # scripts/test_dangerous_commands.sh.
         "masters.adimages.add",
+        "masters.adimages.delete",
+        "masters.adimages.set",
         # Creates a brand-new Мастер кампаний (issue #632) — no API surface,
         # no sandbox, and NOT idempotent (a second run creates a second
         # campaign, not an update). Riskiest command in this whole group:
