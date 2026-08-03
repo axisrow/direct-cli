@@ -202,7 +202,16 @@ import contextlib
 import json
 import re
 import time
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Set,
+    Tuple,
+)
 
 from ..output import print_warning
 from .session import (
@@ -377,7 +386,6 @@ _TEXTS_TESTID_TEMPLATE = "CampaignTexts{index}.textarea"
 # always ``len(_read_image_content_ids(page))``, read fresh from the page.
 _IMAGES_MAX_COUNT = 5
 _IMAGES_EDITOR_SELECTOR = '[data-testid="ImageSuggestionsEditor"]'
-_IMAGES_CONTENT_TESTID_PREFIX = "ImageSuggestionsEditor.CampaignContents.ContentImage."
 # Loading skeleton the section renders BEFORE the real content resolves —
 # confirmed live 2026-08-03 against campaigns 713234191/713234204 (both with
 # 4 real images): ``ImageSuggestionsEditor`` itself appears first with four
@@ -391,6 +399,7 @@ _IMAGES_CONTENT_TESTID_PREFIX = "ImageSuggestionsEditor.CampaignContents.Content
 # rendered" failure mode ``_wait_for_images_editor``'s own docstring already
 # describes but did not fully guard against. See ``_wait_for_images_editor``.
 _IMAGES_STUB_TESTID_PREFIX = "ImageSuggestionsEditor.CampaignContents.Stub"
+_IMAGES_CONTENT_TESTID_PREFIX = "ImageSuggestionsEditor.CampaignContents.ContentImage."
 _IMAGES_OPEN_MODAL_SELECTOR = '[data-testid="ImageSuggestionsEditor.Open"]'
 _IMAGES_MODAL_SELECTOR = '[data-testid="ImageSuggestionsEditorModal"]'
 _IMAGES_MODAL_FILE_INPUT_SELECTOR = (
@@ -1803,6 +1812,70 @@ def update_master(
     return result
 
 
+def _open_images_editor(page: "Page", campaign_id: int) -> List[str]:
+    """Navigate to the campaign's edit page and return its current image
+    content IDs, once the "Изображения" section has actually rendered.
+
+    The shared opening move of every ``masters adimages`` entry point:
+    ``goto`` + captcha/auth assertions + ``_wait_for_images_editor``. That
+    settle is what makes the returned list trustworthy — read any earlier
+    and a campaign that simply has not finished rendering is
+    indistinguishable from one that genuinely has no images (see
+    ``_wait_for_images_editor``).
+    """
+    page.goto(
+        WIZARD_EDIT_URL.format(campaign_id=campaign_id),
+        wait_until="domcontentloaded",
+    )
+    assert_not_captcha(page.content())
+    assert_authenticated(page.content())
+
+    _wait_for_images_editor(page)
+    return _read_image_content_ids(page)
+
+
+def fetch_master_images(page: "Page", campaign_id: int) -> Dict[str, Any]:
+    """Read a campaign's current image set — content IDs, 1-based
+    positions, and thumb URLs.
+
+    Read-only: opens the image manager modal to also read
+    ``_read_modal_selected_thumb_urls`` (the thumb URL is not exposed on
+    the edit page itself), then abandons it WITHOUT ever clicking Save —
+    safe, because nothing commits to the saved image set before Save (the
+    same invariant ``_set_image``'s docstring establishes). A campaign
+    with no images skips the modal entirely, there being nothing to read.
+
+    An empty image set is a legitimate, successful result (``Count: 0``),
+    not an error — unlike headlines/texts, images have no "at least one"
+    invariant (see ``_IMAGES_MAX_COUNT``'s module-level comment).
+    """
+    content_ids = _open_images_editor(page, campaign_id)
+
+    thumb_urls: Dict[str, Optional[str]] = {cid: None for cid in content_ids}
+    if content_ids:
+        _open_images_modal(page)
+        modal_ids = _read_image_content_ids(page)
+        panel_urls = _read_modal_selected_thumb_urls(page)
+        if len(modal_ids) == len(panel_urls):
+            thumb_urls.update(dict(zip(modal_ids, panel_urls)))
+
+    images = [
+        {
+            "Position": index + 1,
+            "ContentId": content_id,
+            "ThumbUrl": thumb_urls.get(content_id),
+        }
+        for index, content_id in enumerate(content_ids)
+    ]
+
+    return {
+        "CampaignId": campaign_id,
+        "Images": images,
+        "Count": len(content_ids),
+        "MaxCount": _IMAGES_MAX_COUNT,
+    }
+
+
 def _fill_landing_url(page: "Page", url: str) -> None:
     """Fill step 1's URL field and click "Далее" to advance to step 2.
 
@@ -2207,7 +2280,8 @@ def _read_testid_suffixes(
 
 
 def _wait_for_images_editor(page: "Page") -> None:
-    """Block until the edit page's "Изображения" section has rendered.
+    """Block until the edit page's "Изображения" section has rendered ITS
+    ACTUAL CONTENT, not just its outer container.
 
     The edit page is a client-rendered SPA — ``goto(...,
     wait_until="domcontentloaded")`` (what every entry point in this module
@@ -2232,10 +2306,12 @@ def _wait_for_images_editor(page: "Page") -> None:
     Returning as soon as the outer container exists (the original
     ``_IMAGES_EDITOR_SELECTOR``-only check) reproduces the exact bug this
     function's docstring already describes, just one render stage later:
-    a campaign that demonstrably has 4 images reads back as having none,
-    and ``--image`` then refuses to replace anything. This function now
-    also polls until no ``_IMAGES_STUB_TESTID_PREFIX`` element remains, so
-    a caller never observes the mid-render stub state.
+    ``masters adimages get`` on one of the campaigns above reported
+    ``Count: 0`` for a campaign that demonstrably has 4 images, and a
+    subsequent ``adimages add`` then uploaded into what it believed was an
+    empty set and timed out, because the true starting panel size was wrong.
+    This function now also polls until no ``_IMAGES_STUB_TESTID_PREFIX``
+    element remains, so a caller never observes the mid-render stub state.
 
     Absence of the section (or persistence of the stub state) after the
     timeout is reported as a hard error rather than silently treated as
@@ -2551,31 +2627,80 @@ def _verify_image_mismatches(
     touch is still there, and (c) the set size is unchanged (removed count
     == added count). A rejected/failed upload would leave a replaced ID
     still present, which (a) catches.
+
+    Thin wrapper over ``_verify_image_set_mismatches``: a point replacement
+    is that general absolute-end-state check with ``expected_added_count``
+    pinned to ``len(replaced_ids)``. Kept as its own function because
+    ``update_master``/``_verify_saved`` call it with the before/replaced
+    vocabulary, and because the empty-``replaced_ids`` early return is
+    specific to ``--image`` (nothing requested ⇒ nothing to verify),
+    whereas the general version must still assert an empty end state for
+    ``adimages delete --all``.
     """
     if not replaced_ids:
         return []
 
-    # ``_verify_saved`` re-navigates before calling this, so the section is
-    # once again mid-render — reading straight away would report every image
+    # A point replacement is the special case of the general absolute
+    # end-state check where exactly as many images are added back as were
+    # removed, so this delegates rather than repeating the three checks.
+    # ``_verify_image_set_mismatches`` performs the ``_wait_for_images_editor``
+    # settle its own callers need for the same post-reload reason.
+    return _verify_image_set_mismatches(
+        page,
+        expected_kept_ids=[cid for cid in before_ids if cid not in replaced_ids],
+        removed_ids=replaced_ids,
+        expected_added_count=len(replaced_ids),
+    )
+
+
+def _verify_image_set_mismatches(
+    page: "Page",
+    *,
+    expected_kept_ids: List[str],
+    removed_ids: Set[str],
+    expected_added_count: int,
+) -> List[str]:
+    """Re-read the campaign's saved image set and confirm it matches an
+    ABSOLUTE expected end state: every ``removed_ids`` gone, every
+    ``expected_kept_ids`` still present, and the total size equal to
+    ``len(expected_kept_ids) + expected_added_count``.
+
+    Sibling of ``_verify_image_mismatches`` (left untouched — ``update_master``
+    /``_verify_saved`` and ``TestVerifyImageMismatches`` depend on its exact
+    signature), generalizing that function's hardcoded "removed count ==
+    added count" assumption for callers where the two counts routinely
+    differ (e.g. deleting 3 and adding 0, or deleting all N and adding M
+    — the bulk image mutations that build on this). Uploaded images get a
+    Yandex-assigned
+    content ID that is not known ahead of time, so newly added images are
+    verified by COUNT only, never by identity — a real limitation of this
+    browser surface, not an oversight.
+
+    Unlike ``_verify_image_mismatches``, this does NOT early-return when
+    ``removed_ids`` is empty — ``expected_kept_ids=[]`` with
+    ``expected_added_count=0`` (removing every image) must still assert
+    the saved set is actually empty.
+    """
+    # Callers re-navigate before calling this, so the section is once
+    # again mid-render — reading straight away would report every image
     # as missing (see ``_wait_for_images_editor``).
     _wait_for_images_editor(page)
     actual_ids = set(_read_image_content_ids(page))
-    kept_ids = [cid for cid in before_ids if cid not in replaced_ids]
 
     mismatches = []
-    still_present = sorted(replaced_ids & actual_ids)
+    still_present = sorted(removed_ids & actual_ids)
     if still_present:
         mismatches.append(
-            "image(s) that should have been replaced are still present: "
+            "image(s) that should have been removed are still present: "
             + ", ".join(still_present)
         )
-    missing_kept = sorted(cid for cid in kept_ids if cid not in actual_ids)
+    missing_kept = sorted(cid for cid in expected_kept_ids if cid not in actual_ids)
     if missing_kept:
         mismatches.append(
             "image(s) that should have been left untouched are now "
             "missing: " + ", ".join(missing_kept)
         )
-    expected_size = len(kept_ids) + len(replaced_ids)
+    expected_size = len(expected_kept_ids) + expected_added_count
     if len(actual_ids) != expected_size:
         mismatches.append(
             f"image set now has {len(actual_ids)} image(s), expected "
