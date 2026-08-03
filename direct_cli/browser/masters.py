@@ -362,6 +362,17 @@ _STAT_TILES_TIMEOUT_MS = 30_000
 # check; it does not eliminate it. See #708 for finding a real marker.
 _STAT_TILES_STABLE_TICKS = 8
 
+# How long to wait, after launch_master's click already redirected away from
+# /edit/, for the overview page's own status text to report MODERATION
+# (issue #704). Live-confirmed 2026-08-04: the overview page reflected the
+# new status immediately after the redirect (well under 10s), unlike the
+# campaigns grid's primaryStatus, which lagged the same transition by 45+
+# seconds in the same recon — see launch_master's docstring for why the
+# grid is deliberately not used for this half of the check. Navigation
+# itself now goes through _goto_overview_page (issue #683), so this budget
+# only needs to cover the status-text poll after that page has rendered.
+_LAUNCH_VERIFY_TIMEOUT_MS = 15_000
+
 # Overview page's "⋮" menu, confirmed live (issue #633) — see module
 # docstring. Unlike _RESUME_BUTTON_TEXTS/_SUSPEND_BUTTON_TEXTS these are
 # selectors, not text-matched candidates: both testids were read directly off
@@ -411,6 +422,13 @@ _CLONE_VERIFY_TIMEOUT_MS = 20_000
 # redirect away from /edit/ (issue #668) — live-confirmed ~5s in one recon,
 # generous headroom for a slower response.
 _DRAFT_SAVE_REDIRECT_TIMEOUT_MS = 20_000
+
+# How long into the redirect wait to retry the click once if no redirect has
+# happened yet (issue #704 recon: a click that lands before later page
+# sections finish hydrating can silently no-op — see
+# _click_draft_terminal_button's docstring). Short enough that a healthy
+# click's own ~5-10s redirect isn't mistaken for a stuck one.
+_DRAFT_SAVE_CLICK_RETRY_MS = 4_000
 
 # Matches WIZARD_OVERVIEW_URL's {campaign_id} once Yandex redirects there
 # after a successful clone save/launch (see copy_master).
@@ -1344,13 +1362,26 @@ def _extract_stat_tiles(page: "Page", result: Dict[str, Any]) -> None:
 
 
 def _read_status_text(page: "Page") -> Optional[str]:
-    """Return ``"SUSPENDED"``/``"ACTIVE"``/``None`` from the current page body.
+    """Return ``"SUSPENDED"``/``"ACTIVE"``/``"MODERATION"``/``None`` from the
+    current page body.
 
     Shares the same marker text as ``_extract_status`` but returns the value
     directly instead of writing into a result dict — used by
-    ``suspend_master``/``resume_master`` both before and after clicking, to
-    verify the action actually changed the status rather than trusting the
-    click alone.
+    ``suspend_master``/``resume_master``/``launch_master`` both before and
+    after clicking, to verify the action actually changed the status rather
+    than trusting the click alone.
+
+    ``"Кампания на\xa0модерации"`` (issue #704, live-confirmed 2026-08-04
+    against campaign 713271855's overview page right after a real launch) is
+    read from this page rather than the campaigns grid: the grid's own
+    ``primaryStatus`` was observed to lag the actual DRAFT->MODERATION
+    transition by 45+ seconds in that same recon, while the overview page
+    already showed the new status immediately after the redirect. The space
+    between "на" and "модерации" is a non-breaking space (U+00A0), not a
+    regular ASCII space — ``inner_text()`` returns it verbatim, and a naive
+    ASCII-space literal here silently never matches (this cost a full
+    debugging pass live: the click and the actual status change both
+    succeeded every time, only this string comparison was wrong).
     """
     try:
         body_text = page.inner_text("body")
@@ -1360,6 +1391,8 @@ def _read_status_text(page: "Page") -> Optional[str]:
         return "SUSPENDED"
     if "Кампания активна" in body_text or "Кампания включена" in body_text:
         return "ACTIVE"
+    if "Кампания на\xa0модерации" in body_text:
+        return "MODERATION"
     return None
 
 
@@ -1420,8 +1453,7 @@ def _suspend_or_resume(
     if _is_draft_overview_page(page):
         raise BrowserSessionError(
             f"Campaign {campaign_id} is a DRAFT — it has no ACTIVE/SUSPENDED "
-            "state to suspend/resume. Launch it first (masters update "
-            '--launch, or the wizard\'s "Запустить кампанию" button).'
+            "state to suspend/resume. Launch it first (masters launch)."
         )
 
     current_status = _read_status_text(page)
@@ -1525,7 +1557,7 @@ def archive_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
             f"Campaign {campaign_id} is a DRAFT — its overview page has no "
             '"⋮" menu to archive from (issue #660), and no delete action '
             "exists for a Мастер кампаний draft anywhere in the UI. Launch "
-            "it first (masters update --launch) if you want to archive it."
+            "it first (masters launch) if you want to archive it."
         )
 
     _goto_overview_page(page, campaign_id)
@@ -1568,6 +1600,97 @@ def archive_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
         )
 
     return updated
+
+
+def launch_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
+    """Publish a DRAFT Мастер кампаний via the edit page's launch button (issue #704).
+
+    Mirrors ``archive_master``'s contract: idempotent (a non-DRAFT campaign
+    is a no-op, returning its current row with a warning — there is no
+    un-launch), verifies the status actually changed before reporting
+    success, never trusts the click alone.
+
+    Yandex does not flip a DRAFT straight to ACTIVE — clicking "Запустить
+    кампанию" sends it to moderation first (confirmed live, issue #668's
+    recon of the same button). This function therefore waits for
+    ``"MODERATION"``, not ``"ACTIVE"``.
+
+    **Live-confirmed 2026-08-04 (issue #704 recon, campaign 713271554):**
+    verification reads the overview page's own status text
+    (``_read_status_text``, "Кампания на\xa0модерации"), NOT the campaigns grid
+    (``fetch_masters_list``) — the grid's ``primaryStatus`` was observed to
+    lag the real DRAFT->MODERATION transition by 45+ seconds in that recon,
+    while the overview page already reflected it immediately after the
+    click's own redirect. The grid is still used for the BEFORE check
+    (there is no cheaper way to confirm a campaign is currently DRAFT
+    without first knowing which page to open), but never for the AFTER
+    check.
+
+    Reuses ``_click_draft_terminal_button(page, campaign_id, launch=True)``
+    from #668 — the same DRAFT edit-page save-as-draft/launch pair
+    ``update_master --launch`` already drives — rather than re-deriving the
+    click from scratch.
+    """
+    existing = _find_master_row(page, campaign_id, status="all")
+    if existing is None:
+        raise BrowserSessionError(
+            f"Could not find Мастер кампаний {campaign_id} in the campaigns "
+            "grid — check the ID, or it may already be gone."
+        )
+    if existing["Status"] != "DRAFT":
+        print_warning(
+            f"Campaign {campaign_id} is not a DRAFT (status "
+            f"{existing['Status']!r}); not clicking."
+        )
+        return existing
+
+    url = WIZARD_EDIT_URL.format(campaign_id=campaign_id)
+    page.goto(url, wait_until="commit")
+    assert_not_captcha(page.content())
+    assert_authenticated(page.content())
+    _wait_for_edit_form(page, campaign_id)
+
+    if not _is_draft_edit_page(page):
+        raise BrowserSessionError(
+            f"Campaign {campaign_id} was reported as DRAFT by the campaigns "
+            "grid, but its edit page does not show the DRAFT save-as-draft/"
+            "launch buttons — Yandex may have changed the page's markup, or "
+            "the status changed between the grid read and this navigation. "
+            "Verify manually before retrying."
+        )
+
+    _click_draft_terminal_button(page, campaign_id, launch=True)
+
+    # _click_draft_terminal_button already waited for page.url to leave
+    # /edit/, but that may land on the overview page mid-transition (or on a
+    # different route entirely) — one fresh navigation to the overview URL,
+    # rather than trusting wherever the redirect happened to land, is what
+    # _read_status_text below actually needs. _goto_overview_page (issue
+    # #683) is the module's shared "navigate and wait for the page to
+    # actually render" helper — the same race this function hit in its own
+    # live recon (a bare wait_until="commit" plus an immediate read found no
+    # status text at all, because the SPA hadn't painted anything yet).
+    _goto_overview_page(page, campaign_id)
+
+    deadline = time.monotonic() + _LAUNCH_VERIFY_TIMEOUT_MS / 1000
+    new_status = None
+    while time.monotonic() < deadline:
+        new_status = _read_status_text(page)
+        if new_status == "MODERATION":
+            break
+        page.wait_for_timeout(250)
+
+    if new_status != "MODERATION":
+        raise BrowserSessionError(
+            f"Clicked 'Запустить кампанию' for campaign {campaign_id}, but "
+            "its overview page did not report MODERATION within "
+            f"{_LAUNCH_VERIFY_TIMEOUT_MS / 1000:.0f}s (still "
+            f"{new_status!r}). The click may not have hit the right "
+            "element, or Yandex is slow to apply it — verify manually "
+            "before retrying."
+        )
+
+    return {"CampaignId": campaign_id, "Status": new_status}
 
 
 def copy_master(
@@ -2044,25 +2167,48 @@ def _click_draft_terminal_button(
     the edit URL lands after Yandex's own redirect has settled, not during
     it — same "poll page.url until it actually changes" pattern
     ``copy_master`` already uses for its own post-click redirect.
+
+    **Live-confirmed 2026-08-04 (issue #704 recon, campaigns 713271284/
+    713271498):** clicking immediately after ``_wait_for_edit_form`` returns
+    (which only waits for the first headline slot to render) can silently
+    no-op — the click lands before later-loading page sections (the
+    "Продвижение организации"/preview panels, confirmed live via screenshot)
+    finish hydrating, and the button's own handler isn't wired up yet. A
+    second click a few seconds later, once the page has visibly settled,
+    reliably triggers the real submit-and-redirect. Clicking the SAME button
+    twice is safe here (the page is unchanged, still DRAFT, until the click
+    actually takes) — so this retries the click once, partway through the
+    redirect wait, rather than requiring every caller to add its own
+    pre-click settle delay.
     """
     selector = (
         _DRAFT_LAUNCH_BUTTON_TESTID if launch else _DRAFT_SAVE_DRAFT_BUTTON_TESTID
     )
     button_label = _LAUNCH_BUTTON_TEXT if launch else _SAVE_DRAFT_BUTTON_TEXT
     handle = page.locator(selector).first
-    try:
-        handle.click()
-    except PlaywrightError as exc:
-        raise BrowserSessionError(
-            f"Could not find the {button_label!r} button on the DRAFT edit "
-            f"page for campaign {campaign_id} — Yandex may have changed "
-            "the page's markup. Re-run with --headful to inspect the page."
-        ) from exc
 
+    def _click():
+        try:
+            handle.click()
+        except PlaywrightError as exc:
+            raise BrowserSessionError(
+                f"Could not find the {button_label!r} button on the DRAFT "
+                f"edit page for campaign {campaign_id} — Yandex may have "
+                "changed the page's markup. Re-run with --headful to "
+                "inspect the page."
+            ) from exc
+
+    _click()
+
+    retry_deadline = time.monotonic() + _DRAFT_SAVE_CLICK_RETRY_MS / 1000
+    retried = False
     deadline = time.monotonic() + _DRAFT_SAVE_REDIRECT_TIMEOUT_MS / 1000
     while time.monotonic() < deadline:
         if "/edit/" not in page.url:
             return
+        if not retried and time.monotonic() >= retry_deadline:
+            _click()
+            retried = True
         page.wait_for_timeout(250)
 
     raise BrowserSessionError(
@@ -2467,7 +2613,13 @@ def update_master(
     Defaults to ``False`` — DRAFT stays DRAFT unless the caller explicitly
     asks to publish it, mirroring ``create_master``/``copy_master``'s own
     draft-preserving defaults. Has no effect on a non-DRAFT campaign, which
-    always uses the single "Сохранить кампанию" button regardless.
+    always uses the single "Сохранить кампанию" button regardless — the
+    returned result only carries ``"Launched": True`` when the campaign WAS a
+    DRAFT and ``launch=True`` actually published it (issue #704: a dedicated
+    ``masters launch`` command, via ``launch_master``, is the
+    field-preserving way to just publish a DRAFT without touching any of its
+    fields; this ``launch`` kwarg stays for launching in the same call as an
+    edit).
 
     ``goal_price`` (issue #696) sets the "Цель продвижения" block's target
     price. Confirmed live this field ONLY exists on the page when the
@@ -2564,7 +2716,8 @@ def update_master(
     # Determined BEFORE clicking, while the page still reflects what's about
     # to be clicked — after the click, _verify_saved's own reload leaves no
     # way to tell which button this run actually used.
-    if _is_draft_edit_page(page):
+    was_draft = _is_draft_edit_page(page)
+    if was_draft:
         clicked_button_label = (
             _LAUNCH_BUTTON_TEXT if launch else _SAVE_DRAFT_BUTTON_TEXT
         )
@@ -2627,6 +2780,8 @@ def update_master(
         result["Texts"] = texts
     if images:
         result["Images"] = images
+    if was_draft and launch:
+        result["Launched"] = True
     return result
 
 

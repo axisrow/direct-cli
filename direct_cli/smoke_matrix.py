@@ -200,6 +200,11 @@ SMOKE_MATRIX = {
         "masters.archive",
         "masters.resume",
         "masters.suspend",
+        # Publishes a DRAFT Мастер кампаний (issue #704) — irreversible from
+        # this CLI (no `masters unlaunch`), same no-sandbox-equivalent
+        # rationale as archive/resume/suspend above. Manual-only, per
+        # scripts/test_dangerous_commands.sh.
+        "masters.launch",
         # Browser-driven form mutation against Мастер кампаний (issue #631,
         # Этап A). Same no-sandbox-equivalent rationale as suspend/resume
         # above -- there is no way to isolate a live form save from
