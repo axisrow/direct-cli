@@ -19,7 +19,6 @@ additions below for how that replay is faked.
 """
 
 import json
-import time
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -1798,35 +1797,59 @@ class TestFetchMaster(unittest.TestCase):
         # metrics enabled, or Yandex not rendering one) always burned the
         # full _STAT_TILES_TIMEOUT_MS. A stable (unchanged-between-ticks)
         # partial set must now return as soon as it stabilizes, not after
-        # the full timeout -- proven here via an artificially large timeout
-        # that the fix must NOT actually wait out.
-        page = FakePage(
+        # the full timeout.
+        #
+        # Asserted via _poll_until's own tick count (page.wait_for_timeout
+        # call count), not wall-clock elapsed time (cycle-review #697 CI
+        # finding): _poll_until's `while time.monotonic() < deadline` loop
+        # measures real wall-clock time, which is NOT deterministic under a
+        # loaded CI runner (observed: a xdist-parallel CI run took a real
+        # 15s here despite an artificially large timeout and only needing a
+        # few ticks to stabilize -- 60x slower than the ~0.07s this test
+        # takes locally). Tick count is deterministic regardless of how
+        # slowly wall-clock time actually elapses between ticks.
+        class _TickCountingPage(FakePage):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.tick_count = 0
+
+            def wait_for_timeout(self, timeout):
+                self.tick_count += 1
+
+        page = _TickCountingPage(
             locators={
                 "button": _FakeLocator(
                     [_FakeLocatorHandle(text="191,07 ₽\nЗа конверсию")]
                 ),
             },
         )
-        start = time.monotonic()
         with patch.object(browser_masters, "_STAT_TILES_TIMEOUT_MS", 10_000):
             result = browser_masters.fetch_master(page, 1)
-        elapsed = time.monotonic() - start
         self.assertEqual(result["Stats"], {"cost_per_conversion": "191,07 ₽"})
-        self.assertLess(elapsed, 2.0)
+        # Must stop once the set stabilizes, not burn through the full
+        # 10_000ms / 250ms = 40-tick timeout budget.
+        self.assertLess(page.tick_count, 40)
 
     def test_zero_tiles_returns_without_waiting_out_the_timeout(self):
         # Same fix, empty-set edge case (cycle-review #697): the old
         # condition never matched an empty `stats` dict against
         # `wanted_keys`, so a page with no recognisable stat tiles at all
-        # also burned the full timeout.
-        page = FakePage(locators={}, body_text="something Yandex changed")
-        start = time.monotonic()
+        # also burned the full timeout. See the sibling test above for why
+        # this asserts tick count rather than wall-clock elapsed time.
+        class _TickCountingPage(FakePage):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.tick_count = 0
+
+            def wait_for_timeout(self, timeout):
+                self.tick_count += 1
+
+        page = _TickCountingPage(locators={}, body_text="something Yandex changed")
         with patch.object(browser_masters, "_STAT_TILES_TIMEOUT_MS", 10_000):
             with patch("direct_cli.browser.masters.print_warning"):
                 result = browser_masters.fetch_master(page, 1)
-        elapsed = time.monotonic() - start
         self.assertNotIn("Stats", result)
-        self.assertLess(elapsed, 2.0)
+        self.assertLess(page.tick_count, 40)
 
     def test_delayed_tile_render_is_not_mistaken_for_a_stable_empty_set(self):
         # cycle-review #697 re-review finding (Codex): the first version of
