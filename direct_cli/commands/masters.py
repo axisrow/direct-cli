@@ -969,6 +969,19 @@ def adimages_set(
     help="Promotion goal (Цель продвижения)",
 )
 @click.option(
+    "--goal-price",
+    type=float,
+    help=(
+        "Target price for the promotion goal (Цена целевого действия / "
+        "Цена перехода), in account currency. Only exists on the page "
+        "when the campaign's promotion goal is (or is being set to via "
+        "--promotion-goal in this same call) 'max-clicks' — under "
+        "'max-conversions' the price is set per-goal in a separate table "
+        "not covered by this flag, and this fails with an error naming "
+        "that requirement."
+    ),
+)
+@click.option(
     "--directs-helps/--no-directs-helps",
     "directs_helps",
     default=None,
@@ -1039,6 +1052,7 @@ def update(
     campaign_id,
     weekly_budget,
     promotion_goal,
+    goal_price,
     directs_helps,
     name,
     headlines,
@@ -1053,13 +1067,22 @@ def update(
 ):
     """Update settings of one Мастер кампаний (Этап A/B/D fields, plus name)
 
-    Covers weekly budget, promotion goal, the "Директ помогает"
-    auto-recommendations toggle, the campaign name, per-slot headline/
-    ad-text variant replacement, and per-position image replacement. The
-    edit page has a single whole-form save (no per-section save) — see
-    ``direct_cli/browser/masters.py`` module docstring — so only the fields
-    passed here are changed; every other on-page field keeps its current
-    value.
+    Covers weekly budget, promotion goal (plus its target price), the
+    "Директ помогает" auto-recommendations toggle, the campaign name,
+    per-slot headline/ad-text variant replacement, and per-position image
+    replacement. The edit page has a single whole-form save (no per-section
+    save) — see ``direct_cli/browser/masters.py`` module docstring — so
+    only the fields passed here are changed; every other on-page field
+    keeps its current value.
+
+    ``--goal-price`` (issue #696) sets the "Цель продвижения" block's
+    target price — but that field only exists on the page when the
+    campaign's promotion goal is 'max-clicks': under 'max-conversions' the
+    price is per-goal in a separate table this CLI does not cover. Passing
+    ``--goal-price`` together with ``--promotion-goal max-conversions`` is
+    therefore refused up front, and passing ``--goal-price`` alone (no
+    ``--promotion-goal``) fails against a campaign whose CURRENT goal isn't
+    already 'max-clicks' — the field genuinely is not on the page yet.
 
     ``--headline``/``--text``/``--image`` each replace ONE existing
     slot/position at a time rather than the whole list — unlike this CLI's
@@ -1086,6 +1109,7 @@ def update(
     if (
         weekly_budget is None
         and promotion_goal is None
+        and goal_price is None
         and directs_helps is None
         and name is None
         and not headlines
@@ -1094,8 +1118,17 @@ def update(
     ):
         raise click.UsageError(
             "Provide at least one of --weekly-budget, --promotion-goal, "
-            "--directs-helps/--no-directs-helps, --name, --headline, "
-            "--text, --image."
+            "--goal-price, --directs-helps/--no-directs-helps, --name, "
+            "--headline, --text, --image."
+        )
+
+    if goal_price is not None and promotion_goal == "max-conversions":
+        raise click.UsageError(
+            "--goal-price has no effect under --promotion-goal "
+            "max-conversions — that goal's price is set per-target-action "
+            "in the 'Целевые действия' table, which this CLI does not "
+            "cover yet. --goal-price only applies to --promotion-goal "
+            "max-clicks."
         )
 
     # Slot counts come from the browser layer's own constants (imported here
@@ -1135,6 +1168,7 @@ def update(
             campaign_id,
             weekly_budget=weekly_budget,
             promotion_goal=promotion_goal,
+            goal_price=goal_price,
             directs_helps=directs_helps,
             name=name,
             headlines=parsed_headlines,

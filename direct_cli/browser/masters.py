@@ -330,6 +330,16 @@ PROMOTION_GOAL_CHOICES = {
     "max-clicks": "Максимум переходов",
 }
 
+# Yandex's own internal enum values for each PROMOTION_GOAL_CHOICES key,
+# confirmed live 2026-08-04 (issue #696 recon) via each option row's
+# data-testid (``CampaignTargetSelect.TargetSelect.ListBox.<value>``). These
+# ALSO gate whether ``CampaignTargetSelect.PriceInput`` (the --goal-price
+# field) exists at all — see ``_set_goal_price``.
+PROMOTION_GOAL_INTERNAL_VALUES = {
+    "max-conversions": "INVOLVED_CONVERSION",
+    "max-clicks": "DIRECT_CLICK",
+}
+
 # create_master (issue #632) — confirmed live, see
 # tests/fixtures/masters_wizard_create.html.
 WIZARD_CREATE_URL = "https://direct.yandex.ru/wizard/campaigns/new/"
@@ -595,6 +605,44 @@ _PROMOTION_GOAL_BUTTON_XPATH = (
     "xpath=//*[self::h1 or self::h2 or self::h3][normalize-space(text())="
     "'Цель продвижения']/following::button[1]"
 )
+
+# "Цель продвижения" dropdown option rows, by data-testid (issue #696
+# recon, 2026-08-04 re-investigation): Yandex now renders each option's
+# accessible name as the label PLUS a description sentence and, for some
+# rows, a "Рекомендуем" badge (e.g. "Максимум целевых действийЕсли хотите
+# получать больше звонков и сообщений от клиентовРекомендуем") — this broke
+# the previous get_by_role("option", name=label, exact=True) match, which
+# requires the WHOLE accessible name to equal the bare label. The
+# data-testid suffix (PROMOTION_GOAL_INTERNAL_VALUES) is stable and
+# unambiguous regardless of the surrounding description text.
+_PROMOTION_GOAL_OPTION_TESTID_TEMPLATE = (
+    "CampaignTargetSelect.TargetSelect.ListBox.{value}"
+)
+
+# --goal-price (issue #696 recon, 2026-08-04, campaigns 713234191/713234204):
+# a single ``CampaignTargetSelect.PriceInput`` <input type="text"> exists in
+# the "Цель продвижения" block ONLY when promotion_goal is "max-clicks"
+# (DIRECT_CLICK) — confirmed live it does NOT exist at all for
+# "max-conversions" (INVOLVED_CONVERSION), whose price is instead set
+# per-goal in the separate "Целевые действия" table
+# (``TargetActions.<id>.PriceInput``, out of scope here). Even under
+# max-clicks, the field only renders while the "Цена перехода" strategy
+# selector is on its default AVG_PRICE value ("Средняя за неделю") — it
+# disappears entirely under the OPTIMUM ("Без ограничений") strategy, which
+# has no fixed/target price at all. This module never touches the strategy
+# selector itself, so --goal-price only works against a campaign whose
+# current strategy is (or defaults to) AVG_PRICE.
+_GOAL_PRICE_INPUT_TESTID = '[data-testid="CampaignTargetSelect.PriceInput"]'
+
+# How long _read_goal_price waits for the field to render before concluding
+# it genuinely does not exist for the campaign's current goal (issue #696
+# live testing): the "Цель продвижения" section can still be hydrating
+# when _wait_for_edit_form returns (that wait only polls the first
+# headline slot, near the top of the page) — an immediate is_visible()
+# check raced this and read "not there yet" as "field doesn't exist",
+# producing a false negative in _verify_saved right after a save that DID
+# succeed server-side.
+_GOAL_PRICE_WAIT_TIMEOUT_MS = 5_000
 
 _EDIT_NAME_BUTTON_SELECTOR = '[data-testid="CampaignHeader.EditName.Button"]'
 _NAME_HEADER_SELECTOR = '[data-testid="CampaignHeader.TitleName"]'
@@ -1327,12 +1375,22 @@ def _set_promotion_goal(page: "Page", goal: str) -> None:
     продвижения" dropdown.
 
     Opens the dropdown (click the trigger button), clicks the option row
-    whose text matches the target Russian label, then verifies the trigger
-    button's own text now reflects the new selection — mirrors
-    ``_suspend_or_resume``'s "never trust the click alone" convention.
+    matching ``goal``'s ``PROMOTION_GOAL_INTERNAL_VALUES`` data-testid, then
+    verifies the trigger button's own text now reflects the new selection —
+    mirrors ``_suspend_or_resume``'s "never trust the click alone"
+    convention.
+
+    Matched by data-testid, not accessible-name text (issue #696
+    re-investigation, 2026-08-04): Yandex now appends a description sentence
+    and, for some rows, a "Рекомендуем" badge to each option's accessible
+    name, so the previous ``get_by_role("option", name=label, exact=True)``
+    — which required the WHOLE accessible name to equal the bare label — no
+    longer matches anything and this failed on every live call. The
+    data-testid suffix is stable regardless of that surrounding text.
     """
     label = PROMOTION_GOAL_CHOICES.get(goal)
-    if label is None:
+    internal_value = PROMOTION_GOAL_INTERNAL_VALUES.get(goal)
+    if label is None or internal_value is None:
         raise ValueError(
             f"Unknown promotion goal {goal!r}; expected one of "
             f"{sorted(PROMOTION_GOAL_CHOICES)}."
@@ -1348,26 +1406,14 @@ def _set_promotion_goal(page: "Page", goal: str) -> None:
             "markup. Re-run with --headful to inspect the page."
         ) from exc
 
-    # get_by_role scopes to actual clickable option rows (not any container
-    # whose text happens to contain the label as a substring) — see the
-    # cycle-review finding this fixed: the previous get_by_text(exact=False)
-    # could match an ancestor wrapper instead of the option itself.
-    option = page.get_by_role("option", name=label, exact=True)
+    option_testid = _PROMOTION_GOAL_OPTION_TESTID_TEMPLATE.format(value=internal_value)
+    option = page.locator(f'[data-testid="{option_testid}"]').first
     clicked = False
     try:
-        count = option.count()
+        option.click()
+        clicked = True
     except PlaywrightError:
-        count = 0
-    for i in range(count):
-        handle = option.nth(i)
-        try:
-            if not handle.is_visible():
-                continue
-            handle.click()
-            clicked = True
-            break
-        except PlaywrightError:
-            continue
+        clicked = False
 
     if not clicked:
         raise BrowserSessionError(
@@ -1387,6 +1433,56 @@ def _set_promotion_goal(page: "Page", goal: str) -> None:
             "click may not have hit the right element — verify manually "
             "before retrying."
         )
+
+
+def _set_goal_price(page: "Page", goal_price: float) -> None:
+    """Fill the "Цель продвижения" block's target-price input.
+
+    Only exists (see ``_GOAL_PRICE_INPUT_TESTID``) when the campaign's
+    promotion goal is currently "max-clicks" — callers must call
+    ``_set_promotion_goal(page, "max-clicks")`` first (or already have that
+    goal saved) before this. Raises ``BrowserSessionError`` naming that
+    requirement if the field is absent, rather than silently no-op'ing.
+
+    Uses ``click()`` (not a one-shot ``is_visible()`` snapshot) to locate
+    the field before filling — live testing (issue #696) found this
+    section of the edit page can still be hydrating when
+    ``_wait_for_edit_form`` returns (that wait only polls the first
+    headline slot, near the top of the page), so an immediate
+    ``is_visible()`` check can read "not there yet" as "field doesn't
+    exist for this goal" and raise a false negative. ``click()``'s
+    built-in actionability auto-wait (mirrors ``_set_weekly_budget``'s
+    identical pattern for the same lower-page-position field) gives the
+    section time to render before concluding the field is genuinely
+    absent.
+    """
+    field = page.locator(_GOAL_PRICE_INPUT_TESTID).first
+    try:
+        field.click()
+        field.fill(_format_goal_price(goal_price))
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            "Could not find or fill the target-price input for 'Цель "
+            "продвижения' on the campaign edit page. This field only "
+            "exists when the promotion goal is 'max-clicks' — pass "
+            "--promotion-goal max-clicks together with --goal-price, or "
+            "set it on the campaign first. It also requires the 'Цена "
+            "перехода' strategy to be 'Средняя за неделю' (the default) "
+            "rather than 'Без ограничений'. If the field should exist, "
+            "Yandex may have changed the page's markup — re-run with "
+            "--headful to inspect the page."
+        ) from exc
+
+
+def _format_goal_price(goal_price: float) -> str:
+    """Render ``goal_price`` the way ``--weekly-budget``-style numeric CLI
+    fields are rendered: an integer value with no trailing ``.0`` (the
+    field's own input mask accepts a plain integer or decimal string —
+    confirmed live it displays a comma, not a dot, as the decimal
+    separator, but ``fill()`` accepts either)."""
+    if isinstance(goal_price, float) and goal_price.is_integer():
+        return str(int(goal_price))
+    return str(goal_price)
 
 
 def _click_draft_terminal_button(
@@ -1555,6 +1651,47 @@ def _read_promotion_goal_label(page: "Page") -> Optional[str]:
     return lines[-1] if lines else None
 
 
+def _read_goal_price(page: "Page") -> Optional[str]:
+    """Read the "Цель продвижения" block's target-price input value.
+
+    Returns ``None`` both when the field can't be found/read AND when it
+    legitimately does not exist for the campaign's current promotion goal
+    (see ``_GOAL_PRICE_INPUT_TESTID``) — either way, the caller treats
+    ``None`` as "verification inconclusive", never as a specific price.
+
+    Uses ``wait_for(state="visible")`` (see ``_GOAL_PRICE_WAIT_TIMEOUT_MS``)
+    rather than a one-shot ``is_visible()`` snapshot, for the same reason
+    ``_set_goal_price`` switched to ``click()``: this section of the edit
+    page can still be hydrating right after ``_wait_for_edit_form``
+    returns, and an immediate check can misread "not rendered yet" as
+    "field doesn't exist for this goal".
+    """
+    field = page.locator(_GOAL_PRICE_INPUT_TESTID).first
+    try:
+        field.wait_for(state="visible", timeout=_GOAL_PRICE_WAIT_TIMEOUT_MS)
+        return field.input_value()
+    except PlaywrightError:
+        return None
+
+
+def _goal_price_matches(expected: float, actual: Optional[str]) -> bool:
+    """Compare a requested ``--goal-price`` against the page's re-read value.
+
+    The field's own input mask renders a comma as the decimal separator
+    (confirmed live) and may pad/trim trailing zeros, so this compares
+    parsed numeric values rather than raw strings — mirrors
+    ``_read_weekly_budget``'s digit-only normalization for the same class
+    of "Yandex's own formatting differs from what we typed" mismatch.
+    """
+    if actual is None:
+        return False
+    normalized = actual.strip().replace(",", ".").replace("\xa0", "")
+    try:
+        return float(normalized) == float(expected)
+    except ValueError:
+        return False
+
+
 def _read_campaign_name(page: "Page") -> Optional[str]:
     """Read the edit page header's current campaign name.
 
@@ -1607,6 +1744,7 @@ def _verify_saved(
     texts: Optional[Dict[int, str]] = None,
     images_before_ids: Optional[List[str]] = None,
     images_replaced_ids: Optional[Set[str]] = None,
+    goal_price: Optional[float] = None,
     clicked_button_label: str = _SAVE_BUTTON_TEXT,
 ) -> None:
     """Reload the edit page and confirm every requested field actually saved.
@@ -1646,6 +1784,14 @@ def _verify_saved(
         if actual != expected:
             mismatches.append(
                 f"{label}: expected {expected!r}, page now shows {actual!r}"
+            )
+
+    if goal_price is not None:
+        actual_goal_price = _read_goal_price(page)
+        if not _goal_price_matches(goal_price, actual_goal_price):
+            mismatches.append(
+                f"goal_price: expected {goal_price!r}, page now shows "
+                f"{actual_goal_price!r}"
             )
 
     mismatches.extend(
@@ -1690,6 +1836,7 @@ def update_master(
     *,
     weekly_budget: Optional[int] = None,
     promotion_goal: Optional[str] = None,
+    goal_price: Optional[float] = None,
     directs_helps: Optional[bool] = None,
     name: Optional[str] = None,
     headlines: Optional[Dict[int, str]] = None,
@@ -1751,10 +1898,21 @@ def update_master(
     asks to publish it, mirroring ``create_master``/``copy_master``'s own
     draft-preserving defaults. Has no effect on a non-DRAFT campaign, which
     always uses the single "Сохранить кампанию" button regardless.
+
+    ``goal_price`` (issue #696) sets the "Цель продвижения" block's target
+    price. Confirmed live this field ONLY exists on the page when the
+    campaign's promotion goal is (or is being set to) "max-clicks" — under
+    "max-conversions" the price is instead per-goal in a separate table,
+    out of scope here. Passing ``goal_price`` does not implicitly change
+    ``promotion_goal``; if the campaign's CURRENT goal is not "max-clicks"
+    and ``promotion_goal="max-clicks"`` isn't also passed in this same
+    call, ``_set_goal_price`` raises ``BrowserSessionError`` naming the
+    field as not found, since it genuinely is not on the page yet.
     """
     if (
         weekly_budget is None
         and promotion_goal is None
+        and goal_price is None
         and directs_helps is None
         and name is None
         and not headlines
@@ -1763,8 +1921,8 @@ def update_master(
     ):
         raise ValueError(
             "update_master requires at least one field to update "
-            "(weekly_budget, promotion_goal, directs_helps, name, "
-            "headlines, texts, images)."
+            "(weekly_budget, promotion_goal, goal_price, directs_helps, "
+            "name, headlines, texts, images)."
         )
 
     url = WIZARD_EDIT_URL.format(campaign_id=campaign_id)
@@ -1779,6 +1937,8 @@ def update_master(
         _set_weekly_budget(page, weekly_budget)
     if promotion_goal is not None:
         _set_promotion_goal(page, promotion_goal)
+    if goal_price is not None:
+        _set_goal_price(page, goal_price)
     if directs_helps is not None:
         _set_directs_helps(page, directs_helps)
     for index, value in (headlines or {}).items():
@@ -1851,6 +2011,7 @@ def update_master(
             texts=texts,
             images_before_ids=images_before_ids,
             images_replaced_ids=images_replaced_ids,
+            goal_price=goal_price,
             clicked_button_label=clicked_button_label,
         )
     except BrowserAuthError as exc:
@@ -1867,6 +2028,8 @@ def update_master(
         result["WeeklyBudget"] = weekly_budget
     if promotion_goal is not None:
         result["PromotionGoal"] = promotion_goal
+    if goal_price is not None:
+        result["GoalPrice"] = goal_price
     if directs_helps is not None:
         result["DirectsHelps"] = directs_helps
     if name is not None:
