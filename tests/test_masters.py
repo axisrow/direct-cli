@@ -6174,6 +6174,7 @@ class TestCreateMaster(unittest.TestCase):
             },
         )
         self.assertEqual(page.navigated_to, [browser_masters.WIZARD_CREATE_URL])
+        self.assertEqual(page.goto_wait_until, "commit")
 
     def test_saves_as_draft_when_launch_false(self):
         page, state = self._full_page()
@@ -6257,6 +6258,28 @@ class TestCreateMaster(unittest.TestCase):
                 texts=["t"],
                 regions=["Москва"],
             )
+
+    def test_step1_timeout_raises_when_url_field_never_renders(self):
+        """issue #685: ``goto`` now uses ``wait_until="commit"``, which
+        returns before the page has any real content — the create page's
+        step 1 field must be waited on explicitly, and a page that never
+        renders it must fail with a specific ``BrowserSessionError``, not an
+        opaque markup-changed error from ``_fill_landing_url`` racing an
+        unrendered field.
+        """
+        page, _ = self._full_page()
+        del page._locators[browser_masters._CREATE_URL_INPUT_TESTID]
+
+        with patch.object(browser_masters, "_CREATE_STEP1_TIMEOUT_MS", 10):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.create_master(
+                    page,
+                    "https://ksamata.ru/",
+                    headlines=["h"],
+                    texts=["t"],
+                    regions=["Москва"],
+                )
+        self.assertIn("step 1", str(ctx.exception))
 
     def test_raises_before_launch_when_a_headline_slot_did_not_actually_clear(
         self,

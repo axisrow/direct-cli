@@ -356,6 +356,15 @@ _CREATE_INVALID_URL_TEXT = "Некорректный формат ссылки"
 # content to pre-fill headlines/texts/images), well within this budget.
 _CREATE_STEP2_TIMEOUT_MS = 30_000
 
+# How long to wait for step 1's URL field to render after ``goto`` (issue
+# #685). Same SPA shape as the edit page (``_wait_for_images_editor``'s
+# docstring): the create page hydrates client-side, so
+# ``wait_until="commit"`` — which only waits for the response headers, not
+# even the initial HTML parse ``domcontentloaded`` gives you — returns while
+# step 1's own field is still absent from the DOM. 15s is generous for a
+# static first step (no server-side scan happens until "Далее" is clicked).
+_CREATE_STEP1_TIMEOUT_MS = 15_000
+
 # Step 2 field locators for headlines/texts (issue #653 re-recon,
 # 2026-08-02): Yandex replaced the single "current variant input + Enter"
 # flow with a FIXED set of pre-rendered slots, each its own contenteditable
@@ -2110,6 +2119,45 @@ def _fill_landing_url(page: "Page", url: str) -> None:
         )
 
 
+def _wait_for_create_step1(page: "Page") -> None:
+    """Block until the create page's step 1 URL field has rendered.
+
+    ``goto(WIZARD_CREATE_URL, wait_until="commit")`` returns as soon as the
+    response headers arrive — before Playwright has even parsed the initial
+    HTML, let alone run the client-side JS that renders step 1's field (see
+    ``_CREATE_STEP1_TIMEOUT_MS``). Without this wait, ``_fill_landing_url``'s
+    ``page.locator(_CREATE_URL_INPUT_TESTID).first.click()`` races the page's
+    hydration: Playwright's own actionability auto-wait usually absorbs this,
+    but on a slow render it can exceed ``.click()``'s default timeout and
+    surface as an opaque ``PlaywrightError`` that ``_fill_landing_url``
+    reports as "Yandex may have changed the page's markup" — a misdiagnosis
+    of a load-timing issue as a markup change (issue #685).
+    """
+    if _poll_until(
+        page,
+        lambda: page.locator(_CREATE_URL_INPUT_TESTID).count() > 0,
+        _CREATE_STEP1_TIMEOUT_MS,
+    ):
+        return
+
+    # ``commit`` returns before the page has any real content, so the
+    # captcha/auth checks callers run immediately after ``goto`` may have
+    # passed vacuously against near-empty HTML. Re-run them against
+    # whatever rendered during the poll above so a captcha/login page that
+    # only appeared partway through is reported specifically, instead of as
+    # this function's generic step-1 timeout.
+    assert_not_captcha(page.content())
+    assert_authenticated(page.content())
+
+    raise BrowserSessionError(
+        "Timed out waiting for the Мастер кампаний create page's step 1 "
+        f"(the landing-page URL field) to render within "
+        f"{_CREATE_STEP1_TIMEOUT_MS / 1000:.0f}s. Yandex may have changed "
+        "the page's markup, or the page may still be loading. Re-run with "
+        "--headful to inspect the page."
+    )
+
+
 def _wait_for_step2(page: "Page") -> None:
     """Block until step 2's long form has rendered.
 
@@ -3526,9 +3574,17 @@ def create_master(
     if not regions:
         raise ValueError("create_master requires at least one region.")
 
-    page.goto(WIZARD_CREATE_URL, wait_until="domcontentloaded")
+    # ``wait_until="commit"``, not ``domcontentloaded`` (issue #685):
+    # confirmed live the create page can take long enough to hydrate that
+    # even ``domcontentloaded`` — which additionally waits for the initial
+    # HTML parse — occasionally times out before Playwright's navigation
+    # settles. "commit" only waits for the response to start arriving, so
+    # the actual page-ready check is the explicit
+    # ``_wait_for_create_step1`` below, not the navigation wait itself.
+    page.goto(WIZARD_CREATE_URL, wait_until="commit")
     assert_not_captcha(page.content())
     assert_authenticated(page.content())
+    _wait_for_create_step1(page)
 
     _fill_landing_url(page, url)
     _wait_for_step2(page)
