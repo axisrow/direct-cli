@@ -73,6 +73,14 @@ navigation (#684):**
 - `fetch_master_images`'s existing `_wait_for_images_editor` call is
   unaffected — confirmed this fix composes cleanly with it (the form-ready
   wait happens first, then the images-specific stub wait, as before).
+- Cycle-review follow-up: `_wait_for_edit_form`'s poll loop now re-checks
+  `assert_not_captcha`/`assert_authenticated` on every tick, not just once
+  right after `goto(..., wait_until="commit")`. A captcha gate or expired
+  session that the SPA's own JS renders in *after* that initial commit
+  response was previously invisible to the one-shot checks and only
+  surfaced as a generic timeout — losing the specific `BrowserCaptchaError`/
+  `BrowserAuthError` that `_verify_saved_images`'s post-save caller relies
+  on to know not to retry a non-idempotent image mutation.
 
 **Added — `direct masters adimages delete/set` (#648):**
 

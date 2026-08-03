@@ -3381,14 +3381,17 @@ class TestUpdateMaster(unittest.TestCase):
         )
 
         original_assert_authenticated = browser_masters.assert_authenticated
-        calls = []
 
         def _assert_authenticated(content):
-            calls.append(True)
-            # First call happens before any mutation (module convention);
-            # only the post-save reload inside _verify_saved (second call)
-            # hits the invalidated session.
-            if len(calls) >= 2:
+            # The terminal save click is irreversible and NOT idempotent for
+            # images (see this test's own docstring) — only an auth failure
+            # AFTER that click (i.e. during _verify_saved's post-save
+            # reload) is the dangerous case this test guards. Gating on
+            # page_save_clicks rather than a raw call count keeps this
+            # correct regardless of how many assert_authenticated calls
+            # precede the save (e.g. _wait_for_edit_form's own poll-loop
+            # check, added in cycle-review round 1 of PR #689).
+            if page_save_clicks:
                 raise BrowserAuthError("stale session, detected mid-body")
             return original_assert_authenticated(content)
 
@@ -5282,16 +5285,16 @@ class TestWaitForEditForm(unittest.TestCase):
 
             def locator(self, selector):
                 if (
-                    selector
-                    == (
-                        f'[data-testid="' f'{browser_masters._EDIT_FORM_READY_TESTID}"]'
-                    )
+                    selector == self._edit_form_ready_selector_str
                     and self._absent_ticks_remaining > 0
                 ):
                     self._absent_ticks_remaining -= 1
                     return _FakeLocator([])
                 return super().locator(selector)
 
+        _AppearsAfterTicksPage._edit_form_ready_selector_str = (
+            f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'
+        )
         page = _AppearsAfterTicksPage(
             locators={
                 self._edit_form_ready_selector(): _FakeLocator([_FakeLocatorHandle()])
@@ -5302,6 +5305,51 @@ class TestWaitForEditForm(unittest.TestCase):
         browser_masters._wait_for_edit_form(page, 42)  # must not raise
 
         self.assertEqual(page._absent_ticks_remaining, 0)
+
+    def test_raises_browser_captcha_error_if_captcha_appears_mid_poll(self):
+        """Issue #684 cycle-review: ``wait_until="commit"`` returns before
+        the SPA's own JS has redirected to a captcha/login page, so a
+        SmartCaptcha gate served AFTER the initial commit response must
+        still be caught by ``_wait_for_edit_form``'s poll loop — not just
+        missed by the one-shot ``assert_not_captcha``/``assert_authenticated``
+        checks that ran immediately after ``goto()``, before this function
+        was even called."""
+
+        class _CaptchaAppearsAfterTicksPage(FakePage):
+            def __init__(self, *args, clean_ticks=2, **kwargs):
+                super().__init__(*args, **kwargs)
+                self._clean_ticks_remaining = clean_ticks
+
+            def content(self):
+                if self._clean_ticks_remaining > 0:
+                    self._clean_ticks_remaining -= 1
+                    return "<html></html>"
+                return "<html>showCaptcha marker here</html>"
+
+        page = _CaptchaAppearsAfterTicksPage(locators={}, clean_ticks=2)
+
+        with self.assertRaises(BrowserCaptchaError):
+            browser_masters._wait_for_edit_form(page, 42)
+
+    def test_raises_browser_auth_error_if_login_page_appears_mid_poll(self):
+        """Same race as the captcha case above, but for an expired/wrong
+        session redirecting to Yandex Passport instead."""
+
+        class _LoginAppearsAfterTicksPage(FakePage):
+            def __init__(self, *args, clean_ticks=2, **kwargs):
+                super().__init__(*args, **kwargs)
+                self._clean_ticks_remaining = clean_ticks
+
+            def content(self):
+                if self._clean_ticks_remaining > 0:
+                    self._clean_ticks_remaining -= 1
+                    return "<html></html>"
+                return "<html>Войдите с Яндекс ID</html>"
+
+        page = _LoginAppearsAfterTicksPage(locators={}, clean_ticks=2)
+
+        with self.assertRaises(BrowserAuthError):
+            browser_masters._wait_for_edit_form(page, 42)
 
 
 class TestWizardEditNavigationUsesCommit(unittest.TestCase):

@@ -2551,11 +2551,20 @@ def _wait_for_edit_form(page: "Page", campaign_id: int) -> None:
 
     Polls for ``_EDIT_FORM_READY_TESTID`` (the first headline slot) rather
     than a fixed sleep, same convention as ``_wait_for_step2``/
-    ``_wait_for_images_editor``.
+    ``_wait_for_images_editor``. Also re-checks ``assert_not_captcha``/
+    ``assert_authenticated`` on every tick (cycle-review #689 finding):
+    the one-shot checks each call site runs right after ``goto(...,
+    wait_until="commit")`` only see whatever the response committed with —
+    a captcha gate or an expired-session redirect that the SPA's own JS
+    renders in *after* that point would be invisible to those checks and
+    would otherwise surface here as a generic timeout instead of the
+    specific ``BrowserCaptchaError``/``BrowserAuthError`` callers rely on
+    to know not to retry a non-idempotent operation (e.g.
+    ``_verify_saved_images``).
     """
     if _poll_until(
         page,
-        lambda: page.locator(f'[data-testid="{_EDIT_FORM_READY_TESTID}"]').count() > 0,
+        lambda: _edit_form_ready_or_raise(page),
         _EDIT_FORM_READY_TIMEOUT_MS,
     ):
         return
@@ -2567,6 +2576,22 @@ def _wait_for_edit_form(page: "Page", campaign_id: int) -> None:
         "changed the page's markup, the campaign may not exist, or the page "
         "may still be loading. Re-run with --headful to inspect the page."
     )
+
+
+def _edit_form_ready_or_raise(page: "Page") -> bool:
+    """Predicate for ``_wait_for_edit_form``'s poll loop.
+
+    Checked on every tick rather than once before the loop starts, so a
+    captcha/login page that renders in after the initial ``commit``
+    response is caught with its specific error instead of being missed and
+    only surfacing later as ``_wait_for_edit_form``'s generic timeout.
+    ``assert_not_captcha``/``assert_authenticated`` raise on a match, which
+    ``_poll_until`` lets propagate (it only suppresses ``PlaywrightError``).
+    """
+    html = page.content()
+    assert_not_captcha(html)
+    assert_authenticated(html)
+    return page.locator(f'[data-testid="{_EDIT_FORM_READY_TESTID}"]').count() > 0
 
 
 def _wait_for_images_editor(page: "Page") -> None:
