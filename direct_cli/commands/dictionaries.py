@@ -5,6 +5,7 @@ Dictionaries commands
 import click
 
 from ..api import client_from_ctx, create_client
+from ..i18n import resolve_locale
 from ..output import format_output, handle_api_errors
 from ..utils import parse_csv_strings, parse_ids, reference_output_options
 
@@ -60,7 +61,12 @@ def get(ctx, names, output_format, output):
 @handle_api_errors
 def get_geo_regions(ctx, name, region_ids, exact_names, fields, output_format, output):
     """Get GeoRegions dictionary entries"""
-    client = client_from_ctx(ctx, create_client)
+    client = create_client(
+        token=ctx.obj.get("token"),
+        login=ctx.obj.get("login"),
+        sandbox=ctx.obj.get("sandbox"),
+        language=resolve_locale(ctx),
+    )
 
     params = {"FieldNames": parse_csv_strings(fields)}
     selection_criteria = {}

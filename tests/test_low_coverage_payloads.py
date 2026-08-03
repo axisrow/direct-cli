@@ -244,6 +244,63 @@ def test_b2b_dictionaries_get_drops_empty_names():
     assert body["params"]["DictionaryNames"] == ["Currencies", "GeoRegions"]
 
 
+def test_dictionaries_get_geo_regions_passes_locale_as_language():
+    """#658: --locale must reach getGeoRegions as Accept-Language."""
+    service = Mock()
+    service.post.return_value = FakeResponse()
+    client = Mock()
+    client.dictionaries.return_value = service
+
+    with patch("direct_cli.cli.get_active_profile", return_value=None):
+        with patch(
+            "direct_cli.commands.dictionaries.create_client", return_value=client
+        ) as mock_create_client:
+            result = CliRunner().invoke(
+                cli,
+                [
+                    "--locale",
+                    "ru",
+                    "dictionaries",
+                    "get-geo-regions",
+                    "--region-ids",
+                    "213",
+                    "--fields",
+                    "GeoRegionId,GeoRegionName",
+                ],
+            )
+
+    assert result.exit_code == 0, result.output
+    assert mock_create_client.call_args.kwargs["language"] == "ru"
+
+
+def test_dictionaries_get_geo_regions_defaults_locale_to_ru():
+    """No --locale still resolves to the CLI's ru default, not None."""
+    service = Mock()
+    service.post.return_value = FakeResponse()
+    client = Mock()
+    client.dictionaries.return_value = service
+
+    with patch("direct_cli.cli.get_active_profile", return_value=None):
+        with patch(
+            "direct_cli.commands.dictionaries.create_client", return_value=client
+        ) as mock_create_client:
+            result = CliRunner().invoke(
+                cli,
+                [
+                    "dictionaries",
+                    "get-geo-regions",
+                    "--region-ids",
+                    "213",
+                    "--fields",
+                    "GeoRegionId,GeoRegionName",
+                ],
+                env={"YANDEX_DIRECT_CLI_LOCALE": ""},
+            )
+
+    assert result.exit_code == 0, result.output
+    assert mock_create_client.call_args.kwargs["language"] == "ru"
+
+
 def test_strategies_add_typed_fields_payload():
     body = _dry_run(
         "strategies",
