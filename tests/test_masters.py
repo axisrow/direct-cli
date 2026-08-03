@@ -1912,6 +1912,12 @@ class TestFetchMaster(unittest.TestCase):
                     [_FakeLocatorHandle(text="191,07 ₽\nЗа конверсию")]
                 ),
             },
+            # _is_draft_overview_page's own _poll_until (which runs first,
+            # to decide DRAFT vs. non-DRAFT) also ticks this same counter —
+            # without a recognisable status marker in body_text it would
+            # never resolve and burn its own real-time timeout budget before
+            # _extract_stat_tiles ever got a chance to run.
+            body_text="Кампания активна",
         )
         with patch.object(browser_masters, "_STAT_TILES_TIMEOUT_MS", 10_000):
             result = browser_masters.fetch_master(page, 1)
@@ -1934,7 +1940,12 @@ class TestFetchMaster(unittest.TestCase):
             def wait_for_timeout(self, timeout):
                 self.tick_count += 1
 
-        page = _TickCountingPage(locators={}, body_text="something Yandex changed")
+        # _is_draft_overview_page's own _poll_until (which runs first, to
+        # decide DRAFT vs. non-DRAFT) also ticks this same counter — needs a
+        # recognisable status marker in body_text or it never resolves and
+        # burns its own real-time timeout budget before _extract_stat_tiles
+        # ever gets a chance to run.
+        page = _TickCountingPage(locators={}, body_text="Кампания активна")
         with patch.object(browser_masters, "_STAT_TILES_TIMEOUT_MS", 10_000):
             with patch("direct_cli.browser.masters.print_warning"):
                 result = browser_masters.fetch_master(page, 1)
