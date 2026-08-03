@@ -3600,6 +3600,36 @@ class TestMastersUpdateCommand(unittest.TestCase):
                 self.assertEqual(mock_update.call_args.kwargs["images"], {1: f.name})
 
 
+class TestMastersAdimagesCommand(unittest.TestCase):
+    """CLI wiring for `masters adimages get/add/delete/set`."""
+
+    def setUp(self):
+        self.runner = CliRunner()
+
+    def test_group_registered(self):
+        result = self.runner.invoke(cli, ["masters", "adimages", "--help"])
+        self.assertEqual(result.exit_code, 0)
+        for leaf in ("get", "add", "delete", "set"):
+            self.assertIn(leaf, result.output)
+
+    def test_get_help_registered(self):
+        result = self.runner.invoke(cli, ["masters", "adimages", "get", "--help"])
+        self.assertEqual(result.exit_code, 0)
+
+    def test_get_calls_fetch_master_images(self):
+        with (
+            patch("direct_cli.browser.masters.fetch_master_images") as mock_fetch,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_fetch.return_value = {"CampaignId": 42, "Images": [], "Count": 0}
+            result = self.runner.invoke(cli, ["masters", "adimages", "get", "42"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        mock_fetch.assert_called_once()
+        self.assertEqual(mock_fetch.call_args.args[1], 42)
+
+
 class TestMastersLoginCommand(unittest.TestCase):
     """CLI wiring for `masters login` (issue #635)."""
 
@@ -4499,6 +4529,9 @@ class _FakeImagesPage(FakePage):
         # without depending on upload ordering internals.
         self._upload_ids = list(upload_ids or [])
         self._upload_call = 0
+        # Every path passed to set_input_files(), in call order — lets
+        # upload tests assert sequencing.
+        self.upload_paths = []
 
     def locator(self, selector):
         if selector == browser_masters._IMAGES_EDITOR_SELECTOR:
@@ -4574,6 +4607,7 @@ class _FakeImagesPage(FakePage):
         return f"{browser_masters._IMAGES_MODAL_SELECTED_PREFIX}{content_id}"
 
     def _upload(self, path):
+        self.upload_paths.append(path)
         if self._upload_call < len(self._upload_ids):
             new_id = self._upload_ids[self._upload_call]
         else:
@@ -4657,9 +4691,10 @@ class TestWaitForImagesEditor(unittest.TestCase):
         loading placeholders, and NEITHER ``ContentImage.*`` nor ``.Open``
         exist yet — only ~3s later do the stubs get replaced by the real
         content. Waiting on ``_IMAGES_EDITOR_SELECTOR`` alone (the original
-        implementation) returned during this stub window, so a campaign
-        that demonstrably had 4 images read back as having none and
-        ``masters update --image`` refused to replace anything.
+        implementation) returned during this stub window, so
+        ``masters adimages get`` reported ``Count: 0`` for a campaign that
+        demonstrably had 4 images, and a subsequent ``adimages add`` then
+        uploaded into what it believed was an empty set and timed out.
         """
 
         class _StubThenContentPage(_FakeImagesPage):
@@ -4817,6 +4852,148 @@ class TestSetImage(unittest.TestCase):
 
         self.assertIn("still shown", str(ctx.exception).lower())
         self.assertEqual(page.save_clicks, [])
+
+
+class TestVerifyImageSetMismatches(unittest.TestCase):
+    """``_verify_image_set_mismatches`` — absolute end-state verification
+    generalizing ``_verify_image_mismatches``'s hardcoded "removed count ==
+    added count" assumption, so ``masters adimages add/delete/set`` can each
+    state their own expected end size.
+    """
+
+    def test_no_mismatches_when_end_state_matches(self):
+        page = _FakeImagesPage(["a", "c", "new"])  # "b" removed, "new" added
+
+        mismatches = browser_masters._verify_image_set_mismatches(
+            page,
+            expected_kept_ids=["a", "c"],
+            removed_ids={"b"},
+            expected_added_count=1,
+        )
+
+        self.assertEqual(mismatches, [])
+
+    def test_asserts_the_set_is_now_empty(self):
+        """The ``delete --all`` / ``set`` with no files case — the old
+        ``_verify_image_mismatches`` couldn't express this at all."""
+        page = _FakeImagesPage([])
+
+        mismatches = browser_masters._verify_image_set_mismatches(
+            page,
+            expected_kept_ids=[],
+            removed_ids={"a", "b", "c"},
+            expected_added_count=0,
+        )
+
+        self.assertEqual(mismatches, [])
+
+    def test_flags_a_leftover_image_when_set_should_be_empty(self):
+        page = _FakeImagesPage(["leftover"])
+
+        mismatches = browser_masters._verify_image_set_mismatches(
+            page,
+            expected_kept_ids=[],
+            removed_ids={"a"},
+            expected_added_count=0,
+        )
+
+        self.assertTrue(any("expected 0" in m for m in mismatches))
+
+    def test_flags_a_removed_id_still_present(self):
+        page = _FakeImagesPage(["a", "b"])
+
+        mismatches = browser_masters._verify_image_set_mismatches(
+            page, expected_kept_ids=[], removed_ids={"a", "b"}, expected_added_count=0
+        )
+
+        self.assertTrue(any("still present" in m for m in mismatches))
+
+    def test_flags_a_kept_id_that_went_missing(self):
+        page = _FakeImagesPage(["a"])
+
+        mismatches = browser_masters._verify_image_set_mismatches(
+            page,
+            expected_kept_ids=["a", "b"],
+            removed_ids=set(),
+            expected_added_count=0,
+        )
+
+        self.assertTrue(any("missing" in m for m in mismatches))
+
+    def test_flags_wrong_end_size_with_both_numbers(self):
+        page = _FakeImagesPage(["a", "b", "c"])
+
+        mismatches = browser_masters._verify_image_set_mismatches(
+            page, expected_kept_ids=["a"], removed_ids=set(), expected_added_count=1
+        )
+
+        self.assertTrue(any("has 3 image(s), expected 2" in m for m in mismatches))
+
+
+class TestFetchMasterImages(unittest.TestCase):
+    """``fetch_master_images`` — read-only, never saves."""
+
+    def test_returns_positions_content_ids_and_thumb_urls(self):
+        page = _FakeImagesPage(["a", "b", "c"])
+
+        result = browser_masters.fetch_master_images(page, 42)
+
+        self.assertEqual(result["CampaignId"], 42)
+        self.assertEqual(result["Count"], 3)
+        self.assertEqual(result["MaxCount"], browser_masters._IMAGES_MAX_COUNT)
+        self.assertEqual(
+            result["Images"],
+            [
+                {"Position": 1, "ContentId": "a", "ThumbUrl": "a"},
+                {"Position": 2, "ContentId": "b", "ThumbUrl": "b"},
+                {"Position": 3, "ContentId": "c", "ThumbUrl": "c"},
+            ],
+        )
+        self.assertEqual(page.save_clicks, [])
+
+    def test_empty_set_is_a_successful_result_not_an_error(self):
+        page = _FakeImagesPage([])
+
+        result = browser_masters.fetch_master_images(page, 42)
+
+        self.assertEqual(result["Count"], 0)
+        self.assertEqual(result["Images"], [])
+        self.assertEqual(page.save_clicks, [])
+
+    def test_never_clicks_save(self):
+        """The modal opens to read thumb URLs, but is abandoned rather than
+        Saved — nothing commits to the saved image set (see
+        ``fetch_master_images``'s docstring: same abandon-safe invariant
+        ``_set_image`` relies on)."""
+        page = _FakeImagesPage(["a", "b"])
+
+        browser_masters.fetch_master_images(page, 42)
+
+        self.assertEqual(page.save_clicks, [])
+
+    def test_empty_set_never_opens_the_modal(self):
+        """Nothing to read a thumb URL for, so the modal stays shut."""
+        page = _FakeImagesPage([])
+
+        result = browser_masters.fetch_master_images(page, 42)
+
+        self.assertEqual(result["Count"], 0)
+        self.assertFalse(page.modal_open)
+
+    def test_unrendered_editor_raises_rather_than_reporting_no_images(self):
+        class _NoEditorPage(_FakeImagesPage):
+            def locator(self, selector):
+                if selector == browser_masters._IMAGES_EDITOR_SELECTOR:
+                    return _FakeLocator([])
+                return super().locator(selector)
+
+        page = _NoEditorPage([])
+        with patch.object(browser_masters, "_IMAGES_EDITOR_TIMEOUT_MS", 1):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.fetch_master_images(page, 42)
+
+        self.assertIn("did not finish rendering", str(ctx.exception))
+        self.assertNotIn("no images", str(ctx.exception).lower())
 
 
 class TestVerifyImageMismatches(unittest.TestCase):

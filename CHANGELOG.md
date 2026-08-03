@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+**Added — `direct masters adimages get` (#648):**
+
+- New `direct masters adimages` subgroup, the browser-driven counterpart to
+  the API-side `direct adimages` group (Мастер кампаний has no API surface
+  at all). `adimages get <CAMPAIGN_ID>` reports the campaign's whole image
+  set — `Position` (1-based), `ContentId`, and `ThumbUrl` per image, plus
+  `Count` and `MaxCount`.
+- **An empty image set is a successful result (`Count: 0`), not an error**,
+  unlike `masters update --image` which refuses outright when a campaign
+  has no images. Images are optional on a Мастер кампаний campaign, exactly
+  like ad images on a text ad via the API — there is no "at least one"
+  invariant of the kind headlines and texts have.
+- Read-only: the thumbnail URL is not exposed on the edit page itself, so
+  this opens the image manager modal to read it and then abandons the modal
+  WITHOUT ever clicking Save — nothing commits to the campaign. A campaign
+  with no images skips the modal entirely, there being nothing to read.
+- `_verify_image_mismatches` now delegates to a new
+  `_verify_image_set_mismatches`, which checks an ABSOLUTE expected end
+  state (every removed ID gone, every kept ID present, total size as
+  expected) rather than assuming "removed count == added count". A point
+  replacement is that general check with the two counts pinned equal, so
+  the existing behaviour is unchanged.
+- `masters adimages get` is the CLI's first three-level command; it is
+  classified SAFE in the smoke matrix.
+
 **Fixed — `_wait_for_images_editor` returned during a loading-stub state,
 under-reporting a campaign's real image count (#648):**
 

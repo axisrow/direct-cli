@@ -12,7 +12,11 @@ wrapper around.
 
 Read-only: ``list`` and ``get``. Mutations: ``suspend``/``resume`` (issue
 #630) and ``add`` (issue #632, create — NOT idempotent, no sandbox/rollback,
-see ``add``'s own docstring).
+see ``add``'s own docstring). ``update`` (issue #631) edits a campaign's
+settings, including point-replacement of individual images via
+``--image``. ``adimages get`` (issue #648) reads a campaign's whole image
+set, mirroring the API-side ``direct adimages get`` vocabulary and
+treating an empty set as legitimate (unlike ``update --image``).
 
 No ``--login``/agency support (issue #639): this group only ever reads the
 logged-in user's own account, so it needs no Yandex Direct credentials at
@@ -644,6 +648,49 @@ def _validate_image_paths(parsed_images: "dict[int, str]") -> None:
                 f"--image path {raw_path!r} (slot {slot}) has an unsupported "
                 f"extension {path.suffix!r} — Yandex accepts PNG, JPEG, or GIF."
             )
+
+
+@masters.group("adimages")
+def adimages():
+    """Manage a Мастер кампаний campaign's image set (browser-driven, no API)
+
+    Мастер кампаний has no Yandex Direct API surface (see this module's own
+    docstring), so unlike ``direct adimages get/add/delete`` (API-backed ad
+    images, ``direct_cli/commands/adimages.py``) every subcommand here drives
+    a real browser session against the campaign's edit page. The vocabulary
+    is deliberately the same.
+
+    Unlike ``masters update --image`` (point-replacement of one existing
+    image only, refuses on an empty set), this group treats an empty image
+    set as a completely normal state — a campaign can legitimately have
+    zero images, exactly like ad images on a text ad via the API.
+    """
+
+
+@adimages.command("get")
+@click.argument("campaign_id", type=int)
+@_masters_browser_options
+@click.pass_context
+@handle_api_errors
+def adimages_get(
+    ctx, campaign_id, headful, profile_dir, chrome_profile, output_format, output
+):
+    """Get a Мастер кампаний campaign's current image set
+
+    An empty set is a valid, successful result (``Count: 0``), not an
+    error — see the ``adimages`` group's docstring.
+    """
+    from ..browser.masters import fetch_master_images
+
+    result = _with_session(
+        ctx,
+        headful,
+        profile_dir,
+        chrome_profile,
+        lambda page: fetch_master_images(page, campaign_id),
+    )
+
+    format_output(result, output_format, output)
 
 
 @masters.command()
