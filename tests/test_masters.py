@@ -103,6 +103,15 @@ class _FakeLocatorHandle:
             raise PlaywrightError("element detached")
         return self._visible
 
+    def wait_for(self, state="visible", timeout=None):
+        # Models Locator.wait_for(state="visible") — used by _read_goal_price
+        # instead of a one-shot is_visible() snapshot (issue #696). Raises
+        # the same PlaywrightError a real timeout would when the element is
+        # absent/detached/not visible, so a test can model "field never
+        # rendered" without a separate polling loop.
+        if self._raises or not self._visible:
+            raise PlaywrightError("Timeout waiting for element state")
+
     def click(self, timeout=None):
         if self._raises:
             raise PlaywrightError("element detached")
@@ -2443,13 +2452,14 @@ class TestSetDirectsHelps(unittest.TestCase):
 class TestSetPromotionGoal(unittest.TestCase):
     """``_set_promotion_goal`` (issue #631, Этап A) — open dropdown, click, verify.
 
-    Options are modeled via ``role_elements`` (role="option"), not
-    ``text_buttons`` — ``_set_promotion_goal`` uses
-    ``get_by_role("option", name=label, exact=True)`` (cycle-review fix: the
-    previous ``get_by_text(exact=False)`` risked matching an ancestor
-    container instead of the option row itself). Using ``role_elements``
-    here means these tests actually exercise the same exact-name matching
-    the real code performs, instead of matching by an opaque dict key.
+    Options are modeled via ``locators`` keyed by the option row's
+    data-testid selector, NOT ``role_elements`` (issue #696
+    re-investigation, 2026-08-04): Yandex now appends a description
+    sentence and, for some rows, a "Рекомендуем" badge to each option's
+    accessible name, which broke the previous
+    ``get_by_role("option", name=label, exact=True)`` match entirely on
+    live pages. ``_set_promotion_goal`` now matches by the option's stable
+    data-testid (``PROMOTION_GOAL_INTERNAL_VALUES``) instead.
 
     The trigger's ``inner_text()`` is modeled as TWO lines (static section
     label, then the current selection) — confirmed live 2026-08-01 (see
@@ -2461,7 +2471,14 @@ class TestSetPromotionGoal(unittest.TestCase):
 
     _TRIGGER_LABEL = "Цель продвижения"
 
-    def _page_for_goal_selection(self, target_label, selected_line_after_click):
+    def _option_testid(self, goal):
+        return browser_masters._PROMOTION_GOAL_OPTION_TESTID_TEMPLATE.format(
+            value=browser_masters.PROMOTION_GOAL_INTERNAL_VALUES[goal]
+        )
+
+    def _page_for_goal_selection(
+        self, goal, selected_line_after_click, *, visible=True
+    ):
         state = {"selected_line": "Максимум целевых действий"}
 
         def _select():
@@ -2472,54 +2489,23 @@ class TestSetPromotionGoal(unittest.TestCase):
         # option — two lines, matching the live-confirmed shape.
         trigger.inner_text = lambda: f"{self._TRIGGER_LABEL}\n{state['selected_line']}"
 
+        option = _FakeLocatorHandle(visible=visible, on_click=_select)
+        option_selector = f'[data-testid="{self._option_testid(goal)}"]'
+
         return FakePage(
             locators={
-                browser_masters._PROMOTION_GOAL_BUTTON_XPATH: _FakeLocator([trigger])
+                browser_masters._PROMOTION_GOAL_BUTTON_XPATH: _FakeLocator([trigger]),
+                option_selector: _FakeLocator([option]),
             },
-            role_elements=[
-                (
-                    "option",
-                    target_label,
-                    _FakeTextLocatorHandle(visible=True, on_click=_select),
-                )
-            ],
         )
 
     def test_selects_option_and_verifies(self):
-        page = self._page_for_goal_selection("Максимум переходов", "Максимум переходов")
+        page = self._page_for_goal_selection("max-clicks", "Максимум переходов")
 
         browser_masters._set_promotion_goal(page, "max-clicks")
 
         trigger = page.locator(browser_masters._PROMOTION_GOAL_BUTTON_XPATH).first
         self.assertEqual(trigger.inner_text(), "Цель продвижения\nМаксимум переходов")
-
-    def test_does_not_match_option_whose_name_only_contains_label_as_substring(self):
-        # A decoy element whose accessible name merely CONTAINS the target
-        # label (e.g. an ancestor wrapper with extra description text) must
-        # NOT be treated as a match — get_by_role(..., exact=True) requires
-        # an exact accessible-name equality, not a substring.
-        state = {"trigger_text": "Цель продвижения"}
-        trigger = _FakeLocatorHandle(text="Цель продвижения")
-        trigger.inner_text = lambda: state["trigger_text"]
-        decoy_clicked = []
-        page = FakePage(
-            locators={
-                browser_masters._PROMOTION_GOAL_BUTTON_XPATH: _FakeLocator([trigger])
-            },
-            role_elements=[
-                (
-                    "option",
-                    "Максимум переходов — если хотите получать больше кликов",
-                    _FakeTextLocatorHandle(
-                        visible=True, on_click=lambda: decoy_clicked.append(True)
-                    ),
-                )
-            ],
-        )
-
-        with self.assertRaises(BrowserSessionError):
-            browser_masters._set_promotion_goal(page, "max-clicks")
-        self.assertEqual(decoy_clicked, [])
 
     def test_raises_on_unknown_goal_key(self):
         page = FakePage()
@@ -2539,7 +2525,14 @@ class TestSetPromotionGoal(unittest.TestCase):
             locators={
                 browser_masters._PROMOTION_GOAL_BUTTON_XPATH: _FakeLocator([trigger])
             },
-            role_elements=[],
+        )
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._set_promotion_goal(page, "max-clicks")
+
+    def test_raises_when_option_not_visible(self):
+        page = self._page_for_goal_selection(
+            "max-clicks", "Максимум переходов", visible=False
         )
 
         with self.assertRaises(BrowserSessionError):
@@ -2548,13 +2541,108 @@ class TestSetPromotionGoal(unittest.TestCase):
     def test_raises_when_click_does_not_change_trigger_text(self):
         # Option is clicked but the trigger's selected line never changes.
         page = self._page_for_goal_selection(
-            "Максимум переходов",
+            "max-clicks",
             "Максимум целевых действий",  # unchanged
         )
 
         with self.assertRaises(BrowserSessionError) as ctx:
             browser_masters._set_promotion_goal(page, "max-clicks")
         self.assertIn("does not show it", str(ctx.exception))
+
+
+class TestSetGoalPrice(unittest.TestCase):
+    """``_set_goal_price``/``_read_goal_price`` (issue #696).
+
+    ``CampaignTargetSelect.PriceInput`` only exists on the page when the
+    campaign's promotion goal is 'max-clicks' (confirmed live, see module
+    docstring above ``_GOAL_PRICE_INPUT_TESTID``) — so the field-missing
+    case (goal is 'max-conversions', or the strategy isn't AVG_PRICE) is
+    modeled the same way as every other optional-field helper in this
+    module: an empty/invisible ``_FakeLocator``, not a special code path.
+    """
+
+    def _page_with_price_field(self, *, visible=True, initial_value=""):
+        state = {"value": initial_value}
+        field = _FakeLocatorHandle(visible=visible)
+        field.fill = lambda value: state.__setitem__("value", value)
+        field.input_value = lambda: state["value"]
+        page = FakePage(
+            locators={browser_masters._GOAL_PRICE_INPUT_TESTID: _FakeLocator([field])},
+        )
+        return page, state
+
+    def test_fills_price_field(self):
+        page, state = self._page_with_price_field()
+
+        browser_masters._set_goal_price(page, 500)
+
+        self.assertEqual(state["value"], "500")
+
+    def test_fills_non_integer_price_as_is(self):
+        page, state = self._page_with_price_field()
+
+        browser_masters._set_goal_price(page, 12.5)
+
+        self.assertEqual(state["value"], "12.5")
+
+    def test_raises_when_field_not_present(self):
+        page = FakePage(locators={})
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._set_goal_price(page, 500)
+        self.assertIn("max-clicks", str(ctx.exception))
+
+    def test_raises_when_field_click_fails(self):
+        # click() (not a one-shot is_visible() snapshot) is what locates
+        # the field before filling — see _set_goal_price's docstring for
+        # why (the section can still be hydrating when this runs). Modeled
+        # via raises=True, the same "element not found/detached" fake
+        # every other click()-based helper in this module uses.
+        field = _FakeLocatorHandle(raises=True)
+        page = FakePage(
+            locators={browser_masters._GOAL_PRICE_INPUT_TESTID: _FakeLocator([field])},
+        )
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._set_goal_price(page, 500)
+
+    def test_reads_current_value(self):
+        page, _ = self._page_with_price_field(initial_value="500")
+
+        self.assertEqual(browser_masters._read_goal_price(page), "500")
+
+    def test_read_returns_none_when_field_not_visible(self):
+        page, _ = self._page_with_price_field(visible=False, initial_value="500")
+
+        self.assertIsNone(browser_masters._read_goal_price(page))
+
+    def test_read_returns_none_when_field_missing(self):
+        page = FakePage(locators={})
+
+        self.assertIsNone(browser_masters._read_goal_price(page))
+
+
+class TestGoalPriceMatches(unittest.TestCase):
+    """``_goal_price_matches`` — numeric comparison tolerant of Yandex's
+    own comma-decimal / whitespace formatting on read-back."""
+
+    def test_matches_identical_string(self):
+        self.assertTrue(browser_masters._goal_price_matches(500, "500"))
+
+    def test_matches_comma_decimal(self):
+        self.assertTrue(browser_masters._goal_price_matches(12.5, "12,5"))
+
+    def test_matches_with_nbsp_thousands_separator(self):
+        self.assertTrue(browser_masters._goal_price_matches(1500, "1\xa0500"))
+
+    def test_does_not_match_different_value(self):
+        self.assertFalse(browser_masters._goal_price_matches(500, "600"))
+
+    def test_does_not_match_none(self):
+        self.assertFalse(browser_masters._goal_price_matches(500, None))
+
+    def test_does_not_match_unparseable_value(self):
+        self.assertFalse(browser_masters._goal_price_matches(500, "not-a-number"))
 
 
 class TestClickSave(unittest.TestCase):
@@ -2811,6 +2899,7 @@ class TestUpdateMaster(unittest.TestCase):
         name_state=None,
         headlines_state=None,
         texts_state=None,
+        goal_price_state=None,
     ):
         save_clicks = []
         save_handle = _FakeTextLocatorHandle(
@@ -2898,6 +2987,15 @@ class TestUpdateMaster(unittest.TestCase):
                 [header_handle]
             )
 
+        if goal_price_state is not None:
+            price_handle = _FakeLocatorHandle(
+                on_fill=lambda v: goal_price_state.__setitem__("value", v),
+                get_value=lambda: goal_price_state.get("value", ""),
+            )
+            locators[browser_masters._GOAL_PRICE_INPUT_TESTID] = _FakeLocator(
+                [price_handle]
+            )
+
         # Issue #684: every WIZARD_EDIT_URL goto() now polls
         # _wait_for_edit_form for the first headline slot before trusting
         # the page. headlines_state already adds a real handle for slot 0
@@ -2952,6 +3050,42 @@ class TestUpdateMaster(unittest.TestCase):
         self.assertTrue(checkbox_state["checked"])
         self.assertEqual(len(save_clicks), 1)
         self.assertEqual(result, {"CampaignId": 42, "DirectsHelps": True})
+
+    def test_updates_only_goal_price(self):
+        price_state = {}
+        page, save_clicks = self._page_with_save_button(goal_price_state=price_state)
+
+        result = browser_masters.update_master(page, 42, goal_price=500)
+
+        self.assertEqual(price_state["value"], "500")
+        self.assertEqual(len(save_clicks), 1)
+        self.assertEqual(result, {"CampaignId": 42, "GoalPrice": 500})
+
+    def test_raises_when_saved_goal_price_does_not_match_requested(self):
+        # The field fills fine, but the post-save reload shows a DIFFERENT
+        # value than what was requested (Yandex rejected it client-side) —
+        # _verify_saved must catch this the same way it catches every
+        # other silently-rejected field.
+        price_state = {"value": "999"}
+        price_handle = _FakeLocatorHandle(
+            on_fill=lambda v: None,  # fill() is a no-op — value never changes
+            get_value=lambda: price_state["value"],
+        )
+        save_handle = _FakeTextLocatorHandle(visible=True)
+        edit_form_ready_selector = (
+            f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'
+        )
+        page = FakePage(
+            locators={
+                browser_masters._GOAL_PRICE_INPUT_TESTID: _FakeLocator([price_handle]),
+                edit_form_ready_selector: _FakeLocator([_FakeLocatorHandle()]),
+            },
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(page, 42, goal_price=500)
+        self.assertIn("did not save as requested", str(ctx.exception))
 
     def test_updates_multiple_fields_in_one_call(self):
         budget_state = {}
@@ -3147,13 +3281,17 @@ class TestUpdateMaster(unittest.TestCase):
         edit_form_ready_selector = (
             f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'
         )
+        option_testid = browser_masters._PROMOTION_GOAL_OPTION_TESTID_TEMPLATE.format(
+            value=browser_masters.PROMOTION_GOAL_INTERNAL_VALUES["max-clicks"]
+        )
+        option_selector = f'[data-testid="{option_testid}"]'
         page = FakePage(
             locators={
                 browser_masters._PROMOTION_GOAL_BUTTON_XPATH: _FakeLocator([trigger]),
                 edit_form_ready_selector: _FakeLocator([_FakeLocatorHandle()]),
+                option_selector: _FakeLocator([_FakeLocatorHandle(visible=True)]),
             },
             role_elements=[
-                ("option", "Максимум переходов", _FakeTextLocatorHandle(visible=True)),
                 ("button", browser_masters._SAVE_BUTTON_TEXT, save_handle),
             ],
         )
@@ -3488,6 +3626,81 @@ class TestMastersUpdateCommand(unittest.TestCase):
             cli, ["masters", "update", "42", "--promotion-goal", "bogus"]
         )
         self.assertNotEqual(result.exit_code, 0)
+
+    def test_passes_goal_price(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "update",
+                    "42",
+                    "--promotion-goal",
+                    "max-clicks",
+                    "--goal-price",
+                    "500",
+                ],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(mock_update.call_args.kwargs["goal_price"], 500.0)
+        self.assertEqual(mock_update.call_args.kwargs["promotion_goal"], "max-clicks")
+
+    def test_goal_price_alone_is_a_valid_field(self):
+        # --goal-price on its own (no --promotion-goal) is accepted by the
+        # CLI's "at least one field" guard — whether it actually works
+        # depends on the campaign's CURRENT saved goal already being
+        # 'max-clicks', which update_master (not this guard) determines.
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli, ["masters", "update", "42", "--goal-price", "300"]
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(mock_update.call_args.kwargs["goal_price"], 300.0)
+        self.assertIsNone(mock_update.call_args.kwargs["promotion_goal"])
+
+    def test_rejects_goal_price_with_max_conversions(self):
+        result = self.runner.invoke(
+            cli,
+            [
+                "masters",
+                "update",
+                "42",
+                "--promotion-goal",
+                "max-conversions",
+                "--goal-price",
+                "500",
+            ],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("max-conversions", result.output)
+
+    def test_does_not_call_update_master_when_goal_price_rejected(self):
+        with patch("direct_cli.browser.masters.update_master") as mock_update:
+            self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "update",
+                    "42",
+                    "--promotion-goal",
+                    "max-conversions",
+                    "--goal-price",
+                    "500",
+                ],
+            )
+        mock_update.assert_not_called()
 
     def test_passes_directs_helps_flag(self):
         with (
