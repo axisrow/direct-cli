@@ -3616,6 +3616,12 @@ class TestMastersAdimagesCommand(unittest.TestCase):
         result = self.runner.invoke(cli, ["masters", "adimages", "get", "--help"])
         self.assertEqual(result.exit_code, 0)
 
+    def test_add_help_documents_image_file_and_launch(self):
+        result = self.runner.invoke(cli, ["masters", "adimages", "add", "--help"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("--image-file", result.output)
+        self.assertIn("--launch", result.output)
+
     def test_get_calls_fetch_master_images(self):
         with (
             patch("direct_cli.browser.masters.fetch_master_images") as mock_fetch,
@@ -3628,6 +3634,80 @@ class TestMastersAdimagesCommand(unittest.TestCase):
         self.assertEqual(result.exit_code, 0, result.output)
         mock_fetch.assert_called_once()
         self.assertEqual(mock_fetch.call_args.args[1], 42)
+
+    def test_add_rejects_missing_file_before_any_session_opens(self):
+        with patch("direct_cli.commands.masters._with_session") as mock_with_session:
+            result = self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "adimages",
+                    "add",
+                    "42",
+                    "--image-file",
+                    "/tmp/does-not-exist-xyz-123.png",
+                ],
+            )
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("does not exist", result.output)
+        mock_with_session.assert_not_called()
+
+    def test_add_rejects_unsupported_extension_before_any_session_opens(self):
+        import tempfile
+
+        with (
+            tempfile.NamedTemporaryFile(suffix=".webp") as f,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            result = self.runner.invoke(
+                cli, ["masters", "adimages", "add", "42", "--image-file", f.name]
+            )
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("unsupported extension", result.output)
+        mock_with_session.assert_not_called()
+
+    def test_add_rejects_more_files_than_the_cap_before_any_session_opens(self):
+        with patch("direct_cli.commands.masters._with_session") as mock_with_session:
+            args = ["masters", "adimages", "add", "42"]
+            for i in range(6):
+                args += ["--image-file", f"/tmp/{i}.png"]
+            result = self.runner.invoke(cli, args)
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("cap", result.output.lower())
+        mock_with_session.assert_not_called()
+
+    def test_add_calls_add_master_images_with_paths_and_launch(self):
+        import tempfile
+
+        with (
+            tempfile.NamedTemporaryFile(suffix=".jpg") as f,
+            patch("direct_cli.browser.masters.add_master_images") as mock_add,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_add.return_value = {"CampaignId": 42, "Added": 1, "Count": 1}
+            result = self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "adimages",
+                    "add",
+                    "42",
+                    "--image-file",
+                    f.name,
+                    "--launch",
+                ],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        mock_add.assert_called_once()
+        args, kwargs = mock_add.call_args
+        self.assertEqual(args[1], 42)
+        self.assertEqual(kwargs["paths"], [f.name])
+        self.assertTrue(kwargs["launch"])
 
 
 class TestMastersLoginCommand(unittest.TestCase):
@@ -4530,7 +4610,8 @@ class _FakeImagesPage(FakePage):
         self._upload_ids = list(upload_ids or [])
         self._upload_call = 0
         # Every path passed to set_input_files(), in call order — lets
-        # upload tests assert sequencing.
+        # ``masters adimages add`` tests assert upload sequencing
+        # (e.g. "removed everything, then uploaded in the order given").
         self.upload_paths = []
 
     def locator(self, selector):
@@ -4854,6 +4935,137 @@ class TestSetImage(unittest.TestCase):
         self.assertEqual(page.save_clicks, [])
 
 
+class TestApplyImageOperations(unittest.TestCase):
+    """``_apply_image_operations`` — the bulk one-modal primitive behind
+    ``masters adimages add/delete/set`` (unlike ``_set_image``, which opens
+    its own modal per call).
+    """
+
+    def test_no_op_when_both_lists_empty(self):
+        page = _FakeImagesPage(["a", "b"])
+
+        browser_masters._apply_image_operations(
+            page, remove_content_ids=(), upload_paths=()
+        )
+
+        self.assertEqual(page.ids, ["a", "b"])
+        self.assertFalse(page.modal_open)
+        self.assertEqual(page.save_clicks, [])
+
+    def test_uploads_into_an_empty_set(self):
+        page = _FakeImagesPage([], upload_ids=["new1", "new2"])
+
+        browser_masters._apply_image_operations(
+            page,
+            remove_content_ids=(),
+            upload_paths=["/tmp/a.png", "/tmp/b.png"],
+        )
+
+        self.assertEqual(page.ids, ["new1", "new2"])
+        self.assertEqual(page.upload_paths, ["/tmp/a.png", "/tmp/b.png"])
+        self.assertEqual(len(page.save_clicks), 1)
+        self.assertFalse(page.modal_open)
+
+    def test_removes_every_image_leaving_the_set_empty(self):
+        page = _FakeImagesPage(["a", "b", "c"])
+
+        browser_masters._apply_image_operations(
+            page,
+            remove_content_ids=["a", "b", "c"],
+            upload_paths=(),
+        )
+
+        self.assertEqual(page.ids, [])
+        self.assertEqual(len(page.save_clicks), 1)
+
+    def test_removes_and_uploads_in_one_modal_session(self):
+        """The core invariant bulk ops need: N removes + M uploads, but
+        exactly ONE open/Save cycle — not N+M cycles like ``_set_image``."""
+        page = _FakeImagesPage(["a", "b", "c"], upload_ids=["x", "y"])
+
+        browser_masters._apply_image_operations(
+            page,
+            remove_content_ids=["a", "b", "c"],
+            upload_paths=["/tmp/x.png", "/tmp/y.png"],
+        )
+
+        self.assertEqual(page.ids, ["x", "y"])
+        self.assertEqual(page.upload_paths, ["/tmp/x.png", "/tmp/y.png"])
+        self.assertEqual(len(page.save_clicks), 1)
+
+    def test_upload_order_is_preserved(self):
+        page = _FakeImagesPage(["a"], upload_ids=["u1", "u2", "u3"])
+
+        browser_masters._apply_image_operations(
+            page,
+            remove_content_ids=(),
+            upload_paths=["/tmp/1.png", "/tmp/2.png", "/tmp/3.png"],
+        )
+
+        self.assertEqual(page.upload_paths, ["/tmp/1.png", "/tmp/2.png", "/tmp/3.png"])
+        self.assertEqual(page.ids, ["a", "u1", "u2", "u3"])
+
+    def test_unknown_remove_content_id_raises_before_any_click(self):
+        page = _FakeImagesPage(["a", "b"])
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._apply_image_operations(
+                page,
+                remove_content_ids=["nonexistent"],
+                upload_paths=(),
+            )
+
+        self.assertIn("not present", str(ctx.exception).lower())
+        self.assertEqual(page.ids, ["a", "b"])
+        self.assertEqual(page.save_clicks, [])
+
+    def test_upload_that_never_lands_raises_and_does_not_save(self):
+        page = _FakeImagesPage(["a"], upload_ids=[])
+        original_locator = page.locator
+
+        def _locator(selector):
+            if selector == browser_masters._IMAGES_MODAL_FILE_INPUT_SELECTOR:
+                return _FakeLocator([_FakeLocatorHandle(on_upload=lambda path: None)])
+            return original_locator(selector)
+
+        page.locator = _locator
+        with patch.object(browser_masters, "_IMAGE_UPLOAD_TIMEOUT_MS", 1):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters._apply_image_operations(
+                    page,
+                    remove_content_ids=(),
+                    upload_paths=["/tmp/a.png"],
+                )
+
+        self.assertIn("no new", str(ctx.exception).lower())
+        self.assertEqual(page.save_clicks, [])
+
+    def test_remove_that_never_takes_effect_raises_and_does_not_save(self):
+        page = _FakeImagesPage(["a", "b"])
+        original_locator = page.locator
+
+        def _locator(selector):
+            remove_testid = browser_masters._IMAGES_MODAL_REMOVE_TESTID_TEMPLATE.format(
+                thumb_url="a"
+            )
+            remove_selector = f'[data-testid="{remove_testid}"]'
+            if selector == remove_selector:
+                return _FakeLocator([_FakeLocatorHandle(on_click=lambda: None)])
+            return original_locator(selector)
+
+        page.locator = _locator
+        with patch.object(browser_masters, "_IMAGE_MODAL_OPEN_TIMEOUT_MS", 1):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters._apply_image_operations(
+                    page,
+                    remove_content_ids=["a"],
+                    upload_paths=(),
+                )
+
+        self.assertIn("still shown", str(ctx.exception).lower())
+        self.assertEqual(page.save_clicks, [])
+
+
 class TestVerifyImageSetMismatches(unittest.TestCase):
     """``_verify_image_set_mismatches`` — absolute end-state verification
     generalizing ``_verify_image_mismatches``'s hardcoded "removed count ==
@@ -4874,8 +5086,8 @@ class TestVerifyImageSetMismatches(unittest.TestCase):
         self.assertEqual(mismatches, [])
 
     def test_asserts_the_set_is_now_empty(self):
-        """The ``delete --all`` / ``set`` with no files case — the old
-        ``_verify_image_mismatches`` couldn't express this at all."""
+        """Removing every image — the old ``_verify_image_mismatches``
+        couldn't express this at all."""
         page = _FakeImagesPage([])
 
         mismatches = browser_masters._verify_image_set_mismatches(
@@ -4964,7 +5176,7 @@ class TestFetchMasterImages(unittest.TestCase):
         """The modal opens to read thumb URLs, but is abandoned rather than
         Saved — nothing commits to the saved image set (see
         ``fetch_master_images``'s docstring: same abandon-safe invariant
-        ``_set_image`` relies on)."""
+        ``_set_image``/``_apply_image_operations`` rely on)."""
         page = _FakeImagesPage(["a", "b"])
 
         browser_masters.fetch_master_images(page, 42)
@@ -4994,6 +5206,61 @@ class TestFetchMasterImages(unittest.TestCase):
 
         self.assertIn("did not finish rendering", str(ctx.exception))
         self.assertNotIn("no images", str(ctx.exception).lower())
+
+
+class TestAddMasterImages(unittest.TestCase):
+    """``add_master_images`` — append into an existing or empty set."""
+
+    def _page_with_save(self, ids, **kwargs):
+        save_clicks = []
+        save_handle = _FakeTextLocatorHandle(
+            visible=True, on_click=lambda: save_clicks.append(True)
+        )
+        page = _FakeImagesPage(
+            ids,
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+            **kwargs,
+        )
+        return page, save_clicks
+
+    def test_appends_into_an_empty_set(self):
+        page, save_clicks = self._page_with_save([], upload_ids=["new1"])
+
+        result = browser_masters.add_master_images(page, 42, paths=["/tmp/a.png"])
+
+        self.assertEqual(page.ids, ["new1"])
+        self.assertEqual(len(save_clicks), 1)
+        self.assertEqual(result, {"CampaignId": 42, "Added": 1, "Count": 1})
+
+    def test_appends_onto_an_existing_set(self):
+        page, save_clicks = self._page_with_save(["a", "b"], upload_ids=["new1"])
+
+        result = browser_masters.add_master_images(page, 42, paths=["/tmp/a.png"])
+
+        self.assertEqual(page.ids, ["a", "b", "new1"])
+        self.assertEqual(result, {"CampaignId": 42, "Added": 1, "Count": 3})
+
+    def test_exceeding_the_cap_raises_and_never_opens_the_modal(self):
+        page, save_clicks = self._page_with_save(["a", "b", "c", "d", "e"])
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.add_master_images(page, 42, paths=["/tmp/a.png"])
+
+        self.assertIn("cap", str(ctx.exception).lower())
+        self.assertFalse(page.modal_open)
+        self.assertEqual(save_clicks, [])
+
+    def test_auth_error_during_verification_is_re_raised_non_idempotent(self):
+        page, _save_clicks = self._page_with_save([], upload_ids=["new1"])
+        with patch.object(
+            browser_masters,
+            "_verify_saved_images",
+            side_effect=BrowserAuthError("stale session"),
+        ):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.add_master_images(page, 42, paths=["/tmp/a.png"])
+
+        self.assertIn("not idempotent", str(ctx.exception).lower())
 
 
 class TestVerifyImageMismatches(unittest.TestCase):

@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+**Added — `direct masters adimages add` (#648):**
+
+- `adimages add <ID> --image-file PATH` (repeatable) appends local
+  PNG/JPEG/GIF files to a campaign's image set, refusing if the current
+  count plus the new files would exceed Yandex's cap of 5. Works from an
+  empty set — the case `masters update --image` refuses outright. Accepts
+  `--launch` (same draft-publishing semantics as `masters update`).
+- `_apply_image_operations` is the new bulk primitive: open the image
+  manager modal ONCE, apply every removal and every upload, click Save
+  once. Removals are located by thumb URLs captured before any removal, so
+  a later removal in the same batch is not thrown off by the panel
+  re-indexing as earlier cards disappear; uploads poll an ABSOLUTE expected
+  panel size rather than `_set_image`'s relative "grew back to the original
+  size" check, which only happens to work for an exact 1-for-1 swap.
+  Nothing commits before the single Save, so any earlier failure leaves the
+  saved set untouched. `_set_image` (what `update --image` uses) is left
+  untouched.
+- `_save_and_verify_images` wraps the shared post-save tail: resolve the
+  draft-aware button label, click it, verify against an absolute expected
+  end state, and translate a mid-verification session expiry into a "do
+  NOT retry" error (uploads are not idempotent, so `_with_session`'s
+  auto-retry must not re-run them).
+- Classified DANGEROUS in the smoke matrix and listed in
+  `scripts/test_dangerous_commands.sh`: Мастер кампаний has no sandbox
+  equivalent, real files are uploaded, and a retried `add` appends again.
+- **Confirmed live 2026-08-03** on DRAFT campaign 713234191, including
+  uploading into a genuinely empty set.
+
 **Added — `direct masters adimages get` (#648):**
 
 - New `direct masters adimages` subgroup, the browser-driven counterpart to

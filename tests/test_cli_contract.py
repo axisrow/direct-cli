@@ -49,6 +49,7 @@ DRY_RUN_EXCEPTIONS = {
     "masters.update",
     "masters.add",
     "masters.copy",
+    "masters.adimages.add",
 }
 
 FORBIDDEN_HELP_TEXT = (
