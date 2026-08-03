@@ -320,6 +320,17 @@ _OVERVIEW_LOAD_TIMEOUT_MS = 30_000
 # showed — these are two independent SPA render passes, not one paint.
 _STAT_TILES_TIMEOUT_MS = 30_000
 
+# How many CONSECUTIVE poll ticks the found stat-tile key set must stay
+# unchanged before _extract_stat_tiles treats it as final (cycle-review
+# #697 finding, Codex): a single unchanged tick is indistinguishable from
+# "the page just hasn't started rendering tiles yet" -- at _poll_until's
+# default 250ms tick, one quiet tick is only 250ms of evidence against a
+# render this file itself documents as taking up to ~15s. 8 consecutive
+# ticks (~2s of continuous silence at the default tick rate) is comfortably
+# below that real-world render time while still returning well short of
+# the full timeout for a campaign that genuinely never renders more tiles.
+_STAT_TILES_STABLE_TICKS = 8
+
 # Overview page's "⋮" menu, confirmed live (issue #633) — see module
 # docstring. Unlike _RESUME_BUTTON_TEXTS/_SUSPEND_BUTTON_TEXTS these are
 # selectors, not text-matched candidates: both testids were read directly off
@@ -979,20 +990,29 @@ def _extract_stat_tiles(page: "Page", result: Dict[str, Any]) -> None:
     # _wait_for_images_editor's "outer container present, content not yet
     # settled" guard (#670) applied to this page's own two-stage render.
     #
-    # Stops as soon as the found set STABILIZES across a tick (unchanged
-    # from the previous scan), not only when every known key is found
-    # (cycle-review #697 finding): a campaign that genuinely has fewer than
-    # 5 tiles -- DRAFT with no stats dashboard, or Yandex simply not
-    # rendering a metric -- would otherwise always burn the full
-    # _STAT_TILES_TIMEOUT_MS waiting for keys that will never appear.
-    # Live-measured: a single-tile fixture took the full 30s under the old
-    # all-keys-required condition.
+    # Stops as soon as the found set STABILIZES for _STAT_TILES_STABLE_TICKS
+    # consecutive ticks (unchanged from tick to tick), not only when every
+    # known key is found (cycle-review #697 finding): a campaign that
+    # genuinely has fewer than 5 tiles -- DRAFT with no stats dashboard, or
+    # Yandex simply not rendering a metric -- would otherwise always burn
+    # the full _STAT_TILES_TIMEOUT_MS waiting for keys that will never
+    # appear. Live-measured: a single-tile fixture took the full 30s under
+    # the old all-keys-required condition.
+    #
+    # Requires SEVERAL consecutive stable ticks, not just one (cycle-review
+    # #697 re-review finding, Codex): a single unchanged tick is only
+    # ~250ms of evidence -- indistinguishable from "the page hasn't started
+    # rendering tiles yet" on a render this file itself documents as taking
+    # up to ~15s. A reproduction confirmed a naive one-tick check returns
+    # an empty/partial result after the very first poll, before the real
+    # tiles have had any chance to render at all.
     wanted_keys = set(_STAT_TILE_LABELS.values())
     stats: Dict[str, str] = {}
     previous_keys: Optional[frozenset] = None
+    stable_ticks = 0
 
     def _scan() -> bool:
-        nonlocal previous_keys
+        nonlocal previous_keys, stable_ticks
         buttons = page.locator("button")
         count = buttons.count()
         for i in range(count):
@@ -1016,9 +1036,12 @@ def _extract_stat_tiles(page: "Page", result: Dict[str, Any]) -> None:
         if stats.keys() >= wanted_keys:
             return True
         current_keys = frozenset(stats.keys())
-        stabilized = current_keys == previous_keys
+        if current_keys == previous_keys:
+            stable_ticks += 1
+        else:
+            stable_ticks = 0
         previous_keys = current_keys
-        return stabilized
+        return stable_ticks >= _STAT_TILES_STABLE_TICKS
 
     _poll_until(page, _scan, _STAT_TILES_TIMEOUT_MS)
 

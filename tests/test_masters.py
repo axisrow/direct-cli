@@ -1828,6 +1828,44 @@ class TestFetchMaster(unittest.TestCase):
         self.assertNotIn("Stats", result)
         self.assertLess(elapsed, 2.0)
 
+    def test_delayed_tile_render_is_not_mistaken_for_a_stable_empty_set(self):
+        # cycle-review #697 re-review finding (Codex): the first version of
+        # the stabilization fix treated a SINGLE unchanged tick as proof the
+        # tile set was final -- but on a page that genuinely has tiles which
+        # just haven't rendered yet (the ~15s two-stage-render delay this
+        # module's own comments document), the very first couple of ticks
+        # are ALSO an unchanged (empty) set, purely because nothing has
+        # rendered yet. A naive one-tick check returned an empty Stats dict
+        # after only ~250ms on a page whose tile genuinely appears a few
+        # ticks later. _STAT_TILES_STABLE_TICKS now requires several
+        # consecutive stable ticks, giving a slow-but-real render room to
+        # actually happen before its result is trusted as final.
+        class _DelayedTilePage(FakePage):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.tile_scan_count = 0
+
+            def locator(self, selector):
+                if selector == "button":
+                    self.tile_scan_count += 1
+                    # Renders on the 2nd scan -- a single-stable-tick check
+                    # would already have declared the empty 1st scan final
+                    # before this tile had a chance to appear.
+                    if self.tile_scan_count <= 1:
+                        return _FakeLocator([])
+                    return _FakeLocator([_FakeLocatorHandle(text="281 722\nПоказа")])
+                return super().locator(selector)
+
+        page = _DelayedTilePage(locators={})
+        result = browser_masters.fetch_master(page, 1)
+
+        self.assertEqual(result["Stats"], {"impressions": "281 722"})
+        # Confirms the stabilization window is actually being exercised,
+        # not short-circuited by the "all wanted keys found" fast path.
+        self.assertGreaterEqual(
+            page.tile_scan_count, 1 + browser_masters._STAT_TILES_STABLE_TICKS
+        )
+
     def test_partial_result_on_unrecognised_sections(self):
         # A page whose title element IS present (so _goto_overview_page is
         # satisfied the overview page is ready — see TestGotoOverviewPage
