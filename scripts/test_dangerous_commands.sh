@@ -32,6 +32,8 @@ non-critical campaign, confirming before/after state in the web UI):
   - direct masters resume <campaign_id>
   - direct masters update <campaign_id> --weekly-budget ... (Этап A: also
     --promotion-goal, --directs-helps/--no-directs-helps)
+  - direct masters adimages add <campaign_id> --image-file ...
+    (uploads real files -- NOT idempotent)
   - direct masters archive <campaign_id>
     (irreversible -- there is no `masters unarchive`)
   - direct masters add <url> --headline ... --text ... --region ...

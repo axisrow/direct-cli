@@ -43,6 +43,7 @@ direct masters update 72349978 --name "Мастер ИЖ Источник Жиз
 direct masters update 72349978 --headline "2=Новый заголовок" --text "1=Новый текст"
 direct masters update 72349978 --image "2=/path/to/banner.png"
 direct masters adimages get 72349978
+direct masters adimages add 72349978 --image-file /path/to/a.png --image-file /path/to/b.png
 direct masters add https://example.com/ --headline "Заголовок 1" --headline "Заголовок 2" --text "Текст объявления" --region Москва --weekly-budget 50000 --draft
 direct masters add https://example.com/ --headline "Заголовок 1" --text "Текст объявления" --region-id 213 --weekly-budget 50000 --draft
 direct masters copy 72349978
@@ -101,18 +102,26 @@ the upper bound for N is whatever the campaign actually has (up to Yandex's
 cap of 5), read fresh from the page, and a campaign with no images at all is
 a legitimate state that `--image` refuses with its own explicit error rather
 than a generic "out of range". Nonexistent paths and extensions Yandex won't
-accept are rejected before any browser opens. Adding an image beyond the
-current set and deleting one without replacement are out of scope. Because
-both the removal and the upload happen inside the same open modal, any
-failure before Save leaves the campaign's saved image set untouched.
+accept are rejected before any browser opens. `--image` only replaces an
+existing image one at a time — for adding beyond the current set, deleting
+without a replacement, or replacing the whole set at once, use `masters
+adimages` below. Because both the removal and the upload happen inside the
+same open modal, any failure before Save leaves the campaign's saved image
+set untouched.
 
-`masters adimages get` reads a campaign's whole image set — position,
-content ID and thumbnail URL for each image — mirroring the vocabulary of
-`direct adimages get` (the API-side ad-image group). It is read-only and
-never saves. Unlike `--image`, an empty image set is a completely normal,
-successful result here (`Count: 0`), not an error: images are optional on
-a Мастер кампаний campaign, exactly like ad images on a text ad via the
-API.
+`masters adimages get/add` mirrors `direct adimages get/add`'s vocabulary
+(the API-side ad-image group) for a campaign's whole image set. Unlike
+`--image`, an empty image set is a completely normal state here — a
+campaign can start with zero images and `adimages add` works from there,
+exactly like ad images on a text ad via the API. `adimages get` is
+read-only and never saves. `adimages add --image-file PATH` (repeatable)
+appends files, refusing if the campaign's current count plus the new files
+would exceed Yandex's cap of 5; it accepts `--launch` (same
+draft-publishing semantics as `masters update`) and, like `--image`, is
+NOT idempotent — a retried call after a partial failure may upload
+duplicates. Every removal and upload happens inside one open modal with a
+single Save at the end, so any earlier failure leaves the saved set
+untouched.
 
 Later fields (sitelinks, audience, Metrika counters/goals, budget adaptation,
 video) aren't implemented yet.
@@ -1209,6 +1218,7 @@ direct masters update 72349978 --name "Мастер ИЖ Источник Жиз
 direct masters update 72349978 --headline "2=Новый заголовок" --text "1=Новый текст"
 direct masters update 72349978 --image "2=/path/to/banner.png"
 direct masters adimages get 72349978
+direct masters adimages add 72349978 --image-file /path/to/a.png --image-file /path/to/b.png
 direct masters add https://example.com/ --headline "Заголовок 1" --headline "Заголовок 2" --text "Текст объявления" --region Москва --weekly-budget 50000 --draft
 direct masters add https://example.com/ --headline "Заголовок 1" --text "Текст объявления" --region-id 213 --weekly-budget 50000 --draft
 direct masters copy 72349978
@@ -1270,19 +1280,27 @@ direct masters copy 72349978 --launch
 жёсткого лимита Яндекса в 5 штук), прочитанное со страницы, а кампания вообще
 без изображений — законное состояние, на котором `--image` падает отдельной
 внятной ошибкой, а не generic «out of range». Несуществующий путь и
-неподдерживаемое расширение отлетают ещё до открытия браузера. Добавление
-изображения сверх текущего набора и удаление изображения без замены — вне
-объёма. Поскольку и удаление, и загрузка происходят внутри одной открытой
-модалки, любая ошибка до Save оставляет сохранённый набор изображений
-кампании нетронутым.
+неподдерживаемое расширение отлетают ещё до открытия браузера. `--image`
+заменяет только одно уже существующее изображение за раз — для добавления
+сверх текущего набора, удаления без замены или полной замены всего набора
+разом используйте `masters adimages` ниже. Поскольку и удаление, и загрузка
+происходят внутри одной открытой модалки, любая ошибка до Save оставляет
+сохранённый набор изображений кампании нетронутым.
 
-`masters adimages get` читает весь набор изображений кампании — позицию,
-content ID и URL миниатюры для каждого — повторяя словарь `direct adimages
-get` (группа изображений объявлений на стороне API). Команда только
-читает и никогда ничего не сохраняет. В отличие от `--image`, пустой набор
-изображений здесь — совершенно нормальный успешный результат (`Count: 0`),
-а не ошибка: изображения у Мастера кампаний необязательны, ровно как
-изображения у текстового объявления через API.
+`masters adimages get/add` повторяет словарь `direct adimages get/add`
+(API-группа изображений объявлений) для всего набора изображений кампании.
+В отличие от `--image`, пустой набор изображений здесь — совершенно
+нормальное состояние: кампания может начинаться без единого изображения, и
+`adimages add` работает и с пустым набором, точно как изображения
+объявлений через API. `adimages get` — только чтение, никогда не
+сохраняет. `adimages add --image-file PATH` (можно повторять) добавляет
+файлы, отказывая, если текущее число изображений плюс новые превысит лимит
+Яндекса в 5 штук; принимает `--launch` (та же семантика публикации
+черновика, что и у `masters update`) и, как и `--image`, НЕ идемпотентна —
+повторный вызов после частичного сбоя может загрузить дубликаты. Все
+удаления и загрузки происходят внутри одной открытой модалки с единственным
+Save в конце, поэтому любая более ранняя ошибка оставляет сохранённый набор
+нетронутым.
 
 Остальные поля (быстрые ссылки, аудитория, счётчики Метрики/цели, адаптация
 бюджета, видео) тоже пока не реализованы.

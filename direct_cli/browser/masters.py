@@ -209,6 +209,7 @@ from typing import (
     Dict,
     List,
     Optional,
+    Sequence,
     Set,
     Tuple,
 )
@@ -1842,8 +1843,9 @@ def fetch_master_images(page: "Page", campaign_id: int) -> Dict[str, Any]:
     ``_read_modal_selected_thumb_urls`` (the thumb URL is not exposed on
     the edit page itself), then abandons it WITHOUT ever clicking Save —
     safe, because nothing commits to the saved image set before Save (the
-    same invariant ``_set_image``'s docstring establishes). A campaign
-    with no images skips the modal entirely, there being nothing to read.
+    same invariant ``_set_image``'s and ``_apply_image_operations``'s
+    docstrings establish). A campaign with no images skips the modal
+    entirely, there being nothing to read.
 
     An empty image set is a legitimate, successful result (``Count: 0``),
     not an error — unlike headlines/texts, images have no "at least one"
@@ -1873,6 +1875,57 @@ def fetch_master_images(page: "Page", campaign_id: int) -> Dict[str, Any]:
         "Images": images,
         "Count": len(content_ids),
         "MaxCount": _IMAGES_MAX_COUNT,
+    }
+
+
+def add_master_images(
+    page: "Page",
+    campaign_id: int,
+    *,
+    paths: Sequence[str],
+    launch: bool = False,
+) -> Dict[str, Any]:
+    """Upload every file in ``paths`` and append them to the campaign's
+    image set — works from an empty set (unlike ``update_master``'s
+    ``--image``, which only replaces an existing image).
+
+    All uploads happen inside ONE modal session via
+    ``_apply_image_operations``, followed by the edit page's terminal
+    save (draft-aware, same as ``update_master``) and a re-navigate
+    verification via ``_verify_saved_images``.
+    """
+    if not paths:
+        raise ValueError("add_master_images requires at least one path.")
+
+    before_ids = _open_images_editor(page, campaign_id)
+
+    if len(before_ids) + len(paths) > _IMAGES_MAX_COUNT:
+        raise BrowserSessionError(
+            f"Campaign {campaign_id} currently has {len(before_ids)} "
+            f"image(s); adding {len(paths)} more would exceed Yandex's "
+            f"cap of {_IMAGES_MAX_COUNT} images per campaign."
+        )
+
+    _apply_image_operations(
+        page,
+        remove_content_ids=(),
+        upload_paths=paths,
+    )
+
+    final_ids = _save_and_verify_images(
+        page,
+        campaign_id,
+        expected_kept_ids=before_ids,
+        removed_ids=set(),
+        expected_added_count=len(paths),
+        launch=launch,
+        not_idempotent_noun="image uploads",
+    )
+
+    return {
+        "CampaignId": campaign_id,
+        "Added": len(paths),
+        "Count": len(final_ids),
     }
 
 
@@ -2611,6 +2664,163 @@ def _set_image(page: "Page", index: int, path: str, *, target_content_id: str) -
     )
 
 
+def _apply_image_operations(
+    page: "Page",
+    *,
+    remove_content_ids: "Sequence[str]",
+    upload_paths: "Sequence[str]",
+) -> None:
+    """Remove zero or more images and upload zero or more files inside ONE
+    open/Save cycle of the image manager modal.
+
+    Unlike ``_set_image`` (one open/remove/upload/Save cycle PER call — left
+    untouched, still what ``update_master``'s ``--image`` point-replacement
+    uses), this is the bulk primitive for ``masters adimages add/delete/
+    set``: open the modal once, perform every removal, perform every
+    upload, then click "Добавить в кампанию" exactly once. Composed from
+    the same two Yandex primitives ``_set_image`` uses — "remove from the
+    set" and "add to the set" — there being no bulk endpoint either.
+
+    Nothing is committed to the campaign's saved image set until the single
+    Save click at the end; a failure at any earlier point leaves the saved
+    set untouched (same abandon-safe property as ``_set_image``).
+
+    An empty ``remove_content_ids``/``upload_paths`` pair (both empty) is a
+    no-op — the modal is never opened. Removing every image so the set ends
+    up EMPTY, or uploading into a campaign that currently has none, are both
+    legitimate outcomes (unlike headlines/texts, images have no "at least
+    one" invariant — see ``_IMAGES_MAX_COUNT``'s module-level comment).
+
+    **Not live-verified:** uploading via a single
+    ``set_input_files([path1, path2, ...])`` call with multiple paths —
+    real Playwright accepts a list, but PR #672's recon never exercised
+    it, so this uploads strictly one path per call, sequentially, to stay
+    on already-confirmed ground.
+
+    Removals are located by the target's thumb URL, captured from the
+    modal's panel BEFORE any removal in this call runs — exactly the
+    ``target_content_id`` → thumb-URL resolution ``_set_image`` already
+    does — so a later removal in the same batch is never thrown off by the
+    panel's re-indexing as earlier cards disappear.
+
+    Uploads are waited for via an ABSOLUTE expected panel size (the size
+    after all removals, plus one per upload so far), not ``_set_image``'s
+    relative "grew back to at least the original size" check — that only
+    happens to work for an exact 1-removed/1-added swap and would under- or
+    over-count for any other combination.
+    """
+    if not remove_content_ids and not upload_paths:
+        return
+
+    _open_images_modal(page)
+
+    panel_urls = _read_modal_selected_thumb_urls(page)
+    modal_ids = _read_image_content_ids(page)
+    if len(modal_ids) != len(panel_urls):
+        raise BrowserSessionError(
+            f"The image manager modal shows {len(panel_urls)} selected "
+            f"image(s), which does not match the {len(modal_ids)} shown on "
+            "the edit page itself. Yandex may have changed the page's "
+            "markup. Re-run with --headful to inspect the page."
+        )
+    url_by_content_id = dict(zip(modal_ids, panel_urls))
+
+    for content_id in remove_content_ids:
+        target_url = url_by_content_id.get(content_id)
+        if target_url is None:
+            raise BrowserSessionError(
+                f"Content ID {content_id!r} is not present in the image "
+                "manager modal's current selection — it may already have "
+                "been removed earlier in this same command. The "
+                "campaign's saved image set has NOT been changed (the "
+                "modal was never saved)."
+            )
+
+        remove_selector = (
+            f'[data-testid="'
+            f"{_IMAGES_MODAL_REMOVE_TESTID_TEMPLATE.format(thumb_url=target_url)}"
+            f'"]'
+        )
+        try:
+            page.locator(remove_selector).first.click()
+        except PlaywrightError as exc:
+            raise BrowserSessionError(
+                f"Could not remove image {content_id!r} inside the image "
+                "manager modal — Yandex may have changed the page's "
+                "markup. Re-run with --headful to inspect the page. The "
+                "campaign's saved image set has NOT been changed (the "
+                "modal was never saved)."
+            ) from exc
+
+        if not _poll_until(
+            page,
+            lambda target_url=target_url: target_url
+            not in _read_modal_selected_thumb_urls(page),
+            _IMAGE_MODAL_OPEN_TIMEOUT_MS,
+        ):
+            raise BrowserSessionError(
+                f"Clicked to remove image {content_id!r} inside the image "
+                "manager modal, but it is still shown there after "
+                f"{_IMAGE_MODAL_OPEN_TIMEOUT_MS / 1000:.0f}s. The "
+                "campaign's saved image set has NOT been changed (the "
+                "modal was never saved) — close the browser and retry."
+            )
+
+    base_count = len(panel_urls) - len(remove_content_ids)
+    for expected_count, path in enumerate(upload_paths, start=base_count + 1):
+        try:
+            page.locator(_IMAGES_MODAL_FILE_INPUT_SELECTOR).first.set_input_files(path)
+        except PlaywrightError as exc:
+            raise BrowserSessionError(
+                f"Could not upload {path!r} inside the image manager modal "
+                "— Yandex may have changed the page's markup. Re-run with "
+                "--headful to inspect the page. The campaign's saved image "
+                "set has NOT been changed (the modal was never saved)."
+            ) from exc
+
+        if not _poll_until(
+            page,
+            lambda expected_count=expected_count: len(
+                _read_modal_selected_thumb_urls(page)
+            )
+            >= expected_count,
+            _IMAGE_UPLOAD_TIMEOUT_MS,
+        ):
+            raise BrowserSessionError(
+                f"Uploaded {path!r} inside the image manager modal, but no "
+                "new image appeared there within "
+                f"{_IMAGE_UPLOAD_TIMEOUT_MS / 1000:.0f}s — Yandex's "
+                "asynchronous processing may have failed or be unusually "
+                "slow. The campaign's saved image set has NOT been changed "
+                "(the modal was never saved) — close the browser and "
+                "retry."
+            )
+
+    try:
+        page.locator(_IMAGES_MODAL_SAVE_SELECTOR).first.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            "Could not find/click 'Добавить в кампанию' to commit the "
+            "image manager modal — Yandex may have changed the page's "
+            "markup. Re-run with --headful to inspect the page. The "
+            "campaign's saved image set has NOT been changed (the modal "
+            "was never saved)."
+        ) from exc
+
+    if _poll_until(
+        page,
+        lambda: page.locator(_IMAGES_MODAL_SELECTOR).first.count() == 0,
+        _IMAGE_MODAL_OPEN_TIMEOUT_MS,
+    ):
+        return
+
+    raise BrowserSessionError(
+        "Clicked 'Добавить в кампанию' but the image manager modal did not "
+        f"close within {_IMAGE_MODAL_OPEN_TIMEOUT_MS / 1000:.0f}s — the "
+        "commit may not have completed. Verify manually before retrying."
+    )
+
+
 def _verify_image_mismatches(
     page: "Page", *, before_ids: List[str], replaced_ids: Set[str]
 ) -> List[str]:
@@ -2634,8 +2844,8 @@ def _verify_image_mismatches(
     ``update_master``/``_verify_saved`` call it with the before/replaced
     vocabulary, and because the empty-``replaced_ids`` early return is
     specific to ``--image`` (nothing requested ⇒ nothing to verify),
-    whereas the general version must still assert an empty end state for
-    ``adimages delete --all``.
+    whereas the general version must still assert an empty end state when
+    every image is removed.
     """
     if not replaced_ids:
         return []
@@ -2668,10 +2878,9 @@ def _verify_image_set_mismatches(
     Sibling of ``_verify_image_mismatches`` (left untouched — ``update_master``
     /``_verify_saved`` and ``TestVerifyImageMismatches`` depend on its exact
     signature), generalizing that function's hardcoded "removed count ==
-    added count" assumption for callers where the two counts routinely
-    differ (e.g. deleting 3 and adding 0, or deleting all N and adding M
-    — the bulk image mutations that build on this). Uploaded images get a
-    Yandex-assigned
+    added count" assumption for ``masters adimages add/delete/set``, where
+    the two counts routinely differ (e.g. deleting 3 and adding 0, or
+    deleting all N and adding M). Uploaded images get a Yandex-assigned
     content ID that is not known ahead of time, so newly added images are
     verified by COUNT only, never by identity — a real limitation of this
     browser surface, not an oversight.
@@ -2681,9 +2890,9 @@ def _verify_image_set_mismatches(
     ``expected_added_count=0`` (removing every image) must still assert
     the saved set is actually empty.
     """
-    # Callers re-navigate before calling this, so the section is once
-    # again mid-render — reading straight away would report every image
-    # as missing (see ``_wait_for_images_editor``).
+    # ``_verify_saved_images`` re-navigates before calling this, so the
+    # section is once again mid-render — reading straight away would
+    # report every image as missing (see ``_wait_for_images_editor``).
     _wait_for_images_editor(page)
     actual_ids = set(_read_image_content_ids(page))
 
@@ -2707,6 +2916,94 @@ def _verify_image_set_mismatches(
             f"{expected_size}"
         )
     return mismatches
+
+
+def _save_and_verify_images(
+    page: "Page",
+    campaign_id: int,
+    *,
+    expected_kept_ids: List[str],
+    removed_ids: Set[str],
+    expected_added_count: int,
+    launch: bool,
+    not_idempotent_noun: str,
+) -> List[str]:
+    """Click the edit page's terminal save, then confirm the saved image
+    set matches the expected end state; return the fresh content ID list.
+
+    The whole post-``_apply_image_operations`` tail shared by
+    the image-set mutations built on ``_apply_image_operations``:
+    resolve the draft-aware button label, click it, verify, and translate a
+    mid-verification session expiry into a "do NOT retry" error (these
+    commands are not idempotent, so ``_with_session``'s auto-retry must not
+    re-run them — same reasoning as ``update_master``'s own wrapper).
+    ``not_idempotent_noun`` is the phrase naming what was already applied
+    ("image uploads", "image deletions", ...).
+    """
+    clicked_button_label = (
+        (_LAUNCH_BUTTON_TEXT if launch else _SAVE_DRAFT_BUTTON_TEXT)
+        if _is_draft_edit_page(page)
+        else _SAVE_BUTTON_TEXT
+    )
+    _click_save(page, campaign_id, launch=launch)
+
+    try:
+        return _verify_saved_images(
+            page,
+            campaign_id,
+            expected_kept_ids=expected_kept_ids,
+            removed_ids=removed_ids,
+            expected_added_count=expected_added_count,
+            clicked_button_label=clicked_button_label,
+        )
+    except BrowserAuthError as exc:
+        raise BrowserSessionError(
+            f"Clicked '{clicked_button_label}' for campaign {campaign_id}, "
+            "but the session was invalidated while verifying the save — "
+            "the requested changes were likely already applied; check "
+            f"campaign {campaign_id} manually rather than retrying "
+            f"({not_idempotent_noun} are not idempotent)."
+        ) from exc
+
+
+def _verify_saved_images(
+    page: "Page",
+    campaign_id: int,
+    *,
+    expected_kept_ids: List[str],
+    removed_ids: Set[str],
+    expected_added_count: int,
+    clicked_button_label: str,
+) -> List[str]:
+    """Reload the edit page, confirm the saved image set matches the
+    expected end state, and return the fresh content ID list on success.
+
+    Shared post-save verification for the image-set mutations — mirrors
+    ``_verify_saved``'s re-navigate-and-re-read discipline (never trust the
+    save click alone; Yandex's client-side validation can silently reject
+    a value) but scoped to just the image set, via
+    ``_verify_image_set_mismatches``.
+    """
+    url = WIZARD_EDIT_URL.format(campaign_id=campaign_id)
+    page.goto(url, wait_until="domcontentloaded")
+    assert_not_captcha(page.content())
+    assert_authenticated(page.content())
+
+    mismatches = _verify_image_set_mismatches(
+        page,
+        expected_kept_ids=expected_kept_ids,
+        removed_ids=removed_ids,
+        expected_added_count=expected_added_count,
+    )
+    if mismatches:
+        raise BrowserSessionError(
+            f"Clicked '{clicked_button_label}' for campaign {campaign_id}, "
+            "but re-reading the saved campaign shows: "
+            + "; ".join(mismatches)
+            + ". Yandex may have rejected the change without a visible "
+            "error — check the campaign manually."
+        )
+    return _read_image_content_ids(page)
 
 
 def _set_region(page: "Page", regions: List[str]) -> None:
