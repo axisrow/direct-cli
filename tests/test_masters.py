@@ -6087,6 +6087,60 @@ class TestDeleteMasterImages(unittest.TestCase):
         self.assertIn("not present", str(ctx.exception).lower())
         self.assertEqual(save_clicks, [])
 
+    def test_all_with_launch_still_publishes_an_already_empty_draft(self):
+        """Issue #678: ``--launch`` is a second, independent request ("publish
+        the draft while saving") that an images no-op must not swallow — the
+        help text's only stated exception is a non-DRAFT campaign, not an
+        empty image set.
+        """
+        clicks = []
+
+        def _on_launch_click():
+            clicks.append("launch")
+            page.url = browser_masters.WIZARD_OVERVIEW_URL.format(campaign_id=42)
+
+        page = _FakeImagesPage(
+            [],
+            locators={
+                browser_masters._DRAFT_SAVE_DRAFT_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle(on_click=lambda: clicks.append("draft"))]
+                ),
+                browser_masters._DRAFT_LAUNCH_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle(on_click=_on_launch_click)]
+                ),
+            },
+        )
+
+        result = browser_masters.delete_master_images(
+            page, 42, all_images=True, launch=True
+        )
+
+        self.assertEqual(clicks, ["launch"])
+        self.assertEqual(result, {"CampaignId": 42, "Deleted": 0, "Count": 0})
+        self.assertFalse(page.modal_open)
+
+    def test_all_on_an_already_empty_set_without_launch_is_still_a_no_op(self):
+        """Guard: without ``--launch``, an empty ``--all`` must remain a true
+        no-op — nothing clicked, least of all a publish button."""
+        clicks = []
+        page = _FakeImagesPage(
+            [],
+            locators={
+                browser_masters._DRAFT_SAVE_DRAFT_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle(on_click=lambda: clicks.append("draft"))]
+                ),
+                browser_masters._DRAFT_LAUNCH_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle(on_click=lambda: clicks.append("launch"))]
+                ),
+            },
+        )
+
+        result = browser_masters.delete_master_images(page, 42, all_images=True)
+
+        self.assertEqual(clicks, [])
+        self.assertEqual(result, {"CampaignId": 42, "Deleted": 0, "Count": 0})
+        self.assertFalse(page.modal_open)
+
 
 class TestSetMasterImages(unittest.TestCase):
     """``set_master_images`` — whole-set replacement in one modal."""
@@ -6144,6 +6198,55 @@ class TestSetMasterImages(unittest.TestCase):
 
         self.assertIn("cap", str(ctx.exception).lower())
         self.assertEqual(save_clicks, [])
+
+    def test_empty_with_launch_still_publishes_an_already_empty_draft(self):
+        """Issue #678, symmetric case: ``set --allow-empty --launch`` on an
+        already-empty DRAFT must still publish it."""
+        clicks = []
+
+        def _on_launch_click():
+            clicks.append("launch")
+            page.url = browser_masters.WIZARD_OVERVIEW_URL.format(campaign_id=42)
+
+        page = _FakeImagesPage(
+            [],
+            locators={
+                browser_masters._DRAFT_SAVE_DRAFT_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle(on_click=lambda: clicks.append("draft"))]
+                ),
+                browser_masters._DRAFT_LAUNCH_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle(on_click=_on_launch_click)]
+                ),
+            },
+        )
+
+        result = browser_masters.set_master_images(page, 42, paths=[], launch=True)
+
+        self.assertEqual(clicks, ["launch"])
+        self.assertEqual(result, {"CampaignId": 42, "Count": 0})
+        self.assertFalse(page.modal_open)
+
+    def test_already_empty_with_no_paths_without_launch_is_still_a_no_op(self):
+        """Guard: without ``--launch``, empty-in/empty-out remains a true
+        no-op — nothing clicked, least of all a publish button."""
+        clicks = []
+        page = _FakeImagesPage(
+            [],
+            locators={
+                browser_masters._DRAFT_SAVE_DRAFT_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle(on_click=lambda: clicks.append("draft"))]
+                ),
+                browser_masters._DRAFT_LAUNCH_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle(on_click=lambda: clicks.append("launch"))]
+                ),
+            },
+        )
+
+        result = browser_masters.set_master_images(page, 42, paths=[])
+
+        self.assertEqual(clicks, [])
+        self.assertEqual(result, {"CampaignId": 42, "Count": 0})
+        self.assertFalse(page.modal_open)
 
 
 class TestVerifyImageMismatches(unittest.TestCase):
