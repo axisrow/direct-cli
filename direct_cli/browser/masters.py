@@ -2751,17 +2751,22 @@ def _wait_for_images_editor(page: "Page") -> None:
     images" prematurely — re-verify against one if hydration issues
     resurface on empty-image campaigns specifically.
 
-    **Timing caveat re: issue #695:** the live verification above ran
-    before PR #689 (issue #684) landed ``wait_until="commit"`` +
-    ``_wait_for_edit_form`` on the other three ``WIZARD_EDIT_URL``
-    navigation sites — this function's own fix and its live evidence
-    predate that change, so they do not by themselves confirm this
-    section still hydrates correctly in combination with #689's
-    navigation changes on current ``main``. If #695's original symptom
-    (section stuck at ``children == 0`` for 20+ seconds — a real timeout,
-    not this function's ghost-pass false-negative) still reproduces after
-    #689, re-run the live diagnosis; it is a distinct, not yet
-    live-verified-together, code path.
+    **Re-verified live 2026-08-03 in combination with PR #689 (issue #695):**
+    the live verification above originally ran before PR #689 landed
+    ``wait_until="commit"`` + ``_wait_for_edit_form`` on the other three
+    ``WIZARD_EDIT_URL`` navigation sites. After rebasing this fix onto
+    #689, direct instrumentation of both campaigns (post-``_wait_for_edit_form``,
+    reading the same ``editor``/``stub``/``content`` counts this function
+    itself checks) confirmed the same three-stage render — ghost pass
+    (≤2.3s here), a real ``StubN`` round, then content — settling within
+    ~3-6s, well inside the ``_IMAGES_GHOST_GRACE_S``/timeout budget. 8
+    subsequent ``masters adimages get`` runs across both campaigns (via
+    this fixed code, not the pre-#687 guard) all correctly read 5 images
+    each, elapsed 12.3s-28.1s. No occurrence of #695's original symptom
+    (section stuck at ``children == 0`` for 20+ seconds with no stub round
+    ever appearing) was observed in this combined verification — #695's
+    concern was a reasonable one to raise pending confirmation, but did
+    not reproduce here.
 
     Absence of the section (or persistence of the stub state, or a settle
     declared before any ``StubN`` round was ever observed) after the timeout

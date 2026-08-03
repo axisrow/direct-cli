@@ -22,6 +22,12 @@
 - Confirmed live 2026-08-03: `masters adimages get` on two campaigns with
   5 images each now correctly reads all images (previously reproducibly
   empty).
+- Re-verified live 2026-08-03 in combination with PR #689's `commit` +
+  `_wait_for_edit_form` navigation changes (raised as a possible gap by
+  issue #695): direct instrumentation and 8 subsequent `masters adimages
+  get` runs across both campaigns all correctly read 5 images each
+  (12.3s-28.1s elapsed); no occurrence of a stuck/never-hydrating section
+  was observed.
 
 **Fixed — grid navigation `domcontentloaded` timeout (#682):**
 
