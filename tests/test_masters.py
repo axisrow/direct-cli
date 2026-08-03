@@ -4675,6 +4675,21 @@ class TestFillLandingUrl(unittest.TestCase):
 
         self.assertEqual(len(next_clicks), 1)
 
+    def test_does_not_match_suggestion_by_stripping_a_query_trailing_slash(self):
+        """Same risk as the path case, but for a query value ending in "/":
+        ``urlsplit(url).path`` alone is "/" here even though the URL is NOT
+        a bare domain root — the query must also be empty before stripping
+        (Codex review, PR #703 round 2)."""
+        next_clicks = []
+        page = self._page(
+            next_clicks=next_clicks,
+            unrelated_option="https://site.ru/?next=",  # no trailing slash
+        )
+
+        browser_masters._fill_landing_url(page, "https://site.ru/?next=/")
+
+        self.assertEqual(len(next_clicks), 1)
+
     def test_raises_when_url_field_missing(self):
         page = FakePage(locators={})
 

@@ -2268,17 +2268,22 @@ def _fill_landing_url(page: "Page", url: str) -> None:
     # separately keeps this a plain data-testid lookup like every other
     # locator in this module.
     #
-    # Scoped to the bare-domain-root case ONLY (``urlsplit(url).path == "/"``)
-    # — confirmed live is exactly "https://host/" vs. the stored
-    # "https://host". Generalizing this to any URL ending in "/" would also
-    # strip a PATH's trailing slash (e.g. "/sale/" -> "/sale"), which is not
-    # confirmed to be the same destination and was never observed live —
-    # matching on that alone risked selecting an unintended suggestion and
-    # launching the campaign against a different landing page (Codex review,
-    # PR #703 round 1).
+    # Scoped to the bare-domain-root case ONLY — confirmed live is exactly
+    # "https://host/" vs. the stored "https://host", i.e. path == "/" AND no
+    # query/fragment. Generalizing this to any URL ending in "/" would also
+    # strip a PATH's trailing slash (e.g. "/sale/" -> "/sale") or a QUERY
+    # VALUE's trailing slash (e.g. "/?next=/" -> "/?next="), neither of
+    # which is confirmed to be the same destination and neither was
+    # observed live — matching on that alone risked selecting an unintended
+    # suggestion and launching the campaign against a different landing
+    # page (Codex review, PR #703 rounds 1 and 2).
+    split_url = urlsplit(url)
     url_candidates = (
         [url, url.rstrip("/")]
-        if url.endswith("/") and urlsplit(url).path == "/"
+        if url.endswith("/")
+        and split_url.path == "/"
+        and not split_url.query
+        and not split_url.fragment
         else [url]
     )
     option_locators = [
