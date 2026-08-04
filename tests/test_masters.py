@@ -3800,8 +3800,53 @@ class TestUpdateMasterDraftSupport(unittest.TestCase):
         )
 
     def test_launch_true_on_draft_campaign_adds_launched_key(self):
-        # Issue #704: update --launch still needs to report it actually
-        # published the DRAFT, not just that the field was saved.
+        # Issue #704/#721: update --launch still needs to report it actually
+        # published the DRAFT, not just that the field was saved — the
+        # overview page's status text must explicitly read MODERATION (see
+        # TestLaunchMaster._draft_edit_page's own on_click convention).
+        slot = _FakeContentEditableHandle(text="Старый заголовок")
+        selector = (
+            f"[data-testid="
+            f'"{browser_masters._HEADLINES_TESTID_TEMPLATE.format(index=0)}"]'
+        )
+        state = {"status_text": "Черновик"}
+
+        def _on_launch_click():
+            state["status_text"] = "Кампания на\xa0модерации"
+            page.url = browser_masters.WIZARD_OVERVIEW_URL.format(campaign_id=713231614)
+
+        page = FakePage(
+            locators={
+                browser_masters._DRAFT_SAVE_DRAFT_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                browser_masters._DRAFT_LAUNCH_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle(on_click=_on_launch_click)]
+                ),
+                selector: _FakeLocator([slot]),
+            }
+        )
+        page.url = browser_masters.WIZARD_EDIT_URL.format(campaign_id=713231614)
+        page.inner_text = lambda selector=None: state["status_text"]
+
+        result = browser_masters.update_master(
+            page, 713231614, headlines={0: "Новый заголовок"}, launch=True
+        )
+
+        self.assertEqual(
+            result,
+            {
+                "CampaignId": 713231614,
+                "Headlines": {0: "Новый заголовок"},
+                "Launched": True,
+            },
+        )
+
+    def test_launch_true_raises_when_status_stays_draft(self):
+        # Regression (issue #721): fields saved and the click redirected away
+        # from /edit/, but the overview page's status text never actually
+        # became MODERATION — must not report "Launched": True on the
+        # redirect alone.
         slot = _FakeContentEditableHandle(text="Старый заголовок")
         selector = (
             f"[data-testid="
@@ -3823,19 +3868,15 @@ class TestUpdateMasterDraftSupport(unittest.TestCase):
             }
         )
         page.url = browser_masters.WIZARD_EDIT_URL.format(campaign_id=713231614)
+        page.inner_text = lambda selector=None: "Черновик"
 
-        result = browser_masters.update_master(
-            page, 713231614, headlines={0: "Новый заголовок"}, launch=True
-        )
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(
+                page, 713231614, headlines={0: "Новый заголовок"}, launch=True
+            )
 
-        self.assertEqual(
-            result,
-            {
-                "CampaignId": 713231614,
-                "Headlines": {0: "Новый заголовок"},
-                "Launched": True,
-            },
-        )
+        self.assertIn("did not report MODERATION", str(ctx.exception))
+        self.assertEqual(slot.inner_text(), "Новый заголовок")
 
     def test_error_message_on_draft_mismatch_names_the_draft_button_not_save(self):
         # The mismatch error text must reflect the button THIS run actually
