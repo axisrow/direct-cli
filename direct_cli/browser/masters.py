@@ -930,6 +930,142 @@ _TARGET_ACTION_ADD_OPTION_MAX_ATTEMPTS = 5
 # the edit page, below "Цель продвижения").
 _TARGET_ACTION_WAIT_TIMEOUT_MS = 5_000
 
+# "Аудитория" section (issue #681, Этап C, live recon 2026-08-04 against
+# campaign 713277109, ksamatadirect account — see module docstring for the
+# archive/unarchive detour needed to reach this campaign's edit page).
+#
+# "Пол и возраст" ("AgeAndGenderEditorLegacy", note the "Legacy" suffix —
+# Yandex's own naming, not this module's) is three independent single-select
+# dropdowns, each with a stable data-testid, confirmed live via each popup's
+# own option rows (2026-08-04, campaign 713277109):
+#
+# * gender: ``GenderSelect.ListBox.{All,Male,Female}`` (trigger shows "Любой
+#   пол"/"Мужчины"/"Женщины").
+# * age-from: ``AgeFromSelect.ListBox.Age{0,18,25,35,45,55}``.
+# * age-to: ``AgeToSelect.ListBox.Age{18,25,35,45,55}`` PLUS
+#   ``AgeToSelect.ListBox.AgeUnlimited`` (no ``Age0`` — "to 0" is not a valid
+#   upper bound; the trigger renders "55+" for the unlimited case, but the
+#   option testid itself has no numeric suffix at all).
+_GENDER_SELECT_TESTID = '[data-testid="AgeAndGenderEditorLegacy.GenderSelect"]'
+_AGE_FROM_SELECT_TESTID = '[data-testid="AgeAndGenderEditorLegacy.AgeFromSelect"]'
+_AGE_TO_SELECT_TESTID = '[data-testid="AgeAndGenderEditorLegacy.AgeToSelect"]'
+
+_GENDER_OPTION_TESTID_TEMPLATE = (
+    '[data-testid="AgeAndGenderEditorLegacy.GenderSelect.ListBox.{value}"]'
+)
+_AGE_FROM_OPTION_TESTID_TEMPLATE = (
+    '[data-testid="AgeAndGenderEditorLegacy.AgeFromSelect.ListBox.Age{value}"]'
+)
+# Confirmed live: every FINITE age-to option's testid also carries the
+# "Age" prefix (``ListBox.Age45``, not ``ListBox.45``) — same shape as
+# AgeFromSelect's own options — but the unlimited option does NOT
+# (``ListBox.AgeUnlimited``, i.e. "Age" is part of the literal suffix
+# "Unlimited" fuses onto, not a separate prefix applied to a numeric
+# value). ``_set_age_bound`` accounts for this by passing "Unlimited" as
+# ``option_value`` for the unlimited case (no separate "Age" needed) and
+# a bare number otherwise (this template supplies the "Age" prefix).
+_AGE_TO_OPTION_TESTID_TEMPLATE = (
+    '[data-testid="AgeAndGenderEditorLegacy.AgeToSelect.ListBox.Age{value}"]'
+)
+
+# CLI-facing keys -> the trigger button's own displayed label, used both to
+# build the option locator and to verify the post-click selection (mirrors
+# PROMOTION_GOAL_CHOICES/_trigger_shows_selection's identical convention).
+GENDER_CHOICES = {
+    "any": "Любой пол",
+    "male": "Мужчины",
+    "female": "Женщины",
+}
+_GENDER_INTERNAL_VALUES = {"any": "All", "male": "Male", "female": "Female"}
+
+AGE_FROM_CHOICES = (0, 18, 25, 35, 45, 55)
+AGE_TO_CHOICES = (18, 25, 35, 45, 55, None)  # None = AgeUnlimited ("55+")
+
+# "Интересы и поисковые запросы" (CustomAudienceAndSearchTermsEditor):
+# a single tag list mixing TWO distinct kinds of entries, confirmed live —
+# a search-term tag ("keyword") and an interest-category tag. They render
+# with different leading icons (magnifying glass vs. a cloud-shaped "audience
+# segment" icon in the actual page; not distinguished in this module's own
+# reads) and, critically, have DIFFERENT data-testid shapes for their
+# CustomAudienceTagIcon child:
+#
+# * a keyword tag's testid is ``CustomAudienceTagIcon.keyword_<exact text>``
+#   — deterministic and reproducible from the typed text alone.
+# * an interest tag's testid is ``CustomAudienceTagIcon.<numeric Yandex id>``
+#   — that id is assigned server-side per interest CATEGORY and cannot be
+#   derived from the category's display text (e.g. "Спорт" confirmed live at
+#   id 2499680371 on this account, but nothing about that id is guessable
+#   ahead of time).
+#
+# Both kinds are added through the SAME free-text input, which opens an
+# autocomplete popup (``CustomAudienceAndSearchTermsEditor.TagGroup.editor.
+# popup``/``...editor.listBox``) mixing keyword suggestions (each rendered as
+# an accessible-tree ``option`` whose testid follows the keyword_<text>
+# pattern above) and interest-category suggestions (each an ``option`` too,
+# but with a numeric-id testid) — confirmed live via
+# ``mcp__claude-in-chrome__find`` locating the "Спорт" suggestion as
+# ``option "Спорт" (interest_suggestion)``. Because the interest testid is
+# unpredictable, THIS MODULE MATCHES BOTH KINDS BY THE SUGGESTION ROW'S
+# VISIBLE ACCESSIBLE NAME (Playwright ``get_by_role("option", name=...,
+# exact=True)``), never by constructing a testid — the keyword_<text> pattern
+# above is documented for context (it's what's visible in the DOM) but is
+# NOT used to build a locator, so both tag kinds share one code path.
+#
+# Tags themselves are both READ and REMOVED by POSITION, not by re-deriving
+# either testid shape above — each ``...TagGroup.tag.{index}`` div's own
+# ``inner_text()`` is the tag's exact display text (confirmed live: tag 0
+# read back "автобус"), and ``...TagGroup.tag.{index}.close`` removes it —
+# mirrors ``_HEADLINES_TESTID_TEMPLATE``'s existing index-based convention,
+# and sidesteps the interest/keyword testid split entirely for both reading
+# and removal.
+# The tags-wrapper container is always in the DOM, and clicking it MOUNTS a
+# contenteditable div input (confirmed live, testid ``...TagGroup.editor.
+# Textinput``) that does not exist in the DOM at all before that first click
+# — so adding a tag is a two-step locate: click the wrapper, THEN locate the
+# now-mounted text input. The input itself is the same contenteditable shape
+# as the headline/text slots ``_clear_text_field``/``_add_repeating_values``
+# already handle — not a plain ``<input>``/``<textarea>``, so ``.fill()``
+# does not work on it.
+_AUDIENCE_TAG_WRAPPER_TESTID = (
+    '[data-testid="CustomAudienceAndSearchTermsEditor.TagGroup.tags-wrapper"]'
+)
+_AUDIENCE_TAG_INPUT_TESTID = (
+    '[data-testid="CustomAudienceAndSearchTermsEditor.TagGroup.editor.Textinput"]'
+)
+_AUDIENCE_TAG_LISTBOX_TESTID = (
+    '[data-testid="CustomAudienceAndSearchTermsEditor.TagGroup.editor.listBox"]'
+)
+_AUDIENCE_TAG_TESTID_TEMPLATE = (
+    "CustomAudienceAndSearchTermsEditor.TagGroup.tag.{index}"
+)
+_AUDIENCE_TAG_CLOSE_TESTID_TEMPLATE = (
+    "CustomAudienceAndSearchTermsEditor.TagGroup.tag.{index}.close"
+)
+_AUDIENCE_TAG_COUNT_LIMIT_KEYWORDS = 200
+_AUDIENCE_TAG_COUNT_LIMIT_INTERESTS = 30
+
+# How long the autocomplete popup gets to render suggestions for a freshly
+# typed query before concluding the requested tag genuinely has no matching
+# suggestion — mirrors ``_GOAL_PRICE_WAIT_TIMEOUT_MS``'s same class of
+# "give the SPA time to hydrate before treating absence as final" guard.
+_AUDIENCE_TAG_SUGGEST_TIMEOUT_MS = 5_000
+
+# How long _wait_for_audience_section polls the "Пол" trigger for a
+# non-empty label before giving up — confirmed live (issue #681) this
+# section needs MEASURABLY longer than the rest of the edit page's fields:
+# a read at ~1.5s after _wait_for_edit_form returned saw a stale/default
+# value, the same campaign re-read at ~4s was correct. 8s gives headroom
+# above that observed 4s settle time.
+_AUDIENCE_SECTION_READY_TIMEOUT_MS = 8_000
+
+# "Устройства пользователей" (DeviceEditor): a multi-select popup with
+# exactly three checkboxes, confirmed live all pre-checked by default
+# ("Любые" = all three checked, not a fourth distinct value) — mobile,
+# desktop, tablet, in that DOM order.
+_DEVICE_SELECT_TESTID = '[data-testid="DeviceEditor.Select"]'
+_DEVICE_OPTION_TESTID_TEMPLATE = '[data-testid="DeviceEditor.Select.ListBox.{value}"]'
+DEVICE_OPTION_VALUES = ("mobile", "desktop", "tablet")
+
 _EDIT_NAME_BUTTON_SELECTOR = '[data-testid="CampaignHeader.EditName.Button"]'
 _NAME_HEADER_SELECTOR = '[data-testid="CampaignHeader.TitleName"]'
 _NAME_MODAL_INPUT_SELECTOR = '[data-testid="ModalEditTitle.CampaignName"]'
@@ -2451,6 +2587,514 @@ def _remove_target_action(page: "Page", goal_id: int) -> None:
         ) from exc
 
 
+def _wait_for_audience_section(page: "Page") -> None:
+    """Block until the "Аудитория" section's manual-targeting fields have
+    actually rendered with server data, not just mounted their DOM shell.
+
+    Issue #681 live recon (2026-08-04, campaign 713277109): every reader/
+    writer below sits well below the first headline slot
+    ``_wait_for_edit_form`` waits for, and — worse than a typical hydration
+    race — the section's top-level preset trigger (see ``_GENDER_SELECT_
+    TESTID``'s sibling comment) can render its DOM node with a STALE/
+    default value ("Подобрать оптимальную") before the real server value
+    ("Настроить вручную") arrives; a one-shot read at that point doesn't
+    just see an empty tag list, it sees an ACTIVELY WRONG committed value —
+    confirmed live: a read landing ~1.5s after ``_wait_for_edit_form``
+    returned misreported a campaign with 112 audience tags as having
+    ``[]``, while the SAME campaign read again after ~4s correctly showed
+    all 112. This polls the "Пол" dropdown trigger (present, with campaign
+    data, as soon as manual targeting has actually loaded) for non-empty
+    text rather than trusting either presence-in-DOM or a fixed sleep.
+
+    Does NOT distinguish "still hydrating" from "campaign is currently in
+    'Подобрать оптимальную' auto mode, where this whole section is absent"
+    — both look like "trigger never shows a non-empty label" from here.
+    Callers that need every manual-targeting field (gender/age/devices/
+    tags) should treat a timeout as "this section is not usable right now"
+    rather than assuming a markup change; switching the top-level preset
+    is out of scope for this module (see ``update_master``'s docstring).
+    """
+    trigger = page.locator(_GENDER_SELECT_TESTID).first
+
+    def _has_label() -> bool:
+        try:
+            return bool(trigger.inner_text(timeout=500).strip())
+        except PlaywrightError:
+            return False
+
+    _poll_until(page, _has_label, _AUDIENCE_SECTION_READY_TIMEOUT_MS)
+
+    # The gender trigger settling is NOT proof the (much larger, on a
+    # campaign with 100+ tags) audience-tag list has also finished loading
+    # — issue #681 live recon found these two sub-sections hydrate on
+    # independent timers. Confirmed live: back-to-back runs against the
+    # SAME campaign, both starting only after the gender trigger already
+    # showed a non-empty label, read the tag count as 0 in one run and 112
+    # in another — an outright wrong committed value, not merely "not
+    # there yet". Polling for two EQUAL consecutive counts (rather than
+    # "count > 0", which a genuinely-empty campaign would never satisfy)
+    # is what lets this converge for a zero-tag campaign too.
+    previous_count: "Optional[int]" = None
+
+    def _tag_count_stable() -> bool:
+        nonlocal previous_count
+        current_count = len(_read_audience_tags(page))
+        stable = previous_count is not None and current_count == previous_count
+        previous_count = current_count
+        return stable
+
+    _poll_until(page, _tag_count_stable, _AUDIENCE_SECTION_READY_TIMEOUT_MS)
+
+
+def _set_gender(page: "Page", gender: str) -> None:
+    """Select ``gender`` (a key of ``GENDER_CHOICES``) in the "Пол" dropdown.
+
+    Mirrors ``_set_promotion_goal``'s open-trigger/click-option/verify-label
+    shape, matched by data-testid rather than accessible-name text for the
+    same reason (issue #696 recon: option rows can carry extra description
+    text beyond the bare label).
+    """
+    label = GENDER_CHOICES.get(gender)
+    internal_value = _GENDER_INTERNAL_VALUES.get(gender)
+    if label is None or internal_value is None:
+        raise ValueError(
+            f"Unknown gender {gender!r}; expected one of " f"{sorted(GENDER_CHOICES)}."
+        )
+
+    trigger = page.locator(_GENDER_SELECT_TESTID).first
+    try:
+        trigger.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            "Could not find or open the 'Пол' dropdown on the campaign edit "
+            "page — Yandex may have changed the page's markup. Re-run with "
+            "--headful to inspect the page."
+        ) from exc
+
+    option = page.locator(
+        _GENDER_OPTION_TESTID_TEMPLATE.format(value=internal_value)
+    ).first
+    try:
+        option.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            f"Could not find the {label!r} option in the 'Пол' dropdown on "
+            "the campaign edit page — Yandex may have changed the page's "
+            "markup. Re-run with --headful to inspect the page."
+        ) from exc
+
+    actual = _read_gender_label(page)
+    if actual != label:
+        raise BrowserSessionError(
+            f"Clicked the {label!r} option for 'Пол', but the dropdown now "
+            f"shows {actual!r}. The click may not have hit the right "
+            "element — verify manually before retrying."
+        )
+
+
+def _read_gender_label(page: "Page") -> Optional[str]:
+    """Read the "Пол" dropdown trigger's current selection text.
+
+    Returns ``None`` if the trigger can't be found/read (inconclusive).
+    """
+    trigger = page.locator(_GENDER_SELECT_TESTID).first
+    try:
+        return trigger.inner_text().strip()
+    except PlaywrightError:
+        return None
+
+
+def _set_age_bound(page: "Page", *, is_from: bool, age: Optional[int]) -> None:
+    """Select ``age`` in the "от"/"до" age-bound dropdown.
+
+    ``age`` must be a member of ``AGE_FROM_CHOICES``/``AGE_TO_CHOICES``
+    matching ``is_from`` — ``None`` is only valid for the "до" bound
+    (selects "Без ограничений", the ``AgeUnlimited`` option; there is no
+    unlimited option on the "от" side). Verifies via the trigger's own
+    post-click text, same "never trust the click alone" convention as
+    ``_set_gender``/``_set_promotion_goal`` — but the trigger's DISPLAYED
+    text does not simply echo the option testid (confirmed live: selecting
+    ``AgeUnlimited`` renders the trigger text as "до 55+", not "Без
+    ограничений", and a plain numeric bound renders as "от {age}"/"до
+    {age}" with no suffix) — see ``_read_age_bound_label`` for the exact
+    shape this compares against.
+    """
+    testid_template = _AGE_FROM_SELECT_TESTID if is_from else _AGE_TO_SELECT_TESTID
+    option_template = (
+        _AGE_FROM_OPTION_TESTID_TEMPLATE if is_from else _AGE_TO_OPTION_TESTID_TEMPLATE
+    )
+    label = "от" if is_from else "до"
+
+    if age is None:
+        if is_from:
+            raise ValueError("age_from has no 'unlimited' option; pass an int.")
+        option_value = "Unlimited"
+    else:
+        option_value = str(age)
+
+    trigger = page.locator(testid_template).first
+    try:
+        trigger.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            f"Could not find or open the '{label}' age dropdown on the "
+            "campaign edit page — Yandex may have changed the page's "
+            "markup. Re-run with --headful to inspect the page."
+        ) from exc
+
+    option = page.locator(option_template.format(value=option_value)).first
+    try:
+        option.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            f"Could not find the {age!r} option in the '{label}' age "
+            "dropdown on the campaign edit page — Yandex may have changed "
+            "the page's markup. Re-run with --headful to inspect the page."
+        ) from exc
+
+    actual = _read_age_bound_label(page, is_from=is_from)
+    expected = _format_age_bound_label(is_from=is_from, age=age)
+    if actual != expected:
+        raise BrowserSessionError(
+            f"Clicked the {age!r} option for the '{label}' age dropdown, "
+            f"but it now shows {actual!r} (expected {expected!r}). The "
+            "click may not have hit the right element — verify manually "
+            "before retrying."
+        )
+
+
+def _format_age_bound_label(*, is_from: bool, age: Optional[int]) -> str:
+    """The age-bound trigger's expected display text for ``age``.
+
+    Confirmed live: a plain numeric bound renders as "от {age}"/"до {age}"
+    with no suffix; the "до" side's unlimited option renders as "до 55+"
+    (the highest finite option, suffixed with "+") rather than echoing "Без
+    ограничений" anywhere in the trigger text.
+    """
+    if age is None:
+        highest_finite = AGE_TO_CHOICES[-2]
+        return f"до {highest_finite}+"
+    return f"{'от' if is_from else 'до'} {age}"
+
+
+def _read_age_bound_label(page: "Page", *, is_from: bool) -> Optional[str]:
+    """Read the "от"/"до" age-bound dropdown trigger's current text.
+
+    Normalizes non-breaking spaces (``\\xa0``) to plain spaces — confirmed
+    live the trigger renders "от" and the number with a non-breaking space
+    between them (e.g. ``"от\\xa025"``), not a plain space, which would
+    otherwise never equal ``_format_age_bound_label``'s plain-space
+    expectation.
+
+    Returns ``None`` if the trigger can't be found/read (inconclusive).
+    """
+    testid_template = _AGE_FROM_SELECT_TESTID if is_from else _AGE_TO_SELECT_TESTID
+    trigger = page.locator(testid_template).first
+    try:
+        return trigger.inner_text().strip().replace("\xa0", " ")
+    except PlaywrightError:
+        return None
+
+
+def _read_devices(page: "Page") -> Optional[Set[str]]:
+    """Read the "Устройства пользователей" multi-select's currently checked
+    device keys (a subset of ``DEVICE_OPTION_VALUES``).
+
+    Opens the popup to read each checkbox's state (there is no summary
+    attribute on the closed trigger beyond the free-text "Любые"/etc. label,
+    which is not parsed here), then closes it again via Escape to leave the
+    page state as this function found it. Returns ``None`` if the trigger or
+    any checkbox can't be found/read (inconclusive).
+    """
+    trigger = page.locator(_DEVICE_SELECT_TESTID).first
+    try:
+        trigger.click()
+    except PlaywrightError:
+        return None
+
+    selected: Set[str] = set()
+    try:
+        for value in DEVICE_OPTION_VALUES:
+            option = page.locator(
+                _DEVICE_OPTION_TESTID_TEMPLATE.format(value=value)
+            ).first
+            checked = option.get_attribute("aria-selected")
+            if checked == "true":
+                selected.add(value)
+    except PlaywrightError:
+        return None
+    finally:
+        with contextlib.suppress(PlaywrightError):
+            page.keyboard.press("Escape")
+
+    return selected
+
+
+def _set_devices(page: "Page", devices: Set[str]) -> None:
+    """Set the "Устройства пользователей" multi-select to exactly ``devices``.
+
+    Each of the three checkboxes (``DEVICE_OPTION_VALUES``) is toggled only
+    if its current state disagrees with the requested membership — mirrors
+    ``_set_directs_helps``'s "click only flips, so only click when the
+    current state is wrong" convention, applied per-checkbox here since this
+    is a multi-select rather than a single toggle. Raises
+    ``BrowserSessionError`` naming the field if ``devices`` is empty (Yandex
+    requires at least one device type; there is no page-level way to select
+    zero) or if any checkbox can't be found/read.
+    """
+    if not devices:
+        raise BrowserSessionError(
+            "Cannot set 'Устройства пользователей' to an empty set — at "
+            "least one of smartphones/desktops/tablets must stay selected."
+        )
+    unknown = devices - set(DEVICE_OPTION_VALUES)
+    if unknown:
+        raise ValueError(
+            f"Unknown device(s) {sorted(unknown)}; expected a subset of "
+            f"{list(DEVICE_OPTION_VALUES)}."
+        )
+
+    trigger = page.locator(_DEVICE_SELECT_TESTID).first
+    try:
+        trigger.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            "Could not find or open the 'Устройства пользователей' dropdown "
+            "on the campaign edit page — Yandex may have changed the "
+            "page's markup. Re-run with --headful to inspect the page."
+        ) from exc
+
+    try:
+        for value in DEVICE_OPTION_VALUES:
+            option = page.locator(
+                _DEVICE_OPTION_TESTID_TEMPLATE.format(value=value)
+            ).first
+            currently_checked = option.get_attribute("aria-selected") == "true"
+            should_be_checked = value in devices
+            if currently_checked != should_be_checked:
+                option.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            "Could not toggle a device checkbox in the 'Устройства "
+            "пользователей' dropdown on the campaign edit page — Yandex "
+            "may have changed the page's markup. Re-run with --headful to "
+            "inspect the page."
+        ) from exc
+    finally:
+        with contextlib.suppress(PlaywrightError):
+            page.keyboard.press("Escape")
+
+    actual = _read_devices(page)
+    if actual != devices:
+        raise BrowserSessionError(
+            f"Set 'Устройства пользователей' checkboxes, but re-reading "
+            f"them now shows {sorted(actual) if actual is not None else None} "
+            f"instead of the requested {sorted(devices)}. Verify manually "
+            "before retrying."
+        )
+
+
+def _read_audience_tags(page: "Page") -> List[str]:
+    """Read every current tag's display text in "Интересы и поисковые
+    запросы" (both keyword and interest-category tags, in on-page order).
+
+    Unlike ``_read_repeating_values``, this does not know the count ahead of
+    time (the tag list is a variable-length, caller-grown array, not a fixed
+    set of slots) — it reads index 0, 1, 2, ... until a slot's ``inner_text()``
+    raises (meaning that index no longer exists), then stops.
+
+    Waits for the tags-wrapper CONTAINER first (present regardless of tag
+    count), not just a one-shot read of tag index 0 — the same hydration
+    race ``_GOAL_PRICE_WAIT_TIMEOUT_MS`` guards against: ``_wait_for_edit_
+    form`` only guarantees the first HEADLINE slot has rendered, and this
+    section sits lower on the page. Without this wait, a call landing before
+    the section hydrates would misread a campaign that genuinely HAS tags as
+    having zero (confirmed live, issue #681 recon: a fresh navigation's
+    first read raced this and returned ``[]`` against a campaign with 88
+    tags).
+    """
+    try:
+        page.locator(_AUDIENCE_TAG_WRAPPER_TESTID).first.wait_for(
+            state="attached", timeout=_AUDIENCE_TAG_SUGGEST_TIMEOUT_MS
+        )
+    except PlaywrightError:
+        return []
+
+    tags: List[str] = []
+    index = 0
+    while True:
+        selector = (
+            f'[data-testid="{_AUDIENCE_TAG_TESTID_TEMPLATE.format(index=index)}"]'
+        )
+        try:
+            text = page.locator(selector).first.inner_text(timeout=1_000).strip()
+        except PlaywrightError:
+            break
+        if not text:
+            break
+        tags.append(text)
+        index += 1
+    return tags
+
+
+def _add_audience_tag(page: "Page", text: str) -> None:
+    """Add one tag (keyword or interest) to "Интересы и поисковые запросы"
+    by typing ``text`` into the tag input and clicking the suggestion row
+    whose FIRST LINE exactly matches it.
+
+    Matched by the option row's first line of text, not by constructing a
+    data-testid, and not by Playwright's ``get_by_role(..., name=...,
+    exact=True)`` either — see the module-level comment above
+    ``_AUDIENCE_TAG_LISTBOX_TESTID`` for why testid construction doesn't
+    work here (interest-category suggestions carry an unpredictable
+    numeric-id testid). ``exact=True`` accessible-name matching doesn't
+    work either (confirmed live, issue #681): each option's accessible name
+    is the WHOLE multi-line row — headline, a "Люди, которые ищут ..."
+    description sentence, and a "Высокий охват" badge, all concatenated
+    (e.g. ``"йога\\nЛюди, которые ищут «йога» в Поиске\\nВысокий охват"``)
+    — the same class of "description text breaks an exact match" issue
+    ``_set_promotion_goal``'s docstring documents for its own dropdown.
+    This instead reads every option's ``inner_text()``, splits on the first
+    newline, and clicks the first row whose FIRST LINE equals ``text``
+    exactly (mirrors ``_trigger_shows_selection``'s "only the relevant
+    line matters" convention). If more than one suggestion happens to
+    share the same first line, the first is used (mirrors this module's
+    general "first match wins" convention).
+
+    Raises ``BrowserSessionError`` if the input can't be found/typed into,
+    or if no suggestion whose first line matches appears within
+    ``_AUDIENCE_TAG_SUGGEST_TIMEOUT_MS`` — the caller's requested tag simply
+    has no matching keyword/interest on Yandex's side, which is a real
+    outcome (not every free-text string is a valid tag), not a markup-drift
+    signal.
+    """
+    # The text input does not exist in the DOM at all until the wrapper is
+    # clicked once (confirmed live) — click the wrapper first to mount it,
+    # then locate the now-mounted input. A plain wrapper.click() (Playwright
+    # default: dead center of the element) is UNRELIABLE once a campaign has
+    # many existing tags (confirmed live, issue #681, campaign 713277109
+    # with 112 tags at the time): the wrapper's bounding box is the whole
+    # flex-wrapped tag grid — over 2000px tall in that case — so its visual
+    # center lands on some ARBITRARY tag mid-list, not empty space after the
+    # last tag, and the newly-typed text can be inserted mid-list instead of
+    # appended (confirmed live: a stray manual keystroke once landed between
+    # two unrelated existing tags this way). Clicking near the wrapper's
+    # bottom-right corner instead reliably lands after the last tag — this
+    # DOM's flex-wrap layout fills left-to-right, top-to-bottom, so the tail
+    # of the list is always near the bottom-right of the container.
+    wrapper = page.locator(_AUDIENCE_TAG_WRAPPER_TESTID).first
+    try:
+        box = wrapper.bounding_box()
+        if box is None:
+            raise PlaywrightError("tags-wrapper has no bounding box")
+        wrapper.click(position={"x": box["width"] - 5, "y": box["height"] - 5})
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            "Could not click the 'Интересы и поисковые запросы' tag list "
+            "on the campaign edit page — Yandex may have changed the "
+            "page's markup. Re-run with --headful to inspect the page."
+        ) from exc
+
+    field = page.locator(_AUDIENCE_TAG_INPUT_TESTID).first
+    try:
+        field.click()
+        cleared = _clear_text_field(field)
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            "Could not click the 'Интересы и поисковые запросы' tag input "
+            "on the campaign edit page — Yandex may have changed the "
+            "page's markup. Re-run with --headful to inspect the page."
+        ) from exc
+    if not cleared:
+        raise BrowserSessionError(
+            "Could not clear the 'Интересы и поисковые запросы' tag input "
+            "before typing. This usually means Playwright is older than "
+            "1.44 (the version that added the 'ControlOrMeta' modifier) — "
+            "upgrade with 'pip install -U playwright'."
+        )
+    try:
+        field.type(text)
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            f"Could not type {text!r} into the 'Интересы и поисковые "
+            "запросы' tag input on the campaign edit page — Yandex may "
+            "have changed the page's markup. Re-run with --headful to "
+            "inspect the page."
+        ) from exc
+
+    listbox = page.locator(_AUDIENCE_TAG_LISTBOX_TESTID).first
+    options = listbox.get_by_role("option")
+
+    def _find_matching_option():
+        try:
+            count = options.count()
+        except PlaywrightError:
+            return None
+        for i in range(count):
+            option = options.nth(i)
+            try:
+                first_line = option.inner_text(timeout=500).split("\n", 1)[0]
+            except PlaywrightError:
+                continue
+            if first_line == text:
+                return option
+        return None
+
+    deadline = time.monotonic() + _AUDIENCE_TAG_SUGGEST_TIMEOUT_MS / 1000
+    match = None
+    while time.monotonic() < deadline:
+        match = _find_matching_option()
+        if match is not None:
+            break
+        page.wait_for_timeout(250)
+
+    if match is None:
+        with contextlib.suppress(PlaywrightError):
+            page.keyboard.press("Escape")
+        raise BrowserSessionError(
+            f"No suggestion exactly matching {text!r} appeared in the "
+            "'Интересы и поисковые запросы' autocomplete within "
+            f"{_AUDIENCE_TAG_SUGGEST_TIMEOUT_MS / 1000:.0f}s — this is not "
+            "a valid keyword or interest on Yandex's side, or its "
+            "suggestion label differs from the exact text passed. Re-run "
+            "with --headful to see the actual suggestion list."
+        )
+
+    try:
+        match.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            f"Found a matching suggestion for {text!r} in the 'Интересы и "
+            "поисковые запросы' autocomplete but could not click it — "
+            "Yandex may have changed the page's markup. Re-run with "
+            "--headful to inspect the page."
+        ) from exc
+
+
+def _remove_audience_tag(page: "Page", index: int) -> None:
+    """Remove the tag currently at position ``index`` in "Интересы и
+    поисковые запросы" by clicking its close button.
+
+    ``index`` must reference an EXISTING tag (see ``_read_audience_tags``) —
+    this does not resolve tags by text, since two tags can legitimately
+    share display text (e.g. the same word as both a keyword and an
+    interest-category suggestion happen to render identically) and only a
+    position is guaranteed to identify one specific tag.
+    """
+    selector = (
+        f'[data-testid="{_AUDIENCE_TAG_CLOSE_TESTID_TEMPLATE.format(index=index)}"]'
+    )
+    try:
+        page.locator(selector).first.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            f"Could not remove the tag at position {index + 1} via "
+            f"{selector!r} on the campaign edit page — Yandex may have "
+            "changed the page's markup, or that position no longer exists. "
+            "Re-run with --headful to inspect the page."
+        ) from exc
+
+
 def _read_target_actions(page: "Page") -> List[Dict[str, Any]]:
     """Read the "Целевые действия" table's current rows.
 
@@ -2790,23 +3434,55 @@ def _click_save(
         _click_draft_terminal_button(page, campaign_id, launch=launch)
         return
 
+    # The save button sits at the very bottom of a long, lazily-mounted
+    # page — confirmed live (issue #681) it is simply ABSENT from the DOM
+    # (locator count 0, not just not-yet-visible) when the viewport is
+    # still scrolled to wherever an earlier mutation (e.g. adding an
+    # audience tag deep in a 100+-tag list) left it. Every other mutation
+    # this module supports happens to leave the viewport high enough on
+    # the page for the button to already be mounted by the time this runs,
+    # but that's incidental, not guaranteed — scrolling to the bottom
+    # first makes this reliable regardless of what ran before it.
+    # mouse.wheel rather than keyboard.press("End") — the latter depends on
+    # focus being on the document body/a scrollable ancestor, which is not
+    # guaranteed here (e.g. right after typing into the audience-tag
+    # contenteditable input, focus can still be inside that field). Retried
+    # (not a single scroll+check) because a single wheel event's resulting
+    # mount isn't instantaneous — confirmed live (issue #681) a one-shot
+    # 500ms wait after the wheel event was sometimes enough and sometimes
+    # not for the exact same page state, so this re-scrolls on every tick
+    # rather than trusting one wait to be long enough.
     # get_by_role scopes to the actual <button> element (exact accessible
     # name), not any ancestor container whose text merely contains this
     # substring — see the cycle-review finding this fixed.
     save_button = page.get_by_role("button", name=_SAVE_BUTTON_TEXT, exact=True)
-    try:
-        count = save_button.count()
-    except PlaywrightError:
-        count = 0
-    for i in range(count):
-        handle = save_button.nth(i)
+
+    def _find_visible_save_button():
+        page.mouse.wheel(0, 20_000)
         try:
-            if not handle.is_visible():
-                continue
-            handle.click()
-            return
+            count = save_button.count()
         except PlaywrightError:
-            continue
+            return None
+        for i in range(count):
+            handle = save_button.nth(i)
+            try:
+                if handle.is_visible():
+                    return handle
+            except PlaywrightError:
+                continue
+        return None
+
+    deadline = time.monotonic() + _AUDIENCE_SECTION_READY_TIMEOUT_MS / 1000
+    while time.monotonic() < deadline:
+        handle = _find_visible_save_button()
+        if handle is not None:
+            try:
+                handle.click()
+                return
+            except PlaywrightError:
+                pass
+        page.wait_for_timeout(300)
+
     raise BrowserSessionError(
         f"Could not find the '{_SAVE_BUTTON_TEXT}' button on the edit page "
         f"for campaign {campaign_id} — Yandex may have changed the page's "
@@ -3011,6 +3687,15 @@ def _verify_saved(
     target_action_prices: Optional[Dict[int, float]] = None,
     add_target_actions: Optional[Dict[int, float]] = None,
     remove_target_action_goal_ids: Optional[List[int]] = None,
+    gender: Optional[str] = None,
+    age_from_requested: bool = False,
+    age_from: Optional[int] = None,
+    age_to_requested: bool = False,
+    age_to: Optional[int] = None,
+    devices: Optional[Set[str]] = None,
+    audience_tags_before: Optional[List[str]] = None,
+    add_audience_tags: Optional[List[str]] = None,
+    remove_audience_tag_count: int = 0,
     clicked_button_label: str = _SAVE_BUTTON_TEXT,
 ) -> None:
     """Reload the edit page and confirm every requested field actually saved.
@@ -3025,11 +3710,38 @@ def _verify_saved(
     if a field still doesn't match after a real reload, the save did not
     take effect and this raises rather than reporting false success.
     """
+    _audience_touched = (
+        gender is not None
+        or age_from_requested
+        or age_to_requested
+        or devices is not None
+        or add_audience_tags
+        or remove_audience_tag_count
+    )
+    if _audience_touched:
+        # Confirmed live (issue #681): reloading immediately after clicking
+        # 'Сохранить кампанию' can race the server-side commit for this
+        # section specifically — a reload landing too soon reads back the
+        # PRE-save value even though the save demonstrably did take effect
+        # (a separate, later `masters audience get` call against the same
+        # campaign correctly showed the new value). This race was observed
+        # to persist past a 2s delay on a campaign with 100+ audience tags
+        # (a much heavier page than this module's other test campaigns) —
+        # 5s gives more headroom, though the underlying race is still not
+        # fully closed (see this function's own docstring "false negative"
+        # note and issue #681's follow-up). No other field this module
+        # verifies has shown this same race, so the delay is scoped to
+        # audience-touching saves only rather than slowing down every
+        # update_master call.
+        page.wait_for_timeout(5_000)
+
     url = WIZARD_EDIT_URL.format(campaign_id=campaign_id)
     page.goto(url, wait_until="commit")
     assert_not_captcha(page.content())
     assert_authenticated(page.content())
     _wait_for_edit_form(page, campaign_id)
+    if _audience_touched:
+        _wait_for_audience_section(page)
 
     checks = [
         ("weekly_budget", weekly_budget, _read_weekly_budget),
@@ -3040,6 +3752,11 @@ def _verify_saved(
             _read_promotion_goal_label,
         ),
         ("name", name, _read_campaign_name),
+        (
+            "gender",
+            None if gender is None else GENDER_CHOICES[gender],
+            _read_gender_label,
+        ),
     ]
 
     mismatches = []
@@ -3050,6 +3767,65 @@ def _verify_saved(
         if actual != expected:
             mismatches.append(
                 f"{label}: expected {expected!r}, page now shows {actual!r}"
+            )
+
+    if age_from_requested:
+        expected_label = _format_age_bound_label(is_from=True, age=age_from)
+        actual = _read_until_matches(
+            page, lambda p: _read_age_bound_label(p, is_from=True), expected_label
+        )
+        if actual != expected_label:
+            mismatches.append(
+                f"age_from: expected {expected_label!r}, page now shows " f"{actual!r}"
+            )
+
+    if age_to_requested:
+        expected_label = _format_age_bound_label(is_from=False, age=age_to)
+        actual = _read_until_matches(
+            page, lambda p: _read_age_bound_label(p, is_from=False), expected_label
+        )
+        if actual != expected_label:
+            mismatches.append(
+                f"age_to: expected {expected_label!r}, page now shows " f"{actual!r}"
+            )
+
+    if devices is not None:
+        actual_devices = _read_until_matches(page, _read_devices, devices)
+        if actual_devices != devices:
+            mismatches.append(
+                f"devices: expected {sorted(devices)}, page now shows "
+                f"{sorted(actual_devices) if actual_devices is not None else None}"
+            )
+
+    if add_audience_tags or remove_audience_tag_count:
+        expected_count = (
+            len(audience_tags_before or [])
+            + len(add_audience_tags or [])
+            - remove_audience_tag_count
+        )
+
+        def _tag_state_matches(actual_tags: List[str], _expected: Any) -> bool:
+            return len(actual_tags) == expected_count and all(
+                tag in actual_tags for tag in (add_audience_tags or [])
+            )
+
+        # A longer timeout than _VERIFY_FIELD_READ_TIMEOUT_MS's default:
+        # _read_audience_tags itself already spends up to
+        # _AUDIENCE_SECTION_READY_TIMEOUT_MS settling before returning a
+        # single reading, so the default 5s budget could afford barely one
+        # retry. Confirmed live (issue #681) a save's tag-list commit can
+        # itself lag behind the reload by several seconds beyond that.
+        actual_tags = _read_until_matches(
+            page,
+            _read_audience_tags,
+            None,
+            matches=_tag_state_matches,
+            timeout_ms=_AUDIENCE_SECTION_READY_TIMEOUT_MS * 3,
+        )
+        if not _tag_state_matches(actual_tags, None):
+            mismatches.append(
+                f"audience_tags: expected {expected_count} tag(s) including "
+                f"{add_audience_tags!r}, page now shows {actual_tags!r}"
             )
 
     if goal_price is not None:
@@ -3220,6 +3996,14 @@ def update_master(
     headlines: Optional[Dict[int, str]] = None,
     texts: Optional[Dict[int, str]] = None,
     images: Optional[Dict[int, str]] = None,
+    gender: Optional[str] = None,
+    age_from: Optional[int] = None,
+    age_from_requested: bool = False,
+    age_to: Optional[int] = None,
+    age_to_requested: bool = False,
+    devices: Optional[Set[str]] = None,
+    add_audience_tags: Optional[List[str]] = None,
+    remove_audience_tags: Optional[List[int]] = None,
     launch: bool = False,
 ) -> Dict[str, Any]:
     """Update one or more Этап A/B/D fields (plus the campaign name) and save.
@@ -3264,10 +4048,34 @@ def update_master(
     empty set, or to a position beyond the campaign's actual image count,
     raises ``BrowserSessionError``.
 
-    Later Этап C fields — sitelinks, audience, Metrika counters/goals,
-    budget adaptation — plus video (a separate follow-up issue, different
-    upload control/pipeline) are out of scope for this function; see issue
-    #648.
+    ``gender``/``age_from``/``age_to``/``devices``/``add_audience_tags``/
+    ``remove_audience_tags`` (issue #681, Этап C) cover the "Аудитория"
+    section's manual-targeting fields — see ``_set_gender``/
+    ``_set_age_bound``/``_set_devices``/``_add_audience_tag``/
+    ``_remove_audience_tag`` for the per-field mechanics. This module never
+    touches the section's own top-level preset selector ("Настроить
+    вручную" vs. "Подобрать оптимальную") — every field below only exists
+    on the page while "Настроить вручную" is already selected, and switching
+    presets is out of scope here (issue #681 follow-up). ``age_from``/
+    ``age_to`` accept ``None`` as an explicit, distinct value from "not
+    requested" (unlike every other optional field here) — ``age_to=None``
+    means "Без ограничений" (no upper bound), a real selectable option, not
+    "leave unchanged" — so both are paired with their own
+    ``*_requested`` flag; the CLI layer is responsible for only ever
+    passing ``age_from_requested``/``age_to_requested`` when the
+    corresponding ``--age-from``/``--age-to`` flag was actually given.
+    ``add_audience_tags`` appends new keyword/interest tags (Yandex
+    disambiguates which kind a given text resolves to; see the
+    ``_AUDIENCE_TAG_LISTBOX_TESTID`` module comment) — a tag with no
+    matching suggestion raises rather than silently no-op'ing.
+    ``remove_audience_tags`` takes 0-based POSITIONS into the tag list as it
+    exists BEFORE this call (see ``masters audience get`` to read current
+    positions) — removed low-to-high internally so earlier removals don't
+    shift the position of a later one still pending.
+
+    Later Этап C fields — sitelinks, Metrika counters/goals, budget
+    adaptation — plus video (a separate follow-up issue, different upload
+    control/pipeline) are out of scope for this function; see issue #648.
 
     ``launch`` (issue #668) matters only when ``campaign_id`` is currently a
     DRAFT: that edit page has no "Сохранить кампанию" button at all, only a
@@ -3330,13 +4138,20 @@ def update_master(
         and not headlines
         and not texts
         and not images
+        and gender is None
+        and not age_from_requested
+        and not age_to_requested
+        and devices is None
+        and not add_audience_tags
+        and not remove_audience_tags
     ):
         raise ValueError(
             "update_master requires at least one field to update "
             "(weekly_budget, promotion_goal, goal_price, "
             "target_action_prices, add_target_actions, "
             "remove_target_action_goal_ids, directs_helps, name, "
-            "headlines, texts, images)."
+            "headlines, texts, images, gender, age_from, age_to, devices, "
+            "add_audience_tags, remove_audience_tags)."
         )
 
     url = WIZARD_EDIT_URL.format(campaign_id=campaign_id)
@@ -3376,6 +4191,85 @@ def update_master(
         _add_target_action(page, goal_id, price)
     if directs_helps is not None:
         _set_directs_helps(page, directs_helps)
+
+    _audience_requested = (
+        gender is not None
+        or age_from_requested
+        or age_to_requested
+        or devices is not None
+        or add_audience_tags
+        or remove_audience_tags
+    )
+    if _audience_requested:
+        _wait_for_audience_section(page)
+    if gender is not None:
+        _set_gender(page, gender)
+    if age_from_requested:
+        _set_age_bound(page, is_from=True, age=age_from)
+    if age_to_requested:
+        _set_age_bound(page, is_from=False, age=age_to)
+    if devices is not None:
+        _set_devices(page, devices)
+
+    # Snapshotted BEFORE any tag mutation, same "resolve later ops against a
+    # stable pre-mutation baseline" reasoning as the image-position snapshot
+    # below — _verify_saved needs the pre-call count to compute the expected
+    # post-save count, and _remove_audience_tags below needs it to remove
+    # high-to-low without an earlier removal shifting a later requested
+    # position.
+    audience_tags_before = (
+        _read_audience_tags(page) if (add_audience_tags or remove_audience_tags) else []
+    )
+    _running_tag_count = len(audience_tags_before)  # noqa: SIM113
+    for index in sorted(remove_audience_tags or [], reverse=True):
+        if index >= len(audience_tags_before):
+            raise BrowserSessionError(
+                f"Audience tag position {index + 1} is out of range — this "
+                f"campaign currently has {len(audience_tags_before)} tag(s) "
+                f"(positions 1-{len(audience_tags_before)})."
+            )
+        _remove_audience_tag(page, index)
+        # Same "click alone isn't proof" guard as the add-tag verification
+        # below — confirmed live (issue #681) a save immediately after a
+        # close-button click that hadn't actually committed to the DOM yet
+        # reloaded with the tag still present.
+        _running_tag_count -= 1
+        deadline = time.monotonic() + _AUDIENCE_TAG_SUGGEST_TIMEOUT_MS / 1000
+        actual_count = len(_read_audience_tags(page))
+        while actual_count != _running_tag_count and time.monotonic() < deadline:
+            page.wait_for_timeout(250)
+            actual_count = len(_read_audience_tags(page))
+        if actual_count != _running_tag_count:
+            raise BrowserSessionError(
+                f"Clicked the close button for the tag at position "
+                f"{index + 1}, but the tag list still shows {actual_count} "
+                f"tag(s) instead of the expected {_running_tag_count} — the "
+                "click may not have committed. Verify manually before "
+                "retrying."
+            )
+    for text in add_audience_tags or []:
+        _add_audience_tag(page, text)
+        # A click that doesn't visibly grow the tag list is a hard error
+        # here too, not a silent no-op (mirrors _click_action_button's
+        # "never trust the click alone" convention) — confirmed live
+        # (issue #681) a save immediately after an _add_audience_tag click
+        # that hadn't actually committed to the DOM yet reloaded with the
+        # tag missing, even though the click itself raised no error.
+        _running_tag_count += 1
+        deadline = time.monotonic() + _AUDIENCE_TAG_SUGGEST_TIMEOUT_MS / 1000
+        actual_count = len(_read_audience_tags(page))
+        while actual_count != _running_tag_count and time.monotonic() < deadline:
+            page.wait_for_timeout(250)
+            actual_count = len(_read_audience_tags(page))
+        if actual_count != _running_tag_count:
+            raise BrowserSessionError(
+                f"Clicked the matching suggestion for {text!r} in "
+                "'Интересы и поисковые запросы', but the tag list still "
+                f"shows {actual_count} tag(s) instead of the expected "
+                f"{_running_tag_count} — the click may not have committed. "
+                "Verify manually before retrying."
+            )
+
     for index, value in (headlines or {}).items():
         _set_repeating_value(
             page, _HEADLINES_TESTID_TEMPLATE, _HEADLINES_SLOT_COUNT, index, value
@@ -3450,6 +4344,15 @@ def update_master(
             target_action_prices=target_action_prices,
             add_target_actions=add_target_actions,
             remove_target_action_goal_ids=remove_target_action_goal_ids,
+            gender=gender,
+            age_from_requested=age_from_requested,
+            age_from=age_from,
+            age_to_requested=age_to_requested,
+            age_to=age_to,
+            devices=devices,
+            audience_tags_before=audience_tags_before,
+            add_audience_tags=add_audience_tags,
+            remove_audience_tag_count=len(remove_audience_tags or []),
             clicked_button_label=clicked_button_label,
         )
     except BrowserAuthError as exc:
@@ -3484,6 +4387,18 @@ def update_master(
         result["Texts"] = texts
     if images:
         result["Images"] = images
+    if gender is not None:
+        result["Gender"] = gender
+    if age_from_requested:
+        result["AgeFrom"] = age_from
+    if age_to_requested:
+        result["AgeTo"] = age_to
+    if devices is not None:
+        result["Devices"] = sorted(devices)
+    if add_audience_tags:
+        result["AddedAudienceTags"] = add_audience_tags
+    if remove_audience_tags:
+        result["RemovedAudienceTagPositions"] = sorted(remove_audience_tags)
     if was_draft and launch:
         # Issue #721: the DRAFT edit page's launch click redirects away from
         # /edit/ (already awaited by _click_draft_terminal_button inside
@@ -3627,6 +4542,41 @@ def fetch_master_target_actions(page: "Page", campaign_id: int) -> Dict[str, Any
         "CampaignId": campaign_id,
         "TargetActions": target_actions,
         "Count": len(target_actions),
+    }
+
+
+def fetch_master_audience(page: "Page", campaign_id: int) -> Dict[str, Any]:
+    """Read a campaign's current "Аудитория" (gender/age/interests-and-
+    search-terms/devices) manual-targeting settings.
+
+    Read-only, mirrors ``fetch_master_target_actions``: navigates straight
+    to the edit page (this data does not exist on the overview page
+    ``fetch_master`` reads) and reads without ever touching Save.
+
+    ``AudienceTags`` is returned in on-page order (0-based positions match
+    what ``masters update --remove-audience-tag`` expects) — this function
+    does not distinguish a keyword tag from an interest-category tag in the
+    result (see the ``_AUDIENCE_TAG_LISTBOX_TESTID`` module comment for why
+    that distinction isn't reliably derivable from an already-added tag's
+    display text alone).
+    """
+    page.goto(WIZARD_EDIT_URL.format(campaign_id=campaign_id), wait_until="commit")
+    assert_not_captcha(page.content())
+    assert_authenticated(page.content())
+    _wait_for_edit_form(page, campaign_id)
+    _wait_for_audience_section(page)
+
+    audience_tags = _read_audience_tags(page)
+    devices = _read_devices(page)
+
+    return {
+        "CampaignId": campaign_id,
+        "Gender": _read_gender_label(page),
+        "AgeFromLabel": _read_age_bound_label(page, is_from=True),
+        "AgeToLabel": _read_age_bound_label(page, is_from=False),
+        "AudienceTags": audience_tags,
+        "AudienceTagCount": len(audience_tags),
+        "Devices": sorted(devices) if devices is not None else None,
     }
 
 

@@ -69,6 +69,10 @@ import click
 from click.core import ParameterSource
 
 from ..api import client_from_ctx, create_client
+from ..browser.masters import AGE_FROM_CHOICES as _AGE_FROM_CHOICES
+from ..browser.masters import AGE_TO_CHOICES as _AGE_TO_CHOICES
+from ..browser.masters import DEVICE_OPTION_VALUES as _DEVICE_OPTION_VALUES
+from ..browser.masters import GENDER_CHOICES as _GENDER_CHOICES
 from ..browser.masters import PROMOTION_GOAL_CHOICES as _PROMOTION_GOAL_CHOICES
 from ..output import (
     format_output,
@@ -1114,6 +1118,50 @@ def targetactions_get(
     format_output(result, output_format, output)
 
 
+@masters.group("audience")
+def audience():
+    """Read a Мастер кампаний campaign's "Аудитория" manual-targeting
+    settings (browser-driven, no API)
+
+    Мастер кампаний has no Yandex Direct API surface (see this module's own
+    docstring), and this section lives only on the campaign's edit page
+    (issue #681) — same reasoning as the ``targetactions`` group above.
+    Read-only for now: writing gender/age/devices/interest-and-search-term
+    tags is ``masters update --gender``/``--age-from``/``--age-to``/
+    ``--device``/``--add-audience-tag``/``--remove-audience-tag``.
+    """
+
+
+@audience.command("get")
+@click.argument("campaign_id", type=int)
+@_masters_browser_options
+@click.pass_context
+@handle_api_errors
+def audience_get(
+    ctx, campaign_id, headful, profile_dir, chrome_profile, output_format, output
+):
+    """Get a Мастер кампаний campaign's current "Аудитория" settings
+
+    Returns gender, age bounds, the interests-and-search-terms tag list (in
+    0-based on-page order — use these positions with
+    ``--remove-audience-tag``), and the selected device types. This section
+    only exists on the page while the campaign's audience mode is "Настроить
+    вручную" (the default); this command does not check or change that
+    top-level mode.
+    """
+    from ..browser.masters import fetch_master_audience
+
+    result = _with_session(
+        ctx,
+        headful,
+        profile_dir,
+        chrome_profile,
+        lambda page: fetch_master_audience(page, campaign_id),
+    )
+
+    format_output(result, output_format, output)
+
+
 @masters.command()
 @click.argument("campaign_id", type=int)
 @click.option(
@@ -1236,6 +1284,62 @@ def targetactions_get(
     ),
 )
 @click.option(
+    "--gender",
+    type=click.Choice(sorted(_GENDER_CHOICES)),
+    help="Target gender (Пол)",
+)
+@click.option(
+    "--age-from",
+    type=click.Choice([str(v) for v in _AGE_FROM_CHOICES]),
+    help="Minimum target age (от), one of the page's fixed age brackets",
+)
+@click.option(
+    "--age-to",
+    type=click.Choice(
+        [str(v) for v in _AGE_TO_CHOICES if v is not None] + ["unlimited"]
+    ),
+    help=(
+        "Maximum target age (до), one of the page's fixed age brackets, or "
+        "'unlimited' for no upper bound (Без ограничений)"
+    ),
+)
+@click.option(
+    "--device",
+    "devices",
+    multiple=True,
+    type=click.Choice(_DEVICE_OPTION_VALUES),
+    help=(
+        "Target device type (Устройства пользователей). Repeat to select "
+        "multiple; passing this REPLACES the whole selection with exactly "
+        "the device(s) given (at least one is required — Yandex has no "
+        "'zero devices' state)."
+    ),
+)
+@click.option(
+    "--add-audience-tag",
+    "add_audience_tags",
+    multiple=True,
+    help=(
+        "Add a keyword or interest tag to 'Интересы и поисковые запросы' — "
+        "the exact text of one of Yandex's own autocomplete suggestions for "
+        "that text (repeat for multiple). Yandex resolves whether it's a "
+        "search-term keyword or an interest category; a tag with no "
+        "matching suggestion is refused."
+    ),
+)
+@click.option(
+    "--remove-audience-tag",
+    "remove_audience_tags",
+    multiple=True,
+    type=int,
+    help=(
+        "Remove a tag from 'Интересы и поисковые запросы' by its CURRENT "
+        "0-based position (see `masters audience get`). Repeat for multiple "
+        "positions; positions refer to the list as it exists BEFORE this "
+        "command runs, not after earlier removals in the same call."
+    ),
+)
+@click.option(
     "--launch",
     is_flag=True,
     default=False,
@@ -1263,6 +1367,12 @@ def update(
     headlines,
     texts,
     images,
+    gender,
+    age_from,
+    age_to,
+    devices,
+    add_audience_tags,
+    remove_audience_tags,
     launch,
     headful,
     profile_dir,
@@ -1320,9 +1430,21 @@ def update(
     rationale. ``--image`` additionally has NO in-place replacement at all
     on Yandex's side — see its own help text and
     ``direct_cli/browser/masters.py::_set_image`` for why the image set's
-    order changes as a result. Later fields (sitelinks, audience, Metrika
+    order changes as a result. Later fields (sitelinks, Metrika
     counters/goals, budget adaptation) and video (a separate follow-up
     issue) are tracked separately, see issue #648.
+
+    ``--gender``/``--age-from``/``--age-to``/``--device``/
+    ``--add-audience-tag``/``--remove-audience-tag`` (issue #681) cover the
+    "Аудитория" section's manual-targeting fields — see `masters audience
+    get` to read a campaign's current values (including the tag list's
+    0-based positions ``--remove-audience-tag`` expects). ``--device``
+    REPLACES the whole device selection with exactly what's given (repeat
+    for multiple); it does not add/remove individual device types. A tag
+    passed to ``--add-audience-tag`` must be the exact text of one of
+    Yandex's own autocomplete suggestions — Yandex decides whether it
+    resolves to a search-term keyword or an interest category, and a tag
+    with no matching suggestion is refused rather than added as free text.
 
     A DRAFT campaign's edit page has no "Сохранить кампанию" button at all —
     only a save-as-draft/launch pair (issue #668). ``update`` saves it as a
@@ -1345,12 +1467,19 @@ def update(
         and not headlines
         and not texts
         and not images
+        and gender is None
+        and age_from is None
+        and age_to is None
+        and not devices
+        and not add_audience_tags
+        and not remove_audience_tags
     ):
         raise click.UsageError(
             "Provide at least one of --weekly-budget, --promotion-goal, "
             "--goal-price, --target-action-price, --add-target-action, "
             "--remove-target-action, --directs-helps/--no-directs-helps, "
-            "--name, --headline, --text, --image."
+            "--name, --headline, --text, --image, --gender, --age-from, "
+            "--age-to, --device, --add-audience-tag, --remove-audience-tag."
         )
 
     if goal_price is not None and promotion_goal == "max-conversions":
@@ -1431,6 +1560,11 @@ def update(
     )
     _validate_image_paths(parsed_images)
 
+    parsed_age_from = int(age_from) if age_from is not None else None
+    parsed_age_to = (
+        None if age_to == "unlimited" else (int(age_to) if age_to is not None else None)
+    )
+
     result = _with_session(
         ctx,
         headful,
@@ -1450,6 +1584,14 @@ def update(
             headlines=parsed_headlines,
             texts=parsed_texts,
             images=parsed_images,
+            gender=gender,
+            age_from=parsed_age_from,
+            age_from_requested=age_from is not None,
+            age_to=parsed_age_to,
+            age_to_requested=age_to is not None,
+            devices=set(devices) if devices else None,
+            add_audience_tags=list(add_audience_tags) or None,
+            remove_audience_tags=list(remove_audience_tags) or None,
             launch=launch,
         ),
     )

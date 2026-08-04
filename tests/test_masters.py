@@ -584,6 +584,18 @@ class FakePage:
     def wait_for_timeout(self, timeout):
         pass
 
+    @property
+    def mouse(self):
+        return _FakeMouse()
+
+
+class _FakeMouse:
+    """Minimal ``page.mouse`` stand-in — only ``wheel()`` is used
+    (``_click_save``'s scroll-to-bottom-before-searching step)."""
+
+    def wheel(self, delta_x, delta_y):
+        pass
+
 
 def _passport_page(html="<body>Войдите с Яндекс ID</body>", **kwargs):
     """A ``FakePage`` that also carries the Passport DOM marker.

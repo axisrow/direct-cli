@@ -51,6 +51,11 @@ SMOKE_MATRIX = {
         "keywordsresearch.has-search-volume",
         "leads.get",
         "masters.adimages.get",
+        # Read-only: navigates to the edit page and reads gender/age/
+        # interests-and-search-terms/devices, never clicks Save (see
+        # fetch_master_audience's docstring) — same "opens the edit page
+        # but never commits" safety as masters.adimages.get above.
+        "masters.audience.get",
         # Read-only: opens the image manager modal to read thumb URLs but
         # never clicks Save (see fetch_master_images's docstring) — nothing
         # commits to the campaign, so this is safe to exercise like any
