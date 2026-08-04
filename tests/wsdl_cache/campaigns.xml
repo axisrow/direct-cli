@@ -962,6 +962,16 @@
                     <xsd:element name="LimitPercent" type="xsd:int" minOccurs="0" maxOccurs="1"/>
                 </xsd:sequence>
             </xsd:complexType>
+            <xsd:complexType name="StrategyHighestPosition">
+                <xsd:sequence>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1" nillable="true"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyManualCpm">
+                <xsd:sequence>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
             <xsd:complexType name="StrategyMaximumImpressionsBase">
                 <xsd:sequence>
                     <xsd:element name="AverageCpm" type="xsd:long" minOccurs="1" maxOccurs="1"/>
@@ -1080,6 +1090,8 @@
             </xsd:complexType>
             <xsd:complexType name="UnifiedCampaignStrategyBase">
                 <xsd:sequence>
+                    <xsd:element name="HighestPosition"
+                                 type="ns:StrategyHighestPosition" minOccurs="0" maxOccurs="1"/>
                     <xsd:element name="WbMaximumClicks"
                                  type="ns:StrategyMaximumClicks" minOccurs="0" maxOccurs="1"/>
                     <xsd:element name="WbMaximumConversionRate"
@@ -1124,6 +1136,8 @@
             </xsd:complexType>
             <xsd:complexType name="MobileAppCampaignStrategyBase">
                 <xsd:sequence>
+                    <xsd:element name="HighestPosition"
+                                 type="ns:StrategyHighestPosition" minOccurs="0" maxOccurs="1"/>
                     <xsd:element name="WbMaximumClicks"
                                  type="ns:StrategyMaximumClicks" minOccurs="0" maxOccurs="1"/>
                     <xsd:element name="WbMaximumAppInstalls"
@@ -1222,6 +1236,8 @@
                 <xsd:sequence>
                     <xsd:element name="BiddingStrategyType"
                                  type="ns:CpmBannerCampaignNetworkStrategyTypeEnum" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="ManualCpm"
+                                 type="ns:StrategyManualCpm" minOccurs="0" maxOccurs="1"/>
                     <xsd:element name="WbMaximumImpressions"
                                  type="ns:StrategyWbMaximumImpressions" minOccurs="0" maxOccurs="1"/>
                     <xsd:element name="CpMaximumImpressions"
@@ -1512,6 +1528,16 @@
                     <xsd:element name="LimitPercent" type="xsd:int" minOccurs="0" maxOccurs="1"/>
                 </xsd:sequence>
             </xsd:complexType>
+            <xsd:complexType name="StrategyHighestPositionAdd">
+                <xsd:sequence>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="StrategyManualCpmAdd">
+                <xsd:sequence>
+                    <xsd:element name="WeeklySpendLimit" type="xsd:long" minOccurs="0" maxOccurs="1"/>
+                </xsd:sequence>
+            </xsd:complexType>
             <xsd:complexType name="StrategyMaximumImpressionsAddBase">
                 <xsd:sequence>
                     <xsd:element name="AverageCpm" type="xsd:long" minOccurs="1" maxOccurs="1"/>
@@ -1630,6 +1656,8 @@
             </xsd:complexType>
             <xsd:complexType name="UnifiedCampaignStrategyAddBase">
                 <xsd:sequence>
+                    <xsd:element name="HighestPosition"
+                                 type="ns:StrategyHighestPositionAdd" minOccurs="0" maxOccurs="1"/>
                     <xsd:element name="WbMaximumClicks"
                                  type="ns:StrategyMaximumClicksAdd" minOccurs="0" maxOccurs="1"/>
                     <xsd:element name="WbMaximumConversionRate"
@@ -1674,6 +1702,8 @@
             </xsd:complexType>
             <xsd:complexType name="MobileAppCampaignStrategyAddBase">
                 <xsd:sequence>
+                    <xsd:element name="HighestPosition"
+                                 type="ns:StrategyHighestPositionAdd" minOccurs="0" maxOccurs="1"/>
                     <xsd:element name="WbMaximumClicks"
                                  type="ns:StrategyMaximumClicksAdd" minOccurs="0" maxOccurs="1"/>
                     <xsd:element name="WbMaximumAppInstalls"
@@ -1772,6 +1802,8 @@
                 <xsd:sequence>
                     <xsd:element name="BiddingStrategyType"
                                  type="ns:CpmBannerCampaignNetworkStrategyTypeEnum" minOccurs="1" maxOccurs="1"/>
+                    <xsd:element name="ManualCpm"
+                                 type="ns:StrategyManualCpmAdd" minOccurs="0" maxOccurs="1"/>
                     <xsd:element name="WbMaximumImpressions"
                                  type="ns:StrategyWbMaximumImpressionsAdd" minOccurs="0" maxOccurs="1"/>
                     <xsd:element name="CpMaximumImpressions"

@@ -563,6 +563,14 @@ def get(
     help="CpmBannerCampaign strategy AutoContinue: YES or NO",
 )
 @click.option(
+    "--strategy-weekly-spend-limit",
+    type=MICRO_RUBLES,
+    help=(
+        "CpmBannerCampaign Network MANUAL_CPM strategy WeeklySpendLimit "
+        "in micro-rubles"
+    ),
+)
+@click.option(
     "--mobile-search-weekly-spend-limit",
     type=MICRO_RUBLES,
     help="MobileAppCampaign Search strategy WeeklySpendLimit in micro-rubles",
@@ -1364,6 +1372,7 @@ def add(
     strategy_start_date,
     strategy_end_date,
     strategy_auto_continue,
+    strategy_weekly_spend_limit,
     mobile_search_weekly_spend_limit,
     mobile_search_bid_ceiling,
     mobile_search_custom_period_spend_limit,
@@ -1822,6 +1831,7 @@ def add(
             "--strategy-start-date",
             "--strategy-end-date",
             "--strategy-auto-continue",
+            "--strategy-weekly-spend-limit",
         },
     }
     reject_incompatible_flags(
@@ -1868,6 +1878,7 @@ def add(
             "--strategy-start-date": strategy_start_date,
             "--strategy-end-date": strategy_end_date,
             "--strategy-auto-continue": strategy_auto_continue,
+            "--strategy-weekly-spend-limit": strategy_weekly_spend_limit,
             "--mobile-search-weekly-spend-limit": (mobile_search_weekly_spend_limit),
             "--mobile-search-bid-ceiling": mobile_search_bid_ceiling,
             "--mobile-search-custom-period-spend-limit": (
@@ -2977,6 +2988,14 @@ def add(
     help="CpmBannerCampaign strategy AutoContinue: YES or NO",
 )
 @click.option(
+    "--strategy-weekly-spend-limit",
+    type=MICRO_RUBLES,
+    help=(
+        "CpmBannerCampaign Network MANUAL_CPM strategy WeeklySpendLimit "
+        "in micro-rubles"
+    ),
+)
+@click.option(
     "--mobile-search-weekly-spend-limit",
     type=MICRO_RUBLES,
     help="MobileAppCampaign Search strategy WeeklySpendLimit in micro-rubles",
@@ -3825,6 +3844,7 @@ def update(
     strategy_start_date,
     strategy_end_date,
     strategy_auto_continue,
+    strategy_weekly_spend_limit,
     mobile_search_weekly_spend_limit,
     mobile_search_bid_ceiling,
     mobile_search_custom_period_spend_limit,
@@ -4122,6 +4142,7 @@ def update(
         "--strategy-start-date": strategy_start_date,
         "--strategy-end-date": strategy_end_date,
         "--strategy-auto-continue": strategy_auto_continue,
+        "--strategy-weekly-spend-limit": strategy_weekly_spend_limit,
         "--mobile-search-weekly-spend-limit": (mobile_search_weekly_spend_limit),
         "--mobile-search-bid-ceiling": mobile_search_bid_ceiling,
         "--mobile-search-custom-period-spend-limit": (
@@ -4631,6 +4652,7 @@ def update(
             "--strategy-start-date",
             "--strategy-end-date",
             "--strategy-auto-continue",
+            "--strategy-weekly-spend-limit",
         }
         allowed_subtype_flags_by_type = {
             "TEXT_CAMPAIGN": text_campaign_flags,

@@ -107,7 +107,12 @@ MOBILE_APP_SEARCH_STRATEGIES = [
     "SERVING_OFF",
 ]
 MOBILE_APP_SEARCH_DISABLED_STRATEGIES = {"IMPRESSIONS_BELOW_SEARCH"}
+# HIGHEST_POSITION gained a WeeklySpendLimit-only ``HighestPosition``/
+# ``StrategyHighestPositionAdd`` subtype block (issue #610 WSDL drift).
+# MobileAppCampaignNetworkStrategyTypeEnum has no HIGHEST_POSITION value,
+# so the subtype is reachable only from the Search side.
 MOBILE_APP_SEARCH_STRATEGY_TO_WSDL_SUBTYPE = {
+    "HIGHEST_POSITION": "HighestPosition",
     "WB_MAXIMUM_CLICKS": "WbMaximumClicks",
     "WB_MAXIMUM_APP_INSTALLS": "WbMaximumAppInstalls",
     "AVERAGE_CPC": "AverageCpc",
@@ -116,6 +121,7 @@ MOBILE_APP_SEARCH_STRATEGY_TO_WSDL_SUBTYPE = {
     "PAY_FOR_INSTALL": "PayForInstall",
 }
 MOBILE_APP_SEARCH_WEEKLY_SPEND_SUBTYPES = {
+    "HighestPosition",
     "WbMaximumClicks",
     "WbMaximumAppInstalls",
     "AverageCpc",
@@ -596,6 +602,7 @@ def build_cpm_banner_bidding_strategy(
     start_date: Optional[str],
     end_date: Optional[str],
     auto_continue: Optional[str],
+    weekly_spend_limit: Optional[int] = None,
     *,
     include_defaults: bool,
 ) -> Optional[dict]:
@@ -609,6 +616,7 @@ def build_cpm_banner_bidding_strategy(
             start_date,
             end_date,
             auto_continue,
+            weekly_spend_limit,
         )
     )
     if not include_defaults and search_strategy is None and network_strategy is None:
@@ -657,6 +665,8 @@ def build_cpm_banner_bidding_strategy(
             "CP_AVERAGE_CPV": ("CpAverageCpv", "AverageCpv"),
         }
         if normalized_network == "MANUAL_CPM":
+            # StrategyManualCpmAdd declares only WeeklySpendLimit (issue #610
+            # WSDL drift) — every other detail flag remains unsupported.
             provided = {
                 "--average-cpm": average_cpm,
                 "--average-cpv": average_cpv,
@@ -671,6 +681,8 @@ def build_cpm_banner_bidding_strategy(
                     "MANUAL_CPM does not accept strategy detail flags: "
                     f"{', '.join(sorted(invalid))}"
                 )
+            if weekly_spend_limit is not None:
+                network["ManualCpm"] = {"WeeklySpendLimit": weekly_spend_limit}
         elif normalized_network in weekly_blocks:
             block_name, amount_field = weekly_blocks[normalized_network]
             amount = average_cpv if amount_field == "AverageCpv" else average_cpm
@@ -703,6 +715,7 @@ def build_cpm_banner_bidding_strategy(
                     ("--strategy-start-date", start_date),
                     ("--strategy-end-date", end_date),
                     ("--strategy-auto-continue", auto_continue),
+                    ("--strategy-weekly-spend-limit", weekly_spend_limit),
                 )
                 if value is not None
             ]
@@ -747,6 +760,7 @@ def build_cpm_banner_bidding_strategy(
                         "--average-cpv",
                         average_cpv if amount_field == "AverageCpm" else None,
                     ),
+                    ("--strategy-weekly-spend-limit", weekly_spend_limit),
                 )
                 if value is not None
             ]
@@ -865,6 +879,7 @@ def build_mobile_app_search_strategy(
         )
     if not is_update:
         required = {
+            "HighestPosition": {},
             "WbMaximumClicks": {
                 "--mobile-search-weekly-spend-limit or full CustomPeriodBudget": (
                     weekly_spend_limit if not custom_period_flags else 1
@@ -4826,9 +4841,12 @@ UNIFIED_CAMPAIGN_SEARCH_STRATEGIES = [
 
 # Maps UnifiedCampaignSearchStrategyTypeEnum value → WSDL Strategy*Add
 # subtype field name on UnifiedCampaignStrategyAddBase. Strategies without
-# a nested subtype block (HIGHEST_POSITION, SERVING_OFF) are absent — the
-# API discriminates only by BiddingStrategyType for those.
+# a nested subtype block (SERVING_OFF) are absent — the API discriminates
+# only by BiddingStrategyType for those. HIGHEST_POSITION gained a
+# WeeklySpendLimit-only ``HighestPosition``/``StrategyHighestPositionAdd``
+# subtype block (issue #610 WSDL drift).
 _UNIFIED_CAMPAIGN_SEARCH_STRATEGY_TO_WSDL_SUBTYPE: Dict[str, str] = {
+    "HIGHEST_POSITION": "HighestPosition",
     "WB_MAXIMUM_CLICKS": "WbMaximumClicks",
     "WB_MAXIMUM_CONVERSION_RATE": "WbMaximumConversionRate",
     "AVERAGE_CPC": "AverageCpc",
@@ -4846,6 +4864,7 @@ _UNIFIED_CAMPAIGN_SEARCH_STRATEGY_TO_WSDL_SUBTYPE: Dict[str, str] = {
 # the flag for any other subtype must raise a CLI UsageError instead of
 # silently dropping the value (invariant #2 in tests/test_wsdl_parity_gate).
 _UNIFIED_SEARCH_SUPPORTS_WEEKLY_SPEND_LIMIT = {
+    "HighestPosition",
     "WbMaximumClicks",
     "WbMaximumConversionRate",
     "AverageCpc",
