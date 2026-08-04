@@ -3678,7 +3678,7 @@ class TestClickSave(unittest.TestCase):
         )
 
         with self.assertRaises(BrowserSessionError):
-            browser_masters._click_save(page, 42)
+            browser_masters._click_save(page, 42, is_draft=False)
         self.assertEqual(decoy_clicked, [])
 
     def test_clicks_the_exact_match_button(self):
@@ -3695,7 +3695,7 @@ class TestClickSave(unittest.TestCase):
             ],
         )
 
-        browser_masters._click_save(page, 42)
+        browser_masters._click_save(page, 42, is_draft=False)
 
         self.assertEqual(clicks, [True])
 
@@ -3739,7 +3739,7 @@ class TestDraftEditPageSave(unittest.TestCase):
             }
         )
 
-        browser_masters._click_save(page, 713231614)
+        browser_masters._click_save(page, 713231614, is_draft=True)
 
         # The publish button must never be touched unless --launch was
         # explicitly requested.
@@ -3758,7 +3758,7 @@ class TestDraftEditPageSave(unittest.TestCase):
             }
         )
 
-        browser_masters._click_save(page, 713231614, launch=True)
+        browser_masters._click_save(page, 713231614, is_draft=True, launch=True)
 
         self.assertEqual(clicks, ["launch"])
 
@@ -3773,7 +3773,7 @@ class TestDraftEditPageSave(unittest.TestCase):
         )
 
         with self.assertRaises(BrowserSessionError):
-            browser_masters._click_save(page, 713231614, launch=True)
+            browser_masters._click_save(page, 713231614, is_draft=True, launch=True)
 
     def test_click_save_prefers_non_draft_path_when_save_draft_button_absent(self):
         # Regression guard: a non-DRAFT page must keep using the plain
@@ -3792,9 +3792,23 @@ class TestDraftEditPageSave(unittest.TestCase):
             ],
         )
 
-        browser_masters._click_save(page, 42)
+        browser_masters._click_save(page, 42, is_draft=False)
 
         self.assertEqual(clicks, [True])
+
+    def test_click_save_uses_caller_supplied_is_draft_despite_dom_flap(self):
+        # Regression for #726: is_draft=True must force the DRAFT branch
+        # even when the DOM has no draft testid (simulates the marker
+        # flapping away mid-hydration) and no "Сохранить кампанию" role
+        # element either, since a real DRAFT page never has one.
+        page = FakePage(locators={}, role_elements=[])
+
+        # The failure must come from the DRAFT-terminal-button lookup
+        # (proves it took the DRAFT branch), not the non-DRAFT "Сохранить
+        # кампанию" lookup — which would raise a differently-worded error.
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._click_save(page, 713231614, is_draft=True)
+        self.assertIn(browser_masters._SAVE_DRAFT_BUTTON_TEXT, str(ctx.exception))
 
 
 class TestUpdateMasterDraftSupport(unittest.TestCase):

@@ -2197,7 +2197,9 @@ def _is_draft_edit_page(page: "Page") -> bool:
         return False
 
 
-def _click_save(page: "Page", campaign_id: int, *, launch: bool = False) -> None:
+def _click_save(
+    page: "Page", campaign_id: int, *, is_draft: bool, launch: bool = False
+) -> None:
     """Click the edit page's save button — "Сохранить кампанию" on a
     non-DRAFT campaign, or the DRAFT-specific save-as-draft/launch button.
 
@@ -2206,8 +2208,21 @@ def _click_save(page: "Page", campaign_id: int, *, launch: bool = False) -> None
     per-section save to target instead. A DRAFT campaign's edit page has a
     DIFFERENT pair of terminal buttons entirely (issue #668) — see
     ``_click_draft_terminal_button``.
+
+    ``is_draft`` MUST be the caller's own ``_is_draft_edit_page`` reading,
+    taken once right after ``_wait_for_edit_form`` returns — NOT re-derived
+    here. Issue #726 (live-confirmed): the DRAFT-terminal marker
+    (``_DRAFT_SAVE_DRAFT_BUTTON_TESTID``) can transiently disappear from the
+    DOM mid-hydration and reappear ~1.5s later, so a fresh
+    ``_is_draft_edit_page(page)`` call made immediately before this click
+    can read ``False`` for a page that was (and still is) DRAFT — sending a
+    DRAFT campaign down the non-DRAFT "Сохранить кампанию" path, which
+    doesn't exist on that page and raises. Every caller already determines
+    ``is_draft`` before doing any of the mutations that precede this click,
+    for the same "read it while the page still reflects what's about to
+    happen" reason ``update_master`` documents at its own call site.
     """
-    if _is_draft_edit_page(page):
+    if is_draft:
         _click_draft_terminal_button(page, campaign_id, launch=launch)
         return
 
@@ -2714,7 +2729,7 @@ def update_master(
     else:
         clicked_button_label = _SAVE_BUTTON_TEXT
 
-    _click_save(page, campaign_id, launch=launch)
+    _click_save(page, campaign_id, is_draft=was_draft, launch=launch)
 
     # The terminal-button click above already happened — irreversible, and
     # for images NOT idempotent (a retry would re-snapshot the
@@ -4488,12 +4503,13 @@ def _save_and_verify_images(
     ``not_idempotent_noun`` is the phrase naming what was already applied
     ("image uploads", "image deletions", ...).
     """
+    is_draft = _is_draft_edit_page(page)
     clicked_button_label = (
         (_LAUNCH_BUTTON_TEXT if launch else _SAVE_DRAFT_BUTTON_TEXT)
-        if _is_draft_edit_page(page)
+        if is_draft
         else _SAVE_BUTTON_TEXT
     )
-    _click_save(page, campaign_id, launch=launch)
+    _click_save(page, campaign_id, is_draft=is_draft, launch=launch)
 
     try:
         return _verify_saved_images(
