@@ -2733,6 +2733,45 @@ def build_dynamic_text_search_strategy(
     )
 
 
+def _assemble_strategy_block(
+    *,
+    container: dict,
+    subtype: str,
+    block: dict,
+    custom_period: Optional[dict],
+    exploration_budget: Optional[dict],
+    budget_type: Optional[str],
+    force_block: bool = False,
+) -> dict:
+    """Graft a Strategy*Add block onto ``container``, appending the shared
+    CustomPeriodBudget / ExplorationBudget / BudgetType tail.
+
+    ``block`` already holds every shape-specific typed field (assembled by
+    the caller from a per-campaign-type field table); this only owns the
+    parts identical across DynamicTextCampaign, SmartCampaign and
+    UnifiedCampaign: grafting the pre-built ``custom_period`` /
+    ``exploration_budget`` dicts, flipping the BudgetType null-slice on
+    update, and deciding whether an otherwise-empty block must still be
+    emitted (``force_block``, e.g. Unified's ``*_MULTIPLE_GOALS`` subtypes).
+    """
+    if custom_period is not None:
+        block["CustomPeriodBudget"] = custom_period
+    if exploration_budget is not None:
+        block["ExplorationBudget"] = exploration_budget
+    if budget_type is not None:
+        normalized_budget_type = budget_type.upper()
+        # Switching the budget slice on update nulls the other slice
+        # explicitly (mirrors every per-campaign-type builder).
+        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET":
+            block["WeeklySpendLimit"] = None
+        elif normalized_budget_type == "WEEKLY_BUDGET":
+            block["CustomPeriodBudget"] = None
+        block["BudgetType"] = normalized_budget_type
+    if block or force_block:
+        container[subtype] = block
+    return container
+
+
 # Dispatch registry for bidding-strategy builders. Keyed on
 # ``(campaign_type, operation, branch)`` where:
 #   - campaign_type: "TEXT_CAMPAIGN", "DYNAMIC_TEXT_CAMPAIGN",
@@ -2951,12 +2990,8 @@ SMART_CAMPAIGN_SEARCH_FIELD_SUPPORT: Dict[str, set] = {
 }
 
 
-def _assemble_smart_strategy_block(
+def _build_smart_flat_block(
     *,
-    container: dict,
-    subtype: str,
-    flag_prefix: str,
-    is_update: bool,
     limit_percent: Optional[int],
     average_cpc: Optional[int],
     filter_average_cpc: Optional[int],
@@ -2970,21 +3005,11 @@ def _assemble_smart_strategy_block(
     roi_coef: Optional[int],
     profitability: Optional[int],
     crr: Optional[int],
-    custom_period_flags: bool,
-    custom_period_spend_limit: Optional[int],
-    custom_period_start_date: Optional[str],
-    custom_period_end_date: Optional[str],
-    custom_period_auto_continue: Optional[str],
-    exploration_flags: bool,
-    exploration_min_budget: Optional[int],
-    exploration_min_budget_custom: Optional[str],
-    budget_type: Optional[str],
 ) -> dict:
-    """Assemble the flat SmartCampaign Strategy*Add block and graft it onto
-    ``container``. Byte-for-byte identical between the smart search and network
-    builders modulo the ``flag_prefix`` used in the update-only BudgetType
-    error messages and the network-only ``limit_percent`` (search passes
-    ``None``).
+    """Build the flat SmartCampaign Strategy*Add typed-field block (everything
+    except CustomPeriodBudget/ExplorationBudget/BudgetType, which
+    ``_assemble_strategy_block`` grafts on). Shared between the smart search
+    and network builders; ``limit_percent`` is network-only.
     """
     block: dict = {}
     if limit_percent is not None:
@@ -3013,53 +3038,43 @@ def _assemble_smart_strategy_block(
         block["Profitability"] = profitability
     if crr is not None:
         block["Crr"] = crr
-    if custom_period_flags:
-        assert custom_period_spend_limit is not None
-        assert custom_period_start_date is not None
-        assert custom_period_end_date is not None
-        assert custom_period_auto_continue is not None
-        block["CustomPeriodBudget"] = {
-            "SpendLimit": custom_period_spend_limit,
-            "StartDate": custom_period_start_date,
-            "EndDate": custom_period_end_date,
-            "AutoContinue": custom_period_auto_continue.upper(),
-        }
-    if exploration_flags:
-        assert exploration_min_budget is not None
-        assert exploration_min_budget_custom is not None
-        block["ExplorationBudget"] = {
-            "MinimumExplorationBudget": exploration_min_budget,
-            "IsMinimumExplorationBudgetCustom": (exploration_min_budget_custom.upper()),
-        }
-    # BudgetType is only on the get-side Strategy* WSDL types
-    # (campaigns.xml 858-929), which SmartCampaignUpdateItem uses. The
-    # Strategy*Add types used by add do NOT declare BudgetType, so this
-    # flag is update-only.
-    if budget_type is not None:
-        if not is_update:
-            raise click.UsageError(
-                f"{flag_prefix}budget-type is update-only "
-                "(WSDL BudgetType lives only on get-side Strategy*)"
-            )
-        normalized_budget_type = budget_type.upper()
-        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET" and not custom_period_flags:
-            raise click.UsageError(
-                f"{flag_prefix}budget-type CUSTOM_PERIOD_BUDGET requires "
-                "full CustomPeriodBudget flags"
-            )
-        if normalized_budget_type == "WEEKLY_BUDGET" and weekly_spend_limit is None:
-            raise click.UsageError(
-                f"{flag_prefix}budget-type WEEKLY_BUDGET requires "
-                f"{flag_prefix}weekly-spend-limit"
-            )
-        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET":
-            block["WeeklySpendLimit"] = None
-        elif normalized_budget_type == "WEEKLY_BUDGET":
-            block["CustomPeriodBudget"] = None
-        block["BudgetType"] = normalized_budget_type
-    if block:
-        container[subtype] = block
-    return container
+    return block
+
+
+def _validate_smart_budget_type(
+    *,
+    flag_prefix: str,
+    is_update: bool,
+    budget_type: Optional[str],
+    custom_period: Optional[dict],
+    weekly_spend_limit: Optional[int],
+) -> None:
+    """Enforce SmartCampaign's update-only ``--*-budget-type`` contract.
+
+    BudgetType lives only on the get-side Strategy* WSDL types (campaigns.xml
+    858-929), which SmartCampaignUpdateItem uses; the Strategy*Add types used
+    by add do NOT declare it, so the flag is update-only. Raises before the
+    shared ``_assemble_strategy_block`` runs so the flag-prefixed error text
+    stays byte-identical between search and network.
+    """
+    if budget_type is None:
+        return
+    if not is_update:
+        raise click.UsageError(
+            f"{flag_prefix}budget-type is update-only "
+            "(WSDL BudgetType lives only on get-side Strategy*)"
+        )
+    normalized_budget_type = budget_type.upper()
+    if normalized_budget_type == "CUSTOM_PERIOD_BUDGET" and custom_period is None:
+        raise click.UsageError(
+            f"{flag_prefix}budget-type CUSTOM_PERIOD_BUDGET requires "
+            "full CustomPeriodBudget flags"
+        )
+    if normalized_budget_type == "WEEKLY_BUDGET" and weekly_spend_limit is None:
+        raise click.UsageError(
+            f"{flag_prefix}budget-type WEEKLY_BUDGET requires "
+            f"{flag_prefix}weekly-spend-limit"
+        )
 
 
 def build_smart_campaign_search_strategy(
@@ -3185,6 +3200,18 @@ def build_smart_campaign_search_strategy(
             "--smart-search-weekly-spend-limit cannot be combined with "
             "--smart-search-cp-spend-limit"
         )
+    custom_period: Optional[dict] = None
+    if custom_period_flags:
+        assert custom_period_spend_limit is not None
+        assert custom_period_start_date is not None
+        assert custom_period_end_date is not None
+        assert custom_period_auto_continue is not None
+        custom_period = {
+            "SpendLimit": custom_period_spend_limit,
+            "StartDate": custom_period_start_date,
+            "EndDate": custom_period_end_date,
+            "AutoContinue": custom_period_auto_continue.upper(),
+        }
 
     # ExplorationBudget is all-or-nothing (2 WSDL minOccurs=1 fields).
     exploration_values = {
@@ -3210,6 +3237,14 @@ def build_smart_campaign_search_strategy(
             f"{normalized_strategy} does not accept SmartCampaign Search "
             "ExplorationBudget flags"
         )
+    exploration_budget_block: Optional[dict] = None
+    if exploration_flags:
+        assert exploration_min_budget is not None
+        assert exploration_min_budget_custom is not None
+        exploration_budget_block = {
+            "MinimumExplorationBudget": exploration_min_budget,
+            "IsMinimumExplorationBudgetCustom": exploration_min_budget_custom.upper(),
+        }
 
     # Required-field check (WSDL minOccurs=1). Skipped on update so users can
     # partial-update a single field (matches CpmBanner / MobileApp semantics).
@@ -3258,11 +3293,14 @@ def build_smart_campaign_search_strategy(
         ):
             raise click.UsageError(f"{normalized_strategy} does not accept {flag}")
 
-    return _assemble_smart_strategy_block(
-        container=search,
-        subtype=subtype,
+    _validate_smart_budget_type(
         flag_prefix="--smart-search-",
         is_update=is_update,
+        budget_type=budget_type,
+        custom_period=custom_period,
+        weekly_spend_limit=weekly_spend_limit,
+    )
+    block = _build_smart_flat_block(
         limit_percent=None,
         average_cpc=average_cpc,
         filter_average_cpc=filter_average_cpc,
@@ -3276,14 +3314,13 @@ def build_smart_campaign_search_strategy(
         roi_coef=roi_coef,
         profitability=profitability,
         crr=crr,
-        custom_period_flags=custom_period_flags,
-        custom_period_spend_limit=custom_period_spend_limit,
-        custom_period_start_date=custom_period_start_date,
-        custom_period_end_date=custom_period_end_date,
-        custom_period_auto_continue=custom_period_auto_continue,
-        exploration_flags=exploration_flags,
-        exploration_min_budget=exploration_min_budget,
-        exploration_min_budget_custom=exploration_min_budget_custom,
+    )
+    return _assemble_strategy_block(
+        container=search,
+        subtype=subtype,
+        block=block,
+        custom_period=custom_period,
+        exploration_budget=exploration_budget_block,
         budget_type=budget_type,
     )
 
@@ -4041,6 +4078,18 @@ def build_smart_campaign_network_strategy(
             "--smart-network-weekly-spend-limit cannot be combined with "
             "--smart-network-cp-spend-limit"
         )
+    custom_period: Optional[dict] = None
+    if custom_period_flags:
+        assert custom_period_spend_limit is not None
+        assert custom_period_start_date is not None
+        assert custom_period_end_date is not None
+        assert custom_period_auto_continue is not None
+        custom_period = {
+            "SpendLimit": custom_period_spend_limit,
+            "StartDate": custom_period_start_date,
+            "EndDate": custom_period_end_date,
+            "AutoContinue": custom_period_auto_continue.upper(),
+        }
 
     # ExplorationBudget is all-or-nothing (2 WSDL minOccurs=1 fields).
     exploration_values = {
@@ -4066,6 +4115,14 @@ def build_smart_campaign_network_strategy(
             f"{normalized_strategy} does not accept SmartCampaign Network "
             "ExplorationBudget flags"
         )
+    exploration_budget_block: Optional[dict] = None
+    if exploration_flags:
+        assert exploration_min_budget is not None
+        assert exploration_min_budget_custom is not None
+        exploration_budget_block = {
+            "MinimumExplorationBudget": exploration_min_budget,
+            "IsMinimumExplorationBudgetCustom": exploration_min_budget_custom.upper(),
+        }
 
     # LimitPercent: documented local CLI constraint (multiple of 10 in
     # 10..100). The cached WSDL only declares
@@ -4138,11 +4195,14 @@ def build_smart_campaign_network_strategy(
         ):
             raise click.UsageError(f"{normalized_strategy} does not accept {flag}")
 
-    return _assemble_smart_strategy_block(
-        container=network,
-        subtype=subtype,
+    _validate_smart_budget_type(
         flag_prefix="--smart-network-",
         is_update=is_update,
+        budget_type=budget_type,
+        custom_period=custom_period,
+        weekly_spend_limit=weekly_spend_limit,
+    )
+    block = _build_smart_flat_block(
         limit_percent=limit_percent,
         average_cpc=average_cpc,
         filter_average_cpc=filter_average_cpc,
@@ -4156,14 +4216,13 @@ def build_smart_campaign_network_strategy(
         roi_coef=roi_coef,
         profitability=profitability,
         crr=crr,
-        custom_period_flags=custom_period_flags,
-        custom_period_spend_limit=custom_period_spend_limit,
-        custom_period_start_date=custom_period_start_date,
-        custom_period_end_date=custom_period_end_date,
-        custom_period_auto_continue=custom_period_auto_continue,
-        exploration_flags=exploration_flags,
-        exploration_min_budget=exploration_min_budget,
-        exploration_min_budget_custom=exploration_min_budget_custom,
+    )
+    return _assemble_strategy_block(
+        container=network,
+        subtype=subtype,
+        block=block,
+        custom_period=custom_period,
+        exploration_budget=exploration_budget_block,
         budget_type=budget_type,
     )
 
@@ -4380,26 +4439,26 @@ _UNIFIED_NETWORK_REQUIRED_TYPED_FLAGS_UPDATE: Dict[str, Dict[str, str]] = {
 }
 
 
-def _assemble_unified_strategy_block(
+def _build_unified_flat_block(
     *,
-    container: dict,
     subtype: str,
-    requires_priority_goals: Set[str],
     goal_id: Optional[int],
     average_cpa: Optional[int],
     crr: Optional[int],
     bid_ceiling: Optional[int],
     weekly_spend_limit: Optional[int],
-    budget_type: Optional[str],
     average_cpc: Optional[int],
     cpa: Optional[int],
-    custom_period: Optional[dict],
-    exploration_budget: Optional[dict],
 ) -> dict:
-    """Assemble the Strategy*Add block for a UnifiedCampaign subtype and graft
-    it onto ``container``. Byte-for-byte identical between the search and
-    network unified builders (search passes ``--*-pay-cpa`` as ``cpa``); only
-    the per-side container, requires-priority-goals set and ``cpa`` value vary.
+    """Build the subtype-conditional typed-field block for a UnifiedCampaign
+    Strategy*Add subtype (everything except CustomPeriodBudget /
+    ExplorationBudget / BudgetType, which ``_assemble_strategy_block`` grafts
+    on). The search and network unified builders share this; search passes
+    ``--*-pay-cpa`` as ``cpa``.
+
+    Field order mirrors the original inline assembly: the subtype-conditional
+    CPA/Crr/GoalId/Cpa/AverageCpc fields first, then the shared
+    WeeklySpendLimit/BidCeiling tail.
     """
     block: dict = {}
     if subtype == "AverageCpc":
@@ -4428,29 +4487,9 @@ def _assemble_unified_strategy_block(
 
     if weekly_spend_limit is not None:
         block["WeeklySpendLimit"] = weekly_spend_limit
-    if custom_period is not None:
-        block["CustomPeriodBudget"] = custom_period
     if bid_ceiling is not None:
         block["BidCeiling"] = bid_ceiling
-    if exploration_budget is not None:
-        block["ExplorationBudget"] = exploration_budget
-    if budget_type is not None:
-        normalized_budget_type = budget_type.upper()
-        # Clearing the other slice signals an explicit budget-type switch.
-        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET":
-            block["WeeklySpendLimit"] = None
-        elif normalized_budget_type == "WEEKLY_BUDGET":
-            block["CustomPeriodBudget"] = None
-        block["BudgetType"] = normalized_budget_type
-
-    # ``*_MULTIPLE_GOALS`` / MAX_PROFIT subtypes must emit the container even
-    # with no numeric fields — PriorityGoals lives on the parent block and the
-    # subtype block is the only signal the API uses to discriminate the
-    # strategy on add.
-    if block or subtype in requires_priority_goals:
-        container[subtype] = block
-
-    return container
+    return block
 
 
 def build_unified_campaign_network_strategy(
@@ -4736,20 +4775,24 @@ def build_unified_campaign_network_strategy(
 
     # Build + graft the WSDL Strategy*Add block (shared with the unified
     # search builder; network passes its ``cpa`` value directly).
-    return _assemble_unified_strategy_block(
-        container=network,
+    block = _build_unified_flat_block(
         subtype=subtype,
-        requires_priority_goals=_UNIFIED_NETWORK_REQUIRES_PRIORITY_GOALS,
         goal_id=goal_id,
         average_cpa=average_cpa,
         crr=crr,
         bid_ceiling=bid_ceiling,
         weekly_spend_limit=weekly_spend_limit,
-        budget_type=budget_type,
         average_cpc=average_cpc,
         cpa=cpa,
+    )
+    return _assemble_strategy_block(
+        container=network,
+        subtype=subtype,
+        block=block,
         custom_period=custom_period,
         exploration_budget=exploration_budget,
+        budget_type=budget_type,
+        force_block=subtype in _UNIFIED_NETWORK_REQUIRES_PRIORITY_GOALS,
     )
 
 
@@ -5343,20 +5386,24 @@ def build_unified_campaign_search_strategy(
 
     # Build + graft the WSDL Strategy*Add block (shared with the unified
     # network builder; search maps ``--unified-search-pay-cpa`` onto ``cpa``).
-    return _assemble_unified_strategy_block(
-        container=base_search,
+    block = _build_unified_flat_block(
         subtype=subtype,
-        requires_priority_goals=_UNIFIED_SEARCH_REQUIRES_PRIORITY_GOALS,
         goal_id=goal_id,
         average_cpa=average_cpa,
         crr=crr,
         bid_ceiling=bid_ceiling,
         weekly_spend_limit=weekly_spend_limit,
-        budget_type=budget_type,
         average_cpc=average_cpc,
         cpa=pay_cpa,
+    )
+    return _assemble_strategy_block(
+        container=base_search,
+        subtype=subtype,
+        block=block,
         custom_period=custom_period,
         exploration_budget=exploration_budget,
+        budget_type=budget_type,
+        force_block=subtype in _UNIFIED_SEARCH_REQUIRES_PRIORITY_GOALS,
     )
 
 
