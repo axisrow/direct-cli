@@ -33,9 +33,25 @@ vendored v4 Live client through the same ``requests``/``urllib3`` transport as
 v5 — there is no incompatibility. Earlier recording attempts hung because the
 v4 adapter retried request-limit errors (code 54/55) in an unbounded loop; that
 loop is now bounded (``v4/adapter.py`` ``retry_request``), so ``--record-mode=
-rewrite`` no longer hangs. The ``v4finance check-payment`` case is recorded as a
-*deterministic error* (``error_code=370``, "Transaction does not exist"), so it
-asserts a non-zero exit and the error string instead of success.
+rewrite`` no longer hangs.
+
+Several v4 read commands have no success path available on the recording
+sandbox account (no shared account connected, no forecasts/reports/banners
+created) and are instead recorded as *deterministic errors* — a stable,
+side-effect-free response confirmed reproducible across repeated live calls,
+not a transient failure:
+
+    v4finance check-payment            error_code=370 (transaction unknown)
+    v4account account-management get   FaultCode=515 (no shared account)
+    balance                            FaultCode=515 (no shared account)
+    v4forecast get                     error_code=73  (forecast unknown)
+    v4wordstat get-report              error_code=91  (report unknown)
+    v4goals get-retargeting-goals      error_code=500 (no Metrica counter)
+    v4tags get-banners                 error_code=500 (no banners)
+
+Each of these has its own dedicated test (not a ``READ_CASES`` row) that
+asserts a non-zero exit and the specific error code/string, since the shared
+``test_read_command`` only asserts success (exit 0, non-empty output).
 """
 
 from __future__ import annotations
@@ -203,6 +219,7 @@ READ_CASES: list[tuple[str, list[str]]] = [
         "v4finance_get_clients_units",
         ["v4finance", "get-clients-units", "--logins", _REAL_LOGIN or _REDACTED],
     ),
+    ("v4adimage_get", ["v4adimage", "get"]),
 ]
 
 
@@ -254,3 +271,118 @@ def test_v4finance_check_payment_unknown_transaction() -> None:
     assert (
         "error_code=370" in result.output
     ), f"expected error_code=370 in output, got: {result.output}"
+
+
+# ── v4 read commands with deterministic error responses ────────────────────
+#
+# The sandbox account has no shared account connected, so both
+# ``v4account account-management --action Get`` and ``balance`` answer
+# deterministically with FaultCode=515 ("Shared account must be connected.").
+# Neither call has side effects, so the error response makes a stable,
+# secret-free readonly cassette (issue #649).
+
+
+@pytest.mark.vcr
+def test_v4account_get_accounts_no_shared_account() -> None:
+    """v4account account-management --action Get replays FaultCode=515."""
+    result = _invoke_read(
+        [
+            "v4account",
+            "account-management",
+            "--action",
+            "Get",
+            "--logins",
+            _REAL_LOGIN or _REDACTED,
+        ]
+    )
+    assert (
+        result.exit_code != 0
+    ), f"expected non-zero exit, got {result.exit_code}\noutput: {result.output}"
+    assert (
+        "515" in result.output
+    ), f"expected FaultCode=515 in output, got: {result.output}"
+
+
+@pytest.mark.vcr
+def test_balance_get_no_shared_account() -> None:
+    """balance replays FaultCode=515 for a sandbox account with no shared account."""
+    result = _invoke_read(["balance", "--logins", _REAL_LOGIN or _REDACTED])
+    assert (
+        result.exit_code != 0
+    ), f"expected non-zero exit, got {result.exit_code}\noutput: {result.output}"
+    assert (
+        "515" in result.output
+    ), f"expected FaultCode=515 in output, got: {result.output}"
+
+
+# A syntactically valid, non-existent forecast/report id — the v4 Live API
+# answers deterministically ("does not exist") rather than an empty success
+# body, which is what the sandbox account also returns for any real id (the
+# sandbox has no forecasts/reports at all).
+_NONEXISTENT_V4_ID = 1
+
+
+@pytest.mark.vcr
+def test_v4forecast_get_unknown_forecast() -> None:
+    """v4forecast get replays a deterministic error_code=73 for a missing id."""
+    result = _invoke_read(
+        ["v4forecast", "get", "--forecast-id", str(_NONEXISTENT_V4_ID)]
+    )
+    assert (
+        result.exit_code != 0
+    ), f"expected non-zero exit, got {result.exit_code}\noutput: {result.output}"
+    assert (
+        "error_code=73" in result.output
+    ), f"expected error_code=73 in output, got: {result.output}"
+
+
+@pytest.mark.vcr
+def test_v4wordstat_get_report_unknown_report() -> None:
+    """v4wordstat get-report replays a deterministic error_code=91 for a missing id."""
+    result = _invoke_read(
+        ["v4wordstat", "get-report", "--report-id", str(_NONEXISTENT_V4_ID)]
+    )
+    assert (
+        result.exit_code != 0
+    ), f"expected non-zero exit, got {result.exit_code}\noutput: {result.output}"
+    assert (
+        "error_code=91" in result.output
+    ), f"expected error_code=91 in output, got: {result.output}"
+
+
+@pytest.mark.vcr
+def test_v4goals_get_retargeting_goals_server_error() -> None:
+    """v4goals get-retargeting-goals replays a deterministic error_code=500.
+
+    The sandbox campaign has no Metrica counter linked, so the v4 Live API
+    answers with a stable internal error rather than an empty list —
+    confirmed reproducible across repeated live calls.
+    """
+    result = _invoke_read(
+        ["v4goals", "get-retargeting-goals", "--campaign-ids", SANDBOX_CAMPAIGN_ID]
+    )
+    assert (
+        result.exit_code != 0
+    ), f"expected non-zero exit, got {result.exit_code}\noutput: {result.output}"
+    assert (
+        "error_code=500" in result.output
+    ), f"expected error_code=500 in output, got: {result.output}"
+
+
+@pytest.mark.vcr
+def test_v4tags_get_banners_server_error() -> None:
+    """v4tags get-banners replays a deterministic error_code=500.
+
+    The sandbox campaign has no banners, so the v4 Live API answers with a
+    stable internal error rather than an empty list — confirmed reproducible
+    across repeated live calls.
+    """
+    result = _invoke_read(
+        ["v4tags", "get-banners", "--campaign-ids", SANDBOX_CAMPAIGN_ID]
+    )
+    assert (
+        result.exit_code != 0
+    ), f"expected non-zero exit, got {result.exit_code}\noutput: {result.output}"
+    assert (
+        "error_code=500" in result.output
+    ), f"expected error_code=500 in output, got: {result.output}"
