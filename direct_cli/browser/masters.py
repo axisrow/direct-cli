@@ -2461,7 +2461,9 @@ def _read_target_actions(page: "Page") -> List[Dict[str, Any]]:
     exist for the campaign's current promotion goal (mirrors
     ``_read_goal_price``'s "inconclusive/absent" convention) — callers that
     need to distinguish "no goals configured" from "section not on this
-    page" should check ``promotion_goal`` separately.
+    page"/"row scan failed" should use ``_read_target_actions_or_none``
+    instead (used by ``_verify_saved``'s add/remove verification, where that
+    distinction is safety-critical — see its docstring).
 
     Goal ids are discovered via ``_read_testid_suffixes`` on the row-testid
     prefix (same convention as ``_read_image_content_ids``), skipping the
@@ -2474,13 +2476,39 @@ def _read_target_actions(page: "Page") -> List[Dict[str, Any]]:
     between rows, which a bare prefix scan cannot do for a repeated child
     testid.
     """
+    rows = _read_target_actions_or_none(page)
+    return [] if rows is None else rows
+
+
+def _read_target_actions_or_none(page: "Page") -> Optional[List[Dict[str, Any]]]:
+    """Same read as ``_read_target_actions``, but returns ``None`` — distinct
+    from ``[]`` — for EITHER of the two ways this read can fail to be
+    conclusive: the section never became visible, OR (Codex adversarial
+    review of #717) the section WAS visible but enumerating its rows itself
+    failed this attempt (a transient mid-scan DOM hiccup, not the same as
+    the table genuinely having zero rows). ``_read_target_actions`` itself
+    collapses both of those into ``[]`` — a legitimate simplification for
+    its read-only callers (``fetch_master_target_actions``,
+    ``target_action_prices`` verification), for whom "couldn't read" and
+    "genuinely empty" are both handled the same way (retry, then report
+    what was last seen). ``--add-target-action``/``--remove-target-action``
+    verification cannot afford that collapse: a removed goal reported
+    "absent" from a read that never actually saw the table would silently
+    confirm a removal that may not have happened server-side — see
+    ``_verify_saved``.
+    """
     section = page.locator(_TARGET_ACTIONS_SECTION_TESTID).first
     try:
         section.wait_for(state="visible", timeout=_TARGET_ACTION_WAIT_TIMEOUT_MS)
     except PlaywrightError:
-        return []
+        return None
 
     prefix = f"TargetActions.{_TARGET_ACTIONS_CATEGORY}."
+    try:
+        row_elements = page.locator(f'[data-testid^="{prefix}"]')
+        row_elements.count()
+    except PlaywrightError:
+        return None
     row_suffixes = _read_testid_suffixes(
         page, prefix, skip_suffixes=(".PriceInput", ".CloseButton")
     )
@@ -3013,12 +3041,19 @@ def _verify_saved(
 
     if target_action_prices:
 
-        def _read_target_action_prices(p: "Page") -> Dict[int, Optional[float]]:
-            return {row["GoalId"]: row["Price"] for row in _read_target_actions(p)}
+        def _read_target_action_prices(
+            p: "Page",
+        ) -> Optional[Dict[int, Optional[float]]]:
+            rows = _read_target_actions_or_none(p)
+            if rows is None:
+                return None
+            return {row["GoalId"]: row["Price"] for row in rows}
 
         def _target_action_prices_match(
-            actual: Dict[int, Optional[float]], expected: Dict[int, float]
+            actual: Optional[Dict[int, Optional[float]]], expected: Dict[int, float]
         ) -> bool:
+            if actual is None:
+                return False
             return all(
                 _target_action_price_matches(price, actual.get(goal_id))
                 for goal_id, price in expected.items()
@@ -3030,13 +3065,20 @@ def _verify_saved(
             target_action_prices,
             matches=_target_action_prices_match,
         )
-        for goal_id, expected_price in target_action_prices.items():
-            actual_price = actual_target_actions.get(goal_id)
-            if not _target_action_price_matches(expected_price, actual_price):
-                mismatches.append(
-                    f"target_action_price[{goal_id}]: expected "
-                    f"{expected_price!r}, page now shows {actual_price!r}"
-                )
+        if actual_target_actions is None:
+            mismatches.append(
+                "target_action_price: could not read the 'Целевые действия' "
+                "table after saving (row scan never succeeded) — unable to "
+                "confirm the price took effect"
+            )
+        else:
+            for goal_id, expected_price in target_action_prices.items():
+                actual_price = actual_target_actions.get(goal_id)
+                if not _target_action_price_matches(expected_price, actual_price):
+                    mismatches.append(
+                        f"target_action_price[{goal_id}]: expected "
+                        f"{expected_price!r}, page now shows {actual_price!r}"
+                    )
 
     if add_target_actions or remove_target_action_goal_ids:
 
@@ -3044,20 +3086,17 @@ def _verify_saved(
             p: "Page",
         ) -> Optional[Dict[int, Optional[float]]]:
             # ``None`` (as opposed to ``{}``) means the table could not be
-            # read this attempt (section not yet hydrated after the reload —
-            # ``_read_target_actions`` returns ``[]`` for that SAME reason it
-            # returns ``[]`` for a genuinely empty table, see its docstring).
-            # Distinguishing the two here is required so a removed goal is
-            # never confirmed absent from a read that never actually saw the
-            # table — see ``_add_remove_match``.
-            section = page.locator(_TARGET_ACTIONS_SECTION_TESTID).first
-            try:
-                section.wait_for(
-                    state="visible", timeout=_TARGET_ACTION_WAIT_TIMEOUT_MS
-                )
-            except PlaywrightError:
+            # read this attempt — see ``_read_target_actions_or_none``'s
+            # docstring (Codex adversarial review of #717) for the two
+            # distinct failure modes it collapses into ``None``. Either way
+            # this is NOT the same as a genuinely empty table — the
+            # distinction is required so a removed goal is never confirmed
+            # absent from a read that never actually saw the table — see
+            # ``_add_remove_match``.
+            rows = _read_target_actions_or_none(p)
+            if rows is None:
                 return None
-            return {row["GoalId"]: row["Price"] for row in _read_target_actions(p)}
+            return {row["GoalId"]: row["Price"] for row in rows}
 
         def _add_remove_match(
             actual: Optional[Dict[int, Optional[float]]], _expected: Any
@@ -3550,6 +3589,7 @@ def fetch_master_target_actions(page: "Page", campaign_id: int) -> Dict[str, Any
     all), or it is but no goal has been added to it yet. This function does
     not distinguish the two; callers that need to know which should also
     check ``promotion_goal`` via ``fetch_master``.
+
     """
     page.goto(WIZARD_EDIT_URL.format(campaign_id=campaign_id), wait_until="commit")
     assert_not_captcha(page.content())

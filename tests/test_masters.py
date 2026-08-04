@@ -5499,6 +5499,71 @@ class TestUpdateMaster(unittest.TestCase):
             )
         self.assertIn("did not save as requested", str(ctx.exception))
 
+    def test_raises_when_removal_verify_hits_transient_row_scan_failure(self):
+        """Codex adversarial review of #717: the section-visibility retry
+        (test above) is NOT enough — a transient failure can also occur
+        INSIDE ``_read_target_actions`` itself (enumerating the row
+        elements) even though the section is visible. Without a matching
+        ``None`` propagation there, that mid-scan hiccup collapses to `[]`,
+        and `_add_remove_match` reads a genuinely-still-present goal as
+        removed. Models: close-button click is a no-op (goal stays in
+        `rows`), section is always visible, but the row-prefix locator's
+        own ``.count()`` raises on its first call after the verify reload,
+        succeeding on every later call."""
+        rows = {159614149: "150"}
+        page = self._dynamic_target_actions_page(rows)
+        original_locator = page.locator
+        row_scan_calls = {"count": 0}
+
+        close_testid_raw = browser_masters._TARGET_ACTION_CLOSE_TESTID_TEMPLATE.format(
+            category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=159614149
+        )
+        close_testid = f'[data-testid="{close_testid_raw}"]'
+        row_prefix_selector = (
+            f'[data-testid^="TargetActions.'
+            f'{browser_masters._TARGET_ACTIONS_CATEGORY}."]'
+        )
+
+        class _FlakyOnceCountLocator:
+            """Wraps the REAL row-prefix locator (reflecting the current,
+            unchanged `rows` state) but makes its FIRST `.count()` raise —
+            models a transient mid-scan failure, not a genuinely-empty
+            table. Delegating to the real locator on success (rather than
+            hardcoding an empty result) is essential: a hardcoded `count()
+            == 0` would make the retry look like a real, correct removal
+            confirmation instead of the FALSE one this test exists to catch.
+            """
+
+            def __init__(self, real_locator):
+                self._real = real_locator
+
+            def count(self):
+                row_scan_calls["count"] += 1
+                if row_scan_calls["count"] == 1:
+                    raise PlaywrightError("Timeout waiting for element state")
+                return self._real.count()
+
+            def nth(self, i):
+                return self._real.nth(i)
+
+        def _stub_locator(selector):
+            if selector == close_testid:
+                return _FakeLocator([_FakeLocatorHandle()])  # click is a no-op
+            if selector == row_prefix_selector:
+                return _FlakyOnceCountLocator(original_locator(selector))
+            return original_locator(selector)
+
+        page.locator = _stub_locator
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(
+                page, 42, remove_target_action_goal_ids=[159614149]
+            )
+        self.assertIn("did not save as requested", str(ctx.exception))
+        # Confirms the retry actually happened past the transient failure —
+        # a false "removed_ok" on the first empty scan would never get here.
+        self.assertGreater(row_scan_calls["count"], 1)
+
     def test_raises_when_removal_verify_read_hits_transient_hydration_failure(
         self,
     ):
