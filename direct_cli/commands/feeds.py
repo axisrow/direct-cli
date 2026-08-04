@@ -59,7 +59,8 @@ def _file_feed_payload(
     if len(filename) > _FILE_FEED_MAX_FILENAME_LENGTH:
         raise click.UsageError(
             t(
-                "FileFeed.Filename must be at most {_FILE_FEED_MAX_FILENAME_LENGTH} characters."
+                "FileFeed.Filename must be at most "
+                "{_FILE_FEED_MAX_FILENAME_LENGTH} characters."
             ).format(_FILE_FEED_MAX_FILENAME_LENGTH=_FILE_FEED_MAX_FILENAME_LENGTH)
         )
 

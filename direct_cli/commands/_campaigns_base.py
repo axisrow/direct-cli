@@ -141,7 +141,8 @@ def _time_targeting_schedule_option(values: Sequence[str]) -> Optional[dict]:
     if len(items) > TIME_TARGETING_SCHEDULE_MAX_ITEMS:
         raise click.UsageError(
             t(
-                "--time-targeting-schedule must contain at most {TIME_TARGETING_SCHEDULE_MAX_ITEMS} items"
+                "--time-targeting-schedule must contain at most "
+                "{TIME_TARGETING_SCHEDULE_MAX_ITEMS} items"
             ).format(
                 TIME_TARGETING_SCHEDULE_MAX_ITEMS=TIME_TARGETING_SCHEDULE_MAX_ITEMS
             )
@@ -437,7 +438,10 @@ def _build_package_bidding_strategy(
     ):
         raise click.UsageError(
             t(
-                "{campaign_label}.PackageBiddingStrategy requires --package-platform-search-result, --package-platform-product-gallery, and --package-platform-network"
+                "{campaign_label}.PackageBiddingStrategy requires "
+                "--package-platform-search-result, "
+                "--package-platform-product-gallery, and "
+                "--package-platform-network"
             ).format(campaign_label=campaign_label)
         )
 
@@ -623,7 +627,10 @@ _TEXT_SEARCH_STRATEGY_OPTIONS = [
     click.option(
         "--text-search-exploration-min-budget",
         type=MICRO_RUBLES,
-        help="TextCampaign Search ExplorationBudget.MinimumExplorationBudget in micro-rubles",
+        help=(
+            "TextCampaign Search ExplorationBudget.MinimumExplorationBudget "
+            "in micro-rubles"
+        ),
     ),
     click.option(
         "--text-search-exploration-is-custom",

@@ -1144,7 +1144,10 @@ def get(
 @click.option(
     "--unified-search-pay-cpa",
     type=MICRO_RUBLES,
-    help="UnifiedCampaign Search StrategyPayForConversionAdd.Cpa in micro-rubles (#363)",
+    help=(
+        "UnifiedCampaign Search StrategyPayForConversionAdd.Cpa in "
+        "micro-rubles (#363)"
+    ),
 )
 @click.option(
     "--unified-search-exploration-min-budget",
@@ -1193,7 +1196,10 @@ def get(
 @click.option(
     "--unified-network-average-cpc",
     type=MICRO_RUBLES,
-    help="UnifiedCampaign Network StrategyAverageCpcAdd.AverageCpc in micro-rubles (#366)",
+    help=(
+        "UnifiedCampaign Network StrategyAverageCpcAdd.AverageCpc in "
+        "micro-rubles (#366)"
+    ),
 )
 @click.option(
     "--unified-network-cpa",
@@ -1538,7 +1544,9 @@ def add(
     if campaign_type_norm not in supported_types:
         raise click.UsageError(
             t(
-                "Invalid value for '--type': {campaign_type!r} is not one of 'TEXT_CAMPAIGN', 'UNIFIED_CAMPAIGN', 'DYNAMIC_TEXT_CAMPAIGN', 'SMART_CAMPAIGN', 'MOBILE_APP_CAMPAIGN', 'CPM_BANNER_CAMPAIGN'."
+                "Invalid value for '--type': {campaign_type!r} is not one of "
+                "'TEXT_CAMPAIGN', 'UNIFIED_CAMPAIGN', 'DYNAMIC_TEXT_CAMPAIGN', "
+                "'SMART_CAMPAIGN', 'MOBILE_APP_CAMPAIGN', 'CPM_BANNER_CAMPAIGN'."
             ).format(campaign_type=campaign_type)
         )
 
@@ -2436,7 +2444,8 @@ def add(
         if provided:
             raise click.UsageError(
                 t(
-                    "{package_label}.PackageBiddingStrategy cannot be combined with {arg0}"
+                    "{package_label}.PackageBiddingStrategy cannot be combined "
+                    "with {arg0}"
                 ).format(package_label=package_label, arg0=", ".join(sorted(provided)))
             )
     if smart_package_bidding_strategy_obj is not None:
@@ -2509,7 +2518,8 @@ def add(
         if provided:
             raise click.UsageError(
                 t(
-                    "SmartCampaign.PackageBiddingStrategy cannot be combined with {arg0}"
+                    "SmartCampaign.PackageBiddingStrategy cannot be combined "
+                    "with {arg0}"
                 ).format(arg0=", ".join(sorted(provided)))
             )
 
@@ -2599,7 +2609,12 @@ def add(
             ):
                 raise click.UsageError(
                     t(
-                        "--priority-goals on UnifiedCampaign is only valid with --network-strategy or --search-strategy in {{AVERAGE_CPA_MULTIPLE_GOALS, PAY_FOR_CONVERSION_MULTIPLE_GOALS, MAX_PROFIT}}; got --network-strategy={network_strategy!r}, --search-strategy={search_strategy!r}"
+                        "--priority-goals on UnifiedCampaign is only valid with "
+                        "--network-strategy or --search-strategy in "
+                        "{{AVERAGE_CPA_MULTIPLE_GOALS, "
+                        "PAY_FOR_CONVERSION_MULTIPLE_GOALS, MAX_PROFIT}}; got "
+                        "--network-strategy={network_strategy!r}, "
+                        "--search-strategy={search_strategy!r}"
                     ).format(
                         network_strategy=network_strategy,
                         search_strategy=search_strategy,
@@ -2619,7 +2634,8 @@ def add(
         if provided:
             raise click.UsageError(
                 t(
-                    "{campaign_type_norm} BiddingStrategy typed parameters are tracked in #290; got {arg0}"
+                    "{campaign_type_norm} BiddingStrategy typed parameters are "
+                    "tracked in #290; got {arg0}"
                 ).format(
                     campaign_type_norm=campaign_type_norm,
                     arg0=", ".join(sorted(provided)),
@@ -3132,7 +3148,10 @@ def add(
 @click.option(
     "--unified-search-pay-cpa",
     type=MICRO_RUBLES,
-    help="UnifiedCampaign Search StrategyPayForConversionAdd.Cpa in micro-rubles (#363)",
+    help=(
+        "UnifiedCampaign Search StrategyPayForConversionAdd.Cpa in "
+        "micro-rubles (#363)"
+    ),
 )
 @click.option(
     "--unified-search-exploration-min-budget",
@@ -3178,7 +3197,10 @@ def add(
 @click.option(
     "--unified-network-average-cpc",
     type=MICRO_RUBLES,
-    help="UnifiedCampaign Network StrategyAverageCpcAdd.AverageCpc in micro-rubles (#366)",
+    help=(
+        "UnifiedCampaign Network StrategyAverageCpcAdd.AverageCpc in "
+        "micro-rubles (#366)"
+    ),
 )
 @click.option(
     "--unified-network-cpa",
@@ -4335,13 +4357,17 @@ def update(
     if campaign_type_norm is not None and campaign_type_norm not in subtype_supported:
         raise click.UsageError(
             t(
-                "Invalid value for '--type': {campaign_type!r} is not one of 'TEXT_CAMPAIGN', 'UNIFIED_CAMPAIGN', 'DYNAMIC_TEXT_CAMPAIGN', 'SMART_CAMPAIGN', 'MOBILE_APP_CAMPAIGN', 'CPM_BANNER_CAMPAIGN'."
+                "Invalid value for '--type': {campaign_type!r} is not one of "
+                "'TEXT_CAMPAIGN', 'UNIFIED_CAMPAIGN', 'DYNAMIC_TEXT_CAMPAIGN', "
+                "'SMART_CAMPAIGN', 'MOBILE_APP_CAMPAIGN', 'CPM_BANNER_CAMPAIGN'."
             ).format(campaign_type=campaign_type)
         )
     if subtype_flags_provided and campaign_type_norm is None:
         raise click.UsageError(
             t(
-                "{arg0} requires --type (TEXT_CAMPAIGN | UNIFIED_CAMPAIGN | DYNAMIC_TEXT_CAMPAIGN | SMART_CAMPAIGN | MOBILE_APP_CAMPAIGN | CPM_BANNER_CAMPAIGN)."
+                "{arg0} requires --type (TEXT_CAMPAIGN | UNIFIED_CAMPAIGN | "
+                "DYNAMIC_TEXT_CAMPAIGN | SMART_CAMPAIGN | MOBILE_APP_CAMPAIGN | "
+                "CPM_BANNER_CAMPAIGN)."
             ).format(arg0=", ".join(sorted(subtype_flags_provided)))
         )
     if campaign_type_norm is not None:
@@ -4995,7 +5021,8 @@ def update(
                 if provided:
                     raise click.UsageError(
                         t(
-                            "{package_label}.PackageBiddingStrategy cannot be combined with {arg0}"
+                            "{package_label}.PackageBiddingStrategy cannot be "
+                            "combined with {arg0}"
                         ).format(
                             package_label=package_label,
                             arg0=", ".join(sorted(provided)),
@@ -5490,7 +5517,8 @@ def update(
         if not sub_block:
             raise click.UsageError(
                 t(
-                    "--type {campaign_type_norm} requires at least one subtype-specific field to update."
+                    "--type {campaign_type_norm} requires at least one "
+                    "subtype-specific field to update."
                 ).format(campaign_type_norm=campaign_type_norm)
             )
         subtype_container = {

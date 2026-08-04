@@ -7,7 +7,7 @@ that the CLI implements all available services and methods.
 
 from __future__ import annotations
 
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET  # noqa: N817 - standard stdlib alias
 from functools import lru_cache
 from io import StringIO
 from pathlib import Path
@@ -350,13 +350,13 @@ def refresh_all_caches() -> dict:
     for service in sorted(all_services):
         try:
             fetch_wsdl(service, use_cache=False)
-        except Exception as exc:
+        except Exception as exc:  # noqa: PIE786 - per-service, batch continues
             errors[service] = exc
 
     for namespace in sorted(IMPORTED_XSD_REGISTRY):
         try:
             fetch_imported_xsd(namespace, use_cache=False)
-        except Exception as exc:
+        except Exception as exc:  # noqa: PIE786 - collected per-item, batch continues
             errors[f"xsd:{namespace}"] = exc
     return errors
 

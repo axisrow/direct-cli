@@ -62,7 +62,8 @@ def _events_log_filter(
             if unknown:
                 raise click.UsageError(
                     t(
-                        "--filter-event-type has unknown values: {arg0}. Valid values: {arg1}"
+                        "--filter-event-type has unknown values: {arg0}. "
+                        "Valid values: {arg1}"
                     ).format(arg0=", ".join(unknown), arg1=", ".join(EVENT_TYPES))
                 )
             filter_obj["EventType"] = types

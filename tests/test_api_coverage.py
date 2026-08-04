@@ -15,7 +15,7 @@ import importlib.util
 import re
 import subprocess
 import sys
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET  # noqa: N817 - standard stdlib alias
 from pathlib import Path
 
 import pytest
@@ -265,8 +265,8 @@ def _assert_body_matches_wsdl(body: dict, service: str, operation: str):
                     if item["min_occurs"] > 0
                 }
                 assert required <= set(value[0]), (
-                    f"{service}.{operation}.{field['name']} missing required item keys: "
-                    f"{sorted(required - set(value[0]))}"
+                    f"{service}.{operation}.{field['name']} missing required "
+                    f"item keys: {sorted(required - set(value[0]))}"
                 )
         elif field["item_fields"] and isinstance(value, dict):
             required = {
@@ -311,7 +311,10 @@ class TestApiCoverage:
             assert policy["coverage"] in (
                 "contract-tests",
                 "contract-tests+spec-snapshot",
-            ), f"Unexpected coverage policy for non-WSDL service {service_name}: {policy}"
+            ), (
+                f"Unexpected coverage policy for non-WSDL service "
+                f"{service_name}: {policy}"
+            )
 
     def test_service_method_coverage(self):
         failures = []
@@ -319,7 +322,7 @@ class TestApiCoverage:
         for cli_name, api_service in sorted(CLI_TO_API_SERVICE.items()):
             try:
                 wsdl_xml = fetch_wsdl(api_service)
-            except Exception as exc:
+            except Exception as exc:  # noqa: PIE786 - per-service, others still run
                 failures.append(
                     f"{cli_name} -> {api_service}: WSDL fetch failed: {exc}"
                 )
@@ -337,11 +340,13 @@ class TestApiCoverage:
 
             if missing:
                 failures.append(
-                    f"{cli_name} -> {api_service}: missing API methods {sorted(missing)}"
+                    f"{cli_name} -> {api_service}: missing API methods "
+                    f"{sorted(missing)}"
                 )
             if extra:
                 failures.append(
-                    f"{cli_name} -> {api_service}: unexpected CLI methods {sorted(extra)}"
+                    f"{cli_name} -> {api_service}: unexpected CLI methods "
+                    f"{sorted(extra)}"
                 )
 
         assert failures == [], "API coverage gaps detected:\n" + "\n".join(failures)
@@ -594,7 +599,7 @@ class TestApiCoverage:
     def test_reports_get_cli_path_forwards_header_flags_to_create_client(
         self, monkeypatch
     ):
-        """--processing-mode, --skip-*, --return-money-in-micros must reach create_client."""
+        """--processing-mode/--skip-*/--return-money-in-micros reach create_client."""
         captured = {}
         reports_module = importlib.import_module("direct_cli.commands.reports")
 
@@ -870,7 +875,7 @@ class TestApiCoverage:
         assert schema_gate["nested_schema_violations"] == []
 
     def test_get_selection_criteria_fields_have_typed_cli_options_or_waiver(self):
-        """Every WSDL get SelectionCriteria field is exposed as a typed flag or waived."""
+        """Every WSDL get SelectionCriteria field is a typed flag or waived."""
         expected_options = {
             "adextensions": {
                 "Ids": "ids",
@@ -1733,7 +1738,7 @@ class TestApiCoverage:
         assert report["model_gaps"]["live_discovered_missing_methods"] == 11
 
     def test_reports_get_cli_skip_report_summary_forwarded(self, monkeypatch):
-        """--skip-report-summary must reach create_client as skip_report_summary=True."""
+        """--skip-report-summary reaches create_client as skip_report_summary=True."""
         captured = {}
         reports_module = importlib.import_module("direct_cli.commands.reports")
 
@@ -2082,7 +2087,7 @@ class TestApiCoverage:
         )
 
     def test_get_operation_request_schema_resolves_imports(self):
-        """agencyclients.add Notification (gc:NotificationAdd) must resolve nested fields."""
+        """agencyclients.add Notification (gc:NotificationAdd) resolves nested."""
         schema = get_operation_request_schema(fetch_wsdl("agencyclients"), "add")
         notification = next(
             (f for f in schema["fields"] if f["name"] == "Notification"), None

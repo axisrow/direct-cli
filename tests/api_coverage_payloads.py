@@ -1,74 +1,251 @@
 """Shared dry-run payload coverage cases for API schema gates."""
 
 DRY_RUN_PAYLOAD_EXCLUSIONS = {
-    "adextensions.get": "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria tests.",
-    "adgroups.get": "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria tests.",
-    "adimages.get": "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria tests.",
-    "advideos.get": "Read-path required SelectionCriteria is covered by WSDL selection criteria tests.",
-    "audiencetargets.get": "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria tests.",
-    "bidmodifiers.get": "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria tests.",
-    "bids.get": "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria tests.",
-    "businesses.get": "Read path omits optional SelectionCriteria when --ids is absent.",
-    "campaigns.get": "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria tests.",
+    "adextensions.get": (
+        "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria "
+        "tests."
+    ),
+    "adgroups.get": (
+        "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria "
+        "tests."
+    ),
+    "adimages.get": (
+        "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria "
+        "tests."
+    ),
+    "advideos.get": (
+        "Read-path required SelectionCriteria is covered by WSDL selection criteria "
+        "tests."
+    ),
+    "audiencetargets.get": (
+        "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria "
+        "tests."
+    ),
+    "bidmodifiers.get": (
+        "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria "
+        "tests."
+    ),
+    "bids.get": (
+        "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria "
+        "tests."
+    ),
+    "businesses.get": (
+        "Read path omits optional SelectionCriteria when --ids is absent."
+    ),
+    "campaigns.get": (
+        "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria "
+        "tests."
+    ),
     "clients.get": "Read path omits optional SelectionCriteria when --ids is absent.",
-    "creatives.get": "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria tests.",
-    "dynamicads.get": "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria tests.",
-    "dynamicfeedadtargets.get": "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria tests.",
+    "creatives.get": (
+        "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria "
+        "tests."
+    ),
+    "dynamicads.get": (
+        "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria "
+        "tests."
+    ),
+    "dynamicfeedadtargets.get": (
+        "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria "
+        "tests."
+    ),
     "feeds.get": "Read path omits optional SelectionCriteria when --ids is absent.",
-    "keywordbids.get": "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria tests.",
-    "keywords.get": "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria tests.",
-    "leads.get": "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria tests.",
-    "negativekeywordsharedsets.get": "Read path omits optional SelectionCriteria when --ids is absent.",
-    "retargeting.get": "Read path omits optional SelectionCriteria when --ids is absent.",
-    "sitelinks.get": "Read path omits optional SelectionCriteria when --ids is absent.",
-    "smartadtargets.get": "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria tests.",
-    "turbopages.get": "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria tests.",
+    "keywordbids.get": (
+        "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria "
+        "tests."
+    ),
+    "keywords.get": (
+        "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria "
+        "tests."
+    ),
+    "leads.get": (
+        "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria "
+        "tests."
+    ),
+    "negativekeywordsharedsets.get": (
+        "Read path omits optional SelectionCriteria when --ids is absent."
+    ),
+    "retargeting.get": (
+        "Read path omits optional SelectionCriteria when --ids is absent."
+    ),
+    "sitelinks.get": (
+        "Read path omits optional SelectionCriteria when --ids is absent."
+    ),
+    "smartadtargets.get": (
+        "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria "
+        "tests."
+    ),
+    "turbopages.get": (
+        "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria "
+        "tests."
+    ),
     "vcards.get": "Read path omits optional SelectionCriteria when --ids is absent.",
-    "ads.get": "Read path with rich field-selection options; payload contract differs from mutating coverage focus.",
-    "agencyclients.add": "Runtime-deprecated method (Yandex error 3500); CLI rejects with UsageError before reaching dry-run. See RUNTIME_DEPRECATED_METHODS.",
-    "agencyclients.get": "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria tests.",
-    "dynamicfeedadtargets.add": "Covered by test_dry_run.py::test_dynamicfeedadtargets_add_payload.",
-    "dynamicfeedadtargets.delete": "Covered by test_dry_run.py::test_dynamicfeedadtargets_delete_payload.",
-    "dynamicfeedadtargets.resume": "Covered by test_dry_run.py::test_dynamicfeedadtargets_resume_payload.",
-    "dynamicfeedadtargets.set-bids": "Covered by test_dry_run.py::test_dynamicfeedadtargets_set_bids_payload.",
-    "dynamicfeedadtargets.suspend": "Covered by test_dry_run.py::test_dynamicfeedadtargets_suspend_payload.",
+    "ads.get": (
+        "Read path with rich field-selection options; payload contract differs from "
+        "mutating coverage focus."
+    ),
+    "agencyclients.add": (
+        "Runtime-deprecated method (Yandex error 3500); CLI rejects with UsageError "
+        "before reaching dry-run. See RUNTIME_DEPRECATED_METHODS."
+    ),
+    "agencyclients.get": (
+        "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria "
+        "tests."
+    ),
+    "dynamicfeedadtargets.add": (
+        "Covered by test_dry_run.py::test_dynamicfeedadtargets_add_payload."
+    ),
+    "dynamicfeedadtargets.delete": (
+        "Covered by test_dry_run.py::test_dynamicfeedadtargets_delete_payload."
+    ),
+    "dynamicfeedadtargets.resume": (
+        "Covered by test_dry_run.py::test_dynamicfeedadtargets_resume_payload."
+    ),
+    "dynamicfeedadtargets.set-bids": (
+        "Covered by test_dry_run.py::test_dynamicfeedadtargets_set_bids_payload."
+    ),
+    "dynamicfeedadtargets.suspend": (
+        "Covered by test_dry_run.py::test_dynamicfeedadtargets_suspend_payload."
+    ),
     "strategies.add": "Covered by test_dry_run.py::test_strategies_add_payload.",
-    "strategies.archive": "Covered by test_dry_run.py::test_strategies_archive_payload.",
-    "strategies.get": "Covered by test_dry_run.py::test_strategies_get_default_field_names_payload.",
-    "strategies.unarchive": "Covered by test_dry_run.py::test_strategies_unarchive_payload.",
+    "strategies.archive": (
+        "Covered by test_dry_run.py::test_strategies_archive_payload."
+    ),
+    "strategies.get": (
+        "Covered by test_dry_run.py::test_strategies_get_default_field_names_payload."
+    ),
+    "strategies.unarchive": (
+        "Covered by test_dry_run.py::test_strategies_unarchive_payload."
+    ),
     "strategies.update": "Covered by test_dry_run.py::test_strategies_update_payload.",
-    "reports.get": "Reports API uses a custom TSV endpoint; payload contract is covered by test_reports_request_builder_contract.",
-    "v4account.account-management": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
-    "v4account.enable-shared-account": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
-    "v4events.get-events-log": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
-    "v4forecast.create": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
-    "v4forecast.delete": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
-    "v4forecast.get": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
-    "v4forecast.list": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
-    "v4finance.check-payment": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
-    "v4finance.create-invoice": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
-    "v4finance.get-clients-units": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
-    "v4finance.get-credit-limits": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
-    "v4finance.pay-campaigns": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
-    "v4finance.pay-campaigns-by-card": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
-    "v4finance.transfer-money": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
-    "v4adimage.get": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
-    "v4adimage.set": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
-    "v4keywords.get-suggestion": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
-    "v4meta.get-available-versions": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
-    "v4meta.get-version": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
-    "v4meta.ping-api": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
-    "v4meta.ping-api-x": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
-    "v4goals.get-retargeting-goals": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
-    "v4goals.get-stat-goals": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
-    "v4tags.get-banners": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
-    "v4tags.get-campaigns": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
-    "v4tags.update-banners": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
-    "v4tags.update-campaigns": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
-    "v4wordstat.create-report": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
-    "v4wordstat.delete-report": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
-    "v4wordstat.get-report": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
-    "v4wordstat.list-reports": "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run tests.",
+    "reports.get": (
+        "Reports API uses a custom TSV endpoint; payload contract is covered by "
+        "test_reports_request_builder_contract."
+    ),
+    "v4account.account-management": (
+        "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run "
+        "tests."
+    ),
+    "v4account.enable-shared-account": (
+        "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run "
+        "tests."
+    ),
+    "v4events.get-events-log": (
+        "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run "
+        "tests."
+    ),
+    "v4forecast.create": (
+        "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run "
+        "tests."
+    ),
+    "v4forecast.delete": (
+        "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run "
+        "tests."
+    ),
+    "v4forecast.get": (
+        "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run "
+        "tests."
+    ),
+    "v4forecast.list": (
+        "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run "
+        "tests."
+    ),
+    "v4finance.check-payment": (
+        "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run "
+        "tests."
+    ),
+    "v4finance.create-invoice": (
+        "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run "
+        "tests."
+    ),
+    "v4finance.get-clients-units": (
+        "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run "
+        "tests."
+    ),
+    "v4finance.get-credit-limits": (
+        "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run "
+        "tests."
+    ),
+    "v4finance.pay-campaigns": (
+        "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run "
+        "tests."
+    ),
+    "v4finance.pay-campaigns-by-card": (
+        "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run "
+        "tests."
+    ),
+    "v4finance.transfer-money": (
+        "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run "
+        "tests."
+    ),
+    "v4adimage.get": (
+        "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run "
+        "tests."
+    ),
+    "v4adimage.set": (
+        "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run "
+        "tests."
+    ),
+    "v4keywords.get-suggestion": (
+        "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run "
+        "tests."
+    ),
+    "v4meta.get-available-versions": (
+        "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run "
+        "tests."
+    ),
+    "v4meta.get-version": (
+        "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run "
+        "tests."
+    ),
+    "v4meta.ping-api": (
+        "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run "
+        "tests."
+    ),
+    "v4meta.ping-api-x": (
+        "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run "
+        "tests."
+    ),
+    "v4goals.get-retargeting-goals": (
+        "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run "
+        "tests."
+    ),
+    "v4goals.get-stat-goals": (
+        "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run "
+        "tests."
+    ),
+    "v4tags.get-banners": (
+        "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run "
+        "tests."
+    ),
+    "v4tags.get-campaigns": (
+        "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run "
+        "tests."
+    ),
+    "v4tags.update-banners": (
+        "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run "
+        "tests."
+    ),
+    "v4tags.update-campaigns": (
+        "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run "
+        "tests."
+    ),
+    "v4wordstat.create-report": (
+        "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run "
+        "tests."
+    ),
+    "v4wordstat.delete-report": (
+        "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run "
+        "tests."
+    ),
+    "v4wordstat.get-report": (
+        "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run "
+        "tests."
+    ),
+    "v4wordstat.list-reports": (
+        "V4 Live method is not covered by V5 WSDL schemas; covered by focused dry-run "
+        "tests."
+    ),
 }
 
 PAYLOAD_CASES = [

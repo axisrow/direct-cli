@@ -279,7 +279,10 @@ SILENT_LOSS_PROBES: list[tuple[str, list[str], str]] = [
         "--filter-average-cpc",
     ),
     (
-        "campaigns.add SMART_CAMPAIGN + --filter-average-cpc without AVERAGE_CPC_PER_FILTER",
+        (
+            "campaigns.add SMART_CAMPAIGN + --filter-average-cpc without "
+            "AVERAGE_CPC_PER_FILTER"
+        ),
         [
             "campaigns",
             "add",
@@ -2513,7 +2516,8 @@ for _campaign_op in ("add", "update"):
                 (
                     "campaigns",
                     _campaign_op,
-                    f"TextCampaign.BiddingStrategy.Search.{_subtype}.CustomPeriodBudget",
+                    f"TextCampaign.BiddingStrategy.Search.{_subtype}."
+                    "CustomPeriodBudget",
                 )
             ] = _text_search_custom_period_flags
             for (
@@ -4677,7 +4681,9 @@ OPTIONAL_FIELD_DEFAULT_FOLLOWUPS: dict[tuple[str, str], dict[str, str]] = {
     },
     ("dynamicfeedadtargets", "add"): {
         "issue": "#303",
-        "note": "dynamicfeedadtargets.add optional WSDL path needs typed support or N/A.",
+        "note": (
+            "dynamicfeedadtargets.add optional WSDL path needs typed " "support or N/A."
+        ),
     },
     ("retargeting", "add"): {
         "issue": "#256",

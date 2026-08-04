@@ -200,7 +200,14 @@ def build_ad_object(*, adgroup_id, ad_type, mobile_provided, flags, flag_for=Non
     if ad_type_norm not in _ADS_ADD_SUPPORTED_TYPES:
         raise click.UsageError(
             t(
-                "Invalid value for '--type': {ad_type!r} is not one of 'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD', 'DYNAMIC_TEXT_AD', 'MOBILE_APP_IMAGE_AD', 'RESPONSIVE_AD', 'SHOPPING_AD', 'LISTING_AD', 'SMART_AD_BUILDER_AD', 'TEXT_AD_BUILDER_AD', 'MOBILE_APP_AD_BUILDER_AD', 'MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD', 'CPC_VIDEO_AD_BUILDER_AD', 'CPM_BANNER_AD_BUILDER_AD', 'CPM_VIDEO_AD_BUILDER_AD'."
+                "Invalid value for '--type': {ad_type!r} is not one of "
+                "'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD', "
+                "'DYNAMIC_TEXT_AD', 'MOBILE_APP_IMAGE_AD', 'RESPONSIVE_AD', "
+                "'SHOPPING_AD', 'LISTING_AD', 'SMART_AD_BUILDER_AD', "
+                "'TEXT_AD_BUILDER_AD', 'MOBILE_APP_AD_BUILDER_AD', "
+                "'MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD', "
+                "'CPC_VIDEO_AD_BUILDER_AD', 'CPM_BANNER_AD_BUILDER_AD', "
+                "'CPM_VIDEO_AD_BUILDER_AD'."
             ).format(ad_type=ad_type)
         )
 
@@ -591,7 +598,14 @@ def build_ad_update_object(*, ad_id, ad_type, flags, flag_for=None):
     if ad_type_norm not in _ADS_UPDATE_SUPPORTED_TYPES:
         raise click.UsageError(
             t(
-                "Invalid value for '--type': {ad_type!r} is not one of 'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD', 'DYNAMIC_TEXT_AD', 'MOBILE_APP_IMAGE_AD', 'RESPONSIVE_AD', 'SHOPPING_AD', 'LISTING_AD', 'SMART_AD_BUILDER_AD', 'TEXT_AD_BUILDER_AD', 'MOBILE_APP_AD_BUILDER_AD', 'MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD', 'CPC_VIDEO_AD_BUILDER_AD', 'CPM_BANNER_AD_BUILDER_AD', 'CPM_VIDEO_AD_BUILDER_AD'."
+                "Invalid value for '--type': {ad_type!r} is not one of "
+                "'TEXT_AD', 'TEXT_IMAGE_AD', 'MOBILE_APP_AD', "
+                "'DYNAMIC_TEXT_AD', 'MOBILE_APP_IMAGE_AD', 'RESPONSIVE_AD', "
+                "'SHOPPING_AD', 'LISTING_AD', 'SMART_AD_BUILDER_AD', "
+                "'TEXT_AD_BUILDER_AD', 'MOBILE_APP_AD_BUILDER_AD', "
+                "'MOBILE_APP_CPC_VIDEO_AD_BUILDER_AD', "
+                "'CPC_VIDEO_AD_BUILDER_AD', 'CPM_BANNER_AD_BUILDER_AD', "
+                "'CPM_VIDEO_AD_BUILDER_AD'."
             ).format(ad_type=ad_type)
         )
 
@@ -642,7 +656,8 @@ def build_ad_update_object(*, ad_id, ad_type, flags, flag_for=None):
     except click.UsageError as exc:
         raise click.UsageError(
             t(
-                "{arg0} --type selects the existing ad subtype update block; it does not convert an ad between subtypes."
+                "{arg0} --type selects the existing ad subtype update "
+                "block; it does not convert an ad between subtypes."
             ).format(arg0=exc.message)
         )
 
@@ -816,7 +831,8 @@ def build_ad_update_object(*, ad_id, ad_type, flags, flag_for=None):
     if len(ad_data) == 1:
         raise click.UsageError(
             t(
-                "ads update requires at least one updatable field for --type {ad_type_norm}."
+                "ads update requires at least one updatable field for "
+                "--type {ad_type_norm}."
             ).format(ad_type_norm=ad_type_norm)
         )
 

@@ -534,7 +534,7 @@ def test_campaigns_add_unified_network_rejects_required_pay_for_conversion():
     assert "--goal-id" in result.output
 
 
-def test_campaigns_add_unified_network_rejects_required_wb_maximum_conversion_rate_goal():
+def test_campaigns_add_unified_network_rejects_required_wb_maximum_conversion_rate_goal():  # noqa: E501
     result = _rejected(
         *_unified_network_add_base(),
         "--network-strategy",
@@ -1215,7 +1215,7 @@ def test_campaigns_add_unified_network_rejects_package_with_typed_flag_no_strate
     assert "--unified-network-average-cpc" in result.output
 
 
-def test_campaigns_add_unified_network_average_cpa_multiple_goals_with_priority_goals_payload():
+def test_campaigns_add_unified_network_average_cpa_multiple_goals_with_priority_goals_payload():  # noqa: E501
     """#366: ``AVERAGE_CPA_MULTIPLE_GOALS`` is a settable Strategy*Add
     subtype on ``UnifiedCampaignStrategyAddBase`` (campaigns.xml 1631-1654)
     and ``UnifiedCampaignAddItem.PriorityGoals`` is a real WSDL field
@@ -1243,7 +1243,7 @@ def test_campaigns_add_unified_network_average_cpa_multiple_goals_with_priority_
     }
 
 
-def test_campaigns_add_unified_network_pay_for_conversion_multiple_goals_with_priority_goals_payload():
+def test_campaigns_add_unified_network_pay_for_conversion_multiple_goals_with_priority_goals_payload():  # noqa: E501
     body = _dry_run(
         *_unified_network_add_base(),
         "--network-strategy",
@@ -1287,7 +1287,7 @@ def test_campaigns_add_unified_network_max_profit_with_priority_goals_payload():
     }
 
 
-def test_campaigns_add_unified_network_rejects_priority_goals_for_non_multi_goal_strategy():
+def test_campaigns_add_unified_network_rejects_priority_goals_for_non_multi_goal_strategy():  # noqa: E501
     """#373 (refines #366): an explicit per-side --network-strategy whose
     subtype builder does not consume PriorityGoals must be rejected
     up-front so the items are not silently dropped. WSDL-valid

@@ -183,7 +183,8 @@ def _reject_disallowed_flags(
         )
         raise click.UsageError(
             t(
-                "{arg0} not valid for --action {action}. Valid flags for {action}: {arg1}"
+                "{arg0} not valid for --action {action}. Valid flags for "
+                "{action}: {arg1}"
             ).format(
                 arg0=", ".join(offenders), action=action, arg1=", ".join(valid_flags)
             )

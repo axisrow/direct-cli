@@ -106,7 +106,8 @@ def _coerce_keyword_field(field: str, raw_value: Any, row_index: int) -> Any:
         except (TypeError, ValueError):
             raise click.UsageError(
                 t(
-                    "Row {row_index} field {field!r}: expected integer, got {raw_value!r}"
+                    "Row {row_index} field {field!r}: expected integer, "
+                    "got {raw_value!r}"
                 ).format(row_index=row_index, field=field, raw_value=raw_value)
             )
     if kind == "micro":
@@ -143,7 +144,9 @@ def _normalize_keyword_row(
         flag = _KEYWORD_BATCH_DEFERRED_FIELDS[field]
         raise click.UsageError(
             t(
-                "Keyword row {row_index} field {field!r} is intentionally unsupported in batch mode; use the single-item typed option {flag} instead."
+                "Keyword row {row_index} field {field!r} is intentionally "
+                "unsupported in batch mode; use the single-item typed "
+                "option {flag} instead."
             ).format(row_index=row_index, field=field, flag=flag)
         )
 
@@ -165,7 +168,8 @@ def _normalize_keyword_row(
         if default_adgroup_id is None:
             raise click.UsageError(
                 t(
-                    "Row {row_index}: missing 'AdGroupId' and no default --adgroup-id provided"
+                    "Row {row_index}: missing 'AdGroupId' and no default "
+                    "--adgroup-id provided"
                 ).format(row_index=row_index)
             )
         item["AdGroupId"] = default_adgroup_id
@@ -581,9 +585,18 @@ def _bulk_add(
 
 
 _DEPRECATED_KEYWORDS_UPDATE_OPTIONS = {
-    "bid": "--bid is no longer accepted on 'keywords update'; use: direct bids set --keyword-id ID --bid VALUE",
-    "context_bid": "--context-bid is no longer accepted on 'keywords update'; use: direct bids set --keyword-id ID --network-bid VALUE",
-    "status": "--status is no longer accepted on 'keywords update'; status is not mutable via the keywords API",
+    "bid": (
+        "--bid is no longer accepted on 'keywords update'; use: "
+        "direct bids set --keyword-id ID --bid VALUE"
+    ),
+    "context_bid": (
+        "--context-bid is no longer accepted on 'keywords update'; use: "
+        "direct bids set --keyword-id ID --network-bid VALUE"
+    ),
+    "status": (
+        "--status is no longer accepted on 'keywords update'; status is "
+        "not mutable via the keywords API"
+    ),
 }
 
 

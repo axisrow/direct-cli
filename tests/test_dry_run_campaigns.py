@@ -1077,7 +1077,10 @@ def test_campaigns_add_notification_payload():
 
 
 def test_campaigns_add_time_targeting_payload():
-    schedule_row = "1,0,0,50,50,100,100,150,200,200,150,100,100,80,70,100,100,100,50,50,40,30,0,0,0"
+    schedule_row = (
+        "1,0,0,50,50,100,100,150,200,200,150,100,100,80,70,100,100,100,50,50,"
+        "40,30,0,0,0"
+    )
     body = _dry_run(
         *_cpa_base_args(),
         "--time-targeting-schedule",
@@ -2753,7 +2756,7 @@ def test_campaigns_update_mobile_app_wb_maximum_clicks_network_payload():
     }
 
 
-def test_campaigns_update_mobile_app_average_cpc_network_weekly_budget_clears_custom_period():
+def test_campaigns_update_mobile_app_average_cpc_network_weekly_budget_clears_custom_period():  # noqa: E501
     body = _dry_run(
         "campaigns",
         "update",
@@ -2836,7 +2839,7 @@ def test_campaigns_update_mobile_app_average_cpi_network_custom_period_payload()
     }
 
 
-def test_campaigns_update_mobile_app_rejects_network_budget_type_without_matching_budget():
+def test_campaigns_update_mobile_app_rejects_network_budget_type_without_matching_budget():  # noqa: E501
     result = _rejected(
         "campaigns",
         "update",
@@ -2854,7 +2857,7 @@ def test_campaigns_update_mobile_app_rejects_network_budget_type_without_matchin
     )
 
 
-def test_campaigns_update_mobile_app_rejects_network_budget_type_without_supported_strategy():
+def test_campaigns_update_mobile_app_rejects_network_budget_type_without_supported_strategy():  # noqa: E501
     result = _rejected(
         "campaigns",
         "update",

@@ -42,6 +42,7 @@ Coverage status (issue #59):
       6000 if the account has no shared wallet)
 """
 
+import contextlib
 import json
 import os
 import sys
@@ -359,10 +360,9 @@ def test_v5_live_draft_campaign_create_get_delete() -> None:
 
     try:
         _assert_success(add_result, "campaigns add")
-        try:
+        # ID unknown on failure; cleanup skipped — manual recovery via name
+        with contextlib.suppress(Exception):
             created_campaign_id = _extract_first_id(add_result.output)
-        except Exception:
-            pass  # ID unknown; cleanup skipped — manual recovery via name
 
         get_result = _invoke_live(
             "campaigns",

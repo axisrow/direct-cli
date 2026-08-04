@@ -96,7 +96,7 @@ def resolve_locale(ctx: Optional[click.Context] = None) -> str:
     if ctx is not None:
         try:
             root = ctx.find_root()
-        except Exception:  # pragma: no cover - defensive
+        except Exception:  # pragma: no cover - defensive  # noqa: PIE786
             root = ctx
         if isinstance(root.obj, dict):
             normalized = normalize_locale(root.obj.get("locale"))

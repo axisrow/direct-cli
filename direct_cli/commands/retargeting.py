@@ -56,7 +56,8 @@ def _validate_description(description: Optional[str]) -> None:
     ):
         raise click.UsageError(
             t(
-                "--description must be at most {_RETARGETING_DESCRIPTION_MAX_LENGTH} characters"
+                "--description must be at most "
+                "{_RETARGETING_DESCRIPTION_MAX_LENGTH} characters"
             ).format(
                 _RETARGETING_DESCRIPTION_MAX_LENGTH=_RETARGETING_DESCRIPTION_MAX_LENGTH
             )

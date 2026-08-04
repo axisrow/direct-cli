@@ -96,7 +96,8 @@ def _validate_tracking_params(tracking_params: Optional[str]) -> None:
     ):
         raise click.UsageError(
             t(
-                "--tracking-params must be at most {_TRACKING_PARAMS_MAX_LENGTH} characters"
+                "--tracking-params must be at most "
+                "{_TRACKING_PARAMS_MAX_LENGTH} characters"
             ).format(_TRACKING_PARAMS_MAX_LENGTH=_TRACKING_PARAMS_MAX_LENGTH)
         )
 
@@ -369,7 +370,8 @@ def _reject_mixed_update_subtype_flags(
         second_subtype, second_flags = provided_by_subtype[1]
         raise click.UsageError(
             t(
-                "{first_subtype} update flags ({arg0}) cannot be combined with {second_subtype} update flags ({arg1})."
+                "{first_subtype} update flags ({arg0}) cannot be combined "
+                "with {second_subtype} update flags ({arg1})."
             ).format(
                 first_subtype=first_subtype,
                 arg0=", ".join(first_flags),
@@ -1019,7 +1021,10 @@ def _bulk_add_adgroups(ctx, *, campaign_id, from_file, adgroups_json, dry_run):
 @click.option(
     "--campaign-id",
     type=click.IntRange(min=1),
-    help="Campaign ID (required in single-item mode; batch default in --from-file mode)",
+    help=(
+        "Campaign ID (required in single-item mode; batch default in "
+        "--from-file mode)"
+    ),
 )
 @click.option(
     "--type",
