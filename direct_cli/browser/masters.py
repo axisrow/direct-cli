@@ -726,14 +726,24 @@ def _clear_text_field(field: Any) -> bool:
     return True
 
 
-# XPath fragment: the checkbox immediately following the "Директ помогает"
-# heading. Confirmed live — a plain HTML checkbox, not a custom toggle
-# component (see fixture). Deliberately scoped to the FIRST following
-# checkbox only, so the nested "Оптимизировать расширенные настройки..."
-# checkbox that appears once this one is checked is never touched.
-_DIRECT_HELPS_CHECKBOX_XPATH = (
-    "xpath=//*[self::h1 or self::h2 or self::h3][normalize-space(text())="
-    "'Директ помогает']/following::input[@type='checkbox'][1]"
+# "Директ помогает" auto-recommendations toggle (issue #724, live
+# diagnosis): the underlying ``<input type="checkbox">`` is a classic
+# visually-hidden accessible-toggle input (wrapped in a clip-rect-0 div) —
+# ``is_visible()`` is False, so Playwright's ``.check()``/``.uncheck()``,
+# which both require visibility before clicking, hang until timeout. The
+# actually-clickable element is the sibling
+# ``[data-testid="CampaignRecommendationsEditor.AcceptRecommendations.label"]``,
+# which wraps a visible toggle div
+# (``data-testid="CampaignRecommendationsEditor.AcceptRecommendations"``)
+# whose ``data-checked`` attribute ("true"/"false") reflects state —
+# confirmed live: clicking the label flips both ``data-checked`` and the
+# hidden input's own ``is_checked()``. ``_set_directs_helps``/
+# ``_read_directs_helps`` therefore click/read the label's toggle div.
+_DIRECT_HELPS_TOGGLE_LABEL_SELECTOR = (
+    '[data-testid="CampaignRecommendationsEditor.AcceptRecommendations.label"]'
+)
+_DIRECT_HELPS_TOGGLE_DIV_SELECTOR = (
+    '[data-testid="CampaignRecommendationsEditor.AcceptRecommendations"]'
 )
 
 # XPath fragment: the "Цель продвижения" dropdown's trigger button. Confirmed
@@ -1815,17 +1825,25 @@ def _set_campaign_name(page: "Page", name: str) -> None:
 def _set_directs_helps(page: "Page", enabled: bool) -> None:
     """Check/uncheck the "Директ помогает" auto-recommendations checkbox.
 
-    Scoped to the FIRST checkbox following the "Директ помогает" heading only
-    (see ``_DIRECT_HELPS_CHECKBOX_XPATH``) — checking it reveals a second,
+    Clicks the visible label/toggle div, not the underlying
+    ``<input type="checkbox">`` (see ``_DIRECT_HELPS_TOGGLE_LABEL_SELECTOR``'s
+    docstring, issue #724): that input is visually-hidden, so
+    ``.check()``/``.uncheck()`` — which require visibility — hang until
+    timeout. Clicking the label is a no-op if the toggle is already in the
+    requested state (unlike ``.check()``/``.uncheck()``, a plain ``.click()``
+    would flip it either way), so this only clicks when
+    ``_read_directs_helps`` reports the opposite of ``enabled``. Scoped to
+    the "Директ помогает" toggle only — checking it reveals a second,
     nested checkbox ("Оптимизировать расширенные настройки...") that is out
     of scope for Этап A and must be left untouched.
     """
-    checkbox = page.locator(_DIRECT_HELPS_CHECKBOX_XPATH).first
+    current = _read_directs_helps(page)
+    if current is enabled:
+        return
+
+    label = page.locator(_DIRECT_HELPS_TOGGLE_LABEL_SELECTOR).first
     try:
-        if enabled:
-            checkbox.check()
-        else:
-            checkbox.uncheck()
+        label.click()
     except PlaywrightError as exc:
         raise BrowserSessionError(
             "Could not find or toggle the 'Директ помогает' checkbox "
@@ -2258,13 +2276,25 @@ def _read_weekly_budget(page: "Page") -> Optional[int]:
 def _read_directs_helps(page: "Page") -> Optional[bool]:
     """Read the "Директ помогает" checkbox's current checked state.
 
-    Returns ``None`` if the field can't be found/read (inconclusive).
+    Reads the visible toggle div's ``data-checked`` attribute, not the
+    underlying ``<input type="checkbox">``'s ``is_checked()`` (issue #724):
+    the input is visually-hidden, and while ``is_checked()`` itself doesn't
+    require visibility, keeping the read path on the same element
+    ``_set_directs_helps`` clicks avoids the two ever silently disagreeing
+    if Yandex's toggle implementation changes. Returns ``None`` if the field
+    can't be found/read, OR if ``data-checked`` holds neither "true" nor
+    "false" (inconclusive either way).
     """
-    checkbox = page.locator(_DIRECT_HELPS_CHECKBOX_XPATH).first
+    toggle = page.locator(_DIRECT_HELPS_TOGGLE_DIV_SELECTOR).first
     try:
-        return checkbox.is_checked()
+        value = toggle.get_attribute("data-checked")
     except PlaywrightError:
         return None
+    if value == "true":
+        return True
+    if value == "false":
+        return False
+    return None
 
 
 def _read_promotion_goal_label(page: "Page") -> Optional[str]:

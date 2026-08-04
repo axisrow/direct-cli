@@ -214,6 +214,27 @@ class _FakeLocatorHandle:
             self._on_upload(path)
 
 
+class _DynamicAttrsLocatorHandle(_FakeLocatorHandle):
+    """A handle whose ``get_attribute`` reads LIVE state via a callable.
+
+    ``_FakeLocatorHandle.get_attribute`` reads a snapshot dict fixed at
+    construction time — insufficient for the "Директ помогает" toggle
+    (issue #724), whose ``data-checked`` must reflect whatever the sibling
+    label's click handler last wrote to shared test state. ``get_attrs`` is
+    called on every ``get_attribute()``, mirroring how a real re-read always
+    sees the DOM's current attribute value.
+    """
+
+    def __init__(self, *args, get_attrs, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._get_attrs = get_attrs
+
+    def get_attribute(self, name):
+        if self._raises:
+            raise PlaywrightError("element detached")
+        return self._get_attrs().get(name)
+
+
 class _FakeContentEditableHandle(_FakeLocatorHandle):
     """A slot that models the REAL contenteditable semantics (issue #655 review).
 
@@ -3161,16 +3182,45 @@ class TestSetWeeklyBudget(unittest.TestCase):
             browser_masters._set_weekly_budget(page, 95000)
 
 
+def _directs_helps_page(initial_checked, on_toggle=None):
+    """Build a FakePage modeling the label/toggle-div pair (issue #724).
+
+    The real toggle's underlying ``<input>`` is visually-hidden — Yandex's
+    clickable element is a sibling ``.label``, and state is read from the
+    toggle div's ``data-checked`` attribute, not the input. ``attrs`` is a
+    single shared dict so the label's click handler and the div's
+    ``get_attribute("data-checked")`` observe the same mutable state, mirroring
+    how the real DOM's label click flips the sibling div's attribute.
+    """
+    attrs = {"data-checked": "true" if initial_checked else "false"}
+
+    def _toggle():
+        attrs["data-checked"] = "false" if attrs["data-checked"] == "true" else "true"
+        if on_toggle is not None:
+            on_toggle(attrs["data-checked"] == "true")
+
+    label_handle = _FakeLocatorHandle(on_click=_toggle)
+    div_handle = _FakeLocatorHandle(attrs=attrs)
+    return FakePage(
+        locators={
+            browser_masters._DIRECT_HELPS_TOGGLE_LABEL_SELECTOR: _FakeLocator(
+                [label_handle]
+            ),
+            browser_masters._DIRECT_HELPS_TOGGLE_DIV_SELECTOR: _FakeLocator(
+                [div_handle]
+            ),
+        }
+    )
+
+
 class TestSetDirectsHelps(unittest.TestCase):
-    """``_set_directs_helps`` (issue #631, Этап A) — check/uncheck, idempotent API."""
+    """``_set_directs_helps`` (issue #631, Этап A; issue #724 label/data-checked
+    rewrite) — click the visible label, idempotent no-op when already matching."""
 
     def test_enables_checkbox(self):
-        state = {"checked": False}
-        handle = _FakeLocatorHandle(on_check=lambda v: state.__setitem__("checked", v))
-        page = FakePage(
-            locators={
-                browser_masters._DIRECT_HELPS_CHECKBOX_XPATH: _FakeLocator([handle])
-            }
+        state = {}
+        page = _directs_helps_page(
+            False, on_toggle=lambda v: state.__setitem__("checked", v)
         )
 
         browser_masters._set_directs_helps(page, True)
@@ -3178,17 +3228,24 @@ class TestSetDirectsHelps(unittest.TestCase):
         self.assertTrue(state["checked"])
 
     def test_disables_checkbox(self):
-        state = {"checked": True}
-        handle = _FakeLocatorHandle(on_check=lambda v: state.__setitem__("checked", v))
-        page = FakePage(
-            locators={
-                browser_masters._DIRECT_HELPS_CHECKBOX_XPATH: _FakeLocator([handle])
-            }
+        state = {}
+        page = _directs_helps_page(
+            True, on_toggle=lambda v: state.__setitem__("checked", v)
         )
 
         browser_masters._set_directs_helps(page, False)
 
         self.assertFalse(state["checked"])
+
+    def test_is_noop_when_already_in_requested_state(self):
+        state = {"toggled": False}
+        page = _directs_helps_page(
+            True, on_toggle=lambda v: state.__setitem__("toggled", True)
+        )
+
+        browser_masters._set_directs_helps(page, True)
+
+        self.assertFalse(state["toggled"])
 
     def test_raises_browser_session_error_when_checkbox_missing(self):
         page = FakePage(locators={})
@@ -3999,12 +4056,30 @@ class TestUpdateMaster(unittest.TestCase):
                 [budget_handle]
             )
         if directs_helps_state is not None:
-            checkbox_handle = _FakeLocatorHandle(
-                on_check=lambda v: directs_helps_state.__setitem__("checked", v),
-                get_checked=lambda: directs_helps_state.get("checked", False),
+            # Issue #724: the toggle's real clickable element is the label,
+            # and state lives in the sibling div's `data-checked` attribute —
+            # so the label's on_click and the div's get_attribute must read/
+            # write the SAME shared `directs_helps_state`, mirroring the real
+            # DOM's label-click-flips-sibling-attribute behavior.
+            def _directs_helps_attrs():
+                return {
+                    "data-checked": (
+                        "true" if directs_helps_state.get("checked", False) else "false"
+                    )
+                }
+
+            def _toggle_directs_helps():
+                directs_helps_state["checked"] = not directs_helps_state.get(
+                    "checked", False
+                )
+
+            label_handle = _FakeLocatorHandle(on_click=_toggle_directs_helps)
+            div_handle = _DynamicAttrsLocatorHandle(get_attrs=_directs_helps_attrs)
+            locators[browser_masters._DIRECT_HELPS_TOGGLE_LABEL_SELECTOR] = (
+                _FakeLocator([label_handle])
             )
-            locators[browser_masters._DIRECT_HELPS_CHECKBOX_XPATH] = _FakeLocator(
-                [checkbox_handle]
+            locators[browser_masters._DIRECT_HELPS_TOGGLE_DIV_SELECTOR] = _FakeLocator(
+                [div_handle]
             )
         if name_state is not None:
             # The rename modal's "Применить" only updates the header's
@@ -4559,19 +4634,21 @@ class TestUpdateMaster(unittest.TestCase):
         self.assertIn("did not save as requested", str(ctx.exception))
 
     def test_raises_when_saved_directs_helps_does_not_match_requested(self):
-        checkbox_state = {"checked": False}  # never actually flips to True
         save_handle = _FakeTextLocatorHandle(visible=True)
-        checkbox_handle = _FakeLocatorHandle(
-            on_check=lambda v: None,
-            get_checked=lambda: checkbox_state["checked"],
-        )
+        # Label click is a no-op — models "Yandex silently rejected the
+        # toggle": data-checked never actually flips to true (issue #724).
+        label_handle = _FakeLocatorHandle(on_click=lambda: None)
+        div_handle = _FakeLocatorHandle(attrs={"data-checked": "false"})
         edit_form_ready_selector = (
             f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'
         )
         page = FakePage(
             locators={
-                browser_masters._DIRECT_HELPS_CHECKBOX_XPATH: _FakeLocator(
-                    [checkbox_handle]
+                browser_masters._DIRECT_HELPS_TOGGLE_LABEL_SELECTOR: _FakeLocator(
+                    [label_handle]
+                ),
+                browser_masters._DIRECT_HELPS_TOGGLE_DIV_SELECTOR: _FakeLocator(
+                    [div_handle]
                 ),
                 edit_form_ready_selector: _FakeLocator([_FakeLocatorHandle()]),
             },
