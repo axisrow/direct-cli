@@ -3589,7 +3589,6 @@ def fetch_master_target_actions(page: "Page", campaign_id: int) -> Dict[str, Any
     all), or it is but no goal has been added to it yet. This function does
     not distinguish the two; callers that need to know which should also
     check ``promotion_goal`` via ``fetch_master``.
-
     """
     page.goto(WIZARD_EDIT_URL.format(campaign_id=campaign_id), wait_until="commit")
     assert_not_captcha(page.content())
