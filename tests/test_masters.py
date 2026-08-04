@@ -1603,6 +1603,56 @@ class TestWithSessionRetry(unittest.TestCase):
         self.assertEqual(result, "ok:fresh-page")
 
 
+class TestPollUntil(unittest.TestCase):
+    """Issue #715: ``_poll_until``'s ``while time.monotonic() < deadline``
+    loop measures real wall-clock time, so on a CPU-loaded CI runner (many
+    Python-level iterations execute per real millisecond) the loop can run
+    an unbounded number of ticks before ``time.monotonic()`` finally reports
+    the deadline has passed — the tick count is not a function of the
+    predicate/timeout alone, it also depends on how fast the host CPU
+    happens to be at that moment. Injecting a ``clock`` callable (defaulting
+    to ``time.monotonic``, so production behaviour is unchanged) lets a test
+    supply a fake clock that only advances when ``page.wait_for_timeout`` is
+    actually called, making the tick count fully deterministic regardless of
+    real CPU speed.
+    """
+
+    def test_tick_count_is_deterministic_under_a_fake_clock_that_only_advances_on_wait(
+        self,
+    ):
+        # Simulates a CPU-loaded runner: the predicate loop can spin many
+        # times per real millisecond, but the deadline must still be judged
+        # in terms of ticks (fake-clock advancement), not raw loop
+        # iterations. A fake clock that starts at 0 and only advances by
+        # ``tick_ms`` inside ``wait_for_timeout`` proves the loop runs
+        # exactly ``timeout_ms // tick_ms`` ticks before giving up, no
+        # matter how many times the predicate itself is polled between
+        # ticks.
+        fake_time = {"now": 0.0}
+
+        class _FakeClockPage(FakePage):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.tick_count = 0
+
+            def wait_for_timeout(self, timeout):
+                self.tick_count += 1
+                fake_time["now"] += timeout / 1000
+
+        page = _FakeClockPage(locators={})
+        result = browser_masters._poll_until(
+            page,
+            lambda: False,
+            1_000,
+            tick_ms=250,
+            clock=lambda: fake_time["now"],
+        )
+        self.assertFalse(result)
+        # 1000ms / 250ms == 4 ticks, deterministically -- not a real
+        # wall-clock race against however fast the host CPU spins the loop.
+        self.assertEqual(page.tick_count, 4)
+
+
 class TestFetchMastersList(unittest.TestCase):
     """`list` reads the grid's GridCampaigns JSON call, not its DOM (#639):
     the grid is a virtualized SPA and never renders a
