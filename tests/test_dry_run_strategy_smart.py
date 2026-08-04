@@ -468,6 +468,12 @@ def test_campaigns_add_smart_search_rejects_partial_custom_period_budget():
         # Missing start-date / end-date / auto-continue.
     )
     assert "CustomPeriodBudget" in result.output
+    # The missing-field error must name the real SmartCampaign flags
+    # (--smart-search-cp-*) and the original wording, byte-for-byte with
+    # the pre-dedup builder (issue #592 invariant). The shared helper must
+    # not leak TextCampaign-style flag names or altered phrasing.
+    assert "--smart-search-cp-start-date" in result.output
+    assert "requires all custom-period flags" in result.output
 
 
 def test_campaigns_add_smart_search_rejects_partial_exploration_budget():
@@ -486,6 +492,12 @@ def test_campaigns_add_smart_search_rejects_partial_exploration_budget():
         # missing --smart-search-exploration-min-custom
     )
     assert "ExplorationBudget" in result.output
+    # The missing-field error must name the real SmartCampaign flag
+    # --smart-search-exploration-min-custom (not the TextCampaign-style
+    # --smart-search-exploration-is-custom that the shared helper would
+    # synthesize). Byte-for-byte invariant with the pre-dedup builder.
+    assert "--smart-search-exploration-min-custom" in result.output
+    assert "--smart-search-exploration-is-custom" not in result.output
 
 
 def test_campaigns_add_smart_search_rejects_detail_without_strategy():
@@ -1338,6 +1350,11 @@ def test_campaigns_add_smart_network_rejects_partial_custom_period_budget():
         # Missing start-date / end-date / auto-continue.
     )
     assert "CustomPeriodBudget" in result.output
+    # Byte-for-byte invariant with the pre-dedup builder (#592): the
+    # missing-field error must name the real --smart-network-cp-* flags
+    # and keep the original wording, not the shared-helper phrasing.
+    assert "--smart-network-cp-start-date" in result.output
+    assert "requires all custom-period flags" in result.output
 
 
 def test_campaigns_add_smart_network_rejects_partial_exploration_budget():
@@ -1356,6 +1373,12 @@ def test_campaigns_add_smart_network_rejects_partial_exploration_budget():
         # missing --smart-network-exploration-min-custom
     )
     assert "ExplorationBudget" in result.output
+    # Byte-for-byte invariant with the pre-dedup builder (#592): the
+    # missing-field error must name the real --smart-network-exploration-min-custom
+    # flag, not the TextCampaign-style --smart-network-exploration-is-custom
+    # synthesized by the shared helper.
+    assert "--smart-network-exploration-min-custom" in result.output
+    assert "--smart-network-exploration-is-custom" not in result.output
 
 
 def test_campaigns_add_smart_network_rejects_detail_without_strategy():
