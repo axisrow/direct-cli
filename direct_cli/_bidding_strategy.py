@@ -3189,8 +3189,28 @@ def _build_smart_strategy_block(
             )
         return container
 
-    # CustomPeriodBudget / ExplorationBudget are all-or-none container checks;
-    # build them first, mirroring the DynamicTextCampaign/TextCampaign core.
+    # CustomPeriodBudget: all four subfields required together (WSDL
+    # CustomPeriodBudget minOccurs=1). Validate with the real SmartCampaign
+    # flag names + the pre-dedup wording so the byte-for-byte UsageError
+    # invariant holds; the shared helper is then called only with a full
+    # (or empty) set, mirroring the DynamicTextCampaign core (#754).
+    custom_period_values = {
+        f"{prefix}cp-spend-limit": custom_period_spend_limit,
+        f"{prefix}cp-start-date": custom_period_start_date,
+        f"{prefix}cp-end-date": custom_period_end_date,
+        f"{prefix}cp-auto-continue": custom_period_auto_continue,
+    }
+    custom_period_flags = [
+        flag for flag, value in custom_period_values.items() if value is not None
+    ]
+    if custom_period_flags and len(custom_period_flags) != len(custom_period_values):
+        missing = [
+            flag for flag, value in custom_period_values.items() if value is None
+        ]
+        raise click.UsageError(
+            f"SmartCampaign {config.side_label} CustomPeriodBudget requires all "
+            f"custom-period flags; missing {', '.join(sorted(missing))}"
+        )
     custom_period = _build_custom_period_budget(
         f"{prefix}cp-",
         f"SmartCampaign {config.side_label}",
@@ -3213,6 +3233,26 @@ def _build_smart_strategy_block(
             f"{prefix}cp-spend-limit"
         )
 
+    # ExplorationBudget: both subfields required together (WSDL
+    # ExplorationBudget minOccurs=1). Same SmartCampaign flag-name + wording
+    # invariant as CustomPeriodBudget above; the shared helper is called only
+    # with a full (or empty) set, so its own TextCampaign-style error branch
+    # (which would name a non-existent --smart-*-exploration-is-custom flag)
+    # is unreachable.
+    exploration_values = {
+        f"{prefix}exploration-min": exploration_min_budget,
+        f"{prefix}exploration-min-custom": exploration_min_budget_custom,
+    }
+    exploration_flags = [
+        flag for flag, value in exploration_values.items() if value is not None
+    ]
+    if exploration_flags and len(exploration_flags) != len(exploration_values):
+        missing = [flag for flag, value in exploration_values.items() if value is None]
+        raise click.UsageError(
+            f"SmartCampaign {config.side_label} ExplorationBudget requires both "
+            f"{prefix}exploration-min and "
+            f"{prefix}exploration-min-custom; missing {', '.join(sorted(missing))}"
+        )
     exploration_budget_block = _build_exploration_budget(
         f"{prefix}exploration-",
         f"SmartCampaign {config.side_label}",
