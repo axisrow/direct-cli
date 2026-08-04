@@ -2450,7 +2450,65 @@ def _is_draft_edit_page(page: "Page") -> bool:
         return False
 
 
-def _click_save(page: "Page", campaign_id: int, *, launch: bool = False) -> None:
+def _draft_status_terminal_state(page: "Page") -> "Optional[str]":
+    """Predicate for ``_wait_for_draft_status``'s poll loop.
+
+    Returns ``"draft"`` once the DRAFT-only save-as-draft marker is
+    present, ``"non_draft"`` once the exact, visible non-DRAFT "Сохранить
+    кампанию" button is present, or ``None`` to keep polling. The two
+    outcomes are mutually exclusive on a real page (issue #668) — whichever
+    appears first is the answer.
+    """
+    if page.locator(_DRAFT_SAVE_DRAFT_BUTTON_TESTID).first.count() > 0:
+        return "draft"
+    save_button = page.get_by_role("button", name=_SAVE_BUTTON_TEXT, exact=True)
+    for i in range(save_button.count()):
+        if save_button.nth(i).is_visible():
+            return "non_draft"
+    return None
+
+
+def _wait_for_draft_status(page: "Page", campaign_id: int) -> bool:
+    """Block until the edit page's DRAFT-vs-non-DRAFT terminal save control
+    has actually rendered, then return whether it's a DRAFT page.
+
+    Issue #726 (Codex-caught gap in the initial fix, cycle-review round 2):
+    ``_wait_for_edit_form`` only waits for the first headline slot
+    (``_EDIT_FORM_READY_TESTID``) — it guarantees nothing about either
+    terminal save control's own mount time. A caller that read
+    ``_is_draft_edit_page`` immediately after ``_wait_for_edit_form``
+    returned could still misclassify a DRAFT campaign whose headline
+    happens to render before ``CampaignFormControls.saveDraft.button``
+    does — the original #726 diagnosis confirmed a present-then-absent
+    flap, but never ruled out this absent-then-present ordering. Polling
+    for either terminal marker (mutually exclusive per
+    ``_draft_status_terminal_state``) closes both directions at once,
+    instead of trusting a single point-in-time read.
+
+    Raises ``BrowserSessionError`` on timeout — same "surface a specific,
+    actionable error rather than silently guessing" convention as
+    ``_wait_for_edit_form``/``_wait_for_images_editor``.
+    """
+    state = _poll_until_terminal(
+        page,
+        lambda: _draft_status_terminal_state(page),
+        _EDIT_FORM_READY_TIMEOUT_MS,
+    )
+    if state is None:
+        raise BrowserSessionError(
+            "Neither the DRAFT save-as-draft button nor the non-DRAFT "
+            f"'{_SAVE_BUTTON_TEXT}' button appeared on the edit page for "
+            f"campaign {campaign_id} within "
+            f"{_EDIT_FORM_READY_TIMEOUT_MS / 1000:.0f}s — Yandex may have "
+            "changed the page's markup. Re-run with --headful to inspect "
+            "the page."
+        )
+    return state == "draft"
+
+
+def _click_save(
+    page: "Page", campaign_id: int, *, is_draft: bool, launch: bool = False
+) -> None:
     """Click the edit page's save button — "Сохранить кампанию" on a
     non-DRAFT campaign, or the DRAFT-specific save-as-draft/launch button.
 
@@ -2459,8 +2517,21 @@ def _click_save(page: "Page", campaign_id: int, *, launch: bool = False) -> None
     per-section save to target instead. A DRAFT campaign's edit page has a
     DIFFERENT pair of terminal buttons entirely (issue #668) — see
     ``_click_draft_terminal_button``.
+
+    ``is_draft`` MUST be the caller's own ``_is_draft_edit_page`` reading,
+    taken once right after ``_wait_for_edit_form`` returns — NOT re-derived
+    here. Issue #726 (live-confirmed): the DRAFT-terminal marker
+    (``_DRAFT_SAVE_DRAFT_BUTTON_TESTID``) can transiently disappear from the
+    DOM mid-hydration and reappear ~1.5s later, so a fresh
+    ``_is_draft_edit_page(page)`` call made immediately before this click
+    can read ``False`` for a page that was (and still is) DRAFT — sending a
+    DRAFT campaign down the non-DRAFT "Сохранить кампанию" path, which
+    doesn't exist on that page and raises. Every caller already determines
+    ``is_draft`` before doing any of the mutations that precede this click,
+    for the same "read it while the page still reflects what's about to
+    happen" reason ``update_master`` documents at its own call site.
     """
-    if _is_draft_edit_page(page):
+    if is_draft:
         _click_draft_terminal_button(page, campaign_id, launch=launch)
         return
 
@@ -2920,6 +2991,21 @@ def update_master(
     assert_authenticated(page.content())
     _wait_for_edit_form(page, campaign_id)
 
+    # Determined right here, before ANY mutation runs, via
+    # _wait_for_draft_status rather than a single _is_draft_edit_page read
+    # — issue #726 (live-confirmed): the DRAFT-terminal marker can
+    # transiently vanish from the DOM mid-hydration and reappear ~1.5s
+    # later, and (cycle-review round 2, Codex) _wait_for_edit_form only
+    # guarantees the headline slot has rendered, not either terminal save
+    # control, so a naive point-in-time read here could also fire before
+    # the DRAFT marker has mounted at all. Reading it after the field/image
+    # mutations below (as this used to) only narrows the first race, it
+    # does not close either — mutations take an unbounded amount of time
+    # and can still land inside the flap. Polling for either terminal
+    # marker before any mutation closes both directions (see
+    # ``_wait_for_draft_status``'s docstring).
+    was_draft = _wait_for_draft_status(page, campaign_id)
+
     if name is not None:
         _set_campaign_name(page, name)
     if weekly_budget is not None:
@@ -2968,10 +3054,9 @@ def update_master(
         images_replaced_ids.add(target_content_id)
         _set_image(page, index, path, target_content_id=target_content_id)
 
-    # Determined BEFORE clicking, while the page still reflects what's about
-    # to be clicked — after the click, _verify_saved's own reload leaves no
-    # way to tell which button this run actually used.
-    was_draft = _is_draft_edit_page(page)
+    # was_draft was captured right after _wait_for_edit_form, above — reused
+    # here rather than re-derived, for the same reason _click_save takes it
+    # as an explicit argument instead of re-querying the DOM itself.
     if was_draft:
         clicked_button_label = (
             _LAUNCH_BUTTON_TEXT if launch else _SAVE_DRAFT_BUTTON_TEXT
@@ -2979,7 +3064,7 @@ def update_master(
     else:
         clicked_button_label = _SAVE_BUTTON_TEXT
 
-    _click_save(page, campaign_id, launch=launch)
+    _click_save(page, campaign_id, is_draft=was_draft, launch=launch)
 
     # The terminal-button click above already happened — irreversible, and
     # for images NOT idempotent (a retry would re-snapshot the
@@ -3073,16 +3158,29 @@ def update_master(
     return result
 
 
-def _open_images_editor(page: "Page", campaign_id: int) -> List[str]:
+def _open_images_editor(page: "Page", campaign_id: int) -> Tuple[List[str], bool]:
     """Navigate to the campaign's edit page and return its current image
-    content IDs, once the "Изображения" section has actually rendered.
+    content IDs plus its DRAFT status, once the "Изображения" section has
+    actually rendered.
 
     The shared opening move of every ``masters adimages`` entry point:
     ``goto`` + captcha/auth assertions + ``_wait_for_images_editor``. That
-    settle is what makes the returned list trustworthy — read any earlier
-    and a campaign that simply has not finished rendering is
+    settle is what makes the returned content-ID list trustworthy — read any
+    earlier and a campaign that simply has not finished rendering is
     indistinguishable from one that genuinely has no images (see
     ``_wait_for_images_editor``).
+
+    The DRAFT status is determined right after ``_wait_for_edit_form``, via
+    ``_wait_for_draft_status`` rather than a single ``_is_draft_edit_page``
+    read — the marker can both flap present→absent mid-hydration AND not
+    have mounted at all yet when only the headline slot has rendered (issue
+    #726; the latter ordering was a cycle-review round-2 gap in the first
+    fix). Returned for the caller to carry through
+    ``_apply_image_operations`` (uploads/removals, unbounded elapsed time)
+    into ``_save_and_verify_images`` unchanged. Re-deriving it after
+    ``_apply_image_operations`` would land back in the same DOM-flap race
+    the caller-side fix in ``update_master`` was written to close (see
+    ``_click_save``'s docstring).
     """
     page.goto(
         WIZARD_EDIT_URL.format(campaign_id=campaign_id),
@@ -3091,9 +3189,10 @@ def _open_images_editor(page: "Page", campaign_id: int) -> List[str]:
     assert_not_captcha(page.content())
     assert_authenticated(page.content())
     _wait_for_edit_form(page, campaign_id)
+    is_draft = _wait_for_draft_status(page, campaign_id)
 
     _wait_for_images_editor(page)
-    return _read_image_content_ids(page)
+    return _read_image_content_ids(page), is_draft
 
 
 def fetch_master_images(page: "Page", campaign_id: int) -> Dict[str, Any]:
@@ -3112,7 +3211,7 @@ def fetch_master_images(page: "Page", campaign_id: int) -> Dict[str, Any]:
     not an error — unlike headlines/texts, images have no "at least one"
     invariant (see ``_IMAGES_MAX_COUNT``'s module-level comment).
     """
-    content_ids = _open_images_editor(page, campaign_id)
+    content_ids, _is_draft = _open_images_editor(page, campaign_id)
 
     thumb_urls: Dict[str, Optional[str]] = {cid: None for cid in content_ids}
     if content_ids:
@@ -3186,7 +3285,7 @@ def add_master_images(
     if not paths:
         raise ValueError("add_master_images requires at least one path.")
 
-    before_ids = _open_images_editor(page, campaign_id)
+    before_ids, is_draft = _open_images_editor(page, campaign_id)
 
     if len(before_ids) + len(paths) > _IMAGES_MAX_COUNT:
         raise BrowserSessionError(
@@ -3204,6 +3303,7 @@ def add_master_images(
     final_ids = _save_and_verify_images(
         page,
         campaign_id,
+        is_draft=is_draft,
         expected_kept_ids=before_ids,
         removed_ids=set(),
         expected_added_count=len(paths),
@@ -3246,7 +3346,7 @@ def delete_master_images(
             "all_images=True."
         )
 
-    before_ids = _open_images_editor(page, campaign_id)
+    before_ids, is_draft = _open_images_editor(page, campaign_id)
 
     if all_images:
         if not before_ids and not launch:
@@ -3282,6 +3382,7 @@ def delete_master_images(
     final_ids = _save_and_verify_images(
         page,
         campaign_id,
+        is_draft=is_draft,
         expected_kept_ids=[cid for cid in before_ids if cid not in targets],
         removed_ids=set(targets),
         expected_added_count=0,
@@ -3324,7 +3425,7 @@ def set_master_images(
             f"{_IMAGES_MAX_COUNT} images per campaign."
         )
 
-    before_ids = _open_images_editor(page, campaign_id)
+    before_ids, is_draft = _open_images_editor(page, campaign_id)
 
     if not before_ids and not paths and not launch:
         return {"CampaignId": campaign_id, "Count": 0}
@@ -3338,6 +3439,7 @@ def set_master_images(
     final_ids = _save_and_verify_images(
         page,
         campaign_id,
+        is_draft=is_draft,
         expected_kept_ids=[],
         removed_ids=set(before_ids),
         expected_added_count=len(paths),
@@ -4768,6 +4870,7 @@ def _save_and_verify_images(
     page: "Page",
     campaign_id: int,
     *,
+    is_draft: bool,
     expected_kept_ids: List[str],
     removed_ids: Set[str],
     expected_added_count: int,
@@ -4785,13 +4888,19 @@ def _save_and_verify_images(
     re-run them — same reasoning as ``update_master``'s own wrapper).
     ``not_idempotent_noun`` is the phrase naming what was already applied
     ("image uploads", "image deletions", ...).
+
+    ``is_draft`` MUST be the caller's ``_open_images_editor`` reading, taken
+    right after ``_wait_for_edit_form`` — NOT re-derived here. Re-deriving it
+    at this point would read the DOM only after ``_apply_image_operations``
+    (uploads/removals) has already run, landing back inside the same #726
+    DOM-flap race ``_click_save``'s ``is_draft`` contract exists to close.
     """
     clicked_button_label = (
         (_LAUNCH_BUTTON_TEXT if launch else _SAVE_DRAFT_BUTTON_TEXT)
-        if _is_draft_edit_page(page)
+        if is_draft
         else _SAVE_BUTTON_TEXT
     )
-    _click_save(page, campaign_id, launch=launch)
+    _click_save(page, campaign_id, is_draft=is_draft, launch=launch)
 
     try:
         return _verify_saved_images(

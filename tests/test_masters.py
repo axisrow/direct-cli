@@ -4058,7 +4058,7 @@ class TestClickSave(unittest.TestCase):
         )
 
         with self.assertRaises(BrowserSessionError):
-            browser_masters._click_save(page, 42)
+            browser_masters._click_save(page, 42, is_draft=False)
         self.assertEqual(decoy_clicked, [])
 
     def test_clicks_the_exact_match_button(self):
@@ -4075,7 +4075,7 @@ class TestClickSave(unittest.TestCase):
             ],
         )
 
-        browser_masters._click_save(page, 42)
+        browser_masters._click_save(page, 42, is_draft=False)
 
         self.assertEqual(clicks, [True])
 
@@ -4119,7 +4119,7 @@ class TestDraftEditPageSave(unittest.TestCase):
             }
         )
 
-        browser_masters._click_save(page, 713231614)
+        browser_masters._click_save(page, 713231614, is_draft=True)
 
         # The publish button must never be touched unless --launch was
         # explicitly requested.
@@ -4138,7 +4138,7 @@ class TestDraftEditPageSave(unittest.TestCase):
             }
         )
 
-        browser_masters._click_save(page, 713231614, launch=True)
+        browser_masters._click_save(page, 713231614, is_draft=True, launch=True)
 
         self.assertEqual(clicks, ["launch"])
 
@@ -4153,7 +4153,7 @@ class TestDraftEditPageSave(unittest.TestCase):
         )
 
         with self.assertRaises(BrowserSessionError):
-            browser_masters._click_save(page, 713231614, launch=True)
+            browser_masters._click_save(page, 713231614, is_draft=True, launch=True)
 
     def test_click_save_prefers_non_draft_path_when_save_draft_button_absent(self):
         # Regression guard: a non-DRAFT page must keep using the plain
@@ -4172,9 +4172,146 @@ class TestDraftEditPageSave(unittest.TestCase):
             ],
         )
 
-        browser_masters._click_save(page, 42)
+        browser_masters._click_save(page, 42, is_draft=False)
 
         self.assertEqual(clicks, [True])
+
+    def test_click_save_uses_caller_supplied_is_draft_despite_dom_flap(self):
+        # Regression for #726: is_draft=True must force the DRAFT branch
+        # even when the DOM has no draft testid (simulates the marker
+        # flapping away mid-hydration) and no "Сохранить кампанию" role
+        # element either, since a real DRAFT page never has one.
+        page = FakePage(locators={}, role_elements=[])
+
+        # The failure must come from the DRAFT-terminal-button lookup
+        # (proves it took the DRAFT branch), not the non-DRAFT "Сохранить
+        # кампанию" lookup — which would raise a differently-worded error.
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._click_save(page, 713231614, is_draft=True)
+        self.assertIn(browser_masters._SAVE_DRAFT_BUTTON_TEXT, str(ctx.exception))
+
+    def test_open_images_editor_reads_is_draft_before_returning(self):
+        # Regression for #726 on the images path: _open_images_editor must
+        # read is_draft right after _wait_for_edit_form (i.e. as part of
+        # this call), NOT leave it for a caller to re-derive later after
+        # _apply_image_operations has run — that would reopen the same
+        # DOM-flap race _click_save's is_draft contract exists to close.
+        page = _FakeImagesPage(
+            ["a"],
+            locators={
+                browser_masters._DRAFT_SAVE_DRAFT_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                )
+            },
+        )
+
+        _content_ids, is_draft = browser_masters._open_images_editor(page, 42)
+
+        self.assertTrue(is_draft)
+
+    def test_open_images_editor_is_draft_false_when_marker_absent(self):
+        page = _FakeImagesPage(["a"])
+
+        _content_ids, is_draft = browser_masters._open_images_editor(page, 42)
+
+        self.assertFalse(is_draft)
+
+    def test_add_master_images_uses_is_draft_captured_before_apply_operations(self):
+        # End-to-end regression for #726 on add_master_images: the DRAFT
+        # branch must be taken based on the marker's state at
+        # _open_images_editor time, not re-queried after
+        # _apply_image_operations (uploads) has run and the marker may have
+        # flapped away.
+        draft_clicks = []
+
+        def _on_draft_click():
+            draft_clicks.append(True)
+            page.url = browser_masters.WIZARD_OVERVIEW_URL.format(campaign_id=42)
+
+        page = _FakeImagesPage(
+            [],
+            upload_ids=["new1"],
+            locators={
+                browser_masters._DRAFT_SAVE_DRAFT_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle(on_click=_on_draft_click)]
+                )
+            },
+        )
+        page.url = browser_masters.WIZARD_EDIT_URL.format(campaign_id=42)
+
+        browser_masters.add_master_images(page, 42, paths=["/tmp/a.png"])
+
+        self.assertEqual(draft_clicks, [True])
+
+
+class TestWaitForDraftStatus(unittest.TestCase):
+    """``_wait_for_draft_status`` (issue #726, cycle-review round 2 —
+    Codex-caught gap): polls for either terminal save control instead of
+    trusting a single point-in-time read taken right after
+    ``_wait_for_edit_form``, which only guarantees the headline slot has
+    rendered, not either terminal button.
+    """
+
+    def test_returns_true_once_draft_marker_mounts_after_a_delay(self):
+        # The headline slot (what _wait_for_edit_form waits for) can render
+        # before CampaignFormControls.saveDraft.button mounts — a straight
+        # post-_wait_for_edit_form read would misclassify this DRAFT page
+        # as non-DRAFT. The poll must wait it out instead.
+        ticks = {"count": 0}
+
+        class _DelayedDraftMarkerPage(FakePage):
+            def locator(self, selector):
+                if (
+                    selector == browser_masters._DRAFT_SAVE_DRAFT_BUTTON_TESTID
+                    and ticks["count"] < 2
+                ):
+                    return _FakeLocator([])
+                return super().locator(selector)
+
+            def wait_for_timeout(self, timeout):
+                ticks["count"] += 1
+
+        page = _DelayedDraftMarkerPage(
+            locators={
+                browser_masters._DRAFT_SAVE_DRAFT_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                )
+            },
+            role_elements=[],
+        )
+
+        self.assertTrue(browser_masters._wait_for_draft_status(page, 713231614))
+        self.assertEqual(ticks["count"], 2)
+
+    def test_returns_false_once_non_draft_button_mounts_after_a_delay(self):
+        ticks = {"count": 0}
+        save_handle = _FakeTextLocatorHandle(visible=True)
+
+        class _DelayedSaveButtonPage(FakePage):
+            def get_by_role(self, role, name=None, exact=False):
+                if ticks["count"] < 2:
+                    return _FakeGetByTextLocator([])
+                return super().get_by_role(role, name=name, exact=exact)
+
+            def wait_for_timeout(self, timeout):
+                ticks["count"] += 1
+
+        page = _DelayedSaveButtonPage(
+            locators={},
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+
+        self.assertFalse(browser_masters._wait_for_draft_status(page, 42))
+        self.assertEqual(ticks["count"], 2)
+
+    def test_raises_if_neither_marker_ever_appears(self):
+        page = FakePage(locators={}, role_elements=[])
+
+        with patch.object(browser_masters, "_EDIT_FORM_READY_TIMEOUT_MS", 1):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters._wait_for_draft_status(page, 42)
+
+        self.assertIn("42", str(ctx.exception))
 
 
 class TestUpdateMasterDraftSupport(unittest.TestCase):
@@ -7582,6 +7719,24 @@ class _FakeImagesPage(FakePage):
     """
 
     def __init__(self, ids, *, save_clicks=None, upload_ids=None, **kwargs):
+        # _wait_for_draft_status (issue #726, cycle-review round 2) polls
+        # for a visible non-DRAFT save button as its "definitely not DRAFT"
+        # terminal marker, in addition to the DRAFT testid — so every fake
+        # images page needs ONE of the two present, same as a real edit
+        # page always has exactly one. Defaults to non-DRAFT (matching this
+        # fake's pre-existing behavior, where no test ever registered the
+        # DRAFT testid); a DRAFT-path test overrides `role_elements=[]` and
+        # supplies the DRAFT testid via `locators` instead.
+        kwargs.setdefault(
+            "role_elements",
+            [
+                (
+                    "button",
+                    browser_masters._SAVE_BUTTON_TEXT,
+                    _FakeTextLocatorHandle(visible=True),
+                )
+            ],
+        )
         super().__init__(**kwargs)
         self.ids = list(ids)
         self.modal_open = False
