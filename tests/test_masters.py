@@ -425,15 +425,36 @@ class _FakeTextLocatorHandle:
     status text.
     """
 
-    def __init__(self, visible=True, on_click=None, raises=False):
+    def __init__(
+        self,
+        visible=True,
+        on_click=None,
+        raises=False,
+        disabled=False,
+        aria_disabled=None,
+    ):
         self._visible = visible
         self._on_click = on_click
         self._raises = raises
+        self._disabled = disabled
+        self._aria_disabled = aria_disabled
 
     def is_visible(self):
         if self._raises:
             raise PlaywrightError("element detached")
         return self._visible
+
+    def is_disabled(self):
+        if self._raises:
+            raise PlaywrightError("element detached")
+        return self._disabled
+
+    def get_attribute(self, name):
+        if name == "disabled":
+            return "" if self._disabled else None
+        if name == "aria-disabled":
+            return self._aria_disabled
+        return None
 
     def click(self):
         if self._raises:
@@ -2438,6 +2459,42 @@ class TestSuspendResumeMaster(unittest.TestCase):
 
         with self.assertRaises(BrowserSessionError):
             browser_masters.suspend_master(page, 42)
+
+    def test_suspend_disabled_button_raises_specific_error(self):
+        # issue #728: Yandex renders "Остановить кампанию" disabled (not
+        # hidden) while some of the campaign's creatives are still on
+        # moderation/rejected. Must raise a specific, actionable error
+        # instead of the generic "could not find a button" message that
+        # implies Yandex changed the markup.
+        state = {"status": "Кампания активна"}
+        page = FakePage(
+            text_buttons={
+                "Остановить кампанию": _FakeGetByTextLocator(
+                    [_FakeTextLocatorHandle(visible=True, disabled=True)]
+                )
+            },
+        )
+        page.inner_text = lambda selector=None: state["status"]
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.suspend_master(page, 42)
+        self.assertIn("disabled", str(ctx.exception))
+        self.assertIn("moderation", str(ctx.exception))
+
+    def test_suspend_aria_disabled_button_raises_specific_error(self):
+        state = {"status": "Кампания активна"}
+        page = FakePage(
+            text_buttons={
+                "Остановить кампанию": _FakeGetByTextLocator(
+                    [_FakeTextLocatorHandle(visible=True, aria_disabled="true")]
+                )
+            },
+        )
+        page.inner_text = lambda selector=None: state["status"]
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.suspend_master(page, 42)
+        self.assertIn("disabled", str(ctx.exception))
 
     def _draft_page(self):
         return FakePage(
