@@ -4116,6 +4116,157 @@ class TestSetTargetActionPrice(unittest.TestCase):
             browser_masters._set_target_action_price(page, 159614149, 200)
 
 
+class TestAddTargetAction(unittest.TestCase):
+    """``_add_target_action`` (issue #717): open the "Добавить" popup, click
+    the goal's option, then fill its price via ``_set_target_action_price``.
+    """
+
+    def _add_button_testid(self):
+        testid = browser_masters._TARGET_ACTION_ADD_BUTTON_TESTID_TEMPLATE.format(
+            category=browser_masters._TARGET_ACTIONS_CATEGORY
+        )
+        return f'[data-testid="{testid}"]'
+
+    def _option_testid(self, goal_id):
+        testid = browser_masters._TARGET_ACTION_ADD_OPTION_TESTID_TEMPLATE.format(
+            category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=goal_id
+        )
+        return f'[data-testid="{testid}"]'
+
+    def _price_testid(self, goal_id):
+        testid = browser_masters._TARGET_ACTION_PRICE_TESTID_TEMPLATE.format(
+            category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=goal_id
+        )
+        return f'[data-testid="{testid}"]'
+
+    def test_clicks_add_button_then_option_then_fills_price(self):
+        add_clicks = {"count": 0}
+        add_button = _FakeLocatorHandle(
+            on_click=lambda: add_clicks.__setitem__("count", add_clicks["count"] + 1)
+        )
+        option_clicked = {"clicked": False}
+        option = _FakeLocatorHandle(
+            on_click=lambda: option_clicked.__setitem__("clicked", True)
+        )
+        price_state = {"value": ""}
+        price_field = _FakeLocatorHandle()
+        price_field.fill = lambda value: price_state.__setitem__("value", value)
+
+        page = FakePage(
+            locators={
+                self._add_button_testid(): _FakeLocator([add_button]),
+                self._option_testid(226158067): _FakeLocator([option]),
+                self._price_testid(226158067): _FakeLocator([price_field]),
+            }
+        )
+
+        browser_masters._add_target_action(page, 226158067, 77)
+
+        self.assertEqual(add_clicks["count"], 1)
+        self.assertTrue(option_clicked["clicked"])
+        self.assertEqual(price_state["value"], "77")
+
+    def test_retries_add_button_click_when_option_not_yet_visible(self):
+        add_clicks = {"count": 0}
+
+        def _on_add_click():
+            add_clicks["count"] += 1
+
+        add_button = _FakeLocatorHandle(on_click=_on_add_click)
+        option = _FakeHydratingPopupHandle(
+            ready_after_attempt=2, click_counter=add_clicks
+        )
+        price_field = _FakeLocatorHandle()
+        price_field.fill = lambda value: None
+
+        page = FakePage(
+            locators={
+                self._add_button_testid(): _FakeLocator([add_button]),
+                self._option_testid(226158067): _FakeLocator([option]),
+                self._price_testid(226158067): _FakeLocator([price_field]),
+            }
+        )
+
+        browser_masters._add_target_action(page, 226158067, 77)  # must not raise
+
+        self.assertEqual(add_clicks["count"], 2)
+
+    def test_raises_when_option_never_appears(self):
+        add_button = _FakeLocatorHandle()
+        page = FakePage(
+            locators={
+                self._add_button_testid(): _FakeLocator([add_button]),
+                self._option_testid(226158067): _FakeLocator(
+                    [_FakeLocatorHandle(visible=False)]
+                ),
+            }
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._add_target_action(page, 226158067, 77)
+        self.assertIn("226158067", str(ctx.exception))
+        self.assertIn("max-conversions", str(ctx.exception))
+
+    def test_raises_with_context_when_price_fill_fails_after_add(self):
+        add_button = _FakeLocatorHandle()
+        option = _FakeLocatorHandle()
+        page = FakePage(
+            locators={
+                self._add_button_testid(): _FakeLocator([add_button]),
+                self._option_testid(226158067): _FakeLocator([option]),
+                # No price input registered — _set_target_action_price raises.
+            }
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._add_target_action(page, 226158067, 77)
+        self.assertIn("Added goal 226158067", str(ctx.exception))
+
+
+class TestRemoveTargetAction(unittest.TestCase):
+    """``_remove_target_action`` (issue #717): click an existing row's close
+    button."""
+
+    def _close_testid(self, goal_id):
+        testid = browser_masters._TARGET_ACTION_CLOSE_TESTID_TEMPLATE.format(
+            category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=goal_id
+        )
+        return f'[data-testid="{testid}"]'
+
+    def test_clicks_close_button_of_existing_row(self):
+        clicked = {"value": False}
+        close_button = _FakeLocatorHandle(
+            on_click=lambda: clicked.__setitem__("value", True)
+        )
+        page = FakePage(
+            locators={self._close_testid(159614149): _FakeLocator([close_button])}
+        )
+
+        browser_masters._remove_target_action(page, 159614149)
+
+        self.assertTrue(clicked["value"])
+
+    def test_raises_when_row_not_present(self):
+        page = FakePage(locators={})
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._remove_target_action(page, 159614149)
+        self.assertIn("159614149", str(ctx.exception))
+        self.assertIn("max-conversions", str(ctx.exception))
+
+    def test_raises_when_close_click_fails(self):
+        page = FakePage(
+            locators={
+                self._close_testid(159614149): _FakeLocator(
+                    [_FakeLocatorHandle(raises=True)]
+                )
+            }
+        )
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._remove_target_action(page, 159614149)
+
+
 class TestFetchMasterTargetActions(unittest.TestCase):
     """``fetch_master_target_actions`` (issue #707) — ``masters targetactions
     get``'s browser layer, read-only."""
@@ -5162,6 +5313,192 @@ class TestUpdateMaster(unittest.TestCase):
             )
         self.assertIn("did not save as requested", str(ctx.exception))
 
+    def _dynamic_target_actions_page(self, rows):
+        """A page whose "Целевые действия" table's ROW SET itself mutates —
+        needed for add/remove (issue #717), unlike ``target_action_prices_state``
+        above which only ever mutates an EXISTING row's price. ``rows``:
+        ``{goal_id: price_string}``, mutated in place by add/remove/save
+        clicks; the row-prefix locator and each row's own locators are
+        computed FRESH on every ``page.locator()`` call (mirroring
+        ``_FakeTargetActionsPage``) so a later read sees whatever the
+        earlier click did.
+        """
+        row_prefix_selector = (
+            f'[data-testid^="TargetActions.'
+            f'{browser_masters._TARGET_ACTIONS_CATEGORY}."]'
+        )
+        add_button_testid_raw = (
+            browser_masters._TARGET_ACTION_ADD_BUTTON_TESTID_TEMPLATE.format(
+                category=browser_masters._TARGET_ACTIONS_CATEGORY
+            )
+        )
+        add_button_testid = f'[data-testid="{add_button_testid_raw}"]'
+        edit_form_ready_selector = (
+            f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'
+        )
+        save_handle = _FakeTextLocatorHandle(visible=True)
+
+        class _DynamicTargetActionsPage(FakePage):
+            def locator(self, selector):
+                if selector == edit_form_ready_selector:
+                    return _FakeLocator([_FakeLocatorHandle()])
+                if selector == browser_masters._TARGET_ACTIONS_SECTION_TESTID:
+                    return _FakeLocator([_FakeLocatorHandle()])
+                if selector == add_button_testid:
+                    return _FakeLocator([_FakeLocatorHandle()])
+                if selector == row_prefix_selector:
+                    row_testid_template = (
+                        browser_masters._TARGET_ACTION_ROW_TESTID_TEMPLATE
+                    )
+                    category = browser_masters._TARGET_ACTIONS_CATEGORY
+                    return _FakeLocator(
+                        [
+                            _FakeLocatorHandle(
+                                attrs={
+                                    "data-testid": row_testid_template.format(
+                                        category=category,
+                                        goal_id=goal_id,
+                                    )
+                                }
+                            )
+                            for goal_id in rows
+                        ]
+                    )
+                for goal_id in list(rows):
+                    price_testid = (
+                        browser_masters._TARGET_ACTION_PRICE_TESTID_TEMPLATE.format(
+                            category=browser_masters._TARGET_ACTIONS_CATEGORY,
+                            goal_id=goal_id,
+                        )
+                    )
+                    if selector == f'[data-testid="{price_testid}"]':
+                        handle = _FakeLocatorHandle(
+                            on_fill=(lambda v, gid=goal_id: rows.__setitem__(gid, v)),
+                            get_value=(lambda gid=goal_id: rows.get(gid, "")),
+                        )
+                        return _FakeLocator([handle])
+                    close_testid = (
+                        browser_masters._TARGET_ACTION_CLOSE_TESTID_TEMPLATE.format(
+                            category=browser_masters._TARGET_ACTIONS_CATEGORY,
+                            goal_id=goal_id,
+                        )
+                    )
+                    if selector == f'[data-testid="{close_testid}"]':
+                        return _FakeLocator(
+                            [
+                                _FakeLocatorHandle(
+                                    on_click=(lambda gid=goal_id: rows.pop(gid, None))
+                                )
+                            ]
+                        )
+                # An "add" option: matches ANY goal id, not just those
+                # currently in `rows` — clicking it inserts a fresh empty row,
+                # mirroring the real page's freshly-added-row-has-empty-price
+                # behaviour (see _add_target_action's docstring).
+                option_prefix = (
+                    f"AddTargetAction.{browser_masters._TARGET_ACTIONS_CATEGORY}."
+                )
+                if selector.startswith(
+                    f'[data-testid="{option_prefix}'
+                ) and selector.endswith('"]'):
+                    goal_id = int(selector[len(f'[data-testid="{option_prefix}') : -2])
+                    return _FakeLocator(
+                        [
+                            _FakeLocatorHandle(
+                                on_click=(lambda gid=goal_id: rows.setdefault(gid, ""))
+                            )
+                        ]
+                    )
+                return super().locator(selector)
+
+        return _DynamicTargetActionsPage(
+            locators={edit_form_ready_selector: _FakeLocator([_FakeLocatorHandle()])},
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+
+    def test_adds_new_target_action_with_price(self):
+        rows = {159614149: "150"}
+        page = self._dynamic_target_actions_page(rows)
+
+        result = browser_masters.update_master(
+            page, 42, add_target_actions={226158067: 77}
+        )
+
+        self.assertEqual(rows, {159614149: "150", 226158067: "77"})
+        self.assertEqual(
+            result, {"CampaignId": 42, "AddedTargetActions": {226158067: 77}}
+        )
+
+    def test_removes_existing_target_action(self):
+        rows = {159614149: "150", 226158067: "77"}
+        page = self._dynamic_target_actions_page(rows)
+
+        result = browser_masters.update_master(
+            page, 42, remove_target_action_goal_ids=[226158067]
+        )
+
+        self.assertEqual(rows, {159614149: "150"})
+        self.assertEqual(
+            result, {"CampaignId": 42, "RemovedTargetActionGoalIds": [226158067]}
+        )
+
+    def test_adds_and_removes_in_the_same_call(self):
+        rows = {159614149: "150"}
+        page = self._dynamic_target_actions_page(rows)
+
+        browser_masters.update_master(
+            page,
+            42,
+            add_target_actions={226158067: 77},
+            remove_target_action_goal_ids=[159614149],
+        )
+
+        self.assertEqual(rows, {226158067: "77"})
+
+    def test_raises_when_added_goal_still_absent_after_save(self):
+        # The option click + price fill both "succeed" (rows gains the goal
+        # during the mutation phase), but the POST-SAVE RELOAD shows it
+        # still absent (Yandex rejected it server-side) — _verify_saved must
+        # catch this. Modeled by dropping the goal back out of `rows` right
+        # as the SECOND goto() (the one _verify_saved issues after the
+        # mutation phase has already run) starts — the first goto() (initial
+        # edit-page load, before any mutation) is a no-op here.
+        rows = {}
+        page = self._dynamic_target_actions_page(rows)
+        original_goto = page.goto
+
+        def _goto_and_drop_on_second_call(url, wait_until=None):
+            if len(page.navigated_to) == 1:
+                rows.pop(226158067, None)
+            original_goto(url, wait_until=wait_until)
+
+        page.goto = _goto_and_drop_on_second_call
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(page, 42, add_target_actions={226158067: 77})
+        self.assertIn("did not save as requested", str(ctx.exception))
+
+    def test_raises_when_removed_goal_still_present_after_save(self):
+        rows = {159614149: "150"}
+        page = self._dynamic_target_actions_page(rows)
+        original_locator = page.locator
+
+        def _stub_locator(selector):
+            close_testid = browser_masters._TARGET_ACTION_CLOSE_TESTID_TEMPLATE.format(
+                category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=159614149
+            )
+            if selector == f'[data-testid="{close_testid}"]':
+                return _FakeLocator([_FakeLocatorHandle()])  # click is a no-op
+            return original_locator(selector)
+
+        page.locator = _stub_locator
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(
+                page, 42, remove_target_action_goal_ids=[159614149]
+            )
+        self.assertIn("did not save as requested", str(ctx.exception))
+
     def test_updates_multiple_fields_in_one_call(self):
         budget_state = {}
         checkbox_state = {"checked": False}
@@ -5938,6 +6275,287 @@ class TestMastersUpdateCommand(unittest.TestCase):
             ],
         )
         self.assertNotEqual(result.exit_code, 0)
+
+    def test_documents_add_and_remove_target_action_flags(self):
+        result = self.runner.invoke(cli, ["masters", "update", "--help"])
+        self.assertIn("--add-target-action", result.output)
+        self.assertIn("--remove-target-action", result.output)
+
+    def test_passes_add_target_action(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "update",
+                    "42",
+                    "--add-target-action",
+                    "226158067=77",
+                ],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(
+            mock_update.call_args.kwargs["add_target_actions"], {226158067: 77.0}
+        )
+
+    def test_passes_multiple_add_target_actions(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "update",
+                    "42",
+                    "--add-target-action",
+                    "226158067=77",
+                    "--add-target-action",
+                    "267672143=50",
+                ],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(
+            mock_update.call_args.kwargs["add_target_actions"],
+            {226158067: 77.0, 267672143: 50.0},
+        )
+
+    def test_passes_remove_target_action(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli,
+                ["masters", "update", "42", "--remove-target-action", "159614149"],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(
+            mock_update.call_args.kwargs["remove_target_action_goal_ids"],
+            [159614149],
+        )
+
+    def test_passes_multiple_remove_target_actions(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "update",
+                    "42",
+                    "--remove-target-action",
+                    "159614149",
+                    "--remove-target-action",
+                    "226158067",
+                ],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(
+            mock_update.call_args.kwargs["remove_target_action_goal_ids"],
+            [159614149, 226158067],
+        )
+
+    def test_add_target_action_alone_is_a_valid_field(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli,
+                ["masters", "update", "42", "--add-target-action", "226158067=77"],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+
+    def test_remove_target_action_alone_is_a_valid_field(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli,
+                ["masters", "update", "42", "--remove-target-action", "159614149"],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+
+    def test_rejects_add_target_action_with_max_clicks(self):
+        result = self.runner.invoke(
+            cli,
+            [
+                "masters",
+                "update",
+                "42",
+                "--promotion-goal",
+                "max-clicks",
+                "--add-target-action",
+                "226158067=77",
+            ],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("max-clicks", result.output)
+
+    def test_rejects_remove_target_action_with_max_clicks(self):
+        result = self.runner.invoke(
+            cli,
+            [
+                "masters",
+                "update",
+                "42",
+                "--promotion-goal",
+                "max-clicks",
+                "--remove-target-action",
+                "159614149",
+            ],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("max-clicks", result.output)
+
+    def test_rejects_add_target_action_without_price(self):
+        result = self.runner.invoke(
+            cli,
+            ["masters", "update", "42", "--add-target-action", "226158067"],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("price is required", result.output)
+
+    def test_rejects_non_integer_add_target_action_goal_id(self):
+        result = self.runner.invoke(
+            cli,
+            ["masters", "update", "42", "--add-target-action", "abc=77"],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+
+    def test_rejects_non_numeric_add_target_action_price(self):
+        result = self.runner.invoke(
+            cli,
+            ["masters", "update", "42", "--add-target-action", "226158067=abc"],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+
+    def test_rejects_non_integer_remove_target_action_goal_id(self):
+        result = self.runner.invoke(
+            cli,
+            ["masters", "update", "42", "--remove-target-action", "abc"],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+
+    def test_rejects_duplicate_add_target_action_goal(self):
+        result = self.runner.invoke(
+            cli,
+            [
+                "masters",
+                "update",
+                "42",
+                "--add-target-action",
+                "226158067=77",
+                "--add-target-action",
+                "226158067=88",
+            ],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+
+    def test_rejects_duplicate_remove_target_action_goal(self):
+        result = self.runner.invoke(
+            cli,
+            [
+                "masters",
+                "update",
+                "42",
+                "--remove-target-action",
+                "159614149",
+                "--remove-target-action",
+                "159614149",
+            ],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+
+    def test_rejects_same_goal_in_target_action_price_and_add(self):
+        result = self.runner.invoke(
+            cli,
+            [
+                "masters",
+                "update",
+                "42",
+                "--target-action-price",
+                "159614149=200",
+                "--add-target-action",
+                "159614149=77",
+            ],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("159614149", result.output)
+
+    def test_rejects_same_goal_in_add_and_remove(self):
+        result = self.runner.invoke(
+            cli,
+            [
+                "masters",
+                "update",
+                "42",
+                "--add-target-action",
+                "159614149=77",
+                "--remove-target-action",
+                "159614149",
+            ],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("159614149", result.output)
+
+    def test_rejects_same_goal_in_target_action_price_and_remove(self):
+        result = self.runner.invoke(
+            cli,
+            [
+                "masters",
+                "update",
+                "42",
+                "--target-action-price",
+                "159614149=200",
+                "--remove-target-action",
+                "159614149",
+            ],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("159614149", result.output)
+
+    def test_does_not_call_update_master_when_add_target_action_rejected(self):
+        with patch("direct_cli.browser.masters.update_master") as mock_update:
+            self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "update",
+                    "42",
+                    "--promotion-goal",
+                    "max-clicks",
+                    "--add-target-action",
+                    "226158067=77",
+                ],
+            )
+        mock_update.assert_not_called()
 
     def test_passes_directs_helps_flag(self):
         with (
