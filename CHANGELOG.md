@@ -38,6 +38,31 @@
   `_TARGET_ACTION_STABLE_STREAK` consecutive matching reads of the full
   requested state, not just one, before accepting it.
 
+**Changed — `DynamicTextCampaign` bidding-strategy builder dedup (#592):**
+
+- The `build_dynamic_text_search_strategy` /
+  `build_dynamic_text_network_strategy` pair each carried a ~280-line
+  copy of the same validation+assembly pipeline (ExplorationBudget /
+  CustomPeriodBudget all-or-none checks, per-subtype field-support
+  enforcement, WSDL `minOccurs=1` gating, `BudgetType` handling, final
+  `Strategy*Add` block assembly). This is hoisted behind a single
+  `_DynamicTextStrategyConfig` NamedTuple + `_build_dynamic_text_strategy_block`
+  core, mirroring the already-proven `_TextStrategyConfig` pattern (#581).
+- The old `_assemble_dynamic_text_strategy_block` (block-assembly only) is
+  replaced by the new core. The `CustomPeriodBudget` / `ExplorationBudget`
+  blocks are now constructed via the shared `_build_custom_period_budget` /
+  `_build_exploration_budget` helpers (`exploration_yes_only=False`, per the
+  cached WSDL `general:YesNoEnum`), instead of a per-builder `*_values` dict
+  + manual dict literal.
+- Behavior is byte-for-byte identical: `--help`, `--dry-run` payload and
+  every `UsageError` text are unchanged (verified by a before/after diff over
+  38 representative error+payload scenarios). The one intentional asymmetry
+  is preserved as an explicit config flag: the Search side intentionally
+  surfaces the wire-level `BudgetType` round-trip error instead of
+  pre-checking presence (#362 adversarial-review feedback), while the
+  Network side keeps its stricter up-front presence checks
+  (`budget_type_presence_checks`).
+
 **Added — `WeeklySpendLimit` support for HighestPosition/ManualCpm strategies (#610):**
 
 - Live WSDL drift check (`scripts/check_wsdl_drift.py`, 2026-08-04) confirmed
