@@ -1849,6 +1849,52 @@ def test_campaigns_add_mobile_app_campaign_optional_controls_payload():
     }
 
 
+def test_campaigns_add_mobile_app_highest_position_weekly_spend_limit_payload():
+    """#610: MobileAppCampaignStrategyAddBase gained a WeeklySpendLimit-only
+    HighestPosition/StrategyHighestPositionAdd subtype block."""
+    body = _dry_run(
+        "campaigns",
+        "add",
+        "--name",
+        "Mobile App Highest Position",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "MOBILE_APP_CAMPAIGN",
+        "--search-strategy",
+        "HIGHEST_POSITION",
+        "--mobile-search-weekly-spend-limit",
+        "1000000000",
+    )
+    search = body["params"]["Campaigns"][0]["MobileAppCampaign"]["BiddingStrategy"][
+        "Search"
+    ]
+    assert search == {
+        "BiddingStrategyType": "HIGHEST_POSITION",
+        "HighestPosition": {"WeeklySpendLimit": 1000000000},
+    }
+
+
+def test_campaigns_add_mobile_app_highest_position_rejects_bid_ceiling():
+    """StrategyHighestPositionAdd declares only WeeklySpendLimit — no
+    BidCeiling/CustomPeriodBudget/AverageCpc, unlike the other subtypes."""
+    result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "Mobile App Highest Position",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "MOBILE_APP_CAMPAIGN",
+        "--search-strategy",
+        "HIGHEST_POSITION",
+        "--mobile-search-bid-ceiling",
+        "12500000",
+    )
+    assert "--mobile-search-bid-ceiling" in result.output
+
+
 def test_campaigns_add_mobile_app_average_cpi_search_payload():
     body = _dry_run(
         "campaigns",
@@ -2301,6 +2347,103 @@ def test_campaigns_add_cpm_banner_campaign_optional_controls_payload():
     }
 
 
+def test_campaigns_add_cpm_banner_manual_cpm_weekly_spend_limit_payload():
+    """#610: StrategyManualCpmAdd gained a WeeklySpendLimit field."""
+    body = _dry_run(
+        "campaigns",
+        "add",
+        "--name",
+        "CPM Banner Manual CPM",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "CPM_BANNER_CAMPAIGN",
+        "--network-strategy",
+        "MANUAL_CPM",
+        "--strategy-weekly-spend-limit",
+        "500000000",
+    )
+    network = body["params"]["Campaigns"][0]["CpmBannerCampaign"]["BiddingStrategy"][
+        "Network"
+    ]
+    assert network == {
+        "BiddingStrategyType": "MANUAL_CPM",
+        "ManualCpm": {"WeeklySpendLimit": 500000000},
+    }
+
+
+def test_campaigns_add_cpm_banner_manual_cpm_rejects_average_cpm():
+    """StrategyManualCpmAdd declares only WeeklySpendLimit — every other
+    detail flag remains unsupported for MANUAL_CPM."""
+    result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "CPM Banner Manual CPM",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "CPM_BANNER_CAMPAIGN",
+        "--network-strategy",
+        "MANUAL_CPM",
+        "--average-cpm",
+        "100000",
+    )
+    assert "MANUAL_CPM does not accept strategy detail flags" in result.output
+    assert "--average-cpm" in result.output
+
+
+def test_campaigns_add_cpm_banner_wb_maximum_impressions_rejects_weekly_spend_limit():
+    """--strategy-weekly-spend-limit is only valid for MANUAL_CPM."""
+    result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "CPM Banner Wb Impressions",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "CPM_BANNER_CAMPAIGN",
+        "--network-strategy",
+        "WB_MAXIMUM_IMPRESSIONS",
+        "--average-cpm",
+        "100000",
+        "--strategy-spend-limit",
+        "200000",
+        "--strategy-weekly-spend-limit",
+        "500000000",
+    )
+    assert "WB_MAXIMUM_IMPRESSIONS does not accept" in result.output
+    assert "--strategy-weekly-spend-limit" in result.output
+
+
+def test_campaigns_update_cpm_banner_manual_cpm_weekly_spend_limit_payload():
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "555",
+        "--type",
+        "CPM_BANNER_CAMPAIGN",
+        "--network-strategy",
+        "MANUAL_CPM",
+        "--strategy-weekly-spend-limit",
+        "500000000",
+    )
+    campaign = body["params"]["Campaigns"][0]
+    assert campaign == {
+        "Id": 555,
+        "CpmBannerCampaign": {
+            "BiddingStrategy": {
+                "Network": {
+                    "BiddingStrategyType": "MANUAL_CPM",
+                    "ManualCpm": {"WeeklySpendLimit": 500000000},
+                }
+            }
+        },
+    }
+
+
 def test_campaigns_add_cpm_banner_wb_maximum_impressions_payload():
     body = _dry_run(
         "campaigns",
@@ -2594,6 +2737,34 @@ def test_campaigns_update_mobile_app_campaign_optional_controls_payload():
         "MobileAppCampaign": {
             "Settings": [{"Option": "ENABLE_AUTOFOCUS", "Value": "NO"}],
             "NegativeKeywordSharedSetIds": {"Items": [10, 11]},
+        },
+    }
+
+
+def test_campaigns_update_mobile_app_highest_position_weekly_spend_limit_payload():
+    """#610: WeeklySpendLimit patch on the HighestPosition subtype."""
+    body = _dry_run(
+        "campaigns",
+        "update",
+        "--id",
+        "123",
+        "--type",
+        "MOBILE_APP_CAMPAIGN",
+        "--search-strategy",
+        "HIGHEST_POSITION",
+        "--mobile-search-weekly-spend-limit",
+        "1000000000",
+    )
+    campaign = body["params"]["Campaigns"][0]
+    assert campaign == {
+        "Id": 123,
+        "MobileAppCampaign": {
+            "BiddingStrategy": {
+                "Search": {
+                    "BiddingStrategyType": "HIGHEST_POSITION",
+                    "HighestPosition": {"WeeklySpendLimit": 1000000000},
+                }
+            }
         },
     }
 

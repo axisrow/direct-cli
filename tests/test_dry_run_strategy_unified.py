@@ -1754,19 +1754,21 @@ def test_campaigns_add_unified_search_exploration_is_custom_accepts_no():
     }
 
 
-def test_campaigns_add_unified_search_rejects_detail_without_strategy():
-    """Detail flags require a non-legacy --search-strategy. On add the
-    container defaults to HIGHEST_POSITION (no subtype block), so detail
-    flags surface the same "legacy strategy does not accept detail
-    flags" error as for explicit HIGHEST_POSITION (mirror TextCampaign
-    #388)."""
-    result = _rejected(
+def test_campaigns_add_unified_search_default_highest_position_weekly_spend_limit():
+    """#610: HIGHEST_POSITION gained a WeeklySpendLimit-only
+    StrategyHighestPositionAdd subtype block; on add the container
+    defaults to HIGHEST_POSITION, so --unified-search-weekly-spend-limit
+    is accepted without an explicit --search-strategy."""
+    body = _dry_run(
         *_unified_base_args(),
         "--unified-search-weekly-spend-limit",
         "100000000",
     )
-    assert "HIGHEST_POSITION" in result.output
-    assert "--unified-search-weekly-spend-limit" in result.output
+    search = _unified_search_extract(body)
+    assert search == {
+        "BiddingStrategyType": "HIGHEST_POSITION",
+        "HighestPosition": {"WeeklySpendLimit": 100000000},
+    }
 
 
 def test_campaigns_update_unified_search_rejects_detail_without_strategy():
@@ -1816,8 +1818,9 @@ def test_campaigns_add_unified_search_placement_types_payload():
 
 
 def test_campaigns_add_unified_search_rejects_average_cpa_with_highest_position():
-    """Legacy CPA flag with HIGHEST_POSITION must surface the
-    canonical 'CPA-shaped' error mirroring TextCampaign #361/#388."""
+    """--average-cpa must be rejected for HIGHEST_POSITION: its
+    StrategyHighestPositionAdd subtype (issue #610) declares only
+    WeeklySpendLimit, not AverageCpa."""
     result = _rejected(
         *_unified_base_args(),
         "--search-strategy",
@@ -1825,7 +1828,9 @@ def test_campaigns_add_unified_search_rejects_average_cpa_with_highest_position(
         "--average-cpa",
         "500000000",
     )
-    assert "CPA-shaped" in result.output
+    assert "--average-cpa" in result.output
+    assert "HIGHEST_POSITION" in result.output
+    assert "StrategyHighestPositionAdd" in result.output
 
 
 def test_campaigns_add_unified_search_rejects_invalid_strategy():

@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+**Added — `WeeklySpendLimit` support for HighestPosition/ManualCpm strategies (#610):**
+
+- Live WSDL drift check (`scripts/check_wsdl_drift.py`, 2026-08-04) confirmed
+  Yandex added a `WeeklySpendLimit`-only `StrategyHighestPosition`/
+  `StrategyHighestPositionAdd` subtype to `UnifiedCampaignStrategyAddBase`
+  and `MobileAppCampaignStrategyAddBase`, and a `WeeklySpendLimit`-only
+  `StrategyManualCpm`/`StrategyManualCpmAdd` subtype to
+  `CpmBannerCampaignNetworkStrategyAddBase`. `tests/wsdl_cache/campaigns.xml`
+  refreshed accordingly (scoped to these fields only; the unrelated
+  `WeeklyBudgetRollover` drift observed in the same check is out of scope
+  for this issue).
+- `campaigns add`/`update --type UNIFIED_CAMPAIGN --search-strategy
+  HIGHEST_POSITION` / `--network-strategy` now accepts the existing
+  `--unified-search-weekly-spend-limit` / `--unified-network-weekly-spend-limit`
+  flags for `HIGHEST_POSITION` (previously rejected as a no-subtype legacy
+  strategy).
+- `campaigns add`/`update --type MOBILE_APP_CAMPAIGN --search-strategy
+  HIGHEST_POSITION` now accepts the existing
+  `--mobile-search-weekly-spend-limit` flag (Network side has no
+  `HIGHEST_POSITION` enum value in the WSDL, so it stays Search-only).
+- `campaigns add`/`update --type CPM_BANNER_CAMPAIGN --network-strategy
+  MANUAL_CPM` now accepts a new `--strategy-weekly-spend-limit` flag; every
+  other MANUAL_CPM detail flag remains rejected (`StrategyManualCpmAdd`
+  declares only `WeeklySpendLimit`).
+
 **BREAKING CHANGES — dropped Python 3.9 support (#737):**
 
 - `vcrpy` 8.1.1 references `aiohttp.streams.AsyncStreamReaderMixin`, removed in

@@ -563,6 +563,14 @@ def get(
     help="CpmBannerCampaign strategy AutoContinue: YES or NO",
 )
 @click.option(
+    "--strategy-weekly-spend-limit",
+    type=MICRO_RUBLES,
+    help=(
+        "CpmBannerCampaign Network MANUAL_CPM strategy WeeklySpendLimit "
+        "in micro-rubles"
+    ),
+)
+@click.option(
     "--mobile-search-weekly-spend-limit",
     type=MICRO_RUBLES,
     help="MobileAppCampaign Search strategy WeeklySpendLimit in micro-rubles",
@@ -1364,6 +1372,7 @@ def add(
     strategy_start_date,
     strategy_end_date,
     strategy_auto_continue,
+    strategy_weekly_spend_limit,
     mobile_search_weekly_spend_limit,
     mobile_search_bid_ceiling,
     mobile_search_custom_period_spend_limit,
@@ -2977,6 +2986,14 @@ def add(
     help="CpmBannerCampaign strategy AutoContinue: YES or NO",
 )
 @click.option(
+    "--strategy-weekly-spend-limit",
+    type=MICRO_RUBLES,
+    help=(
+        "CpmBannerCampaign Network MANUAL_CPM strategy WeeklySpendLimit "
+        "in micro-rubles"
+    ),
+)
+@click.option(
     "--mobile-search-weekly-spend-limit",
     type=MICRO_RUBLES,
     help="MobileAppCampaign Search strategy WeeklySpendLimit in micro-rubles",
@@ -3825,6 +3842,7 @@ def update(
     strategy_start_date,
     strategy_end_date,
     strategy_auto_continue,
+    strategy_weekly_spend_limit,
     mobile_search_weekly_spend_limit,
     mobile_search_bid_ceiling,
     mobile_search_custom_period_spend_limit,

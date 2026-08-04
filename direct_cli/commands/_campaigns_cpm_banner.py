@@ -27,6 +27,7 @@ def build_add_block(
     strategy_start_date = p["strategy_start_date"]
     strategy_end_date = p["strategy_end_date"]
     strategy_auto_continue = p["strategy_auto_continue"]
+    strategy_weekly_spend_limit = p["strategy_weekly_spend_limit"]
     video_target = p["video_target"]
 
     cpm_builder = get_bidding_strategy_builder("CPM_BANNER_CAMPAIGN", "add", "full")
@@ -40,6 +41,7 @@ def build_add_block(
             strategy_start_date,
             strategy_end_date,
             strategy_auto_continue,
+            strategy_weekly_spend_limit,
             include_defaults=True,
         )
     else:
@@ -76,6 +78,7 @@ def build_update_block(p, sub_block):
     strategy_start_date = p["strategy_start_date"]
     strategy_end_date = p["strategy_end_date"]
     strategy_auto_continue = p["strategy_auto_continue"]
+    strategy_weekly_spend_limit = p["strategy_weekly_spend_limit"]
     settings = p["settings"]
     counter_ids = p["counter_ids"]
     frequency_cap_impressions = p["frequency_cap_impressions"]
@@ -97,6 +100,7 @@ def build_update_block(p, sub_block):
             strategy_start_date,
             strategy_end_date,
             strategy_auto_continue,
+            strategy_weekly_spend_limit,
             include_defaults=False,
         )
     else:
