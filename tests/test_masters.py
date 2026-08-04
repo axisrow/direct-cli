@@ -18,6 +18,7 @@ GridCampaigns response these tests replay, and FakePage's ``request``/``on``
 additions below for how that replay is faked.
 """
 
+import contextlib
 import json
 import unittest
 from pathlib import Path
@@ -8550,20 +8551,29 @@ class TestSetRegion(unittest.TestCase):
             f"//input[@data-testid='{browser_masters._REGION_CHECKBOX_TESTID}']"
         )
 
-    def _region_node(self, region, checked, visible=True):
-        """A (label, input) pair whose label click toggles the input."""
+    def _region_node(self, region, checked, visible=True, node_id=None):
+        """A (label, input) pair whose label click toggles the input.
+
+        ``node_id`` models the checkbox's stable ``id="region-node-<id>"``
+        attribute (issue #657) — ``None`` means the fake node has no ``id``
+        attribute at all, same as any test written before that issue.
+        """
         state = {"checked": False}
 
         def _toggle():
             state["checked"] = not state["checked"]
             if state["checked"]:
                 checked.append(region)
+            else:
+                with contextlib.suppress(ValueError):
+                    checked.remove(region)
 
         label = _FakeLocatorHandle(visible=visible, on_click=_toggle)
-        box = _FakeLocatorHandle(get_checked=lambda: state["checked"])
+        attrs = {"id": node_id} if node_id is not None else {}
+        box = _FakeLocatorHandle(get_checked=lambda: state["checked"], attrs=attrs)
         return label, box
 
-    def _page_for_region(self, region, checkbox_visible=True):
+    def _page_for_region(self, region, checkbox_visible=True, node_id=None):
         launcher = _FakeLocatorHandle()
         editor = _FakeLocatorHandle()
         locators = {
@@ -8572,7 +8582,7 @@ class TestSetRegion(unittest.TestCase):
         }
         checked = []
         if checkbox_visible:
-            label, box = self._region_node(region, checked)
+            label, box = self._region_node(region, checked, node_id=node_id)
             locators[self._label_xpath(region)] = _FakeLocator([label])
             locators[self._checkbox_xpath(region)] = _FakeLocator([box])
         return FakePage(locators=locators), checked
@@ -8583,6 +8593,59 @@ class TestSetRegion(unittest.TestCase):
         browser_masters._set_region(page, ["Москва"])
 
         self.assertEqual(checked, ["Москва"])
+
+    def test_accepts_a_plain_string_region_with_no_identity_check(self):
+        # A plain str entry (what --region gives, with no known RegionId)
+        # must keep working exactly as before #657 — no id attribute is
+        # ever read for it.
+        page, checked = self._page_for_region("Москва", node_id=None)
+
+        browser_masters._set_region(page, ["Москва"])
+
+        self.assertEqual(checked, ["Москва"])
+
+    def test_accepts_a_name_region_id_pair_whose_node_id_matches(self):
+        # Issue #657: a (name, region_id) pair whose checked node's
+        # id="region-node-<RegionId>" matches the requested RegionId must
+        # select successfully, same as a plain string.
+        page, checked = self._page_for_region("Москва", node_id="region-node-213")
+
+        browser_masters._set_region(page, [("Москва", 213)])
+
+        self.assertEqual(checked, ["Москва"])
+
+    def test_rejects_a_node_whose_id_does_not_match_the_requested_region_id(self):
+        # The GeoRegions dictionary is not name-unique — a checkbox whose
+        # LABEL matches "Сосновка" exactly could still be the WRONG
+        # Сосновка. If its id doesn't encode the requested RegionId, this
+        # must raise instead of silently selecting the wrong region.
+        page, checked = self._page_for_region("Сосновка", node_id="region-node-999")
+
+        with (
+            patch.object(browser_masters, "_REGION_FILTER_TIMEOUT_MS", 10),
+            self.assertRaises(BrowserSessionError) as ctx,
+        ):
+            browser_masters._set_region(page, [("Сосновка", 111)])
+
+        self.assertIn("Сосновка", str(ctx.exception))
+        self.assertIn("111", str(ctx.exception))
+        # The wrong node must not be left checked after the mismatch —
+        # it's clicked once to select, then clicked again to undo it.
+        self.assertEqual(checked, [])
+
+    def test_rejects_a_node_with_no_id_attribute_when_region_id_is_requested(self):
+        # A checkbox with no id attribute at all (e.g. markup drift) cannot
+        # be confirmed as the right node, so a requested RegionId must still
+        # refuse rather than assume a match.
+        page, checked = self._page_for_region("Москва", node_id=None)
+
+        with (
+            patch.object(browser_masters, "_REGION_FILTER_TIMEOUT_MS", 10),
+            self.assertRaises(BrowserSessionError),
+        ):
+            browser_masters._set_region(page, [("Москва", 213)])
+
+        self.assertEqual(checked, [])
 
     def test_raises_when_launcher_missing(self):
         page = FakePage(locators={})
@@ -9374,7 +9437,7 @@ class TestMastersAddCommand(unittest.TestCase):
         _, kwargs = mock_create.call_args
         self.assertEqual(kwargs["headlines"], ["Заголовок 1", "Заголовок 2"])
         self.assertEqual(kwargs["texts"], ["Текст"])
-        self.assertEqual(kwargs["regions"], ["Москва"])
+        self.assertEqual(kwargs["regions"], [("Москва", None)])
         self.assertTrue(kwargs["launch"])
 
     def test_draft_flag_disables_launch(self):
@@ -9487,7 +9550,7 @@ class TestMastersAddCommand(unittest.TestCase):
         self.assertEqual(body["method"], "getGeoRegions")
         self.assertEqual(body["params"]["SelectionCriteria"]["RegionIds"], [213])
         _, kwargs = mock_create.call_args
-        self.assertEqual(kwargs["regions"], ["Москва"])
+        self.assertEqual(kwargs["regions"], [("Москва", 213)])
 
     def test_region_and_region_id_combine(self):
         service = Mock()
@@ -9529,7 +9592,7 @@ class TestMastersAddCommand(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 0, result.output)
         _, kwargs = mock_create.call_args
-        self.assertEqual(kwargs["regions"], ["Москва", "Санкт-Петербург"])
+        self.assertEqual(kwargs["regions"], [("Москва", None), ("Санкт-Петербург", 2)])
 
     def test_unknown_region_id_raises_usage_error(self):
         service = Mock()
@@ -9595,7 +9658,7 @@ class TestResolveRegionIds(unittest.TestCase):
         with patch("direct_cli.commands.masters.create_client", return_value=client):
             result = _resolve_region_ids(Mock(), (213, 2))
 
-        self.assertEqual(result, ["Москва", "Санкт-Петербург"])
+        self.assertEqual(result, [("Москва", 213), ("Санкт-Петербург", 2)])
 
     def test_ambiguous_region_name_raises_usage_error(self):
         """Two distinct RegionIds sharing one GeoRegionName must not resolve
@@ -9675,7 +9738,7 @@ class TestResolveRegionIds(unittest.TestCase):
         with patch("direct_cli.commands.masters.create_client", return_value=client):
             result = _resolve_region_ids(Mock(), (213,))
 
-        self.assertEqual(result, ["Москва"])
+        self.assertEqual(result, [("Москва", 213)])
 
 
 if __name__ == "__main__":

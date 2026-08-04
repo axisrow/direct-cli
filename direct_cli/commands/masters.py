@@ -1526,10 +1526,20 @@ def copy(
     format_output(result, output_format, output)
 
 
-def _resolve_region_ids(ctx: click.Context, region_ids: "tuple[int, ...]") -> list:
+def _resolve_region_ids(
+    ctx: click.Context, region_ids: "tuple[int, ...]"
+) -> "list[tuple[str, int]]":
     """Resolve RegionId values to Yandex's canonical GeoRegionName via the
     GeoRegions dictionary — the exact text the Мастер кампаний region widget
     accepts, so callers don't have to guess Yandex's own wording (issue #652).
+
+    Returns ``(name, region_id)`` pairs, not bare names (issue #657): the
+    resolved RegionId travels alongside its name all the way into
+    ``_set_region``, which checks it against the DOM node it actually
+    clicked (``id="region-node-<RegionId>"``) rather than trusting an
+    exact-text label match alone — text match only proves the right NAME was
+    clicked, not the right underlying region, since GeoRegions names are not
+    globally unique (see the ambiguity check below).
 
     Unlike the rest of this group (see module docstring — masters needs no
     Yandex Direct API credentials), this one lookup does require valid API
@@ -1561,15 +1571,18 @@ def _resolve_region_ids(ctx: click.Context, region_ids: "tuple[int, ...]") -> li
 
     # Yandex's GeoRegions names are not globally unique (distinct IDs under
     # different parents can share a name, e.g. several "Сосновка" entries).
-    # `_set_region` matches the browser widget's autocomplete by exact name
-    # text and clicks the first visible option with no RegionId/parent
-    # verification, so a resolved name that is ambiguous in the full
-    # dictionary could silently select the wrong region before an immediate
-    # live launch (issue #652 follow-up). Look up every GeoRegions entry
-    # sharing one of the resolved names (SelectionCriteria is mandatory per
-    # the WSDL — GetGeoRegionsRequest.SelectionCriteria has minOccurs=1 — so
-    # ExactNames must be supplied) and refuse rather than guess if any name
-    # has more than one distinct owning RegionId.
+    # Issue #657: `_set_region` no longer trusts an exact-text label match
+    # alone — it now confirms the clicked checkbox's own
+    # ``id="region-node-<RegionId>"`` equals the requested RegionId, so an
+    # ambiguous name can no longer silently select the WRONG region live.
+    # This pre-flight check stays as defense in depth: it fails fast with a
+    # clear API-level error before a browser is even opened, rather than
+    # deferring to `_set_region`'s harder-to-diagnose in-page identity
+    # mismatch. Look up every GeoRegions entry sharing one of the resolved
+    # names (SelectionCriteria is mandatory per the WSDL —
+    # GetGeoRegionsRequest.SelectionCriteria has minOccurs=1 — so ExactNames
+    # must be supplied) and refuse rather than guess if any name has more
+    # than one distinct owning RegionId.
     resolved = [found[rid] for rid in region_ids]
     name_check = client.dictionaries().post(
         data={
@@ -1593,7 +1606,7 @@ def _resolve_region_ids(ctx: click.Context, region_ids: "tuple[int, ...]") -> li
             "be matched reliably. Use --region with the fully qualified "
             "text instead."
         )
-    return resolved
+    return list(zip(resolved, region_ids))
 
 
 @masters.command()
@@ -1689,7 +1702,13 @@ def add(
     if not regions and not region_ids:
         raise click.UsageError("At least one of --region/--region-id is required.")
 
-    all_regions = list(regions) + _resolve_region_ids(ctx, region_ids)
+    # (name, region_id) pairs — plain --region text has no known RegionId
+    # (region_id=None), so `_set_region` can only verify it by exact-text
+    # label match; --region-id-resolved entries carry their RegionId through
+    # so `_set_region` can additionally confirm DOM node identity (#657).
+    all_regions = [(region, None) for region in regions] + _resolve_region_ids(
+        ctx, region_ids
+    )
 
     result = _with_session(
         ctx,

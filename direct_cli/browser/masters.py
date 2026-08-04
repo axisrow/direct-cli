@@ -250,6 +250,7 @@ from typing import (
     Sequence,
     Set,
     Tuple,
+    Union,
 )
 
 from .._captcha import find_captcha_marker, find_marker
@@ -4686,7 +4687,9 @@ def _verify_saved_images(
     return _read_image_content_ids(page)
 
 
-def _set_region(page: "Page", regions: List[str]) -> None:
+def _set_region(
+    page: "Page", regions: "Sequence[Union[str, Tuple[str, Optional[int]]]]"
+) -> None:
     """Select each of ``regions`` in the "Регион показов" tree/tag widget.
 
     Issue #653 re-recon, 2026-08-02: Yandex replaced the old text-combobox
@@ -4727,8 +4730,27 @@ def _set_region(page: "Page", regions: List[str]) -> None:
     extra nesting needed no code change. This function's existing
     retry/actionability-wait already tolerates the section's few-hundred-ms
     render lag after ``_wait_for_step2`` returns.
+
+    Issue #657: each entry in ``regions`` may be a plain ``str`` (matched by
+    exact label text only, same as before — this is what plain ``--region``
+    gives, since it carries no known RegionId) or a ``(name, region_id)``
+    pair (what ``--region-id``, resolved via ``_resolve_region_ids``, gives).
+    Exact-text label matching alone only proves the right NAME was clicked —
+    Yandex's GeoRegions names are not globally unique, so a same-named
+    decoy elsewhere in the auto-expanded tree could in principle be the one
+    Playwright's ``is_visible()``/click actually lands on. When a
+    ``region_id`` is known, this additionally reads the checked checkbox's
+    own ``id`` attribute — confirmed live it is always
+    ``id="region-node-<RegionId>"`` — and refuses (raising, without ever
+    reaching the terminal "Запустить"/"Сохранить" click) if that id doesn't
+    encode the requested RegionId, rather than trusting the label-text match
+    alone to mean the right region was actually selected.
     """
     for region in regions:
+        if isinstance(region, tuple):
+            region, expected_region_id = region
+        else:
+            expected_region_id = None
         # XPath, not a plain data-testid selector: the tree auto-expands
         # every ancestor/descendant of a text match (see docstring), so
         # multiple RegionsTreeNode.Checkbox.label elements can be on screen
@@ -4752,6 +4774,7 @@ def _set_region(page: "Page", regions: List[str]) -> None:
         checkbox = page.locator(
             f"{label_xpath}//input[@data-testid='{_REGION_CHECKBOX_TESTID}']"
         )
+        matched_wrong_id = None
 
         # Live testing (issue #653) found opening the popup and filtering
         # the tree is flaky under real network conditions — the popup can
@@ -4813,14 +4836,43 @@ def _set_region(page: "Page", regions: List[str]) -> None:
                 # region, so confirm the input actually ended up checked
                 # rather than trusting the click — same read-back convention
                 # as _verify_created/_verify_saved.
+                node = checkbox.nth(i)
                 with contextlib.suppress(PlaywrightError):
-                    if checkbox.nth(i).is_checked():
+                    if not node.is_checked():
+                        continue
+                    if expected_region_id is None:
                         clicked = True
                         break
+                    # Issue #657: exact-text label match alone only proves
+                    # the right NAME was clicked — GeoRegions names are not
+                    # globally unique, so verify the checked node's own
+                    # identity too, via its stable
+                    # ``id="region-node-<RegionId>"`` attribute (confirmed
+                    # live). Uncheck it immediately on a mismatch so a wrong
+                    # region isn't left silently selected alongside whatever
+                    # the caller resolves next.
+                    node_id = node.get_attribute("id") or ""
+                    if node_id == f"region-node-{expected_region_id}":
+                        clicked = True
+                        break
+                    with contextlib.suppress(PlaywrightError):
+                        handle.click()
+                    matched_wrong_id = node_id
             if clicked:
                 break
 
         if not clicked:
+            if matched_wrong_id is not None:
+                raise BrowserSessionError(
+                    f"Selecting region {region!r} (RegionId "
+                    f"{expected_region_id}) matched a tree node by label "
+                    f"text, but that node's id ({matched_wrong_id!r}) does "
+                    "not encode the requested RegionId — Yandex's "
+                    "GeoRegions dictionary has more than one region named "
+                    f"{region!r}, and the wrong one was about to be "
+                    "selected. Re-run with --headful to inspect the tree "
+                    "and disambiguate manually."
+                )
             if (
                 last_open_exc is not None
                 and not page.locator(_REGION_LAUNCHER_TESTID).count()
@@ -5047,7 +5099,7 @@ def create_master(
     *,
     headlines: List[str],
     texts: List[str],
-    regions: List[str],
+    regions: "Sequence[Union[str, Tuple[str, Optional[int]]]]",
     weekly_budget: Optional[int] = None,
     launch: bool = True,
 ) -> Dict[str, Any]:
