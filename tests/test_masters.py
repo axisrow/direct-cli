@@ -5499,6 +5499,53 @@ class TestUpdateMaster(unittest.TestCase):
             )
         self.assertIn("did not save as requested", str(ctx.exception))
 
+    def test_raises_when_removal_verify_read_hits_transient_hydration_failure(
+        self,
+    ):
+        """A single transient hydration failure on the FIRST post-save read
+        of the "Целевые действия" section must not be read as "table is
+        empty, so the removed goal is gone" — that is indistinguishable from
+        a genuinely empty table unless _verify_saved treats an unreadable
+        section as its own inconclusive state (not as an empty `{}`) and
+        retries past it. Models: close-button click is a no-op (goal stays
+        in `rows`, mirroring a save Yandex silently rejected), AND the
+        section's own visibility check raises PlaywrightError on its first
+        call after the verify reload, succeeding on every later call."""
+        rows = {159614149: "150"}
+        page = self._dynamic_target_actions_page(rows)
+        original_locator = page.locator
+        section_wait_for_calls = {"count": 0}
+
+        close_testid = browser_masters._TARGET_ACTION_CLOSE_TESTID_TEMPLATE.format(
+            category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=159614149
+        )
+
+        class _FlakyOnceSectionHandle(_FakeLocatorHandle):
+            def wait_for(self, state="visible", timeout=None):
+                section_wait_for_calls["count"] += 1
+                if section_wait_for_calls["count"] == 1:
+                    raise PlaywrightError("Timeout waiting for element state")
+
+        flaky_section = _FlakyOnceSectionHandle()
+
+        def _stub_locator(selector):
+            if selector == f'[data-testid="{close_testid}"]':
+                return _FakeLocator([_FakeLocatorHandle()])  # click is a no-op
+            if selector == browser_masters._TARGET_ACTIONS_SECTION_TESTID:
+                return _FakeLocator([flaky_section])
+            return original_locator(selector)
+
+        page.locator = _stub_locator
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(
+                page, 42, remove_target_action_goal_ids=[159614149]
+            )
+        self.assertIn("did not save as requested", str(ctx.exception))
+        # Confirms the retry actually happened past the transient failure —
+        # a false "removed_ok" on the first empty read would never get here.
+        self.assertGreater(section_wait_for_calls["count"], 1)
+
     def test_updates_multiple_fields_in_one_call(self):
         budget_state = {}
         checkbox_state = {"checked": False}

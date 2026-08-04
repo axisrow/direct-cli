@@ -2372,7 +2372,7 @@ def _add_target_action(page: "Page", goal_id: int, price: float) -> None:
     A freshly clicked option renders with an EMPTY price input (confirmed
     live — not a page default), so this always fills one — there is no
     "add with no price" caller path; the CLI-boundary parse requires a
-    price for exactly this reason (see ``_parse_target_action_options``).
+    price for exactly this reason (see ``_parse_add_target_action_options``).
     """
     add_button_testid = _TARGET_ACTION_ADD_BUTTON_TESTID_TEMPLATE.format(
         category=_TARGET_ACTIONS_CATEGORY
@@ -3040,12 +3040,30 @@ def _verify_saved(
 
     if add_target_actions or remove_target_action_goal_ids:
 
-        def _read_target_action_goal_ids(p: "Page") -> Dict[int, Optional[float]]:
+        def _read_target_action_goal_ids(
+            p: "Page",
+        ) -> Optional[Dict[int, Optional[float]]]:
+            # ``None`` (as opposed to ``{}``) means the table could not be
+            # read this attempt (section not yet hydrated after the reload —
+            # ``_read_target_actions`` returns ``[]`` for that SAME reason it
+            # returns ``[]`` for a genuinely empty table, see its docstring).
+            # Distinguishing the two here is required so a removed goal is
+            # never confirmed absent from a read that never actually saw the
+            # table — see ``_add_remove_match``.
+            section = page.locator(_TARGET_ACTIONS_SECTION_TESTID).first
+            try:
+                section.wait_for(
+                    state="visible", timeout=_TARGET_ACTION_WAIT_TIMEOUT_MS
+                )
+            except PlaywrightError:
+                return None
             return {row["GoalId"]: row["Price"] for row in _read_target_actions(p)}
 
         def _add_remove_match(
-            actual: Dict[int, Optional[float]], _expected: Any
+            actual: Optional[Dict[int, Optional[float]]], _expected: Any
         ) -> bool:
+            if actual is None:
+                return False
             added_ok = all(
                 _target_action_price_matches(price, actual.get(goal_id))
                 for goal_id, price in (add_target_actions or {}).items()
@@ -3061,19 +3079,30 @@ def _verify_saved(
             None,
             matches=_add_remove_match,
         )
-        for goal_id, expected_price in (add_target_actions or {}).items():
-            actual_price = actual_after_add_remove.get(goal_id)
-            if not _target_action_price_matches(expected_price, actual_price):
-                mismatches.append(
-                    f"add_target_action[{goal_id}]: expected price "
-                    f"{expected_price!r}, page now shows {actual_price!r}"
-                )
-        for goal_id in remove_target_action_goal_ids or []:
-            if goal_id in actual_after_add_remove:
-                mismatches.append(
-                    f"remove_target_action[{goal_id}]: still present in the "
-                    "'Целевые действия' table after save"
-                )
+        if actual_after_add_remove is None:
+            # Every retry within the timeout hit a transient hydration
+            # failure — never had a genuine read of the table. Report this
+            # as its own mismatch rather than falling back to `{}`, which
+            # would make every requested removal look like it succeeded.
+            mismatches.append(
+                "target actions: could not read the 'Целевые действия' "
+                "table after saving (section never became visible) — "
+                "unable to confirm add/remove took effect"
+            )
+        else:
+            for goal_id, expected_price in (add_target_actions or {}).items():
+                actual_price = actual_after_add_remove.get(goal_id)
+                if not _target_action_price_matches(expected_price, actual_price):
+                    mismatches.append(
+                        f"add_target_action[{goal_id}]: expected price "
+                        f"{expected_price!r}, page now shows {actual_price!r}"
+                    )
+            for goal_id in remove_target_action_goal_ids or []:
+                if goal_id in actual_after_add_remove:
+                    mismatches.append(
+                        f"remove_target_action[{goal_id}]: still present in "
+                        "the 'Целевые действия' table after save"
+                    )
 
     mismatches.extend(
         _verify_repeating_value_mismatches(
