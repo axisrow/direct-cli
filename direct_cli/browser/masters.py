@@ -4220,16 +4220,17 @@ def _apply_image_operations(
     legitimate outcomes (unlike headlines/texts, images have no "at least
     one" invariant — see ``_IMAGES_MAX_COUNT``'s module-level comment).
 
-    **Not live-verified (flag for live smoke before relying on this in
-    production):** whether Yandex's "Добавить в кампанию" button stays
-    clickable when the modal's selection is reduced to zero mid-session
-    (the ``delete``-everything / ``set``-with-nothing-kept case) — this
-    matters most for ``masters adimages delete --all`` and ``masters
-    adimages set`` replacing every image. Also not verified: uploading via
-    a single ``set_input_files([path1, path2, ...])`` call with multiple
-    paths — real Playwright accepts a list, but PR #672's recon never
-    exercised it, so this uploads strictly one path per call, sequentially,
-    to stay on already-confirmed ground.
+    Confirmed live 2026-08-03 on DRAFT campaign 713234191: Yandex's
+    "Добавить в кампанию" button stays clickable when the modal's selection
+    is reduced to zero mid-session (the ``delete``-everything /
+    ``set``-with-nothing-kept case) — this was the primitive's one
+    previously-unverified risk, exercised via ``masters adimages delete
+    --all`` and ``masters adimages set --allow-empty``.
+
+    **Not live-verified:** uploading via a single ``set_input_files([path1,
+    path2, ...])`` call with multiple paths — real Playwright accepts a
+    list, but PR #672's recon never exercised it, so this uploads strictly
+    one path per call, sequentially, to stay on already-confirmed ground.
 
     Removals are located by the target's thumb URL, captured from the
     modal's panel BEFORE any removal in this call runs — exactly the
