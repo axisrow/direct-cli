@@ -1260,6 +1260,19 @@ def audience_get(
     help="New campaign name (Название кампании)",
 )
 @click.option(
+    "--landing-url",
+    help=(
+        "New landing page URL (Ссылка на продвигаемую страницу), including "
+        "any UTM query string — Yandex has no separate UTM-only field, the "
+        "campaign's UTM template (if any) is just this URL's query string. "
+        "Replaces the WHOLE field value. To remove an existing UTM "
+        "template while keeping the landing page itself, pass the bare URL "
+        "with no query string. Pass an empty string ('') to clear the "
+        "field entirely. Read-only while the campaign is ARCHIVED — resume "
+        "it first via `masters resume`."
+    ),
+)
+@click.option(
     "--headline",
     "headlines",
     multiple=True,
@@ -1384,6 +1397,7 @@ def update(
     remove_target_actions,
     directs_helps,
     name,
+    landing_url,
     headlines,
     texts,
     images,
@@ -1439,6 +1453,14 @@ def update(
     ``--target-action-price``/``--add-target-action``/
     ``--remove-target-action`` in the same call.
 
+    ``--landing-url`` (issue #757) replaces the "Ссылка на продвигаемую
+    страницу" field WHOLESALE, including any UTM query string — Yandex has
+    no separate UTM-only field, the campaign's UTM template (if any) is
+    just this URL's query string. To remove an existing UTM template while
+    keeping the landing page itself, pass the bare URL with no query
+    string; pass an empty string to clear the field entirely. Read-only
+    while the campaign is ARCHIVED — resume it first via `masters resume`.
+
     ``--headline``/``--text``/``--image`` each replace ONE existing
     slot/position at a time rather than the whole list — unlike this CLI's
     usual list-field convention (e.g. ``campaigns update
@@ -1484,6 +1506,7 @@ def update(
         and not remove_target_actions
         and directs_helps is None
         and name is None
+        and landing_url is None
         and not headlines
         and not texts
         and not images
@@ -1498,8 +1521,9 @@ def update(
             "Provide at least one of --weekly-budget, --promotion-goal, "
             "--goal-price, --target-action-price, --add-target-action, "
             "--remove-target-action, --directs-helps/--no-directs-helps, "
-            "--name, --headline, --text, --image, --gender, --age-from, "
-            "--age-to, --device, --add-audience-tag, --remove-audience-tag."
+            "--name, --landing-url, --headline, --text, --image, --gender, "
+            "--age-from, --age-to, --device, --add-audience-tag, "
+            "--remove-audience-tag."
         )
 
     if goal_price is not None and promotion_goal == "max-conversions":
@@ -1604,6 +1628,7 @@ def update(
             remove_target_action_goal_ids=parsed_remove_target_actions,
             directs_helps=directs_helps,
             name=name,
+            landing_url=landing_url,
             headlines=parsed_headlines,
             texts=parsed_texts,
             images=parsed_images,
