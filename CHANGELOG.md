@@ -21,6 +21,13 @@
   `_verify_saved`'s add/remove retry loop trusts any read of the table —
   same shape as `_wait_for_audience_section`'s tag-count settling
   (issue #681).
+- Codex adversarial review of this PR (#753) caught a follow-on gap: the
+  settling wait's `bool` return value was being discarded, so a settle
+  TIMEOUT fell straight through into the retry loop — which itself stops
+  at its first matching read — reproducibly letting a still-hydrating,
+  never-settling table report a false "removal confirmed". `_verify_saved`
+  now treats a settle timeout as its own mismatch (same reporting path as
+  every other verification failure) instead of silently proceeding.
 
 **Added — `WeeklySpendLimit` support for HighestPosition/ManualCpm strategies (#610):**
 

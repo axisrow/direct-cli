@@ -4012,72 +4012,88 @@ def _verify_saved(
         # starts, means that loop's first read already lands on a
         # completeness-checked snapshot instead of leaning on repeated
         # reads to average out a race it has no way to detect on its own.
-        # A settle timeout is not fatal here — it falls through to the
-        # existing retry loop, which still has its own
-        # None-on-failure/mismatch reporting for a table that genuinely
-        # never stabilizes.
-        _wait_for_target_actions_settled(page)
-
-        def _read_target_action_goal_ids(
-            p: "Page",
-        ) -> Optional[Dict[int, Optional[float]]]:
-            # ``None`` (as opposed to ``{}``) means the table could not be
-            # read this attempt — see ``_read_target_actions_or_none``'s
-            # docstring (Codex adversarial review of #717) for the two
-            # distinct failure modes it collapses into ``None``. Either way
-            # this is NOT the same as a genuinely empty table — the
-            # distinction is required so a removed goal is never confirmed
-            # absent from a read that never actually saw the table — see
-            # ``_add_remove_match``.
-            rows = _read_target_actions_or_none(p)
-            if rows is None:
-                return None
-            return {row["GoalId"]: row["Price"] for row in rows}
-
-        def _add_remove_match(
-            actual: Optional[Dict[int, Optional[float]]], _expected: Any
-        ) -> bool:
-            if actual is None:
-                return False
-            added_ok = all(
-                _target_action_price_matches(price, actual.get(goal_id))
-                for goal_id, price in (add_target_actions or {}).items()
-            )
-            removed_ok = not any(
-                goal_id in actual for goal_id in remove_target_action_goal_ids or []
-            )
-            return added_ok and removed_ok
-
-        actual_after_add_remove = _read_until_matches(
-            page,
-            _read_target_action_goal_ids,
-            None,
-            matches=_add_remove_match,
-        )
-        if actual_after_add_remove is None:
-            # Every retry within the timeout hit a transient hydration
-            # failure — never had a genuine read of the table. Report this
-            # as its own mismatch rather than falling back to `{}`, which
-            # would make every requested removal look like it succeeded.
+        #
+        # Codex adversarial review of this PR (#753): a settle TIMEOUT must
+        # not be silently swallowed — the retry loop below stops at its
+        # FIRST matching read (``_read_until_matches`` returns as soon as
+        # ``is_match`` is true), so without this check a table that never
+        # settles could still have its very first, still-hydrating read
+        # happen to look like a match (e.g. a removed goal's row genuinely
+        # absent from an incomplete snapshot) and be trusted immediately —
+        # exactly the false-success this settling wait exists to prevent.
+        # Report it as its own mismatch (same shape as the "section never
+        # became visible" case below) rather than raising here, so a
+        # genuinely never-settling table is reported through the same
+        # single ``_verify_saved`` failure path as every other mismatch.
+        if not _wait_for_target_actions_settled(page):
             mismatches.append(
-                "target actions: could not read the 'Целевые действия' "
-                "table after saving (section never became visible) — "
-                "unable to confirm add/remove took effect"
+                "target actions: the 'Целевые действия' table's row count "
+                f"never settled within {_TARGET_ACTION_SETTLE_TIMEOUT_MS / 1000:.0f}s "
+                "after saving — unable to confirm add/remove took effect"
             )
         else:
-            for goal_id, expected_price in (add_target_actions or {}).items():
-                actual_price = actual_after_add_remove.get(goal_id)
-                if not _target_action_price_matches(expected_price, actual_price):
-                    mismatches.append(
-                        f"add_target_action[{goal_id}]: expected price "
-                        f"{expected_price!r}, page now shows {actual_price!r}"
-                    )
-            for goal_id in remove_target_action_goal_ids or []:
-                if goal_id in actual_after_add_remove:
-                    mismatches.append(
-                        f"remove_target_action[{goal_id}]: still present in "
-                        "the 'Целевые действия' table after save"
-                    )
+
+            def _read_target_action_goal_ids(
+                p: "Page",
+            ) -> Optional[Dict[int, Optional[float]]]:
+                # ``None`` (as opposed to ``{}``) means the table could not
+                # be read this attempt — see ``_read_target_actions_or_none``'s
+                # docstring (Codex adversarial review of #717) for the two
+                # distinct failure modes it collapses into ``None``. Either
+                # way this is NOT the same as a genuinely empty table — the
+                # distinction is required so a removed goal is never
+                # confirmed absent from a read that never actually saw the
+                # table — see ``_add_remove_match``.
+                rows = _read_target_actions_or_none(p)
+                if rows is None:
+                    return None
+                return {row["GoalId"]: row["Price"] for row in rows}
+
+            def _add_remove_match(
+                actual: Optional[Dict[int, Optional[float]]], _expected: Any
+            ) -> bool:
+                if actual is None:
+                    return False
+                added_ok = all(
+                    _target_action_price_matches(price, actual.get(goal_id))
+                    for goal_id, price in (add_target_actions or {}).items()
+                )
+                removed_ok = not any(
+                    goal_id in actual for goal_id in remove_target_action_goal_ids or []
+                )
+                return added_ok and removed_ok
+
+            actual_after_add_remove = _read_until_matches(
+                page,
+                _read_target_action_goal_ids,
+                None,
+                matches=_add_remove_match,
+            )
+            if actual_after_add_remove is None:
+                # Every retry within the timeout hit a transient hydration
+                # failure — never had a genuine read of the table. Report
+                # this as its own mismatch rather than falling back to
+                # `{}`, which would make every requested removal look like
+                # it succeeded.
+                mismatches.append(
+                    "target actions: could not read the 'Целевые действия' "
+                    "table after saving (section never became visible) — "
+                    "unable to confirm add/remove took effect"
+                )
+            else:
+                for goal_id, expected_price in (add_target_actions or {}).items():
+                    actual_price = actual_after_add_remove.get(goal_id)
+                    if not _target_action_price_matches(expected_price, actual_price):
+                        mismatches.append(
+                            f"add_target_action[{goal_id}]: expected price "
+                            f"{expected_price!r}, page now shows {actual_price!r}"
+                        )
+                for goal_id in remove_target_action_goal_ids or []:
+                    if goal_id in actual_after_add_remove:
+                        mismatches.append(
+                            f"remove_target_action[{goal_id}]: still present "
+                            "in the 'Целевые действия' table after save"
+                        )
 
     mismatches.extend(
         _verify_repeating_value_mismatches(
