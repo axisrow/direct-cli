@@ -377,7 +377,8 @@ def _build_strategy_fields(
         )
         raise click.UsageError(
             t(
-                "{arg0} is not valid for --type {strategy_type}. Allowed strategy field flags: {allowed_flags}."
+                "{arg0} is not valid for --type {strategy_type}. Allowed "
+                "strategy field flags: {allowed_flags}."
             ).format(
                 arg0=", ".join(incompatible),
                 strategy_type=strategy_type,
@@ -816,7 +817,8 @@ def update(
         # silent no-op.
         raise click.UsageError(
             t(
-                "strategies update requires at least one field for --type {strategy_type}."
+                "strategies update requires at least one field for "
+                "--type {strategy_type}."
             ).format(strategy_type=strategy_type)
         )
     if strategy_type:

@@ -173,7 +173,8 @@ def _parse_attribution_models(models: str | None) -> list[str] | None:
     if invalid:
         allowed = ", ".join(sorted(ATTRIBUTION_MODELS))
         raise ValueError(
-            f"Invalid attribution model(s): {', '.join(invalid)}. Expected one of: {allowed}"
+            f"Invalid attribution model(s): {', '.join(invalid)}. "
+            f"Expected one of: {allowed}"
         )
     return normalized
 

@@ -986,7 +986,10 @@ def add(
     "--from-file",
     "from_file",
     type=click.Path(exists=True, dir_okay=False, readable=True),
-    help="Path to a JSONL file (one flag-form ad-update object per line) for batch update",
+    help=(
+        "Path to a JSONL file (one flag-form ad-update object per line) "
+        "for batch update"
+    ),
 )
 @click.option(
     "--ads-json",

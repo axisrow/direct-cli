@@ -54,7 +54,10 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
         source_status=SOURCE_CONFIRMED_LIVE,
         live_probe_allowed=True,
         example_param=["client-login"],
-        notes="Live rejects object params with error_code=9; pass the login array directly.",
+        notes=(
+            "Live rejects object params with error_code=9; pass the login "
+            "array directly."
+        ),
     ),
     "GetCreditLimits": V4MethodContract(
         method="GetCreditLimits",
@@ -285,7 +288,10 @@ V4_METHOD_CONTRACTS: dict[str, V4MethodContract] = {
         source_status=SOURCE_CONFIRMED_LIVE,
         live_probe_allowed=True,
         example_param={"CampaignIDS": [123]},
-        notes="Standalone public method page was not discoverable; live probe confirms CampaignIDS.",
+        notes=(
+            "Standalone public method page was not discoverable; live "
+            "probe confirms CampaignIDS."
+        ),
     ),
     "CreateNewWordstatReport": V4MethodContract(
         method="CreateNewWordstatReport",

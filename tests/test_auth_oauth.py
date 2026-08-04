@@ -387,7 +387,9 @@ class TestAuthOAuth:
     ):
         env_path = tmp_path / ".env"
         env_path.write_text(
-            "OTHER=value\nYANDEX_DIRECT_TOKEN=old-token\nYANDEX_DIRECT_LOGIN=old-login\n",
+            "OTHER=value\n"
+            "YANDEX_DIRECT_TOKEN=old-token\n"
+            "YANDEX_DIRECT_LOGIN=old-login\n",
             encoding="utf-8",
         )
         with patch.dict(os.environ, {}, clear=False):

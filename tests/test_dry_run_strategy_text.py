@@ -627,7 +627,7 @@ def test_campaigns_add_dynamic_text_network_rejects_partial_custom_period():
     )
 
 
-def test_campaigns_add_dynamic_text_network_weekly_click_package_combined_ceilings_payload():
+def test_campaigns_add_dynamic_text_network_weekly_click_package_combined_ceilings_payload():  # noqa: E501
     """#365: WSDL StrategyWeeklyClickPackageAdd allows AverageCpc + BidCeiling."""
     body = _dry_run(
         "campaigns",
@@ -1099,7 +1099,7 @@ def test_campaigns_add_dynamic_text_network_wb_maximum_clicks_bare_payload():
     assert network == {"BiddingStrategyType": "WB_MAXIMUM_CLICKS"}
 
 
-def test_campaigns_add_dynamic_text_network_wb_maximum_conversion_rate_only_goal_payload():
+def test_campaigns_add_dynamic_text_network_wb_maximum_conversion_rate_only_goal_payload():  # noqa: E501
     """#365: only GoalId is WSDL-required for WbMaximumConversionRate."""
     body = _dry_run(
         "campaigns",
@@ -1147,7 +1147,7 @@ def test_campaigns_add_dynamic_text_network_rejects_reserve_return_over_100():
     assert "Invalid value for '--dyn-network-reserve-return'" in result.output
 
 
-def test_campaigns_add_dynamic_text_network_rejects_wb_maximum_conversion_rate_without_goal():
+def test_campaigns_add_dynamic_text_network_rejects_wb_maximum_conversion_rate_without_goal():  # noqa: E501
     """#365: WSDL minOccurs=1 GoalId on WbMaximumConversionRate is enforced."""
     result = _rejected(
         "campaigns",
@@ -2922,7 +2922,7 @@ def test_campaigns_add_text_network_search_cpa_plus_network_wb_max_clicks_payloa
     }
 
 
-def test_campaigns_add_text_network_search_cpa_plus_network_weekly_click_package_payload():
+def test_campaigns_add_text_network_search_cpa_plus_network_weekly_click_package_payload():  # noqa: E501
     """#364: shared --bid-ceiling routes to BOTH sides when both subtypes
     accept it (WeeklyClickPackage carries BidCeiling per WSDL line 1486)."""
     body = _dry_run(
@@ -4814,7 +4814,7 @@ def test_campaigns_update_dynamic_text_search_standalone_budget_type_payload():
     }
 
 
-def test_campaigns_update_dynamic_text_search_rejects_budget_type_on_non_budget_subtype():
+def test_campaigns_update_dynamic_text_search_rejects_budget_type_on_non_budget_subtype():  # noqa: E501
     """#362: BudgetType is only supported on the eight Wb*/AverageCp*/
     AverageRoi/AverageCrr/PayFor*Crr subtypes that carry both
     WeeklySpendLimit and CustomPeriodBudget. WeeklyClickPackage has no

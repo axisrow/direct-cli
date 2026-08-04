@@ -245,7 +245,9 @@ def build_add_block(
             if legacy_provided:
                 raise click.UsageError(
                     t(
-                        "DynamicTextCampaign Search typed flags (--dyn-search-*) cannot be combined with the legacy CPA-shape flags {arg0}; use the matching --dyn-search-* equivalent"
+                        "DynamicTextCampaign Search typed flags (--dyn-search-*) "
+                        "cannot be combined with the legacy CPA-shape flags "
+                        "{arg0}; use the matching --dyn-search-* equivalent"
                     ).format(arg0=", ".join(sorted(legacy_provided)))
                 )
         # WSDL DynamicTextCampaignAddItem.PriorityGoals (line 2186)
