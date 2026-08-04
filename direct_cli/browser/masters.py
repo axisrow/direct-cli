@@ -5106,9 +5106,6 @@ def _set_region(
         # Targeting the input directly is exactly why this failed with
         # "Could not find 'Москва'" even though the locator matched.
         label = page.locator(label_xpath)
-        checkbox = page.locator(
-            f"{label_xpath}//input[@data-testid='{_REGION_CHECKBOX_TESTID}']"
-        )
         matched_wrong_id = None
 
         # Live testing (issue #653) found opening the popup and filtering
@@ -5130,6 +5127,17 @@ def _set_region(
         #     tree down to zero nodes and can never match.
         clicked = False
         last_open_exc = None
+        # Tracks whether _clear_text_field ever reported failure across
+        # attempts (issue #656). A failed clear here is NOT immediately
+        # fatal the way it is in _add_repeating_values — this field is a
+        # scratch filter, not a slot whose stale content would ship
+        # unreviewed, and a later attempt's own poll decides success. But
+        # if every attempt exhausts with no match, an unset clear means
+        # each retype APPENDED onto the previous one ("МоскваМосква"),
+        # which can never filter-match anything — surfacing that as "check
+        # the region name" would blame the wrong thing when the real cause
+        # is an unsupported Playwright version (see _clear_text_field).
+        clear_ever_failed = False
         for _ in range(_REGION_OPEN_ATTEMPTS):
             launcher = page.locator(_REGION_LAUNCHER_TESTID).first
             editor = page.locator(_REGION_EDITOR_TESTID).first
@@ -5139,7 +5147,8 @@ def _set_region(
                 if not editor.count():
                     launcher.click()
                 editor.click(timeout=_REGION_EDITOR_APPEAR_TIMEOUT_MS)
-                _clear_text_field(editor)
+                if not _clear_text_field(editor):
+                    clear_ever_failed = True
                 editor.type(region)
             except PlaywrightError as exc:
                 last_open_exc = exc
@@ -5170,8 +5179,17 @@ def _set_region(
                 # Clicking a label that is already checked would UNCHECK the
                 # region, so confirm the input actually ended up checked
                 # rather than trusting the click — same read-back convention
-                # as _verify_created/_verify_saved.
-                node = checkbox.nth(i)
+                # as _verify_created/_verify_saved. Scoped off `handle`
+                # itself (issue #656), not a second independent top-level
+                # locator built from the same xpath: two separate
+                # page.locator() calls resolved from the same selector are
+                # not guaranteed to enumerate matches in the same order if
+                # the tree re-renders between them, so indexing both by `i`
+                # could silently pair a label with the WRONG node's
+                # checkbox.
+                node = handle.locator(
+                    f"xpath=.//input[@data-testid='{_REGION_CHECKBOX_TESTID}']"
+                ).first
                 with contextlib.suppress(PlaywrightError):
                     if not node.is_checked():
                         continue
@@ -5218,6 +5236,18 @@ def _set_region(
                     "changed the page's markup. Re-run with --headful to "
                     "inspect the page."
                 ) from last_open_exc
+            if clear_ever_failed:
+                raise BrowserSessionError(
+                    f"Could not find {region!r} in the 'Регион показов' tree "
+                    "after typing it — but the filter field could not be "
+                    "cleared before typing (see _clear_text_field), so each "
+                    "attempt likely typed into leftover text from the "
+                    "previous one instead of a clean field. This usually "
+                    "means Playwright is older than 1.44 (the version that "
+                    "added the 'ControlOrMeta' modifier) — upgrade with "
+                    "'pip install -U playwright' and retry before assuming "
+                    "the region name itself is wrong."
+                )
             raise BrowserSessionError(
                 f"Could not find {region!r} in the 'Регион показов' tree on "
                 "the Мастер кампаний create page — check the region name "

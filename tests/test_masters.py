@@ -92,6 +92,7 @@ class _FakeLocatorHandle:
         get_value=None,
         get_checked=None,
         on_upload=None,
+        sub_locators=None,
     ):
         self._text = text
         self._attrs = attrs or {}
@@ -104,6 +105,16 @@ class _FakeLocatorHandle:
         self._get_value = get_value
         self._get_checked = get_checked
         self._on_upload = on_upload
+        # {selector: _FakeLocatorHandle} for a SCOPED child lookup — models
+        # Playwright's Locator.locator(), e.g. `label.locator("xpath=.//input
+        # [...]")` (issue #656: _set_region reads a checkbox scoped off the
+        # matched label handle itself, not via a second independent
+        # page.locator() call built from the same selector string).
+        self._sub_locators = sub_locators or {}
+
+    def locator(self, selector):
+        handle = self._sub_locators.get(selector)
+        return _FakeLocator([handle] if handle is not None else [])
 
     def inner_text(self):
         if self._raises:
@@ -9139,18 +9150,22 @@ class TestSetRegion(unittest.TestCase):
             f"[normalize-space(.)={browser_masters._xpath_literal(region)}]"
         )
 
-    def _checkbox_xpath(self, region):
-        return (
-            f"{self._label_xpath(region)}"
-            f"//input[@data-testid='{browser_masters._REGION_CHECKBOX_TESTID}']"
-        )
+    # Relative xpath _set_region scopes off the matched label handle itself
+    # (issue #656) — ``handle.locator(_CHECKBOX_SUB_XPATH)``, not a second
+    # independent ``page.locator()`` built from the label's own xpath.
+    _CHECKBOX_SUB_XPATH = (
+        f"xpath=.//input[@data-testid='{browser_masters._REGION_CHECKBOX_TESTID}']"
+    )
 
     def _region_node(self, region, checked, visible=True, node_id=None):
         """A (label, input) pair whose label click toggles the input.
 
         ``node_id`` models the checkbox's stable ``id="region-node-<id>"``
         attribute (issue #657) — ``None`` means the fake node has no ``id``
-        attribute at all, same as any test written before that issue.
+        attribute at all, same as any test written before that issue. The
+        checkbox is wired onto the label as a ``sub_locators`` child (issue
+        #656), mirroring ``_set_region``'s scoped ``handle.locator(...)``
+        lookup, not a separate top-level locator.
         """
         state = {"checked": False}
 
@@ -9162,9 +9177,13 @@ class TestSetRegion(unittest.TestCase):
                 with contextlib.suppress(ValueError):
                     checked.remove(region)
 
-        label = _FakeLocatorHandle(visible=visible, on_click=_toggle)
         attrs = {"id": node_id} if node_id is not None else {}
         box = _FakeLocatorHandle(get_checked=lambda: state["checked"], attrs=attrs)
+        label = _FakeLocatorHandle(
+            visible=visible,
+            on_click=_toggle,
+            sub_locators={self._CHECKBOX_SUB_XPATH: box},
+        )
         return label, box
 
     def _page_for_region(self, region, checkbox_visible=True, node_id=None):
@@ -9178,7 +9197,6 @@ class TestSetRegion(unittest.TestCase):
         if checkbox_visible:
             label, box = self._region_node(region, checked, node_id=node_id)
             locators[self._label_xpath(region)] = _FakeLocator([label])
-            locators[self._checkbox_xpath(region)] = _FakeLocator([box])
         return FakePage(locators=locators), checked
 
     def test_fills_and_selects_each_region(self):
@@ -9242,12 +9260,25 @@ class TestSetRegion(unittest.TestCase):
         self.assertEqual(checked, [])
 
     def test_raises_when_launcher_missing(self):
+        # Issue #656: the popup never opened at all (the launcher itself is
+        # missing) is a DIFFERENT failure from "the popup opened but the
+        # region wasn't in the filtered tree" — the two must raise
+        # distinguishable messages, not just "some BrowserSessionError",
+        # which would pass equally if the code regressed onto the wrong
+        # branch (see test_raises_when_checkbox_not_found for the sibling
+        # case).
         page = FakePage(locators={})
 
-        with self.assertRaises(BrowserSessionError):
+        with self.assertRaises(BrowserSessionError) as ctx:
             browser_masters._set_region(page, ["Москва"])
+        self.assertIn("Could not find or open", str(ctx.exception))
+        self.assertNotIn("Москва", str(ctx.exception))
 
     def test_raises_when_checkbox_not_found(self):
+        # Unlike test_raises_when_launcher_missing, the popup DID open (the
+        # launcher/editor are present) — the region simply never matched a
+        # node in the filtered tree. This must raise the "could not find
+        # {region} in the tree" message, not the launcher-missing one.
         page, _ = self._page_for_region("Атлантида", checkbox_visible=False)
 
         with (
@@ -9256,6 +9287,37 @@ class TestSetRegion(unittest.TestCase):
         ):
             browser_masters._set_region(page, ["Атлантида"])
         self.assertIn("Атлантида", str(ctx.exception))
+        self.assertNotIn("Could not find or open", str(ctx.exception))
+
+    def test_raises_playwright_version_hint_when_clear_never_succeeds(self):
+        # Issue #656: if the filter field's clear (select-all + Backspace)
+        # never succeeds across every retry — the pre-1.44 Playwright
+        # ``ControlOrMeta`` failure _clear_text_field's docstring
+        # describes — each retype APPENDS onto the previous attempt's
+        # leftover text ("МоскваМосква"), which can never filter-match. The
+        # resulting "region not found" must say so, not blame the region
+        # name (a real region that legitimately doesn't exist looks
+        # identical to the caller otherwise).
+        launcher = _FakeLocatorHandle()
+        editor = _FakeContentEditableHandle(supports_modifier=False)
+        page = FakePage(
+            locators={
+                browser_masters._REGION_LAUNCHER_TESTID: _FakeLocator([launcher]),
+                browser_masters._REGION_EDITOR_TESTID: _FakeLocator([editor]),
+                # No label ever matches — an uncleared, ever-appending
+                # filter field can never produce a match.
+            },
+        )
+
+        with (
+            patch.object(browser_masters, "_REGION_FILTER_TIMEOUT_MS", 10),
+            self.assertRaises(BrowserSessionError) as ctx,
+        ):
+            browser_masters._set_region(page, ["Москва"])
+
+        self.assertIn("could not be cleared", str(ctx.exception))
+        self.assertIn("Playwright", str(ctx.exception))
+        self.assertNotIn("check the region name", str(ctx.exception))
 
     def test_does_not_select_a_decoy_whose_name_only_contains_the_region(self):
         # A decoy checkbox whose label merely CONTAINS the region name
@@ -9328,7 +9390,6 @@ class TestSetRegion(unittest.TestCase):
                 browser_masters._REGION_LAUNCHER_TESTID: _FakeLocator([launcher]),
                 browser_masters._REGION_EDITOR_TESTID: _FakeLocator([editor]),
                 self._label_xpath("Москва"): _FlakyLabelLocator(),
-                self._checkbox_xpath("Москва"): _FakeLocator([box]),
             },
         )
 
@@ -9692,18 +9753,30 @@ class TestCreateMaster(unittest.TestCase):
             "xpath=//label[@data-testid='RegionsTreeNode.Checkbox.label']"
             f"[normalize-space(.)={browser_masters._xpath_literal(region)}]"
         )
-        region_checkbox_xpath = (
-            f"{region_label_xpath}"
-            f"//input[@data-testid='{browser_masters._REGION_CHECKBOX_TESTID}']"
-        )
         # The label is what gets clicked; the input is what gets read back
-        # (confirmed live — see _set_region). Model the real toggle.
+        # (confirmed live — see _set_region). Model the real toggle. The
+        # checkbox is wired onto the label as a sub_locators child (issue
+        # #656), mirroring _set_region's scoped handle.locator(...) lookup.
         region_state = {"checked": False}
 
         def _toggle_region():
             region_state["checked"] = not region_state["checked"]
             if region_state["checked"]:
                 region_checked.append(region)
+
+        region_checkbox_handle = _FakeLocatorHandle(
+            get_checked=lambda: region_state["checked"]
+        )
+        region_label_handle = _FakeLocatorHandle(
+            visible=True,
+            on_click=_toggle_region,
+            sub_locators={
+                (
+                    f"xpath=.//input[@data-testid="
+                    f"'{browser_masters._REGION_CHECKBOX_TESTID}']"
+                ): region_checkbox_handle
+            },
+        )
 
         page = FakePage(
             locators={
@@ -9717,12 +9790,7 @@ class TestCreateMaster(unittest.TestCase):
                     [region_launcher]
                 ),
                 browser_masters._REGION_EDITOR_TESTID: _FakeLocator([region_editor]),
-                region_label_xpath: _FakeLocator(
-                    [_FakeLocatorHandle(visible=True, on_click=_toggle_region)]
-                ),
-                region_checkbox_xpath: _FakeLocator(
-                    [_FakeLocatorHandle(get_checked=lambda: region_state["checked"])]
-                ),
+                region_label_xpath: _FakeLocator([region_label_handle]),
                 browser_masters._WEEKLY_BUDGET_INPUT_XPATH: _FakeLocator(
                     [budget_field]
                 ),
