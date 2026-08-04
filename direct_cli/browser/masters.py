@@ -2069,10 +2069,28 @@ def _set_directs_helps(page: "Page", enabled: bool) -> None:
     nothing makes it converge to ``enabled`` on its own — so that would
     burn the full ``_VERIFY_FIELD_READ_TIMEOUT_MS`` on every real toggle
     for no reason. Only ``None`` is a signal worth waiting out.
+
+    If ``current`` is STILL ``None`` once the poll times out — not a
+    transient hydration gap but a genuinely unreadable/absent
+    ``data-checked`` for the whole window — this raises instead of
+    clicking (issue #736, Codex round-3 finding on PR #731): clicking the
+    visible label without knowing the toggle's real state can invert an
+    already-correct value and commit that on a live Yandex account. A
+    click is only safe once the pre-click state is actually known.
     """
     current = _read_until_matches(
         page, _read_directs_helps, None, matches=lambda actual, _exp: actual is not None
     )
+    if current is None:
+        raise BrowserSessionError(
+            "Could not read the 'Директ помогает' checkbox's current state "
+            "('Автоматически применять рекомендации') on the campaign edit "
+            "page — its data-checked attribute stayed unreadable for "
+            f"{_VERIFY_FIELD_READ_TIMEOUT_MS / 1000:.0f}s. Refusing to click "
+            "blind, since that could invert an already-correct state. "
+            "Yandex may have changed the page's markup, or the page is "
+            "still hydrating — re-run with --headful to inspect the page."
+        )
     if current is enabled:
         return
 

@@ -3576,6 +3576,54 @@ class TestSetDirectsHelps(unittest.TestCase):
         self.assertTrue(state["toggled"])
         self.assertEqual(ticks["count"], 0)
 
+    def test_raises_instead_of_clicking_blind_when_state_never_resolves(self):
+        # Regression (issue #736, Codex round-3 finding on PR #731): if
+        # data-checked stays unreadable/absent (None) for the WHOLE poll
+        # timeout — not just a transient hydration tick — _set_directs_helps
+        # must never click the label with an unknown pre-click state, since
+        # that click could invert an already-correct toggle and commit that
+        # on a live Yandex account. It must raise BrowserSessionError and
+        # leave the label untouched instead.
+        state = {"toggled": False}
+
+        def _toggle():
+            state["toggled"] = True
+
+        def _get_attrs():
+            return {}
+
+        label_handle = _FakeLocatorHandle(on_click=_toggle)
+        div_handle = _DynamicAttrsLocatorHandle(get_attrs=_get_attrs)
+
+        page = FakePage(
+            locators={
+                browser_masters._DIRECT_HELPS_TOGGLE_LABEL_SELECTOR: _FakeLocator(
+                    [label_handle]
+                ),
+                browser_masters._DIRECT_HELPS_TOGGLE_DIV_SELECTOR: _FakeLocator(
+                    [div_handle]
+                ),
+            }
+        )
+
+        # Keeps the test fast: _read_until_matches's timeout_ms default is
+        # bound to _VERIFY_FIELD_READ_TIMEOUT_MS at function-definition time,
+        # so patching the module constant alone would not shrink it —
+        # advancing the monotonic clock it polls against does.
+        fake_now = {"value": 0.0}
+
+        def _fake_monotonic():
+            fake_now["value"] += browser_masters._VERIFY_FIELD_READ_TIMEOUT_MS
+            return fake_now["value"]
+
+        with patch.object(
+            browser_masters.time, "monotonic", side_effect=_fake_monotonic
+        ):
+            with self.assertRaises(BrowserSessionError):
+                browser_masters._set_directs_helps(page, True)
+
+        self.assertFalse(state["toggled"])
+
 
 class TestSetPromotionGoal(unittest.TestCase):
     """``_set_promotion_goal`` (issue #631, Этап A) — open dropdown, click, verify.
