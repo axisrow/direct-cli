@@ -298,7 +298,7 @@ def test_v4_live_wordstat_lifecycle_opt_in_write():
         try:
             call_v4(client, "DeleteWordstatReport", report_id)
             _orphan_store.remove("v4wordstat", report_id)
-        except Exception:
+        except Exception:  # noqa: PIE786 - must not mask the real test failure
             # Leave the ID in the store; next run's ``drain`` will retry.
             pass
 
@@ -337,5 +337,5 @@ def test_v4_live_forecast_lifecycle_opt_in_write():
         try:
             call_v4(client, "DeleteForecastReport", forecast_id)
             _orphan_store.remove("v4forecast", forecast_id)
-        except Exception:
+        except Exception:  # noqa: PIE786 - must not mask the real test failure
             pass

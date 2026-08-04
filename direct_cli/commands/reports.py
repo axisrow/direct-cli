@@ -21,7 +21,7 @@ def _load_report_types() -> list:
         from ..reports_coverage import load_cached_reports_spec
 
         return load_cached_reports_spec()["report_types"]
-    except Exception:
+    except Exception:  # noqa: PIE786 - fall back to the hardcoded snapshot default
         return [
             "ACCOUNT_PERFORMANCE_REPORT",
             "CAMPAIGN_PERFORMANCE_REPORT",
@@ -40,7 +40,7 @@ def _load_processing_modes() -> list:
         from ..reports_coverage import load_cached_reports_spec
 
         return load_cached_reports_spec()["processing_modes"]
-    except Exception:
+    except Exception:  # noqa: PIE786 - fall back to the hardcoded snapshot default
         return ["auto", "online", "offline"]
 
 
@@ -50,7 +50,7 @@ def _load_date_range_types() -> list:
         from ..reports_coverage import load_cached_reports_spec
 
         return load_cached_reports_spec()["date_range_types"]
-    except Exception:
+    except Exception:  # noqa: PIE786 - fall back to the hardcoded snapshot default
         return [
             "TODAY",
             "YESTERDAY",
@@ -75,7 +75,7 @@ def _load_report_field_usage() -> dict:
         from ..reports_coverage import load_cached_reports_spec
 
         return load_cached_reports_spec().get("field_usage", {})
-    except Exception:
+    except Exception:  # noqa: PIE786 - fall back to the hardcoded snapshot default
         return {}
 
 
@@ -85,7 +85,7 @@ def _load_filter_operators() -> list:
         from ..reports_coverage import load_cached_reports_spec
 
         return load_cached_reports_spec().get("filter_operators", [])
-    except Exception:
+    except Exception:  # noqa: PIE786 - fall back to the hardcoded snapshot default
         return [
             "EQUALS",
             "NOT_EQUALS",

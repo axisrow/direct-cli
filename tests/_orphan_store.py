@@ -112,7 +112,7 @@ def drain(
     for id_ in bucket:
         try:
             deleter(id_)
-        except Exception:
+        except Exception:  # noqa: PIE786 - undeleted IDs retry on the next run
             survived.append(id_)
     if survived:
         data[kind] = survived

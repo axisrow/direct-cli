@@ -15,6 +15,7 @@ CLI changes, run with ``--record-mode=rewrite`` and a valid
 before committing.
 """
 
+import contextlib
 import json
 import os
 import re
@@ -64,7 +65,7 @@ def pytest_xdist_auto_num_workers(config):
             if expr.evaluate(lambda name, m=marker: name == m):
                 return 1
         return None
-    except Exception:
+    except Exception:  # noqa: PIE786 - private pytest API, fall back conservatively
         # Private parser unavailable/changed (compile or evaluate): serialize if
         # any live marker is named at all — over-serializing never races.
         return 1 if any(m in markexpr for m in _LIVE_MARKERS) else None
@@ -471,10 +472,8 @@ def _has_result_errors(output: str, key: str) -> bool:
 
 def _safe_delete(*args):
     """Best-effort delete — ignore errors (resource may already be gone)."""
-    try:
+    with contextlib.suppress(Exception):
         _invoke(*args)
-    except Exception:
-        pass
 
 
 # ── session-scoped ───────────────────────────────────────────────────────

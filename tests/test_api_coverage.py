@@ -322,7 +322,7 @@ class TestApiCoverage:
         for cli_name, api_service in sorted(CLI_TO_API_SERVICE.items()):
             try:
                 wsdl_xml = fetch_wsdl(api_service)
-            except Exception as exc:
+            except Exception as exc:  # noqa: PIE786 - per-service, others still run
                 failures.append(
                     f"{cli_name} -> {api_service}: WSDL fetch failed: {exc}"
                 )

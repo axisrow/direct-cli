@@ -34,7 +34,7 @@ def _advideo_get_accepts(client: Any, candidate: str) -> bool:
     try:
         _extract_items(client.advideos().post(data=body))
         return True
-    except Exception:
+    except Exception:  # noqa: PIE786 - probe must degrade to a benign skip
         return False
 
 
@@ -47,7 +47,7 @@ def advideo_probe_id() -> Optional[str]:
     """
     try:
         client = create_client()
-    except Exception:
+    except Exception:  # noqa: PIE786 - probe must degrade to a benign skip
         return None
 
     env_id = os.getenv("YANDEX_DIRECT_TEST_ADVIDEO_ID")
@@ -64,7 +64,7 @@ def advideo_probe_id() -> Optional[str]:
     }
     try:
         creatives = _extract_items(client.creatives().post(data=body))
-    except Exception:
+    except Exception:  # noqa: PIE786 - probe must degrade to a benign skip
         return None
 
     for creative in creatives:
@@ -88,7 +88,7 @@ def _first_campaign_id(client: Any) -> Optional[int]:
     }
     try:
         campaigns = _extract_items(client.campaigns().post(data=body))
-    except Exception:
+    except Exception:  # noqa: PIE786 - probe must degrade to a benign skip
         return None
     if not campaigns:
         return None
@@ -119,7 +119,7 @@ def retargeting_goal_probe_id() -> Optional[str]:
 
     try:
         client = create_client()
-    except Exception:
+    except Exception:  # noqa: PIE786 - probe must degrade to a benign skip
         return None
 
     campaign_id = _first_campaign_id(client)
@@ -136,7 +136,7 @@ def retargeting_goal_probe_id() -> Optional[str]:
                 }
             )
         )
-    except Exception:
+    except Exception:  # noqa: PIE786 - probe must degrade to a benign skip
         return None
 
     for goal in goals:

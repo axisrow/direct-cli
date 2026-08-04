@@ -715,7 +715,7 @@ def _resolve_client_login_via_api(token: str) -> Optional[str]:
             login = clients[0].get("Login")
             if login:
                 return login
-    except Exception as exc:  # best-effort; never block login on this
+    except Exception as exc:  # noqa: PIE786 - best-effort; never block login on this
         logging.debug("resolve client login via API failed: %s", exc)
     return None
 
@@ -782,7 +782,7 @@ def _resolve_profile_credentials(
                         if matches:
                             prof["login"] = resolved
                         save_auth_store(store)
-                except Exception as exc:  # best-effort persistence
+                except Exception as exc:  # noqa: PIE786 - best-effort persistence
                     logging.debug("login migration persist failed: %s", exc)
 
     if not final_token:

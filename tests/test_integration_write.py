@@ -230,7 +230,7 @@ class TestWriteCampaignDraftLifecycle:
             assert_success(r, "campaigns draft add")
             try:
                 cid = parse_add_result(r)
-            except Exception:
+            except Exception:  # noqa: PIE786 - malformed response shape varies
                 # ID unknown; cleanup in finally is skipped — manual recovery
                 # via campaign name
                 pass

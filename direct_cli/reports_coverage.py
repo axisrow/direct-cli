@@ -324,12 +324,12 @@ def refresh_reports_cache() -> dict[str, Exception]:
     errors: dict[str, Exception] = {}
     try:
         raw = fetch_reports_spec(use_cache=False)
-    except Exception as exc:
+    except Exception as exc:  # noqa: PIE786 - reported per-stage via errors dict
         return {"fetch": exc}
 
     try:
         spec = parse_reports_spec(raw)
-    except Exception as exc:
+    except Exception as exc:  # noqa: PIE786 - reported per-stage via errors dict
         return {"parse": exc}
 
     spec_file = REPORTS_CACHE_DIR / "spec.json"
@@ -337,7 +337,7 @@ def refresh_reports_cache() -> dict[str, Exception]:
         spec_file.write_text(
             json.dumps(spec, indent=2, ensure_ascii=False), encoding="utf-8"
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: PIE786 - reported per-stage via errors dict
         return {"write": exc}
 
     return errors
@@ -350,7 +350,7 @@ def get_reports_coverage_policy() -> dict:
         report_types_count = len(spec.get("report_types", []))
         field_count = len(spec.get("field_compatibility", {}))
         header_count = len(spec.get("request_headers", {}))
-    except Exception:
+    except Exception:  # noqa: PIE786 - fall back to the hardcoded snapshot default
         report_types_count = 0
         field_count = 0
         header_count = 0
