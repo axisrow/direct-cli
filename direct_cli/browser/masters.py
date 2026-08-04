@@ -1678,6 +1678,53 @@ def archive_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
     return updated
 
 
+def _verify_launched_to_moderation(page: "Page", campaign_id: int) -> str:
+    """Poll the overview page's status text until it reports MODERATION.
+
+    Shared by ``launch_master`` and ``update_master --launch`` (issue #721):
+    both click a DRAFT edit page's launch button and then need the SAME
+    proof the publish actually happened — Yandex does not flip a DRAFT
+    straight to ACTIVE, clicking "Запустить кампанию" sends it to moderation
+    first (confirmed live, issue #668's recon of the same button). Reads the
+    overview page's own status text (``_read_status_text``, "Кампания
+    на\xa0модерации"), NOT the campaigns grid (``fetch_masters_list``) — the
+    grid's ``primaryStatus`` was observed to lag the real DRAFT->MODERATION
+    transition by 45+ seconds in the issue #704 recon, while the overview
+    page already reflected it immediately after the click's own redirect.
+
+    Callers must already be on (or have just navigated to) the campaign's
+    overview page — this function only polls ``_read_status_text``, it does
+    not navigate itself, so callers with different pre-poll navigation needs
+    (``launch_master`` re-navigates via ``_goto_overview_page`` after its
+    click; ``update_master`` is already there after ``_click_save``'s own
+    redirect-wait) stay in control of that step.
+
+    Raises :class:`BrowserSessionError` if the status never becomes
+    MODERATION within ``_LAUNCH_VERIFY_TIMEOUT_MS`` — a click that doesn't
+    visibly change the status is a hard error, not a silent success, per
+    this module's dominant convention (see ``_suspend_or_resume``).
+    """
+    deadline = time.monotonic() + _LAUNCH_VERIFY_TIMEOUT_MS / 1000
+    new_status = None
+    while time.monotonic() < deadline:
+        new_status = _read_status_text(page)
+        if new_status == "MODERATION":
+            break
+        page.wait_for_timeout(250)
+
+    if new_status != "MODERATION":
+        raise BrowserSessionError(
+            f"Clicked '{_LAUNCH_BUTTON_TEXT}' for campaign {campaign_id}, but "
+            "its overview page did not report MODERATION within "
+            f"{_LAUNCH_VERIFY_TIMEOUT_MS / 1000:.0f}s (still "
+            f"{new_status!r}). The click may not have hit the right "
+            "element, or Yandex is slow to apply it — verify manually "
+            "before retrying."
+        )
+
+    return new_status
+
+
 def launch_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
     """Publish a DRAFT Мастер кампаний via the edit page's launch button (issue #704).
 
@@ -1700,7 +1747,9 @@ def launch_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
     click's own redirect. The grid is still used for the BEFORE check
     (there is no cheaper way to confirm a campaign is currently DRAFT
     without first knowing which page to open), but never for the AFTER
-    check.
+    check — that half is ``_verify_launched_to_moderation`` (issue #721),
+    shared with ``update_master --launch`` so both entry points that publish
+    a DRAFT prove it the same way.
 
     Reuses ``_click_draft_terminal_button(page, campaign_id, launch=True)``
     from #668 — the same DRAFT edit-page save-as-draft/launch pair
@@ -1748,23 +1797,7 @@ def launch_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
     # status text at all, because the SPA hadn't painted anything yet).
     _goto_overview_page(page, campaign_id)
 
-    deadline = time.monotonic() + _LAUNCH_VERIFY_TIMEOUT_MS / 1000
-    new_status = None
-    while time.monotonic() < deadline:
-        new_status = _read_status_text(page)
-        if new_status == "MODERATION":
-            break
-        page.wait_for_timeout(250)
-
-    if new_status != "MODERATION":
-        raise BrowserSessionError(
-            f"Clicked 'Запустить кампанию' for campaign {campaign_id}, but "
-            "its overview page did not report MODERATION within "
-            f"{_LAUNCH_VERIFY_TIMEOUT_MS / 1000:.0f}s (still "
-            f"{new_status!r}). The click may not have hit the right "
-            "element, or Yandex is slow to apply it — verify manually "
-            "before retrying."
-        )
+    new_status = _verify_launched_to_moderation(page, campaign_id)
 
     return {"CampaignId": campaign_id, "Status": new_status}
 
@@ -2902,6 +2935,39 @@ def update_master(
     if images:
         result["Images"] = images
     if was_draft and launch:
+        # Issue #721: the DRAFT edit page's launch click redirects away from
+        # /edit/ (already awaited by _click_draft_terminal_button inside
+        # _click_save above), but that redirect is not proof Yandex actually
+        # sent the campaign to moderation — it can land on the overview page
+        # mid-transition, same race launch_master's own recon hit (see
+        # module docstring). _verify_saved above already re-navigated the
+        # page back to WIZARD_EDIT_URL to check the touched fields, so this
+        # needs its own trip to the overview page (mirroring launch_master's
+        # own _goto_overview_page call) before _verify_launched_to_moderation
+        # can read its status text — closing the gap where update_master
+        # --launch previously reported "Launched": True purely off the
+        # click/redirect, with no check that the campaign didn't silently
+        # stay DRAFT.
+        #
+        # This trip is just as irreversible/non-idempotent as the click
+        # itself (see the guard above _verify_saved): if the session is
+        # invalidated in this window, letting BrowserAuthError propagate
+        # bare would make _with_session retry the ENTIRE update_master call
+        # under a fresh session, re-mutating any --image replacements a
+        # second time (found via adversarial review, cycle-review round 1
+        # of PR #727).
+        try:
+            _goto_overview_page(page, campaign_id)
+            _verify_launched_to_moderation(page, campaign_id)
+        except BrowserAuthError as exc:
+            raise BrowserSessionError(
+                f"Clicked '{_LAUNCH_BUTTON_TEXT}' for campaign {campaign_id}, "
+                "but the session was invalidated while confirming it reached "
+                "moderation — the requested changes were likely already "
+                f"applied and launched; check campaign {campaign_id} "
+                "manually rather than retrying (image replacements are not "
+                "idempotent)."
+            ) from exc
         result["Launched"] = True
     return result
 

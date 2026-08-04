@@ -4021,8 +4021,53 @@ class TestUpdateMasterDraftSupport(unittest.TestCase):
         )
 
     def test_launch_true_on_draft_campaign_adds_launched_key(self):
-        # Issue #704: update --launch still needs to report it actually
-        # published the DRAFT, not just that the field was saved.
+        # Issue #704/#721: update --launch still needs to report it actually
+        # published the DRAFT, not just that the field was saved — the
+        # overview page's status text must explicitly read MODERATION (see
+        # TestLaunchMaster._draft_edit_page's own on_click convention).
+        slot = _FakeContentEditableHandle(text="Старый заголовок")
+        selector = (
+            f"[data-testid="
+            f'"{browser_masters._HEADLINES_TESTID_TEMPLATE.format(index=0)}"]'
+        )
+        state = {"status_text": "Черновик"}
+
+        def _on_launch_click():
+            state["status_text"] = "Кампания на\xa0модерации"
+            page.url = browser_masters.WIZARD_OVERVIEW_URL.format(campaign_id=713231614)
+
+        page = FakePage(
+            locators={
+                browser_masters._DRAFT_SAVE_DRAFT_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                browser_masters._DRAFT_LAUNCH_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle(on_click=_on_launch_click)]
+                ),
+                selector: _FakeLocator([slot]),
+            }
+        )
+        page.url = browser_masters.WIZARD_EDIT_URL.format(campaign_id=713231614)
+        page.inner_text = lambda selector=None: state["status_text"]
+
+        result = browser_masters.update_master(
+            page, 713231614, headlines={0: "Новый заголовок"}, launch=True
+        )
+
+        self.assertEqual(
+            result,
+            {
+                "CampaignId": 713231614,
+                "Headlines": {0: "Новый заголовок"},
+                "Launched": True,
+            },
+        )
+
+    def test_launch_true_raises_when_status_stays_draft(self):
+        # Regression (issue #721): fields saved and the click redirected away
+        # from /edit/, but the overview page's status text never actually
+        # became MODERATION — must not report "Launched": True on the
+        # redirect alone.
         slot = _FakeContentEditableHandle(text="Старый заголовок")
         selector = (
             f"[data-testid="
@@ -4044,19 +4089,79 @@ class TestUpdateMasterDraftSupport(unittest.TestCase):
             }
         )
         page.url = browser_masters.WIZARD_EDIT_URL.format(campaign_id=713231614)
+        page.inner_text = lambda selector=None: "Черновик"
 
-        result = browser_masters.update_master(
-            page, 713231614, headlines={0: "Новый заголовок"}, launch=True
-        )
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(
+                page, 713231614, headlines={0: "Новый заголовок"}, launch=True
+            )
 
-        self.assertEqual(
-            result,
-            {
-                "CampaignId": 713231614,
-                "Headlines": {0: "Новый заголовок"},
-                "Launched": True,
-            },
+        self.assertIn("did not report MODERATION", str(ctx.exception))
+        self.assertEqual(slot.inner_text(), "Новый заголовок")
+
+    def test_auth_error_during_post_launch_moderation_check_is_not_retried(self):
+        # Found via adversarial review (Codex) in cycle-review round 1 of
+        # PR #727. Mirrors
+        # test_auth_error_during_post_save_image_verification_is_not_retried's
+        # pattern: the launch click has ALREADY happened (irreversible), and
+        # if --image was also passed, any image replacement is NOT
+        # idempotent either. If the session is invalidated while
+        # _goto_overview_page/_verify_launched_to_moderation confirm
+        # MODERATION, letting BrowserAuthError propagate bare would make
+        # _with_session retry the ENTIRE update_master call under a fresh
+        # session, re-mutating already-applied changes.
+        slot = _FakeContentEditableHandle(text="Старый заголовок")
+        selector = (
+            f"[data-testid="
+            f'"{browser_masters._HEADLINES_TESTID_TEMPLATE.format(index=0)}"]'
         )
+        state = {"status_text": "Черновик"}
+        launch_clicks = []
+
+        def _on_launch_click():
+            launch_clicks.append(True)
+            state["status_text"] = "Кампания на\xa0модерации"
+            page.url = browser_masters.WIZARD_OVERVIEW_URL.format(campaign_id=713231614)
+
+        page = FakePage(
+            locators={
+                browser_masters._DRAFT_SAVE_DRAFT_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                browser_masters._DRAFT_LAUNCH_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle(on_click=_on_launch_click)]
+                ),
+                selector: _FakeLocator([slot]),
+            }
+        )
+        page.url = browser_masters.WIZARD_EDIT_URL.format(campaign_id=713231614)
+        page.inner_text = lambda selector=None: state["status_text"]
+
+        original_assert_authenticated = browser_masters.assert_authenticated
+        calls_after_click = {"n": 0}
+
+        def _assert_authenticated(content):
+            if launch_clicks:
+                calls_after_click["n"] += 1
+                # Let the FIRST post-click call (inside the existing
+                # _verify_saved guard) succeed; fail on the SECOND (inside
+                # _goto_overview_page, called from the launch-moderation
+                # check added by issue #721).
+                if calls_after_click["n"] >= 2:
+                    raise BrowserAuthError("stale session, detected mid-body")
+            return original_assert_authenticated(content)
+
+        with patch.object(
+            browser_masters,
+            "assert_authenticated",
+            side_effect=_assert_authenticated,
+        ):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.update_master(
+                    page, 713231614, headlines={0: "Новый заголовок"}, launch=True
+                )
+
+        self.assertNotIsInstance(ctx.exception, BrowserAuthError)
 
     def test_error_message_on_draft_mismatch_names_the_draft_button_not_save(self):
         # The mismatch error text must reflect the button THIS run actually
