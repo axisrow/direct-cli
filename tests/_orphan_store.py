@@ -19,6 +19,7 @@ broken by store corruption.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import tempfile
@@ -48,10 +49,8 @@ def _read(path: Path = ORPHAN_STORE_PATH) -> Dict[str, List[int]]:
 
 def _write(data: Dict[str, List[int]], path: Path = ORPHAN_STORE_PATH) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    try:
+    with contextlib.suppress(OSError):
         os.chmod(path.parent, 0o700)
-    except OSError:
-        pass
     fd, tmp = tempfile.mkstemp(dir=path.parent)
     try:
         os.chmod(tmp, 0o600)
@@ -59,10 +58,8 @@ def _write(data: Dict[str, List[int]], path: Path = ORPHAN_STORE_PATH) -> None:
             f.write(json.dumps(data, ensure_ascii=False, indent=2))
         os.replace(tmp, path)
     except Exception:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp)
-        except OSError:
-            pass
         raise
 
 
@@ -72,10 +69,9 @@ def add(kind: str, id_: int, path: Path = ORPHAN_STORE_PATH) -> None:
     bucket = data.setdefault(kind, [])
     if id_ not in bucket:
         bucket.append(int(id_))
-    try:
+    # best-effort; never fail a test on store IO
+    with contextlib.suppress(OSError):
         _write(data, path)
-    except OSError:
-        pass  # best-effort; never fail a test on store IO
 
 
 def remove(kind: str, id_: int, path: Path = ORPHAN_STORE_PATH) -> None:
@@ -87,10 +83,8 @@ def remove(kind: str, id_: int, path: Path = ORPHAN_STORE_PATH) -> None:
     data[kind] = [x for x in bucket if x != id_]
     if not data[kind]:
         del data[kind]
-    try:
+    with contextlib.suppress(OSError):
         _write(data, path)
-    except OSError:
-        pass
 
 
 def drain(
@@ -118,7 +112,5 @@ def drain(
         data[kind] = survived
     else:
         data.pop(kind, None)
-    try:
+    with contextlib.suppress(OSError):
         _write(data, path)
-    except OSError:
-        pass

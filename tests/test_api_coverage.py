@@ -15,7 +15,7 @@ import importlib.util
 import re
 import subprocess
 import sys
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET  # noqa: N817 - standard stdlib alias
 from pathlib import Path
 
 import pytest

@@ -69,6 +69,7 @@ Sandbox-limited (confirmed via live recording, ``@pytest.mark.sandbox_limitation
 Part of axisrow/yandex-direct-mcp-plugin#61 (Etap 3).
 """
 
+import contextlib
 import json
 from typing import Any, Dict, List, Optional
 
@@ -174,14 +175,15 @@ class TestWriteCampaigns:
 
             if suspend_ok:
                 r = _invoke("campaigns", "resume", "--id", str(cid))
-                if r.exit_code != 0 or _has_result_errors(r.output, "ResumeResults"):
-                    if not _is_sandbox_error(
-                        r.output, extra_patterns=_CAMPAIGN_STATUS_PATTERNS
-                    ):
-                        pytest.fail(
-                            "campaigns resume failed (CLI regression?): "
-                            f"{r.output[:500]}"
-                        )
+                if (
+                    r.exit_code != 0 or _has_result_errors(r.output, "ResumeResults")
+                ) and not _is_sandbox_error(
+                    r.output, extra_patterns=_CAMPAIGN_STATUS_PATTERNS
+                ):
+                    pytest.fail(
+                        "campaigns resume failed (CLI regression?): "
+                        f"{r.output[:500]}"
+                    )
 
             # archive — sandbox DRAFT campaigns return embedded
             # ArchiveResults errors (Code 8303) with HTTP 200.
@@ -228,12 +230,10 @@ class TestWriteCampaignDraftLifecycle:
 
         try:
             assert_success(r, "campaigns draft add")
-            try:
+            # ID unknown on failure; cleanup in finally is skipped — manual
+            # recovery via campaign name
+            with contextlib.suppress(Exception):
                 cid = parse_add_result(r)
-            except Exception:  # noqa: PIE786 - malformed response shape varies
-                # ID unknown; cleanup in finally is skipped — manual recovery
-                # via campaign name
-                pass
 
             r = _invoke(
                 "campaigns",
@@ -1093,13 +1093,13 @@ class TestWriteStrategies:
             "--weekly-spend-limit",
             "300000000",
         )
-        _STRATEGY_ADD_SANDBOX_PATTERNS = (
+        _strategy_add_sandbox_patterns = (
             "без кошелька",
             "inconsistent object state",
         )
         if r.exit_code != 0 or _has_result_errors(r.output, "AddResults"):
             if _is_sandbox_error(
-                r.output, extra_patterns=_STRATEGY_ADD_SANDBOX_PATTERNS
+                r.output, extra_patterns=_strategy_add_sandbox_patterns
             ):
                 pytest.skip(f"strategies add not supported (sandbox): {r.output[:200]}")
             pytest.fail(f"strategies add failed (CLI regression?): {r.output[:500]}")

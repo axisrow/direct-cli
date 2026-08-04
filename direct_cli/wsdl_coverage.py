@@ -7,7 +7,7 @@ that the CLI implements all available services and methods.
 
 from __future__ import annotations
 
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET  # noqa: N817 - standard stdlib alias
 from functools import lru_cache
 from io import StringIO
 from pathlib import Path

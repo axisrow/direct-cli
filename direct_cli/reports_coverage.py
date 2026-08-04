@@ -229,9 +229,11 @@ def parse_reports_spec(raw: dict[str, str]) -> dict:
     if "headers" in raw:
         text = _extract_text(raw["headers"])
         for mode in ("auto", "online", "offline"):
-            if re.search(rf"\b{mode}\b", text, re.IGNORECASE):
-                if mode not in spec["processing_modes"]:
-                    spec["processing_modes"].append(mode)
+            if (
+                re.search(rf"\b{mode}\b", text, re.IGNORECASE)
+                and mode not in spec["processing_modes"]
+            ):
+                spec["processing_modes"].append(mode)
 
     if not spec["processing_modes"]:
         raise ValueError(
