@@ -28,6 +28,15 @@
   never-settling table report a false "removal confirmed". `_verify_saved`
   now treats a settle timeout as its own mismatch (same reporting path as
   every other verification failure) instead of silently proceeding.
+- A second round of Codex adversarial review found the settling wait and
+  the retry loop's own read are two genuinely separate DOM reads —
+  settling certifying a stable row *count* does not certify that the
+  retry loop's next, independent full-snapshot read lands on the same
+  settled state (reproduced: a stable pre-dip streak followed by a single
+  post-settle empty read was enough to report a no-op removal as
+  successful). The add/remove match predicate now requires
+  `_TARGET_ACTION_STABLE_STREAK` consecutive matching reads of the full
+  requested state, not just one, before accepting it.
 
 **Added — `WeeklySpendLimit` support for HighestPosition/ManualCpm strategies (#610):**
 

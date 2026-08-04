@@ -5843,6 +5843,117 @@ class TestUpdateMaster(unittest.TestCase):
         # a single early read.
         self.assertGreater(row_scan_calls["count"], 3)
 
+    def test_raises_when_post_settle_read_hits_a_single_transient_empty_dip(
+        self,
+    ):
+        """Codex adversarial review of this PR (#753), round 2: settling
+        successfully confirming a stable row count does NOT certify the
+        SEPARATE read the retry loop performs right after —
+        ``_wait_for_target_actions_settled`` calls ``page.locator(...)``
+        exactly ONCE and polls that single locator's ``.count()``
+        repeatedly, while ``_read_target_actions_or_none`` (the retry
+        loop's own reader) calls ``page.locator(...)`` AGAIN on every
+        attempt — genuinely independent locator acquisitions, not a
+        shared cached one. This models the dip on the SECOND-ever
+        ``page.locator(row_prefix_selector)`` acquisition (settling's is
+        the first) — i.e. the retry loop's very first read — reporting an
+        empty table once before reverting to the real, still-present row
+        on every read from then on (the close-button click is a no-op;
+        the goal never actually left `rows`). Without a stability
+        requirement on the retry loop's own match (not just on the
+        settling pre-check), this single post-settle empty read would be
+        trusted immediately as "goal removed" and ``update_master`` would
+        report success despite the goal never actually leaving `rows`."""
+        rows = {159614149: "150"}
+        page = self._dynamic_target_actions_page(rows)
+        original_locator = page.locator
+        row_prefix_selector = (
+            f'[data-testid^="TargetActions.'
+            f'{browser_masters._TARGET_ACTIONS_CATEGORY}."]'
+        )
+        close_testid = browser_masters._TARGET_ACTION_CLOSE_TESTID_TEMPLATE.format(
+            category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=159614149
+        )
+        locator_acquisitions = {"count": 0}
+        read_attempts = {"count": 0}
+
+        class _RealCountLocator:
+            """Wraps the REAL row-prefix locator, always reporting the
+            true, stable count — used for every settling tick (settling
+            acquires this wrapper once and polls it repeatedly)."""
+
+            def __init__(self, real_locator):
+                self._real = real_locator
+
+            def count(self):
+                return self._real.count()
+
+            def nth(self, i):
+                return self._real.nth(i)
+
+        class _RealCountLocatorAfterDip:
+            """Wraps the REAL row-prefix locator, always reporting the
+            true, stable count — used for every retry-loop acquisition
+            AFTER the single dip has already been consumed."""
+
+            def __init__(self, real_locator):
+                self._real = real_locator
+
+            def count(self):
+                read_attempts["count"] += 1
+                return self._real.count()
+
+            def nth(self, i):
+                return self._real.nth(i)
+
+        class _OnceEmptyLocator:
+            """Wraps the REAL row-prefix locator but reports 0 on its
+            ``.count()`` call — used for exactly the retry loop's FIRST,
+            independent post-settle acquisition, globally once."""
+
+            def __init__(self, real_locator):
+                self._real = real_locator
+
+            def count(self):
+                read_attempts["count"] += 1
+                return 0
+
+            def nth(self, i):
+                return self._real.nth(i)
+
+        def _stub_locator(selector):
+            if selector == f'[data-testid="{close_testid}"]':
+                return _FakeLocator([_FakeLocatorHandle()])  # click is a no-op
+            if selector == row_prefix_selector:
+                locator_acquisitions["count"] += 1
+                real = original_locator(selector)
+                if locator_acquisitions["count"] == 1:
+                    # Settling's single locator acquisition: always the
+                    # real, stable count.
+                    return _RealCountLocator(real)
+                if locator_acquisitions["count"] == 2:
+                    # The retry loop's first, independent acquisition:
+                    # empty exactly once, globally.
+                    return _OnceEmptyLocator(real)
+                # Every later retry-loop acquisition: back to the real,
+                # still-present row (the goal was never actually removed).
+                return _RealCountLocatorAfterDip(real)
+            return original_locator(selector)
+
+        page.locator = _stub_locator
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(
+                page, 42, remove_target_action_goal_ids=[159614149]
+            )
+        self.assertIn("did not save as requested", str(ctx.exception))
+        self.assertIn(
+            "still present in the 'Целевые действия' table", str(ctx.exception)
+        )
+        # Confirms the retry loop kept reading past the single post-settle
+        # dip rather than trusting it immediately.
+        self.assertGreater(read_attempts["count"], 1)
+
     def test_updates_multiple_fields_in_one_call(self):
         budget_state = {}
         checkbox_state = {"checked": False}

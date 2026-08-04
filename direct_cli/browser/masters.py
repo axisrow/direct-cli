@@ -4049,10 +4049,28 @@ def _verify_saved(
                     return None
                 return {row["GoalId"]: row["Price"] for row in rows}
 
+            # Codex adversarial review of this PR (#753), round 2: the
+            # settling wait above and this predicate's own read are TWO
+            # separate DOM reads — settling certifying 5 stable ``.count()``
+            # ticks does not certify that THIS predicate's next, independent
+            # ``_read_target_actions_or_none`` call lands on the same
+            # settled state (reproduced live: a stable pre-dip streak
+            # followed by one post-settle empty read was enough to report a
+            # no-op removal as successful). Rather than trust a single
+            # matching read here either, require
+            # ``_TARGET_ACTION_STABLE_STREAK`` CONSECUTIVE matching reads
+            # of the full add/remove snapshot before accepting it — the
+            # same stability bar ``_wait_for_target_actions_settled``
+            # applies to a bare row count, now applied to the actual
+            # verified state.
+            match_streak = 0
+
             def _add_remove_match(
                 actual: Optional[Dict[int, Optional[float]]], _expected: Any
             ) -> bool:
+                nonlocal match_streak
                 if actual is None:
+                    match_streak = 0
                     return False
                 added_ok = all(
                     _target_action_price_matches(price, actual.get(goal_id))
@@ -4061,13 +4079,19 @@ def _verify_saved(
                 removed_ok = not any(
                     goal_id in actual for goal_id in remove_target_action_goal_ids or []
                 )
-                return added_ok and removed_ok
+                if added_ok and removed_ok:
+                    match_streak += 1
+                else:
+                    match_streak = 0
+                return match_streak >= _TARGET_ACTION_STABLE_STREAK
 
             actual_after_add_remove = _read_until_matches(
                 page,
                 _read_target_action_goal_ids,
                 None,
                 matches=_add_remove_match,
+                timeout_ms=_VERIFY_FIELD_READ_TIMEOUT_MS
+                + _TARGET_ACTION_SETTLE_TIMEOUT_MS,
             )
             if actual_after_add_remove is None:
                 # Every retry within the timeout hit a transient hydration
