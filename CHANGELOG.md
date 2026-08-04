@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+**Fixed — `masters add --region-id` verified only by label text, not RegionId identity (#657):**
+
+- `--region-id` resolved to Yandex's canonical `GeoRegionName` (#652) and
+  handed that bare name to the browser's `_set_region`, which selects the
+  tree/tag-group widget's checkbox by exact label-text match. GeoRegions
+  names are not globally unique, so a text-only match could in principle
+  click a same-named decoy checkbox belonging to a different RegionId than
+  the one requested — `_resolve_region_ids`'s own ambiguity guard already
+  refused known-ambiguous names up front, but gave no protection against a
+  markup/DOM surprise landing on the wrong same-named node at click time.
+- `_resolve_region_ids` now returns `(name, region_id)` pairs instead of
+  bare names, threaded through `masters add`/`create_master` into
+  `_set_region`. When a `region_id` is known, `_set_region` additionally
+  reads the checked checkbox's own `id` attribute (confirmed live it is
+  always `id="region-node-<RegionId>"`) and refuses — unchecking the wrong
+  node first — if it doesn't encode the requested RegionId, rather than
+  trusting the label-text match alone. Plain `--region` text (no known
+  RegionId) is unaffected and keeps matching by exact label text only, as
+  before.
+
 **Added — `masters update --target-action-price` / `masters targetactions get` (#707):**
 
 - Live recon (2026-08-04, campaign 713234191, `ksamatadirect` account,
