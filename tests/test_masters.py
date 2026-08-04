@@ -3253,6 +3253,49 @@ class TestSetDirectsHelps(unittest.TestCase):
         with self.assertRaises(BrowserSessionError):
             browser_masters._set_directs_helps(page, True)
 
+    def test_waits_out_hydration_before_deciding_to_click(self):
+        # Regression (Codex, cycle-review round 1 of PR #731): a one-shot
+        # _read_directs_helps() can catch data-checked mid-hydration —
+        # absent/unset, read as None — while the toggle is ALREADY in the
+        # requested state. Treating that None as "opposite of enabled" would
+        # click the label and actually INVERT the real (already-correct)
+        # state. Models data-checked missing for one tick, then settling to
+        # "true" (already matches enabled=True) — must poll via
+        # _read_until_matches and end up NOT clicking.
+        ticks = {"count": 0}
+        state = {"toggled": False}
+
+        def _toggle():
+            state["toggled"] = True
+
+        def _get_attrs():
+            if ticks["count"] < 1:
+                return {}
+            return {"data-checked": "true"}
+
+        label_handle = _FakeLocatorHandle(on_click=_toggle)
+        div_handle = _DynamicAttrsLocatorHandle(get_attrs=_get_attrs)
+
+        class _DelayedHydrationPage(FakePage):
+            def wait_for_timeout(self, timeout):
+                ticks["count"] += 1
+
+        page = _DelayedHydrationPage(
+            locators={
+                browser_masters._DIRECT_HELPS_TOGGLE_LABEL_SELECTOR: _FakeLocator(
+                    [label_handle]
+                ),
+                browser_masters._DIRECT_HELPS_TOGGLE_DIV_SELECTOR: _FakeLocator(
+                    [div_handle]
+                ),
+            }
+        )
+
+        browser_masters._set_directs_helps(page, True)
+
+        self.assertFalse(state["toggled"])
+        self.assertGreaterEqual(ticks["count"], 1)
+
 
 class TestSetPromotionGoal(unittest.TestCase):
     """``_set_promotion_goal`` (issue #631, Этап A) — open dropdown, click, verify.

@@ -1836,8 +1836,19 @@ def _set_directs_helps(page: "Page", enabled: bool) -> None:
     the "Директ помогает" toggle only — checking it reveals a second,
     nested checkbox ("Оптимизировать расширенные настройки...") that is out
     of scope for Этап A and must be left untouched.
+
+    The pre-click read polls via ``_read_until_matches`` instead of a
+    one-shot ``_read_directs_helps`` call (Codex, cycle-review round 1 of
+    PR #731): ``_wait_for_edit_form`` only guarantees the first headline
+    slot has rendered, so a one-shot read right after can catch
+    ``data-checked`` still unset/absent (``None``) while the toggle is
+    ALREADY in the requested state — the same hydration race
+    ``_read_until_matches``'s own docstring documents for every other field.
+    Treating that transient ``None`` as "opposite of ``enabled``" would
+    click the label and invert an already-correct state instead of leaving
+    it alone.
     """
-    current = _read_directs_helps(page)
+    current = _read_until_matches(page, _read_directs_helps, enabled)
     if current is enabled:
         return
 
