@@ -1,0 +1,52 @@
+interactions:
+- request:
+    body: '{"method":"AdImageAssociation","param":{"Action":"Get","SelectionCriteria":{}},"token":"<REDACTED>","locale":"en"}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate, br
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '114'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.34.2
+      authorization:
+      - REDACTED
+      client-login:
+      - REDACTED
+    method: POST
+    uri: https://api-sandbox.direct.yandex.ru/live/v4/json/
+  response:
+    body:
+      string: '{"data":{"AdImageAssociations":[],"TotalObjectsCount":"0"}}'
+    headers:
+      Content-Security-Policy:
+      - default-src 'none'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Tue, 04 Aug 2026 03:40:25 GMT
+      RequestId:
+      - '5448372471665298376'
+      Set-Cookie:
+      - REDACTED
+      Transfer-Encoding:
+      - chunked
+      X-Accel-Info:
+      - reqid:0000000000000000000,cmd:direct.json-api/AdImageAssociation
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+      content-length:
+      - '59'
+    status:
+      code: 200
+      message: OK
+version: 1
