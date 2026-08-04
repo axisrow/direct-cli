@@ -930,6 +930,28 @@ _TARGET_ACTION_ADD_OPTION_MAX_ATTEMPTS = 5
 # the edit page, below "Цель продвижения").
 _TARGET_ACTION_WAIT_TIMEOUT_MS = 5_000
 
+# Issue #750 (Codex round-3 finding on #749): the section can go through a
+# genuine, non-throwing EMPTY interval mid-hydration — live recon against
+# campaign 713277109 confirmed the row-testid locator's own ``.count()``
+# dips to 0 (and ``TargetActionsSection`` itself briefly leaves the DOM,
+# ``.count() == 0``) for ~1-1.5s starting around 4-4.5s after
+# ``_wait_for_edit_form`` returns, before the real row set (re)appears
+# around 5-5.5s. No section-scoped loading/spinner ``data-testid`` exists
+# to poll instead (confirmed live: the only "loading"-flavoured markup
+# nearby is an unrelated, always-present ``TextInput_disabled`` addon
+# class on the add-action input, not a completeness signal). A single read
+# landing in that dip is not an exception (``_read_target_actions_or_none``
+# returns a genuinely well-formed ``[]``, not ``None``) — it's a truthful
+# snapshot of a table that has not finished loading, which is exactly the
+# gap ``_wait_for_target_actions_settled`` closes: require
+# ``_TARGET_ACTION_STABLE_STREAK`` consecutive equal row-count reads,
+# ``_TARGET_ACTION_STABLE_TICK_MS`` apart, before trusting any read of this
+# table — mirrors ``_wait_for_audience_section``'s tag-count settling
+# (``_AUDIENCE_TAG_STABLE_STREAK``), same class of race, same fix shape.
+_TARGET_ACTION_STABLE_STREAK = 5
+_TARGET_ACTION_STABLE_TICK_MS = 300
+_TARGET_ACTION_SETTLE_TIMEOUT_MS = 10_000
+
 # "Аудитория" section (issue #681, Этап C, live recon 2026-08-04 against
 # campaign 713277109, ksamatadirect account — see module docstring for the
 # archive/unarchive detour needed to reach this campaign's edit page).
@@ -3260,6 +3282,63 @@ def _read_target_actions_or_none(page: "Page") -> Optional[List[Dict[str, Any]]]
     return results
 
 
+def _wait_for_target_actions_settled(page: "Page") -> bool:
+    """Block until the "Целевые действия" table's row count has stopped
+    changing, so a caller's subsequent read is a settled snapshot rather
+    than a mid-hydration one.
+
+    Issue #750 (Codex round-3 finding on #749): rounds 1-2 hardened
+    ``_read_target_actions_or_none`` against every failure mode that
+    surfaces as a raised ``PlaywrightError`` — but live recon against
+    campaign 713277109 confirmed the row-testid locator's ``.count()`` (and
+    even ``TargetActionsSection`` itself) can genuinely, without ever
+    raising, report a transient EMPTY state for over a second while the
+    real row set is still arriving. A caller trusting that read would
+    misreport a genuinely-present goal as removed — the same "truthful but
+    partial snapshot" class of race ``_wait_for_audience_section``'s tag-
+    count settling loop exists to close for the "Аудитория" section, and
+    the fix here is the identical shape: require
+    ``_TARGET_ACTION_STABLE_STREAK`` consecutive equal row-count reads,
+    ``_TARGET_ACTION_STABLE_TICK_MS`` apart, before treating the count as
+    trustworthy, rather than a single read or a bare visibility check.
+
+    A raised ``PlaywrightError`` mid-poll (the section detaching between
+    ticks) is treated the same as "count changed" — it resets the streak
+    rather than propagating, since ``_read_target_actions_or_none`` (the
+    caller's actual read, right after this returns) already has its own
+    ``None``-on-failure handling; this function only needs to decide when
+    a *count* has stopped moving, not to be the failure-reporting layer
+    itself.
+
+    Returns ``True`` once the count has settled, ``False`` on timeout —
+    callers treat a timeout as "could not confirm settling" and let their
+    own read-retry loop's existing failure/mismatch handling take over
+    (mirroring how ``_read_target_actions_or_none`` itself degrades),
+    rather than raising here and pre-empting that reporting.
+    """
+    prefix = f"TargetActions.{_TARGET_ACTIONS_CATEGORY}."
+    row_locator = page.locator(f'[data-testid^="{prefix}"]')
+    previous_count: "Optional[int]" = None
+    stable_streak = 0
+
+    def _row_count_stable() -> bool:
+        nonlocal previous_count, stable_streak
+        current_count = row_locator.count()
+        if previous_count is not None and current_count == previous_count:
+            stable_streak += 1
+        else:
+            stable_streak = 0
+        previous_count = current_count
+        return stable_streak >= _TARGET_ACTION_STABLE_STREAK
+
+    return _poll_until(
+        page,
+        _row_count_stable,
+        _TARGET_ACTION_SETTLE_TIMEOUT_MS,
+        tick_ms=_TARGET_ACTION_STABLE_TICK_MS,
+    )
+
+
 def _parse_target_action_price(raw: str) -> Optional[float]:
     """Parse a target-action price input's raw string value, same
     normalization as ``_goal_price_matches`` (comma decimal separator,
@@ -3925,6 +4004,19 @@ def _verify_saved(
                     )
 
     if add_target_actions or remove_target_action_goal_ids:
+        # Issue #750: a removed goal's absence from the FIRST read of this
+        # table is not by itself proof of removal — the table can go
+        # through a genuine, non-throwing empty/partial interval while
+        # hydrating (see ``_wait_for_target_actions_settled``'s docstring).
+        # Settling once here, before the match-retry loop below even
+        # starts, means that loop's first read already lands on a
+        # completeness-checked snapshot instead of leaning on repeated
+        # reads to average out a race it has no way to detect on its own.
+        # A settle timeout is not fatal here — it falls through to the
+        # existing retry loop, which still has its own
+        # None-on-failure/mismatch reporting for a table that genuinely
+        # never stabilizes.
+        _wait_for_target_actions_settled(page)
 
         def _read_target_action_goal_ids(
             p: "Page",

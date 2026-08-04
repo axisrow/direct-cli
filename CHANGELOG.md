@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+**Fixed — `masters update --add-target-action`/`--remove-target-action` verification could trust an incomplete first read of the "Целевые действия" table (#750):**
+
+- Round 3 of cycle-review on #749 found that `_verify_saved`'s add/remove
+  verification, while hardened against every *exception*-raising failure
+  mode (rounds 1-2), had no *positive* completeness signal for a read that
+  raises nothing at all: the table can go through a genuine, non-throwing
+  empty/partial interval while hydrating, and a removed goal's absence from
+  that snapshot alone was indistinguishable from a real removal.
+- Live recon against the test master 'Тест' (campaign 713277109) confirmed
+  the race: the row-testid locator's own `.count()` (and even the
+  `TargetActionsSection` element itself) can drop to 0 for over a second,
+  starting a few seconds after `_wait_for_edit_form` returns, before the
+  real row set (re)appears — no section-scoped loading/spinner
+  `data-testid` exists to poll instead.
+- New `_wait_for_target_actions_settled` (`direct_cli/browser/masters.py`)
+  requires 5 consecutive equal row-count reads, 300ms apart, before
+  `_verify_saved`'s add/remove retry loop trusts any read of the table —
+  same shape as `_wait_for_audience_section`'s tag-count settling
+  (issue #681).
+
 **Added — `WeeklySpendLimit` support for HighestPosition/ManualCpm strategies (#610):**
 
 - Live WSDL drift check (`scripts/check_wsdl_drift.py`, 2026-08-04) confirmed

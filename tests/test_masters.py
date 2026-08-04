@@ -5706,6 +5706,78 @@ class TestUpdateMaster(unittest.TestCase):
         # a false "removed_ok" on the first empty read would never get here.
         self.assertGreater(section_wait_for_calls["count"], 1)
 
+    def test_raises_when_removal_verify_first_read_is_incomplete_not_failed(
+        self,
+    ):
+        """Issue #750 (Codex round-3 finding on #749, NOT fixed by rounds
+        1-2 above): a successful-but-INCOMPLETE first read must not be
+        trusted either — this is the gap those two raise-based tests don't
+        cover. Unlike them, nothing here ever raises ``PlaywrightError``:
+        the row-prefix locator's ``.count()`` genuinely, truthfully returns
+        ``0`` for the first several polls (the goal row hasn't mounted
+        yet — live-confirmed on campaign 713277109, see
+        ``_wait_for_target_actions_settled``'s docstring), then flips back
+        to ``1`` and stays there — the goal was never actually removed
+        server-side. Without a completeness signal gating the very first
+        read the retry loop trusts, ``_add_remove_match`` would see ``{}``
+        on attempt 1, treat "goal absent" as "removal confirmed", and
+        return success despite the goal still being present in every read
+        from attempt 2 onward. Models: close-button click is a no-op (goal
+        stays in `rows`, mirroring a save Yandex silently rejected)."""
+        rows = {159614149: "150"}
+        page = self._dynamic_target_actions_page(rows)
+        original_locator = page.locator
+        row_prefix_selector = (
+            f'[data-testid^="TargetActions.'
+            f'{browser_masters._TARGET_ACTIONS_CATEGORY}."]'
+        )
+        close_testid = browser_masters._TARGET_ACTION_CLOSE_TESTID_TEMPLATE.format(
+            category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=159614149
+        )
+        row_scan_calls = {"count": 0}
+
+        class _IncompleteThenRealLocator:
+            """Wraps the REAL row-prefix locator (reflecting `rows`, which
+            still has the "removed" goal in it) but makes the first several
+            ``.count()`` calls report ``0`` — a truthful read of a table
+            that has not finished hydrating, never an exception. Delegates
+            to the real locator afterward so the eventually-settled state
+            still correctly shows the goal as present (removal genuinely
+            did not happen), the same way
+            ``_FlakyOnceCountLocator``/``_CountNeverFailsLocator`` above
+            delegate to the real locator on their own non-flaky path."""
+
+            def __init__(self, real_locator):
+                self._real = real_locator
+
+            def count(self):
+                row_scan_calls["count"] += 1
+                if row_scan_calls["count"] <= 3:
+                    return 0
+                return self._real.count()
+
+            def nth(self, i):
+                return self._real.nth(i)
+
+        def _stub_locator(selector):
+            if selector == f'[data-testid="{close_testid}"]':
+                return _FakeLocator([_FakeLocatorHandle()])  # click is a no-op
+            if selector == row_prefix_selector:
+                return _IncompleteThenRealLocator(original_locator(selector))
+            return original_locator(selector)
+
+        page.locator = _stub_locator
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(
+                page, 42, remove_target_action_goal_ids=[159614149]
+            )
+        self.assertIn("did not save as requested", str(ctx.exception))
+        # Confirms the settling loop actually polled past the incomplete
+        # reads — a premature "removed_ok" on attempt 1 would never
+        # observe more than a couple of `.count()` calls total.
+        self.assertGreater(row_scan_calls["count"], 3)
+
     def test_updates_multiple_fields_in_one_call(self):
         budget_state = {}
         checkbox_state = {"checked": False}
