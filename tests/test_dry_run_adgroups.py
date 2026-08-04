@@ -2068,3 +2068,27 @@ def test_adgroups_add_valid_region_ids_still_passes_through():
         "adgroups", "add", "--name", "G", "--campaign-id", "1", "--region-ids", "225"
     )
     assert body["params"]["AdGroups"][0]["RegionIds"] == [225]
+
+
+# adgroups suspend/resume (issue #573) -- not a 1:1 WSDL mirror: AdGroups has
+# no suspend/resume RPC method. --dry-run must not hit the network (the real
+# ads.<method> body depends on ads.get's result, so it prints the lookup
+# request instead), which is why these aren't in PAYLOAD_CASES: there is no
+# WSDL operation named "adgroups.suspend"/"adgroups.resume" to validate the
+# body against.
+
+
+def test_adgroups_suspend_dry_run_shows_ad_lookup_without_network_call():
+    body = _dry_run("adgroups", "suspend", "--id", "111")
+    lookup = body["step1_resolveAdIds"]
+    assert lookup["method"] == "get"
+    assert lookup["params"]["SelectionCriteria"] == {"AdGroupIds": [111]}
+    assert lookup["params"]["FieldNames"] == ["Id"]
+    assert body["step2_perAdChunk"]["method"] == "suspend"
+
+
+def test_adgroups_resume_dry_run_shows_ad_lookup_without_network_call():
+    body = _dry_run("adgroups", "resume", "--id", "222")
+    lookup = body["step1_resolveAdIds"]
+    assert lookup["params"]["SelectionCriteria"] == {"AdGroupIds": [222]}
+    assert body["step2_perAdChunk"]["method"] == "resume"

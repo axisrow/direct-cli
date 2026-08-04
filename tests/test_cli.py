@@ -51,6 +51,53 @@ class _FakeAdGroupsClient:
         return _FakeAdGroupsEndpoint(self, "adgroups_v501")
 
 
+class _FakeAdsResponse:
+    """Fake ``ads()`` response supporting both ``iter_items`` (get) and
+    ``extract`` (suspend/resume), keyed by the request method in the body."""
+
+    def __init__(self, ad_ids: list[int], result_key: str) -> None:
+        self._ad_ids = ad_ids
+        self._result_key = result_key
+
+    def __call__(self) -> "_FakeAdsResponse":
+        return self
+
+    def iter_items(self):
+        return iter({"Id": ad_id} for ad_id in self._ad_ids)
+
+    def extract(self) -> dict[str, Any]:
+        return {
+            self._result_key: [{"Id": ad_id, "Errors": []} for ad_id in self._ad_ids]
+        }
+
+
+class _FakeAdsEndpoint:
+    def __init__(self, client: "_FakeAdsClient") -> None:
+        self.client = client
+
+    def post(self, data: dict[str, Any]) -> _FakeAdsResponse:
+        self.client.calls.append(("ads", data))
+        method = data["method"]
+        if method == "get":
+            return _FakeAdsResponse(self.client.ad_ids, "unused")
+        result_key = f"{method.capitalize()}Results"
+        return _FakeAdsResponse(self.client.ad_ids, result_key)
+
+
+class _FakeAdsClient:
+    """Fake client for ``adgroups suspend``/``adgroups resume`` (issue #573):
+    ``ads().post`` with ``method="get"`` returns ``ad_ids`` via
+    ``iter_items``; any other method returns them via ``extract`` under
+    ``<Method>Results``."""
+
+    def __init__(self, ad_ids: list[int]) -> None:
+        self.ad_ids = ad_ids
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+
+    def ads(self) -> _FakeAdsEndpoint:
+        return _FakeAdsEndpoint(self)
+
+
 class TestCLI(unittest.TestCase):
     """Test CLI commands"""
 
@@ -337,6 +384,84 @@ class TestCLI(unittest.TestCase):
             adgroup["SmartAdGroup"]["AdBodySource"],
             "FEED_DESCRIPTION",
         )
+
+    def test_adgroups_suspend_batches_group_ads(self):
+        """issue #573: suspend resolves the group's ads via ads.get then
+        suspends them via ads.suspend, in the same client session."""
+        fake_client = _FakeAdsClient(ad_ids=[10, 20, 30])
+        adgroups_module = import_module("direct_cli.commands.adgroups")
+
+        with patch.object(adgroups_module, "create_client", return_value=fake_client):
+            result = self.runner.invoke(
+                cli,
+                ["adgroups", "suspend", "--id", "555"],
+                env={
+                    "YANDEX_DIRECT_TOKEN": "test-token",
+                    "YANDEX_DIRECT_LOGIN": "axisrow",
+                },
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(len(fake_client.calls), 2)
+        get_call, suspend_call = fake_client.calls
+        self.assertEqual(get_call[1]["method"], "get")
+        self.assertEqual(
+            get_call[1]["params"]["SelectionCriteria"], {"AdGroupIds": [555]}
+        )
+        self.assertEqual(suspend_call[1]["method"], "suspend")
+        self.assertEqual(
+            suspend_call[1]["params"]["SelectionCriteria"], {"Ids": [10, 20, 30]}
+        )
+        payload = json.loads(result.output)
+        self.assertEqual(
+            payload["SuspendResults"],
+            [
+                {"Id": 10, "Errors": []},
+                {"Id": 20, "Errors": []},
+                {"Id": 30, "Errors": []},
+            ],
+        )
+
+    def test_adgroups_resume_batches_group_ads(self):
+        fake_client = _FakeAdsClient(ad_ids=[7])
+        adgroups_module = import_module("direct_cli.commands.adgroups")
+
+        with patch.object(adgroups_module, "create_client", return_value=fake_client):
+            result = self.runner.invoke(
+                cli,
+                ["adgroups", "resume", "--id", "555"],
+                env={
+                    "YANDEX_DIRECT_TOKEN": "test-token",
+                    "YANDEX_DIRECT_LOGIN": "axisrow",
+                },
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        suspend_call = fake_client.calls[1]
+        self.assertEqual(suspend_call[1]["method"], "resume")
+        payload = json.loads(result.output)
+        self.assertEqual(payload["ResumeResults"], [{"Id": 7, "Errors": []}])
+
+    def test_adgroups_suspend_empty_group_sends_no_ads_request(self):
+        """An empty group must not send ads.suspend with an empty Ids array."""
+        fake_client = _FakeAdsClient(ad_ids=[])
+        adgroups_module = import_module("direct_cli.commands.adgroups")
+
+        with patch.object(adgroups_module, "create_client", return_value=fake_client):
+            result = self.runner.invoke(
+                cli,
+                ["adgroups", "suspend", "--id", "555"],
+                env={
+                    "YANDEX_DIRECT_TOKEN": "test-token",
+                    "YANDEX_DIRECT_LOGIN": "axisrow",
+                },
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(len(fake_client.calls), 1)
+        self.assertEqual(fake_client.calls[0][1]["method"], "get")
+        payload = json.loads(result.output)
+        self.assertEqual(payload, {"SuspendResults": []})
 
     def test_auth_help_has_no_docs_url(self):
         """Auth is not a Yandex Direct API resource and has no docs epilog."""

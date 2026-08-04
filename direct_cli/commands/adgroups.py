@@ -2035,3 +2035,132 @@ def update(
 delete = make_lifecycle_command(
     adgroups, "delete", "Delete ad group", "adgroup_id", "Ad group ID", create_client
 )
+
+
+# Yandex Direct's AdGroups service has no suspend/resume RPC method (WSDL
+# declares only add/get/update/delete) and AdGroupUpdateItem has no impression
+# status field either -- see issue #573. The web UI and Direct Commander
+# implement "pause the group" by suspending every ad in the group, not the
+# group itself. These two commands are a CLI-side HELPER built on top of
+# ads.get + ads.suspend/ads.resume -- they are NOT a 1:1 WSDL mirror, unlike
+# every other adgroups subcommand. This is a deliberate, documented exception
+# to strict WSDL parity (CLAUDE.md), analogous to other custom non-RPC
+# endpoints (e.g. reports.get); it is not eligible for
+# DRY_RUN_PAYLOAD_EXCLUSIONS "helper"/"legacy" wording because it IS a real
+# CLI command, just not a WSDL-mirrored one.
+#
+# ads.get / ads.suspend / ads.resume are themselves ordinary WRITE_SANDBOX
+# methods (see smoke_matrix.py), so these two commands are WRITE_SANDBOX too
+# -- they can be exercised safely against `direct --sandbox`.
+ADGROUPS_ADS_SUSPEND_RESUME_CHUNK_SIZE = 1000
+
+
+def _adgroup_get_ad_ids_body(adgroup_id: int) -> dict:
+    """The ``ads.get`` request used to resolve an ad group's ad Ids."""
+    return {
+        "method": "get",
+        "params": {
+            "SelectionCriteria": {"AdGroupIds": [adgroup_id]},
+            "FieldNames": ["Id"],
+        },
+    }
+
+
+def _adgroup_ad_ids(client, adgroup_id: int) -> list[int]:
+    """Fetch every ad Id belonging to *adgroup_id* via ``ads.get``."""
+    result = client.ads().post(data=_adgroup_get_ad_ids_body(adgroup_id))
+    return [item["Id"] for item in result().iter_items()]
+
+
+def _adgroup_ads_lifecycle_command(method: str, help_text: str):
+    """Build the ``adgroups suspend``/``adgroups resume`` helper command.
+
+    Resolves the ad group's ad Ids via ``ads.get`` (issue #573's emulation),
+    then sends ``ads.<method>`` in chunks of
+    ``ADGROUPS_ADS_SUSPEND_RESUME_CHUNK_SIZE``, mirroring
+    :func:`_lifecycle.make_lifecycle_command`'s body shape
+    (``{"SelectionCriteria": {"Ids": [...]}}``) but batched instead of
+    single-id, since a group can hold many ads.
+
+    ``--dry-run`` never calls the API (matching every other command's
+    contract): it prints the ``ads.get`` lookup request that would run first,
+    since the actual ``ads.<method>`` body depends on that lookup's result
+    and cannot be known without it.
+    """
+
+    @adgroups.command(name=method, help=help_text)
+    @click.option(
+        "--id",
+        "adgroup_id",
+        required=True,
+        type=click.IntRange(min=1),
+        help="Ad group ID",
+    )
+    @click.option("--dry-run", is_flag=True, help="Show request without sending")
+    @click.pass_context
+    @handle_api_errors
+    def _command(ctx, adgroup_id, dry_run):
+        get_body = _adgroup_get_ad_ids_body(adgroup_id)
+
+        if dry_run:
+            preview = {
+                "step1_resolveAdIds": get_body,
+                "step2_perAdChunk": {
+                    "method": method,
+                    "params": {"SelectionCriteria": {"Ids": "<ad Ids from step 1>"}},
+                },
+                "chunkSize": ADGROUPS_ADS_SUSPEND_RESUME_CHUNK_SIZE,
+            }
+            format_output(preview, "json", None)
+            return
+
+        client = client_from_ctx(ctx, create_client)
+        ad_ids = _adgroup_ad_ids(client, adgroup_id)
+
+        result_key = f"{method.capitalize()}Results"
+
+        if not ad_ids:
+            # Empty group (or a group whose ads are all archived/deleted, which
+            # ads.get with no --statuses filter still returns): nothing to
+            # suspend/resume. Report an explicit empty result instead of
+            # sending a body with an empty SelectionCriteria.Ids, which the
+            # live API would reject as a validation error.
+            format_output({result_key: []}, "json", None)
+            return
+
+        chunks = [
+            ad_ids[start : start + ADGROUPS_ADS_SUSPEND_RESUME_CHUNK_SIZE]
+            for start in range(0, len(ad_ids), ADGROUPS_ADS_SUSPEND_RESUME_CHUNK_SIZE)
+        ]
+
+        all_results: list[Any] = []
+        for chunk in chunks:
+            body = {"method": method, "params": {"SelectionCriteria": {"Ids": chunk}}}
+            response = client.ads().post(data=body)
+            chunk_results = response().extract()
+            if isinstance(chunk_results, dict):
+                chunk_results = chunk_results.get(result_key, [chunk_results])
+            all_results.extend(chunk_results)
+
+        format_output({result_key: all_results}, "json", None)
+
+    return _command
+
+
+suspend = _adgroup_ads_lifecycle_command(
+    "suspend",
+    "Suspend every ad in an ad group. AdGroups has no suspend method in the "
+    "API, so this emulates it via ads.get + ads.suspend (issue #573). An "
+    "empty group prints an empty SuspendResults with no request sent.",
+)
+
+resume = _adgroup_ads_lifecycle_command(
+    "resume",
+    "Resume every ad in an ad group. AdGroups has no resume method in the "
+    "API, so this emulates it via ads.get + ads.resume (issue #573). WARNING: "
+    "this resumes ALL ads currently in the group, including ones suspended "
+    "by hand before this command ran -- the CLI does not track which ads "
+    "'adgroups suspend' itself paused, so a mixed-status group loses its "
+    "manual suspensions. An empty group prints an empty ResumeResults with "
+    "no request sent.",
+)

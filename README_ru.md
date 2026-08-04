@@ -555,8 +555,24 @@ direct adgroups update --id 67890 --dynamic-feed --autotargeting-category EXACT=
 direct adgroups update --id 67890 --target-device-types DEVICE_TYPE_TABLET --target-carrier WI_FI_ONLY --target-operating-system-version 13.0
 direct adgroups update --id 67890 --ad-title-source FEED_NAME --ad-body-source FEED_DESCRIPTION
 direct adgroups update --id 67890 --offer-retargeting NO
+direct adgroups suspend --id 67890
+direct adgroups resume --id 67890
 direct adgroups delete --id 67890
 ```
+
+`adgroups suspend`/`adgroups resume` — не 1:1-зеркало WSDL: у сервиса
+AdGroups нет метода suspend/resume (только `add`/`get`/`update`/`delete`).
+Команды эмулируют «остановку группы» так же, как это делают веб-интерфейс и
+Директ Коммандер — получают объявления группы через `ads.get` и
+останавливают/возобновляют их через `ads.suspend`/`ads.resume` (issue #573).
+Два следствия:
+
+- `resume` не отличает объявления, остановленные именно этой командой, от
+  тех, что человек остановил вручную раньше — возобновляются ВСЕ объявления
+  группы, поэтому в группе со смешанными статусами ручные остановки будут
+  сброшены.
+- Для пустой группы (или группы, чьих объявлений больше не существует)
+  выводится пустой `SuspendResults`/`ResumeResults` без отправки запроса.
 
 #### Объявления
 
@@ -844,7 +860,7 @@ direct campaigns get --fetch-all   # все страницы
 | `keywords delete --id` | Безвозвратно удаляет ключевое слово |
 | `audiencetargets delete --id` | Безвозвратно удаляет условие подбора аудитории |
 
-Команды, влияющие на показ рекламы: `suspend`, `resume`, `archive`, `unarchive` (доступны для `campaigns`, `ads`), `suspend`, `resume` (также для `keywords`).
+Команды, влияющие на показ рекламы: `suspend`, `resume`, `archive`, `unarchive` (доступны для `campaigns`, `ads`), `suspend`, `resume` (также для `keywords`, а для `adgroups` — как эмуляция через объявления группы, см. оговорку про `resume` в разделе «Группы объявлений» выше).
 
 Команды, влияющие на ставки и расходы: `bids set`, `keywordbids set`, `bidmodifiers set`.
 
