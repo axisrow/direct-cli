@@ -2410,6 +2410,119 @@ class TestMastersSuspendResumeCommand(unittest.TestCase):
         self.assertEqual(mock_resume.call_count, 1)
 
 
+class _FakeHydratingPopupHandle(_FakeLocatorHandle):
+    """A popup handle whose ``wait_for`` only succeeds after N total clicks
+    of the trigger have happened — models issues #723/#725's hydration race,
+    where a click on a visible/enabled trigger sometimes doesn't open its
+    popup/portal because React's own handler hasn't finished hydrating yet.
+    """
+
+    def __init__(self, *, ready_after_attempt, click_counter, **kwargs):
+        super().__init__(**kwargs)
+        self._ready_after_attempt = ready_after_attempt
+        self._click_counter = click_counter
+
+    def wait_for(self, state="visible", timeout=None):
+        if self._click_counter["count"] < self._ready_after_attempt:
+            raise PlaywrightError("Timeout waiting for element state")
+
+
+class TestClickAndWaitForPopup(unittest.TestCase):
+    """``_click_and_wait_for_popup`` (issues #723/#725): click a trigger,
+    retry if the expected popup doesn't appear, since the click can land on
+    a visible/enabled element without its React handler/portal being ready.
+    """
+
+    def _page(self, *, trigger_handle, popup_locator):
+        return FakePage(
+            locators={
+                "trigger": _FakeLocator([trigger_handle]),
+                "popup": popup_locator,
+            }
+        )
+
+    def test_succeeds_on_first_click_when_popup_appears_immediately(self):
+        page = self._page(
+            trigger_handle=_FakeLocatorHandle(),
+            popup_locator=_FakeLocator([_FakeLocatorHandle()]),
+        )
+
+        browser_masters._click_and_wait_for_popup(
+            page,
+            trigger_selector="trigger",
+            popup_selector="popup",
+            description="a test popup",
+        )  # must not raise
+
+    def test_retries_click_when_popup_does_not_appear_on_first_attempt(self):
+        click_counter = {"count": 0}
+
+        def _on_click():
+            click_counter["count"] += 1
+
+        trigger_handle = _FakeLocatorHandle(on_click=_on_click)
+        popup_handle = _FakeHydratingPopupHandle(
+            ready_after_attempt=2, click_counter=click_counter
+        )
+        page = self._page(
+            trigger_handle=trigger_handle,
+            popup_locator=_FakeLocator([popup_handle]),
+        )
+
+        browser_masters._click_and_wait_for_popup(
+            page,
+            trigger_selector="trigger",
+            popup_selector="popup",
+            description="a test popup",
+        )  # must not raise
+
+        self.assertEqual(click_counter["count"], 2)
+
+    def test_raises_after_exhausting_all_attempts(self):
+        click_counter = {"count": 0}
+
+        def _on_click():
+            click_counter["count"] += 1
+
+        trigger_handle = _FakeLocatorHandle(on_click=_on_click)
+        # Never becomes ready within the retry budget.
+        popup_handle = _FakeHydratingPopupHandle(
+            ready_after_attempt=browser_masters._POPUP_CLICK_MAX_ATTEMPTS + 1,
+            click_counter=click_counter,
+        )
+        page = self._page(
+            trigger_handle=trigger_handle,
+            popup_locator=_FakeLocator([popup_handle]),
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._click_and_wait_for_popup(
+                page,
+                trigger_selector="trigger",
+                popup_selector="popup",
+                description="a test popup",
+            )
+
+        self.assertIn("a test popup", str(ctx.exception))
+        self.assertEqual(
+            click_counter["count"], browser_masters._POPUP_CLICK_MAX_ATTEMPTS
+        )
+
+    def test_raises_when_trigger_itself_is_never_clickable(self):
+        page = self._page(
+            trigger_handle=_FakeLocatorHandle(raises=True),
+            popup_locator=_FakeLocator([_FakeLocatorHandle()]),
+        )
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._click_and_wait_for_popup(
+                page,
+                trigger_selector="trigger",
+                popup_selector="popup",
+                description="a test popup",
+            )
+
+
 class TestArchiveMaster(unittest.TestCase):
     """archive_master (issue #633): click + verify via the campaigns grid.
 
