@@ -217,6 +217,22 @@ before navigating, so this is a plain status check added there;
 ``suspend``/``resume`` check ``_is_draft_overview_page`` right after
 navigating, before ``_read_status_text`` would otherwise report "unrecognised
 status text"). ``copy_master`` itself does not depend on any of these working.
+
+**Menu/modal-trigger hydration race** (issues #723/#725). Live testing found
+that clicking a trigger element which is itself visible/enabled — the "⋮"
+menu trigger (``_MENU_TRIGGER_SELECTOR``, used by ``archive_master`` and
+``copy_master``) or the name-edit pencil button
+(``_EDIT_NAME_BUTTON_SELECTOR``, used by ``_set_campaign_name``) — sometimes
+does not open the popup/modal it controls: the click physically lands
+(Playwright's own actionability check only inspects the DOM element, not
+whether React's click handler or the portal that renders the popup has
+finished hydrating), but nothing opens. ``_click_and_wait_for_popup`` is the
+shared fix: click the trigger, wait briefly for the expected popup element to
+become visible, and retry the whole click if it doesn't, up to
+``_POPUP_CLICK_MAX_ATTEMPTS`` times, before raising a clear error. Safe to
+retry unconditionally here — unlike the terminal save/launch buttons
+(``_click_draft_terminal_button``), opening a menu or a rename modal has no
+side effect on the campaign itself.
 """
 
 import contextlib
@@ -390,6 +406,20 @@ _ARCHIVE_MENU_ITEM_SELECTOR = '[data-testid="CampaignHeader.Menu.archive"]'
 # Confirmed live (issue #659) alongside the archive item above — same menu,
 # same testid convention.
 _CLONE_MENU_ITEM_SELECTOR = '[data-testid="CampaignHeader.Menu.clone"]'
+
+# Issues #723/#725: live testing found that clicking a trigger element that
+# is itself visible/enabled (CampaignHeader.MenuTrigger for the "⋮" menu,
+# CampaignHeader.EditName.Button for the name-edit pencil) does not always
+# open the popup/modal it controls — React's click handler or the portal
+# rendering the popup can still be hydrating even though Playwright's own
+# actionability check (which only looks at the DOM element, not React's
+# internal readiness) already considers the element clickable. The click
+# itself does not raise in this case; it is simply swallowed. A short
+# wait-then-retry loop (see _click_and_wait_for_popup) absorbs this without
+# conflating it with a genuinely missing/renamed selector, which still fails
+# loudly after every retry is exhausted.
+_POPUP_APPEAR_TIMEOUT_MS = 1_500
+_POPUP_CLICK_MAX_ATTEMPTS = 3
 
 # How long to wait, after clicking Архивировать, for the grid API to report
 # the campaign as ARCHIVED before giving up (see archive_master).
@@ -1390,6 +1420,83 @@ def _click_action_button(page: "Page", candidate_texts: Tuple[str, ...]) -> None
     )
 
 
+def _click_and_wait_for_popup(
+    page: "Page",
+    *,
+    trigger_selector: str,
+    popup_selector: str,
+    description: str,
+) -> None:
+    """Click ``trigger_selector`` and retry until ``popup_selector`` actually
+    appears (issues #723/#725).
+
+    Live testing found clicking a menu trigger or an edit-name button that is
+    itself visible/enabled sometimes does not open its popup/modal at all —
+    the click physically lands (Playwright's actionability check passes,
+    nothing raises), but the popup/portal it should open never renders,
+    because React's own click handler or the portal mount was still
+    hydrating at the moment of the click. A single click plus an
+    unconditional ``.click()`` on the popup's contents (what every caller did
+    before this helper) would then fail with a generic "not found" error that
+    looks identical to Yandex having actually changed the page's markup.
+
+    This clicks the trigger, waits up to ``_POPUP_APPEAR_TIMEOUT_MS`` for the
+    popup to become visible, and — if it doesn't — retries the whole
+    click-then-wait sequence up to ``_POPUP_CLICK_MAX_ATTEMPTS`` times before
+    raising. Each retry re-clicks the trigger rather than just waiting
+    longer: the menu trigger toggles (a lingering half-open popup would be
+    closed by a second click, which is fine — the following wait then opens
+    it fresh) and the edit-name button reliably opens a fresh modal instance
+    on every click, so a retry here is safe to repeat, unlike the terminal
+    save/launch buttons this module deliberately clicks only once (see
+    ``_click_draft_terminal_button``'s docstring for why an unconditional
+    retry is NOT safe there — it is safe here specifically because opening a
+    menu/modal has no side effect on the campaign itself).
+    """
+    trigger = page.locator(trigger_selector).first
+    popup = page.locator(popup_selector).first
+
+    last_exc: Optional[Exception] = None
+    for _ in range(_POPUP_CLICK_MAX_ATTEMPTS):
+        # A prior iteration's wait_for() can time out at the 1.5s mark just
+        # before a genuinely successful (merely slow) open finishes
+        # rendering. Re-clicking the trigger unconditionally in that case
+        # would close a toggle menu that did open, or land on an overlay for
+        # the rename modal — turning a slow-but-correct open into a
+        # deterministic failure. Check first: if the popup is already up (a
+        # near-zero-timeout wait_for, not a one-shot is_visible() snapshot —
+        # consistent with this module's convention elsewhere, see
+        # _read_goal_price), we're done without touching the trigger again.
+        try:
+            popup.wait_for(state="visible", timeout=1)
+            return
+        except PlaywrightError:
+            pass
+
+        try:
+            trigger.click()
+        except PlaywrightError as exc:
+            last_exc = exc
+            continue
+
+        try:
+            popup.wait_for(state="visible", timeout=_POPUP_APPEAR_TIMEOUT_MS)
+            return
+        except PlaywrightError as exc:
+            last_exc = exc
+            continue
+
+    raise BrowserSessionError(
+        f"Clicked {trigger_selector!r} to open {description}, but "
+        f"{popup_selector!r} did not appear within "
+        f"{_POPUP_APPEAR_TIMEOUT_MS / 1000:.1f}s even after "
+        f"{_POPUP_CLICK_MAX_ATTEMPTS} attempts — Yandex may have changed the "
+        "page's markup, or the click keeps landing before the page's React "
+        "handlers finish hydrating. Re-run with --headful to inspect the "
+        "page."
+    ) from last_exc
+
+
 def _suspend_or_resume(
     page: "Page",
     campaign_id: int,
@@ -1525,14 +1632,19 @@ def archive_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
 
     _goto_overview_page(page, campaign_id)
 
-    menu_trigger = page.locator(_MENU_TRIGGER_SELECTOR).first
     try:
-        menu_trigger.click()
-    except PlaywrightError as exc:
+        _click_and_wait_for_popup(
+            page,
+            trigger_selector=_MENU_TRIGGER_SELECTOR,
+            popup_selector=_ARCHIVE_MENU_ITEM_SELECTOR,
+            description=f"the campaign menu for {campaign_id}",
+        )
+    except BrowserSessionError as exc:
         raise BrowserSessionError(
-            f"Could not open the campaign menu for {campaign_id} "
-            f"({_MENU_TRIGGER_SELECTOR!r} not found/clickable) — Yandex may "
-            "have changed the overview page's markup."
+            f"Could not open the campaign menu for {campaign_id} and find "
+            f"'Архивировать' ({_MENU_TRIGGER_SELECTOR!r} / "
+            f"{_ARCHIVE_MENU_ITEM_SELECTOR!r}) — Yandex may have changed the "
+            "overview page's markup."
         ) from exc
 
     archive_item = page.locator(_ARCHIVE_MENU_ITEM_SELECTOR).first
@@ -1540,9 +1652,9 @@ def archive_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
         archive_item.click()
     except PlaywrightError as exc:
         raise BrowserSessionError(
-            f"Could not find/click 'Архивировать' for campaign {campaign_id} "
-            f"({_ARCHIVE_MENU_ITEM_SELECTOR!r} not found) — Yandex may have "
-            "changed the overview page's menu."
+            f"Could not click 'Архивировать' for campaign {campaign_id} "
+            f"({_ARCHIVE_MENU_ITEM_SELECTOR!r} found but not clickable) — "
+            "Yandex may have changed the overview page's menu."
         ) from exc
 
     deadline = time.monotonic() + _ARCHIVE_VERIFY_TIMEOUT_MS / 1000
@@ -1683,14 +1795,19 @@ def copy_master(
 
     _goto_overview_page(page, campaign_id)
 
-    menu_trigger = page.locator(_MENU_TRIGGER_SELECTOR).first
     try:
-        menu_trigger.click()
-    except PlaywrightError as exc:
+        _click_and_wait_for_popup(
+            page,
+            trigger_selector=_MENU_TRIGGER_SELECTOR,
+            popup_selector=_CLONE_MENU_ITEM_SELECTOR,
+            description=f"the campaign menu for {campaign_id}",
+        )
+    except BrowserSessionError as exc:
         raise BrowserSessionError(
-            f"Could not open the campaign menu for {campaign_id} "
-            f"({_MENU_TRIGGER_SELECTOR!r} not found/clickable) — Yandex may "
-            "have changed the overview page's markup."
+            f"Could not open the campaign menu for {campaign_id} and find "
+            f"'Клонировать' ({_MENU_TRIGGER_SELECTOR!r} / "
+            f"{_CLONE_MENU_ITEM_SELECTOR!r}) — Yandex may have changed the "
+            "overview page's markup."
         ) from exc
 
     clone_item = page.locator(_CLONE_MENU_ITEM_SELECTOR).first
@@ -1698,9 +1815,9 @@ def copy_master(
         clone_item.click()
     except PlaywrightError as exc:
         raise BrowserSessionError(
-            f"Could not find/click 'Клонировать' for campaign {campaign_id} "
-            f"({_CLONE_MENU_ITEM_SELECTOR!r} not found) — Yandex may have "
-            "changed the overview page's menu."
+            f"Could not click 'Клонировать' for campaign {campaign_id} "
+            f"({_CLONE_MENU_ITEM_SELECTOR!r} found but not clickable) — "
+            "Yandex may have changed the overview page's menu."
         ) from exc
 
     _wait_for_step2(page)
@@ -1797,16 +1914,29 @@ def _set_campaign_name(page: "Page", name: str) -> None:
     see the module docstring for why the modal's own "Применить" isn't the
     real save.
     """
-    edit_button = page.locator(_EDIT_NAME_BUTTON_SELECTOR).first
     try:
-        edit_button.click()
+        _click_and_wait_for_popup(
+            page,
+            trigger_selector=_EDIT_NAME_BUTTON_SELECTOR,
+            popup_selector=_NAME_MODAL_INPUT_SELECTOR,
+            description="the campaign name modal ('Название кампании')",
+        )
+    except BrowserSessionError as exc:
+        raise BrowserSessionError(
+            "Could not open the campaign name modal ('Название кампании') "
+            f"on the campaign edit page ({_EDIT_NAME_BUTTON_SELECTOR!r} / "
+            f"{_NAME_MODAL_INPUT_SELECTOR!r}) — Yandex may have changed the "
+            "page's markup. Re-run with --headful to inspect the page."
+        ) from exc
+
+    try:
         name_input = page.locator(_NAME_MODAL_INPUT_SELECTOR).first
         name_input.click()
         name_input.fill(name)
         page.locator(_NAME_MODAL_ACCEPT_SELECTOR).first.click()
     except PlaywrightError as exc:
         raise BrowserSessionError(
-            "Could not find or fill the campaign name modal ('Название "
+            "Could not fill or submit the campaign name modal ('Название "
             "кампании') on the campaign edit page — Yandex may have changed "
             "the page's markup. Re-run with --headful to inspect the page."
         ) from exc
