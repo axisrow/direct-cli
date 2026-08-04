@@ -4856,6 +4856,8 @@ class TestUpdateMaster(unittest.TestCase):
         weekly_budget_state=None,
         directs_helps_state=None,
         name_state=None,
+        landing_url_state=None,
+        landing_url_clear_disabled=False,
         headlines_state=None,
         texts_state=None,
         goal_price_state=None,
@@ -4965,6 +4967,32 @@ class TestUpdateMaster(unittest.TestCase):
                 [header_handle]
             )
 
+        landing_url_handle = None
+        if landing_url_state is not None:
+            # Same "shared mutable state" pattern as name_state above, but
+            # via a _FakeContentEditableHandle (the real field is a
+            # contenteditable widget, not a plain <input> — issue #757, same
+            # widget family as the create page's own URL field).
+            landing_url_handle = _FakeContentEditableHandle(
+                text=landing_url_state.get("value", "")
+            )
+            locators[browser_masters._EDIT_URL_INPUT_TESTID] = _FakeLocator(
+                [landing_url_handle]
+            )
+            clear_handle = _FakeLocatorHandle(
+                attrs={"disabled": ""} if landing_url_clear_disabled else {}
+            )
+            locators[browser_masters._EDIT_URL_CLEAR_BUTTON_TESTID] = _FakeLocator(
+                [clear_handle]
+            )
+            # landing_url_handle's own ._text is the state actually mutated
+            # by type()/Backspace and read back by _read_landing_url on the
+            # post-save reload (same object reused across both goto() calls,
+            # mirroring headline_handles/text_handles above) — tests must
+            # assert against page.landing_url_handle.text_content(), NOT the
+            # landing_url_state dict passed in, which is only a starting
+            # value and is never written back to.
+
         if goal_price_state is not None:
             price_handle = _FakeLocatorHandle(
                 on_fill=lambda v: goal_price_state.__setitem__("value", v),
@@ -5038,6 +5066,7 @@ class TestUpdateMaster(unittest.TestCase):
         # above don't all need updating for this one new capability.
         page.headline_handles = headline_handles
         page.text_handles = text_handles
+        page.landing_url_handle = landing_url_handle
         return page, save_clicks
 
     def test_updates_only_weekly_budget(self):
@@ -5983,6 +6012,125 @@ class TestUpdateMaster(unittest.TestCase):
         self.assertEqual(len(save_clicks), 1)
         self.assertEqual(result, {"CampaignId": 42, "Name": "Новое имя"})
 
+    def test_updates_landing_url(self):
+        landing_url_state = {"value": "https://lp.example.ru/old?utm_source=old"}
+        page, save_clicks = self._page_with_save_button(
+            landing_url_state=landing_url_state
+        )
+
+        result = browser_masters.update_master(
+            page, 42, landing_url="https://lp.example.ru/new?utm_source=new"
+        )
+
+        self.assertEqual(
+            page.landing_url_handle.text_content(),
+            "https://lp.example.ru/new?utm_source=new",
+        )
+        self.assertEqual(len(save_clicks), 1)
+        self.assertEqual(
+            result,
+            {
+                "CampaignId": 42,
+                "LandingUrl": "https://lp.example.ru/new?utm_source=new",
+            },
+        )
+
+    def test_clears_utm_by_passing_bare_url(self):
+        # No dedicated --clear-utm flag (module docstring's
+        # _EDIT_URL_INPUT_TESTID note) — removing the UTM template while
+        # keeping the landing page is just passing a replacement URL with no
+        # query string.
+        landing_url_state = {
+            "value": "https://lp.example.ru/page?utm_source=yandex&utm_medium=cpc"
+        }
+        page, save_clicks = self._page_with_save_button(
+            landing_url_state=landing_url_state
+        )
+
+        result = browser_masters.update_master(
+            page, 42, landing_url="https://lp.example.ru/page"
+        )
+
+        self.assertEqual(
+            page.landing_url_handle.text_content(), "https://lp.example.ru/page"
+        )
+        self.assertEqual(len(save_clicks), 1)
+        self.assertEqual(
+            result, {"CampaignId": 42, "LandingUrl": "https://lp.example.ru/page"}
+        )
+
+    def test_clears_landing_url_entirely_with_empty_string(self):
+        landing_url_state = {"value": "https://lp.example.ru/page"}
+        page, save_clicks = self._page_with_save_button(
+            landing_url_state=landing_url_state
+        )
+
+        result = browser_masters.update_master(page, 42, landing_url="")
+
+        self.assertEqual(page.landing_url_handle.text_content(), "")
+        self.assertEqual(len(save_clicks), 1)
+        self.assertEqual(result, {"CampaignId": 42, "LandingUrl": ""})
+
+    def test_raises_when_landing_url_field_is_read_only_archived(self):
+        landing_url_state = {"value": "https://lp.example.ru/page"}
+        page, _save_clicks = self._page_with_save_button(
+            landing_url_state=landing_url_state,
+            landing_url_clear_disabled=True,
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(
+                page, 42, landing_url="https://lp.example.ru/new"
+            )
+        self.assertIn("ARCHIVED", str(ctx.exception))
+        # The field was never touched — Yandex's own state is unchanged.
+        self.assertEqual(
+            page.landing_url_handle.text_content(), "https://lp.example.ru/page"
+        )
+
+    def test_raises_when_saved_landing_url_does_not_match_requested(self):
+        # The field accepts the new text (so the in-flight type-and-verify
+        # loop inside _type_landing_url is satisfied), but the post-save
+        # RELOAD reads back the OLD value — Yandex silently rejected the
+        # save (or it didn't persist), same "never trust the click alone"
+        # convention as name. Modeled by a handle whose text_content()
+        # reports live (mutated) state up through the save, then reverts to
+        # the original once _verify_saved's own goto() has fired — a second,
+        # separate _FakeContentEditableHandle can't model this because
+        # FakePage.locator() keeps returning the SAME handle object across
+        # both goto() calls (see _page_with_save_button's landing_url_state
+        # comment).
+        original_value = "https://lp.example.ru/old"
+
+        class _RevertsOnReloadHandle(_FakeContentEditableHandle):
+            def text_content(self):
+                if len(page.navigated_to) > 1:
+                    return original_value
+                return super().text_content()
+
+        url_handle = _RevertsOnReloadHandle(text=original_value)
+        clear_handle = _FakeLocatorHandle()
+        edit_form_ready_selector = (
+            f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'
+        )
+        save_handle = _FakeTextLocatorHandle(visible=True)
+        page = FakePage(
+            locators={
+                browser_masters._EDIT_URL_INPUT_TESTID: _FakeLocator([url_handle]),
+                browser_masters._EDIT_URL_CLEAR_BUTTON_TESTID: _FakeLocator(
+                    [clear_handle]
+                ),
+                edit_form_ready_selector: _FakeLocator([_FakeLocatorHandle()]),
+            },
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(
+                page, 42, landing_url="https://lp.example.ru/new"
+            )
+        self.assertIn("landing_url", str(ctx.exception))
+
     def test_updates_name_together_with_weekly_budget(self):
         budget_state = {}
         name_state = {}
@@ -6487,6 +6635,51 @@ class TestMastersUpdateCommand(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertEqual(mock_update.call_args.kwargs["name"], "Новое имя")
+
+    def test_passes_landing_url_flag(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {
+                "CampaignId": 42,
+                "LandingUrl": "https://lp.example.ru/new?utm_source=new",
+            }
+            result = self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "update",
+                    "42",
+                    "--landing-url",
+                    "https://lp.example.ru/new?utm_source=new",
+                ],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(
+            mock_update.call_args.kwargs["landing_url"],
+            "https://lp.example.ru/new?utm_source=new",
+        )
+
+    def test_passes_empty_landing_url_flag_to_clear_it(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42, "LandingUrl": ""}
+            result = self.runner.invoke(
+                cli, ["masters", "update", "42", "--landing-url", ""]
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(mock_update.call_args.kwargs["landing_url"], "")
+
+    def test_documents_landing_url_flag(self):
+        result = self.runner.invoke(cli, ["masters", "update", "--help"])
+        self.assertIn("--landing-url", result.output)
 
     def test_passes_promotion_goal_choice(self):
         with (

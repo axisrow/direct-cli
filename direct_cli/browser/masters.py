@@ -1109,6 +1109,50 @@ _NAME_HEADER_SELECTOR = '[data-testid="CampaignHeader.TitleName"]'
 _NAME_MODAL_INPUT_SELECTOR = '[data-testid="ModalEditTitle.CampaignName"]'
 _NAME_MODAL_ACCEPT_SELECTOR = '[data-testid="AcceptButton"]'
 
+# "Ссылка на продвигаемую страницу" field on the EDIT page (issue #757,
+# live-confirmed 2026-08-04 against campaign 713277109) — a DIFFERENT
+# component from the create page's ``CampaignFormUrl`` (module docstring's
+# "Two distinct pages" note): the edit page renders it under a
+# ``CampaignLinkEditorLite`` namespace instead, but the field itself is the
+# same kind of widget — a ``contenteditable`` ``<div role="textbox">`` that
+# must be clicked, cleared, and re-typed exactly like
+# ``_CREATE_URL_INPUT_TESTID`` (see ``_type_landing_url``'s docstring for why
+# a retry-with-verify loop is required). There is no separate "Далее"/
+# suggestions-popup step here — the field lives directly on the single
+# whole-form edit page and is committed by the same terminal
+# ``_click_save`` as every other field this module writes.
+#
+# Confirmed live: this field (and its own Clear button) is READ-ONLY
+# whenever the campaign's current status is ARCHIVED — the Clear button's
+# ``disabled`` attribute is ``true`` and the field's own ``contentEditable``
+# stays ``"false"`` even after a click, exactly the "click does nothing"
+# symptom of a disabled contenteditable widget. The field becomes editable
+# again as soon as the campaign leaves ARCHIVED (confirmed live via
+# ``masters resume``/the overview page's "Разархивировать" flow — see issue
+# #758 for the gap in ``resume_master`` this surfaced). ``_set_landing_url``
+# raises a clear, named error for this rather than letting the click/type
+# attempt fail with an opaque markup-changed message.
+_EDIT_URL_INPUT_TESTID = '[data-testid="CampaignLinkEditorLite.LinkInput.Textinput"]'
+_EDIT_URL_CLEAR_BUTTON_TESTID = (
+    '[data-testid="CampaignLinkEditorLite.LinkInput.Textinput.Clear"]'
+)
+
+# The separate "UTM-метки и параметры URL" field under "Дополнительные
+# параметры" (``CampaignLinkEditorLite.UTMInput``) is NOT used by
+# ``_set_landing_url``/``--landing-url`` — confirmed live it is an
+# independent, normally-empty helper field for appending EXTRA parameters on
+# top of whatever the main URL field already has, not a decomposed
+# domain/UTM split of the same value. The main field above already contains
+# the full URL including any UTM query string (confirmed live: a campaign
+# with UTM params baked into its landing URL shows the ENTIRE
+# ``?utm_source=...&...`` string in the main field, with the UTM helper
+# field still empty) — so setting/clearing UTM params is just setting/
+# clearing query string on the one URL this module already treats as a
+# single opaque string, exactly like ``_extract_landing_url``'s own read
+# path. No dedicated ``--clear-utm`` flag is needed as a result: passing
+# ``--landing-url`` with the bare domain (no query string) removes the UTM
+# template the same way as passing any other replacement value.
+
 _SAVE_BUTTON_TEXT = "Сохранить кампанию"
 _LAUNCH_BUTTON_TEXT = "Запустить кампанию"
 _SAVE_DRAFT_BUTTON_TEXT = "Сохранить как черновик"
@@ -2293,6 +2337,92 @@ def _set_campaign_name(page: "Page", name: str) -> None:
             "кампании') on the campaign edit page — Yandex may have changed "
             "the page's markup. Re-run with --headful to inspect the page."
         ) from exc
+
+
+def _read_landing_url(page: "Page") -> Optional[str]:
+    """Read the edit page's current "Ссылка на продвигаемую страницу" value.
+
+    Returns ``None`` if the field can't be found/read (inconclusive) — same
+    convention as ``_read_campaign_name``. An empty string is a real,
+    distinguishable value (the field genuinely cleared, not unreadable).
+    """
+    field = page.locator(_EDIT_URL_INPUT_TESTID).first
+    try:
+        return field.text_content()
+    except PlaywrightError:
+        return None
+
+
+def _set_landing_url(page: "Page", url: str) -> None:
+    """Set the edit page's "Ссылка на продвигаемую страницу" field.
+
+    Reuses the same contenteditable click/clear/type-with-verify mechanics
+    as the create page's ``_fill_landing_url``/``_type_landing_url`` (issue
+    #690's keystroke-dropping race applies here too — same widget family,
+    different testid namespace, see ``_EDIT_URL_INPUT_TESTID``'s docstring)
+    but WITHOUT that function's step-1-specific "Далее"/suggestions-popup
+    handling: this field lives directly on the single whole-form edit page,
+    with no separate continuation step — typing a new value and letting the
+    terminal ``_click_save`` commit it (like every other field
+    ``update_master`` writes) is the whole flow.
+
+    Passing an empty string clears the field down to Yandex's placeholder,
+    which mirrors the Clear button's own effect — the way this module lets
+    a caller remove the UTM template while keeping the bare domain is
+    passing a ``url`` with no query string, not a separate flag (see
+    ``_EDIT_URL_INPUT_TESTID``'s docstring for why no distinct UTM field
+    exists to clear instead).
+
+    Confirmed live (issue #757) this field — and its Clear button — is
+    READ-ONLY while the campaign's current status is ARCHIVED: raises a
+    named ``BrowserSessionError`` for that case up front rather than
+    reporting the generic "Yandex may have changed the page's markup"
+    symptom a disabled contenteditable produces (a click that lands but
+    changes nothing).
+    """
+    clear_button = page.locator(_EDIT_URL_CLEAR_BUTTON_TESTID).first
+    if _is_button_disabled(clear_button):
+        raise BrowserSessionError(
+            "The landing-page URL field is read-only for this campaign — "
+            "Yandex disables it while the campaign is ARCHIVED. Resume the "
+            "campaign first (e.g. via `masters resume`) before changing "
+            "its landing URL."
+        )
+
+    field = page.locator(_EDIT_URL_INPUT_TESTID).first
+    try:
+        field.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            "Could not find or click the landing-page URL field "
+            f"({_EDIT_URL_INPUT_TESTID!r}) on the campaign edit page — "
+            "Yandex may have changed the page's markup. Re-run with "
+            "--headful to inspect the page."
+        ) from exc
+
+    if not _clear_text_field(field):
+        raise BrowserSessionError(
+            "Could not clear the landing-page URL field on the campaign "
+            "edit page before typing the new value — Yandex may have "
+            "changed the page's markup. Re-run with --headful to inspect "
+            "the page."
+        )
+
+    try:
+        current = field.text_content()
+    except PlaywrightError:
+        current = None
+    if current not in ("", None):
+        raise BrowserSessionError(
+            "Could not clear the landing-page URL field on the campaign "
+            "edit page — Yandex may have changed the page's markup. "
+            "Re-run with --headful to inspect the page."
+        )
+
+    if not url:
+        return
+
+    _type_landing_url(field, url)
 
 
 def _set_directs_helps(page: "Page", enabled: bool) -> None:
@@ -3800,6 +3930,7 @@ def _verify_saved(
     promotion_goal: Optional[str],
     directs_helps: Optional[bool],
     name: Optional[str] = None,
+    landing_url: Optional[str] = None,
     headlines: Optional[Dict[int, str]] = None,
     texts: Optional[Dict[int, str]] = None,
     images_before_ids: Optional[List[str]] = None,
@@ -3873,6 +4004,7 @@ def _verify_saved(
             _read_promotion_goal_label,
         ),
         ("name", name, _read_campaign_name),
+        ("landing_url", landing_url, _read_landing_url),
         (
             "gender",
             None if gender is None else GENDER_CHOICES[gender],
@@ -4167,6 +4299,7 @@ def update_master(
     remove_target_action_goal_ids: Optional[List[int]] = None,
     directs_helps: Optional[bool] = None,
     name: Optional[str] = None,
+    landing_url: Optional[str] = None,
     headlines: Optional[Dict[int, str]] = None,
     texts: Optional[Dict[int, str]] = None,
     images: Optional[Dict[int, str]] = None,
@@ -4191,6 +4324,17 @@ def update_master(
     ``name`` (issue #663) is set via a separate modal (``_set_campaign_name``)
     rather than a plain form field — see module docstring — but is persisted
     by the same terminal ``_click_save`` as every other field here.
+
+    ``landing_url`` (issue #757) replaces the "Ссылка на продвигаемую
+    страницу" field's value WHOLESALE — Yandex has no separate UTM-only sub-
+    field to edit independently (the campaign's UTM template, if any, lives
+    baked into this same URL string as its query string; see
+    ``_EDIT_URL_INPUT_TESTID``'s docstring). To remove an existing UTM
+    template while keeping the landing page itself, pass the bare URL with
+    no query string; passing ``""`` clears the field entirely. Confirmed
+    live this field is READ-ONLY while the campaign's status is ARCHIVED —
+    ``_set_landing_url`` raises naming that requirement rather than
+    surfacing an opaque markup-changed error.
 
     ``headlines``/``texts`` (issue #665, Этап B) map a 0-based slot index to
     its replacement text and REPLACE ONLY THOSE SLOTS — every other headline/
@@ -4309,6 +4453,7 @@ def update_master(
         and not remove_target_action_goal_ids
         and directs_helps is None
         and name is None
+        and landing_url is None
         and not headlines
         and not texts
         and not images
@@ -4324,7 +4469,8 @@ def update_master(
             "(weekly_budget, promotion_goal, goal_price, "
             "target_action_prices, add_target_actions, "
             "remove_target_action_goal_ids, directs_helps, name, "
-            "headlines, texts, images, gender, age_from, age_to, devices, "
+            "landing_url, headlines, texts, images, gender, age_from, "
+            "age_to, devices, "
             "add_audience_tags, remove_audience_tags)."
         )
 
@@ -4351,6 +4497,8 @@ def update_master(
 
     if name is not None:
         _set_campaign_name(page, name)
+    if landing_url is not None:
+        _set_landing_url(page, landing_url)
     if weekly_budget is not None:
         _set_weekly_budget(page, weekly_budget)
     if promotion_goal is not None:
@@ -4510,6 +4658,7 @@ def update_master(
             promotion_goal=promotion_goal,
             directs_helps=directs_helps,
             name=name,
+            landing_url=landing_url,
             headlines=headlines,
             texts=texts,
             images_before_ids=images_before_ids,
@@ -4555,6 +4704,8 @@ def update_master(
         result["DirectsHelps"] = directs_helps
     if name is not None:
         result["Name"] = name
+    if landing_url is not None:
+        result["LandingUrl"] = landing_url
     if headlines:
         result["Headlines"] = headlines
     if texts:
@@ -4942,7 +5093,10 @@ def set_master_images(
 
 
 def _type_landing_url(field: Any, url: str) -> None:
-    """Type ``url`` into step 1's contenteditable field, verifying it landed.
+    """Type ``url`` into a landing-URL contenteditable field, verifying it
+    landed. Shared by the create page's step 1 field and the edit page's
+    "Ссылка на продвигаемую страницу" field (issue #757) — both are the same
+    kind of widget, just under different testid namespaces.
 
     Issue #690 re-recon (2026-08-04): typing this field via
     ``field.type(url)`` intermittently drops characters from the MIDDLE of
@@ -4974,8 +5128,8 @@ def _type_landing_url(field: Any, url: str) -> None:
         except PlaywrightError as exc:
             raise BrowserSessionError(
                 "Could not type into the landing-page URL field on the "
-                "Мастер кампаний create page — Yandex may have changed the "
-                "page's markup. Re-run with --headful to inspect the page."
+                "Мастер кампаний page — Yandex may have changed the page's "
+                "markup. Re-run with --headful to inspect the page."
             ) from exc
         try:
             actual = field.text_content()
@@ -4986,10 +5140,9 @@ def _type_landing_url(field: Any, url: str) -> None:
 
     raise BrowserSessionError(
         f"Typed {url!r} into the landing-page URL field on the Мастер "
-        f"кампаний create page {_TYPE_URL_MAX_ATTEMPTS} times, but the "
-        f"field still shows {actual!r} — Yandex's Combobox widget appears "
-        "to be dropping keystrokes. Re-run with --headful to inspect the "
-        "page."
+        f"кампаний page {_TYPE_URL_MAX_ATTEMPTS} times, but the field "
+        f"still shows {actual!r} — Yandex's Combobox widget appears to be "
+        "dropping keystrokes. Re-run with --headful to inspect the page."
     )
 
 
