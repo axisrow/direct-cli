@@ -3864,6 +3864,76 @@ class TestDraftEditPageSave(unittest.TestCase):
         self.assertEqual(draft_clicks, [True])
 
 
+class TestWaitForDraftStatus(unittest.TestCase):
+    """``_wait_for_draft_status`` (issue #726, cycle-review round 2 —
+    Codex-caught gap): polls for either terminal save control instead of
+    trusting a single point-in-time read taken right after
+    ``_wait_for_edit_form``, which only guarantees the headline slot has
+    rendered, not either terminal button.
+    """
+
+    def test_returns_true_once_draft_marker_mounts_after_a_delay(self):
+        # The headline slot (what _wait_for_edit_form waits for) can render
+        # before CampaignFormControls.saveDraft.button mounts — a straight
+        # post-_wait_for_edit_form read would misclassify this DRAFT page
+        # as non-DRAFT. The poll must wait it out instead.
+        ticks = {"count": 0}
+
+        class _DelayedDraftMarkerPage(FakePage):
+            def locator(self, selector):
+                if (
+                    selector == browser_masters._DRAFT_SAVE_DRAFT_BUTTON_TESTID
+                    and ticks["count"] < 2
+                ):
+                    return _FakeLocator([])
+                return super().locator(selector)
+
+            def wait_for_timeout(self, timeout):
+                ticks["count"] += 1
+
+        page = _DelayedDraftMarkerPage(
+            locators={
+                browser_masters._DRAFT_SAVE_DRAFT_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                )
+            },
+            role_elements=[],
+        )
+
+        self.assertTrue(browser_masters._wait_for_draft_status(page, 713231614))
+        self.assertEqual(ticks["count"], 2)
+
+    def test_returns_false_once_non_draft_button_mounts_after_a_delay(self):
+        ticks = {"count": 0}
+        save_handle = _FakeTextLocatorHandle(visible=True)
+
+        class _DelayedSaveButtonPage(FakePage):
+            def get_by_role(self, role, name=None, exact=False):
+                if ticks["count"] < 2:
+                    return _FakeGetByTextLocator([])
+                return super().get_by_role(role, name=name, exact=exact)
+
+            def wait_for_timeout(self, timeout):
+                ticks["count"] += 1
+
+        page = _DelayedSaveButtonPage(
+            locators={},
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+
+        self.assertFalse(browser_masters._wait_for_draft_status(page, 42))
+        self.assertEqual(ticks["count"], 2)
+
+    def test_raises_if_neither_marker_ever_appears(self):
+        page = FakePage(locators={}, role_elements=[])
+
+        with patch.object(browser_masters, "_EDIT_FORM_READY_TIMEOUT_MS", 1):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters._wait_for_draft_status(page, 42)
+
+        self.assertIn("42", str(ctx.exception))
+
+
 class TestUpdateMasterDraftSupport(unittest.TestCase):
     """``update_master`` end to end on a DRAFT campaign (issue #668)."""
 
@@ -7144,6 +7214,24 @@ class _FakeImagesPage(FakePage):
     """
 
     def __init__(self, ids, *, save_clicks=None, upload_ids=None, **kwargs):
+        # _wait_for_draft_status (issue #726, cycle-review round 2) polls
+        # for a visible non-DRAFT save button as its "definitely not DRAFT"
+        # terminal marker, in addition to the DRAFT testid — so every fake
+        # images page needs ONE of the two present, same as a real edit
+        # page always has exactly one. Defaults to non-DRAFT (matching this
+        # fake's pre-existing behavior, where no test ever registered the
+        # DRAFT testid); a DRAFT-path test overrides `role_elements=[]` and
+        # supplies the DRAFT testid via `locators` instead.
+        kwargs.setdefault(
+            "role_elements",
+            [
+                (
+                    "button",
+                    browser_masters._SAVE_BUTTON_TEXT,
+                    _FakeTextLocatorHandle(visible=True),
+                )
+            ],
+        )
         super().__init__(**kwargs)
         self.ids = list(ids)
         self.modal_open = False

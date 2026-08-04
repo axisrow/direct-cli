@@ -2197,6 +2197,62 @@ def _is_draft_edit_page(page: "Page") -> bool:
         return False
 
 
+def _draft_status_terminal_state(page: "Page") -> "Optional[str]":
+    """Predicate for ``_wait_for_draft_status``'s poll loop.
+
+    Returns ``"draft"`` once the DRAFT-only save-as-draft marker is
+    present, ``"non_draft"`` once the exact, visible non-DRAFT "Сохранить
+    кампанию" button is present, or ``None`` to keep polling. The two
+    outcomes are mutually exclusive on a real page (issue #668) — whichever
+    appears first is the answer.
+    """
+    if page.locator(_DRAFT_SAVE_DRAFT_BUTTON_TESTID).first.count() > 0:
+        return "draft"
+    save_button = page.get_by_role("button", name=_SAVE_BUTTON_TEXT, exact=True)
+    for i in range(save_button.count()):
+        if save_button.nth(i).is_visible():
+            return "non_draft"
+    return None
+
+
+def _wait_for_draft_status(page: "Page", campaign_id: int) -> bool:
+    """Block until the edit page's DRAFT-vs-non-DRAFT terminal save control
+    has actually rendered, then return whether it's a DRAFT page.
+
+    Issue #726 (Codex-caught gap in the initial fix, cycle-review round 2):
+    ``_wait_for_edit_form`` only waits for the first headline slot
+    (``_EDIT_FORM_READY_TESTID``) — it guarantees nothing about either
+    terminal save control's own mount time. A caller that read
+    ``_is_draft_edit_page`` immediately after ``_wait_for_edit_form``
+    returned could still misclassify a DRAFT campaign whose headline
+    happens to render before ``CampaignFormControls.saveDraft.button``
+    does — the original #726 diagnosis confirmed a present-then-absent
+    flap, but never ruled out this absent-then-present ordering. Polling
+    for either terminal marker (mutually exclusive per
+    ``_draft_status_terminal_state``) closes both directions at once,
+    instead of trusting a single point-in-time read.
+
+    Raises ``BrowserSessionError`` on timeout — same "surface a specific,
+    actionable error rather than silently guessing" convention as
+    ``_wait_for_edit_form``/``_wait_for_images_editor``.
+    """
+    state = _poll_until_terminal(
+        page,
+        lambda: _draft_status_terminal_state(page),
+        _EDIT_FORM_READY_TIMEOUT_MS,
+    )
+    if state is None:
+        raise BrowserSessionError(
+            "Neither the DRAFT save-as-draft button nor the non-DRAFT "
+            f"'{_SAVE_BUTTON_TEXT}' button appeared on the edit page for "
+            f"campaign {campaign_id} within "
+            f"{_EDIT_FORM_READY_TIMEOUT_MS / 1000:.0f}s — Yandex may have "
+            "changed the page's markup. Re-run with --headful to inspect "
+            "the page."
+        )
+    return state == "draft"
+
+
 def _click_save(
     page: "Page", campaign_id: int, *, is_draft: bool, launch: bool = False
 ) -> None:
@@ -2670,16 +2726,20 @@ def update_master(
     assert_authenticated(page.content())
     _wait_for_edit_form(page, campaign_id)
 
-    # Determined right here, before ANY mutation runs — issue #726
-    # (live-confirmed): the DRAFT-terminal marker
-    # ``_is_draft_edit_page`` keys off can transiently vanish from the DOM
-    # mid-hydration and reappear ~1.5s later. Reading it after the field/
-    # image mutations below (as this used to) only narrows that race
-    # window, it does not close it — mutations take an unbounded amount of
-    # time and can still land inside the flap. Reading it immediately after
-    # ``_wait_for_edit_form`` is the one point the marker is known-stable
-    # (see ``_click_save``'s docstring for the contract this satisfies).
-    was_draft = _is_draft_edit_page(page)
+    # Determined right here, before ANY mutation runs, via
+    # _wait_for_draft_status rather than a single _is_draft_edit_page read
+    # — issue #726 (live-confirmed): the DRAFT-terminal marker can
+    # transiently vanish from the DOM mid-hydration and reappear ~1.5s
+    # later, and (cycle-review round 2, Codex) _wait_for_edit_form only
+    # guarantees the headline slot has rendered, not either terminal save
+    # control, so a naive point-in-time read here could also fire before
+    # the DRAFT marker has mounted at all. Reading it after the field/image
+    # mutations below (as this used to) only narrows the first race, it
+    # does not close either — mutations take an unbounded amount of time
+    # and can still land inside the flap. Polling for either terminal
+    # marker before any mutation closes both directions (see
+    # ``_wait_for_draft_status``'s docstring).
+    was_draft = _wait_for_draft_status(page, campaign_id)
 
     if name is not None:
         _set_campaign_name(page, name)
@@ -2812,13 +2872,17 @@ def _open_images_editor(page: "Page", campaign_id: int) -> Tuple[List[str], bool
     indistinguishable from one that genuinely has no images (see
     ``_wait_for_images_editor``).
 
-    The DRAFT status is read right after ``_wait_for_edit_form`` — the one
-    point ``_is_draft_edit_page``'s marker is known-stable (issue #726) —
-    and returned for the caller to carry through ``_apply_image_operations``
-    (uploads/removals, unbounded elapsed time) into ``_save_and_verify_images``
-    unchanged. Re-deriving it after ``_apply_image_operations`` would land
-    back in the same DOM-flap race the caller-side fix in ``update_master``
-    was written to close (see ``_click_save``'s docstring).
+    The DRAFT status is determined right after ``_wait_for_edit_form``, via
+    ``_wait_for_draft_status`` rather than a single ``_is_draft_edit_page``
+    read — the marker can both flap present→absent mid-hydration AND not
+    have mounted at all yet when only the headline slot has rendered (issue
+    #726; the latter ordering was a cycle-review round-2 gap in the first
+    fix). Returned for the caller to carry through
+    ``_apply_image_operations`` (uploads/removals, unbounded elapsed time)
+    into ``_save_and_verify_images`` unchanged. Re-deriving it after
+    ``_apply_image_operations`` would land back in the same DOM-flap race
+    the caller-side fix in ``update_master`` was written to close (see
+    ``_click_save``'s docstring).
     """
     page.goto(
         WIZARD_EDIT_URL.format(campaign_id=campaign_id),
@@ -2827,7 +2891,7 @@ def _open_images_editor(page: "Page", campaign_id: int) -> Tuple[List[str], bool
     assert_not_captcha(page.content())
     assert_authenticated(page.content())
     _wait_for_edit_form(page, campaign_id)
-    is_draft = _is_draft_edit_page(page)
+    is_draft = _wait_for_draft_status(page, campaign_id)
 
     _wait_for_images_editor(page)
     return _read_image_content_ids(page), is_draft
