@@ -2511,7 +2511,7 @@ class TestClickAndWaitForPopup(unittest.TestCase):
     def test_raises_when_trigger_itself_is_never_clickable(self):
         page = self._page(
             trigger_handle=_FakeLocatorHandle(raises=True),
-            popup_locator=_FakeLocator([_FakeLocatorHandle()]),
+            popup_locator=_FakeLocator([_FakeLocatorHandle(visible=False)]),
         )
 
         with self.assertRaises(BrowserSessionError):
@@ -2521,6 +2521,63 @@ class TestClickAndWaitForPopup(unittest.TestCase):
                 popup_selector="popup",
                 description="a test popup",
             )
+
+    def test_does_not_reclick_a_toggle_trigger_once_popup_is_up(self):
+        """A successful-but-slow open must not be undone by a retry.
+
+        The first click genuinely opens the (toggle) menu, but rendering is
+        slow enough that the *first* ``wait_for`` call still observes it as
+        not-yet-visible and times out — it becomes visible only strictly
+        after that. If the loop then blindly re-clicks the trigger on the
+        next attempt, it closes the menu that *did* open (a toggle button
+        closes on a second click), turning a slow-but-correct open into a
+        failure. This must not happen: the loop must re-check for the popup
+        (a fresh ``wait_for``) before ever clicking the trigger again, so a
+        popup that showed up between attempts is observed without an extra
+        click.
+        """
+        click_counter = {"count": 0}
+        popup_state = {"popup_visible": False, "wait_for_calls": 0}
+
+        def _on_click():
+            click_counter["count"] += 1
+            # A second click on an already-open toggle would close it — the
+            # test fails via the final assertion if this ever fires twice.
+            popup_state["popup_visible"] = False
+
+        class _ToggleAwarePopupHandle(_FakeLocatorHandle):
+            def wait_for(self, state="visible", timeout=None):
+                popup_state["wait_for_calls"] += 1
+                # Call #1: the loop's pre-check before any click — not up
+                # yet. Call #2: right after the first click — still
+                # hydrating, times out, but becomes visible immediately
+                # after (independently of any further click). Call #3+: the
+                # next iteration's pre-check must see it up.
+                if popup_state["wait_for_calls"] == 2:
+                    popup_state["popup_visible"] = True
+                if not popup_state["popup_visible"]:
+                    raise PlaywrightError("Timeout waiting for element state")
+
+        popup_handle = _ToggleAwarePopupHandle()
+        trigger_handle = _FakeLocatorHandle(on_click=_on_click)
+        page = self._page(
+            trigger_handle=trigger_handle,
+            popup_locator=_FakeLocator([popup_handle]),
+        )
+
+        browser_masters._click_and_wait_for_popup(
+            page,
+            trigger_selector="trigger",
+            popup_selector="popup",
+            description="a test popup",
+        )  # must not raise
+
+        # Only the first click should have happened — the second loop
+        # iteration's pre-check must have observed the popup already up and
+        # returned instead of clicking (and thereby closing) the toggle
+        # again.
+        self.assertEqual(click_counter["count"], 1)
+        self.assertTrue(popup_state["popup_visible"])
 
 
 class TestArchiveMaster(unittest.TestCase):

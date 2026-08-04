@@ -1458,6 +1458,21 @@ def _click_and_wait_for_popup(
 
     last_exc: Optional[Exception] = None
     for _ in range(_POPUP_CLICK_MAX_ATTEMPTS):
+        # A prior iteration's wait_for() can time out at the 1.5s mark just
+        # before a genuinely successful (merely slow) open finishes
+        # rendering. Re-clicking the trigger unconditionally in that case
+        # would close a toggle menu that did open, or land on an overlay for
+        # the rename modal — turning a slow-but-correct open into a
+        # deterministic failure. Check first: if the popup is already up (a
+        # near-zero-timeout wait_for, not a one-shot is_visible() snapshot —
+        # consistent with this module's convention elsewhere, see
+        # _read_goal_price), we're done without touching the trigger again.
+        try:
+            popup.wait_for(state="visible", timeout=1)
+            return
+        except PlaywrightError:
+            pass
+
         try:
             trigger.click()
         except PlaywrightError as exc:
