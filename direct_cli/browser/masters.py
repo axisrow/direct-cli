@@ -930,6 +930,28 @@ _TARGET_ACTION_ADD_OPTION_MAX_ATTEMPTS = 5
 # the edit page, below "Цель продвижения").
 _TARGET_ACTION_WAIT_TIMEOUT_MS = 5_000
 
+# Issue #750 (Codex round-3 finding on #749): the section can go through a
+# genuine, non-throwing EMPTY interval mid-hydration — live recon against
+# campaign 713277109 confirmed the row-testid locator's own ``.count()``
+# dips to 0 (and ``TargetActionsSection`` itself briefly leaves the DOM,
+# ``.count() == 0``) for ~1-1.5s starting around 4-4.5s after
+# ``_wait_for_edit_form`` returns, before the real row set (re)appears
+# around 5-5.5s. No section-scoped loading/spinner ``data-testid`` exists
+# to poll instead (confirmed live: the only "loading"-flavoured markup
+# nearby is an unrelated, always-present ``TextInput_disabled`` addon
+# class on the add-action input, not a completeness signal). A single read
+# landing in that dip is not an exception (``_read_target_actions_or_none``
+# returns a genuinely well-formed ``[]``, not ``None``) — it's a truthful
+# snapshot of a table that has not finished loading, which is exactly the
+# gap ``_wait_for_target_actions_settled`` closes: require
+# ``_TARGET_ACTION_STABLE_STREAK`` consecutive equal row-count reads,
+# ``_TARGET_ACTION_STABLE_TICK_MS`` apart, before trusting any read of this
+# table — mirrors ``_wait_for_audience_section``'s tag-count settling
+# (``_AUDIENCE_TAG_STABLE_STREAK``), same class of race, same fix shape.
+_TARGET_ACTION_STABLE_STREAK = 5
+_TARGET_ACTION_STABLE_TICK_MS = 300
+_TARGET_ACTION_SETTLE_TIMEOUT_MS = 10_000
+
 # "Аудитория" section (issue #681, Этап C, live recon 2026-08-04 against
 # campaign 713277109, ksamatadirect account — see module docstring for the
 # archive/unarchive detour needed to reach this campaign's edit page).
@@ -3260,6 +3282,63 @@ def _read_target_actions_or_none(page: "Page") -> Optional[List[Dict[str, Any]]]
     return results
 
 
+def _wait_for_target_actions_settled(page: "Page") -> bool:
+    """Block until the "Целевые действия" table's row count has stopped
+    changing, so a caller's subsequent read is a settled snapshot rather
+    than a mid-hydration one.
+
+    Issue #750 (Codex round-3 finding on #749): rounds 1-2 hardened
+    ``_read_target_actions_or_none`` against every failure mode that
+    surfaces as a raised ``PlaywrightError`` — but live recon against
+    campaign 713277109 confirmed the row-testid locator's ``.count()`` (and
+    even ``TargetActionsSection`` itself) can genuinely, without ever
+    raising, report a transient EMPTY state for over a second while the
+    real row set is still arriving. A caller trusting that read would
+    misreport a genuinely-present goal as removed — the same "truthful but
+    partial snapshot" class of race ``_wait_for_audience_section``'s tag-
+    count settling loop exists to close for the "Аудитория" section, and
+    the fix here is the identical shape: require
+    ``_TARGET_ACTION_STABLE_STREAK`` consecutive equal row-count reads,
+    ``_TARGET_ACTION_STABLE_TICK_MS`` apart, before treating the count as
+    trustworthy, rather than a single read or a bare visibility check.
+
+    A raised ``PlaywrightError`` mid-poll (the section detaching between
+    ticks) is treated the same as "count changed" — it resets the streak
+    rather than propagating, since ``_read_target_actions_or_none`` (the
+    caller's actual read, right after this returns) already has its own
+    ``None``-on-failure handling; this function only needs to decide when
+    a *count* has stopped moving, not to be the failure-reporting layer
+    itself.
+
+    Returns ``True`` once the count has settled, ``False`` on timeout —
+    callers treat a timeout as "could not confirm settling" and let their
+    own read-retry loop's existing failure/mismatch handling take over
+    (mirroring how ``_read_target_actions_or_none`` itself degrades),
+    rather than raising here and pre-empting that reporting.
+    """
+    prefix = f"TargetActions.{_TARGET_ACTIONS_CATEGORY}."
+    row_locator = page.locator(f'[data-testid^="{prefix}"]')
+    previous_count: "Optional[int]" = None
+    stable_streak = 0
+
+    def _row_count_stable() -> bool:
+        nonlocal previous_count, stable_streak
+        current_count = row_locator.count()
+        if previous_count is not None and current_count == previous_count:
+            stable_streak += 1
+        else:
+            stable_streak = 0
+        previous_count = current_count
+        return stable_streak >= _TARGET_ACTION_STABLE_STREAK
+
+    return _poll_until(
+        page,
+        _row_count_stable,
+        _TARGET_ACTION_SETTLE_TIMEOUT_MS,
+        tick_ms=_TARGET_ACTION_STABLE_TICK_MS,
+    )
+
+
 def _parse_target_action_price(raw: str) -> Optional[float]:
     """Parse a target-action price input's raw string value, same
     normalization as ``_goal_price_matches`` (comma decimal separator,
@@ -3925,67 +4004,120 @@ def _verify_saved(
                     )
 
     if add_target_actions or remove_target_action_goal_ids:
-
-        def _read_target_action_goal_ids(
-            p: "Page",
-        ) -> Optional[Dict[int, Optional[float]]]:
-            # ``None`` (as opposed to ``{}``) means the table could not be
-            # read this attempt — see ``_read_target_actions_or_none``'s
-            # docstring (Codex adversarial review of #717) for the two
-            # distinct failure modes it collapses into ``None``. Either way
-            # this is NOT the same as a genuinely empty table — the
-            # distinction is required so a removed goal is never confirmed
-            # absent from a read that never actually saw the table — see
-            # ``_add_remove_match``.
-            rows = _read_target_actions_or_none(p)
-            if rows is None:
-                return None
-            return {row["GoalId"]: row["Price"] for row in rows}
-
-        def _add_remove_match(
-            actual: Optional[Dict[int, Optional[float]]], _expected: Any
-        ) -> bool:
-            if actual is None:
-                return False
-            added_ok = all(
-                _target_action_price_matches(price, actual.get(goal_id))
-                for goal_id, price in (add_target_actions or {}).items()
-            )
-            removed_ok = not any(
-                goal_id in actual for goal_id in remove_target_action_goal_ids or []
-            )
-            return added_ok and removed_ok
-
-        actual_after_add_remove = _read_until_matches(
-            page,
-            _read_target_action_goal_ids,
-            None,
-            matches=_add_remove_match,
-        )
-        if actual_after_add_remove is None:
-            # Every retry within the timeout hit a transient hydration
-            # failure — never had a genuine read of the table. Report this
-            # as its own mismatch rather than falling back to `{}`, which
-            # would make every requested removal look like it succeeded.
+        # Issue #750: a removed goal's absence from the FIRST read of this
+        # table is not by itself proof of removal — the table can go
+        # through a genuine, non-throwing empty/partial interval while
+        # hydrating (see ``_wait_for_target_actions_settled``'s docstring).
+        # Settling once here, before the match-retry loop below even
+        # starts, means that loop's first read already lands on a
+        # completeness-checked snapshot instead of leaning on repeated
+        # reads to average out a race it has no way to detect on its own.
+        #
+        # Codex adversarial review of this PR (#753): a settle TIMEOUT must
+        # not be silently swallowed — the retry loop below stops at its
+        # FIRST matching read (``_read_until_matches`` returns as soon as
+        # ``is_match`` is true), so without this check a table that never
+        # settles could still have its very first, still-hydrating read
+        # happen to look like a match (e.g. a removed goal's row genuinely
+        # absent from an incomplete snapshot) and be trusted immediately —
+        # exactly the false-success this settling wait exists to prevent.
+        # Report it as its own mismatch (same shape as the "section never
+        # became visible" case below) rather than raising here, so a
+        # genuinely never-settling table is reported through the same
+        # single ``_verify_saved`` failure path as every other mismatch.
+        if not _wait_for_target_actions_settled(page):
             mismatches.append(
-                "target actions: could not read the 'Целевые действия' "
-                "table after saving (section never became visible) — "
-                "unable to confirm add/remove took effect"
+                "target actions: the 'Целевые действия' table's row count "
+                f"never settled within {_TARGET_ACTION_SETTLE_TIMEOUT_MS / 1000:.0f}s "
+                "after saving — unable to confirm add/remove took effect"
             )
         else:
-            for goal_id, expected_price in (add_target_actions or {}).items():
-                actual_price = actual_after_add_remove.get(goal_id)
-                if not _target_action_price_matches(expected_price, actual_price):
-                    mismatches.append(
-                        f"add_target_action[{goal_id}]: expected price "
-                        f"{expected_price!r}, page now shows {actual_price!r}"
-                    )
-            for goal_id in remove_target_action_goal_ids or []:
-                if goal_id in actual_after_add_remove:
-                    mismatches.append(
-                        f"remove_target_action[{goal_id}]: still present in "
-                        "the 'Целевые действия' table after save"
-                    )
+
+            def _read_target_action_goal_ids(
+                p: "Page",
+            ) -> Optional[Dict[int, Optional[float]]]:
+                # ``None`` (as opposed to ``{}``) means the table could not
+                # be read this attempt — see ``_read_target_actions_or_none``'s
+                # docstring (Codex adversarial review of #717) for the two
+                # distinct failure modes it collapses into ``None``. Either
+                # way this is NOT the same as a genuinely empty table — the
+                # distinction is required so a removed goal is never
+                # confirmed absent from a read that never actually saw the
+                # table — see ``_add_remove_match``.
+                rows = _read_target_actions_or_none(p)
+                if rows is None:
+                    return None
+                return {row["GoalId"]: row["Price"] for row in rows}
+
+            # Codex adversarial review of this PR (#753), round 2: the
+            # settling wait above and this predicate's own read are TWO
+            # separate DOM reads — settling certifying 5 stable ``.count()``
+            # ticks does not certify that THIS predicate's next, independent
+            # ``_read_target_actions_or_none`` call lands on the same
+            # settled state (reproduced live: a stable pre-dip streak
+            # followed by one post-settle empty read was enough to report a
+            # no-op removal as successful). Rather than trust a single
+            # matching read here either, require
+            # ``_TARGET_ACTION_STABLE_STREAK`` CONSECUTIVE matching reads
+            # of the full add/remove snapshot before accepting it — the
+            # same stability bar ``_wait_for_target_actions_settled``
+            # applies to a bare row count, now applied to the actual
+            # verified state.
+            match_streak = 0
+
+            def _add_remove_match(
+                actual: Optional[Dict[int, Optional[float]]], _expected: Any
+            ) -> bool:
+                nonlocal match_streak
+                if actual is None:
+                    match_streak = 0
+                    return False
+                added_ok = all(
+                    _target_action_price_matches(price, actual.get(goal_id))
+                    for goal_id, price in (add_target_actions or {}).items()
+                )
+                removed_ok = not any(
+                    goal_id in actual for goal_id in remove_target_action_goal_ids or []
+                )
+                if added_ok and removed_ok:
+                    match_streak += 1
+                else:
+                    match_streak = 0
+                return match_streak >= _TARGET_ACTION_STABLE_STREAK
+
+            actual_after_add_remove = _read_until_matches(
+                page,
+                _read_target_action_goal_ids,
+                None,
+                matches=_add_remove_match,
+                timeout_ms=_VERIFY_FIELD_READ_TIMEOUT_MS
+                + _TARGET_ACTION_SETTLE_TIMEOUT_MS,
+            )
+            if actual_after_add_remove is None:
+                # Every retry within the timeout hit a transient hydration
+                # failure — never had a genuine read of the table. Report
+                # this as its own mismatch rather than falling back to
+                # `{}`, which would make every requested removal look like
+                # it succeeded.
+                mismatches.append(
+                    "target actions: could not read the 'Целевые действия' "
+                    "table after saving (section never became visible) — "
+                    "unable to confirm add/remove took effect"
+                )
+            else:
+                for goal_id, expected_price in (add_target_actions or {}).items():
+                    actual_price = actual_after_add_remove.get(goal_id)
+                    if not _target_action_price_matches(expected_price, actual_price):
+                        mismatches.append(
+                            f"add_target_action[{goal_id}]: expected price "
+                            f"{expected_price!r}, page now shows {actual_price!r}"
+                        )
+                for goal_id in remove_target_action_goal_ids or []:
+                    if goal_id in actual_after_add_remove:
+                        mismatches.append(
+                            f"remove_target_action[{goal_id}]: still present "
+                            "in the 'Целевые действия' table after save"
+                        )
 
     mismatches.extend(
         _verify_repeating_value_mismatches(

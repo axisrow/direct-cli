@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+**Fixed — `masters update --add-target-action`/`--remove-target-action` verification could trust an incomplete first read of the "Целевые действия" table (#750):**
+
+- Round 3 of cycle-review on #749 found that `_verify_saved`'s add/remove
+  verification, while hardened against every *exception*-raising failure
+  mode (rounds 1-2), had no *positive* completeness signal for a read that
+  raises nothing at all: the table can go through a genuine, non-throwing
+  empty/partial interval while hydrating, and a removed goal's absence from
+  that snapshot alone was indistinguishable from a real removal.
+- Live recon against the test master 'Тест' (campaign 713277109) confirmed
+  the race: the row-testid locator's own `.count()` (and even the
+  `TargetActionsSection` element itself) can drop to 0 for over a second,
+  starting a few seconds after `_wait_for_edit_form` returns, before the
+  real row set (re)appears — no section-scoped loading/spinner
+  `data-testid` exists to poll instead.
+- New `_wait_for_target_actions_settled` (`direct_cli/browser/masters.py`)
+  requires 5 consecutive equal row-count reads, 300ms apart, before
+  `_verify_saved`'s add/remove retry loop trusts any read of the table —
+  same shape as `_wait_for_audience_section`'s tag-count settling
+  (issue #681).
+- Codex adversarial review of this PR (#753) caught a follow-on gap: the
+  settling wait's `bool` return value was being discarded, so a settle
+  TIMEOUT fell straight through into the retry loop — which itself stops
+  at its first matching read — reproducibly letting a still-hydrating,
+  never-settling table report a false "removal confirmed". `_verify_saved`
+  now treats a settle timeout as its own mismatch (same reporting path as
+  every other verification failure) instead of silently proceeding.
+- A second round of Codex adversarial review found the settling wait and
+  the retry loop's own read are two genuinely separate DOM reads —
+  settling certifying a stable row *count* does not certify that the
+  retry loop's next, independent full-snapshot read lands on the same
+  settled state (reproduced: a stable pre-dip streak followed by a single
+  post-settle empty read was enough to report a no-op removal as
+  successful). The add/remove match predicate now requires
+  `_TARGET_ACTION_STABLE_STREAK` consecutive matching reads of the full
+  requested state, not just one, before accepting it.
+
 **Added — `WeeklySpendLimit` support for HighestPosition/ManualCpm strategies (#610):**
 
 - Live WSDL drift check (`scripts/check_wsdl_drift.py`, 2026-08-04) confirmed
