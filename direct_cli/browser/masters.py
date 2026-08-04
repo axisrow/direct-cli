@@ -1837,18 +1837,26 @@ def _set_directs_helps(page: "Page", enabled: bool) -> None:
     nested checkbox ("Оптимизировать расширенные настройки...") that is out
     of scope for Этап A and must be left untouched.
 
-    The pre-click read polls via ``_read_until_matches`` instead of a
-    one-shot ``_read_directs_helps`` call (Codex, cycle-review round 1 of
-    PR #731): ``_wait_for_edit_form`` only guarantees the first headline
-    slot has rendered, so a one-shot read right after can catch
+    The pre-click read polls only while INCONCLUSIVE (``None``), not until
+    it matches ``enabled`` (Codex, cycle-review round 2 of PR #731, fixing
+    the round-1 fix): ``_wait_for_edit_form`` only guarantees the first
+    headline slot has rendered, so a one-shot read right after can catch
     ``data-checked`` still unset/absent (``None``) while the toggle is
     ALREADY in the requested state — the same hydration race
     ``_read_until_matches``'s own docstring documents for every other field.
     Treating that transient ``None`` as "opposite of ``enabled``" would
     click the label and invert an already-correct state instead of leaving
-    it alone.
+    it alone. But polling for ``enabled`` specifically (via
+    ``_read_until_matches``) is wrong once the read is settled: on a
+    genuine state CHANGE, ``_read_directs_helps`` stably reports the
+    opposite of ``enabled`` until the click below actually flips it —
+    nothing makes it converge to ``enabled`` on its own — so that would
+    burn the full ``_VERIFY_FIELD_READ_TIMEOUT_MS`` on every real toggle
+    for no reason. Only ``None`` is a signal worth waiting out.
     """
-    current = _read_until_matches(page, _read_directs_helps, enabled)
+    current = _read_until_matches(
+        page, _read_directs_helps, None, matches=lambda actual, _exp: actual is not None
+    )
     if current is enabled:
         return
 

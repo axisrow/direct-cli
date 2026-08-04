@@ -3296,6 +3296,31 @@ class TestSetDirectsHelps(unittest.TestCase):
         self.assertFalse(state["toggled"])
         self.assertGreaterEqual(ticks["count"], 1)
 
+    def test_does_not_poll_out_the_full_timeout_on_a_real_change(self):
+        # Regression (Codex, cycle-review round 2 of PR #731 — cloud
+        # fallback, inline finding P2): a genuine state CHANGE has
+        # _read_directs_helps stably reporting the opposite of `enabled`
+        # until the label click below actually flips it — nothing makes it
+        # converge to `enabled` on its own. Polling via _read_until_matches
+        # against `enabled` (the round-1 fix's first attempt) would burn the
+        # full _VERIFY_FIELD_READ_TIMEOUT_MS on every real toggle. The fix
+        # polls only while the read is inconclusive (None); a settled,
+        # stable, non-None read (even if it's the opposite of `enabled`)
+        # must be accepted immediately — zero wait_for_timeout ticks.
+        ticks = {"count": 0}
+        state = {"toggled": False}
+        page = _directs_helps_page(
+            False, on_toggle=lambda v: state.__setitem__("toggled", True)
+        )
+        page.wait_for_timeout = lambda timeout: ticks.__setitem__(
+            "count", ticks["count"] + 1
+        )
+
+        browser_masters._set_directs_helps(page, True)
+
+        self.assertTrue(state["toggled"])
+        self.assertEqual(ticks["count"], 0)
+
 
 class TestSetPromotionGoal(unittest.TestCase):
     """``_set_promotion_goal`` (issue #631, Этап A) — open dropdown, click, verify.
