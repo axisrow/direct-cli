@@ -137,6 +137,8 @@ class LiveSandboxRunner:
             "adextensions.delete": self.run_adextension_id_command,
             "adgroups.add": self.run_adgroup_add,
             "adgroups.delete": self.run_adgroup_id_command,
+            "adgroups.resume": self.run_adgroup_id_command,
+            "adgroups.suspend": self.run_adgroup_id_command,
             "adgroups.update": self.run_adgroup_id_command,
             "adimages.add": self.run_adimage_add,
             "adimages.delete": self.run_adimage_id_command,

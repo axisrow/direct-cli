@@ -97,6 +97,13 @@ SMOKE_MATRIX = {
         "adextensions.delete",
         "adgroups.add",
         "adgroups.delete",
+        # Not a WSDL-mirrored method -- CLI-side helper batching ads.suspend/
+        # ads.resume over the group's ads (issue #573; see adgroups.py). Its
+        # risk profile matches ads.suspend/ads.resume below, which are
+        # WRITE_SANDBOX, so this stays WRITE_SANDBOX too rather than
+        # DANGEROUS -- `direct --sandbox adgroups suspend/resume` is safe.
+        "adgroups.resume",
+        "adgroups.suspend",
         "adgroups.update",
         "adimages.add",
         "adimages.delete",

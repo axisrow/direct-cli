@@ -27,6 +27,30 @@
   other MANUAL_CPM detail flag remains rejected (`StrategyManualCpmAdd`
   declares only `WeeklySpendLimit`).
 
+**Added — `adgroups suspend`/`adgroups resume` (#573):**
+
+- The AdGroups API service has no `suspend`/`resume` method (WSDL declares
+  only `add`/`get`/`update`/`delete`) and `AdGroupUpdateItem` has no
+  impression-status field either, so there is no 1:1 WSDL way to pause a
+  whole ad group. The new commands emulate it the way the web UI and Direct
+  Commander do: resolve the group's ads via `ads.get` and
+  suspend/resume them via `ads.suspend`/`ads.resume`, batched in chunks of
+  1000. This is a deliberate, documented exception to strict WSDL parity —
+  tracked in `INTENTIONAL_EXTRA_METHODS` (`direct_cli/wsdl_coverage.py`),
+  not a mis-classified `DRY_RUN_PAYLOAD_EXCLUSIONS` entry.
+- `resume` cannot distinguish ads it paused from ads a human suspended by
+  hand earlier: it resumes every ad currently in the group. Documented in
+  `--help` and the README, not solved with state-tracking.
+- An empty group (or one whose ads no longer exist) prints an empty
+  `SuspendResults`/`ResumeResults` with no request sent, instead of sending
+  an empty `SelectionCriteria.Ids` the live API would reject.
+- `--dry-run` never touches the network: since the real `ads.suspend`/
+  `ads.resume` body depends on `ads.get`'s result, it prints the `ads.get`
+  lookup request that would run first.
+- Classified `WRITE_SANDBOX` in `smoke_matrix.py`, matching `ads.suspend`/
+  `ads.resume` (both are safely exercisable via `direct --sandbox`), not
+  `DANGEROUS`.
+
 **BREAKING CHANGES — dropped Python 3.9 support (#737):**
 
 - `vcrpy` 8.1.1 references `aiohttp.streams.AsyncStreamReaderMixin`, removed in

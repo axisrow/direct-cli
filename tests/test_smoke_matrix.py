@@ -217,7 +217,7 @@ def test_sandbox_write_live_runner_covers_write_sandbox_matrix():
     )
     try:
         assert set(runner.handlers()) == set(SMOKE_MATRIX[WRITE_SANDBOX])
-        assert len(SMOKE_MATRIX[WRITE_SANDBOX]) == 83
+        assert len(SMOKE_MATRIX[WRITE_SANDBOX]) == 85
     finally:
         runner.close()
 

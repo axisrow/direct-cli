@@ -684,8 +684,22 @@ direct adgroups update --id 67890 --dynamic-feed --autotargeting-category EXACT=
 direct adgroups update --id 67890 --target-device-types DEVICE_TYPE_TABLET --target-carrier WI_FI_ONLY --target-operating-system-version 13.0
 direct adgroups update --id 67890 --ad-title-source FEED_NAME --ad-body-source FEED_DESCRIPTION
 direct adgroups update --id 67890 --offer-retargeting NO
+direct adgroups suspend --id 67890
+direct adgroups resume --id 67890
 direct adgroups delete --id 67890
 ```
+
+`adgroups suspend`/`adgroups resume` are not 1:1 WSDL mirrors: the AdGroups
+service has no suspend/resume method (only `add`/`get`/`update`/`delete`).
+They emulate "pause the group" the way the web UI and Direct Commander do —
+by resolving the group's ads via `ads.get` and suspending/resuming them via
+`ads.suspend`/`ads.resume` (issue #573). Two consequences:
+
+- `resume` cannot tell which ads *it* paused apart from ads a human suspended
+  by hand earlier — it resumes every ad currently in the group, so a
+  mixed-status group loses any manual suspensions.
+- An empty group (or one whose ads no longer exist) prints an empty
+  `SuspendResults`/`ResumeResults` with no request sent.
 
 #### Ads
 
@@ -970,7 +984,7 @@ The following commands make **irreversible changes** — use with caution:
 | `keywords delete --id` | Permanently deletes a keyword |
 | `audiencetargets delete --id` | Permanently deletes an audience target |
 
-Commands that affect live ad delivery: `suspend`, `resume`, `archive`, `unarchive` (available on `campaigns`, `ads`), `suspend`, `resume` (also on `keywords`).
+Commands that affect live ad delivery: `suspend`, `resume`, `archive`, `unarchive` (available on `campaigns`, `ads`), `suspend`, `resume` (also on `keywords`, and on `adgroups` as an emulation over the group's ads — see the Ad Groups section above for the resume caveat).
 
 Commands that affect bids and spending: `bids set`, `keywordbids set`, `bidmodifiers set`.
 

@@ -9,6 +9,18 @@ DRY_RUN_PAYLOAD_EXCLUSIONS = {
         "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria "
         "tests."
     ),
+    "adgroups.suspend": (
+        "No adgroups.suspend WSDL operation exists to validate a payload against "
+        "(issue #573, see INTENTIONAL_EXTRA_METHODS); dry-run payload shape is "
+        "covered by test_dry_run.py::"
+        "test_adgroups_suspend_dry_run_shows_ad_lookup_without_network_call."
+    ),
+    "adgroups.resume": (
+        "No adgroups.resume WSDL operation exists to validate a payload against "
+        "(issue #573, see INTENTIONAL_EXTRA_METHODS); dry-run payload shape is "
+        "covered by test_dry_run.py::"
+        "test_adgroups_resume_dry_run_shows_ad_lookup_without_network_call."
+    ),
     "adimages.get": (
         "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria "
         "tests."

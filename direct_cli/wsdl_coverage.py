@@ -136,6 +136,18 @@ INTENTIONAL_EXTRA_METHODS = {
         "CLI guard command: the Yandex Direct API does not support deleting "
         "agency clients, so the command aborts with an explicit message."
     ),
+    ("adgroups", "suspend"): (
+        "CLI helper (issue #573): the AdGroups service has no suspend RPC "
+        "method (WSDL declares only add/get/update/delete). The command "
+        "emulates 'pause the group' the same way the web UI/Direct Commander "
+        "do -- by suspending every ad in the group via ads.get + ads.suspend."
+    ),
+    ("adgroups", "resume"): (
+        "CLI helper (issue #573): the AdGroups service has no resume RPC "
+        "method (WSDL declares only add/get/update/delete). The command "
+        "emulates 'resume the group' via ads.get + ads.resume; see its "
+        "--help for the resulting resume-everything limitation."
+    ),
 }
 
 RUNTIME_DEPRECATED_METHODS = {
