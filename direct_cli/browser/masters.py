@@ -2670,6 +2670,17 @@ def update_master(
     assert_authenticated(page.content())
     _wait_for_edit_form(page, campaign_id)
 
+    # Determined right here, before ANY mutation runs — issue #726
+    # (live-confirmed): the DRAFT-terminal marker
+    # ``_is_draft_edit_page`` keys off can transiently vanish from the DOM
+    # mid-hydration and reappear ~1.5s later. Reading it after the field/
+    # image mutations below (as this used to) only narrows that race
+    # window, it does not close it — mutations take an unbounded amount of
+    # time and can still land inside the flap. Reading it immediately after
+    # ``_wait_for_edit_form`` is the one point the marker is known-stable
+    # (see ``_click_save``'s docstring for the contract this satisfies).
+    was_draft = _is_draft_edit_page(page)
+
     if name is not None:
         _set_campaign_name(page, name)
     if weekly_budget is not None:
@@ -2718,10 +2729,9 @@ def update_master(
         images_replaced_ids.add(target_content_id)
         _set_image(page, index, path, target_content_id=target_content_id)
 
-    # Determined BEFORE clicking, while the page still reflects what's about
-    # to be clicked — after the click, _verify_saved's own reload leaves no
-    # way to tell which button this run actually used.
-    was_draft = _is_draft_edit_page(page)
+    # was_draft was captured right after _wait_for_edit_form, above — reused
+    # here rather than re-derived, for the same reason _click_save takes it
+    # as an explicit argument instead of re-querying the DOM itself.
     if was_draft:
         clicked_button_label = (
             _LAUNCH_BUTTON_TEXT if launch else _SAVE_DRAFT_BUTTON_TEXT
@@ -2790,16 +2800,25 @@ def update_master(
     return result
 
 
-def _open_images_editor(page: "Page", campaign_id: int) -> List[str]:
+def _open_images_editor(page: "Page", campaign_id: int) -> Tuple[List[str], bool]:
     """Navigate to the campaign's edit page and return its current image
-    content IDs, once the "Изображения" section has actually rendered.
+    content IDs plus its DRAFT status, once the "Изображения" section has
+    actually rendered.
 
     The shared opening move of every ``masters adimages`` entry point:
     ``goto`` + captcha/auth assertions + ``_wait_for_images_editor``. That
-    settle is what makes the returned list trustworthy — read any earlier
-    and a campaign that simply has not finished rendering is
+    settle is what makes the returned content-ID list trustworthy — read any
+    earlier and a campaign that simply has not finished rendering is
     indistinguishable from one that genuinely has no images (see
     ``_wait_for_images_editor``).
+
+    The DRAFT status is read right after ``_wait_for_edit_form`` — the one
+    point ``_is_draft_edit_page``'s marker is known-stable (issue #726) —
+    and returned for the caller to carry through ``_apply_image_operations``
+    (uploads/removals, unbounded elapsed time) into ``_save_and_verify_images``
+    unchanged. Re-deriving it after ``_apply_image_operations`` would land
+    back in the same DOM-flap race the caller-side fix in ``update_master``
+    was written to close (see ``_click_save``'s docstring).
     """
     page.goto(
         WIZARD_EDIT_URL.format(campaign_id=campaign_id),
@@ -2808,9 +2827,10 @@ def _open_images_editor(page: "Page", campaign_id: int) -> List[str]:
     assert_not_captcha(page.content())
     assert_authenticated(page.content())
     _wait_for_edit_form(page, campaign_id)
+    is_draft = _is_draft_edit_page(page)
 
     _wait_for_images_editor(page)
-    return _read_image_content_ids(page)
+    return _read_image_content_ids(page), is_draft
 
 
 def fetch_master_images(page: "Page", campaign_id: int) -> Dict[str, Any]:
@@ -2829,7 +2849,7 @@ def fetch_master_images(page: "Page", campaign_id: int) -> Dict[str, Any]:
     not an error — unlike headlines/texts, images have no "at least one"
     invariant (see ``_IMAGES_MAX_COUNT``'s module-level comment).
     """
-    content_ids = _open_images_editor(page, campaign_id)
+    content_ids, _is_draft = _open_images_editor(page, campaign_id)
 
     thumb_urls: Dict[str, Optional[str]] = {cid: None for cid in content_ids}
     if content_ids:
@@ -2903,7 +2923,7 @@ def add_master_images(
     if not paths:
         raise ValueError("add_master_images requires at least one path.")
 
-    before_ids = _open_images_editor(page, campaign_id)
+    before_ids, is_draft = _open_images_editor(page, campaign_id)
 
     if len(before_ids) + len(paths) > _IMAGES_MAX_COUNT:
         raise BrowserSessionError(
@@ -2921,6 +2941,7 @@ def add_master_images(
     final_ids = _save_and_verify_images(
         page,
         campaign_id,
+        is_draft=is_draft,
         expected_kept_ids=before_ids,
         removed_ids=set(),
         expected_added_count=len(paths),
@@ -2963,7 +2984,7 @@ def delete_master_images(
             "all_images=True."
         )
 
-    before_ids = _open_images_editor(page, campaign_id)
+    before_ids, is_draft = _open_images_editor(page, campaign_id)
 
     if all_images:
         if not before_ids and not launch:
@@ -2999,6 +3020,7 @@ def delete_master_images(
     final_ids = _save_and_verify_images(
         page,
         campaign_id,
+        is_draft=is_draft,
         expected_kept_ids=[cid for cid in before_ids if cid not in targets],
         removed_ids=set(targets),
         expected_added_count=0,
@@ -3041,7 +3063,7 @@ def set_master_images(
             f"{_IMAGES_MAX_COUNT} images per campaign."
         )
 
-    before_ids = _open_images_editor(page, campaign_id)
+    before_ids, is_draft = _open_images_editor(page, campaign_id)
 
     if not before_ids and not paths and not launch:
         return {"CampaignId": campaign_id, "Count": 0}
@@ -3055,6 +3077,7 @@ def set_master_images(
     final_ids = _save_and_verify_images(
         page,
         campaign_id,
+        is_draft=is_draft,
         expected_kept_ids=[],
         removed_ids=set(before_ids),
         expected_added_count=len(paths),
@@ -4485,6 +4508,7 @@ def _save_and_verify_images(
     page: "Page",
     campaign_id: int,
     *,
+    is_draft: bool,
     expected_kept_ids: List[str],
     removed_ids: Set[str],
     expected_added_count: int,
@@ -4502,8 +4526,13 @@ def _save_and_verify_images(
     re-run them — same reasoning as ``update_master``'s own wrapper).
     ``not_idempotent_noun`` is the phrase naming what was already applied
     ("image uploads", "image deletions", ...).
+
+    ``is_draft`` MUST be the caller's ``_open_images_editor`` reading, taken
+    right after ``_wait_for_edit_form`` — NOT re-derived here. Re-deriving it
+    at this point would read the DOM only after ``_apply_image_operations``
+    (uploads/removals) has already run, landing back inside the same #726
+    DOM-flap race ``_click_save``'s ``is_draft`` contract exists to close.
     """
-    is_draft = _is_draft_edit_page(page)
     clicked_button_label = (
         (_LAUNCH_BUTTON_TEXT if launch else _SAVE_DRAFT_BUTTON_TEXT)
         if is_draft

@@ -3810,6 +3810,59 @@ class TestDraftEditPageSave(unittest.TestCase):
             browser_masters._click_save(page, 713231614, is_draft=True)
         self.assertIn(browser_masters._SAVE_DRAFT_BUTTON_TEXT, str(ctx.exception))
 
+    def test_open_images_editor_reads_is_draft_before_returning(self):
+        # Regression for #726 on the images path: _open_images_editor must
+        # read is_draft right after _wait_for_edit_form (i.e. as part of
+        # this call), NOT leave it for a caller to re-derive later after
+        # _apply_image_operations has run — that would reopen the same
+        # DOM-flap race _click_save's is_draft contract exists to close.
+        page = _FakeImagesPage(
+            ["a"],
+            locators={
+                browser_masters._DRAFT_SAVE_DRAFT_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                )
+            },
+        )
+
+        _content_ids, is_draft = browser_masters._open_images_editor(page, 42)
+
+        self.assertTrue(is_draft)
+
+    def test_open_images_editor_is_draft_false_when_marker_absent(self):
+        page = _FakeImagesPage(["a"])
+
+        _content_ids, is_draft = browser_masters._open_images_editor(page, 42)
+
+        self.assertFalse(is_draft)
+
+    def test_add_master_images_uses_is_draft_captured_before_apply_operations(self):
+        # End-to-end regression for #726 on add_master_images: the DRAFT
+        # branch must be taken based on the marker's state at
+        # _open_images_editor time, not re-queried after
+        # _apply_image_operations (uploads) has run and the marker may have
+        # flapped away.
+        draft_clicks = []
+
+        def _on_draft_click():
+            draft_clicks.append(True)
+            page.url = browser_masters.WIZARD_OVERVIEW_URL.format(campaign_id=42)
+
+        page = _FakeImagesPage(
+            [],
+            upload_ids=["new1"],
+            locators={
+                browser_masters._DRAFT_SAVE_DRAFT_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle(on_click=_on_draft_click)]
+                )
+            },
+        )
+        page.url = browser_masters.WIZARD_EDIT_URL.format(campaign_id=42)
+
+        browser_masters.add_master_images(page, 42, paths=["/tmp/a.png"])
+
+        self.assertEqual(draft_clicks, [True])
+
 
 class TestUpdateMasterDraftSupport(unittest.TestCase):
     """``update_master`` end to end on a DRAFT campaign (issue #668)."""
