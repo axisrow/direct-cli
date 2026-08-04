@@ -10,6 +10,7 @@ from ..output import handle_api_errors
 from ._execute import execute_request
 from ._get import make_get_command
 from ._lifecycle import register_lifecycle_commands
+from ._set_bids import make_set_bids_command
 from ..utils import (
     MICRO_RUBLES,
     add_criteria_csv,
@@ -138,42 +139,31 @@ def add(
     execute_request(ctx, "audiencetargets", body, dry_run, create_client)
 
 
-@audiencetargets.command(name="set-bids")
-@click.option("--id", "target_id", type=click.IntRange(min=1), help="Target ID")
-@click.option("--adgroup-id", type=click.IntRange(min=1), help="Ad group ID")
-@click.option("--campaign-id", type=click.IntRange(min=1), help="Campaign ID")
-@click.option("--context-bid", type=MICRO_RUBLES, help="Context bid in micro-rubles")
-@click.option("--priority", help="Strategy priority")
-@click.option("--dry-run", is_flag=True, help="Show request without sending")
-@click.pass_context
-@handle_api_errors
-def set_bids(ctx, target_id, adgroup_id, campaign_id, context_bid, priority, dry_run):
-    """Set audience target bids"""
-    bid_data = {}
-    if target_id is not None:
-        bid_data["Id"] = target_id
-    if adgroup_id is not None:
-        bid_data["AdGroupId"] = adgroup_id
-    if campaign_id is not None:
-        bid_data["CampaignId"] = campaign_id
-    if context_bid is not None:
-        bid_data["ContextBid"] = context_bid
-    if priority:
-        bid_data["StrategyPriority"] = priority
-    bid_fields = {k for k in ("ContextBid", "StrategyPriority") if k in bid_data}
-    selector_fields = {k for k in ("Id", "AdGroupId", "CampaignId") if k in bid_data}
-    if not selector_fields:
-        raise click.UsageError(
-            t("Provide a target selector (--id, --adgroup-id, or --campaign-id)")
-        )
-    if not bid_fields:
-        raise click.UsageError(
-            t("Provide at least one bid field (--context-bid or --priority)")
-        )
-
-    body = {"method": "setBids", "params": {"Bids": [bid_data]}}
-
-    execute_request(ctx, "audiencetargets", body, dry_run, create_client)
+set_bids = make_set_bids_command(
+    audiencetargets,
+    "audiencetargets",
+    "Set audience target bids",
+    (
+        (
+            "--context-bid",
+            "context_bid",
+            "ContextBid",
+            MICRO_RUBLES,
+            "Context bid in micro-rubles",
+        ),
+        (
+            "--priority",
+            "priority",
+            "StrategyPriority",
+            None,
+            "Strategy priority",
+            True,
+        ),
+    ),
+    create_client,
+    selector_error="Provide a target selector (--id, --adgroup-id, or --campaign-id)",
+    bid_error="Provide at least one bid field (--context-bid or --priority)",
+)
 
 
 register_lifecycle_commands(
