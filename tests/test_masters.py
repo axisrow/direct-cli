@@ -116,7 +116,7 @@ class _FakeLocatorHandle:
         handle = self._sub_locators.get(selector)
         return _FakeLocator([handle] if handle is not None else [])
 
-    def inner_text(self):
+    def inner_text(self, timeout=None):
         if self._raises:
             # Real Playwright raises its own Error (a TimeoutError subclass) when
             # an element is missing — masters.py's `except PlaywrightError` must
@@ -588,12 +588,25 @@ class FakePage:
     def mouse(self):
         return _FakeMouse()
 
+    @property
+    def keyboard(self):
+        return _FakeKeyboard()
+
 
 class _FakeMouse:
     """Minimal ``page.mouse`` stand-in — only ``wheel()`` is used
     (``_click_save``'s scroll-to-bottom-before-searching step)."""
 
     def wheel(self, delta_x, delta_y):
+        pass
+
+
+class _FakeKeyboard:
+    """Minimal ``page.keyboard`` stand-in — only ``press()`` is used
+    (``_read_devices``/``_set_devices``/``_add_audience_tag`` closing the
+    device or tag-suggestion popup via Escape, issue #681)."""
+
+    def press(self, key):
         pass
 
 
@@ -11213,6 +11226,420 @@ class TestResolveRegionIds(unittest.TestCase):
             result = _resolve_region_ids(Mock(), (213,))
 
         self.assertEqual(result, [("Москва", 213)])
+
+
+class _FakeAudienceTagsPage(FakePage):
+    """A ``FakePage`` whose ``_read_audience_tags`` result can be scripted to
+    change across successive calls — models the "Интересы и поисковые
+    запросы" tag list hydrating over several reads, the exact race
+    ``_wait_for_audience_section`` (issue #681, cycle-review PR #751) polls
+    for.
+
+    ``counts`` is a queue of tag-list sizes; each call to the tags-wrapper
+    locator consumes the next value (the last value repeats once the queue
+    is exhausted), and the fake's tag-slot locators are re-derived from
+    that count on every read — mirrors how ``_read_audience_tags`` re-reads
+    the live DOM on every call rather than caching.
+    """
+
+    def __init__(self, counts, **kwargs):
+        super().__init__(locators={}, **kwargs)
+        self._counts = list(counts)
+        self._call_index = 0
+        self._scan_started = False
+
+    def locator(self, selector):
+        if selector == browser_masters._AUDIENCE_TAG_WRAPPER_TESTID:
+            return _FakeLocator([_FakeLocatorHandle()])
+        prefix = "CustomAudienceAndSearchTermsEditor.TagGroup.tag."
+        if selector.startswith(f'[data-testid="{prefix}') and not selector.endswith(
+            '.close"]'
+        ):
+            index = int(selector[len(f'[data-testid="{prefix}') : -len('"]')])
+            if index == 0:
+                # Advance the queue once per full _read_audience_tags scan
+                # (a scan always starts by reading index 0, whether count is
+                # 0 or 112) -- except on the very first scan, which must see
+                # counts[0], not counts[1].
+                if self._scan_started:
+                    self._call_index += 1
+                self._scan_started = True
+            count = self._counts[min(self._call_index, len(self._counts) - 1)]
+            if index < count:
+                return _FakeLocator([_FakeLocatorHandle(text=f"tag{index}")])
+            return _FakeLocator([_FakeLocatorHandle(raises=True)])
+        return super().locator(selector)
+
+
+class TestWaitForAudienceSection(unittest.TestCase):
+    """``_wait_for_audience_section`` (issue #681, cycle-review PR #751
+    round 1): two equal consecutive tag-count reads 250ms apart is not
+    enough to trust the count -- a premature value (e.g. 0) can itself read
+    stable for two ticks before the real payload starts arriving. Requires
+    ``_AUDIENCE_TAG_STABLE_STREAK`` consecutive equal reads, and raises
+    (rather than silently proceeding) if the gender trigger or the tag
+    count never settles within the timeout.
+    """
+
+    def test_does_not_settle_on_two_premature_equal_reads(self):
+        # Tag count reads 0, 0, 0, 0, 112, 112, 112, 112, 112 -- the first
+        # two (or three) reads are "stable" by a 2-sample test but wrong;
+        # only the run of 112s should satisfy the (patched, shorter) streak.
+        page = _FakeAudienceTagsPage(
+            counts=[0, 0, 0, 0, 112, 112, 112, 112, 112],
+            role_elements=[],
+        )
+        page._locators[browser_masters._GENDER_SELECT_TESTID] = _FakeLocator(
+            [_FakeLocatorHandle(text="Любой пол")]
+        )
+
+        with (
+            patch.object(browser_masters, "_AUDIENCE_TAG_STABLE_STREAK", 3),
+            patch.object(browser_masters, "_AUDIENCE_TAG_STABLE_WINDOW_MS", 10_000),
+        ):
+            browser_masters._wait_for_audience_section(page)
+
+        # Reaching here without raising means the loop kept polling past
+        # the premature 0-streak and only settled once 112 repeated 3x.
+        self.assertEqual(len(browser_masters._read_audience_tags(page)), 112)
+
+    def test_raises_if_gender_trigger_never_shows_a_label(self):
+        page = FakePage(locators={})  # no _GENDER_SELECT_TESTID handle at all
+
+        with patch.object(browser_masters, "_AUDIENCE_SECTION_READY_TIMEOUT_MS", 1):
+            with self.assertRaises(BrowserSessionError):
+                browser_masters._wait_for_audience_section(page)
+
+    def test_raises_if_tag_count_never_settles(self):
+        # Every read returns a different count -- never two-in-a-row equal,
+        # so the stability streak can never be reached.
+        page = _FakeAudienceTagsPage(counts=list(range(50)))
+        page._locators[browser_masters._GENDER_SELECT_TESTID] = _FakeLocator(
+            [_FakeLocatorHandle(text="Любой пол")]
+        )
+
+        with (
+            patch.object(browser_masters, "_AUDIENCE_TAG_STABLE_STREAK", 3),
+            patch.object(browser_masters, "_AUDIENCE_TAG_STABLE_WINDOW_MS", 1),
+        ):
+            with self.assertRaises(BrowserSessionError):
+                browser_masters._wait_for_audience_section(page)
+
+
+class TestSetGender(unittest.TestCase):
+    """``_set_gender``/``_read_gender_label`` (issue #681)."""
+
+    def test_selects_and_verifies_gender(self):
+        page = FakePage(
+            locators={
+                browser_masters._GENDER_SELECT_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle(text="Женщины")]
+                ),
+                browser_masters._GENDER_OPTION_TESTID_TEMPLATE.format(
+                    value="Female"
+                ): _FakeLocator([_FakeLocatorHandle()]),
+            }
+        )
+
+        browser_masters._set_gender(page, "female")  # no raise == verified
+
+    def test_mismatch_after_click_raises(self):
+        page = FakePage(
+            locators={
+                browser_masters._GENDER_SELECT_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle(text="Мужчины")]
+                ),
+                browser_masters._GENDER_OPTION_TESTID_TEMPLATE.format(
+                    value="Female"
+                ): _FakeLocator([_FakeLocatorHandle()]),
+            }
+        )
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._set_gender(page, "female")
+
+    def test_rejects_unknown_gender(self):
+        with self.assertRaises(ValueError):
+            browser_masters._set_gender(FakePage(locators={}), "nonbinary")
+
+
+class TestFormatAgeBoundLabel(unittest.TestCase):
+    """``_format_age_bound_label`` (issue #681) -- the "до" side's unlimited
+    option renders as "до 55+", not a literal echo of "Без ограничений"."""
+
+    def test_from_bound(self):
+        self.assertEqual(
+            browser_masters._format_age_bound_label(is_from=True, age=25), "от 25"
+        )
+
+    def test_to_bound_finite(self):
+        self.assertEqual(
+            browser_masters._format_age_bound_label(is_from=False, age=45), "до 45"
+        )
+
+    def test_to_bound_unlimited(self):
+        self.assertEqual(
+            browser_masters._format_age_bound_label(is_from=False, age=None),
+            "до 55+",
+        )
+
+
+class TestSetAgeBound(unittest.TestCase):
+    """``_set_age_bound`` (issue #681)."""
+
+    def test_from_has_no_unlimited_option(self):
+        with self.assertRaises(ValueError):
+            browser_masters._set_age_bound(
+                FakePage(locators={}), is_from=True, age=None
+            )
+
+    def test_selects_unlimited_to_bound(self):
+        page = FakePage(
+            locators={
+                browser_masters._AGE_TO_SELECT_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle(text="до\xa055+")]
+                ),
+                browser_masters._AGE_TO_OPTION_TESTID_TEMPLATE.format(
+                    value="Unlimited"
+                ): _FakeLocator([_FakeLocatorHandle()]),
+            }
+        )
+
+        browser_masters._set_age_bound(page, is_from=False, age=None)
+
+
+class TestReadSetDevices(unittest.TestCase):
+    """``_read_devices``/``_set_devices`` (issue #681)."""
+
+    def test_read_devices_returns_checked_subset(self):
+        page = FakePage(
+            locators={
+                browser_masters._DEVICE_SELECT_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                browser_masters._DEVICE_OPTION_TESTID_TEMPLATE.format(
+                    value="mobile"
+                ): _FakeLocator([_FakeLocatorHandle(attrs={"aria-selected": "true"})]),
+                browser_masters._DEVICE_OPTION_TESTID_TEMPLATE.format(
+                    value="desktop"
+                ): _FakeLocator([_FakeLocatorHandle(attrs={"aria-selected": "false"})]),
+                browser_masters._DEVICE_OPTION_TESTID_TEMPLATE.format(
+                    value="tablet"
+                ): _FakeLocator([_FakeLocatorHandle(attrs={"aria-selected": "false"})]),
+            }
+        )
+
+        self.assertEqual(browser_masters._read_devices(page), {"mobile"})
+
+    def test_set_devices_rejects_empty_set(self):
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._set_devices(FakePage(locators={}), set())
+
+    def test_set_devices_rejects_unknown_device(self):
+        with self.assertRaises(ValueError):
+            browser_masters._set_devices(FakePage(locators={}), {"smartwatch"})
+
+
+class TestRemoveAudienceTagPositions(unittest.TestCase):
+    """``_parse_remove_audience_tag_options`` (cycle-review PR #751 round 1
+    fix): a duplicate position must be rejected up front, mirroring
+    ``_parse_remove_target_action_options``'s existing duplicate-goal
+    guard -- positions are resolved against a single pre-mutation snapshot,
+    so a repeated position would otherwise remove two DIFFERENT tags (the
+    one originally at that position, then whatever shifted into it)."""
+
+    def test_rejects_duplicate_position(self):
+        from direct_cli.commands.masters import _parse_remove_audience_tag_options
+
+        with self.assertRaises(click.UsageError):
+            _parse_remove_audience_tag_options((1, 1))
+
+    def test_accepts_distinct_positions_in_order(self):
+        from direct_cli.commands.masters import _parse_remove_audience_tag_options
+
+        self.assertEqual(_parse_remove_audience_tag_options((3, 1, 2)), [3, 1, 2])
+
+
+class TestMastersUpdateAudienceFlags(unittest.TestCase):
+    """CLI wiring for `masters update`'s "Аудитория" flags (issue #681)."""
+
+    def setUp(self):
+        self.runner = CliRunner()
+
+    def test_documents_audience_flags(self):
+        result = self.runner.invoke(cli, ["masters", "update", "--help"])
+        self.assertIn("--gender", result.output)
+        self.assertIn("--age-from", result.output)
+        self.assertIn("--age-to", result.output)
+        self.assertIn("--device", result.output)
+        self.assertIn("--add-audience-tag", result.output)
+        self.assertIn("--remove-audience-tag", result.output)
+
+    def test_rejects_duplicate_remove_audience_tag_position(self):
+        result = self.runner.invoke(
+            cli,
+            [
+                "masters",
+                "update",
+                "42",
+                "--remove-audience-tag",
+                "1",
+                "--remove-audience-tag",
+                "1",
+            ],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("more than once", result.output.lower())
+
+    def test_rejects_unknown_gender(self):
+        result = self.runner.invoke(
+            cli, ["masters", "update", "42", "--gender", "nonbinary"]
+        )
+        self.assertNotEqual(result.exit_code, 0)
+
+    def test_rejects_unknown_device(self):
+        result = self.runner.invoke(
+            cli, ["masters", "update", "42", "--device", "smartwatch"]
+        )
+        self.assertNotEqual(result.exit_code, 0)
+
+    def test_passes_gender_age_devices_and_tags(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "update",
+                    "42",
+                    "--gender",
+                    "female",
+                    "--age-from",
+                    "25",
+                    "--age-to",
+                    "unlimited",
+                    "--device",
+                    "mobile",
+                    "--device",
+                    "desktop",
+                    "--add-audience-tag",
+                    "йога",
+                    "--remove-audience-tag",
+                    "2",
+                ],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        mock_update.assert_called_once()
+        _args, kwargs = mock_update.call_args
+        self.assertEqual(kwargs["gender"], "female")
+        self.assertEqual(kwargs["age_from"], 25)
+        self.assertTrue(kwargs["age_from_requested"])
+        self.assertIsNone(kwargs["age_to"])
+        self.assertTrue(kwargs["age_to_requested"])
+        self.assertEqual(kwargs["devices"], {"mobile", "desktop"})
+        self.assertEqual(kwargs["add_audience_tags"], ["йога"])
+        self.assertEqual(kwargs["remove_audience_tags"], [2])
+
+    def test_bare_age_to_without_unlimited_parses_as_int(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli, ["masters", "update", "42", "--age-to", "45"]
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        _args, kwargs = mock_update.call_args
+        self.assertEqual(kwargs["age_to"], 45)
+        self.assertTrue(kwargs["age_to_requested"])
+
+    def test_no_fields_still_rejected_with_audience_flags_absent(self):
+        result = self.runner.invoke(cli, ["masters", "update", "42"])
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("--gender", result.output)
+
+
+class TestFetchMasterAudience(unittest.TestCase):
+    """``fetch_master_audience`` (issue #681) -- `masters audience get`'s
+    browser layer, read-only, mirrors ``fetch_master_target_actions``."""
+
+    def test_returns_gender_age_tags_and_devices(self):
+        edit_form_ready_selector = (
+            f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'
+        )
+        page = FakePage(
+            locators={
+                edit_form_ready_selector: _FakeLocator([_FakeLocatorHandle()]),
+                browser_masters._GENDER_SELECT_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle(text="Женщины")]
+                ),
+                browser_masters._AGE_FROM_SELECT_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle(text="от\xa025")]
+                ),
+                browser_masters._AGE_TO_SELECT_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle(text="до\xa055+")]
+                ),
+                browser_masters._AUDIENCE_TAG_WRAPPER_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                browser_masters._DEVICE_SELECT_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                browser_masters._DEVICE_OPTION_TESTID_TEMPLATE.format(
+                    value="mobile"
+                ): _FakeLocator([_FakeLocatorHandle(attrs={"aria-selected": "true"})]),
+                browser_masters._DEVICE_OPTION_TESTID_TEMPLATE.format(
+                    value="desktop"
+                ): _FakeLocator([_FakeLocatorHandle(attrs={"aria-selected": "true"})]),
+                browser_masters._DEVICE_OPTION_TESTID_TEMPLATE.format(
+                    value="tablet"
+                ): _FakeLocator([_FakeLocatorHandle(attrs={"aria-selected": "true"})]),
+            }
+        )
+
+        with patch.object(browser_masters, "_AUDIENCE_TAG_STABLE_STREAK", 1):
+            result = browser_masters.fetch_master_audience(page, 713277109)
+
+        self.assertEqual(result["CampaignId"], 713277109)
+        self.assertEqual(result["Gender"], "Женщины")
+        self.assertEqual(result["AgeFromLabel"], "от 25")
+        self.assertEqual(result["AgeToLabel"], "до 55+")
+        self.assertEqual(result["AudienceTags"], [])
+        self.assertEqual(result["AudienceTagCount"], 0)
+        self.assertEqual(result["Devices"], ["desktop", "mobile", "tablet"])
+
+
+class TestMastersAudienceGetCommand(unittest.TestCase):
+    """CLI wiring for `masters audience get` (issue #681)."""
+
+    def setUp(self):
+        self.runner = CliRunner()
+
+    def test_registered(self):
+        result = self.runner.invoke(cli, ["masters", "audience", "get", "--help"])
+        self.assertEqual(result.exit_code, 0)
+
+    def test_calls_fetch_master_audience(self):
+        with (
+            patch("direct_cli.browser.masters.fetch_master_audience") as mock_fetch,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_fetch.return_value = {"CampaignId": 42, "Gender": "Любой пол"}
+            result = self.runner.invoke(cli, ["masters", "audience", "get", "42"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        mock_fetch.assert_called_once()
+        args, _kwargs = mock_fetch.call_args
+        self.assertEqual(args[1], 42)
 
 
 if __name__ == "__main__":

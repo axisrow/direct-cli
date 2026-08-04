@@ -744,6 +744,26 @@ def _parse_remove_target_action_options(values: "tuple[str, ...]") -> "list[int]
     return parsed
 
 
+def _parse_remove_audience_tag_options(values: "tuple[int, ...]") -> "list[int]":
+    """Parse repeated ``--remove-audience-tag`` CLI values into a list of
+    0-based positions, rejecting a duplicate the same way
+    ``_parse_remove_target_action_options`` rejects a duplicate goal id —
+    positions are resolved against a single pre-mutation snapshot
+    (``update_master``'s ``audience_tags_before``), so a repeated position
+    would silently remove two DIFFERENT tags (the one originally at that
+    position, then whatever shifted into it after the first removal)
+    instead of raising."""
+    seen: "set[int]" = set()
+    for position in values:
+        if position in seen:
+            raise click.UsageError(
+                f"--remove-audience-tag position {position + 1} was "
+                "specified more than once."
+            )
+        seen.add(position)
+    return list(values)
+
+
 def _validate_image_path(raw_path: str, *, option_name: str, context: str) -> None:
     """Reject one image path that doesn't exist or that Yandex won't accept.
 
@@ -1564,6 +1584,9 @@ def update(
     parsed_age_to = (
         None if age_to == "unlimited" else (int(age_to) if age_to is not None else None)
     )
+    parsed_remove_audience_tags = _parse_remove_audience_tag_options(
+        remove_audience_tags
+    )
 
     result = _with_session(
         ctx,
@@ -1591,7 +1614,7 @@ def update(
             age_to_requested=age_to is not None,
             devices=set(devices) if devices else None,
             add_audience_tags=list(add_audience_tags) or None,
-            remove_audience_tags=list(remove_audience_tags) or None,
+            remove_audience_tags=parsed_remove_audience_tags or None,
             launch=launch,
         ),
     )

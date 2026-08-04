@@ -1058,6 +1058,22 @@ _AUDIENCE_TAG_SUGGEST_TIMEOUT_MS = 5_000
 # above that observed 4s settle time.
 _AUDIENCE_SECTION_READY_TIMEOUT_MS = 8_000
 
+# How many CONSECUTIVE equal tag-count reads _wait_for_audience_section
+# requires (each _AUDIENCE_TAG_STABLE_WINDOW_MS/streak tick apart) before
+# trusting the audience-tag list has actually finished loading, and how
+# long it polls overall — cycle-review (PR #751) finding: a single pair of
+# equal reads 250ms apart can both land on the same PREMATURE value (e.g.
+# 0 read twice before the real 112-tag payload starts arriving at all),
+# which is "stable" by a 2-sample test but still wrong. Live recon (this
+# module's own docstring above) put the actual settle point somewhere
+# between 1.5s and 4s after the gender trigger already had data; 5
+# consecutive equal samples spaced 500ms apart span 2.5s of continued
+# agreement on top of whatever tick first produced that value, which does
+# not by itself guarantee correctness but meaningfully raises the bar
+# above "two ticks of an SPA that hasn't started rendering yet".
+_AUDIENCE_TAG_STABLE_STREAK = 5
+_AUDIENCE_TAG_STABLE_WINDOW_MS = 10_000
+
 # "Устройства пользователей" (DeviceEditor): a multi-select popup with
 # exactly three checkboxes, confirmed live all pre-checked by default
 # ("Любые" = all three checked, not a fourth distinct value) — mobile,
@@ -2622,7 +2638,15 @@ def _wait_for_audience_section(page: "Page") -> None:
         except PlaywrightError:
             return False
 
-    _poll_until(page, _has_label, _AUDIENCE_SECTION_READY_TIMEOUT_MS)
+    if not _poll_until(page, _has_label, _AUDIENCE_SECTION_READY_TIMEOUT_MS):
+        raise BrowserSessionError(
+            "The 'Пол' dropdown on the campaign edit page never showed a "
+            f"value within {_AUDIENCE_SECTION_READY_TIMEOUT_MS / 1000:.0f}s "
+            "— either the 'Аудитория' section is still hydrating, the "
+            "campaign is currently in 'Подобрать оптимальную' auto mode "
+            "(where this section is absent), or Yandex changed the page's "
+            "markup. Re-run with --headful to inspect the page."
+        )
 
     # The gender trigger settling is NOT proof the (much larger, on a
     # campaign with 100+ tags) audience-tag list has also finished loading
@@ -2631,19 +2655,37 @@ def _wait_for_audience_section(page: "Page") -> None:
     # SAME campaign, both starting only after the gender trigger already
     # showed a non-empty label, read the tag count as 0 in one run and 112
     # in another — an outright wrong committed value, not merely "not
-    # there yet". Polling for two EQUAL consecutive counts (rather than
-    # "count > 0", which a genuinely-empty campaign would never satisfy)
-    # is what lets this converge for a zero-tag campaign too.
+    # there yet". A single pair of equal consecutive counts 250ms apart
+    # (``_poll_until``'s tick) is NOT enough to rule this out — a count
+    # that reads 0 twice in a row before the real 112-tag payload has even
+    # started arriving is "stable" by that test too. Live recon showed the
+    # race resolving somewhere between 1.5s and 4s after the gender trigger
+    # already had data, so this instead requires ``_AUDIENCE_TAG_STABLE_
+    # STREAK`` consecutive equal counts spread across
+    # ``_AUDIENCE_TAG_STABLE_WINDOW_MS`` (comfortably past that observed 4s
+    # settle point) before treating the count as trustworthy.
     previous_count: "Optional[int]" = None
+    stable_streak = 0
 
     def _tag_count_stable() -> bool:
-        nonlocal previous_count
+        nonlocal previous_count, stable_streak
         current_count = len(_read_audience_tags(page))
-        stable = previous_count is not None and current_count == previous_count
+        if previous_count is not None and current_count == previous_count:
+            stable_streak += 1
+        else:
+            stable_streak = 0
         previous_count = current_count
-        return stable
+        return stable_streak >= _AUDIENCE_TAG_STABLE_STREAK
 
-    _poll_until(page, _tag_count_stable, _AUDIENCE_SECTION_READY_TIMEOUT_MS)
+    if not _poll_until(
+        page, _tag_count_stable, _AUDIENCE_TAG_STABLE_WINDOW_MS, tick_ms=500
+    ):
+        raise BrowserSessionError(
+            "The 'Интересы и поисковые запросы' tag count never settled "
+            f"within {_AUDIENCE_TAG_STABLE_WINDOW_MS / 1000:.0f}s — the "
+            "'Аудитория' section may still be hydrating, or Yandex changed "
+            "the page's markup. Re-run with --headful to inspect the page."
+        )
 
 
 def _set_gender(page: "Page", gender: str) -> None:
