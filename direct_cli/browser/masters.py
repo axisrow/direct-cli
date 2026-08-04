@@ -873,14 +873,56 @@ _VERIFY_FIELD_READ_TIMEOUT_MS = 5_000
 #
 # There is no separate "select this goal for optimization" control — a
 # goal's presence AS A ROW in this table (added via
-# ``TargetActions.OTHER.MiniGrid.AddButton``'s search popup, out of scope
-# here) is what makes it "selected"; filling its ``PriceInput`` is the only
-# action, confirming issue #707's open question about whether a distinct
-# selection flag is needed (it is not).
+# ``TargetActions.OTHER.MiniGrid.AddButton``'s search popup) is what makes it
+# "selected"; filling its ``PriceInput`` is the only action, confirming issue
+# #707's open question about whether a distinct selection flag is needed (it
+# is not).
+#
+# Add/remove (issue #717 recon, 2026-08-04, live campaign 713277109
+# temporarily unarchived for this — see ``_TARGET_ACTION_UNARCHIVE_NOTE``
+# below): clicking ``TargetActions.OTHER.MiniGrid.AddButton`` opens a
+# ``[data-testid="AddTargetAction.OTHER"]`` list BELOW the table (not a
+# separate modal), containing one ``[role="option"]`` per goal the
+# campaign's linked Metrika counter has that is NOT ALREADY a row in the
+# table — Yandex filters already-added goals out of this list itself, so
+# there is no "already added" error state to reproduce; a goal id absent
+# from the list is either not the counter's or already present. Each
+# option's own testid is ``AddTargetAction.OTHER.<goalId>`` — the same
+# numeric Metrika goal id used everywhere else in this module. A text search
+# input (``SelectSearchTargetInput``, placeholder "Поиск") also lives in
+# this list but is not needed here: this module identifies a goal purely by
+# id (see the "Goal ids ... never by its label" note above), so clicking the
+# id-scoped option directly is both simpler and immune to a goal's display
+# name changing.
+#
+# Confirmed live: clicking an option adds a new row with an EMPTY price
+# input — not a page default as issue #717 speculated. Saving with that
+# field still empty is rejected client-side (the row's
+# ``data-form-error`` flips to ``"true"``, a red icon appears, and the
+# terminal save click does not persist) — so ``_add_target_action`` requires
+# a price, unlike ``_set_target_action_price`` which only ever touches a
+# price that's already there. The list stays open after a click (no
+# auto-close) — irrelevant here since this module never needs to add more
+# than one goal per popup open.
+#
+# Removal is simpler: ``TargetActions.OTHER.<goalId>.CloseButton`` removes
+# the row from the DOM immediately on click, no confirmation dialog.
 _TARGET_ACTIONS_SECTION_TESTID = '[data-testid="TargetActionsSection"]'
 _TARGET_ACTIONS_CATEGORY = "OTHER"
 _TARGET_ACTION_ROW_TESTID_TEMPLATE = "TargetActions.{category}.{goal_id}"
 _TARGET_ACTION_PRICE_TESTID_TEMPLATE = "TargetActions.{category}.{goal_id}.PriceInput"
+_TARGET_ACTION_CLOSE_TESTID_TEMPLATE = "TargetActions.{category}.{goal_id}.CloseButton"
+_TARGET_ACTION_ADD_BUTTON_TESTID_TEMPLATE = (
+    "TargetActions.{category}.MiniGrid.AddButton"
+)
+_TARGET_ACTION_ADD_OPTION_TESTID_TEMPLATE = "AddTargetAction.{category}.{goal_id}"
+
+# How many times ``_click_and_wait_for_popup``-style retries are attempted
+# for the add-popup's option to become visible/clickable — same hydration
+# race as every other menu/modal trigger in this module (issues #723/#725),
+# confirmed live here too: the first click after the section scrolls into
+# view frequently lands before the popup's React handler is ready.
+_TARGET_ACTION_ADD_OPTION_MAX_ATTEMPTS = 5
 
 # How long to wait for the "Целевые действия" section to render before
 # concluding a requested goal row genuinely isn't there — same hydration
@@ -2301,11 +2343,111 @@ def _set_target_action_price(page: "Page", goal_id: int, price: float) -> None:
             "edit page. This table only exists when the promotion goal is "
             "'max-conversions', and only shows goals already added to it — "
             f"pass --promotion-goal max-conversions, and confirm goal "
-            f"{goal_id} is already listed (add it via --headful first if "
-            "not; adding a brand-new goal row is not supported by this CLI "
-            "yet). If the goal should already be there, Yandex may have "
-            "changed the page's markup — re-run with --headful to inspect "
-            "the page."
+            f"{goal_id} is already listed (add it first with "
+            "--add-target-action, or via --headful). If the goal should "
+            "already be there, Yandex may have changed the page's markup — "
+            "re-run with --headful to inspect the page."
+        ) from exc
+
+
+def _add_target_action(page: "Page", goal_id: int, price: float) -> None:
+    """Add a NEW row to the "Целевые действия" table for ``goal_id`` and set
+    its price, via the table's own "Добавить" popup.
+
+    ``goal_id`` must be one of the campaign's linked Metrika counter's goals
+    that ISN'T already a row — Yandex's own popup list only ever offers
+    those (see ``_TARGET_ACTIONS_CATEGORY``'s docstring), so a goal id that's
+    already present or that doesn't belong to the counter simply never
+    appears as a clickable option; both cases surface as the same "option
+    never appeared" ``BrowserSessionError`` below, since this module has no
+    separate way to tell them apart without guessing at Yandex's internal
+    reasoning.
+
+    The popup opens BELOW the table (not a modal) and does not auto-close
+    after a click — same "open via retry, no need to close" shape as
+    ``_click_and_wait_for_popup``, reimplemented here rather than reused
+    because the target here is a per-goal-id OPTION inside the popup, not
+    the popup's own container.
+
+    A freshly clicked option renders with an EMPTY price input (confirmed
+    live — not a page default), so this always fills one — there is no
+    "add with no price" caller path; the CLI-boundary parse requires a
+    price for exactly this reason (see ``_parse_add_target_action_options``).
+    """
+    add_button_testid = _TARGET_ACTION_ADD_BUTTON_TESTID_TEMPLATE.format(
+        category=_TARGET_ACTIONS_CATEGORY
+    )
+    add_button = page.locator(f'[data-testid="{add_button_testid}"]').first
+    option_testid = _TARGET_ACTION_ADD_OPTION_TESTID_TEMPLATE.format(
+        category=_TARGET_ACTIONS_CATEGORY, goal_id=goal_id
+    )
+    option = page.locator(f'[data-testid="{option_testid}"]').first
+
+    opened = False
+    last_exc: Optional[Exception] = None
+    for _ in range(_TARGET_ACTION_ADD_OPTION_MAX_ATTEMPTS):
+        try:
+            add_button.click()
+        except PlaywrightError as exc:
+            last_exc = exc
+            continue
+        try:
+            option.wait_for(state="visible", timeout=_POPUP_APPEAR_TIMEOUT_MS)
+            opened = True
+            break
+        except PlaywrightError as exc:
+            last_exc = exc
+            continue
+
+    if not opened:
+        raise BrowserSessionError(
+            f"Could not find goal {goal_id} in the 'Добавить' target-action "
+            "popup on the campaign edit page. This table only exists when "
+            "the promotion goal is 'max-conversions' — pass "
+            "--promotion-goal max-conversions if that's not already the "
+            "case. Otherwise the popup only lists goals from the "
+            "campaign's linked Metrika counter that AREN'T already in the "
+            "table — confirm goal "
+            f"{goal_id} belongs to that counter and isn't already listed "
+            "(`masters targetactions get`), or Yandex may have changed the "
+            "page's markup — re-run with --headful to inspect the page."
+        ) from last_exc
+
+    option.click()
+
+    try:
+        _set_target_action_price(page, goal_id, price)
+    except BrowserSessionError as exc:
+        raise BrowserSessionError(
+            f"Added goal {goal_id} to the 'Целевые действия' table but "
+            f"could not fill its price: {exc}"
+        ) from exc
+
+
+def _remove_target_action(page: "Page", goal_id: int) -> None:
+    """Remove an EXISTING row from the "Целевые действия" table for
+    ``goal_id``, via that row's own close button.
+
+    Raises ``BrowserSessionError`` naming the requirement if the row is
+    absent — mirrors ``_set_target_action_price``'s "must already be a row"
+    guard rather than silently no-op'ing on an already-absent goal.
+    """
+    close_testid = _TARGET_ACTION_CLOSE_TESTID_TEMPLATE.format(
+        category=_TARGET_ACTIONS_CATEGORY, goal_id=goal_id
+    )
+    close_button = page.locator(f'[data-testid="{close_testid}"]').first
+    try:
+        close_button.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            f"Could not find or click the remove button for goal {goal_id} "
+            "in the 'Целевые действия' table on the campaign edit page. "
+            "This table only exists when the promotion goal is "
+            "'max-conversions' — pass --promotion-goal max-conversions if "
+            f"that's not already the case. Otherwise confirm goal {goal_id} "
+            "is currently listed (`masters targetactions get`), or Yandex "
+            "may have changed the page's markup — re-run with --headful to "
+            "inspect the page."
         ) from exc
 
 
@@ -2319,7 +2461,9 @@ def _read_target_actions(page: "Page") -> List[Dict[str, Any]]:
     exist for the campaign's current promotion goal (mirrors
     ``_read_goal_price``'s "inconclusive/absent" convention) — callers that
     need to distinguish "no goals configured" from "section not on this
-    page" should check ``promotion_goal`` separately.
+    page"/"row scan failed" should use ``_read_target_actions_or_none``
+    instead (used by ``_verify_saved``'s add/remove verification, where that
+    distinction is safety-critical — see its docstring).
 
     Goal ids are discovered via ``_read_testid_suffixes`` on the row-testid
     prefix (same convention as ``_read_image_content_ids``), skipping the
@@ -2332,19 +2476,61 @@ def _read_target_actions(page: "Page") -> List[Dict[str, Any]]:
     between rows, which a bare prefix scan cannot do for a repeated child
     testid.
     """
+    rows = _read_target_actions_or_none(page)
+    return [] if rows is None else rows
+
+
+def _read_target_actions_or_none(page: "Page") -> Optional[List[Dict[str, Any]]]:
+    """Same read as ``_read_target_actions``, but returns ``None`` — distinct
+    from ``[]`` — the moment ANY step of the row scan fails, rather than
+    only on the section-visibility check.
+
+    ``_read_target_actions`` itself collapses every failure into ``[]`` —
+    a legitimate simplification for its read-only callers
+    (``fetch_master_target_actions``, ``target_action_prices``
+    verification), for whom "couldn't read" and "genuinely empty" are both
+    handled the same way (retry, then report what was last seen).
+    ``--add-target-action``/``--remove-target-action`` verification cannot
+    afford that collapse: a removed goal reported "absent" from a read that
+    never actually saw the table would silently confirm a removal that may
+    not have happened server-side — see ``_verify_saved``.
+
+    Deliberately does NOT delegate row enumeration to
+    ``_read_testid_suffixes`` (unlike ``_read_target_actions``'s first cut,
+    Codex adversarial review of #717 round 2): that helper does its own
+    independent ``page.locator(...).count()`` call and swallows a failure
+    there into ``[]`` — an earlier "probe" ``count()`` call in this function
+    verifying the SAME locator succeeds is not a guarantee the helper's own
+    later, separate call will too (a row can detach between the two), so a
+    probe-then-delegate shape still lets a mid-scan failure collapse into
+    "confirmed empty". Enumerating inline here, with every locator
+    read wrapped in its own failure check, is the only way a raised
+    ``PlaywrightError`` at any point reliably becomes this function's own
+    ``None`` rather than someone else's swallowed ``[]``.
+    """
     section = page.locator(_TARGET_ACTIONS_SECTION_TESTID).first
     try:
         section.wait_for(state="visible", timeout=_TARGET_ACTION_WAIT_TIMEOUT_MS)
     except PlaywrightError:
-        return []
+        return None
 
     prefix = f"TargetActions.{_TARGET_ACTIONS_CATEGORY}."
-    row_suffixes = _read_testid_suffixes(
-        page, prefix, skip_suffixes=(".PriceInput", ".CloseButton")
-    )
+    try:
+        row_elements = page.locator(f'[data-testid^="{prefix}"]')
+        count = row_elements.count()
+        raw_testids = [
+            row_elements.nth(i).get_attribute("data-testid") for i in range(count)
+        ]
+    except PlaywrightError:
+        return None
 
     goal_ids: List[int] = []
-    for suffix in row_suffixes:
+    for testid in raw_testids:
+        if not testid or not testid.startswith(prefix):
+            continue
+        suffix = testid[len(prefix) :]
+        if suffix.endswith((".PriceInput", ".CloseButton")):
+            continue
         try:
             goal_ids.append(int(suffix))
         except ValueError:
@@ -2359,7 +2545,17 @@ def _read_target_actions(page: "Page") -> List[Dict[str, Any]]:
         try:
             texts = page.locator(name_selector).all_inner_texts()
         except PlaywrightError:
-            texts = []
+            # Unlike the row-enumeration failure above, a raise HERE is not
+            # ambiguous about whether the row exists — its testid was just
+            # found in the DOM-order scan above, so it does. But its PRICE
+            # is exactly the field `_add_remove_match`/`_target_action_prices_match`
+            # compare against the requested value — a swallowed failure
+            # here would silently read as "price field is empty", which
+            # `_target_action_price_matches` (never matching ``None``)
+            # would then report as a genuine save mismatch rather than the
+            # transient read failure it actually is. Propagate ``None`` for
+            # the whole read rather than guess at this one row's state.
+            return None
         name = texts[0].strip() if texts else None
 
         price_testid = _TARGET_ACTION_PRICE_TESTID_TEMPLATE.format(
@@ -2370,7 +2566,7 @@ def _read_target_actions(page: "Page") -> List[Dict[str, Any]]:
                 f'[data-testid="{price_testid}"]'
             ).first.input_value()
         except PlaywrightError:
-            raw_price = ""
+            return None
         price = _parse_target_action_price(raw_price)
 
         results.append({"GoalId": goal_id, "Name": name, "Price": price})
@@ -2813,6 +3009,8 @@ def _verify_saved(
     images_replaced_ids: Optional[Set[str]] = None,
     goal_price: Optional[float] = None,
     target_action_prices: Optional[Dict[int, float]] = None,
+    add_target_actions: Optional[Dict[int, float]] = None,
+    remove_target_action_goal_ids: Optional[List[int]] = None,
     clicked_button_label: str = _SAVE_BUTTON_TEXT,
 ) -> None:
     """Reload the edit page and confirm every requested field actually saved.
@@ -2869,12 +3067,19 @@ def _verify_saved(
 
     if target_action_prices:
 
-        def _read_target_action_prices(p: "Page") -> Dict[int, Optional[float]]:
-            return {row["GoalId"]: row["Price"] for row in _read_target_actions(p)}
+        def _read_target_action_prices(
+            p: "Page",
+        ) -> Optional[Dict[int, Optional[float]]]:
+            rows = _read_target_actions_or_none(p)
+            if rows is None:
+                return None
+            return {row["GoalId"]: row["Price"] for row in rows}
 
         def _target_action_prices_match(
-            actual: Dict[int, Optional[float]], expected: Dict[int, float]
+            actual: Optional[Dict[int, Optional[float]]], expected: Dict[int, float]
         ) -> bool:
+            if actual is None:
+                return False
             return all(
                 _target_action_price_matches(price, actual.get(goal_id))
                 for goal_id, price in expected.items()
@@ -2886,13 +3091,83 @@ def _verify_saved(
             target_action_prices,
             matches=_target_action_prices_match,
         )
-        for goal_id, expected_price in target_action_prices.items():
-            actual_price = actual_target_actions.get(goal_id)
-            if not _target_action_price_matches(expected_price, actual_price):
-                mismatches.append(
-                    f"target_action_price[{goal_id}]: expected "
-                    f"{expected_price!r}, page now shows {actual_price!r}"
-                )
+        if actual_target_actions is None:
+            mismatches.append(
+                "target_action_price: could not read the 'Целевые действия' "
+                "table after saving (row scan never succeeded) — unable to "
+                "confirm the price took effect"
+            )
+        else:
+            for goal_id, expected_price in target_action_prices.items():
+                actual_price = actual_target_actions.get(goal_id)
+                if not _target_action_price_matches(expected_price, actual_price):
+                    mismatches.append(
+                        f"target_action_price[{goal_id}]: expected "
+                        f"{expected_price!r}, page now shows {actual_price!r}"
+                    )
+
+    if add_target_actions or remove_target_action_goal_ids:
+
+        def _read_target_action_goal_ids(
+            p: "Page",
+        ) -> Optional[Dict[int, Optional[float]]]:
+            # ``None`` (as opposed to ``{}``) means the table could not be
+            # read this attempt — see ``_read_target_actions_or_none``'s
+            # docstring (Codex adversarial review of #717) for the two
+            # distinct failure modes it collapses into ``None``. Either way
+            # this is NOT the same as a genuinely empty table — the
+            # distinction is required so a removed goal is never confirmed
+            # absent from a read that never actually saw the table — see
+            # ``_add_remove_match``.
+            rows = _read_target_actions_or_none(p)
+            if rows is None:
+                return None
+            return {row["GoalId"]: row["Price"] for row in rows}
+
+        def _add_remove_match(
+            actual: Optional[Dict[int, Optional[float]]], _expected: Any
+        ) -> bool:
+            if actual is None:
+                return False
+            added_ok = all(
+                _target_action_price_matches(price, actual.get(goal_id))
+                for goal_id, price in (add_target_actions or {}).items()
+            )
+            removed_ok = not any(
+                goal_id in actual for goal_id in remove_target_action_goal_ids or []
+            )
+            return added_ok and removed_ok
+
+        actual_after_add_remove = _read_until_matches(
+            page,
+            _read_target_action_goal_ids,
+            None,
+            matches=_add_remove_match,
+        )
+        if actual_after_add_remove is None:
+            # Every retry within the timeout hit a transient hydration
+            # failure — never had a genuine read of the table. Report this
+            # as its own mismatch rather than falling back to `{}`, which
+            # would make every requested removal look like it succeeded.
+            mismatches.append(
+                "target actions: could not read the 'Целевые действия' "
+                "table after saving (section never became visible) — "
+                "unable to confirm add/remove took effect"
+            )
+        else:
+            for goal_id, expected_price in (add_target_actions or {}).items():
+                actual_price = actual_after_add_remove.get(goal_id)
+                if not _target_action_price_matches(expected_price, actual_price):
+                    mismatches.append(
+                        f"add_target_action[{goal_id}]: expected price "
+                        f"{expected_price!r}, page now shows {actual_price!r}"
+                    )
+            for goal_id in remove_target_action_goal_ids or []:
+                if goal_id in actual_after_add_remove:
+                    mismatches.append(
+                        f"remove_target_action[{goal_id}]: still present in "
+                        "the 'Целевые действия' table after save"
+                    )
 
     mismatches.extend(
         _verify_repeating_value_mismatches(
@@ -2938,6 +3213,8 @@ def update_master(
     promotion_goal: Optional[str] = None,
     goal_price: Optional[float] = None,
     target_action_prices: Optional[Dict[int, float]] = None,
+    add_target_actions: Optional[Dict[int, float]] = None,
+    remove_target_action_goal_ids: Optional[List[int]] = None,
     directs_helps: Optional[bool] = None,
     name: Optional[str] = None,
     headlines: Optional[Dict[int, str]] = None,
@@ -3021,16 +3298,33 @@ def update_master(
     its target price in the "Целевые действия" table — the "max-
     conversions" counterpart to ``goal_price`` above. Only exists on the
     page under "max-conversions", and only for a goal ALREADY listed as a
-    row in that table (added via the page's own "Добавить" search popup,
-    out of scope here) — see ``_set_target_action_price``'s docstring.
+    row in that table — see ``_set_target_action_price``'s docstring.
     Passing a goal id not currently in the table raises
     ``BrowserSessionError`` naming that requirement.
+
+    ``add_target_actions``/``remove_target_action_goal_ids`` (issue #717)
+    add/remove rows in that same table via its own "Добавить"
+    popup/close-button, rather than only replacing an existing row's price.
+    ``add_target_actions`` maps a goal id NOT currently in the table to its
+    price (required — a freshly added row's price input starts empty and
+    Yandex rejects saving it empty, see ``_add_target_action``'s docstring);
+    the goal must be one of the campaign's linked Metrika counter's goals,
+    which is all Yandex's own popup ever offers.
+    ``remove_target_action_goal_ids`` lists goal ids to remove. Applied
+    AFTER ``target_action_prices`` (an existing row's price can be
+    corrected first) and BEFORE the loop below adds new rows — a goal id
+    cannot sensibly appear in more than one of ``target_action_prices``/
+    ``add_target_actions``/``remove_target_action_goal_ids`` in the same
+    call; the CLI boundary rejects that combination before this function is
+    reached, this function does not re-validate it.
     """
     if (
         weekly_budget is None
         and promotion_goal is None
         and goal_price is None
         and not target_action_prices
+        and not add_target_actions
+        and not remove_target_action_goal_ids
         and directs_helps is None
         and name is None
         and not headlines
@@ -3040,8 +3334,9 @@ def update_master(
         raise ValueError(
             "update_master requires at least one field to update "
             "(weekly_budget, promotion_goal, goal_price, "
-            "target_action_prices, directs_helps, name, headlines, texts, "
-            "images)."
+            "target_action_prices, add_target_actions, "
+            "remove_target_action_goal_ids, directs_helps, name, "
+            "headlines, texts, images)."
         )
 
     url = WIZARD_EDIT_URL.format(campaign_id=campaign_id)
@@ -3075,6 +3370,10 @@ def update_master(
         _set_goal_price(page, goal_price)
     for goal_id, price in (target_action_prices or {}).items():
         _set_target_action_price(page, goal_id, price)
+    for goal_id in remove_target_action_goal_ids or []:
+        _remove_target_action(page, goal_id)
+    for goal_id, price in (add_target_actions or {}).items():
+        _add_target_action(page, goal_id, price)
     if directs_helps is not None:
         _set_directs_helps(page, directs_helps)
     for index, value in (headlines or {}).items():
@@ -3149,6 +3448,8 @@ def update_master(
             images_replaced_ids=images_replaced_ids,
             goal_price=goal_price,
             target_action_prices=target_action_prices,
+            add_target_actions=add_target_actions,
+            remove_target_action_goal_ids=remove_target_action_goal_ids,
             clicked_button_label=clicked_button_label,
         )
     except BrowserAuthError as exc:
@@ -3169,6 +3470,10 @@ def update_master(
         result["GoalPrice"] = goal_price
     if target_action_prices:
         result["TargetActionPrices"] = target_action_prices
+    if add_target_actions:
+        result["AddedTargetActions"] = add_target_actions
+    if remove_target_action_goal_ids:
+        result["RemovedTargetActionGoalIds"] = remove_target_action_goal_ids
     if directs_helps is not None:
         result["DirectsHelps"] = directs_helps
     if name is not None:

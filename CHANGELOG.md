@@ -51,6 +51,47 @@
   `ads.resume` (both are safely exercisable via `direct --sandbox`), not
   `DANGEROUS`.
 
+**Added — `masters update --add-target-action` / `--remove-target-action` (#717):**
+
+- Live recon (2026-08-04, test campaign 713277109) of the "Целевые
+  действия" table's own "Добавить" popup (`--target-action-price` (#707)
+  only ever replaced an EXISTING row's price, adding/removing a row was
+  explicitly out of scope there). Clicking
+  `TargetActions.OTHER.MiniGrid.AddButton` opens
+  `AddTargetAction.OTHER` — a list rendered BELOW the table (not a modal)
+  of `[role="option"]` entries, one per goal in the campaign's linked
+  Metrika counter that ISN'T already a row; Yandex filters already-added
+  goals out of this list itself, so there is no "goal already added" error
+  state to reproduce — a goal id absent from the list is either not the
+  counter's or already present. Confirmed live a freshly clicked option
+  renders with an EMPTY price input (not a page default as originally
+  guessed) and saving with it still empty is rejected client-side.
+  Removing a row via its `CloseButton` needs no confirmation and removes
+  it from the DOM immediately.
+- `masters update --add-target-action "<goal_id>=<price>"` (repeatable)
+  adds a NEW goal row and sets its price in one step — the price is
+  REQUIRED (unlike `--target-action-price`, which only ever fills a price
+  that's already there), since Yandex has no default for a freshly added
+  row and rejects saving one with an empty price. The goal must belong to
+  the campaign's linked Metrika counter and not already be a row —
+  identified purely by its numeric Metrika goal id, same "never by label"
+  rule as `--target-action-price` (goal labels are not unique across an
+  account, see #707's CHANGELOG entry).
+- `masters update --remove-target-action "<goal_id>"` (repeatable) removes
+  an EXISTING goal row. Both flags share `--target-action-price`'s
+  `--promotion-goal max-conversions`-only gating (refused up front
+  together with `--promotion-goal max-clicks`), and the CLI refuses
+  passing the same goal id to more than one of
+  `--target-action-price`/`--add-target-action`/`--remove-target-action`
+  in the same call. Verified via `_verify_saved`'s existing
+  reload-and-reread convention (#704/#716) — a save Yandex silently
+  rejects client-side, or that a hydration race under-reads, is
+  distinguished from a genuine mismatch by retrying the read before
+  reporting a hard error.
+- Part of #681/#648 (Этап C, target actions/CPA sub-item); follow-up to
+  #707, whose CHANGELOG entry documented add/remove as explicitly out of
+  scope.
+
 **BREAKING CHANGES — dropped Python 3.9 support (#737):**
 
 - `vcrpy` 8.1.1 references `aiohttp.streams.AsyncStreamReaderMixin`, removed in

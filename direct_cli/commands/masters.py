@@ -671,6 +671,75 @@ def _parse_target_action_price_options(
     return parsed
 
 
+def _parse_add_target_action_options(
+    values: "tuple[str, ...]",
+) -> "dict[int, float]":
+    """Parse repeated ``--add-target-action "goal_id=price"`` CLI values into
+    a goal-id-keyed price map.
+
+    Same shape as ``_parse_target_action_price_options`` (goal id, never a
+    label — see that function's docstring), but the price is NOT optional
+    here: live recon (issue #717) confirmed a freshly added row's price
+    input starts empty and Yandex's own client-side validation rejects
+    saving it empty, so there is no page default to fall back to — always
+    require ``"goal_id=price"``, never a bare goal id.
+    """
+    parsed: "dict[int, float]" = {}
+    for raw in values:
+        if "=" not in raw:
+            raise click.UsageError(
+                f"--add-target-action value {raw!r} must be in the form "
+                '"goal_id=price" (e.g. "159614149=150") — a price is '
+                "required, Yandex has no default for a newly added goal."
+            )
+        goal_part, price_part = raw.split("=", 1)
+        try:
+            goal_id = int(goal_part.strip())
+        except ValueError:
+            raise click.UsageError(
+                f"--add-target-action goal_id {goal_part!r} must be an "
+                "integer (the Yandex Metrika goal ID)."
+            )
+        try:
+            price = float(price_part.strip())
+        except ValueError:
+            raise click.UsageError(
+                f"--add-target-action price {price_part!r} for goal "
+                f"{goal_id} must be a number."
+            )
+        if goal_id in parsed:
+            raise click.UsageError(
+                f"--add-target-action goal {goal_id} was specified more " "than once."
+            )
+        parsed[goal_id] = price
+    return parsed
+
+
+def _parse_remove_target_action_options(values: "tuple[str, ...]") -> "list[int]":
+    """Parse repeated ``--remove-target-action "goal_id"`` CLI values into a
+    list of goal ids, identified the same way as every other target-action
+    option (numeric Yandex Metrika goal id, never a label)."""
+    parsed: "list[int]" = []
+    seen: "set[int]" = set()
+    for raw in values:
+        try:
+            goal_id = int(raw.strip())
+        except ValueError:
+            raise click.UsageError(
+                f"--remove-target-action value {raw!r} must be an integer "
+                "(the Yandex Metrika goal ID, as shown by `masters "
+                "targetactions get`)."
+            )
+        if goal_id in seen:
+            raise click.UsageError(
+                f"--remove-target-action goal {goal_id} was specified more "
+                "than once."
+            )
+        seen.add(goal_id)
+        parsed.append(goal_id)
+    return parsed
+
+
 def _validate_image_path(raw_path: str, *, option_name: str, context: str) -> None:
     """Reject one image path that doesn't exist or that Yandex won't accept.
 
@@ -1009,9 +1078,11 @@ def targetactions():
 
     Мастер кампаний has no Yandex Direct API surface (see this module's own
     docstring), and this table lives only on the campaign's edit page (issue
-    #707) — same reasoning as the ``adimages`` group above. Read-only for
-    now: writing a goal's price is ``masters update --target-action-price``;
-    adding a brand-new goal row is not supported by this CLI yet.
+    #707) — same reasoning as the ``adimages`` group above. Read-only: this
+    group only reads the table. Writing an existing goal's price is
+    ``masters update --target-action-price``; adding/removing a row is
+    ``masters update --add-target-action``/``--remove-target-action``
+    (issue #717).
     """
 
 
@@ -1079,8 +1150,35 @@ def targetactions_get(
         "being set to via --promotion-goal in this same call) "
         "'max-conversions'; under 'max-clicks' the price is set once for "
         "the whole campaign via --goal-price instead. The goal must "
-        "already be listed in the 'Целевые действия' table — adding a "
-        "brand-new goal row is not supported by this CLI yet."
+        "already be listed in the 'Целевые действия' table — to add a "
+        "brand-new row use --add-target-action instead."
+    ),
+)
+@click.option(
+    "--add-target-action",
+    "add_target_actions",
+    multiple=True,
+    help=(
+        'Add a NEW target action (goal): "goal_id=price" where goal_id is '
+        "the Yandex Metrika goal ID (a bare goal_id with no price is "
+        "rejected — a newly added row's price is required, Yandex has no "
+        "default for it). Repeat for multiple goals. The goal must belong "
+        "to the campaign's linked Metrika counter and must NOT already be "
+        "listed — Yandex's own picker only ever offers goals that aren't "
+        "already rows; use --target-action-price to change an EXISTING "
+        "row's price instead. Same 'max-conversions' promotion-goal gating "
+        "as --target-action-price."
+    ),
+)
+@click.option(
+    "--remove-target-action",
+    "remove_target_actions",
+    multiple=True,
+    help=(
+        "Remove an EXISTING target action (goal) by its Yandex Metrika "
+        "goal ID, as shown by `masters targetactions get`. Repeat for "
+        "multiple goals. Same 'max-conversions' promotion-goal gating as "
+        "--target-action-price."
     ),
 )
 @click.option(
@@ -1158,6 +1256,8 @@ def update(
     promotion_goal,
     goal_price,
     target_action_prices,
+    add_target_actions,
+    remove_target_actions,
     directs_helps,
     name,
     headlines,
@@ -1196,8 +1296,18 @@ def update(
     targetactions get`). Only exists on the page under 'max-conversions' —
     passing it together with ``--promotion-goal max-clicks`` is refused up
     front, mirroring ``--goal-price``'s own guard. The goal must already be
-    a row in the table; adding a brand-new goal is not supported by this
-    CLI yet.
+    a row in the table.
+
+    ``--add-target-action``/``--remove-target-action`` (issue #717) add/
+    remove rows in that same table rather than only replacing an existing
+    row's price — same 'max-conversions' gating as ``--target-action-price``.
+    ``--add-target-action "goal_id=price"`` requires a price (Yandex has no
+    default for a freshly added row) and the goal must belong to the
+    campaign's linked Metrika counter and not already be listed.
+    ``--remove-target-action "goal_id"`` requires the goal to already be
+    listed. The same goal id cannot be passed to more than one of
+    ``--target-action-price``/``--add-target-action``/
+    ``--remove-target-action`` in the same call.
 
     ``--headline``/``--text``/``--image`` each replace ONE existing
     slot/position at a time rather than the whole list — unlike this CLI's
@@ -1228,6 +1338,8 @@ def update(
         and promotion_goal is None
         and goal_price is None
         and not target_action_prices
+        and not add_target_actions
+        and not remove_target_actions
         and directs_helps is None
         and name is None
         and not headlines
@@ -1236,9 +1348,9 @@ def update(
     ):
         raise click.UsageError(
             "Provide at least one of --weekly-budget, --promotion-goal, "
-            "--goal-price, --target-action-price, "
-            "--directs-helps/--no-directs-helps, --name, --headline, "
-            "--text, --image."
+            "--goal-price, --target-action-price, --add-target-action, "
+            "--remove-target-action, --directs-helps/--no-directs-helps, "
+            "--name, --headline, --text, --image."
         )
 
     if goal_price is not None and promotion_goal == "max-conversions":
@@ -1249,17 +1361,48 @@ def update(
             "to --promotion-goal max-clicks."
         )
 
-    if target_action_prices and promotion_goal == "max-clicks":
+    if (
+        target_action_prices or add_target_actions or remove_target_actions
+    ) and promotion_goal == "max-clicks":
         raise click.UsageError(
-            "--target-action-price has no effect under --promotion-goal "
+            "--target-action-price/--add-target-action/"
+            "--remove-target-action have no effect under --promotion-goal "
             "max-clicks — that goal's price is set once for the whole "
-            "campaign via --goal-price instead. --target-action-price only "
-            "applies to --promotion-goal max-conversions."
+            "campaign via --goal-price instead. They only apply to "
+            "--promotion-goal max-conversions."
         )
 
     parsed_target_action_prices = _parse_target_action_price_options(
         target_action_prices
     )
+    parsed_add_target_actions = _parse_add_target_action_options(add_target_actions)
+    parsed_remove_target_actions = _parse_remove_target_action_options(
+        remove_target_actions
+    )
+
+    _target_action_goal_ids_seen: "dict[int, str]" = {}
+    for goal_id in parsed_target_action_prices:
+        _target_action_goal_ids_seen[goal_id] = "--target-action-price"
+    for goal_id in parsed_add_target_actions:
+        if goal_id in _target_action_goal_ids_seen:
+            raise click.UsageError(
+                f"Goal {goal_id} was passed to both "
+                f"{_target_action_goal_ids_seen[goal_id]} and "
+                "--add-target-action — a goal can only be targeted by one "
+                "of --target-action-price/--add-target-action/"
+                "--remove-target-action in the same call."
+            )
+        _target_action_goal_ids_seen[goal_id] = "--add-target-action"
+    for goal_id in parsed_remove_target_actions:
+        if goal_id in _target_action_goal_ids_seen:
+            raise click.UsageError(
+                f"Goal {goal_id} was passed to both "
+                f"{_target_action_goal_ids_seen[goal_id]} and "
+                "--remove-target-action — a goal can only be targeted by "
+                "one of --target-action-price/--add-target-action/"
+                "--remove-target-action in the same call."
+            )
+        _target_action_goal_ids_seen[goal_id] = "--remove-target-action"
 
     # Slot counts come from the browser layer's own constants (imported here
     # rather than at module load, matching this module's other deferred
@@ -1300,6 +1443,8 @@ def update(
             promotion_goal=promotion_goal,
             goal_price=goal_price,
             target_action_prices=parsed_target_action_prices,
+            add_target_actions=parsed_add_target_actions,
+            remove_target_action_goal_ids=parsed_remove_target_actions,
             directs_helps=directs_helps,
             name=name,
             headlines=parsed_headlines,
