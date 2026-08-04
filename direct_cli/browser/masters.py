@@ -2817,8 +2817,26 @@ def update_master(
         # --launch previously reported "Launched": True purely off the
         # click/redirect, with no check that the campaign didn't silently
         # stay DRAFT.
-        _goto_overview_page(page, campaign_id)
-        _verify_launched_to_moderation(page, campaign_id)
+        #
+        # This trip is just as irreversible/non-idempotent as the click
+        # itself (see the guard above _verify_saved): if the session is
+        # invalidated in this window, letting BrowserAuthError propagate
+        # bare would make _with_session retry the ENTIRE update_master call
+        # under a fresh session, re-mutating any --image replacements a
+        # second time (found via adversarial review, cycle-review round 1
+        # of PR #727).
+        try:
+            _goto_overview_page(page, campaign_id)
+            _verify_launched_to_moderation(page, campaign_id)
+        except BrowserAuthError as exc:
+            raise BrowserSessionError(
+                f"Clicked '{_LAUNCH_BUTTON_TEXT}' for campaign {campaign_id}, "
+                "but the session was invalidated while confirming it reached "
+                "moderation — the requested changes were likely already "
+                f"applied and launched; check campaign {campaign_id} "
+                "manually rather than retrying (image replacements are not "
+                "idempotent)."
+            ) from exc
         result["Launched"] = True
     return result
 
