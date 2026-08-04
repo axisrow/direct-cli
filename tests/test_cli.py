@@ -911,8 +911,9 @@ class TestReadmeContract(unittest.TestCase):
     def test_readme_contains_canonical_naming_rules(self):
         """README must define the canonical group/command naming contract."""
         self.assertIn("direct <group> <command> [flags]", self.content)
-        self.assertIn("Group naming rules", self.content)
-        self.assertIn("Command naming rules", self.content)
+        self.assertIn("Naming rules:", self.content)
+        self.assertIn("multiword groups are concatenated", self.content)
+        self.assertIn("multiword commands use kebab-case", self.content)
         self.assertIn(
             "The `direct` executable defines the public naming contract",
             self.content,
