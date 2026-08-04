@@ -1143,7 +1143,9 @@ def targetactions_get(
     default=False,
     help=(
         "If CAMPAIGN_ID is currently a DRAFT, publish it while saving "
-        "(default: keep it a DRAFT). Has no effect on a non-DRAFT campaign."
+        "(default: keep it a DRAFT). Has no effect on a non-DRAFT campaign. "
+        "To publish a DRAFT without changing any field, use "
+        "'masters launch' instead."
     ),
 )
 @_masters_browser_options
@@ -1215,7 +1217,9 @@ def update(
     A DRAFT campaign's edit page has no "Сохранить кампанию" button at all —
     only a save-as-draft/launch pair (issue #668). ``update`` saves it as a
     draft by default (keeping DRAFT status); pass ``--launch`` to publish it
-    instead while saving. Has no effect on a non-DRAFT campaign.
+    instead while saving. Has no effect on a non-DRAFT campaign. To publish a
+    DRAFT without changing any field, use ``masters launch`` (issue #704)
+    instead of passing ``--launch`` here with an unchanged field value.
     """
     from ..browser.masters import update_master
 
@@ -1339,6 +1343,68 @@ def resume(
     results = _with_session(ctx, headful, profile_dir, chrome_profile, _resume_all)
 
     format_output(results if len(results) != 1 else results[0], output_format, output)
+
+
+@masters.command()
+@click.argument("campaign_ids")
+@_masters_browser_options
+@click.pass_context
+@handle_api_errors
+def launch(
+    ctx,
+    campaign_ids,
+    headful,
+    profile_dir,
+    chrome_profile,
+    output_format,
+    output,
+):
+    """Publish one or more DRAFT Мастер кампаний by ID (comma-separated)
+
+    Clicks the DRAFT edit page's "Запустить кампанию" button (issue #668's
+    ``_click_draft_terminal_button``), sending the campaign to moderation.
+    Verifies the status actually became MODERATION before reporting success
+    (issue #704); idempotent no-op on a campaign that is not currently a
+    DRAFT (there is no un-launch).
+
+    Every ID is attempted even if an earlier one fails — irreversible, so a
+    naive fail-fast loop would silently lose the report that earlier IDs
+    already launched before a later one errored (mirrors ``archive``, issue
+    #645 review). Each ID's outcome (the launched row, or its error) is
+    reported; if any ID failed, the command exits non-zero after printing
+    every outcome, never just the last error.
+    """
+    from ..browser.masters import launch_master
+
+    ids = parse_ids(campaign_ids) or []
+
+    def _launch_all(page):
+        from ..browser.session import BrowserSessionError
+        from ..browser.masters import PlaywrightError
+
+        results = []
+        errors = []
+        for campaign_id in ids:
+            try:
+                results.append(launch_master(page, campaign_id))
+            except (BrowserSessionError, PlaywrightError) as exc:
+                errors.append((campaign_id, exc))
+                results.append({"CampaignId": campaign_id, "Error": str(exc)})
+        return results, errors
+
+    results, errors = _with_session(
+        ctx, headful, profile_dir, chrome_profile, _launch_all
+    )
+
+    format_output(results if len(results) != 1 else results[0], output_format, output)
+
+    if errors:
+        for campaign_id, exc in errors:
+            print_error(f"Campaign {campaign_id}: {exc}")
+        raise click.ClickException(
+            f"Failed to launch {len(errors)} of {len(ids)} campaign(s); "
+            "see per-ID results above."
+        )
 
 
 @masters.command()

@@ -1898,29 +1898,47 @@ class TestFetchMaster(unittest.TestCase):
         # few ticks to stabilize -- 60x slower than the ~0.07s this test
         # takes locally). Tick count is deterministic regardless of how
         # slowly wall-clock time actually elapses between ticks.
-        class _TickCountingPage(FakePage):
-            def __init__(self, *args, **kwargs):
-                super().__init__(*args, **kwargs)
-                self.tick_count = 0
+        # _poll_until's deadline check (`while time.monotonic() < deadline`)
+        # relies on real wall-clock time elapsing -- a `wait_for_timeout`
+        # override that only counts calls without actually advancing the
+        # clock (the original form of this fixture) makes the loop spin as
+        # fast as the CPU allows, burning the FULL real _STAT_TILES_TIMEOUT_MS
+        # in wall-clock terms regardless of how few "ticks" the logic itself
+        # needed -- on a fast/CI runner this racks up millions of iterations
+        # before the deadline elapses (observed live on GitHub Actions: PR
+        # #711's rebase CI run failed with "4588300 not less than 40",
+        # confirming this was never actually fixed by asserting tick count
+        # alone). Patching time.monotonic to advance in lockstep with each
+        # wait_for_timeout call makes the deadline check trip after exactly
+        # the intended number of ticks, independent of real elapsed time.
+        #
+        # body_text must contain a recognised (non-DRAFT) status marker --
+        # see the sibling zero-tiles test's comment for why an unrecognised
+        # (here: empty/default) body_text would otherwise let
+        # _is_draft_overview_page burn its own full 60-tick budget before
+        # _extract_stat_tiles (what this test actually exercises) ever runs.
+        clock = {"now": 0.0}
+        with patch.object(browser_masters.time, "monotonic", lambda: clock["now"]):
 
-            def wait_for_timeout(self, timeout):
-                self.tick_count += 1
+            class _TickCountingPage(FakePage):
+                def __init__(self, *args, **kwargs):
+                    super().__init__(*args, **kwargs)
+                    self.tick_count = 0
 
-        page = _TickCountingPage(
-            locators={
-                "button": _FakeLocator(
-                    [_FakeLocatorHandle(text="191,07 ₽\nЗа конверсию")]
-                ),
-            },
-            # _is_draft_overview_page's own _poll_until (which runs first,
-            # to decide DRAFT vs. non-DRAFT) also ticks this same counter —
-            # without a recognisable status marker in body_text it would
-            # never resolve and burn its own real-time timeout budget before
-            # _extract_stat_tiles ever got a chance to run.
-            body_text="Кампания активна",
-        )
-        with patch.object(browser_masters, "_STAT_TILES_TIMEOUT_MS", 10_000):
-            result = browser_masters.fetch_master(page, 1)
+                def wait_for_timeout(self, timeout):
+                    self.tick_count += 1
+                    clock["now"] += timeout / 1000
+
+            page = _TickCountingPage(
+                locators={
+                    "button": _FakeLocator(
+                        [_FakeLocatorHandle(text="191,07 ₽\nЗа конверсию")]
+                    ),
+                },
+                body_text="Кампания активна",
+            )
+            with patch.object(browser_masters, "_STAT_TILES_TIMEOUT_MS", 10_000):
+                result = browser_masters.fetch_master(page, 1)
         self.assertEqual(result["Stats"], {"cost_per_conversion": "191,07 ₽"})
         # Must stop once the set stabilizes, not burn through the full
         # 10_000ms / 250ms = 40-tick timeout budget.
@@ -1931,24 +1949,35 @@ class TestFetchMaster(unittest.TestCase):
         # condition never matched an empty `stats` dict against
         # `wanted_keys`, so a page with no recognisable stat tiles at all
         # also burned the full timeout. See the sibling test above for why
-        # this asserts tick count rather than wall-clock elapsed time.
-        class _TickCountingPage(FakePage):
-            def __init__(self, *args, **kwargs):
-                super().__init__(*args, **kwargs)
-                self.tick_count = 0
+        # this asserts tick count rather than wall-clock elapsed time, and
+        # why time.monotonic is patched to advance with each tick.
+        #
+        # body_text must contain a recognised (non-DRAFT) status marker --
+        # issue #660's _is_draft_overview_page (fetch_master's very first
+        # call after _goto_overview_page) polls up to
+        # _DRAFT_OVERVIEW_DETECT_TIMEOUT_MS (15s / 60 ticks at the default
+        # rate) for EITHER a DRAFT marker OR _read_status_text to recognise
+        # something -- an unrecognisable body_text like the plain
+        # "something Yandex changed" used elsewhere in this file silently
+        # burns that ENTIRE budget before _extract_stat_tiles (what this
+        # test actually exercises) ever runs, inflating tick_count by 60 on
+        # top of the stat-tile poll's own ticks.
+        clock = {"now": 0.0}
+        with patch.object(browser_masters.time, "monotonic", lambda: clock["now"]):
 
-            def wait_for_timeout(self, timeout):
-                self.tick_count += 1
+            class _TickCountingPage(FakePage):
+                def __init__(self, *args, **kwargs):
+                    super().__init__(*args, **kwargs)
+                    self.tick_count = 0
 
-        # _is_draft_overview_page's own _poll_until (which runs first, to
-        # decide DRAFT vs. non-DRAFT) also ticks this same counter — needs a
-        # recognisable status marker in body_text or it never resolves and
-        # burns its own real-time timeout budget before _extract_stat_tiles
-        # ever gets a chance to run.
-        page = _TickCountingPage(locators={}, body_text="Кампания активна")
-        with patch.object(browser_masters, "_STAT_TILES_TIMEOUT_MS", 10_000):
-            with patch("direct_cli.browser.masters.print_warning"):
-                result = browser_masters.fetch_master(page, 1)
+                def wait_for_timeout(self, timeout):
+                    self.tick_count += 1
+                    clock["now"] += timeout / 1000
+
+            page = _TickCountingPage(locators={}, body_text="Кампания активна")
+            with patch.object(browser_masters, "_STAT_TILES_TIMEOUT_MS", 10_000):
+                with patch("direct_cli.browser.masters.print_warning"):
+                    result = browser_masters.fetch_master(page, 1)
         self.assertNotIn("Stats", result)
         self.assertLess(page.tick_count, 40)
 
@@ -2582,6 +2611,272 @@ class TestMastersArchiveCommand(unittest.TestCase):
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("1", result.output)
         self.assertIn("ARCHIVED", result.output)
+        self.assertIn("2", result.output)
+        self.assertIn("boom on id 3", result.output)
+
+
+class TestClickDraftTerminalButton(unittest.TestCase):
+    """``_click_draft_terminal_button`` (issue #668): clicks exactly once,
+    no time-based retry.
+
+    Cycle-review PR #711 regression: an earlier version retried the click
+    once, purely on elapsed time, if no redirect had happened yet by some
+    threshold. Codex proved this structurally double-submits the
+    no-rollback save/launch click — ANY threshold shorter than the full
+    redirect-wait window is still reachable by a healthy click whose
+    redirect simply lands a bit later than usual (shown live for both a
+    4s and a 12s threshold). A time-only retry cannot tell "stuck" from
+    "still in flight" without a positive failure signal this page doesn't
+    expose, so the retry was removed entirely: click once, wait out the
+    full timeout, fail loudly if Yandex never redirects.
+    """
+
+    def _edit_page_with_delayed_redirect(self, *, redirect_at_s, launch=False):
+        """A DRAFT edit page whose terminal button redirects away from
+        ``/edit/`` only once simulated wall-clock time reaches
+        ``redirect_at_s`` — models a healthy click whose redirect simply
+        hasn't landed yet, not a stuck one.
+        """
+        clock = {"now": 0.0}
+        click_count = {"n": 0}
+
+        def _on_click():
+            click_count["n"] += 1
+
+        testid = (
+            browser_masters._DRAFT_LAUNCH_BUTTON_TESTID
+            if launch
+            else browser_masters._DRAFT_SAVE_DRAFT_BUTTON_TESTID
+        )
+        page = FakePage(
+            locators={testid: _FakeLocator([_FakeLocatorHandle(on_click=_on_click)])}
+        )
+        page.url = browser_masters.WIZARD_EDIT_URL.format(campaign_id=713231614)
+
+        def _wait_for_timeout(timeout):
+            clock["now"] += timeout / 1000
+            if clock["now"] >= redirect_at_s and "/edit/" in page.url:
+                page.url = browser_masters.WIZARD_OVERVIEW_URL.format(
+                    campaign_id=713231614
+                )
+
+        page.wait_for_timeout = _wait_for_timeout
+        return page, click_count, clock
+
+    def test_never_double_clicks_within_the_accepted_redirect_window(self):
+        # Regression (cycle-review PR #711, Codex round 1 + round 2
+        # findings): must click exactly once for ANY redirect delay inside
+        # the full accepted window (_DRAFT_SAVE_REDIRECT_TIMEOUT_MS =
+        # 20s) -- not just the ~5s this file documents as typical. Round 1
+        # proved a 4s retry threshold fires on a 5s redirect; round 2
+        # proved a 12s threshold fires on a 15s redirect. A time-based
+        # retry threshold can never close this for every point in the
+        # window, so there is no retry left to trigger.
+        for redirect_at_s in (0.1, 5.0, 15.0, 19.0):
+            with self.subTest(redirect_at_s=redirect_at_s):
+                page, click_count, clock = self._edit_page_with_delayed_redirect(
+                    redirect_at_s=redirect_at_s
+                )
+                with patch.object(
+                    browser_masters.time, "monotonic", lambda clock=clock: clock["now"]
+                ):
+                    browser_masters._click_draft_terminal_button(
+                        page, 713231614, launch=False
+                    )
+                self.assertEqual(click_count["n"], 1)
+
+    def test_raises_when_redirect_never_happens(self):
+        # No positive failure signal exists on this page to retry against
+        # -- a click that never redirects must fail loudly (issue #704
+        # recon's hydration race now surfaces here instead of being
+        # silently papered over by a second click).
+        page, click_count, clock = self._edit_page_with_delayed_redirect(
+            redirect_at_s=1_000_000.0
+        )
+
+        with patch.object(browser_masters.time, "monotonic", lambda: clock["now"]):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters._click_draft_terminal_button(
+                    page, 713231614, launch=False
+                )
+
+        self.assertEqual(click_count["n"], 1)
+        self.assertIn("did not redirect", str(ctx.exception))
+
+
+class TestLaunchMaster(unittest.TestCase):
+    """``launch_master`` (issue #704): publish a DRAFT via the edit page's
+    launch button, then verify via the overview page's own status text —
+    NOT the campaigns grid (issue #704 live recon: the grid's primaryStatus
+    lagged the real DRAFT->MODERATION transition by 45+ seconds, while the
+    overview page reflected it immediately — see launch_master's
+    docstring). Contract otherwise mirrors ``archive_master``: idempotent
+    no-op on a non-DRAFT campaign, never trusts the click alone.
+    """
+
+    def _row(self, status):
+        return {
+            "CampaignId": 713231614,
+            "Name": "Мастер тестовый",
+            "Status": status,
+            "Type": "TEXT",
+            "StartDate": "2025-01-01",
+        }
+
+    def _draft_edit_page(self, *, on_click=None):
+        edit_form_ready_selector = (
+            f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'
+        )
+        # _OVERVIEW_TITLE_SELECTOR (the marker launch_master's post-redirect
+        # _goto_overview_page call polls for) is defaulted present by
+        # FakePage itself -- see its own docstring note -- so it does not
+        # need to be registered here.
+        locators = {
+            browser_masters._DRAFT_SAVE_DRAFT_BUTTON_TESTID: _FakeLocator(
+                [_FakeLocatorHandle()]
+            ),
+            edit_form_ready_selector: _FakeLocator([_FakeLocatorHandle()]),
+        }
+        if on_click is not None:
+            locators[browser_masters._DRAFT_LAUNCH_BUTTON_TESTID] = _FakeLocator(
+                [_FakeLocatorHandle(on_click=on_click)]
+            )
+        page = FakePage(locators=locators)
+        page.url = browser_masters.WIZARD_EDIT_URL.format(campaign_id=713231614)
+        return page
+
+    def test_launches_and_verifies_via_overview_status_text(self):
+        state = {"status_text": "Черновик"}
+
+        def _flip():
+            # Regression: the space between "на" and "модерации" is a
+            # non-breaking space (U+00A0), not ASCII -- this cost a full
+            # live-debugging pass (issue #704) when the constant used a
+            # plain space and silently never matched real page text.
+            state["status_text"] = "Кампания на\xa0модерации"
+            page.url = browser_masters.WIZARD_OVERVIEW_URL.format(campaign_id=713231614)
+
+        page = self._draft_edit_page(on_click=_flip)
+        page.inner_text = lambda selector=None: state["status_text"]
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            return_value=[self._row("DRAFT")],
+        ):
+            result = browser_masters.launch_master(page, 713231614)
+
+        self.assertEqual(result, {"CampaignId": 713231614, "Status": "MODERATION"})
+
+    def test_idempotent_when_not_draft(self):
+        page = FakePage(locators={})
+
+        with (
+            patch(
+                "direct_cli.browser.masters.fetch_masters_list",
+                return_value=[self._row("ACTIVE")],
+            ),
+            patch("direct_cli.browser.masters.print_warning") as warn,
+        ):
+            result = browser_masters.launch_master(page, 713231614)
+
+        self.assertEqual(result, self._row("ACTIVE"))
+        self.assertEqual(page.navigated_to, [])  # not clicking -> no navigation
+        warn.assert_called_once()
+        self.assertIn("not a DRAFT", warn.call_args[0][0])
+
+    def test_raises_when_campaign_not_found_in_grid(self):
+        page = FakePage(locators={})
+
+        with patch("direct_cli.browser.masters.fetch_masters_list", return_value=[]):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.launch_master(page, 713231614)
+
+        self.assertIn("Could not find", str(ctx.exception))
+
+    def test_raises_when_edit_page_is_not_draft_after_all(self):
+        # The grid said DRAFT, but the edit page itself disagrees -- must not
+        # click blind.
+        edit_form_ready_selector = (
+            f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'
+        )
+        page = FakePage(
+            locators={edit_form_ready_selector: _FakeLocator([_FakeLocatorHandle()])}
+        )
+        page.url = browser_masters.WIZARD_EDIT_URL.format(campaign_id=713231614)
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            return_value=[self._row("DRAFT")],
+        ):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.launch_master(page, 713231614)
+
+        self.assertIn("does not show the DRAFT", str(ctx.exception))
+
+    def test_raises_when_status_never_becomes_moderation(self):
+        # The click succeeds (and redirects away from /edit/, like the real
+        # button) but the overview page keeps reporting the DRAFT text --
+        # must not report success on the click alone.
+        def _redirect_only():
+            page.url = browser_masters.WIZARD_OVERVIEW_URL.format(campaign_id=713231614)
+
+        page = self._draft_edit_page(on_click=_redirect_only)
+        page.inner_text = lambda selector=None: "Черновик"
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            return_value=[self._row("DRAFT")],
+        ):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.launch_master(page, 713231614)
+
+        self.assertIn("did not report MODERATION", str(ctx.exception))
+
+
+class TestMastersLaunchCommand(unittest.TestCase):
+    """CLI wiring for `masters launch` (issue #704)."""
+
+    def setUp(self):
+        self.runner = CliRunner()
+
+    def test_launch_registered(self):
+        result = self.runner.invoke(cli, ["masters", "launch", "--help"])
+        self.assertEqual(result.exit_code, 0)
+
+    def test_launch_has_no_login_option(self):
+        result = self.runner.invoke(cli, ["masters", "launch", "--help"])
+        self.assertNotIn("--login", result.output)
+
+    def test_launch_calls_launch_master_per_id(self):
+        with (
+            patch("direct_cli.browser.masters.launch_master") as mock_launch,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            result = self.runner.invoke(cli, ["masters", "launch", "1,2"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(mock_launch.call_count, 2)
+
+    def test_launch_reports_earlier_successes_when_a_later_id_fails(self):
+        def _fake_launch(page, campaign_id):
+            if campaign_id == 3:
+                raise BrowserSessionError("boom on id 3")
+            return {"CampaignId": campaign_id, "Status": "MODERATION"}
+
+        with (
+            patch(
+                "direct_cli.browser.masters.launch_master", side_effect=_fake_launch
+            ) as mock_launch,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            result = self.runner.invoke(cli, ["masters", "launch", "1,2,3,4"])
+
+        self.assertEqual(mock_launch.call_count, 4)
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("1", result.output)
+        self.assertIn("MODERATION", result.output)
         self.assertIn("2", result.output)
         self.assertIn("boom on id 3", result.output)
 
@@ -3562,6 +3857,44 @@ class TestUpdateMasterDraftSupport(unittest.TestCase):
         self.assertEqual(len(draft_clicks), 1)
         self.assertEqual(
             result, {"CampaignId": 713231614, "Headlines": {0: "Новый заголовок"}}
+        )
+
+    def test_launch_true_on_draft_campaign_adds_launched_key(self):
+        # Issue #704: update --launch still needs to report it actually
+        # published the DRAFT, not just that the field was saved.
+        slot = _FakeContentEditableHandle(text="Старый заголовок")
+        selector = (
+            f"[data-testid="
+            f'"{browser_masters._HEADLINES_TESTID_TEMPLATE.format(index=0)}"]'
+        )
+
+        def _on_launch_click():
+            page.url = browser_masters.WIZARD_OVERVIEW_URL.format(campaign_id=713231614)
+
+        page = FakePage(
+            locators={
+                browser_masters._DRAFT_SAVE_DRAFT_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                browser_masters._DRAFT_LAUNCH_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle(on_click=_on_launch_click)]
+                ),
+                selector: _FakeLocator([slot]),
+            }
+        )
+        page.url = browser_masters.WIZARD_EDIT_URL.format(campaign_id=713231614)
+
+        result = browser_masters.update_master(
+            page, 713231614, headlines={0: "Новый заголовок"}, launch=True
+        )
+
+        self.assertEqual(
+            result,
+            {
+                "CampaignId": 713231614,
+                "Headlines": {0: "Новый заголовок"},
+                "Launched": True,
+            },
         )
 
     def test_error_message_on_draft_mismatch_names_the_draft_button_not_save(self):

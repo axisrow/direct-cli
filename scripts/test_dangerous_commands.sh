@@ -40,6 +40,8 @@ non-critical campaign, confirming before/after state in the web UI):
     (replaces the ENTIRE image set -- NOT idempotent)
   - direct masters archive <campaign_id>
     (irreversible -- there is no `masters unarchive`)
+  - direct masters launch <campaign_id>
+    (publishes a DRAFT campaign -- irreversible, there is no `masters unlaunch`)
   - direct masters add <url> --headline ... --text ... --region ...
     (creates a brand-new campaign -- NOT idempotent, a second run creates a
     second campaign; verify with --draft first, then delete/archive the
