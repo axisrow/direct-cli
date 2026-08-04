@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+**BREAKING CHANGES — dropped Python 3.9 support (#737):**
+
+- `vcrpy` 8.1.1 references `aiohttp.streams.AsyncStreamReaderMixin`, removed in
+  `aiohttp` 3.14.x, breaking VCR patcher construction for every
+  `pytest.mark.vcr` test. The fix (`vcrpy>=8.3.0`) requires Python >=3.10, so
+  `requires-python` is now `>=3.10`. The CI test matrix drops 3.9 and adds
+  3.14.
+
 **Fixed — `masters add --region-id` verified only by label text, not RegionId identity (#657):**
 
 - `--region-id` resolved to Yandex's canonical `GeoRegionName` (#652) and
