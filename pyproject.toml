@@ -45,8 +45,12 @@ dev = [
     # MockStream on streams.AsyncStreamReaderMixin, which aiohttp 3.14 removed
     # (folded into aiohttp's own StreamReader). Older vcrpy raises
     # AttributeError at cassette-patcher construction time under aiohttp>=3.14,
-    # breaking the entire VCR layer (issue #737).
-    "vcrpy>=8.2.0",
+    # breaking the entire VCR layer (issue #737). vcrpy>=8.2.0 requires
+    # Python>=3.10 (as does aiohttp>=3.14 itself), so Python 3.9 stays on the
+    # last 3.9-compatible vcrpy release — aiohttp>=3.14 can't install there
+    # either, so the incompatible pairing can't occur on that interpreter.
+    "vcrpy>=8.2.0; python_version >= '3.10'",
+    "vcrpy>=6.0,<8.0.0; python_version < '3.10'",
     "black>=22.0",
     "flake8>=4.0",
     "mypy>=1.8",

@@ -10,8 +10,12 @@
   raised `AttributeError` at cassette-patcher construction time under
   aiohttp>=3.14, breaking the entire `pytest.mark.vcr` layer — including
   replay of already-committed cassettes.
-- Pinned dev dependency to `vcrpy>=8.2.0`, which builds `MockStream` on
-  `asyncio.StreamReader` directly instead of the removed mixin.
+- Pinned dev dependency to `vcrpy>=8.2.0` on Python>=3.10, which builds
+  `MockStream` on `asyncio.StreamReader` directly instead of the removed
+  mixin. `vcrpy>=8.2.0` itself requires Python>=3.10 (as does aiohttp>=3.14),
+  so Python 3.9 keeps `vcrpy>=6.0,<8.0.0` — aiohttp>=3.14 can't install
+  there either, so the incompatible pairing can't occur on that
+  interpreter.
 
 **Fixed — `masters add --region-id` verified only by label text, not RegionId identity (#657):**
 
