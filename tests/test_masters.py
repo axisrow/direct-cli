@@ -5564,6 +5564,76 @@ class TestUpdateMaster(unittest.TestCase):
         # a false "removed_ok" on the first empty scan would never get here.
         self.assertGreater(row_scan_calls["count"], 1)
 
+    def test_raises_when_removal_verify_hits_transient_get_attribute_failure(self):
+        """Codex adversarial review of #717, round 2: the FIRST fix attempt
+        (test above) only made ``.count()`` itself failure-safe — it still
+        delegated the actual per-element read to ``_read_testid_suffixes``,
+        which does its OWN independent ``page.locator(...).count()`` call
+        and swallows ANY failure in that second enumeration (including a
+        raise from ``.nth(i).get_attribute(...)``, not just from
+        ``.count()``) into ``[]``. Reproduced on that version: a no-op
+        removal was reported as successful because the probe ``count()``
+        succeeded while the delegated enumeration's ``get_attribute()``
+        raised once. This test targets exactly that: ``.count()`` NEVER
+        raises, but ``.nth(0).get_attribute(...)`` raises on its first call,
+        succeeding on every later call — the fixed version must enumerate
+        rows inline (no second, independently-failing locator call) so this
+        is caught too."""
+        rows = {159614149: "150"}
+        page = self._dynamic_target_actions_page(rows)
+        original_locator = page.locator
+        get_attribute_calls = {"count": 0}
+
+        close_testid_raw = browser_masters._TARGET_ACTION_CLOSE_TESTID_TEMPLATE.format(
+            category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=159614149
+        )
+        close_testid = f'[data-testid="{close_testid_raw}"]'
+        row_prefix_selector = (
+            f'[data-testid^="TargetActions.'
+            f'{browser_masters._TARGET_ACTIONS_CATEGORY}."]'
+        )
+
+        class _FlakyAttributeHandle:
+            def __init__(self, real_handle):
+                self._real = real_handle
+
+            def get_attribute(self, name):
+                get_attribute_calls["count"] += 1
+                if get_attribute_calls["count"] == 1:
+                    raise PlaywrightError("element detached")
+                return self._real.get_attribute(name)
+
+        class _CountNeverFailsLocator:
+            """``.count()`` always succeeds (unlike the sibling test above)
+            — only the PER-ELEMENT read that follows ever raises. A
+            probe-then-delegate fix (round 2's actual bug) never sees this
+            failure at all, since its own probe only calls ``.count()``."""
+
+            def __init__(self, real_locator):
+                self._real = real_locator
+
+            def count(self):
+                return self._real.count()
+
+            def nth(self, i):
+                return _FlakyAttributeHandle(self._real.nth(i))
+
+        def _stub_locator(selector):
+            if selector == close_testid:
+                return _FakeLocator([_FakeLocatorHandle()])  # click is a no-op
+            if selector == row_prefix_selector:
+                return _CountNeverFailsLocator(original_locator(selector))
+            return original_locator(selector)
+
+        page.locator = _stub_locator
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(
+                page, 42, remove_target_action_goal_ids=[159614149]
+            )
+        self.assertIn("did not save as requested", str(ctx.exception))
+        self.assertGreater(get_attribute_calls["count"], 1)
+
     def test_raises_when_removal_verify_read_hits_transient_hydration_failure(
         self,
     ):

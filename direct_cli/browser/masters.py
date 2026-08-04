@@ -2482,20 +2482,31 @@ def _read_target_actions(page: "Page") -> List[Dict[str, Any]]:
 
 def _read_target_actions_or_none(page: "Page") -> Optional[List[Dict[str, Any]]]:
     """Same read as ``_read_target_actions``, but returns ``None`` — distinct
-    from ``[]`` — for EITHER of the two ways this read can fail to be
-    conclusive: the section never became visible, OR (Codex adversarial
-    review of #717) the section WAS visible but enumerating its rows itself
-    failed this attempt (a transient mid-scan DOM hiccup, not the same as
-    the table genuinely having zero rows). ``_read_target_actions`` itself
-    collapses both of those into ``[]`` — a legitimate simplification for
-    its read-only callers (``fetch_master_target_actions``,
-    ``target_action_prices`` verification), for whom "couldn't read" and
-    "genuinely empty" are both handled the same way (retry, then report
-    what was last seen). ``--add-target-action``/``--remove-target-action``
-    verification cannot afford that collapse: a removed goal reported
-    "absent" from a read that never actually saw the table would silently
-    confirm a removal that may not have happened server-side — see
-    ``_verify_saved``.
+    from ``[]`` — the moment ANY step of the row scan fails, rather than
+    only on the section-visibility check.
+
+    ``_read_target_actions`` itself collapses every failure into ``[]`` —
+    a legitimate simplification for its read-only callers
+    (``fetch_master_target_actions``, ``target_action_prices``
+    verification), for whom "couldn't read" and "genuinely empty" are both
+    handled the same way (retry, then report what was last seen).
+    ``--add-target-action``/``--remove-target-action`` verification cannot
+    afford that collapse: a removed goal reported "absent" from a read that
+    never actually saw the table would silently confirm a removal that may
+    not have happened server-side — see ``_verify_saved``.
+
+    Deliberately does NOT delegate row enumeration to
+    ``_read_testid_suffixes`` (unlike ``_read_target_actions``'s first cut,
+    Codex adversarial review of #717 round 2): that helper does its own
+    independent ``page.locator(...).count()`` call and swallows a failure
+    there into ``[]`` — an earlier "probe" ``count()`` call in this function
+    verifying the SAME locator succeeds is not a guarantee the helper's own
+    later, separate call will too (a row can detach between the two), so a
+    probe-then-delegate shape still lets a mid-scan failure collapse into
+    "confirmed empty". Enumerating inline here, with every locator
+    read wrapped in its own failure check, is the only way a raised
+    ``PlaywrightError`` at any point reliably becomes this function's own
+    ``None`` rather than someone else's swallowed ``[]``.
     """
     section = page.locator(_TARGET_ACTIONS_SECTION_TESTID).first
     try:
@@ -2506,15 +2517,20 @@ def _read_target_actions_or_none(page: "Page") -> Optional[List[Dict[str, Any]]]
     prefix = f"TargetActions.{_TARGET_ACTIONS_CATEGORY}."
     try:
         row_elements = page.locator(f'[data-testid^="{prefix}"]')
-        row_elements.count()
+        count = row_elements.count()
+        raw_testids = [
+            row_elements.nth(i).get_attribute("data-testid") for i in range(count)
+        ]
     except PlaywrightError:
         return None
-    row_suffixes = _read_testid_suffixes(
-        page, prefix, skip_suffixes=(".PriceInput", ".CloseButton")
-    )
 
     goal_ids: List[int] = []
-    for suffix in row_suffixes:
+    for testid in raw_testids:
+        if not testid or not testid.startswith(prefix):
+            continue
+        suffix = testid[len(prefix) :]
+        if suffix.endswith((".PriceInput", ".CloseButton")):
+            continue
         try:
             goal_ids.append(int(suffix))
         except ValueError:
@@ -2529,7 +2545,17 @@ def _read_target_actions_or_none(page: "Page") -> Optional[List[Dict[str, Any]]]
         try:
             texts = page.locator(name_selector).all_inner_texts()
         except PlaywrightError:
-            texts = []
+            # Unlike the row-enumeration failure above, a raise HERE is not
+            # ambiguous about whether the row exists — its testid was just
+            # found in the DOM-order scan above, so it does. But its PRICE
+            # is exactly the field `_add_remove_match`/`_target_action_prices_match`
+            # compare against the requested value — a swallowed failure
+            # here would silently read as "price field is empty", which
+            # `_target_action_price_matches` (never matching ``None``)
+            # would then report as a genuine save mismatch rather than the
+            # transient read failure it actually is. Propagate ``None`` for
+            # the whole read rather than guess at this one row's state.
+            return None
         name = texts[0].strip() if texts else None
 
         price_testid = _TARGET_ACTION_PRICE_TESTID_TEMPLATE.format(
@@ -2540,7 +2566,7 @@ def _read_target_actions_or_none(page: "Page") -> Optional[List[Dict[str, Any]]]
                 f'[data-testid="{price_testid}"]'
             ).first.input_value()
         except PlaywrightError:
-            raw_price = ""
+            return None
         price = _parse_target_action_price(raw_price)
 
         results.append({"GoalId": goal_id, "Name": name, "Price": price})
