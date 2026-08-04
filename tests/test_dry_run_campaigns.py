@@ -2444,6 +2444,53 @@ def test_campaigns_update_cpm_banner_manual_cpm_weekly_spend_limit_payload():
     }
 
 
+def test_campaigns_add_text_campaign_rejects_strategy_weekly_spend_limit():
+    """--strategy-weekly-spend-limit is CpmBannerCampaign-only; it must not
+    silently pass through for other campaign types (regression: was absent
+    from allowed_flags_by_type["CPM_BANNER_CAMPAIGN"], so no other type's
+    incompatibility check could reject it)."""
+    result = _rejected(
+        "campaigns",
+        "add",
+        "--name",
+        "C-text",
+        "--start-date",
+        "2026-06-01",
+        "--type",
+        "TEXT_CAMPAIGN",
+        "--search-strategy",
+        "HIGHEST_POSITION",
+        "--network-strategy",
+        "SERVING_OFF",
+        "--strategy-weekly-spend-limit",
+        "500000000",
+    )
+    assert (
+        "--strategy-weekly-spend-limit is not compatible with --type TEXT_CAMPAIGN"
+        in result.output
+    )
+
+
+def test_campaigns_update_text_campaign_rejects_strategy_weekly_spend_limit():
+    """Same regression as add, on the update path."""
+    result = _rejected(
+        "campaigns",
+        "update",
+        "--id",
+        "555",
+        "--type",
+        "TEXT_CAMPAIGN",
+        "--search-strategy",
+        "HIGHEST_POSITION",
+        "--strategy-weekly-spend-limit",
+        "500000000",
+    )
+    assert (
+        "--strategy-weekly-spend-limit is not compatible with --type TEXT_CAMPAIGN"
+        in result.output
+    )
+
+
 def test_campaigns_add_cpm_banner_wb_maximum_impressions_payload():
     body = _dry_run(
         "campaigns",
