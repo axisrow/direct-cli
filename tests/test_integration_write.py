@@ -44,17 +44,23 @@ Passing in replay (10 tests, cassettes up to date):
 Sandbox-limited (confirmed via live recording, ``@pytest.mark.sandbox_limitation``):
 
   Category A — disabled in sandbox, supported in live API (codes 8800/1000/5004):
-  - ads add/update/delete         — sandbox does not persist adgroups across calls (code 8800)
+  - ads add/update/delete         — sandbox does not persist adgroups across calls
+    (code 8800)
   - keywords add/update/delete    — same (code 8800)
-  - bids set                      — depends on keyword persistence, sandbox_keyword fixture fails (code 8800 chain)
+  - bids set                      — depends on keyword persistence, sandbox_keyword
+    fixture fails (code 8800 chain)
   - keywordbids set               — same (code 8800 chain)
   - sitelinks add/delete          — sandbox service permanently unavailable (code 1000)
-  - adimages add/delete           — sandbox rejects valid 450x450 PNG uploads (code 5004)
-  - audiencetargets add/delete    — sandbox does not persist adgroup/retargeting list (code 8800)
+  - adimages add/delete           — sandbox rejects valid 450x450 PNG uploads
+    (code 5004)
+  - audiencetargets add/delete    — sandbox does not persist adgroup/retargeting list
+    (code 8800)
 
   Category B — unsupported resource type in sandbox (code 3500):
-  - dynamicads add/delete         — sandbox does not support DYNAMIC_TEXT_CAMPAIGN creation
-  - smartadtargets add/update/delete — sandbox does not support SMART_CAMPAIGN + SMART_AD_GROUP chain
+  - dynamicads add/delete         — sandbox does not support DYNAMIC_TEXT_CAMPAIGN
+    creation
+  - smartadtargets add/update/delete — sandbox does not support SMART_CAMPAIGN +
+    SMART_AD_GROUP chain
 
   Category C — account-permission limited in sandbox (code 3001):
   - agencyclients add-passport-organization — current sandbox agency account can read
@@ -173,7 +179,8 @@ class TestWriteCampaigns:
                         r.output, extra_patterns=_CAMPAIGN_STATUS_PATTERNS
                     ):
                         pytest.fail(
-                            f"campaigns resume failed (CLI regression?): {r.output[:500]}"
+                            "campaigns resume failed (CLI regression?): "
+                            f"{r.output[:500]}"
                         )
 
             # archive — sandbox DRAFT campaigns return embedded
@@ -192,7 +199,8 @@ class TestWriteCampaigns:
             if r.exit_code != 0 or _has_result_errors(r.output, "UnarchiveResults"):
                 if not _is_sandbox_error(r.output, extra_patterns=_ARCHIVE_PATTERNS):
                     pytest.fail(
-                        f"campaigns unarchive failed (CLI regression?): {r.output[:500]}"
+                        "campaigns unarchive failed (CLI regression?): "
+                        f"{r.output[:500]}"
                     )
             else:
                 assert_success(r, "campaigns unarchive")
@@ -223,7 +231,9 @@ class TestWriteCampaignDraftLifecycle:
             try:
                 cid = parse_add_result(r)
             except Exception:
-                pass  # ID unknown; cleanup in finally is skipped — manual recovery via campaign name
+                # ID unknown; cleanup in finally is skipped — manual recovery
+                # via campaign name
+                pass
 
             r = _invoke(
                 "campaigns",
@@ -317,7 +327,10 @@ class TestWriteAdGroups:
 @pytest.mark.vcr
 @pytest.mark.sandbox_limitation(
     category="disabled",
-    reason="Sandbox does not persist adgroups; ads add always returns 'Ad group not found'",
+    reason=(
+        "Sandbox does not persist adgroups; ads add always returns "
+        "'Ad group not found'"
+    ),
 )
 class TestWriteAds:
     """Confirms the Type-field fix from PR #12 works with live API."""
@@ -352,7 +365,8 @@ class TestWriteAds:
             if _is_sandbox_error(err_text):
                 pytest.skip(f"adgroup not persisted in sandbox: {first['Errors']}")
             pytest.fail(
-                f"API rejected ads add (potential Type-field regression): {first['Errors']}"
+                "API rejected ads add (potential Type-field regression): "
+                f"{first['Errors']}"
             )
 
         ad_id = first["Id"]
@@ -377,7 +391,10 @@ class TestWriteAds:
 @pytest.mark.vcr
 @pytest.mark.sandbox_limitation(
     category="disabled",
-    reason="Sandbox does not persist adgroups; keywords add always returns 'Ad group not found'",
+    reason=(
+        "Sandbox does not persist adgroups; keywords add always returns "
+        "'Ad group not found'"
+    ),
 )
 class TestWriteKeywords:
     def test_add_update_delete(self, sandbox_adgroup):
@@ -429,7 +446,10 @@ class TestWriteKeywords:
 @pytest.mark.vcr
 @pytest.mark.sandbox_limitation(
     category="disabled",
-    reason="Sandbox does not persist adgroups/keywords (code 8800 chain); inline _is_sandbox_error provides runtime defense",
+    reason=(
+        "Sandbox does not persist adgroups/keywords (code 8800 chain); "
+        "inline _is_sandbox_error provides runtime defense"
+    ),
 )
 class TestWriteBids:
     def test_set_bid(self, sandbox_keyword):
@@ -938,7 +958,10 @@ class TestWriteDynamicAds:
 @pytest.mark.vcr
 @pytest.mark.sandbox_limitation(
     category="unsupported",
-    reason="Sandbox does not support creating SMART_CAMPAIGN (code 3500); sandbox_smart_adgroup fixture skips before the test body runs",
+    reason=(
+        "Sandbox does not support creating SMART_CAMPAIGN (code 3500); "
+        "sandbox_smart_adgroup fixture skips before the test body runs"
+    ),
 )
 class TestWriteSmartAdTargets:
     """Live-API regression guard for typed smart ad target flags."""
@@ -1034,13 +1057,18 @@ class TestWriteNegativeKeywordSharedSets:
 @pytest.mark.vcr
 @pytest.mark.sandbox_limitation(
     category="disabled",
-    reason="Strategies require non-draft campaigns; sandbox campaigns are always DRAFT so add/update/archive may be rejected (codes 8800 / Invalid object status)",
+    reason=(
+        "Strategies require non-draft campaigns; sandbox campaigns are always "
+        "DRAFT so add/update/archive may be rejected (codes 8800 / Invalid "
+        "object status)"
+    ),
 )
 class TestWriteStrategies:
     """Full strategies lifecycle: add → get → update → archive → unarchive.
 
     Cassette must be recorded with
-    ``pytest --record-mode=once -m integration_write tests/test_integration_write.py::TestWriteStrategies``
+    ``pytest --record-mode=once -m integration_write
+    tests/test_integration_write.py::TestWriteStrategies``
 
     NOTE: the currently committed cassette captures only the first
     ``strategies add`` interaction (Yandex sandbox rejects public strategy
@@ -1138,7 +1166,8 @@ class TestWriteRetargetingUpdate:
     """Retargeting list update lifecycle (separate from add-delete coverage).
 
     Cassette must be recorded with
-    ``pytest --record-mode=once -m integration_write tests/test_integration_write.py::TestWriteRetargetingUpdate``
+    ``pytest --record-mode=once -m integration_write
+    tests/test_integration_write.py::TestWriteRetargetingUpdate``
     once credentials are available.
     """
 
@@ -1213,7 +1242,8 @@ class TestWriteBidsRead:
     ``--sandbox`` test setup.  To re-record, temporarily drop the
     ``--sandbox`` injection in ``conftest._invoke`` and rerun:
 
-    ``pytest --record-mode=once -m integration_write tests/test_integration_write.py::TestWriteBidsRead``
+    ``pytest --record-mode=once -m integration_write
+    tests/test_integration_write.py::TestWriteBidsRead``
 
     then restore ``_invoke`` and ``sed`` the host back to
     ``api-sandbox.direct.yandex.ru`` in the new cassettes.
