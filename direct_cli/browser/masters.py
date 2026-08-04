@@ -311,6 +311,16 @@ STATUS_FILTERS = {
 # (fetch_master's status-text parser already produces "SUSPENDED"/"ACTIVE").
 _PRIMARY_STATUS_TO_CLI_STATUS = {"STOPPED": "SUSPENDED"}
 
+# GridCampaigns' primaryStatus value for an archived campaign (issue #730,
+# live-confirmed 2026-08-04 against campaign 713277109 — see
+# ``_widen_filter_status_for_archived``).
+_ARCHIVED_PRIMARY_STATUS = "ARCHIVED"
+
+# ``status`` values whose predicate can match an archived row -- these need
+# ``_widen_filter_status_for_archived`` to run before replaying the captured
+# request, everything else can replay the grid UI's own default filter as-is.
+_ARCHIVE_INCLUDING_STATUSES = frozenset({"archived", "all"})
+
 # Stat-tiles section render marker (issue #708, live recon 2026-08-04 against
 # 12 live ACTIVE campaigns in one account — see _extract_stat_tiles). Each
 # tile carries a stable ``data-testid`` of ``ChartSummary.<key>`` (confirmed
@@ -988,6 +998,34 @@ def _capture_grid_campaigns_request(page: "Page") -> Dict[str, Any]:
     }
 
 
+def _widen_filter_status_for_archived(request: Dict[str, Any]) -> None:
+    """Add ``ARCHIVED`` to the captured request's ``filterStatusIn``, in place.
+
+    Issue #730, live-confirmed 2026-08-04: the grid UI's own default view
+    (whatever ``GRID_URL`` renders without any query string) sends a
+    ``campaignInput.filter.filterStatusIn`` list of exactly ``["ACTIVE",
+    "DRAFT", "MODERATION", "MODERATION_DENIED", "RUN_WARN", "STOPPED",
+    "TEMPORARILY_PAUSED"]`` — no ``"ARCHIVED"``. ``_capture_grid_campaigns_
+    request`` replays that captured body verbatim, so a real archived
+    campaign is excluded server-side, before ``fetch_masters_list``'s own
+    ``STATUS_FILTERS`` predicate ever sees it (confirmed live against
+    campaign 713277109: absent from ``totalCount``/``rowset`` entirely, not
+    merely filtered out downstream). The grid's URL-level ``status-filter``
+    query parameter is already known to be ignored server-side (see module
+    docstring) — mutating this captured GraphQL variable is what actually
+    works.
+    """
+    filter_obj = (
+        request["body"]
+        .setdefault("variables", {})
+        .setdefault("campaignInput", {})
+        .setdefault("filter", {})
+    )
+    status_in = filter_obj.get("filterStatusIn")
+    if isinstance(status_in, list) and _ARCHIVED_PRIMARY_STATUS not in status_in:
+        status_in.append(_ARCHIVED_PRIMARY_STATUS)
+
+
 def _fetch_grid_campaigns_page(
     page: "Page", request: Dict[str, Any], offset: int
 ) -> Dict[str, Any]:
@@ -1032,6 +1070,12 @@ def fetch_masters_list(
     rather than the grid's DOM, paginates through every row
     (``GRID_PAGE_LIMIT`` per page), keeps only rows whose ``source`` is
     ``MASTERS_SOURCE``, and applies ``status`` via ``STATUS_FILTERS``.
+
+    For ``status in {"archived", "all"}`` the captured request's
+    ``filterStatusIn`` is widened first (see
+    ``_widen_filter_status_for_archived``) — otherwise the grid's own default
+    filter excludes archived rows server-side and ``STATUS_FILTERS`` below
+    would never even see them (issue #730).
     """
     status_predicate = STATUS_FILTERS.get(status)
     if status_predicate is None:
@@ -1041,6 +1085,8 @@ def fetch_masters_list(
         )
 
     request = _capture_grid_campaigns_request(page)
+    if status in _ARCHIVE_INCLUDING_STATUSES:
+        _widen_filter_status_for_archived(request)
 
     all_rows: List[Dict[str, Any]] = []
     offset = 0
@@ -1284,14 +1330,9 @@ def _extract_title(page: "Page", result: Dict[str, Any]) -> None:
 
 
 def _extract_status(page: "Page", result: Dict[str, Any]) -> None:
-    try:
-        body_text = page.inner_text("body")
-    except PlaywrightError:
-        body_text = ""
-    if "Кампания остановлена" in body_text:
-        result["Status"] = "SUSPENDED"
-    elif "Кампания активна" in body_text or "Кампания включена" in body_text:
-        result["Status"] = "ACTIVE"
+    status = _read_status_text(page)
+    if status is not None:
+        result["Status"] = status
     else:
         print_warning(
             f"Could not determine status for campaign {result['CampaignId']} "
@@ -1356,14 +1397,13 @@ def _extract_stat_tiles(page: "Page", result: Dict[str, Any]) -> None:
 
 
 def _read_status_text(page: "Page") -> Optional[str]:
-    """Return ``"SUSPENDED"``/``"ACTIVE"``/``"MODERATION"``/``None`` from the
-    current page body.
+    """Return ``"SUSPENDED"``/``"ACTIVE"``/``"MODERATION"``/``"ARCHIVED"``/
+    ``None`` from the current page body.
 
-    Shares the same marker text as ``_extract_status`` but returns the value
-    directly instead of writing into a result dict — used by
-    ``suspend_master``/``resume_master``/``launch_master`` both before and
-    after clicking, to verify the action actually changed the status rather
-    than trusting the click alone.
+    Shared by ``_extract_status`` (``masters get``) and by
+    ``suspend_master``/``resume_master``/``launch_master``, which call this
+    directly both before and after clicking to verify the action actually
+    changed the status rather than trusting the click alone.
 
     ``"Кампания на\xa0модерации"`` (issue #704, live-confirmed 2026-08-04
     against campaign 713271855's overview page right after a real launch) is
@@ -1376,6 +1416,16 @@ def _read_status_text(page: "Page") -> Optional[str]:
     ASCII-space literal here silently never matches (this cost a full
     debugging pass live: the click and the actual status change both
     succeeded every time, only this string comparison was wrong).
+
+    ``"Кампания в\xa0архиве"`` (issue #730, live-confirmed 2026-08-04 against
+    campaign 713277109's overview page, a real archived campaign) fills the
+    gap the module docstring's ``archive_master`` note flagged: no archived
+    overview fixture had been captured before, so this marker was simply
+    missing and ``masters get``/``masters list --status archived`` on an
+    archived campaign either warned "unrecognised status text" or the row
+    was silently excluded by a status predicate that could never match. Same
+    non-breaking-space pitfall as "на\xa0модерации" — the space between "в"
+    and "архиве" is U+00A0, not ASCII.
     """
     try:
         body_text = page.inner_text("body")
@@ -1387,6 +1437,8 @@ def _read_status_text(page: "Page") -> Optional[str]:
         return "ACTIVE"
     if "Кампания на\xa0модерации" in body_text:
         return "MODERATION"
+    if "Кампания в\xa0архиве" in body_text:
+        return "ARCHIVED"
     return None
 
 

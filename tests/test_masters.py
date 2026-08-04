@@ -1734,6 +1734,74 @@ class TestFetchMastersList(unittest.TestCase):
 
         self.assertEqual(len(result), 4)
 
+    def _grid_request_body_with_default_filter_status_in(self):
+        # Live-captured shape (issue #730): the grid UI's own default view
+        # sends this exact filterStatusIn list -- no "ARCHIVED" -- so an
+        # archived campaign is excluded server-side, before
+        # STATUS_FILTERS ever runs. See _widen_filter_status_for_archived.
+        body = dict(self._GRID_REQUEST_BODY)
+        body["variables"] = dict(body["variables"])
+        body["variables"]["campaignInput"] = dict(body["variables"]["campaignInput"])
+        body["variables"]["campaignInput"]["filter"] = {
+            "filterStatusIn": [
+                "ACTIVE",
+                "DRAFT",
+                "MODERATION",
+                "MODERATION_DENIED",
+                "RUN_WARN",
+                "STOPPED",
+                "TEMPORARILY_PAUSED",
+            ]
+        }
+        return body
+
+    def test_status_archived_widens_filter_status_in_before_replaying(self):
+        # Issue #730: without widening, the grid's own default
+        # filterStatusIn (captured verbatim from the live UI) excludes
+        # ARCHIVED server-side -- the replayed pagination POST must carry
+        # "ARCHIVED" or a real archived campaign never appears in rowset at
+        # all, regardless of STATUS_FILTERS below.
+        fixture = _load_grid_campaigns_fixture()
+        body = self._grid_request_body_with_default_filter_status_in()
+        page = self._page([fixture], grid_post_data=json.dumps(body))
+
+        browser_masters.fetch_masters_list(page, status="archived")
+
+        self.assertEqual(len(page.request.calls), 1)
+        posted_body = json.loads(page.request.calls[0][1])
+        status_in = posted_body["variables"]["campaignInput"]["filter"][
+            "filterStatusIn"
+        ]
+        self.assertIn("ARCHIVED", status_in)
+
+    def test_status_all_also_widens_filter_status_in(self):
+        fixture = _load_grid_campaigns_fixture()
+        body = self._grid_request_body_with_default_filter_status_in()
+        page = self._page([fixture], grid_post_data=json.dumps(body))
+
+        browser_masters.fetch_masters_list(page, status="all")
+
+        posted_body = json.loads(page.request.calls[0][1])
+        status_in = posted_body["variables"]["campaignInput"]["filter"][
+            "filterStatusIn"
+        ]
+        self.assertIn("ARCHIVED", status_in)
+
+    def test_status_active_does_not_widen_filter_status_in(self):
+        # Only archive-including statuses need the widen -- leave the grid's
+        # own default filter alone otherwise, matching prior behaviour.
+        fixture = _load_grid_campaigns_fixture()
+        body = self._grid_request_body_with_default_filter_status_in()
+        page = self._page([fixture], grid_post_data=json.dumps(body))
+
+        browser_masters.fetch_masters_list(page, status="active")
+
+        posted_body = json.loads(page.request.calls[0][1])
+        status_in = posted_body["variables"]["campaignInput"]["filter"][
+            "filterStatusIn"
+        ]
+        self.assertNotIn("ARCHIVED", status_in)
+
     def test_paginates_past_the_page_limit(self):
         # totalCount exceeds one page's rowset -> a second request must be
         # made and its rows included, matching the live behaviour that
@@ -1932,6 +2000,22 @@ class TestFetchMaster(unittest.TestCase):
         page = self._page_for(status_text="Кампания активна")
         result = browser_masters.fetch_master(page, 1)
         self.assertEqual(result["Status"], "ACTIVE")
+
+    def test_archived_status_recognised(self):
+        # Issue #730: live-confirmed against campaign 713277109 ("Кампания
+        # в\xa0архиве", non-breaking space between "в" and "архиве") -- this
+        # marker was previously entirely missing, so `masters get` on an
+        # archived campaign reported "unrecognised status text" instead.
+        page = self._page_for(status_text="Кампания в\xa0архиве")
+        result = browser_masters.fetch_master(page, 1)
+        self.assertEqual(result["Status"], "ARCHIVED")
+
+    def test_moderation_status_recognised_by_fetch_master(self):
+        # _extract_status previously duplicated _read_status_text's marker
+        # list but omitted MODERATION -- now both share _read_status_text.
+        page = self._page_for(status_text="Кампания на\xa0модерации")
+        result = browser_masters.fetch_master(page, 1)
+        self.assertEqual(result["Status"], "MODERATION")
 
     def test_unknown_testid_suffix_is_ignored(self):
         # Live recon (issue #708) confirmed exactly 5 stable suffixes
