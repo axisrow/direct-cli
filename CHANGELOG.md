@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+**Changed — `SmartCampaign` bidding-strategy builder dedup (#592):**
+
+- The `build_smart_campaign_search_strategy` / `build_smart_campaign_network_strategy`
+  pair each carried a ~200-line copy of the same validation pipeline
+  (ExplorationBudget / CustomPeriodBudget all-or-none checks, per-subtype
+  field-support enforcement, WSDL `minOccurs=1` gating, `LimitPercent`
+  range validation, `BudgetType` update-only gating). This is hoisted
+  behind a single `_SmartStrategyConfig` NamedTuple + `_build_smart_strategy_block`
+  core, mirroring the `_TextStrategyConfig` / `_DynamicTextStrategyConfig`
+  precedent (#581, #591). `_assemble_strategy_block` (the shared
+  CustomPeriodBudget/ExplorationBudget/BudgetType tail already extracted
+  in #591) continues to own the final block assembly unchanged.
+- The `CustomPeriodBudget` / `ExplorationBudget` blocks are now constructed
+  via the shared `_build_custom_period_budget` / `_build_exploration_budget`
+  helpers (`exploration_yes_only=False`, per the cached WSDL
+  `general:YesNoEnum`) instead of a per-builder `*_values` dict + manual
+  `len != len` presence check.
+- Behavior is byte-for-byte identical: `--help`, `--dry-run` payload and
+  every `UsageError` text are unchanged (verified by a before/after diff
+  across default-flow, mutex, required-field, LimitPercent, budget-type
+  and every-subtype-family scenarios on both Search and Network). This is
+  the second of four planned per-campaign-type PRs under #592
+  (dynamic_text done in #754); unified_campaign and mobile_app remain as
+  follow-up.
+
 **Fixed — `masters update --add-target-action`/`--remove-target-action` verification could trust an incomplete first read of the "Целевые действия" table (#750):**
 
 - Round 3 of cycle-review on #749 found that `_verify_saved`'s add/remove
