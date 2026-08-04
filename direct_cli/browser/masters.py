@@ -1452,14 +1452,46 @@ def _read_status_text(page: "Page") -> Optional[str]:
     return None
 
 
+def _is_button_disabled(handle: Any) -> bool:
+    """Return whether ``handle`` is disabled — via the ``disabled`` DOM
+    property, the ``disabled`` HTML attribute, or ``aria-disabled`` (issue
+    #728: Yandex renders "Остановить кампанию" as disabled, not hidden,
+    while part of the campaign's creatives are still in moderation/rejected
+    — a plain visibility check does not catch this, and the click then
+    physically lands on a no-op element).
+    """
+    with contextlib.suppress(PlaywrightError, AttributeError):
+        if handle.is_disabled():
+            return True
+    with contextlib.suppress(PlaywrightError):
+        if handle.get_attribute("disabled") is not None:
+            return True
+    with contextlib.suppress(PlaywrightError):
+        if (handle.get_attribute("aria-disabled") or "").lower() == "true":
+            return True
+    return False
+
+
 def _click_action_button(page: "Page", candidate_texts: Tuple[str, ...]) -> None:
-    """Click the first visible button matching one of ``candidate_texts``.
+    """Click the first visible, enabled button matching one of
+    ``candidate_texts``.
 
     Raises :class:`BrowserSessionError` if none of the candidates match any
     visible button — this deliberately does NOT fall back to clicking an
     unrelated element, since suspend/resume is a real account mutation (see
     module docstring: the suspend-side button text is not live-confirmed).
+
+    A matching button that is visible but disabled (issue #728) is treated
+    as a distinct case from "not found": Yandex renders "Остановить
+    кампанию" disabled — not hidden — while part of the campaign's
+    creatives are still in moderation or rejected, so a click there
+    physically lands but is a no-op. Reporting that as the generic "could
+    not find a button, markup may have drifted" error sends the caller
+    chasing a markup change that never happened. Raise a specific error
+    naming the real cause instead, and keep scanning remaining candidates
+    in case a different, enabled match exists.
     """
+    saw_disabled_match = False
     for text in candidate_texts:
         locator = page.get_by_text(text, exact=False)
         try:
@@ -1471,10 +1503,19 @@ def _click_action_button(page: "Page", candidate_texts: Tuple[str, ...]) -> None
             try:
                 if not handle.is_visible():
                     continue
+                if _is_button_disabled(handle):
+                    saw_disabled_match = True
+                    continue
                 handle.click()
                 return
             except PlaywrightError:
                 continue
+    if saw_disabled_match:
+        raise BrowserSessionError(
+            "The action button is currently disabled — this happens while "
+            "part of the campaign's creatives are still on moderation or "
+            "have been rejected. Try again once moderation finishes."
+        )
     raise BrowserSessionError(
         "Could not find an action button matching any of "
         f"{candidate_texts!r} on the campaign overview page. Yandex may "
