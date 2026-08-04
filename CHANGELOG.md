@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+**Fixed — `vcrpy>=6.0` allowed a version incompatible with aiohttp>=3.14 (#737):**
+
+- vcrpy's aiohttp stub (`vcr/stubs/aiohttp_stubs.py`) built its `MockStream`
+  on `aiohttp.streams.AsyncStreamReaderMixin`, which aiohttp 3.14 removed
+  (folded into aiohttp's own `StreamReader`). Any vcrpy release below 8.2.0
+  raised `AttributeError` at cassette-patcher construction time under
+  aiohttp>=3.14, breaking the entire `pytest.mark.vcr` layer — including
+  replay of already-committed cassettes.
+- Pinned dev dependency to `vcrpy>=8.2.0`, which builds `MockStream` on
+  `asyncio.StreamReader` directly instead of the removed mixin.
+
 **Fixed — `masters add --region-id` verified only by label text, not RegionId identity (#657):**
 
 - `--region-id` resolved to Yandex's canonical `GeoRegionName` (#652) and
