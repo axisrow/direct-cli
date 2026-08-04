@@ -55,6 +55,24 @@
 - `dictionaries get` (the generic multi-dictionary command) is unaffected —
   only `get-geo-regions` builds its own client with the resolved locale.
 
+**Fixed — `masters get`'s stat-tile extraction used a tick-stabilization guess instead of a real render marker (#708):**
+
+- `_extract_stat_tiles` (`direct_cli/browser/masters.py`) previously scanned
+  every button on the overview page for a 2-line "value\nlabel" shape and
+  waited for that found set to stay unchanged for several consecutive poll
+  ticks before trusting it as final (issue #697's stopgap) — a heuristic
+  that structurally could not distinguish "this campaign genuinely has
+  fewer than 5 tiles" from "the tiles just haven't started rendering yet".
+- Live recon (12 runs across 9 distinct ACTIVE campaigns in one account)
+  found a real DOM marker: each tile carries a stable
+  `data-testid="ChartSummary.<key>"` (`shows`/`clicks`/`conversions`/`cpa`/
+  `cost`), and all five render atomically in a single React commit — the
+  first poll tick that observes any `ChartSummary.*` node always already
+  has all five. `_extract_stat_tiles` now waits for that marker directly
+  (mirroring `_OVERVIEW_TITLE_SELECTOR`'s convention) and reads the fixed
+  testid set, instead of guessing with a tick count. No behavior change for
+  the CLI's `Stats` output shape.
+
 **Fixed — `masters get`/`archive`/`suspend`/`resume` on `DRAFT` campaigns (#660):**
 
 - A `DRAFT` Мастер кампаний's overview page (`WIZARD_OVERVIEW_URL` itself, no

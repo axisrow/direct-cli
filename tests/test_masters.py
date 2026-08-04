@@ -1804,6 +1804,10 @@ class TestFetchMastersList(unittest.TestCase):
 class TestFetchMaster(unittest.TestCase):
     """Overview-page parsing: title, status, landing URL, stat tiles."""
 
+    _STAT_TILES_SELECTOR = (
+        f'[data-testid^="{browser_masters._STAT_TILE_TESTID_PREFIX}"]'
+    )
+
     def _page_for(self, title="Мастер Тест", status_text="Кампания остановлена"):
         return FakePage(
             locators={
@@ -1822,16 +1826,28 @@ class TestFetchMaster(unittest.TestCase):
                         )
                     ]
                 ),
-                "button": _FakeLocator(
+                self._STAT_TILES_SELECTOR: _FakeLocator(
                     [
-                        _FakeLocatorHandle(text="281 722\nПоказа"),
-                        _FakeLocatorHandle(text="2 529\nКликов"),
-                        _FakeLocatorHandle(text="83\nКонверсии"),
-                        _FakeLocatorHandle(text="272,45 ₽\nЗа конверсию"),
-                        _FakeLocatorHandle(text="22 613,58 ₽\nРасход"),
                         _FakeLocatorHandle(
-                            text="Возобновить кампанию"
-                        ),  # noise: ignored
+                            text="281 722",
+                            attrs={"data-testid": "ChartSummary.shows"},
+                        ),
+                        _FakeLocatorHandle(
+                            text="2 529",
+                            attrs={"data-testid": "ChartSummary.clicks"},
+                        ),
+                        _FakeLocatorHandle(
+                            text="83",
+                            attrs={"data-testid": "ChartSummary.conversions"},
+                        ),
+                        _FakeLocatorHandle(
+                            text="272,45 ₽",
+                            attrs={"data-testid": "ChartSummary.cpa"},
+                        ),
+                        _FakeLocatorHandle(
+                            text="22 613,58 ₽",
+                            attrs={"data-testid": "ChartSummary.cost"},
+                        ),
                     ]
                 ),
             },
@@ -1866,158 +1882,82 @@ class TestFetchMaster(unittest.TestCase):
         result = browser_masters.fetch_master(page, 1)
         self.assertEqual(result["Status"], "ACTIVE")
 
-    def test_stat_label_with_non_breaking_space_still_matches(self):
-        # Confirmed live 2026-08-03 (issue #683, campaign 72349978): "За
-        # конверсию" renders with U+00A0 between the words, not a plain
-        # space — _STAT_TILE_LABELS' plain-space key must still match.
+    def test_unknown_testid_suffix_is_ignored(self):
+        # Live recon (issue #708) confirmed exactly 5 stable suffixes
+        # (shows/clicks/conversions/cpa/cost) -- an extra tile Yandex might
+        # add later must not raise, only be skipped by the key lookup.
         page = FakePage(
             locators={
-                "button": _FakeLocator(
-                    [_FakeLocatorHandle(text="191,07 ₽\nЗа\xa0конверсию")]
+                self._STAT_TILES_SELECTOR: _FakeLocator(
+                    [
+                        _FakeLocatorHandle(
+                            text="1",
+                            attrs={"data-testid": "ChartSummary.somethingNew"},
+                        ),
+                        _FakeLocatorHandle(
+                            text="281 722",
+                            attrs={"data-testid": "ChartSummary.shows"},
+                        ),
+                    ]
                 ),
             },
         )
         result = browser_masters.fetch_master(page, 1)
-        self.assertEqual(result["Stats"], {"cost_per_conversion": "191,07 ₽"})
-
-    def test_stable_partial_tile_set_returns_without_waiting_out_the_timeout(self):
-        # cycle-review #697 finding (Codex): the old completion condition
-        # required every one of the 5 known keys before _poll_until could
-        # return true, so a campaign that genuinely has fewer tiles (fewer
-        # metrics enabled, or Yandex not rendering one) always burned the
-        # full _STAT_TILES_TIMEOUT_MS. A stable (unchanged-between-ticks)
-        # partial set must now return as soon as it stabilizes, not after
-        # the full timeout.
-        #
-        # Asserted via _poll_until's own tick count (page.wait_for_timeout
-        # call count), not wall-clock elapsed time (cycle-review #697 CI
-        # finding): _poll_until's `while time.monotonic() < deadline` loop
-        # measures real wall-clock time, which is NOT deterministic under a
-        # loaded CI runner (observed: a xdist-parallel CI run took a real
-        # 15s here despite an artificially large timeout and only needing a
-        # few ticks to stabilize -- 60x slower than the ~0.07s this test
-        # takes locally). Tick count is deterministic regardless of how
-        # slowly wall-clock time actually elapses between ticks.
-        # _poll_until's deadline check (`while time.monotonic() < deadline`)
-        # relies on real wall-clock time elapsing -- a `wait_for_timeout`
-        # override that only counts calls without actually advancing the
-        # clock (the original form of this fixture) makes the loop spin as
-        # fast as the CPU allows, burning the FULL real _STAT_TILES_TIMEOUT_MS
-        # in wall-clock terms regardless of how few "ticks" the logic itself
-        # needed -- on a fast/CI runner this racks up millions of iterations
-        # before the deadline elapses (observed live on GitHub Actions: PR
-        # #711's rebase CI run failed with "4588300 not less than 40",
-        # confirming this was never actually fixed by asserting tick count
-        # alone). Patching time.monotonic to advance in lockstep with each
-        # wait_for_timeout call makes the deadline check trip after exactly
-        # the intended number of ticks, independent of real elapsed time.
-        #
-        # body_text must contain a recognised (non-DRAFT) status marker --
-        # see the sibling zero-tiles test's comment for why an unrecognised
-        # (here: empty/default) body_text would otherwise let
-        # _is_draft_overview_page burn its own full 60-tick budget before
-        # _extract_stat_tiles (what this test actually exercises) ever runs.
-        clock = {"now": 0.0}
-        with patch.object(browser_masters.time, "monotonic", lambda: clock["now"]):
-
-            class _TickCountingPage(FakePage):
-                def __init__(self, *args, **kwargs):
-                    super().__init__(*args, **kwargs)
-                    self.tick_count = 0
-
-                def wait_for_timeout(self, timeout):
-                    self.tick_count += 1
-                    clock["now"] += timeout / 1000
-
-            page = _TickCountingPage(
-                locators={
-                    "button": _FakeLocator(
-                        [_FakeLocatorHandle(text="191,07 ₽\nЗа конверсию")]
-                    ),
-                },
-                body_text="Кампания активна",
-            )
-            with patch.object(browser_masters, "_STAT_TILES_TIMEOUT_MS", 10_000):
-                result = browser_masters.fetch_master(page, 1)
-        self.assertEqual(result["Stats"], {"cost_per_conversion": "191,07 ₽"})
-        # Must stop once the set stabilizes, not burn through the full
-        # 10_000ms / 250ms = 40-tick timeout budget.
-        self.assertLess(page.tick_count, 40)
+        self.assertEqual(result["Stats"], {"impressions": "281 722"})
 
     def test_zero_tiles_returns_without_waiting_out_the_timeout(self):
-        # Same fix, empty-set edge case (cycle-review #697): the old
-        # condition never matched an empty `stats` dict against
-        # `wanted_keys`, so a page with no recognisable stat tiles at all
-        # also burned the full timeout. See the sibling test above for why
-        # this asserts tick count rather than wall-clock elapsed time, and
-        # why time.monotonic is patched to advance with each tick.
+        # A page with no ChartSummary.* nodes at all (e.g. Yandex changed
+        # the markup) must not raise -- the marker-wait predicate
+        # (`count() > 0`) is simply never satisfied, _poll_until returns
+        # False once the timeout elapses, and _extract_stat_tiles degrades
+        # to a warning instead of populating "Stats". A short timeout keeps
+        # this test fast in real wall-clock time (FakePage.wait_for_timeout
+        # is a no-op, so _poll_until's real `time.monotonic()` deadline is
+        # what actually bounds the loop here).
         #
-        # body_text must contain a recognised (non-DRAFT) status marker --
-        # issue #660's _is_draft_overview_page (fetch_master's very first
-        # call after _goto_overview_page) polls up to
-        # _DRAFT_OVERVIEW_DETECT_TIMEOUT_MS (15s / 60 ticks at the default
-        # rate) for EITHER a DRAFT marker OR _read_status_text to recognise
-        # something -- an unrecognisable body_text like the plain
-        # "something Yandex changed" used elsewhere in this file silently
-        # burns that ENTIRE budget before _extract_stat_tiles (what this
-        # test actually exercises) ever runs, inflating tick_count by 60 on
-        # top of the stat-tile poll's own ticks.
-        clock = {"now": 0.0}
-        with patch.object(browser_masters.time, "monotonic", lambda: clock["now"]):
-
-            class _TickCountingPage(FakePage):
-                def __init__(self, *args, **kwargs):
-                    super().__init__(*args, **kwargs)
-                    self.tick_count = 0
-
-                def wait_for_timeout(self, timeout):
-                    self.tick_count += 1
-                    clock["now"] += timeout / 1000
-
-            page = _TickCountingPage(locators={}, body_text="Кампания активна")
-            with patch.object(browser_masters, "_STAT_TILES_TIMEOUT_MS", 10_000):
-                with patch("direct_cli.browser.masters.print_warning"):
-                    result = browser_masters.fetch_master(page, 1)
+        # body_text carries a recognisable status marker so
+        # _is_draft_overview_page's own _poll_until (which runs first, to
+        # decide DRAFT vs. non-DRAFT) resolves immediately instead of
+        # burning its own real-time _DRAFT_OVERVIEW_DETECT_TIMEOUT_MS budget
+        # before _extract_stat_tiles ever gets a chance to run.
+        page = FakePage(locators={}, body_text="Кампания активна")
+        with patch.object(browser_masters, "_STAT_TILES_TIMEOUT_MS", 200):
+            with patch("direct_cli.browser.masters.print_warning") as warn:
+                result = browser_masters.fetch_master(page, 1)
         self.assertNotIn("Stats", result)
-        self.assertLess(page.tick_count, 40)
+        warn.assert_any_call("Could not read overview stat tiles for campaign 1.")
 
-    def test_delayed_tile_render_is_not_mistaken_for_a_stable_empty_set(self):
-        # cycle-review #697 re-review finding (Codex): the first version of
-        # the stabilization fix treated a SINGLE unchanged tick as proof the
-        # tile set was final -- but on a page that genuinely has tiles which
-        # just haven't rendered yet (the ~15s two-stage-render delay this
-        # module's own comments document), the very first couple of ticks
-        # are ALSO an unchanged (empty) set, purely because nothing has
-        # rendered yet. A naive one-tick check returned an empty Stats dict
-        # after only ~250ms on a page whose tile genuinely appears a few
-        # ticks later. _STAT_TILES_STABLE_TICKS now requires several
-        # consecutive stable ticks, giving a slow-but-real render room to
-        # actually happen before its result is trusted as final.
+    def test_delayed_tile_render_is_waited_for(self):
+        # Live recon (issue #708): the marker (any ChartSummary.* node) can
+        # take several seconds to appear after the title has rendered, but
+        # once it does, all five tiles are present in that same DOM read --
+        # no partial/stabilizing state to account for. Models the marker
+        # appearing on the 2nd locator() call, not the 1st.
         class _DelayedTilePage(FakePage):
             def __init__(self, *args, **kwargs):
                 super().__init__(*args, **kwargs)
                 self.tile_scan_count = 0
 
             def locator(self, selector):
-                if selector == "button":
+                if selector == TestFetchMaster._STAT_TILES_SELECTOR:
                     self.tile_scan_count += 1
-                    # Renders on the 2nd scan -- a single-stable-tick check
-                    # would already have declared the empty 1st scan final
-                    # before this tile had a chance to appear.
                     if self.tile_scan_count <= 1:
                         return _FakeLocator([])
-                    return _FakeLocator([_FakeLocatorHandle(text="281 722\nПоказа")])
+                    return _FakeLocator(
+                        [
+                            _FakeLocatorHandle(
+                                text="281 722",
+                                attrs={"data-testid": "ChartSummary.shows"},
+                            )
+                        ]
+                    )
                 return super().locator(selector)
 
         page = _DelayedTilePage(locators={})
         result = browser_masters.fetch_master(page, 1)
 
         self.assertEqual(result["Stats"], {"impressions": "281 722"})
-        # Confirms the stabilization window is actually being exercised,
-        # not short-circuited by the "all wanted keys found" fast path.
-        self.assertGreaterEqual(
-            page.tile_scan_count, 1 + browser_masters._STAT_TILES_STABLE_TICKS
-        )
+        self.assertGreaterEqual(page.tile_scan_count, 2)
 
     def test_partial_result_on_unrecognised_sections(self):
         # A page whose title element IS present (so _goto_overview_page is
