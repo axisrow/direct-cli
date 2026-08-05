@@ -1136,22 +1136,19 @@ _EDIT_URL_INPUT_TESTID = '[data-testid="CampaignLinkEditorLite.LinkInput.Textinp
 _EDIT_URL_CLEAR_BUTTON_TESTID = (
     '[data-testid="CampaignLinkEditorLite.LinkInput.Textinput.Clear"]'
 )
+_EDIT_UTM_INPUT_TESTID = '[data-testid="CampaignLinkEditorLite.UTMInput"]'
+_EDIT_UTM_SPOILER_BUTTON_TESTID = (
+    '[data-testid="CampaignLinkEditorLite.Spoiler.Button"]'
+)
 
 # The separate "UTM-метки и параметры URL" field under "Дополнительные
-# параметры" (``CampaignLinkEditorLite.UTMInput``) is NOT used by
-# ``_set_landing_url``/``--landing-url`` — confirmed live it is an
-# independent, normally-empty helper field for appending EXTRA parameters on
-# top of whatever the main URL field already has, not a decomposed
-# domain/UTM split of the same value. The main field above already contains
-# the full URL including any UTM query string (confirmed live: a campaign
-# with UTM params baked into its landing URL shows the ENTIRE
-# ``?utm_source=...&...`` string in the main field, with the UTM helper
-# field still empty) — so setting/clearing UTM params is just setting/
-# clearing query string on the one URL this module already treats as a
-# single opaque string, exactly like ``_extract_landing_url``'s own read
-# path. No dedicated ``--clear-utm`` flag is needed as a result: passing
-# ``--landing-url`` with the bare domain (no query string) removes the UTM
-# template the same way as passing any other replacement value.
+# параметры" (``CampaignLinkEditorLite.UTMInput``) is the intended, dedicated
+# place to hold a campaign's UTM query string (issue #761) — a genuinely
+# independent field ``_set_landing_url``/``--landing-url`` never touches.
+# It is lazily mounted under a collapsed spoiler
+# (``CampaignLinkEditorLite.Spoiler.Button``, ``_expand_utm_spoiler``) —
+# ``_set_tracking_params``/``--tracking-params`` is the dedicated setter,
+# expanding the spoiler before writing. Pass an empty string to clear it.
 
 _SAVE_BUTTON_TEXT = "Сохранить кампанию"
 _LAUNCH_BUTTON_TEXT = "Запустить кампанию"
@@ -2339,6 +2336,145 @@ def _set_campaign_name(page: "Page", name: str) -> None:
         ) from exc
 
 
+_SPOILER_EXPAND_POLL_TIMEOUT_MS = 2000
+_SPOILER_EXPAND_MAX_ATTEMPTS = 3
+
+
+def _expand_utm_spoiler(page: "Page") -> bool:
+    """Expand the "Дополнительные параметры" spoiler to reveal UTMInput.
+
+    The UTM field is lazily mounted — it only appears in the DOM after the
+    spoiler is expanded. Retries the click (up to
+    ``_SPOILER_EXPAND_MAX_ATTEMPTS`` times) if the first attempt is
+    swallowed by a React re-render (observed live during issue #761
+    recon), same "click a trigger and verify the effect landed" shape as
+    ``_click_and_wait_for_popup`` — but the trigger here (an inline
+    disclosure toggle) is safe to re-click unconditionally on every retry,
+    unlike that helper's menu/modal triggers, so a plain loop suffices
+    rather than sharing its popup-specific bookkeeping.
+
+    Returns ``True`` if the spoiler is expanded, ``False`` if the spoiler
+    element was not found at all.
+    """
+    btn = page.locator(_EDIT_UTM_SPOILER_BUTTON_TESTID).first
+    try:
+        if btn.count() == 0:
+            return False
+    except PlaywrightError:
+        return False
+    for _ in range(_SPOILER_EXPAND_MAX_ATTEMPTS):
+        try:
+            if btn.get_attribute("aria-expanded") == "true":
+                return True
+            btn.click()
+        except PlaywrightError:
+            # Fallback: direct JS click (bypasses Playwright actionability
+            # checks) if the Playwright click itself failed to land.
+            with contextlib.suppress(PlaywrightError):
+                page.evaluate(
+                    "(sel) => { const b = document.querySelector(sel); "
+                    "if (b) b.click(); }",
+                    _EDIT_UTM_SPOILER_BUTTON_TESTID,
+                )
+        if _poll_until(
+            page,
+            lambda: btn.get_attribute("aria-expanded") == "true",
+            _SPOILER_EXPAND_POLL_TIMEOUT_MS,
+        ):
+            return True
+    return False
+
+
+def _read_tracking_params(page: "Page") -> Optional[str]:
+    """Read the UTMInput field value ("UTM-метки и параметры URL"), expanding
+    the "Дополнительные параметры" spoiler if needed.
+
+    Returns the raw query string (without leading ``?``), or ``None`` if the
+    field is not mounted / not readable.  An empty string means the field
+    is mounted and genuinely empty.
+    """
+    # _expand_utm_spoiler is itself a cheap no-op (single aria-expanded
+    # read) when the spoiler is already open, so there is no need to
+    # duplicate that check here first.
+    _expand_utm_spoiler(page)
+    field = page.locator(_EDIT_UTM_INPUT_TESTID).first
+    try:
+        return field.text_content()
+    except PlaywrightError:
+        return None
+
+
+def _set_contenteditable_field(
+    page: "Page", testid: str, value: str, *, label: str
+) -> None:
+    """Click, clear and retype one of the edit page's contenteditable fields.
+
+    The shared click/clear/verify-cleared/``_type_landing_url`` mechanics
+    behind ``_set_landing_url`` and ``_set_tracking_params`` — both are the
+    same widget family (issue #690's keystroke-dropping race applies to
+    every field in it), differing only in testid and in the ``label`` used
+    to keep each caller's error messages field-specific rather than generic.
+
+    Passing an empty ``value`` clears the field and returns without typing.
+    Callers own any field-specific preconditions (``_set_landing_url``'s
+    ARCHIVED guard, ``_set_tracking_params``' spoiler expansion) — those run
+    before this helper is called.
+    """
+    field = page.locator(testid).first
+    try:
+        field.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            f"Could not find or click the {label} field "
+            f"({testid!r}) on the campaign edit page — Yandex may have "
+            "changed the page's markup. Re-run with --headful to inspect "
+            "the page."
+        ) from exc
+
+    if not _clear_text_field(field):
+        raise BrowserSessionError(
+            f"Could not clear the {label} field on the campaign edit page "
+            "before typing the new value — Yandex may have changed the "
+            "page's markup. Re-run with --headful to inspect the page."
+        )
+
+    try:
+        current = field.text_content()
+    except PlaywrightError:
+        current = None
+    if current not in ("", None):
+        raise BrowserSessionError(
+            f"Could not clear the {label} field on the campaign edit page "
+            "— Yandex may have changed the page's markup. Re-run with "
+            "--headful to inspect the page."
+        )
+
+    if not value:
+        return
+
+    _type_landing_url(field, value)
+
+
+def _set_tracking_params(page: "Page", tracking_params: str) -> None:
+    """Set the edit page's "UTM-метки и параметры URL" field (issue #761,
+    see the module docstring's UTMInput note for what this field is).
+
+    Lazily mounted under the collapsed "Дополнительные параметры" spoiler
+    (``_EDIT_UTM_SPOILER_BUTTON_TESTID``), which this function expands
+    first. Passing an empty string clears the field.
+    """
+    if not _expand_utm_spoiler(page):
+        raise BrowserSessionError(
+            "Could not find the 'Дополнительные параметры' spoiler to "
+            "reveal the UTM params field — Yandex may have changed the "
+            "page's markup. Re-run with --headful to inspect the page."
+        )
+
+    _set_contenteditable_field(
+        page, _EDIT_UTM_INPUT_TESTID, tracking_params, label="UTM params"
+    )
+
+
 def _read_landing_url(page: "Page") -> Optional[str]:
     """Read the edit page's current "Ссылка на продвигаемую страницу" value.
 
@@ -2367,11 +2503,11 @@ def _set_landing_url(page: "Page", url: str) -> None:
     ``update_master`` writes) is the whole flow.
 
     Passing an empty string clears the field down to Yandex's placeholder,
-    which mirrors the Clear button's own effect — the way this module lets
-    a caller remove the UTM template while keeping the bare domain is
-    passing a ``url`` with no query string, not a separate flag (see
-    ``_EDIT_URL_INPUT_TESTID``'s docstring for why no distinct UTM field
-    exists to clear instead).
+    which mirrors the Clear button's own effect. This field is independent
+    of the UTM query string, which lives in a separate dedicated field (see
+    ``_set_tracking_params``/``--tracking-params``, issue #761) — passing a
+    full URL with a ``?...`` query string here writes that query string as
+    part of this field's own value, unchanged.
 
     Confirmed live (issue #757) this field — and its Clear button — is
     READ-ONLY while the campaign's current status is ARCHIVED: raises a
@@ -2389,40 +2525,9 @@ def _set_landing_url(page: "Page", url: str) -> None:
             "its landing URL."
         )
 
-    field = page.locator(_EDIT_URL_INPUT_TESTID).first
-    try:
-        field.click()
-    except PlaywrightError as exc:
-        raise BrowserSessionError(
-            "Could not find or click the landing-page URL field "
-            f"({_EDIT_URL_INPUT_TESTID!r}) on the campaign edit page — "
-            "Yandex may have changed the page's markup. Re-run with "
-            "--headful to inspect the page."
-        ) from exc
-
-    if not _clear_text_field(field):
-        raise BrowserSessionError(
-            "Could not clear the landing-page URL field on the campaign "
-            "edit page before typing the new value — Yandex may have "
-            "changed the page's markup. Re-run with --headful to inspect "
-            "the page."
-        )
-
-    try:
-        current = field.text_content()
-    except PlaywrightError:
-        current = None
-    if current not in ("", None):
-        raise BrowserSessionError(
-            "Could not clear the landing-page URL field on the campaign "
-            "edit page — Yandex may have changed the page's markup. "
-            "Re-run with --headful to inspect the page."
-        )
-
-    if not url:
-        return
-
-    _type_landing_url(field, url)
+    _set_contenteditable_field(
+        page, _EDIT_URL_INPUT_TESTID, url, label="landing-page URL"
+    )
 
 
 def _set_directs_helps(page: "Page", enabled: bool) -> None:
@@ -3931,6 +4036,7 @@ def _verify_saved(
     directs_helps: Optional[bool],
     name: Optional[str] = None,
     landing_url: Optional[str] = None,
+    tracking_params: Optional[str] = None,
     headlines: Optional[Dict[int, str]] = None,
     texts: Optional[Dict[int, str]] = None,
     images_before_ids: Optional[List[str]] = None,
@@ -4020,6 +4126,26 @@ def _verify_saved(
         if actual != expected:
             mismatches.append(
                 f"{label}: expected {expected!r}, page now shows {actual!r}"
+            )
+
+    if tracking_params is not None:
+        # Same settle-wait-then-poll shape as the audience section above
+        # (issue #681): the "Дополнительные параметры" spoiler is not
+        # guaranteed ready by _wait_for_edit_form, and a single
+        # _read_tracking_params call right after reload can itself take
+        # 4-5s just to expand it — confirmed live (issue #761), leaving no
+        # room in the default 5s retry budget for even one retry.
+        page.wait_for_timeout(3_000)
+        actual = _read_until_matches(
+            page,
+            _read_tracking_params,
+            tracking_params,
+            timeout_ms=_VERIFY_FIELD_READ_TIMEOUT_MS * 4,
+        )
+        if actual != tracking_params:
+            mismatches.append(
+                f"tracking_params: expected {tracking_params!r}, page now "
+                f"shows {actual!r}"
             )
 
     if age_from_requested:
@@ -4300,6 +4426,7 @@ def update_master(
     directs_helps: Optional[bool] = None,
     name: Optional[str] = None,
     landing_url: Optional[str] = None,
+    tracking_params: Optional[str] = None,
     headlines: Optional[Dict[int, str]] = None,
     texts: Optional[Dict[int, str]] = None,
     images: Optional[Dict[int, str]] = None,
@@ -4326,15 +4453,17 @@ def update_master(
     by the same terminal ``_click_save`` as every other field here.
 
     ``landing_url`` (issue #757) replaces the "Ссылка на продвигаемую
-    страницу" field's value WHOLESALE — Yandex has no separate UTM-only sub-
-    field to edit independently (the campaign's UTM template, if any, lives
-    baked into this same URL string as its query string; see
-    ``_EDIT_URL_INPUT_TESTID``'s docstring). To remove an existing UTM
-    template while keeping the landing page itself, pass the bare URL with
-    no query string; passing ``""`` clears the field entirely. Confirmed
-    live this field is READ-ONLY while the campaign's status is ARCHIVED —
-    ``_set_landing_url`` raises naming that requirement rather than
-    surfacing an opaque markup-changed error.
+    страницу" field's value WHOLESALE. Passing ``""`` clears the field
+    entirely. Confirmed live this field is READ-ONLY while the campaign's
+    status is ARCHIVED — ``_set_landing_url`` raises naming that
+    requirement rather than surfacing an opaque markup-changed error.
+
+    ``tracking_params`` (issue #761) replaces the separate "UTM-метки и
+    параметры URL" field (``CampaignLinkEditorLite.UTMInput``) — the
+    dedicated place for a campaign's UTM query string, independent of
+    ``landing_url`` above (see ``_set_tracking_params``'s docstring for why
+    this field was previously mistaken for an unused "extra params"
+    helper). Passing ``""`` clears it.
 
     ``headlines``/``texts`` (issue #665, Этап B) map a 0-based slot index to
     its replacement text and REPLACE ONLY THOSE SLOTS — every other headline/
@@ -4454,6 +4583,7 @@ def update_master(
         and directs_helps is None
         and name is None
         and landing_url is None
+        and tracking_params is None
         and not headlines
         and not texts
         and not images
@@ -4469,8 +4599,8 @@ def update_master(
             "(weekly_budget, promotion_goal, goal_price, "
             "target_action_prices, add_target_actions, "
             "remove_target_action_goal_ids, directs_helps, name, "
-            "landing_url, headlines, texts, images, gender, age_from, "
-            "age_to, devices, "
+            "landing_url, tracking_params, headlines, texts, images, "
+            "gender, age_from, age_to, devices, "
             "add_audience_tags, remove_audience_tags)."
         )
 
@@ -4479,6 +4609,25 @@ def update_master(
     assert_not_captcha(page.content())
     assert_authenticated(page.content())
     _wait_for_edit_form(page, campaign_id)
+
+    # ARCHIVED campaigns render NO terminal save control at all on the edit
+    # page — not just a read-only landing-URL field (``_set_landing_url``'s
+    # own ARCHIVED guard) — so ``_wait_for_draft_status`` below would burn
+    # its full timeout and raise a generic "neither button appeared"
+    # error. Reused as a campaign-wide proxy here: the landing-URL Clear
+    # button's ``disabled`` state is a confirmed-live ARCHIVED marker (see
+    # ``_EDIT_URL_CLEAR_BUTTON_TESTID``'s docstring) on THIS SAME edit page
+    # ``update_master`` is already sitting on — cheaper than a separate
+    # grid-API status lookup (``archive_master``'s own source of truth),
+    # at the cost of being field-shaped rather than a first-class status
+    # read; if it ever misfires the error text below still names the
+    # actionable fix.
+    if _is_button_disabled(page.locator(_EDIT_URL_CLEAR_BUTTON_TESTID).first):
+        raise BrowserSessionError(
+            f"Campaign {campaign_id} is ARCHIVED — its edit page has no "
+            "save control at all while archived. Resume the campaign "
+            "first (e.g. via `masters resume`) before updating it."
+        )
 
     # Determined right here, before ANY mutation runs, via
     # _wait_for_draft_status rather than a single _is_draft_edit_page read
@@ -4499,6 +4648,8 @@ def update_master(
         _set_campaign_name(page, name)
     if landing_url is not None:
         _set_landing_url(page, landing_url)
+    if tracking_params is not None:
+        _set_tracking_params(page, tracking_params)
     if weekly_budget is not None:
         _set_weekly_budget(page, weekly_budget)
     if promotion_goal is not None:
@@ -4659,6 +4810,7 @@ def update_master(
             directs_helps=directs_helps,
             name=name,
             landing_url=landing_url,
+            tracking_params=tracking_params,
             headlines=headlines,
             texts=texts,
             images_before_ids=images_before_ids,
@@ -4706,6 +4858,8 @@ def update_master(
         result["Name"] = name
     if landing_url is not None:
         result["LandingUrl"] = landing_url
+    if tracking_params is not None:
+        result["TrackingParams"] = tracking_params
     if headlines:
         result["Headlines"] = headlines
     if texts:

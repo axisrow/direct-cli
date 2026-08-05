@@ -1262,14 +1262,21 @@ def audience_get(
 @click.option(
     "--landing-url",
     help=(
-        "New landing page URL (Ссылка на продвигаемую страницу), including "
-        "any UTM query string — Yandex has no separate UTM-only field, the "
-        "campaign's UTM template (if any) is just this URL's query string. "
-        "Replaces the WHOLE field value. To remove an existing UTM "
-        "template while keeping the landing page itself, pass the bare URL "
-        "with no query string. Pass an empty string ('') to clear the "
+        "New landing page URL (Ссылка на продвигаемую страницу). Replaces "
+        "the field's WHOLE value. Pass an empty string ('') to clear the "
         "field entirely. Read-only while the campaign is ARCHIVED — resume "
-        "it first via `masters resume`."
+        "it first via `masters resume`. See --tracking-params for the "
+        "separate UTM query-string field."
+    ),
+)
+@click.option(
+    "--tracking-params",
+    help=(
+        "UTM query string for this campaign (UTM-метки и параметры URL), "
+        "e.g. 'utm_source=yandex&utm_medium=cpc'. This is a SEPARATE field "
+        "from --landing-url, under 'Дополнительные параметры' on the "
+        "campaign edit page — it does not modify the landing page URL "
+        "itself. Pass an empty string ('') to clear it."
     ),
 )
 @click.option(
@@ -1398,6 +1405,7 @@ def update(
     directs_helps,
     name,
     landing_url,
+    tracking_params,
     headlines,
     texts,
     images,
@@ -1454,12 +1462,14 @@ def update(
     ``--remove-target-action`` in the same call.
 
     ``--landing-url`` (issue #757) replaces the "Ссылка на продвигаемую
-    страницу" field WHOLESALE, including any UTM query string — Yandex has
-    no separate UTM-only field, the campaign's UTM template (if any) is
-    just this URL's query string. To remove an existing UTM template while
-    keeping the landing page itself, pass the bare URL with no query
-    string; pass an empty string to clear the field entirely. Read-only
-    while the campaign is ARCHIVED — resume it first via `masters resume`.
+    страницу" field's WHOLE value; pass an empty string to clear it
+    entirely. Read-only while the campaign is ARCHIVED — resume it first
+    via `masters resume`.
+
+    ``--tracking-params`` (issue #761) sets the SEPARATE "UTM-метки и
+    параметры URL" field under "Дополнительные параметры" — the dedicated
+    place for a campaign's UTM query string, independent of
+    ``--landing-url``. Pass an empty string to clear it.
 
     ``--headline``/``--text``/``--image`` each replace ONE existing
     slot/position at a time rather than the whole list — unlike this CLI's
@@ -1507,6 +1517,7 @@ def update(
         and directs_helps is None
         and name is None
         and landing_url is None
+        and tracking_params is None
         and not headlines
         and not texts
         and not images
@@ -1521,9 +1532,9 @@ def update(
             "Provide at least one of --weekly-budget, --promotion-goal, "
             "--goal-price, --target-action-price, --add-target-action, "
             "--remove-target-action, --directs-helps/--no-directs-helps, "
-            "--name, --landing-url, --headline, --text, --image, --gender, "
-            "--age-from, --age-to, --device, --add-audience-tag, "
-            "--remove-audience-tag."
+            "--name, --landing-url, --tracking-params, --headline, --text, "
+            "--image, --gender, --age-from, --age-to, --device, "
+            "--add-audience-tag, --remove-audience-tag."
         )
 
     if goal_price is not None and promotion_goal == "max-conversions":
@@ -1629,6 +1640,7 @@ def update(
             directs_helps=directs_helps,
             name=name,
             landing_url=landing_url,
+            tracking_params=tracking_params,
             headlines=parsed_headlines,
             texts=parsed_texts,
             images=parsed_images,
