@@ -20,6 +20,7 @@ additions below for how that replay is faked.
 
 import contextlib
 import json
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -28,6 +29,7 @@ import click
 import pytest
 from click.testing import CliRunner
 
+from direct_cli.browser import _clock
 from direct_cli.browser import masters as browser_masters
 from direct_cli.browser.masters import PlaywrightError
 from direct_cli.browser.session import (
@@ -48,12 +50,44 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 # many, across several classes) would pay the real production grace period.
 _images_ghost_grace_patch = patch.object(browser_masters, "_IMAGES_GHOST_GRACE_S", 0.0)
 
+# Issue #767: every poll loop in `direct_cli/browser/` has two time sources —
+# the deadline (`_clock.now()`) and the tick (`page.wait_for_timeout`, a real
+# in-browser sleep in production). `FakePage.wait_for_timeout` is a no-op, so
+# with a REAL deadline clock any test whose awaited condition never becomes
+# true busy-spun for the full production timeout: `_STAT_TILES_TIMEOUT_MS`
+# (30s), `_OVERVIEW_LOAD_TIMEOUT_MS` (30s), `_DRAFT_OVERVIEW_DETECT_TIMEOUT_MS`
+# (15s)... five such tests in this file alone burned 135s of wall clock.
+#
+# Installing a module-wide fake clock that ONLY advances inside
+# `wait_for_timeout` makes each loop run exactly `timeout_ms // tick_ms` ticks
+# — the same iteration count as before, so no coverage is lost — but in
+# microseconds instead of seconds, and deterministically rather than as a race
+# against host CPU speed (the CPU-dependence issue #715 patched per-call).
+_FAKE_CLOCK = {"now": 0.0}
+
+
+def _fake_now():
+    return _FAKE_CLOCK["now"]
+
+
+def _advance_fake_clock(timeout_ms):
+    """Advance the module-wide fake clock by a `wait_for_timeout` tick.
+
+    Every `FakePage`-like stand-in in this module routes its
+    `wait_for_timeout` here (directly, or via `super()`), so a subclass that
+    overrides `wait_for_timeout` purely to count ticks must still call this —
+    otherwise its loop's deadline never arrives and the test hangs.
+    """
+    _FAKE_CLOCK["now"] += (timeout_ms or 0) / 1000
+
 
 def setUpModule():
     _images_ghost_grace_patch.start()
+    _clock.set_clock(_fake_now)
 
 
 def tearDownModule():
+    _clock.set_clock(time.monotonic)
     _images_ghost_grace_patch.stop()
 
 
@@ -582,7 +616,9 @@ class FakePage:
         return self._html
 
     def wait_for_timeout(self, timeout):
-        pass
+        # Advances the module-wide fake clock instead of really sleeping —
+        # see `_advance_fake_clock` (issue #767).
+        _advance_fake_clock(timeout)
 
     @property
     def mouse(self):
@@ -1730,6 +1766,93 @@ class TestPollUntil(unittest.TestCase):
         # 1000ms / 250ms == 4 ticks, deterministically -- not a real
         # wall-clock race against however fast the host CPU spins the loop.
         self.assertEqual(page.tick_count, 4)
+
+    def test_poll_until_honours_the_package_clock_without_an_explicit_argument(self):
+        # Issue #767: `_poll_until`'s `clock` parameter used to default to
+        # `time.monotonic` bound at DEFINITION time, so the ~30 call sites
+        # that don't pass `clock` explicitly kept a real wall-clock deadline
+        # regardless of what the harness installed. It must resolve
+        # `_clock.now` at CALL time instead, or the module-wide fake clock
+        # this file installs in `setUpModule` silently stops applying and the
+        # whole suite goes back to burning real timeout budgets.
+        fake_time = {"now": 0.0}
+
+        class _TickCountingPage(FakePage):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.tick_count = 0
+
+            def wait_for_timeout(self, timeout):
+                self.tick_count += 1
+                fake_time["now"] += timeout / 1000
+
+        page = _TickCountingPage(locators={})
+        with patch.object(_clock, "_clock", lambda: fake_time["now"]):
+            # No `clock=` argument — the deadline must still come from the
+            # installed package clock.
+            result = browser_masters._poll_until(page, lambda: False, 1_000)
+        self.assertFalse(result)
+        self.assertEqual(page.tick_count, 4)
+
+    def test_poll_until_terminal_honours_the_package_clock_without_an_argument(self):
+        # Same contract as above for the sibling helper (`_edit_form_terminal_state`
+        # and friends go through this one).
+        fake_time = {"now": 0.0}
+
+        class _TickCountingPage(FakePage):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.tick_count = 0
+
+            def wait_for_timeout(self, timeout):
+                self.tick_count += 1
+                fake_time["now"] += timeout / 1000
+
+        page = _TickCountingPage(locators={})
+        with patch.object(_clock, "_clock", lambda: fake_time["now"]):
+            result = browser_masters._poll_until_terminal(page, lambda: None, 1_000)
+        self.assertIsNone(result)
+        self.assertEqual(page.tick_count, 4)
+
+
+class TestBrowserPackageClock(unittest.TestCase):
+    """Issue #767: every poll deadline in ``direct_cli/browser/`` must go
+    through ``_clock.now()``.
+
+    These loops pair a deadline with ``page.wait_for_timeout`` as their tick.
+    In production the tick is a real in-browser sleep; under this file's fake
+    ``Page`` it is a no-op that advances only the fake clock. A deadline read
+    from ``time.monotonic()`` directly therefore cannot be reached by ticking
+    — the loop busy-spins for the full production timeout in REAL wall-clock
+    seconds. Before this guard existed, five such tests in this file burned
+    135s between them and the whole file took ~880s sequentially (~1s after
+    the fix), so a single reintroduced ``time.monotonic()`` is a multi-minute
+    regression that no assertion would otherwise catch.
+    """
+
+    def test_no_raw_monotonic_deadlines_in_the_browser_package(self):
+        package_dir = Path(browser_masters.__file__).parent
+        offenders = []
+        for module_path in sorted(package_dir.glob("*.py")):
+            if module_path.name == "_clock.py":
+                continue  # the one legitimate `time.monotonic` reference
+            for lineno, line in enumerate(
+                module_path.read_text().splitlines(), start=1
+            ):
+                if "time.monotonic()" not in line:
+                    continue
+                if "``" in line:
+                    continue  # prose in a docstring, not a call
+                offenders.append(f"{module_path.name}:{lineno}: {line.strip()}")
+
+        self.assertEqual(
+            offenders,
+            [],
+            "These poll deadlines read the real clock instead of "
+            "`_clock.now()`, so the offline test harness cannot tick them "
+            "past their timeout and each one costs its full production "
+            "timeout in real seconds (issue #767):\n" + "\n".join(offenders),
+        )
 
 
 class TestFetchMastersList(unittest.TestCase):
@@ -3296,9 +3419,7 @@ class TestClickDraftTerminalButton(unittest.TestCase):
                 page, click_count, clock = self._edit_page_with_delayed_redirect(
                     redirect_at_s=redirect_at_s
                 )
-                with patch.object(
-                    browser_masters.time, "monotonic", lambda clock=clock: clock["now"]
-                ):
+                with patch.object(_clock, "_clock", lambda clock=clock: clock["now"]):
                     browser_masters._click_draft_terminal_button(
                         page, 713231614, launch=False
                     )
@@ -3313,7 +3434,7 @@ class TestClickDraftTerminalButton(unittest.TestCase):
             redirect_at_s=1_000_000.0
         )
 
-        with patch.object(browser_masters.time, "monotonic", lambda: clock["now"]):
+        with patch.object(_clock, "_clock", lambda: clock["now"]):
             with self.assertRaises(BrowserSessionError) as ctx:
                 browser_masters._click_draft_terminal_button(
                     page, 713231614, launch=False
@@ -3961,17 +4082,18 @@ class TestSetDirectsHelps(unittest.TestCase):
 
         # Keeps the test fast: _read_until_matches's timeout_ms default is
         # bound to _VERIFY_FIELD_READ_TIMEOUT_MS at function-definition time,
-        # so patching the module constant alone would not shrink it —
-        # advancing the monotonic clock it polls against does.
+        # so patching the module constant alone would not shrink it — jumping
+        # the clock it polls against past that budget on every read does.
+        # (Overrides the module-wide fake clock of issue #767, which advances
+        # only per `wait_for_timeout` tick; this test wants the deadline blown
+        # on the FIRST read, so it drives the hook itself.)
         fake_now = {"value": 0.0}
 
         def _fake_monotonic():
             fake_now["value"] += browser_masters._VERIFY_FIELD_READ_TIMEOUT_MS
             return fake_now["value"]
 
-        with patch.object(
-            browser_masters.time, "monotonic", side_effect=_fake_monotonic
-        ):
+        with patch.object(_clock, "_clock", _fake_monotonic):
             with self.assertRaises(BrowserSessionError):
                 browser_masters._set_directs_helps(page, True)
 

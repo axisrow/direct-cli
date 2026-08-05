@@ -39,10 +39,10 @@ instead of a transparent cookie copy.
 import contextlib
 import os
 import platform
-import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Generator, Optional, Tuple
 
+from . import _clock
 from .._captcha import find_captcha_marker, find_marker
 
 if TYPE_CHECKING:
@@ -209,8 +209,8 @@ def _wait_for_marker(
     checks that follow it is almost always the more specific error the user
     should see, rather than a generic "marker never appeared").
     """
-    deadline = time.monotonic() + timeout_ms / 1000
-    while time.monotonic() < deadline:
+    deadline = _clock.now() + timeout_ms / 1000
+    while _clock.now() < deadline:
         with contextlib.suppress(PlaywrightError):
             if any(page.locator(selector).first.count() > 0 for selector in selectors):
                 return True
