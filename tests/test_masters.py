@@ -4974,15 +4974,36 @@ class TestUpdateMaster(unittest.TestCase):
             # via a _FakeContentEditableHandle (the real field is a
             # contenteditable widget, not a plain <input> — issue #757, same
             # widget family as the create page's own URL field).
+            #
+            # Clear-button disabled state (issue #761 fixup, cycle-review):
+            # models the LIVE behaviour documented in
+            # scripts/recon_761_utm_split.py — the Clear button is disabled
+            # whenever the URL field is unfocused, independent of ARCHIVED
+            # status, and only clears on click for a non-archived campaign.
+            # ``field_focused`` flips true on the URL field's own click
+            # (_is_landing_url_archived/_set_contenteditable_field both
+            # click it first), mirroring that click-before-read order; a
+            # genuinely ARCHIVED campaign
+            # (``landing_url_clear_disabled=True``) stays disabled even
+            # after the click, exactly like the real read-only field.
+            field_state = {"focused": False}
+
+            def _on_url_field_click():
+                field_state["focused"] = True
+
             landing_url_handle = _FakeContentEditableHandle(
-                text=landing_url_state.get("value", "")
+                text=landing_url_state.get("value", ""),
+                on_click=_on_url_field_click,
             )
             locators[browser_masters._EDIT_URL_INPUT_TESTID] = _FakeLocator(
                 [landing_url_handle]
             )
-            clear_handle = _FakeLocatorHandle(
-                attrs={"disabled": ""} if landing_url_clear_disabled else {}
-            )
+
+            def _clear_button_attrs():
+                disabled = landing_url_clear_disabled or not field_state["focused"]
+                return {"disabled": ""} if disabled else {}
+
+            clear_handle = _DynamicAttrsLocatorHandle(get_attrs=_clear_button_attrs)
             locators[browser_masters._EDIT_URL_CLEAR_BUTTON_TESTID] = _FakeLocator(
                 [clear_handle]
             )
@@ -6184,6 +6205,33 @@ class TestUpdateMaster(unittest.TestCase):
         self.assertIn("ARCHIVED", str(ctx.exception))
         self.assertIn("42", str(ctx.exception))
         self.assertEqual(len(save_clicks), 0)
+
+    def test_does_not_misclassify_unfocused_non_archived_campaign_as_archived(self):
+        # cycle-review regression (issue #761 fixup, Codex-confirmed): the
+        # Clear button is disabled whenever the landing-URL field is
+        # unfocused, independent of ARCHIVED status (live-documented in
+        # scripts/recon_761_utm_split.py's _set_link_input docstring). A
+        # guard that reads the button's disabled state WITHOUT clicking the
+        # field first — a point-in-time pre-focus read — would misclassify
+        # every ordinary (non-ARCHIVED) campaign as archived and block ALL
+        # updates. The fixture's Clear-button handle starts disabled and
+        # only clears once the URL field's on_click fires, exactly like the
+        # real "disabled until focused" widget — so a weekly-budget-only
+        # update (never focusing the URL field on its own) still must
+        # succeed, because _is_landing_url_archived clicks the field itself
+        # before reading the button.
+        landing_url_state = {"value": "https://lp.example.ru/page"}
+        budget_state = {}
+        page, save_clicks = self._page_with_save_button(
+            landing_url_state=landing_url_state,
+            landing_url_clear_disabled=False,
+            weekly_budget_state=budget_state,
+        )
+
+        result = browser_masters.update_master(page, 42, weekly_budget=50000)
+
+        self.assertEqual(len(save_clicks), 1)
+        self.assertEqual(result["WeeklyBudget"], 50000)
 
     def test_raises_when_saved_landing_url_does_not_match_requested(self):
         # The field accepts the new text (so the in-flight type-and-verify

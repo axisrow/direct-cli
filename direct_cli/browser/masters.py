@@ -1729,6 +1729,39 @@ def _is_button_disabled(handle: Any) -> bool:
     return False
 
 
+_ARCHIVED_CLEAR_BUTTON_POLL_MS = 3_000
+_ARCHIVED_CLEAR_BUTTON_POLL_STEP_MS = 100
+
+
+def _is_landing_url_archived(page: "Page") -> bool:
+    """Return whether the landing-URL Clear button is disabled — the
+    confirmed-live ARCHIVED marker (issue #757) — checked in the SAME
+    interaction order as a real edit: click/focus the URL field first, THEN
+    read the Clear button's disabled state.
+
+    Checking disabled BEFORE any click is unsound: this module's own
+    recon (``scripts/recon_761_utm_split.py``, issue #761) documents live
+    that the Clear button is disabled whenever the field isn't focused,
+    independent of ARCHIVED status — a point-in-time pre-focus read would
+    misclassify every normal (non-ARCHIVED) campaign as archived. Clicking
+    first and polling briefly for the button to settle (mirrors the
+    recon script's own click-then-poll loop) distinguishes "disabled
+    because unfocused" (clears on click) from "disabled because ARCHIVED"
+    (stays disabled after click).
+    """
+    field = page.locator(_EDIT_URL_INPUT_TESTID).first
+    with contextlib.suppress(PlaywrightError):
+        field.click()
+    clear_button = page.locator(_EDIT_URL_CLEAR_BUTTON_TESTID).first
+    elapsed = 0
+    while elapsed <= _ARCHIVED_CLEAR_BUTTON_POLL_MS:
+        if not _is_button_disabled(clear_button):
+            return False
+        page.wait_for_timeout(_ARCHIVED_CLEAR_BUTTON_POLL_STEP_MS)
+        elapsed += _ARCHIVED_CLEAR_BUTTON_POLL_STEP_MS
+    return True
+
+
 def _click_action_button(page: "Page", candidate_texts: Tuple[str, ...]) -> None:
     """Click the first visible, enabled button matching one of
     ``candidate_texts``.
@@ -2514,10 +2547,11 @@ def _set_landing_url(page: "Page", url: str) -> None:
     named ``BrowserSessionError`` for that case up front rather than
     reporting the generic "Yandex may have changed the page's markup"
     symptom a disabled contenteditable produces (a click that lands but
-    changes nothing).
+    changes nothing). See ``_is_landing_url_archived``'s docstring (issue
+    #761 fixup) for why this check clicks/focuses the field before reading
+    the Clear button's disabled state, rather than reading it cold.
     """
-    clear_button = page.locator(_EDIT_URL_CLEAR_BUTTON_TESTID).first
-    if _is_button_disabled(clear_button):
+    if _is_landing_url_archived(page):
         raise BrowserSessionError(
             "The landing-page URL field is read-only for this campaign — "
             "Yandex disables it while the campaign is ARCHIVED. Resume the "
@@ -4621,8 +4655,14 @@ def update_master(
     # grid-API status lookup (``archive_master``'s own source of truth),
     # at the cost of being field-shaped rather than a first-class status
     # read; if it ever misfires the error text below still names the
-    # actionable fix.
-    if _is_button_disabled(page.locator(_EDIT_URL_CLEAR_BUTTON_TESTID).first):
+    # actionable fix. Goes through ``_is_landing_url_archived`` (issue #761
+    # fixup, cycle-review) rather than a bare ``_is_button_disabled`` read
+    # — the Clear button is disabled whenever the field is unfocused, not
+    # only when ARCHIVED (confirmed live, ``scripts/recon_761_utm_split.py``),
+    # so a point-in-time read here would misclassify every ordinary
+    # campaign as archived and block ALL updates, not just landing-url
+    # ones.
+    if _is_landing_url_archived(page):
         raise BrowserSessionError(
             f"Campaign {campaign_id} is ARCHIVED — its edit page has no "
             "save control at all while archived. Resume the campaign "

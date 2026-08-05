@@ -435,6 +435,18 @@ def main() -> int:
             print("ERROR: could not discover a UTMInput testid — cannot test split.")
             return 2
 
+        # cycle-review fixup (issue #761, Codex-confirmed): baseline fields
+        # must be CONCLUSIVELY readable before mutating — an unreadable
+        # (``None``) baseline means restore can't tell "genuinely empty"
+        # from "couldn't read it", and this targets a real live campaign.
+        if orig_link is None or orig_utm is None:
+            print(
+                "ERROR: could not conclusively read baseline LinkInput/UTMInput "
+                f"(link={orig_link!r} utm={orig_utm!r}) — refusing to mutate a "
+                "live campaign without a known-good rollback value."
+            )
+            return 2
+
         bare, query = _split_url(test_url)
         print("=== MUTATION TEST ===")
         print(f"  test_url={test_url!r}")
@@ -443,56 +455,65 @@ def main() -> int:
         print(f"  original: LinkInput={orig_link!r} UTMInput={orig_utm!r}")
         print()
 
-        # Apply split: bare -> LinkInput, query -> UTMInput.
-        _set_link_input(page, bare)
-        # Expand spoiler and type into UTMInput.
-        if not _spoiler_expanded(page):
-            _expand_advanced_params(page)
-        _type_utm_input(page, utm_selector, query)
-        # Ensure spoiler is still expanded before save (Yandex must see
-        # UTMInput value at submit time).
-        if not _spoiler_expanded(page):
-            _expand_advanced_params(page)
-        _save(page)
+        accepted = False
+        try:
+            # Apply split: bare -> LinkInput, query -> UTMInput.
+            _set_link_input(page, bare)
+            # Expand spoiler and type into UTMInput.
+            if not _spoiler_expanded(page):
+                _expand_advanced_params(page)
+            _type_utm_input(page, utm_selector, query)
+            # Ensure spoiler is still expanded before save (Yandex must see
+            # UTMInput value at submit time).
+            if not _spoiler_expanded(page):
+                _expand_advanced_params(page)
+            _save(page)
 
-        after_link = _read_field(page, LINK_INPUT)
-        if not _spoiler_expanded(page):
-            _expand_advanced_params(page)
-        after_utm = _read_field(page, utm_selector)
-        print("=== AFTER SAVE+RELOAD ===")
-        print(f"  LinkInput: {after_link!r}")
-        print(f"  UTMInput:  {after_utm!r}")
-        accepted = (after_link == bare) and (after_utm == query)
-        print(f"  ACCEPTED (split saved as written): {accepted}")
-        print()
+            after_link = _read_field(page, LINK_INPUT)
+            if not _spoiler_expanded(page):
+                _expand_advanced_params(page)
+            after_utm = _read_field(page, utm_selector)
+            print("=== AFTER SAVE+RELOAD ===")
+            print(f"  LinkInput: {after_link!r}")
+            print(f"  UTMInput:  {after_utm!r}")
+            accepted = (after_link == bare) and (after_utm == query)
+            print(f"  ACCEPTED (split saved as written): {accepted}")
+            print()
+        finally:
+            # ALWAYS restore, even if mutation raised partway through — this
+            # targets a real live campaign (713234191), and a bare
+            # try/finally-less mutate+restore left it corrupted whenever an
+            # exception landed between the two saves (cycle-review finding).
+            # Restore exact original state using JS fill (orig URL is too
+            # long for field.type() — it would timeout). UTMInput is ALWAYS
+            # explicitly (re)written to orig_utm — including "" — never
+            # conditionally skipped: skipping when orig_utm was falsy left
+            # the just-written test query permanently installed instead of
+            # restoring the field's genuinely-empty original state.
+            print("=== RESTORE ===")
+            print(f"  restoring LinkInput={orig_link!r} UTMInput={orig_utm!r}")
+            _set_link_input_js(page, orig_link)
+            if not _spoiler_expanded(page):
+                _expand_advanced_params(page)
+            _type_utm_input(page, utm_selector, orig_utm)
+            _save(page)
 
-        # Restore exact original state using JS fill (orig URL is too long
-        # for field.type() — it would timeout).
-        print("=== RESTORE ===")
-        print(f"  restoring LinkInput={orig_link!r} UTMInput={orig_utm!r}")
-        _set_link_input_js(page, orig_link or "")
-        if not _spoiler_expanded(page):
-            _expand_advanced_params(page)
-        if orig_utm:
-            _type_utm_input(page, utm_selector, "")
-        _save(page)
+            restored_link = _read_field(page, LINK_INPUT)
+            if not _spoiler_expanded(page):
+                _expand_advanced_params(page)
+            restored_utm = _read_field(page, utm_selector) if utm_selector else None
+            print(f"  restored LinkInput: {restored_link!r}")
+            print(f"  restored UTMInput:  {restored_utm!r}")
+            restored_ok = (restored_link == orig_link) and (restored_utm == orig_utm)
+            print(f"  RESTORED to original: {restored_ok}")
+            print()
 
-        restored_link = _read_field(page, LINK_INPUT)
-        if not _spoiler_expanded(page):
-            _expand_advanced_params(page)
-        restored_utm = _read_field(page, utm_selector) if utm_selector else None
-        print(f"  restored LinkInput: {restored_link!r}")
-        print(f"  restored UTMInput:  {restored_utm!r}")
-        restored_ok = (restored_link == (orig_link or "")) and (
-            restored_utm == (orig_utm or "")
-        )
-        print(f"  RESTORED to original: {restored_ok}")
-        print()
+            if not restored_ok:
+                print("WARNING: restore did not match original — manual check needed:")
+                print(f"  expected link={orig_link!r} utm={orig_utm!r}")
+                print(f"  got     link={restored_link!r} utm={restored_utm!r}")
 
         if not restored_ok:
-            print("WARNING: restore did not match original — manual check needed:")
-            print(f"  expected link={orig_link!r} utm={orig_utm!r}")
-            print(f"  got     link={restored_link!r} utm={restored_utm!r}")
             return 3
         if not accepted:
             print("NOTE: split was NOT accepted by Yandex — hypothesis not confirmed.")
