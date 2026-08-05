@@ -44,16 +44,42 @@ exists for Мастер кампаний — only archive; see the issue comment
 the campaigns-grid row menu and the overview page's own "⋮" menu were
 inspected live: neither has a "Удалить" item, only "Архивировать" (grid
 row menu also has Перейти/Редактировать/Статистика/Запустить-Остановить;
-overview menu has only Клонировать/Архивировать). Confirmed live,
-stable ``data-testid`` attributes back the overview menu:
-``CampaignHeader.MenuTrigger`` (opens the "⋮" dropdown) and
-``CampaignHeader.Menu.archive`` (the "Архивировать" menu item) — unlike
-suspend/resume's text-based matching, this does not depend on Russian
-button copy. Archiving is verified via ``fetch_masters_list`` (the grid
-API's ``primaryStatus``), not the overview page's status text — no
-archived-campaign overview fixture has been captured, so there is no
-confirmed status-text marker for "archived" on that page the way there is
-for "Кампания остановлена"/"активна".
+overview menu has only Клонировать/Архивировать, or just Клонировать —
+see the transition matrix below). Confirmed live, stable ``data-testid``
+attributes back the overview menu: ``CampaignHeader.MenuTrigger`` (opens
+the "⋮" dropdown), ``CampaignHeader.Menu.archive`` (the "Архивировать"
+menu item), and ``CampaignHeader.Menu.unarchive`` (the "Разархивировать"
+item, ARCHIVED-only) — unlike suspend/resume's text-based matching, none
+of these depend on Russian button copy. Archiving is verified via
+``fetch_masters_list`` (the grid API's ``primaryStatus``); the overview
+page's own status text ALSO has a confirmed marker for "archived" now
+(issue #730, "Кампания в\xa0архиве" — see ``_read_status_text``), which
+the two-step transitions below rely on for their intermediate check.
+
+Two-step status transitions (issue #758, live-confirmed 2026-08-05 against
+campaign 713277109 through a full round trip archived -> ... -> archived).
+Both ``resume_master`` and ``archive_master`` are single clicks that only
+work from one specific starting status — the UI has no direct
+ARCHIVED<->ACTIVE transition, and this module now walks the intermediate
+step itself instead of failing:
+
+============  ============================================  ============
+Status        "⋮" menu contents / action button              -> leads to
+============  ============================================  ============
+ARCHIVED      menu: ONLY "Разархивировать" (unarchive item). -> SUSPENDED
+              No resume button on the page at all.
+SUSPENDED     button: "Возобновить кампанию".                -> ACTIVE or
+              menu: Клонировать + Архивировать.                 MODERATION
+ACTIVE /      button: "Остановить кампанию".                 -> SUSPENDED
+MODERATION    menu: ONLY "Клонировать" — no archive item.
+============  ============================================  ============
+
+Resuming a SUSPENDED campaign can land in either ACTIVE or MODERATION
+depending on whether Yandex decides the campaign needs re-review (a fresh
+or edited campaign goes to moderation; an already-approved one returns
+directly to ACTIVE) — this is not something the caller can predict ahead
+of time, so ``resume_master`` treats both as success and returns whichever
+one actually happened.
 
 ``update_master`` (issue #631, Этап A) — live-verified against campaign
 107707079 (see ``tests/fixtures/masters_wizard_edit_stage_a.html`` for the
@@ -359,7 +385,15 @@ _SUSPEND_BUTTON_TEXTS = ("Остановить кампанию", "Приост�
 
 # How long to wait, after clicking the action button, for the status text to
 # actually change before giving up and reporting a possible false success.
-_STATUS_CHANGE_TIMEOUT_MS = 10_000
+# Raised from 10s to 60s (issue #758 live verification, 2026-08-05): both a
+# plain suspend and the unarchive->SUSPENDED leg of resume_master timed out
+# at 10s against campaign 713277109 despite the click having genuinely
+# landed (a later `masters get` confirmed the status had in fact changed) --
+# Yandex's own status-text update lagged past the old budget under real
+# conditions. 60s is a practical safety margin, not a measured p99; see
+# follow-up issue for a precise measurement and a possible rework of this
+# whole polling budget.
+_STATUS_CHANGE_TIMEOUT_MS = 60_000
 
 # Overview page's header title, confirmed live (issue #683) as the earliest
 # stable marker of a rendered wizard overview page — present on BOTH a
@@ -417,6 +451,11 @@ _ARCHIVE_MENU_ITEM_SELECTOR = '[data-testid="CampaignHeader.Menu.archive"]'
 # Confirmed live (issue #659) alongside the archive item above — same menu,
 # same testid convention.
 _CLONE_MENU_ITEM_SELECTOR = '[data-testid="CampaignHeader.Menu.clone"]'
+# Confirmed live 2026-08-05 (issue #758) on campaign 713277109: an ARCHIVED
+# campaign's "⋮" menu contains ONLY this item — there is no "Возобновить"
+# button on the page at all, which is why resume_master could never work
+# starting from ARCHIVED (see the module docstring's transition matrix).
+_UNARCHIVE_MENU_ITEM_SELECTOR = '[data-testid="CampaignHeader.Menu.unarchive"]'
 
 # Issues #723/#725: live testing found that clicking a trigger element that
 # is itself visible/enabled (CampaignHeader.MenuTrigger for the "⋮" menu,
@@ -1858,21 +1897,68 @@ def _click_and_wait_for_popup(
     ) from last_exc
 
 
+def _wait_for_status(
+    page: "Page",
+    campaign_id: int,
+    *,
+    current_status: str,
+    target_statuses: Tuple[str, ...],
+    action_description: str,
+) -> str:
+    """Poll ``_read_status_text`` until it matches one of ``target_statuses``
+    or ``_STATUS_CHANGE_TIMEOUT_MS`` elapses; raise ``BrowserSessionError``
+    on timeout.
+
+    Shared by ``_suspend_or_resume`` (the ordinary one-click suspend/resume)
+    and ``resume_master``'s unarchive->SUSPENDED step (issue #758) — both
+    need the identical "click already happened, now confirm the status text
+    actually caught up" loop, just against a different click and a
+    different target. Factored out so a future change to the polling
+    strategy (see ``_STATUS_CHANGE_TIMEOUT_MS``'s own comment about a
+    possible rework, issue #764) only needs to happen once.
+    """
+    deadline = time.monotonic() + _STATUS_CHANGE_TIMEOUT_MS / 1000
+    new_status = current_status
+    while time.monotonic() < deadline:
+        new_status = _read_status_text(page)
+        if new_status in target_statuses:
+            break
+        page.wait_for_timeout(250)
+
+    if new_status not in target_statuses:
+        raise BrowserSessionError(
+            f"{action_description} for campaign {campaign_id}, but its "
+            f"status did not change to any of {target_statuses!r} within "
+            f"{_STATUS_CHANGE_TIMEOUT_MS / 1000:.0f}s (still {new_status!r}). "
+            "The click may not have hit the right element, or Yandex is "
+            "slow to apply it — verify manually before retrying."
+        )
+    return new_status
+
+
 def _suspend_or_resume(
     page: "Page",
     campaign_id: int,
     *,
-    target_status: str,
+    target_statuses: Tuple[str, ...],
     button_texts: Tuple[str, ...],
 ) -> Dict[str, Any]:
     """Shared body for ``suspend_master``/``resume_master``.
 
-    Idempotent: if the campaign is already in ``target_status``, does not
-    click anything and returns the current state with a warning (mirrors the
-    rest of the CLI's suspend/resume convention). Otherwise clicks the
-    matching action button and re-reads the status to confirm the mutation
-    actually took effect — a click that doesn't visibly change the status is
-    reported as a hard error, not a silent success.
+    Idempotent: if the campaign is already in one of ``target_statuses``,
+    does not click anything and returns the current state with a warning
+    (mirrors the rest of the CLI's suspend/resume convention). Otherwise
+    clicks the matching action button and re-reads the status to confirm the
+    mutation actually took effect — a click that doesn't visibly change the
+    status is reported as a hard error, not a silent success.
+
+    ``target_statuses`` is a tuple, not a single status, because resuming a
+    SUSPENDED campaign can land in either ACTIVE or MODERATION depending on
+    whether Yandex decides the campaign needs re-review (issue #758,
+    live-confirmed 2026-08-05 — see the module docstring's transition
+    matrix); the caller cannot predict which one ahead of time, and treating
+    MODERATION as a failure here would make a perfectly successful resume
+    time out.
 
     A DRAFT campaign's overview page has no ACTIVE/SUSPENDED status and no
     action button to click (issue #660, see module docstring's "DRAFT
@@ -1893,30 +1979,21 @@ def _suspend_or_resume(
             f"Could not determine current status for campaign {campaign_id} "
             "(unrecognised status text) — refusing to click blind."
         )
-    if current_status == target_status:
+    if current_status in target_statuses:
         print_warning(
-            f"Campaign {campaign_id} is already {target_status}; not clicking."
+            f"Campaign {campaign_id} is already {current_status}; not clicking."
         )
         return {"CampaignId": campaign_id, "Status": current_status}
 
     _click_action_button(page, button_texts)
 
-    deadline = time.monotonic() + _STATUS_CHANGE_TIMEOUT_MS / 1000
-    new_status = current_status
-    while time.monotonic() < deadline:
-        new_status = _read_status_text(page)
-        if new_status == target_status:
-            break
-        page.wait_for_timeout(250)
-
-    if new_status != target_status:
-        raise BrowserSessionError(
-            f"Clicked the action button for campaign {campaign_id}, but its "
-            f"status did not change to {target_status} within "
-            f"{_STATUS_CHANGE_TIMEOUT_MS / 1000:.0f}s (still {new_status!r}). "
-            "The click may not have hit the right element, or Yandex is "
-            "slow to apply it — verify manually before retrying."
-        )
+    new_status = _wait_for_status(
+        page,
+        campaign_id,
+        current_status=current_status,
+        target_statuses=target_statuses,
+        action_description="Clicked the action button",
+    )
 
     return {"CampaignId": campaign_id, "Status": new_status}
 
@@ -1930,21 +2007,66 @@ def suspend_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
     return _suspend_or_resume(
         page,
         campaign_id,
-        target_status="SUSPENDED",
+        target_statuses=("SUSPENDED",),
         button_texts=_SUSPEND_BUTTON_TEXTS,
     )
 
 
 def resume_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
-    """Resume a stopped Мастер кампаний, verifying the status actually changed.
+    """Resume a Мастер кампаний, verifying the status actually changed.
 
     "Возобновить кампанию" is confirmed live (see module docstring /
     ``tests/fixtures/masters_wizard_overview.html``).
+
+    If the campaign is currently ARCHIVED, first clicks "Разархивировать"
+    (issue #758, live-confirmed 2026-08-05) and waits for SUSPENDED — an
+    ARCHIVED campaign's overview page has no resume button at all, only
+    this menu item, and it does not itself lead to ACTIVE. Once SUSPENDED
+    (whether it started there or just arrived via unarchive), proceeds with
+    the ordinary one-click resume, accepting either ACTIVE or MODERATION as
+    success (see ``_suspend_or_resume``'s docstring for why both are valid).
+
+    Navigates to the overview page itself first to read the current status
+    — ``_suspend_or_resume`` navigates again below, which is a harmless
+    repeat (``_goto_overview_page`` is idempotent) rather than trusting a
+    status read against whatever page ``page`` happened to be on before this
+    call, the same tradeoff ``archive_master`` makes for its own suspend-then-
+    archive path below.
     """
+    _goto_overview_page(page, campaign_id)
+    # _goto_overview_page only guarantees the title rendered (issue #683) --
+    # the separate status-text element can still read as unrecognised
+    # (None) on the very first call right after navigation. Poll briefly
+    # for a recognised status before branching on it, so a hydration race
+    # here doesn't silently skip the ARCHIVED/unarchive branch and fall
+    # through to a doomed search for a resume button that an ARCHIVED page
+    # does not have (issue #758 follow-up). _suspend_or_resume's own
+    # ``current_status is None`` check below remains the final safety net
+    # for a genuinely unrecognised status that never hydrates.
+    deadline = time.monotonic() + _STATUS_CHANGE_TIMEOUT_MS / 1000
+    current_status = _read_status_text(page)
+    while current_status is None and time.monotonic() < deadline:
+        page.wait_for_timeout(250)
+        current_status = _read_status_text(page)
+    if current_status == "ARCHIVED":
+        _click_menu_item(
+            page,
+            campaign_id,
+            item_selector=_UNARCHIVE_MENU_ITEM_SELECTOR,
+            item_label="Разархивировать",
+        )
+        _wait_for_status(
+            page,
+            campaign_id,
+            current_status=current_status,
+            target_statuses=("SUSPENDED",),
+            action_description="Clicked 'Разархивировать'",
+        )
+
     return _suspend_or_resume(
         page,
         campaign_id,
-        target_status="ACTIVE",
+        target_statuses=("ACTIVE", "MODERATION"),
         button_texts=_RESUME_BUTTON_TEXTS,
     )
 
@@ -1959,6 +2081,47 @@ def _find_master_row(
     return None
 
 
+def _click_menu_item(
+    page: "Page",
+    campaign_id: int,
+    *,
+    item_selector: str,
+    item_label: str,
+) -> None:
+    """Open the overview page's "⋮" menu and click ``item_selector``.
+
+    Shared by ``archive_master`` (Архивировать) and ``resume_master``
+    (Разархивировать, issue #758) — both need the exact same
+    open-menu-then-click-item sequence, backed by confirmed-live
+    ``data-testid`` selectors, not guessed text (see module docstring).
+    Reuses ``_click_and_wait_for_popup`` for its hydration-race retries
+    (issues #723/#725) rather than duplicating that click logic here.
+    """
+    try:
+        _click_and_wait_for_popup(
+            page,
+            trigger_selector=_MENU_TRIGGER_SELECTOR,
+            popup_selector=item_selector,
+            description=f"the campaign menu for {campaign_id}",
+        )
+    except BrowserSessionError as exc:
+        raise BrowserSessionError(
+            f"Could not open the campaign menu for {campaign_id} and find "
+            f"'{item_label}' ({_MENU_TRIGGER_SELECTOR!r} / {item_selector!r}) "
+            "— Yandex may have changed the overview page's markup."
+        ) from exc
+
+    item = page.locator(item_selector).first
+    try:
+        item.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            f"Could not click '{item_label}' for campaign {campaign_id} "
+            f"({item_selector!r} found but not clickable) — Yandex may have "
+            "changed the overview page's menu."
+        ) from exc
+
+
 def archive_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
     """Archive a Мастер кампаний, verifying the grid actually reports it archived.
 
@@ -1968,11 +2131,18 @@ def archive_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
     campaign is already archived, does not click anything and returns the
     current row with a warning (mirrors ``suspend_master``/``resume_master``).
 
-    Opens the campaign's overview page, clicks the "⋮" menu trigger, then the
-    "Архивировать" item (both selected via confirmed-live ``data-testid``
-    attributes, not guessed text — see module docstring), and re-reads the
-    campaigns grid via ``fetch_masters_list`` to confirm ``Status ==
-    "ARCHIVED"`` before reporting success — never trusting the click alone.
+    If the campaign is currently ACTIVE or MODERATION, first suspends it
+    (issue #758, live-confirmed 2026-08-05) and waits for SUSPENDED — the
+    "Архивировать" menu item is not present at all until the campaign is
+    SUSPENDED (see module docstring's transition matrix). Reuses
+    ``suspend_master`` rather than duplicating its click/verify logic.
+
+    Once SUSPENDED, opens the campaign's overview page, clicks the "⋮" menu
+    trigger, then the "Архивировать" item (both selected via confirmed-live
+    ``data-testid`` attributes, not guessed text — see module docstring),
+    and re-reads the campaigns grid via ``fetch_masters_list`` to confirm
+    ``Status == "ARCHIVED"`` before reporting success — never trusting the
+    click alone.
     """
     existing = _find_master_row(page, campaign_id)
     if existing is None:
@@ -1993,30 +2163,16 @@ def archive_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
 
     _goto_overview_page(page, campaign_id)
 
-    try:
-        _click_and_wait_for_popup(
-            page,
-            trigger_selector=_MENU_TRIGGER_SELECTOR,
-            popup_selector=_ARCHIVE_MENU_ITEM_SELECTOR,
-            description=f"the campaign menu for {campaign_id}",
-        )
-    except BrowserSessionError as exc:
-        raise BrowserSessionError(
-            f"Could not open the campaign menu for {campaign_id} and find "
-            f"'Архивировать' ({_MENU_TRIGGER_SELECTOR!r} / "
-            f"{_ARCHIVE_MENU_ITEM_SELECTOR!r}) — Yandex may have changed the "
-            "overview page's markup."
-        ) from exc
+    if existing["Status"] in ("ACTIVE", "MODERATION"):
+        suspend_master(page, campaign_id)
+        _goto_overview_page(page, campaign_id)
 
-    archive_item = page.locator(_ARCHIVE_MENU_ITEM_SELECTOR).first
-    try:
-        archive_item.click()
-    except PlaywrightError as exc:
-        raise BrowserSessionError(
-            f"Could not click 'Архивировать' for campaign {campaign_id} "
-            f"({_ARCHIVE_MENU_ITEM_SELECTOR!r} found but not clickable) — "
-            "Yandex may have changed the overview page's menu."
-        ) from exc
+    _click_menu_item(
+        page,
+        campaign_id,
+        item_selector=_ARCHIVE_MENU_ITEM_SELECTOR,
+        item_label="Архивировать",
+    )
 
     deadline = time.monotonic() + _ARCHIVE_VERIFY_TIMEOUT_MS / 1000
     updated = existing
