@@ -322,6 +322,63 @@ def masters():
     """Мастер кампаний (Campaign Wizard) — browser-only, no API"""
 
 
+def _run_per_id(
+    ctx,
+    ids,
+    action,
+    *,
+    headful,
+    profile_dir,
+    chrome_profile,
+    output_format,
+    output,
+    verb: str,
+):
+    """Run ``action(page, campaign_id)`` for every ID, never stopping at the
+    first failure, then report every outcome.
+
+    Extracted from ``launch``/``archive``, which each had their own copy of
+    this loop (issue #645), and now shared with ``suspend``/``resume`` too
+    (issue #766: a batch of eight IDs aborted on the first one, leaving the
+    caller with no idea whether the other seven had been attempted, let
+    alone what happened to them).
+
+    Every ID is attempted even if an earlier one fails: these are real
+    account mutations, so a fail-fast loop would silently lose the report
+    that earlier IDs already changed in production before a later one
+    errored. Each ID's outcome — the resulting row, or an ``Error`` entry —
+    goes into the formatted output; if any ID failed, the command exits
+    non-zero after printing every outcome, never just the last error.
+    """
+
+    def _all(page):
+        from ..browser.session import BrowserSessionError
+        from ..browser.masters import PlaywrightError
+
+        results = []
+        errors = []
+        for campaign_id in ids:
+            try:
+                results.append(action(page, campaign_id))
+            except (BrowserSessionError, PlaywrightError) as exc:
+                errors.append((campaign_id, exc))
+                results.append({"CampaignId": campaign_id, "Error": str(exc)})
+        return results, errors
+
+    results, errors = _with_session(ctx, headful, profile_dir, chrome_profile, _all)
+
+    format_output(results if len(results) != 1 else results[0], output_format, output)
+
+    if errors:
+        for campaign_id, exc in errors:
+            print_error(f"Campaign {campaign_id}: {exc}")
+        raise click.ClickException(
+            f"Failed to {verb} {len(errors)} of {len(ids)} campaign(s); "
+            "see per-ID results above."
+        )
+    return results
+
+
 def _stdin_is_interactive() -> bool:
     """Return whether a human is present to complete a browser login.
 
@@ -529,22 +586,31 @@ def suspend(
 ):
     """Stop one or more Мастер кампаний by ID (comma-separated)
 
-    Not live-verified (issue #630): clicks the overview page's stop button,
-    matched by a best-effort list of candidate Russian labels — see
-    ``direct_cli/browser/masters.py`` module docstring. Verifies the status
-    actually changed before reporting success; idempotent if already
-    stopped.
+    Live-verified 2026-08-06 (issue #766): clicks the overview page's
+    "Остановить кампанию" button (``CampaignHeader.ActionButton.stop``, a
+    confirmed stable testid — the earlier best-effort label guessing from
+    #630 is now only a fallback). Verifies the status actually changed
+    before reporting success, re-clicking if the first click was a silent
+    no-op; idempotent if already stopped.
+
+    Every ID is attempted even if an earlier one fails, and each ID's
+    outcome (the row, or its error) is reported — see ``_run_per_id``.
     """
     from ..browser.masters import suspend_master
 
     ids = parse_ids(campaign_ids) or []
 
-    def _suspend_all(page):
-        return [suspend_master(page, campaign_id) for campaign_id in ids]
-
-    results = _with_session(ctx, headful, profile_dir, chrome_profile, _suspend_all)
-
-    format_output(results if len(results) != 1 else results[0], output_format, output)
+    _run_per_id(
+        ctx,
+        ids,
+        suspend_master,
+        headful=headful,
+        profile_dir=profile_dir,
+        chrome_profile=chrome_profile,
+        output_format=output_format,
+        output=output,
+        verb="suspend",
+    )
 
 
 def _parse_repeating_slot_options(
@@ -1675,21 +1741,31 @@ def resume(
 ):
     """Resume one or more stopped Мастер кампаний by ID (comma-separated)
 
-    Clicks the overview page's "Возобновить кампанию" button (confirmed
-    live — see ``direct_cli/browser/masters.py`` module docstring). Verifies
-    the status actually changed before reporting success; idempotent if
-    already active.
+    Clicks the overview page's "Возобновить кампанию" button
+    (``CampaignHeader.ActionButton.resume``, confirmed live — see
+    ``direct_cli/browser/masters.py`` module docstring). Verifies the status
+    actually changed before reporting success, re-clicking if the first
+    click was a silent no-op (issue #766); idempotent if already active.
+    An ARCHIVED campaign is unarchived to SUSPENDED first (issue #758).
+
+    Every ID is attempted even if an earlier one fails, and each ID's
+    outcome (the row, or its error) is reported — see ``_run_per_id``.
     """
     from ..browser.masters import resume_master
 
     ids = parse_ids(campaign_ids) or []
 
-    def _resume_all(page):
-        return [resume_master(page, campaign_id) for campaign_id in ids]
-
-    results = _with_session(ctx, headful, profile_dir, chrome_profile, _resume_all)
-
-    format_output(results if len(results) != 1 else results[0], output_format, output)
+    _run_per_id(
+        ctx,
+        ids,
+        resume_master,
+        headful=headful,
+        profile_dir=profile_dir,
+        chrome_profile=chrome_profile,
+        output_format=output_format,
+        output=output,
+        verb="resume",
+    )
 
 
 @masters.command()
@@ -1725,33 +1801,17 @@ def launch(
 
     ids = parse_ids(campaign_ids) or []
 
-    def _launch_all(page):
-        from ..browser.session import BrowserSessionError
-        from ..browser.masters import PlaywrightError
-
-        results = []
-        errors = []
-        for campaign_id in ids:
-            try:
-                results.append(launch_master(page, campaign_id))
-            except (BrowserSessionError, PlaywrightError) as exc:
-                errors.append((campaign_id, exc))
-                results.append({"CampaignId": campaign_id, "Error": str(exc)})
-        return results, errors
-
-    results, errors = _with_session(
-        ctx, headful, profile_dir, chrome_profile, _launch_all
+    _run_per_id(
+        ctx,
+        ids,
+        launch_master,
+        headful=headful,
+        profile_dir=profile_dir,
+        chrome_profile=chrome_profile,
+        output_format=output_format,
+        output=output,
+        verb="launch",
     )
-
-    format_output(results if len(results) != 1 else results[0], output_format, output)
-
-    if errors:
-        for campaign_id, exc in errors:
-            print_error(f"Campaign {campaign_id}: {exc}")
-        raise click.ClickException(
-            f"Failed to launch {len(errors)} of {len(ids)} campaign(s); "
-            "see per-ID results above."
-        )
 
 
 @masters.command()
@@ -1791,33 +1851,17 @@ def archive(
 
     ids = parse_ids(campaign_ids) or []
 
-    def _archive_all(page):
-        from ..browser.session import BrowserSessionError
-        from ..browser.masters import PlaywrightError
-
-        results = []
-        errors = []
-        for campaign_id in ids:
-            try:
-                results.append(archive_master(page, campaign_id))
-            except (BrowserSessionError, PlaywrightError) as exc:
-                errors.append((campaign_id, exc))
-                results.append({"CampaignId": campaign_id, "Error": str(exc)})
-        return results, errors
-
-    results, errors = _with_session(
-        ctx, headful, profile_dir, chrome_profile, _archive_all
+    _run_per_id(
+        ctx,
+        ids,
+        archive_master,
+        headful=headful,
+        profile_dir=profile_dir,
+        chrome_profile=chrome_profile,
+        output_format=output_format,
+        output=output,
+        verb="archive",
     )
-
-    format_output(results if len(results) != 1 else results[0], output_format, output)
-
-    if errors:
-        for campaign_id, exc in errors:
-            print_error(f"Campaign {campaign_id}: {exc}")
-        raise click.ClickException(
-            f"Failed to archive {len(errors)} of {len(ids)} campaign(s); "
-            "see per-ID results above."
-        )
 
 
 @masters.command()
