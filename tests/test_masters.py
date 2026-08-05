@@ -4605,6 +4605,44 @@ class TestWaitForDraftStatus(unittest.TestCase):
 
         self.assertIn("42", str(ctx.exception))
 
+    def test_names_archived_when_status_text_confirms_it(self):
+        # cycle-review round 2 (issue #761 fixup, Codex-confirmed): a
+        # dedicated pre-mutation Clear-button "is this campaign ARCHIVED"
+        # guard was removed from update_master — it false-positived on any
+        # unfocused OR empty landing-URL field on an otherwise ordinary
+        # campaign, which would have blocked every masters update. An
+        # ARCHIVED campaign already has no reliable escape from THIS
+        # timeout (neither terminal marker below ever appears for one), so
+        # the timeout message is upgraded with a status-text hint —
+        # best-effort only, never a pre-mutation gate — instead of a
+        # separate field-shaped pre-check.
+        page = FakePage(
+            locators={},
+            role_elements=[],
+            body_text="Кампания в\xa0архиве",
+        )
+
+        with patch.object(browser_masters, "_EDIT_FORM_READY_TIMEOUT_MS", 1):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters._wait_for_draft_status(page, 42)
+
+        self.assertIn("42", str(ctx.exception))
+        self.assertIn("ARCHIVED", str(ctx.exception))
+
+    def test_does_not_name_archived_when_status_text_is_inconclusive(self):
+        # Companion to the above: when the status-text hint can't confirm
+        # ARCHIVED (absent/unreadable/some other status), the generic
+        # "neither button appeared" message is unchanged — no false
+        # ARCHIVED claim from an inconclusive read.
+        page = FakePage(locators={}, role_elements=[], body_text="")
+
+        with patch.object(browser_masters, "_EDIT_FORM_READY_TIMEOUT_MS", 1):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters._wait_for_draft_status(page, 42)
+
+        self.assertIn("42", str(ctx.exception))
+        self.assertNotIn("ARCHIVED", str(ctx.exception))
+
 
 class TestUpdateMasterDraftSupport(unittest.TestCase):
     """``update_master`` end to end on a DRAFT campaign (issue #668)."""
@@ -4857,7 +4895,8 @@ class TestUpdateMaster(unittest.TestCase):
         directs_helps_state=None,
         name_state=None,
         landing_url_state=None,
-        landing_url_clear_disabled=False,
+        landing_url_read_only=False,
+        utm_input_state=None,
         headlines_state=None,
         texts_state=None,
         goal_price_state=None,
@@ -4973,17 +5012,59 @@ class TestUpdateMaster(unittest.TestCase):
             # via a _FakeContentEditableHandle (the real field is a
             # contenteditable widget, not a plain <input> — issue #757, same
             # widget family as the create page's own URL field).
-            landing_url_handle = _FakeContentEditableHandle(
+            #
+            # landing_url_read_only (issue #761 cycle-review round 2,
+            # Codex): _set_landing_url no longer infers ARCHIVED from the
+            # Clear button's disabled state (legitimately disabled on an
+            # ordinary campaign too — unfocused field, or nothing to clear
+            # — see the function's own docstring), so this fixture no
+            # longer models that button at all. A genuinely read-only
+            # (ARCHIVED) field is instead modeled as one whose
+            # press("Backspace") is a no-op — ``_clear_text_field`` then
+            # reports failure exactly like a real read-only contenteditable
+            # that ignores keystrokes.
+            class _ReadOnlyAwareContentEditableHandle(_FakeContentEditableHandle):
+                def press(self, key):
+                    if landing_url_read_only:
+                        return  # Read-only: keystrokes are silently ignored.
+                    super().press(key)
+
+            landing_url_handle = _ReadOnlyAwareContentEditableHandle(
                 text=landing_url_state.get("value", "")
             )
             locators[browser_masters._EDIT_URL_INPUT_TESTID] = _FakeLocator(
                 [landing_url_handle]
             )
-            clear_handle = _FakeLocatorHandle(
-                attrs={"disabled": ""} if landing_url_clear_disabled else {}
+
+        # UTM spoiler and UTM input field (issue #761) — mounted only when a
+        # test actually exercises --tracking-params. _set_landing_url/
+        # _read_landing_url are independent of this field and never touch it.
+        utm_input_handle = None
+        spoiler_expanded = False
+        if utm_input_state is not None:
+            # _expand_utm_spoiler only ever clicks to OPEN and polls for
+            # "true" — it never collapses the spoiler — so the fake only
+            # needs to model a one-way flip, not a toggle.
+            def _open_spoiler():
+                nonlocal spoiler_expanded
+                spoiler_expanded = True
+
+            def _spoiler_attrs():
+                return {"aria-expanded": "true" if spoiler_expanded else "false"}
+
+            spoiler_handle = _DynamicAttrsLocatorHandle(
+                get_attrs=_spoiler_attrs,
+                on_click=_open_spoiler,
             )
-            locators[browser_masters._EDIT_URL_CLEAR_BUTTON_TESTID] = _FakeLocator(
-                [clear_handle]
+            locators[browser_masters._EDIT_UTM_SPOILER_BUTTON_TESTID] = _FakeLocator(
+                [spoiler_handle]
+            )
+
+            utm_input_handle = _FakeContentEditableHandle(
+                text=utm_input_state.get("value", "") if utm_input_state else ""
+            )
+            locators[browser_masters._EDIT_UTM_INPUT_TESTID] = _FakeLocator(
+                [utm_input_handle]
             )
             # landing_url_handle's own ._text is the state actually mutated
             # by type()/Backspace and read back by _read_landing_url on the
@@ -5067,6 +5148,7 @@ class TestUpdateMaster(unittest.TestCase):
         page.headline_handles = headline_handles
         page.text_handles = text_handles
         page.landing_url_handle = landing_url_handle
+        page.utm_input_handle = utm_input_handle
         return page, save_clicks
 
     def test_updates_only_weekly_budget(self):
@@ -6035,30 +6117,6 @@ class TestUpdateMaster(unittest.TestCase):
             },
         )
 
-    def test_clears_utm_by_passing_bare_url(self):
-        # No dedicated --clear-utm flag (module docstring's
-        # _EDIT_URL_INPUT_TESTID note) — removing the UTM template while
-        # keeping the landing page is just passing a replacement URL with no
-        # query string.
-        landing_url_state = {
-            "value": "https://lp.example.ru/page?utm_source=yandex&utm_medium=cpc"
-        }
-        page, save_clicks = self._page_with_save_button(
-            landing_url_state=landing_url_state
-        )
-
-        result = browser_masters.update_master(
-            page, 42, landing_url="https://lp.example.ru/page"
-        )
-
-        self.assertEqual(
-            page.landing_url_handle.text_content(), "https://lp.example.ru/page"
-        )
-        self.assertEqual(len(save_clicks), 1)
-        self.assertEqual(
-            result, {"CampaignId": 42, "LandingUrl": "https://lp.example.ru/page"}
-        )
-
     def test_clears_landing_url_entirely_with_empty_string(self):
         landing_url_state = {"value": "https://lp.example.ru/page"}
         page, save_clicks = self._page_with_save_button(
@@ -6071,12 +6129,89 @@ class TestUpdateMaster(unittest.TestCase):
         self.assertEqual(len(save_clicks), 1)
         self.assertEqual(result, {"CampaignId": 42, "LandingUrl": ""})
 
+    def test_updates_tracking_params(self):
+        # Issue #761: --tracking-params is a SEPARATE field (UTMInput,
+        # under the "Дополнительные параметры" spoiler) — independent of
+        # --landing-url/LinkInput.
+        utm_input_state = {"value": "utm_source=old&utm_medium=cpc"}
+        page, save_clicks = self._page_with_save_button(
+            utm_input_state=utm_input_state
+        )
+
+        result = browser_masters.update_master(
+            page, 42, tracking_params="utm_source=yandex&utm_medium=cpc"
+        )
+
+        self.assertEqual(
+            page.utm_input_handle.text_content(),
+            "utm_source=yandex&utm_medium=cpc",
+        )
+        self.assertEqual(len(save_clicks), 1)
+        self.assertEqual(
+            result,
+            {
+                "CampaignId": 42,
+                "TrackingParams": "utm_source=yandex&utm_medium=cpc",
+            },
+        )
+
+    def test_clears_tracking_params_with_empty_string(self):
+        utm_input_state = {"value": "utm_source=yandex"}
+        page, save_clicks = self._page_with_save_button(
+            utm_input_state=utm_input_state
+        )
+
+        result = browser_masters.update_master(page, 42, tracking_params="")
+
+        self.assertEqual(page.utm_input_handle.text_content(), "")
+        self.assertEqual(len(save_clicks), 1)
+        self.assertEqual(result, {"CampaignId": 42, "TrackingParams": ""})
+
+    def test_updates_landing_url_and_tracking_params_together(self):
+        landing_url_state = {"value": "https://lp.example.ru/old"}
+        utm_input_state = {"value": "utm_source=old"}
+        page, save_clicks = self._page_with_save_button(
+            landing_url_state=landing_url_state,
+            utm_input_state=utm_input_state,
+        )
+
+        result = browser_masters.update_master(
+            page,
+            42,
+            landing_url="https://lp.example.ru/new",
+            tracking_params="utm_source=new",
+        )
+
+        self.assertEqual(
+            page.landing_url_handle.text_content(), "https://lp.example.ru/new"
+        )
+        self.assertEqual(page.utm_input_handle.text_content(), "utm_source=new")
+        self.assertEqual(len(save_clicks), 1)
+        self.assertEqual(
+            result,
+            {
+                "CampaignId": 42,
+                "LandingUrl": "https://lp.example.ru/new",
+                "TrackingParams": "utm_source=new",
+            },
+        )
+
     def test_raises_when_landing_url_field_is_read_only_archived(self):
+        # cycle-review round 2 (issue #761 fixup, Codex-confirmed):
+        # _set_landing_url no longer pre-checks the Clear button's disabled
+        # state (that button is ALSO legitimately disabled on an ordinary
+        # campaign whenever unfocused or whenever the URL is already empty
+        # — see the function's own docstring) — it just attempts the write
+        # and lets _set_contenteditable_field's own "could not clear the
+        # field" error surface a genuinely read-only ARCHIVED field,
+        # upgraded with a status-text hint when _read_status_text confirms
+        # ARCHIVED.
         landing_url_state = {"value": "https://lp.example.ru/page"}
         page, _save_clicks = self._page_with_save_button(
             landing_url_state=landing_url_state,
-            landing_url_clear_disabled=True,
+            landing_url_read_only=True,
         )
+        page._body_text = "Кампания в\xa0архиве"
 
         with self.assertRaises(BrowserSessionError) as ctx:
             browser_masters.update_master(
@@ -6084,6 +6219,50 @@ class TestUpdateMaster(unittest.TestCase):
             )
         self.assertIn("ARCHIVED", str(ctx.exception))
         # The field was never touched — Yandex's own state is unchanged.
+        self.assertEqual(
+            page.landing_url_handle.text_content(), "https://lp.example.ru/page"
+        )
+
+    def test_raises_generic_error_when_landing_url_field_is_read_only_but_status_unclear(
+        self,
+    ):
+        # Companion: when the field can't be cleared but _read_status_text
+        # can't confirm ARCHIVED (e.g. the marker text isn't on this page,
+        # or reading it fails) — the original "could not clear" error
+        # surfaces unchanged, with no unverified ARCHIVED claim tacked on.
+        landing_url_state = {"value": "https://lp.example.ru/page"}
+        page, _save_clicks = self._page_with_save_button(
+            landing_url_state=landing_url_state,
+            landing_url_read_only=True,
+        )
+        page._body_text = ""
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(
+                page, 42, landing_url="https://lp.example.ru/new"
+            )
+        self.assertNotIn("ARCHIVED", str(ctx.exception))
+        self.assertIn("could not clear", str(ctx.exception).lower())
+
+    def test_does_not_touch_landing_url_when_updating_an_unrelated_field(self):
+        # cycle-review round 2 (issue #761 fixup, Codex-confirmed): the
+        # removed pre-mutation campaign-wide ARCHIVED guard used to read the
+        # landing-URL Clear button before ANY mutation, regardless of which
+        # field was actually being changed — false-positiving on an
+        # ordinary campaign's unfocused/empty URL field and blocking every
+        # update. update_master no longer touches the landing-URL field at
+        # all unless the caller actually requests it.
+        landing_url_state = {"value": "https://lp.example.ru/page"}
+        budget_state = {}
+        page, save_clicks = self._page_with_save_button(
+            landing_url_state=landing_url_state,
+            weekly_budget_state=budget_state,
+        )
+
+        result = browser_masters.update_master(page, 42, weekly_budget=50000)
+
+        self.assertEqual(len(save_clicks), 1)
+        self.assertEqual(result["WeeklyBudget"], 50000)
         self.assertEqual(
             page.landing_url_handle.text_content(), "https://lp.example.ru/page"
         )
@@ -6680,6 +6859,51 @@ class TestMastersUpdateCommand(unittest.TestCase):
     def test_documents_landing_url_flag(self):
         result = self.runner.invoke(cli, ["masters", "update", "--help"])
         self.assertIn("--landing-url", result.output)
+
+    def test_passes_tracking_params_flag(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {
+                "CampaignId": 42,
+                "TrackingParams": "utm_source=yandex&utm_medium=cpc",
+            }
+            result = self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "update",
+                    "42",
+                    "--tracking-params",
+                    "utm_source=yandex&utm_medium=cpc",
+                ],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(
+            mock_update.call_args.kwargs["tracking_params"],
+            "utm_source=yandex&utm_medium=cpc",
+        )
+
+    def test_passes_empty_tracking_params_flag_to_clear_it(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42, "TrackingParams": ""}
+            result = self.runner.invoke(
+                cli, ["masters", "update", "42", "--tracking-params", ""]
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(mock_update.call_args.kwargs["tracking_params"], "")
+
+    def test_documents_tracking_params_flag(self):
+        result = self.runner.invoke(cli, ["masters", "update", "--help"])
+        self.assertIn("--tracking-params", result.output)
 
     def test_passes_promotion_goal_choice(self):
         with (
