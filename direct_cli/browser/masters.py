@@ -7363,6 +7363,13 @@ def _wait_for_created_campaign_id(page: "Page", *, button_label: str) -> int:
     idempotent), so silently reporting success without an ID would leave the
     caller unable to find what it just made.
     """
+    # NOTE: uses time.monotonic() to match this module's current convention
+    # (copy_master's identical redirect poll does the same). PR #770 (issue
+    # #767) converts every poll deadline in direct_cli/browser/ to an
+    # injectable `_clock.now()` and adds a TestBrowserPackageClock guard —
+    # this loop must be converted along with the rest when that lands, or
+    # the guard will fail and this test will busy-spin for the full
+    # production timeout.
     deadline = time.monotonic() + _CREATE_VERIFY_TIMEOUT_MS / 1000
     while True:
         match = _WIZARD_OVERVIEW_URL_ID_RE.search(page.url)
