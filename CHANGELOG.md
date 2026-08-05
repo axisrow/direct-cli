@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+**Added — `masters add` now returns `CampaignId` and verifies the display region (#744):**
+
+- Live recon confirmed both terminal buttons ("Запустить кампанию" /
+  "Сохранить как черновик") redirect `page.url` to the new campaign's
+  overview URL (`/wizard/campaigns/{id}/`) — the same redirect `copy_master`
+  has relied on since #659, since the clone flow lands on the very same
+  step-2 form and terminates through the same `_click_terminal_button`.
+  This closes the gap #632's read-only step-0 recon left open, where the
+  post-click destination (and therefore the created campaign's ID) was
+  undetermined.
+- `create_master` now returns `CampaignId` (previously omitted for exactly
+  that reason), so callers can find what they just created — which matters
+  because this operation is irreversible and not idempotent.
+- `_verify_created` now verifies the display region through a **real
+  reload** (`page.goto(WIZARD_EDIT_URL...)` + `_read_until_matches` over
+  `_read_region_tags`), mirroring `update_master`'s `_verify_saved`. Region
+  was previously not verified at all — a region silently dropped by Yandex
+  was reported as a clean success. Headlines/texts/budget deliberately stay
+  on the pre-navigation read: they are the backstop for divergences caused
+  by the click itself, which a reload would discard.
+- The reload targets the **edit** page, not the overview page the click
+  redirects to: a launched campaign's overview is the stats dashboard and
+  renders no region widget at all. Region tags are compared as a subset
+  (selecting a region can pull in implied parent/child nodes), and a click
+  that never redirects now raises — naming the campaign that may already
+  exist — instead of reporting success without an ID.
+
 **Fixed — `masters get` returned the URL of a Yandex promo banner instead of the campaign's landing page (#763):**
 
 - `_extract_landing_url` picked the first anchor whose `href` contained
