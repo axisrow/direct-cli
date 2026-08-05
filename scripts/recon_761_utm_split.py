@@ -436,7 +436,7 @@ def main() -> int:
             return 2
 
         bare, query = _split_url(test_url)
-        print(f"=== MUTATION TEST ===")
+        print("=== MUTATION TEST ===")
         print(f"  test_url={test_url!r}")
         print(f"  -> LinkInput (bare) = {bare!r}")
         print(f"  -> UTMInput (query) = {query!r}")
@@ -459,7 +459,7 @@ def main() -> int:
         if not _spoiler_expanded(page):
             _expand_advanced_params(page)
         after_utm = _read_field(page, utm_selector)
-        print(f"=== AFTER SAVE+RELOAD ===")
+        print("=== AFTER SAVE+RELOAD ===")
         print(f"  LinkInput: {after_link!r}")
         print(f"  UTMInput:  {after_utm!r}")
         accepted = (after_link == bare) and (after_utm == query)
@@ -468,7 +468,7 @@ def main() -> int:
 
         # Restore exact original state using JS fill (orig URL is too long
         # for field.type() — it would timeout).
-        print(f"=== RESTORE ===")
+        print("=== RESTORE ===")
         print(f"  restoring LinkInput={orig_link!r} UTMInput={orig_utm!r}")
         _set_link_input_js(page, orig_link or "")
         if not _spoiler_expanded(page):
