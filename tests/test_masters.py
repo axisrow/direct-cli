@@ -2011,7 +2011,7 @@ class TestFetchMaster(unittest.TestCase):
                 browser_masters._OVERVIEW_TITLE_SELECTOR: _FakeLocator(
                     [_FakeLocatorHandle(text=title)]
                 ),
-                "a[href*='utm_source=']": _FakeLocator(
+                browser_masters._OVERVIEW_LANDING_LINK_SELECTOR: _FakeLocator(
                     [
                         _FakeLocatorHandle(
                             attrs={
@@ -2073,6 +2073,76 @@ class TestFetchMaster(unittest.TestCase):
                 "cost": "22 613,58 ₽",
             },
         )
+
+    def test_landing_url_ignores_yandex_promo_banner(self):
+        # Issue #763: the overview page always also renders a Yandex promo
+        # banner ("Yandex Neuro Ads") whose own href carries an unrelated
+        # utm_source= tag. The old selector, `a[href*='utm_source=']`, had no
+        # way to tell that banner apart from the campaign's own link once the
+        # campaign's LandingUrl carried no UTM tail of its own (e.g. right
+        # after `update --landing-url` per #761) -- it would then match only
+        # the banner and silently report *its* URL as the campaign's
+        # LandingUrl. _OVERVIEW_LANDING_LINK_SELECTOR must resolve to the
+        # campaign's own link (scoped under CampaignHeader), never the
+        # banner, regardless of which anchors happen to carry utm_source=.
+        page = FakePage(
+            locators={
+                browser_masters._OVERVIEW_TITLE_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle(text="Мастер Тест")]
+                ),
+                browser_masters._OVERVIEW_LANDING_LINK_SELECTOR: _FakeLocator(
+                    [
+                        _FakeLocatorHandle(
+                            attrs={"href": "https://lp.ksamata.ru/detox_ya"}
+                        )
+                    ]
+                ),
+                # A banner-like anchor that an href-content selector would
+                # match, but the header-scoped selector above must not.
+                "a[href*='utm_source=']": _FakeLocator(
+                    [
+                        _FakeLocatorHandle(
+                            attrs={
+                                "href": (
+                                    "https://ya.ru/project/yna/?utm_source=yandex"
+                                    "&utm_medium=direct&utm_campaign=label"
+                                )
+                            }
+                        )
+                    ]
+                ),
+            },
+            body_text="Кампания активна",
+        )
+
+        result = browser_masters.fetch_master(page, 713234191)
+
+        self.assertEqual(result["LandingUrl"], "https://lp.ksamata.ru/detox_ya")
+
+    def test_landing_url_reads_utm_tagged_link_in_full(self):
+        # When the campaign's own LandingUrl does carry a UTM tail (recorded
+        # directly in the link, pre-#761 style), the header-scoped selector
+        # must still read the whole href, UTM params included.
+        href = (
+            "https://lp.ksamata.ru/detox_ya?utm_source=yandex&utm_medium=cpc&"
+            "utm_campaign=cid|{campaign_id}|{source_type}&"
+            "utm_content=gid|{gbid}|aid|{ad_id}&utm_term={keyword}"
+        )
+        page = FakePage(
+            locators={
+                browser_masters._OVERVIEW_TITLE_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle(text="Мастер Тест")]
+                ),
+                browser_masters._OVERVIEW_LANDING_LINK_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle(attrs={"href": href})]
+                ),
+            },
+            body_text="Кампания активна",
+        )
+
+        result = browser_masters.fetch_master(page, 713277109)
+
+        self.assertEqual(result["LandingUrl"], href)
 
     def test_active_status_recognised(self):
         page = self._page_for(status_text="Кампания активна")
@@ -6479,7 +6549,7 @@ class TestUpdateMaster(unittest.TestCase):
             page.landing_url_handle.text_content(), "https://lp.example.ru/page"
         )
 
-    def test_raises_generic_error_when_landing_url_field_is_read_only_but_status_unclear(
+    def test_raises_generic_error_when_landing_url_field_is_read_only_but_status_unclear(  # noqa: E501
         self,
     ):
         # Companion: when the field can't be cleared but _read_status_text

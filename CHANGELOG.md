@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+**Fixed — `masters get` returned the URL of a Yandex promo banner instead of the campaign's landing page (#763):**
+
+- `_extract_landing_url` picked the first anchor whose `href` contained
+  `utm_source=`. Live recon confirmed the overview page always also renders
+  a Yandex promo banner ("Yandex Neuro Ads") whose own href is itself
+  UTM-tagged (`ya.ru/project/yna/?utm_source=yandex&...`). Once the
+  campaign's own `LandingUrl` carried no UTM tail of its own (e.g. right
+  after `update --landing-url`, per #761), that banner became the *only*
+  href-based match and was silently reported as the campaign's `LandingUrl`
+  — this was not a caching issue, as the issue's title suggested, the
+  selector was simply reading the wrong anchor. When the campaign's URL did
+  carry a UTM tail, both anchors matched and the campaign's own link won
+  only by DOM order, i.e. the old selector was correct by accident.
+- Replaced with `_OVERVIEW_LANDING_LINK_SELECTOR`
+  (`[data-testid="CampaignHeader"] a[data-testid="Link"]`), confirmed live
+  to resolve to exactly the campaign's own link (1 match) regardless of
+  whether its URL carries UTM params. `masters get`'s output format is
+  unchanged — `LandingUrl` still carries the full href including any UTM
+  tail.
+
 **Changed — `SmartCampaign` bidding-strategy builder dedup (#592):**
 
 - The `build_smart_campaign_search_strategy` / `build_smart_campaign_network_strategy`
