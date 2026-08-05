@@ -4605,6 +4605,44 @@ class TestWaitForDraftStatus(unittest.TestCase):
 
         self.assertIn("42", str(ctx.exception))
 
+    def test_names_archived_when_status_text_confirms_it(self):
+        # cycle-review round 2 (issue #761 fixup, Codex-confirmed): a
+        # dedicated pre-mutation Clear-button "is this campaign ARCHIVED"
+        # guard was removed from update_master — it false-positived on any
+        # unfocused OR empty landing-URL field on an otherwise ordinary
+        # campaign, which would have blocked every masters update. An
+        # ARCHIVED campaign already has no reliable escape from THIS
+        # timeout (neither terminal marker below ever appears for one), so
+        # the timeout message is upgraded with a status-text hint —
+        # best-effort only, never a pre-mutation gate — instead of a
+        # separate field-shaped pre-check.
+        page = FakePage(
+            locators={},
+            role_elements=[],
+            body_text="Кампания в\xa0архиве",
+        )
+
+        with patch.object(browser_masters, "_EDIT_FORM_READY_TIMEOUT_MS", 1):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters._wait_for_draft_status(page, 42)
+
+        self.assertIn("42", str(ctx.exception))
+        self.assertIn("ARCHIVED", str(ctx.exception))
+
+    def test_does_not_name_archived_when_status_text_is_inconclusive(self):
+        # Companion to the above: when the status-text hint can't confirm
+        # ARCHIVED (absent/unreadable/some other status), the generic
+        # "neither button appeared" message is unchanged — no false
+        # ARCHIVED claim from an inconclusive read.
+        page = FakePage(locators={}, role_elements=[], body_text="")
+
+        with patch.object(browser_masters, "_EDIT_FORM_READY_TIMEOUT_MS", 1):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters._wait_for_draft_status(page, 42)
+
+        self.assertIn("42", str(ctx.exception))
+        self.assertNotIn("ARCHIVED", str(ctx.exception))
+
 
 class TestUpdateMasterDraftSupport(unittest.TestCase):
     """``update_master`` end to end on a DRAFT campaign (issue #668)."""
@@ -4857,7 +4895,7 @@ class TestUpdateMaster(unittest.TestCase):
         directs_helps_state=None,
         name_state=None,
         landing_url_state=None,
-        landing_url_clear_disabled=False,
+        landing_url_read_only=False,
         utm_input_state=None,
         headlines_state=None,
         texts_state=None,
@@ -4975,37 +5013,27 @@ class TestUpdateMaster(unittest.TestCase):
             # contenteditable widget, not a plain <input> — issue #757, same
             # widget family as the create page's own URL field).
             #
-            # Clear-button disabled state (issue #761 fixup, cycle-review):
-            # models the LIVE behaviour documented in
-            # scripts/recon_761_utm_split.py — the Clear button is disabled
-            # whenever the URL field is unfocused, independent of ARCHIVED
-            # status, and only clears on click for a non-archived campaign.
-            # ``field_focused`` flips true on the URL field's own click
-            # (_is_landing_url_archived/_set_contenteditable_field both
-            # click it first), mirroring that click-before-read order; a
-            # genuinely ARCHIVED campaign
-            # (``landing_url_clear_disabled=True``) stays disabled even
-            # after the click, exactly like the real read-only field.
-            field_state = {"focused": False}
+            # landing_url_read_only (issue #761 cycle-review round 2,
+            # Codex): _set_landing_url no longer infers ARCHIVED from the
+            # Clear button's disabled state (legitimately disabled on an
+            # ordinary campaign too — unfocused field, or nothing to clear
+            # — see the function's own docstring), so this fixture no
+            # longer models that button at all. A genuinely read-only
+            # (ARCHIVED) field is instead modeled as one whose
+            # press("Backspace") is a no-op — ``_clear_text_field`` then
+            # reports failure exactly like a real read-only contenteditable
+            # that ignores keystrokes.
+            class _ReadOnlyAwareContentEditableHandle(_FakeContentEditableHandle):
+                def press(self, key):
+                    if landing_url_read_only:
+                        return  # Read-only: keystrokes are silently ignored.
+                    super().press(key)
 
-            def _on_url_field_click():
-                field_state["focused"] = True
-
-            landing_url_handle = _FakeContentEditableHandle(
-                text=landing_url_state.get("value", ""),
-                on_click=_on_url_field_click,
+            landing_url_handle = _ReadOnlyAwareContentEditableHandle(
+                text=landing_url_state.get("value", "")
             )
             locators[browser_masters._EDIT_URL_INPUT_TESTID] = _FakeLocator(
                 [landing_url_handle]
-            )
-
-            def _clear_button_attrs():
-                disabled = landing_url_clear_disabled or not field_state["focused"]
-                return {"disabled": ""} if disabled else {}
-
-            clear_handle = _DynamicAttrsLocatorHandle(get_attrs=_clear_button_attrs)
-            locators[browser_masters._EDIT_URL_CLEAR_BUTTON_TESTID] = _FakeLocator(
-                [clear_handle]
             )
 
         # UTM spoiler and UTM input field (issue #761) — mounted only when a
@@ -6169,11 +6197,21 @@ class TestUpdateMaster(unittest.TestCase):
         )
 
     def test_raises_when_landing_url_field_is_read_only_archived(self):
+        # cycle-review round 2 (issue #761 fixup, Codex-confirmed):
+        # _set_landing_url no longer pre-checks the Clear button's disabled
+        # state (that button is ALSO legitimately disabled on an ordinary
+        # campaign whenever unfocused or whenever the URL is already empty
+        # — see the function's own docstring) — it just attempts the write
+        # and lets _set_contenteditable_field's own "could not clear the
+        # field" error surface a genuinely read-only ARCHIVED field,
+        # upgraded with a status-text hint when _read_status_text confirms
+        # ARCHIVED.
         landing_url_state = {"value": "https://lp.example.ru/page"}
         page, _save_clicks = self._page_with_save_button(
             landing_url_state=landing_url_state,
-            landing_url_clear_disabled=True,
+            landing_url_read_only=True,
         )
+        page._body_text = "Кампания в\xa0архиве"
 
         with self.assertRaises(BrowserSessionError) as ctx:
             browser_masters.update_master(
@@ -6185,46 +6223,39 @@ class TestUpdateMaster(unittest.TestCase):
             page.landing_url_handle.text_content(), "https://lp.example.ru/page"
         )
 
-    def test_raises_upfront_for_archived_campaign_regardless_of_field(self):
-        # An ARCHIVED campaign's edit page renders NO terminal save control
-        # at all — not just a read-only landing-URL field. update_master
-        # checks this up front (via the same Clear-button marker
-        # _set_landing_url uses) so ANY field update against an ARCHIVED
-        # campaign fails fast with an actionable message, instead of
-        # burning _wait_for_draft_status's full timeout and raising a
-        # generic "neither button appeared" error.
+    def test_raises_generic_error_when_landing_url_field_is_read_only_but_status_unclear(
+        self,
+    ):
+        # Companion: when the field can't be cleared but _read_status_text
+        # can't confirm ARCHIVED (e.g. the marker text isn't on this page,
+        # or reading it fails) — the original "could not clear" error
+        # surfaces unchanged, with no unverified ARCHIVED claim tacked on.
         landing_url_state = {"value": "https://lp.example.ru/page"}
-        page, save_clicks = self._page_with_save_button(
+        page, _save_clicks = self._page_with_save_button(
             landing_url_state=landing_url_state,
-            landing_url_clear_disabled=True,
+            landing_url_read_only=True,
         )
+        page._body_text = ""
 
         with self.assertRaises(BrowserSessionError) as ctx:
-            browser_masters.update_master(page, 42, weekly_budget=50000)
+            browser_masters.update_master(
+                page, 42, landing_url="https://lp.example.ru/new"
+            )
+        self.assertNotIn("ARCHIVED", str(ctx.exception))
+        self.assertIn("could not clear", str(ctx.exception).lower())
 
-        self.assertIn("ARCHIVED", str(ctx.exception))
-        self.assertIn("42", str(ctx.exception))
-        self.assertEqual(len(save_clicks), 0)
-
-    def test_does_not_misclassify_unfocused_non_archived_campaign_as_archived(self):
-        # cycle-review regression (issue #761 fixup, Codex-confirmed): the
-        # Clear button is disabled whenever the landing-URL field is
-        # unfocused, independent of ARCHIVED status (live-documented in
-        # scripts/recon_761_utm_split.py's _set_link_input docstring). A
-        # guard that reads the button's disabled state WITHOUT clicking the
-        # field first — a point-in-time pre-focus read — would misclassify
-        # every ordinary (non-ARCHIVED) campaign as archived and block ALL
-        # updates. The fixture's Clear-button handle starts disabled and
-        # only clears once the URL field's on_click fires, exactly like the
-        # real "disabled until focused" widget — so a weekly-budget-only
-        # update (never focusing the URL field on its own) still must
-        # succeed, because _is_landing_url_archived clicks the field itself
-        # before reading the button.
+    def test_does_not_touch_landing_url_when_updating_an_unrelated_field(self):
+        # cycle-review round 2 (issue #761 fixup, Codex-confirmed): the
+        # removed pre-mutation campaign-wide ARCHIVED guard used to read the
+        # landing-URL Clear button before ANY mutation, regardless of which
+        # field was actually being changed — false-positiving on an
+        # ordinary campaign's unfocused/empty URL field and blocking every
+        # update. update_master no longer touches the landing-URL field at
+        # all unless the caller actually requests it.
         landing_url_state = {"value": "https://lp.example.ru/page"}
         budget_state = {}
         page, save_clicks = self._page_with_save_button(
             landing_url_state=landing_url_state,
-            landing_url_clear_disabled=False,
             weekly_budget_state=budget_state,
         )
 
@@ -6232,6 +6263,9 @@ class TestUpdateMaster(unittest.TestCase):
 
         self.assertEqual(len(save_clicks), 1)
         self.assertEqual(result["WeeklyBudget"], 50000)
+        self.assertEqual(
+            page.landing_url_handle.text_content(), "https://lp.example.ru/page"
+        )
 
     def test_raises_when_saved_landing_url_does_not_match_requested(self):
         # The field accepts the new text (so the in-flight type-and-verify

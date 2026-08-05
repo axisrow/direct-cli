@@ -1729,39 +1729,6 @@ def _is_button_disabled(handle: Any) -> bool:
     return False
 
 
-_ARCHIVED_CLEAR_BUTTON_POLL_MS = 3_000
-_ARCHIVED_CLEAR_BUTTON_POLL_STEP_MS = 100
-
-
-def _is_landing_url_archived(page: "Page") -> bool:
-    """Return whether the landing-URL Clear button is disabled — the
-    confirmed-live ARCHIVED marker (issue #757) — checked in the SAME
-    interaction order as a real edit: click/focus the URL field first, THEN
-    read the Clear button's disabled state.
-
-    Checking disabled BEFORE any click is unsound: this module's own
-    recon (``scripts/recon_761_utm_split.py``, issue #761) documents live
-    that the Clear button is disabled whenever the field isn't focused,
-    independent of ARCHIVED status — a point-in-time pre-focus read would
-    misclassify every normal (non-ARCHIVED) campaign as archived. Clicking
-    first and polling briefly for the button to settle (mirrors the
-    recon script's own click-then-poll loop) distinguishes "disabled
-    because unfocused" (clears on click) from "disabled because ARCHIVED"
-    (stays disabled after click).
-    """
-    field = page.locator(_EDIT_URL_INPUT_TESTID).first
-    with contextlib.suppress(PlaywrightError):
-        field.click()
-    clear_button = page.locator(_EDIT_URL_CLEAR_BUTTON_TESTID).first
-    elapsed = 0
-    while elapsed <= _ARCHIVED_CLEAR_BUTTON_POLL_MS:
-        if not _is_button_disabled(clear_button):
-            return False
-        page.wait_for_timeout(_ARCHIVED_CLEAR_BUTTON_POLL_STEP_MS)
-        elapsed += _ARCHIVED_CLEAR_BUTTON_POLL_STEP_MS
-    return True
-
-
 def _click_action_button(page: "Page", candidate_texts: Tuple[str, ...]) -> None:
     """Click the first visible, enabled button matching one of
     ``candidate_texts``.
@@ -2542,26 +2509,40 @@ def _set_landing_url(page: "Page", url: str) -> None:
     full URL with a ``?...`` query string here writes that query string as
     part of this field's own value, unchanged.
 
-    Confirmed live (issue #757) this field — and its Clear button — is
-    READ-ONLY while the campaign's current status is ARCHIVED: raises a
-    named ``BrowserSessionError`` for that case up front rather than
-    reporting the generic "Yandex may have changed the page's markup"
-    symptom a disabled contenteditable produces (a click that lands but
-    changes nothing). See ``_is_landing_url_archived``'s docstring (issue
-    #761 fixup) for why this check clicks/focuses the field before reading
-    the Clear button's disabled state, rather than reading it cold.
+    Confirmed live (issue #757) this field is READ-ONLY while the
+    campaign's current status is ARCHIVED. Does NOT pre-check the Clear
+    button's ``disabled`` state to detect this up front (issue #761
+    cycle-review round 2, Codex): that button is ALSO legitimately
+    disabled on an ordinary, non-ARCHIVED campaign — whenever the field is
+    unfocused (confirmed live, ``scripts/recon_761_utm_split.py``) or
+    whenever the URL is currently empty (nothing to clear) — so no
+    point-in-time read of it, cold or click-then-poll, can reliably tell
+    "read-only because ARCHIVED" from "disabled for an unrelated reason"
+    without a first-class status read. Instead, this just attempts the
+    write via ``_set_contenteditable_field``, which already raises a named
+    ``BrowserSessionError`` if the field won't clear/accept text — an
+    ARCHIVED campaign's genuinely read-only field surfaces through that
+    same path, upgraded with a status-text hint (best-effort, via
+    ``_read_status_text``) when it's actually the cause, exactly like
+    ``_wait_for_draft_status``'s own ARCHIVED-timeout message.
     """
-    if _is_landing_url_archived(page):
-        raise BrowserSessionError(
-            "The landing-page URL field is read-only for this campaign — "
-            "Yandex disables it while the campaign is ARCHIVED. Resume the "
-            "campaign first (e.g. via `masters resume`) before changing "
-            "its landing URL."
+    try:
+        _set_contenteditable_field(
+            page, _EDIT_URL_INPUT_TESTID, url, label="landing-page URL"
         )
-
-    _set_contenteditable_field(
-        page, _EDIT_URL_INPUT_TESTID, url, label="landing-page URL"
-    )
+    except BrowserSessionError as exc:
+        status_hint = ""
+        with contextlib.suppress(PlaywrightError):
+            if _read_status_text(page) == "ARCHIVED":
+                status_hint = (
+                    " The landing-page URL field is read-only for this "
+                    "campaign — Yandex disables it while the campaign is "
+                    "ARCHIVED. Resume the campaign first (e.g. via "
+                    "`masters resume`) before changing its landing URL."
+                )
+        if status_hint:
+            raise BrowserSessionError(f"{exc}{status_hint}") from exc
+        raise
 
 
 def _set_directs_helps(page: "Page", enabled: bool) -> None:
@@ -3784,13 +3765,33 @@ def _wait_for_draft_status(page: "Page", campaign_id: int) -> bool:
         _EDIT_FORM_READY_TIMEOUT_MS,
     )
     if state is None:
+        # ARCHIVED campaigns render NO terminal save control at all on the
+        # edit page (issue #761 recon) — this timeout is also what an
+        # ARCHIVED campaign hits, since neither marker this function polls
+        # for ever appears for one. ``_read_status_text`` is a best-effort
+        # hint for the error message only (it may or may not read the edit
+        # page reliably — unverified live) — it does NOT gate anything
+        # before this timeout already fired, so it cannot misclassify an
+        # ordinary campaign the way a pre-mutation field-shaped guard could
+        # (issue #761 cycle-review round 2, Codex: a Clear-button proxy
+        # guard false-positived on both an unfocused field and an empty
+        # URL).
+        status_hint = ""
+        with contextlib.suppress(PlaywrightError):
+            if _read_status_text(page) == "ARCHIVED":
+                status_hint = (
+                    f" Campaign {campaign_id} is ARCHIVED — its edit page "
+                    "has no save control at all while archived. Resume "
+                    "the campaign first (e.g. via `masters resume`) "
+                    "before updating it."
+                )
         raise BrowserSessionError(
             "Neither the DRAFT save-as-draft button nor the non-DRAFT "
             f"'{_SAVE_BUTTON_TEXT}' button appeared on the edit page for "
             f"campaign {campaign_id} within "
-            f"{_EDIT_FORM_READY_TIMEOUT_MS / 1000:.0f}s — Yandex may have "
-            "changed the page's markup. Re-run with --headful to inspect "
-            "the page."
+            f"{_EDIT_FORM_READY_TIMEOUT_MS / 1000:.0f}s.{status_hint} "
+            "Otherwise Yandex may have changed the page's markup — re-run "
+            "with --headful to inspect the page."
         )
     return state == "draft"
 
@@ -4643,31 +4644,6 @@ def update_master(
     assert_not_captcha(page.content())
     assert_authenticated(page.content())
     _wait_for_edit_form(page, campaign_id)
-
-    # ARCHIVED campaigns render NO terminal save control at all on the edit
-    # page — not just a read-only landing-URL field (``_set_landing_url``'s
-    # own ARCHIVED guard) — so ``_wait_for_draft_status`` below would burn
-    # its full timeout and raise a generic "neither button appeared"
-    # error. Reused as a campaign-wide proxy here: the landing-URL Clear
-    # button's ``disabled`` state is a confirmed-live ARCHIVED marker (see
-    # ``_EDIT_URL_CLEAR_BUTTON_TESTID``'s docstring) on THIS SAME edit page
-    # ``update_master`` is already sitting on — cheaper than a separate
-    # grid-API status lookup (``archive_master``'s own source of truth),
-    # at the cost of being field-shaped rather than a first-class status
-    # read; if it ever misfires the error text below still names the
-    # actionable fix. Goes through ``_is_landing_url_archived`` (issue #761
-    # fixup, cycle-review) rather than a bare ``_is_button_disabled`` read
-    # — the Clear button is disabled whenever the field is unfocused, not
-    # only when ARCHIVED (confirmed live, ``scripts/recon_761_utm_split.py``),
-    # so a point-in-time read here would misclassify every ordinary
-    # campaign as archived and block ALL updates, not just landing-url
-    # ones.
-    if _is_landing_url_archived(page):
-        raise BrowserSessionError(
-            f"Campaign {campaign_id} is ARCHIVED — its edit page has no "
-            "save control at all while archived. Resume the campaign "
-            "first (e.g. via `masters resume`) before updating it."
-        )
 
     # Determined right here, before ANY mutation runs, via
     # _wait_for_draft_status rather than a single _is_draft_edit_page read
