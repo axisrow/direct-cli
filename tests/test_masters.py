@@ -2424,9 +2424,12 @@ class TestSuspendResumeMaster(unittest.TestCase):
         result = browser_masters.resume_master(page, 42)
 
         self.assertEqual(result, {"CampaignId": 42, "Status": "ACTIVE"})
+        # resume_master now navigates once itself (issue #758, to check for
+        # ARCHIVED) and _suspend_or_resume navigates again -- a harmless
+        # repeat visit to the same idempotent overview page, not a regression.
         self.assertEqual(
             page.navigated_to,
-            [browser_masters.WIZARD_OVERVIEW_URL.format(campaign_id=42)],
+            [browser_masters.WIZARD_OVERVIEW_URL.format(campaign_id=42)] * 2,
         )
 
     def test_suspend_clicks_candidate_button_and_verifies(self):
@@ -2562,6 +2565,138 @@ class TestSuspendResumeMaster(unittest.TestCase):
         with self.assertRaises(BrowserSessionError) as ctx:
             browser_masters.resume_master(page, 713231614)
         self.assertIn("DRAFT", str(ctx.exception))
+
+    def _archived_page_with_unarchive(self, next_status_text, resume_button_text=None):
+        """An ARCHIVED overview page whose "⋮" menu has only "Разархивировать".
+
+        Models issue #758's live-confirmed shape: no resume button exists on
+        an ARCHIVED page at all — clicking the unarchive menu item flips the
+        (mutable) status text to ``next_status_text`` (SUSPENDED in the
+        success path). ``resume_button_text``, if given, additionally wires
+        up a resume button that flips the status again once SUSPENDED is
+        reached — modeling the second, ordinary one-click leg of the resume.
+        """
+        state = {"status": "Кампания в\xa0архиве"}
+
+        def _unarchive():
+            state["status"] = next_status_text
+
+        text_buttons = {}
+        if resume_button_text is not None:
+
+            def _resume():
+                state["status"] = "Кампания активна"
+
+            text_buttons[resume_button_text] = _FakeGetByTextLocator(
+                [_FakeTextLocatorHandle(visible=True, on_click=_resume)]
+            )
+
+        page = FakePage(
+            locators={
+                browser_masters._MENU_TRIGGER_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                browser_masters._UNARCHIVE_MENU_ITEM_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle(on_click=_unarchive)]
+                ),
+            },
+            text_buttons=text_buttons,
+        )
+        page.inner_text = lambda selector=None: state["status"]
+        return page
+
+    def test_resume_from_archived_unarchives_then_resumes(self):
+        # issue #758: ARCHIVED has no resume button at all -- resume_master
+        # must click "Разархивировать" first, wait for SUSPENDED, THEN do
+        # the ordinary one-click resume to ACTIVE/MODERATION.
+        page = self._archived_page_with_unarchive(
+            "Кампания остановлена", resume_button_text="Возобновить кампанию"
+        )
+
+        result = browser_masters.resume_master(page, 713277109)
+
+        self.assertEqual(result, {"CampaignId": 713277109, "Status": "ACTIVE"})
+
+    def test_resume_from_archived_can_end_in_moderation(self):
+        # Yandex may send a resumed campaign to moderation instead of ACTIVE
+        # (live-confirmed 2026-08-05) -- this must still be reported as
+        # success, with the actual status returned, not normalised to ACTIVE.
+        state_holder = {}
+
+        def _resume_to_moderation():
+            state_holder["status"] = "Кампания на\xa0модерации"
+
+        page = FakePage(
+            locators={
+                browser_masters._MENU_TRIGGER_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                browser_masters._UNARCHIVE_MENU_ITEM_SELECTOR: _FakeLocator(
+                    [
+                        _FakeLocatorHandle(
+                            on_click=lambda: state_holder.__setitem__(
+                                "status", "Кампания остановлена"
+                            )
+                        )
+                    ]
+                ),
+            },
+            text_buttons={
+                "Возобновить кампанию": _FakeGetByTextLocator(
+                    [
+                        _FakeTextLocatorHandle(
+                            visible=True, on_click=_resume_to_moderation
+                        )
+                    ]
+                )
+            },
+        )
+        state_holder["status"] = "Кампания в\xa0архиве"
+        page.inner_text = lambda selector=None: state_holder["status"]
+
+        result = browser_masters.resume_master(page, 713277109)
+
+        self.assertEqual(result, {"CampaignId": 713277109, "Status": "MODERATION"})
+
+    def test_resume_direct_from_suspended_can_end_in_moderation(self):
+        # Same MODERATION-as-success behaviour on the ordinary (non-archived)
+        # one-click resume path, not just after an unarchive step.
+        page = self._page_with_button(
+            "Кампания остановлена",
+            "Возобновить кампанию",
+            next_status_text="Кампания на\xa0модерации",
+        )
+
+        result = browser_masters.resume_master(page, 42)
+
+        self.assertEqual(result, {"CampaignId": 42, "Status": "MODERATION"})
+
+    def test_resume_from_archived_raises_when_unarchive_menu_item_missing(self):
+        # Menu opens but has no unarchive item -- must fail loudly, not
+        # silently skip straight to (futile) resume-button clicking.
+        page = FakePage(
+            locators={
+                browser_masters._MENU_TRIGGER_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+            },
+            body_text="Кампания в\xa0архиве",
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.resume_master(page, 713277109)
+        self.assertIn("Разархивировать", str(ctx.exception))
+
+    def test_resume_from_archived_raises_when_status_never_becomes_suspended(self):
+        # The unarchive click "succeeds" but the status text never flips to
+        # SUSPENDED -- must not silently fall through to the resume-button
+        # search (which would then fail with a confusing, unrelated error).
+        page = self._archived_page_with_unarchive("Кампания в\xa0архиве")
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.resume_master(page, 713277109)
+        self.assertIn("Разархивировать", str(ctx.exception))
+        self.assertIn("did not change to any of ('SUSPENDED',)", str(ctx.exception))
 
 
 class TestMastersSuspendResumeCommand(unittest.TestCase):
@@ -2917,6 +3052,73 @@ class TestArchiveMaster(unittest.TestCase):
 
         self.assertIn("DRAFT", str(ctx.exception))
         self.assertEqual(page.navigated_to, [])
+
+    def _active_page_with_suspend_and_menu(self, suspend_button_text):
+        """An ACTIVE/MODERATION overview page: "Остановить кампанию" button
+        AND the "⋮" menu with an archive item — models issue #758's
+        confirmed shape where the menu has no archive item at all until the
+        campaign is SUSPENDED, so archive_master must suspend first."""
+        state = {"status": "Кампания активна"}
+
+        def _suspend():
+            state["status"] = "Кампания остановлена"
+
+        def _archive():
+            state["status"] = "ARCHIVED_VIA_MENU"
+
+        page = FakePage(
+            locators={
+                browser_masters._MENU_TRIGGER_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                browser_masters._ARCHIVE_MENU_ITEM_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle(on_click=_archive)]
+                ),
+            },
+            text_buttons={
+                suspend_button_text: _FakeGetByTextLocator(
+                    [_FakeTextLocatorHandle(visible=True, on_click=_suspend)]
+                )
+            },
+        )
+        page.inner_text = lambda selector=None: state["status"]
+        return page, state
+
+    def test_archives_from_active_suspends_first(self):
+        # issue #758: an ACTIVE campaign's menu has no "Архивировать" item at
+        # all -- archive_master must click "Остановить кампанию" first, wait
+        # for SUSPENDED, THEN open the menu and click "Архивировать".
+        page, state = self._active_page_with_suspend_and_menu("Остановить кампанию")
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            side_effect=lambda page, status="all": [
+                self._row(
+                    "ARCHIVED" if state["status"] == "ARCHIVED_VIA_MENU" else "ACTIVE"
+                )
+            ],
+        ):
+            result = browser_masters.archive_master(page, 42)
+
+        self.assertEqual(result, self._row("ARCHIVED"))
+
+    def test_archives_from_moderation_suspends_first(self):
+        page, state = self._active_page_with_suspend_and_menu("Остановить кампанию")
+        state["status"] = "Кампания на\xa0модерации"
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            side_effect=lambda page, status="all": [
+                self._row(
+                    "ARCHIVED"
+                    if state["status"] == "ARCHIVED_VIA_MENU"
+                    else "MODERATION"
+                )
+            ],
+        ):
+            result = browser_masters.archive_master(page, 42)
+
+        self.assertEqual(result, self._row("ARCHIVED"))
 
 
 class TestMastersArchiveCommand(unittest.TestCase):
@@ -6134,9 +6336,7 @@ class TestUpdateMaster(unittest.TestCase):
         # under the "Дополнительные параметры" spoiler) — independent of
         # --landing-url/LinkInput.
         utm_input_state = {"value": "utm_source=old&utm_medium=cpc"}
-        page, save_clicks = self._page_with_save_button(
-            utm_input_state=utm_input_state
-        )
+        page, save_clicks = self._page_with_save_button(utm_input_state=utm_input_state)
 
         result = browser_masters.update_master(
             page, 42, tracking_params="utm_source=yandex&utm_medium=cpc"
@@ -6157,9 +6357,7 @@ class TestUpdateMaster(unittest.TestCase):
 
     def test_clears_tracking_params_with_empty_string(self):
         utm_input_state = {"value": "utm_source=yandex"}
-        page, save_clicks = self._page_with_save_button(
-            utm_input_state=utm_input_state
-        )
+        page, save_clicks = self._page_with_save_button(utm_input_state=utm_input_state)
 
         result = browser_masters.update_master(page, 42, tracking_params="")
 
